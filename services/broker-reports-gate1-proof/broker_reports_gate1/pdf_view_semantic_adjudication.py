@@ -1061,7 +1061,7 @@ def validate_doc4_context_preflight(
     expected_candidate: dict[str, Any],
     expected_request_sha256_by_safe_id: dict[str, dict[str, tuple[str, ...]]],
 ) -> None:
-    if value.get("schema_version") != "broker_reports_doc4_context_preflight_private_v1":
+    if value.get("schema_version") != "broker_reports_doc4_context_preflight_private_v2":
         raise Doc4ContractError("terminal_preflight_version_invalid")
     if value.get("integrity_sha256") != integrity_sha256(value):
         raise Doc4ContractError("terminal_preflight_integrity_invalid")
@@ -1084,22 +1084,14 @@ def validate_doc4_context_preflight(
             raise Doc4ContractError("terminal_preflight_request_arms_invalid")
         for arm in ("PDF", "LLM_VIEW"):
             receipt = arms[arm]
-            components = (
-                "source_tokens",
-                "system_tokens",
-                "task_tokens",
-                "schema_tokens",
-                "request_envelope_tokens",
-            )
-            if any(
-                not isinstance(receipt.get(name), int)
-                or isinstance(receipt.get(name), bool)
-                or receipt[name] < 0
-                for name in (*components, "total_input_tokens")
+            if (
+                receipt.get("counting_mode")
+                != expected_candidate.get("token_counting_mode")
+                or not isinstance(receipt.get("total_input_tokens"), int)
+                or isinstance(receipt.get("total_input_tokens"), bool)
+                or receipt["total_input_tokens"] < 0
             ):
                 raise Doc4ContractError("terminal_preflight_token_counts_invalid")
-            if sum(receipt[name] for name in components) != receipt["total_input_tokens"]:
-                raise Doc4ContractError("terminal_preflight_token_partition_inexact")
             expected_budget = (
                 expected_candidate["reserved_max_output_tokens"],
                 expected_candidate["safety_margin_tokens"],
@@ -1128,9 +1120,10 @@ def validate_doc4_context_preflight(
             call_receipts = receipt.get("token_count_call_receipts")
             expected_hashes = expected_arm_hashes[arm]
             if (
-                receipt.get("token_count_calls_total") != 5
+                receipt.get("token_count_calls_total") != 1
                 or not isinstance(call_receipts, list)
-                or len(call_receipts) != 5
+                or len(call_receipts) != 1
+                or len(expected_hashes) != 1
                 or tuple(item.get("request_sha256") for item in call_receipts)
                 != expected_hashes
             ):
@@ -1141,21 +1134,7 @@ def validate_doc4_context_preflight(
                     expected_request_sha256=call["request_sha256"],
                     expected_model_id=None,
                 )
-            expected_counts = (
-                receipt["request_envelope_tokens"],
-                receipt["request_envelope_tokens"] + receipt["system_tokens"],
-                receipt["request_envelope_tokens"]
-                + receipt["system_tokens"]
-                + receipt["task_tokens"],
-                receipt["request_envelope_tokens"]
-                + receipt["system_tokens"]
-                + receipt["task_tokens"]
-                + receipt["source_tokens"],
-                receipt["total_input_tokens"],
-            )
-            for call, expected_count in zip(
-                call_receipts, expected_counts, strict=True
-            ):
+            for call in call_receipts:
                 raw_payload = call.get("raw_payload")
                 response_payload = _provider_payload_from_metadata(call)
                 if (
@@ -1164,13 +1143,14 @@ def validate_doc4_context_preflight(
                     != sha256_bytes(canonical_json_bytes(raw_payload))
                     or canonical_json_bytes(response_payload)
                     != canonical_json_bytes(raw_payload)
-                    or raw_payload.get("input_tokens") != expected_count
+                    or raw_payload.get("input_tokens")
+                    != receipt["total_input_tokens"]
                 ):
                     raise Doc4ContractError(
                         "terminal_preflight_token_count_payload_invalid"
                     )
-            calls_total += 5
-    if value.get("provider_calls_total") != calls_total or calls_total != 40:
+            calls_total += 1
+    if value.get("provider_calls_total") != calls_total or calls_total != 8:
         raise Doc4ContractError("terminal_preflight_provider_call_count_invalid")
 
 

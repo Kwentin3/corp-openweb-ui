@@ -23,7 +23,7 @@ FINAL_RESULT_SCHEMA_VERSION = "broker_reports_doc4_semantic_result_v1"
 EXPERIMENT_PROTOCOL_VERSION = "broker_reports_doc4_experiment_protocol_v1"
 EXPERIMENT_RUN_PLAN_SCHEMA_VERSION = "broker_reports_doc4_run_plan_v1"
 PROVIDER_AUTHORIZATION_SCHEMA_VERSION = (
-    "broker_reports_doc4_provider_transfer_authorization_v1"
+    "broker_reports_doc4_provider_transfer_authorization_v2"
 )
 
 CORPUS_IDS = ("real_pdf_1", "real_pdf_2", "real_pdf_4", "real_pdf_5")
@@ -322,7 +322,8 @@ def validate_provider_authorization(
         "authorized_source_sha256_by_safe_id",
         "authorized_run_plan_sha256",
         "authorized_request_set_sha256",
-        "store",
+        "store_parameter",
+        "provider_default_retention_acknowledged",
         "integrity_sha256",
     }
     if set(value) != required:
@@ -339,7 +340,8 @@ def validate_provider_authorization(
         value["authorized_by"] != "PROJECT_OPERATOR"
         or value["authorization_status"] != "APPROVED"
         or value["authorized_purpose"] != "DOC4 semantic equivalence experiment"
-        or value["store"] is not False
+        or value["store_parameter"] != "OMITTED"
+        or value["provider_default_retention_acknowledged"] is not True
     ):
         raise Doc4ContractError("provider_transfer_not_authorized")
     if value["authorized_documents"] != list(CORPUS_IDS):

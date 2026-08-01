@@ -54,6 +54,13 @@ PDF_DETAIL = "high"
 REASONING_EFFORT = "none"
 TEMPERATURE = 0
 TOP_P = 1
+FACTORY_REQUIRED = (
+    "PdfViewSemanticExperimentFactory.create is the only DOC4 runner entrypoint"
+)
+FORBIDDEN = (
+    "CLI and experiment control paths must not instantiate "
+    "PdfViewSemanticExperimentRunner directly"
+)
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 MANAGED_DOCUMENT_SCHEMA_PATH = (
     REPOSITORY_ROOT
@@ -96,18 +103,16 @@ class ModelCandidate:
     maximum_output_tokens: int = MODEL_MAX_OUTPUT_TOKENS
     reserved_max_output_tokens: int = RESERVED_MAX_OUTPUT_TOKENS
     safety_margin_tokens: int = SAFETY_MARGIN_TOKENS
-    temperature: int = TEMPERATURE
-    top_p: int = TOP_P
-    seed: None = None
-    reasoning_effort: str = REASONING_EFFORT
+    sampling_parameters: str = "omitted_provider_defaults"
+    reasoning_effort: str = "omitted_provider_default_none"
     structured_output_mode: str = "responses.text.format.json_schema.strict"
     pdf_input_mode: str = "responses.input_file.inline_base64.application_pdf.detail_high"
-    token_counting_mode: str = "responses.input_tokens.exact"
+    token_counting_mode: str = "responses.input_tokens.exact_full_request_once"
     tools_enabled: bool = False
     web_enabled: bool = False
     retrieval_enabled: bool = False
     grounding_enabled: bool = False
-    store: bool = False
+    response_storage_policy: str = "store_parameter_omitted_provider_default"
 
 
 @dataclass(frozen=True)
@@ -118,6 +123,15 @@ class CorpusSource:
     llm_view_path: Path
     doc2_coverage_receipt_path: Path
     doc3_render_receipt_path: Path
+
+
+class ProviderHttpError(Doc4ContractError):
+    """Safe exception text plus a private provider failure receipt."""
+
+    def __init__(self, *, http_status: int, private_receipt: dict[str, Any]) -> None:
+        super().__init__(f"provider_http_error:{http_status}")
+        self.http_status = http_status
+        self.private_receipt = copy.deepcopy(private_receipt)
 
 
 @dataclass(frozen=True)
@@ -221,16 +235,34 @@ class OpenAiDoc4Transport:
                 raise Doc4ContractError("provider_redirect_forbidden")
             if len(response.content) > MAX_PROVIDER_RESPONSE_BYTES:
                 raise Doc4ContractError("provider_response_bytes_exceeded")
+            if response.status_code in {429, 500, 502, 503, 504} and attempt < TRANSPORT_RETRIES_MAX:
+                continue
+            if not response.ok:
+                raise ProviderHttpError(
+                    http_status=response.status_code,
+                    private_receipt={
+                        "schema_version": "broker_reports_doc4_provider_http_failure_private_v1",
+                        "endpoint": suffix,
+                        "http_status": response.status_code,
+                        "attempts_total": attempt + 1,
+                        "transport_retries_total": attempt,
+                        "request_sha256": request_sha256,
+                        "response_sha256": sha256_bytes(response.content),
+                        "response_bytes": len(response.content),
+                        "response_body_base64": base64.b64encode(
+                            response.content
+                        ).decode("ascii"),
+                        "duration_seconds": round(duration, 3),
+                        "provider_calls_total": attempt + 1,
+                        "integrity_sha256": "",
+                    },
+                )
             try:
                 payload = response.json()
             except ValueError as exc:
                 raise Doc4ContractError("provider_response_not_json") from exc
             if not isinstance(payload, dict):
                 raise Doc4ContractError("provider_response_root_invalid")
-            if response.status_code in {429, 500, 502, 503, 504} and attempt < TRANSPORT_RETRIES_MAX:
-                continue
-            if not response.ok:
-                raise Doc4ContractError(f"provider_http_error:{response.status_code}")
             return payload, {
                 "http_status": response.status_code,
                 "attempts_total": attempt + 1,
@@ -245,6 +277,14 @@ class OpenAiDoc4Transport:
                 "duration_seconds": round(duration, 3),
             }
         raise Doc4ContractError("provider_transport_failed") from last_error
+
+
+class PdfViewSemanticExperimentFactory:
+    """Canonical inactive DOC4 runner construction boundary."""
+
+    @staticmethod
+    def create() -> "PdfViewSemanticExperimentRunner":
+        return PdfViewSemanticExperimentRunner()
 
 
 class PdfViewSemanticExperimentRunner:
@@ -326,36 +366,27 @@ class PdfViewSemanticExperimentRunner:
             source_wrapper=source_wrapper,
             response_schema=response_schema,
         )
-        counts: list[int] = []
-        calls: list[dict[str, Any]] = []
-        for body in stages:
-            count, metadata = transport.count_input_tokens(body)
-            expected_request_sha256 = sha256_bytes(
-                canonical_json_bytes(_token_count_body(body))
+        if len(stages) != 1:
+            raise Doc4ContractError("provider_token_count_stage_count_invalid")
+        body = stages[0]
+        full_total, metadata = transport.count_input_tokens(body)
+        expected_request_sha256 = sha256_bytes(
+            canonical_json_bytes(_token_count_body(body))
+        )
+        if metadata.get("request_sha256") != expected_request_sha256:
+            raise Doc4ContractError("provider_token_count_request_binding_invalid")
+        raw_payload = metadata.get("raw_payload")
+        if (
+            not isinstance(raw_payload, dict)
+            or metadata.get("raw_payload_sha256")
+            != sha256_bytes(canonical_json_bytes(raw_payload))
+            or raw_payload.get("input_tokens") != full_total
+        ):
+            raise Doc4ContractError(
+                "provider_token_count_response_binding_invalid"
             )
-            if metadata.get("request_sha256") != expected_request_sha256:
-                raise Doc4ContractError("provider_token_count_request_binding_invalid")
-            raw_payload = metadata.get("raw_payload")
-            if (
-                not isinstance(raw_payload, dict)
-                or metadata.get("raw_payload_sha256")
-                != sha256_bytes(canonical_json_bytes(raw_payload))
-                or raw_payload.get("input_tokens") != count
-            ):
-                raise Doc4ContractError(
-                    "provider_token_count_response_binding_invalid"
-                )
-            counts.append(count)
-            calls.append(metadata)
-        if counts != sorted(counts):
-            raise Doc4ContractError("provider_token_partition_not_monotonic")
-        base_tokens, system_total, task_total, source_total, full_total = counts
         result = {
-            "source_tokens": source_total - task_total,
-            "system_tokens": system_total - base_tokens,
-            "task_tokens": task_total - system_total,
-            "schema_tokens": full_total - source_total,
-            "request_envelope_tokens": base_tokens,
+            "counting_mode": self.candidate.token_counting_mode,
             "total_input_tokens": full_total,
             "reserved_output_tokens": self.candidate.reserved_max_output_tokens,
             "safety_margin_tokens": self.candidate.safety_margin_tokens,
@@ -372,11 +403,9 @@ class PdfViewSemanticExperimentRunner:
                 + self.candidate.safety_margin_tokens
                 <= self.candidate.context_window
             ) else "NOT_ELIGIBLE_CONTEXT_LIMIT",
-            "token_count_calls_total": len(calls),
-            "token_count_call_receipts": calls,
+            "token_count_calls_total": 1,
+            "token_count_call_receipts": [metadata],
         }
-        if sum(result[name] for name in ("source_tokens", "system_tokens", "task_tokens", "schema_tokens", "request_envelope_tokens")) != full_total:
-            raise Doc4ContractError("provider_token_partition_inexact")
         return result
 
     def execute_arm(
@@ -478,9 +507,6 @@ def build_arm_request(
         "model": candidate.request_model_id,
         "instructions": system_prompt.rstrip() + "\n",
         "input": [{"role": "user", "content": content}],
-        "reasoning": {"effort": candidate.reasoning_effort},
-        "temperature": candidate.temperature,
-        "top_p": candidate.top_p,
         "max_output_tokens": candidate.reserved_max_output_tokens,
         "text": {
             "format": {
@@ -490,8 +516,6 @@ def build_arm_request(
                 "schema": response_schema,
             }
         },
-        "tools": [],
-        "store": False,
     }
     _assert_request_isolation(request, source_mode=source_mode)
     return request
@@ -823,43 +847,6 @@ def _context_count_stages(
     source_wrapper: str,
     response_schema: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    base = {
-        "model": candidate.request_model_id,
-        "reasoning": {"effort": candidate.reasoning_effort},
-        "temperature": candidate.temperature,
-        "top_p": candidate.top_p,
-        "tools": [],
-        "store": False,
-    }
-    system = copy.deepcopy(base)
-    system["instructions"] = system_prompt.rstrip() + "\n"
-    task = copy.deepcopy(system)
-    task["input"] = [
-        {
-            "role": "user",
-            "content": [
-                {
-                    "type": "input_text",
-                    "text": source_wrapper.rstrip()
-                    + "\n\n"
-                    + task_prompt.rstrip()
-                    + "\n",
-                }
-            ],
-        }
-    ]
-    source_request = build_arm_request(
-        candidate=candidate,
-        source_mode=source_mode,
-        source=source,
-        filename=filename,
-        system_prompt=system_prompt,
-        task_prompt=task_prompt,
-        source_wrapper=source_wrapper,
-        response_schema=response_schema,
-    )
-    source_request.pop("text")
-    source_request.pop("max_output_tokens")
     full = build_arm_request(
         candidate=candidate,
         source_mode=source_mode,
@@ -871,11 +858,11 @@ def _context_count_stages(
         response_schema=response_schema,
     )
     full.pop("max_output_tokens")
-    return [base, system, task, source_request, full]
+    return [full]
 
 
 def _token_count_body(request_body: dict[str, Any]) -> dict[str, Any]:
-    allowed = {"model", "instructions", "input", "reasoning", "text", "tools"}
+    allowed = {"model", "instructions", "input", "text"}
     return {key: copy.deepcopy(value) for key, value in request_body.items() if key in allowed}
 
 
@@ -884,29 +871,37 @@ def _assert_outbound_provider_policy(
 ) -> None:
     if request.get("model") != REQUEST_MODEL_ID:
         raise Doc4ContractError("provider_outbound_model_not_authorized")
-    if request.get("tools") != []:
-        raise Doc4ContractError("provider_outbound_tools_or_storage_not_authorized")
-    if request.get("reasoning") != {"effort": REASONING_EFFORT}:
-        raise Doc4ContractError("provider_outbound_reasoning_not_authorized")
     if suffix == "/responses/input_tokens":
-        forbidden = {"temperature", "top_p", "store", "max_output_tokens"}
-        if forbidden.intersection(request):
+        if set(request) != {"model", "instructions", "input", "text"}:
             raise Doc4ContractError("provider_token_count_shape_invalid")
         return
     if suffix != "/responses":
         raise Doc4ContractError("provider_endpoint_not_authorized")
-    if request.get("store") is not False:
-        raise Doc4ContractError("provider_outbound_tools_or_storage_not_authorized")
-    if request.get("temperature") != TEMPERATURE or request.get("top_p") != TOP_P:
-        raise Doc4ContractError("provider_outbound_sampling_not_authorized")
+    if set(request) != {
+        "model",
+        "instructions",
+        "input",
+        "max_output_tokens",
+        "text",
+    }:
+        raise Doc4ContractError("provider_response_request_shape_invalid")
 
 
 def _assert_request_isolation(request: dict[str, Any], *, source_mode: str) -> None:
-    forbidden = {"previous_response_id", "conversation", "include", "prompt", "background"}
+    forbidden = {
+        "previous_response_id",
+        "conversation",
+        "include",
+        "prompt",
+        "background",
+        "tools",
+        "store",
+        "temperature",
+        "top_p",
+        "reasoning",
+    }
     if forbidden.intersection(request):
         raise Doc4ContractError("arm_state_or_external_context_present")
-    if request.get("tools") != [] or request.get("store") is not False:
-        raise Doc4ContractError("arm_tools_or_storage_enabled")
     content = request["input"][0]["content"]
     types = [item["type"] for item in content]
     if source_mode == "PDF" and types.count("input_file") != 1:

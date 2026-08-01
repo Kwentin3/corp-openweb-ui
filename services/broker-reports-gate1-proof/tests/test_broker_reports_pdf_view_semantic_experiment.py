@@ -37,9 +37,13 @@ from broker_reports_gate1.pdf_view_semantic_experiment import (
     MODEL_CONTEXT_WINDOW,
     REQUEST_MODEL_ID,
     SAFETY_MARGIN_TOKENS,
+    FACTORY_REQUIRED,
+    FORBIDDEN,
     ModelCandidate,
     OpenAiDoc4Transport,
     ProviderConnection,
+    ProviderHttpError,
+    PdfViewSemanticExperimentFactory,
     PdfViewSemanticExperimentRunner,
     _token_count_body,
     build_arm_request,
@@ -267,8 +271,20 @@ def test_08_pdf_and_view_requests_are_source_isolated(response_schema: dict[str,
     assert [item["type"] for item in pdf["input"][0]["content"]].count("input_file") == 1
     assert all(item["type"] != "input_file" for item in view["input"][0]["content"])
     for request in (pdf, view):
-        assert request["tools"] == []
-        assert request["store"] is False
+        assert set(request) == {
+            "model",
+            "instructions",
+            "input",
+            "max_output_tokens",
+            "text",
+        }
+        assert not {
+            "tools",
+            "store",
+            "temperature",
+            "top_p",
+            "reasoning",
+        }.intersection(request)
         assert "previous_response_id" not in request
         assert "gold" not in json.dumps(request).lower()
     assert view_text not in json.dumps(pdf)
@@ -279,7 +295,10 @@ def test_09_candidate_and_run_order_are_exact_and_frozen() -> None:
     assert candidate.request_model_id == REQUEST_MODEL_ID
     assert candidate.context_window == MODEL_CONTEXT_WINDOW
     assert candidate.safety_margin_tokens == SAFETY_MARGIN_TOKENS
-    assert candidate.temperature == 0
+    assert candidate.sampling_parameters == "omitted_provider_defaults"
+    assert candidate.response_storage_policy == (
+        "store_parameter_omitted_provider_default"
+    )
     assert candidate.tools_enabled is False
     with pytest.raises(FrozenInstanceError):
         candidate.request_model_id = "changed"  # type: ignore[misc]
@@ -287,10 +306,9 @@ def test_09_candidate_and_run_order_are_exact_and_frozen() -> None:
     assert [RUN_ORDER[item][0] for item in CORPUS_IDS] == ["PDF", "LLM_VIEW", "PDF", "LLM_VIEW"]
 
 
-def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[str, Any]) -> None:
+def test_10_context_preflight_uses_one_exact_full_request_count(response_schema: dict[str, Any]) -> None:
     class FakeTransport:
         def __init__(self) -> None:
-            self.counts = iter((10, 20, 40, 100, 140))
             self.requests: list[dict[str, Any]] = []
 
         def count_input_tokens(self, request: dict[str, Any]) -> tuple[int, dict[str, Any]]:
@@ -298,7 +316,7 @@ def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[s
             request_sha256 = sha256_bytes(
                 canonical_json_bytes(_token_count_body(request))
             )
-            count = next(self.counts)
+            count = 140
             raw_payload = {"input_tokens": count}
             return count, _provider_call_metadata(
                 request_sha256,
@@ -317,19 +335,24 @@ def test_10_context_preflight_uses_exact_marginal_counts(response_schema: dict[s
         source_wrapper="wrapper",
         response_schema=response_schema,
     )
-    assert result["request_envelope_tokens"] == 10
-    assert result["system_tokens"] == 10
-    assert result["task_tokens"] == 20
-    assert result["source_tokens"] == 60
-    assert result["schema_tokens"] == 40
+    assert result["counting_mode"] == (
+        "responses.input_tokens.exact_full_request_once"
+    )
     assert result["total_input_tokens"] == 140
     assert result["eligible"] is True
-    assert "instructions" not in transport.requests[0]
-    assert "input" not in transport.requests[0]
-    assert transport.requests[1]["instructions"] == "system\n"
-    assert "input" not in transport.requests[1]
-    assert transport.requests[2]["input"][0]["content"][0]["text"] == (
-        "wrapper\n\ntask\n"
+    assert len(transport.requests) == 1
+    assert set(_token_count_body(transport.requests[0])) == {
+        "model",
+        "instructions",
+        "input",
+        "text",
+    }
+    assert transport.requests[0]["instructions"] == "system\n"
+    assert transport.requests[0]["input"][0]["content"][0]["text"] == (
+        "wrapper\n\ntask\n\n"
+        "BROKER_REPORTS_LLM_DOCUMENT_VIEW_V1\n"
+        "DOCUMENT_END\n"
+        "END_BROKER_REPORTS_LLM_DOCUMENT_VIEW_V1\n"
     )
 
 
@@ -341,7 +364,7 @@ def test_11_authorization_gate_requires_exact_operator_scope() -> None:
     with pytest.raises(Doc4ContractError, match="document_scope_invalid"):
         _validate_authorization(authorization)
     authorization = _authorization()
-    authorization["store"] = True
+    authorization["provider_default_retention_acknowledged"] = False
     authorization["integrity_sha256"] = integrity_sha256(authorization)
     with pytest.raises(Doc4ContractError, match="not_authorized"):
         _validate_authorization(authorization)
@@ -509,11 +532,20 @@ def test_19_harness_has_one_owner_each_and_no_product_entrypoint() -> None:
     experiment = (SERVICE_ROOT / "broker_reports_gate1" / "pdf_view_semantic_experiment.py").read_text(encoding="utf-8")
     contracts = (SERVICE_ROOT / "broker_reports_gate1" / "pdf_view_semantic_contracts.py").read_text(encoding="utf-8")
     adjudication = (SERVICE_ROOT / "broker_reports_gate1" / "pdf_view_semantic_adjudication.py").read_text(encoding="utf-8")
+    script = (SERVICE_ROOT / "scripts" / "run_pdf_view_semantic_experiment.py").read_text(encoding="utf-8")
     assert experiment.count("class PdfViewSemanticExperimentRunner") == 1
     assert contracts.count("def validate_semantic_response") == 1
     assert adjudication.count("class PdfViewSemanticComparator") == 1
     assert adjudication.count("class PdfViewSemanticAdjudicationFactory") == 1
     assert adjudication.count("class PdfViewSemanticResultFactory") == 1
+    assert "PdfViewSemanticExperimentFactory.create()" in script
+    assert "PdfViewSemanticExperimentRunner()" not in script
+    assert "PdfViewSemanticExperimentFactory.create" in FACTORY_REQUIRED
+    assert "must not instantiate" in FORBIDDEN
+    assert isinstance(
+        PdfViewSemanticExperimentFactory.create(),
+        PdfViewSemanticExperimentRunner,
+    )
     architecture = REPOSITORY_ROOT / "docs" / "stage2" / "architecture" / "BROKER_REPORTS_DOC4_EXPERIMENT_ARCHITECTURE.v1.md"
     assert architecture.is_file()
     architecture_text = architecture.read_text(encoding="utf-8")
@@ -585,11 +617,8 @@ def test_23_transport_creates_one_http_session_per_request(monkeypatch: pytest.M
         {
             "model": REQUEST_MODEL_ID,
             "input": value,
-            "reasoning": {"effort": "none"},
-            "temperature": 0,
-            "top_p": 1,
-            "tools": [],
-            "store": False,
+            "instructions": "system",
+            "text": {"format": {"type": "json_schema"}},
         }
         for value in ("one", "two")
     ]
@@ -614,7 +643,7 @@ def test_23_transport_creates_one_http_session_per_request(monkeypatch: pytest.M
     assert sessions[0] is not sessions[1]
     assert sent_bodies == token_count_bodies
     assert all(
-        not {"temperature", "top_p", "store", "max_output_tokens"}.intersection(item)
+        set(item) == {"model", "input", "instructions", "text"}
         for item in sent_bodies
     )
     unauthorized = copy.deepcopy(bodies[0])
@@ -624,6 +653,69 @@ def test_23_transport_creates_one_http_session_per_request(monkeypatch: pytest.M
     with pytest.raises(Doc4ContractError, match="request_not_authorized"):
         transport.submit(bodies[0])
     assert len(sessions) == 2
+
+
+def test_23b_transport_preserves_http_error_body_only_in_private_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response_body = b"provider diagnostic in a non-json response"
+
+    class FakeResponse:
+        status_code = 400
+        is_redirect = False
+        ok = False
+        content = response_body
+
+        def json(self) -> dict[str, Any]:
+            raise ValueError("not json")
+
+    class FakeSession:
+        trust_env = True
+
+        def __enter__(self) -> "FakeSession":
+            return self
+
+        def __exit__(self, *_: Any) -> None:
+            return None
+
+        def post(self, *_: Any, **__: Any) -> FakeResponse:
+            assert self.trust_env is False
+            return FakeResponse()
+
+    monkeypatch.setattr(
+        "broker_reports_gate1.pdf_view_semantic_experiment.requests.Session",
+        FakeSession,
+    )
+    body = {
+        "model": REQUEST_MODEL_ID,
+        "instructions": "system",
+        "input": "input",
+        "text": {"format": {"type": "json_schema"}},
+    }
+    request_key = "/responses/input_tokens:" + sha256_bytes(
+        canonical_json_bytes(body)
+    )
+    request_set_sha256 = sha256_bytes(canonical_json_bytes([request_key]))
+    transport = OpenAiDoc4Transport(
+        ProviderConnection(
+            base_url="https://api.openai.com/v1",
+            api_key="safe-test-key",
+        ),
+        authorization=_authorization(request_set_sha256=request_set_sha256),
+        expected_source_sha256_by_safe_id=_source_hashes(),
+        expected_run_plan_sha256="c" * 64,
+        authorized_request_keys=frozenset({request_key}),
+    )
+
+    with pytest.raises(ProviderHttpError, match="provider_http_error:400") as caught:
+        transport.count_input_tokens(body)
+
+    receipt = caught.value.private_receipt
+    assert receipt["http_status"] == 400
+    assert receipt["provider_calls_total"] == 1
+    assert receipt["transport_retries_total"] == 0
+    assert base64.b64decode(receipt["response_body_base64"]) == response_body
+    assert "safe-test-key" not in json.dumps(receipt)
 
 
 def test_24_security_pair_is_deterministic_complete_and_contains_literal_injections() -> None:
@@ -945,39 +1037,29 @@ def _eligible_preflight(
     for safe_id in CORPUS_IDS:
         documents[safe_id] = {}
         for arm in ("PDF", "LLM_VIEW"):
-            cumulative_counts = (10, 20, 40, 100, 140)
             documents[safe_id][arm] = {
-                "source_tokens": 60,
-                "system_tokens": 10,
-                "task_tokens": 20,
-                "schema_tokens": 40,
-                "request_envelope_tokens": 10,
+                "counting_mode": ModelCandidate().token_counting_mode,
                 "total_input_tokens": 140,
                 "reserved_output_tokens": ModelCandidate().reserved_max_output_tokens,
                 "safety_margin_tokens": ModelCandidate().safety_margin_tokens,
                 "context_window": ModelCandidate().context_window,
                 "eligible": True,
                 "reason": "FIT",
-                "token_count_calls_total": 5,
+                "token_count_calls_total": 1,
                 "token_count_call_receipts": [
                     _provider_call_metadata(
-                        digest,
-                        raw_payload={"input_tokens": count},
+                        request_hashes[safe_id][arm][0],
+                        raw_payload={"input_tokens": 140},
                         include_raw_payload=True,
-                    )
-                    for digest, count in zip(
-                        request_hashes[safe_id][arm],
-                        cumulative_counts,
-                        strict=True,
                     )
                 ],
             }
     value = {
-        "schema_version": "broker_reports_doc4_context_preflight_private_v1",
+        "schema_version": "broker_reports_doc4_context_preflight_private_v2",
         "request_model_id": REQUEST_MODEL_ID,
         "run_plan_sha256": run_plan_sha256,
         "documents": documents,
-        "provider_calls_total": 40,
+        "provider_calls_total": 8,
         "integrity_sha256": "",
     }
     value["integrity_sha256"] = integrity_sha256(value)
@@ -1044,7 +1126,7 @@ def _terminal_fixture() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
             expected_request_hashes[safe_id][arm] = request_sha256
             expected_preflight_hashes[safe_id][arm] = tuple(
                 sha256_bytes(f"{safe_id}:{arm}:{index}".encode("utf-8"))
-                for index in range(5)
+                for index in range(1)
             )
             validated_receipts[safe_id][arm] = _hash_payload(
                 "broker_reports_doc4_validated_response_receipt_v1",
@@ -1158,7 +1240,7 @@ def _hash_payload(schema_version: str, **fields: Any) -> dict[str, Any]:
 
 
 def _authorization(*, request_set_sha256: str = "d" * 64) -> dict[str, Any]:
-    value = {"schema_version": "broker_reports_doc4_provider_transfer_authorization_v1", "authorized_by": "PROJECT_OPERATOR", "authorization_status": "APPROVED", "authorized_documents": list(CORPUS_IDS), "authorized_provider": "OpenAI API", "authorized_model": REQUEST_MODEL_ID, "authorized_purpose": "DOC4 semantic equivalence experiment", "authorized_source_sha256_by_safe_id": _source_hashes(), "authorized_run_plan_sha256": "c" * 64, "authorized_request_set_sha256": request_set_sha256, "store": False, "integrity_sha256": ""}
+    value = {"schema_version": "broker_reports_doc4_provider_transfer_authorization_v2", "authorized_by": "PROJECT_OPERATOR", "authorization_status": "APPROVED", "authorized_documents": list(CORPUS_IDS), "authorized_provider": "OpenAI API", "authorized_model": REQUEST_MODEL_ID, "authorized_purpose": "DOC4 semantic equivalence experiment", "authorized_source_sha256_by_safe_id": _source_hashes(), "authorized_run_plan_sha256": "c" * 64, "authorized_request_set_sha256": request_set_sha256, "store_parameter": "OMITTED", "provider_default_retention_acknowledged": True, "integrity_sha256": ""}
     value["integrity_sha256"] = integrity_sha256(value)
     return value
 

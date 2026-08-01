@@ -41,7 +41,9 @@ from broker_reports_gate1.pdf_view_semantic_experiment import (
     CorpusSource,
     ModelCandidate,
     OpenAiDoc4Transport,
+    PdfViewSemanticExperimentFactory,
     PdfViewSemanticExperimentRunner,
+    ProviderHttpError,
     authorized_request_keys,
     build_arm_request,
     connection_from_env_file,
@@ -107,6 +109,22 @@ def main() -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     try:
         return _run(args)
+    except ProviderHttpError as exc:
+        failure = copy.deepcopy(exc.private_receipt)
+        failure["integrity_sha256"] = integrity_sha256(failure)
+        receipt_path = args.output_dir / "provider_http_failure.private.json"
+        digest = write_immutable_json(receipt_path, failure)
+        _print_safe(
+            {
+                "status": "BLOCKED",
+                "reason": str(exc),
+                "http_status": exc.http_status,
+                "provider_calls_total": failure["provider_calls_total"],
+                "provider_response_body_preserved_private": True,
+                "failure_receipt_sha256": digest,
+            }
+        )
+        return 3
     except Doc4ContractError as exc:
         _print_safe(
             {
@@ -121,7 +139,7 @@ def main() -> int:
 
 def _run(args: argparse.Namespace) -> int:
     response_schema = read_json(_required_file(args.response_schema, "--response-schema"))
-    runner = PdfViewSemanticExperimentRunner()
+    runner = PdfViewSemanticExperimentFactory.create()
     if args.mode == "freeze-plan":
         sources = _sources(_required_file(args.source_manifest, "--source-manifest"))
         gold_hashes = _gold_hashes(args.gold_dir) if args.gold_dir else None
@@ -514,7 +532,7 @@ def _run(args: argparse.Namespace) -> int:
             }
             calls_total += receipts[source.safe_id]["PDF"]["token_count_calls_total"] + receipts[source.safe_id]["LLM_VIEW"]["token_count_calls_total"]
         value = {
-            "schema_version": "broker_reports_doc4_context_preflight_private_v1",
+            "schema_version": "broker_reports_doc4_context_preflight_private_v2",
             "request_model_id": REQUEST_MODEL_ID,
             "run_plan_sha256": sha256_bytes(canonical_json_bytes(plan)),
             "documents": receipts,
@@ -675,7 +693,7 @@ def _stability_conflicts_for_safe_id(path: Path | None, *, safe_id: str) -> int:
 
 
 def _verify_plan_source_bindings(plan: dict[str, Any], sources: list[CorpusSource]) -> None:
-    rebuilt = PdfViewSemanticExperimentRunner().freeze_plan(sources=sources, system_prompt=b"placeholder", task_prompt=b"placeholder", pdf_wrapper=PDF_WRAPPER, view_wrapper=VIEW_WRAPPER, response_schema={}, base_commit=plan["base_commit"], implementation_commit=plan["implementation_commit"])["sources"]
+    rebuilt = PdfViewSemanticExperimentFactory.create().freeze_plan(sources=sources, system_prompt=b"placeholder", task_prompt=b"placeholder", pdf_wrapper=PDF_WRAPPER, view_wrapper=VIEW_WRAPPER, response_schema={}, base_commit=plan["base_commit"], implementation_commit=plan["implementation_commit"])["sources"]
     if rebuilt != plan.get("sources"):
         raise Doc4ContractError("run_plan_source_binding_mismatch")
 
