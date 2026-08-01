@@ -10,6 +10,8 @@ This contract is the identical semantic output boundary for the native-PDF and c
 
 The root contains exactly `schema_version`, `source_mode`, `document_passport`, `document_structure`, `tables`, `financial_facts`, `uncertainties`, and `source_quality`. All objects are closed. The passport contains all nine fields in contract order. UNKNOWN and NOT_APPLICABLE are explicit and never represented by omission.
 
+Every `enum` and `const` node declares its JSON type explicitly. This preserves the same accepted values while keeping the contract compatible with the provider's strict Structured Outputs schema validation.
+
 PRESENT requires a source literal or normalized value and at least one valid pointer. Critical PRESENT/CONFLICTING values without evidence fail closed. PDF pointers require a 1-based page and an exact excerpt of at most 160 characters. LLM_VIEW pointers require a block ID and an anchor used by that block; every financial fact requires table coordinates that resolve to the exact existing cell containing its source literal. Pointer modes cannot be mixed.
 
 Numeric and date normalization is literal-bound. No calculation, rounding, sign inference, currency conversion, row merging, outside classification, chain-of-thought, free-form report, tool result, web fact, or loss-ledger-derived financial fact is allowed.

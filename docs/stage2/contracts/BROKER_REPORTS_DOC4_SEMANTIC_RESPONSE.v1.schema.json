@@ -5,8 +5,8 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "schema_version": {"const": "broker_reports_doc4_semantic_response_v1"},
-    "source_mode": {"enum": ["PDF", "LLM_VIEW"]},
+    "schema_version": {"type": "string", "const": "broker_reports_doc4_semantic_response_v1"},
+    "source_mode": {"type": "string", "enum": ["PDF", "LLM_VIEW"]},
     "document_passport": {
       "type": "array",
       "minItems": 9,
@@ -45,13 +45,14 @@
     "nullable_string": {"type": ["string", "null"]},
     "nullable_integer": {"type": ["integer", "null"]},
     "status": {
+      "type": "string",
       "enum": ["PRESENT", "UNKNOWN", "NOT_APPLICABLE", "CONFLICTING"]
     },
     "pointer": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "source_mode": {"enum": ["PDF", "LLM_VIEW"]},
+        "source_mode": {"type": "string", "enum": ["PDF", "LLM_VIEW"]},
         "page": {"$ref": "#/$defs/nullable_integer"},
         "visible_label": {"$ref": "#/$defs/nullable_string"},
         "evidence_text": {"$ref": "#/$defs/nullable_string"},
@@ -88,6 +89,7 @@
       "additionalProperties": false,
       "properties": {
         "field_id": {
+          "type": "string",
           "enum": [
             "document_type",
             "title",
@@ -114,6 +116,7 @@
         "element_id": {"type": "string"},
         "ordinal": {"type": "integer", "minimum": 0},
         "type": {
+          "type": "string",
           "enum": ["SECTION", "HEADING", "TABLE", "TABLE_ROW", "NOTE", "FOOTNOTE", "VISUAL", "UNKNOWN"]
         },
         "title_or_label": {"$ref": "#/$defs/nullable_string"},
@@ -147,6 +150,7 @@
         "fact_id": {"type": "string"},
         "critical": {"type": "boolean"},
         "fact_kind": {
+          "type": "string",
           "enum": [
             "OPERATION_DATE",
             "OPERATION_NAME",
@@ -174,7 +178,7 @@
         "normalized_date": {"$ref": "#/$defs/nullable_string"},
         "currency": {"$ref": "#/$defs/nullable_string"},
         "unit": {"$ref": "#/$defs/nullable_string"},
-        "sign": {"enum": ["POSITIVE", "NEGATIVE", "ZERO", "UNSPECIFIED", null]},
+        "sign": {"type": ["string", "null"], "enum": ["POSITIVE", "NEGATIVE", "ZERO", "UNSPECIFIED", null]},
         "evidence": {"$ref": "#/$defs/evidence"}
       },
       "required": [
@@ -199,7 +203,7 @@
       "additionalProperties": false,
       "properties": {
         "uncertainty_id": {"type": "string"},
-        "category": {"enum": ["UNREADABLE", "AMBIGUOUS", "MISSING", "CONFLICTING", "SOURCE_LIMITATION"]},
+        "category": {"type": "string", "enum": ["UNREADABLE", "AMBIGUOUS", "MISSING", "CONFLICTING", "SOURCE_LIMITATION"]},
         "critical": {"type": "boolean"},
         "description": {"type": "string"},
         "evidence": {"$ref": "#/$defs/evidence"}
@@ -210,7 +214,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "status": {"enum": ["CLEAR", "PARTIAL", "UNREADABLE", "CONFLICTING"]},
+        "status": {"type": "string", "enum": ["CLEAR", "PARTIAL", "UNREADABLE", "CONFLICTING"]},
         "summary": {"type": "string"},
         "limitations": {"type": "array", "items": {"type": "string"}},
         "evidence": {"$ref": "#/$defs/evidence"}
