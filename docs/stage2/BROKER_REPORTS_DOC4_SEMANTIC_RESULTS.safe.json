@@ -3,20 +3,24 @@
   "effective_date": "2026-08-01",
   "request_model_id": "gpt-5.4-2026-03-05",
   "documents": [
-    {"safe_id": "real_pdf_1", "eligibility": "NOT_EVALUATED_PROVIDER_FAILURE", "pdf_arm_status": "NOT_RUN", "view_arm_status": "NOT_RUN", "gold_critical_facts_total": 27, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "pdf_noncritical_precision": null, "pdf_noncritical_recall": null, "view_noncritical_precision": null, "view_noncritical_recall": null, "critical_cross_arm_match_rate": null, "noncritical_cross_arm_match_rate": null, "artifact_gap_count": null, "unsupported_fact_count": null, "invalid_pointer_count": null, "adjudicated_outcome": "NOT_EVALUATED"},
-    {"safe_id": "real_pdf_2", "eligibility": "NOT_EVALUATED_PROVIDER_FAILURE", "pdf_arm_status": "NOT_RUN", "view_arm_status": "NOT_RUN", "gold_critical_facts_total": 18, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "pdf_noncritical_precision": null, "pdf_noncritical_recall": null, "view_noncritical_precision": null, "view_noncritical_recall": null, "critical_cross_arm_match_rate": null, "noncritical_cross_arm_match_rate": null, "artifact_gap_count": null, "unsupported_fact_count": null, "invalid_pointer_count": null, "adjudicated_outcome": "NOT_EVALUATED"},
-    {"safe_id": "real_pdf_4", "eligibility": "NOT_EVALUATED_PROVIDER_FAILURE", "pdf_arm_status": "NOT_RUN", "view_arm_status": "NOT_RUN", "gold_critical_facts_total": 229, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "pdf_noncritical_precision": null, "pdf_noncritical_recall": null, "view_noncritical_precision": null, "view_noncritical_recall": null, "critical_cross_arm_match_rate": null, "noncritical_cross_arm_match_rate": null, "artifact_gap_count": null, "unsupported_fact_count": null, "invalid_pointer_count": null, "adjudicated_outcome": "NOT_EVALUATED"},
-    {"safe_id": "real_pdf_5", "eligibility": "NOT_EVALUATED_PROVIDER_FAILURE", "pdf_arm_status": "NOT_RUN", "view_arm_status": "NOT_RUN", "gold_critical_facts_total": 47, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "pdf_noncritical_precision": null, "pdf_noncritical_recall": null, "view_noncritical_precision": null, "view_noncritical_recall": null, "critical_cross_arm_match_rate": null, "noncritical_cross_arm_match_rate": null, "artifact_gap_count": null, "unsupported_fact_count": null, "invalid_pointer_count": null, "adjudicated_outcome": "NOT_EVALUATED"}
+    {"safe_id": "real_pdf_1", "eligibility": "FIT", "pdf_arm_status": "FAILED_SEMANTIC_VALIDATION_AFTER_EXACT_RETRY", "view_arm_status": "NOT_RUN_FAIL_CLOSED", "gold_critical_facts_total": 27, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "critical_cross_arm_match_rate": null, "artifact_gap_count": null, "invalid_pointer_count": null, "adjudicated_outcome": "NOT_EVALUATED"},
+    {"safe_id": "real_pdf_2", "eligibility": "FIT", "pdf_arm_status": "NOT_RUN_FAIL_CLOSED", "view_arm_status": "NOT_RUN_FAIL_CLOSED", "gold_critical_facts_total": 18, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "critical_cross_arm_match_rate": null, "artifact_gap_count": null, "invalid_pointer_count": null, "adjudicated_outcome": "NOT_EVALUATED"},
+    {"safe_id": "real_pdf_4", "eligibility": "FIT", "pdf_arm_status": "NOT_RUN_FAIL_CLOSED", "view_arm_status": "NOT_RUN_FAIL_CLOSED", "gold_critical_facts_total": 229, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "critical_cross_arm_match_rate": null, "artifact_gap_count": null, "invalid_pointer_count": null, "adjudicated_outcome": "NOT_EVALUATED"},
+    {"safe_id": "real_pdf_5", "eligibility": "FIT", "pdf_arm_status": "NOT_RUN_FAIL_CLOSED", "view_arm_status": "NOT_RUN_FAIL_CLOSED", "gold_critical_facts_total": 47, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "critical_cross_arm_match_rate": null, "artifact_gap_count": null, "invalid_pointer_count": null, "adjudicated_outcome": "NOT_EVALUATED"}
   ],
   "gold_checklists_total": 4,
   "gold_items_total": 461,
   "gold_critical_facts_total": 321,
+  "eligible_documents_total": 4,
+  "completed_primary_arms_total": 0,
   "completed_paired_documents_total": 0,
-  "model_task_adequacy": "NOT_EVALUATED",
-  "pdf_to_llm_view_semantic_equivalence": "INCONCLUSIVE_PROVIDER_FAILURE",
+  "failed_arm_returned_responses_total": 2,
+  "failed_arm_exact_schema_retries_total": 1,
+  "primary_provider_calls_total_status": "NOT_RECONCILED_HISTORICAL_INSTRUMENTATION_GAP",
+  "model_task_adequacy": "FAILED_STRUCTURED_RESPONSE_CONTRACT",
+  "pdf_to_llm_view_semantic_equivalence": "INCONCLUSIVE_MODEL_OUTPUT_FAILURE",
   "provider_transfer_authorized": true,
-  "provider_calls_total": 3,
-  "provider_usage_status": "NOT_REPORTED",
+  "provider_usage_status": "NOT_RECONCILED_AFTER_FAILURE",
   "provider_cost_status": "NOT_REPORTED",
-  "experiment_execution_status": "BLOCKED"
+  "experiment_execution_status": "BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE"
 }

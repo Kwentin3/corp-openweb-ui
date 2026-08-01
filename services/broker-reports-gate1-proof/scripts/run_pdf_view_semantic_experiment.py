@@ -41,6 +41,7 @@ from broker_reports_gate1.pdf_view_semantic_experiment import (
     CorpusSource,
     ModelCandidate,
     OpenAiDoc4Transport,
+    InvalidStructuredResponseError,
     PdfViewSemanticExperimentFactory,
     PdfViewSemanticExperimentRunner,
     ProviderHttpError,
@@ -109,6 +110,26 @@ def main() -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     try:
         return _run(args)
+    except InvalidStructuredResponseError as exc:
+        failure = copy.deepcopy(exc.private_receipt)
+        failure["integrity_sha256"] = integrity_sha256(failure)
+        receipt_path = (
+            args.output_dir / "invalid_structured_response_failure.private.json"
+        )
+        digest = write_immutable_json(receipt_path, failure)
+        _print_safe(
+            {
+                "status": "BLOCKED",
+                "reason": str(exc),
+                "failed_safe_id": failure.get("safe_id"),
+                "failed_source_mode": failure["source_mode"],
+                "run_phase": failure.get("run_phase"),
+                "provider_calls_total": failure["provider_calls_total"],
+                "provider_response_payloads_preserved_private": True,
+                "failure_receipt_sha256": digest,
+            }
+        )
+        return 3
     except ProviderHttpError as exc:
         failure = copy.deepcopy(exc.private_receipt)
         failure["integrity_sha256"] = integrity_sha256(failure)
@@ -593,7 +614,17 @@ def _run(args: argparse.Namespace) -> int:
             for arm in next(item["arms"] for item in plan["run_order"] if item["safe_id"] == source.safe_id):
                 arm_dir = case_dir / ("pdf_arm" if arm == "PDF" else "view_arm")
                 arm_source, wrapper, pages, registry = arm_inputs[arm]
-                response, trace = runner.execute_arm(transport=transport, source_mode=arm, source=arm_source, filename=f"{source.safe_id}.pdf" if arm == "PDF" else f"{source.safe_id}.txt", system_prompt=system_prompt, task_prompt=task_prompt, source_wrapper=wrapper, response_schema=response_schema, pdf_pages_total=pages, view_registry=registry)
+                try:
+                    response, trace = runner.execute_arm(transport=transport, source_mode=arm, source=arm_source, filename=f"{source.safe_id}.pdf" if arm == "PDF" else f"{source.safe_id}.txt", system_prompt=system_prompt, task_prompt=task_prompt, source_wrapper=wrapper, response_schema=response_schema, pdf_pages_total=pages, view_registry=registry)
+                except InvalidStructuredResponseError as exc:
+                    raise _with_run_failure_context(
+                        exc,
+                        safe_id=source.safe_id,
+                        run_phase="PRIMARY",
+                        provider_calls_before_failed_arm_total=calls_total,
+                        completed_primary_arms_total=len(primary_responses),
+                        completed_stability_arms_total=0,
+                    ) from exc
                 primary_responses[(source.safe_id, arm)] = response
                 traces_by_safe_id[source.safe_id].append(trace)
                 write_immutable_json(arm_dir / ("pdf_arm_request.private.json" if arm == "PDF" else "view_arm_request.private.json"), trace["request"])
@@ -611,7 +642,17 @@ def _run(args: argparse.Namespace) -> int:
                 ("LLM_VIEW", view_text, VIEW_WRAPPER, None, view_pointer_registry(view_text)),
             ):
                 replica_dir = args.output_dir / safe_id / "stability_replica_2" / ("pdf_arm" if arm == "PDF" else "view_arm")
-                replica, trace = runner.execute_arm(transport=transport, source_mode=arm, source=arm_source, filename=f"{safe_id}.pdf" if arm == "PDF" else f"{safe_id}.txt", system_prompt=system_prompt, task_prompt=task_prompt, source_wrapper=wrapper, response_schema=response_schema, pdf_pages_total=pages, view_registry=registry)
+                try:
+                    replica, trace = runner.execute_arm(transport=transport, source_mode=arm, source=arm_source, filename=f"{safe_id}.pdf" if arm == "PDF" else f"{safe_id}.txt", system_prompt=system_prompt, task_prompt=task_prompt, source_wrapper=wrapper, response_schema=response_schema, pdf_pages_total=pages, view_registry=registry)
+                except InvalidStructuredResponseError as exc:
+                    raise _with_run_failure_context(
+                        exc,
+                        safe_id=safe_id,
+                        run_phase="STABILITY_REPLICA_2",
+                        provider_calls_before_failed_arm_total=calls_total,
+                        completed_primary_arms_total=len(primary_responses),
+                        completed_stability_arms_total=len(stability),
+                    ) from exc
                 traces_by_safe_id[safe_id].append(trace)
                 write_immutable_json(replica_dir / "response.private.json", replica)
                 write_immutable_json(replica_dir / "raw_response.private.json", hash_bound_private_payload("broker_reports_doc4_raw_response_attempts_v1", attempts=trace["attempts"]))
@@ -642,6 +683,35 @@ def _sources(path: Path) -> list[CorpusSource]:
     if tuple(item.safe_id for item in result) != CORPUS_IDS:
         raise Doc4ContractError("source_manifest_corpus_invalid")
     return result
+
+
+def _with_run_failure_context(
+    exc: InvalidStructuredResponseError,
+    *,
+    safe_id: str,
+    run_phase: str,
+    provider_calls_before_failed_arm_total: int,
+    completed_primary_arms_total: int,
+    completed_stability_arms_total: int,
+) -> InvalidStructuredResponseError:
+    receipt = copy.deepcopy(exc.private_receipt)
+    receipt.update(
+        {
+            "safe_id": safe_id,
+            "run_phase": run_phase,
+            "provider_calls_before_failed_arm_total": (
+                provider_calls_before_failed_arm_total
+            ),
+            "completed_primary_arms_total": completed_primary_arms_total,
+            "completed_stability_arms_total": completed_stability_arms_total,
+            "provider_calls_total": (
+                provider_calls_before_failed_arm_total
+                + receipt["failed_arm_provider_calls_total"]
+            ),
+            "integrity_sha256": "",
+        }
+    )
+    return InvalidStructuredResponseError(private_receipt=receipt)
 
 
 def _source_by_id(sources: list[CorpusSource], safe_id: str) -> CorpusSource:

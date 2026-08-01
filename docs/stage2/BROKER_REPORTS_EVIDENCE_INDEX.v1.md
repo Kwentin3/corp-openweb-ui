@@ -33,29 +33,31 @@ PROVIDER_TRANSFER_AUTHORIZED = TRUE
 GOLD_CHECKLISTS_TOTAL = 4
 GOLD_CHECKLIST_ITEMS_TOTAL = 461
 GOLD_CRITICAL_FACTS_TOTAL = 321
-CONTEXT_PREFLIGHT = BLOCKED_PROVIDER_HTTP_400
-PREFLIGHT_ATTEMPTS_TOTAL = 3
-PROVIDER_CALLS_TOTAL = 3
-SUCCESSFUL_TOKEN_COUNT_CALLS_TOTAL = 0
-ELIGIBLE_DOCUMENTS_TOTAL = 0
+CONTEXT_PREFLIGHT = PASSED
+SUCCESSFUL_TOKEN_COUNT_CALLS_TOTAL = 8
+PREFLIGHT_INPUT_TOKENS_TOTAL = 152573
+ELIGIBLE_DOCUMENTS_TOTAL = 4
 COMPLETED_PAIRED_DOCUMENTS_TOTAL = 0
-MODEL_TASK_ADEQUACY = NOT_EVALUATED
-PDF_TO_LLM_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE
+FAILED_ARM = real_pdf_1/PDF
+FAILED_ARM_RETURNED_RESPONSES_TOTAL = 2
+PRIMARY_PROVIDER_CALLS_TOTAL = NOT_RECONCILED_AFTER_FAILURE
+MODEL_TASK_ADEQUACY = FAILED_STRUCTURED_RESPONSE_CONTRACT
+PDF_TO_LLM_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
 PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```
 
 Four independent PDF-only gold checklists were sealed before provider calls.
-Three separately frozen preflight attempts each stopped on the first
-non-retryable HTTP 400 from `/responses/input_tokens`. The first two bounded
-harness defects were corrected in reviewed, CI-green PRs #254 and #255; the
-third merged-main attempt still failed, so no-endless-search stopped the route.
+After explicit new policy authorization, PR #257 minimized request fields and
+PR #258 fixed provider-strict schema types. The v5 preflight passed all eight
+exact counts. The first PDF arm and its exact replay then both failed local
+semantic validation, so fail-closed execution stopped before any accepted arm.
 
-No token count, primary arm, stability replay, comparison or adjudication
-completed. Provider usage and cost were not reported. All private PDFs, Views,
-gold, plans, authorizations and failure receipts remain outside Git. The safe
-closure does not claim zero semantic gaps or full equivalence; those values are
-not evaluated.
+Stability, comparison and adjudication did not complete. Historical primary
+usage and HTTP-attempt totals were not persisted; future failures are now
+preserved privately. All private PDFs, Views, gold, plans, authorizations and
+provider payloads remain outside Git. The safe closure does not claim zero
+semantic gaps or full equivalence; those values are not evaluated.
 
 ## DOC3
 
@@ -75,7 +77,7 @@ TRUNCATED_DOCUMENTS_TOTAL = 0
 FULL_VIEW_PARITY_DOCUMENTS_TOTAL = 4
 CRITICAL_VIEW_PARITY_MISMATCHES_TOTAL = 0
 VIEW_REPLAY_HASH_MISMATCHES_TOTAL = 0
-PDF_TO_LLM_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE (LATER DOC4)
+PDF_TO_LLM_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_MODEL_OUTPUT_FAILURE (LATER DOC4)
 REAL_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```
@@ -98,8 +100,8 @@ counts, not model-context qualification.
 
 DOC3 changes no DOC1 schema, DOC2 builder, prompt, provider/model path, product
 route, generated bundle or live state. It did not by itself authorize DOC4 or
-PDF-to-LLM semantic equivalence. The later authorized DOC4 attempt closed as an
-inconclusive provider-preflight failure and did not start qualification or
+PDF-to-LLM semantic equivalence. The later authorized DOC4 attempt passed
+context preflight but closed on a first-arm model-output contract failure; it did not start qualification or
 activation.
 
 ## DOC2

@@ -134,6 +134,14 @@ class ProviderHttpError(Doc4ContractError):
         self.private_receipt = copy.deepcopy(private_receipt)
 
 
+class InvalidStructuredResponseError(Doc4ContractError):
+    """Terminal semantic-validation failure with private provider evidence."""
+
+    def __init__(self, *, private_receipt: dict[str, Any]) -> None:
+        super().__init__("invalid_structured_response")
+        self.private_receipt = copy.deepcopy(private_receipt)
+
+
 @dataclass(frozen=True)
 class ProviderConnection:
     base_url: str
@@ -452,7 +460,30 @@ class PdfViewSemanticExperimentRunner:
                 attempts.append({"metadata": metadata, "raw_payload": raw_payload, "validation_error": str(exc)})
                 if schema_attempt < SCHEMA_RETRIES_MAX:
                     continue
-                raise Doc4ContractError("invalid_structured_response") from exc
+                raise InvalidStructuredResponseError(
+                    private_receipt={
+                        "schema_version": "broker_reports_doc4_invalid_structured_response_private_v1",
+                        "source_mode": source_mode,
+                        "filename": filename,
+                        "request_sha256": sha256_bytes(
+                            canonical_json_bytes(request_body)
+                        ),
+                        "request": request_body,
+                        "attempts": attempts,
+                        "schema_retries_total": schema_attempt,
+                        "first_validation_error": first_error,
+                        "terminal_validation_error": str(exc),
+                        "failed_arm_provider_calls_total": sum(
+                            item["metadata"]["attempts_total"]
+                            for item in attempts
+                        ),
+                        "provider_calls_total": sum(
+                            item["metadata"]["attempts_total"]
+                            for item in attempts
+                        ),
+                        "integrity_sha256": "",
+                    }
+                ) from exc
             attempts.append({"metadata": metadata, "raw_payload": raw_payload, "validation_error": None})
             return response, {
                 "request": request_body,
@@ -461,7 +492,7 @@ class PdfViewSemanticExperimentRunner:
                 "first_schema_error": first_error,
                 "arm_status": "PASSED",
             }
-        raise Doc4ContractError("invalid_structured_response")
+        raise Doc4ContractError("invalid_structured_response_unreachable")
 
 
 def build_arm_request(

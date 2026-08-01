@@ -2,11 +2,11 @@
 
 Effective date: 2026-08-01
 
-Status: `CANDIDATE_FROZEN; PREFLIGHT_PROVIDER_FAILURE`
+Status: `CANDIDATE_FROZEN; PREFLIGHT_PASSED; MODEL_OUTPUT_CONTRACT_FAILED`
 
 ## Decision
 
-The one DOC4 measurement candidate is OpenAI `gpt-5.4-2026-03-05` through the Responses API. The dated snapshot is chosen over a floating current alias because a positive strict result requires reproducible model identity. This is an experiment instrument only; it is not production qualification, admission, fallback, valve, or activation.
+The DOC4 measurement candidate remains OpenAI `gpt-5.4-2026-03-05` through the Responses API. The dated snapshot is an experiment instrument only; it is not production qualification, admission, fallback, valve, or activation.
 
 ## Official-source findings
 
@@ -14,63 +14,53 @@ The one DOC4 measurement candidate is OpenAI `gpt-5.4-2026-03-05` through the Re
 | --- | --- | --- |
 | Exact identity | `gpt-5.4-2026-03-05` is an official snapshot intended to lock behavior. | [GPT-5.4 model page](https://developers.openai.com/api/docs/models/gpt-5.4) |
 | Context/output | Context window is 1,050,000 tokens; maximum output is 128,000 tokens. | [GPT-5.4 model page](https://developers.openai.com/api/docs/models/gpt-5.4) |
-| PDF | Responses `input_file` sends both extracted PDF text and page images to vision-capable models; inline Base64 PDF is supported. Detail is frozen to `high`. | [File inputs](https://developers.openai.com/api/docs/guides/file-inputs) |
-| PDF limits | Each file and all files combined in one request must be under 50 MB. The official file-input guide publishes no separate page-count ceiling; exact model token eligibility remains mandatory. | [File-input usage considerations](https://developers.openai.com/api/docs/guides/file-inputs#usage-considerations) |
-| Structured output | GPT-5.4 supports Structured Outputs. DOC4 uses `text.format` with `json_schema` and `strict=true`, without function/tool calling. | [GPT-5.4 model page](https://developers.openai.com/api/docs/models/gpt-5.4), [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) |
-| Exact counting | `/v1/responses/input_tokens` accepts the Responses input shape, including files and schemas, and returns the exact model-received count. | [Counting tokens](https://developers.openai.com/api/docs/guides/token-counting) |
-| Training | API data is not used for training unless the organization explicitly opts in. This general policy does not establish this organization's setting. | [Data controls](https://developers.openai.com/api/docs/guides/your-data) |
-| Retention | Responses are eligible for ZDR, but default abuse-monitoring logs may retain customer content up to 30 days. Organization/project ZDR, processing region, logging and operator-access terms must be verified before private transfer. | [Data controls and retention table](https://developers.openai.com/api/docs/guides/your-data#storage-requirements-and-retention-controls-per-endpoint) |
+| PDF | Responses `input_file` sends PDF text and page images to vision-capable models; inline Base64 PDF is supported. | [File inputs](https://developers.openai.com/api/docs/guides/file-inputs) |
+| Structured output | GPT-5.4 supports Structured Outputs. DOC4 uses `text.format` with `json_schema` and `strict=true`, without tools. | [GPT-5.4 model page](https://developers.openai.com/api/docs/models/gpt-5.4), [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) |
+| Exact counting | `/v1/responses/input_tokens` accepts the Responses request shape and returns the model-received input count. | [Counting tokens](https://developers.openai.com/api/docs/guides/token-counting) |
+| Training | API data is not used for training unless the organization explicitly opts in. | [Data controls](https://developers.openai.com/api/docs/guides/your-data) |
+| Retention | With `store` omitted, provider-default Responses application-state retention applies. The operator explicitly acknowledged that boundary; it is not a ZDR claim. | [Data controls](https://developers.openai.com/api/docs/guides/your-data) |
 
-## Frozen configuration
+## Frozen minimal configuration
 
 ```text
 provider = openai
 request_model_id = gpt-5.4-2026-03-05
 resolved_model_version_or_fingerprint = gpt-5.4-2026-03-05
-MODEL_IDENTITY_IMMUTABLE = TRUE
-API version = OpenAI Responses API v1
-SDK = none; requests==2.32.5 direct HTTPS
 context_window = 1050000
 maximum_output_tokens = 128000
 reserved_max_output_tokens = 65536
 safety_margin_tokens = 105000
-reasoning.effort = none
-temperature = 0
-top_p = 1
-seed = unsupported/null
+sampling parameters = omitted provider defaults
+reasoning = omitted provider default
 structured output = responses.text.format.json_schema.strict
 PDF input = inline Base64 application/pdf, detail=high
-token counting = responses.input_tokens exact endpoint
+token counting = one exact full-request count per arm
 tools/web/retrieval/grounding = disabled
-store = false
+store parameter = omitted
 ```
 
-## Operator authorization and API preflight
+The primary request contains only `model`, `instructions`, `input`, `max_output_tokens`, and `text`. The token-count request contains only `model`, `instructions`, `input`, and `text`.
 
-The project operator explicitly authorized the bounded DOC4 transfer of
-`real_pdf_1`, `real_pdf_2`, `real_pdf_4`, and `real_pdf_5` to the OpenAI API
-using `gpt-5.4-2026-03-05` with `store=false`. Four independently sealed gold
-checklists were created before any provider call.
+## Authorized rerun and terminal result
 
-Three separately frozen exact preflight attempts each stopped on their first
-non-retryable HTTP 400 from `/responses/input_tokens`. The two locally proven
-harness request-shape defects found by the first attempts were fixed in PRs
-#254 and #255, independently reviewed, CI-green and merged before the next
-attempt. The third attempt still returned HTTP 400. No token-count request
-succeeded and no primary or stability arm ran. The provider did not report
-token usage or cost for these failed requests.
+The project operator explicitly authorized the same four frozen pairs and model with `store` omitted and provider-default retention acknowledged. PR #257 implemented that policy and merged as `2cb2926e74d6e9ce8f925a60cdfe319038c8609d` after exact-head CI run `30713899805` passed.
 
-The configured local key and canonical base URL remain credentials only; the separate operator receipt is the transfer authority.
+The first simplified preflight request reached OpenAI but exposed an explicit-type defect in the strict response schema. PR #258 declared types for all `enum` and `const` nodes, passed exact-head CI run `30714378698`, and merged as `d43149eb96b92fe1090d1af7139ec322ba050503`.
+
+The newly frozen v5 preflight then passed all eight exact counts. All four PDF/View pairs fit the context window. The paired run stopped on the first `real_pdf_1` PDF arm: two returned structured responses, including the one permitted exact replay, both failed the local semantic validator. No View arm, completed pair, stability replay, comparison, or adjudication followed.
+
+The historical runner discarded the failed arm metadata while unwinding, so its exact HTTP-attempt and usage totals cannot be reconstructed. This closure fixes that receipt gap prospectively without making another provider call. The same candidate/request may not be retried again without a new explicit model-or-policy decision.
 
 ```text
 PROVIDER_TRANSFER_AUTHORIZED = TRUE
-AUTHORIZATION_BASIS_STATUS = PROJECT_OPERATOR_APPROVED
-PRIVATE_PROVIDER_CALLS = 3
-SUCCESSFUL_TOKEN_COUNT_CALLS = 0
-PRIMARY_MODEL_CALLS = 0
-PREFLIGHT_STATUS = BLOCKED_PROVIDER_HTTP_400
-MODEL_TASK_ADEQUACY = NOT_EVALUATED
-PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE
+STORE_PARAMETER = OMITTED
+CONTEXT_PREFLIGHT = PASSED
+SUCCESSFUL_TOKEN_COUNT_CALLS = 8
+ELIGIBLE_DOCUMENTS_TOTAL = 4
+FAILED_ARM_RETURNED_RESPONSES_TOTAL = 2
+PRIMARY_MODEL_CALLS_TOTAL = NOT_RECONCILED_AFTER_FAILURE
+MODEL_TASK_ADEQUACY = FAILED_STRUCTURED_RESPONSE_CONTRACT
+PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
 PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```

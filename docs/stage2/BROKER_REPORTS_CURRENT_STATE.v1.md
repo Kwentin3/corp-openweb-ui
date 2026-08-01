@@ -1,6 +1,6 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after terminal DOC4 provider-preflight closure
+Status: canonical entry point after terminal DOC4 model-output closure
 
 Effective date: 2026-08-01
 
@@ -18,6 +18,12 @@ DOC4 implementation merge:
 
 DOC4 terminal harness merge:
 `73a54d132648e62623a3c959aba54296390cb064`.
+
+DOC4 minimal request-policy merge:
+`2cb2926e74d6e9ce8f925a60cdfe319038c8609d`.
+
+DOC4 strict schema-type merge:
+`d43149eb96b92fe1090d1af7139ec322ba050503`.
 
 KT2 implementation merge: `16fe3d2b2dd68bbb6440ede3a9b7537849de7456`
 
@@ -209,7 +215,7 @@ real-PDF proof closes the PDF real-corpus gap without changing DOC1.
 DOC1 added no parser, normalizer, renderer, product route, provider call,
 generated bundle, live change, financial type, Semantic Pack, Type-First,
 Gate 3, or Gate 4 behavior. DOC2 and DOC3 are later, separate inactive
-implementations. DOC4 later closed as a provider-preflight blocker; DOC6 has
+implementations. DOC4 later passed preflight and closed on a model-output contract blocker; DOC6 has
 not started.
 
 ## 12.3 DOC2 inactive PDF managed-document builder
@@ -236,7 +242,7 @@ in Git.
 DOC2 changes no DOC1 schema, product route, provider/model path, Knowledge/RAG,
 embedding/vector path, generated bundle, or live state. DOC3 is the later,
 separate inactive LLM Document View implementation. The later DOC4 experiment
-closed as `INCONCLUSIVE_PROVIDER_FAILURE`; real model qualification and product
+closed as `INCONCLUSIVE_MODEL_OUTPUT_FAILURE`; real model qualification and product
 activation have not started.
 
 ## 12.4 DOC3 inactive LLM Document View
@@ -273,34 +279,40 @@ the separate provider experiment described below.
 ## 12.5 DOC4 PDF vs LLM Document View semantic experiment
 
 The inactive DOC4 harness implementation passed isolated review, exact-head CI
-and merged-main validation. The operator authorized the four frozen documents
-for OpenAI `gpt-5.4-2026-03-05` with `store=false`. Separate PDF-only agents
-sealed four gold checklists before provider calls: 461 items and 321 critical
-facts.
+and merged-main validation. The operator later authorized the same four frozen
+documents and OpenAI `gpt-5.4-2026-03-05` with a minimal request: `store`,
+sampling and reasoning parameters were omitted, and provider-default retention
+was acknowledged. Separate PDF-only agents had already sealed four gold
+checklists before provider calls: 461 items and 321 critical facts.
 
-Exact context preflight stopped fail-closed. Three separately frozen attempts
-each received a non-retryable HTTP 400 on their first
-`/responses/input_tokens` call. The first two attempts exposed bounded request
-shape defects; PRs #254 and #255 fixed them, passed isolated review and CI, and
-merged before the next attempt. The third merged-main attempt still returned
-HTTP 400, so the no-endless-search boundary was applied.
+PR #257 implemented the minimal request policy. The next preflight proved that
+`store` was not the blocker: OpenAI returned a strict-schema type error. PR
+#258 added explicit types without changing the accepted response values. The
+new v5 preflight then passed eight exact token counts and all four PDF/View
+pairs fit the frozen context budget.
 
-No token count succeeded. Eligibility, PDF and View arms, stability,
-comparison, adjudication, model adequacy and semantic equivalence were not
-evaluated. The provider reported no usage or cost for the three failed calls.
+The paired run stopped fail-closed on the first `real_pdf_1/PDF` arm. The
+initial response and its one permitted exact replay both failed local semantic
+validation. No primary arm was accepted, so no pair, stability replay,
+comparison or adjudication completed. Historical failure metadata was not
+persisted, so the exact primary HTTP-call and usage totals are not
+reconstructible; the harness now preserves that private receipt prospectively.
 No private artifact entered Git, and no product route or live state changed.
 
 ```text
 DOC4_HARNESS_IMPLEMENTATION = PASSED
 INDEPENDENT_REVIEW = PASSED
 PROVIDER_TRANSFER_AUTHORIZED = TRUE
+STORE_PARAMETER = OMITTED
 GOLD_CHECKLISTS_TOTAL = 4
-DOC4_EXPERIMENT_EXECUTION = BLOCKED
-MODEL_TASK_ADEQUACY = NOT_EVALUATED
-PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE
-ELIGIBLE_DOCUMENTS_TOTAL = 0
+CONTEXT_PREFLIGHT = PASSED
+SUCCESSFUL_TOKEN_COUNT_CALLS_TOTAL = 8
+DOC4_EXPERIMENT_EXECUTION = BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE
+MODEL_TASK_ADEQUACY = FAILED_STRUCTURED_RESPONSE_CONTRACT
+PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
+ELIGIBLE_DOCUMENTS_TOTAL = 4
 COMPLETED_PAIRED_DOCUMENTS_TOTAL = 0
-PROVIDER_CALLS_TOTAL = 3
+PRIMARY_PROVIDER_CALLS_TOTAL = NOT_RECONCILED_AFTER_FAILURE
 PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
 PRODUCT_ACTIVATION = NOT_STARTED
 ```
@@ -318,8 +330,9 @@ review, governed release, rollback proof, and independent live readback.
 DOC1 remains the contract authority. DOC2 provides the separately reviewed
 inactive PDF builder and real-corpus coverage/parity proof. DOC3 provides the
 separately reviewed deterministic full-context view and representation parity
-proof. DOC4 has a terminal provider-preflight blocker and establishes no
-semantic-equivalence or model-adequacy result. Real model qualification,
+proof. DOC4 passed exact context preflight, then reached a terminal first-arm
+model-output contract blocker. It establishes model-task inadequacy for the
+frozen DOC4 protocol but no PDF/View semantic-equivalence result. Real model qualification,
 product reachability and activation remain not started.
 
 ## 14. Forbidden shortcuts
@@ -389,13 +402,13 @@ FULL_VIEW_PARITY_DOCUMENTS_TOTAL = 4
 CRITICAL_VIEW_PARITY_MISMATCHES_TOTAL = 0
 VIEW_REPLAY_HASH_MISMATCHES_TOTAL = 0
 DOC4_HARNESS_IMPLEMENTATION = PASSED
-DOC4_EXPERIMENT_EXECUTION = BLOCKED
-MODEL_TASK_ADEQUACY = NOT_EVALUATED
-PDF_TO_LLM_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_PROVIDER_FAILURE
+DOC4_EXPERIMENT_EXECUTION = BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE
+MODEL_TASK_ADEQUACY = FAILED_STRUCTURED_RESPONSE_CONTRACT
+PDF_TO_LLM_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
 GOLD_CHECKLISTS_TOTAL = 4
-ELIGIBLE_DOCUMENTS_TOTAL = 0
+ELIGIBLE_DOCUMENTS_TOTAL = 4
 COMPLETED_PAIRED_DOCUMENTS_TOTAL = 0
-DOC4_PROVIDER_CALLS_TOTAL = 3
+DOC4_PRIMARY_PROVIDER_CALLS_TOTAL = NOT_RECONCILED_AFTER_FAILURE
 REAL_MODEL_QUALIFICATION = NOT_STARTED
-DOC4 = BLOCKED_PROVIDER_FAILURE
+DOC4 = BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE
 ```
