@@ -1,0 +1,92 @@
+{
+  "schema_version": "broker_reports_doc2_pdf_artifact_parity_safe_v1",
+  "effective_date": "2026-08-01",
+  "base_commit": "88e2b4931aee613ef64a187ba475ce3a367e4ca8",
+  "checklist_schema_version": "broker_reports_pdf_managed_document_parity_checklist_v1",
+  "review_protocol": {
+    "pass_a": "separate_process_pdf_only_no_artifact_read",
+    "pass_b": "separate_process_artifact_only_no_pdf_or_pass_a_read",
+    "pass_c": "separate_process_sealed_checklists_only",
+    "real_model_used": false,
+    "provider_calls_total": 0
+  },
+  "documents": [
+    {
+      "safe_id": "real_pdf_1",
+      "pdf_only_status": "PASSED",
+      "artifact_only_status": "PASSED",
+      "comparison_status": "FULL_PARITY",
+      "table_regions_total": 1,
+      "validated_tables_total": 0,
+      "visuals_total": 0,
+      "critical_mismatches_total": 0,
+      "noncritical_findings_total": 0
+    },
+    {
+      "safe_id": "real_pdf_2",
+      "pdf_only_status": "PASSED",
+      "artifact_only_status": "PASSED",
+      "comparison_status": "FULL_PARITY",
+      "table_regions_total": 2,
+      "validated_tables_total": 0,
+      "visuals_total": 2,
+      "critical_mismatches_total": 0,
+      "noncritical_findings_total": 0
+    },
+    {
+      "safe_id": "real_pdf_3",
+      "pdf_only_status": "BLOCKED_ENCRYPTED",
+      "artifact_only_status": "NOT_APPLICABLE",
+      "comparison_status": "NOT_APPLICABLE",
+      "table_regions_total": 0,
+      "validated_tables_total": 0,
+      "visuals_total": 0,
+      "critical_mismatches_total": 0,
+      "noncritical_findings_total": 0
+    },
+    {
+      "safe_id": "real_pdf_4",
+      "pdf_only_status": "PASSED",
+      "artifact_only_status": "PASSED",
+      "comparison_status": "FULL_PARITY",
+      "table_regions_total": 14,
+      "validated_tables_total": 0,
+      "visuals_total": 1,
+      "critical_mismatches_total": 0,
+      "noncritical_findings_total": 0
+    },
+    {
+      "safe_id": "real_pdf_5",
+      "pdf_only_status": "PASSED",
+      "artifact_only_status": "PASSED",
+      "comparison_status": "FULL_PARITY",
+      "table_regions_total": 15,
+      "validated_tables_total": 6,
+      "visuals_total": 6,
+      "critical_mismatches_total": 0,
+      "noncritical_findings_total": 0,
+      "table_heavy": true
+    }
+  ],
+  "aggregate": {
+    "pdf_only_checklists_total": 4,
+    "artifact_only_checklists_total": 4,
+    "parity_comparisons_total": 4,
+    "full_parity_documents_total": 4,
+    "table_heavy_parity_documents_total": 1,
+    "critical_parity_mismatches_total": 0,
+    "noncritical_parity_findings_total": 0,
+    "source_order_conflicts_total": 0,
+    "real_pdf_replay_files_compared_total": 38,
+    "real_pdf_replay_hash_mismatches_total": 0
+  },
+  "privacy": {
+    "literal_source_values_in_git": false,
+    "filenames_in_git": false,
+    "local_paths_in_git": false,
+    "full_checklists_in_git": false,
+    "safe_counts_hashes_and_statuses_only": true
+  },
+  "integrity_policy": "sha256_of_canonical_json_without_integrity_sha256",
+  "integrity_sha256": "8c3b1b0859cc4af0caa10539f03e2e520f5b08cb29550d046d1891e607ae692e"
+}

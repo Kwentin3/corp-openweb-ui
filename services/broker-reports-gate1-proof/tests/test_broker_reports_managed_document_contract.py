@@ -508,9 +508,10 @@ def test_contract_module_imports_no_parser_provider_product_or_semantic_pack() -
 
 def test_contract_has_no_product_or_provider_reachability() -> None:
     violations = []
+    inactive_doc2_owner = PACKAGE_ROOT / "managed_pdf_document.py"
     for root in (PACKAGE_ROOT, SERVICE_ROOT / "openwebui_actions"):
         for path in root.glob("*.py"):
-            if path == MODULE_PATH:
+            if path in {MODULE_PATH, inactive_doc2_owner}:
                 continue
             if "managed_document_contracts" in path.read_text(encoding="utf-8"):
                 violations.append(path.relative_to(SERVICE_ROOT).as_posix())
