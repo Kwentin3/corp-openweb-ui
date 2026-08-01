@@ -1,8 +1,11 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after inactive KT2.1 closure and DOC0 audit
+Status: canonical entry point after inactive DOC1 managed-document closure
 
-Effective date: 2026-07-31
+Effective date: 2026-08-01
+
+DOC1 implementation merge:
+`c4fa86d8229bc8afdd88bfd0371a96d260790942`.
 
 KT2 implementation merge: `16fe3d2b2dd68bbb6440ede3a9b7537849de7456`
 
@@ -172,7 +175,30 @@ prompt, valve, admission or live change. The canonical audit artifacts are
 `BROKER_REPORTS_LEGACY_AND_REUSABLE_TOOLING.v1.json` and
 `BROKER_REPORTS_LOGICAL_TABLE_FORMAT_AUDIT.v1.md`.
 
-## 13. KT2 closure and next gates
+## 12.2 DOC1 managed document contract
+
+DOC1 is complete at its contracted inactive boundary. The universal document
+model is one ordered `blocks[]` stream with explicit optional relations,
+typed source anchors, status-bearing metadata, a strict quality/loss ledger,
+and canonical SHA-256 integrity. It supports PDF, HTML, CSV, XLSX, XLS, and an
+unknown source without requiring broker-specific sections.
+
+The existing `description + rows` logical table core is reused only inside a
+full `TABLE` block. Optional logical-cell annotations distinguish empty from
+unreadable cells without asserting physical table geometry. Unknown blocks,
+unknown metadata, conflicting values, and incomplete recovery remain explicit;
+`unaccounted_context_loss_total` is always zero.
+
+All 53 DOC0 context facets are accounted for: 51 are represented directly and
+2 are represented through explicit unknown states. The safe fixture corpus is
+hand-authored synthetic evidence of contract expressiveness, not evidence that
+a real PDF normalizer exists. `REAL_CORPUS_GAP = TRUE` remains explicit.
+
+DOC1 added no parser, normalizer, renderer, product route, provider call,
+generated bundle, live change, financial type, Semantic Pack, Type-First,
+Gate 3, or Gate 4 behavior. DOC2, DOC3, and DOC6 have not started.
+
+## 13. KT2, DOC1, and next gates
 
 KT2 is complete at the mechanical inactive proof boundary. KT2.1 is also
 complete at its inactive bounded-context and context-sufficiency boundary;
@@ -182,12 +208,17 @@ a separately authorized exact candidate and four-disposition live gate. Any
 product activation needs a later explicit product decision, fresh reachability
 review, governed release, rollback proof, and independent live readback.
 
+DOC1 is the mandatory contract input for a separately authorized DOC2. DOC1
+does not authorize implementing DOC2, reading real PDFs into the new contract,
+or rendering contract content for an LLM.
+
 ## 14. Forbidden shortcuts
 
 Do not activate Type-First, revive PR #232 or `source_fact_selection_v3`, use
 the PR #77 registry as authority, bypass factories, weaken terminal tests,
 infer current state from a historical receipt, edit generated bundles by hand,
-use customer/private bytes in Git, mutate live state, or begin Gate 3/4 work.
+use customer/private bytes in Git, mutate live state, begin DOC2/DOC3/DOC6, or
+begin Gate 3/4 work.
 
 ```text
 REPOSITORY_DEBT = CLOSED
@@ -208,4 +239,17 @@ DOC0_CURRENT_PIPELINE_AUDIT = PASSED
 WHOLE_DOCUMENT_ARTIFACT = FRAGMENTED
 FIRST_IRREVERSIBLE_CONTEXT_LOSS = IDENTIFIED
 CURRENT_LOGICAL_TABLE_FORMAT = FIT_WITH_EXPLICIT_GAPS
+DOC1_MANAGED_DOCUMENT_CONTRACT = PASSED
+PRIMARY_DOCUMENT_MODEL = ORDERED_BLOCK_STREAM
+EXPLICIT_RELATIONS = PRESENT
+UNKNOWN_BLOCK = SUPPORTED
+UNKNOWN_METADATA = SUPPORTED
+SOURCE_PROVENANCE = PRESENT
+LOSS_LEDGER = PRESENT
+UNACCOUNTED_CONTEXT_LOSS_ALLOWED = 0
+DOC0_CONTEXT_FACETS_UNACCOUNTED = 0
+CURRENT_TABLE_CORE_REUSED = TRUE
+PHYSICAL_TABLE_RECONSTRUCTION = NOT_REQUIRED
+PDF_NORMALIZER = NOT_STARTED
+LLM_FRIENDLY_RENDERER = NOT_STARTED
 ```
