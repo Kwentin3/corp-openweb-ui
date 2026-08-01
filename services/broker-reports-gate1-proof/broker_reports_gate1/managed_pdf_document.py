@@ -257,6 +257,23 @@ class ManagedPdfDocumentBuilder:
                     ).hexdigest(),
                 }
             ]
+        raw_observations = [
+            {
+                **item,
+                "available_text": item.get("available_text"),
+                "related_observation_ids": list(
+                    item.get("related_observation_ids") or []
+                ),
+                "overlap_observation_ids": list(
+                    item.get("overlap_observation_ids") or []
+                ),
+                "source_parser": item.get("source_parser"),
+                "source_parser_version": item.get("source_parser_version"),
+                "source_parser_config_ref": item.get("source_parser_config_ref"),
+                "processing_status": "BLOCKED",
+            }
+            for item in raw_observations
+        ]
         inventory = seal_private_contract(
             {
                 "schema_version": SOURCE_OBSERVATION_INVENTORY_SCHEMA_VERSION,
@@ -272,7 +289,9 @@ class ManagedPdfDocumentBuilder:
                 "coverage_status": "BLOCKED_AT_SOURCE",
                 "block_ids": [],
                 "anchor_ids": [],
+                "table_ids": [],
                 "loss_ids": [],
+                "mapping_method": None,
                 "reason_code": next(
                     iter(observation.get("reason_codes") or []),
                     "managed_pdf_source_blocked",
@@ -481,21 +500,44 @@ class PdfReadingOrderAssembler:
                 for line_ref in block["line_refs"]
             ]
             known_line_refs = [item["line_ref"] for item in page["text_lines"]]
+            line_word_refs = [
+                word_ref
+                for line in page["text_lines"]
+                for word_ref in line["word_refs"]
+            ]
+            known_word_refs = [item["word_ref"] for item in page["words"]]
             duplicate_lines = [
                 ref for ref, count in Counter(block_line_refs).items() if count > 1
+            ]
+            duplicate_words = [
+                ref for ref, count in Counter(line_word_refs).items() if count > 1
+            ]
+            missing_candidate_word_refs = [
+                ref
+                for candidate in page["table_candidates"]
+                for ref in candidate["missing_contributing_word_refs"]
             ]
             if (
                 overlaps
                 or duplicate_lines
+                or duplicate_words
+                or missing_candidate_word_refs
                 or set(block_line_refs) != set(known_line_refs)
+                or set(line_word_refs) != set(known_word_refs)
             ):
                 checksum = hashlib.sha256(
                     json.dumps(
                         {
                             "overlap_count": len(overlaps),
                             "duplicate_line_count": len(duplicate_lines),
+                            "duplicate_word_count": len(duplicate_words),
                             "line_scope_matches": set(block_line_refs)
                             == set(known_line_refs),
+                            "word_scope_matches": set(line_word_refs)
+                            == set(known_word_refs),
+                            "missing_candidate_word_refs_total": len(
+                                missing_candidate_word_refs
+                            ),
                         },
                         sort_keys=True,
                     ).encode("utf-8")
@@ -691,6 +733,13 @@ class ManagedDocumentBlockMaterializer:
                                 issues.append(issue)
                             if loss:
                                 losses.append(loss)
+                        candidate_binding = coverage_bindings.get(
+                            state["candidate"]["table_observation_id"]
+                        )
+                        if candidate_binding:
+                            for output_id in candidate_binding["block_ids"]:
+                                if output_id not in block_output_ids:
+                                    block_output_ids.append(output_id)
                     if current_words:
                         paragraph_lines.append((line, current_words))
                     elif line["line_observation_id"] not in coverage_bindings:
@@ -727,7 +776,9 @@ class ManagedDocumentBlockMaterializer:
                     "coverage_status": "REPRESENTED_BY_BLOCK",
                     "block_ids": block_output_ids,
                     "anchor_ids": list(dict.fromkeys(source_block_anchor_ids)),
+                    "table_ids": [],
                     "loss_ids": [],
+                    "mapping_method": None,
                 }
 
             for state in table_states.values():
@@ -1183,70 +1234,179 @@ class ManagedDocumentCoverageReconciler:
     ) -> dict[str, Any]:
         observations = []
         for page in observation["pages"]:
+            line_by_ref = {item["line_ref"]: item for item in page["text_lines"]}
+            block_by_line_ref = {
+                line_ref: block
+                for block in page["text_blocks"]
+                for line_ref in block["line_refs"]
+            }
+            candidate_by_observation_id = {
+                item["table_observation_id"]: item
+                for item in page["table_candidates"]
+            }
+            validated_by_parent = {
+                item["parent_observation_ids"][0]: item
+                for item in materialized["validated_table_observations"]
+                if item.get("page") == page["page_number"]
+            }
+            page_child_ids = [
+                *[item["block_observation_id"] for item in page["text_blocks"]],
+                *[item["line_observation_id"] for item in page["text_lines"]],
+                *candidate_by_observation_id,
+                *(
+                    [page["visual_observation_id"]]
+                    if page["image_objects_total"]
+                    else []
+                ),
+            ]
             observations.append(
-                {
-                    "observation_id": page["page_observation_id"],
-                    "observation_type": "PAGE_BOUNDARY",
-                    "page": page["page_number"],
-                    "bbox": None,
-                    "parent_observation_ids": [],
-                    "source_refs": [page["page_ref"]],
-                    "observation_checksum_sha256": page["page_checksum_sha256"],
-                }
+                _inventory_item(
+                    observation_id=page["page_observation_id"],
+                    observation_type="PAGE_BOUNDARY",
+                    page=page["page_number"],
+                    bbox=None,
+                    parent_observation_ids=[],
+                    source_refs=[page["page_ref"]],
+                    checksum=page["page_checksum_sha256"],
+                    available_text=None,
+                    related_observation_ids=page_child_ids,
+                    overlap_observation_ids=[],
+                    parser=observation["page_parser"],
+                    parser_version=observation["page_parser_version"],
+                    parser_config_ref=observation["page_parser_config_ref"],
+                    processing_status="OBSERVED",
+                )
             )
             for block in page["text_blocks"]:
+                block_lines = [line_by_ref[ref] for ref in block["line_refs"]]
+                block_word_refs = {
+                    ref for line in block_lines for ref in line["word_refs"]
+                }
+                overlaps = [
+                    candidate["table_observation_id"]
+                    for candidate in page["table_candidates"]
+                    if block_word_refs & set(candidate["contributing_word_refs"])
+                ]
                 observations.append(
-                    {
-                        "observation_id": block["block_observation_id"],
-                        "observation_type": "TEXT_BLOCK",
-                        "page": page["page_number"],
-                        "bbox": block["bbox"],
-                        "parent_observation_ids": [page["page_observation_id"]],
-                        "source_refs": block["line_refs"],
-                        "observation_checksum_sha256": block["checksum_sha256"],
-                    }
+                    _inventory_item(
+                        observation_id=block["block_observation_id"],
+                        observation_type="TEXT_BLOCK",
+                        page=page["page_number"],
+                        bbox=block["bbox"],
+                        parent_observation_ids=[page["page_observation_id"]],
+                        source_refs=block["line_refs"],
+                        checksum=block["checksum_sha256"],
+                        available_text="\n".join(
+                            str(item["text"]) for item in block_lines
+                        ),
+                        related_observation_ids=[
+                            item["line_observation_id"] for item in block_lines
+                        ],
+                        overlap_observation_ids=overlaps,
+                        parser=observation["layout_parser"],
+                        parser_version=observation["layout_parser_version"],
+                        parser_config_ref=observation["layout_parser_config_ref"],
+                        processing_status="OBSERVED",
+                    )
                 )
             for line in page["text_lines"]:
+                parent_block = block_by_line_ref[line["line_ref"]]
+                overlaps = [
+                    candidate["table_observation_id"]
+                    for candidate in page["table_candidates"]
+                    if set(line["word_refs"])
+                    & set(candidate["contributing_word_refs"])
+                ]
                 observations.append(
-                    {
-                        "observation_id": line["line_observation_id"],
-                        "observation_type": "TEXT_LINE",
-                        "page": page["page_number"],
-                        "bbox": line["bbox"],
-                        "parent_observation_ids": [page["page_observation_id"]],
-                        "source_refs": line["word_refs"],
-                        "observation_checksum_sha256": line["text_checksum_sha256"],
-                    }
+                    _inventory_item(
+                        observation_id=line["line_observation_id"],
+                        observation_type="TEXT_LINE",
+                        page=page["page_number"],
+                        bbox=line["bbox"],
+                        parent_observation_ids=[
+                            parent_block["block_observation_id"]
+                        ],
+                        source_refs=line["word_refs"],
+                        checksum=line["text_checksum_sha256"],
+                        available_text=line["text"],
+                        related_observation_ids=overlaps,
+                        overlap_observation_ids=overlaps,
+                        parser=observation["layout_parser"],
+                        parser_version=observation["layout_parser_version"],
+                        parser_config_ref=observation["layout_parser_config_ref"],
+                        processing_status="OBSERVED",
+                    )
                 )
             for candidate in page["table_candidates"]:
+                overlapping_line_ids = [
+                    line["line_observation_id"]
+                    for line in page["text_lines"]
+                    if set(line["word_refs"])
+                    & set(candidate["contributing_word_refs"])
+                ]
+                validated = validated_by_parent.get(candidate["table_observation_id"])
                 observations.append(
-                    {
-                        "observation_id": candidate["table_observation_id"],
-                        "observation_type": "TABLE_REGION",
-                        "page": page["page_number"],
-                        "bbox": candidate["bbox"],
-                        "parent_observation_ids": [page["page_observation_id"]],
-                        "source_refs": candidate["contributing_word_refs"],
-                        "observation_checksum_sha256": candidate["checksum_sha256"],
-                    }
+                    _inventory_item(
+                        observation_id=candidate["table_observation_id"],
+                        observation_type="TABLE_REGION",
+                        page=page["page_number"],
+                        bbox=candidate["bbox"],
+                        parent_observation_ids=[page["page_observation_id"]],
+                        source_refs=candidate["contributing_word_refs"],
+                        checksum=candidate["checksum_sha256"],
+                        available_text=" ".join(candidate["contributing_text"]),
+                        related_observation_ids=(
+                            [validated["observation_id"]] if validated else []
+                        ),
+                        overlap_observation_ids=overlapping_line_ids,
+                        parser=observation["layout_parser"],
+                        parser_version=observation["layout_parser_version"],
+                        parser_config_ref=observation["layout_parser_config_ref"],
+                        processing_status="OBSERVED",
+                    )
                 )
+                if validated:
+                    observations.append(
+                        _inventory_item(
+                            observation_id=validated["observation_id"],
+                            observation_type="VALIDATED_LOGICAL_TABLE",
+                            page=page["page_number"],
+                            bbox=validated["bbox"],
+                            parent_observation_ids=[candidate["table_observation_id"]],
+                            source_refs=validated["source_refs"],
+                            checksum=validated["observation_checksum_sha256"],
+                            available_text=" ".join(candidate["contributing_text"]),
+                            related_observation_ids=[candidate["table_observation_id"]],
+                            overlap_observation_ids=overlapping_line_ids,
+                            parser=observation["layout_parser"],
+                            parser_version=observation["layout_parser_version"],
+                            parser_config_ref=observation["layout_parser_config_ref"],
+                            processing_status="VALIDATED",
+                        )
+                    )
             if page["image_objects_total"]:
                 observations.append(
-                    {
-                        "observation_id": page["visual_observation_id"],
-                        "observation_type": "FULL_PAGE_VISUAL",
-                        "page": page["page_number"],
-                        "bbox": None,
-                        "parent_observation_ids": [page["page_observation_id"]],
-                        "source_refs": [page["page_ref"]],
-                        "observation_checksum_sha256": hashlib.sha256(
+                    _inventory_item(
+                        observation_id=page["visual_observation_id"],
+                        observation_type="FULL_PAGE_VISUAL",
+                        page=page["page_number"],
+                        bbox=None,
+                        parent_observation_ids=[page["page_observation_id"]],
+                        source_refs=[page["page_ref"]],
+                        checksum=hashlib.sha256(
                             f"{page['page_ref']}|{page['image_objects_total']}".encode(
                                 "utf-8"
                             )
                         ).hexdigest(),
-                    }
+                        available_text=None,
+                        related_observation_ids=[],
+                        overlap_observation_ids=[],
+                        parser=observation["page_parser"],
+                        parser_version=observation["page_parser_version"],
+                        parser_config_ref=observation["page_parser_config_ref"],
+                        processing_status="OBSERVED",
+                    )
                 )
-        observations.extend(materialized["validated_table_observations"])
         inventory = seal_private_contract(
             {
                 "schema_version": SOURCE_OBSERVATION_INVENTORY_SCHEMA_VERSION,
@@ -1275,7 +1435,9 @@ class ManagedDocumentCoverageReconciler:
                     "coverage_status": "UNRESOLVED",
                     "block_ids": [],
                     "anchor_ids": [],
+                    "table_ids": [],
                     "loss_ids": [],
+                    "mapping_method": None,
                 }
             entries.append(
                 {
@@ -1412,10 +1574,23 @@ def _materialize_observed_page(
     for candidate_ordinal, raw in enumerate(
         raw_page.get("table_candidate_inventory") or [], 1
     ):
+        raw_contributing_ordinals = [
+            int(value) for value in raw.get("contributing_word_parser_ordinals") or []
+        ]
         contributing_words = [
             word_by_ordinal[int(value)]
-            for value in raw.get("contributing_word_parser_ordinals") or []
+            for value in raw_contributing_ordinals
             if int(value) in word_by_ordinal
+        ]
+        missing_contributing_word_refs = [
+            _identifier(
+                "missing_pdf_word",
+                source_checksum_sha256,
+                page_number,
+                value,
+            )
+            for value in raw_contributing_ordinals
+            if value not in word_by_ordinal
         ]
         contributing_word_refs = [item["word_ref"] for item in contributing_words]
         candidate_word_set = set(contributing_word_refs)
@@ -1466,6 +1641,7 @@ def _materialize_observed_page(
             "row_inventory": rows,
             "cell_inventory": cells,
             "contributing_word_refs": contributing_word_refs,
+            "missing_contributing_word_refs": missing_contributing_word_refs,
             "contributing_text": [str(item["text"]) for item in contributing_words],
             "fallback_text_refs": [item["line_ref"] for item in overlapping_lines],
             "reconstruction_reason_codes": reconstruction_reasons,
@@ -1494,6 +1670,41 @@ def _materialize_observed_page(
         ),
         "layout_parser_version": layout_parser_version,
         "layout_parser_config_ref": layout_parser_config_ref,
+    }
+
+
+def _inventory_item(
+    *,
+    observation_id: str,
+    observation_type: str,
+    page: int,
+    bbox: list[float] | None,
+    parent_observation_ids: list[str],
+    source_refs: list[str],
+    checksum: str,
+    available_text: str | None,
+    related_observation_ids: list[str],
+    overlap_observation_ids: list[str],
+    parser: str | None,
+    parser_version: str | None,
+    parser_config_ref: str | None,
+    processing_status: str,
+) -> dict[str, Any]:
+    return {
+        "observation_id": observation_id,
+        "observation_type": observation_type,
+        "page": page,
+        "bbox": copy.deepcopy(bbox),
+        "parent_observation_ids": list(dict.fromkeys(parent_observation_ids)),
+        "source_refs": list(dict.fromkeys(source_refs)),
+        "observation_checksum_sha256": checksum,
+        "available_text": available_text,
+        "related_observation_ids": list(dict.fromkeys(related_observation_ids)),
+        "overlap_observation_ids": list(dict.fromkeys(overlap_observation_ids)),
+        "source_parser": parser,
+        "source_parser_version": parser_version,
+        "source_parser_config_ref": parser_config_ref,
+        "processing_status": processing_status,
     }
 
 
@@ -1708,11 +1919,24 @@ def _binding(
     loss: dict[str, Any] | list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     losses = loss if isinstance(loss, list) else ([loss] if loss else [])
+    table_id = (
+        block.get("content", {}).get("table_id")
+        if coverage_status == "REPRESENTED_BY_TABLE"
+        else None
+    )
+    if coverage_status == "REPRESENTED_BY_TABLE" and not table_id:
+        raise ValueError("managed_document_table_coverage_id_missing")
     return {
         "coverage_status": coverage_status,
         "block_ids": [block["block_id"]],
         "anchor_ids": [anchor["anchor_id"]],
+        "table_ids": [table_id] if table_id else [],
         "loss_ids": [item["loss_id"] for item in losses],
+        "mapping_method": (
+            "source_word_ownership_to_validated_table_block_v1"
+            if table_id
+            else None
+        ),
     }
 
 

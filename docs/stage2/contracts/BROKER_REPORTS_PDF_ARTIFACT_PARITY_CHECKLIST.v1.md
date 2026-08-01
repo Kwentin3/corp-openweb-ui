@@ -13,9 +13,18 @@ The checklist separates three roles:
    a targeted source reread is a separate, explicit review action.
 
 The comparison dimensions are source identity, page boundaries, document order,
-source text coverage, table regions, validated tables, visuals, metadata
-discipline, provenance, and unknown/loss accounting. Statuses are `MATCH`,
-`NONCRITICAL_MISMATCH`, `CRITICAL_MISMATCH`, and `NOT_APPLICABLE`.
+ordered and unordered source text coverage, table regions, per-table position
+and structure, source-bound value samples, visuals, metadata discipline,
+provenance, and unknown/loss accounting. Statuses are `MATCH`, `PARTIAL_MATCH`,
+`MISSING_IN_ARTIFACT`, `EXTRA_IN_ARTIFACT`, `WRONG_ORDER`, `WRONG_RELATION`,
+`WRONG_VALUE`, and `UNVERIFIABLE`.
+
+Private PDF and artifact checklists retain a pointer for every structure item,
+table, and sampled value. A one-page simple document samples every value; other
+documents use 20 deterministic first/middle/last-spanning samples when at least
+20 values are available. Full ordered and multiset hashes still cover all
+source values, including unclassified dates, amounts, currencies, fees, taxes,
+balances, and totals.
 
 A DOC2 acceptance set requires zero critical mismatches. A full-parity document
 also requires zero noncritical mismatches. Checklist values that could contain

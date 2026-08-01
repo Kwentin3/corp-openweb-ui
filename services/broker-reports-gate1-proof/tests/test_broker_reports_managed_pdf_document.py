@@ -218,6 +218,24 @@ def test_plain_pdf_build_is_complete_deterministic_and_fully_covered() -> None:
     assert validate_managed_document_coverage(
         first.coverage_receipt, first.source_observation_inventory
     )["passed"]
+    required_observation_fields = {
+        "available_text",
+        "related_observation_ids",
+        "overlap_observation_ids",
+        "source_parser",
+        "source_parser_version",
+        "source_parser_config_ref",
+        "processing_status",
+    }
+    assert all(
+        required_observation_fields <= set(item)
+        for item in first.source_observation_inventory["observations"]
+    )
+    assert any(
+        item["observation_type"] == "TEXT_LINE"
+        and item["available_text"] == "Synthetic broker report"
+        for item in first.source_observation_inventory["observations"]
+    )
     coverage_schema = json.loads(COVERAGE_SCHEMA_PATH.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(coverage_schema)
     Draft202012Validator(coverage_schema).validate(first.coverage_receipt)
@@ -248,6 +266,20 @@ def test_validated_table_is_inside_source_order_and_not_duplicated_as_paragraph(
         for index, item in enumerate(document["blocks"])
     )
     assert all("10.00" not in text for text in paragraph_texts)
+    table_entries = [
+        item
+        for item in result.coverage_receipt["entries"]
+        if item["coverage_status"] == "REPRESENTED_BY_TABLE"
+    ]
+    assert table_entries
+    assert all(item["table_ids"] for item in table_entries)
+    assert all(
+        item["mapping_method"]
+        == "source_word_ownership_to_validated_table_block_v1"
+        for item in table_entries
+    )
+    coverage_schema = json.loads(COVERAGE_SCHEMA_PATH.read_text(encoding="utf-8"))
+    Draft202012Validator(coverage_schema).validate(result.coverage_receipt)
 
 
 def test_visual_is_preserved_as_private_partial_loss() -> None:
@@ -295,6 +327,7 @@ def test_duplicate_suppression_requires_exact_source_observation_proof() -> None
     inventory = seal_private_contract(inventory)
 
     receipt = copy.deepcopy(result.coverage_receipt)
+    primary_entry = receipt["entries"][0]
     receipt["entries"].append(
         {
             "observation_id": duplicate["observation_id"],
@@ -302,9 +335,11 @@ def test_duplicate_suppression_requires_exact_source_observation_proof() -> None
             "duplicate_of_observation_id": inventory["observations"][0][
                 "observation_id"
             ],
-            "block_ids": [],
-            "anchor_ids": [],
+            "block_ids": copy.deepcopy(primary_entry["block_ids"]),
+            "anchor_ids": copy.deepcopy(primary_entry["anchor_ids"]),
+            "table_ids": [],
             "loss_ids": [],
+            "mapping_method": None,
             "reason_code": "source_observation_duplicate_suppressed",
         }
     )
@@ -323,10 +358,28 @@ def test_duplicate_suppression_requires_exact_source_observation_proof() -> None
     )
 
 
+def test_coverage_dispositions_require_status_specific_owners() -> None:
+    result = ManagedPdfDocumentFactory().create(_schema()).build(_paragraph_pdf())
+    tampered = copy.deepcopy(result.coverage_receipt)
+    represented = next(
+        item
+        for item in tampered["entries"]
+        if item["coverage_status"] == "REPRESENTED_BY_BLOCK"
+    )
+    represented["block_ids"] = []
+    tampered = seal_private_contract(tampered)
+    validation = validate_managed_document_coverage(
+        tampered, result.source_observation_inventory
+    )
+    assert not validation["passed"]
+    assert "managed_document_coverage_block_owner_missing" in validation["reason_codes"]
+
+
 def test_reading_order_ambiguity_is_terminal_blocked() -> None:
     line = {
         "line_ref": "line_fixture",
         "line_observation_id": "observation_line_fixture",
+        "word_refs": [],
     }
     observation = {
         "status": "READY",
@@ -350,6 +403,32 @@ def test_reading_order_ambiguity_is_terminal_blocked() -> None:
     assert assembled["reason_codes"] == ["managed_pdf_reading_order_ambiguity"]
 
 
+def test_unowned_parser_word_is_terminal_reading_order_ambiguity() -> None:
+    observation = {
+        "status": "READY",
+        "document_id": "document_fixture",
+        "source_checksum_sha256": "a" * 64,
+        "pages": [
+            {
+                "page_number": 1,
+                "words": [{"word_ref": "word_fixture"}],
+                "table_candidates": [],
+                "text_lines": [
+                    {
+                        "line_ref": "line_fixture",
+                        "line_observation_id": "observation_line_fixture",
+                        "word_refs": [],
+                    }
+                ],
+                "text_blocks": [{"line_refs": ["line_fixture"]}],
+            }
+        ],
+    }
+    assembled = PdfReadingOrderAssembler().assemble(observation)
+    assert assembled["status"] == "BLOCKED"
+    assert assembled["reason_codes"] == ["managed_pdf_reading_order_ambiguity"]
+
+
 def test_isolated_pdf_and_artifact_checklists_compare_with_full_parity() -> None:
     content = _ruled_table_pdf()
     result = ManagedPdfDocumentFactory().create(_schema()).build(content)
@@ -363,6 +442,19 @@ def test_isolated_pdf_and_artifact_checklists_compare_with_full_parity() -> None
     assert comparison["critical_mismatches_total"] == 0
     assert comparison["noncritical_mismatches_total"] == 0
     assert comparison["full_parity"] is True
+    assert all(item["status"] == "MATCH" for item in comparison["dimensions"])
+    assert all(
+        item["critical_category"] is None for item in comparison["dimensions"]
+    )
+    assert pdf_checklist["summary"]["value_sample_policy"] == "ALL_VALUES"
+    assert artifact_checklist["summary"]["value_sample_policy"] == "ALL_VALUES"
+    assert pdf_checklist["summary"]["tables"]
+    assert artifact_checklist["summary"]["tables"]
+    assert all(
+        item["source_pointer"]
+        for checklist in (pdf_checklist, artifact_checklist)
+        for item in checklist["summary"]["value_samples"]
+    )
     parity_schema = json.loads(PARITY_SCHEMA_PATH.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(parity_schema)
     validator = Draft202012Validator(parity_schema)

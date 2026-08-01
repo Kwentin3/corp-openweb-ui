@@ -51,7 +51,9 @@
         "coverage_status",
         "block_ids",
         "anchor_ids",
+        "table_ids",
         "loss_ids",
+        "mapping_method",
         "reason_code"
       ],
       "properties": {
@@ -69,10 +71,84 @@
         },
         "block_ids": {"$ref": "#/$defs/idArray"},
         "anchor_ids": {"$ref": "#/$defs/idArray"},
+        "table_ids": {"$ref": "#/$defs/idArray"},
         "loss_ids": {"$ref": "#/$defs/idArray"},
+        "mapping_method": {
+          "oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]
+        },
         "duplicate_of_observation_id": {"$ref": "#/$defs/id"},
         "reason_code": {"$ref": "#/$defs/id"}
-      }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"coverage_status": {"const": "REPRESENTED_BY_BLOCK"}}},
+          "then": {"properties": {"block_ids": {"minItems": 1}}}
+        },
+        {
+          "if": {
+            "properties": {
+              "coverage_status": {
+                "enum": ["REPRESENTED_BY_ANCHOR", "REPRESENTED_BY_TABLE"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "block_ids": {"minItems": 1},
+              "anchor_ids": {"minItems": 1}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"coverage_status": {"const": "REPRESENTED_BY_TABLE"}}},
+          "then": {
+            "properties": {
+              "table_ids": {"minItems": 1},
+              "mapping_method": {"type": "string"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "coverage_status": {"not": {"const": "REPRESENTED_BY_TABLE"}}
+            }
+          },
+          "then": {
+            "properties": {
+              "table_ids": {"maxItems": 0},
+              "mapping_method": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"coverage_status": {"const": "DUPLICATE_SUPPRESSED"}}},
+          "then": {
+            "required": ["duplicate_of_observation_id"],
+            "properties": {"block_ids": {"minItems": 1}}
+          }
+        },
+        {
+          "if": {"properties": {"coverage_status": {"const": "KNOWN_LOSS"}}},
+          "then": {
+            "properties": {"loss_ids": {"minItems": 1}},
+            "anyOf": [
+              {"properties": {"block_ids": {"minItems": 1}}},
+              {"properties": {"anchor_ids": {"minItems": 1}}}
+            ]
+          }
+        },
+        {
+          "if": {"properties": {"coverage_status": {"const": "UNRESOLVED"}}},
+          "then": {
+            "properties": {
+              "block_ids": {"maxItems": 0},
+              "anchor_ids": {"maxItems": 0},
+              "loss_ids": {"maxItems": 0}
+            }
+          }
+        }
+      ]
     },
     "counters": {
       "type": "object",

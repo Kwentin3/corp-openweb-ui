@@ -30,6 +30,10 @@ block or anchor and the DOC1 loss ledger describes the missing interpretation or
 structure. `BLOCKED_AT_SOURCE` is terminal and cannot produce an accepted
 Managed Document.
 
+`REPRESENTED_BY_TABLE` additionally requires a source-bound `table_ids` entry
+and a deterministic `mapping_method`; every other disposition must leave those
+fields empty and null respectively.
+
 The normative JSON shape is
 `BROKER_REPORTS_MANAGED_DOCUMENT_COVERAGE.v1.schema.json`. Private inventories
 and receipts remain outside Git. Only aggregate, privacy-scanned summaries may

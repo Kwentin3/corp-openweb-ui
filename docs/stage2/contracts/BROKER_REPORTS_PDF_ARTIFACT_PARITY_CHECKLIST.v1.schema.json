@@ -31,6 +31,23 @@
     "integrity_sha256": {"$ref": "#/$defs/sha256"}
   },
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {"properties": {"pass": {"enum": ["PDF_ONLY", "ARTIFACT_ONLY"]}}},
+      "then": {"required": ["reason_codes", "summary"]}
+    },
+    {
+      "if": {"properties": {"pass": {"const": "COMPARISON"}}},
+      "then": {
+        "required": [
+          "dimensions",
+          "critical_mismatches_total",
+          "noncritical_mismatches_total",
+          "full_parity"
+        ]
+      }
+    }
+  ],
   "$defs": {
     "id": {
       "type": "string",
@@ -45,6 +62,8 @@
       "required": [
         "dimension",
         "status",
+        "critical_if_mismatch",
+        "critical_category",
         "pdf_value_sha256",
         "artifact_value_sha256"
       ],
@@ -53,10 +72,18 @@
         "status": {
           "enum": [
             "MATCH",
-            "NONCRITICAL_MISMATCH",
-            "CRITICAL_MISMATCH",
-            "NOT_APPLICABLE"
+            "PARTIAL_MATCH",
+            "MISSING_IN_ARTIFACT",
+            "EXTRA_IN_ARTIFACT",
+            "WRONG_ORDER",
+            "WRONG_RELATION",
+            "WRONG_VALUE",
+            "UNVERIFIABLE"
           ]
+        },
+        "critical_if_mismatch": {"type": "boolean"},
+        "critical_category": {
+          "oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]
         },
         "pdf_value_sha256": {"$ref": "#/$defs/sha256"},
         "artifact_value_sha256": {"$ref": "#/$defs/sha256"}
