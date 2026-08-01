@@ -1,0 +1,16 @@
+# Broker Reports DOC4 Experiment Architecture v1
+
+Status: `INACTIVE_OFFLINE_EXPERIMENT_ONLY`
+
+DOC4 introduces no product or canonical financial authority. Its only consumer is `scripts/run_pdf_view_semantic_experiment.py`; no package export, OpenWebUI action, product prompt, valve, admission path, fallback, or live route imports it.
+
+| Operation | Sole owner | Output | Forbidden consumers |
+| --- | --- | --- | --- |
+| paired native-PDF/complete-View execution and exact preflight | `PdfViewSemanticExperimentRunner` | ignored private experiment evidence | product, Gate 2 qualification, activation |
+| response validation and pointer bounds | `validate_semantic_response` | validated semantic response | alternate validator or model authority |
+| source-blind cross-arm comparison | `PdfViewSemanticComparator.compare` | hash-bound comparison | PDF, View, gold, provider, LLM |
+| independent gold and source adjudication sealing | `PdfViewSemanticAdjudicationFactory` | hash-bound gold/adjudication | either experiment arm |
+
+The active Gate 2 provider adapters cannot be reused: their contract projects text-only product semantic requests and provider responses, while DOC4 must give one arm a native PDF and the other the complete DOC3 View with separate stateless HTTP sessions. Extending the product adapter would broaden product reachability and violate arm isolation. DOC4 therefore owns one bounded, non-reusable provider seam.
+
+The historical global authority map remains byte-exact because DOC4 changes none of its product domains and that file is hash-bound by earlier architecture audit evidence. DOC4 ownership is declared here and in the four normative DOC4 contracts. DOC1 schema, DOC2 builder, DOC3 renderer, generated bundles, and all product routes remain unchanged.

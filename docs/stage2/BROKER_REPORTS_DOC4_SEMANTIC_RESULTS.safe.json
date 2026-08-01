@@ -1,0 +1,14 @@
+{
+  "schema_version": "broker_reports_doc4_semantic_results_safe_v1",
+  "effective_date": "2026-08-01",
+  "request_model_id": "gpt-5.4-2026-03-05",
+  "documents": [
+    {"safe_id": "real_pdf_1", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN", "view_arm_status": "NOT_RUN", "gold_critical_facts_total": 0, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "pdf_noncritical_precision": null, "pdf_noncritical_recall": null, "view_noncritical_precision": null, "view_noncritical_recall": null, "critical_cross_arm_match_rate": null, "noncritical_cross_arm_match_rate": null, "artifact_gap_count": 0, "unsupported_fact_count": 0, "invalid_pointer_count": 0, "adjudicated_outcome": "NOT_STARTED"},
+    {"safe_id": "real_pdf_2", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN", "view_arm_status": "NOT_RUN", "gold_critical_facts_total": 0, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "pdf_noncritical_precision": null, "pdf_noncritical_recall": null, "view_noncritical_precision": null, "view_noncritical_recall": null, "critical_cross_arm_match_rate": null, "noncritical_cross_arm_match_rate": null, "artifact_gap_count": 0, "unsupported_fact_count": 0, "invalid_pointer_count": 0, "adjudicated_outcome": "NOT_STARTED"},
+    {"safe_id": "real_pdf_4", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN", "view_arm_status": "NOT_RUN", "gold_critical_facts_total": 0, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "pdf_noncritical_precision": null, "pdf_noncritical_recall": null, "view_noncritical_precision": null, "view_noncritical_recall": null, "critical_cross_arm_match_rate": null, "noncritical_cross_arm_match_rate": null, "artifact_gap_count": 0, "unsupported_fact_count": 0, "invalid_pointer_count": 0, "adjudicated_outcome": "NOT_STARTED"},
+    {"safe_id": "real_pdf_5", "eligibility": "NOT_RUN", "pdf_arm_status": "NOT_RUN", "view_arm_status": "NOT_RUN", "gold_critical_facts_total": 0, "pdf_critical_precision": null, "pdf_critical_recall": null, "view_critical_precision": null, "view_critical_recall": null, "pdf_noncritical_precision": null, "pdf_noncritical_recall": null, "view_noncritical_precision": null, "view_noncritical_recall": null, "critical_cross_arm_match_rate": null, "noncritical_cross_arm_match_rate": null, "artifact_gap_count": 0, "unsupported_fact_count": 0, "invalid_pointer_count": 0, "adjudicated_outcome": "NOT_STARTED"}
+  ],
+  "provider_transfer_authorized": false,
+  "provider_calls_total": 0,
+  "experiment_execution_status": "BLOCKED"
+}

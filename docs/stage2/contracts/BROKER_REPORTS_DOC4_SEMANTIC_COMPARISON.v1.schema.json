@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.example/contracts/broker_reports_doc4_semantic_comparison_v1.schema.json",
+  "title": "Broker Reports DOC4 semantic comparison v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "broker_reports_doc4_semantic_comparison_v1"},
+    "safe_id": {"enum": ["real_pdf_1", "real_pdf_2", "real_pdf_4", "real_pdf_5"]},
+    "pdf_response_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "view_response_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "comparator_version": {"const": "broker_reports_doc4_deterministic_comparator_v1"},
+    "items": {"type": "array", "items": {"$ref": "#/$defs/comparison_item"}},
+    "metrics": {"$ref": "#/$defs/metrics"},
+    "integrity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "required": ["schema_version", "safe_id", "pdf_response_sha256", "view_response_sha256", "comparator_version", "items", "metrics", "integrity_sha256"],
+  "$defs": {
+    "nullable_string": {"type": ["string", "null"]},
+    "comparison_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "comparison_id": {"type": "string"},
+        "semantic_key": {"type": "string"},
+        "critical": {"type": "boolean"},
+        "category": {
+          "enum": ["MATCH_EXACT", "MATCH_NORMALIZED", "PDF_ONLY_FACT", "VIEW_ONLY_FACT", "VALUE_CONFLICT", "STATUS_CONFLICT", "ORDER_CONFLICT", "MISSING_POINTER", "INVALID_POINTER", "UNSUPPORTED_FACT", "UNCOMPARABLE"]
+        },
+        "pdf_status": {"$ref": "#/$defs/nullable_string"},
+        "view_status": {"$ref": "#/$defs/nullable_string"},
+        "pdf_value_sha256": {"$ref": "#/$defs/nullable_string"},
+        "view_value_sha256": {"$ref": "#/$defs/nullable_string"},
+        "pdf_pointer_valid": {"type": ["boolean", "null"]},
+        "view_pointer_valid": {"type": ["boolean", "null"]}
+      },
+      "required": ["comparison_id", "semantic_key", "critical", "category", "pdf_status", "view_status", "pdf_value_sha256", "view_value_sha256", "pdf_pointer_valid", "view_pointer_valid"]
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "items_total": {"type": "integer", "minimum": 0},
+        "match_exact_total": {"type": "integer", "minimum": 0},
+        "match_normalized_total": {"type": "integer", "minimum": 0},
+        "critical_items_total": {"type": "integer", "minimum": 0},
+        "critical_matches_total": {"type": "integer", "minimum": 0},
+        "critical_match_rate": {"type": "string", "pattern": "^(?:0\\.\\d{6}|1\\.000000)$"},
+        "noncritical_items_total": {"type": "integer", "minimum": 0},
+        "noncritical_matches_total": {"type": "integer", "minimum": 0},
+        "noncritical_match_rate": {"type": "string", "pattern": "^(?:0\\.\\d{6}|1\\.000000)$"},
+        "conflicts_total": {"type": "integer", "minimum": 0},
+        "both_wrong_counted_as_match": {"const": false}
+      },
+      "required": ["items_total", "match_exact_total", "match_normalized_total", "critical_items_total", "critical_matches_total", "critical_match_rate", "noncritical_items_total", "noncritical_matches_total", "noncritical_match_rate", "conflicts_total", "both_wrong_counted_as_match"]
+    }
+  }
+}

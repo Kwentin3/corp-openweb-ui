@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.example/contracts/broker_reports_doc4_semantic_response_v1.schema.json",
+  "title": "Broker Reports DOC4 semantic response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "broker_reports_doc4_semantic_response_v1"},
+    "source_mode": {"enum": ["PDF", "LLM_VIEW"]},
+    "document_passport": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "items": {"$ref": "#/$defs/passport_field"}
+    },
+    "document_structure": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/structure_element"}
+    },
+    "tables": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/table"}
+    },
+    "financial_facts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/financial_fact"}
+    },
+    "uncertainties": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/uncertainty"}
+    },
+    "source_quality": {"$ref": "#/$defs/source_quality"}
+  },
+  "required": [
+    "schema_version",
+    "source_mode",
+    "document_passport",
+    "document_structure",
+    "tables",
+    "financial_facts",
+    "uncertainties",
+    "source_quality"
+  ],
+  "$defs": {
+    "nullable_string": {"type": ["string", "null"]},
+    "nullable_integer": {"type": ["integer", "null"]},
+    "status": {
+      "enum": ["PRESENT", "UNKNOWN", "NOT_APPLICABLE", "CONFLICTING"]
+    },
+    "pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_mode": {"enum": ["PDF", "LLM_VIEW"]},
+        "page": {"$ref": "#/$defs/nullable_integer"},
+        "visible_label": {"$ref": "#/$defs/nullable_string"},
+        "evidence_text": {"$ref": "#/$defs/nullable_string"},
+        "table_visible_title": {"$ref": "#/$defs/nullable_string"},
+        "row_visible_label": {"$ref": "#/$defs/nullable_string"},
+        "column_visible_label": {"$ref": "#/$defs/nullable_string"},
+        "block_id": {"$ref": "#/$defs/nullable_string"},
+        "anchor_id": {"$ref": "#/$defs/nullable_string"},
+        "table_id": {"$ref": "#/$defs/nullable_string"},
+        "row_index": {"$ref": "#/$defs/nullable_integer"},
+        "column_index": {"$ref": "#/$defs/nullable_integer"}
+      },
+      "required": [
+        "source_mode",
+        "page",
+        "visible_label",
+        "evidence_text",
+        "table_visible_title",
+        "row_visible_label",
+        "column_visible_label",
+        "block_id",
+        "anchor_id",
+        "table_id",
+        "row_index",
+        "column_index"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/pointer"}
+    },
+    "passport_field": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "field_id": {
+          "enum": [
+            "document_type",
+            "title",
+            "issuer",
+            "document_date",
+            "reporting_period",
+            "owner_or_account",
+            "language",
+            "primary_currency",
+            "page_count"
+          ]
+        },
+        "status": {"$ref": "#/$defs/status"},
+        "source_literal": {"$ref": "#/$defs/nullable_string"},
+        "normalized_value": {"$ref": "#/$defs/nullable_string"},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      },
+      "required": ["field_id", "status", "source_literal", "normalized_value", "evidence"]
+    },
+    "structure_element": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "element_id": {"type": "string"},
+        "ordinal": {"type": "integer", "minimum": 0},
+        "type": {
+          "enum": ["SECTION", "HEADING", "TABLE", "TABLE_ROW", "NOTE", "FOOTNOTE", "VISUAL", "UNKNOWN"]
+        },
+        "title_or_label": {"$ref": "#/$defs/nullable_string"},
+        "status": {"$ref": "#/$defs/status"},
+        "source_literal": {"$ref": "#/$defs/nullable_string"},
+        "normalized_value": {"$ref": "#/$defs/nullable_string"},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      },
+      "required": ["element_id", "ordinal", "type", "title_or_label", "status", "source_literal", "normalized_value", "evidence"]
+    },
+    "table": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "table_key": {"type": "string"},
+        "ordinal": {"type": "integer", "minimum": 0},
+        "title_or_label": {"$ref": "#/$defs/nullable_string"},
+        "status": {"$ref": "#/$defs/status"},
+        "source_literal": {"$ref": "#/$defs/nullable_string"},
+        "normalized_value": {"$ref": "#/$defs/nullable_string"},
+        "rows_total": {"$ref": "#/$defs/nullable_integer"},
+        "columns_total": {"$ref": "#/$defs/nullable_integer"},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      },
+      "required": ["table_key", "ordinal", "title_or_label", "status", "source_literal", "normalized_value", "rows_total", "columns_total", "evidence"]
+    },
+    "financial_fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fact_id": {"type": "string"},
+        "critical": {"type": "boolean"},
+        "fact_kind": {
+          "enum": [
+            "OPERATION_DATE",
+            "OPERATION_NAME",
+            "INSTRUMENT",
+            "QUANTITY",
+            "PRICE",
+            "AMOUNT",
+            "CURRENCY",
+            "COMMISSION",
+            "TAX",
+            "BALANCE",
+            "TOTAL",
+            "SUBTOTAL",
+            "OPENING_BALANCE",
+            "CLOSING_BALANCE",
+            "OTHER_EXPLICIT"
+          ]
+        },
+        "record_ordinal": {"$ref": "#/$defs/nullable_integer"},
+        "field_name": {"type": "string"},
+        "status": {"$ref": "#/$defs/status"},
+        "source_literal": {"$ref": "#/$defs/nullable_string"},
+        "normalized_value": {"$ref": "#/$defs/nullable_string"},
+        "normalized_decimal": {"$ref": "#/$defs/nullable_string"},
+        "normalized_date": {"$ref": "#/$defs/nullable_string"},
+        "currency": {"$ref": "#/$defs/nullable_string"},
+        "unit": {"$ref": "#/$defs/nullable_string"},
+        "sign": {"enum": ["POSITIVE", "NEGATIVE", "ZERO", "UNSPECIFIED", null]},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      },
+      "required": [
+        "fact_id",
+        "critical",
+        "fact_kind",
+        "record_ordinal",
+        "field_name",
+        "status",
+        "source_literal",
+        "normalized_value",
+        "normalized_decimal",
+        "normalized_date",
+        "currency",
+        "unit",
+        "sign",
+        "evidence"
+      ]
+    },
+    "uncertainty": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "uncertainty_id": {"type": "string"},
+        "category": {"enum": ["UNREADABLE", "AMBIGUOUS", "MISSING", "CONFLICTING", "SOURCE_LIMITATION"]},
+        "critical": {"type": "boolean"},
+        "description": {"type": "string"},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      },
+      "required": ["uncertainty_id", "category", "critical", "description", "evidence"]
+    },
+    "source_quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {"enum": ["CLEAR", "PARTIAL", "UNREADABLE", "CONFLICTING"]},
+        "summary": {"type": "string"},
+        "limitations": {"type": "array", "items": {"type": "string"}},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      },
+      "required": ["status", "summary", "limitations", "evidence"]
+    }
+  }
+}
