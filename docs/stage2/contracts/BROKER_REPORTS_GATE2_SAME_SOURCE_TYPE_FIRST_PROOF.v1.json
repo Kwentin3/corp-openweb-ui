@@ -15,7 +15,8 @@
   },
   "authorized_successor_repository_hashes": {
     "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_choice.py": "23742ea70d3541126585452e82dc458a5adc772d3e3665d2f4f2cabd6688f12b",
-    "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_evidence.py": "70a004390426d0312dd22406b3c64960ff4f456c17cbf1bfeb402494c935bfcd"
+    "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_evidence.py": "70a004390426d0312dd22406b3c64960ff4f456c17cbf1bfeb402494c935bfcd",
+    "docs/stage2/contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md": "da6c83b619af460e09bc62652878f09fe1d5ffcc38170d2cd4fdc02cb0b59495"
   },
   "contracts": {
     "request_schema": "broker_reports_type_first_request_v1",
