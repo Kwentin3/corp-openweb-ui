@@ -1,0 +1,41 @@
+{
+  "schema_version": "broker_reports_doc5_pdf_view_table_parity_safe_v1",
+  "effective_date": "2026-08-02",
+  "adjudication_mode": "Independent PDF-versus-experimental-view review plus deterministic body-span audit",
+  "status": "BLOCKED",
+  "documents": [
+    {"safe_id":"real_pdf_1","expected_logical_tables":4,"verdict":"NOT_EVALUATED_AFTER_ALLOWED_BLOCKER"},
+    {"safe_id":"real_pdf_2","expected_logical_tables":0,"verdict":"NO_EXPECTED_TABLES"},
+    {"safe_id":"real_pdf_4","expected_logical_tables":12,"confirmed_mismatched_tables":2,"affected_table_ids":["real_pdf_4_table_10","real_pdf_4_table_12"],"verdict":"FAILED_EXPERIMENTAL_PROJECTION_WITHDRAWN"},
+    {"safe_id":"real_pdf_5","expected_logical_tables":12,"doc1_span_blocker_tables":7,"affected_table_ids":["real_pdf_5_table_01","real_pdf_5_table_03","real_pdf_5_table_04","real_pdf_5_table_05","real_pdf_5_table_06","real_pdf_5_table_07","real_pdf_5_table_11"],"verdict":"BLOCKED_DOC1_BODY_SPAN_UNREPRESENTABLE"}
+  ],
+  "aggregate": {
+    "expected_logical_tables_total": 28,
+    "reliable_visual_gold_complete": false,
+    "independent_reviewed_experimental_tables_total": 2,
+    "confirmed_mismatched_experimental_tables_total": 2,
+    "direct_doc1_span_blocker_tables_total": 7,
+    "table_rows_gold_total": null,
+    "table_rows_matched_total": null,
+    "table_cells_gold_total": null,
+    "table_cells_matched_total": null,
+    "critical_table_mismatches_total": null,
+    "invented_table_values_total": null,
+    "silently_dropped_table_values_total": null
+  },
+  "pdf_vs_view_table_semantic_parity": "BLOCKED",
+  "doc4_baseline": {
+    "source_literal_meanings_total": 444,
+    "source_literal_meanings_preserved_total": 444,
+    "status": "PASSED_UNCHANGED_NOT_REOPENED"
+  },
+  "doc3_renderer_changed": false,
+  "provider_calls_total": 0,
+  "invalidated_claims": [
+    "337/337 rows matched",
+    "2794/2794 cells matched",
+    "DOC5 post-recovery strict table-binding recheck of the unchanged DOC4 444/444 baseline",
+    "critical table mismatches total equals zero"
+  ],
+  "integrity_sha256": "674df43d49906b733c5d6de98a63634f37755a97029d3114590c2d2327383264"
+}

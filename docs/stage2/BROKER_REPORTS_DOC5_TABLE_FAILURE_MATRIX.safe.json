@@ -1,0 +1,64 @@
+{
+  "schema_version": "broker_reports_doc5_table_failure_matrix_safe_v1",
+  "effective_date": "2026-08-02",
+  "baseline": {
+    "expected_logical_tables_total": 28,
+    "baseline_validated_table_blocks_total": 6,
+    "failed_tables_classified_total": 22,
+    "unclassified_failed_tables_total": 0
+  },
+  "terminal_decision": {
+    "status": "BLOCKED",
+    "direct_doc1_cell_span_blocker_tables": [
+      "real_pdf_5_table_01",
+      "real_pdf_5_table_03",
+      "real_pdf_5_table_04",
+      "real_pdf_5_table_05",
+      "real_pdf_5_table_06",
+      "real_pdf_5_table_07",
+      "real_pdf_5_table_11"
+    ],
+    "reason_code": "DOC1_BODY_CELL_SPAN_UNREPRESENTABLE"
+  },
+  "tables": [
+    {"table_id":"real_pdf_1_table_01","pages":[1],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","GRID_UNDERSEGMENTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_1_table_02","pages":[1],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","GRID_UNDERSEGMENTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_1_table_03","pages":[1],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_NOT_DETECTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_1_table_04","pages":[1],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_NOT_DETECTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+
+    {"table_id":"real_pdf_4_table_01","pages":[3],"first_failure_point":"logical_projection","failure_codes":["SPARSE_ROWS_REJECTED","ROW_GROUP_STRUCTURE_UNSUPPORTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_02","pages":[5],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","GRID_OVERSEGMENTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_03","pages":[5],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","GRID_OVERSEGMENTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_04","pages":[6],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","GRID_OVERSEGMENTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_05","pages":[6],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","GRID_OVERSEGMENTED","ROW_GROUP_STRUCTURE_UNSUPPORTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_06","pages":[7],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","GRID_OVERSEGMENTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_07","pages":[7],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","GRID_OVERSEGMENTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_08","pages":[7],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","GRID_OVERSEGMENTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_09","pages":[8],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","GRID_OVERSEGMENTED","SPARSE_ROWS_REJECTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_10","pages":[10],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","COLUMN_BANDS_INCORRECT","MULTILEVEL_HEADER_UNSUPPORTED","ROW_GROUP_STRUCTURE_UNSUPPORTED","LOGICAL_PROJECTION_DROPPED_STRUCTURE"],"proven_details":["The experimental grid included following prose.","Currency alignment created extra logical columns."],"repair_disposition":"EXPERIMENTAL_FALSE_GRID_WITHDRAWN","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_11","pages":[11],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","ROW_GROUP_STRUCTURE_UNSUPPORTED","SPARSE_ROWS_REJECTED"],"repair_disposition":"NOT_APPLIED_AFTER_SHARED_CONTRACT_BLOCKER","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_4_table_12","pages":[13],"first_failure_point":"detected_region","failure_codes":["TABLE_REGION_BOUNDARY_WRONG","COLUMN_BANDS_INCORRECT","MULTILEVEL_HEADER_UNSUPPORTED","ROW_GROUP_STRUCTURE_UNSUPPORTED","LOGICAL_PROJECTION_DROPPED_STRUCTURE"],"proven_details":["Level labels and their ordinals were split into separate columns.","Currency signs were detached from their amount columns."],"repair_disposition":"EXPERIMENTAL_FALSE_GRID_WITHDRAWN","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+
+    {"table_id":"real_pdf_5_table_01","pages":[1],"first_failure_point":"logical_projection","failure_codes":["MERGED_CELL_UNSUPPORTED","SPARSE_ROWS_REJECTED","MULTILEVEL_HEADER_UNSUPPORTED"],"terminal_blocker_point":"doc1_materialization","terminal_blocker_reason":"DOC1 has no body-cell span relation or covered-coordinate state.","repair_disposition":"STOPPED_PER_DOC5_SECTION_15","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_5_table_03","pages":[1],"first_failure_point":"logical_projection","failure_codes":["MERGED_CELL_UNSUPPORTED","SPARSE_ROWS_REJECTED","ROW_GROUP_STRUCTURE_UNSUPPORTED"],"terminal_blocker_point":"doc1_materialization","terminal_blocker_reason":"DOC1 has no body-cell span relation or covered-coordinate state.","repair_disposition":"STOPPED_PER_DOC5_SECTION_15","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_5_table_04","pages":[2],"first_failure_point":"logical_projection","failure_codes":["MERGED_CELL_UNSUPPORTED","SPARSE_ROWS_REJECTED","EMPTY_CELLS_NOT_MATERIALIZED"],"terminal_blocker_point":"doc1_materialization","terminal_blocker_reason":"DOC1 has no body-cell span relation or covered-coordinate state.","repair_disposition":"STOPPED_PER_DOC5_SECTION_15","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_5_table_06","pages":[3,4],"first_failure_point":"logical_projection","failure_codes":["MERGED_CELL_UNSUPPORTED","SPARSE_ROWS_REJECTED","MULTI_PAGE_CONTINUATION_UNSUPPORTED","REPEATED_HEADER_NOT_RECOGNIZED"],"terminal_blocker_point":"doc1_materialization","terminal_blocker_reason":"DOC1 has no body-cell span relation or covered-coordinate state.","repair_disposition":"STOPPED_PER_DOC5_SECTION_15","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_5_table_07","pages":[4],"first_failure_point":"logical_projection","failure_codes":["MERGED_CELL_UNSUPPORTED","SPARSE_ROWS_REJECTED","MULTILEVEL_HEADER_UNSUPPORTED"],"terminal_blocker_point":"doc1_materialization","terminal_blocker_reason":"DOC1 has no body-cell span relation or covered-coordinate state.","repair_disposition":"STOPPED_PER_DOC5_SECTION_15","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"},
+    {"table_id":"real_pdf_5_table_11","pages":[5],"first_failure_point":"logical_projection","failure_codes":["MERGED_CELL_UNSUPPORTED","SPARSE_ROWS_REJECTED","ROW_GROUP_STRUCTURE_UNSUPPORTED","EMPTY_CELLS_NOT_MATERIALIZED"],"terminal_blocker_point":"doc1_materialization","terminal_blocker_reason":"DOC1 has no body-cell span relation or covered-coordinate state.","repair_disposition":"STOPPED_PER_DOC5_SECTION_15","terminal_status":"BLOCKED_UNRECOVERABLE_CRITICAL_TABLE"}
+  ],
+  "additional_affected_baseline_table": {
+    "table_id": "real_pdf_5_table_05",
+    "pages": [2,3],
+    "finding": "The accepted first fragment has an unrepresented continuation fragment whose terminal row contains a body cell span.",
+    "first_failure_point": "logical_projection",
+    "failure_codes": ["MERGED_CELL_UNSUPPORTED", "MULTI_PAGE_CONTINUATION_UNSUPPORTED"],
+    "terminal_blocker_point": "doc1_materialization",
+    "terminal_blocker_reason": "DOC1 has no body-cell span relation or covered-coordinate state."
+  },
+  "privacy": {
+    "source_values_included": false,
+    "private_paths_included": false,
+    "provider_payloads_included": false
+  },
+  "integrity_sha256": "77bd76d9ef84af6b3c67c9d7b72e2b49f27ee545587d4d6071669ecb8028766b"
+}
