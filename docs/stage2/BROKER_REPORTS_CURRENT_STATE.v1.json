@@ -158,7 +158,7 @@
   "doc6_implementation_merge": "4d1e6297a93893fefafc23fab3b8d8ed47b435e4",
   "doc6_implementation_pr": 263,
   "doc6_implementation_ci_run": 30770742050,
-  "doc6_evidence_pr": "reported_after_pr_creation_due_to_order",
+  "doc6_evidence_pr": 264,
   "doc6_evidence_merge": "reported_in_terminal_response_due_to_merge_commit_self_reference",
   "doc6_status": "PASSED",
   "doc6_independent_review": "PASSED",
@@ -341,5 +341,5 @@
     "live_changes": 0
   },
   "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "7e0e11800d6255569015c3a7722787c14d5b58609d9035018b5b702cf1fa37aa"
+  "integrity_sha256": "dfa262bc9885a0ffa650e93dae5def2e61c12ef07a3e6291c53597be4b8e7069"
 }

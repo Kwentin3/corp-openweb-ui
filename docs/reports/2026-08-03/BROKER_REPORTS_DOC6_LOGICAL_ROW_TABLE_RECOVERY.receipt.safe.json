@@ -12,7 +12,7 @@
     "exact_head_ci_status": "SUCCESS"
   },
   "evidence": {
-    "pull_request": "reported_after_pr_creation_due_to_order",
+    "pull_request": 264,
     "pull_request_state": "MERGED_AFTER_TERMINAL_ASSERTION_ACTIVATION",
     "commit": "reported_in_terminal_response_due_to_commit_self_reference",
     "merge_commit": "reported_in_terminal_response_due_to_merge_commit_self_reference",
@@ -34,7 +34,7 @@
     },
     "report": {
       "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC6_LOGICAL_ROW_TABLE_RECOVERY.report.md",
-      "repository_lf_sha256": "94ae2d9b581c92425609f81109b919ebe869a15c5d5202b076b59ab29fead360"
+      "repository_lf_sha256": "42d96cc57dc398b7795ad97fc7a882eec2377baf87f305e420b33455e6623c87"
     },
     "brief": {
       "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC6_LOGICAL_ROW_TABLE_RECOVERY_BRIEF.md",
@@ -144,5 +144,5 @@
     "word_or_anchor_ids_included": false
   },
   "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
-  "integrity_sha256": "06a24fea9ec3186211e4afad9b6dcb11b1deb21df85a3ac3754590881ba74663"
+  "integrity_sha256": "660f3e35293303b18a0ab08218813c06f84150ff62ae2097a8148d95779ad64d"
 }
