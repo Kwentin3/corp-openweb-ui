@@ -111,6 +111,10 @@ jobs:
           tests/test_broker_reports_pdf_view_semantic_experiment.py
           tests/test_broker_reports_managed_document_contract.py
           tests/test_broker_reports_managed_document_llm_view.py
+          tests/test_broker_reports_managed_document_contract_v2.py
+          tests/test_broker_reports_logical_row_table_recovery.py
+          tests/test_broker_reports_managed_pdf_document_v2.py
+          tests/test_broker_reports_managed_document_llm_view_v2.py
           tests/test_broker_reports_kt16_canonical_context.py
           tests/test_broker_reports_kt2_same_source_type_first_proof.py
           tests/test_broker_reports_gate1_pipe_bundle.py

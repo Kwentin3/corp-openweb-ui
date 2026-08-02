@@ -26,6 +26,9 @@ OWNER_CONTEXT_GUIDE = (
 OWNER_MATRIX = (
     DOC_ROOT / "contracts" / "BROKER_REPORTS_SOLE_OWNER_MATRIX.v1.md"
 )
+ARCHITECTURE_AUTHORITIES = (
+    DOC_ROOT / "contracts" / "BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md"
+)
 CONVERGENCE_ADR = (
     DOC_ROOT / "adr" / "BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md"
 )
@@ -518,6 +521,30 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "pdf_view_semantic_adjudication.py"
         ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_contracts_v2.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "logical_row_table_recovery.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_pdf_document_v2.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_llm_view_v2.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_llm_view_audit_v2.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_llm_view_parity_v2.py"
+        ),
     }
     assert set(added_package_modules) <= (
         allowed_subordinates | allowed_standalone_contract_authorities
@@ -623,10 +650,173 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             module = REPO_ROOT / authority
             assert "def main(" not in _read(module)
             assert "openwebui_actions" not in _imports(module)
+    doc6_authorities = {
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_contracts_v2.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "logical_row_table_recovery.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_pdf_document_v2.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_llm_view_v2.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_llm_view_audit_v2.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_document_llm_view_parity_v2.py"
+        ),
+    }
+    if added_contract_authorities & doc6_authorities:
+        for path in (
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_MANAGED_DOCUMENT.v2.md",
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_MANAGED_DOCUMENT.v2.schema.json",
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_LLM_DOCUMENT_VIEW.v2.md",
+            DOC_ROOT / "BROKER_REPORTS_DOC6_LOGICAL_ROW_MODEL_DECISION.v1.md",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_managed_document_contract_v2.py",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_logical_row_table_recovery.py",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_managed_pdf_document_v2.py",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_managed_document_llm_view_v2.py",
+        ):
+            assert path.is_file()
+        authority_map = _read(ARCHITECTURE_AUTHORITIES)
+        for owner in (
+            "ManagedDocumentContractV2Validator",
+            "LogicalRowTableFactory",
+            "ManagedPdfDocumentV2Factory",
+            "ManagedDocumentLlmViewV2Factory",
+            "ManagedDocumentLlmViewV2Auditor",
+        ):
+            assert owner in authority_map
+        for authority in doc6_authorities:
+            module = REPO_ROOT / authority
+            assert "def main(" not in _read(module)
+            assert "openwebui_actions" not in _imports(module)
     workflow = _read(
         REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml"
     )
-    assert "tests/test_broker_reports_kt1_architecture_stabilization.py" in (
-        workflow
-    )
+    for doc6_suite in (
+        "tests/test_broker_reports_managed_document_contract_v2.py",
+        "tests/test_broker_reports_logical_row_table_recovery.py",
+        "tests/test_broker_reports_managed_pdf_document_v2.py",
+        "tests/test_broker_reports_managed_document_llm_view_v2.py",
+    ):
+        assert doc6_suite in workflow
     assert DOMAIN_MAP.is_file()
+
+
+def test_18_doc6_runtime_is_inactive_and_factory_routed() -> None:
+    doc6_modules = {
+        "managed_document_contracts_v2",
+        "logical_row_table_recovery",
+        "managed_pdf_document_v2",
+        "managed_document_llm_view_v2",
+        "managed_document_llm_view_audit_v2",
+        "managed_document_llm_view_parity_v2",
+    }
+    allowed_import_edges = {
+        (
+            PACKAGE_ROOT / "managed_pdf_document_v2.py",
+            "managed_document_contracts_v2",
+        ),
+        (
+            PACKAGE_ROOT / "managed_pdf_document_v2.py",
+            "logical_row_table_recovery",
+        ),
+        (
+            PACKAGE_ROOT / "managed_document_llm_view_v2.py",
+            "managed_document_contracts_v2",
+        ),
+        (
+            PACKAGE_ROOT / "managed_document_llm_view_parity_v2.py",
+            "managed_document_llm_view_audit_v2",
+        ),
+    }
+    factory_internal_constructors = {
+        "LogicalRowTableRecoveryRuntime": (
+            PACKAGE_ROOT / "logical_row_table_recovery.py"
+        ),
+        "ManagedPdfDocumentV2Builder": (
+            PACKAGE_ROOT / "managed_pdf_document_v2.py"
+        ),
+        "_ManagedDocumentLlmViewV2Renderer": (
+            PACKAGE_ROOT / "managed_document_llm_view_v2.py"
+        ),
+    }
+    import_violations: list[str] = []
+    constructor_violations: list[str] = []
+
+    roots = (
+        PACKAGE_ROOT,
+        SERVICE_ROOT / "scripts",
+        SERVICE_ROOT / "openwebui_actions",
+    )
+    for root in roots:
+        for path in root.glob("*.py"):
+            tree = ast.parse(_read(path), filename=str(path))
+            imported_candidates: set[str] = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported_candidates.update(
+                        alias.name for alias in node.names
+                    )
+                elif isinstance(node, ast.ImportFrom):
+                    module = node.module or ""
+                    if module:
+                        imported_candidates.add(module)
+                    imported_candidates.update(
+                        f"{module}.{alias.name}" if module else alias.name
+                        for alias in node.names
+                    )
+                elif isinstance(node, ast.Call) and isinstance(
+                    node.func,
+                    ast.Name,
+                ):
+                    allowed_path = factory_internal_constructors.get(
+                        node.func.id
+                    )
+                    if (
+                        allowed_path is not None
+                        and path != allowed_path
+                    ):
+                        constructor_violations.append(
+                            f"{path.relative_to(SERVICE_ROOT).as_posix()}:"
+                            f"{node.lineno}:{node.func.id}"
+                        )
+
+            imported_doc6 = {
+                part
+                for candidate in imported_candidates
+                for part in candidate.split(".")
+                if part in doc6_modules
+            }
+            for target_module in imported_doc6:
+                if (path, target_module) not in allowed_import_edges:
+                    import_violations.append(
+                        f"{path.relative_to(SERVICE_ROOT).as_posix()}"
+                        f"->{target_module}"
+                    )
+
+    assert sorted(import_violations) == []
+    assert sorted(constructor_violations) == []

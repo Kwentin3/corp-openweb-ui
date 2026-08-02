@@ -512,6 +512,12 @@ def test_contract_has_no_product_or_provider_reachability() -> None:
         PACKAGE_ROOT / "managed_pdf_document.py",
         PACKAGE_ROOT / "managed_document_llm_view.py",
         PACKAGE_ROOT / "pdf_view_semantic_experiment.py",
+        PACKAGE_ROOT / "managed_document_contracts_v2.py",
+        PACKAGE_ROOT / "logical_row_table_recovery.py",
+        PACKAGE_ROOT / "managed_pdf_document_v2.py",
+        PACKAGE_ROOT / "managed_document_llm_view_v2.py",
+        PACKAGE_ROOT / "managed_document_llm_view_audit_v2.py",
+        PACKAGE_ROOT / "managed_document_llm_view_parity_v2.py",
     }
     for root in (PACKAGE_ROOT, SERVICE_ROOT / "openwebui_actions"):
         for path in root.glob("*.py"):
@@ -555,9 +561,23 @@ def test_generated_bundles_exclude_contract_and_rebuild_byte_exact(
         )
     }
     assert all(rebuilt[path] == path.read_bytes() for path in BUNDLE_PATHS)
+    inactive_document_markers = (
+        b"managed_document_contracts",
+        b"logical_row_table_recovery",
+        b"managed_pdf_document_v2",
+        b"managed_document_llm_view_v2",
+        b"managed_document_llm_view_audit_v2",
+        b"managed_document_llm_view_parity_v2",
+        b"ManagedDocumentContractV2Validator",
+        b"LogicalRowTableFactory",
+        b"ManagedPdfDocumentV2Factory",
+        b"ManagedDocumentLlmViewV2Factory",
+        b"ManagedDocumentLlmViewV2Auditor",
+    )
     assert all(
-        b"managed_document_contracts" not in content
+        marker not in content
         for content in rebuilt.values()
+        for marker in inactive_document_markers
     )
 
 
