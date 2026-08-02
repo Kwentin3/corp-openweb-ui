@@ -1,8 +1,8 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after terminal DOC5 DOC1 body-cell span blocker
+Status: canonical entry point after passed inactive DOC6 logical-row recovery
 
-Effective date: 2026-08-02
+Effective date: 2026-08-03
 
 DOC1 implementation merge:
 `c4fa86d8229bc8afdd88bfd0371a96d260790942`.
@@ -32,6 +32,15 @@ DOC5 diagnostic implementation merge:
 `feac6765f5acd4b402d312f2efdd68ea93358c08`.
 
 DOC5 evidence merge: reported in the terminal response because a commit cannot
+name its own future merge commit.
+
+DOC6 implementation commit:
+`85b238f751e01c4223a548fd9872638c6cf4d2ce`.
+
+DOC6 implementation merge:
+`4d1e6297a93893fefafc23fab3b8d8ed47b435e4` (PR #263; CI run 30770742050).
+
+DOC6 evidence merge: reported in the terminal response because a commit cannot
 name its own future merge commit.
 
 KT2 implementation merge: `16fe3d2b2dd68bbb6440ede3a9b7537849de7456`
@@ -224,98 +233,41 @@ real-PDF proof closes the PDF real-corpus gap without changing DOC1.
 DOC1 added no parser, normalizer, renderer, product route, provider call,
 generated bundle, live change, financial type, Semantic Pack, Type-First,
 Gate 3, or Gate 4 behavior. DOC2 and DOC3 are later, separate inactive
-implementations. DOC4 later passed preflight and closed on a model-output contract blocker; DOC6 has
-not started.
+implementations. DOC4 later closed on a model-output blocker; DOC6 later added a
+separate inactive v2 without changing DOC1.
 
 ## 12.3 DOC2 inactive PDF managed-document builder
 
 DOC2 is complete at its inactive PDF boundary. `ManagedPdfDocumentFactory` is
-the single builder owner before the DOC0 `PdfLayoutUnitBuilder` loss point. It
-uses page, parser-block and parser-word order, inserts a table at its first
-owned word, and rejects ambiguous line/word/table ownership. The old page-local
-unit path is not reused as document authority.
-
-Five private real PDFs produced four valid `PARTIAL` Managed Documents and one
-terminal encrypted `BLOCKED` result. Across 1,207 source observations there are
-0 unresolved, 0 unaccounted losses, 0 invented content, and 0 order conflicts.
-Six native grids became validated `TABLE` blocks; 26 invalid regions remain
-source-bound `UNKNOWN` blocks with explicit structure losses. Table text is not
-duplicated into paragraphs.
-
-Four isolated PDF-only checklists, four artifact-only checklists, and four
-sealed comparisons all reached full parity. Critical and noncritical findings
-are zero. Two builds matched across all 38 private JSON outputs. The full proof
-is private; only aggregate sealed summaries and the dated closure package are
-in Git.
-
-DOC2 changes no DOC1 schema, product route, provider/model path, Knowledge/RAG,
-embedding/vector path, generated bundle, or live state. DOC3 is the later,
-separate inactive LLM Document View implementation. The later DOC4 experiment
-closed as `INCONCLUSIVE_MODEL_OUTPUT_FAILURE`; real model qualification and product
-activation have not started.
+the builder owner before the DOC0 loss point. Four readable PDFs produced four
+source-complete `PARTIAL` artifacts; one encrypted PDF stopped as `BLOCKED`.
+All 1,207 source observations are accounted for, with no invention, order
+conflict or table/paragraph duplication. Six native grids became TABLE blocks;
+the remaining structure stayed explicit UNKNOWN. Four sealed PDF/artifact
+comparisons passed. DOC2 changes no DOC1 schema, product route, provider,
+bundle or live state.
 
 ## 12.4 DOC3 inactive LLM Document View
 
 DOC3 is complete at its inactive Managed Document-to-view boundary.
 `ManagedDocumentLlmViewFactory` is the single renderer owner for canonical
-`broker_reports_llm_document_view_v1` UTF-8 tagged text. Every source-derived
-value is compact JSON on one physical line; the fixed trust header and strict
-end marker prevent source content from creating renderer delimiters.
-
-The view retains every status-bearing metadata field, safe anchor, ordered
-block, TABLE row/cell and structure record, UNKNOWN/VISUAL placeholder,
-relation, issue and known loss. A sealed DOC1 field-disposition authority
-accounts for all 737 concrete fields exercised by the real corpus with zero
-unaccounted paths. Private refs, checksums, paths and access context do not
-enter the view.
-
-The same four valid DOC2 Managed Documents rendered 131/131 blocks, 6/6
-tables, 82/82 rows, 467/467 cells, 26/26 UNKNOWN blocks, 9/9 VISUAL blocks,
-35/35 issues and 44/44 known losses. Four Managed Document-only and four
-independent view-only checklists produced four full-parity comparisons: 52/52
-dimensions match, with zero critical or noncritical findings. Two runs matched
-across all 24 private proof files.
-
-The pinned offline reference tokenizer is
-`broker_reports_utf8_byte_bpe_v1` on `tiktoken==0.12.0`. The four views total
-289,670 reference tokens; the largest is 161,367. These are model-independent
-reference counts, not a context-window or real-model qualification claim.
-
-DOC3 changes no DOC1 schema, DOC2 builder, prompt, valve, provider/model path,
-admission, product route, generated bundle or live state. DOC4 later attempted
-the separate provider experiment described below.
+`broker_reports_llm_document_view_v1`. It retains all ordered blocks, tables,
+UNKNOWN/VISUAL placeholders, relations, issues and known losses while excluding
+private refs and access context. All 737 exercised field paths are accounted
+for. Four independent comparisons passed all 52 dimensions; replay was exact.
+Reference token counts are offline measurements, not qualification. DOC3
+changes no DOC1/DOC2, provider, admission, product route, bundle or live state.
 
 ## 12.5 DOC4 PDF vs LLM Document View semantic experiment
 
-The inactive DOC4 harness implementation passed isolated review, exact-head CI
-and merged-main validation. The operator later authorized the same four frozen
-documents and OpenAI `gpt-5.4-2026-03-05` with a minimal request: `store`,
-sampling and reasoning parameters were omitted, and provider-default retention
-was acknowledged. Separate PDF-only agents had already sealed four gold
-checklists before provider calls: 461 items and 321 critical facts.
-
-PR #257 implemented the minimal request policy. The next preflight proved that
-`store` was not the blocker: OpenAI returned a strict-schema type error. PR
-#258 added explicit types without changing the accepted response values. The
-new v5 preflight then passed eight exact token counts and all four PDF/View
-pairs fit the frozen context budget.
-
-The paired run stopped fail-closed on the first `real_pdf_1/PDF` arm. The
-initial response and its one permitted exact replay both failed local semantic
-validation. No primary arm was accepted, so no pair, stability replay,
-comparison or adjudication completed. Historical failure metadata was not
-persisted, so the exact primary HTTP-call and usage totals are not
-reconstructible; the harness now preserves that private receipt prospectively.
-No private artifact entered Git, and no product route or live state changed.
+The inactive DOC4 harness, review and context preflight passed. Four PDF-only
+gold checklists were sealed before calls. The authorized first PDF arm and its
+one exact replay both failed the structured local output contract, so execution
+stopped before an accepted pair or semantic comparison. Exact historical call
+and usage totals are not reconstructible; no private artifact entered Git and
+no product or live state changed.
 
 ```text
-DOC4_HARNESS_IMPLEMENTATION = PASSED
-INDEPENDENT_REVIEW = PASSED
-PROVIDER_TRANSFER_AUTHORIZED = TRUE
-STORE_PARAMETER = OMITTED
-GOLD_CHECKLISTS_TOTAL = 4
-CONTEXT_PREFLIGHT = PASSED
-SUCCESSFUL_TOKEN_COUNT_CALLS_TOTAL = 8
 DOC4_EXPERIMENT_EXECUTION = BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE
 MODEL_TASK_ADEQUACY = FAILED_STRUCTURED_RESPONSE_CONTRACT
 PDF_TO_LLM_VIEW_SEMANTIC_EQUIVALENCE = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
@@ -328,55 +280,83 @@ PRODUCT_ACTIVATION = NOT_STARTED
 
 ## 12.6 DOC4 manual Codex source audit
 
-Codex separately reviewed all 24 pages and four Views after the provider stop.
-All 444 gold literals retained readable meaning, but strict equivalence failed:
-only 6 of 28 logical tables were validated. The other 22 lacked grids in 26
-UNKNOWN blocks, so row/column, continuation, blank-cell, reading-order and
-visual relations were not fully preserved. This manual audit does not replace
-the missing model arms.
+Codex separately reviewed all 24 pages and four Views. All 444 gold literals
+retained readable meaning, but strict equivalence failed because only 6 of 28
+logical tables had validated structure. This audit does not replace the missing
+model arms.
 
 ```text
 MANUAL_CODEX_SOURCE_AUDIT = COMPLETED
 MANUAL_CODEX_STRICT_SEMANTIC_EQUIVALENCE = FAILED
-SOURCE_LITERAL_MEANING_PRESENT = 444/444
-RAW_EXACT_SOURCE_LITERALS = 427/444
 EXPECTED_LOGICAL_TABLES_TOTAL = 28
 VALIDATED_TABLE_BLOCKS_TOTAL = 6
 LOGICAL_TABLES_WITHOUT_VALIDATED_GRID_TOTAL = 22
-SUMMARY_AND_SEARCH_USEFULNESS = USABLE_WITH_EXPLICIT_LIMITATIONS
 ORIGINAL_PROVIDER_EXPERIMENT = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
 ```
 
 ## 12.7 DOC5 geometry-backed table recovery
 
-All 22 failures were classified; zero remain unclassified. Review withdrew the
-experimental grids after two counterexamples. Geometry found 33 spans in 14
-fragments, including at least 23 body spans across seven tables. DOC1 models
-header spans, but not body spans or covered coordinates, collapsing them into
-`EMPTY`.
+All 22 failures were classified. Review withdrew rectangular experimental
+grids after two counterexamples. Geometry found 33 spans in 14 fragments,
+including at least 23 body spans across seven tables; DOC1 cannot express that
+coverage. DOC5 remains terminal evidence against grid-first recovery.
 
 ```text
 DOC5_FAILURES_CLASSIFIED_TOTAL = 22
 DOC5_UNCLASSIFIED_FAILURES_TOTAL = 0
-DOC5_RULED_FRAGMENTS_SPAN_AUDITED_TOTAL = 14
-DOC5_PHYSICAL_SPAN_CELLS_TOTAL = 33
-DOC5_CONFIRMED_BODY_SPAN_CELLS_MINIMUM_TOTAL = 23
 DOC5_DIRECT_DOC1_SPAN_BLOCKER_TABLES_TOTAL = 7
 DOC5_PDF_VS_VIEW_TABLE_SEMANTIC_PARITY = BLOCKED
 DOC5_DOC1_SCHEMA_CHANGED = FALSE
 DOC5 = BLOCKED_DOC1_BODY_CELL_SPAN_UNREPRESENTABLE
 ```
 
-Parity is blocked; DOC1, DOC3, product, bundles and live state are unchanged.
-The DOC4 `444/444` baseline remains. Next: a separate span-contract goal.
+DOC6 did not merge or revive the stopped DOC5.1 rectangular implementation.
 
-## 13. KT2, DOC1, DOC2, DOC3, DOC4, DOC5, and next gates
+## 12.8 DOC6 inactive logical-row recovery
 
-KT2 and KT2.1 are complete inactive proofs. DOC1 remains authority; DOC2 and
-DOC3 remain inactive proofs. DOC4 provider evidence stays inconclusive; its
-manual audit failed strict equivalence. DOC5 is terminally blocked by DOC1 v1
-body-span expressiveness. No route, bundle, live, qualification or activation
-change occurred. Later steps require separate goals.
+DOC6 adds inactive Managed Document v2 and LLM Document View v2. A TABLE is an
+ordered collection of rows with role, order, hierarchy, entries and optional
+logical-column bindings. Geometry is secondary evidence, not table meaning.
+
+Across four readable PDFs, all 28 tables, 357 rows and 2,338 entries match the
+sealed adjudicated gold. The preserved raw comparison has 29 mismatches: 27
+entry surfaces and two derived header paths; all 27 errata entries resolved.
+Terminal critical, value-accounting, exact-once ownership and column-binding
+mismatches are zero. One row role and one parent link remain explicit
+noncritical uncertainties. v1, product, providers, bundles and live state are
+unchanged.
+
+```text
+DOC6_LOGICAL_ROW_TABLE_MODEL = PASSED
+DOC6_CANONICAL_TABLE_MODEL = ORDERED_LOGICAL_ROWS
+EXPECTED_LOGICAL_TABLES_TOTAL = 28
+REPRESENTED_LOGICAL_TABLES_TOTAL = 28
+VISUAL_GOLD_ROWS_TOTAL = 357
+MANAGED_DOCUMENT_ROWS_MATCHED_TOTAL = 357
+VISUAL_GOLD_ENTRIES_TOTAL = 2338
+MANAGED_DOCUMENT_ENTRIES_MATCHED_TOTAL = 2338
+UNKNOWN_ROW_ROLES_TOTAL = 1
+UNRESOLVED_COLUMN_BINDINGS_TOTAL = 0
+UNRESOLVED_ROW_PARENTS_TOTAL = 1
+CRITICAL_ROW_MISMATCHES_TOTAL = 0
+CRITICAL_ENTRY_MISMATCHES_TOTAL = 0
+INVENTED_SOURCE_VALUES_TOTAL = 0
+DROPPED_SOURCE_VALUES_TOTAL = 0
+DUPLICATED_SOURCE_VALUES_TOTAL = 0
+PDF_TO_MANAGED_DOCUMENT_V2_ROW_PARITY = PASSED
+MANAGED_DOCUMENT_V2_TO_LLM_VIEW_V2_PARITY = PASSED
+PDF_TO_LLM_VIEW_V2_ROW_PARITY = PASSED
+DOC6_PROVIDER_CALLS_TOTAL = 0
+DOC6_PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
+DOC6_PRODUCT_ACTIVATION = NOT_STARTED
+```
+
+## 13. Current product boundary
+
+DOC1/View v1 and the current Gate 2 route remain product authority. DOC2,
+DOC3, KT2/KT2.1 and DOC6 are inactive proofs. DOC4 remains inconclusive; DOC5
+remains a historical blocker. No route, bundle, live, qualification or
+activation change occurred.
 
 ## 14. Forbidden shortcuts
 
@@ -386,7 +366,8 @@ infer current state from a historical receipt, edit generated bundles by hand,
 use customer/private bytes in Git, mutate live state, activate DOC2 or DOC3,
 restart DOC4 provider attempts without an explicit new model-or-policy
 decision, resume DOC5 or change DOC1/DOC3 span semantics without an explicit
-new contract goal, begin DOC6, or begin Gate 3/4 work.
+new contract goal, activate DOC6 v2, treat v2 as the current product route,
+revive the DOC5 grid-first model, or begin Gate 3/4 work.
 
 ```text
 REPOSITORY_DEBT = CLOSED

@@ -2,7 +2,7 @@
 
 Status: canonical evidence classification
 
-Effective date: 2026-08-02
+Effective date: 2026-08-03
 
 ## Current authority
 
@@ -25,6 +25,47 @@ Effective date: 2026-08-02
 | DOC4 PDF vs LLM View semantic experiment | `CANONICAL_CURRENT_TERMINAL_BLOCKER` | DOC4 Candidate and Equivalence Decisions, safe preflight/results/stability summaries, and 2026-08-01 blocked closure package |
 | DOC4 manual Codex PDF vs View audit | `CANONICAL_CURRENT_MANUAL_EVIDENCE` | DOC4 Manual Codex Audit Decision and 2026-08-01 manual report/safe receipt |
 | DOC5 geometry-backed table recovery | `CANONICAL_CURRENT_TERMINAL_BLOCKER` | DOC5 Decision, failure/results/parity safe summaries, proof contract, and 2026-08-02 blocked closure package |
+| DOC6 inactive logical-row table recovery | `CANONICAL_CURRENT` | DOC6 Decision, Managed Document/View v2 contracts, recovery/parity safe summaries, and 2026-08-03 passed closure package |
+
+## DOC6
+
+```text
+STATUS = PASSED_INACTIVE
+CANONICAL_TABLE_MODEL = ORDERED_LOGICAL_ROWS
+EXPECTED_LOGICAL_TABLES_TOTAL = 28
+REPRESENTED_LOGICAL_TABLES_TOTAL = 28
+VISUAL_GOLD_ROWS_TOTAL = 357
+MANAGED_DOCUMENT_ROWS_MATCHED_TOTAL = 357
+VISUAL_GOLD_ENTRIES_TOTAL = 2338
+MANAGED_DOCUMENT_ENTRIES_MATCHED_TOTAL = 2338
+BASELINE_TABLES_TOTAL = 6
+BASELINE_TABLES_REGRESSED_TOTAL = 0
+CONTINUED_TABLES_TOTAL = 2
+UNKNOWN_ROW_ROLES_TOTAL = 1
+UNRESOLVED_COLUMN_BINDINGS_TOTAL = 0
+UNRESOLVED_ROW_PARENTS_TOTAL = 1
+RAW_BASE_CRITICAL_MISMATCHES_TOTAL = 29
+ERRATA_ENTRIES_TOTAL = 27
+ERRATA_ENTRIES_RESOLVED_TOTAL = 27
+CRITICAL_ROW_MISMATCHES_TOTAL = 0
+CRITICAL_ENTRY_MISMATCHES_TOTAL = 0
+PDF_TO_MANAGED_DOCUMENT_V2_ROW_PARITY = PASSED
+MANAGED_DOCUMENT_V2_TO_LLM_VIEW_V2_PARITY = PASSED
+PDF_TO_LLM_VIEW_V2_ROW_PARITY = PASSED
+PROVIDER_CALLS_TOTAL = 0
+PRODUCTION_MODEL_QUALIFICATION = NOT_STARTED
+PRODUCT_ACTIVATION = NOT_STARTED
+```
+
+The frozen precomparison gold remains byte-unchanged. Its raw comparisons
+preserve 29 mismatches: 27 entry surfaces and two derived header paths. The
+independent sealed errata resolves all 27 recorded surface entries; terminal
+adjudicated comparisons have zero critical mismatches. This distinction is
+part of the acceptance proof, not a hidden rewrite of the raw result.
+
+Managed Document/View v2 are inactive proof artifacts. Managed Document/View
+v1 and the current product route remain authoritative; no provider,
+qualification, activation, generated bundle or live-state change occurred.
 
 ## DOC5
 
@@ -49,9 +90,9 @@ that DOC1 v1 cannot represent body-cell spans or distinguish a real empty cell
 from a coordinate covered by a neighboring merged cell. DOC5 therefore stopped
 under its contract instead of claiming false table parity.
 
-The DOC4 `444/444` readable-meaning baseline remains closed and valid. The next
-authorized work, if chosen, is a separate DOC1/DOC3 span-contract revision; no
-provider retry, product activation, or production model qualification started.
+The DOC4 `444/444` readable-meaning baseline remains closed and valid. DOC5
+remains terminal evidence against rectangular grid-first recovery. DOC6 used a
+distinct row-first v2 and did not revive the stopped DOC5.1 implementation.
 
 ## DOC4
 
@@ -223,9 +264,10 @@ partitioned from future model-visible content.
 
 The six safe fixtures are hand-authored synthetic expressiveness evidence and
 do not themselves prove a PDF parser or normalizer. The later DOC2 family is
-the separate real-PDF proof; DOC3 is the separate inactive deterministic view
-and representation-parity proof. DOC4, DOC6, real model qualification, product
-reachability, activation, and deployment are not started.
+the separate real-PDF proof; DOC3 is the separate inactive deterministic view.
+DOC4 remains terminally blocked. DOC6 later supplies a separate inactive v2
+recovery and representation-parity proof. Real model qualification, product
+reachability, activation, and deployment remain not started.
 
 ## DOC0
 

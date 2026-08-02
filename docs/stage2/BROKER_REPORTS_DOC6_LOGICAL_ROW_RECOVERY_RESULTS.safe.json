@@ -1,0 +1,209 @@
+{
+  "schema_version": "broker_reports_doc6_logical_row_recovery_results_safe_v1",
+  "effective_date": "2026-08-03",
+  "status": "PASSED",
+  "base_commit": "623801ce5c9d89db273f6e654a2501167b65342b",
+  "implementation_commit": "85b238f751e01c4223a548fd9872638c6cf4d2ce",
+  "implementation_pr": 263,
+  "implementation_merge_commit": "4d1e6297a93893fefafc23fab3b8d8ed47b435e4",
+  "contract": {
+    "canonical_table_model": "ORDERED_LOGICAL_ROWS",
+    "managed_document_schema_id": "broker_reports_managed_document_v2",
+    "managed_document_schema_canonical_sha256": "c626ea6c63d5d9dc0e410736abef6d38c209196139dd5e3a3be02ec0205f4bd3",
+    "rectangular_grid_is_canonical": false,
+    "logical_columns_are_optional": true,
+    "geometry_is_secondary_evidence": true,
+    "product_reachability": false
+  },
+  "corpus": {
+    "documents_total": 4,
+    "pdf_pages_total": 24,
+    "documents": [
+      {
+        "document_key": "real_pdf_1",
+        "expected_tables_total": 4,
+        "represented_tables_total": 4,
+        "rows_total": 22,
+        "entries_total": 42,
+        "logical_columns_total": 8,
+        "source_parts_total": 4,
+        "continued_tables_total": 0,
+        "unknown_row_roles_total": 0,
+        "unresolved_column_bindings_total": 0,
+        "unresolved_row_parents_total": 0,
+        "status": "PASSED"
+      },
+      {
+        "document_key": "real_pdf_2",
+        "expected_tables_total": 0,
+        "represented_tables_total": 0,
+        "rows_total": 0,
+        "entries_total": 0,
+        "logical_columns_total": 0,
+        "source_parts_total": 0,
+        "continued_tables_total": 0,
+        "unknown_row_roles_total": 0,
+        "unresolved_column_bindings_total": 0,
+        "unresolved_row_parents_total": 0,
+        "status": "PASSED_NO_TABLES"
+      },
+      {
+        "document_key": "real_pdf_4",
+        "expected_tables_total": 12,
+        "represented_tables_total": 12,
+        "rows_total": 123,
+        "entries_total": 369,
+        "logical_columns_total": 32,
+        "source_parts_total": 12,
+        "continued_tables_total": 0,
+        "unknown_row_roles_total": 0,
+        "unresolved_column_bindings_total": 0,
+        "unresolved_row_parents_total": 0,
+        "status": "PASSED"
+      },
+      {
+        "document_key": "real_pdf_5",
+        "expected_tables_total": 12,
+        "represented_tables_total": 12,
+        "rows_total": 212,
+        "entries_total": 1927,
+        "logical_columns_total": 108,
+        "source_parts_total": 14,
+        "continued_tables_total": 2,
+        "unknown_row_roles_total": 1,
+        "unresolved_column_bindings_total": 0,
+        "unresolved_row_parents_total": 1,
+        "status": "PASSED_WITH_NONCRITICAL_UNCERTAINTY"
+      }
+    ]
+  },
+  "aggregate": {
+    "expected_logical_tables_total": 28,
+    "represented_logical_tables_total": 28,
+    "baseline_tables_total": 6,
+    "baseline_tables_regressed_total": 0,
+    "visual_gold_rows_total": 357,
+    "managed_document_rows_matched_total": 357,
+    "visual_gold_entries_total": 2338,
+    "managed_document_entries_matched_total": 2338,
+    "logical_columns_total": 148,
+    "source_parts_total": 30,
+    "continued_tables_total": 2,
+    "continuation_source_parts_total": 4,
+    "unknown_row_roles_total": 1,
+    "unresolved_column_bindings_total": 0,
+    "unresolved_row_parents_total": 1,
+    "noncritical_ambiguities_total": 5,
+    "visual_gold_blockers_total": 0,
+    "role_counts": {
+      "TABLE_TITLE": 17,
+      "COLUMN_HEADER": 35,
+      "GROUP_HEADER": 24,
+      "DATA": 244,
+      "SUBTOTAL": 17,
+      "TOTAL": 17,
+      "NOTE": 2,
+      "CONTINUATION_HEADER": 0,
+      "UNKNOWN": 1
+    },
+    "entry_kind_counts": {
+      "LABEL": 521,
+      "VALUE": 1467,
+      "UNIT": 140,
+      "MARKER": 208,
+      "NOTE": 2,
+      "UNKNOWN": 0
+    }
+  },
+  "source_accounting": {
+    "source_words_total": 11396,
+    "table_words_total": 3629,
+    "paragraph_words_total": 7767,
+    "unresolved_table_words_total": 0,
+    "multiple_entry_word_owners_total": 0,
+    "table_words_duplicated_as_paragraph_total": 0,
+    "paragraph_table_overlap_total": 0
+  },
+  "value_accounting": {
+    "invented_source_values_total": 0,
+    "dropped_source_values_total": 0,
+    "duplicated_source_values_total": 0
+  },
+  "critical_outcomes": {
+    "missing_logical_rows_total": 0,
+    "extra_logical_rows_total": 0,
+    "wrong_row_order_total": 0,
+    "wrong_row_role_total": 0,
+    "wrong_row_parent_total": 0,
+    "wrong_nesting_level_total": 0,
+    "wrong_entry_value_total": 0,
+    "wrong_entry_order_total": 0,
+    "wrong_entry_row_binding_total": 0,
+    "wrong_entry_column_binding_total": 0,
+    "wrong_header_binding_total": 0,
+    "wrong_subtotal_binding_total": 0,
+    "wrong_total_binding_total": 0,
+    "false_table_split_total": 0,
+    "false_table_merge_total": 0,
+    "false_continuation_total": 0,
+    "missing_continuation_total": 0,
+    "critical_row_mismatches_total": 0,
+    "critical_entry_mismatches_total": 0
+  },
+  "noncritical_uncertainties": [
+    {
+      "document_key": "real_pdf_5",
+      "table_key": "real_pdf_5_table_11",
+      "row_ordinal": 4,
+      "safe_row_pointer": "sp:real_pdf_5_table_11:row:004",
+      "issue_code": "UNKNOWN_ROW_ROLE",
+      "critical": false
+    },
+    {
+      "document_key": "real_pdf_5",
+      "table_key": "real_pdf_5_table_11",
+      "row_ordinal": 5,
+      "safe_row_pointer": "sp:real_pdf_5_table_11:row:005",
+      "issue_code": "UNRESOLVED_ROW_PARENT",
+      "critical": false
+    }
+  ],
+  "unresolved_column_bindings": [],
+  "continued_tables": [
+    {
+      "table_key": "real_pdf_5_table_05",
+      "source_parts_total": 2,
+      "rows_total": 45,
+      "status": "PASSED"
+    },
+    {
+      "table_key": "real_pdf_5_table_06",
+      "source_parts_total": 2,
+      "rows_total": 74,
+      "status": "PASSED"
+    }
+  ],
+  "non_change": {
+    "managed_document_v1_changed": false,
+    "product_route_changed": false,
+    "generated_bundle_connected": false,
+    "generated_bundle_diff": 0,
+    "grid_owner_calls_total": 0,
+    "provider_calls_total": 0,
+    "production_model_qualification": "NOT_STARTED",
+    "product_activation": "NOT_STARTED"
+  },
+  "evidence_binding": {
+    "terminal_safe_evaluator_receipt_sha256": "dfb040f877dfa7788967cd107699eaa1ccc60a0755df34e04f7d7b8360913fb7",
+    "evaluator_sha256": "b947436fd401add4250ee7d65cd4e08054266e75724b5dab85a0165bed52c45c"
+  },
+  "privacy": {
+    "status": "SAFE_AGGREGATES_AND_SAFE_ROW_POINTERS_ONLY",
+    "private_paths_included": false,
+    "private_source_values_included": false,
+    "bbox_fields_included": false,
+    "entry_pointers_included": false
+  },
+  "integrity_policy": "sha256_canonical_json_without_integrity_sha256",
+  "integrity_sha256": "4468c332d1683dc010ca62b10346303909907f5106b7fd3a2ec6b2807f18bfa0"
+}
