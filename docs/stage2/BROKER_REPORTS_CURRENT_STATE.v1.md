@@ -1,8 +1,8 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after terminal DOC4 model-output closure and manual source audit
+Status: canonical entry point after terminal DOC5 DOC1 body-cell span blocker
 
-Effective date: 2026-08-01
+Effective date: 2026-08-02
 
 DOC1 implementation merge:
 `c4fa86d8229bc8afdd88bfd0371a96d260790942`.
@@ -24,6 +24,15 @@ DOC4 minimal request-policy merge:
 
 DOC4 strict schema-type merge:
 `d43149eb96b92fe1090d1af7139ec322ba050503`.
+
+DOC5 diagnostic implementation commit:
+`512cd07cb425fda32ef1272d0b4d2e5c10b71f93`.
+
+DOC5 diagnostic implementation merge:
+`feac6765f5acd4b402d312f2efdd68ea93358c08`.
+
+DOC5 evidence merge: reported in the terminal response because a commit cannot
+name its own future merge commit.
 
 KT2 implementation merge: `16fe3d2b2dd68bbb6440ede3a9b7537849de7456`
 
@@ -319,21 +328,12 @@ PRODUCT_ACTIVATION = NOT_STARTED
 
 ## 12.6 DOC4 manual Codex source audit
 
-After the provider protocol stopped with zero completed pairs, Codex separately
-reviewed the same four frozen pairs: all 24 PDF pages, all four Views, all 461
-gold items, and the table/order/blank-cell/visual relations that literal search
-cannot prove.
-
-All 444 gold source literals retained readable meaning. Strict equivalence
-still fails: only 6 of 28 gold tables are validated TABLE blocks; the other 22
-lack a validated grid within 26 UNKNOWN blocks. Lost relations include
-fee-group membership, matrix cells, cross-page continuation, a critical blank
-tax cell and one meaningful visual.
-
-The protocol also overconstrains View pointers: only 17 of 276 matched gold
-financial facts are in validated TABLE blocks, while the contract forbids
-honest PARAGRAPH/UNKNOWN pointers. Dense-report gold samples selected facts and
-cannot prove exhaustive extraction.
+Codex separately reviewed all 24 pages and four Views after the provider stop.
+All 444 gold literals retained readable meaning, but strict equivalence failed:
+only 6 of 28 logical tables were validated. The other 22 lacked grids in 26
+UNKNOWN blocks, so row/column, continuation, blank-cell, reading-order and
+visual relations were not fully preserved. This manual audit does not replace
+the missing model arms.
 
 ```text
 MANUAL_CODEX_SOURCE_AUDIT = COMPLETED
@@ -347,26 +347,36 @@ SUMMARY_AND_SEARCH_USEFULNESS = USABLE_WITH_EXPLICIT_LIMITATIONS
 ORIGINAL_PROVIDER_EXPERIMENT = INCONCLUSIVE_MODEL_OUTPUT_FAILURE
 ```
 
-## 13. KT2, DOC1, DOC2, DOC3, DOC4, and next gates
+## 12.7 DOC5 geometry-backed table recovery
 
-KT2 is complete at the mechanical inactive proof boundary. KT2.1 is also
-complete at its inactive bounded-context and context-sufficiency boundary;
-post-merge tests, fresh live readback, and closure evidence passed. Any model
-qualification needs
-a separately authorized exact candidate and four-disposition live gate. Any
-product activation needs a later explicit product decision, fresh reachability
-review, governed release, rollback proof, and independent live readback.
+All 22 failures were classified; zero remain unclassified. Review withdrew the
+experimental grids after two counterexamples. Geometry found 33 spans in 14
+fragments, including at least 23 body spans across seven tables. DOC1 models
+header spans, but not body spans or covered coordinates, collapsing them into
+`EMPTY`.
 
-DOC1 remains the contract authority. DOC2 provides the separately reviewed
-inactive PDF builder and real-corpus coverage/parity proof. DOC3 provides the
-separately reviewed deterministic full-context view and representation parity
-proof. DOC4 passed exact context preflight, then reached a terminal first-arm
-model-output contract blocker. The provider protocol therefore remains
-inconclusive. The later manual Codex audit separately establishes that the
-current View fails strict source equivalence while remaining useful for
-narrative reading, search and high-level summaries with explicit limitations.
-Real model qualification, product reachability and activation remain not
-started.
+```text
+DOC5_FAILURES_CLASSIFIED_TOTAL = 22
+DOC5_UNCLASSIFIED_FAILURES_TOTAL = 0
+DOC5_RULED_FRAGMENTS_SPAN_AUDITED_TOTAL = 14
+DOC5_PHYSICAL_SPAN_CELLS_TOTAL = 33
+DOC5_CONFIRMED_BODY_SPAN_CELLS_MINIMUM_TOTAL = 23
+DOC5_DIRECT_DOC1_SPAN_BLOCKER_TABLES_TOTAL = 7
+DOC5_PDF_VS_VIEW_TABLE_SEMANTIC_PARITY = BLOCKED
+DOC5_DOC1_SCHEMA_CHANGED = FALSE
+DOC5 = BLOCKED_DOC1_BODY_CELL_SPAN_UNREPRESENTABLE
+```
+
+Parity is blocked; DOC1, DOC3, product, bundles and live state are unchanged.
+The DOC4 `444/444` baseline remains. Next: a separate span-contract goal.
+
+## 13. KT2, DOC1, DOC2, DOC3, DOC4, DOC5, and next gates
+
+KT2 and KT2.1 are complete inactive proofs. DOC1 remains authority; DOC2 and
+DOC3 remain inactive proofs. DOC4 provider evidence stays inconclusive; its
+manual audit failed strict equivalence. DOC5 is terminally blocked by DOC1 v1
+body-span expressiveness. No route, bundle, live, qualification or activation
+change occurred. Later steps require separate goals.
 
 ## 14. Forbidden shortcuts
 
@@ -375,7 +385,8 @@ the PR #77 registry as authority, bypass factories, weaken terminal tests,
 infer current state from a historical receipt, edit generated bundles by hand,
 use customer/private bytes in Git, mutate live state, activate DOC2 or DOC3,
 restart DOC4 provider attempts without an explicit new model-or-policy
-decision, begin DOC6, or begin Gate 3/4 work.
+decision, resume DOC5 or change DOC1/DOC3 span semantics without an explicit
+new contract goal, begin DOC6, or begin Gate 3/4 work.
 
 ```text
 REPOSITORY_DEBT = CLOSED
@@ -452,4 +463,10 @@ COMPLETED_PAIRED_DOCUMENTS_TOTAL = 0
 DOC4_PRIMARY_PROVIDER_CALLS_TOTAL = NOT_RECONCILED_AFTER_FAILURE
 REAL_MODEL_QUALIFICATION = NOT_STARTED
 DOC4 = BLOCKED_TERMINAL_MODEL_OUTPUT_FAILURE
+DOC5_FAILURES_CLASSIFIED_TOTAL = 22
+DOC5_UNCLASSIFIED_FAILURES_TOTAL = 0
+DOC5_DIRECT_DOC1_SPAN_BLOCKER_TABLES_TOTAL = 7
+DOC5_PDF_VS_VIEW_TABLE_SEMANTIC_PARITY = BLOCKED
+DOC5_DOC1_SCHEMA_CHANGED = FALSE
+DOC5 = BLOCKED_DOC1_BODY_CELL_SPAN_UNREPRESENTABLE
 ```

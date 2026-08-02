@@ -2,7 +2,7 @@
 
 Status: canonical evidence classification
 
-Effective date: 2026-08-01
+Effective date: 2026-08-02
 
 ## Current authority
 
@@ -24,6 +24,34 @@ Effective date: 2026-08-01
 | DOC3 inactive LLM Document View proof | `CANONICAL_CURRENT` | DOC3 Decision, View/Receipt/Checklist Contracts, DOC1 field coverage, sealed real-view summaries, and 2026-08-01 closure package |
 | DOC4 PDF vs LLM View semantic experiment | `CANONICAL_CURRENT_TERMINAL_BLOCKER` | DOC4 Candidate and Equivalence Decisions, safe preflight/results/stability summaries, and 2026-08-01 blocked closure package |
 | DOC4 manual Codex PDF vs View audit | `CANONICAL_CURRENT_MANUAL_EVIDENCE` | DOC4 Manual Codex Audit Decision and 2026-08-01 manual report/safe receipt |
+| DOC5 geometry-backed table recovery | `CANONICAL_CURRENT_TERMINAL_BLOCKER` | DOC5 Decision, failure/results/parity safe summaries, proof contract, and 2026-08-02 blocked closure package |
+
+## DOC5
+
+```text
+STATUS = BLOCKED_DOC1_BODY_CELL_SPAN_UNREPRESENTABLE
+EXPECTED_LOGICAL_TABLES_TOTAL = 28
+BASELINE_VALIDATED_TABLE_BLOCKS_TOTAL = 6
+FAILED_TABLES_CLASSIFIED_TOTAL = 22
+UNCLASSIFIED_FAILED_TABLES_TOTAL = 0
+RULED_FRAGMENTS_SPAN_AUDITED_TOTAL = 14
+PHYSICAL_SPAN_CELLS_TOTAL = 33
+CONFIRMED_BODY_SPAN_CELLS_MINIMUM_TOTAL = 23
+DIRECT_DOC1_SPAN_BLOCKER_TABLES_TOTAL = 7
+PDF_VS_VIEW_TABLE_SEMANTIC_PARITY = BLOCKED
+DOC1_SCHEMA_CHANGED = FALSE
+PROVIDER_CALLS_TOTAL = 0
+```
+
+Independent review invalidated the experimental recovered grids before they
+entered the canonical implementation. The source-geometry audit then proved
+that DOC1 v1 cannot represent body-cell spans or distinguish a real empty cell
+from a coordinate covered by a neighboring merged cell. DOC5 therefore stopped
+under its contract instead of claiming false table parity.
+
+The DOC4 `444/444` readable-meaning baseline remains closed and valid. The next
+authorized work, if chosen, is a separate DOC1/DOC3 span-contract revision; no
+provider retry, product activation, or production model qualification started.
 
 ## DOC4
 
