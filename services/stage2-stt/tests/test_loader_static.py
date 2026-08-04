@@ -67,7 +67,8 @@ def test_loader_routes_broker_documents_to_server_authoritative_private_intake()
     end = source.index("function queueScan", start)
     patch_block = source[start:end]
 
-    assert "brokerGate1UploadFile = uploadFile && isBrokerGate1Document(uploadFile.name, uploadFile.type) ? uploadFile : null;" in patch_block
+    assert "const brokerGate1Active = uploadFile ? await refreshBrokerGate1Scope() : false;" in patch_block
+    assert "brokerGate1UploadFile = brokerGate1Active && isBrokerGate1Document(uploadFile.name, uploadFile.type) ? uploadFile : null;" in patch_block
     assert "if (sttUploadFile) {" in patch_block
     assert "nextInput = withProcessFalse(input);" in patch_block
     assert "brokerPrivateIntakeRequest(input, init, brokerGate1UploadFile)" in patch_block
@@ -75,6 +76,33 @@ def test_loader_routes_broker_documents_to_server_authoritative_private_intake()
     assert "state.originalFetch(nextInput, nextInit)" in patch_block
     assert "normalizeBrokerPrivateIntakeResponse" in patch_block
     assert "normalizeBrokerGate1UploadedFile(" in patch_block
+
+
+def test_loader_scopes_broker_gate1_to_the_native_workspace_model_base_id():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function selectedModelIdsFromSession")
+    end = source.index("function persistentChatIdFromLocation", start)
+    scope_block = source[start:end]
+
+    assert "const BROKER_GATE1_PIPE_MODEL_ID = 'broker_reports_gate1_pipe';" in source
+    assert "window.sessionStorage.getItem('selectedModels')" in scope_block
+    assert "selectedIds.length !== 1" in scope_block
+    assert "model.info && model.info.base_model_id" in scope_block
+    assert "baseModelId === BROKER_GATE1_PIPE_MODEL_ID" in scope_block
+    assert "fetcher('/api/models', { cache: 'no-store' })" in scope_block
+    assert "return false;" in scope_block
+
+
+def test_loader_action_payload_uses_the_current_native_model_selection():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("async function selectedModelId")
+    end = source.index("function currentChatId", start)
+    selected_model_block = source[start:end]
+
+    assert "const selectedIds = currentSelectedModelIds();" in selected_model_block
+    assert "selectedIds.length !== 1" in selected_model_block
+    assert "return selectedIds[0];" in selected_model_block
+    assert "payload.data[0]" not in selected_model_block
 
 
 def test_loader_binds_only_gate2_completions_to_active_persistent_chat():
@@ -138,7 +166,10 @@ def test_loader_installs_broker_gate1_action_on_document_cards():
     scan_block = source[start:end]
 
     assert "isCandidateMedia(file.filename, file.mime_type)" in scan_block
+    assert "if (!state.brokerGate1Active)" in scan_block
+    assert "removeBrokerGate1Ui(root);" in scan_block
     assert "isBrokerGate1Document(file.filename, file.mime_type)" in scan_block
+    assert "state.brokerGate1Active &&" in scan_block
     assert "installBrokerGate1CardAction(card, file);" in scan_block
     assert "card.dataset.brokerGate1Card !== '1'" in scan_block
 
@@ -153,6 +184,21 @@ def test_loader_broker_gate1_recovers_file_refs_from_files_api():
     assert "rememberFilesFromListPayload(payload)" in refresh_block
     assert "normalizeBrokerGate1FileRecord(item)" in source
     assert "payload && Array.isArray(payload.items)" in source
+    assert "sourceId.startsWith('br-')" in source
+    assert "brokerPrivate: true" in source
+
+
+def test_loader_removes_broker_ui_when_the_selected_model_changes():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function removeBrokerGate1Ui")
+    end = source.index("function setStatus", start)
+    cleanup_block = source[start:end]
+
+    assert '[data-broker-gate1-panel="1"]' in cleanup_block
+    assert '[data-broker-gate1-composer-panel="1"]' in cleanup_block
+    assert '[data-broker-gate1-card="1"]' in cleanup_block
+    assert "card.style.minHeight = card.dataset.brokerGate1OriginalMinHeight || '';" in cleanup_block
+    assert "delete card.dataset.brokerGate1Card;" in cleanup_block
 
 
 def test_loader_broker_gate1_matches_truncated_visible_attachment_text():
