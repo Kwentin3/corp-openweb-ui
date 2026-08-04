@@ -5,6 +5,7 @@
 	const ACTION_URL = `/api/chat/actions/${ACTION_ID}`;
 	const BROKER_GATE1_ACTION_ID = 'broker_reports_private_intake_action';
 	const BROKER_GATE1_ACTION_URL = `/api/chat/actions/${BROKER_GATE1_ACTION_ID}`;
+	const BROKER_GATE1_PIPE_MODEL_ID = 'broker_reports_gate1_pipe';
 	const BROKER_GATE2_MODEL_IDS = new Set([
 		'broker_reports_gate2_source_fact_pipe',
 		'broker_reports_gate2_domain_source_fact_pipe'
@@ -120,7 +121,10 @@
 	const state = {
 		filesById: new Map(),
 		filesByName: new Map(),
-		modelId: null,
+		modelCatalogById: new Map(),
+		modelCatalogPromise: null,
+		modelCatalogRefreshedAt: 0,
+		brokerGate1Active: false,
 		scanQueued: false,
 		filesRefreshPromise: null,
 		filesRefreshedAt: 0,
@@ -256,12 +260,13 @@
 		if (isCandidateMedia(filename, mimeType)) {
 			return false;
 		}
-		if (['pdf', 'xlsx', 'xls', 'csv', 'txt', 'docx', 'zip', 'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff'].includes(extension)) {
+		if (['pdf', 'xlsx', 'xls', 'csv', 'html', 'htm', 'txt', 'docx', 'zip', 'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff'].includes(extension)) {
 			return true;
 		}
 		return (
 			mime === 'application/pdf' ||
 			mime === 'text/csv' ||
+			mime === 'text/html' ||
 			mime === 'text/plain' ||
 			mime === 'application/zip' ||
 			mime === 'application/x-zip-compressed' ||
@@ -316,6 +321,91 @@
 			return false;
 		}
 		return new URL(rawUrl, window.location.origin).pathname === CHAT_COMPLETION_PATH;
+	}
+
+	function selectedModelIdsFromSession() {
+		try {
+			const raw = window.sessionStorage.getItem('selectedModels');
+			const parsed = raw ? JSON.parse(raw) : null;
+			return Array.isArray(parsed)
+				? parsed.map((id) => String(id || '').trim()).filter(Boolean)
+				: [];
+		} catch (_) {
+			return [];
+		}
+	}
+
+	function selectedModelIdsFromLocation() {
+		try {
+			const params = new URLSearchParams(window.location.search || '');
+			const raw = params.get('models') || params.get('model') || '';
+			return raw.split(',').map((id) => id.trim()).filter(Boolean);
+		} catch (_) {
+			return [];
+		}
+	}
+
+	function currentSelectedModelIds() {
+		const sessionIds = selectedModelIdsFromSession();
+		return sessionIds.length ? sessionIds : selectedModelIdsFromLocation();
+	}
+
+	function modelOwnsBrokerGate1(model) {
+		if (!model || !model.id) {
+			return false;
+		}
+		const baseModelId = model.info && model.info.base_model_id;
+		return model.id === BROKER_GATE1_PIPE_MODEL_ID || baseModelId === BROKER_GATE1_PIPE_MODEL_ID;
+	}
+
+	async function loadModelCatalog() {
+		const now = Date.now();
+		if (state.modelCatalogById.size && now - state.modelCatalogRefreshedAt < 60000) {
+			return state.modelCatalogById;
+		}
+		if (state.modelCatalogPromise) {
+			return state.modelCatalogPromise;
+		}
+		const fetcher = state.originalFetch || window.fetch.bind(window);
+		state.modelCatalogPromise = fetcher('/api/models', { cache: 'no-store' })
+			.then(async (response) => {
+				if (!response.ok) {
+					throw new Error('OpenWebUI models endpoint is unavailable.');
+				}
+				const payload = await response.json();
+				const models = payload && Array.isArray(payload.data) ? payload.data : [];
+				state.modelCatalogById = new Map(
+					models.filter((model) => model && model.id).map((model) => [String(model.id), model])
+				);
+				state.modelCatalogRefreshedAt = Date.now();
+				return state.modelCatalogById;
+			})
+			.finally(() => {
+				state.modelCatalogPromise = null;
+			});
+		return state.modelCatalogPromise;
+	}
+
+	async function isBrokerGate1ModelActive() {
+		let selectedIds = currentSelectedModelIds();
+		if (selectedIds.length !== 1) {
+			return false;
+		}
+		if (selectedIds[0] === BROKER_GATE1_PIPE_MODEL_ID) {
+			return true;
+		}
+		try {
+			const modelsById = await loadModelCatalog();
+			selectedIds = currentSelectedModelIds();
+			return selectedIds.length === 1 && modelOwnsBrokerGate1(modelsById.get(selectedIds[0]));
+		} catch (_) {
+			return false;
+		}
+	}
+
+	async function refreshBrokerGate1Scope() {
+		state.brokerGate1Active = await isBrokerGate1ModelActive();
+		return state.brokerGate1Active;
 	}
 
 	function persistentChatIdFromLocation() {
@@ -506,6 +596,7 @@
 			content_type: String(mimeType || 'application/octet-stream'),
 			size: meta.size || uploaded.size || (fallbackFile && fallbackFile.size) || null,
 			sourceFile: fallbackFile || null,
+			brokerPrivate: true,
 			prepared: false
 		};
 	}
@@ -515,6 +606,10 @@
 			return null;
 		}
 		const meta = record.meta || {};
+		const sourceId = String(record.id);
+		if (!sourceId.startsWith('br-') && !meta.broker_reports_intake && meta.broker_reports_private_intake !== true) {
+			return null;
+		}
 		const data = record.data || {};
 		const filename = record.filename || record.name || meta.filename || data.filename;
 		const mimeType = meta.content_type || meta.mime_type || record.content_type || record.type || data.content_type || data.mime_type;
@@ -522,13 +617,14 @@
 			return null;
 		}
 		return {
-			id: String(record.id),
+			id: sourceId,
 			filename: String(filename),
 			name: String(filename),
 			mime_type: String(mimeType || 'application/octet-stream'),
 			content_type: String(mimeType || 'application/octet-stream'),
 			size: meta.size || record.size || data.size || null,
 			sourceFile: null,
+			brokerPrivate: true,
 			prepared: false
 		};
 	}
@@ -566,7 +662,8 @@
 			if (isFileUpload(input, init)) {
 				uploadFile = uploadFormDataFile(requestBody(input, init));
 				sttUploadFile = uploadFile && isCandidateMedia(uploadFile.name, uploadFile.type) ? uploadFile : null;
-				brokerGate1UploadFile = uploadFile && isBrokerGate1Document(uploadFile.name, uploadFile.type) ? uploadFile : null;
+				const brokerGate1Active = uploadFile ? await refreshBrokerGate1Scope() : false;
+				brokerGate1UploadFile = brokerGate1Active && isBrokerGate1Document(uploadFile.name, uploadFile.type) ? uploadFile : null;
 				if (sttUploadFile) {
 					nextInput = withProcessFalse(input);
 				} else if (brokerGate1UploadFile) {
@@ -605,8 +702,9 @@
 			return;
 		}
 		state.scanQueued = true;
-		window.requestAnimationFrame(() => {
+		window.requestAnimationFrame(async () => {
 			state.scanQueued = false;
+			await refreshBrokerGate1Scope();
 			scanAttachmentCards();
 			scanBrokerGate1ComposerPanel();
 			scanMessageDocxButtons();
@@ -671,6 +769,9 @@
 		if (!root) {
 			return;
 		}
+		if (!state.brokerGate1Active) {
+			removeBrokerGate1Ui(root);
+		}
 		const cards = attachmentCardCandidates(root);
 		let matchedGate1Document = false;
 		for (const card of cards) {
@@ -684,7 +785,7 @@
 			if (isCandidateMedia(file.filename, file.mime_type) && card.dataset.stage2SttCard !== '1') {
 				installCardAction(card, file);
 			}
-			if (isBrokerGate1Document(file.filename, file.mime_type) && card.dataset.brokerGate1Card !== '1') {
+			if (state.brokerGate1Active && isBrokerGate1Document(file.filename, file.mime_type) && card.dataset.brokerGate1Card !== '1') {
 				matchedGate1Document = true;
 				installBrokerGate1CardAction(card, file);
 			}
@@ -763,6 +864,10 @@
 		if (!root) {
 			return;
 		}
+		if (!state.brokerGate1Active) {
+			removeBrokerGate1Ui(root);
+			return;
+		}
 		const files = visibleBrokerGate1Files();
 		let panel = root.querySelector('[data-broker-gate1-composer-panel="1"]');
 		if (!files.length) {
@@ -827,6 +932,9 @@
 	}
 
 	function scheduleBrokerGate1FileRefresh() {
+		if (!state.brokerGate1Active) {
+			return;
+		}
 		const now = Date.now();
 		if (state.filesRefreshPromise || now - state.filesRefreshedAt < 5000) {
 			return;
@@ -841,6 +949,9 @@
 	}
 
 	async function refreshBrokerGate1Files() {
+		if (!state.brokerGate1Active) {
+			return 0;
+		}
 		const fetcher = state.originalFetch || window.fetch.bind(window);
 		const response = await fetcher('/api/v1/files/', { cache: 'no-store' });
 		if (!response.ok) {
@@ -852,6 +963,8 @@
 
 	function installBrokerGate1CardAction(card, file) {
 		card.dataset.brokerGate1Card = '1';
+		card.dataset.brokerGate1OriginalMinHeight = card.style.minHeight || '';
+		card.dataset.brokerGate1OriginalAlignItems = card.style.alignItems || '';
 		card.style.minHeight = '4.5rem';
 		card.style.alignItems = 'stretch';
 
@@ -904,6 +1017,19 @@
 		panel.append(button, status);
 		const contentColumn = card.querySelector('.flex.flex-col.w-full') || card;
 		contentColumn.appendChild(panel);
+	}
+
+	function removeBrokerGate1Ui(root) {
+		for (const panel of Array.from(root.querySelectorAll('[data-broker-gate1-panel="1"], [data-broker-gate1-composer-panel="1"]'))) {
+			panel.remove();
+		}
+		for (const card of Array.from(root.querySelectorAll('[data-broker-gate1-card="1"]'))) {
+			card.style.minHeight = card.dataset.brokerGate1OriginalMinHeight || '';
+			card.style.alignItems = card.dataset.brokerGate1OriginalAlignItems || '';
+			delete card.dataset.brokerGate1Card;
+			delete card.dataset.brokerGate1OriginalMinHeight;
+			delete card.dataset.brokerGate1OriginalAlignItems;
+		}
 	}
 
 	function setStatus(status, key, text) {
@@ -1560,20 +1686,11 @@
 	}
 
 	async function selectedModelId() {
-		if (state.modelId) {
-			return state.modelId;
-		}
-		const response = await fetch('/api/models');
-		if (!response.ok) {
-			throw new Error('OpenWebUI models endpoint is unavailable.');
-		}
-		const payload = await response.json();
-		const model = payload && Array.isArray(payload.data) && payload.data[0];
-		if (!model || !model.id) {
+		const selectedIds = currentSelectedModelIds();
+		if (selectedIds.length !== 1) {
 			throw new Error('OpenWebUI model is not selected.');
 		}
-		state.modelId = model.id;
-		return state.modelId;
+		return selectedIds[0];
 	}
 
 	function currentChatId() {
@@ -1699,11 +1816,14 @@
 	}
 
 	function visibleBrokerGate1Files(anchorFile) {
+		if (!state.brokerGate1Active) {
+			return [];
+		}
 		const root = document.querySelector('#message-input-container');
 		const files = [];
 		const seen = new Set();
 		function add(file) {
-			if (!file || !file.id || !isBrokerGate1Document(file.filename, file.mime_type) || seen.has(file.id)) {
+			if (!file || !file.id || file.brokerPrivate !== true || !isBrokerGate1Document(file.filename, file.mime_type) || seen.has(file.id)) {
 				return;
 			}
 			seen.add(file.id);
