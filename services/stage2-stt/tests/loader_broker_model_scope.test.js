@@ -11,18 +11,20 @@ const loaderPath = path.resolve(
 const loaderSource = fs.readFileSync(loaderPath, 'utf8');
 
 const brokerSourceId = 'br-00000000-0000-4000-8000-000000000001';
-const catalog = [
-  {
-    id: 'test',
-    name: 'Broker Reports user-friendly alias',
-    info: { base_model_id: 'broker_reports_gate1_pipe', meta: {} },
-  },
-  {
-    id: 'deepseek-chat',
-    name: 'DeepSeek',
-    info: { base_model_id: null, meta: {} },
-  },
-];
+function modelCatalog() {
+  return [
+    {
+      id: 'test',
+      name: 'Broker Reports user-friendly alias',
+      info: { base_model_id: 'broker_reports_gate1_pipe', meta: {} },
+    },
+    {
+      id: 'deepseek-chat',
+      name: 'DeepSeek',
+      info: { base_model_id: null, meta: {} },
+    },
+  ];
+}
 
 function memoryStorage(initial = {}) {
   const values = new Map(Object.entries(initial));
@@ -39,9 +41,41 @@ function memoryStorage(initial = {}) {
 
 function loaderRuntime(selectedModels, options = {}) {
   const calls = [];
-  const sessionStorage = memoryStorage({
-    selectedModels: JSON.stringify(selectedModels),
-  });
+  const catalog = modelCatalog();
+  if (options.brokerName) {
+    catalog[0].name = options.brokerName;
+  }
+  if (options.duplicateBrokerName) {
+    catalog.push({
+      id: 'ordinary-model-with-duplicate-name',
+      name: catalog[0].name,
+      info: { base_model_id: null, meta: {} },
+    });
+  }
+  const sessionStorage = memoryStorage(
+    selectedModels === null
+      ? {}
+      : { selectedModels: JSON.stringify(selectedModels) }
+  );
+  let modelLabels = [...(options.modelLabels ?? [])];
+  const animationFrames = [];
+  const mutationCallbacks = [];
+  const brokerPanels = [];
+  const messageInputRoot = {
+    appendChild: () => {},
+    querySelector: (selector) => {
+      if (selector === '[data-broker-gate1-composer-panel="1"]') {
+        return brokerPanels.find((panel) => !panel.removed) ?? null;
+      }
+      return null;
+    },
+    querySelectorAll: (selector) => {
+      if (selector.includes('[data-broker-gate1-panel="1"]')) {
+        return brokerPanels.filter((panel) => !panel.removed);
+      }
+      return [];
+    },
+  };
   const originalFetch = async (input, init) => {
     const url = String(input && input.url ? input.url : input);
     calls.push({ input, init, url });
@@ -78,13 +112,30 @@ function loaderRuntime(selectedModels, options = {}) {
       pathname: '/',
       search: '',
     },
-    requestAnimationFrame: () => 0,
+    requestAnimationFrame: (callback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    },
     sessionStorage,
     localStorage: memoryStorage(),
   };
   const document = {
     addEventListener: () => {},
-    readyState: 'loading',
+    documentElement: {},
+    querySelector: (selector) => (
+      selector === '#message-input-container' ? messageInputRoot : null
+    ),
+    querySelectorAll: (selector) => {
+      if (selector === 'button[id^="model-selector-"][aria-haspopup="listbox"]') {
+        return modelLabels.map((label, index) => ({
+          id: `model-selector-${index}-button`,
+          innerText: label,
+          textContent: label,
+        }));
+      }
+      return [];
+    },
+    readyState: options.observeUi ? 'complete' : 'loading',
   };
   const context = {
     Blob,
@@ -92,7 +143,13 @@ function loaderRuntime(selectedModels, options = {}) {
     FormData,
     Headers,
     InputEvent: class InputEvent {},
-    MutationObserver: class MutationObserver {},
+    MutationObserver: class MutationObserver {
+      constructor(callback) {
+        mutationCallbacks.push(callback);
+      }
+
+      observe() {}
+    },
     Request,
     Response,
     URL,
@@ -114,6 +171,28 @@ function loaderRuntime(selectedModels, options = {}) {
   vm.runInNewContext(loaderSource, context, { filename: loaderPath });
   return {
     calls,
+    flushScans: async () => {
+      while (animationFrames.length) {
+        const callback = animationFrames.shift();
+        await callback();
+      }
+    },
+    seedBrokerUi: () => {
+      const panel = {
+        removed: false,
+        remove() {
+          this.removed = true;
+        },
+      };
+      brokerPanels.push(panel);
+      return panel;
+    },
+    setModelLabels: (labels) => {
+      modelLabels = [...labels];
+      for (const callback of mutationCallbacks) {
+        callback([]);
+      }
+    },
     setSelectedModels: (ids) => sessionStorage.setItem('selectedModels', JSON.stringify(ids)),
     window,
   };
@@ -134,6 +213,7 @@ async function upload(window, name, type) {
 
 function uploadRoutes(calls) {
   return calls
+    .filter(({ init }) => String(init?.method ?? 'GET').toUpperCase() === 'POST')
     .map(({ url }) => url)
     .filter((url) => url === '/api/v1/files/' || url === '/api/v1/broker-reports/intake');
 }
@@ -151,8 +231,10 @@ test('Workspace Model backed by the Broker Gate 1 Pipe uses private intake', asy
 });
 
 test('display alias does not control Broker Gate 1 ownership', async () => {
-  catalog[0].name = 'Renamed display alias';
-  const { calls, window } = loaderRuntime(['test']);
+  const { calls, window } = loaderRuntime(null, {
+    brokerName: 'Renamed display alias',
+    modelLabels: ['Renamed display alias'],
+  });
 
   await upload(window);
 
@@ -204,6 +286,29 @@ test('model switching changes routing in both directions without stale scope', a
   ]);
 });
 
+test('native OpenWebUI selector owns routing and removes Broker UI after a model switch', async () => {
+  const runtime = loaderRuntime(null, {
+    modelLabels: ['Broker Reports user-friendly alias'],
+    observeUi: true,
+  });
+
+  await runtime.flushScans();
+  await upload(runtime.window);
+  const cardPanel = runtime.seedBrokerUi();
+  const composerPanel = runtime.seedBrokerUi();
+
+  runtime.setModelLabels(['DeepSeek']);
+  await runtime.flushScans();
+  await upload(runtime.window);
+
+  assert.deepEqual(uploadRoutes(runtime.calls), [
+    '/api/v1/broker-reports/intake',
+    '/api/v1/files/',
+  ]);
+  assert.equal(cardPanel.removed, true);
+  assert.equal(composerPanel.removed, true);
+});
+
 test('mixed-model selection fails closed to native OpenWebUI upload', async () => {
   const { calls, window } = loaderRuntime(['test', 'deepseek-chat']);
 
@@ -212,8 +317,22 @@ test('mixed-model selection fails closed to native OpenWebUI upload', async () =
   assert.deepEqual(uploadRoutes(calls), ['/api/v1/files/']);
 });
 
+test('ambiguous display alias fails closed to native OpenWebUI upload', async () => {
+  const { calls, window } = loaderRuntime(null, {
+    duplicateBrokerName: true,
+    modelLabels: ['Broker Reports user-friendly alias'],
+  });
+
+  await upload(window);
+
+  assert.deepEqual(uploadRoutes(calls), ['/api/v1/files/']);
+});
+
 test('unavailable model catalog fails closed to native OpenWebUI upload', async () => {
-  const { calls, window } = loaderRuntime(['test'], { modelsStatus: 503 });
+  const { calls, window } = loaderRuntime(null, {
+    modelLabels: ['Broker Reports user-friendly alias'],
+    modelsStatus: 503,
+  });
 
   await upload(window);
 

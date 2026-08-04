@@ -85,6 +85,12 @@ def test_loader_scopes_broker_gate1_to_the_native_workspace_model_base_id():
     scope_block = source[start:end]
 
     assert "const BROKER_GATE1_PIPE_MODEL_ID = 'broker_reports_gate1_pipe';" in source
+    assert (
+        'button[id^="model-selector-"][aria-haspopup="listbox"]'
+        in scope_block
+    )
+    assert "selectedModelIdsForLabels" in scope_block
+    assert "matches.length !== 1" in scope_block
     assert "window.sessionStorage.getItem('selectedModels')" in scope_block
     assert "selectedIds.length !== 1" in scope_block
     assert "model.info && model.info.base_model_id" in scope_block
@@ -99,7 +105,7 @@ def test_loader_action_payload_uses_the_current_native_model_selection():
     end = source.index("function currentChatId", start)
     selected_model_block = source[start:end]
 
-    assert "const selectedIds = currentSelectedModelIds();" in selected_model_block
+    assert "const selectedIds = await currentSelectedModelIds();" in selected_model_block
     assert "selectedIds.length !== 1" in selected_model_block
     assert "return selectedIds[0];" in selected_model_block
     assert "payload.data[0]" not in selected_model_block

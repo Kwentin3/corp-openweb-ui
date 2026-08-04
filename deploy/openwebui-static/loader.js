@@ -345,7 +345,46 @@
 		}
 	}
 
-	function currentSelectedModelIds() {
+	function normalizedModelLabel(value) {
+		return String(value || '').replace(/\s+/g, ' ').trim();
+	}
+
+	function selectedModelLabelsFromUi() {
+		const labels = Array.from(
+			document.querySelectorAll('button[id^="model-selector-"][aria-haspopup="listbox"]')
+		)
+			.map((button) => normalizedModelLabel(button.innerText || button.textContent))
+			.filter(Boolean);
+		return Array.from(new Set(labels));
+	}
+
+	function selectedModelIdsForLabels(labels, modelsById) {
+		const models = Array.from(modelsById.values());
+		const selectedIds = [];
+		for (const label of labels) {
+			const matches = models.filter((model) => {
+				const id = normalizedModelLabel(model && model.id);
+				const name = normalizedModelLabel(model && model.name);
+				return id === label || name === label;
+			});
+			if (matches.length !== 1) {
+				return [];
+			}
+			selectedIds.push(String(matches[0].id));
+		}
+		return Array.from(new Set(selectedIds));
+	}
+
+	async function currentSelectedModelIds() {
+		const uiLabels = selectedModelLabelsFromUi();
+		if (uiLabels.length) {
+			try {
+				const modelsById = await loadModelCatalog();
+				return selectedModelIdsForLabels(selectedModelLabelsFromUi(), modelsById);
+			} catch (_) {
+				return [];
+			}
+		}
 		const sessionIds = selectedModelIdsFromSession();
 		return sessionIds.length ? sessionIds : selectedModelIdsFromLocation();
 	}
@@ -387,7 +426,7 @@
 	}
 
 	async function isBrokerGate1ModelActive() {
-		let selectedIds = currentSelectedModelIds();
+		const selectedIds = await currentSelectedModelIds();
 		if (selectedIds.length !== 1) {
 			return false;
 		}
@@ -396,7 +435,6 @@
 		}
 		try {
 			const modelsById = await loadModelCatalog();
-			selectedIds = currentSelectedModelIds();
 			return selectedIds.length === 1 && modelOwnsBrokerGate1(modelsById.get(selectedIds[0]));
 		} catch (_) {
 			return false;
@@ -1686,7 +1724,7 @@
 	}
 
 	async function selectedModelId() {
-		const selectedIds = currentSelectedModelIds();
+		const selectedIds = await currentSelectedModelIds();
 		if (selectedIds.length !== 1) {
 			throw new Error('OpenWebUI model is not selected.');
 		}
