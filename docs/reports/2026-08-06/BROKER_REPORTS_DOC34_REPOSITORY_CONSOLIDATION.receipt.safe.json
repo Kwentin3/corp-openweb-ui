@@ -22,7 +22,11 @@
     "blocked_total": 0,
     "planned_removed_total": 11,
     "planned_retained_total": 1,
-    "stale_deletion_phase": "pending_after_safety_push",
+    "stale_branch_names_removed": 10,
+    "stale_local_refs_removed": 9,
+    "stale_origin_refs_removed": 9,
+    "post_stale_cleanup_branch_names": 2,
+    "stale_deletion_phase": "complete",
     "delivery_branch_deletion_phase": "pending_post_merge"
   },
   "artifact_accounting": {

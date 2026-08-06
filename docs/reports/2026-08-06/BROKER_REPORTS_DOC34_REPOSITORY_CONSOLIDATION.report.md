@@ -1,6 +1,6 @@
 # Broker Reports DOC34 Repository Consolidation
 
-Status: `CLOSURE_IN_PROGRESS`
+Status: `STALE_BRANCH_CLEANUP_COMPLETE`; delivery merge is pending
 
 Date: 2026-08-06
 
@@ -55,10 +55,16 @@ required product implementations exist only on a deletable branch. PR URLs are
 available through repository PR numbers. The two no-PR stopped experiments use
 annotated recovery tags, so branch retention is unnecessary.
 
+The verified stale cleanup removed all ten non-delivery branch names: nine
+local refs and nine `origin` refs. Immediately afterward, the only branch names
+were `main` and the active DOC34 delivery branch. The latter is deleted after
+merge, producing the contracted terminal result of 11 removed and 1 retained.
+
 The configured `old-origin` points to another repository and its `main` is not
 a Gate 2 branch. It is excluded from the 12-name project accounting and removed
 from the local configuration after verifying its URL and refs. Canonical
-`origin` remains `Kwentin3/corp-openweb-ui`.
+`origin` remains `Kwentin3/corp-openweb-ui` and is now the only configured
+remote.
 
 ## Unique-work checkpoint and artifact hygiene
 
