@@ -184,6 +184,18 @@ class Pipe:
         clarification_criticality_refinement_enabled: bool = Field(default=True)
         broker_pdf_neutral_table_profile_v1_enabled: bool = Field(default=False)
         pdf_compact_canonical_dual_write: bool = Field(default=False)
+        canonical_gate2_write_enabled: bool = Field(
+            default=False,
+            description="Write Gate 2 CanonicalArtifactV1 shadow versions only.",
+        )
+        canonical_gate2_read_enabled: bool = Field(
+            default=False,
+            description="Reserved for controlled Gate 2 consumer cutover; keep false in DOC26.",
+        )
+        canonical_gate2_compare_enabled: bool = Field(
+            default=True,
+            description="Compare Gate 2 canonical shadow with authoritative legacy handoff.",
+        )
         pdf_table_intake_enabled: bool = Field(default=False)
         pdf_table_intake_provider_profile: str = Field(default="google_gemini")
         pdf_table_intake_model_id: str = Field(default="models/gemini-3.5-flash")
@@ -568,6 +580,15 @@ class Pipe:
                 ),
                 "pdf_compact_canonical_dual_write": bool(
                     self.valves.pdf_compact_canonical_dual_write
+                ),
+                "canonical_gate2_write_enabled": bool(
+                    self.valves.canonical_gate2_write_enabled
+                ),
+                "canonical_gate2_read_enabled": bool(
+                    self.valves.canonical_gate2_read_enabled
+                ),
+                "canonical_gate2_compare_enabled": bool(
+                    self.valves.canonical_gate2_compare_enabled
                 ),
                 "pdf_table_intake_enabled": bool(self.valves.pdf_table_intake_enabled),
                 "pdf_table_intake_horizontal_padding_fraction": (

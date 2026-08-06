@@ -13,8 +13,9 @@ OpenWebUI Action bundles.
    component, schema, validator, adapter, factory or execution path.
 4. Use the public factory/entrypoint named by the authority map.
 
-The [global gate architecture](../../docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
-remains normative for gate placement and product boundaries.
+The current [Pipeline Gates v1](../../docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md)
+is normative for gate placement and product boundaries. The older global gate
+architecture is superseded for numbering and remains migration context.
 
 ## Context Bootstrap
 
@@ -220,9 +221,9 @@ separate bootstrap report.
   creates complete code-owned options.
 - Canonical validation and materialization follow
   [Generic Materialization](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md).
-- Gate 3 consumes the
-  [Financial Domain Query API](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_FINANCIAL_DOMAIN_QUERY_API.v1.md);
-  it does not read Gate 1 sources, storage or provider output.
+- Current Gate 3 is future LLM-friendly projection and financial semantic
+  analysis over `CanonicalArtifactV1`. DOC26 does not create or activate it;
+  historical `Gate2*` financial-semantic modules retain compatibility names.
 
 ## Change and proof
 

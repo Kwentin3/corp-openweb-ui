@@ -1,0 +1,256 @@
+{
+  "ambiguous_cases": [
+    {
+      "case_id": "google_flash_lite__ACORNS_T02",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "acorns_2025",
+      "document_package_verdict": "AMBIGUOUS",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "ROW_RELATION",
+        "UNSUPPORTED_VALUE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 10,
+      "reason": "The recurring fair-value scope and date are in the paragraph immediately before the table.",
+      "remaining_losses": [
+        "ROW_RELATION",
+        "UNSUPPORTED_VALUE"
+      ],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "ACORNS_T02"
+    },
+    {
+      "case_id": "google_flash_lite__LPL_T01",
+      "conflicts": [
+        "PERIOD_AMBIGUITY"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "AMBIGUOUS",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 55,
+      "reason": "The combined 'As of and for the Years Ended' header is present, but it does not bind each selected metric to stock or flow basis without domain interpretation.",
+      "remaining_losses": [
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T01"
+    },
+    {
+      "case_id": "anthropic_opus__LPL_T01",
+      "conflicts": [
+        "PERIOD_AMBIGUITY"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "AMBIGUOUS",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 55,
+      "reason": "The combined 'As of and for the Years Ended' header is present, but it does not bind each selected metric to stock or flow basis without domain interpretation.",
+      "remaining_losses": [
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T01"
+    }
+  ],
+  "conflict_cases": [
+    {
+      "case_id": "google_flash_lite__ACORNS_T02",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "acorns_2025",
+      "document_package_verdict": "AMBIGUOUS",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "ROW_RELATION",
+        "UNSUPPORTED_VALUE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 10,
+      "reason": "The recurring fair-value scope and date are in the paragraph immediately before the table.",
+      "remaining_losses": [
+        "ROW_RELATION",
+        "UNSUPPORTED_VALUE"
+      ],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "ACORNS_T02"
+    },
+    {
+      "case_id": "google_flash_lite__LPL_T01",
+      "conflicts": [
+        "PERIOD_AMBIGUITY"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "AMBIGUOUS",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 55,
+      "reason": "The combined 'As of and for the Years Ended' header is present, but it does not bind each selected metric to stock or flow basis without domain interpretation.",
+      "remaining_losses": [
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T01"
+    },
+    {
+      "case_id": "anthropic_opus__LPL_T01",
+      "conflicts": [
+        "PERIOD_AMBIGUITY"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "AMBIGUOUS",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 55,
+      "reason": "The combined 'As of and for the Years Ended' header is present, but it does not bind each selected metric to stock or flow basis without domain interpretation.",
+      "remaining_losses": [
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T01"
+    },
+    {
+      "case_id": "anthropic_opus__LPL_T02",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "UNIT_OR_SCALE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 57,
+      "reason": "The introductory sentence immediately above the reconciliation states that the presented values are in millions.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "UNIT_OR_SCALE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T02"
+    },
+    {
+      "case_id": "anthropic_opus__TRADEWEB_T03",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 88,
+      "reason": "The results-of-operations heading and adjacent header provide years, dollar-change and percentage-change roles; parser rows retain currency tokens with their values.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T03"
+    }
+  ],
+  "conflict_cases_total": 5,
+  "integrity_sha256": "fc1e90e21d68f3b3d7e3ef83935531d5625f2206a2d993f5eceb08f37b47beec",
+  "no_false_rescue_policy_applied": true,
+  "run_id": "broker_reports_doc22_full_document_package_2026-08-04_v1",
+  "schema_version": "broker_reports_doc22_conflicts_safe_v1"
+}

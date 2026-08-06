@@ -1,0 +1,90 @@
+{
+  "acceptance": {
+    "ALL_CALLS_ACCOUNTED": true,
+    "ARMS_TOTAL": 2,
+    "COLUMN_ASSOCIATION_REPORTED": true,
+    "CRITICAL_VALUE_METRICS_REPORTED": true,
+    "DOC6_CHANGED": false,
+    "DUPLICATE_MECHANISMS_CREATED": 0,
+    "EXISTING_ARCHITECTURE_AUDITED": true,
+    "EXISTING_COMPONENT_REUSE_REPORTED": true,
+    "EXPECTED_CALLS_TOTAL": 32,
+    "FAILED_TABLES_EXCLUDED_TOTAL": 0,
+    "JSON_VALIDITY_REPORTED": true,
+    "MODELS_TOTAL": 4,
+    "MODEL_VISIBLE_FINANCIAL_DICTIONARY": false,
+    "MODEL_VISIBLE_FRAGMENT_IDS": 0,
+    "MODEL_VISIBLE_GEOMETRY": false,
+    "NEW_GOLD_SYSTEMS_CREATED": 0,
+    "NEW_PARSERS_CREATED": 0,
+    "NEW_PROVIDER_TRANSPORTS_CREATED": 0,
+    "ONE_IMAGE_PER_CALL": true,
+    "PARSER_PRODUCT_CODE_CHANGED": false,
+    "PRODUCT_PIPELINE_CHANGED": false,
+    "RETRY_TOTAL": 0,
+    "ROW_ASSOCIATION_REPORTED": true,
+    "SOURCE_TEXT_EFFECT_REPORTED": true,
+    "STRUCTURED_OUTPUT_API_USED": false,
+    "TABLES_TOTAL": 4
+  },
+  "artifact_sha256": {
+    "docs/reports/2026-08-03/BROKER_REPORTS_DOC13_SIMPLE_GATE1_JSON.report.md": "a1140c3e3289ab5222b4340670f14a2dba781857fd7de3a5456934587955f805",
+    "docs/reports/2026-08-03/BROKER_REPORTS_DOC13_SIMPLE_GATE1_JSON_BRIEF.md": "bbddf092774b5b27c643e37ecc6cee66519accb0b9ba1b6c9f530fb6e07bd8cb",
+    "docs/stage2/BROKER_REPORTS_DOC13_CALL_ACCOUNTING.safe.json": "0124657b8fed468f1af41d76b68256b70856d7b10337fbe63e0445b89b77a9ca",
+    "docs/stage2/BROKER_REPORTS_DOC13_SIMPLE_GATE1_JSON_RESULTS.safe.json": "7edea78326653bdc0ab6b312210e6fe16d6360c7c106dc4c9a13c080aa6f5970",
+    "docs/stage2/BROKER_REPORTS_DOC13_SOURCE_TEXT_EFFECT.safe.json": "48e86818e65536fe3d888704e871f6dda80fe6bf53423c9ef02d4e2df3ab60f4"
+  },
+  "code_change_sha256": {
+    "existing_transport_extension": "e1dfef18bd2437dab234628025b896933c09acc842dac472b3984c60006efae2",
+    "privacy_adjudication": "8752798200b075bfba4b76415ea3350eaef43e1bc3b454081ee13e767e9da808",
+    "transport_tests": "d653b5f15092ba9a217ba6020d0a95bfa1ef5a12127a8aa6938ec74abde19322"
+  },
+  "date": "2026-08-03",
+  "frozen_product_source_sha256": {
+    "services/broker-reports-gate1-proof/broker_reports_gate1/full_source.py": "9ef5630ac9938c936efd06c0fc4638ba7b43a33c8f443db85649323e01b111f8",
+    "services/broker-reports-gate1-proof/broker_reports_gate1/logical_row_table_recovery.py": "d25f806d232a894dd0d51c202da4127f8f139858db16b7fa1f2690b9d9054e2e",
+    "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_layout_units.py": "ddebf803c3c7d97f612bc90137dbd52cb09073513048bd66492b28354d607292",
+    "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_text_layer.py": "863789081d18c3e7e2cbb1fa9af4448cd9eea9f99dbcbb062199ce217b8c724b"
+  },
+  "integrity_sha256": "69d00c74ba93e7d083d1c893b98f140eb713ddb641f7b13ebea65f93d4cf997a",
+  "privacy": {
+    "absolute_private_paths_present": false,
+    "credentials_present": false,
+    "images_present": false,
+    "parser_text_present": false,
+    "raw_provider_outputs_present": false,
+    "source_values_present": false
+  },
+  "protocol_sha256": "1f616722b30fa6e3571caecf4dba23e8ed726a02a23f664189cca462558d6267",
+  "research_only": true,
+  "schema_version": "broker_reports_doc13_simple_gate1_json_receipt_safe_v1",
+  "stop_boundary": {
+    "doc6_changed": false,
+    "further_provider_search_authorized": false,
+    "gate2_implemented": false,
+    "product_pipeline_activated": false
+  },
+  "terminal_classifications": {
+    "BEST_CHEAP_MODEL": "NONE",
+    "BEST_REFERENCE_MODEL": "anthropic_opus",
+    "DOC13_EXPERIMENT": "COMPLETED",
+    "SIMPLE_GATE1_JSON": "NOT_CONFIRMED",
+    "SOURCE_TEXT_IMPROVES_RELATION_RECOVERY": "NOT_CONFIRMED"
+  },
+  "verification": {
+    "closed_world_import_or_dependency_change": false,
+    "deterministic_publisher_replay_passed": true,
+    "factory_first_transport_reuse_verified": true,
+    "literal_denylist_false_positive_terms_total": 3,
+    "literal_denylist_initial_result": "FALSE_POSITIVE",
+    "package_hashes_verified": true,
+    "privacy_scan_adjudication": "PASS",
+    "privacy_scan_method": "KEY_VALUE_AWARE_WITH_CONTROLLED_PUBLIC_VOCABULARY_ADJUDICATION",
+    "privacy_scan_passed": true,
+    "private_integrity_verified": true,
+    "product_source_hashes_verified": true,
+    "protocol_bindings_verified": true,
+    "safe_integrity_verified": true,
+    "transport_hash_verified": true
+  }
+}

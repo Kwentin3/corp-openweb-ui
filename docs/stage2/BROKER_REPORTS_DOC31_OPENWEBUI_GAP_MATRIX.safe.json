@@ -1,0 +1,26 @@
+{
+  "date": "2026-08-05",
+  "exact_loader_preserves": [
+    "rendered table text",
+    "HTML approximation",
+    "sheet-derived elements"
+  ],
+  "integrity_sha256": "c12e34a0713bc9ab3d3cf734d8a5b67afbd7b78efdf49f7169f9e2a3b6942255",
+  "private_content_in_output": false,
+  "required_gaps": [
+    "formula/cache distinction",
+    "source coordinates",
+    "sheet visibility",
+    "merged ranges",
+    "named ranges",
+    "table definitions",
+    "style references",
+    "blank styled cells",
+    "stable provenance",
+    "explicit unsupported-feature issues"
+  ],
+  "reuse_decision": "REJECTED",
+  "runtime_blocker": "loader requires unavailable NLTK resources",
+  "schema_version": "broker_reports_doc31_openwebui_gap_matrix_safe_v1",
+  "status": "PASS"
+}

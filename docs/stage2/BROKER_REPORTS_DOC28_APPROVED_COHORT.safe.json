@@ -1,0 +1,158 @@
+{
+  "active_versions_available": 0,
+  "cohort_frozen_before_write": true,
+  "date": "2026-08-05",
+  "doc26_historical_layout_baseline": {
+    "chunked": 5,
+    "current_doc28_layout_mapping_available": false,
+    "single_payload": 11
+  },
+  "documents": [
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "b874d956e33ad4382e33eabe39b4e5405c2544e693cabc247826a3680932f2ae",
+      "document_id_hash": "5a50e364c3ae7020a77edbe662b9a0cd6b9a79791a901be59dbb638a96283986",
+      "format": "CSV",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "1c6582477921cc5166bf76f721f1832e2aca6fcd3dcd28cc475eb855d827d9ff",
+      "document_id_hash": "aa12c9e4e2fc19a62a8e8cb4c697926b7b68105a3e5f2be7b59d87ce7d14c714",
+      "format": "PDF",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "be6168a763cd41babad9efed838ec1e4ac7a45dec3874c915670bcb8d211c39f",
+      "document_id_hash": "8c57fcb1bdda62e0a595e8942d6af25a553e4292bfb5a11619081f2a69c4c4ce",
+      "format": "CSV",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "66a3087cb242ace4943eda1710b91c9ae526c2e27b6630330270688995f108f1",
+      "document_id_hash": "42279d92880c4c599c84dd26a9db062914051dfb25fa7a16b577bfcba8e77d74",
+      "format": "PDF",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "f68f7ac26a2683799e0d9a0a3f24cc839c6af55c99f2983235923e3d36f1e19d",
+      "document_id_hash": "4bf8579686adf2fef74c285e5a0ad575c191eb9c8f711e7d815e121ed82133c8",
+      "format": "PDF",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+      "document_id_hash": "d57f992a45485b64bf462cf5bbab27f022d7a10aa37f8d8fb2898005e8df45e3",
+      "format": "PDF",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "4790d8487926c698f660dbafa8128f9aaa8a469db9029619dad954dcba5b6915",
+      "document_id_hash": "6cedd00fd033d34028891a8b20ff0aad60c0760d373dcb83df2a828cb249e7ed",
+      "format": "XLSX",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "0a261afe6f0ee38845adb29522a7be115be2836af8dbdafd40d0179ac8b9ae2c",
+      "document_id_hash": "45472929fa43b75ed41b3f3bc2cf8ad3c1364d139db020c27110903add71609f",
+      "format": "XLSX",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "74e5de8408a87508bd19ddbefec4d6403548535473c8fd4a82e89850868d21f0",
+      "document_id_hash": "1d98a9bd3bb3bea8094355319e7f799aea397694f8a407885145feee13df44c6",
+      "format": "PDF",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "6137e019ea76c86fc2db9cf599ee906d840418a45ea96db000ce4a8aef731e8f",
+      "document_id_hash": "bbaf3d7b8664a5763d22371ec0c621a5c49a2d4568047aa92eebf87f44c9cf9b",
+      "format": "PDF",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "6137e019ea76c86fc2db9cf599ee906d840418a45ea96db000ce4a8aef731e8f",
+      "document_id_hash": "de0b9cb0b1bbf1b608c96261b3fc05306399626eb09d63dc855ea085f282f523",
+      "format": "PDF",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+      "document_id_hash": "70e096de049064394c78a938babada7b25fb07a54fa45149c429f0c933daa463",
+      "format": "PDF",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "medium"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "21c85fa3ff06b9ca83f5f5106b701f187df603993e55510531b7bd27cba62dde",
+      "document_id_hash": "c8881ee096283d0972614b42e3710e8a63bea58db6c4f51e00ea4e1859055dcf",
+      "format": "HTML",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "small"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "1fb1c0744eb0b84b05c50f8bd01d2ca8f2a2075e29b5de88e0d1c4a9f7549e8d",
+      "document_id_hash": "c324f4fa2e6948cbdf4ab15dd67e700a47ec96a58c2b05e75c75cc4a01ceec41",
+      "format": "HTML",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "small"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "8b29ff7a464f8e72d9784a26873e0f95966cd80f834b57b99d9e904b02b602f2",
+      "document_id_hash": "804be89887e69f11fe75d90e81573ae733c8027f64f88df1cbb6f77619f5d13d",
+      "format": "HTML",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "small"
+    },
+    {
+      "canonical_version_hash": null,
+      "content_sha256": "cee60e38801516af4ca4071e65376f042e17c2f6e82f667bd970a8760a15bfd7",
+      "document_id_hash": "ad71876d4a4cbc6e786c07f7b17be385fb636496873c3a84ad3bd3e6b101fda0",
+      "format": "HTML",
+      "processing_status": "SOURCE_AVAILABLE_BACKFILL_BLOCKED",
+      "size_class": "small"
+    }
+  ],
+  "documents_total": 16,
+  "documents_unaccounted": 0,
+  "duplicate_content_documents": 1,
+  "durable_versions_available": 0,
+  "format_counts": {
+    "CSV": 2,
+    "HTML": 4,
+    "PDF": 8,
+    "XLSX": 2
+  },
+  "formats": "4/4",
+  "integrity_sha256": "b3be59551a08ffbc18925f4840430d3b026ed40339d03d968a6d4ea85f170fd0",
+  "private_content_in_safe_artifact": 0,
+  "schema_version": "broker_reports_doc28_approved_cohort_safe_v1",
+  "source_documents_available": 16,
+  "status": "FROZEN_SOURCE_ONLY",
+  "trusted_access_contexts_assigned": 0,
+  "unique_content_hashes": 15
+}

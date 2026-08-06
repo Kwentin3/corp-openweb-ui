@@ -1,0 +1,42 @@
+{
+  "schema_version": "broker_reports_doc25_format_adapter_results_safe_v1",
+  "date": "2026-08-05",
+  "authority": "CanonicalNormalizerFactory.create",
+  "parser_authority": "FullSourceArtifactFactory.create",
+  "provider_calls": 0,
+  "cropper_reruns": 0,
+  "results": {
+    "pdf": {
+      "implementation_status": "implemented_shadow",
+      "focused_test_status": "passed",
+      "proved": ["page_and_line_order", "validated_table_once", "unmatched_text_preserved"],
+      "doc24_current_product_regression": "not_run",
+      "actual_corpus_status": "not_confirmed"
+    },
+    "html": {
+      "implementation_status": "implemented_shadow",
+      "focused_test_status": "passed",
+      "proved": ["title", "heading", "text", "link", "ordered_list", "table", "source_order"],
+      "representative_corpus_status": "not_run"
+    },
+    "csv": {
+      "implementation_status": "implemented_shadow",
+      "focused_test_status": "passed",
+      "proved": ["encoding", "delimiter", "header_state", "duplicate_headers_preserved", "rows", "coordinates"],
+      "representative_corpus_status": "not_run"
+    },
+    "xlsx": {
+      "implementation_status": "implemented_shadow",
+      "focused_test_status": "passed",
+      "proved": ["sheet_order", "sheet_visibility", "formula", "cached_value", "raw_value", "merged_range", "named_range"],
+      "representative_corpus_status": "not_run"
+    }
+  },
+  "focused_tests": {
+    "passed": 7,
+    "failed": 0,
+    "terminal": true
+  },
+  "critical_loss_claim": "not_confirmed_on_actual_corpus",
+  "cutover_authorized": false
+}

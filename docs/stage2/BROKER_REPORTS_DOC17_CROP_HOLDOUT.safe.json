@@ -1,0 +1,34 @@
+{
+  "schema_version": "broker_reports_doc17_crop_holdout_safe_v1",
+  "terminal_holdout_version": "doc17_holdout_v4",
+  "gold_sha256": "59665823263b69d8faddb5cb5f82059578c2d4d319bd8d1cd91c52149d345eeb",
+  "sealed_before_crop_run": true,
+  "resolver_calls_before_seal": 0,
+  "HOLDOUT_DOCUMENTS_TOTAL": 3,
+  "HOLDOUT_PUBLISHERS_TOTAL": 3,
+  "HOLDOUT_TABLES_TOTAL": 12,
+  "documents": [
+    {"publisher": "Aramco", "tables": 4, "pdf_sha256": "f370eb7edc68380a5c46ba2953668910fe620d81b4363bb68a6741c90ae755f6"},
+    {"publisher": "CNH Industrial", "tables": 4, "pdf_sha256": "e83e268030e4547dee39e9550c7d63abfbea146f30f9af7f32cba23e534be652"},
+    {"publisher": "Kuehne+Nagel", "tables": 4, "pdf_sha256": "b723aa7c569414cf7f82c0d97b63b50b605a67cb3bd92e558c93b386066c6047"}
+  ],
+  "resolver_status_counts": {"CROP_CLEAN": 12, "CROP_AMBIGUOUS": 0, "CROP_BLOCKED": 0},
+  "gold_adjudication": {"HOLDOUT_CROP_CLEAN": 2, "HOLDOUT_CROP_FAILED": 10, "HOLDOUT_FALSE_CLEAN": 10},
+  "clean_table_ids": ["H17V4_KN_T03", "H17V4_KN_T04"],
+  "repeatable_failure_classes": [
+    "detached standardized notes omitted",
+    "valid body tail trimmed as prose",
+    "table title omitted",
+    "page header or footer retained"
+  ],
+  "known_gold_harness_limit": "top-of-page page-number occurrences in two Kuehne+Nagel cases were selected conservatively; removing those two checks would not change the terminal failure",
+  "iteration_history": [
+    {"version": "v1", "automatic_clean": 5, "automatic_failed": 7, "admission": false},
+    {"version": "v2", "automatic_clean": 0, "automatic_failed": 12, "admission": false},
+    {"version": "v3", "automatic_clean": 7, "automatic_failed": 5, "admission": false},
+    {"version": "v4", "automatic_clean": 2, "automatic_failed": 10, "admission": false}
+  ],
+  "post_failure_diagnostic_replays_are_admission_evidence": false,
+  "NEW_PROVIDER_CALLS_TOTAL": 0,
+  "CANONICAL_TABLE_CROP": "NOT_READY"
+}

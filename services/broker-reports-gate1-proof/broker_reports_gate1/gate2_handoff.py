@@ -5,8 +5,21 @@ from dataclasses import dataclass
 from typing import Any
 
 from .artifact_lifecycle import lifecycle_for_visibility
-from .artifact_models import ArtifactAccessContext, ArtifactRecord, RetentionPolicy, utc_now_iso
+from .artifact_models import (
+    ArtifactAccessContext,
+    ArtifactRecord,
+    ArtifactStoreError,
+    RetentionPolicy,
+    utc_now_iso,
+)
 from .artifact_store import SqliteArtifactStoreAdapter, new_artifact_id
+from .canonical_artifact import (
+    CanonicalArtifactError,
+    CanonicalNormalizerConfig,
+    CanonicalNormalizerFactory,
+    canonical_compare_receipt,
+)
+from .canonical_store import CanonicalArtifactStoreFactory
 from .pdf_compact_canonical import (
     PdfCompactCanonicalError,
     PdfCompactCanonicalFactory,
@@ -689,6 +702,18 @@ def persist_gate1_result(
         retention_policy=retention_policy,
         access_policy=access_policy,
     )
+    _persist_canonical_artifact_shadow(
+        put=put,
+        store=store,
+        package=package,
+        documents=documents,
+        source_records_by_doc=source_records_by_doc,
+        source_artifact_ids_by_doc=source_artifact_ids_by_doc,
+        context=context,
+        retention_policy=retention_policy,
+        access_policy=access_policy,
+        refs_by_type=refs_by_type,
+    )
 
     prompt_snapshot = package.get("llm_prompt_snapshot")
     if isinstance(prompt_snapshot, dict):
@@ -1207,6 +1232,118 @@ def persist_gate1_result(
     )
 
 
+def _persist_canonical_artifact_shadow(
+    *,
+    put,
+    store: SqliteArtifactStoreAdapter,
+    package: dict[str, Any],
+    documents: list[dict[str, Any]],
+    source_records_by_doc: dict[str, dict[str, Any]],
+    source_artifact_ids_by_doc: dict[str, str],
+    context: ArtifactAccessContext,
+    retention_policy: RetentionPolicy,
+    access_policy: dict[str, Any],
+    refs_by_type: dict[str, list[str]],
+) -> None:
+    input_context = _object(package.get("input_context"))
+    if input_context.get("canonical_gate2_write_enabled") is not True:
+        return
+    compare_enabled = input_context.get("canonical_gate2_compare_enabled") is True
+    normalizer_version = str(
+        input_context.get("normalizer_version")
+        or _object(package.get("normalization_run")).get("normalizer_version")
+        or "legacy_normalizer_unspecified"
+    )
+    canonical_store = CanonicalArtifactStoreFactory(store=store).create()
+    for document in documents:
+        if document.get("container_format") not in {"pdf", "html_text", "csv", "xlsx"}:
+            continue
+        document_id = str(document.get("document_id") or "")
+        source_payloads = _document_items(
+            package.get("private_normalized_source_payloads"),
+            document_id,
+            field="document_ref",
+        )
+        source_units = _document_items(
+            package.get("private_normalized_source_units"),
+            document_id,
+            field="document_id",
+        )
+        table_projections = _document_items(
+            package.get("private_normalized_table_projections"),
+            document_id,
+            field="source_document_ref",
+        )
+        try:
+            artifact = CanonicalNormalizerFactory(
+                CanonicalNormalizerConfig(normalizer_version=normalizer_version)
+            ).create().build(
+                tenant_id=context.user_id,
+                artifact_version=1,
+                document=document,
+                source_artifact_ref=source_artifact_ids_by_doc.get(document_id, ""),
+                source_payloads=source_payloads,
+                source_units=source_units,
+                table_projections=table_projections,
+            )
+            compare = (
+                canonical_compare_receipt(
+                    artifact, legacy_source_units=source_units
+                )
+                if compare_enabled
+                else None
+            )
+            persisted = canonical_store.put_candidate(
+                artifact=artifact,
+                context=context,
+                retention_policy=retention_policy,
+                compare_receipt=compare,
+            )
+            refs_by_type.setdefault("broker_reports_canonical_artifact_v1", []).append(
+                persisted.artifact_ref
+            )
+            if persisted.compare_receipt_ref:
+                refs_by_type.setdefault(
+                    "broker_reports_canonical_legacy_compare_receipt_v1", []
+                ).append(persisted.compare_receipt_ref)
+        except (CanonicalArtifactError, ArtifactStoreError, ValueError) as exc:
+            code = str(getattr(exc, "code", "canonical_build_failed"))
+            failure = put(
+                _record(
+                    artifact_type="broker_reports_canonical_build_failure_v1",
+                    context=context,
+                    retention_policy=retention_policy,
+                    document_id=document_id,
+                    source_file_ref=source_records_by_doc.get(document_id),
+                    visibility="safe_internal",
+                    storage_backend="project_artifact_store",
+                    validation_status="validated",
+                    payload={
+                        "schema_version": "canonical_build_failure_v1",
+                        "document_ref": document_id,
+                        "failure_code": code,
+                        "legacy_authoritative": True,
+                        "cutover_authorized": False,
+                    },
+                    safe_metadata={
+                        "failure_code": code,
+                        "legacy_authoritative": True,
+                        "cutover_authorized": False,
+                    },
+                    access_policy=access_policy,
+                )
+            )
+            refs_by_type.setdefault(
+                "broker_reports_canonical_build_failure_v1", []
+            )
+            if failure.artifact_id not in refs_by_type[
+                "broker_reports_canonical_build_failure_v1"
+            ]:
+                refs_by_type["broker_reports_canonical_build_failure_v1"].append(
+                    failure.artifact_id
+                )
+
+
 def _persist_pdf_compact_dual_write(
     *,
     put,
@@ -1220,7 +1357,7 @@ def _persist_pdf_compact_dual_write(
     context: ArtifactAccessContext,
     retention_policy: RetentionPolicy,
     access_policy: dict[str, Any],
-) -> None:
+    ) -> None:
     if _object(package.get("input_context")).get(
         "pdf_compact_canonical_dual_write"
     ) is not True:

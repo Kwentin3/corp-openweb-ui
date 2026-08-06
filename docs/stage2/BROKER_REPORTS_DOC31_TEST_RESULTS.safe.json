@@ -1,0 +1,39 @@
+{
+  "date": "2026-08-05",
+  "focused_tests": {
+    "failed": 0,
+    "passed": 46,
+    "status": "PASS"
+  },
+  "full_suite": {
+    "accounting": {
+      "current_bundle_sync_failures_fixed_after_terminal_run": 2,
+      "historical_authority_hash_errors": 11,
+      "historical_frozen_source_hash_failures": 5,
+      "new_module_declaration_failure_fixed_after_terminal_run": 1
+    },
+    "elapsed_seconds": 900.91,
+    "errors": 11,
+    "failed": 8,
+    "passed": 2940,
+    "result": "FAILED_ACCOUNTED",
+    "skipped": 5,
+    "terminal": true,
+    "timeout": false
+  },
+  "historical_hashes_rewritten": 0,
+  "historical_reports_modified_by_doc31": 0,
+  "integrity_sha256": "adcee7db7425cef3a7fb7ce9124bddf3c1a5b1d0ceb959b58517b392f12fab08",
+  "private_content_in_output": false,
+  "schema_version": "broker_reports_doc31_test_results_safe_v1",
+  "status": "PASS_WITH_PROGRAM_BLOCKER",
+  "target_tests": {
+    "access": "PASS",
+    "backup_restore": "PASS",
+    "cohort_completion": "PASS",
+    "research_consumer": "BLOCKED",
+    "restart_recreation": "PASS",
+    "wave2_shadow": "NOT_STARTED_STOP_CONDITION",
+    "xlsx_memory": "PASS"
+  }
+}

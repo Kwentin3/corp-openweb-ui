@@ -12,6 +12,7 @@ from broker_reports_gate1 import (
     ArtifactStoreFactory,
     FileInput,
     Gate1Normalizer,
+    PDF_COMPACT_CANONICAL_MAPPING,
     PdfCompactCanonicalError,
     PdfCompactCanonicalFactory,
     PdfCompactCanonicalValidator,
@@ -323,7 +324,8 @@ def test_storage_dual_write_uses_actual_source_ref_and_keeps_gate2_authoritative
             for item in store.list_by_run(manifest.normalization_run_id)
         )
         handoff_record = store.list_by_type(
-            manifest.normalization_run_id, "gate2_handoff_v0"
+            manifest.normalization_run_id,
+            PDF_COMPACT_CANONICAL_MAPPING.legacy_contract_version,
         )[0]
         handoff = store.read_payload(handoff_record)
         assert not any("compact" in key for key in handoff)

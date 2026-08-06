@@ -1,0 +1,1139 @@
+{
+  "schema_version": "broker_reports_doc10_context_package_audit_safe_v1",
+  "protocol_sha256": "44589985ce979aae1cdacaad0b86c79364756274f55abb2a5d5653161bb54bb3",
+  "context_package_audit_completed": true,
+  "all_12_doc9_packages_audited": true,
+  "agent_visual_reviewed_original_and_id_map_total": 12,
+  "measurement_definitions": {
+    "label_overlap": "strict positive-area intersections between rendered ID-label rectangles",
+    "source_text_overlap": "label rectangles intersecting parser fragment bounding boxes in crop pixels",
+    "table_line_overlap": "labels intersecting dark rows or columns spanning at least 35 percent of the crop",
+    "token_estimates": "OpenAI o200k_base exact local encoding; Google/Anthropic are deterministic UTF-8 divisors, not provider billing counts"
+  },
+  "aggregate": {
+    "tables_total": 12,
+    "fragments_total": 1039,
+    "unique_texts_total": 442,
+    "duplicate_text_fragments_beyond_first_total": 597,
+    "inventory_utf8_bytes": 56319,
+    "fragment_text_characters": 6359,
+    "long_ids_average_characters": 10.0,
+    "long_id_tokens_total_pre_call_estimate": {
+      "openai_o200k_base": 6769,
+      "google_utf8_div4_estimate": 3117,
+      "anthropic_utf8_div3_5_estimate": 3117
+    },
+    "id_label_overlap_pair_total": 360,
+    "id_label_source_text_overlap_label_total": 349,
+    "id_label_table_line_overlap_total": 362,
+    "cropped_table_edges_total": 5,
+    "cropped_headings_total": 2,
+    "maximum_doc10_package_bytes": 531237,
+    "useful_fragment_text_characters_per_inventory_utf8_byte": 0.11291,
+    "numeric_fragments_total": 319,
+    "currency_marker_fragments_total": 7,
+    "single_character_fragments_total": 35,
+    "weighted_average_fragment_length_characters": 6.12,
+    "doc9_context_overloaded": true,
+    "overload_basis": "ID map label collisions and service-context overhead are material; original crops remain the readable visual source"
+  },
+  "tables": [
+    {
+      "gold_table_id": "unseen_pdf_03_t01",
+      "visual": {
+        "original_crop_dimensions_px": [
+          393,
+          295
+        ],
+        "id_map_dimensions_px": [
+          393,
+          295
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 22.222,
+        "ids_drawn_total": 17,
+        "id_label_overlap_pair_total": 7,
+        "id_label_source_text_overlap_label_total": 12,
+        "id_label_source_text_overlap_pair_total": 19,
+        "id_label_table_line_overlap_total": 0,
+        "cropped_table_edges": false,
+        "cropped_headings": false,
+        "note": "clean small crop; labels visibly cover portions of nearby text",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 17,
+        "unique_texts_total": 16,
+        "duplicate_text_fragments_beyond_first_total": 1,
+        "fragments_in_duplicate_text_classes_total": 2,
+        "numeric_fragments_total": 5,
+        "currency_marker_fragments_total": 0,
+        "average_fragment_length_characters": 5.353,
+        "single_character_fragments_total": 0,
+        "inventory_utf8_bytes": 910,
+        "inventory_text_characters": 910,
+        "fragment_text_characters": 91,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 412,
+          "google_utf8_div4_estimate": 228,
+          "anthropic_utf8_div3_5_estimate": 260
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.647,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 113,
+          "google_utf8_div4_estimate": 51,
+          "anthropic_utf8_div3_5_estimate": 51
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 141,
+          "google_utf8_div4_estimate": 63,
+          "anthropic_utf8_div3_5_estimate": 72
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_02_t05",
+      "visual": {
+        "original_crop_dimensions_px": [
+          760,
+          293
+        ],
+        "id_map_dimensions_px": [
+          760,
+          293
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 22.222,
+        "ids_drawn_total": 27,
+        "id_label_overlap_pair_total": 2,
+        "id_label_source_text_overlap_label_total": 3,
+        "id_label_source_text_overlap_pair_total": 3,
+        "id_label_table_line_overlap_total": 14,
+        "cropped_table_edges": false,
+        "cropped_headings": false,
+        "note": "complete three-column table; labels still overlap most text lines",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 27,
+        "unique_texts_total": 22,
+        "duplicate_text_fragments_beyond_first_total": 5,
+        "fragments_in_duplicate_text_classes_total": 9,
+        "numeric_fragments_total": 2,
+        "currency_marker_fragments_total": 0,
+        "average_fragment_length_characters": 5.889,
+        "single_character_fragments_total": 0,
+        "inventory_utf8_bytes": 1458,
+        "inventory_text_characters": 1458,
+        "fragment_text_characters": 159,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 659,
+          "google_utf8_div4_estimate": 365,
+          "anthropic_utf8_div3_5_estimate": 417
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.593,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 178,
+          "google_utf8_div4_estimate": 81,
+          "anthropic_utf8_div3_5_estimate": 81
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 216,
+          "google_utf8_div4_estimate": 96,
+          "anthropic_utf8_div3_5_estimate": 109
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t04",
+      "visual": {
+        "original_crop_dimensions_px": [
+          1523,
+          254
+        ],
+        "id_map_dimensions_px": [
+          1523,
+          254
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 30.609,
+        "ids_drawn_total": 34,
+        "id_label_overlap_pair_total": 9,
+        "id_label_source_text_overlap_label_total": 25,
+        "id_label_source_text_overlap_pair_total": 36,
+        "id_label_table_line_overlap_total": 6,
+        "cropped_table_edges": false,
+        "cropped_headings": false,
+        "note": "complete sparse statement; dense labels obscure row text",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 34,
+        "unique_texts_total": 26,
+        "duplicate_text_fragments_beyond_first_total": 8,
+        "fragments_in_duplicate_text_classes_total": 15,
+        "numeric_fragments_total": 9,
+        "currency_marker_fragments_total": 2,
+        "average_fragment_length_characters": 5.088,
+        "single_character_fragments_total": 2,
+        "inventory_utf8_bytes": 1808,
+        "inventory_text_characters": 1808,
+        "fragment_text_characters": 173,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 819,
+          "google_utf8_div4_estimate": 452,
+          "anthropic_utf8_div3_5_estimate": 517
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.676,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 227,
+          "google_utf8_div4_estimate": 102,
+          "anthropic_utf8_div3_5_estimate": 102
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 272,
+          "google_utf8_div4_estimate": 118,
+          "anthropic_utf8_div3_5_estimate": 135
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t25",
+      "visual": {
+        "original_crop_dimensions_px": [
+          1519,
+          827
+        ],
+        "id_map_dimensions_px": [
+          1519,
+          827
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 13.858,
+        "ids_drawn_total": 165,
+        "id_label_overlap_pair_total": 82,
+        "id_label_source_text_overlap_label_total": 59,
+        "id_label_source_text_overlap_pair_total": 102,
+        "id_label_table_line_overlap_total": 37,
+        "cropped_table_edges": true,
+        "cropped_headings": false,
+        "note": "schedule continues beyond bottom crop; severe label coverage",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 165,
+        "unique_texts_total": 102,
+        "duplicate_text_fragments_beyond_first_total": 63,
+        "fragments_in_duplicate_text_classes_total": 91,
+        "numeric_fragments_total": 34,
+        "currency_marker_fragments_total": 0,
+        "average_fragment_length_characters": 6.2,
+        "single_character_fragments_total": 3,
+        "inventory_utf8_bytes": 8952,
+        "inventory_text_characters": 8946,
+        "fragment_text_characters": 1023,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 4012,
+          "google_utf8_div4_estimate": 2238,
+          "anthropic_utf8_div3_5_estimate": 2558
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.545,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 1080,
+          "google_utf8_div4_estimate": 495,
+          "anthropic_utf8_div3_5_estimate": 495
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 1256,
+          "google_utf8_div4_estimate": 544,
+          "anthropic_utf8_div3_5_estimate": 622
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t03",
+      "visual": {
+        "original_crop_dimensions_px": [
+          1519,
+          412
+        ],
+        "id_map_dimensions_px": [
+          1519,
+          412
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 19.457,
+        "ids_drawn_total": 135,
+        "id_label_overlap_pair_total": 42,
+        "id_label_source_text_overlap_label_total": 25,
+        "id_label_source_text_overlap_pair_total": 37,
+        "id_label_table_line_overlap_total": 82,
+        "cropped_table_edges": true,
+        "cropped_headings": false,
+        "note": "bottom footnote begins at crop edge; ID labels saturate multi-level header and grid",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 135,
+        "unique_texts_total": 91,
+        "duplicate_text_fragments_beyond_first_total": 44,
+        "fragments_in_duplicate_text_classes_total": 60,
+        "numeric_fragments_total": 61,
+        "currency_marker_fragments_total": 0,
+        "average_fragment_length_characters": 6.089,
+        "single_character_fragments_total": 8,
+        "inventory_utf8_bytes": 7319,
+        "inventory_text_characters": 7305,
+        "fragment_text_characters": 822,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 3322,
+          "google_utf8_div4_estimate": 1830,
+          "anthropic_utf8_div3_5_estimate": 2092
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.578,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 888,
+          "google_utf8_div4_estimate": 405,
+          "anthropic_utf8_div3_5_estimate": 405
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 1034,
+          "google_utf8_div4_estimate": 447,
+          "anthropic_utf8_div3_5_estimate": 510
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t35",
+      "visual": {
+        "original_crop_dimensions_px": [
+          1519,
+          367
+        ],
+        "id_map_dimensions_px": [
+          1519,
+          367
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 19.457,
+        "ids_drawn_total": 38,
+        "id_label_overlap_pair_total": 10,
+        "id_label_source_text_overlap_label_total": 7,
+        "id_label_source_text_overlap_pair_total": 10,
+        "id_label_table_line_overlap_total": 14,
+        "cropped_table_edges": false,
+        "cropped_headings": true,
+        "note": "top table title is clipped; ID labels cover header and values",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 38,
+        "unique_texts_total": 32,
+        "duplicate_text_fragments_beyond_first_total": 6,
+        "fragments_in_duplicate_text_classes_total": 11,
+        "numeric_fragments_total": 12,
+        "currency_marker_fragments_total": 0,
+        "average_fragment_length_characters": 5.868,
+        "single_character_fragments_total": 0,
+        "inventory_utf8_bytes": 2050,
+        "inventory_text_characters": 2050,
+        "fragment_text_characters": 223,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 914,
+          "google_utf8_div4_estimate": 513,
+          "anthropic_utf8_div3_5_estimate": 586
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.447,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 245,
+          "google_utf8_div4_estimate": 114,
+          "anthropic_utf8_div3_5_estimate": 114
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 294,
+          "google_utf8_div4_estimate": 131,
+          "anthropic_utf8_div3_5_estimate": 150
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t27",
+      "visual": {
+        "original_crop_dimensions_px": [
+          1519,
+          380
+        ],
+        "id_map_dimensions_px": [
+          1519,
+          380
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 19.457,
+        "ids_drawn_total": 121,
+        "id_label_overlap_pair_total": 40,
+        "id_label_source_text_overlap_label_total": 25,
+        "id_label_source_text_overlap_pair_total": 39,
+        "id_label_table_line_overlap_total": 68,
+        "cropped_table_edges": true,
+        "cropped_headings": false,
+        "note": "bottom footnote begins at crop edge; severe label coverage",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 121,
+        "unique_texts_total": 82,
+        "duplicate_text_fragments_beyond_first_total": 39,
+        "fragments_in_duplicate_text_classes_total": 54,
+        "numeric_fragments_total": 54,
+        "currency_marker_fragments_total": 0,
+        "average_fragment_length_characters": 5.967,
+        "single_character_fragments_total": 7,
+        "inventory_utf8_bytes": 6545,
+        "inventory_text_characters": 6533,
+        "fragment_text_characters": 722,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 2956,
+          "google_utf8_div4_estimate": 1637,
+          "anthropic_utf8_div3_5_estimate": 1870
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.43,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 778,
+          "google_utf8_div4_estimate": 363,
+          "anthropic_utf8_div3_5_estimate": 363
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 910,
+          "google_utf8_div4_estimate": 401,
+          "anthropic_utf8_div3_5_estimate": 458
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t09",
+      "visual": {
+        "original_crop_dimensions_px": [
+          1519,
+          412
+        ],
+        "id_map_dimensions_px": [
+          1519,
+          412
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 19.457,
+        "ids_drawn_total": 135,
+        "id_label_overlap_pair_total": 44,
+        "id_label_source_text_overlap_label_total": 25,
+        "id_label_source_text_overlap_pair_total": 40,
+        "id_label_table_line_overlap_total": 82,
+        "cropped_table_edges": true,
+        "cropped_headings": false,
+        "note": "bottom footnote begins at crop edge; header and numeric rows are label-dense",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 135,
+        "unique_texts_total": 91,
+        "duplicate_text_fragments_beyond_first_total": 44,
+        "fragments_in_duplicate_text_classes_total": 60,
+        "numeric_fragments_total": 61,
+        "currency_marker_fragments_total": 0,
+        "average_fragment_length_characters": 6.326,
+        "single_character_fragments_total": 7,
+        "inventory_utf8_bytes": 7351,
+        "inventory_text_characters": 7337,
+        "fragment_text_characters": 854,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 3320,
+          "google_utf8_div4_estimate": 1838,
+          "anthropic_utf8_div3_5_estimate": 2101
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.459,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 872,
+          "google_utf8_div4_estimate": 405,
+          "anthropic_utf8_div3_5_estimate": 405
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 1018,
+          "google_utf8_div4_estimate": 447,
+          "anthropic_utf8_div3_5_estimate": 510
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t05",
+      "visual": {
+        "original_crop_dimensions_px": [
+          1519,
+          401
+        ],
+        "id_map_dimensions_px": [
+          1519,
+          401
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 19.457,
+        "ids_drawn_total": 46,
+        "id_label_overlap_pair_total": 14,
+        "id_label_source_text_overlap_label_total": 7,
+        "id_label_source_text_overlap_pair_total": 10,
+        "id_label_table_line_overlap_total": 22,
+        "cropped_table_edges": false,
+        "cropped_headings": false,
+        "note": "complete futures table; right header labels overlap source words",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 46,
+        "unique_texts_total": 39,
+        "duplicate_text_fragments_beyond_first_total": 7,
+        "fragments_in_duplicate_text_classes_total": 13,
+        "numeric_fragments_total": 12,
+        "currency_marker_fragments_total": 0,
+        "average_fragment_length_characters": 6.174,
+        "single_character_fragments_total": 0,
+        "inventory_utf8_bytes": 2495,
+        "inventory_text_characters": 2495,
+        "fragment_text_characters": 284,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 1099,
+          "google_utf8_div4_estimate": 624,
+          "anthropic_utf8_div3_5_estimate": 713
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.326,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 291,
+          "google_utf8_div4_estimate": 138,
+          "anthropic_utf8_div3_5_estimate": 138
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 348,
+          "google_utf8_div4_estimate": 157,
+          "anthropic_utf8_div3_5_estimate": 180
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t01",
+      "visual": {
+        "original_crop_dimensions_px": [
+          1523,
+          1399
+        ],
+        "id_map_dimensions_px": [
+          1523,
+          1399
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 30.609,
+        "ids_drawn_total": 129,
+        "id_label_overlap_pair_total": 23,
+        "id_label_source_text_overlap_label_total": 100,
+        "id_label_source_text_overlap_pair_total": 121,
+        "id_label_table_line_overlap_total": 0,
+        "cropped_table_edges": false,
+        "cropped_headings": false,
+        "note": "complete statement; many labels collide with adjacent lines and text",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 129,
+        "unique_texts_total": 87,
+        "duplicate_text_fragments_beyond_first_total": 42,
+        "fragments_in_duplicate_text_classes_total": 66,
+        "numeric_fragments_total": 28,
+        "currency_marker_fragments_total": 4,
+        "average_fragment_length_characters": 6.24,
+        "single_character_fragments_total": 4,
+        "inventory_utf8_bytes": 7000,
+        "inventory_text_characters": 7000,
+        "fragment_text_characters": 805,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 3121,
+          "google_utf8_div4_estimate": 1750,
+          "anthropic_utf8_div3_5_estimate": 2000
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.543,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 844,
+          "google_utf8_div4_estimate": 387,
+          "anthropic_utf8_div3_5_estimate": 387
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 984,
+          "google_utf8_div4_estimate": 427,
+          "anthropic_utf8_div3_5_estimate": 488
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t07",
+      "visual": {
+        "original_crop_dimensions_px": [
+          1519,
+          861
+        ],
+        "id_map_dimensions_px": [
+          1519,
+          861
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 13.858,
+        "ids_drawn_total": 176,
+        "id_label_overlap_pair_total": 80,
+        "id_label_source_text_overlap_label_total": 61,
+        "id_label_source_text_overlap_pair_total": 104,
+        "id_label_table_line_overlap_total": 37,
+        "cropped_table_edges": true,
+        "cropped_headings": false,
+        "note": "schedule continues beyond bottom crop; ID labels heavily obscure narrative and rows",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 176,
+        "unique_texts_total": 109,
+        "duplicate_text_fragments_beyond_first_total": 67,
+        "fragments_in_duplicate_text_classes_total": 96,
+        "numeric_fragments_total": 37,
+        "currency_marker_fragments_total": 0,
+        "average_fragment_length_characters": 6.386,
+        "single_character_fragments_total": 3,
+        "inventory_utf8_bytes": 9581,
+        "inventory_text_characters": 9575,
+        "fragment_text_characters": 1124,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 4286,
+          "google_utf8_div4_estimate": 2396,
+          "anthropic_utf8_div3_5_estimate": 2738
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.517,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 1147,
+          "google_utf8_div4_estimate": 528,
+          "anthropic_utf8_div3_5_estimate": 528
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 1334,
+          "google_utf8_div4_estimate": 580,
+          "anthropic_utf8_div3_5_estimate": 663
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t05",
+      "visual": {
+        "original_crop_dimensions_px": [
+          1523,
+          174
+        ],
+        "id_map_dimensions_px": [
+          1523,
+          174
+        ],
+        "declared_render_dpi": 200,
+        "png_metadata_dpi": null,
+        "minimum_visible_fragment_height_px": 30.608,
+        "ids_drawn_total": 16,
+        "id_label_overlap_pair_total": 7,
+        "id_label_source_text_overlap_label_total": 0,
+        "id_label_source_text_overlap_pair_total": 0,
+        "id_label_table_line_overlap_total": 0,
+        "cropped_table_edges": false,
+        "cropped_headings": true,
+        "note": "blue heading above the visible row is vertically clipped",
+        "agent_opened_original_and_id_map": true
+      },
+      "fragment_inventory": {
+        "fragments_total": 16,
+        "unique_texts_total": 16,
+        "duplicate_text_fragments_beyond_first_total": 0,
+        "fragments_in_duplicate_text_classes_total": 0,
+        "numeric_fragments_total": 4,
+        "currency_marker_fragments_total": 1,
+        "average_fragment_length_characters": 4.938,
+        "single_character_fragments_total": 1,
+        "inventory_utf8_bytes": 850,
+        "inventory_text_characters": 850,
+        "fragment_text_characters": 79,
+        "inventory_tokens_by_provider_pre_call_estimate": {
+          "openai_o200k_base": 385,
+          "google_utf8_div4_estimate": 213,
+          "anthropic_utf8_div3_5_estimate": 243
+        }
+      },
+      "long_id_format": {
+        "average_characters_per_id": 10.0,
+        "average_model_tokens_per_id_pre_call_estimate": {
+          "openai_o200k_base": 6.625,
+          "google_utf8_div4_estimate": 3.0,
+          "anthropic_utf8_div3_5_estimate": 3.0
+        },
+        "total_id_tokens_in_input_pre_call_estimate": {
+          "openai_o200k_base": 106,
+          "google_utf8_div4_estimate": 48,
+          "anthropic_utf8_div3_5_estimate": 48
+        },
+        "minimum_expected_correct_output_tokens_pre_call_estimate": {
+          "openai_o200k_base": 133,
+          "google_utf8_div4_estimate": 60,
+          "anthropic_utf8_div3_5_estimate": 68
+        },
+        "similar_prefix_collision_pairs_total": 0,
+        "similar_prefix_definition": "same first four hexadecimal characters after f_",
+        "single_character_edit_pair_total": 0
+      }
+    }
+  ],
+  "selected_package_workloads": [
+    {
+      "gold_table_id": "unseen_pdf_03_t01",
+      "arm": "DOC9_BASELINE",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 257,
+        "google_utf8_div4_estimate": 422,
+        "anthropic_utf8_div3_5_estimate": 483
+      },
+      "image_count": 2,
+      "image_bytes": 54784,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 412,
+        "google_utf8_div4_estimate": 228,
+        "anthropic_utf8_div3_5_estimate": 260
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 141,
+        "google_utf8_div4_estimate": 63,
+        "anthropic_utf8_div3_5_estimate": 72
+      },
+      "model_visible_package_bytes": 57534,
+      "useful_fragment_text_characters": 91,
+      "service_context_characters": 1973,
+      "useful_text_to_service_context_ratio": 0.046123
+    },
+    {
+      "gold_table_id": "unseen_pdf_03_t01",
+      "arm": "ONE_IMAGE_LONG_IDS",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 228,
+        "google_utf8_div4_estimate": 371,
+        "anthropic_utf8_div3_5_estimate": 424
+      },
+      "image_count": 1,
+      "image_bytes": 23181,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 412,
+        "google_utf8_div4_estimate": 228,
+        "anthropic_utf8_div3_5_estimate": 260
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 141,
+        "google_utf8_div4_estimate": 63,
+        "anthropic_utf8_div3_5_estimate": 72
+      },
+      "model_visible_package_bytes": 25725,
+      "useful_fragment_text_characters": 91,
+      "service_context_characters": 1858,
+      "useful_text_to_service_context_ratio": 0.048977
+    },
+    {
+      "gold_table_id": "unseen_pdf_03_t01",
+      "arm": "ONE_IMAGE_SHORT_IDS",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 228,
+        "google_utf8_div4_estimate": 371,
+        "anthropic_utf8_div3_5_estimate": 424
+      },
+      "image_count": 1,
+      "image_bytes": 23181,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 322,
+        "google_utf8_div4_estimate": 194,
+        "anthropic_utf8_div3_5_estimate": 222
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 51,
+        "google_utf8_div4_estimate": 29,
+        "anthropic_utf8_div3_5_estimate": 33
+      },
+      "model_visible_package_bytes": 25589,
+      "useful_fragment_text_characters": 91,
+      "service_context_characters": 1722,
+      "useful_text_to_service_context_ratio": 0.052846
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t04",
+      "arm": "DOC9_BASELINE",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 257,
+        "google_utf8_div4_estimate": 422,
+        "anthropic_utf8_div3_5_estimate": 483
+      },
+      "image_count": 2,
+      "image_bytes": 107779,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 819,
+        "google_utf8_div4_estimate": 452,
+        "anthropic_utf8_div3_5_estimate": 517
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 272,
+        "google_utf8_div4_estimate": 118,
+        "anthropic_utf8_div3_5_estimate": 135
+      },
+      "model_visible_package_bytes": 111427,
+      "useful_fragment_text_characters": 173,
+      "service_context_characters": 2789,
+      "useful_text_to_service_context_ratio": 0.062029
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t04",
+      "arm": "ONE_IMAGE_LONG_IDS",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 228,
+        "google_utf8_div4_estimate": 371,
+        "anthropic_utf8_div3_5_estimate": 424
+      },
+      "image_count": 1,
+      "image_bytes": 45419,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 819,
+        "google_utf8_div4_estimate": 452,
+        "anthropic_utf8_div3_5_estimate": 517
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 272,
+        "google_utf8_div4_estimate": 118,
+        "anthropic_utf8_div3_5_estimate": 135
+      },
+      "model_visible_package_bytes": 48861,
+      "useful_fragment_text_characters": 173,
+      "service_context_characters": 2674,
+      "useful_text_to_service_context_ratio": 0.064697
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t04",
+      "arm": "ONE_IMAGE_SHORT_IDS",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 228,
+        "google_utf8_div4_estimate": 371,
+        "anthropic_utf8_div3_5_estimate": 424
+      },
+      "image_count": 1,
+      "image_bytes": 45419,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 634,
+        "google_utf8_div4_estimate": 384,
+        "anthropic_utf8_div3_5_estimate": 439
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 87,
+        "google_utf8_div4_estimate": 50,
+        "anthropic_utf8_div3_5_estimate": 58
+      },
+      "model_visible_package_bytes": 48589,
+      "useful_fragment_text_characters": 173,
+      "service_context_characters": 2402,
+      "useful_text_to_service_context_ratio": 0.072023
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t03",
+      "arm": "DOC9_BASELINE",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 257,
+        "google_utf8_div4_estimate": 422,
+        "anthropic_utf8_div3_5_estimate": 483
+      },
+      "image_count": 2,
+      "image_bytes": 311773,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 3322,
+        "google_utf8_div4_estimate": 1830,
+        "anthropic_utf8_div3_5_estimate": 2092
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 1034,
+        "google_utf8_div4_estimate": 447,
+        "anthropic_utf8_div3_5_estimate": 510
+      },
+      "model_visible_package_bytes": 320932,
+      "useful_fragment_text_characters": 822,
+      "service_context_characters": 7637,
+      "useful_text_to_service_context_ratio": 0.107634
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t03",
+      "arm": "ONE_IMAGE_LONG_IDS",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 228,
+        "google_utf8_div4_estimate": 371,
+        "anthropic_utf8_div3_5_estimate": 424
+      },
+      "image_count": 1,
+      "image_bytes": 136086,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 3322,
+        "google_utf8_div4_estimate": 1830,
+        "anthropic_utf8_div3_5_estimate": 2092
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 1034,
+        "google_utf8_div4_estimate": 447,
+        "anthropic_utf8_div3_5_estimate": 510
+      },
+      "model_visible_package_bytes": 145039,
+      "useful_fragment_text_characters": 822,
+      "service_context_characters": 7522,
+      "useful_text_to_service_context_ratio": 0.109279
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t03",
+      "arm": "ONE_IMAGE_SHORT_IDS",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 228,
+        "google_utf8_div4_estimate": 371,
+        "anthropic_utf8_div3_5_estimate": 424
+      },
+      "image_count": 1,
+      "image_bytes": 136086,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 2608,
+        "google_utf8_div4_estimate": 1560,
+        "anthropic_utf8_div3_5_estimate": 1783
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 320,
+        "google_utf8_div4_estimate": 177,
+        "anthropic_utf8_div3_5_estimate": 202
+      },
+      "model_visible_package_bytes": 143959,
+      "useful_fragment_text_characters": 822,
+      "service_context_characters": 6442,
+      "useful_text_to_service_context_ratio": 0.1276
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t07",
+      "arm": "DOC9_BASELINE",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 257,
+        "google_utf8_div4_estimate": 422,
+        "anthropic_utf8_div3_5_estimate": 483
+      },
+      "image_count": 2,
+      "image_bytes": 519816,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 4286,
+        "google_utf8_div4_estimate": 2396,
+        "anthropic_utf8_div3_5_estimate": 2738
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 1334,
+        "google_utf8_div4_estimate": 580,
+        "anthropic_utf8_div3_5_estimate": 663
+      },
+      "model_visible_package_bytes": 531237,
+      "useful_fragment_text_characters": 1124,
+      "service_context_characters": 9605,
+      "useful_text_to_service_context_ratio": 0.117022
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t07",
+      "arm": "ONE_IMAGE_LONG_IDS",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 228,
+        "google_utf8_div4_estimate": 371,
+        "anthropic_utf8_div3_5_estimate": 424
+      },
+      "image_count": 1,
+      "image_bytes": 229222,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 4286,
+        "google_utf8_div4_estimate": 2396,
+        "anthropic_utf8_div3_5_estimate": 2738
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 1334,
+        "google_utf8_div4_estimate": 580,
+        "anthropic_utf8_div3_5_estimate": 663
+      },
+      "model_visible_package_bytes": 240437,
+      "useful_fragment_text_characters": 1124,
+      "service_context_characters": 9490,
+      "useful_text_to_service_context_ratio": 0.11844
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t07",
+      "arm": "ONE_IMAGE_SHORT_IDS",
+      "prompt_tokens_pre_call_estimate": {
+        "openai_o200k_base": 228,
+        "google_utf8_div4_estimate": 371,
+        "anthropic_utf8_div3_5_estimate": 424
+      },
+      "image_count": 1,
+      "image_bytes": 229222,
+      "inventory_tokens_pre_call_estimate": {
+        "openai_o200k_base": 3372,
+        "google_utf8_div4_estimate": 2044,
+        "anthropic_utf8_div3_5_estimate": 2336
+      },
+      "expected_minimum_output_tokens_pre_call_estimate": {
+        "openai_o200k_base": 420,
+        "google_utf8_div4_estimate": 228,
+        "anthropic_utf8_div3_5_estimate": 260
+      },
+      "model_visible_package_bytes": 239029,
+      "useful_fragment_text_characters": 1124,
+      "service_context_characters": 8082,
+      "useful_text_to_service_context_ratio": 0.139074
+    }
+  ],
+  "doc10_package_hashes": {
+    "unseen_pdf_03_t01": {
+      "DOC9_BASELINE": "546f49165285f79530d340d8ce4117dfe2e1fe4a1aed3fec5c119a0562a50e8a",
+      "ONE_IMAGE_LONG_IDS": "3c734926ac2c14f5e6514cc2a2d3b7e9cc88870e194d2cbbbf9a54a9ec081a92",
+      "ONE_IMAGE_SHORT_IDS": "accd4684a8ed5c5f17e09f2d907a09919f1d96e21cd0cc8054ce7f1461cd2750"
+    },
+    "unseen_pdf_01_t04": {
+      "DOC9_BASELINE": "c71709ab3a2f286a66f19c750a74347ed0d0c4d6641db9d9040f73825197411a",
+      "ONE_IMAGE_LONG_IDS": "fc9e69666c93b86e64f1fcbd42e64bdc093855fb259625acb894b72d0a7155ea",
+      "ONE_IMAGE_SHORT_IDS": "8089537d643e9bae2dc48d6e0e487960b642b626ada85be258fb7c9ea8b51151"
+    },
+    "unseen_pdf_06_t03": {
+      "DOC9_BASELINE": "dd9b810766385bb57fcdb94013c932494efdcd0308ce772f2c6c692b829c4e80",
+      "ONE_IMAGE_LONG_IDS": "f92cc3504c39a23dcec3b1af11cb9e19415f07e8093313d98f331ffab70d1b1c",
+      "ONE_IMAGE_SHORT_IDS": "52dca94842deb29ec6aaed0bcaa368c70fc81d86b8e60c258bec2db0eef593d8"
+    },
+    "unseen_pdf_06_t07": {
+      "DOC9_BASELINE": "bdd5c2ddf33fd480ca4648c535e62e666dde9182daa432f1a56f35175f5e5511",
+      "ONE_IMAGE_LONG_IDS": "631f739f5cc83f35db5914a5fe58f0d35875b91a73d5d7cbf548624e11a74cc3",
+      "ONE_IMAGE_SHORT_IDS": "b9dcbdb6fac2426e174a12bd4e86a93adbd1231ed37ca68b9e1a45146ca0313b"
+    }
+  },
+  "package_hash_parity": "PASSED",
+  "parser_lexical_projection_reopened": false,
+  "parser_changed": false,
+  "doc6_changed": false,
+  "integrity_sha256": "3753761543afad9fcff605548da40a565076fc3bf3c741a58006c4e78fca927f"
+}

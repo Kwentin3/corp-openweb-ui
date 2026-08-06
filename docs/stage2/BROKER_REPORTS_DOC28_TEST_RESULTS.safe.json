@@ -1,0 +1,33 @@
+{
+  "backup_restore_tests": "NOT_STARTED_RUNTIME_BLOCKER",
+  "contract_and_privacy_checks": "PASSED",
+  "date": "2026-08-05",
+  "durability_tests": "NOT_STARTED_RUNTIME_BLOCKER",
+  "focused_doc24_doc28_closure_chain": {
+    "failed": 0,
+    "passed": 48
+  },
+  "focused_doc28_safe_evidence_tests": {
+    "failed": 0,
+    "passed": 4
+  },
+  "full_suite_terminal_for_doc28": false,
+  "full_suite_timeout": false,
+  "historical_hashes_rewritten": 0,
+  "integrity_sha256": "ec30d62fbde2d9da81c4d90fb5da9595bca065f9e9a76c2e54d0fea79774250c",
+  "last_terminal_baseline": {
+    "errors": 11,
+    "failed": 7,
+    "passed": 2909,
+    "skipped": 5,
+    "source": "DOC27"
+  },
+  "new_unexplained_failures": 0,
+  "research_consumer_tests": "NOT_STARTED_RUNTIME_BLOCKER",
+  "restart_tests": "NOT_STARTED_RUNTIME_BLOCKER",
+  "ruff": "PASSED",
+  "schema_version": "broker_reports_doc28_test_results_safe_v1",
+  "status": "BLOCKED_BEFORE_RUNTIME_TESTS",
+  "stop_reason": "runtime durability evidence cannot be produced without target volume access",
+  "wave2_shadow_tests": "NOT_STARTED_RUNTIME_BLOCKER"
+}

@@ -1,0 +1,180 @@
+{
+  "schema_version": "broker_reports_doc8_parser_inventory_gold_safe_v1",
+  "status": "FROZEN_BEFORE_PROVIDER_CALLS",
+  "fragment_gold_integrity_sha256": "a80c2a93ef2c5980632bfa91826ba24365b16cafa40596ccac606bbbef166c6e",
+  "factory_route": [
+    "FullSourceArtifactFactory.create",
+    "FullSourceArtifactBuilder.build",
+    "PdfTextLayerParserFactory.create",
+    "PdfLayoutUnitBuilder.build"
+  ],
+  "structure_neutrality": {
+    "doc6_outputs_read_total": 0,
+    "parser_rows_exposed_total": 0,
+    "parser_columns_exposed_total": 0,
+    "geometry_exposed_as_text_total": 0,
+    "inventories_with_spatial_order_total": 0,
+    "model_inventory_fields": [
+      "id",
+      "text"
+    ]
+  },
+  "parser_lexical_coverage": {
+    "gold_visible_text_fragments_total": 1086,
+    "parser_fragments_matched_total": 600,
+    "parser_fragments_missing_total": 486,
+    "parser_extra_fragments_total": 119,
+    "parser_word_ids_total": 627,
+    "gold_mapping_resolved_ids_total": 556,
+    "gold_mapping_unresolved_ids_total": 61,
+    "gold_mapping_extra_ids_total": 10
+  },
+  "coverage_method": "NFKC case-folded lexical-token multiset comparison; parser-compatible gold-mapped opaque word IDs form the model-scoring denominator.",
+  "per_table": [
+    {
+      "gold_table_id": "unseen_pdf_03_t01",
+      "stratum": "simple_two_column",
+      "inventory_sha256": "0de6043088e9958fa662651de269ce10b0712acc905aee7db2d7d1b5cab88342",
+      "parser_word_ids_total": 9,
+      "gold_mapping_resolved_ids_total": 9,
+      "gold_mapping_unresolved_ids_total": 0,
+      "gold_mapping_extra_ids_total": 0,
+      "original_image_sha256": "91b3ceeac7a8d4f9fa76a8892f95eed76aaeded1ab4dc1059b31625d8267676d",
+      "id_map_image_sha256": "e6c2970cc462609066b7235c8ef1b3db843f62709b3a22737103ef65c49107b8"
+    },
+    {
+      "gold_table_id": "unseen_pdf_02_t05",
+      "stratum": "adjacent_table",
+      "inventory_sha256": "8eea13988f82c42c068a065946b7f26e355015e13e15a9135e6d07e32a6ce40f",
+      "parser_word_ids_total": 27,
+      "gold_mapping_resolved_ids_total": 23,
+      "gold_mapping_unresolved_ids_total": 4,
+      "gold_mapping_extra_ids_total": 0,
+      "original_image_sha256": "121dd64ba8e6559d8aee10d7b04ada8c0ce2fdf76543a883dc69c4ddfc53ae4a",
+      "id_map_image_sha256": "cd7fef256fabb077ed81d3934ffedc61905f03edf8012d7d7aac3b7032971a43"
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t04",
+      "stratum": "sparse_financial_statement",
+      "inventory_sha256": "e06b3ac932dd5a985f5fc95cf507658960ca5445318eb15ff66bab125d0d2389",
+      "parser_word_ids_total": 34,
+      "gold_mapping_resolved_ids_total": 31,
+      "gold_mapping_unresolved_ids_total": 1,
+      "gold_mapping_extra_ids_total": 2,
+      "original_image_sha256": "8d90729399b9a6fb913871dbc7e8cb4714631ce8a3455733f1938966e6a84a48",
+      "id_map_image_sha256": "eb2e0f2c84ab0c90b19bddf3b687dfd1489c419647d2fffbd3c7bfeb4599aa34"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t25",
+      "stratum": "group_rows",
+      "inventory_sha256": "9032eec882d6659055a21f486ec4b5a1477ae80b585ed7077e25e1e6fbe2b70f",
+      "parser_word_ids_total": 46,
+      "gold_mapping_resolved_ids_total": 35,
+      "gold_mapping_unresolved_ids_total": 7,
+      "gold_mapping_extra_ids_total": 4,
+      "original_image_sha256": "b7df22b325146c910f24abfce8ee8eea52dacd45103ee0acf04e3b3b8faa97ed",
+      "id_map_image_sha256": "a6c15585ac0b9520c6a8bb128dfc43efdab61bc0804a1843bf70632d5a6258e6"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t03",
+      "stratum": "multi_level_header",
+      "inventory_sha256": "8e8d1fbb3e23403363ac1c1e2564aeb0c93694613b646588e80e2b779340d363",
+      "parser_word_ids_total": 92,
+      "gold_mapping_resolved_ids_total": 81,
+      "gold_mapping_unresolved_ids_total": 11,
+      "gold_mapping_extra_ids_total": 0,
+      "original_image_sha256": "7e727ee1fe17aa2f3fd3a1f9f149d0eb3f07499b1d513e249736d96fcb3eb6d3",
+      "id_map_image_sha256": "5f7d684208a72c3517e04986449bbfb4068c81ed03cb9fe36ab127b0a18ef4c6"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t35",
+      "stratum": "wide_table",
+      "inventory_sha256": "7a77b8a2a95f48b91e850e8d765b8ccfd131233a6dfd93cc86dc4df86d5f7b00",
+      "parser_word_ids_total": 24,
+      "gold_mapping_resolved_ids_total": 22,
+      "gold_mapping_unresolved_ids_total": 2,
+      "gold_mapping_extra_ids_total": 0,
+      "original_image_sha256": "b73c1eb325f262977a2fd622a65c049e5e9d6b5933b6963d733fd57074653ca8",
+      "id_map_image_sha256": "beb347d4c1544e87703b8c45db634f49b52af75790a8707676fe765c6e02a270"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t27",
+      "stratum": "currency_markers",
+      "inventory_sha256": "48fd07ab6873d9562fab1180b178141434b9cfb21c05ae318202ec4c66161c79",
+      "parser_word_ids_total": 83,
+      "gold_mapping_resolved_ids_total": 80,
+      "gold_mapping_unresolved_ids_total": 3,
+      "gold_mapping_extra_ids_total": 0,
+      "original_image_sha256": "0a5a2740a1502295083eb845d656201bb82ded1771449c6e4200d8399eca07ee",
+      "id_map_image_sha256": "6433311247a4ddbc7a64d26327d3d2175463029fd1d53010ad94fa58633f03bf"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t09",
+      "stratum": "subtotals_totals",
+      "inventory_sha256": "c5596cd26ac629169dd43d4987de7d968ce4b4f8b919a79ddd9561732962435f",
+      "parser_word_ids_total": 92,
+      "gold_mapping_resolved_ids_total": 82,
+      "gold_mapping_unresolved_ids_total": 10,
+      "gold_mapping_extra_ids_total": 0,
+      "original_image_sha256": "31319b6b3953b39b731aa577f1b5b72dd0cce6feb407168cf2a478e8da2465f0",
+      "id_map_image_sha256": "168dc5fef2f6a89a59ab269c8574e4c8d0a32021f64d26d80b8bc549e770933c"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t05",
+      "stratum": "long_text_values",
+      "inventory_sha256": "cd5b3e20196927211a4bafaae32e5e2685edde361332e08f915c57cf0f0b61a0",
+      "parser_word_ids_total": 25,
+      "gold_mapping_resolved_ids_total": 23,
+      "gold_mapping_unresolved_ids_total": 2,
+      "gold_mapping_extra_ids_total": 0,
+      "original_image_sha256": "cc214183b8849e5664c54462566cab4939f47e758df7d6c88894f0f981085e88",
+      "id_map_image_sha256": "07738a2040e02dc5873e06cb60f6d1e83a997e1fc96a1b3c28bd52a921a0474c"
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t01",
+      "stratum": "repeated_identical_numbers",
+      "inventory_sha256": "b5b4cb85b81e3ff83529074b83d661b48923834c925dcb8fd1aea3ba15d0ff32",
+      "parser_word_ids_total": 129,
+      "gold_mapping_resolved_ids_total": 116,
+      "gold_mapping_unresolved_ids_total": 13,
+      "gold_mapping_extra_ids_total": 0,
+      "original_image_sha256": "6fd842655fa5e170f8051986ca27bde623f0169801da8e8216b6184cc4ed2e3e",
+      "id_map_image_sha256": "01661a491ad7c6c6298b1124014adc436564bc0b00f20134ecdbdb8d01645d4c"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t07",
+      "stratum": "schedule_of_investments",
+      "inventory_sha256": "e5de1d7de9db58e47562e5decd6300c02925a989d4bdb444f9aac6195922382f",
+      "parser_word_ids_total": 50,
+      "gold_mapping_resolved_ids_total": 39,
+      "gold_mapping_unresolved_ids_total": 7,
+      "gold_mapping_extra_ids_total": 4,
+      "original_image_sha256": "f8888954bf6192e469fe66f8703ecd8ad5d9703171a26a0fc0d24a0265c8fcf3",
+      "id_map_image_sha256": "ad84c53581ba447689bbc27d490637c414ed818cab3efcaf35914644c817ad58"
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t05",
+      "stratum": "multi_page_fragment",
+      "inventory_sha256": "df316a22dd0337955cf9c78f4cb894c4d5218274b53e8652c69025e78142d47f",
+      "parser_word_ids_total": 16,
+      "gold_mapping_resolved_ids_total": 15,
+      "gold_mapping_unresolved_ids_total": 1,
+      "gold_mapping_extra_ids_total": 0,
+      "original_image_sha256": "fa1195dcada5cc3e6d87b5a6192bd7cf979cfb33c97bc1b399b6868f02310a1e",
+      "id_map_image_sha256": "0cca320f356ba2ea78786a752dab6fa34fb63be80dc033f9cccd46bc135ffe61"
+    }
+  ],
+  "safe_inventory_example": [
+    {
+      "id": "f_2a9d5409",
+      "text": "<exact source text redacted>"
+    },
+    {
+      "id": "f_0068ea2b",
+      "text": "<exact source text redacted>"
+    }
+  ],
+  "safe_id_map_example": "[f_12ab34cd] <visible source text redacted>",
+  "private_values_included": false,
+  "integrity_sha256": "58b78d67907d52262ae6d398433e0a34600eaa740cdd75f0e4d6b5c244f646f0"
+}

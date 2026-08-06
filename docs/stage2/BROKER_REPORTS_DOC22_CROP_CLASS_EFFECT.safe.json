@@ -1,0 +1,49 @@
+{
+  "crop_class_counts": {
+    "CROP_CLEAN": 12,
+    "CROP_CLIPPED": 7,
+    "CROP_CONTAMINATED": 5
+  },
+  "crop_quality_dependency": false,
+  "crop_research_policy": "DEFINE_MINIMUM_DOCUMENT_CONTEXT_CONTRACT",
+  "document_critical_losses_by_crop_class": {
+    "CROP_CLEAN": 0,
+    "CROP_CLIPPED": 0,
+    "CROP_CONTAMINATED": 0
+  },
+  "finding": "All clipped and contaminated cases are materially sufficient after document context; the three ambiguous cases are clean crops.",
+  "integrity_sha256": "4bcf83913c030d75f02e9301429c380354378ca5b40f237373cc1a64f4fe1dfe",
+  "provider_by_crop_class": {
+    "CROP_CLEAN": {
+      "anthropic_opus": {
+        "AMBIGUOUS": 1,
+        "DOCUMENT_SUFFICIENT": 2,
+        "RESCUED_BY_DOCUMENT_CONTEXT": 9
+      },
+      "google_flash_lite": {
+        "AMBIGUOUS": 2,
+        "DOCUMENT_SUFFICIENT": 1,
+        "RESCUED_BY_DOCUMENT_CONTEXT": 9
+      }
+    },
+    "CROP_CLIPPED": {
+      "anthropic_opus": {
+        "RESCUED_BY_DOCUMENT_CONTEXT": 7
+      },
+      "google_flash_lite": {
+        "RESCUED_BY_DOCUMENT_CONTEXT": 7
+      }
+    },
+    "CROP_CONTAMINATED": {
+      "anthropic_opus": {
+        "DOCUMENT_SUFFICIENT": 2,
+        "RESCUED_BY_DOCUMENT_CONTEXT": 3
+      },
+      "google_flash_lite": {
+        "RESCUED_BY_DOCUMENT_CONTEXT": 5
+      }
+    }
+  },
+  "run_id": "broker_reports_doc22_full_document_package_2026-08-04_v1",
+  "schema_version": "broker_reports_doc22_crop_class_effect_safe_v1"
+}

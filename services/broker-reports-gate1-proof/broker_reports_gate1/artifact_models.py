@@ -10,6 +10,10 @@ ARTIFACT_SCHEMA_VERSION = "broker_reports_artifact_v0"
 ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION = (
     "broker_reports_artifact_lifecycle_result_v1"
 )
+CANONICAL_VERSION_SCHEMA_VERSION = "broker_reports_canonical_version_v1"
+CANONICAL_ACTIVATION_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_canonical_activation_receipt_v1"
+)
 
 
 class ArtifactStoreError(RuntimeError):
@@ -46,6 +50,17 @@ RETENTION_MODES = {
     "production_case",
     "manual_purge_required",
     "expires_after_ttl",
+}
+
+CANONICAL_RETENTION_CLASSES = {
+    "SOURCE",
+    "ACTIVE_CANONICAL",
+    "SUPERSEDED_CANONICAL",
+    "EVIDENCE",
+    "RAW_PROVIDER",
+    "TEMPORARY",
+    "PROJECTION_CACHE",
+    "RESEARCH",
 }
 
 LIFECYCLE_STATUSES = {
@@ -98,6 +113,11 @@ ARTIFACT_TYPES = {
     "broker_reports_pdf_compact_canonical_document_v1",
     "broker_reports_pdf_normalization_acceptance_v1",
     "broker_reports_pdf_compact_build_failure_v1",
+    "broker_reports_canonical_artifact_v1",
+    "broker_reports_canonical_legacy_compare_receipt_v1",
+    "broker_reports_canonical_build_failure_v1",
+    "broker_reports_canonical_component_v1",
+    "broker_reports_canonical_activation_receipt_v1",
     "broker_reports_pdf_table_classification_v1",
     "broker_reports_pdf_table_crop_v1",
     "broker_reports_pdf_table_candidate_v1",
@@ -253,6 +273,56 @@ class ArtifactLifecycleResult:
             artifact_ids=ordered,
             records_changed=len(ordered),
         )
+
+
+@dataclass(frozen=True)
+class CanonicalVersionRecord:
+    canonical_version_id: str
+    document_id: str
+    source_artifact_ref: str
+    canonical_version_number: int
+    schema_version: str
+    normalizer_version: str
+    source_sha256: str
+    canonical_root_sha256: str
+    previous_version_ref: str | None
+    status: str
+    created_at: str
+    activated_at: str | None
+    retention_class: str
+    normalization_run_id: str
+    manifest_ref: str | None = None
+
+
+@dataclass(frozen=True)
+class CanonicalActivationReceipt:
+    receipt_id: str
+    operation: str
+    status: str
+    document_id: str
+    canonical_version_id: str
+    previous_active_version_id: str | None
+    activated_at: str
+    actor: str
+    reason: str
+    context_fingerprint: str
+    schema_version: str = CANONICAL_ACTIVATION_RECEIPT_SCHEMA_VERSION
+
+    def to_safe_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "receipt_id": self.receipt_id,
+            "operation": self.operation,
+            "status": self.status,
+            "document_id": self.document_id,
+            "canonical_version_id": self.canonical_version_id,
+            "previous_active_version_id": self.previous_active_version_id,
+            "activated_at": self.activated_at,
+            "actor": self.actor,
+            "reason": self.reason,
+            "context_fingerprint": self.context_fingerprint,
+            "contains_private_payload": False,
+        }
 
 
 @dataclass

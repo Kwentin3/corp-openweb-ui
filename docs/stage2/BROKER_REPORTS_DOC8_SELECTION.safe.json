@@ -1,0 +1,211 @@
+{
+  "schema_version": "broker_reports_doc8_selection_safe_v1",
+  "status": "FROZEN_BEFORE_PROVIDER_CALLS",
+  "selection_policy": "fixed 12-stratum order; unique candidates; minimum SHA-256 rank per stratum; no DOC7 model outputs consulted",
+  "selection_seed": "DOC8_SELECTION_V1",
+  "source_doc7_gold_integrity_sha256": "b2543e1d85a10ff885e53162d15fed937f92dca35ec210298dd8f06cacd49d90",
+  "selection_integrity_sha256": "0484866fc1a5c0263cbe9b04f406cc7fc3f33cef6e59941780a62da3425dfeab",
+  "selected_tables": [
+    {
+      "gold_table_id": "unseen_pdf_03_t01",
+      "safe_id": "unseen_pdf_03",
+      "stratum": "simple_two_column",
+      "table_class_tags": [
+        "adjacent_tables",
+        "key_value",
+        "money_columns"
+      ],
+      "gold_rows_total": 5,
+      "gold_entries_total": 9,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "1278a3acc164b2b859032505ecb0eb616163268749da0e25ead3db57a67f73bd"
+    },
+    {
+      "gold_table_id": "unseen_pdf_02_t05",
+      "safe_id": "unseen_pdf_02",
+      "stratum": "adjacent_table",
+      "table_class_tags": [
+        "adjacent_tables",
+        "trading_information",
+        "wide_table"
+      ],
+      "gold_rows_total": 7,
+      "gold_entries_total": 19,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "6ed2e454e2433b783001e9b9a26ce961fb639932a037e011219b5d0acf51abd6"
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t04",
+      "safe_id": "unseen_pdf_01",
+      "stratum": "sparse_financial_statement",
+      "table_class_tags": [
+        "money_columns",
+        "sparse_rows",
+        "subtotals_totals"
+      ],
+      "gold_rows_total": 6,
+      "gold_entries_total": 12,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "3bc57f949dfa42aa7853d758f15024f5e8dde2361e0908d4e6a0a6b08313301b"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t25",
+      "safe_id": "unseen_pdf_06",
+      "stratum": "group_rows",
+      "table_class_tags": [
+        "group_headers",
+        "money_columns",
+        "schedule_of_investments",
+        "sparse_rows",
+        "subtotals_totals"
+      ],
+      "gold_rows_total": 19,
+      "gold_entries_total": 35,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "130878d05d28119270ddb78b21b9e9beb3a3f53b9343e6551471daf7a5822eea"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t03",
+      "safe_id": "unseen_pdf_06",
+      "stratum": "multi_level_header",
+      "table_class_tags": [
+        "affiliated_transactions",
+        "money_columns",
+        "multi_level_headers",
+        "subtotals_totals",
+        "wide_table"
+      ],
+      "gold_rows_total": 9,
+      "gold_entries_total": 73,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "0b330cdfd474d904b43421f33813c7a2122e40b3132647b349f3e54812fc5d81"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t35",
+      "safe_id": "unseen_pdf_06",
+      "stratum": "wide_table",
+      "table_class_tags": [
+        "derivatives_table",
+        "money_columns",
+        "multi_level_headers",
+        "subtotals_totals",
+        "wide_table"
+      ],
+      "gold_rows_total": 7,
+      "gold_entries_total": 19,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "0ad14b0c052d977d0481bd5fdeca0964449dd2594ac7d814ae91edac4c8a9020"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t27",
+      "safe_id": "unseen_pdf_06",
+      "stratum": "currency_markers",
+      "table_class_tags": [
+        "affiliated_transactions",
+        "money_columns",
+        "multi_level_headers",
+        "subtotals_totals",
+        "wide_table"
+      ],
+      "gold_rows_total": 8,
+      "gold_entries_total": 64,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "0aeffd9c1f20f4428f761433be17d1acb8e8c0b3e06ac3c3e31ad24fe0e29d11"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t09",
+      "safe_id": "unseen_pdf_06",
+      "stratum": "subtotals_totals",
+      "table_class_tags": [
+        "affiliated_transactions",
+        "money_columns",
+        "multi_level_headers",
+        "subtotals_totals",
+        "wide_table"
+      ],
+      "gold_rows_total": 9,
+      "gold_entries_total": 73,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "00b7ccccd134ab7a6a8b663624477a332c7b402172d77a5e8046b62ec62ed90a"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t05",
+      "safe_id": "unseen_pdf_06",
+      "stratum": "long_text_values",
+      "table_class_tags": [
+        "derivatives_table",
+        "money_columns",
+        "multi_level_headers",
+        "subtotals_totals",
+        "wide_table"
+      ],
+      "gold_rows_total": 7,
+      "gold_entries_total": 19,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "02bea1af1e2a04ba9ddb2bdb7bfa2430486b1466324fcaf6c2c5a7c5273a877d"
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t01",
+      "safe_id": "unseen_pdf_01",
+      "stratum": "repeated_identical_numbers",
+      "table_class_tags": [
+        "financial_statement",
+        "group_headers",
+        "money_columns",
+        "subtotals_totals"
+      ],
+      "gold_rows_total": 31,
+      "gold_entries_total": 56,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "0a29b51bbbc99bf1bc534aae72c81a963a3f388347bdad4c971876157b326414"
+    },
+    {
+      "gold_table_id": "unseen_pdf_06_t07",
+      "safe_id": "unseen_pdf_06",
+      "stratum": "schedule_of_investments",
+      "table_class_tags": [
+        "group_headers",
+        "money_columns",
+        "schedule_of_investments",
+        "sparse_rows",
+        "subtotals_totals"
+      ],
+      "gold_rows_total": 21,
+      "gold_entries_total": 39,
+      "source_parts_total": 1,
+      "selection_rank_sha256": "03e7b82b9a9358cf33e397ede91bb6d177749f32899edba2e3a2151bead663e2"
+    },
+    {
+      "gold_table_id": "unseen_pdf_01_t05",
+      "safe_id": "unseen_pdf_01",
+      "stratum": "multi_page_fragment",
+      "table_class_tags": [
+        "cross_page_continuation",
+        "money_columns",
+        "sparse_rows"
+      ],
+      "gold_rows_total": 2,
+      "gold_entries_total": 4,
+      "source_parts_total": 2,
+      "selection_rank_sha256": "a33cd18b36edbc7d974485c0e66c16375e1381a02ec3d252eb5fb4653d715c83"
+    }
+  ],
+  "selected_table_ids": [
+    "unseen_pdf_03_t01",
+    "unseen_pdf_02_t05",
+    "unseen_pdf_01_t04",
+    "unseen_pdf_06_t25",
+    "unseen_pdf_06_t03",
+    "unseen_pdf_06_t35",
+    "unseen_pdf_06_t27",
+    "unseen_pdf_06_t09",
+    "unseen_pdf_06_t05",
+    "unseen_pdf_01_t01",
+    "unseen_pdf_06_t07",
+    "unseen_pdf_01_t05"
+  ],
+  "tables_frozen_total": 12,
+  "failed_tables_excluded_total": 0,
+  "private_values_included": false,
+  "integrity_sha256": "1bf2a18b06f703e6773ef8f5aa5894f08e592658fefaaedef07ed6e7383e6db0"
+}

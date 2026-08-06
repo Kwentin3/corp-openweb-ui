@@ -1,0 +1,15 @@
+{
+  "schema_version": "broker_reports_doc30_restart_durability_safe_v1",
+  "date": "2026-08-05",
+  "status": "NOT_STARTED_BACKFILL_INCOMPLETE",
+  "service_restart_performed": false,
+  "container_recreation_performed": false,
+  "compose_stack_restarted": false,
+  "volumes_deleted": 0,
+  "active_pointers_after_service_restart": "NOT_TESTED",
+  "root_hashes_after_service_restart": "NOT_TESTED",
+  "active_pointers_after_container_recreate": "NOT_TESTED",
+  "root_hashes_after_container_recreate": "NOT_TESTED",
+  "missing_chunks_after_recreate": "NOT_TESTED",
+  "private_content_in_output": false
+}

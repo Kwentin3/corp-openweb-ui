@@ -138,6 +138,179 @@ def test_provider_payload_parsers_require_one_structured_text_block() -> None:
     assert error == "structured_text_block_count_invalid"
 
 
+def test_existing_transport_builds_one_png_plus_one_text_block_for_each_provider() -> None:
+    class CaptureTransport(TRANSPORTS.NativePdfTransport):
+        def _post_plain(self, url, headers, body, *, provider):
+            return {"url": url, "headers": headers, "request": body}, {
+                "provider_status": "passed",
+                "provider": provider,
+            }
+
+    image = b"\x89PNG\r\n\x1a\nfixture"
+    prompt = "common prompt"
+    cases = {
+        "openai": TRANSPORTS.ProviderSpec("openai", "openai-model", "existing"),
+        "google": TRANSPORTS.ProviderSpec("google", "models/google-model", "existing"),
+        "anthropic": TRANSPORTS.ProviderSpec("anthropic", "anthropic-model", "existing"),
+    }
+    for provider, provider_spec in cases.items():
+        connection = TRANSPORTS.ProviderConnection(
+            provider,
+            {
+                "openai": "https://api.openai.com/v1",
+                "google": "https://generativelanguage.googleapis.com/v1beta/openai",
+                "anthropic": "https://api.anthropic.com/v1",
+            }[provider],
+            "secret",
+        )
+        private, safe = CaptureTransport(connection).invoke_image_plain_text(
+            spec=provider_spec,
+            image_bytes=image,
+            mime_type="image/png",
+            prompt=prompt,
+            max_output_tokens=2048,
+        )
+        request = private["request"]
+        assert safe == {"provider_status": "passed", "provider": provider}
+        assert "json_schema" not in str(request).lower()
+        if provider == "openai":
+            content = request["input"][0]["content"]
+            assert [item["type"] for item in content] == ["input_image", "input_text"]
+            assert content[1]["text"] == prompt
+        elif provider == "google":
+            parts = request["contents"][0]["parts"]
+            assert len(parts) == 2 and parts[0]["inline_data"]["mime_type"] == "image/png"
+            assert parts[1]["text"] == prompt
+        else:
+            content = request["messages"][0]["content"]
+            assert [item["type"] for item in content] == ["image", "text"]
+            assert content[1]["text"] == prompt
+
+
+def test_existing_transport_builds_native_structured_image_request_for_each_provider() -> None:
+    class CaptureTransport(TRANSPORTS.NativePdfTransport):
+        def _post_plain(self, url, headers, body, *, provider):
+            return {"url": url, "headers": headers, "request": body}, {
+                "provider_status": "passed",
+                "provider": provider,
+            }
+
+    image = b"\x89PNG\r\n\x1a\nfixture"
+    prompt = "common prompt"
+    schema = {
+        "type": "object",
+        "properties": {
+            "title": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+            "rows": {
+                "type": "array",
+                "items": {"type": "array", "items": {"type": "string"}},
+            },
+        },
+        "required": ["title", "rows"],
+        "additionalProperties": False,
+    }
+    cases = {
+        "openai": TRANSPORTS.ProviderSpec("openai", "openai-model", "existing"),
+        "google": TRANSPORTS.ProviderSpec("google", "models/google-model", "existing"),
+        "anthropic": TRANSPORTS.ProviderSpec("anthropic", "anthropic-model", "existing"),
+    }
+    for provider, provider_spec in cases.items():
+        connection = TRANSPORTS.ProviderConnection(
+            provider,
+            {
+                "openai": "https://api.openai.com/v1",
+                "google": "https://generativelanguage.googleapis.com/v1beta/openai",
+                "anthropic": "https://api.anthropic.com/v1",
+            }[provider],
+            "secret",
+        )
+        private, safe = CaptureTransport(connection).invoke_image_structured(
+            spec=provider_spec,
+            image_bytes=image,
+            mime_type="image/png",
+            prompt=prompt,
+            schema=schema,
+            schema_name="simple_table",
+            max_output_tokens=2048,
+        )
+        request = private["request"]
+        assert safe["canonical_schema_sha256"] == TRANSPORTS._hash_schema(schema)
+        assert safe["adapted_schema_sha256"] == TRANSPORTS._hash_schema(schema)
+        assert safe["schema_transform_count"] == 0
+        assert "tool" not in str(request).lower()
+        if provider == "openai":
+            content = request["input"][0]["content"]
+            assert [item["type"] for item in content] == ["input_image", "input_text"]
+            assert request["text"]["format"] == {
+                "type": "json_schema",
+                "name": "simple_table",
+                "strict": True,
+                "schema": schema,
+            }
+        elif provider == "google":
+            parts = request["contents"][0]["parts"]
+            assert len(parts) == 2 and parts[0]["inline_data"]["mime_type"] == "image/png"
+            assert request["generationConfig"]["responseMimeType"] == "application/json"
+            assert request["generationConfig"]["responseJsonSchema"] == schema
+        else:
+            content = request["messages"][0]["content"]
+            assert [item["type"] for item in content] == ["image", "text"]
+            assert request["output_config"]["format"] == {
+                "type": "json_schema",
+                "schema": schema,
+            }
+
+
+def test_openai_structured_image_request_can_omit_temperature_and_set_reasoning() -> None:
+    class CaptureTransport(TRANSPORTS.NativePdfTransport):
+        def _post_plain(self, url, headers, body, *, provider):
+            return {"request": body}, {"provider_status": "passed", "provider": provider}
+
+    private, _safe = CaptureTransport(
+        TRANSPORTS.ProviderConnection(
+            "openai", "https://api.openai.com/v1", "secret"
+        )
+    ).invoke_image_structured(
+        spec=TRANSPORTS.ProviderSpec("openai", "gpt-5.6-sol", "existing"),
+        image_bytes=b"\x89PNG\r\n\x1a\nfixture",
+        mime_type="image/png",
+        prompt="audit",
+        schema={
+            "type": "object",
+            "properties": {"ok": {"type": "boolean"}},
+            "required": ["ok"],
+            "additionalProperties": False,
+        },
+        schema_name="audit",
+        max_output_tokens=512,
+        temperature=None,
+        reasoning_effort="low",
+    )
+
+    request = private["request"]
+    assert "temperature" not in request
+    assert request["reasoning"] == {"effort": "low"}
+
+
+def test_google_resolved_model_and_thinking_usage_are_preserved() -> None:
+    payload = {
+        "modelVersion": "gemini-test",
+        "usageMetadata": {
+            "promptTokenCount": 10,
+            "candidatesTokenCount": 4,
+            "thoughtsTokenCount": 3,
+            "totalTokenCount": 17,
+        },
+    }
+    assert TRANSPORTS._resolved_model("google", payload) == "models/gemini-test"
+    assert TRANSPORTS._usage("google", payload) == {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "thinking_tokens": 3,
+        "total_tokens": 17,
+    }
+
+
 def test_gemini_parser_concatenates_sequential_text_parts() -> None:
     payload = {"candidates": [{"content": {"parts": [{"text": '{"ok":'}, {"text": "true}"}]}}]}
     parsed, error = TRANSPORTS._parse_gemini(payload)

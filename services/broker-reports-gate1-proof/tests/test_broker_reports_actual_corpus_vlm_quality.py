@@ -366,6 +366,10 @@ def test_live_runner_uses_default_budget_and_terminal_chunks(
     document = fitz.open()
     page = document.new_page(width=300, height=200)
     page.draw_rect(fitz.Rect(30, 30, 270, 170))
+    page.insert_text((42, 52), "Metric 2025 2024")
+    page.insert_text((42, 82), "Revenue 125 110")
+    page.insert_text((42, 112), "Expense 70 65")
+    page.insert_text((42, 142), "Total 55 45")
     pdf_bytes = document.tobytes(garbage=4, deflate=True)
     document.close()
     corpus = tmp_path / "corpus"

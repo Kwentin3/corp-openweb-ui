@@ -1,0 +1,55 @@
+{
+  "schema_version": "broker_reports_doc17_canonical_table_crop_receipt_safe_v1",
+  "run_id": "broker_reports_doc17_canonical_table_crop_2026-08-04_v1",
+  "DOC17_RESULT": "BLOCKED",
+  "CANONICAL_TABLE_CROP": "NOT_READY",
+  "DOC15_CROP_CLEAN": 24,
+  "HOLDOUT_CROP_CLEAN": 2,
+  "NEXT_STEP": "FURTHER_CROP_RESEARCH_REQUIRED",
+  "acceptance": {
+    "EXISTING_CROP_PATH_AUDITED": true,
+    "AUTHORITATIVE_CROP_PATH_COUNT": 1,
+    "DUPLICATE_CROP_MECHANISMS_CREATED": 0,
+    "DOC15_TABLES_TOTAL": 24,
+    "DOC15_CROP_CLIPPED": 0,
+    "DOC15_CROP_CONTAMINATED": 0,
+    "DOC15_FALSE_CLEAN": 0,
+    "HOLDOUT_DOCUMENTS_TOTAL": 3,
+    "HOLDOUT_TABLES_TOTAL": 12,
+    "HOLDOUT_CROP_FAILED": 10,
+    "HOLDOUT_FALSE_CLEAN": 10,
+    "CANONICAL_IMAGE_AND_TEXT_REGION_SHARED": true,
+    "TABLE_SPECIFIC_RUNTIME_RULES": 0,
+    "DETERMINISTIC_REPLAY": "PASSED",
+    "NEW_PROVIDER_CALLS_TOTAL": 0,
+    "PARSER_SEMANTICS_CHANGED": false,
+    "VLM_PROMPT_CHANGED": false,
+    "STRUCTURED_OUTPUT_SCHEMA_CHANGED": false,
+    "DOC6_CHANGED": false,
+    "GATE2_CHANGED": false,
+    "PRODUCT_PIPELINE_ACTIVATED": false,
+    "FULL_RELEVANT_TEST_SUITE": "NOT_PASSED",
+    "PRIVACY_SCAN": "PASSED"
+  },
+  "test_receipts": {
+    "focused": {"passed": 50, "failed": 0},
+    "full": {"passed": 2824, "failed": 5, "skipped": 5},
+    "known_preexisting_hash_binding_failures": 5
+  },
+  "safe_artifact_sha256": {
+    "BROKER_REPORTS_DOC17_CROP_CONTRACT.safe.json": "4f05f8682a5bc6ec3db778bdece719230123e86c4d1c1c5cfbef0319ec5a617d",
+    "BROKER_REPORTS_DOC17_CROP_BASELINE.safe.json": "a58704a8ae1b2a992c390d1c2ebeabdaabc178e3b6e1f9bd4b8130e124da0297",
+    "BROKER_REPORTS_DOC17_CROP_RESULTS.safe.json": "b34fc4b3508ebbec9abe1446cd91779a326942ba9a9b47d1342875c5988159d7",
+    "BROKER_REPORTS_DOC17_CROP_HOLDOUT.safe.json": "c359bc71f6d2e869dbe8f95fb7e6561fb2ca82bf03b4783ce5d20bd3ead696e2",
+    "BROKER_REPORTS_DOC17_CROP_PERFORMANCE.safe.json": "5b0d365b0ab6a761aa9a925ba58dab9850e6a9ef14cbfaa494f743e8996ff4a2",
+    "BROKER_REPORTS_DOC17_CANONICAL_TABLE_CROP.report.md": "9a3c108d4c059242a1e2a4059e229845a5d5e625b45652801c5e3c5589adef99",
+    "BROKER_REPORTS_DOC17_CANONICAL_TABLE_CROP_BRIEF.md": "c9d175afcc88868a8bc17f4740c7a36e7f0b78b661e4d5ec04975a64a2512e12"
+  },
+  "private_artifact_sha256": {
+    "doc17_baseline.private.json": "3f7e4ef0f0289453dd0d9441f33770f613fca0f99e4c85cbd81f2e4beebc431e",
+    "doc17_after_raw.private.json": "bc9cf24537a5f9cdf1582063b27602fe53c2d392bca6cf758127001a2fd32466",
+    "doc17_holdout_v4_run.private.json": "78b519f91dedac534ae578240fd6239467187f2009c407e7ce6640030b4f971f",
+    "doc17_root_cause_ledger.private.json": "826a14cd40cc29a647b6a852e41ccc357765bec5feddc7d2245dac5bba93fbd5"
+  },
+  "evidence_set_sha256": "aeda2cd0899c3ae688bd2c28d190778cfa21dce290a8da37af6aff82581ffc80"
+}

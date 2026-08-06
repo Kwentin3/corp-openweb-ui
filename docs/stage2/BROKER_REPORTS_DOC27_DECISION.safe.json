@@ -1,0 +1,25 @@
+{
+  "ACTIVE_VERSION_SAFETY": "CONFIRMED",
+  "CANONICAL_READ_BOUNDARY": "VALIDATED",
+  "CONSUMER_INVENTORY": "FROZEN",
+  "DOC27_PROGRAM": "PARTIALLY_COMPLETED",
+  "GATE3": "NOT_STARTED",
+  "LEGACY_HANDOFF": "RETAINED",
+  "PRIMARY_PRODUCT_CUTOVER": "NOT_PERFORMED",
+  "REPOSITORY_HYGIENE": "SAFE",
+  "ROLLBACK": "CONFIRMED",
+  "WAVE_0_MIGRATION": "PARTIAL",
+  "WAVE_1_MIGRATION": "NOT_STARTED",
+  "WAVE_2_READINESS": "BLOCKED",
+  "date": "2026-08-05",
+  "integrity_sha256": "e5a5fd92b3fb8ee51ee65d59e63d03eefc0351b9e123646bfec732ecf11b7cb7",
+  "schema_version": "broker_reports_doc27_decision_safe_v1",
+  "wave_2_blockers": [
+    "durable approved actual-corpus canonical store is absent",
+    "actual document cohort and active versions are not available",
+    "local research consumer shadow and cutover are incomplete",
+    "no eligible Wave 1 internal read-only consumer exists",
+    "Wave 2 needs separate authorization and operational contract"
+  ],
+  "wave_2_task_authorized": false
+}

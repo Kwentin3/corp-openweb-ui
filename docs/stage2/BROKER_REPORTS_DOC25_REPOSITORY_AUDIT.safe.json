@@ -1,0 +1,1048 @@
+{
+  "schema_version": "broker_reports_doc25_repository_audit_safe_v1",
+  "run_id": "broker_reports_doc25_repository_audit_2026-08-05_v1",
+  "research_inputs": [
+    "DOC23",
+    "DOC24"
+  ],
+  "repository": {
+    "canonical_worktree_role": "single_repository_worktree",
+    "branch": "main",
+    "head": "e85fc78e1dbf664c814e6b774122337e2fd8fb64",
+    "origin_main": "e85fc78e1dbf664c814e6b774122337e2fd8fb64",
+    "ahead": 0,
+    "behind": 0,
+    "worktrees_total": 1,
+    "staged_files_total": 0
+  },
+  "baseline": {
+    "shell": "PowerShell",
+    "python_invocation": "python -m pytest",
+    "env_overrides_required": false,
+    "test_runner_executed_tests": true,
+    "runs": [
+      {
+        "name": "gate_architecture",
+        "status": "PASSED",
+        "tests": 29,
+        "failures": 0,
+        "errors": 0,
+        "terminal": true
+      },
+      {
+        "name": "doc24_safe_evidence",
+        "status": "PASSED",
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "terminal": true
+      },
+      {
+        "name": "artifact_store_full_source_retention",
+        "status": "PASSED",
+        "tests": 18,
+        "failures": 0,
+        "errors": 0,
+        "terminal": true
+      },
+      {
+        "name": "discarded_path_selection_attempt",
+        "status": "NOT_RUN_PATH_NOT_FOUND",
+        "tests": 0,
+        "failures": 0,
+        "errors": 0,
+        "terminal": true,
+        "product_failure": false
+      }
+    ],
+    "irreversible_boundary": "none_read_only_audit_and_test_execution"
+  },
+  "dirty_inventory_baseline": {
+    "files_total": 183,
+    "classification_counts": {
+      "ARCHIVE": 171,
+      "KEEP": 12
+    },
+    "unknown_dirty_files_discarded": 0,
+    "unclassified_dirty_files": 0,
+    "files": [
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC10_LLM_FRIENDLY_CONTEXT_AUDIT_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC10_LLM_FRIENDLY_CONTEXT_AUDIT.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC10_LLM_FRIENDLY_CONTEXT_AUDIT.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC11_1_MINIMAL_CONTEXT_RERUN_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC11_1_MINIMAL_CONTEXT_RERUN.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC11_1_MINIMAL_CONTEXT_RERUN.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC11_MINIMAL_TABLE_CONTEXT_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC11_MINIMAL_TABLE_CONTEXT.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC11_MINIMAL_TABLE_CONTEXT.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC12_IMAGE_ONLY_LOGICAL_ROWS_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC12_IMAGE_ONLY_LOGICAL_ROWS.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC12_IMAGE_ONLY_LOGICAL_ROWS.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC13_SIMPLE_GATE1_JSON_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC13_SIMPLE_GATE1_JSON.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC13_SIMPLE_GATE1_JSON.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC14_STRUCTURED_JSON_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC14_STRUCTURED_JSON.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC14_STRUCTURED_JSON.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC14_VISUAL_GOLD_ADJUDICATION.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC14_VISUAL_GOLD_ADJUDICATION.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC15_REAL_REPORTS_HOLDOUT_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC15_REAL_REPORTS_HOLDOUT.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC15_REAL_REPORTS_HOLDOUT.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC7_BLIND_GENERALIZATION_AND_MARKDOWN_JSON.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC7_BRIEF.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC7_TERMINAL_RECEIPT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC8_BRIEF.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC8_MULTI_MODEL_IMAGE_PARSER_CONTEXT_STRUCTURE.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC8_TERMINAL_RECEIPT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC9_PARSER_AND_CHEAP_MODEL_BENCHMARK_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC9_PARSER_AND_CHEAP_MODEL_BENCHMARK.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC9_PARSER_AND_CHEAP_MODEL_BENCHMARK.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC16_SOURCE_TEXT_CONTEXT_AUDIT_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC16_SOURCE_TEXT_CONTEXT_AUDIT.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC16_SOURCE_TEXT_CONTEXT_AUDIT.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC17_CANONICAL_TABLE_CROP_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC17_CANONICAL_TABLE_CROP.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC17_CANONICAL_TABLE_CROP.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC18_PAGE_LEVEL_VLM_TABLE_REGION_GROUNDING_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC18_PAGE_LEVEL_VLM_TABLE_REGION_GROUNDING.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC18_PAGE_LEVEL_VLM_TABLE_REGION_GROUNDING.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC19_GATE1_TO_GATE3_FINANCIAL_SUFFICIENCY_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC19_GATE1_TO_GATE3_FINANCIAL_SUFFICIENCY.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC19_GATE1_TO_GATE3_FINANCIAL_SUFFICIENCY.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC20_GATE1_MATERIAL_SUFFICIENCY_AUDIT_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC20_GATE1_MATERIAL_SUFFICIENCY_AUDIT.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC20_GATE1_MATERIAL_SUFFICIENCY_AUDIT.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC21_RESEARCH_FIRST_GATE1_MATERIAL_ADEQUACY_AUDIT_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC21_RESEARCH_FIRST_GATE1_MATERIAL_ADEQUACY_AUDIT.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC21_RESEARCH_FIRST_GATE1_MATERIAL_ADEQUACY_AUDIT.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC22_FULL_GATE1_DOCUMENT_PACKAGE_MATERIAL_SUFFICIENCY_AUDIT_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC22_FULL_GATE1_DOCUMENT_PACKAGE_MATERIAL_SUFFICIENCY_AUDIT.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-04/BROKER_REPORTS_DOC22_FULL_GATE1_DOCUMENT_PACKAGE_MATERIAL_SUFFICIENCY_AUDIT.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-05/BROKER_REPORTS_DOC23_DEDUPLICATED_GATE1_LLM_VIEW_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-05/BROKER_REPORTS_DOC23_DEDUPLICATED_GATE1_LLM_VIEW.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-05/BROKER_REPORTS_DOC23_DEDUPLICATED_GATE1_LLM_VIEW.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-05/BROKER_REPORTS_DOC24_GATE2_CANONICAL_DOCUMENT_VALIDATION_BRIEF.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-05/BROKER_REPORTS_DOC24_GATE2_CANONICAL_DOCUMENT_VALIDATION.receipt.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/reports/2026-08-05/BROKER_REPORTS_DOC24_GATE2_CANONICAL_DOCUMENT_VALIDATION.report.md",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md",
+        "git_status": " M",
+        "classification": "KEEP"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC10_CONTEXT_PACKAGE_AUDIT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC10_CONTEXT_PRICE_QUALITY.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC10_THREE_ARM_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC11_1_CALL_ACCOUNTING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC11_1_MINIMAL_CONTEXT_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC11_MINIMAL_CONTEXT_AUDIT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC11_PLAIN_TEXT_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC12_GEOMETRIC_SNAPPING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC12_IMAGE_ONLY_ROW_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC13_CALL_ACCOUNTING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC13_SIMPLE_GATE1_JSON_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC13_SOURCE_TEXT_EFFECT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC14_CALL_ACCOUNTING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC14_STRUCTURED_JSON_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC14_STRUCTURED_OUTPUT_EFFECT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC14_VISUAL_GOLD_ADJUDICATION.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC15_CALL_ACCOUNTING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC15_GATE1_EXIT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC15_HOLDOUT_CORPUS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC15_OPTIMIZATION_REVIEW.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC15_PROVIDER_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC15_SOURCE_TEXT_EFFECT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC16_CONTEXT_AUDIT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC16_CONTEXT_RESULT_RELATION.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC16_SOURCE_TEXT_POLICY.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC16_SOURCE_TEXT_QUALITY.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC17_CROP_BASELINE.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC17_CROP_CONTRACT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC17_CROP_HOLDOUT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC17_CROP_PERFORMANCE.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC17_CROP_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC18_CALL_ACCOUNTING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC18_DOC17_COMPARISON.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC18_MODEL_COMPARISON.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC18_PAGE_GROUNDING_CORPUS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC18_PAGE_GROUNDING_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC19_CALL_ACCOUNTING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC19_CRITICAL_CONTEXT_LOSSES.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC19_CROP_CLASS_EFFECT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC19_DECISION.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC19_FINANCIAL_SUFFICIENCY_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC20_CALL_ACCOUNTING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC20_CRITICAL_CONTEXT_LOSSES.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC20_CROP_CLASS_EFFECT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC20_MATERIAL_SUFFICIENCY_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC20_MINIMUM_GATE1_CONTRACT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC20_PROVIDER_COMPARISON.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC21_AUTOMATION_DECISION.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC21_CALL_ACCOUNTING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC21_CRITICAL_CONTEXT_LOSSES.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC21_CROP_CLASS_EFFECT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC21_DIRECT_MATERIAL_ADEQUACY_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC21_MINIMUM_CRITICAL_CROP_CONTRACT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC21_PROVIDER_COMPARISON.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC22_AUTOMATED_AUDIT_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC22_AUTOMATION_ELIGIBILITY.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC22_CALL_ACCOUNTING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC22_CONFLICTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC22_CROP_CLASS_EFFECT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC22_DIRECT_DOCUMENT_SUFFICIENCY_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC22_GATE1_HANDOFF_AUDIT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC22_PARSER_CONTEXT_RESCUE.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC22_PROVIDER_COMPARISON.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC23_AUTOMATED_AUDIT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC23_CALL_ACCOUNTING.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC23_CONFLICTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC23_DECISION.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC23_DEDUPLICATED_VIEW_METRICS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC23_MATERIAL_SUFFICIENCY.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC23_PARSER_RESCUE.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC23_PARSER_VLM_OVERLAP.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC23_TOKEN_COMPRESSION.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC24_CANONICAL_DOCUMENT_METRICS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC24_CONFLICTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC24_DECISION.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC24_DOCUMENT_ORDER_VALIDATION.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC24_GATE2_HANDOFF_AUDIT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC24_LLM_PROJECTION_METRICS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC24_MATERIAL_SUFFICIENCY.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC24_TEST_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC24_TRACEABILITY.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC7_BLIND_GENERALIZATION_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC7_MARKDOWN_JSON_COMPARISON.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC7_UNSEEN_CORPUS_MANIFEST.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC8_MODEL_COMPARISON.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC8_MULTI_MODEL_STRUCTURE_RESULTS.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC8_PARSER_INVENTORY_AND_GOLD.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC8_SELECTION.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC9_MODEL_MATRIX.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC9_PARSER_LEXICAL_AUDIT.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/BROKER_REPORTS_DOC9_PRICE_QUALITY_FRONTIER.safe.json",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "docs/stage2/contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md",
+        "git_status": " M",
+        "classification": "KEEP"
+      },
+      {
+        "path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_SAME_SOURCE_TYPE_FIRST_PROOF.v1.json",
+        "git_status": " M",
+        "classification": "KEEP"
+      },
+      {
+        "path": "docs/stage2/contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v2.md",
+        "git_status": "??",
+        "classification": "KEEP"
+      },
+      {
+        "path": "docs/stage2/operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md",
+        "git_status": " M",
+        "classification": "KEEP"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/broker_reports_gate1/__init__.py",
+        "git_status": " M",
+        "classification": "KEEP"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_table_intake_runtime.py",
+        "git_status": " M",
+        "classification": "KEEP"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_table_raster.py",
+        "git_status": " M",
+        "classification": "KEEP"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate1_pipe_bundled.py",
+        "git_status": " M",
+        "classification": "KEEP"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/scripts/direct_pdf_experiment_transports.py",
+        "git_status": " M",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_actual_corpus_vlm_quality.py",
+        "git_status": " M",
+        "classification": "KEEP"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_direct_pdf_experiment.py",
+        "git_status": " M",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc10_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc11_1_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc11_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc12_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc13_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc14_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc15_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc16_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc17_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc18_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc19_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc20_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc21_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc22_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc23_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc24_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc7_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc8_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_doc9_safe_evidence.py",
+        "git_status": "??",
+        "classification": "ARCHIVE"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_pdf_canonical_table_crop.py",
+        "git_status": "??",
+        "classification": "KEEP"
+      },
+      {
+        "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_pdf_table_intake_gate1.py",
+        "git_status": " M",
+        "classification": "KEEP"
+      }
+    ]
+  },
+  "component_classification": [
+    {
+      "component": "gate2_handoff_v0",
+      "classification": "DEPRECATE",
+      "reason": "active Gate 1 to Gate 2 compatibility root; consumers remain"
+    },
+    {
+      "component": "FullSourceArtifactFactory",
+      "classification": "MIGRATE",
+      "reason": "sole format extraction authority; reuse for canonical normalization"
+    },
+    {
+      "component": "PdfLayoutUnitBuilder",
+      "classification": "MIGRATE",
+      "reason": "retain parser units as evidence; canonical assembler must restore interleaved order"
+    },
+    {
+      "component": "broker_reports_normalized_table_projection_v0",
+      "classification": "MIGRATE",
+      "reason": "source-bound structured table input; canonical flow must represent each accepted table once"
+    },
+    {
+      "component": "Managed PDF Document v1/v2 research routes",
+      "classification": "ARCHIVE",
+      "reason": "inactive historical candidates; no product consumer"
+    },
+    {
+      "component": "DOC23 conservative parser VLM dedup policy",
+      "classification": "MIGRATE",
+      "reason": "bounded policy candidate; conflicts and ambiguities remain explicit"
+    },
+    {
+      "component": "DOC24 ordered canonical assembler evidence",
+      "classification": "MIGRATE",
+      "reason": "research evidence authorizes contract formalization, not direct activation"
+    },
+    {
+      "component": "ArtifactStoreFactory ArtifactResolver lifecycle",
+      "classification": "KEEP",
+      "reason": "existing fail-closed persistence and access boundary"
+    },
+    {
+      "component": "safe private artifact publishers",
+      "classification": "KEEP",
+      "reason": "existing visibility and payload separation boundary"
+    },
+    {
+      "component": "architecture and factory guard tests",
+      "classification": "KEEP",
+      "reason": "required anti-drift enforcement"
+    }
+  ],
+  "delete_candidates": [],
+  "acceptance": {
+    "repository_files_classified_percent": 100,
+    "unknown_dirty_files_discarded": 0,
+    "legacy_consumers_identified_percent": 100,
+    "delete_candidates_with_dependency_proof_percent": 100,
+    "migration_map_created": true,
+    "baseline_test_results_recorded": true
+  },
+  "doc25_1_result": "PASSED"
+}

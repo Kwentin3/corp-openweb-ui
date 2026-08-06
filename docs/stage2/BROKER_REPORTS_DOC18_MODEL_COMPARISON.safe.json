@@ -1,0 +1,19 @@
+{
+  "best_cheap_grounder": "models/gemini-3.5-flash-lite",
+  "best_reference_grounder": "claude-opus-5",
+  "integrity_sha256": "1906f8679ec025e444555e29ecd59dd6f1d661c909d3bc53a7c5577dfe6de4be",
+  "multi_provider_grounding": "NOT_CONFIRMED",
+  "next_step": "KEEP_DETERMINISTIC_CROPPER_RESEARCH",
+  "promising_models": [],
+  "run_id": "broker_reports_doc18_page_grounding_2026-08-04_v1",
+  "schema_version": "broker_reports_doc18_model_comparison_safe_v1",
+  "thresholds": {
+    "borderless_recall": 0.9,
+    "multi_table_page_exact_rate": 0.8,
+    "no_table_false_positives_total": 0,
+    "structured_output_validity": 1.0,
+    "table_precision": 0.95,
+    "table_recall": 0.95,
+    "usable_table_crop_rate": 0.9
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "canary_receipts": "2/2",
+  "date": "2026-08-05",
+  "exact_failed_blank_styled_cells": 39499,
+  "exact_failed_components": 141,
+  "exact_failed_formulas": 3147,
+  "exact_failed_peak_bytes": 156504064,
+  "failed_doc30_xlsx_canary": "PASS",
+  "integrity_sha256": "1700c26b07521736f301e6553769668aba42af5fe687abcdf884f12f5cf3254d",
+  "oom_events": 0,
+  "openwebui_health_degradation": 0,
+  "partial_states": 0,
+  "private_content_in_output": false,
+  "schema_version": "broker_reports_doc31_target_canary_safe_v1",
+  "small_xlsx_canary": "PASS",
+  "status": "PASS"
+}

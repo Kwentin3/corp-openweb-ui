@@ -1,0 +1,71 @@
+{
+  "architecture_tests": "PASS",
+  "date": "2026-08-05",
+  "failure_classification": {
+    "DOC26_NEW_FIXED_AFTER_FULL_RUN": {
+      "details": "KT1 standalone-authority allowlist declared canonical_artifact.py and canonical_store.py; targeted rerun passed",
+      "errors": 0,
+      "failed": 1
+    },
+    "ENVIRONMENTAL": {
+      "errors": 0,
+      "failed": 0
+    },
+    "HISTORICAL_RECEIPT_HASH": {
+      "details": "DOC8-DOC11 safe-evidence guards and Type-First authority-map pin retain historical hashes; DOC26 did not rewrite them",
+      "errors": 11,
+      "failed": 5
+    },
+    "PRE_EXISTING": {
+      "errors": 0,
+      "failed": 0
+    },
+    "TIMEOUT": {
+      "errors": 0,
+      "failed": 0
+    },
+    "UNRESOLVED": {
+      "errors": 0,
+      "failed": 0
+    }
+  },
+  "focused_doc26_tests": {
+    "passed": 123,
+    "seconds": 57.68,
+    "status": "PASSED",
+    "warnings": 6
+  },
+  "full_suite": {
+    "errors": 11,
+    "exit_code": 1,
+    "failed": 6,
+    "junit_complete": true,
+    "junit_stored_outside_git": true,
+    "passed": 2885,
+    "pytest_seconds": 879.86,
+    "skipped": 5,
+    "status": "TERMINAL_FAILED_KNOWN_HASH_GUARDS",
+    "terminal": true,
+    "timeout": false,
+    "wall_seconds": 881.6,
+    "warnings": 6
+  },
+  "historical_hashes_updated_for_green": false,
+  "integrity_sha256": "7db38db41dd9862e489c2a645fb0ed0a9356da608f325f4a74fdec37bcbe0e2f",
+  "multi_format_regression": "PASS",
+  "new_unexplained_failures": 0,
+  "pdf_regression": "PASS",
+  "post_full_architecture_declaration_check": {
+    "passed": 6,
+    "seconds": 0.64,
+    "status": "PASSED"
+  },
+  "ruff": {
+    "status": "PASSED"
+  },
+  "schema_version": "broker_reports_doc26_test_results_safe_v1",
+  "shadow_tests": "PASS",
+  "status": "PASSED_WITH_KNOWN_FULL_SUITE_GUARDS",
+  "storage_lifecycle_tests": "PASS",
+  "timeout_reported_as_pass": false
+}

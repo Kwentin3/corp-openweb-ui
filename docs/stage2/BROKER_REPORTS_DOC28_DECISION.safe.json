@@ -1,0 +1,31 @@
+{
+  "APPROVED_REAL_COHORT": "PARTIAL",
+  "BACKUP_RESTORE": "BLOCKED",
+  "BACKUP_RESTORE_RUNBOOK": "CURRENT_BLOCKED",
+  "CONTRADICTORY_AUTHORITY_DOCS": 0,
+  "DOC28_PROGRAM": "BLOCKED",
+  "DURABLE_CANONICAL_STORE": "BLOCKED",
+  "DURABLE_STORAGE_RUNBOOK": "CURRENT_BLOCKED",
+  "GATE3": "NOT_STARTED",
+  "LEGACY_HANDOFF": "RETAINED",
+  "NEW_UPLOAD_DURABLE_SHADOW": "NOT_STARTED",
+  "PRIMARY_PRODUCT_CUTOVER": "NOT_PERFORMED",
+  "READ_AUTHORITY_MAP": "CURRENT",
+  "RESEARCH_CONSUMER_MIGRATION": "BLOCKED",
+  "RETENTION_ROTATION": "BLOCKED",
+  "RETENTION_RUNBOOK": "CURRENT_BLOCKED",
+  "WAVE_2_MIGRATION_READINESS": "BLOCKED",
+  "WAVE_2_SHADOW": "NOT_STARTED",
+  "blocker_code": "BLOCKED_DURABLE_BACKEND_NOT_APPROVED_OR_ACCESSIBLE",
+  "date": "2026-08-05",
+  "integrity_sha256": "b9aff6594c36a6b744b2561f8a2af8031ed44855bc5737edbedacf1801b3fc91",
+  "next_goal_authorized": false,
+  "required_unblock_evidence": [
+    "identify and approve the target OpenWebUI deployment",
+    "provide read/write operator access to its openwebui_data volume",
+    "provide restart authority for the controlled service",
+    "provide backup destination and restore-drill authority",
+    "confirm capacity threshold and retention-worker ownership"
+  ],
+  "schema_version": "broker_reports_doc28_decision_safe_v1"
+}

@@ -1,0 +1,73 @@
+{
+  "schema_version": "broker_reports_doc25_test_results_safe_v1",
+  "date": "2026-08-05",
+  "runs": [
+    {
+      "name": "canonical_artifact_and_doc25_safe_evidence_focused",
+      "status": "passed",
+      "tests": 11,
+      "failures": 0,
+      "errors": 0,
+      "terminal": true
+    },
+    {
+      "name": "architecture_storage_fullsource_retention_canonical_doc25_safe",
+      "status": "passed",
+      "tests": 58,
+      "failures": 0,
+      "errors": 0,
+      "terminal": true,
+      "includes_focused_tests": 11
+    },
+    {
+      "name": "doc23_doc24_safe_evidence",
+      "status": "passed",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "terminal": true
+    },
+    {
+      "name": "ruff_changed_maintained_files",
+      "status": "passed",
+      "violations": 0,
+      "terminal": true
+    },
+    {
+      "name": "full_service_suite",
+      "status": "not_confirmed",
+      "tests": null,
+      "terminal": false,
+      "reason": "not_repeated; prior DOC24 attempt timed out and was not a pass"
+    }
+  ],
+  "new_doc25_test_failures": 0,
+  "resolved_during_implementation": [
+    {
+      "classification": "doc25_regression_resolved",
+      "failure": "generated_bundle_source_mismatch",
+      "resolution": "rebuilt_all_generated_bundles_from_maintained_sources"
+    },
+    {
+      "classification": "doc25_regression_resolved",
+      "failure": "canonical_module_collection_syntax_error",
+      "resolution": "corrected_helper_control_flow_and_recompiled"
+    },
+    {
+      "classification": "doc25_regression_resolved",
+      "failure": "xlsx_canonical_helper_name_error",
+      "resolution": "reused_existing_xml_iteration_helper"
+    }
+  ],
+  "historical_failures_not_repeated": [
+    "five_historical_hash_failures_in_prior_doc24_full_suite_attempt",
+    "prior_pytest_shutdown_error",
+    "prior_full_suite_timeout"
+  ],
+  "historical_failures_reclassified": 0,
+  "external_failures": 0,
+  "provider_calls": 0,
+  "cropper_reruns": 0,
+  "full_suite_status": "not_confirmed",
+  "product_cutover_authorized": false
+}

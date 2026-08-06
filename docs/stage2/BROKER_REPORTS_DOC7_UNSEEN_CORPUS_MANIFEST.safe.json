@@ -1,0 +1,251 @@
+{
+  "schema_version": "broker_reports_doc7_unseen_corpus_manifest_safe_v1",
+  "status": "FROZEN",
+  "frozen_before_visual_gold": true,
+  "frozen_before_doc6_run": true,
+  "frozen_before_provider_calls": true,
+  "source_manifest_integrity_sha256": "27f6a0536cc67a34c857646fc7b8df8a1822845c8032fab8bc78cb1967527ab8",
+  "repository_head": "aec47d83826add1b091c01b3847b5f2a9c16c67b",
+  "documents": [
+    {
+      "safe_id": "unseen_pdf_01",
+      "publisher": "M1 Finance LLC",
+      "document_type": "broker-dealer statement of financial condition",
+      "public_source_url": "https://m1.com/m1_financial_condition_statement.pdf",
+      "publication_year": 2025,
+      "pages_total": 16,
+      "source_sha256": "27a888feac809bfede8a9c7570615b065aa5b91eae7e0c6f42a58ce079eb19ca",
+      "file_size_bytes": 1384001,
+      "text_layer_status": "PRESENT_ON_ALL_PAGES",
+      "complexity_tags": [
+        "financial_statement",
+        "sparse_rows",
+        "subtotals_totals",
+        "money_columns",
+        "currency_markers"
+      ],
+      "unseen_checks": {
+        "prior_pdf_byte_matches": 0,
+        "git_current_sha_or_url_hits": 0,
+        "git_history_sha_hits": 0,
+        "private_doc2_doc6_sha_or_url_hits": 0,
+        "prior_manifest_gold_test_sha_or_url_hits": 0
+      },
+      "unseen_reason": "No byte SHA match in prior PDF scopes and no SHA or official URL hit in current Git, Git history, private DOC2-DOC6 workspaces, prior manifests, visual gold, or prior test corpora before freeze.",
+      "visual_gold_totals": {
+        "tables_total": 6,
+        "logical_rows_total": 59,
+        "visible_entries_total": 150,
+        "continuation_tables_total": 1,
+        "row_roles": {
+          "DATA": 33,
+          "GROUP": 8,
+          "HEADER": 11,
+          "SUBTOTAL": 2,
+          "TOTAL": 5
+        }
+      }
+    },
+    {
+      "safe_id": "unseen_pdf_02",
+      "publisher": "BlackRock / iShares",
+      "document_type": "UCITS ETF factsheet",
+      "public_source_url": "https://www.blackrock.com/gls-download/literature/fact-sheet/isad-ishares-msci-acwi-ucits-etf-fund-fact-sheet-en-se.pdf",
+      "publication_year": 2026,
+      "pages_total": 4,
+      "source_sha256": "23e4820566d460f94c0fce06f0992688ccbd57541e314a43eca4671cef1f81e6",
+      "file_size_bytes": 156694,
+      "text_layer_status": "PRESENT_ON_ALL_PAGES",
+      "complexity_tags": [
+        "adjacent_tables",
+        "group_headers",
+        "wide_tables",
+        "percent_columns",
+        "sparse_rows"
+      ],
+      "unseen_checks": {
+        "prior_pdf_byte_matches": 0,
+        "git_current_sha_or_url_hits": 0,
+        "git_history_sha_hits": 0,
+        "private_doc2_doc6_sha_or_url_hits": 0,
+        "prior_manifest_gold_test_sha_or_url_hits": 0
+      },
+      "unseen_reason": "No byte SHA match in prior PDF scopes and no SHA or official URL hit in current Git, Git history, private DOC2-DOC6 workspaces, prior manifests, visual gold, or prior test corpora before freeze.",
+      "visual_gold_totals": {
+        "tables_total": 5,
+        "logical_rows_total": 43,
+        "visible_entries_total": 86,
+        "continuation_tables_total": 0,
+        "row_roles": {
+          "DATA": 34,
+          "HEADER": 7,
+          "NOTE": 1,
+          "TOTAL": 1
+        }
+      }
+    },
+    {
+      "safe_id": "unseen_pdf_03",
+      "publisher": "JPMorgan Asset Management",
+      "document_type": "mutual fund factsheet",
+      "public_source_url": "https://am.jpmorgan.com/content/dam/jpm-am-aem/americas/us/en/literature/fact-sheet/taxable-fixed-income/FS-UD-I.PDF",
+      "publication_year": 2025,
+      "pages_total": 2,
+      "source_sha256": "a5344d7054056b69150426e63c601e2609e4b659d328e93b870546e914459c85",
+      "file_size_bytes": 123503,
+      "text_layer_status": "PRESENT_ON_ALL_PAGES",
+      "complexity_tags": [
+        "adjacent_tables",
+        "multi_level_headers",
+        "wide_tables",
+        "money_columns",
+        "group_headers"
+      ],
+      "unseen_checks": {
+        "prior_pdf_byte_matches": 0,
+        "git_current_sha_or_url_hits": 0,
+        "git_history_sha_hits": 0,
+        "private_doc2_doc6_sha_or_url_hits": 0,
+        "prior_manifest_gold_test_sha_or_url_hits": 0
+      },
+      "unseen_reason": "No byte SHA match in prior PDF scopes and no SHA or official URL hit in current Git, Git history, private DOC2-DOC6 workspaces, prior manifests, visual gold, or prior test corpora before freeze.",
+      "visual_gold_totals": {
+        "tables_total": 8,
+        "logical_rows_total": 47,
+        "visible_entries_total": 133,
+        "continuation_tables_total": 0,
+        "row_roles": {
+          "DATA": 35,
+          "HEADER": 12
+        }
+      }
+    },
+    {
+      "safe_id": "unseen_pdf_04",
+      "publisher": "Vanguard",
+      "document_type": "mutual fund factsheet",
+      "public_source_url": "https://institutional.vanguard.com/iippdf/pdfs/FS23.pdf",
+      "publication_year": 2026,
+      "pages_total": 4,
+      "source_sha256": "b2b77add993a3c8491d3b94e624517a85cf3e91854a1965c349342be724abf22",
+      "file_size_bytes": 558170,
+      "text_layer_status": "PRESENT_ON_ALL_PAGES",
+      "complexity_tags": [
+        "two_column_tables",
+        "adjacent_tables",
+        "wide_tables",
+        "percent_columns",
+        "multi_level_headers"
+      ],
+      "unseen_checks": {
+        "prior_pdf_byte_matches": 0,
+        "git_current_sha_or_url_hits": 0,
+        "git_history_sha_hits": 0,
+        "private_doc2_doc6_sha_or_url_hits": 0,
+        "prior_manifest_gold_test_sha_or_url_hits": 0
+      },
+      "unseen_reason": "No byte SHA match in prior PDF scopes and no SHA or official URL hit in current Git, Git history, private DOC2-DOC6 workspaces, prior manifests, visual gold, or prior test corpora before freeze.",
+      "visual_gold_totals": {
+        "tables_total": 5,
+        "logical_rows_total": 38,
+        "visible_entries_total": 122,
+        "continuation_tables_total": 0,
+        "row_roles": {
+          "DATA": 27,
+          "HEADER": 10,
+          "TOTAL": 1
+        }
+      }
+    },
+    {
+      "safe_id": "unseen_pdf_05",
+      "publisher": "Franklin Templeton / ClearBridge",
+      "document_type": "investment fund factsheet",
+      "public_source_url": "https://etf.franklintempleton.com/FormBuilder/_Resource/_module/2ALS5wVdVkKEMhM3WIDmaQ/file/FACTSHEET_RIVAFU%20A_30-November-2025%20%28AU60TGP00341%29.pdf",
+      "publication_year": 2025,
+      "pages_total": 1,
+      "source_sha256": "b9c7c294746d7c90de0484ff1ce35bc6a90ed2d28f81ae3b35897f2fe0ae6026",
+      "file_size_bytes": 495049,
+      "text_layer_status": "PRESENT_ON_ALL_PAGES",
+      "complexity_tags": [
+        "adjacent_tables",
+        "two_column_tables",
+        "group_headers",
+        "percent_columns",
+        "currency_markers"
+      ],
+      "unseen_checks": {
+        "prior_pdf_byte_matches": 0,
+        "git_current_sha_or_url_hits": 0,
+        "git_history_sha_hits": 0,
+        "private_doc2_doc6_sha_or_url_hits": 0,
+        "prior_manifest_gold_test_sha_or_url_hits": 0
+      },
+      "unseen_reason": "No byte SHA match in prior PDF scopes and no SHA or official URL hit in current Git, Git history, private DOC2-DOC6 workspaces, prior manifests, visual gold, or prior test corpora before freeze.",
+      "visual_gold_totals": {
+        "tables_total": 5,
+        "logical_rows_total": 42,
+        "visible_entries_total": 103,
+        "continuation_tables_total": 0,
+        "row_roles": {
+          "DATA": 32,
+          "HEADER": 8,
+          "NOTE": 1,
+          "TOTAL": 1
+        }
+      }
+    },
+    {
+      "safe_id": "unseen_pdf_06",
+      "publisher": "Vanguard",
+      "document_type": "schedule of portfolio holdings",
+      "public_source_url": "https://personal1.vanguard.com/funds/reports/h308q1.pdf?2210212504=",
+      "publication_year": 2025,
+      "pages_total": 24,
+      "source_sha256": "b48128bc037294a69ee3f9555634014e8df10e5746a0406ee2a1e41904972a8d",
+      "file_size_bytes": 94508,
+      "text_layer_status": "PRESENT_ON_ALL_PAGES",
+      "complexity_tags": [
+        "financial_statement",
+        "group_headers",
+        "subtotals_totals",
+        "multi_level_headers",
+        "wide_tables",
+        "money_columns",
+        "currency_markers",
+        "adjacent_tables"
+      ],
+      "unseen_checks": {
+        "prior_pdf_byte_matches": 0,
+        "git_current_sha_or_url_hits": 0,
+        "git_history_sha_hits": 0,
+        "private_doc2_doc6_sha_or_url_hits": 0,
+        "prior_manifest_gold_test_sha_or_url_hits": 0
+      },
+      "unseen_reason": "No byte SHA match in prior PDF scopes and no SHA or official URL hit in current Git, Git history, private DOC2-DOC6 workspaces, prior manifests, visual gold, or prior test corpora before freeze.",
+      "visual_gold_totals": {
+        "tables_total": 36,
+        "logical_rows_total": 420,
+        "visible_entries_total": 1468,
+        "continuation_tables_total": 0,
+        "row_roles": {
+          "DATA": 164,
+          "GROUP": 96,
+          "HEADER": 96,
+          "SUBTOTAL": 16,
+          "TOTAL": 48
+        }
+      }
+    }
+  ],
+  "documents_total": 6,
+  "publishers_total": 5,
+  "pages_total": 51,
+  "tables_total": 65,
+  "main_corpus_text_layer_only": true,
+  "challenge_set_documents_total": 0,
+  "known_prior_candidates_excluded_by_byte_match": 2,
+  "failed_documents_excluded_total": 0,
+  "private_values_included": false,
+  "integrity_sha256": "dfed55b544a41fb25a34e856c70a3fb877d338e3757020322271ac01a5c3c30a"
+}

@@ -1,0 +1,71 @@
+{
+  "acceptance": {
+    "ALL_16_SLOTS_ACCOUNTED": true,
+    "AUTHORIZED_FRESH_CALLS_TOTAL": 16,
+    "DOC6_CHANGED": false,
+    "FAILED_TABLES_EXCLUDED_TOTAL": 0,
+    "FALLBACK_TOTAL": 0,
+    "FROZEN_IMAGES_TOTAL": 4,
+    "GOLD_CREATED_AFTER_CALL_ACCOUNTING": true,
+    "IMAGES_BYTE_IDENTICAL_TO_DOC11": true,
+    "MODEL_VISIBLE_BBOX_OR_COORDINATES": false,
+    "MODEL_VISIBLE_FILES_PER_PACKAGE": [
+      "prompt.txt",
+      "table.png"
+    ],
+    "MODEL_VISIBLE_GOLD": false,
+    "MODEL_VISIBLE_IDS": false,
+    "MODEL_VISIBLE_PARSER_TEXT": false,
+    "NON_ROW_EVALUATOR_FRAGMENTS_TOTAL": 48,
+    "ONE_IMAGE_PER_CALL": true,
+    "PARSER_CHANGED": false,
+    "PARSER_GEOMETRY_FRAGMENTS_TOTAL": 362,
+    "PRODUCT_PIPELINE_CHANGED": false,
+    "RAW_AND_NORMALIZED_VALIDITY_REPORTED": true,
+    "RAW_AND_SNAPPED_RESULTS_SEPARATE": true,
+    "RETRY_TOTAL": 0,
+    "ROW_EVALUABLE_FRAGMENTS_TOTAL": 314
+  },
+  "artifacts": {
+    "brief": {
+      "repo_path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC12_IMAGE_ONLY_LOGICAL_ROWS_BRIEF.md",
+      "sha256": "1dd92b7ef49f4ee96ab88adf8802200f098cea96aa3c26c60b702694dadb332d"
+    },
+    "report": {
+      "repo_path": "docs/reports/2026-08-03/BROKER_REPORTS_DOC12_IMAGE_ONLY_LOGICAL_ROWS.report.md",
+      "sha256": "b291931929ca29b1c476233034e48a02f191e5ac75c36bafcc81b01bf1066e3b"
+    },
+    "safe_results": {
+      "repo_path": "docs/stage2/BROKER_REPORTS_DOC12_IMAGE_ONLY_ROW_RESULTS.safe.json",
+      "sha256": "ce571ba431c63b93fbc21905272defa859eb83b1706d942b5b079f08034f9af5"
+    },
+    "safe_snapping": {
+      "repo_path": "docs/stage2/BROKER_REPORTS_DOC12_GEOMETRIC_SNAPPING.safe.json",
+      "sha256": "ee4643c8b8e7451f06423b7e105eca0ed15f047ec940ef724ff9991cf122c0cf"
+    }
+  },
+  "calls": {
+    "authorized_total": 16,
+    "fallback_total": 0,
+    "http_200_total": 14,
+    "http_responses_total": 16,
+    "maximum_parallelism": 1,
+    "retry_total": 0,
+    "slots_accounted_total": 16
+  },
+  "classifications": {
+    "BEST_CHEAP_ROW_MODEL": "NONE",
+    "BEST_REFERENCE_ROW_MODEL": "NONE",
+    "DOC12_EXPERIMENT": "BLOCKED",
+    "GEOMETRIC_SNAPPING_EFFECT": "INCONCLUSIVE",
+    "IMAGE_ONLY_ROW_DETECTION": "INCONCLUSIVE",
+    "ROW_GEOMETRY_PIPELINE": "NOT_CONFIRMED"
+  },
+  "deterministic_replay": "PASSED",
+  "integrity_sha256": "551c9004ab2f02bb0eab74855d0dcd7dfd1462e9ba130f3d0c9be8fd56174671",
+  "privacy_scan": "PASSED",
+  "product_parity": "PASSED_NO_PRODUCT_OR_RUNTIME_FILES_CHANGED",
+  "run_id": "broker_reports_doc12_image_only_rows_2026-08-03_v1",
+  "schema_version": "broker_reports_doc12_terminal_receipt_safe_v1",
+  "terminal_status": "BLOCKED"
+}

@@ -1,0 +1,21 @@
+{
+  "schema_version": "broker_reports_doc17_crop_baseline_safe_v1",
+  "run_id": "broker_reports_doc17_baseline_2026-08-04_v1",
+  "source_experiment": "DOC15",
+  "source_audit": "DOC16",
+  "baseline_mechanism": "DOC15 fixed 12-point margin and PyMuPDF 180-dpi crop",
+  "code_change_before_baseline": false,
+  "exact_doc15_hashes_matched": true,
+  "exact_doc16_classification_reproduced": true,
+  "DOC15_TABLES_TOTAL": 24,
+  "status_counts": {"CROP_CLEAN": 12, "CROP_CLIPPED": 7, "CROP_CONTAMINATED": 5},
+  "defective_tables_total": 12,
+  "root_cause_rows_total": 12,
+  "root_cause_classes": {
+    "coordinate_space_mismatch": 4,
+    "header_or_note_outside_candidate": 3,
+    "detached_footer_or_page_text": 4,
+    "neighbor_or_prose_boundary_crossed": 2
+  },
+  "provider_calls_total": 0
+}

@@ -1,0 +1,101 @@
+{
+  "schema_version": "broker_reports_doc7_brief_safe_v1",
+  "status": "COMPLETED",
+  "corpus": {
+    "documents_total": 6,
+    "publishers_total": 5,
+    "pages_total": 51,
+    "tables_total": 65
+  },
+  "gold": {
+    "documents_total": 6,
+    "tables_total": 65,
+    "logical_rows_total": 649,
+    "visible_entries_total": 2062,
+    "row_roles": {
+      "DATA": 325,
+      "GROUP": 104,
+      "HEADER": 144,
+      "NOTE": 2,
+      "SUBTOTAL": 18,
+      "TOTAL": 56
+    },
+    "continuation_tables_total": 1,
+    "unknown_roles_total": 0,
+    "integrity_sha256": "b2543e1d85a10ff885e53162d15fed937f92dca35ec210298dd8f06cacd49d90"
+  },
+  "doc6": {
+    "documents_attempted_total": 6,
+    "documents_with_managed_output_total": 0,
+    "table_recall": 0.0,
+    "logical_row_recall": 0.0,
+    "visible_entry_recall": 0.0
+  },
+  "markdown": {
+    "table_recall": 1.0,
+    "logical_row_recall": 0.9707241910631741,
+    "visible_entry_recall": 0.8821532492725509,
+    "wrong_row_associations": 6,
+    "wrong_column_associations": 30,
+    "invented_values": 258,
+    "dropped_values": 280,
+    "duplicated_values": 0
+  },
+  "json": {
+    "table_recall": 1.0,
+    "logical_row_recall": 0.9722650231124808,
+    "visible_entry_recall": 0.950533462657614,
+    "wrong_row_associations": 6,
+    "wrong_column_associations": 43,
+    "invented_values": 44,
+    "dropped_values": 47,
+    "duplicated_values": 0
+  },
+  "questions": {
+    "MARKDOWN_RETAINS_MORE_LOGICAL_ROWS_THAN_JSON": {
+      "label": "INCONCLUSIVE",
+      "difference": -0.0015567765567765582,
+      "ci95": [
+        -0.010714285714285718,
+        0.007692307692307691
+      ],
+      "direction": "markdown_advantage"
+    },
+    "MARKDOWN_RETAINS_MORE_VISIBLE_VALUES_THAN_JSON": {
+      "label": "FALSE",
+      "difference": -0.07775104983860046,
+      "ci95": [
+        -0.11651989317475148,
+        -0.044873432348128704
+      ],
+      "direction": "markdown_advantage"
+    },
+    "MARKDOWN_HAS_FEWER_WRONG_ROW_BINDINGS_THAN_JSON": {
+      "label": "INCONCLUSIVE",
+      "difference": 0.0,
+      "ci95": [
+        -0.1076923076923077,
+        0.12307692307692308
+      ],
+      "direction": "markdown_advantage"
+    },
+    "MARKDOWN_HAS_FEWER_WRONG_COLUMN_BINDINGS_THAN_JSON": {
+      "label": "INCONCLUSIVE",
+      "difference": 0.2,
+      "ci95": [
+        -0.2,
+        0.6461538461538462
+      ],
+      "direction": "markdown_advantage"
+    }
+  },
+  "classifications": {
+    "DOC6_GENERALIZATION": "FAILED",
+    "MARKDOWN_VS_JSON": "INCONCLUSIVE",
+    "OUTPUT_SCHEMA_PRESSURE": "INCONCLUSIVE"
+  },
+  "provider_calls_total": 130,
+  "failed_documents_excluded_total": 0,
+  "private_values_included": false,
+  "integrity_sha256": "3c9e11ee119c2337cb29d3d030a24c4c57a65dc30c873a74099f90e66105b0f4"
+}

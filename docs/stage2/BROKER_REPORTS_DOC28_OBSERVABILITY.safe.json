@@ -1,0 +1,39 @@
+{
+  "activation_events_accounted_percent": "NOT_APPLICABLE_NO_ACTIVATIONS",
+  "date": "2026-08-05",
+  "durable_write_events_accounted_percent": "NOT_APPLICABLE_NO_WRITES",
+  "health_checks": {
+    "active_pointer_resolvable": "NOT_TESTED",
+    "metadata_payload_consistency": "NOT_TESTED",
+    "metadata_store_writable": "NOT_TESTED",
+    "payload_store_writable": "NOT_TESTED",
+    "retention_worker_status": "NOT_TESTED",
+    "sample_chunk_readable": "NOT_TESTED",
+    "storage_capacity_threshold": "NOT_TESTED"
+  },
+  "integrity_sha256": "9bc74491795a77934b9d635515b33f438cf7d03c02235598cbb09da89780016d",
+  "metrics": {
+    "active_version_count": 0,
+    "canonical_activation_failure": 0,
+    "canonical_activation_success": 0,
+    "canonical_chunks_read": 0,
+    "canonical_chunks_written": 0,
+    "canonical_read_attempts": 0,
+    "canonical_read_failure": 0,
+    "canonical_read_success": 0,
+    "canonical_storage_bytes": 0,
+    "canonical_validation_failure": 0,
+    "canonical_write_attempts": 0,
+    "canonical_write_failure": 0,
+    "canonical_write_success": 0,
+    "orphan_cleanup_count": 0,
+    "retention_delete_count": 0,
+    "rollback_count": 0
+  },
+  "private_content_in_metrics": 0,
+  "rollback_events_accounted_percent": "NOT_APPLICABLE_NO_ROLLBACKS",
+  "schema_version": "broker_reports_doc28_observability_safe_v1",
+  "shadow_reads_accounted_percent": "NOT_APPLICABLE_NO_SHADOW",
+  "silent_failures": 0,
+  "status": "BLOCKED_NO_RUNTIME"
+}

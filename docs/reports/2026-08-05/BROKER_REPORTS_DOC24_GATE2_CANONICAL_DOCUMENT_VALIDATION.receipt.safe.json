@@ -1,0 +1,64 @@
+{
+  "artifacts": [
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC24_GATE2_HANDOFF_AUDIT.safe.json",
+      "sha256": "a70a3d5140045f30fe602b8ccdd71103366103a07eead9c3750d689424239bac",
+      "size_bytes": 5461
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC24_CANONICAL_DOCUMENT_METRICS.safe.json",
+      "sha256": "d41fbf040f1d65f15b34a3d8fa30b4dcfe13a9990836593eb67afde59965624b",
+      "size_bytes": 983
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC24_DOCUMENT_ORDER_VALIDATION.safe.json",
+      "sha256": "d28e477c020f47d21e8fc18e646705624da22dfe6b6748ab59d965725be8ba79",
+      "size_bytes": 931
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC24_LLM_PROJECTION_METRICS.safe.json",
+      "sha256": "28d3e2befbb3602f5f16c52819c636fae002e2ee0a9f7eaed33c833d267b45c1",
+      "size_bytes": 1175
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC24_MATERIAL_SUFFICIENCY.safe.json",
+      "sha256": "c09c0b8f15bdbe9b3805d1c2601172b1c9e8ce71b21a4b60de9d6b6ba28629ca",
+      "size_bytes": 1021
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC24_CONFLICTS.safe.json",
+      "sha256": "18c800c7722c642e3f2b5597b083e3ddb2ef169e92ba2aa1ac47e71b002e4f77",
+      "size_bytes": 421
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC24_TRACEABILITY.safe.json",
+      "sha256": "907a5ca393289e022a154a482b2ca1868ee485c832890dc725d215af53adc6ec",
+      "size_bytes": 577
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC24_TEST_RESULTS.safe.json",
+      "sha256": "266c46523ae99ea08f53bf41b8ce986816b4fa7ff8a06727b0d10f7b09fca002",
+      "size_bytes": 2944
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC24_DECISION.safe.json",
+      "sha256": "3c62ed6aa7e709ef24753b9fa0a115a1b228b71bc2080fd5627658db2607d5be",
+      "size_bytes": 2640
+    },
+    {
+      "path": "docs/reports/2026-08-05/BROKER_REPORTS_DOC24_GATE2_CANONICAL_DOCUMENT_VALIDATION.report.md",
+      "sha256": "cb2876176df18c3e274e2742090f5e2942ff7c740afe0c44f8b3f5923d9a68f0",
+      "size_bytes": 3130
+    },
+    {
+      "path": "docs/reports/2026-08-05/BROKER_REPORTS_DOC24_GATE2_CANONICAL_DOCUMENT_VALIDATION_BRIEF.md",
+      "sha256": "3860a284268b132d4f4663908c65f4e68353b31fddba5565d456f8fc4ad21150",
+      "size_bytes": 548
+    }
+  ],
+  "artifacts_total": 11,
+  "integrity_sha256": "ca6e288026194438d9a22f90b7c2f591d2afb3fed7de4fe56560d4b6b246f08e",
+  "product_files_changed_by_doc24": 0,
+  "run_id": "broker_reports_doc24_gate2_canonical_document_2026-08-05_v1",
+  "schema_version": "broker_reports_doc24_validation_receipt_safe_v1"
+}

@@ -1,0 +1,53 @@
+{
+  "bundle_parity_failures_observed_then_fixed": 2,
+  "bundle_parity_targeted_after_fix": "PASSED_18_OF_18",
+  "compileall": "PASSED",
+  "date": "2026-08-05",
+  "development_failures_fixed_and_attributed": [
+    "ArtifactRecord collection import used the wrong public owner module",
+    "sealed fixture source record used an incompatible private backend",
+    "cross-run version fixture reused the first-run source",
+    "PDF compatibility mapping referenced the wrong legacy contract",
+    "deleted-source lifecycle test initially expected a chunk error instead of the pointer conflict produced after source purge",
+    "three generated bundles required the maintained byte-exact rebuild after canonical_store changed"
+  ],
+  "doc27_failures_or_errors": 0,
+  "focused_regression": {
+    "duration_seconds": 31.33,
+    "failed": 0,
+    "passed": 119,
+    "warnings": 6
+  },
+  "full_service": {
+    "duration_seconds": 885.178,
+    "errors": 11,
+    "failures": 7,
+    "passed": 2909,
+    "skipped": 5,
+    "terminal": true,
+    "tests": 2932,
+    "timeout": false
+  },
+  "full_service_formally_green": false,
+  "full_suite_retried": false,
+  "historical_authority_hash_errors": 11,
+  "historical_frozen_hash_failures": 5,
+  "historical_hashes_rewritten": 0,
+  "integrity_sha256": "e28c5db5331d1544ab38f0e00f35c1149ed92ffefbd4f0691d4af5cc0d5c31fe",
+  "isolated_service_import": "PASSED",
+  "latest_doc27_targeted": {
+    "duration_seconds": 2.41,
+    "failed": 0,
+    "passed": 23
+  },
+  "new_unexplained_failures": 0,
+  "post_full_bundle_targeted": {
+    "duration_seconds": 6.7,
+    "failed": 0,
+    "passed": 18
+  },
+  "ruff": "PASSED",
+  "schema_version": "broker_reports_doc27_test_results_safe_v1",
+  "status": "TERMINAL_WITH_CLASSIFIED_GUARDS",
+  "test_accounting_complete": true
+}

@@ -1,0 +1,42 @@
+{
+  "case_specific_crop_rules_created": 0,
+  "contract_kind": "RESEARCH_REQUIREMENTS_NOT_PRODUCT_SCHEMA",
+  "financial_ontology_created": false,
+  "gate3_contract_created": false,
+  "integrity_sha256": "0c70de6ec56dafeab341e6be3647e7b63a414c45064edfff23a6e1784b79817c",
+  "minimum_critical_crop_contract": [
+    {
+      "element": "TABLE_IDENTITY_AND_SCOPE",
+      "generalization": "applies whenever the same rows could belong to materially different tables or scopes",
+      "requirement": "Include meaning-bearing title and scope qualifiers such as consolidated, statement type, measurement scope, or principal-versus-broader population."
+    },
+    {
+      "element": "PERIOD_BASIS_AND_COLUMN_BINDING",
+      "generalization": "applies to single-level and multi-level headers",
+      "requirement": "Include as-of versus years-ended basis, complete dates, and the header path binding each numeric column to its period and role."
+    },
+    {
+      "element": "CURRENCY_UNIT_AND_SCALE",
+      "generalization": "applies even when currency symbols appear on selected values",
+      "requirement": "Include the currency and every unit or scale band governing the captured rows, including mixed scale sections."
+    },
+    {
+      "element": "COMPLETE_RELATIONAL_BOUNDARY",
+      "generalization": "applies to continuations, stacked tables, and nested reconciliations",
+      "requirement": "Do not begin or end inside a logical statement fragment; preserve row groups, totals, secondary tables, and continuation identity needed to interpret them."
+    },
+    {
+      "element": "MATERIAL_QUALIFIERS",
+      "generalization": "decorative footer and page furniture are not required",
+      "requirement": "Include notes or surrounding qualifiers that change attribution, measurement basis, sign, scope, or comparability."
+    }
+  ],
+  "minimum_critical_crop_contract_reported": true,
+  "run_id": "broker_reports_doc21_research_first_material_adequacy_2026-08-04_v1",
+  "schema_version": "broker_reports_doc21_minimum_critical_crop_contract_safe_v1",
+  "triggering_patterns": [
+    "MEANING_BEARING_CONTEXT_OUTSIDE_TARGET",
+    "UNBOUND_NUMERIC_COLUMNS",
+    "CONTINUATION_WITHOUT_IDENTITY"
+  ]
+}

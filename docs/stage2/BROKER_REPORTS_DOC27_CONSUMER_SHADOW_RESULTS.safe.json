@@ -1,0 +1,30 @@
+{
+  "actual_corpus_rerun_performed": false,
+  "cropper_reruns": 0,
+  "date": "2026-08-05",
+  "doc26_actual_corpus_baseline_reused_without_rerun": true,
+  "integrity_sha256": "109e65d20eaffa3c50b540525a7da701e08a97b8818c12025a2e377d650e27fa",
+  "migrated_test_consumers": {
+    "access_behavior_differences": 0,
+    "ambiguous": 0,
+    "canonical_regressions": 0,
+    "consumers_total": 3,
+    "expected_schema_differences": 3,
+    "observable_behavior_equivalent": 3,
+    "ordering_regressions": 0,
+    "provenance_regressions": 0,
+    "single_and_chunked_reads": "PASSED",
+    "unresolved": 0
+  },
+  "parser_reruns": 0,
+  "provider_calls": 0,
+  "research_consumer": {
+    "actual_consumer_shadow": "BLOCKED",
+    "adapter_validation": "PASSED_ON_SEALED_FIXTURE",
+    "blocker": "durable DOC26 actual-corpus canonical store and active version are absent",
+    "consumer_id": "local_pdf_compact_canonical_proof"
+  },
+  "schema_version": "broker_reports_doc27_consumer_shadow_results_safe_v1",
+  "status": "PARTIAL",
+  "vlm_reruns": 0
+}

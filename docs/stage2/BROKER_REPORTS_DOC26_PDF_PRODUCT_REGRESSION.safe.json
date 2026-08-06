@@ -1,0 +1,78 @@
+{
+  "arms": [
+    {
+      "arm_id": "anthropic_opus",
+      "continuation_order_errors": 0,
+      "documents": 6,
+      "explicit_ambiguities": 30,
+      "explicit_conflicts": 3,
+      "hidden_conflicts": 0,
+      "material_ambiguous": 1,
+      "material_critical": 0,
+      "material_sufficient_or_rescued": 23,
+      "multiple_table_page_order_errors": 0,
+      "ordering_errors": 0,
+      "pages_accounted": 663,
+      "parser_lines_accounted": 34541,
+      "product_root_hashes_total": 6,
+      "product_root_hashes_unique": 6,
+      "status": "PASSED",
+      "target_tables_inserted": 24,
+      "unresolved_refs": 0
+    },
+    {
+      "arm_id": "google_flash_lite",
+      "continuation_order_errors": 0,
+      "documents": 6,
+      "explicit_ambiguities": 31,
+      "explicit_conflicts": 11,
+      "hidden_conflicts": 0,
+      "material_ambiguous": 2,
+      "material_critical": 0,
+      "material_sufficient_or_rescued": 22,
+      "multiple_table_page_order_errors": 0,
+      "ordering_errors": 0,
+      "pages_accounted": 663,
+      "parser_lines_accounted": 34541,
+      "product_root_hashes_total": 6,
+      "product_root_hashes_unique": 6,
+      "status": "PASSED",
+      "target_tables_inserted": 24,
+      "unresolved_refs": 0
+    }
+  ],
+  "canonical_product_reads_enabled": false,
+  "cropper_reruns": 0,
+  "date": "2026-08-05",
+  "frozen_input": {
+    "arms": 2,
+    "candidate_integrity_checked": true,
+    "documents": 6,
+    "pages": 663,
+    "parser_lines": 34541,
+    "target_tables_per_arm": 24
+  },
+  "integrity_sha256": "61efedfc4ae0c6aef931ff065ee6084f02ee9ac8d6d672eb735bf8bda65b632a",
+  "legacy_product_reads_changed": false,
+  "parser_reruns": 0,
+  "private_content_in_report": false,
+  "product_boundary": "CanonicalNormalizerFactory.create",
+  "provider_calls": 0,
+  "research_product_differences": [
+    {
+      "classification": "EXPECTED_SCHEMA_DIFFERENCE",
+      "difference": "CanonicalArtifactV1 adds typed containers, nodes, cells and root-hash envelope while retaining DOC24 block order and refs",
+      "unexplained": false
+    },
+    {
+      "classification": "CANONICAL_IMPROVEMENT",
+      "difference": "DOC24 conflict and ambiguity atom states become explicit issue_refs",
+      "unexplained": false
+    }
+  ],
+  "research_product_unexplained_differences": 0,
+  "run_id": "broker_reports_doc26_pdf_product_regression_2026-08-05_v1",
+  "schema_version": "broker_reports_doc26_pdf_product_regression_safe_v1",
+  "status": "PASSED",
+  "vlm_tables_regenerated": false
+}

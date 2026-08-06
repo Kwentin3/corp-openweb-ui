@@ -1,0 +1,19 @@
+{
+  "schema_version": "broker_reports_doc25_repository_hygiene_safe_v1",
+  "date": "2026-08-05",
+  "branch": "main",
+  "baseline_head_equals_origin_main": true,
+  "baseline_ahead": 0,
+  "baseline_behind": 0,
+  "worktrees_total": 1,
+  "initial_dirty_files_total": 183,
+  "initial_dirty_files_classified": 183,
+  "initial_user_changes_preserved": true,
+  "destructive_cleanup_performed": false,
+  "files_deleted": 0,
+  "legacy_delete_candidates_executed": 0,
+  "generated_bundles_rebuilt_from_maintained_source": true,
+  "architecture_bundle_parity": "passed",
+  "repository_hygiene_status": "remaining_issues",
+  "remaining_issue": "pre_existing_dirty_worktree_and_doc25_uncommitted_delivery"
+}

@@ -1,0 +1,17 @@
+{
+  "actual_migration_cohort_activation": "NOT_PERFORMED",
+  "consumer_flag_rollback_independent": true,
+  "cross_tenant_activations": 0,
+  "cross_tenant_candidate_rejected": true,
+  "date": "2026-08-05",
+  "deleted_source_candidate_rejected": true,
+  "document_specific_activation": true,
+  "failed_activations_changing_pointer": 0,
+  "integrity_sha256": "918d06118cd72e7b5f42dd114343b946584990a4387ea401b03a7245b61e361d",
+  "rollback_restored_target": true,
+  "rollback_target_available": true,
+  "schema_version": "broker_reports_doc27_active_version_safety_safe_v1",
+  "stale_candidate_rejected": true,
+  "status": "CONFIRMED_ON_SEALED_FIXTURE",
+  "validated_root_and_provenance_required": true
+}

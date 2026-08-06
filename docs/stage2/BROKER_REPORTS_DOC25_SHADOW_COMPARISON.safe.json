@@ -1,0 +1,30 @@
+{
+  "schema_version": "broker_reports_doc25_shadow_comparison_safe_v1",
+  "date": "2026-08-05",
+  "flags": {
+    "canonical_gate2_write_enabled_default": false,
+    "canonical_gate2_read_enabled_default": false,
+    "canonical_gate2_compare_enabled_default": true
+  },
+  "synthetic_execution": {
+    "adapter_formats_covered": ["pdf", "html", "csv", "xlsx"],
+    "persisted_shadow_formats_covered": ["csv"],
+    "write_path": "passed",
+    "read_disabled_path": "passed",
+    "compare_receipt_path": "passed",
+    "legacy_authoritative": true,
+    "fallback_performed": false
+  },
+  "actual_corpus_execution": {
+    "status": "not_run",
+    "reason": "private controlled shadow and remaining storage prerequisites are not complete"
+  },
+  "doc23_doc24_safe_receipt_validation": {
+    "passed": 9,
+    "failed": 0,
+    "historical_evidence_only": true
+  },
+  "critical_loss_status": "inconclusive_for_product_corpus",
+  "shadow_integration_status": "passed_focused_not_product_qualified",
+  "cutover_authorized": false
+}

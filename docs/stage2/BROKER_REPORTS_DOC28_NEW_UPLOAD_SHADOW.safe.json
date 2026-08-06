@@ -1,0 +1,20 @@
+{
+  "canonical_product_reads_enabled": false,
+  "date": "2026-08-05",
+  "durable_shadow_write_runs": 0,
+  "failed_writes_breaking_legacy": 0,
+  "format_support_contract": "4/4",
+  "formats_supported_by_existing_normalizer": [
+    "PDF",
+    "HTML",
+    "CSV",
+    "XLSX"
+  ],
+  "idempotent_redelivery": "NOT_TESTED",
+  "integrity_sha256": "77f92a0745c172c0ad6b4e89a79f022de4fd36b6238104567b52f5bb80b1985a",
+  "legacy_product_results_changed": false,
+  "orphan_chunks": 0,
+  "partial_writes": 0,
+  "schema_version": "broker_reports_doc28_new_upload_shadow_safe_v1",
+  "status": "NOT_STARTED"
+}

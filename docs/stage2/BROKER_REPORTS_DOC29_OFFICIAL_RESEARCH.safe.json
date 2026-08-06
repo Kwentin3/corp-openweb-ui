@@ -1,0 +1,39 @@
+{
+  "schema_version": "broker_reports_doc29_official_research_safe_v1",
+  "date": "2026-08-05",
+  "status": "COMPLETED",
+  "sources": [
+    {
+      "authority": "Open WebUI",
+      "url": "https://docs.openwebui.com/getting-started/updating/",
+      "finding": "Application data lives in the persistent volume; back up before updates and regularly; restore is performed with the application stopped."
+    },
+    {
+      "authority": "Open WebUI",
+      "url": "https://github.com/open-webui/open-webui/blob/main/docker-compose.yaml",
+      "finding": "The official Compose example mounts a named volume at /app/backend/data."
+    },
+    {
+      "authority": "Docker",
+      "url": "https://docs.docker.com/engine/storage/volumes/",
+      "finding": "Named-volume content survives container removal and Docker documents backup/restore through a helper container."
+    },
+    {
+      "authority": "Docker",
+      "url": "https://docs.docker.com/reference/compose-file/volumes/",
+      "finding": "Compose top-level volumes define reusable persistent storage."
+    },
+    {
+      "authority": "SQLite",
+      "url": "https://www.sqlite.org/backup.html",
+      "finding": "The Online Backup API produces a consistent snapshot of a live SQLite database."
+    },
+    {
+      "authority": "SQLite",
+      "url": "https://www.sqlite.org/howtocorrupt.html#_backup_or_restore_while_a_transaction_is_active",
+      "finding": "An uncontrolled file copy during a transaction can be inconsistent; use the backup API, VACUUM INTO, or a quiescent copy."
+    }
+  ],
+  "decision": "Use existing openwebui_data and Broker ArtifactStore; use coordinated SQLite backup plus immutable referenced payloads or a cold volume snapshot; do not use uncontrolled cp.",
+  "private_content_in_output": false
+}

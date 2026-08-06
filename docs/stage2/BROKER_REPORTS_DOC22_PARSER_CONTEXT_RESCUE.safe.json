@@ -1,0 +1,71 @@
+{
+  "integrity_sha256": "785970b15e60b61d216741bd7b76c940ab8c0f48ebb031bff01797ebb38e6d2f",
+  "interpretation": "The dominant repeated mechanism is immediate parser text/page context, not a crop-specific correction rule.",
+  "isolated_critical_cases_ambiguous_total": 3,
+  "isolated_critical_cases_document_critical_total": 0,
+  "isolated_critical_cases_rescued_total": 40,
+  "isolated_critical_cases_total": 43,
+  "loss_category_counts": {
+    "anthropic_opus": {
+      "AS_OF_VS_YEARS_ENDED": 1,
+      "COLUMN_RELATION": 10,
+      "CONTINUATION_IDENTITY": 2,
+      "PERIOD": 14,
+      "TABLE_SCOPE": 13,
+      "UNIT_OR_SCALE": 7
+    },
+    "google_flash_lite": {
+      "AS_OF_VS_YEARS_ENDED": 1,
+      "COLUMN_RELATION": 10,
+      "CONTINUATION_IDENTITY": 3,
+      "CURRENCY": 1,
+      "GROUP_OR_TOTAL_RELATION": 1,
+      "MISSING_VALUE": 2,
+      "PERIOD": 14,
+      "ROW_RELATION": 1,
+      "TABLE_SCOPE": 16,
+      "UNIT_OR_SCALE": 7,
+      "UNSUPPORTED_VALUE": 1
+    }
+  },
+  "parser_context_rescue": "SUBSTANTIAL",
+  "rescue_source_counts": {
+    "anthropic_opus": {
+      "CONTINUATION_BLOCK": 1,
+      "PAGE_HEADING": 9,
+      "PARSER_TEXT_BLOCK": 13,
+      "PREVIOUS_PAGE_CONTEXT": 1,
+      "SAME_PAGE_FOLLOWING_TEXT": 1,
+      "SAME_PAGE_PRECEDING_TEXT": 19
+    },
+    "google_flash_lite": {
+      "CONTINUATION_BLOCK": 2,
+      "PAGE_HEADING": 11,
+      "PARSER_TEXT_BLOCK": 14,
+      "PREVIOUS_PAGE_CONTEXT": 2,
+      "SAME_PAGE_FOLLOWING_TEXT": 3,
+      "SAME_PAGE_PRECEDING_TEXT": 19
+    }
+  },
+  "rescued_category_counts": {
+    "anthropic_opus": {
+      "COLUMN_RELATION": 10,
+      "CONTINUATION_IDENTITY": 2,
+      "PERIOD": 14,
+      "TABLE_SCOPE": 13,
+      "UNIT_OR_SCALE": 7
+    },
+    "google_flash_lite": {
+      "COLUMN_RELATION": 10,
+      "CONTINUATION_IDENTITY": 3,
+      "CURRENCY": 1,
+      "GROUP_OR_TOTAL_RELATION": 1,
+      "MISSING_VALUE": 2,
+      "PERIOD": 14,
+      "TABLE_SCOPE": 16,
+      "UNIT_OR_SCALE": 7
+    }
+  },
+  "run_id": "broker_reports_doc22_full_document_package_2026-08-04_v1",
+  "schema_version": "broker_reports_doc22_parser_context_rescue_safe_v1"
+}

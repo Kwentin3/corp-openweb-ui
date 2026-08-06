@@ -1,0 +1,47 @@
+{
+  "active_docs_calling_canonical_gate1_output": 0,
+  "active_documents_audited_percent": 100,
+  "boundary": {
+    "gate1": "intake, custody, access, validation, format detection, original preservation and routing",
+    "gate2": "format extraction to CanonicalArtifactV1 plus versions, storage, provenance and issues",
+    "gate3": "future LLM-friendly projection and financial semantics"
+  },
+  "canonical_artifact_gate_assignment": "GATE2",
+  "canonical_compare_enabled": true,
+  "canonical_read_enabled": false,
+  "canonical_write": "CONTROLLED_SHADOW_ONLY",
+  "contradictory_gate_definitions": 0,
+  "current_architecture_index_created": true,
+  "current_contracts": [
+    "contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md",
+    "contracts/BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md",
+    "contracts/BROKER_REPORTS_CANONICAL_ARTIFACT.v1.schema.json",
+    "contracts/BROKER_REPORTS_CANONICAL_STORAGE_LIFECYCLE.v1.md",
+    "contracts/BROKER_REPORTS_CANONICAL_READER.v1.md",
+    "contracts/BROKER_REPORTS_GATE2_MIGRATION_STRATEGY.v1.md",
+    "contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md"
+  ],
+  "date": "2026-08-05",
+  "gate3_financial_logic_implemented": false,
+  "historical_document_policy": "DOC7-DOC25 reports, receipts and evidence remain byte-untouched by DOC26",
+  "historical_evidence_modified": 0,
+  "integrity_sha256": "2af8f88382ee4d0e37d86853fe04927fc56e546667ed547804ab47d723f11c51",
+  "legacy_gate2_handoff_remains_authoritative": true,
+  "schema_version": "broker_reports_doc26_documentation_audit_safe_v1",
+  "status": "PASSED",
+  "superseded_documents": [
+    "blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
+  ],
+  "surfaces_audited": [
+    "architecture documents",
+    "contract documents and schema",
+    "root and stage2 README",
+    "service AGENTS",
+    "module docstrings",
+    "public factory descriptions",
+    "feature-flag descriptions",
+    "architecture tests",
+    "migration notes",
+    "legacy handoff v0 comments and literals"
+  ]
+}

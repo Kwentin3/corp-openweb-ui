@@ -1,0 +1,34 @@
+{
+  "baseline": {
+    "ahead": 0,
+    "behind": 0,
+    "head": "e85fc78e1dbf664c814e6b774122337e2fd8fb64",
+    "origin_main": "e85fc78e1dbf664c814e6b774122337e2fd8fb64",
+    "pre_doc27_dirty_paths": 243,
+    "pre_doc27_tracked_dirty_paths": 26,
+    "pre_doc27_untracked_paths": 217,
+    "worktrees": 1
+  },
+  "cleanup_or_reset_performed": false,
+  "date": "2026-08-05",
+  "generated_bundles_change_product_route": false,
+  "generated_bundles_rebuilt_by_maintained_builder": 3,
+  "historical_doc7_doc26_reports_modified": 0,
+  "historical_hashes_rewritten": 0,
+  "integrity_sha256": "03c7123d18de4d438fd51ed626aeaf73176982d25eeb5b87519586f11138dab2",
+  "legacy_core_files_deleted": 0,
+  "migrated_legacy_surfaces_marked_deprecated_percent": 100,
+  "new_unclassified_dirty_files": 0,
+  "post_doc27": {
+    "dirty_paths": 267,
+    "doc27_clean_to_dirty_paths": 24,
+    "preexisting_paths_preserved": 243,
+    "tracked_dirty_paths": 29,
+    "untracked_paths": 238
+  },
+  "schema_version": "broker_reports_doc27_repository_hygiene_safe_v1",
+  "status": "SAFE",
+  "tracked_private_artifacts": 0,
+  "tracked_raw_provider_payloads": 0,
+  "unrelated_user_changes_preserved": true
+}

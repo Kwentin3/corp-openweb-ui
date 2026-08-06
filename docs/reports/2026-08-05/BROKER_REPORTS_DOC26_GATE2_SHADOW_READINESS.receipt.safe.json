@@ -1,0 +1,59 @@
+{
+  "date": "2026-08-05",
+  "decision": "GATE2_SHADOW_READINESS_READY",
+  "evidence": [
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC26_CONSUMER_MIGRATION_PLAN.safe.json",
+      "sha256": "f806408e1408dbc8a5cd8fdb12ccda0b0c2a44bbcc48ba304ee77dd511515289"
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC26_DECISION.safe.json",
+      "sha256": "8e5cc5d78599652e551b98439cb41da55e8555ad9bfba1c01e6581fbfeb22e27"
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC26_DOCUMENTATION_AUDIT.safe.json",
+      "sha256": "1f0a29152f31fbf2a731e5fa4867459162697fc1983e18e81a20bf6fb10b7823"
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC26_MULTIFORMAT_REGRESSION.safe.json",
+      "sha256": "8d263ac7241bb030433e5d82fb77db4efb2a0797f2018f5aac44e3da5e1c7be9"
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC26_PDF_PRODUCT_REGRESSION.safe.json",
+      "sha256": "1f42e92e5e1a24c1cd2d051d6ac491354bac6f70ee24ab5e2530acd6d192bed1"
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC26_REPOSITORY_INVENTORY.safe.json",
+      "sha256": "d12bdad553d515564da4539e118c78e727834a686bdc4012e8cec7fa296874f4"
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC26_SHADOW_RUN.safe.json",
+      "sha256": "fa92ccb34c82b4437374af12113b88c7b5affabaa70f9cbcf5a00b5a55133e7b"
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC26_STORAGE_LIFECYCLE.safe.json",
+      "sha256": "56caf6ad1f73712013ca5fc4e31724232d1fb6750ea0ba38ab2117ecb9186aa8"
+    },
+    {
+      "path": "docs/stage2/BROKER_REPORTS_DOC26_TEST_RESULTS.safe.json",
+      "sha256": "e29cbe022da4f2f0c9a1db455c0f33dc5d390fbdc94efbd3317c7a4157d80900"
+    }
+  ],
+  "gate3": "NOT_STARTED",
+  "integrity_sha256": "0d2262e96c2f7b1575ce50ff32c5f672c0d67280a762bf3db84c674f7f1e202d",
+  "known_non_green_guards": "five DOC8-DOC11 receipt-hash failures and eleven Type-First authority-map receipt errors; historical hashes unchanged",
+  "private_content_in_receipt": false,
+  "product_cutover": "NOT_PERFORMED",
+  "schema_version": "broker_reports_doc26_gate2_shadow_readiness_receipt_safe_v1",
+  "status": "COMPLETED",
+  "terminal_test_accounting": {
+    "focused_passed": 123,
+    "full_errors": 11,
+    "full_failed": 6,
+    "full_passed": 2885,
+    "full_skipped": 5,
+    "full_terminal": true,
+    "full_timeout": false,
+    "post_full_targeted_passed": 6
+  }
+}

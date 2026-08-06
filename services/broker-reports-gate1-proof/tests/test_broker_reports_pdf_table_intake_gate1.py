@@ -237,7 +237,7 @@ class PdfTableDetectionContractTest(unittest.TestCase):
 
 
 class PdfTableRasterCandidateTest(unittest.TestCase):
-    def test_global_eight_percent_padding_is_exact_clamped_and_repeatable(self):
+    def test_canonical_table_region_is_exact_clamped_and_repeatable(self):
         pdf_bytes = _single_page_pdf()
         pdf_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
         renderer = PdfTableRasterFactory().create()
@@ -254,12 +254,14 @@ class PdfTableRasterCandidateTest(unittest.TestCase):
         first = renderer.render_detected_region(**kwargs)
         second = renderer.render_detected_region(**kwargs)
         manifest = first["manifest"]
-        self.assertEqual([20.0, 40.0, 80.0, 160.0], manifest["declared_table_bbox"])
-        self.assertEqual([12.0, 24.0, 88.0, 176.0], manifest["rendered_bbox"])
-        self.assertEqual(8.0, manifest["padding_x_points"])
-        self.assertEqual(16.0, manifest["padding_y_points"])
-        self.assertEqual(0.08, manifest["horizontal_padding_fraction"])
-        self.assertEqual(0.08, manifest["vertical_padding_fraction"])
+        self.assertEqual(
+            [20.0, 40.0, 80.0, 160.0],
+            manifest["table_region"]["source_candidate_bbox"],
+        )
+        self.assertEqual([18.0, 38.0, 82.0, 162.0], manifest["rendered_bbox"])
+        self.assertEqual("CROP_CLEAN", manifest["table_region"]["status"])
+        self.assertEqual("canonical_table_region", manifest["padding_basis"])
+        self.assertFalse(manifest["legacy_padding_configuration"]["applied"])
         self.assertEqual(first, second)
         self.assertEqual(
             manifest["png_sha256"],
@@ -269,9 +271,9 @@ class PdfTableRasterCandidateTest(unittest.TestCase):
         edge = renderer.render_detected_region(
             **{**kwargs, "detected_bbox_normalized": [0.01, 0.01, 0.4, 0.4]}
         )
-        self.assertEqual([0.0, 0.0, 48.0, 96.0], edge["manifest"]["rendered_bbox"])
+        self.assertEqual([0.0, 0.0, 58.800999, 82.0], edge["manifest"]["rendered_bbox"])
 
-    def test_independent_padding_config_and_invalid_config_fail_closed(self):
+    def test_legacy_padding_config_is_not_applied_and_invalid_config_fails_closed(self):
         pdf_bytes = _single_page_pdf()
         renderer = PdfTableRasterFactory(
             PdfTableRasterConfig(
@@ -290,7 +292,11 @@ class PdfTableRasterCandidateTest(unittest.TestCase):
             detector_identity={"model": "test"},
         )
         self.assertEqual(
-            [12.0, 32.0, 88.0, 168.0], rendered["manifest"]["rendered_bbox"]
+            [18.0, 38.0, 82.0, 162.0], rendered["manifest"]["rendered_bbox"]
+        )
+        self.assertEqual(
+            {"horizontal_fraction": 0.08, "vertical_fraction": 0.04, "applied": False},
+            rendered["manifest"]["legacy_padding_configuration"],
         )
         with self.assertRaisesRegex(
             PdfTableRasterError, "pdf_table_raster_padding_fraction_invalid"

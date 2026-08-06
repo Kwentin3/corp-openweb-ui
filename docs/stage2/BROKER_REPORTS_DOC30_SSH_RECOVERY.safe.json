@@ -1,0 +1,23 @@
+{
+  "schema_version": "broker_reports_doc30_ssh_recovery_safe_v1",
+  "date": "2026-08-05",
+  "status": "CONFIRMED",
+  "documented_ssh_route_found": true,
+  "ssh_credentials_requested_from_user": false,
+  "incident_baseline_timestamp_utc": "2026-08-05T15:12:52Z",
+  "probe_policy": {
+    "batch_mode": true,
+    "connect_timeout_bounded": true,
+    "keepalive_bounded": true,
+    "interactive_password_prompt": false,
+    "attempts": 3,
+    "operator_authorized_retries": 1,
+    "successful_attempts": 1
+  },
+  "probe_result": "SSH_RESPONSIVE_AT_2026_08_05T16_29_50Z",
+  "remote_commands_executed": "BOUNDED_RECOVERY_AND_DOC30_WORK",
+  "stop_condition_triggered": false,
+  "prior_banner_timeouts_accounted": 2,
+  "ssh_secrets_in_safe_output": 0,
+  "private_content_in_output": false
+}

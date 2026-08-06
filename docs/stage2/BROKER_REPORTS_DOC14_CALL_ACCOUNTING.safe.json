@@ -1,0 +1,19 @@
+{
+  "architecture_audited_before_calls": true,
+  "attempts_total": 16,
+  "baseline_calls_reused_total": 16,
+  "failed_total": 0,
+  "fallback_total": 0,
+  "http_200_total": 16,
+  "integrity_sha256": "546de973d463e208529434ec660bb11a488453f4b1995f3667e551d32d4f3d79",
+  "maximum_parallelism": 1,
+  "model_availability_checked_before_calls": true,
+  "new_calls_accounted_total": 16,
+  "new_calls_expected_total": 16,
+  "protocol_sha256": "8a93c466a2fc1e89a6fe1fedbbd56f93d5bbfc6933ede287aa77e4a57cce441a",
+  "provider_success_total": 16,
+  "retry_total": 0,
+  "run_id": "broker_reports_doc14_structured_json_2026-08-03_v1",
+  "schema_version": "broker_reports_doc14_call_accounting_safe_v2",
+  "structured_output_calls_total": 16
+}

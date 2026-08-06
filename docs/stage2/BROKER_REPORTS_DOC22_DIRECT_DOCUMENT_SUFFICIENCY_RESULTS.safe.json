@@ -1,0 +1,1419 @@
+{
+  "cases": [
+    {
+      "case_id": "google_flash_lite__ACORNS_T01",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "acorns_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "CURRENCY"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 5,
+      "reason": "The statement name and as-of date are the three parser lines immediately above the target; currency markers remain in target-overlap parser lines.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "CURRENCY"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "ACORNS_T01"
+    },
+    {
+      "case_id": "anthropic_opus__ACORNS_T01",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "acorns_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 5,
+      "reason": "The statement name and as-of date are the three parser lines immediately above the target; currency markers remain in target-overlap parser lines.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "ACORNS_T01"
+    },
+    {
+      "case_id": "google_flash_lite__ACORNS_T02",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "acorns_2025",
+      "document_package_verdict": "AMBIGUOUS",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "ROW_RELATION",
+        "UNSUPPORTED_VALUE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 10,
+      "reason": "The recurring fair-value scope and date are in the paragraph immediately before the table.",
+      "remaining_losses": [
+        "ROW_RELATION",
+        "UNSUPPORTED_VALUE"
+      ],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "ACORNS_T02"
+    },
+    {
+      "case_id": "anthropic_opus__ACORNS_T02",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "acorns_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 10,
+      "reason": "The recurring fair-value scope and date are in the paragraph immediately before the table.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "ACORNS_T02"
+    },
+    {
+      "case_id": "google_flash_lite__ACORNS_T03",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "acorns_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 10,
+      "reason": "The liability block immediately follows the asset block governed by the same recurring fair-value paragraph and date.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "ACORNS_T03"
+    },
+    {
+      "case_id": "anthropic_opus__ACORNS_T03",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "acorns_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 10,
+      "reason": "The liability block immediately follows the asset block governed by the same recurring fair-value paragraph and date.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "ACORNS_T03"
+    },
+    {
+      "case_id": "google_flash_lite__JEFFERIES_T01",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 60,
+      "reason": "The consolidated financial-condition heading is on the same page directly above the target.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T01"
+    },
+    {
+      "case_id": "anthropic_opus__JEFFERIES_T01",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "DOCUMENT_SUFFICIENT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [],
+      "isolated_table_verdict": "NONCRITICAL_LOSS",
+      "page_number": 60,
+      "reason": "The consolidated financial-condition heading is on the same page directly above the target.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "TABLE_JSON"
+      ],
+      "rescued_categories": [],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T01"
+    },
+    {
+      "case_id": "google_flash_lite__JEFFERIES_T02",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 62,
+      "reason": "Statement identity, years-ended basis, scale, and year labels directly precede the table body.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T02"
+    },
+    {
+      "case_id": "anthropic_opus__JEFFERIES_T02",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 62,
+      "reason": "Statement identity, years-ended basis, scale, and year labels directly precede the table body.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T02"
+    },
+    {
+      "case_id": "google_flash_lite__JEFFERIES_T03",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 63,
+      "reason": "The same-page parser lines provide the consolidated statement identity, scale, years-ended basis, and ordered year labels.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T03"
+    },
+    {
+      "case_id": "anthropic_opus__JEFFERIES_T03",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 63,
+      "reason": "The same-page parser lines provide the consolidated statement identity, scale, years-ended basis, and ordered year labels.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T03"
+    },
+    {
+      "case_id": "google_flash_lite__JEFFERIES_T04",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION",
+        "CONTINUATION_IDENTITY"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 64,
+      "reason": "The cash-flow identity, scale, period, and columns immediately precede the selected body.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION",
+        "CONTINUATION_IDENTITY"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T04"
+    },
+    {
+      "case_id": "anthropic_opus__JEFFERIES_T04",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION",
+        "CONTINUATION_IDENTITY"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 64,
+      "reason": "The cash-flow identity, scale, period, and columns immediately precede the selected body.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION",
+        "CONTINUATION_IDENTITY"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T04"
+    },
+    {
+      "case_id": "google_flash_lite__JEFFERIES_T05",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "MISSING_VALUE",
+        "GROUP_OR_TOTAL_RELATION",
+        "CONTINUATION_IDENTITY"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 65,
+      "reason": "The repeated cash-flow heading and prior-page cash-flow body establish continuation; the omitted reconciliation is serialized later on the same page.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "PREVIOUS_PAGE_CONTEXT",
+        "SAME_PAGE_FOLLOWING_TEXT",
+        "CONTINUATION_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "MISSING_VALUE",
+        "GROUP_OR_TOTAL_RELATION",
+        "CONTINUATION_IDENTITY"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T05"
+    },
+    {
+      "case_id": "anthropic_opus__JEFFERIES_T05",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "DOCUMENT_SUFFICIENT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [],
+      "isolated_table_verdict": "NONCRITICAL_LOSS",
+      "page_number": 65,
+      "reason": "The repeated cash-flow heading and prior-page cash-flow body establish continuation; the omitted reconciliation is serialized later on the same page.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "TABLE_JSON"
+      ],
+      "rescued_categories": [],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T05"
+    },
+    {
+      "case_id": "google_flash_lite__JEFFERIES_T06",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 61,
+      "reason": "The consolidated earnings identity is the page heading immediately above the table.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T06"
+    },
+    {
+      "case_id": "anthropic_opus__JEFFERIES_T06",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "jefferies_2024",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 61,
+      "reason": "The consolidated earnings identity is the page heading immediately above the table.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "JEFFERIES_T06"
+    },
+    {
+      "case_id": "google_flash_lite__LPL_T01",
+      "conflicts": [
+        "PERIOD_AMBIGUITY"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "AMBIGUOUS",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 55,
+      "reason": "The combined 'As of and for the Years Ended' header is present, but it does not bind each selected metric to stock or flow basis without domain interpretation.",
+      "remaining_losses": [
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T01"
+    },
+    {
+      "case_id": "anthropic_opus__LPL_T01",
+      "conflicts": [
+        "PERIOD_AMBIGUITY"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "AMBIGUOUS",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 55,
+      "reason": "The combined 'As of and for the Years Ended' header is present, but it does not bind each selected metric to stock or flow basis without domain interpretation.",
+      "remaining_losses": [
+        "AS_OF_VS_YEARS_ENDED"
+      ],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T01"
+    },
+    {
+      "case_id": "google_flash_lite__LPL_T02",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "UNIT_OR_SCALE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 57,
+      "reason": "The introductory sentence immediately above the reconciliation states that the presented values are in millions.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "UNIT_OR_SCALE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T02"
+    },
+    {
+      "case_id": "anthropic_opus__LPL_T02",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "crop_class": "CROP_CONTAMINATED",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "UNIT_OR_SCALE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 57,
+      "reason": "The introductory sentence immediately above the reconciliation states that the presented values are in millions.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "UNIT_OR_SCALE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T02"
+    },
+    {
+      "case_id": "google_flash_lite__LPL_T03",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "UNIT_OR_SCALE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 58,
+      "reason": "The sentence and heading immediately above the target specify years ended December 31 and millions.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "UNIT_OR_SCALE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T03"
+    },
+    {
+      "case_id": "anthropic_opus__LPL_T03",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "UNIT_OR_SCALE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 58,
+      "reason": "The sentence and heading immediately above the target specify years ended December 31 and millions.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "UNIT_OR_SCALE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T03"
+    },
+    {
+      "case_id": "google_flash_lite__LPL_T04",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "UNIT_OR_SCALE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 66,
+      "reason": "The preceding sentence identifies Corporate Cash components and the thousands scale; dates are the next header line.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "UNIT_OR_SCALE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T04"
+    },
+    {
+      "case_id": "anthropic_opus__LPL_T04",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "lpl_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "UNIT_OR_SCALE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 66,
+      "reason": "The preceding sentence identifies Corporate Cash components and the thousands scale; dates are the next header line.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "UNIT_OR_SCALE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "LPL_T04"
+    },
+    {
+      "case_id": "google_flash_lite__STONEX_T01",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "stonex_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "MISSING_VALUE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 47,
+      "reason": "The Section 12(b) heading is immediately above the target and the Section 12(g) NONE block immediately follows it.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "SAME_PAGE_FOLLOWING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "MISSING_VALUE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "STONEX_T01"
+    },
+    {
+      "case_id": "anthropic_opus__STONEX_T01",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "stonex_2025",
+      "document_package_verdict": "DOCUMENT_SUFFICIENT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [],
+      "isolated_table_verdict": "NONCRITICAL_LOSS",
+      "page_number": 47,
+      "reason": "The Section 12(b) heading is immediately above the target and the Section 12(g) NONE block immediately follows it.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "TABLE_JSON"
+      ],
+      "rescued_categories": [],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "STONEX_T01"
+    },
+    {
+      "case_id": "google_flash_lite__STONEX_T02",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "stonex_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 47,
+      "reason": "The parser line 'Indicate by check mark YES NO' immediately precedes the ordered question rows and restores their two column roles.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "STONEX_T02"
+    },
+    {
+      "case_id": "anthropic_opus__STONEX_T02",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "stonex_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 47,
+      "reason": "The parser line 'Indicate by check mark YES NO' immediately precedes the ordered question rows and restores their two column roles.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "STONEX_T02"
+    },
+    {
+      "case_id": "google_flash_lite__STONEX_T03",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "stonex_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 84,
+      "reason": "The MD&A page heading and the immediately preceding fiscal-year/value/change header bind scope, periods, and alternating columns.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "STONEX_T03"
+    },
+    {
+      "case_id": "anthropic_opus__STONEX_T03",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "stonex_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 84,
+      "reason": "The MD&A page heading and the immediately preceding fiscal-year/value/change header bind scope, periods, and alternating columns.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "STONEX_T03"
+    },
+    {
+      "case_id": "google_flash_lite__STONEX_T04",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "stonex_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 117,
+      "reason": "The same-page comprehensive-income heading, fiscal period, millions scale, and year labels directly precede the body.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "STONEX_T04"
+    },
+    {
+      "case_id": "anthropic_opus__STONEX_T04",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "stonex_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 117,
+      "reason": "The same-page comprehensive-income heading, fiscal period, millions scale, and year labels directly precede the body.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "STONEX_T04"
+    },
+    {
+      "case_id": "google_flash_lite__STONEX_T05",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "stonex_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION",
+        "CONTINUATION_IDENTITY"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 119,
+      "reason": "The prior page ends inside the same cash-flow statement; the selected page continues with financing activities under the same fiscal-year and scale header.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PREVIOUS_PAGE_CONTEXT",
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT",
+        "CONTINUATION_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION",
+        "CONTINUATION_IDENTITY"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "STONEX_T05"
+    },
+    {
+      "case_id": "anthropic_opus__STONEX_T05",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "stonex_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION",
+        "CONTINUATION_IDENTITY"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 119,
+      "reason": "The prior page ends inside the same cash-flow statement; the selected page continues with financing activities under the same fiscal-year and scale header.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PREVIOUS_PAGE_CONTEXT",
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT",
+        "CONTINUATION_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE",
+        "PERIOD",
+        "UNIT_OR_SCALE",
+        "COLUMN_RELATION",
+        "CONTINUATION_IDENTITY"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "STONEX_T05"
+    },
+    {
+      "case_id": "google_flash_lite__TRADEWEB_T01",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 77,
+      "reason": "The ITEM 2 properties paragraph immediately above the target defines principal-office scope and the reporting date.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T01"
+    },
+    {
+      "case_id": "anthropic_opus__TRADEWEB_T01",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "TABLE_SCOPE"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 77,
+      "reason": "The ITEM 2 properties paragraph immediately above the target defines principal-office scope and the reporting date.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "TABLE_SCOPE"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T01"
+    },
+    {
+      "case_id": "google_flash_lite__TRADEWEB_T02",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 91,
+      "reason": "The adjacent parser header supplies years, dollar-change, percent-change, and thousands scale for the target rows.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T02"
+    },
+    {
+      "case_id": "anthropic_opus__TRADEWEB_T02",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 91,
+      "reason": "The adjacent parser header supplies years, dollar-change, percent-change, and thousands scale for the target rows.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T02"
+    },
+    {
+      "case_id": "google_flash_lite__TRADEWEB_T03",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 88,
+      "reason": "The results-of-operations heading and adjacent header provide years, dollar-change and percentage-change roles; parser rows retain currency tokens with their values.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T03"
+    },
+    {
+      "case_id": "anthropic_opus__TRADEWEB_T03",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 88,
+      "reason": "The results-of-operations heading and adjacent header provide years, dollar-change and percentage-change roles; parser rows retain currency tokens with their values.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "PAGE_HEADING",
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T03"
+    },
+    {
+      "case_id": "google_flash_lite__TRADEWEB_T04",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 99,
+      "reason": "The working-capital sentence and immediate date header bind the two value columns as of December 31, 2025 and 2024.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T04"
+    },
+    {
+      "case_id": "anthropic_opus__TRADEWEB_T04",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 99,
+      "reason": "The working-capital sentence and immediate date header bind the two value columns as of December 31, 2025 and 2024.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T04"
+    },
+    {
+      "case_id": "google_flash_lite__TRADEWEB_T05",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 103,
+      "reason": "The reconciliation paragraph, years-ended header, scale, and full footnotes are present around the selected table.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "SAME_PAGE_FOLLOWING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T05"
+    },
+    {
+      "case_id": "anthropic_opus__TRADEWEB_T05",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLIPPED",
+      "document_id": "tradeweb_2025",
+      "document_package_verdict": "RESCUED_BY_DOCUMENT_CONTEXT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "isolated_table_verdict": "CRITICAL_LOSS",
+      "page_number": 103,
+      "reason": "The reconciliation paragraph, years-ended header, scale, and full footnotes are present around the selected table.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "SAME_PAGE_PRECEDING_TEXT",
+        "SAME_PAGE_FOLLOWING_TEXT",
+        "PARSER_TEXT_BLOCK"
+      ],
+      "rescued_categories": [
+        "PERIOD",
+        "COLUMN_RELATION"
+      ],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "TRADEWEB_T05"
+    },
+    {
+      "case_id": "google_flash_lite__OPPENHEIMER_T01",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "oppenheimer_2025",
+      "document_package_verdict": "DOCUMENT_SUFFICIENT",
+      "gate1_provider": "google_flash_lite",
+      "isolated_loss_categories": [],
+      "isolated_table_verdict": "SUFFICIENT",
+      "page_number": 2,
+      "reason": "The table JSON already retains title, year columns, scale qualifiers, row labels, and values.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "TABLE_JSON"
+      ],
+      "rescued_categories": [],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "OPPENHEIMER_T01"
+    },
+    {
+      "case_id": "anthropic_opus__OPPENHEIMER_T01",
+      "conflicts": [
+        "NO_CONFLICT"
+      ],
+      "crop_class": "CROP_CLEAN",
+      "document_id": "oppenheimer_2025",
+      "document_package_verdict": "DOCUMENT_SUFFICIENT",
+      "gate1_provider": "anthropic_opus",
+      "isolated_loss_categories": [],
+      "isolated_table_verdict": "SUFFICIENT",
+      "page_number": 2,
+      "reason": "The table JSON already retains title, year columns, scale qualifiers, row labels, and values.",
+      "remaining_losses": [],
+      "rescue_sources": [
+        "TABLE_JSON"
+      ],
+      "rescued_categories": [],
+      "review_method": "DIRECT_AGENT_PDF_PAGE_OVERLAY_SHADOW_PACKAGE_COMPARISON",
+      "table_id": "OPPENHEIMER_T01"
+    }
+  ],
+  "categories_assessed": [
+    "TABLE_SCOPE",
+    "DOCUMENT_SCOPE",
+    "PERIOD",
+    "AS_OF_VS_YEARS_ENDED",
+    "CURRENCY",
+    "UNIT_OR_SCALE",
+    "SIGN",
+    "ROW_RELATION",
+    "COLUMN_RELATION",
+    "GROUP_OR_TOTAL_RELATION",
+    "CONTINUATION_IDENTITY",
+    "CRITICAL_NOTE",
+    "MATERIAL_QUALIFIER",
+    "MISSING_VALUE",
+    "UNSUPPORTED_VALUE"
+  ],
+  "direct_agent_review_completed": true,
+  "direct_cases_total": 48,
+  "failed_cases_excluded": 0,
+  "gate1_table_artifacts_per_table": 2,
+  "integrity_sha256": "183e9e6caa0af3171d3b5bbaa28332e996012034e3c8daf85f801d1e2ab03c2d",
+  "new_provider_calls_phase_a_total": 0,
+  "private_ledger_sha256": "c7f03745c8cb400223456d27abdd6b3a023a7aaab8b7d0c97a30bcab0739f5a3",
+  "provider_metrics": {
+    "anthropic_opus": {
+      "counts": {
+        "AMBIGUOUS": 1,
+        "DOCUMENT_CRITICAL_LOSS": 0,
+        "DOCUMENT_SUFFICIENT": 4,
+        "RESCUED_BY_DOCUMENT_CONTEXT": 19
+      },
+      "material_cases": 23,
+      "phase_b_eligible": true,
+      "systematic_remaining_losses": []
+    },
+    "google_flash_lite": {
+      "counts": {
+        "AMBIGUOUS": 2,
+        "DOCUMENT_CRITICAL_LOSS": 0,
+        "DOCUMENT_SUFFICIENT": 1,
+        "RESCUED_BY_DOCUMENT_CONTEXT": 21
+      },
+      "material_cases": 22,
+      "phase_b_eligible": true,
+      "systematic_remaining_losses": []
+    }
+  },
+  "research_only": true,
+  "run_id": "broker_reports_doc22_full_document_package_2026-08-04_v1",
+  "schema_version": "broker_reports_doc22_direct_document_sufficiency_safe_v1",
+  "tables_total": 24
+}

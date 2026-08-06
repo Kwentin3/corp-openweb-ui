@@ -1,0 +1,17 @@
+{
+  "schema_version": "broker_reports_doc30_test_results_safe_v1",
+  "date": "2026-08-05",
+  "status": "PARTIAL",
+  "focused_doc30_tests": "PASS",
+  "focused_test_count": 9,
+  "target_durability_tests": "PARTIAL_8_OF_16",
+  "backup_restore_tests": "BLOCKED",
+  "research_consumer_tests": "BLOCKED",
+  "wave2_shadow_tests": "BLOCKED",
+  "new_unexplained_failures": 0,
+  "full_suite_terminal": false,
+  "full_suite_timeout": false,
+  "full_suite_not_started_reason": "Backfill stopped at the explicit OOM stop condition before durability and consumer prerequisites completed.",
+  "historical_hashes_rewritten": 0,
+  "private_content_in_output": false
+}

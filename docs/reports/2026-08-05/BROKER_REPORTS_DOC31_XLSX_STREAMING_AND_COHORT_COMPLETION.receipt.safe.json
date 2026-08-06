@@ -1,0 +1,16 @@
+{
+  "backup_restore": "PASS",
+  "cohort_active": "16/16",
+  "date": "2026-08-05",
+  "decision_integrity_sha256": "b6b28e0938f880c462b54b1befb1e01d4e6441aa814fd27f2418f957911228ff",
+  "historical_hashes_rewritten": 0,
+  "historical_reports_modified_by_doc31": 0,
+  "integrity_sha256": "be9e303e938bb52b56eb1a2c5716fda3c74dc219cf9dfdf322f64fd827e8f61d",
+  "private_content_in_output": false,
+  "research_consumer": "BLOCKED",
+  "roots_matched": "16/16",
+  "safe_artifacts": 15,
+  "schema_version": "broker_reports_doc31_xlsx_streaming_and_cohort_completion_receipt_safe_v1",
+  "wave2_cutover_goal_authorized": false,
+  "wave2_shadow": "NOT_STARTED_STOP_CONDITION"
+}

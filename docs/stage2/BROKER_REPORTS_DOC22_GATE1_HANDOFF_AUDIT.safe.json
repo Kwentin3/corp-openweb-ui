@@ -1,0 +1,180 @@
+{
+  "code_evidence": [
+    {
+      "file": "services/broker-reports-gate1-proof/broker_reports_gate1/normalizer.py",
+      "matches": [
+        {
+          "line": 26,
+          "text": "from .full_source import FullSourceArtifactConfig, FullSourceArtifactFactory"
+        },
+        {
+          "line": 39,
+          "text": "NormalizedTableProjectionFactory,"
+        },
+        {
+          "line": 130,
+          "text": "full_source_builder = FullSourceArtifactFactory("
+        },
+        {
+          "line": 137,
+          "text": "table_projection_builder = NormalizedTableProjectionFactory("
+        },
+        {
+          "line": 563,
+          "text": "\"gate2_handoff\": gate2_handoff,"
+        },
+        {
+          "line": 600,
+          "text": "package[\"gate2_handoff\"][\"handoff_mode\"] = ("
+        },
+        {
+          "line": 603,
+          "text": "package[\"gate2_handoff\"][\"gate2_handoff_status\"] = \"blocked\""
+        }
+      ],
+      "sha256": "97baf95bab789f95458b22fc2e600993c375a36a148124eb892d1938729ae181"
+    },
+    {
+      "file": "services/broker-reports-gate1-proof/broker_reports_gate1/full_source.py",
+      "matches": [
+        {
+          "line": 49,
+          "text": "FACTORY_REQUIRED = ("
+        },
+        {
+          "line": 94,
+          "text": "class FullSourceBuildResult:"
+        },
+        {
+          "line": 243,
+          "text": ") -> FullSourceBuildResult:"
+        },
+        {
+          "line": 332,
+          "text": "return FullSourceBuildResult(payloads=payloads, units=units, summary=summary)"
+        },
+        {
+          "line": 708,
+          "text": ") -> FullSourceBuildResult:"
+        },
+        {
+          "line": 1516,
+          "text": "return FullSourceBuildResult("
+        }
+      ],
+      "sha256": "9ef5630ac9938c936efd06c0fc4638ba7b43a33c8f443db85649323e01b111f8"
+    },
+    {
+      "file": "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_layout_units.py",
+      "matches": [
+        {
+          "line": 795,
+          "text": "return [*table_units, *line_units], reasons"
+        }
+      ],
+      "sha256": "ddebf803c3c7d97f612bc90137dbd52cb09073513048bd66492b28354d607292"
+    },
+    {
+      "file": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_handoff.py",
+      "matches": [
+        {
+          "line": 44,
+          "text": "\"private_source_unit_refs\": list(self.private_source_unit_refs),"
+        },
+        {
+          "line": 1051,
+          "text": "\"artifact_type\": \"gate2_handoff_v0\","
+        },
+        {
+          "line": 1123,
+          "text": "\"private_source_unit_refs\": included_source_unit_refs,"
+        },
+        {
+          "line": 1162,
+          "text": "artifact_type=\"gate2_handoff_v0\","
+        },
+        {
+          "line": 1195,
+          "text": "refs_by_type.setdefault(\"gate2_handoff_v0\", [])"
+        }
+      ],
+      "sha256": "b15ea2a6c756ad3af44637e7481c25a452d07bb7ebf18dd095073b35fbd60f54"
+    },
+    {
+      "file": "services/broker-reports-gate1-proof/broker_reports_gate1/managed_pdf_document.py",
+      "matches": [
+        {
+          "line": 58,
+          "text": "FORBIDDEN = \"DOC2 callers must not use PdfLayoutUnitBuilder._build_page_units, product routes, provider calls, Gate 2, Semantic Pack, or Type-First as Managed Document reading-order authority\""
+        },
+        {
+          "line": 62,
+          "text": "def inactive_doc2_artifact_type_scope():"
+        }
+      ],
+      "sha256": "cae6e40242fe25cf085606d8e4a4106c80ab83f0b632757dc091413060f41961"
+    },
+    {
+      "file": "services/broker-reports-gate1-proof/broker_reports_gate1/managed_pdf_document_v2.py",
+      "matches": [
+        {
+          "line": 33,
+          "text": "\"ManagedPdfDocumentV2Factory.create is the sole inactive PDF to Managed \""
+        },
+        {
+          "line": 38,
+          "text": "\"owners, provider output, visual gold, product routes, or generated bundles\""
+        },
+        {
+          "line": 43,
+          "text": "\"\"\"Raised when the inactive v2 document cannot be assembled exactly.\"\"\""
+        },
+        {
+          "line": 191,
+          "text": "\"provider_calls_total\": 0,"
+        },
+        {
+          "line": 192,
+          "text": "\"product_route_connected\": False,"
+        }
+      ],
+      "sha256": "b8e801a8f6219c7230ec85aa0a3a77542e9ceade5586eb8ad0bc861036f67a21"
+    }
+  ],
+  "finding": {
+    "actual_downstream_handoff": "gate2_handoff_v0 reference bundle",
+    "canonical_document_level_handoff_found": false,
+    "llm_view_is_active_product_handoff": false,
+    "managed_document_is_active_product_handoff": false,
+    "ordered_full_document_payload_in_handoff": false,
+    "shadow_package_required_for_doc22": true
+  },
+  "gate1_document_handoff_audited": true,
+  "handoff_audit_private_sha256": "b1f3f1ab3f20e30cb62a2d472a9bddaa8dd6fe230419573984bf03cc96729019",
+  "integrity_sha256": "b05208346b8733d8c59f7445ec7bd2e52c12e7e5b6c7829f8fb50b98ffd7ddb1",
+  "map": [
+    "PDF",
+    "Gate1Normalizer",
+    "FullSourceArtifactFactory",
+    "PdfLayoutUnitBuilder fragmented page-local table and line units",
+    "NormalizedTableProjectionFactory",
+    "gate2_handoff_v0 reference bundle",
+    "Gate2 per-source-unit runtime package"
+  ],
+  "new_product_handoff_contract_created": false,
+  "research_shadow_package_created": true,
+  "run_id": "broker_reports_doc22_full_document_package_2026-08-04_v1",
+  "schema_version": "broker_reports_doc22_gate1_handoff_audit_safe_v1",
+  "shadow_cases_total": 48,
+  "shadow_construction": {
+    "corrected_text_used": false,
+    "existing_parser_order_preserved": true,
+    "new_reading_order_algorithm_used": false,
+    "new_semantic_relations_used": false,
+    "new_text_classification_used": false,
+    "pdf_values_reread_used": false
+  },
+  "shadow_documents_total": 6,
+  "shadow_index_private_sha256": "e246f18b47a9d3019d4e3d63867a15fa9f4368af30760589da287200e1c09496",
+  "shadow_tables_total": 24
+}

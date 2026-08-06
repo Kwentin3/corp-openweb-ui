@@ -1,0 +1,80 @@
+{
+  "attribution_tokens": {
+    "duplicate_table_text_removed": 8641,
+    "engineering_metadata_removed": 2537886,
+    "long_identifiers_removed": 2520,
+    "repeated_schemas_removed": 6112
+  },
+  "by_document": {
+    "acorns_2025": {
+      "deduplicated_view_tokens": 30829,
+      "full_shadow_tokens": 48531,
+      "token_reduction_absolute": 17702,
+      "token_reduction_percent": 36.4757
+    },
+    "jefferies_2024": {
+      "deduplicated_view_tokens": 1731035,
+      "full_shadow_tokens": 2528771,
+      "token_reduction_absolute": 797736,
+      "token_reduction_percent": 31.5464
+    },
+    "lpl_2025": {
+      "deduplicated_view_tokens": 976438,
+      "full_shadow_tokens": 1350908,
+      "token_reduction_absolute": 374470,
+      "token_reduction_percent": 27.7199
+    },
+    "oppenheimer_2025": {
+      "deduplicated_view_tokens": 15189,
+      "full_shadow_tokens": 25234,
+      "token_reduction_absolute": 10045,
+      "token_reduction_percent": 39.8074
+    },
+    "stonex_2025": {
+      "deduplicated_view_tokens": 1575748,
+      "full_shadow_tokens": 2321193,
+      "token_reduction_absolute": 745445,
+      "token_reduction_percent": 32.1147
+    },
+    "tradeweb_2025": {
+      "deduplicated_view_tokens": 1564352,
+      "full_shadow_tokens": 2174113,
+      "token_reduction_absolute": 609761,
+      "token_reduction_percent": 28.0464
+    }
+  },
+  "by_provider_arm": {
+    "anthropic_opus": {
+      "deduplicated_view_tokens": 2946678,
+      "full_shadow_tokens": 4224652,
+      "token_reduction_absolute": 1277974,
+      "token_reduction_percent": 30.2504
+    },
+    "google_flash_lite": {
+      "deduplicated_view_tokens": 2946913,
+      "full_shadow_tokens": 4224098,
+      "token_reduction_absolute": 1277185,
+      "token_reduction_percent": 30.2357
+    }
+  },
+  "context_compression": "MINIMUM_MET",
+  "corpus_case_projection": {
+    "deduplicated_view_tokens": 5893591,
+    "full_shadow_tokens": 8448750,
+    "token_reduction_absolute": 2555159,
+    "token_reduction_percent": 30.243
+  },
+  "exact_preflight_comparison": {
+    "doc22_full_shadow_input_tokens": 235290,
+    "doc23_deduplicated_input_tokens": 161296,
+    "token_reduction_absolute": 73994,
+    "token_reduction_percent": 31.448
+  },
+  "integrity_sha256": "754c623bb60606e163d5e392067b2da4ff5322eb0ae7fe4d2616b9f466655b86",
+  "minimum_30_percent_met": true,
+  "research_only": true,
+  "run_id": "broker_reports_doc23_deduplicated_gate1_view_2026-08-05_v1",
+  "schema_version": "broker_reports_doc23_token_compression_safe_v1",
+  "target_50_percent_met": false,
+  "tokenizer": "tiktoken_o200k_base_estimate"
+}

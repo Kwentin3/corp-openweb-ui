@@ -1,0 +1,18 @@
+{
+  "blank_styled_cells": 39499,
+  "date": "2026-08-05",
+  "dimension_mismatches_explicit": 2,
+  "fabricated_cells": 0,
+  "formula_cache_distinction": "CONFIRMED",
+  "formulas": 3147,
+  "integrity_sha256": "733e3b23b99172c4c4cdd1127f6a57107cddc3e42aa963e130359aba3be1a785",
+  "merged_ranges": 13,
+  "missing_cached_values": 0,
+  "named_ranges": 1,
+  "private_content_in_output": false,
+  "schema_version": "broker_reports_doc31_fidelity_results_safe_v1",
+  "sheets_and_visibility": "CONFIRMED",
+  "source_coordinates": "CONFIRMED",
+  "status": "PASS",
+  "styles": 130
+}

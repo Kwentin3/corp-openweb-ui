@@ -1,0 +1,263 @@
+{
+  "direct_ambiguous_cases": [
+    {
+      "case_id": "google_flash_lite__ACORNS_T02",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "remaining_losses": [
+        "ROW_RELATION",
+        "UNSUPPORTED_VALUE"
+      ]
+    },
+    {
+      "case_id": "google_flash_lite__LPL_T01",
+      "conflicts": [
+        "PERIOD_AMBIGUITY"
+      ],
+      "remaining_losses": [
+        "AS_OF_VS_YEARS_ENDED"
+      ]
+    },
+    {
+      "case_id": "anthropic_opus__LPL_T01",
+      "conflicts": [
+        "PERIOD_AMBIGUITY"
+      ],
+      "remaining_losses": [
+        "AS_OF_VS_YEARS_ENDED"
+      ]
+    }
+  ],
+  "direct_ambiguous_cases_total": 3,
+  "doc22_ambiguous_upgraded_total": 0,
+  "doc22_conflict_cases": [
+    {
+      "case_id": "google_flash_lite__ACORNS_T02",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "deduplicated_view_verdict": "AMBIGUOUS"
+    },
+    {
+      "case_id": "google_flash_lite__LPL_T01",
+      "conflicts": [
+        "PERIOD_AMBIGUITY"
+      ],
+      "deduplicated_view_verdict": "AMBIGUOUS"
+    },
+    {
+      "case_id": "anthropic_opus__LPL_T01",
+      "conflicts": [
+        "PERIOD_AMBIGUITY"
+      ],
+      "deduplicated_view_verdict": "AMBIGUOUS"
+    },
+    {
+      "case_id": "anthropic_opus__LPL_T02",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "deduplicated_view_verdict": "RESCUED_BY_DOCUMENT_CONTEXT"
+    },
+    {
+      "case_id": "anthropic_opus__TRADEWEB_T03",
+      "conflicts": [
+        "CONTEXT_CONFLICT"
+      ],
+      "deduplicated_view_verdict": "RESCUED_BY_DOCUMENT_CONTEXT"
+    }
+  ],
+  "doc22_conflict_cases_total": 5,
+  "hidden_conflicts_total": 0,
+  "integrity_sha256": "d4ab036d0364244a1ac6dc05b645854082ce3b78aa2943a3a494419cf0b1627e",
+  "line_level_ambiguous_cases": [
+    {
+      "ambiguous_lines_total": 1,
+      "case_id": "anthropic_opus__ACORNS_T01"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "anthropic_opus__JEFFERIES_T01"
+    },
+    {
+      "ambiguous_lines_total": 1,
+      "case_id": "anthropic_opus__JEFFERIES_T02"
+    },
+    {
+      "ambiguous_lines_total": 1,
+      "case_id": "anthropic_opus__JEFFERIES_T03"
+    },
+    {
+      "ambiguous_lines_total": 1,
+      "case_id": "anthropic_opus__JEFFERIES_T05"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "anthropic_opus__JEFFERIES_T06"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "anthropic_opus__LPL_T01"
+    },
+    {
+      "ambiguous_lines_total": 4,
+      "case_id": "anthropic_opus__LPL_T02"
+    },
+    {
+      "ambiguous_lines_total": 5,
+      "case_id": "anthropic_opus__LPL_T03"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "anthropic_opus__LPL_T04"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "anthropic_opus__STONEX_T01"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "anthropic_opus__STONEX_T02"
+    },
+    {
+      "ambiguous_lines_total": 3,
+      "case_id": "anthropic_opus__STONEX_T03"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "anthropic_opus__STONEX_T04"
+    },
+    {
+      "ambiguous_lines_total": 3,
+      "case_id": "anthropic_opus__STONEX_T05"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "anthropic_opus__TRADEWEB_T02"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "anthropic_opus__TRADEWEB_T03"
+    },
+    {
+      "ambiguous_lines_total": 1,
+      "case_id": "anthropic_opus__TRADEWEB_T05"
+    },
+    {
+      "ambiguous_lines_total": 1,
+      "case_id": "google_flash_lite__ACORNS_T01"
+    },
+    {
+      "ambiguous_lines_total": 3,
+      "case_id": "google_flash_lite__JEFFERIES_T01"
+    },
+    {
+      "ambiguous_lines_total": 3,
+      "case_id": "google_flash_lite__JEFFERIES_T02"
+    },
+    {
+      "ambiguous_lines_total": 1,
+      "case_id": "google_flash_lite__JEFFERIES_T04"
+    },
+    {
+      "ambiguous_lines_total": 1,
+      "case_id": "google_flash_lite__JEFFERIES_T05"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "google_flash_lite__JEFFERIES_T06"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "google_flash_lite__LPL_T01"
+    },
+    {
+      "ambiguous_lines_total": 4,
+      "case_id": "google_flash_lite__LPL_T02"
+    },
+    {
+      "ambiguous_lines_total": 5,
+      "case_id": "google_flash_lite__LPL_T03"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "google_flash_lite__LPL_T04"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "google_flash_lite__STONEX_T01"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "google_flash_lite__STONEX_T02"
+    },
+    {
+      "ambiguous_lines_total": 3,
+      "case_id": "google_flash_lite__STONEX_T03"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "google_flash_lite__STONEX_T04"
+    },
+    {
+      "ambiguous_lines_total": 3,
+      "case_id": "google_flash_lite__STONEX_T05"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "google_flash_lite__TRADEWEB_T02"
+    },
+    {
+      "ambiguous_lines_total": 2,
+      "case_id": "google_flash_lite__TRADEWEB_T03"
+    },
+    {
+      "ambiguous_lines_total": 1,
+      "case_id": "google_flash_lite__TRADEWEB_T05"
+    }
+  ],
+  "line_level_ambiguous_total": 79,
+  "line_level_conflict_cases": [
+    {
+      "case_id": "anthropic_opus__TRADEWEB_T02",
+      "line_conflicts_total": 5
+    },
+    {
+      "case_id": "anthropic_opus__TRADEWEB_T03",
+      "line_conflicts_total": 10
+    },
+    {
+      "case_id": "anthropic_opus__TRADEWEB_T05",
+      "line_conflicts_total": 2
+    },
+    {
+      "case_id": "google_flash_lite__ACORNS_T02",
+      "line_conflicts_total": 5
+    },
+    {
+      "case_id": "google_flash_lite__JEFFERIES_T05",
+      "line_conflicts_total": 3
+    },
+    {
+      "case_id": "google_flash_lite__LPL_T01",
+      "line_conflicts_total": 3
+    },
+    {
+      "case_id": "google_flash_lite__TRADEWEB_T02",
+      "line_conflicts_total": 5
+    },
+    {
+      "case_id": "google_flash_lite__TRADEWEB_T03",
+      "line_conflicts_total": 7
+    },
+    {
+      "case_id": "google_flash_lite__TRADEWEB_T05",
+      "line_conflicts_total": 2
+    }
+  ],
+  "line_level_conflicts_total": 42,
+  "research_only": true,
+  "run_id": "broker_reports_doc23_deduplicated_gate1_view_2026-08-05_v1",
+  "schema_version": "broker_reports_doc23_conflicts_safe_v1"
+}

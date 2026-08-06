@@ -1,0 +1,54 @@
+{
+  "best_artifact_is_acceptable": false,
+  "best_gate1_artifact": "anthropic_opus",
+  "comparison_basis": "direct visual material-adequacy verdicts only",
+  "finding": "Opus preserves more table identity and complex secondary content, but both providers fail the Phase A threshold by a wide margin.",
+  "hidden_weighted_score_created": false,
+  "integrity_sha256": "ca3085ab33832480bee2ee47fe43422629130dab05b6de0b143557dc19d8e63f",
+  "provider_comparison_reported": true,
+  "providers": {
+    "anthropic_opus": {
+      "critical_category_counts": {
+        "COLUMN_RELATION": 10,
+        "PERIOD": 14,
+        "TABLE_SCOPE": 13,
+        "UNIT_OR_SCALE": 7
+      },
+      "critical_loss_rate": 0.8333333333333334,
+      "material_cases_total": 4,
+      "material_rate": 0.16666666666666666,
+      "phase_b_threshold_met": false,
+      "verdict_counts": {
+        "AMBIGUOUS": 0,
+        "CRITICAL_LOSS": 20,
+        "NONCRITICAL_LOSS": 3,
+        "SUFFICIENT": 1
+      }
+    },
+    "google_flash_lite": {
+      "critical_category_counts": {
+        "COLUMN_RELATION": 10,
+        "CURRENCY": 1,
+        "GROUP_OR_TOTAL_RELATION": 1,
+        "MISSING_VALUE": 2,
+        "PERIOD": 14,
+        "ROW_RELATION": 1,
+        "TABLE_SCOPE": 16,
+        "UNIT_OR_SCALE": 7,
+        "UNSUPPORTED_VALUE": 1
+      },
+      "critical_loss_rate": 0.9583333333333334,
+      "material_cases_total": 1,
+      "material_rate": 0.041666666666666664,
+      "phase_b_threshold_met": false,
+      "verdict_counts": {
+        "AMBIGUOUS": 0,
+        "CRITICAL_LOSS": 23,
+        "NONCRITICAL_LOSS": 0,
+        "SUFFICIENT": 1
+      }
+    }
+  },
+  "run_id": "broker_reports_doc21_research_first_material_adequacy_2026-08-04_v1",
+  "schema_version": "broker_reports_doc21_provider_comparison_safe_v1"
+}

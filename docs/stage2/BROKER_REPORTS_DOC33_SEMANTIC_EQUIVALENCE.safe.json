@@ -1,0 +1,43 @@
+{
+  "schema_version": "broker_reports_doc33_semantic_equivalence_v1",
+  "date": "2026-08-06",
+  "formats": [
+    "pdf",
+    "html",
+    "csv",
+    "xlsx"
+  ],
+  "fixture_scope": "equivalent_ordered_table_content",
+  "reader_roundtrips": 4,
+  "canonical_schema_versions": [
+    "canonical_artifact_v1"
+  ],
+  "logical_table_signatures": 1,
+  "ordered_cells_per_format": 6,
+  "table_values_match": true,
+  "table_order_matches": true,
+  "neutral_projections_nonempty": 4,
+  "physical_layouts_exercised": [
+    "single_payload",
+    "chunked"
+  ],
+  "format_branches_in_renderer": 0,
+  "explicit_source_induced_differences": [
+    "root container subtype",
+    "source identity",
+    "canonical root hash",
+    "provenance locator shape",
+    "physical component layout"
+  ],
+  "limits": [
+    "equivalence compares common table content, not byte identity",
+    "CSV and XLSX do not synthesize standalone heading list or note nodes",
+    "header role is compared only when the source proves the same role"
+  ],
+  "provider_calls": 0,
+  "product_writes": 0,
+  "gate3_started": false,
+  "private_content_in_output": false,
+  "semantic_equivalence": "CONFIRMED",
+  "integrity_sha256": "3490e62072734507c268dd86d698b834a923ee1b96dc7d973e35153a0db24229"
+}

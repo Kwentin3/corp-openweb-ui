@@ -1,0 +1,30 @@
+{
+  "brief_sha256": "c500cbf3a95c1bce51918c4825f08e733702c8212092c43df4bb29184594391c",
+  "cropper_calls": 0,
+  "date": "2026-08-05",
+  "historical_hashes_rewritten": 0,
+  "historical_reports_modified": 0,
+  "integrity_sha256": "c3e5ecd428df8269f4be54ff69a55ab3c519bc92db514db1951c8d2203c2746c",
+  "private_content_in_output": false,
+  "provider_calls": 0,
+  "report_sha256": "1314e43adb0f390675dbfa4c0f0fcb2d3efefd7f95cdb121b3bcfcd8e443a8f8",
+  "safe_artifacts": {
+    "BROKER_REPORTS_DOC32_DECISION.safe.json": "6e5cf92f7191683829f2d24372618f96ca50396cefd334853e28c2f7e088c702",
+    "BROKER_REPORTS_DOC32_DURABILITY_RESTORE.safe.json": "49d8de4409645dc273dc3da2dc90f50138abb6f1221c3f37995663af72002cd9",
+    "BROKER_REPORTS_DOC32_ISOLATED_ROUNDTRIP.safe.json": "b62ec124a3b9919e432b8062fbe0d60f709b4aa8b2ebf27358a03094bd16daa4",
+    "BROKER_REPORTS_DOC32_LLM_PROJECTION_VALIDATION.safe.json": "6fe6eec3f8d1e2839a6a2c25c73d242506173e64e8b82b9ac9d0c4b2f3a9244a",
+    "BROKER_REPORTS_DOC32_PDF_BACKFILL_AUDIT.safe.json": "d7048617d371b76911fd90d45099f22b5198e0a572979e3f4e95923e4b4481fb",
+    "BROKER_REPORTS_DOC32_PDF_COMPLETENESS_CONTRACT.safe.json": "06a495ac38cc79f710c990b2534b571bb45ad4fcacff44a36ebd882fde78c525",
+    "BROKER_REPORTS_DOC32_PDF_PIPELINE_TRACE.safe.json": "1d685355f6a712f75a7db4aa5982f31eabf99b83107120decddb4961cde2365e",
+    "BROKER_REPORTS_DOC32_PDF_REPUBLICATION.safe.json": "6f9b41441ab7e1edd3968f2b44b9e8198605a912de009ca713b6eb86d5f2686b",
+    "BROKER_REPORTS_DOC32_RESEARCH_CONSUMER.safe.json": "f1770d80518bb4d97b506e43c0f1361a11143302246366b3a8874f60eee34501",
+    "BROKER_REPORTS_DOC32_ROOT_CAUSE.safe.json": "431e07b8d5ee90da34be966e12db8d9f2a130c8ac0918e431b8dbddd8b5ff86d",
+    "BROKER_REPORTS_DOC32_SOURCE_ATOM_ACCOUNTING.safe.json": "7fdf3aef5ad300f7f837837b4dc189810afaf7edd1829bfa0b4dca7c19f6f368",
+    "BROKER_REPORTS_DOC32_TEST_RESULTS.safe.json": "190ff8dacb05703fa6882f807fbd633b216ba8cdbb82fb040734d573cd51dbae",
+    "BROKER_REPORTS_DOC32_WAVE2_SHADOW.safe.json": "2e339afbf3abe164ef7e7caa7fcf69cf17c02bfa2563d0e415d51bbd2355a67d"
+  },
+  "safe_artifacts_total": 13,
+  "schema_version": "broker_reports_doc32_closure_receipt_safe_v1",
+  "status": "PASS_WITH_HISTORICAL_FAILURES_ACCOUNTED",
+  "vlm_calls": 0
+}

@@ -1,0 +1,40 @@
+{
+  "cases_total": 48,
+  "classification_counts": {
+    "AMBIGUOUS": 79,
+    "CONFLICT": 42,
+    "DUPLICATE": 752,
+    "EXTERNAL_CONTEXT": 1170,
+    "PARSER_RESCUE": 111,
+    "UNRELATED": 0
+  },
+  "duplicate_lexical_tokens": 4593,
+  "duplicate_line_share_of_table_overlap_percent": 76.4228,
+  "duplicate_numeric_tokens": 1748,
+  "failed_cases_excluded": 0,
+  "financial_semantics_used": false,
+  "gate1_provider_arms": 2,
+  "integrity_sha256": "684bcd3ca7e7ad247ac59dbdab0315deea6823673695cabdbc136db8431c6e2a",
+  "parser_lines_total": 34541,
+  "parser_only_continuation_markers": 5,
+  "parser_only_currency_unit_markers": 233,
+  "parser_only_dates": 54,
+  "parser_only_heading_candidates": 43,
+  "parser_only_numeric_tokens": 486,
+  "parser_table_overlap": "DUPLICATE_HEAVY",
+  "research_only": true,
+  "run_id": "broker_reports_doc23_deduplicated_gate1_view_2026-08-05_v1",
+  "schema_version": "broker_reports_doc23_parser_vlm_overlap_safe_v1",
+  "suppression_policy": {
+    "ambiguity_policy": "KEEP",
+    "clipped_edge_kept": true,
+    "doc22_conflict_case_lines_kept": true,
+    "geometry_required": true,
+    "numeric_date_currency_unit_equivalence_required": true,
+    "partial_overlap_kept": true,
+    "same_segment_lexical_threshold": 0.9
+  },
+  "table_overlapping_parser_lines": 984,
+  "tables_total": 24,
+  "target_page_line_classifications_total": 2154
+}

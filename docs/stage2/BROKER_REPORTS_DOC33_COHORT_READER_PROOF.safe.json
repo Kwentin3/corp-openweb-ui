@@ -1,0 +1,43 @@
+{
+  "activation_changes": 0,
+  "canonical_schema_versions": [
+    "canonical_artifact_v1"
+  ],
+  "completeness_passed": 16,
+  "documents_total": 16,
+  "format_counts": {
+    "csv": 2,
+    "html": 4,
+    "pdf": 8,
+    "xlsx": 2
+  },
+  "gate3_started": false,
+  "integrity_sha256": "0f358b13e3a4a7a943b71b463094eb27e0bb727b027096e2eb60579c80236811",
+  "legacy_fallbacks": 0,
+  "logical_containers_total": 277,
+  "logical_nodes_total": 608,
+  "logical_tables_total": 90,
+  "nonempty_neutral_projections": 16,
+  "physical_layout_counts": {
+    "chunked": 5,
+    "single_payload": 11
+  },
+  "private_content_in_output": false,
+  "private_state_usage": "authenticated_lookup_only",
+  "product_writes": 0,
+  "provider_calls": 0,
+  "reader_authority": "CanonicalReaderFactory.create",
+  "reader_implementations": [
+    "CanonicalReader"
+  ],
+  "renderer_forbidden_dependency_hits": [],
+  "renderer_format_branches": 0,
+  "root_container_type_counts": {
+    "DATASET": 2,
+    "DOCUMENT": 12,
+    "WORKBOOK": 2
+  },
+  "root_hashes_matched": 16,
+  "schema_version": "broker_reports_doc33_unified_projection_proof_v1",
+  "status": "PASS"
+}

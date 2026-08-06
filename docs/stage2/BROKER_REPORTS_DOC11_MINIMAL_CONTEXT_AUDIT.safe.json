@@ -1,0 +1,379 @@
+{
+  "aggregate": {
+    "doc6_fields_exposed_total": 0,
+    "duplicate_occurrences_beyond_first_total": 148,
+    "expected_minimum_output_tokens_total": 1294,
+    "fragment_characters_total": 2210,
+    "fragments_total": 362,
+    "ids_exposed_total": 0,
+    "image_bytes_total": 429571,
+    "images_total": 4,
+    "manual_visual_audit_passed_total": 4,
+    "numeric_fragments_total": 112,
+    "packages_total": 4,
+    "parser_structure_fields_exposed_total": 0,
+    "parser_text_utf8_bytes_total": 2592,
+    "provider_input_token_estimate_total": 2067,
+    "tables_total": 4,
+    "unique_fragment_texts_total": 214
+  },
+  "authority": {
+    "doc6_read_or_changed": false,
+    "frozen_product_source_sha256": {
+      "services/broker-reports-gate1-proof/broker_reports_gate1/full_source.py": "9ef5630ac9938c936efd06c0fc4638ba7b43a33c8f443db85649323e01b111f8",
+      "services/broker-reports-gate1-proof/broker_reports_gate1/managed_document_contracts_v2.py": "f6eed68e59cbdeaea91a868bec08073c6b8a60326be46990aab374a88ff02256",
+      "services/broker-reports-gate1-proof/broker_reports_gate1/managed_pdf_document_v2.py": "b8e801a8f6219c7230ec85aa0a3a77542e9ceade5586eb8ad0bc861036f67a21",
+      "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_layout.py": "5906f2db072bf77791878ae5ecadbf77560e1b5ddfd280e1a463b91ccde3f864",
+      "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_layout_units.py": "ddebf803c3c7d97f612bc90137dbd52cb09073513048bd66492b28354d607292",
+      "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_text_layer.py": "863789081d18c3e7e2cbb1fa9af4448cd9eea9f99dbcbb062199ce217b8c724b",
+      "services/broker-reports-gate1-proof/scripts/direct_pdf_experiment_transports.py": "9429860a404a4628a2ddb685d440ec02f336dcc11fe505e3e0053066bdde6bc7",
+      "services/broker-reports-gate1-proof/scripts/live_no_rag_source_intake_smoke.py": "c9f1de29f805608656bb6ed2ee18219f1d4acbcfed0a8c1e200a671bc4c527d6"
+    },
+    "new_product_authority_introduced": false,
+    "parser_changed": false,
+    "product_pipeline_changed": false,
+    "research_harness_only": true
+  },
+  "date": "2026-08-03",
+  "frozen_controls": {
+    "arms_total": 1,
+    "attempts_per_slot_maximum": 1,
+    "expected_calls_total": 16,
+    "fallback": false,
+    "images_per_call": 1,
+    "manual_output_repair": false,
+    "models_total": 4,
+    "prompt_sha256": "ba1bcfd36a6d14edb491c1d6910c57ab321ca64c9efbbcaecf74d2438fbbe4b0",
+    "repair": false,
+    "retrieval": false,
+    "retry_total_allowed": 0,
+    "tables_total": 4,
+    "tools": false,
+    "web": false
+  },
+  "hypothesis": "one clean table image plus complete exact structure-neutral parser text may support logical row and cell reconstruction",
+  "integrity_sha256": "144d9681a9d352dac99132bb9a3d9050978e5e1ad7d463c39e0bc0aa1d96a8ed",
+  "lexical_projection": {
+    "currency_coverage": "43/43",
+    "date_coverage": "16/16",
+    "lexical_coverage": "1072/1072",
+    "numeric_coverage": "319/319",
+    "word_x_tolerance": 0.5
+  },
+  "lexical_projection_reopened": false,
+  "model_discovery_private_sha256": "8b56ee693b854eb880809bd133b909f91a948f3a512f0c14971500a6fbe15c9d",
+  "models": {
+    "anthropic_haiku": {
+      "availability": "AVAILABLE",
+      "image_support": true,
+      "input_usd_per_million": 1.0,
+      "output_usd_per_million": 5.0,
+      "pricing_source": "https://platform.claude.com/docs/en/about-claude/models/overview",
+      "provider": "anthropic",
+      "requested_model_id": "claude-haiku-4-5-20251001",
+      "resolved_catalog_model_id": "claude-haiku-4-5-20251001",
+      "role": "cheap",
+      "stability": "dated snapshot",
+      "thinking_policy": "thinking omitted; no adaptive thinking"
+    },
+    "anthropic_opus": {
+      "availability": "AVAILABLE",
+      "image_support": true,
+      "input_usd_per_million": 5.0,
+      "output_usd_per_million": 25.0,
+      "pricing_source": "https://platform.claude.com/docs/en/about-claude/models/overview",
+      "provider": "anthropic",
+      "requested_model_id": "claude-opus-5",
+      "resolved_catalog_model_id": "claude-opus-5",
+      "role": "strong_reference",
+      "stability": "dateless pinned model ID",
+      "thinking_policy": "adaptive thinking provider default"
+    },
+    "google_flash_lite": {
+      "availability": "AVAILABLE",
+      "image_support": true,
+      "input_usd_per_million": 0.3,
+      "output_usd_per_million": 2.5,
+      "pricing_source": "https://ai.google.dev/gemini-api/docs/pricing",
+      "provider": "google",
+      "requested_model_id": "models/gemini-3.5-flash-lite",
+      "resolved_catalog_model_id": "models/gemini-3.5-flash-lite",
+      "role": "cheap",
+      "stability": "stable selector; no dated immutable snapshot exposed",
+      "thinking_policy": "thinking configuration omitted; output price includes thinking tokens"
+    },
+    "openai_mini": {
+      "availability": "AVAILABLE",
+      "image_support": true,
+      "input_usd_per_million": 0.75,
+      "output_usd_per_million": 4.5,
+      "pricing_source": "https://developers.openai.com/api/docs/models/gpt-5.4-mini",
+      "provider": "openai",
+      "requested_model_id": "gpt-5.4-mini-2026-03-17",
+      "resolved_catalog_model_id": "gpt-5.4-mini-2026-03-17",
+      "role": "cheap",
+      "stability": "snapshot",
+      "thinking_policy": "reasoning.effort omitted; provider default none"
+    }
+  },
+  "package_audit_private_sha256": "b9078863e327c0a45b21e837998e8fb046ff8042c03d1e865aeb8d74cd0814cf",
+  "packages": [
+    {
+      "component_hashes": {
+        "parser_text.txt": "d93e5009b1b2969bcabff55f293308d1ee97c981a11935ec07e4b404fcf1d117",
+        "prompt.txt": "ba1bcfd36a6d14edb491c1d6910c57ab321ca64c9efbbcaecf74d2438fbbe4b0",
+        "table.png": "91b3ceeac7a8d4f9fa76a8892f95eed76aaeded1ab4dc1059b31625d8267676d"
+      },
+      "context": {
+        "expected_minimum_output_tokens": 67,
+        "expected_minimum_output_utf8_bytes": 196,
+        "provider_input_token_estimate": 301,
+        "provider_input_token_estimate_method": "o200k_base_text_only; image tokens measured from provider usage after call",
+        "request_text_characters": 1070,
+        "request_text_utf8_bytes": 1788,
+        "useful_fragment_text_ratio": 0.085047
+      },
+      "image": {
+        "bottom_rows_removed": 0,
+        "bytes": 23181,
+        "dimensions_pixels": [
+          393,
+          295
+        ],
+        "full_target_table_visible": true,
+        "headers_and_columns_uncut": true,
+        "images_total": 1,
+        "manual_visual_audit": "PASSED",
+        "partial_following_content_removed": false,
+        "source_bytes": 23181,
+        "source_dimensions_pixels": [
+          393,
+          295
+        ],
+        "table_lines_preserved": true,
+        "text_readable": true,
+        "visible_fragment_ids_total": 0,
+        "visible_marks_total": 0
+      },
+      "package_sha256": "77542451b8dc9fc8301bbbff6d8c4e9216dcfa89a9402012010532ca9f173de0",
+      "parser_text": {
+        "anchors_exposed_total": 0,
+        "coordinates_exposed_total": 0,
+        "doc6_fields_exposed_total": 0,
+        "duplicate_occurrences_beyond_first_total": 1,
+        "exact_source_multiset": true,
+        "file_characters_total": 108,
+        "fragment_characters_total": 91,
+        "fragments_total": 17,
+        "ids_exposed_total": 0,
+        "json_fields_exposed_total": 0,
+        "lexicographically_sorted": true,
+        "metadata_fields_exposed_total": 0,
+        "numeric_fragments_total": 5,
+        "parser_columns_exposed_total": 0,
+        "parser_order_fields_exposed_total": 0,
+        "parser_rows_exposed_total": 0,
+        "unique_fragments_total": 16,
+        "utf8_bytes": 108,
+        "visual_order_exposed": false
+      },
+      "table_id": "doc11_table_01"
+    },
+    {
+      "component_hashes": {
+        "parser_text.txt": "50817bac004fb97070315da7dee85b44f6f71b49ea0df2a2bf1f5e12a602954a",
+        "prompt.txt": "ba1bcfd36a6d14edb491c1d6910c57ab321ca64c9efbbcaecf74d2438fbbe4b0",
+        "table.png": "8d90729399b9a6fb913871dbc7e8cb4714631ce8a3455733f1938966e6a84a48"
+      },
+      "context": {
+        "expected_minimum_output_tokens": 113,
+        "expected_minimum_output_utf8_bytes": 337,
+        "provider_input_token_estimate": 338,
+        "provider_input_token_estimate_method": "o200k_base_text_only; image tokens measured from provider usage after call",
+        "request_text_characters": 1169,
+        "request_text_utf8_bytes": 1887,
+        "useful_fragment_text_ratio": 0.14799
+      },
+      "image": {
+        "bottom_rows_removed": 0,
+        "bytes": 45419,
+        "dimensions_pixels": [
+          1523,
+          254
+        ],
+        "full_target_table_visible": true,
+        "headers_and_columns_uncut": true,
+        "images_total": 1,
+        "manual_visual_audit": "PASSED",
+        "partial_following_content_removed": false,
+        "source_bytes": 45419,
+        "source_dimensions_pixels": [
+          1523,
+          254
+        ],
+        "table_lines_preserved": true,
+        "text_readable": true,
+        "visible_fragment_ids_total": 0,
+        "visible_marks_total": 0
+      },
+      "package_sha256": "37e6ba6214e47fac6188da6d054c484ad1a8cffa4ed0a3bd8e8b7a90d6fbcc0a",
+      "parser_text": {
+        "anchors_exposed_total": 0,
+        "coordinates_exposed_total": 0,
+        "doc6_fields_exposed_total": 0,
+        "duplicate_occurrences_beyond_first_total": 8,
+        "exact_source_multiset": true,
+        "file_characters_total": 207,
+        "fragment_characters_total": 173,
+        "fragments_total": 34,
+        "ids_exposed_total": 0,
+        "json_fields_exposed_total": 0,
+        "lexicographically_sorted": true,
+        "metadata_fields_exposed_total": 0,
+        "numeric_fragments_total": 9,
+        "parser_columns_exposed_total": 0,
+        "parser_order_fields_exposed_total": 0,
+        "parser_rows_exposed_total": 0,
+        "unique_fragments_total": 26,
+        "utf8_bytes": 207,
+        "visual_order_exposed": false
+      },
+      "table_id": "doc11_table_02"
+    },
+    {
+      "component_hashes": {
+        "parser_text.txt": "1fe916b1b825fcd4c64a0aecffb12ad2c5ffabe05385c14e867881269e658b48",
+        "prompt.txt": "ba1bcfd36a6d14edb491c1d6910c57ab321ca64c9efbbcaecf74d2438fbbe4b0",
+        "table.png": "fb1e9dfd696df4c0e3e61490dea119714a87c7d2e39ff88427ba15778551b593"
+      },
+      "context": {
+        "expected_minimum_output_tokens": 522,
+        "expected_minimum_output_utf8_bytes": 1429,
+        "provider_input_token_estimate": 665,
+        "provider_input_token_estimate_method": "o200k_base_text_only; image tokens measured from provider usage after call",
+        "request_text_characters": 1919,
+        "request_text_utf8_bytes": 2651,
+        "useful_fragment_text_ratio": 0.428348
+      },
+      "image": {
+        "bottom_rows_removed": 12,
+        "bytes": 132216,
+        "dimensions_pixels": [
+          1519,
+          400
+        ],
+        "full_target_table_visible": true,
+        "headers_and_columns_uncut": true,
+        "images_total": 1,
+        "manual_visual_audit": "PASSED",
+        "partial_following_content_removed": true,
+        "source_bytes": 136086,
+        "source_dimensions_pixels": [
+          1519,
+          412
+        ],
+        "table_lines_preserved": true,
+        "text_readable": true,
+        "visible_fragment_ids_total": 0,
+        "visible_marks_total": 0
+      },
+      "package_sha256": "1ceb80718c3eb74cac8635e5dbbbd880e40705983a9f658a878a6c0d9a7055cd",
+      "parser_text": {
+        "anchors_exposed_total": 0,
+        "coordinates_exposed_total": 0,
+        "doc6_fields_exposed_total": 0,
+        "duplicate_occurrences_beyond_first_total": 44,
+        "exact_source_multiset": true,
+        "file_characters_total": 957,
+        "fragment_characters_total": 822,
+        "fragments_total": 135,
+        "ids_exposed_total": 0,
+        "json_fields_exposed_total": 0,
+        "lexicographically_sorted": true,
+        "metadata_fields_exposed_total": 0,
+        "numeric_fragments_total": 61,
+        "parser_columns_exposed_total": 0,
+        "parser_order_fields_exposed_total": 0,
+        "parser_rows_exposed_total": 0,
+        "unique_fragments_total": 91,
+        "utf8_bytes": 971,
+        "visual_order_exposed": false
+      },
+      "table_id": "doc11_table_03"
+    },
+    {
+      "component_hashes": {
+        "parser_text.txt": "8ce5024fb0d891510737748f73a15a561882495c31e401563b4ef9327a86ae72",
+        "prompt.txt": "ba1bcfd36a6d14edb491c1d6910c57ab321ca64c9efbbcaecf74d2438fbbe4b0",
+        "table.png": "d6bf6e0de1cdc06d202d08170c50f6bd214d70afb5e54535031e4535d81a57d5"
+      },
+      "context": {
+        "expected_minimum_output_tokens": 592,
+        "expected_minimum_output_utf8_bytes": 1801,
+        "provider_input_token_estimate": 763,
+        "provider_input_token_estimate_method": "o200k_base_text_only; image tokens measured from provider usage after call",
+        "request_text_characters": 2262,
+        "request_text_utf8_bytes": 2986,
+        "useful_fragment_text_ratio": 0.496905
+      },
+      "image": {
+        "bottom_rows_removed": 10,
+        "bytes": 228755,
+        "dimensions_pixels": [
+          1519,
+          851
+        ],
+        "full_target_table_visible": true,
+        "headers_and_columns_uncut": true,
+        "images_total": 1,
+        "manual_visual_audit": "PASSED",
+        "partial_following_content_removed": true,
+        "source_bytes": 229222,
+        "source_dimensions_pixels": [
+          1519,
+          861
+        ],
+        "table_lines_preserved": true,
+        "text_readable": true,
+        "visible_fragment_ids_total": 0,
+        "visible_marks_total": 0
+      },
+      "package_sha256": "1c99f4eb57afbd3a7faf82f37e7e037e10ad2ec0bef74f819083461190b58e9d",
+      "parser_text": {
+        "anchors_exposed_total": 0,
+        "coordinates_exposed_total": 0,
+        "doc6_fields_exposed_total": 0,
+        "duplicate_occurrences_beyond_first_total": 67,
+        "exact_source_multiset": true,
+        "file_characters_total": 1300,
+        "fragment_characters_total": 1124,
+        "fragments_total": 176,
+        "ids_exposed_total": 0,
+        "json_fields_exposed_total": 0,
+        "lexicographically_sorted": true,
+        "metadata_fields_exposed_total": 0,
+        "numeric_fragments_total": 37,
+        "parser_columns_exposed_total": 0,
+        "parser_order_fields_exposed_total": 0,
+        "parser_rows_exposed_total": 0,
+        "unique_fragments_total": 109,
+        "utf8_bytes": 1306,
+        "visual_order_exposed": false
+      },
+      "table_id": "doc11_table_04"
+    }
+  ],
+  "pre_freeze_correction": "pre-freeze lossless bottom trim removed only partial following-page content after the final target-table rule",
+  "privacy": {
+    "credentials_present": false,
+    "customer_values_present": false,
+    "images_present": false,
+    "parser_text_present": false,
+    "private_paths_present": false,
+    "raw_provider_outputs_present": false
+  },
+  "protocol_sha256": "d1b1cf283ca3a82ab262849c95fee2977c63f477bcab114946eed4791e33d13f",
+  "research_only": true,
+  "schema_version": "broker_reports_doc11_minimal_context_audit_safe_v1",
+  "status": "COMPLETED_PRE_CALL_AUDIT"
+}

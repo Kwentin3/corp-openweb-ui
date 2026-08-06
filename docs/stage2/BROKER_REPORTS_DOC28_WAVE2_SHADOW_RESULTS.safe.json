@@ -1,0 +1,96 @@
+{
+  "access_regressions": 0,
+  "candidates": [
+    {
+      "access_context": "trusted product ArtifactAccessContext",
+      "compatibility_contract": "NOT_CREATED_STOP_GATE",
+      "consumer_id": "gate2_input_readiness",
+      "legacy_reads": [
+        "legacy handoff refs and source units"
+      ],
+      "migrated": false,
+      "shadow": "NOT_STARTED",
+      "side_effects": [
+        "changes product eligibility decision"
+      ]
+    },
+    {
+      "access_context": "trusted product ArtifactAccessContext",
+      "compatibility_contract": "NOT_CREATED_STOP_GATE",
+      "consumer_id": "gate2_source_fact_runtime",
+      "legacy_reads": [
+        "legacy readiness package"
+      ],
+      "migrated": false,
+      "shadow": "NOT_STARTED",
+      "side_effects": [
+        "writes product artifacts and can call provider"
+      ]
+    },
+    {
+      "access_context": "live operator session",
+      "compatibility_contract": "NOT_CREATED_STOP_GATE",
+      "consumer_id": "live_case_group_eligibility",
+      "legacy_reads": [
+        "legacy handoff payload"
+      ],
+      "migrated": false,
+      "shadow": "NOT_STARTED",
+      "side_effects": [
+        "upload, chat, delete and function update"
+      ]
+    },
+    {
+      "access_context": "live operator session",
+      "compatibility_contract": "NOT_CREATED_STOP_GATE",
+      "consumer_id": "live_case_group_process_false",
+      "legacy_reads": [
+        "legacy handoff metadata"
+      ],
+      "migrated": false,
+      "shadow": "NOT_STARTED",
+      "side_effects": [
+        "upload, chat and delete"
+      ]
+    },
+    {
+      "access_context": "live operator session",
+      "compatibility_contract": "NOT_CREATED_STOP_GATE",
+      "consumer_id": "live_pdf_table_operator",
+      "legacy_reads": [
+        "legacy handoff presence"
+      ],
+      "migrated": false,
+      "shadow": "NOT_STARTED",
+      "side_effects": [
+        "upload, chat, download, write and delete"
+      ]
+    },
+    {
+      "access_context": "live operator session",
+      "compatibility_contract": "NOT_CREATED_STOP_GATE",
+      "consumer_id": "live_private_intake_smoke",
+      "legacy_reads": [
+        "legacy artifact counts"
+      ],
+      "migrated": false,
+      "shadow": "NOT_STARTED",
+      "side_effects": [
+        "upload, chat and delete"
+      ]
+    }
+  ],
+  "canonical_regressions": 0,
+  "compatibility_contracts": "0/6",
+  "consumers_accounted": "6/6",
+  "consumers_migrated": 0,
+  "date": "2026-08-05",
+  "integrity_sha256": "be5599168b75828fcc2607e7bb0f108a148e8a047b159cb85bbf82e19bc539bd",
+  "migration_decision": "BLOCKED_BEFORE_SHADOW",
+  "product_canonical_read_enabled": false,
+  "schema_version": "broker_reports_doc28_wave2_shadow_results_safe_v1",
+  "shadow_runs": "0/3",
+  "side_effects_from_shadow": 0,
+  "status": "NOT_STARTED_STOP_GATE",
+  "unresolved": 0
+}

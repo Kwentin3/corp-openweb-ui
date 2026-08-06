@@ -71,6 +71,14 @@ it for public exposure.
 - читает primary OpenAI-compatible provider config из `.env`;
 - secondary provider получает через OpenWebUI Admin UI и persistent config.
 
+`stage2-stt`:
+
+- хранит ArtifactStore SQLite в `stage2_stt_data:/data/stage2-stt`;
+- читает `openwebui_data` только через read-only mount `/openwebui-data`;
+- не является Broker Reports canonical storage authority;
+- требует отдельного backup/restore и реального rotation worker; декларация
+  TTL сама по себе не доказывает cleanup.
+
 `searxng` optional:
 
 - image задается через `SEARXNG_IMAGE`;
@@ -99,6 +107,7 @@ it for public exposure.
 Используются явные имена:
 
 - `openwebui_data`;
+- `stage2_stt_data`;
 - `traefik_letsencrypt`.
 - optional `searxng_cache`;
 - optional `searxng_valkey`.

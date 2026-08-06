@@ -1,0 +1,18 @@
+{
+  "schema_version": "broker_reports_doc30_canary_results_safe_v1",
+  "date": "2026-08-05",
+  "status": "PASS",
+  "small_canary": "PASS",
+  "large_pdf_canary": "PASS",
+  "canary_receipts": "2/2",
+  "small_canary_elapsed_seconds": 12.022077,
+  "small_canary_peak_memory_bytes": 52473856,
+  "large_pdf_canary_elapsed_seconds": 23.873388,
+  "large_pdf_canary_peak_memory_bytes": 196775936,
+  "host_health_degradation": 0,
+  "oom_events": 0,
+  "partial_canary_versions": 0,
+  "provider_calls": 0,
+  "active_versions_created": 2,
+  "private_content_in_output": false
+}

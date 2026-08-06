@@ -332,7 +332,9 @@ bash scripts/smoke-test.sh --strict-tls
 - PRD-1 changelog:
   [docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md](docs/prd/OPENWEBUI_CORPORATE_CHAT_PRD_1_CHANGELOG.md)
 - Stage 2 engineering domain: [docs/stage2/README.md](docs/stage2/README.md)
-- Broker Reports authoritative architecture and runtime policy:
+- Broker Reports current pipeline gates and runtime boundary:
+  [docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md](docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md)
+- Broker Reports superseded architecture context:
   [docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md](docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
 - Broker Reports PDF Table Intake child capability:
   [docs/stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md](docs/stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)

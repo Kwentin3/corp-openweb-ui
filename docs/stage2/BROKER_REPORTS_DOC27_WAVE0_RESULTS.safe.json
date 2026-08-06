@@ -1,0 +1,57 @@
+{
+  "blocked": {
+    "local_pdf_compact_canonical_proof": "real canonical store and active version are absent; the adapter stops without legacy fallback"
+  },
+  "blocked_consumers": 1,
+  "canonical_regressions": 0,
+  "date": "2026-08-05",
+  "integrity_sha256": "47b4bca4d4c580f15bc64cea82627a90ccfa07e2937584ec0b7eb5bda914d172",
+  "migrated": [
+    "doc22_safe_evidence_test",
+    "gate1_artifact_store_test",
+    "pdf_compact_canonical_test"
+  ],
+  "migrated_consumers": 3,
+  "migration_receipts": [
+    {
+      "canonical_contract_version": "canonical_artifact_v1",
+      "canonical_regressions": 0,
+      "compatibility_adapter_version": "doc22_safe_evidence_canonical_adapter_v1",
+      "consumer_id": "doc22_safe_evidence_test",
+      "cutover_status": "ENABLED_TEST_ONLY",
+      "legacy_contract_version": "gate2_handoff_v0",
+      "migration_wave": "WAVE_0_TEST",
+      "rollback_tested": true,
+      "shadow_cases": 3
+    },
+    {
+      "canonical_contract_version": "canonical_artifact_v1",
+      "canonical_regressions": 0,
+      "compatibility_adapter_version": "gate1_artifact_store_canonical_adapter_v1",
+      "consumer_id": "gate1_artifact_store_test",
+      "cutover_status": "ENABLED_TEST_ONLY",
+      "legacy_contract_version": "gate2_handoff_v0",
+      "migration_wave": "WAVE_0_TEST",
+      "rollback_tested": true,
+      "shadow_cases": 3
+    },
+    {
+      "canonical_contract_version": "canonical_artifact_v1",
+      "canonical_regressions": 0,
+      "compatibility_adapter_version": "pdf_compact_canonical_adapter_v1",
+      "consumer_id": "pdf_compact_canonical_test",
+      "cutover_status": "ENABLED_TEST_ONLY",
+      "legacy_contract_version": "gate2_handoff_v0",
+      "migration_wave": "WAVE_0_TEST",
+      "rollback_tested": true,
+      "shadow_cases": 3
+    }
+  ],
+  "planned_consumers": 4,
+  "product_side_effects": 0,
+  "rollback_tests_percent": 100,
+  "schema_version": "broker_reports_doc27_wave0_results_safe_v1",
+  "silent_fallbacks": 0,
+  "status": "PARTIAL",
+  "unresolved": 0
+}

@@ -15,6 +15,7 @@ from .pdf_grid_experiment_provider import (
 )
 from .pdf_hybrid_contracts import sha256_json
 from .pdf_table_raster import (
+    CANONICAL_TABLE_REGION_POLICY_VERSION,
     PDF_TABLE_CANDIDATE_RASTER_POLICY_VERSION,
     PDF_TABLE_CANDIDATE_SCHEMA,
     PdfTableRasterConfig,
@@ -27,7 +28,7 @@ PDF_TABLE_DETECTION_REQUEST_SCHEMA = "broker_reports_pdf_table_detection_request
 PDF_TABLE_DETECTION_RESPONSE_SCHEMA = "broker_reports_pdf_table_detection_response_v2"
 PDF_TABLE_DETECTION_ATTEMPT_SCHEMA = "broker_reports_pdf_table_detection_attempt_v1"
 PDF_TABLE_INTAKE_RUN_SCHEMA = "broker_reports_pdf_table_intake_run_v1"
-PDF_TABLE_INTAKE_POLICY_VERSION = "pdf_table_intake_policy_v3"
+PDF_TABLE_INTAKE_POLICY_VERSION = "pdf_table_intake_policy_v4"
 FACTORY_REQUIRED = (
     "PdfTableIntakeRuntimeFactory.create_for_openwebui is the only supported "
     "live PDF table detection and crop entrypoint"
@@ -364,12 +365,16 @@ class PdfTableIntakeRuntime:
             "detector_contract_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
             "candidate_contract_version": PDF_TABLE_CANDIDATE_SCHEMA,
             "raster_policy_version": PDF_TABLE_CANDIDATE_RASTER_POLICY_VERSION,
+            "canonical_table_region_policy_version": (
+                CANONICAL_TABLE_REGION_POLICY_VERSION
+            ),
             "detector_provider_profile": self.config.detector_provider_profile,
             "detector_model_id": self.config.detector_model_id,
             "dpi": self.config.dpi,
             "horizontal_padding_fraction": self.config.horizontal_padding_fraction,
             "vertical_padding_fraction": self.config.vertical_padding_fraction,
-            "padding_basis": "page_dimensions_per_side",
+            "padding_basis": "legacy_configuration_retained_not_applied",
+            "crop_boundary_basis": "canonical_table_region",
             "detector_qualification": safe_qualification,
             "gate2_boundary_ready": status == "completed",
             "rows_columns_cells_inferred": False,
@@ -383,12 +388,14 @@ class PdfTableIntakeRuntime:
                     "detector_contract_version",
                     "candidate_contract_version",
                     "raster_policy_version",
+                    "canonical_table_region_policy_version",
                     "detector_provider_profile",
                     "detector_model_id",
                     "dpi",
                     "horizontal_padding_fraction",
                     "vertical_padding_fraction",
                     "padding_basis",
+                    "crop_boundary_basis",
                 )
             }
         )

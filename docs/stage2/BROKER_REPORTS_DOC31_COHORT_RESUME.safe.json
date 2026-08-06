@@ -1,0 +1,19 @@
+{
+  "active_versions": "16/16",
+  "cohort_total": 16,
+  "components_verified": 304,
+  "cross_tenant_access": "DENIED",
+  "date": "2026-08-05",
+  "duplicate_scope_retry": "PASS",
+  "duplicate_source_instances": 1,
+  "failed_run_records_purged": 22,
+  "integrity_sha256": "7d2c80e5d1fcb65b62d609fa5153b00d1ec0a71d81f79162461f5dc05d5b32db",
+  "missing_chunks": 0,
+  "newly_completed": 8,
+  "previous_completed": 8,
+  "private_content_in_output": false,
+  "root_matches": "16/16",
+  "schema_version": "broker_reports_doc31_cohort_resume_safe_v1",
+  "status": "PASS",
+  "unaccounted": 0
+}

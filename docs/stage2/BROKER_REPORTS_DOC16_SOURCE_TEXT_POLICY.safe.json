@@ -1,0 +1,370 @@
+{
+  "NEXT_STEP": "Do not route or activate source text; first decide whether a separately authorized crop/source-package cleanup goal is worth one narrow retest.",
+  "SOURCE_TEXT_CONTEXT_QUALITY": "INSUFFICIENT",
+  "SOURCE_TEXT_DEFAULT_POLICY": "OPTIONAL_OR_INCONCLUSIVE",
+  "SOURCE_TEXT_HYPOTHESIS_FAIRLY_TESTED": "NO",
+  "dominant_defect": null,
+  "fair_packages_total": 5,
+  "fairness_failure_counts": {
+    "critical_value_coverage_at_least_99_percent": 12,
+    "crop_clean": 12,
+    "no_foreign_critical_values": 17
+  },
+  "fairness_threshold_tables": 20,
+  "improvements": [
+    {
+      "evidence": {
+        "nonclean_crops_total": 12,
+        "status_counts": {
+          "CROP_CLEAN": 12,
+          "CROP_CLIPPED": 7,
+          "CROP_CONTAMINATED": 5
+        }
+      },
+      "expected_benefit": "Reduce missing headers/edge text and foreign lexical fragments.",
+      "minimal_correction": "Tighten only the target crop margin and exclude footer or neighbor-table regions; preserve frozen DOC15 artifacts unchanged.",
+      "new_provider_calls_required": "NO_FOR_CORRECTION_YES_FOR_ANY_FUTURE_RETEST",
+      "problem": "crop_boundary_quality",
+      "recommendation": "CONSIDER_ONLY_IN_SEPARATE_FROZEN_GOAL",
+      "risk": "A tighter margin can remove legitimate notes or edge values."
+    },
+    {
+      "evidence": {
+        "packages_total": 12
+      },
+      "expected_benefit": "Avoid encouraging reliance on incomplete lexical context.",
+      "minimal_correction": "Do not pass source text for a package whose measured critical-value coverage is below 99 percent.",
+      "new_provider_calls_required": "NO_FOR_POLICY_RESEARCH_YES_FOR_ANY_FUTURE_RETEST",
+      "problem": "source_text_below_99_percent_critical_coverage",
+      "recommendation": "RESEARCH_ONLY_NOT_PRODUCT_ROUTING",
+      "risk": "Coverage cannot be known online without a deterministic non-gold proxy."
+    },
+    {
+      "evidence": {
+        "packages_with_foreign_fragments_total": 16
+      },
+      "expected_benefit": "Lower contradictory lexical evidence and token load.",
+      "minimal_correction": "Remove only proven footer, page-header, neighbor-table, and outside-target fragments before a future freeze.",
+      "new_provider_calls_required": "NO_FOR_CORRECTION_YES_FOR_ANY_FUTURE_RETEST",
+      "problem": "foreign_target_external_fragments",
+      "recommendation": "CONSIDER_ONLY_WITH_EXACT_PRIVATE_DIFF",
+      "risk": "An overbroad filter can delete legitimate table notes."
+    },
+    {
+      "evidence": {
+        "packages_total": 5
+      },
+      "expected_benefit": "Avoid false emphasis without inventing structure.",
+      "minimal_correction": "Remove only exact proven duplicate occurrences; retain legitimate repeated values.",
+      "new_provider_calls_required": "NO_FOR_CORRECTION_YES_FOR_ANY_FUTURE_RETEST",
+      "problem": "proven_critical_duplicates",
+      "recommendation": "CONSIDER_ONLY_IF_EXACT_DUPLICATE_PROOF_EXISTS",
+      "risk": "Repeated values can be legitimate in distinct rows or columns."
+    },
+    {
+      "evidence": {
+        "explicit_start_end_delimiters_present": true,
+        "one_fragment_per_line_present": true
+      },
+      "expected_benefit": "No evidenced benefit from changing delimiters in DOC16.",
+      "minimal_correction": "None; DOC15 already used explicit start/end delimiters and one fragment per line.",
+      "new_provider_calls_required": "YES_TO_TEST_ANY_CHANGE",
+      "problem": "fragment_delimiting",
+      "recommendation": "NO_CHANGE",
+      "risk": "Changing prompt packaging would create a new arm."
+    }
+  ],
+  "integrity_sha256": "0faf33d7e3038f049339b2aae4034d28927569a757687c41bd5648c6e9bb1db1",
+  "run_id": "broker_reports_doc16_source_text_context_audit_2026-08-04_v1",
+  "schema_version": "broker_reports_doc16_source_text_policy_safe_v1",
+  "tables": {
+    "ACORNS_T01": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "ACORNS_T02": {
+      "context_classification": "CONTEXT_CLEAN_BUT_UNHELPFUL",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": true,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": true
+    },
+    "ACORNS_T03": {
+      "context_classification": "CONTEXT_CLEAN_BUT_UNHELPFUL",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": true,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": true
+    },
+    "JEFFERIES_T01": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "JEFFERIES_T02": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "JEFFERIES_T03": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "JEFFERIES_T04": {
+      "context_classification": "CONTEXT_INCOMPLETE",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": true,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "JEFFERIES_T05": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "JEFFERIES_T06": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "LPL_T01": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "LPL_T02": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "LPL_T03": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "LPL_T04": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "OPPENHEIMER_T01": {
+      "context_classification": "CONTEXT_CLEAN_BUT_UNHELPFUL",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": true,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": true
+    },
+    "STONEX_T01": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "STONEX_T02": {
+      "context_classification": "CONTEXT_INCOMPLETE",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": true,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "STONEX_T03": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "STONEX_T04": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "STONEX_T05": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "TRADEWEB_T01": {
+      "context_classification": "CONTEXT_CLEAN_BUT_UNHELPFUL",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": true,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": true
+    },
+    "TRADEWEB_T02": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "TRADEWEB_T03": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    },
+    "TRADEWEB_T04": {
+      "context_classification": "CONTEXT_CLEAN_BUT_UNHELPFUL",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": true,
+        "crop_clean": true,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": true,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": true
+    },
+    "TRADEWEB_T05": {
+      "context_classification": "CONTEXT_CONTRADICTORY",
+      "criteria": {
+        "critical_value_coverage_at_least_99_percent": false,
+        "crop_clean": false,
+        "no_context_or_output_truncation": true,
+        "no_foreign_critical_values": false,
+        "provider_payload_parity": true,
+        "source_text_not_duplicated": true
+      },
+      "fair_test_package": false
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "active_versions_deleted": 0,
+  "date": "2026-08-05",
+  "integrity_sha256": "d532c062019a52e61820557da8e2a77f022730e1ec2b72773979694a3fb476db",
+  "orphan_chunks_after_rotation": 0,
+  "premature_evidence_deletions": 0,
+  "retention_classes": {
+    "ACTIVE_CANONICAL": "NOT_TESTED_ON_DURABLE_STORE",
+    "EVIDENCE": "NOT_TESTED_ON_DURABLE_STORE",
+    "PROJECTION_CACHE": "NOT_TESTED_ON_DURABLE_STORE",
+    "RAW_PROVIDER": "NOT_TESTED_ON_DURABLE_STORE",
+    "RESEARCH": "NOT_TESTED_ON_DURABLE_STORE",
+    "SOURCE": "NOT_TESTED_ON_DURABLE_STORE",
+    "SUPERSEDED_CANONICAL": "NOT_TESTED_ON_DURABLE_STORE",
+    "TEMPORARY": "NOT_TESTED_ON_DURABLE_STORE"
+  },
+  "retention_classes_tested": "0/8",
+  "rollback_targets_deleted": 0,
+  "rotation_receipts": "0/0",
+  "schema_version": "broker_reports_doc28_retention_results_safe_v1",
+  "status": "NOT_STARTED"
+}

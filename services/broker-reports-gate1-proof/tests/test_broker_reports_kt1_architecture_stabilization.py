@@ -545,6 +545,26 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "managed_document_llm_view_parity_v2.py"
         ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "canonical_artifact.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "canonical_store.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "canonical_consumer_migration.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "canonical_wave2_shadow.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "xlsx_streaming.py"
+        ),
     }
     assert set(added_package_modules) <= (
         allowed_subordinates | allowed_standalone_contract_authorities
@@ -713,6 +733,78 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             module = REPO_ROOT / authority
             assert "def main(" not in _read(module)
             assert "openwebui_actions" not in _imports(module)
+    doc26_authorities = {
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "canonical_artifact.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "canonical_store.py"
+        ),
+    }
+    if added_contract_authorities & doc26_authorities:
+        for path in (
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_PIPELINE_GATES.v1.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md",
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_CANONICAL_STORAGE_LIFECYCLE.v1.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_CANONICAL_READER.v1.md",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_canonical_artifact_v1.py",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_canonical_storage_lifecycle_v1.py",
+        ):
+            assert path.is_file()
+        authority_map = _read(ARCHITECTURE_AUTHORITIES)
+        for owner in (
+            "CanonicalNormalizerFactory.create",
+            "CanonicalArtifactStoreFactory.create",
+            "CanonicalReaderFactory.create",
+        ):
+            assert owner in authority_map
+        for authority in doc26_authorities:
+            module = REPO_ROOT / authority
+            source = _read(module)
+            assert "FACTORY_REQUIRED" in source
+            assert source.startswith('"""Gate 2 ')
+            assert "def main(" not in source
+            assert "openwebui_actions" not in _imports(module)
+    doc27_authority = (
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "canonical_consumer_migration.py"
+    )
+    if doc27_authority in added_contract_authorities:
+        for path in (
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_GATE2_CONSUMER_MIGRATION_MATRIX.v1.md",
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_GATE2_MIGRATION_STRATEGY.v1.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_CANONICAL_READER.v1.md",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_doc27_canonical_consumer_migration.py",
+        ):
+            assert path.is_file()
+        authority_map = _read(ARCHITECTURE_AUTHORITIES)
+        for owner in (
+            "Doc22SafeEvidenceCanonicalAdapterFactory",
+            "Gate1ArtifactStoreCanonicalAdapterFactory",
+            "PdfCompactCanonicalAdapterFactory",
+            "LocalPdfCompactResearchCanonicalAdapterFactory",
+        ):
+            assert owner in authority_map
+        module = REPO_ROOT / doc27_authority
+        source = _read(module)
+        assert "FACTORY_REQUIRED" in source
+        assert "FORBIDDEN" in source
+        assert "def main(" not in source
+        assert "openwebui_actions" not in _imports(module)
     workflow = _read(
         REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml"
     )

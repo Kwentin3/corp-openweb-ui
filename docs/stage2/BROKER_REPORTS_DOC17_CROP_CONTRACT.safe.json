@@ -1,0 +1,26 @@
+{
+  "schema_version": "broker_reports_doc17_crop_contract_safe_v1",
+  "DOC17_RESULT": "BLOCKED",
+  "CANONICAL_TABLE_CROP": "NOT_READY",
+  "authoritative_crop_path": {
+    "count": 1,
+    "factory": "PdfTableRasterFactory.create",
+    "contract": "PDF page plus existing table candidate to canonical table_region to isolated crop",
+    "candidate_raster_policy": "pdf_table_candidate_raster_policy_v4",
+    "canonical_region_policy": "canonical_table_region_policy_v3",
+    "allowed_statuses": ["CROP_CLEAN", "CROP_AMBIGUOUS", "CROP_BLOCKED"],
+    "shared_region_consumers": ["image_crop", "future_source_text", "provenance", "diagnostics"]
+  },
+  "AUTHORITATIVE_CROP_PATH_COUNT": 1,
+  "DUPLICATE_CROP_MECHANISMS_CREATED": 0,
+  "CANONICAL_IMAGE_AND_TEXT_REGION_SHARED": true,
+  "TABLE_SPECIFIC_RUNTIME_RULES": 0,
+  "runtime_identity_inputs_forbidden": ["pdf_sha256", "publisher_name", "table_id", "page_number", "fixed_doc15_coordinates"],
+  "NEW_PROVIDER_CALLS_TOTAL": 0,
+  "PARSER_SEMANTICS_CHANGED": false,
+  "VLM_PROMPT_CHANGED": false,
+  "STRUCTURED_OUTPUT_SCHEMA_CHANGED": false,
+  "DOC6_CHANGED": false,
+  "GATE2_CHANGED": false,
+  "PRODUCT_PIPELINE_ACTIVATED": false
+}

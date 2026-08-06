@@ -1,0 +1,24 @@
+{
+  "current_call_chain": [
+    "path.read_bytes",
+    "FileInput.from_bytes",
+    "Gate1Normalizer.normalize",
+    "profile_xlsx full XML DOM",
+    "FullSourceArtifactBuilder second XML DOM",
+    "CanonicalNormalizer deepcopy",
+    "CanonicalArtifactStore whole-artifact serialization/deepcopy"
+  ],
+  "date": "2026-08-05",
+  "integrity_sha256": "3d6ebd396fa446cbc64855a81dde4abf8daa66a9185292d043278e937196690b",
+  "oom_boundary": "NORMALIZER_BUILDING_DOCUMENT_MEMORY before NORMALIZER_VALIDATING",
+  "private_content_in_output": false,
+  "root_causes": [
+    "whole input bytes retained",
+    "two full worksheet DOM passes",
+    "full row and cell projections",
+    "repeated deep copies",
+    "whole-artifact serialization before storage"
+  ],
+  "schema_version": "broker_reports_doc31_current_xlsx_adapter_audit_safe_v1",
+  "status": "PASS"
+}

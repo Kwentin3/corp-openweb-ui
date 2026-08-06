@@ -1,0 +1,191 @@
+{
+  "actual_flow": [
+    "Gate1Normalizer",
+    "FullSourceArtifactFactory",
+    "PdfLayoutUnitBuilder",
+    "private_normalized_source_units_and_table_projections",
+    "gate2_handoff_v0_private_source_unit_refs",
+    "Gate2_source_fact_input_packages"
+  ],
+  "canonical_ordered_document_currently_consumed_by_gate2": false,
+  "current_compact_canonical_limit": "page_manifest_plus_tables_and_selected_table_evidence; line_inventory_and_block_inventory_are_forbidden",
+  "first_irreversible_ordering_gap": "PdfLayoutUnitBuilder emits table units before line units and gate2_handoff_v0 passes refs without a single interleaved document block sequence",
+  "integrity_sha256": "a20913886a2e0d43dc8fffbaec2222a2484e8e8ed70b431d4c74bb1d9ff782f1",
+  "managed_pdf_document_v2_status": "INACTIVE_FACTORY_ONLY_NOT_GATE2_CONSUMER",
+  "product_contract": false,
+  "research_only": true,
+  "run_id": "broker_reports_doc24_gate2_canonical_document_2026-08-05_v1",
+  "schema_version": "broker_reports_doc24_gate2_handoff_audit_safe_v1",
+  "source_evidence": [
+    {
+      "anchors": [
+        {
+          "anchor": "FullSourceArtifactFactory(",
+          "line_numbers": [
+            130
+          ]
+        },
+        {
+          "anchor": "table_projection_builder.build_for_document",
+          "line_numbers": [
+            312
+          ]
+        },
+        {
+          "anchor": "\"gate2_handoff\": gate2_handoff",
+          "line_numbers": [
+            563
+          ]
+        }
+      ],
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/normalizer.py",
+      "sha256": "97baf95bab789f95458b22fc2e600993c375a36a148124eb892d1938729ae181"
+    },
+    {
+      "anchors": [
+        {
+          "anchor": "class FullSourceArtifactFactory",
+          "line_numbers": [
+            100
+          ]
+        },
+        {
+          "anchor": "PdfLayoutUnitBuilder(",
+          "line_numbers": [
+            223
+          ]
+        }
+      ],
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/full_source.py",
+      "sha256": "9ef5630ac9938c936efd06c0fc4638ba7b43a33c8f443db85649323e01b111f8"
+    },
+    {
+      "anchors": [
+        {
+          "anchor": "class PdfLayoutUnitBuilder",
+          "line_numbers": [
+            65
+          ]
+        },
+        {
+          "anchor": "return [*table_units, *line_units], reasons",
+          "line_numbers": [
+            795
+          ]
+        }
+      ],
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_layout_units.py",
+      "sha256": "ddebf803c3c7d97f612bc90137dbd52cb09073513048bd66492b28354d607292"
+    },
+    {
+      "anchors": [
+        {
+          "anchor": "\"artifact_type\": \"gate2_handoff_v0\"",
+          "line_numbers": [
+            1051
+          ]
+        },
+        {
+          "anchor": "\"private_source_unit_refs\": included_source_unit_refs",
+          "line_numbers": [
+            1123
+          ]
+        },
+        {
+          "anchor": "PdfCompactCanonicalFactory().create()",
+          "line_numbers": [
+            1261
+          ]
+        }
+      ],
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_handoff.py",
+      "sha256": "b15ea2a6c756ad3af44637e7481c25a452d07bb7ebf18dd095073b35fbd60f54"
+    },
+    {
+      "anchors": [
+        {
+          "anchor": "validate_dry_run_source_fact_package",
+          "line_numbers": [
+            473,
+            1329
+          ]
+        },
+        {
+          "anchor": "def _source_unit_refs",
+          "line_numbers": [
+            2177
+          ]
+        }
+      ],
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_input_readiness.py",
+      "sha256": "87e844d4803cb4c70d52a1d1a6fbd93777d82e4793e0b8f4d902e6dbdb67b686"
+    },
+    {
+      "anchors": [
+        {
+          "anchor": "\"gate2_handoff_ref\": _single_ref",
+          "line_numbers": [
+            1468
+          ]
+        }
+      ],
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_source_fact_runtime.py",
+      "sha256": "7e52f324d6fb07d6ac21e2e68f21e7dd83ff49dd131a094653f733da42b101b5"
+    },
+    {
+      "anchors": [
+        {
+          "anchor": "_FORBIDDEN_KEYS",
+          "line_numbers": [
+            59,
+            552
+          ]
+        },
+        {
+          "anchor": "\"line_inventory\"",
+          "line_numbers": [
+            62
+          ]
+        },
+        {
+          "anchor": "\"block_inventory\"",
+          "line_numbers": [
+            63
+          ]
+        },
+        {
+          "anchor": "\"pages\": page_manifest",
+          "line_numbers": [
+            264
+          ]
+        },
+        {
+          "anchor": "\"tables\": compact_tables",
+          "line_numbers": [
+            265
+          ]
+        }
+      ],
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_compact_canonical.py",
+      "sha256": "b852c1f214776eec63763c1b23aa6cb5bcbeec14a34c9a67573c32c1583c36fd"
+    },
+    {
+      "anchors": [
+        {
+          "anchor": "sole inactive PDF to Managed",
+          "line_numbers": [
+            33
+          ]
+        },
+        {
+          "anchor": "class ManagedPdfDocumentV2Factory",
+          "line_numbers": [
+            60
+          ]
+        }
+      ],
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/managed_pdf_document_v2.py",
+      "sha256": "b8e801a8f6219c7230ec85aa0a3a77542e9ceade5586eb8ad0bc861036f67a21"
+    }
+  ]
+}

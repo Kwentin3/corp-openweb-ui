@@ -1,0 +1,127 @@
+{
+  "baseline": "frozen DOC13 image plus source text",
+  "classification": "CONFIRMED",
+  "effect_rules_frozen_before_calls": {
+    "content_metric_lower_is_better": "critical_values_invented",
+    "content_metrics_higher_is_better": [
+      "critical_value_recall",
+      "critical_value_precision",
+      "row_association_accuracy",
+      "column_association_accuracy",
+      "exact_table_rate"
+    ],
+    "format_metrics": [
+      "raw_json_validity",
+      "normalized_json_validity"
+    ],
+    "inconclusive": "fewer than four successful treatment calls for a model",
+    "mixed": "any other eligible combination",
+    "negative": "all governed metrics no better and at least one worse",
+    "no_meaningful_effect": "all governed metrics exactly equal",
+    "positive": "all governed metrics no worse and at least one better"
+  },
+  "integrity_sha256": "faba2bb83cce54dfcd0b505d23e7308f95b9f8f622275a4cc146e6748ca50c4a",
+  "only_experimental_variable": "native provider JSON Schema structured output",
+  "per_model_effect": {
+    "anthropic_haiku": {
+      "CONTENT_EFFECT": "MIXED",
+      "FORMAT_EFFECT": "POSITIVE",
+      "OVERALL_EFFECT": "MIXED",
+      "STRUCTURED_OUTPUT_FORMAT": "CONFIRMED",
+      "average_latency_seconds_delta": 0.351,
+      "content_deltas_structured_minus_baseline": {
+        "column_association_accuracy": 0.9219858156028369,
+        "critical_value_precision": -0.04225352112676062,
+        "critical_value_recall": 0.9784172661870504,
+        "critical_values_invented": 5.0,
+        "exact_table_rate": 0.25,
+        "row_association_accuracy": 0.425531914893617
+      },
+      "decision_eligible": true,
+      "estimated_cost_usd_delta": -0.005281,
+      "format_deltas_structured_minus_baseline": {
+        "normalized_json_validity": 1.0,
+        "raw_json_validity": 1.0
+      },
+      "input_tokens_delta": 1524,
+      "output_tokens_delta": -1361,
+      "thinking_tokens_delta": 0
+    },
+    "anthropic_opus": {
+      "CONTENT_EFFECT": "MIXED",
+      "FORMAT_EFFECT": "POSITIVE",
+      "OVERALL_EFFECT": "MIXED",
+      "STRUCTURED_OUTPUT_FORMAT": "CONFIRMED",
+      "average_latency_seconds_delta": -1.946,
+      "content_deltas_structured_minus_baseline": {
+        "column_association_accuracy": 0.950354609929078,
+        "critical_value_precision": 0.1081349206349207,
+        "critical_value_recall": 0.9568345323741008,
+        "critical_values_invented": 4.0,
+        "exact_table_rate": 0.25,
+        "row_association_accuracy": 0.950354609929078
+      },
+      "decision_eligible": true,
+      "estimated_cost_usd_delta": -0.03029,
+      "format_deltas_structured_minus_baseline": {
+        "normalized_json_validity": 0.75,
+        "raw_json_validity": 0.75
+      },
+      "input_tokens_delta": 1752,
+      "output_tokens_delta": -1562,
+      "thinking_tokens_delta": 0
+    },
+    "google_flash_lite": {
+      "CONTENT_EFFECT": "MIXED",
+      "FORMAT_EFFECT": "POSITIVE",
+      "OVERALL_EFFECT": "MIXED",
+      "STRUCTURED_OUTPUT_FORMAT": "CONFIRMED",
+      "average_latency_seconds_delta": 0.023,
+      "content_deltas_structured_minus_baseline": {
+        "column_association_accuracy": 0.44680851063829785,
+        "critical_value_precision": 0.003739316239316226,
+        "critical_value_recall": 0.460431654676259,
+        "critical_values_invented": 2.0,
+        "exact_table_rate": 0.25,
+        "row_association_accuracy": 0.5177304964539007
+      },
+      "decision_eligible": true,
+      "estimated_cost_usd_delta": -0.00107,
+      "format_deltas_structured_minus_baseline": {
+        "normalized_json_validity": 0.5,
+        "raw_json_validity": 0.75
+      },
+      "input_tokens_delta": 0,
+      "output_tokens_delta": -428,
+      "thinking_tokens_delta": 0
+    },
+    "openai_mini": {
+      "CONTENT_EFFECT": "MIXED",
+      "FORMAT_EFFECT": "POSITIVE",
+      "OVERALL_EFFECT": "MIXED",
+      "STRUCTURED_OUTPUT_FORMAT": "CONFIRMED",
+      "average_latency_seconds_delta": -0.746,
+      "content_deltas_structured_minus_baseline": {
+        "column_association_accuracy": 0.9148936170212766,
+        "critical_value_precision": 0.09491193737769088,
+        "critical_value_recall": 0.9568345323741008,
+        "critical_values_invented": 4.0,
+        "exact_table_rate": 0.0,
+        "row_association_accuracy": 0.14893617021276595
+      },
+      "decision_eligible": true,
+      "estimated_cost_usd_delta": -0.009507,
+      "format_deltas_structured_minus_baseline": {
+        "normalized_json_validity": 0.75,
+        "raw_json_validity": 0.5
+      },
+      "input_tokens_delta": 416,
+      "output_tokens_delta": -2182,
+      "thinking_tokens_delta": 0
+    }
+  },
+  "protocol_sha256": "8a93c466a2fc1e89a6fe1fedbbd56f93d5bbfc6933ede287aa77e4a57cce441a",
+  "run_id": "broker_reports_doc14_structured_json_2026-08-03_v1",
+  "schema_version": "broker_reports_doc14_structured_output_effect_safe_v2",
+  "treatment": "IMAGE_PLUS_SOURCE_TEXT_STRUCTURED"
+}

@@ -1,0 +1,29 @@
+{
+  "blocker_code": "BLOCKED_DURABLE_BACKEND_NOT_APPROVED_OR_ACCESSIBLE",
+  "brief_sha256": "0a7be8933b7bac82a547bd824f46ce7d68028356be6bfe1fe3084dcaf2bd74d4",
+  "date": "2026-08-05",
+  "durable_writes": 0,
+  "historical_hashes_rewritten": 0,
+  "historical_reports_modified": 0,
+  "integrity_sha256": "dff159f997d300afcfdd41d39de59d456f95f1c40af3a4d5d6afbad1fa8ba246",
+  "parser_reruns": 0,
+  "private_content_in_receipt": false,
+  "provider_calls": 0,
+  "report_sha256": "94fd75eae0201f0fb8f37c82b9a47513c6d3fcb64ca9a895757b9a199042920d",
+  "runtime_mutations": 0,
+  "safe_artifact_sha256": {
+    "docs/stage2/BROKER_REPORTS_DOC28_ACTIVE_VERSION_RESULTS.safe.json": "29eecdf257400a9767712bef6ba3837db81be05f5b6348969e71fb744ee37fa3",
+    "docs/stage2/BROKER_REPORTS_DOC28_APPROVED_COHORT.safe.json": "048c264d2fb4cfeb3b80f1734f809a3483991c2d5e75cef1d6d02f5972ddbaf1",
+    "docs/stage2/BROKER_REPORTS_DOC28_DECISION.safe.json": "fba165f1a4095c2b9300567d8eca5a3e2b2a437613ac757aee57fc559bc78db8",
+    "docs/stage2/BROKER_REPORTS_DOC28_DURABLE_BACKFILL.safe.json": "120c6f8b52138e70458335d7f730e83a9ff2922b83878829d8ef4c01efcc4132",
+    "docs/stage2/BROKER_REPORTS_DOC28_DURABLE_STORAGE_AUDIT.safe.json": "b6cf1868f805b8e22af0d15a7b3f4b61f2f4f24a96ab9168cd315e9587bc6912",
+    "docs/stage2/BROKER_REPORTS_DOC28_NEW_UPLOAD_SHADOW.safe.json": "2afe1938bda0846654486b8dadc833829f76682511110c828e500a2015a8354d",
+    "docs/stage2/BROKER_REPORTS_DOC28_OBSERVABILITY.safe.json": "8c47bc0383677909142564d9f96bf000c7c5e6f5d0567427f217da282aa37da9",
+    "docs/stage2/BROKER_REPORTS_DOC28_RESEARCH_CONSUMER_RESULTS.safe.json": "0ad5570c6dc2f291290f84389a347179274bfd1d4e4d671c32850881853d3e57",
+    "docs/stage2/BROKER_REPORTS_DOC28_RETENTION_RESULTS.safe.json": "85437dfa8742df069ab78a1301b3dd079b4a5f3f7e2716f00882f9f28fd87e38",
+    "docs/stage2/BROKER_REPORTS_DOC28_TEST_RESULTS.safe.json": "29aba8bf42ae553c54fedfc5c916829f34f5753f18266cd62641192bcfc96c4c",
+    "docs/stage2/BROKER_REPORTS_DOC28_WAVE2_SHADOW_RESULTS.safe.json": "3e57a2eb4ea83fb1d51ec58cad2dffc81ea9913ecccd60d8429bb05f2a34c5b8"
+  },
+  "schema_version": "broker_reports_doc28_gate2_durable_contour_receipt_safe_v1",
+  "status": "BLOCKED"
+}

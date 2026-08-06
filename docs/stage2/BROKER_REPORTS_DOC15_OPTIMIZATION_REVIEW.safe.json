@@ -1,0 +1,88 @@
+{
+  "integrity_sha256": "ded604243eead2421c57c7cc74d2eda4378b05f6808fb839d345aab33d7315b1",
+  "optimization_next_step": "Run a separately frozen next-goal optimization experiment only if explicitly authorized.",
+  "optimization_review_completed": true,
+  "optimizations": [
+    {
+      "decision": "NOT_RECOMMENDED_WITH_CURRENT_EVIDENCE",
+      "evidence_from_holdout": {
+        "per_model_effects": {
+          "anthropic_haiku": "INCONCLUSIVE",
+          "anthropic_opus": "INCONCLUSIVE",
+          "google_flash_lite": "INCONCLUSIVE",
+          "openai_mini": "INCONCLUSIVE"
+        },
+        "source_minus_image_cost_usd": 0.08817885
+      },
+      "expected_benefit": "lower input tokens and cost",
+      "implementation_effort": "medium",
+      "optimization": "Reduce source-text context",
+      "risk": "may remove values classified as source-text gaps or useful lexical evidence"
+    },
+    {
+      "decision": "NOT_RECOMMENDED_WITHOUT_NEW_CONTROLLED_ARM",
+      "evidence_from_holdout": {
+        "prompt_frozen_and_shared": true
+      },
+      "expected_benefit": "small input-token reduction",
+      "implementation_effort": "low",
+      "optimization": "Shorten prompt",
+      "risk": "could alter structure fidelity"
+    },
+    {
+      "decision": "RECOMMENDED_FOR_SEPARATE_NEXT_GOAL",
+      "evidence_from_holdout": {
+        "max_output_tokens": 8192,
+        "maximum_observed_output_tokens": 19386
+      },
+      "expected_benefit": "smaller worst-case budget",
+      "implementation_effort": "low",
+      "optimization": "Reduce maximum output tokens",
+      "risk": "truncation on dense tables"
+    },
+    {
+      "decision": "RECOMMENDED_FOR_SEPARATE_NEXT_GOAL",
+      "evidence_from_holdout": {
+        "continuation_class_available": true,
+        "continuation_exact_rates": {
+          "anthropic_haiku__IMAGE_ONLY": 0.0,
+          "anthropic_haiku__IMAGE_PLUS_SOURCE_TEXT": 0.0,
+          "anthropic_opus__IMAGE_ONLY": 0.3333333333333333,
+          "anthropic_opus__IMAGE_PLUS_SOURCE_TEXT": 0.16666666666666666,
+          "google_flash_lite__IMAGE_ONLY": 0.3333333333333333,
+          "google_flash_lite__IMAGE_PLUS_SOURCE_TEXT": 0.0,
+          "openai_mini__IMAGE_ONLY": 0.0,
+          "openai_mini__IMAGE_PLUS_SOURCE_TEXT": 0.0
+        }
+      },
+      "expected_benefit": "avoid clipped labels at detector boundaries",
+      "implementation_effort": "medium",
+      "optimization": "Review crop margins",
+      "risk": "wider crops may add neighboring content"
+    },
+    {
+      "decision": "NOT_RECOMMENDED_WITH_CURRENT_EVIDENCE",
+      "evidence_from_holdout": {
+        "passed_models": []
+      },
+      "expected_benefit": "use a cheap passing primary where proven",
+      "implementation_effort": "medium",
+      "optimization": "Provider routing",
+      "risk": "routing can hide model-specific failures without deterministic validation"
+    },
+    {
+      "decision": "RECOMMENDED_FOR_DESIGN_RESEARCH_ONLY",
+      "evidence_from_holdout": {
+        "native_schema_validity_available": true,
+        "sealed_error_classes_available": true
+      },
+      "expected_benefit": "bounded fallback decisions",
+      "implementation_effort": "high",
+      "optimization": "Deterministic validation before fallback",
+      "risk": "content validation cannot be fully proven without gold"
+    }
+  ],
+  "optimizations_applied_during_run": 0,
+  "run_id": "broker_reports_doc15_real_holdout_2026-08-03_v1",
+  "schema_version": "broker_reports_doc15_optimization_review_safe_v1"
+}

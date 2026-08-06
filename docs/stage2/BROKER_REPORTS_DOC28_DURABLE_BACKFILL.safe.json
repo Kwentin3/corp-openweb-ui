@@ -1,0 +1,19 @@
+{
+  "active_versions": 0,
+  "blocker": "approved target runtime and durable volume access are absent",
+  "cohort_documents_total": 16,
+  "date": "2026-08-05",
+  "durable_versions_created": 0,
+  "hidden_provider_reruns": 0,
+  "integrity_sha256": "f0fcbb64bf2f117808eaf992e3b7ecec9c09c279201198a30e685bcd5efb2d2e",
+  "orphan_chunks": 0,
+  "parser_reruns": 0,
+  "partial_writes": 0,
+  "provider_calls": 0,
+  "provider_rerun_required": false,
+  "reprocess_reason": "DOC26 temporary canonical store and normalized payload graph no longer exist",
+  "reprocess_required": true,
+  "schema_version": "broker_reports_doc28_durable_backfill_safe_v1",
+  "status": "NOT_STARTED_STOP_GATE",
+  "validated_versions": 0
+}

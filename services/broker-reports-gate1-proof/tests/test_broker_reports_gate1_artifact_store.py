@@ -19,6 +19,7 @@ from broker_reports_gate1 import (
     ArtifactStoreError,
     ArtifactStoreFactory,
     FileInput,
+    GATE1_ARTIFACT_STORE_MAPPING,
     Gate1Normalizer,
     build_retention_policy,
     persist_gate1_result,
@@ -143,7 +144,7 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertIn("chat_visible_normalization_report_v0", types)
         self.assertIn("private_normalized_text_slice_v0", types)
         self.assertIn("private_normalized_table_slice_v0", types)
-        self.assertIn("gate2_handoff_v0", types)
+        self.assertIn(GATE1_ARTIFACT_STORE_MAPPING.legacy_contract_version, types)
         self.assertIn("source_file_ref_v0", types)
         self.assertTrue(manifest.private_slice_refs)
         self.assertTrue(manifest.safe_refs)
@@ -172,7 +173,12 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
                 self.assertTrue(record.safe_metadata["parser_ref"])
                 self.assertTrue(record.safe_metadata["coverage_ref"])
                 self.assertTrue(record.safe_metadata["coverage_complete"])
-        handoff_record = next(record for record in records if record.artifact_type == "gate2_handoff_v0")
+        handoff_record = next(
+            record
+            for record in records
+            if record.artifact_type
+            == GATE1_ARTIFACT_STORE_MAPPING.legacy_contract_version
+        )
         self.assertEqual(
             handoff_record.safe_metadata["source_fact_input_manifest_status"],
             "resolver_ready",
@@ -403,7 +409,10 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         payload = resolved["payload"]
         rendered = json.dumps(payload, ensure_ascii=False, sort_keys=True)
 
-        self.assertEqual(payload["artifact_type"], "gate2_handoff_v0")
+        self.assertEqual(
+            payload["artifact_type"],
+            GATE1_ARTIFACT_STORE_MAPPING.legacy_contract_version,
+        )
         self.assertEqual(payload["validation_status"], "validated")
         self.assertEqual(payload["handoff_status"], "ready_with_safe_refs")
         self.assertEqual(payload["handoff_mode"], "full_package_ready_for_gate2")

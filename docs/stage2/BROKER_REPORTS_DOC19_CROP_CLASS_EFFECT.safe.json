@@ -1,0 +1,17 @@
+{
+  "DOC19_EXPERIMENT": "BLOCKED",
+  "class_counts": {
+    "CROP_CLEAN": 12,
+    "CROP_CLIPPED": 7,
+    "CROP_CONTAMINATED": 5
+  },
+  "conclusion": "No crop-class causal or case-specific rule can be inferred from a pre-call architecture blocker.",
+  "crop_class_results_reported": false,
+  "crop_classes_preserved": true,
+  "effect": "NOT_EVALUATED",
+  "evaluated_cases_total": 0,
+  "integrity_sha256": "bba5981376cc4dece1b6153ef235f77ac822a9763c6f3f73927016c8bddd534d",
+  "run_id": "broker_reports_doc19_financial_sufficiency_2026-08-04_v1",
+  "schema_version": "broker_reports_doc19_crop_class_effect_safe_v1",
+  "tables_total": 24
+}

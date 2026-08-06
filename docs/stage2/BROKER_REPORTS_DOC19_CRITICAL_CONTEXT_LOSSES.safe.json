@@ -1,0 +1,11 @@
+{
+  "DOC19_EXPERIMENT": "BLOCKED",
+  "critical_context_loss_reported": false,
+  "critical_context_losses": [],
+  "empty_list_meaning": "NOT_EVALUATED",
+  "evaluated_cases_total": 0,
+  "integrity_sha256": "628235bba0ed5a7f137e65c214dd39a4b20e5a1bf1b9b606eff0c93354bcd5e8",
+  "root_causes_reported": false,
+  "run_id": "broker_reports_doc19_financial_sufficiency_2026-08-04_v1",
+  "schema_version": "broker_reports_doc19_critical_context_losses_safe_v1"
+}

@@ -1,0 +1,77 @@
+{
+  "access_failures": 0,
+  "accounting": {
+    "compare_receipts": 16,
+    "documents_attempted": 16,
+    "documents_completed": 16,
+    "documents_failed": 0,
+    "documents_unaccounted": 0,
+    "malformed_inputs_terminally_accounted": true
+  },
+  "active_versions_created": 0,
+  "canonical_product_reads_enabled": false,
+  "canonical_read_disabled_confirmed": true,
+  "canonical_regressions": 0,
+  "corpus": {
+    "approved_private_actual_documents": 16,
+    "format_counts": {
+      "csv": 2,
+      "html": 4,
+      "pdf": 8,
+      "xlsx": 2
+    },
+    "frozen_pdf_arms": 2,
+    "frozen_pdf_documents": 6,
+    "input_bytes": 5693561,
+    "malformed_or_unsupported_inputs": 2,
+    "representative_large_documents": 5,
+    "sealed_fixture_formats": 4
+  },
+  "cropper_reruns": 0,
+  "date": "2026-08-05",
+  "differences": {
+    "AMBIGUOUS": 7,
+    "EXPECTED_SCHEMA_DIFFERENCE": 9
+  },
+  "evidence_classification_correction": {
+    "original_status": "FAILED",
+    "private_actual_corpus_rerun": false,
+    "reason": "safe script read batch key records instead of contract key outcomes",
+    "synthetic_only_recheck": true
+  },
+  "failed_writes_leaving_active_pointer": 0,
+  "integrity_sha256": "45c56a804c35a61ca57c926b16db8c996e85c0a7c99543952924f0f3baf49756",
+  "legacy_product_reads_changed": false,
+  "operational_metrics": {
+    "activation_latency_seconds": null,
+    "canonical_component_count": 172,
+    "canonical_storage_bytes": 105510165,
+    "compare_seconds": 0.008831,
+    "normalization_seconds": 368.379312,
+    "partial_read_latency_seconds": null,
+    "persistence_seconds": 88.288065,
+    "physical_layout_counts": {
+      "chunked": 5,
+      "single_payload": 11
+    },
+    "retention_eligibility": "api_smoke_policy_applied",
+    "total_seconds": 460.405801
+  },
+  "parser_reruns": 0,
+  "partial_chunk_writes": 0,
+  "prerequisites_passed": true,
+  "private_actual_corpus_attempts": 1,
+  "private_content_in_report": false,
+  "provider_calls": 0,
+  "run_id": "broker_reports_doc26_actual_corpus_shadow_2026-08-05_v1",
+  "schema_version": "broker_reports_doc26_shadow_run_safe_v1",
+  "status": "PASSED",
+  "synthetic_malformed_accounting_attempts": 2,
+  "unresolved_comparisons": 0,
+  "valves": {
+    "canonical_gate2_compare_enabled": true,
+    "canonical_gate2_read_enabled": false,
+    "canonical_gate2_write_enabled": true
+  },
+  "vlm_tables_regenerated": false
+}

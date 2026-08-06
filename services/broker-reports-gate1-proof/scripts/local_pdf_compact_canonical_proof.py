@@ -19,8 +19,11 @@ from broker_reports_gate1 import (  # noqa: E402
     ArtifactAccessContext,
     ArtifactStoreConfig,
     ArtifactStoreFactory,
+    CanonicalReadLedger,
     FileInput,
     Gate1Normalizer,
+    LOCAL_PDF_COMPACT_RESEARCH_MAPPING,
+    LocalPdfCompactResearchCanonicalAdapterFactory,
     PdfCompactCanonicalValidator,
     PdfNormalizationAcceptanceValidator,
     build_retention_policy,
@@ -36,13 +39,20 @@ DEFAULT_DOCUMENT_ID = "brdoc_054_79af73d5be78"
 DEFAULT_OUTPUT = (
     "local/stage2/broker_reports_pdf_compact_canonical_2026-07-13/evidence.safe.json"
 )
+DEFAULT_CANONICAL_STORE_ROOT = (
+    "local/stage2/broker_reports_doc27_consumer_migration_2026-08-05/"
+    "private/canonical_store"
+)
 
 FACTORY_REQUIRED = (
-    "Controlled proof must enter through Gate1Normalizer and persist_gate1_result"
+    "Canonical mode must enter through "
+    "LocalPdfCompactResearchCanonicalAdapterFactory and CanonicalReaderFactory; "
+    "explicit rollback mode retains Gate1Normalizer and persist_gate1_result"
 )
 FORBIDDEN = (
-    "The proof must not invoke the compact builder directly, expose private paths or values, "
-    "or change Gate 2 selection"
+    "The proof must not invoke the compact builder or storage directly, expose "
+    "private paths or values, silently fall back to legacy, or change product "
+    "read authority"
 )
 
 
@@ -51,7 +61,25 @@ def main() -> int:
     parser.add_argument("--private-registry", default=DEFAULT_PRIVATE_REGISTRY)
     parser.add_argument("--document-id", default=DEFAULT_DOCUMENT_ID)
     parser.add_argument("--output", default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--canonical-read-enabled",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            f"Consumer flag {LOCAL_PDF_COMPACT_RESEARCH_MAPPING.feature_flag}; "
+            "use --no-canonical-read-enabled for explicit rollback"
+        ),
+    )
+    parser.add_argument(
+        "--canonical-store-root", default=DEFAULT_CANONICAL_STORE_ROOT
+    )
+    parser.add_argument("--canonical-run-id", default="doc27-local-pdf-proof")
+    parser.add_argument("--canonical-case-id", default="controlled-pdf-compact-proof")
+    parser.add_argument("--canonical-user-id", default="controlled-proof-user")
     args = parser.parse_args()
+
+    if args.canonical_read_enabled:
+        return _run_canonical(args)
 
     registry_path = _repo_path(args.private_registry)
     registry = _load_json(registry_path)
@@ -134,7 +162,9 @@ def main() -> int:
         "controlled_pdf_acceptance_artifact_cardinality_invalid",
     )
     handoff_record = _latest(
-        store.list_by_type(run_id, "gate2_handoff_v0"),
+        store.list_by_type(
+            run_id, LOCAL_PDF_COMPACT_RESEARCH_MAPPING.legacy_contract_version
+        ),
         "controlled_pdf_handoff_artifact_cardinality_invalid",
     )
     compact = store.read_payload(compact_record)
@@ -242,6 +272,88 @@ def main() -> int:
     )
     print(json.dumps(safe_evidence, ensure_ascii=True, separators=(",", ":")))
     return 0 if proof_passed else 1
+
+
+def _run_canonical(args: argparse.Namespace) -> int:
+    store_root = _repo_path(args.canonical_store_root)
+    sqlite_path = store_root / "artifacts.sqlite3"
+    output_path = _repo_path(args.output)
+    if not sqlite_path.is_file():
+        return _write_canonical_result(
+            output_path,
+            {
+                "schema_version": LOCAL_PDF_COMPACT_RESEARCH_MAPPING.output_contract_version,
+                "consumer_id": LOCAL_PDF_COMPACT_RESEARCH_MAPPING.consumer_id,
+                "migration_wave": LOCAL_PDF_COMPACT_RESEARCH_MAPPING.migration_wave,
+                "consumer_feature_flag": (
+                    LOCAL_PDF_COMPACT_RESEARCH_MAPPING.feature_flag
+                ),
+                "canonical_read_enabled": True,
+                "compatibility_status": "CANONICAL_INCOMPLETE",
+                "cutover_status": "BLOCKED",
+                "error_code": "canonical_store_unavailable",
+                "silent_fallback": False,
+                "legacy_read_attempted": False,
+                "private_content_in_output": False,
+            },
+            exit_code=2,
+        )
+    store = ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=sqlite_path,
+            payload_root=store_root / "payloads",
+        )
+    ).create()
+    context = ArtifactAccessContext(
+        user_id=args.canonical_user_id,
+        normalization_run_id=args.canonical_run_id,
+        case_id=args.canonical_case_id,
+        allow_private=True,
+        require_source_available=True,
+    )
+    ledger = CanonicalReadLedger()
+    result = LocalPdfCompactResearchCanonicalAdapterFactory(
+        store=store,
+        enabled=True,
+        ledger=ledger,
+    ).create().read_active(document_id=args.document_id, context=context)
+    canonical_summary = dict(result.output or {})
+    canonical_summary.pop("generic_projection", None)
+    safe_result = {
+        "schema_version": LOCAL_PDF_COMPACT_RESEARCH_MAPPING.output_contract_version,
+        "consumer_id": result.consumer_id,
+        "migration_wave": result.migration_wave,
+        "consumer_feature_flag": LOCAL_PDF_COMPACT_RESEARCH_MAPPING.feature_flag,
+        "canonical_read_enabled": True,
+        "compatibility_status": result.compatibility_status,
+        "cutover_status": (
+            "ENABLED" if result.compatibility_status == "CANONICAL_OK" else "BLOCKED"
+        ),
+        "error_code": result.error_code,
+        "canonical_summary": canonical_summary,
+        "telemetry": result.telemetry,
+        "silent_fallback": False,
+        "legacy_read_attempted": False,
+        "private_content_in_output": False,
+    }
+    return _write_canonical_result(
+        output_path,
+        safe_result,
+        exit_code=0 if result.compatibility_status == "CANONICAL_OK" else 2,
+    )
+
+
+def _write_canonical_result(
+    output_path: Path, payload: dict[str, Any], *, exit_code: int
+) -> int:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    print(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))
+    return exit_code
 
 
 def _repo_path(value: str) -> Path:

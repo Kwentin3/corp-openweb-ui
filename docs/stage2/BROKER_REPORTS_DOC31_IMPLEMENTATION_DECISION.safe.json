@@ -1,0 +1,17 @@
+{
+  "date": "2026-08-05",
+  "integrity_sha256": "1baccea08940f157ce6d30e9777a3f2c99b49c204fe54636163d3a2a1947e720",
+  "openpyxl_streaming": "REJECTED_AS_SELECTED_ROUTE",
+  "openwebui_reuse": "REJECTED",
+  "private_content_in_output": false,
+  "rationale": [
+    "exact OpenWebUI output is structurally insufficient",
+    "openpyxl formula/cache parity requires duplicate workbook passes",
+    "inflated dimensions risk synthesized empty cells",
+    "stdlib OOXML is the existing canonical technology boundary"
+  ],
+  "schema_version": "broker_reports_doc31_implementation_decision_safe_v1",
+  "second_production_engine_created": false,
+  "selected": "DIRECT_OOXML_STREAMING",
+  "status": "PASS"
+}

@@ -1,0 +1,15 @@
+ARG BASE_IMAGE=corp-openwebui/openwebui:v0.9.6-native-web-stt-broker-intake-v2-8e6a71f
+FROM ${BASE_IMAGE}
+
+USER 0
+RUN python -m pip install --no-cache-dir --disable-pip-version-check \
+    pypdf==6.7.5 \
+    pdfplumber==0.11.10 \
+    PyMuPDF==1.26.5 \
+    pdfminer.six==20260107 \
+    Pillow==12.3.0 \
+    pypdfium2==5.11.0
+COPY broker_reports_gate1 /opt/broker-reports-doc32/broker_reports_gate1
+COPY scripts/doc32_pdf_roundtrip_repair.py /opt/broker-reports-doc32/doc32_pdf_roundtrip_repair.py
+ENV PYTHONPATH=/opt/broker-reports-doc32
+ENTRYPOINT ["python", "/opt/broker-reports-doc32/doc32_pdf_roundtrip_repair.py"]

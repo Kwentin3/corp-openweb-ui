@@ -1,0 +1,21 @@
+{
+  "DOC20_EXPERIMENT": "BLOCKED",
+  "DOC20_RESULT": "BLOCKED_VERIFIER_ADAPTER_MODEL_INCOMPATIBILITY",
+  "case_specific_crop_rules_created": 0,
+  "class_counts": {
+    "CROP_CLEAN": 12,
+    "CROP_CLIPPED": 7,
+    "CROP_CONTAMINATED": 5
+  },
+  "content_cases_evaluated_by_class": {
+    "CROP_CLEAN": 0,
+    "CROP_CLIPPED": 0,
+    "CROP_CONTAMINATED": 0
+  },
+  "crop_class_effect_reported": false,
+  "crop_classes_preserved": true,
+  "effect": "NOT_EVALUATED",
+  "integrity_sha256": "ced2c41517bf6a206b2b542b074c1df7e446108ef422ff89df524caafd61f3c3",
+  "run_id": "broker_reports_doc20_material_sufficiency_2026-08-04_v1",
+  "schema_version": "broker_reports_doc20_crop_class_effect_safe_v1"
+}

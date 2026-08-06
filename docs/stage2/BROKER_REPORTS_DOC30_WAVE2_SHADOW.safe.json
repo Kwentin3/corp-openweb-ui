@@ -1,0 +1,16 @@
+{
+  "schema_version": "broker_reports_doc30_wave2_shadow_safe_v1",
+  "date": "2026-08-05",
+  "status": "NOT_STARTED_BACKFILL_INCOMPLETE",
+  "wave2_consumers": "0/6",
+  "compatibility_contracts": "0/6",
+  "shadow_runs_per_consumer": "0/3",
+  "canonical_regressions": "NOT_MEASURED",
+  "unresolved_comparisons": "NOT_MEASURED",
+  "access_regressions": "NOT_MEASURED",
+  "product_side_effects": 0,
+  "provider_calls": 0,
+  "wave2_consumers_migrated": 0,
+  "wave2_cutover": "NOT_PERFORMED",
+  "private_content_in_output": false
+}

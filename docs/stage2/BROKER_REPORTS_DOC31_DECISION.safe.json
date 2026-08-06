@@ -1,0 +1,23 @@
+{
+  "DOC31_PROGRAM": "PARTIALLY_COMPLETED",
+  "GATE3": "NOT_STARTED",
+  "LEGACY_HANDOFF": "RETAINED",
+  "OPENWEBUI_LOADER_REUSE": "REJECTED",
+  "PRIMARY_PRODUCT_CUTOVER": "NOT_PERFORMED",
+  "PROBLEM_XLSX_MEMORY": "PASS",
+  "RESEARCH_CONSUMER": "BLOCKED",
+  "TARGET_BACKUP_RESTORE": "CONFIRMED",
+  "TARGET_COHORT": "COMPLETED_16_OF_16",
+  "TARGET_DURABILITY": "CONFIRMED",
+  "TARGET_OPENWEBUI_XLSX_PATH": "IDENTIFIED",
+  "WAVE2_CUTOVER": "NOT_PERFORMED",
+  "WAVE2_SHADOW": "BLOCKED",
+  "XLSX_CANONICAL_FIDELITY": "CONFIRMED",
+  "XLSX_IMPLEMENTATION": "DIRECT_OOXML_STREAMING",
+  "blocker": "Eight retained PDF canonical artifacts have zero logical nodes",
+  "date": "2026-08-05",
+  "integrity_sha256": "b6b28e0938f880c462b54b1befb1e01d4e6441aa814fd27f2418f957911228ff",
+  "private_content_in_output": false,
+  "schema_version": "broker_reports_doc31_decision_safe_v1",
+  "separate_wave2_cutover_goal_authorized": false
+}

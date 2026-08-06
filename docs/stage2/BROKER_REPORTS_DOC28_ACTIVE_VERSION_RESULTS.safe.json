@@ -1,0 +1,17 @@
+{
+  "activation_attempts": 0,
+  "active_pointers_after_restart_percent": 0,
+  "active_versions": 0,
+  "candidate_versions": 0,
+  "cross_tenant_activation_attempts": 0,
+  "date": "2026-08-05",
+  "failed_activations_changing_pointer": 0,
+  "global_activation_performed": false,
+  "integrity_sha256": "7390c564349f49eb073b9109565feb5e32ea6282d62c6b3320157d7c9f846af3",
+  "missing_chunks": 0,
+  "rollback_after_restart": "NOT_TESTED",
+  "root_hashes_after_restart_percent": 0,
+  "schema_version": "broker_reports_doc28_active_version_results_safe_v1",
+  "status": "NOT_STARTED",
+  "unresolved_refs": 0
+}

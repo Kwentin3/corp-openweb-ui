@@ -1,0 +1,31 @@
+{
+  "DOC19_EXPERIMENT": "BLOCKED",
+  "DOC19_RESULT": "BLOCKED_MISSING_GATE3_CONTRACT",
+  "extraction_cases_total": 48,
+  "gate1_artifact_arms_total": 2,
+  "gate1_artifacts": {
+    "anthropic_opus_image_only": {
+      "cases_available": 24,
+      "cases_evaluated": 0,
+      "coverage_counts": null,
+      "financial_fact_precision": null,
+      "financial_fact_recall": null,
+      "role": "strong_reference_candidate"
+    },
+    "google_flash_lite_image_only": {
+      "cases_available": 24,
+      "cases_evaluated": 0,
+      "coverage_counts": null,
+      "financial_fact_precision": null,
+      "financial_fact_recall": null,
+      "role": "cheap_current_candidate"
+    }
+  },
+  "integrity_sha256": "2da852bebbcffcec506dd1cf5b13d991ea9fe8b1c53f9869a098c641f07f96f5",
+  "metrics_not_reported_reason": "no compatible existing Gate 3 extractor contract accepted DOC15 Gate 1 JSON",
+  "metrics_reported": false,
+  "run_id": "broker_reports_doc19_financial_sufficiency_2026-08-04_v1",
+  "schema_version": "broker_reports_doc19_financial_sufficiency_results_safe_v1",
+  "tables_total": 24,
+  "verification_cases_total": 48
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": "broker_reports_doc30_recovery_decision_safe_v1",
+  "date": "2026-08-05",
+  "status": "RETAIN",
+  "recovery_decision": "RETAIN",
+  "recovery_action": "RETAIN",
+  "decision_evidence_recorded": true,
+  "forensic_snapshot_before_restore": "NOT_APPLICABLE_NO_RESTORE",
+  "stt_data_restored_or_deleted": false,
+  "unrelated_openwebui_data_changed": false,
+  "target_writes": "DOC30_CHECKPOINTED_CANONICAL_WRITES_ONLY",
+  "reason": "Both SQLite stores passed integrity; DOC29 wrote no canonical state; current Broker rows equal the pre-change logical snapshot and the payload graph has no missing, orphan or temporary files.",
+  "private_content_in_output": false
+}

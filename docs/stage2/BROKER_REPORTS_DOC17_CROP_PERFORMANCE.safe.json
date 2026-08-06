@@ -1,0 +1,30 @@
+{
+  "schema_version": "broker_reports_doc17_crop_performance_safe_v1",
+  "baseline_doc15": {
+    "tables": 24,
+    "total_crop_render_seconds": 1.1257067,
+    "mean_crop_render_seconds": 0.046904446,
+    "peak_python_tracemalloc_bytes": 11725652,
+    "total_crop_artifact_bytes": 3506136,
+    "full_page_render_count_in_crop_mechanism": 0
+  },
+  "canonical_doc15": {
+    "tables": 24,
+    "total_crop_render_seconds": 3.8678232,
+    "mean_crop_render_seconds": 0.1611593,
+    "peak_python_tracemalloc_bytes": 28373135,
+    "total_crop_artifact_bytes": 3298903,
+    "full_page_render_count": 0
+  },
+  "terminal_holdout_v4": {
+    "tables": 12,
+    "total_crop_render_seconds": 2.0446016,
+    "mean_crop_render_seconds": 0.170383467,
+    "peak_python_tracemalloc_bytes": 2336715,
+    "total_crop_artifact_bytes": 2062331,
+    "full_page_render_count": 0
+  },
+  "doc15_runtime_multiplier": 3.435907,
+  "page_rerender_per_candidate": false,
+  "performance_gate": "MEASURED_NOT_ACCEPTED_BECAUSE_QUALITY_GATE_FAILED"
+}

@@ -1,0 +1,34 @@
+{
+  "cases_total": 48,
+  "direct_agent_review_completed": true,
+  "failed_cases_excluded": 0,
+  "hidden_conflicts_total": 0,
+  "integrity_sha256": "db667610a3828238fb0896593da1aab72b4b1086f04a5a475077926eafb5b06d",
+  "material_sufficiency": "PRESERVED",
+  "provider_metrics": {
+    "anthropic_opus": {
+      "counts": {
+        "AMBIGUOUS": 1,
+        "FAITHFUL_AND_SUFFICIENT": 23
+      },
+      "critical_information_loss_total": 0,
+      "sufficient_minimum": 23,
+      "sufficient_total": 23,
+      "threshold_pass": true
+    },
+    "google_flash_lite": {
+      "counts": {
+        "AMBIGUOUS": 2,
+        "FAITHFUL_AND_SUFFICIENT": 22
+      },
+      "critical_information_loss_total": 0,
+      "sufficient_minimum": 22,
+      "sufficient_total": 22,
+      "threshold_pass": true
+    }
+  },
+  "research_only": true,
+  "run_id": "broker_reports_doc24_gate2_canonical_document_2026-08-05_v1",
+  "schema_version": "broker_reports_doc24_material_sufficiency_safe_v1",
+  "unsupported_critical_information_loss_total": 0
+}

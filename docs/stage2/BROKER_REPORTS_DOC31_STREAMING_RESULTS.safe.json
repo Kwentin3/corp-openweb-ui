@@ -1,0 +1,16 @@
+{
+  "atomic_finalize": true,
+  "bounded_component_write": true,
+  "chunk_rows": 256,
+  "date": "2026-08-05",
+  "deterministic_resume": true,
+  "failure_cleanup_test": "PASS",
+  "incremental_root_hash": true,
+  "integrity_sha256": "dd283446473e5c2ed9e6fe9dc01bedaa0e9cbc5807971ae3542f56ac472f34ad",
+  "partial_active_states": 0,
+  "private_content_in_output": false,
+  "schema_version": "broker_reports_doc31_streaming_results_safe_v1",
+  "staged_chunk_hashes": true,
+  "status": "PASS",
+  "tampered_resume_test": "PASS"
+}

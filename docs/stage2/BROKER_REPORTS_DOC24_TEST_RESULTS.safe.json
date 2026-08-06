@@ -1,0 +1,88 @@
+{
+  "environment": {
+    "env_overrides_required": false,
+    "python_invocation": "python -m pytest",
+    "shell": "PowerShell"
+  },
+  "integrity_sha256": "9de9151137c9b536730f9b3452c0e32f7647d2711afaf96bab477606c7145d31",
+  "irreversible_boundary": "none_research_only_files_and_read_only_validation",
+  "product_handlers_or_routes_modified": false,
+  "run_id": "broker_reports_doc24_gate2_canonical_document_2026-08-05_v1",
+  "runs": [
+    {
+      "errors": 0,
+      "failures": 0,
+      "junit_sha256": "231bd2caec2535c3e885ad14ad9c6532baa8e30016eaf40903a5d5e0c62cb0d5",
+      "name": "private_behavioral",
+      "nonpassing_tests": [],
+      "outcome_note": null,
+      "skipped": 0,
+      "status": "PASSED",
+      "terminal": true,
+      "tests": 7
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "junit_sha256": "3e4e1f5a1d7a3c56ad79207340a11da895ccf67ff8a7fad2cdc5a09761f18a15",
+      "name": "relevant_regression_architecture",
+      "nonpassing_tests": [],
+      "outcome_note": null,
+      "skipped": 0,
+      "status": "PASSED",
+      "terminal": true,
+      "tests": 79
+    },
+    {
+      "errors": 1,
+      "failures": 5,
+      "junit_sha256": "7750a111eaaa88e2b05bffff60999a4bd219d75a580c91d6e6e0edc29f865a65",
+      "name": "full_service_suite",
+      "nonpassing_tests": [
+        {
+          "outcome": "FAILURE",
+          "test": "tests.test_broker_reports_doc10_safe_evidence::test_doc10_receipt_hashes_sources_and_stop_boundary_are_current"
+        },
+        {
+          "outcome": "FAILURE",
+          "test": "tests.test_broker_reports_doc11_1_safe_evidence::test_doc11_1_receipt_binds_outputs_and_unchanged_product_sources"
+        },
+        {
+          "outcome": "FAILURE",
+          "test": "tests.test_broker_reports_doc11_safe_evidence::test_doc11_receipt_binds_safe_outputs_and_unchanged_product_sources"
+        },
+        {
+          "outcome": "FAILURE",
+          "test": "tests.test_broker_reports_doc8_safe_evidence::test_doc8_frozen_factory_sources_and_anchors_remain_current"
+        },
+        {
+          "outcome": "FAILURE",
+          "test": "tests.test_broker_reports_doc9_safe_evidence::test_doc9_terminal_receipt_and_frozen_product_sources_are_current"
+        },
+        {
+          "outcome": "ERROR",
+          "test": "pytest::internal"
+        }
+      ],
+      "outcome_note": "external_command_timeout_after_600_seconds_partial_junit_retained",
+      "skipped": 0,
+      "status": "ABORTED_TIMEOUT",
+      "terminal": false,
+      "tests": 1357
+    },
+    {
+      "errors": 0,
+      "failures": 0,
+      "junit_receipt_binding": "OMITTED_TO_AVOID_SELF_REFERENTIAL_RECEIPT_CYCLE",
+      "name": "doc24_safe_evidence",
+      "nonpassing_tests": [],
+      "outcome_note": null,
+      "skipped": 0,
+      "status": "PASSED",
+      "terminal": true,
+      "tests": 4
+    }
+  ],
+  "schema_version": "broker_reports_doc24_test_results_safe_v1",
+  "test_runner_executed_tests": true
+}

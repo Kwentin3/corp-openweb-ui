@@ -1,0 +1,1179 @@
+{
+  "aggregate_effect": "INCONCLUSIVE",
+  "algorithm": "bbox_vertical_gaps_plus_raster_horizontal_rules_v1",
+  "candidate_generation_forbidden_inputs": [
+    "fragment_text",
+    "fragment_type",
+    "row_names",
+    "financial_semantics",
+    "gold_rows"
+  ],
+  "candidate_generation_inputs": [
+    "parser_fragment_bbox_geometry",
+    "table_raster_pixels",
+    "crop_dimensions"
+  ],
+  "candidate_merge_pixels": 2.0,
+  "collision_policy": "INVALIDATE_NO_REPAIR",
+  "fragment_boundary_tie_policy": "CONFLICT_NO_REPAIR",
+  "integrity_sha256": "d62594a0a918919326a8f5e79a8cc36995a7e11f500f8b810e05c53c2fc14adf",
+  "per_call": [
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.15,
+        0.3,
+        0.45,
+        0.6,
+        0.75
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "anthropic_haiku",
+      "snapping_mapping": [
+        {
+          "distance_pixels": 25.419027,
+          "nearest_candidate": 0.250074911,
+          "raw": 0.15,
+          "raw_y_pixels": 38.1,
+          "status": "UNSNAPPED"
+        }
+      ],
+      "snapping_status": "UNSNAPPED",
+      "table_id": "unseen_pdf_01_t04"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.15,
+        0.28,
+        0.41,
+        0.54,
+        0.67
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": [
+        0.171374293,
+        0.275221751,
+        0.372186441,
+        0.566112053,
+        0.663074858
+      ],
+      "model_key": "anthropic_haiku",
+      "snapping_mapping": [
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 6.305416,
+          "raw": 0.15,
+          "raw_y_pixels": 44.25,
+          "snapped": 0.171374293,
+          "snapped_y_pixels": 50.555416,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 1.409584,
+          "raw": 0.28,
+          "raw_y_pixels": 82.6,
+          "snapped": 0.275221751,
+          "snapped_y_pixels": 81.190416,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 11.155,
+          "raw": 0.41,
+          "raw_y_pixels": 120.95,
+          "snapped": 0.372186441,
+          "snapped_y_pixels": 109.795,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 7.703056,
+          "raw": 0.54,
+          "raw_y_pixels": 159.3,
+          "snapped": 0.566112053,
+          "snapped_y_pixels": 167.003056,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 2.042917,
+          "raw": 0.67,
+          "raw_y_pixels": 197.65,
+          "snapped": 0.663074858,
+          "snapped_y_pixels": 195.607083,
+          "status": "SNAPPED"
+        }
+      ],
+      "snapping_status": "SNAPPED",
+      "table_id": "unseen_pdf_03_t01"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.045,
+        0.12,
+        0.195,
+        0.27,
+        0.345,
+        0.42,
+        0.495,
+        0.57
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "anthropic_haiku",
+      "snapping_mapping": [
+        {
+          "distance_pixels": 25.0,
+          "nearest_candidate": 0.1075,
+          "raw": 0.045,
+          "raw_y_pixels": 18.0,
+          "status": "UNSNAPPED"
+        }
+      ],
+      "snapping_status": "UNSNAPPED",
+      "table_id": "unseen_pdf_06_t03"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.15,
+        0.24,
+        0.32,
+        0.42,
+        0.48,
+        0.56,
+        0.62,
+        0.68,
+        0.76,
+        0.84,
+        0.92,
+        0.98
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "anthropic_haiku",
+      "snapping_mapping": [
+        {
+          "distance_pixels": 15.968611,
+          "nearest_candidate": 0.168764525,
+          "raw": 0.15,
+          "raw_y_pixels": 127.65,
+          "status": "UNSNAPPED"
+        }
+      ],
+      "snapping_status": "UNSNAPPED",
+      "table_id": "unseen_pdf_06_t07"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.233,
+        0.378,
+        0.523,
+        0.666,
+        0.811
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": [
+        0.250074911,
+        0.399681211,
+        0.54928751,
+        0.698893809,
+        0.848500108
+      ],
+      "model_key": "anthropic_opus",
+      "snapping_mapping": [
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 4.337027,
+          "raw": 0.233,
+          "raw_y_pixels": 59.182,
+          "snapped": 0.250074911,
+          "snapped_y_pixels": 63.519027,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 5.507027,
+          "raw": 0.378,
+          "raw_y_pixels": 96.012,
+          "snapped": 0.399681211,
+          "snapped_y_pixels": 101.519027,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 6.677027,
+          "raw": 0.523,
+          "raw_y_pixels": 132.842,
+          "snapped": 0.54928751,
+          "snapped_y_pixels": 139.519027,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 8.355027,
+          "raw": 0.666,
+          "raw_y_pixels": 169.164,
+          "snapped": 0.698893809,
+          "snapped_y_pixels": 177.519027,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 9.525027,
+          "raw": 0.811,
+          "raw_y_pixels": 205.994,
+          "snapped": 0.848500108,
+          "snapped_y_pixels": 215.519027,
+          "status": "SNAPPED"
+        }
+      ],
+      "snapping_status": "SNAPPED",
+      "table_id": "unseen_pdf_01_t04"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.185,
+        0.383,
+        0.563,
+        0.745
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": [
+        0.171374293,
+        0.372186441,
+        0.566112053,
+        0.760037666
+      ],
+      "model_key": "anthropic_opus",
+      "snapping_mapping": [
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 4.019584,
+          "raw": 0.185,
+          "raw_y_pixels": 54.575,
+          "snapped": 0.171374293,
+          "snapped_y_pixels": 50.555416,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 3.19,
+          "raw": 0.383,
+          "raw_y_pixels": 112.985,
+          "snapped": 0.372186441,
+          "snapped_y_pixels": 109.795,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 0.918056,
+          "raw": 0.563,
+          "raw_y_pixels": 166.085,
+          "snapped": 0.566112053,
+          "snapped_y_pixels": 167.003056,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 4.436112,
+          "raw": 0.745,
+          "raw_y_pixels": 219.775,
+          "snapped": 0.760037666,
+          "snapped_y_pixels": 224.211112,
+          "status": "SNAPPED"
+        }
+      ],
+      "snapping_status": "SNAPPED",
+      "table_id": "unseen_pdf_03_t01"
+    },
+    {
+      "RAW_LLM_SEPARATORS": null,
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "anthropic_opus",
+      "snapping_mapping": [],
+      "snapping_status": "INVALID_MODEL_OUTPUT",
+      "table_id": "unseen_pdf_06_t03"
+    },
+    {
+      "RAW_LLM_SEPARATORS": null,
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "anthropic_opus",
+      "snapping_mapping": [],
+      "snapping_status": "INVALID_MODEL_OUTPUT",
+      "table_id": "unseen_pdf_06_t07"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.248,
+        0.37,
+        0.481,
+        0.617,
+        0.741,
+        0.852
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "google_flash_lite",
+      "snapping_mapping": [
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 0.527027,
+          "raw": 0.248,
+          "raw_y_pixels": 62.992,
+          "snapped": 0.250074911,
+          "snapped_y_pixels": 63.519027,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 7.539027,
+          "raw": 0.37,
+          "raw_y_pixels": 93.98,
+          "snapped": 0.399681211,
+          "snapped_y_pixels": 101.519027,
+          "status": "SNAPPED"
+        },
+        {
+          "distance_pixels": 17.345027,
+          "nearest_candidate": 0.54928751,
+          "raw": 0.481,
+          "raw_y_pixels": 122.174,
+          "status": "UNSNAPPED"
+        }
+      ],
+      "snapping_status": "UNSNAPPED",
+      "table_id": "unseen_pdf_01_t04"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.091,
+        0.366,
+        0.573,
+        0.767
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "google_flash_lite",
+      "snapping_mapping": [
+        {
+          "distance_pixels": 23.710416,
+          "nearest_candidate": 0.171374293,
+          "raw": 0.091,
+          "raw_y_pixels": 26.845,
+          "status": "UNSNAPPED"
+        }
+      ],
+      "snapping_status": "UNSNAPPED",
+      "table_id": "unseen_pdf_03_t01"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.41,
+        0.49,
+        0.56,
+        0.64,
+        0.72,
+        0.8,
+        0.88
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": [
+        0.415708466,
+        0.4925,
+        0.575,
+        0.6575,
+        0.7375,
+        0.82,
+        0.9025
+      ],
+      "model_key": "google_flash_lite",
+      "snapping_mapping": [
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 2.283387,
+          "raw": 0.41,
+          "raw_y_pixels": 164.0,
+          "snapped": 0.415708466,
+          "snapped_y_pixels": 166.283387,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "distance_pixels": 1.0,
+          "raw": 0.49,
+          "raw_y_pixels": 196.0,
+          "snapped": 0.4925,
+          "snapped_y_pixels": 197.0,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "distance_pixels": 6.0,
+          "raw": 0.56,
+          "raw_y_pixels": 224.0,
+          "snapped": 0.575,
+          "snapped_y_pixels": 230.0,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "distance_pixels": 7.0,
+          "raw": 0.64,
+          "raw_y_pixels": 256.0,
+          "snapped": 0.6575,
+          "snapped_y_pixels": 263.0,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "raster_horizontal_rule"
+          ],
+          "distance_pixels": 7.0,
+          "raw": 0.72,
+          "raw_y_pixels": 288.0,
+          "snapped": 0.7375,
+          "snapped_y_pixels": 295.0,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "distance_pixels": 8.0,
+          "raw": 0.8,
+          "raw_y_pixels": 320.0,
+          "snapped": 0.82,
+          "snapped_y_pixels": 328.0,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "distance_pixels": 9.0,
+          "raw": 0.88,
+          "raw_y_pixels": 352.0,
+          "snapped": 0.9025,
+          "snapped_y_pixels": 361.0,
+          "status": "SNAPPED"
+        }
+      ],
+      "snapping_status": "SNAPPED",
+      "table_id": "unseen_pdf_06_t03"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.383,
+        0.449,
+        0.551,
+        0.638,
+        0.722,
+        0.793,
+        0.865,
+        0.902,
+        0.952
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "google_flash_lite",
+      "snapping_mapping": [
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 3.0745,
+          "raw": 0.383,
+          "raw_y_pixels": 325.933,
+          "snapped": 0.386612808,
+          "snapped_y_pixels": 329.0075,
+          "status": "SNAPPED"
+        },
+        {
+          "distance_pixels": 15.674,
+          "nearest_candidate": 0.430581669,
+          "raw": 0.449,
+          "raw_y_pixels": 382.099,
+          "status": "UNSNAPPED"
+        }
+      ],
+      "snapping_status": "UNSNAPPED",
+      "table_id": "unseen_pdf_06_t07"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.124,
+        0.249,
+        0.372,
+        0.495,
+        0.617
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "openai_mini",
+      "snapping_mapping": [
+        {
+          "distance_pixels": 32.023027,
+          "nearest_candidate": 0.250074911,
+          "raw": 0.124,
+          "raw_y_pixels": 31.496,
+          "status": "UNSNAPPED"
+        }
+      ],
+      "snapping_status": "UNSNAPPED",
+      "table_id": "unseen_pdf_01_t04"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.131,
+        0.338,
+        0.56,
+        0.782
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": [
+        0.171374293,
+        0.372186441,
+        0.566112053,
+        0.760037666
+      ],
+      "model_key": "openai_mini",
+      "snapping_mapping": [
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 11.910416,
+          "raw": 0.131,
+          "raw_y_pixels": 38.645,
+          "snapped": 0.171374293,
+          "snapped_y_pixels": 50.555416,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 10.085,
+          "raw": 0.338,
+          "raw_y_pixels": 99.71,
+          "snapped": 0.372186441,
+          "snapped_y_pixels": 109.795,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 1.803056,
+          "raw": 0.56,
+          "raw_y_pixels": 165.2,
+          "snapped": 0.566112053,
+          "snapped_y_pixels": 167.003056,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 6.478888,
+          "raw": 0.782,
+          "raw_y_pixels": 230.69,
+          "snapped": 0.760037666,
+          "snapped_y_pixels": 224.211112,
+          "status": "SNAPPED"
+        }
+      ],
+      "snapping_status": "SNAPPED",
+      "table_id": "unseen_pdf_03_t01"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.034,
+        0.156,
+        0.228,
+        0.3,
+        0.372,
+        0.445,
+        0.517,
+        0.59,
+        0.662,
+        0.734,
+        0.807,
+        0.879,
+        0.952
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "openai_mini",
+      "snapping_mapping": [
+        {
+          "distance_pixels": 29.4,
+          "nearest_candidate": 0.1075,
+          "raw": 0.034,
+          "raw_y_pixels": 13.6,
+          "status": "UNSNAPPED"
+        }
+      ],
+      "snapping_status": "UNSNAPPED",
+      "table_id": "unseen_pdf_06_t03"
+    },
+    {
+      "RAW_LLM_SEPARATORS": [
+        0.173,
+        0.216,
+        0.259,
+        0.287,
+        0.337,
+        0.382,
+        0.426,
+        0.459,
+        0.511,
+        0.544,
+        0.571,
+        0.602,
+        0.637,
+        0.682,
+        0.726,
+        0.761,
+        0.806,
+        0.855,
+        0.901,
+        0.946
+      ],
+      "SNAPPED_GEOMETRIC_SEPARATORS": null,
+      "model_key": "openai_mini",
+      "snapping_mapping": [
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 3.604389,
+          "raw": 0.173,
+          "raw_y_pixels": 147.223,
+          "snapped": 0.168764525,
+          "snapped_y_pixels": 143.618611,
+          "status": "SNAPPED"
+        },
+        {
+          "candidate_sources": [
+            "bbox_vertical_gap"
+          ],
+          "distance_pixels": 2.703361,
+          "raw": 0.216,
+          "raw_y_pixels": 183.816,
+          "snapped": 0.212823313,
+          "snapped_y_pixels": 181.112639,
+          "status": "SNAPPED"
+        },
+        {
+          "distance_pixels": 39.296361,
+          "nearest_candidate": 0.212823313,
+          "raw": 0.259,
+          "raw_y_pixels": 220.409,
+          "status": "UNSNAPPED"
+        }
+      ],
+      "snapping_status": "UNSNAPPED",
+      "table_id": "unseen_pdf_06_t07"
+    }
+  ],
+  "privacy": {
+    "contains_absolute_paths": false,
+    "contains_fragment_ids": false,
+    "contains_text": false
+  },
+  "private_candidates_sha256": "4b10fc72113dcd679a193f97246d5a981f5a7a30c0531bd8d785ea09f2cde8f6",
+  "private_geometry_sha256": "09ff5c26bc787b234815568a259b6547bf77bd70aaeae43168d7130972f14422",
+  "row_assignment": "bbox_center_y_between_[0]+snapped+[1];x_sort_inside_band_only",
+  "run_id": "broker_reports_doc12_image_only_rows_2026-08-03_v1",
+  "schema_version": "broker_reports_doc12_geometric_snapping_safe_v1",
+  "snap_tolerance_pixels": 12.0,
+  "tables": [
+    {
+      "candidates": [
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.171374293,
+          "y_pixels": 50.555416
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.275221751,
+          "y_pixels": 81.190416
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.372186441,
+          "y_pixels": 109.795
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.469149247,
+          "y_pixels": 138.399028
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.566112053,
+          "y_pixels": 167.003056
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.663074858,
+          "y_pixels": 195.607083
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.760037666,
+          "y_pixels": 224.211112
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.857000942,
+          "y_pixels": 252.815278
+        }
+      ],
+      "candidates_total": 8,
+      "image_height_pixels": 295,
+      "image_width_pixels": 393,
+      "snap_tolerance_normalized": 0.040677966,
+      "snap_tolerance_pixels": 12.0,
+      "table_id": "unseen_pdf_03_t01"
+    },
+    {
+      "candidates": [
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.250074911,
+          "y_pixels": 63.519027
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.399681211,
+          "y_pixels": 101.519027
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.54928751,
+          "y_pixels": 139.519027
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.698893809,
+          "y_pixels": 177.519027
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.848500108,
+          "y_pixels": 215.519027
+        }
+      ],
+      "candidates_total": 5,
+      "image_height_pixels": 254,
+      "image_width_pixels": 1523,
+      "snap_tolerance_normalized": 0.047244094,
+      "snap_tolerance_pixels": 12.0,
+      "table_id": "unseen_pdf_01_t04"
+    },
+    {
+      "candidates": [
+        {
+          "sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.1075,
+          "y_pixels": 43.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.180316453,
+          "y_pixels": 72.126581
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.235889717,
+          "y_pixels": 94.355887
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.291465411,
+          "y_pixels": 116.586164
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.347038329,
+          "y_pixels": 138.815332
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.415708466,
+          "y_pixels": 166.283387
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.4925,
+          "y_pixels": 197.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.575,
+          "y_pixels": 230.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.6575,
+          "y_pixels": 263.0
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.7375,
+          "y_pixels": 295.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.742777911,
+          "y_pixels": 297.111164
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.82,
+          "y_pixels": 328.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap",
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.9025,
+          "y_pixels": 361.0
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.9825,
+          "y_pixels": 393.0
+        }
+      ],
+      "candidates_total": 14,
+      "image_height_pixels": 400,
+      "image_width_pixels": 1519,
+      "snap_tolerance_normalized": 0.03,
+      "snap_tolerance_pixels": 12.0,
+      "table_id": "unseen_pdf_06_t03"
+    },
+    {
+      "candidates": [
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.066695555,
+          "y_pixels": 56.757917
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.115465302,
+          "y_pixels": 98.260972
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.168764525,
+          "y_pixels": 143.618611
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.212823313,
+          "y_pixels": 181.112639
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.309048179,
+          "y_pixels": 263.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.311861699,
+          "y_pixels": 265.394305
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.349001175,
+          "y_pixels": 297.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.35192486,
+          "y_pixels": 299.488055
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.386612808,
+          "y_pixels": 329.0075
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.430581669,
+          "y_pixels": 366.425
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.474550529,
+          "y_pixels": 403.8425
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.518519389,
+          "y_pixels": 441.26
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.562488739,
+          "y_pixels": 478.677917
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.591801802,
+          "y_pixels": 503.623334
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.626489588,
+          "y_pixels": 533.142639
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.661177373,
+          "y_pixels": 562.661945
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.69049011,
+          "y_pixels": 587.607084
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.722679201,
+          "y_pixels": 615.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.725178059,
+          "y_pixels": 617.126528
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.762632197,
+          "y_pixels": 649.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.76524122,
+          "y_pixels": 651.220278
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.802585194,
+          "y_pixels": 683.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.805304381,
+          "y_pixels": 685.314028
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.839993472,
+          "y_pixels": 714.834445
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.871915394,
+          "y_pixels": 742.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.874682563,
+          "y_pixels": 744.354861
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.91186839,
+          "y_pixels": 776.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.914745724,
+          "y_pixels": 778.448611
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.951821387,
+          "y_pixels": 810.0
+        },
+        {
+          "sources": [
+            "bbox_vertical_gap"
+          ],
+          "y_normalized": 0.954808885,
+          "y_pixels": 812.542361
+        },
+        {
+          "sources": [
+            "raster_horizontal_rule"
+          ],
+          "y_normalized": 0.991774383,
+          "y_pixels": 844.0
+        }
+      ],
+      "candidates_total": 31,
+      "image_height_pixels": 851,
+      "image_width_pixels": 1519,
+      "snap_tolerance_normalized": 0.014101058,
+      "snap_tolerance_pixels": 12.0,
+      "table_id": "unseen_pdf_06_t07"
+    }
+  ],
+  "unsnapped_policy": "INVALIDATE_NO_REPAIR"
+}

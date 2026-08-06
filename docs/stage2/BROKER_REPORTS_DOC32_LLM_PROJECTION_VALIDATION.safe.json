@@ -1,0 +1,20 @@
+{
+  "basis": "100% source-atom accounting plus exact deterministic rendering of reader-visible nodes; DOC24 material baseline preserved",
+  "canonical_node_and_page_count_matches": 8,
+  "critical_content_losses": 0,
+  "date": "2026-08-05",
+  "documents": 8,
+  "empty_projections": 0,
+  "gate3_projection": false,
+  "integrity_sha256": "e4b79ab1237a41ff76b4e032b1ffbe538de48685e7b1b40c0ef988aa6a1b117c",
+  "ordering_errors": 0,
+  "private_content_in_output": false,
+  "projection_contract": "local_pdf_compact_research_output_v2",
+  "projections_created": 8,
+  "projector_private_evidence_reads": 0,
+  "projector_provider_payload_reads": 0,
+  "projector_raw_pdf_reads": 0,
+  "schema_version": "broker_reports_doc32_llm_projection_validation_safe_v1",
+  "status": "PASS",
+  "unsupported_added_content": 0
+}
