@@ -4,12 +4,15 @@ on:
   pull_request:
     branches:
       - main
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: broker-reports-ci-${{ github.event.pull_request.number }}
+  group: broker-reports-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -33,7 +36,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Verify exact checked-out commit
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
       - name: Check pull request diff
+        if: github.event_name == 'pull_request'
         working-directory: .
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
