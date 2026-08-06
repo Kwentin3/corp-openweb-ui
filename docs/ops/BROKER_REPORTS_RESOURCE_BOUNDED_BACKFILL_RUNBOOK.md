@@ -1,6 +1,6 @@
 # Broker Reports Resource-Bounded Backfill Runbook
 
-Status: `CURRENT_LIMITS_FROZEN_PARTIAL_STOPPED_ON_OOM`
+Status: `CURRENT`
 
 Date: 2026-08-05
 
@@ -19,23 +19,17 @@ verifies the existing version through `CanonicalReaderFactory`, and skips it.
 It must not create a second active version, retry provider work, fall back to
 legacy output or hide a repeated attempt.
 
-## Frozen DOC30 limits
+## Frozen run limits
 
-The target run used CPU 0.5, RAM/swap 1 GiB, pids 128, read I/O 20 MiB/s,
-write I/O 10 MiB/s, 600 seconds per document, 10,800 seconds overall, 10 MiB
-logs and 16 MiB maximum input. Limits were applied to each job container and
-verified through its cgroup before any write. Concurrency and batch size were
-both 1.
+Before execution, record CPU, memory/swap, pids, read/write I/O, per-document
+and overall timeout, log size, input size, minimum free bytes, critical free
+ratio, maximum artifact bytes and component count. Verify the effective cgroup
+and persistent filesystem before any write. Limits apply to each one-document
+job and cannot change during the run.
 
-The target run raised the free-space floor to 4 GiB and retained the 10%
-critical ratio, 128 MiB logical artifact ceiling and 4096-component ceiling.
-Before every document, measure the persistent filesystem and stop before
-reservation when a guard fails.
-
-The two canaries passed. The cohort then completed 8 documents; document 7,
-an XLSX, reached the 1 GiB memory cgroup and exited 137 with `OOMKilled=true`.
-It produced no persisted partial state. Do not retry it, raise the limit or
-continue the remaining seven documents without a new explicit policy.
+OOM, timeout, missing receipt, partial state, capacity failure or unapplied
+limit is terminal. Do not retry, increase a limit or continue the cohort
+without a new explicit policy decision.
 
 ## Canary and cohort gates
 
@@ -53,7 +47,7 @@ paths, payloads and tenant values outside Git.
 
 ## Durability sequence
 
-After 16/16 success, verify all active versions, restart only the relevant
+After the authorized cohort succeeds, verify all active versions, restart only the relevant
 service, verify again, recreate only its container against the same volume and
 verify again. Then pause canonical mutations, take a SQLite Online Backup plus
 the referenced immutable payload set and hash manifest, and restore to an

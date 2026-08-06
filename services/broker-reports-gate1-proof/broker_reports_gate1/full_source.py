@@ -100,6 +100,13 @@ class FullSourceBuildResult:
 
 
 class FullSourceArtifactFactory:
+    """Sole bounded extractor factory for private Full Evidence material.
+
+    Its output feeds canonical normalization but is not itself the public Gate
+    2 contract. Callers must keep source bytes and detailed parser evidence in
+    the authenticated private contour.
+    """
+
     def __init__(self, config: FullSourceArtifactConfig | None = None) -> None:
         self.config = config or FullSourceArtifactConfig()
 
@@ -195,6 +202,8 @@ class FullSourceArtifactFactory:
 
 
 class FullSourceArtifactBuilder:
+    """Extract format-specific source units under explicit resource budgets."""
+
     def __init__(self, config: FullSourceArtifactConfig) -> None:
         self.config = config
         self.provenance = NormalizedSliceProvenanceFactory().create()

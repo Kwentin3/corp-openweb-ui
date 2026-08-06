@@ -1,9 +1,0 @@
-ARG BASE_IMAGE=corp-openwebui/openwebui:v0.9.6-native-web-stt-broker-intake-v2-8e6a71f
-FROM ${BASE_IMAGE}
-
-USER 0
-COPY broker_reports_gate1 /opt/broker-reports-doc31/broker_reports_gate1
-COPY scripts/doc30_resource_bounded_backfill.py /opt/broker-reports-doc31/doc30_resource_bounded_backfill.py
-COPY scripts/doc31_xlsx_streaming_backfill.py /opt/broker-reports-doc31/doc31_xlsx_streaming_backfill.py
-ENV PYTHONPATH=/opt/broker-reports-doc31
-ENTRYPOINT ["python", "/opt/broker-reports-doc31/doc31_xlsx_streaming_backfill.py"]

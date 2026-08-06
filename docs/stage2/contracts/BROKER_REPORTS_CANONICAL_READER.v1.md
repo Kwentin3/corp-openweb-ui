@@ -54,50 +54,19 @@ tenant identity are forbidden.
 
 ## Product policy
 
-`CANONICAL_GATE2_READ_ENABLED=false` remains mandatory globally. DOC27 enables
-only three test-scoped consumer flags; the research flag is blocked without its
-real active version. `gate2_handoff_v0` remains the sole background/primary
-product read authority until separately authorized later waves.
+`CANONICAL_GATE2_READ_ENABLED=false` remains mandatory globally. Test-scoped
+consumer flags cannot authorize a background or primary product read;
+`gate2_handoff_v0` remains product compatibility authority until an explicit
+later cutover.
 
-The reader returns Gate 2 source representation only. DOC32 added a neutral,
-research-only PDF proof projection. DOC33 minimally generalized that existing
-helper as `render_neutral_canonical_projection` for PDF, HTML, CSV and XLSX. It
-accepts only the reader-returned canonical artifact, has no financial semantics
-or private evidence dependency, and is not a Gate 3 or product implementation.
-
-DOC28 did not advance this authority. The approved source cohort is locally
-available, but no accessible durable active versions exist. The research
-consumer remains blocked, all six Wave 2 product consumers remain on legacy,
-and no shadow execution or fallback was attempted.
-
-## DOC29 reader update
-
-DOC29 added six factory-routed, read-only Wave 2 shadow contracts. In the
-isolated durable cohort each consumer completed three stable 16-document runs
-with zero canonical/access regressions, provider requests, product writes or
-fallbacks. These are compatibility shadows only: consumers migrated = 0.
-Target execution is blocked by host recovery, so Wave 2 cutover is not ready.
-
-## DOC32 reader update
-
-The target now has eight corrected active PDF versions with non-empty ordered
-nodes. Reader reconstruction verified 76 physical components with zero missing
-chunks before and after service restart, container recreation and isolated
-restore; cross-tenant reads remained denied. The research PDF adapter uses
-`local_pdf_compact_research_output_v2` and returns a generic projection derived
-only from the reader envelope. Six Wave 2 contracts passed shadow-only; none was
-migrated and no global/product read valve changed.
-
-## DOC33 unified reader update
-
-DOC33 confirms `CanonicalReaderFactory.create` as the one public read authority
-for all four supported formats. A read-only retained-cohort proof returned 16/16
-validated artifacts and 16/16 non-empty neutral projections through that reader.
-The six Wave 2 shadow outputs no longer expose source format as a consumer API
-field; their projection kind, ordered structure, table, issue and provenance
-requirements are format-independent. Format remains available only inside the
-canonical source identity for audit and inside Gate 2 adapters/diagnostics.
+The reader returns Gate 2 source representation only.
+`render_neutral_canonical_projection` accepts only the reader-returned artifact
+for PDF, HTML, CSV and XLSX. It has no financial semantics or private evidence
+dependency and is neither Gate 3 nor a product implementation. The six Wave 2
+diagnostic contracts likewise consume the one reader, expose no source-format
+input/output requirement and perform no product write, provider call or
+fallback. Consumers migrated in Wave 2 remain zero.
 
 The [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md) is the
 normative boundary summary. Product cutover, the global canonical read valve,
-legacy deletion and Gate 3 remain unchanged.
+legacy deletion and Gate 3 remain separately authorized work.

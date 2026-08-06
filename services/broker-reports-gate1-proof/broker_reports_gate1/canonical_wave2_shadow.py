@@ -1,4 +1,4 @@
-"""Read-only DOC29 compatibility shadows for the six Wave 2 consumers.
+"""Read-only compatibility diagnostics for the six Wave 2 consumers.
 
 The shadows deliberately stop at the consumer boundary.  They use the active
 canonical version through ``CanonicalReaderFactory`` and never invoke product
@@ -26,7 +26,7 @@ from .canonical_store import CanonicalReaderFactory
 
 
 FACTORY_REQUIRED = (
-    "Every DOC29 Wave 2 shadow enters through CanonicalWave2ShadowFactory "
+    "Every Wave 2 shadow enters through CanonicalWave2ShadowFactory "
     "and CanonicalReaderFactory.create"
 )
 FORBIDDEN = (
@@ -101,6 +101,12 @@ class Wave2ShadowLedger:
 
 
 class CanonicalWave2ShadowFactory:
+    """Create a side-effect-free diagnostic over ``CanonicalReaderFactory``.
+
+    This factory is intentionally not wired into product consumers. It may
+    compare compatibility only; it cannot enable cutover or fallback.
+    """
+
     def __init__(
         self,
         *,

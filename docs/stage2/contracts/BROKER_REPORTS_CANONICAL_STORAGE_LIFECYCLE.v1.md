@@ -84,26 +84,16 @@ Typed failures include `canonical_chunk_missing`,
 `canonical_version_not_active`, `canonical_source_scope_mismatch` and
 `canonical_retention_class_invalid`, plus existing ArtifactStore failures.
 
-## DOC28 durability status
+## Deployment requirement
 
-The sole allowed deployment candidate reuses this ArtifactStore under the
-existing `openwebui_data:/app/backend/data` mount. It has not been admitted as
-operational: the target volume and container were not accessible from the
-authorized environment, restart persistence was not observed, and the
-repository backup/restore procedure has no completed integrity drill. A local
-or temporary directory must not substitute for that missing proof. No DOC28
-durable version or active pointer was created.
+The only allowed deployment reuses this ArtifactStore below the existing
+`openwebui_data:/app/backend/data` mount. STT storage is an operational pattern,
+not a shared canonical engine. A local or temporary directory cannot substitute
+for target durability proof.
 
-## DOC29 durability update
-
-DOC29 identified the target and selected the existing Broker namespace inside
-`openwebui_data`; STT storage is reused only as an operational pattern. The
-16-document parser-only path passed in an isolated persistent store with 16
-validated/active versions, 172 components, matching roots, partial reads and
-an isolated application-consistent restore. Capacity checks now fail the
-canonical write before version reservation at the configured hard floor.
-
-Target admission remains incomplete. The bounded target job did not return a
-receipt and the host stopped serving application health and SSH banners. Until
-console recovery plus pointer/chunk accounting, restart and isolated target
-restore are complete, the target store is `PARTIAL`, not operational.
+Admission requires terminal pointer/component accounting, successful reader
+reconstruction across controlled restart/container recreation, an isolated
+application-consistent restore, cross-scope denial and capacity preflight
+before reservation. Historical isolated/target proofs are audit evidence, not
+permission for a new product cutover; revalidate the current target at the
+start of any authorized migration.

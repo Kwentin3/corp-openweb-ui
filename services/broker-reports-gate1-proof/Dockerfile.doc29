@@ -1,8 +1,0 @@
-ARG BASE_IMAGE=corp-openwebui/openwebui:v0.9.6-native-web-stt-broker-intake-v2-8e6a71f
-FROM ${BASE_IMAGE}
-
-USER 0
-COPY broker_reports_gate1 /opt/broker-reports-doc29/broker_reports_gate1
-COPY scripts/doc29_durable_contour.py /opt/broker-reports-doc29/doc29_durable_contour.py
-ENV PYTHONPATH=/opt/broker-reports-doc29
-ENTRYPOINT ["python", "/opt/broker-reports-doc29/doc29_durable_contour.py"]

@@ -4,18 +4,12 @@ Current target note (2026-08-05): the deployed Compose project is `compose`
 under `/opt/openwebui-prd0`; `openwebui` and `stage2-stt` use named volumes.
 Exact SSH endpoint remains local and must not enter Git.
 
-DOC30 status: SSH recovered at `2026-08-05T16:29:50Z`. The DOC29 job was
-OOM-killed and auto-removed; current Broker/STT integrity passed and recovery
-selected `RETAIN`. A one-document contour completed 8 of 16 versions, then an
-XLSX reached its frozen 1 GiB memory cgroup. Do not retry, raise the limit or
-continue under DOC30. See
-[BROKER_REPORTS_DOC30_INCIDENT_RECOVERY_RUNBOOK.md](BROKER_REPORTS_DOC30_INCIDENT_RECOVERY_RUNBOOK.md).
-
-DOC29/DOC30 recovery stop: never rerun `broker-reports-doc29-prepare`. Do not
-run `compose down -v`, remove either volume or restart the workload. The
-current mandatory stop is the DOC30 XLSX cgroup OOM; restart durability and
-backup/restore remain unconfirmed until complete backfill is separately
-authorized and succeeds.
+Gate 2 canonical backfill remains stopped after a terminal resource-limit
+failure. DOC34 does not authorize retry, a larger limit, service restart,
+backfill continuation or product cutover. Any later authorized attempt must
+follow the one-document fail-closed sequence in
+[BROKER_REPORTS_RESOURCE_BOUNDED_BACKFILL_RUNBOOK.md](BROKER_REPORTS_RESOURCE_BOUNDED_BACKFILL_RUNBOOK.md).
+Never use `compose down -v` or remove the persistent volumes during recovery.
 
 ## 1. Проверить DNS
 

@@ -788,12 +788,11 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             DOC_ROOT / "contracts" / "BROKER_REPORTS_CANONICAL_READER.v1.md",
             SERVICE_ROOT
             / "tests"
-            / "test_broker_reports_doc27_canonical_consumer_migration.py",
+            / "test_broker_reports_canonical_consumer_compatibility.py",
         ):
             assert path.is_file()
         authority_map = _read(ARCHITECTURE_AUTHORITIES)
         for owner in (
-            "Doc22SafeEvidenceCanonicalAdapterFactory",
             "Gate1ArtifactStoreCanonicalAdapterFactory",
             "PdfCompactCanonicalAdapterFactory",
             "LocalPdfCompactResearchCanonicalAdapterFactory",

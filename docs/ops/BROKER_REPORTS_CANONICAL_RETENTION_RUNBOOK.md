@@ -1,6 +1,6 @@
 # Broker Reports Canonical Retention Runbook
 
-Status: `CURRENT_POLICY_VALIDATED_RUNTIME_ROTATION_BLOCKED`
+Status: `CURRENT`
 
 Date: 2026-08-05
 
@@ -40,7 +40,7 @@ Each approved run must report attempted, deleted, retained, blocked, orphaned,
 and reconciled counts per class; pre/post manifest hashes; tenant/access scope;
 and the worker/runtime identity. Zero unaccounted objects is required.
 
-## DOC29 status
+## Current policy
 
 All `8/8` classes are contract-tested. Frozen defaults are: no TTL for source
 and active canonical authority; 30 days for superseded canonical and evidence;
@@ -49,8 +49,8 @@ and active canonical authority; 30 days for superseded canonical and evidence;
 warning and 10% critical ratios; insufficient capacity rejects only the
 canonical shadow write explicitly.
 
-No target deletion or rotation was run. Active versions deleted = 0, rollback
-targets deleted = 0, orphan chunks observed in the isolated proof = 0. Runtime
-rotation remains blocked until target host recovery, post-job accounting and
-target restore proof. The cleanup owner remains an ArtifactStore-routed
-canonical retention worker; cron or direct filesystem deletion is forbidden.
+The defaults are policy values, not authorization to delete. Runtime rotation
+remains blocked until current target accounting, backup and isolated restore
+are proven for the exact deployment. The cleanup owner remains an
+ArtifactStore-routed canonical retention worker; cron or direct filesystem
+deletion is forbidden.

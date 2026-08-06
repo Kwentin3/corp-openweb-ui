@@ -803,6 +803,13 @@ class SqliteArtifactStoreAdapter:
         reason: str,
         operation: str = "ACTIVATE",
     ) -> CanonicalActivationReceipt:
+        """Atomically move the authenticated document pointer with CAS.
+
+        Immutable versions are never overwritten. The expected pointer closes
+        stale-writer races, and the component preflight prevents activation of
+        a manifest whose persisted graph is missing or invalid.
+        """
+
         self._validate_canonical_context(context, require_private=True)
         if operation not in {"ACTIVATE", "ROLLBACK"} or not actor or not reason:
             raise ArtifactStoreError(

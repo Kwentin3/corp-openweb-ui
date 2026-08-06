@@ -1,0 +1,57 @@
+{
+  "schema": "broker_reports_doc34_repository_consolidation_receipt_v1",
+  "generated_at": "2026-08-06",
+  "privacy": {
+    "customer_values_in_git_total": 0,
+    "private_files_excluded_total": 2,
+    "private_paths_recorded": false,
+    "secrets_detected_total": 0
+  },
+  "authority": {
+    "schema": "CanonicalArtifactV1",
+    "normalizer_factory": "CanonicalNormalizerFactory.create",
+    "storage_factory": "CanonicalArtifactStoreFactory.create",
+    "reader_factory": "CanonicalReaderFactory.create",
+    "entrypoint": "docs/stage2/BROKER_REPORTS_GATE2.md"
+  },
+  "branch_accounting": {
+    "snapshot_main_sha": "e85fc78e1dbf664c814e6b774122337e2fd8fb64",
+    "branch_names_total": 12,
+    "accounted_total": 12,
+    "unaccounted_total": 0,
+    "blocked_total": 0,
+    "planned_removed_total": 11,
+    "planned_retained_total": 1,
+    "stale_deletion_phase": "pending_after_safety_push",
+    "delivery_branch_deletion_phase": "pending_post_merge"
+  },
+  "artifact_accounting": {
+    "safe_checkpoint_commit": "0c46311b8837e34ff4367451e902e2ac9887c794",
+    "checkpoint_changed_paths": 399,
+    "checkpoint_modified_paths": 36,
+    "checkpoint_added_paths": 363,
+    "removed_reproducible_or_superseded_paths": 333,
+    "retained_checkpoint_added_paths": 30,
+    "historical_hashes_rewritten": 0
+  },
+  "validation": {
+    "generated_asset_checks_passed": 10,
+    "generated_bundles_stable": 3,
+    "ruff_status": "passed",
+    "ci_contour_passed": 1051,
+    "ci_contour_skipped": 3,
+    "canonical_guard_passed": 89,
+    "full_service_passed": 2814,
+    "full_service_skipped": 5,
+    "full_service_warnings": 6,
+    "new_unexplained_failures": 0,
+    "github_exact_head_ci": "pending"
+  },
+  "scope_stops": {
+    "wave2_cutover": "not_performed",
+    "primary_product_cutover": "not_performed",
+    "gate3": "not_started",
+    "financial_semantics_changed": false,
+    "legacy_product_removed": false
+  }
+}

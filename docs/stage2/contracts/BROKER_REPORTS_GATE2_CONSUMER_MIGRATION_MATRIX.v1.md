@@ -6,14 +6,13 @@ Date: 2026-08-05
 
 This matrix is the current human-readable index. The machine-readable frozen
 authority is `FROZEN_CONSUMER_SURFACES` in
-`broker_reports_gate1/canonical_consumer_migration.py`; DOC27 safe evidence
-serializes every field without private values.
+`broker_reports_gate1/canonical_consumer_migration.py`.
 
-## Read authorities after DOC27
+## Read authorities
 
 | Scope | Authority | Rollback owner | State |
 | --- | --- | --- | --- |
-| three Wave 0 tests | consumer-specific adapter over `CanonicalReaderFactory.create` | the individual test flag | canonical enabled in isolated test scope |
+| two Wave 0 tests | consumer-specific adapter over `CanonicalReaderFactory.create` | the individual test flag | canonical enabled in isolated test scope |
 | local Wave 0 research proof | same factory boundary | `--no-canonical-read-enabled` | blocked: real active version/store absent |
 | Wave 1 | none | none | no eligible frozen consumer |
 | Wave 2 background | `gate2_handoff_v0` | existing legacy route | unchanged |

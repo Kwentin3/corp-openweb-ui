@@ -1,5 +1,8 @@
 ﻿# corp-openweb-ui
 
+Current Broker Reports Gate 2 documentation starts at
+[docs/stage2/BROKER_REPORTS_GATE2.md](docs/stage2/BROKER_REPORTS_GATE2.md).
+
 Инженерный пакет для PRD-0: минимальный self-hosted запуск OpenWebUI как корпоративной точки входа в
 LLM-чат для 3-4 пользователей. Репозиторий также содержит документационный контур Stage 2 / PRD-1.
 

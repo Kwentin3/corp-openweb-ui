@@ -67,6 +67,13 @@ class CanonicalReadEnvelope:
 
 
 class CanonicalArtifactStoreFactory:
+    """Sole lifecycle facade over the existing ArtifactStore implementation.
+
+    Callers must not create a second canonical storage engine or depend on a
+    physical layout. The factory preserves that boundary while reusing the
+    repository's authenticated storage authority.
+    """
+
     def __init__(
         self, *, store, config: CanonicalStorageConfig | None = None
     ) -> None:
@@ -78,6 +85,8 @@ class CanonicalArtifactStoreFactory:
 
 
 class CanonicalArtifactStore:
+    """Publish immutable validated versions without exposing storage layout."""
+
     def __init__(self, store, *, config: CanonicalStorageConfig) -> None:
         self.store = store
         self.config = config
@@ -91,6 +100,12 @@ class CanonicalArtifactStore:
         retention_policy: RetentionPolicy,
         compare_receipt: dict[str, Any] | None,
     ) -> CanonicalPersistResult:
+        """Persist a candidate only after scope, source and content validation.
+
+        Finalization binds immutable component hashes; activation is a separate
+        compare-and-set operation so partial publication cannot move a pointer.
+        """
+
         if artifact.get("tenant_id") != context.user_id:
             raise ArtifactStoreError(
                 "artifact_access_denied",
@@ -664,6 +679,8 @@ class CanonicalArtifactStore:
 
 
 class CanonicalReaderFactory:
+    """Sole public reader constructor for every canonical physical layout."""
+
     def __init__(self, *, store, read_enabled: bool) -> None:
         self.store = store
         self.read_enabled = read_enabled
@@ -673,6 +690,12 @@ class CanonicalReaderFactory:
 
 
 class CanonicalReader:
+    """Resolve, reconstruct and revalidate canonical versions fail closed.
+
+    Consumers see the same API for single payload, chunked and XLSX row-chunked
+    storage and therefore cannot couple behavior to physical layout.
+    """
+
     def __init__(self, store, *, read_enabled: bool) -> None:
         self.store = store
         self.read_enabled = read_enabled
@@ -964,6 +987,8 @@ class CanonicalReader:
     def _read_version(
         self, version: CanonicalVersionRecord, context: ArtifactAccessContext
     ) -> dict[str, Any]:
+        """Reconstruct a version and recheck hashes plus logical completeness."""
+
         manifest = self._manifest(version, context)
         if manifest.get("physical_layout") == "single_payload":
             return self._validated(manifest.get("artifact") or {})

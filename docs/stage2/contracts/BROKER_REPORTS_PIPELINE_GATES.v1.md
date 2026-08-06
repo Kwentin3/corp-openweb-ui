@@ -74,44 +74,19 @@ consumer migration and Gate 3 contract.
 5. A consumer-specific test flag is not a global or primary product cutover.
 6. Product cutover requires a separate authorization after consumer migration.
 
-## DOC28 deployment gate
+## Current readiness
 
-The configured Broker Reports SQLite and payload defaults are below
-`/app/backend/data`, and the repository compose contract mounts the named
-`openwebui_data` volume there. This is a deployment candidate, not current
-operational proof. DOC28 found no accessible target container/volume, no
-authorized VPS route and no completed backup/restore drill. Durable canonical
-writes, active-version creation, research cutover and Wave 2 shadow therefore
-remain blocked. Global/background/primary canonical reads remain disabled.
+The configured SQLite and payload defaults remain below `/app/backend/data` on
+the named `openwebui_data` volume. Any authorized migration must freshly prove
+target capacity, pointer/component accounting, restart/recreation and isolated
+restore. An old execution receipt is not current runtime admission.
 
-## DOC29 deployment update
-
-The target deployment, Compose project, containers, volumes and Broker paths
-are now identified. An isolated 16-document durable contour passed, including
-research rollback and 6x3 Wave 2 shadows. The bounded target backfill produced
-no terminal receipt and the host control plane became unresponsive, so Gate 2
-durability is only partial. Gate 3 is still not started, legacy handoff is
-retained, and neither Wave 2 nor primary cutover is authorized.
-
-## DOC32 PDF round-trip update
-
-DOC32 repaired the Gate 2 PDF adapter/completeness boundary and the closed-world
-parser runtime used by the bounded backfill. Full Evidence remains private and
-separate; `CanonicalArtifactV1` remains the Gate 2 machine-readable document;
-the neutral research projection is derived only from `CanonicalReader` and is
-not Gate 3. Eight corrected PDF versions are active and durable, while their
-old incomplete versions remain superseded evidence. Research migration passed
-and Wave 2 passed shadow-only. `gate2_handoff_v0` remains product authority;
-Wave 2 cutover, primary cutover and Gate 3 were not performed.
-
-## DOC33 unified machine-projection update
-
-DOC33 confirms the existing `canonical_artifact_v1` schema and
-`CanonicalReaderFactory.create` as the one Gate 2 public logical contract and
-reader for PDF, HTML, CSV and XLSX. The shared validator now enforces common
-root/node/container/reference and meaningful-content completeness rules for all
-four formats; PDF retains stricter source-atom accounting. Six Wave 2 shadow
-contracts consume the same reader without a source-format field or branch.
+The existing `canonical_artifact_v1` schema and
+`CanonicalReaderFactory.create` are the one Gate 2 public logical contract and
+reader for PDF, HTML, CSV and XLSX. The shared validator enforces common
+root/node/container/reference and meaningful-content completeness rules; PDF
+retains stricter source-atom accounting. Six Wave 2 diagnostic contracts
+consume the same reader without a source-format field or branch.
 
 The reader-only `render_neutral_canonical_projection` helper demonstrates
 ordered text/table/issue delivery from all four formats without source bytes,
@@ -120,4 +95,4 @@ not a product consumer, and not Gate 3. The normative summary is
 [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md).
 
 No Wave 2 cutover, primary product cutover, global read activation, legacy
-removal or Gate 3 start was performed by DOC33.
+removal or Gate 3 start is authorized by this contract.

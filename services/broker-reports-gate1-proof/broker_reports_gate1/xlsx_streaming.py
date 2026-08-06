@@ -63,6 +63,8 @@ class XlsxStreamingConfig:
 
 @dataclass(frozen=True)
 class XlsxStreamingPlan:
+    """Private staged plan whose chunks are hash-checked before publication."""
+
     stage_root: Path
     tenant_id: str
     document_id: str
@@ -128,6 +130,12 @@ class XlsxStreamingPlan:
 
 
 class XlsxStreamingCanonicalAdapter:
+    """Stream OOXML into the common canonical model under bounded memory.
+
+    Formula text and cached values remain distinct source metadata; unsupported
+    workbook features become explicit issues instead of silent approximation.
+    """
+
     def __init__(self, *, config: XlsxStreamingConfig, normalizer_version: str) -> None:
         config.validate()
         if not normalizer_version:

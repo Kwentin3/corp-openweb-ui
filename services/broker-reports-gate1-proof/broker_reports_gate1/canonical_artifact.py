@@ -63,16 +63,27 @@ class CanonicalNormalizerConfig:
 
 
 class CanonicalNormalizerFactory:
+    """Sole constructor for the public Gate 2 normalizer.
+
+    Keeping creation here prevents format adapters from becoming independent
+    schema owners. A new format must extend ``CanonicalNormalizer`` and still
+    emit the same versioned logical contract.
+    """
+
     def __init__(self, config: CanonicalNormalizerConfig) -> None:
         self.config = config
 
     def create(self) -> "CanonicalNormalizer":
+        """Create the configured authority; an unversioned builder is invalid."""
+
         if not self.config.normalizer_version:
             raise CanonicalArtifactError("canonical_normalizer_version_required")
         return CanonicalNormalizer(self.config)
 
 
 class CanonicalNormalizer:
+    """Adapt supported source structures into one ordered non-financial model."""
+
     def __init__(self, config: CanonicalNormalizerConfig) -> None:
         self.config = config
 
@@ -89,6 +100,12 @@ class CanonicalNormalizer:
         created_at: str | None = None,
         previous_version_ref: str | None = None,
     ) -> dict[str, Any]:
+        """Build and validate one ``CanonicalArtifactV1``.
+
+        Format branching ends inside this method. Downstream code must observe
+        only the common container/node/table/provenance contract.
+        """
+
         source_format = str(document.get("container_format") or "")
         if source_format not in SUPPORTED_FORMATS:
             raise CanonicalArtifactError(
@@ -231,6 +248,12 @@ class CanonicalNormalizer:
         source_units: list[dict[str, Any]],
         table_projections: list[dict[str, Any]],
     ) -> None:
+        """Assemble PDF evidence without letting visual proposals become truth.
+
+        Every parser atom and table proposal is represented or terminally
+        accounted before the shared completeness validator can admit output.
+        """
+
         root = builder.add_container("DOCUMENT", None, {})
         projections_by_unit: dict[str, dict[str, Any]] = {}
         for projection in table_projections:
@@ -1041,7 +1064,12 @@ def canonical_node_has_machine_content(node: dict[str, Any]) -> bool:
 
 
 def assess_canonical_completeness(artifact: dict[str, Any]) -> dict[str, Any]:
-    """Compute the format-neutral, counts-only Gate 2 completeness decision."""
+    """Compute the format-neutral, counts-only Gate 2 completeness decision.
+
+    This check intentionally runs both before persistence and after reader
+    reconstruction: storage success alone must never make empty or unlinked
+    logical content active.
+    """
 
     containers = list(artifact.get("containers") or [])
     nodes = list(artifact.get("nodes") or [])
@@ -1116,6 +1144,8 @@ def assess_canonical_completeness(artifact: dict[str, Any]) -> dict[str, Any]:
 
 
 def validate_canonical_artifact(artifact: dict[str, Any]) -> dict[str, Any]:
+    """Validate schema, references, ordering and fail-closed completeness."""
+
     errors: list[str] = []
     if artifact.get("schema_version") != CANONICAL_ARTIFACT_SCHEMA_VERSION:
         errors.append("canonical_schema_version_mismatch")

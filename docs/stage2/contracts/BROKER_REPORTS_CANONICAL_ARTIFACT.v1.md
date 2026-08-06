@@ -146,8 +146,7 @@ unresolved refs, duplicate node/container identity, non-contiguous order,
 hidden conflicts, non-deterministic rebuild, or financial fields. A blocked
 candidate may be stored as safe failure evidence but cannot be activated.
 
-DOC33 refines this existing v1 authority without changing its schema identity.
-The shared validator now enforces the public source format and root-container
+The shared validator enforces the public source format and root-container
 mapping, the common container/node vocabulary, parent/source/issue/table-cell
 reference resolution, zero blocking issues and at least one meaningful content
 node for PDF, HTML, CSV and XLSX. A zero-content artifact is valid only for a
@@ -170,21 +169,7 @@ methods do not create different public contracts.
 
 The [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md)
 defines the unified input/output, evidence, reader, consumer-opacity and
-non-cutover boundary.
-
-## DOC32 PDF lifecycle result
-
-DOC32 immutably republished the eight incomplete PDF versions. The old
-`1 container / 0 nodes` versions remain superseded forensic evidence with the
-explicit classification `INCOMPLETE_PDF_CANONICAL_VERSION`; they were not
-rewritten or deleted. The corrected active versions passed reader resolution,
-restart, container recreation and isolated restore. This does not authorize a
-global canonical read, product cutover or Gate 3.
-
-## DOC33 unified contract result
-
-DOC33 confirms `CanonicalArtifactV1` as the one Gate 2 machine projection for
-PDF, HTML, CSV and XLSX. No parallel schema or reader was created. Source
-format, page/sheet structure, CSV dialect and XLSX formula/cache details remain
-auditable metadata; consumers use the common ordered node/table contract and
-do not require format branching.
+non-cutover boundary. `CanonicalArtifactV1` is the one Gate 2 machine
+projection for PDF, HTML, CSV and XLSX. Source format, page/sheet structure,
+CSV dialect and XLSX formula/cache details remain auditable metadata; consumers
+use the common ordered node/table contract and do not require format branching.

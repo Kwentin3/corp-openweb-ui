@@ -1,4 +1,4 @@
-"""DOC27 consumer-specific Gate 2 canonical read contracts.
+"""Consumer-specific Gate 2 canonical compatibility contracts.
 
 This module owns only Wave 0 compatibility projections and the frozen migration
 inventory. It does not select product consumers, enable a global read valve or
@@ -44,7 +44,7 @@ COMPATIBILITY_STATUSES = frozenset(
 )
 
 FACTORY_REQUIRED = (
-    "Every DOC27 compatibility read must enter through its consumer-specific "
+    "Every compatibility read must enter through its consumer-specific "
     "factory and CanonicalReaderFactory.create"
 )
 FORBIDDEN = (
@@ -241,19 +241,6 @@ def _summary(artifact: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-class Doc22SafeEvidenceCanonicalAdapter(_CanonicalCompatibilityAdapter):
-    mapping: CompatibilityMapping
-
-    def _project(self, envelope: CanonicalReadEnvelope) -> dict[str, Any]:
-        return {
-            "schema_version": self.mapping.output_contract_version,
-            "gate1_document_handoff_audited": True,
-            "canonical_document_level_handoff_found": True,
-            "actual_downstream_handoff": "CanonicalArtifactV1",
-            **_summary(envelope.artifact),
-        }
-
-
 class Gate1ArtifactStoreCanonicalAdapter(_CanonicalCompatibilityAdapter):
     mapping: CompatibilityMapping
 
@@ -320,8 +307,8 @@ class LocalPdfCompactResearchCanonicalAdapter(PdfCompactCanonicalAdapter):
 def render_neutral_canonical_projection(artifact: dict[str, Any]) -> str:
     """Render a validated CanonicalArtifactV1 without reopening source evidence.
 
-    This format-neutral helper is a non-active completeness proof owned by the
-    existing research compatibility boundary. It is not a Gate 3 runtime,
+    This format-neutral helper is a diagnostic completeness proof owned by the
+    compatibility boundary. It is not a Gate 3 runtime,
     prompt, provider surface, or financial interpretation authority.
     """
 
@@ -462,11 +449,9 @@ def _neutral_table_rows(content: dict[str, Any]) -> list[list[Any]]:
     return matrix
 
 
-# Historical private name retained for DOC32 replay compatibility only.
-_render_generic_pdf_projection = render_neutral_canonical_projection
-
-
 class _ConsumerAdapterFactory:
+    """Bind one explicit compatibility mapping to the sole public reader."""
+
     adapter_type: type[_CanonicalCompatibilityAdapter]
     mapping: CompatibilityMapping
 
@@ -489,18 +474,6 @@ class _ConsumerAdapterFactory:
         adapter.mapping = self.mapping
         return adapter
 
-
-DOC22_SAFE_EVIDENCE_MAPPING = CompatibilityMapping(
-    consumer_id="doc22_safe_evidence_test",
-    source_file="tests/test_broker_reports_doc22_safe_evidence.py",
-    migration_wave="WAVE_0_TEST",
-    feature_flag="CANONICAL_READ_DOC22_SAFE_EVIDENCE_TEST",
-    legacy_contract_version="gate2_handoff_v0",
-    canonical_contract_version=CANONICAL_ARTIFACT_SCHEMA_VERSION,
-    compatibility_adapter_version="doc22_safe_evidence_canonical_adapter_v1",
-    output_contract_version="doc22_safe_evidence_compatibility_output_v1",
-    canonical_queries=("read_active_envelope", "read provenance", "read issues"),
-)
 
 GATE1_ARTIFACT_STORE_MAPPING = CompatibilityMapping(
     consumer_id="gate1_artifact_store_test",
@@ -551,11 +524,6 @@ LOCAL_PDF_COMPACT_RESEARCH_MAPPING = CompatibilityMapping(
 )
 
 
-class Doc22SafeEvidenceCanonicalAdapterFactory(_ConsumerAdapterFactory):
-    adapter_type = Doc22SafeEvidenceCanonicalAdapter
-    mapping = DOC22_SAFE_EVIDENCE_MAPPING
-
-
 class Gate1ArtifactStoreCanonicalAdapterFactory(_ConsumerAdapterFactory):
     adapter_type = Gate1ArtifactStoreCanonicalAdapter
     mapping = GATE1_ARTIFACT_STORE_MAPPING
@@ -572,7 +540,6 @@ class LocalPdfCompactResearchCanonicalAdapterFactory(_ConsumerAdapterFactory):
 
 
 WAVE0_MAPPINGS = (
-    DOC22_SAFE_EVIDENCE_MAPPING,
     GATE1_ARTIFACT_STORE_MAPPING,
     PDF_COMPACT_CANONICAL_MAPPING,
     LOCAL_PDF_COMPACT_RESEARCH_MAPPING,
@@ -783,22 +750,7 @@ FROZEN_CONSUMER_SURFACES = (
         "explicit local trusted context",
         ("active PDF canonical artifact summary",),
         "LocalPdfCompactResearchCanonicalAdapterFactory",
-        ("test_broker_reports_doc27_canonical_consumer_migration.py",),
-    ),
-    _surface(
-        "doc22_safe_evidence_test",
-        "tests/test_broker_reports_doc22_safe_evidence.py",
-        "WAVE_0_TEST",
-        "historical safe-evidence reader",
-        ("historical handoff label",),
-        (),
-        "isolated synthetic test context",
-        ("canonical document-level handoff summary",),
-        "Doc22SafeEvidenceCanonicalAdapterFactory",
-        (
-            "test_broker_reports_doc22_safe_evidence.py",
-            "test_broker_reports_doc27_canonical_consumer_migration.py",
-        ),
+        ("test_broker_reports_canonical_consumer_compatibility.py",),
     ),
     _surface(
         "gate1_artifact_store_test",
@@ -812,7 +764,7 @@ FROZEN_CONSUMER_SURFACES = (
         "Gate1ArtifactStoreCanonicalAdapterFactory",
         (
             "test_broker_reports_gate1_artifact_store.py",
-            "test_broker_reports_doc27_canonical_consumer_migration.py",
+            "test_broker_reports_canonical_consumer_compatibility.py",
         ),
     ),
     _surface(
@@ -827,7 +779,7 @@ FROZEN_CONSUMER_SURFACES = (
         "PdfCompactCanonicalAdapterFactory",
         (
             "test_broker_reports_pdf_compact_canonical.py",
-            "test_broker_reports_doc27_canonical_consumer_migration.py",
+            "test_broker_reports_canonical_consumer_compatibility.py",
         ),
     ),
 )

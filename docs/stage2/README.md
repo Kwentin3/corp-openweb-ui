@@ -3,6 +3,16 @@
 Этот домен не является реализацией Stage 2. Это инженерная карта, roadmap и research findings перед
 реализацией.
 
+## Current Broker Reports implementation
+
+Для текущей реализации Broker Reports Gate 2 начните с
+[BROKER_REPORTS_GATE2.md](BROKER_REPORTS_GATE2.md). Эта страница ведёт только к
+действующим schema, factories, reader, implementation map и safe-change guide.
+
+Broker Reports Gate 2 — реализованное исключение к историческому описанию выше:
+документ не становится implementation authority только по факту нахождения в
+`docs/stage2`.
+
 ## 1. Что такое Stage 2
 
 Stage 2 развивает корпоративный OpenWebUI-портал из пилотного AI-чата в управляемую рабочую
