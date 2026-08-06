@@ -131,7 +131,11 @@ class Gate1Normalizer:
             FullSourceArtifactConfig(
                 enable_pdf_layout_slice2=(
                     (input_context or {}).get("pdf_layout_slice2_enabled") is not False
-                )
+                ),
+                enable_canonical_artifact_v1_shadow=(
+                    (input_context or {}).get("canonical_gate2_write_enabled")
+                    is True
+                ),
             )
         ).create()
         table_projection_builder = NormalizedTableProjectionFactory(

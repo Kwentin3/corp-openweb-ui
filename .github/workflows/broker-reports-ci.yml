@@ -134,3 +134,19 @@ jobs:
           tests/test_broker_reports_gate2_financial_semantic_v6_totality.py
           tests/test_repository_privacy_guard.py
           --tb=short
+
+      - name: Run Gate 2 canonical architecture guards
+        run: >-
+          python -m pytest -q
+          tests/test_broker_reports_doc34_repository_contract.py
+          tests/test_broker_reports_canonical_artifact_v1.py
+          tests/test_broker_reports_canonical_multiformat.py
+          tests/test_broker_reports_canonical_pipeline_contract.py
+          tests/test_broker_reports_canonical_storage_lifecycle_v1.py
+          tests/test_broker_reports_canonical_consumer_compatibility.py
+          tests/test_broker_reports_canonical_consumer_pipeline.py
+          tests/test_broker_reports_xlsx_canonical_streaming.py
+          tests/test_broker_reports_pdf_canonical_roundtrip.py
+          tests/test_broker_reports_canonical_machine_projection.py
+          tests/test_broker_reports_pdf_canonical_table_crop.py
+          --tb=short

@@ -1,0 +1,800 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.invalid/schemas/broker-reports/canonical-artifact-v1.schema.json",
+  "title": "Broker Reports CanonicalArtifactV1",
+  "$comment": "CURRENT: CanonicalArtifactV1 is the non-financial output of Broker Reports Gate 2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_id",
+    "tenant_id",
+    "schema_version",
+    "artifact_version",
+    "normalizer_version",
+    "status",
+    "created_at",
+    "source",
+    "root_container_ref",
+    "canonical_root_hash",
+    "containers",
+    "nodes",
+    "provenance",
+    "issues",
+    "chunks"
+  ],
+  "properties": {
+    "artifact_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_version": {
+      "const": "canonical_artifact_v1"
+    },
+    "artifact_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "normalizer_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "previous_version_ref": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "validated",
+        "active",
+        "superseded",
+        "blocked"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "root_container_ref": {
+      "type": "string",
+      "minLength": 1
+    },
+    "canonical_root_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "containers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/container"
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "provenance": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provenance"
+      }
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/issue"
+      }
+    },
+    "chunks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/chunk"
+      }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_artifact_ref",
+        "source_format",
+        "mime_type",
+        "source_sha256"
+      ],
+      "properties": {
+        "source_artifact_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_format": {
+          "enum": [
+            "pdf",
+            "html",
+            "csv",
+            "xlsx"
+          ]
+        },
+        "mime_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "container": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "container_id",
+        "container_type",
+        "parent_container_ref",
+        "order",
+        "source_refs",
+        "metadata"
+      ],
+      "properties": {
+        "container_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "container_type": {
+          "enum": [
+            "DOCUMENT",
+            "PAGE",
+            "SECTION",
+            "WORKBOOK",
+            "SHEET",
+            "DATASET"
+          ]
+        },
+        "parent_container_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "source_refs": {
+          "$ref": "#/$defs/stringRefs"
+        },
+        "metadata": {
+          "type": "object"
+        }
+      }
+    },
+    "node": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/textNode"
+        },
+        {
+          "$ref": "#/$defs/listNode"
+        },
+        {
+          "$ref": "#/$defs/tableNode"
+        },
+        {
+          "$ref": "#/$defs/breakNode"
+        },
+        {
+          "$ref": "#/$defs/issueNode"
+        }
+      ]
+    },
+    "nodeBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "container_ref",
+        "order",
+        "node_type",
+        "source_refs",
+        "evidence_refs",
+        "issue_refs"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "container_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "node_type": {
+          "enum": [
+            "HEADING",
+            "TEXT",
+            "LIST",
+            "TABLE",
+            "NOTE",
+            "PAGE_BREAK",
+            "SHEET_BREAK",
+            "CONFLICT",
+            "AMBIGUITY"
+          ]
+        },
+        "source_refs": {
+          "$ref": "#/$defs/stringRefs"
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/stringRefs"
+        },
+        "issue_refs": {
+          "$ref": "#/$defs/stringRefs"
+        },
+        "content": {
+          "type": "object"
+        },
+        "content_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "textNode": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/nodeBase"
+        },
+        {
+          "properties": {
+            "node_type": {
+              "enum": [
+                "HEADING",
+                "TEXT",
+                "NOTE"
+              ]
+            },
+            "content": {
+              "$ref": "#/$defs/textContent"
+            }
+          },
+          "required": [
+            "content"
+          ],
+          "not": {
+            "required": [
+              "content_ref"
+            ]
+          }
+        }
+      ]
+    },
+    "listNode": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/nodeBase"
+        },
+        {
+          "properties": {
+            "node_type": {
+              "const": "LIST"
+            },
+            "content": {
+              "$ref": "#/$defs/listContent"
+            }
+          },
+          "required": [
+            "content"
+          ],
+          "not": {
+            "required": [
+              "content_ref"
+            ]
+          }
+        }
+      ]
+    },
+    "tableNode": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/nodeBase"
+        },
+        {
+          "properties": {
+            "node_type": {
+              "const": "TABLE"
+            },
+            "content": {
+              "$ref": "#/$defs/tableContent"
+            }
+          },
+          "required": [
+            "content"
+          ],
+          "not": {
+            "required": [
+              "content_ref"
+            ]
+          }
+        }
+      ]
+    },
+    "breakNode": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/nodeBase"
+        },
+        {
+          "properties": {
+            "node_type": {
+              "enum": [
+                "PAGE_BREAK",
+                "SHEET_BREAK"
+              ]
+            },
+            "content": {
+              "$ref": "#/$defs/breakContent"
+            }
+          },
+          "required": [
+            "content"
+          ],
+          "not": {
+            "required": [
+              "content_ref"
+            ]
+          }
+        }
+      ]
+    },
+    "issueNode": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/nodeBase"
+        },
+        {
+          "properties": {
+            "node_type": {
+              "enum": [
+                "CONFLICT",
+                "AMBIGUITY"
+              ]
+            },
+            "content": {
+              "$ref": "#/$defs/issueContent"
+            }
+          },
+          "required": [
+            "content"
+          ],
+          "not": {
+            "required": [
+              "content_ref"
+            ]
+          }
+        }
+      ]
+    },
+    "textContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "level": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 6
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/link"
+          }
+        }
+      }
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "target"
+      ],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string"
+        }
+      }
+    },
+    "listContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "text",
+              "level",
+              "ordered"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "level": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ordered": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "tableContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "header",
+        "rows",
+        "notes",
+        "cells",
+        "metadata"
+      ],
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "header": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "number",
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/cell"
+          }
+        },
+        "metadata": {
+          "type": "object"
+        }
+      }
+    },
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "row",
+        "column",
+        "value",
+        "raw_value",
+        "displayed_value",
+        "cell_type",
+        "formula",
+        "merged_range",
+        "source_coordinate",
+        "hidden",
+        "source_refs"
+      ],
+      "properties": {
+        "row": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "value": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "raw_value": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "displayed_value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cell_type": {
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "date",
+            "formula",
+            "blank",
+            "error"
+          ]
+        },
+        "formula": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cached_value": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "null"
+          ]
+        },
+        "formula_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "formula_attributes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "merged_range": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_coordinate": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "number_format_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "style_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "shared_string_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "link_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_refs": {
+          "$ref": "#/$defs/stringRefs"
+        }
+      }
+    },
+    "breakContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "boundary_ref"
+      ],
+      "properties": {
+        "boundary_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "issueContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary",
+        "alternative_refs"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "alternative_refs": {
+          "$ref": "#/$defs/stringRefs"
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance_id",
+        "source_ref",
+        "source_locator",
+        "evidence_refs"
+      ],
+      "properties": {
+        "provenance_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_locator": {
+          "type": "object"
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/stringRefs"
+        }
+      }
+    },
+    "issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issue_id",
+        "issue_type",
+        "severity",
+        "source_refs",
+        "evidence_refs",
+        "summary"
+      ],
+      "properties": {
+        "issue_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "issue_type": {
+          "enum": [
+            "CONFLICT",
+            "AMBIGUITY",
+            "UNSUPPORTED",
+            "PARTIAL"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "blocking"
+          ]
+        },
+        "source_refs": {
+          "$ref": "#/$defs/stringRefs"
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/stringRefs"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "chunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chunk_id",
+        "chunk_kind",
+        "content_ref",
+        "sha256",
+        "container_refs",
+        "node_refs"
+      ],
+      "properties": {
+        "chunk_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "chunk_kind": {
+          "enum": [
+            "MANIFEST",
+            "CONTAINER",
+            "TABLE"
+          ]
+        },
+        "content_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "container_refs": {
+          "$ref": "#/$defs/stringRefs"
+        },
+        "node_refs": {
+          "$ref": "#/$defs/stringRefs"
+        }
+      }
+    },
+    "stringRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    }
+  }
+}

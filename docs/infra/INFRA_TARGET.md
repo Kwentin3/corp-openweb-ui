@@ -12,12 +12,30 @@
 
 GitHub-репозиторий публичный, поэтому коммитимые документы используют роли и placeholders вместо персональных данных и точных инфраструктурных адресов.
 
+## DOC30 control-plane status
+
+Актуально на 2026-08-05:
+
+```text
+SSH_ACCESS_PATH = DOCUMENTED
+SSH_AUTHORITY = AVAILABLE
+SSH_REACHABILITY = RECOVERED_AT_2026_08_05T16_29_50Z
+```
+
+Документированный ключевой маршрут остаётся в ignored local note; повторно
+запрашивать credentials у пользователя не требуется. Два bounded probe
+остановились на SSH banner timeout, затем control plane восстановился. DOC29
+был подтверждённо OOM-killed и не оставил canonical writes. OpenWebUI healthy,
+Broker/STT integrity подтверждена. Новый per-document contour остановлен по
+обязательному cgroup OOM-сигналу после 8 из 16 документов; retry, продолжение,
+restart и restore требуют нового явного решения.
+
 ## Current deployment summary
 
-Актуально на 2026-06-09:
+Исторически подтверждено на 2026-06-09:
 
 - DNS для `gpt.alpha-soft.ru` резолвится в целевой public IPv4.
-- SSH-доступ по ключу работает.
+- SSH-доступ по ключу работал; текущий DOC30 status приведён выше.
 - Сервер: Ubuntu 24.04.4 LTS.
 - Root filesystem: около 50 GB, свободно около 46 GB.
 - Docker Engine установлен.

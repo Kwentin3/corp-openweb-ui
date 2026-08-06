@@ -1,6 +1,6 @@
 # STT v2 Artifact Storage / Retention Contract
 
-Status: Gate 1-2 storage contract.
+Status: Gate 1-2 storage contract; implementation gaps audited by DOC29.
 
 Date: 2026-07-02.
 
@@ -215,6 +215,13 @@ Rotation behavior:
 - logs counts and refs only;
 - never logs payload text or provider JSON;
 - handles already-deleted files idempotently.
+
+DOC29 implementation note (2026-08-05): the live sidecar uses the declared
+SQLite path in `stage2_stt_data` and all observed 103 records had expiry, but
+the repository has no implemented rotation/hard-delete worker. The payload
+directory setting is currently unused and payloads are inline/redacted. The
+existing backup script also omits `stage2_stt_data`. Consequently the defaults
+above remain requirements, not evidence that cleanup or restore is operating.
 
 ## 9. Access Fail-closed
 

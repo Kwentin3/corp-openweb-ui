@@ -2,7 +2,13 @@
 
 Date: 2026-07-22
 
-Status: `VERSIONED_NORMATIVE_ARCHITECTURE_POLICY_V2`
+Status: `SUPERSEDED`
+
+Superseded by
+[`BROKER_REPORTS_PIPELINE_GATES.v1.md`](../contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md)
+for current gate numbering, inputs/outputs and terminology. The remainder of
+this file is preserved as pre-DOC26 migration context; its old four-gate
+assignment is not an active definition and does not override Pipeline Gates v1.
 
 Scope: the global Broker Reports product pipeline. This document does not
 number repository-wide Stage 2 governance gates and does not redefine local
@@ -10,7 +16,7 @@ format-capability gates.
 
 ## 1. Authority and decision
 
-This document is the single architectural authority for Broker Reports gate
+Historically, this document was the architectural authority for Broker Reports gate
 placement, runtime policy, domain ownership and terminology.  Versioned runtime
 contracts implement this authority; per-gate blueprints elaborate it; dated
 reports prove one revision and scope; research reports preserve non-normative

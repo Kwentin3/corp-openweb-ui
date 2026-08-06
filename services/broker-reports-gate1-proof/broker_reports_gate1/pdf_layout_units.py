@@ -63,6 +63,13 @@ class PdfLayoutBuildResult:
 
 
 class PdfLayoutUnitBuilder:
+    """Build provenance-preserving PDF layout evidence, not canonical truth.
+
+    Geometry and table candidates remain private evidence until the canonical
+    assembler represents or terminally accounts them. This class must not be
+    called as an alternate public PDF reader.
+    """
+
     def __init__(self, config: PdfLayoutUnitConfig | None = None) -> None:
         self.config = config or PdfLayoutUnitConfig()
         self.provenance = NormalizedSliceProvenanceFactory().create()

@@ -42,10 +42,10 @@ class NativePdfTransport:
 
     def qualify_models(self) -> dict[str, Any]:
         if self.connection.provider == "google":
-            url = self.connection.base_url.removesuffix("/openai") + "/models"
+            url = self.connection.base_url.removesuffix("/openai") + "/models?pageSize=1000"
             headers = {"x-goog-api-key": self.connection.api_key}
         elif self.connection.provider == "anthropic":
-            url = self.connection.base_url + "/models"
+            url = self.connection.base_url + "/models?limit=1000"
             headers = {
                 "x-api-key": self.connection.api_key,
                 "anthropic-version": "2023-06-01",
@@ -98,6 +98,218 @@ class NativePdfTransport:
         if spec.provider == "google":
             return self._gemini_plain(spec, pdf_bytes, prompt, max_output_tokens)
         return self._anthropic_plain(spec, pdf_bytes, prompt, max_output_tokens)
+
+    def invoke_image_plain_text(
+        self,
+        *,
+        spec: ProviderSpec,
+        image_bytes: bytes,
+        mime_type: str,
+        prompt: str,
+        max_output_tokens: int,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Use the existing research transport for one image plus one text block."""
+
+        if spec.provider != self.connection.provider:
+            raise ValueError("provider_connection_mismatch")
+        if mime_type != "image/png" or not image_bytes:
+            raise ValueError("provider_image_input_invalid")
+        encoded = base64.b64encode(image_bytes).decode("ascii")
+        if spec.provider == "openai":
+            body = {
+                "model": spec.model,
+                "input": [{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_image",
+                            "image_url": "data:image/png;base64," + encoded,
+                            "detail": "high",
+                        },
+                        {"type": "input_text", "text": prompt},
+                    ],
+                }],
+                "temperature": 0,
+                "max_output_tokens": max_output_tokens,
+                "store": False,
+            }
+            return self._post_plain(
+                self.connection.base_url + "/responses",
+                {"Authorization": f"Bearer {self.connection.api_key}"},
+                body,
+                provider="openai",
+            )
+        if spec.provider == "google":
+            model = spec.model.removeprefix("models/")
+            body = {
+                "contents": [{
+                    "role": "user",
+                    "parts": [
+                        {"inline_data": {"mime_type": "image/png", "data": encoded}},
+                        {"text": prompt},
+                    ],
+                }],
+                "generationConfig": {
+                    "temperature": 0,
+                    "maxOutputTokens": max_output_tokens,
+                },
+            }
+            return self._post_plain(
+                self.connection.base_url.removesuffix("/openai")
+                + f"/models/{model}:generateContent",
+                {"x-goog-api-key": self.connection.api_key},
+                body,
+                provider="google",
+            )
+        body = {
+            "model": spec.model,
+            "max_tokens": max_output_tokens,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": encoded,
+                        },
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            }],
+        }
+        return self._post_plain(
+            self.connection.base_url + "/messages",
+            {"x-api-key": self.connection.api_key, "anthropic-version": "2023-06-01"},
+            body,
+            provider="anthropic",
+        )
+
+    def invoke_image_structured(
+        self,
+        *,
+        spec: ProviderSpec,
+        image_bytes: bytes,
+        mime_type: str,
+        prompt: str,
+        schema: dict[str, Any],
+        schema_name: str,
+        max_output_tokens: int,
+        temperature: float | None = 0,
+        reasoning_effort: str | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Use native structured output with one image plus one text block."""
+
+        if spec.provider != self.connection.provider:
+            raise ValueError("provider_connection_mismatch")
+        if mime_type != "image/png" or not image_bytes:
+            raise ValueError("provider_image_input_invalid")
+        encoded = base64.b64encode(image_bytes).decode("ascii")
+        adapted_schema = schema
+        transform_count = 0
+        if spec.provider == "openai":
+            body: dict[str, Any] = {
+                "model": spec.model,
+                "input": [{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "input_image",
+                            "image_url": "data:image/png;base64," + encoded,
+                            "detail": "high",
+                        },
+                        {"type": "input_text", "text": prompt},
+                    ],
+                }],
+                "text": {
+                    "format": {
+                        "type": "json_schema",
+                        "name": schema_name,
+                        "strict": True,
+                        "schema": schema,
+                    },
+                },
+                "max_output_tokens": max_output_tokens,
+                "store": False,
+            }
+            if temperature is not None:
+                body["temperature"] = temperature
+            if reasoning_effort is not None:
+                if reasoning_effort not in {
+                    "none",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max",
+                }:
+                    raise ValueError("provider_reasoning_effort_invalid")
+                body["reasoning"] = {"effort": reasoning_effort}
+            private, safe = self._post_plain(
+                self.connection.base_url + "/responses",
+                {"Authorization": f"Bearer {self.connection.api_key}"},
+                body,
+                provider="openai",
+            )
+        elif spec.provider == "google":
+            model = spec.model.removeprefix("models/")
+            generation_config: dict[str, Any] = {
+                "maxOutputTokens": max_output_tokens,
+                "responseMimeType": "application/json",
+                "responseJsonSchema": schema,
+            }
+            if temperature is not None:
+                generation_config["temperature"] = temperature
+            body = {
+                "contents": [{
+                    "role": "user",
+                    "parts": [
+                        {"inline_data": {"mime_type": "image/png", "data": encoded}},
+                        {"text": prompt},
+                    ],
+                }],
+                "generationConfig": generation_config,
+            }
+            private, safe = self._post_plain(
+                self.connection.base_url.removesuffix("/openai")
+                + f"/models/{model}:generateContent",
+                {"x-goog-api-key": self.connection.api_key},
+                body,
+                provider="google",
+            )
+        else:
+            adapted_schema = copy.deepcopy(schema)
+            transform_count = _project_anthropic_schema(adapted_schema)
+            body = {
+                "model": spec.model,
+                "max_tokens": max_output_tokens,
+                "messages": [{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": encoded,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }],
+                "output_config": {
+                    "format": {"type": "json_schema", "schema": adapted_schema},
+                },
+            }
+            private, safe = self._post_plain(
+                self.connection.base_url + "/messages",
+                {"x-api-key": self.connection.api_key, "anthropic-version": "2023-06-01"},
+                body,
+                provider="anthropic",
+            )
+        safe.update(_schema_projection_metadata(schema, adapted_schema, transform_count))
+        return private, safe
 
     def _openai(
         self,
@@ -309,7 +521,7 @@ class NativePdfTransport:
             "response_bytes": len(response.content),
             "response_hash": hashlib.sha256(response.content).hexdigest(),
             "response_id": _response_id(payload),
-            "resolved_model": str(payload.get("model") or "") if isinstance(payload, dict) else "",
+            "resolved_model": _resolved_model(self.connection.provider, payload),
             **usage,
         }
         if not response.ok:
@@ -345,7 +557,7 @@ class NativePdfTransport:
             "response_bytes": len(response.content),
             "response_hash": hashlib.sha256(response.content).hexdigest(),
             "response_id": _response_id(payload),
-            "resolved_model": str(payload.get("model") or "") if isinstance(payload, dict) else "",
+            "resolved_model": _resolved_model(provider, payload),
             **_usage(provider, payload),
         }
         if not response.ok:
@@ -473,14 +685,29 @@ def _usage(provider: str, payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "input_tokens": usage.get("promptTokenCount"),
             "output_tokens": usage.get("candidatesTokenCount"),
+            "thinking_tokens": usage.get("thoughtsTokenCount"),
             "total_tokens": usage.get("totalTokenCount"),
         }
     usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
+    output_details = (
+        usage.get("output_tokens_details")
+        if isinstance(usage.get("output_tokens_details"), dict)
+        else {}
+    )
     return {
         "input_tokens": usage.get("input_tokens", usage.get("prompt_tokens")),
         "output_tokens": usage.get("output_tokens", usage.get("completion_tokens")),
+        "thinking_tokens": output_details.get("reasoning_tokens"),
         "total_tokens": usage.get("total_tokens"),
     }
+
+
+def _resolved_model(provider: str, payload: dict[str, Any]) -> str:
+    value = payload.get("modelVersion") if provider == "google" else payload.get("model")
+    resolved = str(value or "")
+    if provider == "google" and resolved and not resolved.startswith("models/"):
+        resolved = "models/" + resolved
+    return resolved
 
 
 def _response_id(payload: dict[str, Any]) -> str:

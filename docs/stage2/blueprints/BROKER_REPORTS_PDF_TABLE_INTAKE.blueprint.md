@@ -1,13 +1,14 @@
 # Broker Reports PDF Table Intake
 
-Дата: 2026-07-17
+Дата: 2026-08-04
 
 Статус: `MAINTAINED`; локальный PDF Table Intake Gate 1 закрыт и поддерживается.
 
 Это главный архитектурный вход для PDF Table Intake. Он объясняет место
 компонента, его границы и иерархию документации. Точное runtime-поведение,
 версии схем и настройки определяет
-[версионный контракт](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md).
+[текущий версионный контракт](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v2.md).
+Контракт v1 сохранён как историческая fixed-padding версия.
 
 ## Задача и поддерживаемый путь
 
@@ -19,14 +20,14 @@ OpenWebUI file refs
 -> page rasterization
 -> VLM table-region detection
 -> strict bbox validation
--> deterministic configurable padding and crop
+-> canonical table-region resolution and deterministic crop
 -> private versioned PNG candidates
 -> raster-candidate refs for the downstream table normalizer
 ```
 
 VLM только предполагает, есть ли на странице таблица, и возвращает её внешний
-прямоугольник. Код проверяет ответ, детерминированно сортирует области, добавляет
-поля, рендерит PNG, считает хэши и сохраняет артефакты.
+прямоугольник. Код проверяет ответ, детерминированно сортирует области, разрешает
+одну canonical table region, рендерит PNG, считает хэши и сохраняет артефакты.
 
 Поддерживаемый default-off потребитель этих кандидатов —
 [PDF Dual-VLM Table Runtime v1](../contracts/BROKER_REPORTS_PDF_DUAL_VLM_TABLE_RUNTIME.v1.md).
@@ -92,19 +93,17 @@ PDF Table Intake является дочерней возможностью broa
 Вероятностная часть — ответ VLM о наличии и внешней границе таблицы.
 
 Детерминированная часть при фиксированных PDF, координатах, конфигурации и
-версиях — валидация схемы и bbox, сортировка, поля, clamping к странице,
-рендер, candidate identity, PNG SHA-256, manifest hash и сохранение ссылок.
-
-Глобальные stage-поля равны `0.08` ширины страницы по X и `0.08` высоты страницы
-по Y с каждой стороны. Это резерв вокруг корректной внешней границы, а не способ
-исправить произвольный неверный bbox.
+версиях — валидация схемы и bbox, coordinate transform, структурное разрешение
+canonical table region, clamping к странице, рендер, candidate identity,
+PNG SHA-256, manifest hash и сохранение ссылок. Fixed page-relative padding
+текущим v2-контрактом не применяется; legacy valves не влияют на crop.
 
 ## Иерархия документов
 
 | Приоритет | Документ | Что он определяет |
 | --- | --- | --- |
 | 1 | Этот архитектурный вход | Место компонента, локальную нумерацию, ownership и границы ответственности. |
-| 2 | [Versioned runtime/data contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md) | Поддерживаемый runtime path, вход/выход, версии схем, настройки, privacy и failure semantics. |
+| 2 | [Versioned runtime/data contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v2.md) | Поддерживаемый runtime path, вход/выход, версии схем, настройки, privacy и failure semantics. |
 | 3 | [Operator runbook](../operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md) | Deploy, parity, proof, visual review и диагностику. |
 | 4 | [Closure report](../../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_CLOSURE.report.md) | Доказательство принятия конкретной repository/live revision и representative PDF. |
 | 5 | Research и forensic reports | Историю гипотез, неудач и отвергнутых подходов; они не определяют production behavior. |
@@ -123,8 +122,8 @@ bundled runtime. Расхождение runtime и контракта являе
 
 ## Закрытие и ограничения доказательства
 
-Stage acceptance 2026-07-17 подтвердил доставку, scoped parity, строгие
-контракты, 8-процентные поля и operator visual acceptance всех 11 кандидатов из
+Исторический Stage acceptance 2026-07-17 подтвердил доставку, scoped parity,
+контракт v1, 8-процентные поля и operator visual acceptance 11 кандидатов из
 одного 8-страничного representative PDF. Это закрывает поддерживаемую
 raster-candidate boundary.
 
@@ -141,7 +140,8 @@ dual-VLM consensus, global source eligibility, source-fact extraction,
 
 ## Навигация
 
-- [Runtime/data contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
+- [Current runtime/data contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v2.md)
+- [Historical v1 contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
 - [Operator runbook](../operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md)
 - [Stage closure evidence](../../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_CLOSURE.report.md)
 - [Documentation refinement report](../../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_DOCUMENTATION_REFINEMENT.report.md)

@@ -3,6 +3,16 @@
 Этот домен не является реализацией Stage 2. Это инженерная карта, roadmap и research findings перед
 реализацией.
 
+## Current Broker Reports implementation
+
+Для текущей реализации Broker Reports Gate 2 начните с
+[BROKER_REPORTS_GATE2.md](BROKER_REPORTS_GATE2.md). Эта страница ведёт только к
+действующим schema, factories, reader, implementation map и safe-change guide.
+
+Broker Reports Gate 2 — реализованное исключение к историческому описанию выше:
+документ не становится implementation authority только по факту нахождения в
+`docs/stage2`.
+
 ## 1. Что такое Stage 2
 
 Stage 2 развивает корпоративный OpenWebUI-портал из пилотного AI-чата в управляемую рабочую
@@ -286,12 +296,14 @@ Next action:
 
 Finding:
 
-- Broker Reports uses one four-gate product architecture: source
-  representation, source-local interpretation, case reconciliation and
-  tax/declaration output preparation. Read the
-  [canonical global gate architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
-  before local PDF gate, Stage 2 implementation-gate or vertical-proof
-  documents.
+- Broker Reports uses the current three-stage contract: Gate 1 owns authenticated
+  intake/custody/routing, Gate 2 emits and versions one non-financial
+  `CanonicalArtifactV1` for PDF/HTML/CSV/XLSX, and future Gate 3 owns
+  product/task-specific LLM projection plus financial semantic analysis. Read
+  [Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) and the
+  [Gate 2 Exit Contract v1](contracts/BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md)
+  first; the older global gate architecture is superseded for numbering. The
+  DOC33 neutral reader-only renderer is completeness proof tooling, not Gate 3.
 - OpenWebUI has extraction engines.
 - Broker-report PDFs with a text layer now have a bounded deterministic
   normalization/table path; corpus-wide acceptance still waits for customer

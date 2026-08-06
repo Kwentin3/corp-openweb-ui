@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import copy
 import base64
+import csv
 import hashlib
 import json
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from io import BytesIO
+from io import BytesIO, StringIO
 from pathlib import PurePosixPath
 from typing import Any
 from zipfile import BadZipFile, ZipFile
@@ -88,6 +89,7 @@ class FullSourceArtifactConfig:
     max_pdf_layout_characters_per_cluster: int = 6_000
     max_pdf_layout_words_per_table_unit: int = 1_000
     max_pdf_layout_units_per_document: int = 5_000
+    enable_canonical_artifact_v1_shadow: bool = False
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,13 @@ class FullSourceBuildResult:
 
 
 class FullSourceArtifactFactory:
+    """Sole bounded extractor factory for private Full Evidence material.
+
+    Its output feeds canonical normalization but is not itself the public Gate
+    2 contract. Callers must keep source bytes and detailed parser evidence in
+    the authenticated private contour.
+    """
+
     def __init__(self, config: FullSourceArtifactConfig | None = None) -> None:
         self.config = config or FullSourceArtifactConfig()
 
@@ -193,6 +202,8 @@ class FullSourceArtifactFactory:
 
 
 class FullSourceArtifactBuilder:
+    """Extract format-specific source units under explicit resource budgets."""
+
     def __init__(self, config: FullSourceArtifactConfig) -> None:
         self.config = config
         self.provenance = NormalizedSliceProvenanceFactory().create()
@@ -391,14 +402,21 @@ class FullSourceArtifactBuilder:
         try:
             parsed = CsvSupportedProfileFactory().create().parse(content_bytes)
         except CsvSupportedProfileError as exc:
+            if self.config.enable_canonical_artifact_v1_shadow:
+                canonical = _canonical_csv_projection(content_bytes)
+                if canonical is not None:
+                    descriptor = self._blocked_descriptor(
+                        "table_rows", "python_stdlib_csv", exc.code
+                    )
+                    descriptor["canonical_projection"] = canonical
+                    return [descriptor]
             return [
                 self._blocked_descriptor(
                     "table_rows", "python_stdlib_csv", exc.code
                 )
             ]
         rows = parsed.rows
-        return [
-            {
+        descriptor = {
                 "logical_identity": "csv_table_001",
                 "slice_type": "table_rows",
                 "parser": "python_stdlib_csv",
@@ -415,7 +433,16 @@ class FullSourceArtifactBuilder:
                 },
                 "cells": rows,
             }
-        ]
+        if self.config.enable_canonical_artifact_v1_shadow:
+            descriptor["canonical_projection"] = {
+                "rows": copy.deepcopy(rows),
+                "encoding": parsed.encoding,
+                "delimiter": parsed.delimiter,
+                "quotechar": '"',
+                "header_present": True,
+                "duplicate_headers": len(rows[0]) != len(set(rows[0])) if rows else False,
+            }
+        return [descriptor]
 
     def _extract_text(self, content_bytes: bytes) -> list[dict[str, Any]]:
         decoded, encoding, error = decode_text_bytes(content_bytes)
@@ -450,6 +477,9 @@ class FullSourceArtifactBuilder:
             ),
             max_media_bytes_per_document=(
                 self.config.max_html_embedded_media_bytes_per_document
+            ),
+            capture_canonical_semantics=(
+                self.config.enable_canonical_artifact_v1_shadow
             ),
         )
         try:
@@ -563,6 +593,10 @@ class FullSourceArtifactBuilder:
                     "text": "",
                 }
             )
+        if self.config.enable_canonical_artifact_v1_shadow and descriptors:
+            descriptors[0]["canonical_projection"] = {
+                "blocks": parser.semantic_content_blocks()
+            }
         return descriptors
 
     def _extract_xlsx(
@@ -634,8 +668,7 @@ class FullSourceArtifactBuilder:
                 rows, formulas_count = _xlsx_rows_with_coordinates(root, shared_strings)
                 status = "partial" if formulas_count else "complete"
                 reasons = ["xlsx_formulas_not_extraction_complete"] if formulas_count else []
-                descriptors.append(
-                    {
+                descriptor = {
                         "logical_identity": f"xlsx_sheet_{sheet_index:03d}",
                         "slice_type": "table_rows",
                         "parser": "python_stdlib_xlsx_zip_xml",
@@ -654,7 +687,16 @@ class FullSourceArtifactBuilder:
                         },
                         "cells": rows,
                     }
-                )
+                if self.config.enable_canonical_artifact_v1_shadow:
+                    descriptor["canonical_projection"] = _canonical_xlsx_projection(
+                        workbook_root=workbook_root,
+                        sheet=sheet,
+                        sheet_root=root,
+                        sheet_index=sheet_index,
+                        rows=rows,
+                        shared_strings=shared_strings,
+                    )
+                descriptors.append(descriptor)
                 document_reasons.extend(reasons)
             return descriptors, document_reasons
 
@@ -1768,6 +1810,12 @@ class FullSourceArtifactBuilder:
             "knowledge_rag_used": False,
             "vectorization_performed": False,
         }
+        if self.config.enable_canonical_artifact_v1_shadow and isinstance(
+            descriptor.get("canonical_projection"), dict
+        ):
+            payload["canonical_projection"] = copy.deepcopy(
+                descriptor["canonical_projection"]
+            )
         if status != "complete":
             return payload, None
 
@@ -1950,11 +1998,13 @@ class _FullHtmlExtractor(HTMLParser):
         max_media_items: int,
         max_media_bytes_per_item: int,
         max_media_bytes_per_document: int,
+        capture_canonical_semantics: bool = False,
     ) -> None:
         super().__init__()
         self.max_media_items = max_media_items
         self.max_media_bytes_per_item = max_media_bytes_per_item
         self.max_media_bytes_per_document = max_media_bytes_per_document
+        self.capture_canonical_semantics = capture_canonical_semantics
         self._skip_depth = 0
         self._skip_tags: list[str] = []
         self._table_depth = 0
@@ -1963,6 +2013,7 @@ class _FullHtmlExtractor(HTMLParser):
         self._current_table: list[list[str]] | None = None
         self._current_row: list[str] | None = None
         self._current_cell: list[str] | None = None
+        self._current_caption: list[str] | None = None
         self.tables: list[list[list[str]]] = []
         self.script_elements_total = 0
         self.script_characters_total = 0
@@ -1974,17 +2025,30 @@ class _FullHtmlExtractor(HTMLParser):
         self.embedded_media_reason_codes: list[str] = []
         self.nested_tables_total = 0
         self.link_elements_total = 0
+        self._semantic_blocks: list[dict[str, Any]] = []
+        self._semantic_stack: list[dict[str, Any]] = []
+        self._list_tags: list[str] = []
+        self._active_link: dict[str, Any] | None = None
 
     def handle_starttag(self, tag: str, attrs) -> None:
-        if tag in {"script", "style"}:
-            if tag == "script":
-                self.script_elements_total += 1
-            else:
-                self.style_elements_total += 1
+        attributes = dict(attrs)
+        hidden = (
+            "hidden" in attributes
+            or str(attributes.get("aria-hidden") or "").lower() == "true"
+            or "display:none"
+            in str(attributes.get("style") or "").lower().replace(" ", "")
+        )
+        if self._skip_depth:
             self._skip_depth += 1
             self._skip_tags.append(tag)
             return
-        if self._skip_depth:
+        if tag in {"script", "style"} or hidden:
+            if tag == "script":
+                self.script_elements_total += 1
+            elif tag == "style":
+                self.style_elements_total += 1
+            self._skip_depth += 1
+            self._skip_tags.append(tag)
             return
         if tag in {"img", "picture", "object", "embed", "iframe", "canvas", "svg", "video", "audio"}:
             self.embedded_media_elements_total += 1
@@ -1992,6 +2056,36 @@ class _FullHtmlExtractor(HTMLParser):
                 self._capture_data_image(dict(attrs).get("src"))
         if tag == "a":
             self.link_elements_total += 1
+            if self.capture_canonical_semantics and not self._table_depth:
+                self._active_link = {
+                    "target": str(dict(attrs).get("href") or ""),
+                    "parts": [],
+                }
+        if self.capture_canonical_semantics and not self._table_depth:
+            if tag in {"ul", "ol"}:
+                self._list_tags.append(tag)
+            if tag in {
+                "title",
+                "h1",
+                "h2",
+                "h3",
+                "h4",
+                "h5",
+                "h6",
+                "p",
+                "li",
+                "aside",
+                "blockquote",
+            }:
+                self._semantic_stack.append(
+                    {
+                        "tag": tag,
+                        "parts": [],
+                        "links": [],
+                        "list_level": max(0, len(self._list_tags) - 1),
+                        "ordered": bool(self._list_tags and self._list_tags[-1] == "ol"),
+                    }
+                )
         if tag == "table":
             if not self._table_depth:
                 self._flush_outside_block()
@@ -2003,21 +2097,32 @@ class _FullHtmlExtractor(HTMLParser):
             return
         if tag == "tr" and self._table_depth == 1:
             self._current_row = []
+        elif tag == "caption" and self._table_depth == 1:
+            self._current_caption = []
         elif tag in {"td", "th"} and self._current_row is not None:
             self._current_cell = []
         elif not self._table_depth and tag in {"br", "p", "div", "li", "section", "h1", "h2", "h3"}:
             self._outside_parts.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
-        if tag in {"script", "style"}:
-            if self._skip_depth:
+        if self._skip_depth:
+            if self._skip_tags and self._skip_tags[-1] == tag:
                 self._skip_depth -= 1
-            if self._skip_tags:
                 self._skip_tags.pop()
             return
-        if self._skip_depth:
-            return
-        if tag in {"td", "th"} and self._current_cell is not None and self._current_row is not None:
+        if tag == "a" and self.capture_canonical_semantics and self._active_link is not None:
+            link = {
+                "text": " ".join(" ".join(self._active_link["parts"]).split()),
+                "target": self._active_link["target"],
+            }
+            if self._semantic_stack and (link["text"] or link["target"]):
+                self._semantic_stack[-1]["links"].append(link)
+            self._active_link = None
+        if tag == "caption" and self._current_caption is not None:
+            self._current_caption = [
+                " ".join(" ".join(self._current_caption).split())
+            ]
+        elif tag in {"td", "th"} and self._current_cell is not None and self._current_row is not None:
             self._current_row.append(" ".join(" ".join(self._current_cell).split()))
             self._current_cell = None
         elif tag == "tr" and self._current_row is not None:
@@ -2036,10 +2141,40 @@ class _FullHtmlExtractor(HTMLParser):
                         "rows": copy.deepcopy(self._current_table),
                     }
                 )
+                if self.capture_canonical_semantics:
+                    block = {
+                        "kind": "table",
+                        "rows": copy.deepcopy(self._current_table),
+                        "source_location": {
+                            "kind": "html_table_rows",
+                            "table_ordinal": len(self.tables),
+                        },
+                    }
+                    caption = "".join(self._current_caption or [])
+                    if caption:
+                        block["caption"] = caption
+                    self._semantic_blocks.append(block)
                 self._current_table = None
+                self._current_caption = None
             self._table_depth -= 1
         elif not self._table_depth and tag in {"p", "div", "li", "section", "h1", "h2", "h3"}:
             self._outside_parts.append("\n")
+        if self.capture_canonical_semantics and tag in {
+            "title",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "p",
+            "li",
+            "aside",
+            "blockquote",
+        }:
+            self._finish_semantic_tag(tag)
+        if self.capture_canonical_semantics and tag in {"ul", "ol"} and self._list_tags:
+            self._list_tags.pop()
 
     def handle_data(self, data: str) -> None:
         if self._skip_depth:
@@ -2051,8 +2186,14 @@ class _FullHtmlExtractor(HTMLParser):
             return
         if self._current_cell is not None:
             self._current_cell.append(text)
+        elif self._current_caption is not None:
+            self._current_caption.append(text)
         elif not self._table_depth:
             self._outside_parts.append(text)
+            if self.capture_canonical_semantics and self._semantic_stack:
+                self._semantic_stack[-1]["parts"].append(text)
+            if self.capture_canonical_semantics and self._active_link is not None:
+                self._active_link["parts"].append(text)
 
     def handle_comment(self, data: str) -> None:
         self.comment_elements_total += 1
@@ -2153,6 +2294,63 @@ class _FullHtmlExtractor(HTMLParser):
         self._flush_outside_block()
         return copy.deepcopy(self._ordered_content_blocks)
 
+    def semantic_content_blocks(self) -> list[dict[str, Any]]:
+        return copy.deepcopy(self._semantic_blocks)
+
+    def _finish_semantic_tag(self, tag: str) -> None:
+        index = next(
+            (
+                position
+                for position in range(len(self._semantic_stack) - 1, -1, -1)
+                if self._semantic_stack[position]["tag"] == tag
+            ),
+            None,
+        )
+        if index is None:
+            return
+        item = self._semantic_stack.pop(index)
+        text = " ".join(" ".join(item["parts"]).split())
+        if not text:
+            return
+        if tag == "li":
+            list_item = {
+                "text": text,
+                "level": int(item["list_level"]),
+                "ordered": bool(item["ordered"]),
+            }
+            if (
+                self._semantic_blocks
+                and self._semantic_blocks[-1].get("kind") == "list"
+            ):
+                self._semantic_blocks[-1]["items"].append(list_item)
+            else:
+                self._semantic_blocks.append(
+                    {
+                        "kind": "list",
+                        "items": [list_item],
+                        "source_location": {"kind": "html_list"},
+                    }
+                )
+            return
+        if tag == "title" or tag.startswith("h"):
+            level = 1 if tag == "title" else int(tag[1])
+            kind = "heading"
+        elif tag in {"aside", "blockquote"}:
+            level = None
+            kind = "note"
+        else:
+            level = None
+            kind = "text"
+        block = {
+            "kind": kind,
+            "text": text,
+            "links": copy.deepcopy(item["links"]),
+            "source_location": {"kind": f"html_{tag}"},
+        }
+        if level is not None:
+            block["level"] = level
+        self._semantic_blocks.append(block)
+
     def _flush_outside_block(self) -> None:
         lines = []
         for line in "\n".join(self._outside_parts).splitlines():
@@ -2163,6 +2361,147 @@ class _FullHtmlExtractor(HTMLParser):
         text = "\n".join(lines)
         if text:
             self._ordered_content_blocks.append({"kind": "text", "text": text})
+
+
+def _canonical_csv_projection(content_bytes: bytes) -> dict[str, Any] | None:
+    decoded, encoding, _error = decode_text_bytes(content_bytes)
+    if decoded is None:
+        return None
+    sample = decoded[:8192]
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+    except csv.Error:
+        dialect = csv.excel
+    try:
+        rows = [list(row) for row in csv.reader(StringIO(decoded, newline=""), dialect)]
+    except csv.Error:
+        return None
+    try:
+        header_present = bool(rows and csv.Sniffer().has_header(sample))
+    except csv.Error:
+        header_present = False
+    header = rows[0] if header_present and rows else []
+    return {
+        "rows": rows,
+        "encoding": encoding,
+        "delimiter": str(dialect.delimiter),
+        "quotechar": str(dialect.quotechar or '"'),
+        "header_present": header_present,
+        "duplicate_headers": len(header) != len(set(header)),
+    }
+
+
+def _canonical_xlsx_projection(
+    *,
+    workbook_root: ET.Element,
+    sheet: ET.Element,
+    sheet_root: ET.Element,
+    sheet_index: int,
+    rows: list[list[str | None]],
+    shared_strings: list[str],
+) -> dict[str, Any]:
+    merged_ranges = [
+        str(node.attrib.get("ref") or "")
+        for node in _iter_local(sheet_root, "mergeCell")
+        if node.attrib.get("ref")
+    ]
+    hidden_columns: set[int] = set()
+    for column in _iter_local(sheet_root, "col"):
+        if str(column.attrib.get("hidden") or "0") not in {"1", "true", "True"}:
+            continue
+        start = int(column.attrib.get("min") or 0)
+        end = int(column.attrib.get("max") or start)
+        hidden_columns.update(range(start, end + 1))
+    cells: list[dict[str, Any]] = []
+    for row_node in _iter_local(sheet_root, "row"):
+        row_number = int(row_node.attrib.get("r") or 0)
+        row_hidden = str(row_node.attrib.get("hidden") or "0") in {"1", "true", "True"}
+        expected_column = 1
+        for cell_node in _iter_local(row_node, "c"):
+            cell_ref = str(cell_node.attrib.get("r") or "")
+            column = _xlsx_column_ordinal(cell_ref) or expected_column
+            expected_column = column + 1
+            value_node = next(iter(_iter_local(cell_node, "v")), None)
+            formula_node = next(iter(_iter_local(cell_node, "f")), None)
+            raw_value = value_node.text if value_node is not None else None
+            displayed_value = _xlsx_cell_value(cell_node, shared_strings)
+            cell_type_code = str(cell_node.attrib.get("t") or "")
+            if formula_node is not None:
+                cell_type = "formula"
+            elif cell_type_code == "b":
+                cell_type = "boolean"
+            elif cell_type_code == "e":
+                cell_type = "error"
+            elif cell_type_code in {"s", "str", "inlineStr"}:
+                cell_type = "string"
+            elif raw_value in {None, ""}:
+                cell_type = "blank"
+            else:
+                try:
+                    float(str(raw_value))
+                    cell_type = "number"
+                except ValueError:
+                    cell_type = "string"
+            merged_range = next(
+                (item for item in merged_ranges if _cell_in_a1_range(cell_ref, item)),
+                None,
+            )
+            cells.append(
+                {
+                    "row": row_number or 1,
+                    "column": column,
+                    "value": displayed_value,
+                    "raw_value": raw_value,
+                    "displayed_value": displayed_value,
+                    "cell_type": cell_type,
+                    "formula": formula_node.text if formula_node is not None else None,
+                    "merged_range": merged_range,
+                    "source_coordinate": cell_ref or f"R{row_number}C{column}",
+                    "hidden": row_hidden or column in hidden_columns,
+                    "number_format_ref": (
+                        f"style:{cell_node.attrib['s']}"
+                        if cell_node.attrib.get("s") is not None
+                        else None
+                    ),
+                    "source_refs": [],
+                }
+            )
+    named_ranges = [
+        {
+            "name": str(node.attrib.get("name") or ""),
+            "formula": str(node.text or ""),
+            "local_sheet_id": node.attrib.get("localSheetId"),
+        }
+        for node in _iter_local(workbook_root, "definedName")
+        if node.attrib.get("name")
+    ]
+    table_definitions = [
+        {"relationship_ref": str(node.attrib.get(_rel_attr("id")) or "")}
+        for node in _iter_local(sheet_root, "tablePart")
+        if node.attrib.get(_rel_attr("id"))
+    ]
+    return {
+        "sheet_index": sheet_index,
+        "sheet_name": str(sheet.attrib.get("name") or ""),
+        "sheet_visibility": str(sheet.attrib.get("state") or "visible"),
+        "rows": copy.deepcopy(rows),
+        "cells": cells,
+        "merged_ranges": merged_ranges,
+        "named_ranges": named_ranges,
+        "table_definitions": table_definitions,
+    }
+
+
+def _cell_in_a1_range(cell_ref: str, range_ref: str) -> bool:
+    match = re.fullmatch(r"([A-Z]+)(\d+):([A-Z]+)(\d+)", range_ref.upper())
+    cell = re.fullmatch(r"([A-Z]+)(\d+)", cell_ref.upper())
+    if match is None or cell is None:
+        return cell_ref.upper() == range_ref.upper()
+    column = _xlsx_column_ordinal(cell_ref) or 0
+    start_column = _xlsx_column_ordinal(match.group(1)) or 0
+    end_column = _xlsx_column_ordinal(match.group(3)) or 0
+    row = int(cell.group(2))
+    return start_column <= column <= end_column and int(match.group(2)) <= row <= int(match.group(4))
 
 
 def _xlsx_relationships(archive: ZipFile) -> dict[str, str]:

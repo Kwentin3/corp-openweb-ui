@@ -1,13 +1,13 @@
 ﻿# PDF Table Intake Gate 1: operator runbook
 
-Дата: 2026-07-17
+Дата: 2026-08-04
 
 Статус: поддерживаемая операционная инструкция для закрытой локальной
 PDF-возможности.
 
 Authority: этот файл определяет deploy/proof/review procedure. Runtime behavior
 и настройки определяет
-[versioned contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md),
+[versioned contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v2.md),
 а место локального gate в global Broker Reports pipeline —
 [architecture entry](../blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md).
 
@@ -22,9 +22,10 @@ source-fact acceptance.
 3. Отправить команду нормализации.
 4. Pipe сохранит safe report в чате и private-case артефакты в ArtifactStore.
 
-Пользователь не выбирает поля для каждой таблицы. Принятые stage values:
-`0.08` ширины и `0.08` высоты страницы с каждой стороны. PNG и исходные байты
-не публикуются в чат.
+Пользователь не выбирает геометрию для каждой таблицы. Единый
+`PdfTableRasterFactory` разрешает canonical table region; legacy padding valves
+принимаются для совместимости, но не применяются. PNG и исходные байты не
+публикуются в чат.
 
 ## Deploy и scoped parity
 
@@ -66,7 +67,7 @@ python services/broker-reports-gate1-proof/scripts/live_pdf_table_intake_gate1_o
 - загружает PDF в OpenWebUI с `process=false`;
 - вызывает обычный `/api/chat/completions`;
 - читает run/candidate/attempt/handoff artifacts;
-- сверяет PNG SHA, contract versions, 8-процентные поля и raster refs;
+- сверяет PNG SHA, contract versions, canonical region и raster refs;
 - сохраняет PNG в `local/stage2/...` для визуального осмотра;
 - удаляет временные OpenWebUI uploads.
 
@@ -81,7 +82,7 @@ eligibility; он может быть `blocked` и не опровергает �
 
 - при первом принятии нового representative format;
 - после смены detector model или provider profile;
-- после изменения prompt, request/response contract, renderer, DPI или padding;
+- после изменения prompt, request/response contract, renderer, DPI или crop policy;
 - при повторном formal closure или расследовании geometry regression.
 
 Для обычного неизменённого production path технические проверки продолжают
@@ -91,7 +92,7 @@ eligibility; он может быть `blocked` и не опровергает �
 
 - внутри находится ожидаемая таблица;
 - табличные заголовки, крайние подписи, строки и итоги не срезаны;
-- добавленные поля разумны;
+- canonical region не содержит соседнюю таблицу, narrative или footer;
 - crop не превратился без необходимости в почти целую страницу.
 
 Итог, representative corpus и конкретные ограничения фиксируются в датированном
@@ -110,7 +111,12 @@ acceptance/closure report. Один успешный PDF не является �
 - `pdf_table_intake_page_budget_invalid`: page limit вне `1..512`.
 - `pdf_table_intake_candidate_budget_invalid`: candidate limit вне `1..64`.
 - `pdf_table_intake_padding_invalid` или
-  `pdf_table_raster_padding_fraction_invalid`: X/Y padding вне `0..0.25`.
+  `pdf_table_raster_padding_fraction_invalid`: legacy X/Y valve вне `0..0.25`;
+  валидное значение принимается, но не влияет на crop.
+- `pdf_table_raster_crop_ambiguous`: несколько сопоставимых регионов нельзя
+  безопасно разделить; PNG не создаётся.
+- `pdf_table_raster_crop_blocked`: coordinate space или required geometry не
+  подтверждены; PNG не создаётся.
 - `pdf_table_raster_dimension_budget_exceeded`: crop превышает размерный лимит.
 - `operator_repository_tree_not_clean`: proof запущен не из clean committed
   revision.
@@ -120,3 +126,14 @@ Pipe, smoke или shell-команды.
 
 Принятое доказательство:
 [closure report](../../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_CLOSURE.report.md).
+
+## DOC32 canonical normalization handoff
+
+Table intake remains Full Evidence and does not publish consumer-visible
+document meaning by itself. The Gate 2 PDF adapter must consume validated text
+units and table projections through `CanonicalNormalizerFactory`, represent
+every ready table exactly once, terminally classify non-ready projections, and
+emit `canonical_pdf_completeness_v1`. A non-empty PDF with zero logical nodes or
+less than 100% source-atom accounting is a terminal failure and must not change
+the active pointer. Parser/VLM payloads and crops remain private resolver-backed
+evidence; a projector may consume only `CanonicalReader` output.

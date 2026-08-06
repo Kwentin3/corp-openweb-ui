@@ -1,5 +1,16 @@
 ﻿# Deployment Runbook
 
+Current target note (2026-08-05): the deployed Compose project is `compose`
+under `/opt/openwebui-prd0`; `openwebui` and `stage2-stt` use named volumes.
+Exact SSH endpoint remains local and must not enter Git.
+
+Gate 2 canonical backfill remains stopped after a terminal resource-limit
+failure. DOC34 does not authorize retry, a larger limit, service restart,
+backfill continuation or product cutover. Any later authorized attempt must
+follow the one-document fail-closed sequence in
+[BROKER_REPORTS_RESOURCE_BOUNDED_BACKFILL_RUNBOOK.md](BROKER_REPORTS_RESOURCE_BOUNDED_BACKFILL_RUNBOOK.md).
+Never use `compose down -v` or remove the persistent volumes during recovery.
+
 ## 1. Проверить DNS
 
 Проверить, что `gpt.alpha-soft.ru` указывает на целевой public IPv4:

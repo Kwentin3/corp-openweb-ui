@@ -1,15 +1,22 @@
 # Broker Reports Architecture Authorities
 
-Status: `ARCHITECTURE_MEMORY_REFINED_WITH_EXPLICIT_DEBT`
+Status: `CURRENT`
+
+Start at the [Gate 2 entrypoint](../BROKER_REPORTS_GATE2.md), then use the
+[implementation map](../architecture/BROKER_REPORTS_GATE2_IMPLEMENTATION_MAP.v1.md)
+for code locations and the [safe-change guide](../operations/BROKER_REPORTS_GATE2_SAFE_CHANGE_GUIDE.v1.md)
+for required verification. The [Gate 3 handoff](./BROKER_REPORTS_GATE3_HANDOFF.v1.md)
+is a boundary contract only; Gate 3 is not implemented.
 
 This is the compact orientation index for maintained Broker Reports
-implementation authorities. It supplements, and does not replace, the
+implementation authorities. Current gate numbering is owned by
+[Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md). The older
 [global gate architecture](../blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
-or the versioned data contracts linked below.
+is `SUPERSEDED` for numbering and remains migration context only.
 
 Use this order when sources appear to disagree:
 
-1. the global gate architecture owns gate placement and product boundaries;
+1. Pipeline Gates v1 owns gate placement and product boundaries;
 2. a versioned contract owns DTO meaning and invariants;
 3. the maintained source factory owns object construction or execution;
 4. a compatibility entrypoint may only adapt and delegate;
@@ -20,7 +27,9 @@ Use this order when sources appear to disagree:
 
 | Domain | Owns | Does not own | Public entrypoint | Normative contracts | Allowed consumers | Forbidden duplicate |
 | --- | --- | --- | --- | --- | --- | --- |
-| Gate 1 Evidence | neutral source representation, source refs, provenance and private resolution | financial type/role meaning | `Gate1BoundedGraphFactory.create`, `ArtifactResolver` | Gate 1 document memory and normalized payload | Technical Preparation | direct Gate 2 store/source reads |
+| Gate 1 Intake | authenticated upload custody, access, format detection, original storage and routing | canonical normalization, financial meaning or product cutover | existing intake/ArtifactStore factories and `ArtifactResolver` | [Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md) | Gate 2 canonical extraction | native document processing, Knowledge/RAG/vectorization or caller tenant authority |
+| Gate 2 Canonical | format extraction, deterministic non-financial `CanonicalArtifactV1`, provenance/issues, immutable versions, shared completeness and shadow comparison | product/task-specific LLM projection, financial type/role meaning or product cutover | `FullSourceArtifactFactory`, `CanonicalNormalizerFactory.create`, `CanonicalArtifactStoreFactory.create`, `CanonicalReaderFactory.create` | [Canonical Artifact v1](./BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md), Storage, Reader and [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md) | shadow/read-only proof; future Gate 3 after explicit authorization | a second schema/parser/store/reader, direct component access or canonical product reads before migration |
+| Gate 2 Consumer Compatibility | consumer-specific, versioned structural projection over an active canonical version; aggregate safe read telemetry; one non-active format-neutral proof renderer | global read enable, legacy fallback, private evidence, financial semantics or consumer selection | four explicit factories plus `render_neutral_canonical_projection` in `canonical_consumer_migration.py`, all consuming `CanonicalReaderFactory.create` output | [Canonical Reader v1](./BROKER_REPORTS_CANONICAL_READER.v1.md), [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md), [Migration Strategy](./BROKER_REPORTS_GATE2_MIGRATION_STRATEGY.v1.md), [Consumer Matrix](./BROKER_REPORTS_GATE2_CONSUMER_MIGRATION_MATRIX.v1.md) | isolated Wave 0 tests, retained-cohort proof and shadow-only Wave 2 | format-branch consumer API, direct ArtifactStore/SQLite/payload access, global flag or silent fallback |
 | Technical Preparation | deterministic financial scope, technical preclose and sealed Evidence Bundle | financial classification or provider choice | `Gate2DeterministicFinancialScopeFromGate1V2Factory.create`, `Gate2FinancialEvidenceBundleFactory.create` | Evidence Bundle | Candidate Compiler, Qualification | a second source/provenance projection |
 | Financial Semantic Pack | type/role meaning, ambiguity rules and lifecycle | source binding, provider transport or materialization | `Gate2FinancialSemanticContractFactory.create` | Financial Semantic Pack | projection, compiler, validation, materialization, Financial Domain | type-specific Python or a second registry |
 | Candidate Compiler | complete code-owned Typed Options from Pack plus technical evidence | semantic selection or invented bindings | `Gate2FinancialCandidateCompilerFactory.create` | Candidate Compiler and Typed Option | Semantic Matcher, replay | financial regex, known type IDs or provider-built records |
@@ -39,10 +48,23 @@ These domains are code responsibilities, not new product gates or packages.
 One domain may coordinate several distinct operation authorities listed below;
 that does not permit a second owner for any operation.
 
+Rows using historical `Gate2*` financial-semantic class/module names below are
+legacy code-identity maps, not current gate-number definitions. Under Pipeline
+Gates v1, product/task-specific LLM-friendly projection and financial semantic
+analysis belong to a future Gate 3 contour, which DOC26-DOC33 do not create or
+activate. DOC33's neutral reader-only renderer is completeness proof tooling,
+not a product or persisted stage output.
+DOC27 likewise creates no Gate 3 projection and switches no background or
+primary product consumer.
+
 ## Operation authority map
 
 | Concern | Sole authority | Contract | Consumers | Compatibility | Forbidden duplicate |
 | --- | --- | --- | --- | --- | --- |
+| Gate 2 whole-document canonical construction | [`CanonicalNormalizerFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/canonical_artifact.py) consuming only Gate 1-authorized refs, FullSource outputs and validated table projections | [Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md), [Canonical Artifact v1](./BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md), [schema](./BROKER_REPORTS_CANONICAL_ARTIFACT.v1.schema.json) and [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md) | controlled Gate 2 shadow write and compare | `gate2_handoff_v0` remains product compatibility authority; DOC23/DOC24 are regression evidence, not runtime owners | a second schema/parser, financial fields, provider output as canonical authority or direct consumer construction |
+| Gate 2 canonical version lifecycle and private read | [`CanonicalArtifactStoreFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/canonical_store.py) delegating to the ArtifactStore-created adapter; [`CanonicalReaderFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/canonical_store.py) is product-read-disabled | [Canonical Storage Lifecycle v1](./BROKER_REPORTS_CANONICAL_STORAGE_LIFECYCLE.v1.md), [Canonical Reader v1](./BROKER_REPORTS_CANONICAL_READER.v1.md) and [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md) | controlled shadow/storage proof until explicit cutover | immutable cross-run versions, chunks, CAS activation/rollback and receipts are additive; source and legacy handoff remain resolvable | direct SQLite/file access, caller tenant identity, overwrite, implicit promotion or pre-cutover product reads |
+| Consumer-specific canonical compatibility read | [`Gate1ArtifactStoreCanonicalAdapterFactory`, `PdfCompactCanonicalAdapterFactory`, `LocalPdfCompactResearchCanonicalAdapterFactory` and `render_neutral_canonical_projection`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/canonical_consumer_migration.py), all consuming `CanonicalReaderFactory.create` output | [Canonical Reader v1](./BROKER_REPORTS_CANONICAL_READER.v1.md), [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md) and [Consumer Migration Matrix v1](./BROKER_REPORTS_GATE2_CONSUMER_MIGRATION_MATRIX.v1.md) | isolated Wave 0 tests, retained-cohort proof and six Wave 2 shadows | each mapping has one flag/output version; the neutral renderer is non-active proof-only; flag-off rollback restores external legacy authority without changing active pointer | direct store/component reads, format-branch consumer API, one global flag, private evidence, silent fallback or primary product use |
+| PDF table candidate -> canonical crop region | [`PdfTableRasterFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/pdf_table_raster.py) | [PDF Table Intake Gate 1 v2](./BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v2.md) | PDF Table Intake runtime, image crop, future source-text projection, provenance and diagnostics | `render_detected_region` delegates; v1 fixed-padding evidence remains historical; legacy padding valves are accepted but not applied | consumer-local crop/padding, a second resolver, issuer/table/page-coordinate exceptions, provider-owned final geometry or semantic reconstruction in the crop owner |
 | Inactive Managed Document v2 validation and sealing | [`ManagedDocumentContractV2Validator`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/managed_document_contracts_v2.py) | [Managed Document v2](./BROKER_REPORTS_MANAGED_DOCUMENT.v2.md) and its exact-`$id`, canonical-SHA-pinned [Draft 2020-12 schema](./BROKER_REPORTS_MANAGED_DOCUMENT.v2.schema.json) | inactive DOC6 document builder, contract tests and offline parity | additive only; Managed Document v1 validator/schema/bytes remain unchanged | a weaker local validator, same-`$id` schema substitution, schema rewrite in a builder, implicit v1-to-v2 upgrade or validator-owned source recovery |
 | Inactive DOC6 logical-row table recovery | [`LogicalRowTableFactory`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/logical_row_table_recovery.py) | [Managed Document v2](./BROKER_REPORTS_MANAGED_DOCUMENT.v2.md) and [DOC6 logical-row decision](../BROKER_REPORTS_DOC6_LOGICAL_ROW_MODEL_DECISION.v1.md) | `ManagedPdfDocumentV2Factory` only, then the v2 validator | consumes only established FullSource PDF projections/observations; historical grid and visual-table paths remain unchanged | grid/cell/span-first canonical builder, parser-owned TABLE emission, helper-built TABLE or source-specific hardcoding |
 | Inactive PDF -> Managed Document v2 orchestration | [`ManagedPdfDocumentV2Factory`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/managed_pdf_document_v2.py) | [Managed Document v2](./BROKER_REPORTS_MANAGED_DOCUMENT.v2.md); public builder input is raw PDF bytes plus a required private source-artifact identity, followed by internal FullSource invocation and sole-complete-projection consumption | offline DOC6 recovery proof and row-oriented view only | additive non-product contour; v1 `ManagedPdfDocumentFactory`, FullSource owner, product routes and generated bundles stay unchanged | caller-supplied parallel projection, raw-PDF parallel parser, direct `LogicalRowTableFactory` consumer, unvalidated v2 artifact or product-route bypass |
@@ -752,6 +774,8 @@ DOCUMENTATION: CURRENT
 
 ## Zero-context orientation proof
 
+Status: `HISTORICAL_EVIDENCE` for the legacy pre-Pipeline-Gates-v1 naming below.
+
 A fresh read-only agent with no conversation history, Codex memory, report
 archaeology or internet access followed service `AGENTS.md` to this map,
 versioned contracts and maintained code. It correctly identified:
@@ -827,3 +851,49 @@ PROVIDER_CALLS: ZERO
 STAGE_MUTATIONS: ZERO
 FINAL_STATUS: ARCHITECTURE_MEMORY_REFINED_WITH_EXPLICIT_DEBT
 ```
+
+## DOC28 durable deployment authority status
+
+No new owner was introduced. `ArtifactStoreFactory` remains the metadata and
+payload owner, `CanonicalArtifactStoreFactory` remains the version/lifecycle
+facade, and `CanonicalReaderFactory` remains the sole read boundary. The
+existing `openwebui_data` mount is only a deployment candidate until an
+authorized runtime proves restart, backup/restore, capacity and retention.
+DOC28 created no durable store, active pointer, Wave 2 adapter or product read.
+
+DOC29 retained these owners and introduced no engine. It identified the live
+`openwebui_data` mount, reused the Broker namespace, and added only a bounded
+job plus factory-routed Wave 2 shadow contracts. STT's named-volume and factory
+patterns are reusable; its schema, nullable tenant field, inline payload model,
+missing rotation worker and backup omission are not canonical authority.
+Target ownership remains unadmitted until host recovery and post-job
+durability/restore accounting. Global and primary canonical reads remain off.
+
+DOC30 made no authority change. It recovered the target, accounted the DOC29
+OOM and selected `RETAIN` after current Broker/STT integrity and zero-write
+proof. Its closed-world resource-bounded entrypoint routes normalization,
+publish/activate and readback through the existing factories, one document per
+checkpoint. Two canaries and 8 target versions passed; an XLSX then reached
+the frozen memory cgroup and triggered the mandatory stop with zero partial
+persisted state. `ArtifactStoreFactory`, `CanonicalArtifactStoreFactory` and
+`CanonicalReaderFactory` remain the only storage/lifecycle/read owners. Wave 2
+and primary reads remain off, target durability/restore are unconfirmed, and
+Gate 3 remains unstarted.
+
+DOC32 also creates no second authority. `CanonicalNormalizerFactory` remains
+the sole logical builder, `CanonicalArtifactStoreFactory` the lifecycle facade,
+and `CanonicalReaderFactory` the sole consumer query boundary. The PDF adapter
+now accounts every source atom and emits a counts-only completeness receipt;
+the store refuses non-empty zero-node PDF candidates. The research projector is
+inside the existing consumer adapter and accepts only a reader envelope. The
+bounded republisher, backup/restore command and Wave 2 shadow orchestrate these
+owners; they do not become new parsing, storage, reader or product authorities.
+
+DOC33 confirms those same owners across PDF, HTML, CSV and XLSX. It refines the
+existing validator with one format-neutral completeness rule, generalizes the
+existing research renderer over common container/node semantics, and removes
+source format from Wave 2 shadow output. `canonical_artifact_v1` remains the
+only schema, `CanonicalReaderFactory.create` remains the only reader, and the
+[Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md) summarizes
+the boundary without creating another DTO or execution authority. Product
+cutover and Gate 3 remain unstarted.
