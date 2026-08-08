@@ -180,4 +180,6 @@ G3.3M/G3.C1 do not implement or authorize:
 
 G3.C5 consumes this exact published version inside the stable NDFL route. The
 dictionary remains a meaning authority and never becomes a workflow, provider
-or annotation owner. There is no next Gate 3 GOAL; Gate 4 is not started.
+or annotation owner. There is no next Gate 3 GOAL. Gate 4 later closed under
+the separate current Pipeline Gates authority; this dictionary did not start
+or redefine it.

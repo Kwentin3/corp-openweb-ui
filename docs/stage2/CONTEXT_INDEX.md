@@ -560,41 +560,35 @@ Comment:
 
 ## Брокерские отчеты / 3-НДФЛ
 
-Use this route for Broker Reports, NDFL or a request to begin Gate 4.
+Use this route for Broker Reports, NDFL or a request to begin Gate 5 design.
 
 Read first:
 
 1. [Pipeline Gates v1 — sole current authority](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md)
-2. [Gate 3 short context handoff](contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md)
-3. [Gate 4 fact contract](contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md),
-   [G4.2 SQL materialization](contracts/BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md)
-   and [G4.3 case assembly](contracts/BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md),
-   then the
-   [G4.4 relation-necessity result](../reports/2026-08-08/BROKER_REPORTS_GATE4_RELATION_NECESSITY_G4_4.report.md)
-   and
-   [G4.6 read-boundary closure](../reports/2026-08-08/BROKER_REPORTS_GATE4_READ_BOUNDARY_G4_6_CLOSURE.report.md)
-4. [Gate 2 Exit Contract v1](contracts/BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md),
-   [Canonical Artifact v1](contracts/BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md),
-   [Canonical Reader v1](contracts/BROKER_REPORTS_CANONICAL_READER.v1.md),
-   [Gate 3 Minimal Labeling v1](contracts/BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md)
-   and the
-   [FinancialAnnotationsV1 schema](contracts/BROKER_REPORTS_FINANCIAL_ANNOTATIONS.v1.schema.json).
+2. [Gate 4 -> Gate 5 short handoff](contracts/BROKER_REPORTS_GATE4_HANDOFF.v1.md)
+3. [Gate 4 fact contract](contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md)
+4. [Gate 4 case assembly](contracts/BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md)
+5. [Gate 4 official read/rebuild boundary](contracts/BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md)
+6. [Gate 3 short context handoff](contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md)
+   only when an upstream role/binding invariant must be audited
+7. [Architecture authorities map](contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md)
+   when implementation ownership matters
 
-Then, if implementation ownership matters, read the
-[architecture authorities map](contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md).
-If acceptance evidence must be audited, read the
-[corrected terminal Gate 3 proof](../reports/2026-08-07/BROKER_REPORTS_GATE3_CORRECTED_TERMINAL_G3_7C.report.md)
-and the
-[real NDFL product-path proof](../reports/2026-08-07/BROKER_REPORTS_GATE3_REAL_NDFL_PRODUCT_PATH_G3_C5.report.md).
+If closure evidence must be audited, read the concise
+[G4.7 Gate 4 closure](../reports/2026-08-08/BROKER_REPORTS_GATE4_CLOSURE_G4_7.report.md).
+Earlier G4.1-G4.6 reports are evidence for their revisions, not the onboarding
+path.
 
-Current recovery result: Gate 3 is `CLOSED`; it stores one current immutable
-`FinancialAnnotationsV2` sidecar over the exact active canonical version.
-G4.1 fact meaning, G4.2 deterministic materialization/rebuildable SQL cache
-and G4.3 multi-document case assembly are closed. G4.4 research concluded
-`NO_RELATION_LAYER_NEEDED_YET`; G4.5 has no implementation subject without new
-evidence. G4.6 confirmed the existing `Gate4FinancialCaseRuntimeFactory.create`
-as the official read boundary with `NO_NEW_READ_LAYER_REQUIRED`. G4.7
-representative integration proof is the next allowed Goal.
+Current recovery result: Gates 1-4 are `CLOSED`. Gate 3 stores one current
+immutable `FinancialAnnotationsV2` sidecar over the exact active canonical
+version. Gate 4 deterministically materializes and assembles those current
+inputs into a case-scoped Financial Case, keeps the SQL cache rebuildable and
+non-authoritative, and exposes it only through
+`Gate4FinancialCaseRuntimeFactory.create`. G4.4 concluded
+`NO_RELATION_LAYER_NEEDED_YET`; G4.5 is
+`NOT_APPLICABLE_WITHOUT_NEW_EVIDENCE`. G4.7 closed Gate 4. The next allowed
+boundary is `GATE5_DESIGN`: apply tax methodology to the prepared Financial
+Case, not another pass over broker documents.
 
 Do not start from the superseded global gate architecture, old 3NDFL blueprint,
 old Domain Map, dated reports, old context packs or research unless the task is

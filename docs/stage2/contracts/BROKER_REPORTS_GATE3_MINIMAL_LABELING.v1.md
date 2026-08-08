@@ -535,4 +535,5 @@ Gate 4 continuation at this boundary. G3.C1-G3.C5 passed for the historical
 label-only revision. The 2026-08-08 role refinement keeps the same NDFL route,
 projection, chunks, aliases, provider factory and persistence owner, adds one
 role proposal per non-empty chunk, and makes `FinancialAnnotationsV2` the
-current downstream-ready sidecar. Gate 4 is not started by this contract.
+current downstream-ready sidecar. This contract did not start Gate 4; Gate 4
+later closed under the separate current Pipeline Gates authority.

@@ -6,9 +6,9 @@ Gate 3 status: `CLOSED`
 
 Updated: 2026-08-08
 
-This is the short recovery document for an agent approaching Gate 4 without
-conversation history. It explains the accepted handoff; it does not own gate
-numbering. The sole pipeline authority is
+This is the short upstream recovery document for an agent auditing Gate 3 or
+the Gate 3 -> Gate 4 invariant without conversation history. It explains the
+accepted handoff; it does not own gate numbering. The sole pipeline authority is
 [Broker Reports Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md).
 
 ## Mental model
@@ -35,7 +35,9 @@ Gate 4
 -> G4.2 deterministically materializes it and maintains a rebuildable SQL cache
 -> G4.3 assembles all current Gate 3 V2 sidecars into one deterministic case projection
    without deduplication
--> relations are not started
+-> G4.4 found no relation layer necessary; G4.5 is not applicable without new evidence
+-> G4.6 confirms the existing runtime as the official read boundary
+-> G4.7 closes Gate 4 and hands that Financial Case to Gate 5
 ```
 
 ## What is closed
@@ -155,6 +157,8 @@ assemble all current eligible case sidecars. Its completeness status is only
 technical completeness for the readiness-visible input set. Similar-looking
 facts from different documents remain separate. See
 [Gate 4 Case Assembly v1](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md).
+The current downstream recovery boundary is
+[Gate 4 -> Gate 5 Handoff v1](./BROKER_REPORTS_GATE4_HANDOFF.v1.md).
 
 ## Direct contracts and audit evidence
 
@@ -170,6 +174,7 @@ Read direct upstream contracts before implementation:
 - [Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md).
 - [Gate 4 SQL Materialization v1](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md).
 - [Gate 4 Case Assembly v1](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md).
+- [Gate 4 -> Gate 5 Handoff v1](./BROKER_REPORTS_GATE4_HANDOFF.v1.md).
 
 Use reports only when auditing evidence:
 

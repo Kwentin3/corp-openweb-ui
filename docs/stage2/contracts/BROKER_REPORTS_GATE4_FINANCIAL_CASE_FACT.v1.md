@@ -6,6 +6,8 @@ Goal status: `G4.1_CLOSED`
 
 Runtime status: `IMPLEMENTED_BY_G4.2`
 
+Gate 4 status: `CLOSED_BY_G4.7`
+
 Date: 2026-08-08
 
 ## Purpose
@@ -65,7 +67,8 @@ No case aggregate is introduced by G4.1. A Financial Case is the set of
 current Gate 4 facts carrying the same trusted `case_binding`. Multi-document
 assembly is now implemented by
 [Gate 4 Case Assembly v1](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md);
-relations remain G4.4-G4.5.
+G4.4 found no current need for semantic relations, so the minimal relation set
+is empty and G4.5 is `NOT_APPLICABLE_WITHOUT_NEW_EVIDENCE`.
 
 Sparse Gate 3 omission remains a non-claim. If a current sidecar contains zero
 annotations, it produces zero Gate 4 facts and no assertion that the document
@@ -186,7 +189,8 @@ An optional missing role does not make the fact incomplete. Invalid or stale
 input is not represented as another fact status; materialization fails closed.
 
 Conflict and ambiguity between different facts are not fact statuses in G4.1.
-They remain separate future Gate 4 assertions if G4.4 proves they are needed.
+G4.4 found no current consumer evidence that requires separate persisted
+relation assertions.
 
 ## Provenance chain
 
@@ -254,6 +258,8 @@ current Gate 3 role-complete fact can be represented with deterministic
 identity, typed values, explicit missing state and full upstream provenance,
 while stale binding and storage/runtime work remain outside this Goal.
 
-G4.2 implements this contract without changing its shape, and G4.3 assembles
-its unchanged facts across current case documents. Next allowed Goal:
-`G4.4 — минимальный домен связей`.
+G4.2 implements this contract without changing its shape, G4.3 assembles its
+unchanged facts across current case documents, and G4.6 exposes them through
+the existing runtime. G4.7 closed Gate 4 without a relation layer or schema
+change. Next allowed boundary: `GATE5_DESIGN` through
+[Gate 4 -> Gate 5 Handoff v1](./BROKER_REPORTS_GATE4_HANDOFF.v1.md).

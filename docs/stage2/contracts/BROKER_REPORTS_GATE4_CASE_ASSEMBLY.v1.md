@@ -4,6 +4,8 @@ Status: `CURRENT_RUNTIME_CONTRACT`
 
 Goal status: `G4.3_CLOSED`
 
+Gate 4 status: `CLOSED_BY_G4.7`
+
 Date: 2026-08-08
 
 ## Purpose
@@ -195,4 +197,7 @@ duplicate detection semantics, relations, commission/tax/trade linking,
 conflict resolution, LLM calls, broker-specific parsing, FIFO, cost basis, tax
 logic, Gate 5, graph storage, RAG or embeddings.
 
-Next allowed Goal: `G4.4 — минимальный домен связей`.
+G4.4 later proved `NO_RELATION_LAYER_NEEDED_YET`; G4.5 is
+`NOT_APPLICABLE_WITHOUT_NEW_EVIDENCE`. G4.7 closed Gate 4 without changing this
+assembly contract. Next allowed boundary: `GATE5_DESIGN` through
+[Gate 4 -> Gate 5 Handoff v1](./BROKER_REPORTS_GATE4_HANDOFF.v1.md).

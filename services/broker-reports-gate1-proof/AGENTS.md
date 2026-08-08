@@ -234,8 +234,14 @@ separate bootstrap report.
   are reused. Whole-case completeness is derived, and the SQL tables remain a
   deletable projection rather than meaning authority. Duplicate-looking facts
   retain distinct identities and provenance; no deduplication or reconciliation
-  is performed. Historical Financial Domain code is not current Gate 4 authority. G4.4 is
-  next and must not start without explicit authorization.
+  is performed. Historical Financial Domain code is not current Gate 4
+  authority. G4.4 proved `NO_RELATION_LAYER_NEEDED_YET`; G4.5 is
+  `NOT_APPLICABLE_WITHOUT_NEW_EVIDENCE`; G4.6 retained the existing runtime as
+  the official read boundary. G4.7 closed Gate 4 without new runtime
+  architecture. Gate 5 design must start from the short
+  [Gate 4 handoff](../../docs/stage2/contracts/BROKER_REPORTS_GATE4_HANDOFF.v1.md)
+  and must not cross back into broker, CanonicalArtifact, Gate 3 target or
+  physical SQL parsing.
 
 ## Change and proof
 

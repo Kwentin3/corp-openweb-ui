@@ -26,21 +26,21 @@ runtime changes.
 7. Если нужен customer data, provider account, `.env`, runtime proof or config
    change, остановись до отдельного approval.
 
-### Broker Reports / NDFL / Gate 4 override
+### Broker Reports / NDFL / Gate 4 and Gate 5 override
 
 For Broker Reports gate status, the generic Stage 2 hierarchy does not make an
 older blueprint, report or research file current. Read in this order:
 
 1. `contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md` — the sole current pipeline
    authority;
-2. `contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md` — the short current context;
-3. Gate 4 Financial Case Fact v1, SQL Materialization v1 and Case Assembly v1
-   for current G4.1/G4.2/G4.3;
-4. direct upstream output contracts: Gate 2 Exit, Canonical Artifact/Reader,
-   Gate 3 Minimal Labeling and `FinancialAnnotationsV2`;
-5. terminal evidence only when auditing the accepted result;
-6. later Gate 4 research or goal-specific material only after the upstream boundary
-   is understood.
+2. `contracts/BROKER_REPORTS_GATE4_HANDOFF.v1.md` — the short current Gate 5
+   entry boundary;
+3. Gate 4 Financial Case Fact v1, Case Assembly v1 and SQL Materialization v1
+   for exact fact, case, read/rebuild and stale semantics;
+4. `BROKER_REPORTS_GATE3_HANDOFF.v1.md` and direct upstream contracts only when
+   a Gate 3 invariant must be audited;
+5. the architecture-authorities map when implementation ownership matters;
+6. terminal evidence only when auditing the accepted result.
 
 Do not start from `BROKER_REPORTS_GATE_ARCHITECTURE.md`, the old 3NDFL
 blueprint, old Domain Map, dated reports or research unless the task is to

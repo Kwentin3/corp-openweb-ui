@@ -6,6 +6,8 @@ Goal status: `G4.2_CLOSED`
 
 Downstream boundary status: `G4.6_CLOSED — NO_NEW_READ_LAYER_REQUIRED`
 
+Gate 4 status: `CLOSED_BY_G4.7`
+
 Date: 2026-08-08
 
 ## Purpose
@@ -220,6 +222,12 @@ broker-parser dependency. Because the consumer contract mentions no table,
 column or index, the two physical cache tables may be replaced behind the
 runtime without changing that consumer contract.
 
+G4.7 reuses this proof as the representative whole-Gate integration: three
+current documents, all five required financial types, typed role values,
+complete/incomplete status, provenance, delete/rebuild equality and stale
+fail-closed behavior all pass through this same production boundary. No new
+runtime operation is needed for closure.
+
 ## Non-goals
 
 G4.2 does not implement multi-document assembly or reconciliation, semantic
@@ -232,5 +240,5 @@ G4.6 additionally does not add a Read Model facade, Repository, Service,
 relation operation, filter DSL, public REST/GraphQL surface or second freshness
 engine. G4.4's minimal relation set remains empty.
 
-Next allowed Goal: `G4.7 — representative integration proof and formal Gate 4
-closure`.
+Gate 4 is closed by G4.7. Next allowed boundary: `GATE5_DESIGN` through
+[Gate 4 -> Gate 5 Handoff v1](./BROKER_REPORTS_GATE4_HANDOFF.v1.md).

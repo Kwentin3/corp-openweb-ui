@@ -111,11 +111,13 @@ def test_current_pipeline_scopes_gate3_route_without_gate2_importing_gate3():
     )
 
 
-def test_gate3_context_recovery_documentation_guard():
+def test_gate3_gate4_context_recovery_documentation_guard():
     pipeline_path = CONTRACTS / "BROKER_REPORTS_PIPELINE_GATES.v1.md"
-    handoff_path = CONTRACTS / "BROKER_REPORTS_GATE3_HANDOFF.v1.md"
+    gate3_handoff_path = CONTRACTS / "BROKER_REPORTS_GATE3_HANDOFF.v1.md"
+    gate4_handoff_path = CONTRACTS / "BROKER_REPORTS_GATE4_HANDOFF.v1.md"
     pipeline = pipeline_path.read_text(encoding="utf-8")
-    handoff = handoff_path.read_text(encoding="utf-8")
+    gate3_handoff = gate3_handoff_path.read_text(encoding="utf-8")
+    gate4_handoff = gate4_handoff_path.read_text(encoding="utf-8")
     context_index = (STAGE2 / "CONTEXT_INDEX.md").read_text(encoding="utf-8")
     context_rules = (STAGE2 / "CONTEXT_USAGE_RULES.md").read_text(
         encoding="utf-8"
@@ -131,9 +133,13 @@ def test_gate3_context_recovery_documentation_guard():
     ]
 
     required_pipeline = {
+        "GATE1_STATUS = CLOSED",
+        "GATE2_STATUS = CLOSED",
         "GATE3_STATUS = CLOSED",
-        "GATE4_STATUS = G4.6 MINIMAL FINANCIAL CASE READ BOUNDARY CLOSED",
+        "GATE4_STATUS = CLOSED",
         "G4.6_STATUS = CLOSED — NO_NEW_READ_LAYER_REQUIRED",
+        "G4.7_STATUS = CLOSED — READY_FOR_GATE5_DESIGN",
+        "NEXT_ALLOWED_BOUNDARY = GATE5_DESIGN",
         "financial semantic labeling",
         "validated immutable `CanonicalArtifactV1`",
         "immutable `FinancialAnnotationsV2` sidecar",
@@ -142,7 +148,7 @@ def test_gate3_context_recovery_documentation_guard():
     }
     assert all(marker in pipeline for marker in required_pipeline)
 
-    required_handoff = {
+    required_gate3_handoff = {
         "Gate 3 status: `CLOSED`",
         "CanonicalReaderFactory.create",
         "FinancialAnnotationsV2",
@@ -156,15 +162,41 @@ def test_gate3_context_recovery_documentation_guard():
         "reimplement Gate 3 labeling",
         "G4.3 assembles all current Gate 3 V2 sidecars into one deterministic case projection",
     }
-    assert all(marker in handoff for marker in required_handoff)
+    assert all(marker in gate3_handoff for marker in required_gate3_handoff)
+
+    required_gate4_handoff = {
+        "Gate 4 status: `CLOSED`",
+        "Next allowed boundary: `GATE5_DESIGN`",
+        "Gate4FinancialCaseRuntimeFactory(store, read_enabled).create()",
+        "status = role_complete | role_incomplete",
+        "CASE_COMPLETE_FOR_CURRENT_INPUT_SET",
+        "NOT_APPLICABLE_WITHOUT_NEW_EVIDENCE",
+        "Gate 5 must not read broker reports",
+        "physical Gate 4 SQL tables",
+        "Gate 5 starts with tax methodology",
+    }
+    assert all(marker in gate4_handoff for marker in required_gate4_handoff)
 
     route = context_index.index("## Брокерские отчеты / 3-НДФЛ")
     pipeline_link = context_index.index("Pipeline Gates v1 — sole current authority", route)
-    handoff_link = context_index.index("Gate 3 short context handoff", route)
-    upstream_link = context_index.index("Gate 2 Exit Contract v1", route)
-    assert route < pipeline_link < handoff_link < upstream_link
+    gate4_handoff_link = context_index.index("Gate 4 -> Gate 5 short handoff", route)
+    fact_link = context_index.index("Gate 4 fact contract", route)
+    case_link = context_index.index("Gate 4 case assembly", route)
+    read_link = context_index.index("Gate 4 official read/rebuild boundary", route)
+    gate3_handoff_link = context_index.index("Gate 3 short context handoff", route)
+    authority_link = context_index.index("Architecture authorities map", route)
+    assert (
+        route
+        < pipeline_link
+        < gate4_handoff_link
+        < fact_link
+        < case_link
+        < read_link
+        < gate3_handoff_link
+        < authority_link
+    )
     assert "Do not start from the superseded global gate architecture" in context_index
-    assert "Broker Reports / NDFL / Gate 4 override" in context_rules
+    assert "Broker Reports / NDFL / Gate 4 and Gate 5 override" in context_rules
 
     superseded_or_historical = [
         STAGE2 / "blueprints" / "BROKER_REPORTS_GATE_ARCHITECTURE.md",
