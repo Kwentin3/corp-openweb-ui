@@ -34,10 +34,11 @@ older blueprint, report or research file current. Read in this order:
 1. `contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md` — the sole current pipeline
    authority;
 2. `contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md` — the short current context;
-3. direct upstream output contracts: Gate 2 Exit, Canonical Artifact/Reader,
-   Gate 3 Minimal Labeling and `FinancialAnnotationsV1`;
-4. terminal evidence only when auditing the accepted result;
-5. Gate 4 research or goal-specific material only after the upstream boundary
+3. Gate 4 Financial Case Fact v1 and SQL Materialization v1 for current G4.1/G4.2;
+4. direct upstream output contracts: Gate 2 Exit, Canonical Artifact/Reader,
+   Gate 3 Minimal Labeling and `FinancialAnnotationsV2`;
+5. terminal evidence only when auditing the accepted result;
+6. later Gate 4 research or goal-specific material only after the upstream boundary
    is understood.
 
 Do not start from `BROKER_REPORTS_GATE_ARCHITECTURE.md`, the old 3NDFL

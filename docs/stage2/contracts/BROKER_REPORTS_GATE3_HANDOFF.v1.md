@@ -32,7 +32,8 @@ Gate 3
 
 Gate 4
 -> G4.1 defines one minimal Gate4FinancialCaseFactV1 contract
--> materialization, SQL, case assembly and relations are not started
+-> G4.2 deterministically materializes it and maintains a rebuildable SQL cache
+-> multi-document assembly and relations are not started
 ```
 
 ## What is closed
@@ -138,12 +139,15 @@ omitted label, attach annotations A to canonical version B, mutate either
 upstream artifact, bypass the canonical reader, duplicate the financial
 dictionary or reimplement Gate 3 labeling.
 
-The current G4.1 boundary is
+The current fact boundary is
 [Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md).
 It reuses the existing OpenWebUI-injected `ArtifactAccessContext` case/chat
 scope, ArtifactStore lifecycle, exact Gate 3 artifact identity and shared
-target grammar. It defines no materializer, SQL cache, relation layer or active
-product route. G4.2 is the next allowed implementation Goal.
+target grammar. G4.2 implements its ordinary-code materializer and same-store
+rebuildable SQL projection in
+[Gate 4 SQL Materialization v1](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md).
+The cache validates current Gate 3 selection before reads and remains neither a
+meaning owner nor an active user-facing product route.
 
 ## Direct contracts and audit evidence
 
@@ -157,6 +161,7 @@ Read direct upstream contracts before implementation:
 - [FinancialAnnotationsV2 schema](./BROKER_REPORTS_FINANCIAL_ANNOTATIONS.v2.schema.json);
 - [Financial Label Dictionary v1](./BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v1.md);
 - [Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md).
+- [Gate 4 SQL Materialization v1](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md).
 
 Use reports only when auditing evidence:
 

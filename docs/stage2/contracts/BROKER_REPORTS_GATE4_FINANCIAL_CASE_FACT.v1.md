@@ -4,7 +4,7 @@ Status: `CURRENT_CONTRACT`
 
 Goal status: `G4.1_CLOSED`
 
-Runtime status: `CONTRACT_ONLY_INACTIVE`
+Runtime status: `IMPLEMENTED_BY_G4.2`
 
 Date: 2026-08-08
 
@@ -20,10 +20,10 @@ current validated FinancialAnnotationsV2 artifact
 -> deterministic Gate4FinancialCaseFactV1
 ```
 
-G4.1 defines the logical output and its invariants only. G4.2 will own the
-deterministic materializer, persistence decision and rebuildable SQL cache.
-There is no Gate 4 runtime, storage write, SQL table, relation or product-route
-activation in G4.1.
+G4.1 defines the logical output and its invariants only; it did not add a
+runtime, storage write, SQL table, relation or product route. G4.2 now owns the
+deterministic materializer and rebuildable SQL projection documented in
+[Gate 4 SQL Materialization v1](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md).
 
 The normative machine-readable shape is
 [Gate4FinancialCaseFactV1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.schema.json).
@@ -166,8 +166,10 @@ Role determines the value type:
 
 Decimal values remain strings so JSON and SQL adapters cannot introduce binary
 floating-point changes. The exact `source_literal` is retained separately from
-the normalized value. G4.2 must define and prove the small deterministic
-date/decimal parsing policy; G4.1 does not implement it.
+the normalized value. G4.2 implements the small fail-closed policy: exact
+`YYYY-MM-DD` or `DD.MM.YYYY` dates; decimals without grouping or exponent and
+with one optional dot/comma fractional separator; surrounding whitespace only
+for asset/currency. This does not change the G4.1 fact meaning.
 
 For a value role, `source_binding.target` and optional `exact_text` are exact
 copies from Gate 3, and `source_literal` is the exact output of the existing
@@ -213,7 +215,8 @@ silently retained as current or rebound to B. B requires its own current Gate
 The SQL cache is never authoritative. Deleting it must not delete upstream Gate
 3 artifacts or future versioned Gate 4 semantic outputs. Rebuilding from the
 same exact inputs and contract produces byte-equivalent facts and identical
-fact IDs. Persistence and cache replacement mechanics belong to G4.2.
+fact IDs. Persistence and cache replacement mechanics are owned by
+[Gate 4 SQL Materialization v1](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md).
 
 ## Representative fit
 
@@ -249,4 +252,5 @@ current Gate 3 role-complete fact can be represented with deterministic
 identity, typed values, explicit missing state and full upstream provenance,
 while stale binding and storage/runtime work remain outside this Goal.
 
-Next allowed Goal: `G4.2 — deterministic materialization + SQL cache`.
+G4.2 implements this contract without changing its shape. Next allowed Goal:
+`G4.3 — multi-document case assembly`.

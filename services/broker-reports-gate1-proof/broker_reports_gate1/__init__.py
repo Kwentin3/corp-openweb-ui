@@ -145,6 +145,22 @@ from .gate3_ndfl_case_readiness import (
     Gate3NdflCaseReadinessError,
     Gate3NdflCaseReadinessFactory,
 )
+from .gate4_financial_case_materialization import (
+    GATE4_FINANCIAL_CASE_FACT_SCHEMA_VERSION,
+    Gate4FinancialCaseMaterialization,
+    Gate4FinancialCaseMaterializationError,
+    Gate4FinancialCaseMaterializer,
+    Gate4FinancialCaseMaterializerFactory,
+    gate4_financial_case_fact_id,
+)
+from .gate4_financial_case_cache import (
+    GATE4_FINANCIAL_CASE_CACHE_SCHEMA_VERSION,
+    Gate4FinancialCaseCacheError,
+    Gate4FinancialCaseRuntime,
+    Gate4FinancialCaseRuntimeFactory,
+    Gate4FinancialCaseSqlCache,
+    Gate4FinancialCaseSqlCacheFactory,
+)
 from .gate3_ndfl_workflow import (
     NDFL_GATE3_HANDOFF_SCHEMA_VERSION,
     NDFL_ROLE_PACK_ID,
@@ -1103,6 +1119,18 @@ __all__ = [
     "GATE3_NDFL_CASE_READINESS_SCHEMA_VERSION",
     "Gate3NdflCaseReadinessError",
     "Gate3NdflCaseReadinessFactory",
+    "GATE4_FINANCIAL_CASE_FACT_SCHEMA_VERSION",
+    "Gate4FinancialCaseMaterialization",
+    "Gate4FinancialCaseMaterializationError",
+    "Gate4FinancialCaseMaterializer",
+    "Gate4FinancialCaseMaterializerFactory",
+    "gate4_financial_case_fact_id",
+    "GATE4_FINANCIAL_CASE_CACHE_SCHEMA_VERSION",
+    "Gate4FinancialCaseCacheError",
+    "Gate4FinancialCaseRuntime",
+    "Gate4FinancialCaseRuntimeFactory",
+    "Gate4FinancialCaseSqlCache",
+    "Gate4FinancialCaseSqlCacheFactory",
     "NDFL_GATE3_HANDOFF_SCHEMA_VERSION",
     "NDFL_ROLE_PACK_ID",
     "NDFL_ROLE_PACK_SEMANTIC_VERSION",
