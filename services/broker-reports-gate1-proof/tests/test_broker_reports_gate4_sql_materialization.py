@@ -4,6 +4,7 @@ import copy
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import hashlib
+import inspect
 import json
 from pathlib import Path
 
@@ -113,6 +114,45 @@ _SOURCE_ROW_BY_TYPE = {
     )
 }
 _FACT_SPEC_BY_TYPE = dict(_FACT_SPECS)
+_REPRESENTATIVE_FINANCIAL_TYPES = (
+    "SECURITY_PURCHASE",
+    "SECURITY_DISPOSAL",
+    "DIVIDEND_INCOME",
+    "TRANSACTION_CHARGE",
+    "TAX_WITHHELD",
+)
+
+
+def _representative_downstream_consumer(*, runtime, context):
+    current_case = runtime.read_case(context=context)
+    by_type = {
+        financial_type: tuple(
+            runtime.list_by_financial_type(
+                context=context,
+                financial_type=financial_type,
+            )
+        )
+        for financial_type in _REPRESENTATIVE_FINANCIAL_TYPES
+    }
+    by_asset = tuple(runtime.list_by_asset(context=context, asset="ACME"))
+    by_period = tuple(
+        runtime.list_by_period(
+            context=context,
+            date_from="2026-02-11",
+            date_to="2026-03-12",
+        )
+    )
+    selected = runtime.get_fact(
+        context=context,
+        fact_id=current_case.facts[0]["fact_id"],
+    )
+    return {
+        "current_case": current_case,
+        "by_type": by_type,
+        "by_asset": by_asset,
+        "by_period": by_period,
+        "selected": selected,
+    }
 
 
 def _read_json(path: Path) -> dict:
@@ -215,6 +255,22 @@ def test_required_missing_is_preserved_and_unsupported_value_fails_closed(
         "status": "missing",
     }
     _FACT_VALIDATOR.validate(facts[0])
+
+    cached = runtime.rebuild_artifact(
+        financial_annotations_artifact_id=missing.artifact_id,
+        context=context,
+    )
+    read_back = runtime.get_fact(
+        context=context,
+        fact_id=cached[0]["fact_id"],
+    )
+    assert read_back is not None
+    assert read_back["status"] == "role_incomplete"
+    assert read_back["roles"][0] == {
+        "role": "date",
+        "requirement": "required",
+        "status": "missing",
+    }
 
     invalid = _persist_sidecar(
         store=store,
@@ -488,7 +544,11 @@ def test_case_assembly_combines_three_documents_and_keeps_duplicate_like_facts(
     for fact in assembled.facts:
         _FACT_VALIDATOR.validate(fact)
 
-    assert runtime.read_case(context=context) == assembled
+    consumer_result = _representative_downstream_consumer(
+        runtime=runtime,
+        context=context,
+    )
+    assert consumer_result["current_case"] == assembled
     assert tuple(runtime.list_facts(context=context)) == assembled.facts
     for financial_type, expected_count in (
         ("SECURITY_PURCHASE", 1),
@@ -497,12 +557,60 @@ def test_case_assembly_combines_three_documents_and_keeps_duplicate_like_facts(
         ("TRANSACTION_CHARGE", 1),
         ("TAX_WITHHELD", 1),
     ):
-        assert len(
-            runtime.list_by_financial_type(
-                context=context,
-                financial_type=financial_type,
-            )
-        ) == expected_count
+        assert len(consumer_result["by_type"][financial_type]) == expected_count
+    assert {
+        fact["financial_type"] for fact in consumer_result["by_asset"]
+    } == {
+        "SECURITY_PURCHASE",
+        "SECURITY_DISPOSAL",
+        "DIVIDEND_INCOME",
+    }
+    assert {
+        fact["financial_type"] for fact in consumer_result["by_period"]
+    } == {
+        "SECURITY_DISPOSAL",
+        "DIVIDEND_INCOME",
+        "TRANSACTION_CHARGE",
+        "TAX_WITHHELD",
+    }
+
+    selected = consumer_result["selected"]
+    assert selected is not None
+    for field in (
+        "fact_id",
+        "financial_type",
+        "roles",
+        "status",
+        "annotation_target",
+        "gate3_binding",
+    ):
+        assert field in selected
+    assert selected["status"] == "role_complete"
+    assert selected["gate3_binding"]["financial_annotations_artifact_id"]
+    assert selected["gate3_binding"]["canonical_binding"]["document_id"]
+    for role in selected["roles"]:
+        if role["status"] == "value":
+            assert role["source_binding"]["target"]
+            assert role["source_binding"]["source_literal"]
+
+    consumer_source = inspect.getsource(_representative_downstream_consumer)
+    for required_read in (
+        "runtime.read_case",
+        "runtime.list_by_financial_type",
+        "runtime.list_by_asset",
+        "runtime.list_by_period",
+        "runtime.get_fact",
+    ):
+        assert required_read in consumer_source
+    for forbidden_dependency in (
+        "CanonicalReader",
+        "Gate3",
+        "sqlite3",
+        "gate4_financial_case_fact_cache_v1",
+        "gate4_financial_case_cache_generation_v1",
+        "broker parser",
+    ):
+        assert forbidden_dependency not in consumer_source
 
 
 def test_case_rebuild_is_order_independent_and_byte_deterministic(
@@ -802,6 +910,54 @@ def test_factory_closed_world_and_non_goal_guards() -> None:
         assert forbidden_source_marker not in materializer_source.casefold()
     assert '"gate4_financial_case_materialization"' in bundle_builder
     assert '"gate4_financial_case_cache"' in bundle_builder
+
+
+def test_g46_confirms_existing_runtime_as_the_only_read_boundary() -> None:
+    contract = (
+        CONTRACTS / "BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md"
+    ).read_text(encoding="utf-8")
+    pipeline = (
+        CONTRACTS / "BROKER_REPORTS_PIPELINE_GATES.v1.md"
+    ).read_text(encoding="utf-8")
+    authority = (
+        CONTRACTS / "BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md"
+    ).read_text(encoding="utf-8")
+    closure = (
+        REPO_ROOT
+        / "docs"
+        / "reports"
+        / "2026-08-08"
+        / "BROKER_REPORTS_GATE4_READ_BOUNDARY_G4_6_CLOSURE.report.md"
+    ).read_text(encoding="utf-8")
+    runtime_source = (
+        SERVICE_ROOT
+        / "broker_reports_gate1"
+        / "gate4_financial_case_cache.py"
+    ).read_text(encoding="utf-8")
+
+    for marker in (
+        "G4.6_CLOSED — NO_NEW_READ_LAYER_REQUIRED",
+        "Gate4FinancialCaseRuntimeFactory.create",
+        "read_case(context)",
+        "get_fact(context, fact_id)",
+        "list_by_financial_type(context, financial_type)",
+        "list_by_asset(context, asset)",
+        "list_by_period(context, date_from, date_to)",
+        "physical SQL cache",
+    ):
+        assert marker in contract or marker in pipeline or marker in closure
+    assert "Gate 4 SQL cache rebuild and explicit reads" in authority
+    assert "Gate4FinancialCaseRuntimeFactory.create" in authority
+    assert "NO_NEW_READ_LAYER_REQUIRED" in pipeline
+    assert "NEXT_ALLOWED_GOAL = G4.7_REPRESENTATIVE_INTEGRATION_PROOF" in closure
+    for forbidden_framework_marker in (
+        "class Gate4FinancialCaseReadModel",
+        "class Gate4FinancialCaseRepository",
+        "class QuerySpec",
+        "class FilterExpression",
+        "class QueryPlanner",
+    ):
+        assert forbidden_framework_marker not in runtime_source
 
 
 def _setup(tmp_path: Path):

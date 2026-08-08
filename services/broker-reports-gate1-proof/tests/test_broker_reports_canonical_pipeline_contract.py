@@ -132,7 +132,8 @@ def test_gate3_context_recovery_documentation_guard():
 
     required_pipeline = {
         "GATE3_STATUS = CLOSED",
-        "GATE4_STATUS = G4.3 MULTI-DOCUMENT FINANCIAL CASE ASSEMBLY CLOSED",
+        "GATE4_STATUS = G4.6 MINIMAL FINANCIAL CASE READ BOUNDARY CLOSED",
+        "G4.6_STATUS = CLOSED — NO_NEW_READ_LAYER_REQUIRED",
         "financial semantic labeling",
         "validated immutable `CanonicalArtifactV1`",
         "immutable `FinancialAnnotationsV2` sidecar",

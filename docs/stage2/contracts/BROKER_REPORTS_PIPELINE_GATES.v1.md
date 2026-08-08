@@ -12,8 +12,9 @@ Updated: 2026-08-08
 CURRENT_PIPELINE_AUTHORITY = ONE
 CanonicalArtifactV1 = OUTPUT OF GATE 2
 GATE3_STATUS = CLOSED
-GATE4_STATUS = G4.3 MULTI-DOCUMENT FINANCIAL CASE ASSEMBLY CLOSED
+GATE4_STATUS = G4.6 MINIMAL FINANCIAL CASE READ BOUNDARY CLOSED
 G4.4_RESEARCH_STATUS = CLOSED — NO_RELATION_LAYER_NEEDED_YET
+G4.6_STATUS = CLOSED — NO_NEW_READ_LAYER_REQUIRED
 ```
 
 This contract is the sole current authority for Broker Reports gate numbering,
@@ -28,7 +29,7 @@ reports prove a bounded revision but cannot redefine this pipeline.
 | Gate 1 | authenticated source | custody, access checks, format detection, original-byte storage and route selection | stored source identity and intake/routing receipt | current |
 | Gate 2 | exact Gate 1 source identity plus trusted `ArtifactAccessContext` | format-specific extraction, deterministic non-financial normalization, validation and immutable version storage | validated immutable `CanonicalArtifactV1` | current |
 | Gate 3 | exact active validated `CanonicalArtifactV1`, read through `CanonicalReaderFactory.create` | financial semantic labeling plus source-bound role labeling: sparse selection of known types, then role bindings for the selected facts | immutable `FinancialAnnotationsV2` sidecar bound to that exact canonical version | `CLOSED`; active only in the NDFL workflow |
-| Gate 4 | current validated `FinancialAnnotationsV2` sidecars plus their exact active canonical bindings and trusted `ArtifactAccessContext` | materialize immutable typed facts and assemble every current eligible document into one technically scoped case set; later relation/read capabilities remain separately approved | current `Gate4FinancialCaseFactV1` set plus non-authoritative working SQL cache and derived case completeness | `G4.3_CLOSED`; `G4.4_RESEARCH_CLOSED`; G4.5 not applicable without new evidence; G4.6-G4.7 not started |
+| Gate 4 | current validated `FinancialAnnotationsV2` sidecars plus their exact active canonical bindings and trusted `ArtifactAccessContext` | materialize immutable typed facts, assemble every current eligible document into one technically scoped case set and expose that current case through the existing stable runtime boundary | current `Gate4FinancialCaseFactV1` set plus non-authoritative working SQL cache and derived case completeness | `G4.6_CLOSED — NO_NEW_READ_LAYER_REQUIRED`; G4.7 not started |
 
 ## Gate 3 meaning
 
@@ -90,6 +91,15 @@ allowed Goal. The closure-era next-Goal pointers in G4.1 and G4.3 describe the
 sequence before this decision; this sole pipeline authority owns the current
 sequence.
 
+G4.6 audited the existing `Gate4FinancialCaseRuntimeFactory.create` surface and
+found no missing downstream read. That existing composed runtime is the one
+official Gate 4 read boundary for current case, fact ID, financial type, asset
+and period reads. It preserves complete G4.1 facts, provenance, explicit
+missing roles and current/stale fail-closed semantics. The physical SQL cache
+remains an internal rebuildable implementation detail. No Read Model facade,
+Repository, DTO, API, query framework or new financial meaning was added. G4.7
+is the next allowed Goal.
+
 ## Identity and version invariants
 
 The product handoff is persisted identity, not copied text:
@@ -150,8 +160,8 @@ route.
 | [Gate 4 multi-document case assembly](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md) | `G4.3_CLOSED` |
 | [G4.4 relation-necessity research](../../reports/2026-08-08/BROKER_REPORTS_GATE4_RELATION_NECESSITY_G4_4.report.md) | `G4.4_RESEARCH_CLOSED — NO_RELATION_LAYER_NEEDED_YET` |
 | G4.5 relation implementation | `NOT_APPLICABLE_WITHOUT_NEW_EVIDENCE` |
-| G4.6 read boundary | `NOT_STARTED — NEXT_ALLOWED_GOAL` |
-| representative Gate 4 closure | `G4.7_NOT_STARTED` |
+| [G4.6 minimal read boundary](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md) | `G4.6_CLOSED — NO_NEW_READ_LAYER_REQUIRED` |
+| representative Gate 4 closure | `G4.7_NOT_STARTED — NEXT_ALLOWED_GOAL` |
 
 ## Authority and non-authority
 
@@ -172,6 +182,9 @@ route.
   case assembly over the Gate 3 readiness source set; it does not own
   duplicate, relation, reconciliation or completeness-of-financial-history
   meaning.
+- The same `Gate4FinancialCaseRuntimeFactory.create` is the sole G4.6
+  downstream read boundary. Its cache/schema adapters remain internal and are
+  not a consumer contract.
 - Provider output is a proposal; validation and persistence do not make the
   provider an authority.
 - Original source bytes, parser units, crops, private evidence and provider

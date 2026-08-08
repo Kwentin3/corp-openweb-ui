@@ -571,6 +571,8 @@ Read first:
    and [G4.3 case assembly](contracts/BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md),
    then the
    [G4.4 relation-necessity result](../reports/2026-08-08/BROKER_REPORTS_GATE4_RELATION_NECESSITY_G4_4.report.md)
+   and
+   [G4.6 read-boundary closure](../reports/2026-08-08/BROKER_REPORTS_GATE4_READ_BOUNDARY_G4_6_CLOSURE.report.md)
 4. [Gate 2 Exit Contract v1](contracts/BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md),
    [Canonical Artifact v1](contracts/BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md),
    [Canonical Reader v1](contracts/BROKER_REPORTS_CANONICAL_READER.v1.md),
@@ -590,7 +592,9 @@ Current recovery result: Gate 3 is `CLOSED`; it stores one current immutable
 G4.1 fact meaning, G4.2 deterministic materialization/rebuildable SQL cache
 and G4.3 multi-document case assembly are closed. G4.4 research concluded
 `NO_RELATION_LAYER_NEEDED_YET`; G4.5 has no implementation subject without new
-evidence. G4.6 read boundary is the next allowed Goal.
+evidence. G4.6 confirmed the existing `Gate4FinancialCaseRuntimeFactory.create`
+as the official read boundary with `NO_NEW_READ_LAYER_REQUIRED`. G4.7
+representative integration proof is the next allowed Goal.
 
 Do not start from the superseded global gate architecture, old 3NDFL blueprint,
 old Domain Map, dated reports, old context packs or research unless the task is

@@ -4,6 +4,8 @@ Status: `CURRENT_RUNTIME_CONTRACT`
 
 Goal status: `G4.2_CLOSED`
 
+Downstream boundary status: `G4.6_CLOSED — NO_NEW_READ_LAYER_REQUIRED`
+
 Date: 2026-08-08
 
 ## Purpose
@@ -26,6 +28,11 @@ canonical version, published Role Pack and
 [Gate4FinancialCaseFactV1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md).
 The SQL rows do not define a new financial record type.
 
+G4.6 audited the implemented read surface and found no missing downstream
+operation. The existing factory-composed runtime is the official Gate 4 read
+boundary; G4.6 adds no Read Model, Repository, Service, DTO family or query
+abstraction.
+
 ## Sole runtime entrypoints
 
 | Concern | Owner |
@@ -41,6 +48,16 @@ Product, proof and future consumers must start from the composed runtime
 factory. The materializer and cache factories remain the two bounded operation
 owners used by that runtime; callers must not instantiate an alternative
 reader, parser or SQLite connection path.
+
+For downstream reads the official entrypoint is exactly:
+
+```text
+Gate4FinancialCaseRuntimeFactory(store, read_enabled).create()
+```
+
+The caller supplies only the trusted `ArtifactAccessContext` plus the explicit
+query value required by the selected method. User, case and workspace scope are
+never accepted as parallel query parameters.
 
 ## Deterministic materialization
 
@@ -104,6 +121,7 @@ framework, generic event store or query language.
 The composed runtime exposes explicit ordinary-code reads:
 
 ```text
+read_case(context)
 list_facts(context)
 list_by_financial_type(context, financial_type)
 get_fact(context, fact_id)
@@ -115,6 +133,18 @@ Every query is case-scoped in SQL and returns the complete G4.1 fact JSON.
 `asset` and `date` are SQL projections only when the corresponding role has
 `status=value`; explicit `missing` remains present inside the fact and is not
 redefined as a financial non-event.
+
+`read_case` returns the current technical assembly together with all current
+facts and source readiness. Each returned fact retains `fact_id`,
+`financial_type`, ordered typed roles, `role_complete | role_incomplete`, exact
+annotation/canonical bindings and role source bindings. G4.6 introduces no
+second provenance view and never filters incomplete facts implicitly.
+
+Every public read delegates to the existing cache owner. That owner compares
+the stored complete generation with the current Gate 3 readiness source set
+before reading and repeats the source-set check after reading. A missing or
+stale cache therefore fails closed through the existing error semantics rather
+than being returned as the current Financial Case.
 
 ## Rebuild and idempotency
 
@@ -182,6 +212,14 @@ It exercises type queries for all five, asset and period queries, fact lookup,
 explicit required/optional missing, delete/rebuild equality, new-sidecar stale
 handling, canonical-version stale handling and ArtifactStore case purge.
 
+G4.6 adds an executable downstream-consumer proof over the same real
+factory-composed runtime and same-store SQLite cache. The consumer uses only
+`read_case`, the five explicit query operations and returned G4.1 fields. Its
+source contains no Gate 3, Canonical Reader, SQLite adapter/table or
+broker-parser dependency. Because the consumer contract mentions no table,
+column or index, the two physical cache tables may be replaced behind the
+runtime without changing that consumer contract.
+
 ## Non-goals
 
 G4.2 does not implement multi-document assembly or reconciliation, semantic
@@ -190,4 +228,9 @@ basis, tax logic, conflict resolution, a relation LLM pass, Gate 5,
 declaration logic, graph DB, RAG, embeddings or a generic query API. G4.3 now
 owns assembly only and preserves every separate fact.
 
-Next allowed Goal: `G4.4 — минимальный домен связей`.
+G4.6 additionally does not add a Read Model facade, Repository, Service,
+relation operation, filter DSL, public REST/GraphQL surface or second freshness
+engine. G4.4's minimal relation set remains empty.
+
+Next allowed Goal: `G4.7 — representative integration proof and formal Gate 4
+closure`.
