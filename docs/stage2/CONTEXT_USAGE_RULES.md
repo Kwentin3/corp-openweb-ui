@@ -34,7 +34,8 @@ older blueprint, report or research file current. Read in this order:
 1. `contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md` — the sole current pipeline
    authority;
 2. `contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md` — the short current context;
-3. Gate 4 Financial Case Fact v1 and SQL Materialization v1 for current G4.1/G4.2;
+3. Gate 4 Financial Case Fact v1, SQL Materialization v1 and Case Assembly v1
+   for current G4.1/G4.2/G4.3;
 4. direct upstream output contracts: Gate 2 Exit, Canonical Artifact/Reader,
    Gate 3 Minimal Labeling and `FinancialAnnotationsV2`;
 5. terminal evidence only when auditing the accepted result;

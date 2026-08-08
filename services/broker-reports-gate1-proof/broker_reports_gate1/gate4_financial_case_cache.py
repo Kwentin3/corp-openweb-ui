@@ -27,15 +27,21 @@ from .gate4_financial_case_materialization import (
 GATE4_FINANCIAL_CASE_CACHE_SCHEMA_VERSION = (
     "broker_reports_gate4_financial_case_sql_cache_v1"
 )
+CASE_COMPLETE_FOR_CURRENT_INPUT_SET = (
+    "CASE_COMPLETE_FOR_CURRENT_INPUT_SET"
+)
+CASE_INCOMPLETE = "CASE_INCOMPLETE"
 FACTORY_REQUIRED = (
-    "Gate4FinancialCaseRuntimeFactory.create is the production G4.2 entrypoint; "
+    "Gate4FinancialCaseRuntimeFactory.create is the production G4.2/G4.3 "
+    "entrypoint; "
     "it composes Gate4FinancialCaseMaterializerFactory.create and "
     "Gate4FinancialCaseSqlCacheFactory.create over the existing ArtifactStore"
 )
 FORBIDDEN = (
-    "G4.2 must not create a second database, ACL, lifecycle or case registry; "
+    "G4.2/G4.3 must not create a second database, ACL, lifecycle or case "
+    "registry; "
     "SQL must not own financial meaning, parse broker formats, call an LLM, "
-    "relate facts or apply tax logic"
+    "deduplicate, reconcile, relate facts or apply tax logic"
 )
 
 _GENERATION_TABLE = "gate4_financial_case_cache_generation_v1"
@@ -65,6 +71,67 @@ class _UpstreamBinding:
     document_id: str
     financial_annotations_artifact_id: str
     canonical_version_id: str
+
+
+@dataclass(frozen=True)
+class Gate4FinancialCaseSource:
+    """One case document's current Gate 3 eligibility, derived not stored."""
+
+    document_id: str
+    status: str
+    canonical_version_id: str | None
+    financial_annotations_artifact_id: str | None
+    reason_codes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Gate4FinancialCaseAssembly:
+    """Current case facts plus narrowly scoped technical completeness."""
+
+    status: str
+    gate3_case_status: str
+    sources: tuple[Gate4FinancialCaseSource, ...]
+    facts: tuple[dict[str, Any], ...]
+
+
+@dataclass(frozen=True)
+class _CaseSourceSet:
+    gate3_case_status: str
+    sources: tuple[Gate4FinancialCaseSource, ...]
+
+    @property
+    def bindings(self) -> tuple[_UpstreamBinding, ...]:
+        return tuple(
+            _UpstreamBinding(
+                document_id=source.document_id,
+                financial_annotations_artifact_id=(
+                    source.financial_annotations_artifact_id
+                ),
+                canonical_version_id=source.canonical_version_id,
+            )
+            for source in self.sources
+            if source.status == "CURRENT_GATE3_V2"
+            and source.financial_annotations_artifact_id is not None
+            and source.canonical_version_id is not None
+        )
+
+    @property
+    def assembly_status(self) -> str:
+        if self.sources and all(
+            source.status == "CURRENT_GATE3_V2" for source in self.sources
+        ):
+            return CASE_COMPLETE_FOR_CURRENT_INPUT_SET
+        return CASE_INCOMPLETE
+
+    def assembly(
+        self, *, facts: list[dict[str, Any]]
+    ) -> Gate4FinancialCaseAssembly:
+        return Gate4FinancialCaseAssembly(
+            status=self.assembly_status,
+            gate3_case_status=self.gate3_case_status,
+            sources=self.sources,
+            facts=tuple(copy.deepcopy(fact) for fact in facts),
+        )
 
 
 class Gate4FinancialCaseSqlCacheFactory:
@@ -105,7 +172,7 @@ class Gate4FinancialCaseRuntimeFactory:
 
 
 class Gate4FinancialCaseRuntime:
-    """Factory-composed G4.2 materialize, rebuild and read boundary."""
+    """Factory-composed G4.2/G4.3 materialize, rebuild and read boundary."""
 
     def __init__(self, *, store: Any, materializer: Any, cache: Any) -> None:
         self._store = store
@@ -144,11 +211,57 @@ class Gate4FinancialCaseRuntime:
         )
         if binding is None:
             raise Gate4FinancialCaseCacheError("gate4_upstream_stale")
+        materialized = self._materialize_binding(
+            binding=binding,
+            context=context,
+        )
+        self._cache.replace_document(
+            context=context,
+            materialization=materialized,
+        )
+        return [copy.deepcopy(fact) for fact in materialized.facts]
+
+    def rebuild_case(
+        self, *, context: ArtifactAccessContext
+    ) -> Gate4FinancialCaseAssembly:
+        source_set = self._cache.current_case_source_set(context=context)
         records = {
             record.artifact_id: record
             for record in self._resolver.catalog_case(context)
         }
-        record = records.get(financial_annotations_artifact_id)
+        materializations = tuple(
+            self._materialize_binding(
+                binding=binding,
+                context=context,
+                records=records,
+            )
+            for binding in source_set.bindings
+        )
+        self._cache.replace_case(
+            context=context,
+            source_set=source_set,
+            materializations=materializations,
+        )
+        return self.read_case(context=context)
+
+    def read_case(
+        self, *, context: ArtifactAccessContext
+    ) -> Gate4FinancialCaseAssembly:
+        return self._cache.read_case(context=context)
+
+    def _materialize_binding(
+        self,
+        *,
+        binding: _UpstreamBinding,
+        context: ArtifactAccessContext,
+        records: dict[str, Any] | None = None,
+    ) -> Gate4FinancialCaseMaterialization:
+        if records is None:
+            records = {
+                record.artifact_id: record
+                for record in self._resolver.catalog_case(context)
+            }
+        record = records.get(binding.financial_annotations_artifact_id)
         if record is None:
             raise Gate4FinancialCaseCacheError("gate4_upstream_stale")
         record_context = replace(
@@ -158,7 +271,7 @@ class Gate4FinancialCaseRuntime:
         try:
             materialized = self.materialize_artifact(
                 financial_annotations_artifact_id=(
-                    financial_annotations_artifact_id
+                    binding.financial_annotations_artifact_id
                 ),
                 context=record_context,
             )
@@ -169,11 +282,15 @@ class Gate4FinancialCaseRuntime:
                 else "gate4_materialization_failed"
             )
             raise Gate4FinancialCaseCacheError(code) from exc
-        self._cache.replace_document(
-            context=context,
-            materialization=materialized,
-        )
-        return self.list_facts(context=context)
+        if (
+            materialized.document_id != binding.document_id
+            or materialized.financial_annotations_artifact_id
+            != binding.financial_annotations_artifact_id
+            or materialized.canonical_version_id
+            != binding.canonical_version_id
+        ):
+            raise Gate4FinancialCaseCacheError("gate4_upstream_stale")
+        return materialized
 
     def clear_case_cache(self, *, context: ArtifactAccessContext) -> None:
         self._cache.clear_case(context=context)
@@ -237,23 +354,47 @@ class Gate4FinancialCaseSqlCache:
     def current_upstream_bindings(
         self, *, context: ArtifactAccessContext
     ) -> tuple[_UpstreamBinding, ...]:
+        return self.current_case_source_set(context=context).bindings
+
+    def current_case_source_set(
+        self, *, context: ArtifactAccessContext
+    ) -> _CaseSourceSet:
         _scope(context)
         readiness = Gate3NdflCaseReadinessFactory(
             store=self._store,
             read_enabled=self._read_enabled,
         ).create(context=context)
-        bindings = tuple(
-            _UpstreamBinding(
+        sources = tuple(
+            Gate4FinancialCaseSource(
                 document_id=item["document_id"],
+                status=(
+                    "CURRENT_GATE3_V2"
+                    if item["gate3_ready"]
+                    else "NOT_READY"
+                ),
+                canonical_version_id=item["current_canonical_version_id"],
                 financial_annotations_artifact_id=(
                     item["selected_annotations_artifact_id"]
                 ),
-                canonical_version_id=item["current_canonical_version_id"],
+                reason_codes=tuple(item["reason_codes"]),
             )
             for item in readiness["documents"]
-            if item["selected_annotations_artifact_id"] is not None
         )
-        return tuple(sorted(bindings, key=lambda item: item.document_id))
+        source_set = _CaseSourceSet(
+            gate3_case_status=readiness["case_status"],
+            sources=sources,
+        )
+        is_complete = (
+            source_set.assembly_status
+            == CASE_COMPLETE_FOR_CURRENT_INPUT_SET
+        )
+        if is_complete != bool(
+            readiness["summary"]["gate4_handoff_ready"]
+        ):
+            raise Gate4FinancialCaseCacheError(
+                "gate4_case_source_set_invalid"
+            )
+        return source_set
 
     def replace_document(
         self,
@@ -295,9 +436,69 @@ class Gate4FinancialCaseSqlCache:
                 repository.clear_document(materialization.document_id)
             raise Gate4FinancialCaseCacheError("gate4_upstream_stale")
 
+    def replace_case(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        source_set: _CaseSourceSet,
+        materializations: tuple[Gate4FinancialCaseMaterialization, ...],
+    ) -> None:
+        if source_set != self.current_case_source_set(context=context):
+            raise Gate4FinancialCaseCacheError("gate4_upstream_stale")
+        expected = source_set.bindings
+        actual = tuple(
+            _UpstreamBinding(
+                document_id=item.document_id,
+                financial_annotations_artifact_id=(
+                    item.financial_annotations_artifact_id
+                ),
+                canonical_version_id=item.canonical_version_id,
+            )
+            for item in materializations
+        )
+        if actual != expected:
+            raise Gate4FinancialCaseCacheError(
+                "gate4_case_materialization_set_invalid"
+            )
+        scope = _scope(context)
+        fact_ids: set[str] = set()
+        for materialization in materializations:
+            for fact in materialization.facts:
+                _validate_fact_for_cache(
+                    fact=fact,
+                    scope=scope,
+                    materialization=materialization,
+                )
+                if fact["fact_id"] in fact_ids:
+                    raise Gate4FinancialCaseCacheError(
+                        "gate4_cache_duplicate_fact"
+                    )
+                fact_ids.add(fact["fact_id"])
+        with self._transactions.open(context=context, write=True) as repository:
+            repository.replace_case(materializations=materializations)
+        if source_set != self.current_case_source_set(context=context):
+            with self._transactions.open(
+                context=context, write=True
+            ) as repository:
+                repository.clear_case()
+            raise Gate4FinancialCaseCacheError("gate4_upstream_stale")
+
     def clear_case(self, *, context: ArtifactAccessContext) -> None:
         with self._transactions.open(context=context, write=True) as repository:
             repository.clear_case()
+
+    def read_case(
+        self, *, context: ArtifactAccessContext
+    ) -> Gate4FinancialCaseAssembly:
+        source_set = self.current_case_source_set(context=context)
+        facts = self._read(
+            context=context,
+            query="case",
+            parameters=(),
+            source_set=source_set,
+            allow_empty=True,
+        )
+        return source_set.assembly(facts=facts)
 
     def list_for_case(
         self, *, context: ArtifactAccessContext
@@ -378,20 +579,22 @@ class Gate4FinancialCaseSqlCache:
         context: ArtifactAccessContext,
         query: str,
         parameters: tuple[str, ...],
+        source_set: _CaseSourceSet | None = None,
+        allow_empty: bool = False,
     ) -> list[dict[str, Any]]:
-        expected = self.current_upstream_bindings(context=context)
+        source_set = source_set or self.current_case_source_set(context=context)
+        expected = source_set.bindings
         with self._transactions.open(context=context, write=False) as repository:
             stored = repository.generations()
-            if not stored:
+            if not stored and (expected or not allow_empty):
                 raise Gate4FinancialCaseCacheError("gate4_cache_missing")
-            current_by_document = {item.document_id: item for item in expected}
-            if any(
-                current_by_document.get(item.document_id) != item
-                for item in stored
-            ):
+            if stored != expected:
                 raise Gate4FinancialCaseCacheError("gate4_cache_stale")
             rows = repository.query(query=query, parameters=parameters)
-        return [_fact_from_row(row=row, scope=_scope(context)) for row in rows]
+        facts = [_fact_from_row(row=row, scope=_scope(context)) for row in rows]
+        if source_set != self.current_case_source_set(context=context):
+            raise Gate4FinancialCaseCacheError("gate4_cache_stale")
+        return facts
 
 
 class _Gate4CacheTransactionFactory:
@@ -563,6 +766,20 @@ class _Gate4CacheRepository:
         materialization: Gate4FinancialCaseMaterialization,
     ) -> None:
         self.clear_document(materialization.document_id)
+        self._insert_document(materialization)
+
+    def replace_case(
+        self,
+        *,
+        materializations: tuple[Gate4FinancialCaseMaterialization, ...],
+    ) -> None:
+        self.clear_case()
+        for materialization in materializations:
+            self._insert_document(materialization)
+
+    def _insert_document(
+        self, materialization: Gate4FinancialCaseMaterialization
+    ) -> None:
         self._connection.execute(
             f"""
             INSERT INTO {_GENERATION_TABLE}(
@@ -803,12 +1020,16 @@ def _iso_date(value: str) -> str:
 
 
 __all__ = [
+    "CASE_COMPLETE_FOR_CURRENT_INPUT_SET",
+    "CASE_INCOMPLETE",
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "GATE4_FINANCIAL_CASE_CACHE_SCHEMA_VERSION",
+    "Gate4FinancialCaseAssembly",
     "Gate4FinancialCaseCacheError",
     "Gate4FinancialCaseRuntime",
     "Gate4FinancialCaseRuntimeFactory",
+    "Gate4FinancialCaseSource",
     "Gate4FinancialCaseSqlCache",
     "Gate4FinancialCaseSqlCacheFactory",
 ]

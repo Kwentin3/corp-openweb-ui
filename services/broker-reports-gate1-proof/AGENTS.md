@@ -227,12 +227,14 @@ separate bootstrap report.
   Gate 3 is active only in stable workflow `broker-reports-ndfl`;
   historical `Gate2*` financial-semantic modules retain compatibility names.
   [Gate 4 Financial Case Fact v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md)
-  remains the current fact boundary. G4.2 is implemented only through
+  remains the current fact boundary. G4.2/G4.3 are implemented only through
   `Gate4FinancialCaseMaterializerFactory.create` and the composed
   `Gate4FinancialCaseRuntimeFactory.create`: trusted OpenWebUI case scope,
   exact current Gate 3 identity and the existing ArtifactStore SQLite/lifecycle
-  are reused. The SQL tables are a deletable projection, not meaning authority.
-  Historical Financial Domain code is not current Gate 4 authority. G4.3 is
+  are reused. Whole-case completeness is derived, and the SQL tables remain a
+  deletable projection rather than meaning authority. Duplicate-looking facts
+  retain distinct identities and provenance; no deduplication or reconciliation
+  is performed. Historical Financial Domain code is not current Gate 4 authority. G4.4 is
   next and must not start without explicit authorization.
 
 ## Change and proof

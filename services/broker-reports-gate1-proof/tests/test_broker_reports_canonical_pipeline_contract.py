@@ -132,7 +132,7 @@ def test_gate3_context_recovery_documentation_guard():
 
     required_pipeline = {
         "GATE3_STATUS = CLOSED",
-        "GATE4_STATUS = G4.2 DETERMINISTIC MATERIALIZATION + SQL CACHE CLOSED",
+        "GATE4_STATUS = G4.3 MULTI-DOCUMENT FINANCIAL CASE ASSEMBLY CLOSED",
         "financial semantic labeling",
         "validated immutable `CanonicalArtifactV1`",
         "immutable `FinancialAnnotationsV2` sidecar",
@@ -153,7 +153,7 @@ def test_gate3_context_recovery_documentation_guard():
         "Workspace -> Skills -> Broker Reports Financial Labels",
         "Display names are UI text, not lookup or routing authority",
         "reimplement Gate 3 labeling",
-        "G4.2 deterministically materializes it and maintains a rebuildable SQL cache",
+        "G4.3 assembles all current Gate 3 V2 sidecars into one deterministic case projection",
     }
     assert all(marker in handoff for marker in required_handoff)
 

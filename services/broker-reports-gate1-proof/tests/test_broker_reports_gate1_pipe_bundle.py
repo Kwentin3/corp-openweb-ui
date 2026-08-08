@@ -94,7 +94,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_ndfl_gate4_sql_v1",
+            "gate1_ndfl_gate4_case_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("gate3_ndfl_workflow", module._BUNDLED_MODULES)
