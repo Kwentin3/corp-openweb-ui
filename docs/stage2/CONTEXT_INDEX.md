@@ -566,7 +566,9 @@ Read first:
 
 1. [Pipeline Gates v1 — sole current authority](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md)
 2. [Gate 3 short context handoff](contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md)
-3. [Gate 2 Exit Contract v1](contracts/BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md),
+3. [Gate 4 fact contract](contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md)
+   and [G4.2 SQL materialization](contracts/BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md)
+4. [Gate 2 Exit Contract v1](contracts/BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md),
    [Canonical Artifact v1](contracts/BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md),
    [Canonical Reader v1](contracts/BROKER_REPORTS_CANONICAL_READER.v1.md),
    [Gate 3 Minimal Labeling v1](contracts/BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md)
@@ -580,9 +582,10 @@ If acceptance evidence must be audited, read the
 and the
 [real NDFL product-path proof](../reports/2026-08-07/BROKER_REPORTS_GATE3_REAL_NDFL_PRODUCT_PATH_G3_C5.report.md).
 
-Current recovery result: Gate 3 is `CLOSED`; it is financial semantic labeling
-over an exact immutable `CanonicalArtifactV1` and stores a separate immutable
-`FinancialAnnotationsV1`. Gate 4 is next and is not designed here.
+Current recovery result: Gate 3 is `CLOSED`; it stores one current immutable
+`FinancialAnnotationsV2` sidecar over the exact active canonical version.
+G4.1 fact meaning and G4.2 deterministic materialization/rebuildable SQL cache
+are closed. G4.3 multi-document case assembly is next and is not designed here.
 
 Do not start from the superseded global gate architecture, old 3NDFL blueprint,
 old Domain Map, dated reports, old context packs or research unless the task is

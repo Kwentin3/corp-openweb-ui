@@ -183,6 +183,9 @@ GATE1_NDFL_GATE3_MODULES = [
     "gate3_role_labeling",
     "gate3_chunk_batch_labeling",
     "gate3_financial_annotations_persistence",
+    "gate3_ndfl_case_readiness",
+    "gate4_financial_case_materialization",
+    "gate4_financial_case_cache",
     "gate3_ndfl_workflow",
 ]
 _GATE1_NDFL_GATE3_INSERT_AT = GATE1_MODULE_ORDER.index(
@@ -285,8 +288,8 @@ def main() -> None:
             },
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.28.0-ndfl-gate3-roles-v2-bundled",
-            package_version="gate1_ndfl_gate3_roles_v2",
+            version="0.29.0-ndfl-gate4-sql-v1-bundled",
+            package_version="gate1_ndfl_gate4_sql_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )
