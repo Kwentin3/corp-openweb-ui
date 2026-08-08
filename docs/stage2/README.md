@@ -299,10 +299,12 @@ Finding:
 - Broker Reports uses the current pipeline contract: Gate 1 stores the
   authenticated source identity, Gate 2 emits an immutable non-financial
   `CanonicalArtifactV1`, and closed Gate 3 performs financial semantic labeling
-  into a separate immutable `FinancialAnnotationsV1`. Gate 4 is next and is not
-  designed here. Start with
+  into a separate immutable `FinancialAnnotationsV2`. Gate 4 is closed: it
+  deterministically materializes and assembles the current Financial Case and
+  exposes it through `Gate4FinancialCaseRuntimeFactory.create`. Start with
   [Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) and the
-  [short Gate 3 handoff](contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md); the
+  [short Gate 4 -> Gate 5 handoff](contracts/BROKER_REPORTS_GATE4_HANDOFF.v1.md);
+  the next allowed boundary is Gate 5 design. The
   older global gate architecture is superseded for current gate meaning.
 - OpenWebUI has extraction engines.
 - Broker-report PDFs with a text layer now have a bounded deterministic

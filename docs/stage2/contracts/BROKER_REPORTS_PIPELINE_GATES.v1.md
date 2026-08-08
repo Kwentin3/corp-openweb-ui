@@ -11,10 +11,14 @@ Updated: 2026-08-08
 ```text
 CURRENT_PIPELINE_AUTHORITY = ONE
 CanonicalArtifactV1 = OUTPUT OF GATE 2
+GATE1_STATUS = CLOSED
+GATE2_STATUS = CLOSED
 GATE3_STATUS = CLOSED
-GATE4_STATUS = G4.6 MINIMAL FINANCIAL CASE READ BOUNDARY CLOSED
+GATE4_STATUS = CLOSED
 G4.4_RESEARCH_STATUS = CLOSED — NO_RELATION_LAYER_NEEDED_YET
 G4.6_STATUS = CLOSED — NO_NEW_READ_LAYER_REQUIRED
+G4.7_STATUS = CLOSED — READY_FOR_GATE5_DESIGN
+NEXT_ALLOWED_BOUNDARY = GATE5_DESIGN
 ```
 
 This contract is the sole current authority for Broker Reports gate numbering,
@@ -26,10 +30,10 @@ reports prove a bounded revision but cannot redefine this pipeline.
 
 | Gate | Input | Owned responsibility | Authoritative output | Status |
 | --- | --- | --- | --- | --- |
-| Gate 1 | authenticated source | custody, access checks, format detection, original-byte storage and route selection | stored source identity and intake/routing receipt | current |
-| Gate 2 | exact Gate 1 source identity plus trusted `ArtifactAccessContext` | format-specific extraction, deterministic non-financial normalization, validation and immutable version storage | validated immutable `CanonicalArtifactV1` | current |
+| Gate 1 | authenticated source | custody, access checks, format detection, original-byte storage and route selection | stored source identity and intake/routing receipt | `CLOSED` |
+| Gate 2 | exact Gate 1 source identity plus trusted `ArtifactAccessContext` | format-specific extraction, deterministic non-financial normalization, validation and immutable version storage | validated immutable `CanonicalArtifactV1` | `CLOSED` |
 | Gate 3 | exact active validated `CanonicalArtifactV1`, read through `CanonicalReaderFactory.create` | financial semantic labeling plus source-bound role labeling: sparse selection of known types, then role bindings for the selected facts | immutable `FinancialAnnotationsV2` sidecar bound to that exact canonical version | `CLOSED`; active only in the NDFL workflow |
-| Gate 4 | current validated `FinancialAnnotationsV2` sidecars plus their exact active canonical bindings and trusted `ArtifactAccessContext` | materialize immutable typed facts, assemble every current eligible document into one technically scoped case set and expose that current case through the existing stable runtime boundary | current `Gate4FinancialCaseFactV1` set plus non-authoritative working SQL cache and derived case completeness | `G4.6_CLOSED — NO_NEW_READ_LAYER_REQUIRED`; G4.7 not started |
+| Gate 4 | current validated `FinancialAnnotationsV2` sidecars plus their exact active canonical bindings and trusted `ArtifactAccessContext` | materialize immutable typed facts, assemble every current eligible document into one technically scoped case set and expose that current case through the existing stable runtime boundary | current Financial Case represented by `Gate4FinancialCaseFactV1` through `Gate4FinancialCaseRuntimeFactory.create`; non-authoritative working SQL cache and derived technical completeness | `CLOSED — G4.7_CLOSED`; ready for Gate 5 design |
 
 ## Gate 3 meaning
 
@@ -85,11 +89,10 @@ not current Gate 4.
 G4.4 research found no current downstream task that requires a separately
 persisted semantic relation. Queryable proximity by type, asset, date, amount
 or source remains a query, not an assertion that two facts are the same,
-related or conflicting. Therefore the current minimal relation set is empty,
-G4.5 has no implementation subject without new evidence, and G4.6 is the next
-allowed Goal. The closure-era next-Goal pointers in G4.1 and G4.3 describe the
-sequence before this decision; this sole pipeline authority owns the current
-sequence.
+related or conflicting. Therefore the current minimal relation set is empty and
+G4.5 has no implementation subject without new evidence. Closure-era next-Goal
+pointers in earlier contracts and reports describe the sequence at their
+revision; this sole pipeline authority owns the current sequence.
 
 G4.6 audited the existing `Gate4FinancialCaseRuntimeFactory.create` surface and
 found no missing downstream read. That existing composed runtime is the one
@@ -97,8 +100,15 @@ official Gate 4 read boundary for current case, fact ID, financial type, asset
 and period reads. It preserves complete G4.1 facts, provenance, explicit
 missing roles and current/stale fail-closed semantics. The physical SQL cache
 remains an internal rebuildable implementation detail. No Read Model facade,
-Repository, DTO, API, query framework or new financial meaning was added. G4.7
-is the next allowed Goal.
+Repository, DTO, API, query framework or new financial meaning was added.
+
+G4.7 reused those production boundaries for one representative three-document
+proof covering purchase, disposal, dividend, transaction charge and withheld
+tax; deterministic delete/rebuild; current/stale handling; typed roles and
+provenance. The semantics audit found no broker interpretation, relation,
+reconciliation or tax methodology in Gate 4. The official handoff is
+[Gate 4 -> Gate 5 Handoff v1](./BROKER_REPORTS_GATE4_HANDOFF.v1.md). Gate 4 is
+closed; Gate 5 design is the next allowed boundary.
 
 ## Identity and version invariants
 
@@ -161,7 +171,7 @@ route.
 | [G4.4 relation-necessity research](../../reports/2026-08-08/BROKER_REPORTS_GATE4_RELATION_NECESSITY_G4_4.report.md) | `G4.4_RESEARCH_CLOSED — NO_RELATION_LAYER_NEEDED_YET` |
 | G4.5 relation implementation | `NOT_APPLICABLE_WITHOUT_NEW_EVIDENCE` |
 | [G4.6 minimal read boundary](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md) | `G4.6_CLOSED — NO_NEW_READ_LAYER_REQUIRED` |
-| representative Gate 4 closure | `G4.7_NOT_STARTED — NEXT_ALLOWED_GOAL` |
+| [G4.7 representative Gate 4 closure](../../reports/2026-08-08/BROKER_REPORTS_GATE4_CLOSURE_G4_7.report.md) | `G4.7_CLOSED — READY_FOR_GATE5_DESIGN` |
 
 ## Authority and non-authority
 
@@ -185,6 +195,9 @@ route.
 - The same `Gate4FinancialCaseRuntimeFactory.create` is the sole G4.6
   downstream read boundary. Its cache/schema adapters remain internal and are
   not a consumer contract.
+- Gate 5 must enter only through that Gate 4 runtime and consume complete G4.1
+  facts. It must not read broker formats, canonical structure, Gate 3 targets
+  or physical Gate 4 SQL tables.
 - Provider output is a proposal; validation and persistence do not make the
   provider an authority.
 - Original source bytes, parser units, crops, private evidence and provider
@@ -198,8 +211,9 @@ route.
 2. Versioned DTO contracts own payload meaning and invariants.
 3. `BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md` owns maintained implementation
    entrypoints and duplicate-prevention boundaries.
-4. `BROKER_REPORTS_GATE3_HANDOFF.v1.md` is the short current supporting handoff
-   into the G4.1 fact and G4.2/G4.3 runtime contracts.
+4. `BROKER_REPORTS_GATE4_HANDOFF.v1.md` is the short current supporting handoff
+   into Gate 5; `BROKER_REPORTS_GATE3_HANDOFF.v1.md` documents the upstream
+   Gate 3 invariant when needed.
 5. Dated reports and receipts are evidence only.
 6. Research, proposals, drafts and superseded blueprints are not current
    authority.

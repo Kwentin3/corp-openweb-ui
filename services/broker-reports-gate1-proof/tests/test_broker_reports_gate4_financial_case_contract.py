@@ -343,10 +343,11 @@ def test_g41_is_contract_only_and_reuses_existing_openwebui_scope_lifecycle() ->
     for marker in (
         "Goal status: `G4.1_CLOSED`",
         "Runtime status: `IMPLEMENTED_BY_G4.2`",
+        "Gate 4 status: `CLOSED_BY_G4.7`",
         "ArtifactAccessContext",
         "ArtifactStore/ArtifactResolver",
         "OpenWebUI-injected context",
-        "Next allowed Goal:\n`G4.4",
+        "Next allowed boundary: `GATE5_DESIGN`",
     ):
         assert marker in contract
     assert "G4.1_CLOSED" in pipeline
