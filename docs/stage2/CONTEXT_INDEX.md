@@ -568,7 +568,9 @@ Read first:
 2. [Gate 3 short context handoff](contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md)
 3. [Gate 4 fact contract](contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md),
    [G4.2 SQL materialization](contracts/BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md)
-   and [G4.3 case assembly](contracts/BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md)
+   and [G4.3 case assembly](contracts/BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md),
+   then the
+   [G4.4 relation-necessity result](../reports/2026-08-08/BROKER_REPORTS_GATE4_RELATION_NECESSITY_G4_4.report.md)
 4. [Gate 2 Exit Contract v1](contracts/BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md),
    [Canonical Artifact v1](contracts/BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md),
    [Canonical Reader v1](contracts/BROKER_REPORTS_CANONICAL_READER.v1.md),
@@ -586,8 +588,9 @@ and the
 Current recovery result: Gate 3 is `CLOSED`; it stores one current immutable
 `FinancialAnnotationsV2` sidecar over the exact active canonical version.
 G4.1 fact meaning, G4.2 deterministic materialization/rebuildable SQL cache
-and G4.3 multi-document case assembly are closed. G4.4 minimal relation domain is
-next and is not designed here.
+and G4.3 multi-document case assembly are closed. G4.4 research concluded
+`NO_RELATION_LAYER_NEEDED_YET`; G4.5 has no implementation subject without new
+evidence. G4.6 read boundary is the next allowed Goal.
 
 Do not start from the superseded global gate architecture, old 3NDFL blueprint,
 old Domain Map, dated reports, old context packs or research unless the task is
