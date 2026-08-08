@@ -27,7 +27,8 @@ Gate 3
 -> reads that version through CanonicalReaderFactory.create
 -> creates structural chunks when needed
 -> selects only known financial labels
--> stores a separate immutable FinancialAnnotationsV1 sidecar
+-> binds selected facts to source-backed roles from one versioned Role Pack
+-> stores a separate immutable FinancialAnnotationsV2 sidecar
 
 Gate 4
 -> next separate stage; not designed here
@@ -35,10 +36,12 @@ Gate 4
 
 ## What is closed
 
-Gate 3 financial semantic labeling is closed and active only in the NDFL
-product route. It provides a deterministic LLM-readable projection, bounded
-structural chunks, sparse dictionary-bound labeling, closed validation,
-deterministic non-semantic merge and immutable sidecar persistence.
+Gate 3 financial semantic and role labeling is closed and active only in the
+NDFL product route. Pass 1 makes sparse dictionary-bound type proposals. Pass
+2 runs once for all pass-1 facts in the same non-empty chunk, uses the exact
+same aliases plus the complete Role Pack, and returns source bindings or
+explicit `missing`. The backend validates both passes, merges deterministically
+and persists one immutable sidecar.
 
 Gate 3 does not mutate Gate 2, calculate tax, determine cost basis/FIFO,
 reconcile multiple documents, prepare a declaration or implement Gate 4. Each
@@ -54,8 +57,10 @@ NdflWorkflowFactory.create().run_product_path(manifest_ref, context)
 -> compare-and-swap activation when required
 -> pass only document_id + authenticated ArtifactAccessContext to Gate 3
 -> Gate3ChunkBatchLabelingFactory.create
+   -> Gate3BoundedLabelingFactory.create_from_chunk (financial type)
+   -> Gate3RoleLabelingFactory.create_from_chunk (roles; skipped if no facts)
 -> Gate3FinancialAnnotationsPersistenceFactory.create
--> FinancialAnnotationsV1 bound to the exact canonical version
+-> FinancialAnnotationsV2 bound to the exact canonical version
 -> verify canonical version/root/payload unchanged after Gate 3
 ```
 
@@ -94,6 +99,21 @@ are exact projections of that owner:
 Do not create a second definitions copy in Python, Prompt, Skill, Tool or
 Knowledge/RAG. Display names are UI text, not lookup or routing authority.
 
+## Managed financial Role Pack
+
+The sole role/profile owner is:
+
+```text
+broker-reports-financial-roles@<version>
+current published identity: broker-reports-financial-roles@1.0.0
+```
+
+`Gate3FinancialRolePackFactory.create` loads the exact hash-pinned package
+resource. It owns role definitions, each financial label's required and
+optional roles, maximum-one cardinality, literal source binding and the ban on
+normalized/computed values. Prompt, Skill, adapter and Python control flow must
+not contain independent role/profile copies.
+
 ## NDFL product topology
 
 | Role | Stable identity | Rule |
@@ -102,12 +122,15 @@ Knowledge/RAG. Display names are UI text, not lookup or routing authority.
 | workflow | `broker-reports-ndfl` | owns the exact Gate 2 -> Gate 3 decision |
 | technical base Pipe | `broker_reports_gate1_pipe` | internal OpenWebUI runtime base, not a second product |
 | dictionary | `broker-reports-financial-labels@1.0.0` | one versioned meaning owner |
+| Role Pack | `broker-reports-financial-roles@1.0.0` | one versioned role/profile owner |
 
 ## What Gate 4 may rely on
 
 Gate 4 may rely on a validated `CanonicalArtifactV1`, its exact immutable
-identity and a matching immutable `FinancialAnnotationsV1`. It may treat sparse
-annotations only as positive known-label claims.
+identity and a matching immutable `FinancialAnnotationsV2`. It may treat sparse
+annotations only as positive known-label claims. For every selected fact it
+may mechanically resolve each role binding to canonical target text or its
+validated literal `exact_text`; it must preserve explicit `missing`.
 
 Gate 4 must not reinterpret Gate 3 as tax calculation, infer absence from an
 omitted label, attach annotations A to canonical version B, mutate either
@@ -122,7 +145,8 @@ Read direct upstream contracts before implementation:
 - [Canonical Artifact v1](./BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md);
 - [Canonical Reader v1](./BROKER_REPORTS_CANONICAL_READER.v1.md);
 - [Gate 3 Minimal Labeling v1](./BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md);
-- [FinancialAnnotationsV1 schema](./BROKER_REPORTS_FINANCIAL_ANNOTATIONS.v1.schema.json);
+- [Gate 3 Role Labeling v1](./BROKER_REPORTS_GATE3_ROLE_LABELING.v1.md);
+- [FinancialAnnotationsV2 schema](./BROKER_REPORTS_FINANCIAL_ANNOTATIONS.v2.schema.json);
 - [Financial Label Dictionary v1](./BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v1.md).
 
 Use reports only when auditing evidence:
@@ -130,6 +154,7 @@ Use reports only when auditing evidence:
 - [corrected terminal Gate 3 proof](../../reports/2026-08-07/BROKER_REPORTS_GATE3_CORRECTED_TERMINAL_G3_7C.report.md);
 - [real NDFL product-path proof](../../reports/2026-08-07/BROKER_REPORTS_GATE3_REAL_NDFL_PRODUCT_PATH_G3_C5.report.md);
 - [managed dictionary OpenWebUI binding](../../reports/2026-08-07/BROKER_REPORTS_GATE3_MANAGED_DICTIONARY_OPENWEBUI_BINDING_G3_C1.report.md).
+- [Gate 3 role-labeling closure](../../reports/2026-08-08/BROKER_REPORTS_GATE3_ROLE_LABELING_CLOSURE.report.md).
 
 The actual `broker-reports-ndfl` product route end to end was exercised by the
 G3.C5 proof; this is evidence for the one stable-ID route, not authority for a

@@ -108,7 +108,7 @@ def test_workflow_runs_existing_gate3_and_persists_exact_sidecar(
         workflow.run_gate3(document_id=document_id, context=context)
     )
 
-    assert len(calls) == 1
+    assert len(calls) == 2
     assert execution.batch_result.document_status == "complete"
     assert execution.annotations_payload["canonical_binding"] == {
         "document_id": document_id,
@@ -152,7 +152,7 @@ def test_product_path_activates_exact_candidate_then_preserves_gate2(
         )
     )
 
-    assert len(calls) == 1
+    assert len(calls) == 2
     assert execution.activation_receipt is not None
     assert execution.activation_receipt.actor == NDFL_WORKFLOW_STABLE_ID
     assert execution.activation_receipt.canonical_version_id == (
@@ -443,19 +443,41 @@ def _client(
 
     def complete(*, form_data, **_kwargs):
         captured.append(json.loads(json.dumps(form_data, ensure_ascii=False)))
-        if before_response is not None:
-            before_response()
         alias = ALIAS_RE.search(form_data["messages"][-1]["content"])
         assert alias is not None
-        response = {
-            "schema_version": "broker_reports_gate3_labeling_response_v1",
-            "annotations": [
-                {
-                    "target_alias": alias.group(1),
-                    "financial_label": "DIVIDEND_INCOME",
-                }
-            ],
-        }
+        name = form_data["response_format"]["json_schema"]["name"]
+        if name == "broker_reports_gate3_labeling_response_v1":
+            if before_response is not None:
+                before_response()
+            response = {
+                "schema_version": name,
+                "annotations": [
+                    {
+                        "target_alias": alias.group(1),
+                        "financial_label": "DIVIDEND_INCOME",
+                    }
+                ],
+            }
+        else:
+            assert name == "broker_reports_gate3_role_labeling_response_v1"
+            response = {
+                "schema_version": name,
+                "facts": [
+                    {
+                        "fact_alias": "f001",
+                        "financial_label": "DIVIDEND_INCOME",
+                        "roles": [
+                            {
+                                "role": role,
+                                "status": "bound",
+                                "target_alias": alias.group(1),
+                            }
+                            for role in ("date", "amount", "currency")
+                        ]
+                        + [{"role": "asset", "status": "missing"}],
+                    }
+                ],
+            }
         return {
             "id": f"ndfl-response-{len(captured)}",
             "model": MODEL_ID,

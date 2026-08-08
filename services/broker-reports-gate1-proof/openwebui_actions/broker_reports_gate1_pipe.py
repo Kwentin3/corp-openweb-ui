@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.27.0-ndfl-gate3-v1
+version: 0.28.0-ndfl-gate3-roles-v2
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
@@ -810,7 +810,7 @@ class Pipe:
                 [
                     chat_content,
                     "",
-                    "Gate 3: финансовые бирки сохранены для текущей версии документа.",
+                    "Gate 3: финансовые типы и их роли сохранены для текущей версии документа.",
                 ]
             )
         if self._live_smoke_requested(safe_body, messages_arg):
@@ -907,10 +907,7 @@ class Pipe:
             )
 
         audit = self._write_ndfl_private_audit(executions)
-        provider_calls_total = sum(
-            len(execution.gate3.batch_result.outcomes)
-            for execution in executions
-        )
+        provider_calls_total = self._ndfl_provider_calls_total(executions)
         return {
             "schema_version": "broker_reports_ndfl_gate3_product_run_v1",
             "enabled": True,
@@ -935,6 +932,22 @@ class Pipe:
             "gate2_mutation": "none",
             "private_audit": audit,
         }
+
+    @staticmethod
+    def _ndfl_provider_calls_total(executions: list[Any]) -> int:
+        return sum(
+            int(
+                execution.gate3.batch_result.metrics.get(
+                    "financial_labeling_provider_calls", 0
+                )
+            )
+            + int(
+                execution.gate3.batch_result.metrics.get(
+                    "role_labeling_provider_calls", 0
+                )
+            )
+            for execution in executions
+        )
 
     def _write_ndfl_private_audit(self, executions: list[Any]) -> dict[str, Any]:
         if not self.valves.ndfl_gate3_private_audit_enabled:
@@ -976,10 +989,47 @@ class Pipe:
                             attempt.execution_metadata
                         ),
                         "metrics": attempt.metrics,
+                        "role_attempt": (
+                            {
+                                "facts": outcome.role_attempt.facts,
+                                "role_pack": outcome.role_attempt.role_pack,
+                                "role_pack_markdown": (
+                                    outcome.role_attempt.role_pack_markdown
+                                ),
+                                "instruction": outcome.role_attempt.instruction,
+                                "model_visible_request": (
+                                    outcome.role_attempt.model_visible_request
+                                ),
+                                "final_provider_request": (
+                                    outcome.role_attempt.final_provider_request
+                                ),
+                                "raw_provider_response": (
+                                    outcome.role_attempt.raw_provider_response
+                                ),
+                                "raw_model_output": (
+                                    outcome.role_attempt.raw_model_output
+                                ),
+                                "validated_output": (
+                                    outcome.role_attempt.validated_output
+                                ),
+                                "execution_status": (
+                                    outcome.role_attempt.execution_status
+                                ),
+                                "validation_error_code": (
+                                    outcome.role_attempt.validation_error_code
+                                ),
+                                "execution_metadata": self._ndfl_json_value(
+                                    outcome.role_attempt.execution_metadata
+                                ),
+                                "metrics": outcome.role_attempt.metrics,
+                            }
+                            if outcome.role_attempt is not None
+                            else None
+                        ),
                     }
                 )
             payload = {
-                "schema_version": "broker_reports_ndfl_gate3_private_audit_v1",
+                "schema_version": "broker_reports_ndfl_gate3_private_audit_v2",
                 "product_binding": ndfl_product_binding_snapshot(),
                 "canonical_artifact_ref": execution.canonical_artifact_ref,
                 "activation_receipt": (
@@ -992,7 +1042,7 @@ class Pipe:
                 ),
                 "attempts": attempts,
                 "merged_output": execution.gate3.batch_result.merged_output,
-                "financial_annotations_v1": execution.gate3.annotations_payload,
+                "financial_annotations_v2": execution.gate3.annotations_payload,
                 "annotations_artifact_id": (
                     execution.gate3.annotations_artifact_id
                 ),

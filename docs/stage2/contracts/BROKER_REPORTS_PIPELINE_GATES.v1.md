@@ -26,14 +26,17 @@ reports prove a bounded revision but cannot redefine this pipeline.
 | --- | --- | --- | --- | --- |
 | Gate 1 | authenticated source | custody, access checks, format detection, original-byte storage and route selection | stored source identity and intake/routing receipt | current |
 | Gate 2 | exact Gate 1 source identity plus trusted `ArtifactAccessContext` | format-specific extraction, deterministic non-financial normalization, validation and immutable version storage | validated immutable `CanonicalArtifactV1` | current |
-| Gate 3 | exact active validated `CanonicalArtifactV1`, read through `CanonicalReaderFactory.create` | financial semantic labeling: deterministic LLM-friendly projection, structural chunking of large documents and sparse selection of known dictionary labels | immutable `FinancialAnnotationsV1` sidecar bound to that exact canonical version | `CLOSED`; active only in the NDFL workflow |
+| Gate 3 | exact active validated `CanonicalArtifactV1`, read through `CanonicalReaderFactory.create` | financial semantic labeling plus source-bound role labeling: sparse selection of known types, then role bindings for the selected facts | immutable `FinancialAnnotationsV2` sidecar bound to that exact canonical version | `CLOSED`; active only in the NDFL workflow |
 | Gate 4 | not defined here | separate downstream stage | not defined here | `NEXT / NOT_YET_DESIGNED_HERE` |
 
 ## Gate 3 meaning
 
 Gate 3 reads one canonical document version, may divide its projection into
-bounded structural chunks, attaches only published financial labels and saves
-the result as a separate annotation layer.
+bounded structural chunks, attaches only published financial labels, then
+binds each selected fact to the roles allowed by the published Role Pack. A
+binding contains a canonical target and, only when the target contains larger
+text, an optional exact literal `exact_text`. Missing roles are explicit and
+are never guessed. The result is one separate annotation layer.
 
 Gate 3 does not:
 
@@ -47,6 +50,13 @@ Gate 3 does not:
 Sparse omission, including `annotations: []`, makes no absence or completeness
 claim.
 
+After establishing the matching canonical version, downstream deterministic
+code may resolve a bound role through `Gate3RoleValueResolverFactory.create`;
+the product path uses `create_from_active_canonical` with the sidecar's expected
+version. Neither route needs to understand broker column names or ask an LLM
+which source value is a date, asset, quantity, price, amount or currency. A
+required role with `status=missing` remains explicitly unavailable.
+
 ## Identity and version invariants
 
 The product handoff is persisted identity, not copied text:
@@ -54,10 +64,10 @@ The product handoff is persisted identity, not copied text:
 ```text
 Gate 1 source identity
 -> validated CanonicalArtifactV1 version A
--> FinancialAnnotationsV1 for version A
+-> FinancialAnnotationsV2 for version A
 ```
 
-`FinancialAnnotationsV1` is bound to the exact canonical version, root and
+`FinancialAnnotationsV2` is bound to the exact canonical version, root and
 payload identity used for labeling.
 
 ```text
@@ -79,6 +89,8 @@ a second user product. Behavioral routing uses stable IDs, never display names.
 explicitly migrated. It is not the NDFL Gate 2 -> Gate 3 handoff and is not a
 second current pipeline output. The NDFL route resolves an exact canonical
 manifest reference through the canonical reader.
+The global product canonical
+read valve remains disabled outside explicitly authorized consumers.
 
 ## Current Gate 3 contract status
 
@@ -88,6 +100,7 @@ manifest reference through the canonical reader.
 | current Gate 3 projection | `ACTIVE_IN_NDFL` |
 | [current Gate 3 financial-label dictionary](./BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v1.md) | `ACTIVE_IN_NDFL` |
 | current Gate 3 bounded labeling | `ACTIVE_IN_NDFL` |
+| [current Gate 3 Role Pack and role labeling](./BROKER_REPORTS_GATE3_ROLE_LABELING.v1.md) | `ACTIVE_IN_NDFL` |
 | current Gate 3 FinancialAnnotations persistence | `ACTIVE_IN_NDFL` |
 | NDFL exact-identity product route | `G3.C5_ACTIVE` |
 | terminal Gate 3 system result | `G3.C5_CLOSED` |
@@ -96,9 +109,12 @@ manifest reference through the canonical reader.
 
 - `CanonicalArtifactV1` and its schema own Gate 2 normalized document meaning.
 - `CanonicalReaderFactory.create` is the sole canonical read boundary.
-- `FinancialAnnotationsV1` and its schema own the Gate 3 sidecar shape.
+- `FinancialAnnotationsV2` and its schema own the current Gate 3 sidecar
+  shape. V1 remains the immutable historical label-only contract.
 - `broker-reports-financial-labels@<version>` is the sole financial-label
   meaning owner.
+- `broker-reports-financial-roles@<version>` is the sole role/profile and
+  source-binding-rule owner.
 - Provider output is a proposal; validation and persistence do not make the
   provider an authority.
 - Original source bytes, parser units, crops, private evidence and provider

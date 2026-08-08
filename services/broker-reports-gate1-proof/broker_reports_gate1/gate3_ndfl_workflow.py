@@ -17,6 +17,11 @@ from .gate3_chunk_batch_labeling import (
 from .gate3_financial_annotations_persistence import (
     Gate3FinancialAnnotationsPersistenceFactory,
 )
+from .gate3_financial_role_pack import (
+    GATE3_ROLE_PACK_ID,
+    GATE3_ROLE_PACK_V1_VERSION,
+)
+from .gate3_role_labeling import Gate3RoleLabelingError
 NDFL_WORKFLOW_STABLE_ID = "broker-reports-ndfl"
 NDFL_WORKFLOW_DISPLAY_NAME = "NDFL"
 NDFL_WORKSPACE_MODEL_STABLE_ID = NDFL_WORKFLOW_STABLE_ID
@@ -30,6 +35,8 @@ NDFL_DICTIONARY_SEMANTIC_VERSION = "1.0.0"
 NDFL_DICTIONARY_SKILL_ID = "broker-reports-financial-labels"
 NDFL_DICTIONARY_TOOL_ID = "broker_reports_financial_label_dictionary"
 NDFL_DICTIONARY_TOOL_METHOD = "load_financial_label_dictionary"
+NDFL_ROLE_PACK_ID = GATE3_ROLE_PACK_ID
+NDFL_ROLE_PACK_SEMANTIC_VERSION = GATE3_ROLE_PACK_V1_VERSION
 FACTORY_REQUIRED = (
     "NdflWorkflowFactory.create is the only NDFL Gate 2 to Gate 3 decision "
     "owner; Gate 3 must receive only document identity and authenticated access"
@@ -59,6 +66,8 @@ def ndfl_product_binding_snapshot() -> dict[str, Any]:
         "provider_model_id": NDFL_PROVIDER_MODEL_ID,
         "dictionary_id": NDFL_DICTIONARY_ID,
         "dictionary_semantic_version": NDFL_DICTIONARY_SEMANTIC_VERSION,
+        "role_pack_id": NDFL_ROLE_PACK_ID,
+        "role_pack_semantic_version": NDFL_ROLE_PACK_SEMANTIC_VERSION,
         "skill_id": NDFL_DICTIONARY_SKILL_ID,
         "tool_id": NDFL_DICTIONARY_TOOL_ID,
         "tool_method": NDFL_DICTIONARY_TOOL_METHOD,
@@ -175,12 +184,19 @@ class NdflWorkflow:
         context: ArtifactAccessContext,
     ) -> NdflGate3Execution:
         handoff = self.decide_gate3(document_id=document_id, context=context)
-        batch_result = await Gate3ChunkBatchLabelingFactory(
-            store=self._store,
-            read_enabled=self._read_enabled,
-            model_client=self._model_client,
-            model_id=self._model_id,
-        ).create(document_id=document_id, context=context)
+        try:
+            batch_result = await Gate3ChunkBatchLabelingFactory(
+                store=self._store,
+                read_enabled=self._read_enabled,
+                model_client=self._model_client,
+                model_id=self._model_id,
+            ).create(document_id=document_id, context=context)
+        except Gate3RoleLabelingError as exc:
+            if exc.code == "gate3_role_canonical_binding_stale":
+                raise NdflWorkflowError(
+                    "ndfl_gate3_canonical_changed_during_labeling"
+                ) from exc
+            raise
         expected_binding = {
             "document_id": handoff.document_id,
             "canonical_version_id": handoff.canonical_version_id,
@@ -317,6 +333,8 @@ __all__ = [
     "NDFL_PRODUCT_BINDING_SCHEMA_VERSION",
     "NDFL_PROVIDER_MODEL_ID",
     "NDFL_PROVIDER_PROFILE_ID",
+    "NDFL_ROLE_PACK_ID",
+    "NDFL_ROLE_PACK_SEMANTIC_VERSION",
     "NDFL_WORKFLOW_DISPLAY_NAME",
     "NDFL_WORKFLOW_STABLE_ID",
     "NDFL_WORKSPACE_MODEL_STABLE_ID",

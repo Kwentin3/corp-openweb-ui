@@ -2418,7 +2418,23 @@ def _project_gate3_alias_description(
 ) -> int:
     """Project wording from the canonical schema; never redefine the grammar."""
 
-    path = ("$defs", "annotation", "properties", "target_alias")
+    candidate_paths = (
+        ("$defs", "annotation", "properties", "target_alias"),
+        ("$defs", "roleBinding", "properties", "target_alias"),
+    )
+    path = next(
+        (
+            candidate
+            for candidate in candidate_paths
+            if _schema_value_at_path(canonical_schema, candidate) is not None
+        ),
+        None,
+    )
+    if path is None:
+        raise Gate2SourceFactRuntimeError(
+            "gate2_model_request_invalid",
+            "Gate 3 bare-alias schema projection is not exact",
+        )
     canonical_alias: Any = canonical_schema
     provider_alias: Any = provider_schema
     for field in path:
@@ -2453,6 +2469,15 @@ def _project_gate3_alias_description(
     changed = provider_alias.get("description") != description
     provider_alias["description"] = description
     return int(changed)
+
+
+def _schema_value_at_path(
+    schema: dict[str, Any], path: tuple[str, ...]
+) -> Any:
+    value: Any = schema
+    for field in path:
+        value = value.get(field) if isinstance(value, dict) else None
+    return value
 
 
 def _project_anthropic_structural_schema(schema: dict[str, Any]) -> int:

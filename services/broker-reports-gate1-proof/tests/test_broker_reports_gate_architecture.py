@@ -116,6 +116,8 @@ GATE3_CURRENT_CHUNKING = "gate3_structural_chunking"
 GATE3_CURRENT_DICTIONARY = "gate3_financial_label_dictionary"
 GATE3_CURRENT_DICTIONARY_CLI = "gate3_financial_label_dictionary_cli"
 GATE3_CURRENT_LABELING = "gate3_bounded_labeling"
+GATE3_CURRENT_ROLE_PACK = "gate3_financial_role_pack"
+GATE3_CURRENT_ROLE_LABELING = "gate3_role_labeling"
 GATE3_CURRENT_CHUNK_BATCH = "gate3_chunk_batch_labeling"
 GATE3_CURRENT_ANNOTATIONS_PERSISTENCE = (
     "gate3_financial_annotations_persistence"
@@ -1480,6 +1482,21 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     violations.append(
                         f"{module_name}:dictionary_factory_boundary_missing"
                     )
+            elif module_name == GATE3_CURRENT_ROLE_PACK:
+                if GATE3_CURRENT_DICTIONARY not in imports:
+                    violations.append(
+                        f"{module_name}:dictionary_factory_boundary_missing"
+                    )
+                forbidden_role_pack_imports = {
+                    "artifact_resolver",
+                    "artifact_store",
+                    "canonical_store",
+                    "gate3_context_manifest",
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(imports & forbidden_role_pack_imports):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
             elif module_name == GATE3_CURRENT_LABELING:
                 required_labeling_imports = {
                     GATE3_CURRENT_DICTIONARY,
@@ -1499,10 +1516,32 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     violations.append(
                         f"{module_name}:forbidden_import:{imported}"
                     )
+            elif module_name == GATE3_CURRENT_ROLE_LABELING:
+                required_role_labeling_imports = {
+                    "canonical_store",
+                    GATE3_CURRENT_LABELING,
+                    GATE3_CURRENT_ROLE_PACK,
+                }
+                if not required_role_labeling_imports <= imports:
+                    violations.append(
+                        f"{module_name}:role_labeling_factory_boundary_missing"
+                    )
+                forbidden_role_labeling_imports = {
+                    "artifact_resolver",
+                    "artifact_store",
+                    "gate3_context_manifest",
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(
+                    imports & forbidden_role_labeling_imports
+                ):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
             elif module_name == GATE3_CURRENT_CHUNK_BATCH:
                 required_batch_imports = {
                     GATE3_CURRENT_CHUNKING,
                     GATE3_CURRENT_LABELING,
+                    GATE3_CURRENT_ROLE_LABELING,
                 }
                 if not required_batch_imports <= imports:
                     violations.append(
@@ -1526,6 +1565,8 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     GATE3_CURRENT_CHUNKING,
                     GATE3_CURRENT_DICTIONARY,
                     GATE3_CURRENT_LABELING,
+                    GATE3_CURRENT_ROLE_PACK,
+                    GATE3_CURRENT_ROLE_LABELING,
                     GATE3_CURRENT_CHUNK_BATCH,
                 }
                 if not required_persistence_imports <= imports:
@@ -1559,6 +1600,8 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     GATE3_CURRENT_CHUNKING,
                     GATE3_CURRENT_DICTIONARY,
                     GATE3_CURRENT_LABELING,
+                    GATE3_CURRENT_ROLE_PACK,
+                    GATE3_CURRENT_ROLE_LABELING,
                     GATE3_CURRENT_CHUNK_BATCH,
                 } | GATE1_PRIVATE_IMPLEMENTATIONS
                 for imported in sorted(imports & forbidden_readiness_imports):

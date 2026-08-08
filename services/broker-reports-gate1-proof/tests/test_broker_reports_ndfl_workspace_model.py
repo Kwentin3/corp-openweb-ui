@@ -50,6 +50,8 @@ def test_product_binding_snapshot_uses_only_stable_machine_ids() -> None:
         "provider_model_id": NDFL_PROVIDER_MODEL_ID,
         "dictionary_id": "broker-reports-financial-labels",
         "dictionary_semantic_version": "1.0.0",
+        "role_pack_id": "broker-reports-financial-roles",
+        "role_pack_semantic_version": "1.0.0",
         "skill_id": "broker-reports-financial-labels",
         "tool_id": "broker_reports_financial_label_dictionary",
         "tool_method": "load_financial_label_dictionary",

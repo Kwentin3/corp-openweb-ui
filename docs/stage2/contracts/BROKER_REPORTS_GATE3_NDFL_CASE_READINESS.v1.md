@@ -8,7 +8,9 @@ Date: 2026-08-07
 
 G3.6 exposes one private, deterministic `NDFL` case read model. It derives
 current readiness from existing case-scoped source records, active canonical
-versions and immutable `FinancialAnnotationsV1` sidecars. The snapshot is not
+versions and current immutable `FinancialAnnotationsV2` sidecars. Historical
+V1 label-only sidecars are retained but do not satisfy current role-ready
+state. The snapshot is not
 persisted and is recomputed for every read.
 
 The sole entrypoint is `Gate3NdflCaseReadinessFactory.create(context)`. The

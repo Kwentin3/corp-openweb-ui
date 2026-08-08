@@ -195,6 +195,7 @@ ARTIFACT_TYPES = {
     "broker_reports_gate2_financial_evidence_production_receipt_v1",
     "broker_reports_gate2_financial_evidence_production_run_v1",
     "broker_reports_financial_annotations_v1",
+    "broker_reports_financial_annotations_v2",
     "debug_diagnostic_v0",
 }
 

@@ -94,7 +94,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_ndfl_gate3_v1",
+            "gate1_ndfl_gate3_roles_v2",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("gate3_ndfl_workflow", module._BUNDLED_MODULES)
@@ -104,6 +104,14 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         self.assertIn(
             "gate3_labeling_response.v1.schema.json",
+            module._BUNDLED_RESOURCES,
+        )
+        self.assertIn(
+            "gate3_financial_role_pack.v1.json",
+            module._BUNDLED_RESOURCES,
+        )
+        self.assertIn(
+            "gate3_role_labeling_response.v1.schema.json",
             module._BUNDLED_RESOURCES,
         )
         self.assertIn(

@@ -57,6 +57,7 @@ tenant identity are forbidden.
 ## Product policy
 
 Canonical reads remain disabled by default and there is no global read cutover.
+`CANONICAL_GATE2_READ_ENABLED=false` remains the global default.
 G3.C5 explicitly enables the reader only inside stable Workspace
 Model/workflow `broker-reports-ndfl`; other test-scoped consumer flags cannot
 authorize a background or primary product read. `gate2_handoff_v0` remains

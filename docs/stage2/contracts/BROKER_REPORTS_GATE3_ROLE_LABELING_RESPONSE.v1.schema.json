@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.invalid/schemas/broker-reports/gate3-role-labeling-response-v1.schema.json",
+  "title": "Broker Reports Gate3RoleLabelingResponseV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "facts"],
+  "properties": {
+    "schema_version": {
+      "const": "broker_reports_gate3_role_labeling_response_v1"
+    },
+    "facts": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/fact"
+      }
+    }
+  },
+  "$defs": {
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fact_alias", "financial_label", "roles"],
+      "properties": {
+        "fact_alias": {
+          "type": "string",
+          "pattern": "^f[0-9]{3,}$"
+        },
+        "financial_label": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+        },
+        "roles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/roleBinding"
+          }
+        }
+      }
+    },
+    "roleBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "status"],
+      "properties": {
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,63}$"
+        },
+        "status": {
+          "enum": ["bound", "missing"]
+        },
+        "target_alias": {
+          "type": "string",
+          "pattern": "^t[0-9]{3,}$",
+          "description": "Exact bare alias shown in the same Gate 3 chunk."
+        },
+        "exact_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048,
+          "description": "Optional exact case-sensitive literal substring of the bound canonical target text."
+        }
+      }
+    }
+  }
+}

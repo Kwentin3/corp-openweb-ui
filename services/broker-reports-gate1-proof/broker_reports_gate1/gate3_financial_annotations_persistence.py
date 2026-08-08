@@ -1,4 +1,4 @@
-"""G3.5 immutable FinancialAnnotationsV1 persistence over ArtifactStore."""
+"""Immutable current FinancialAnnotations sidecar persistence."""
 
 from __future__ import annotations
 
@@ -25,10 +25,23 @@ from .gate3_chunk_batch_labeling import (
 from .gate3_financial_label_dictionary import (
     Gate3FinancialLabelDictionaryFactory,
 )
+from .gate3_financial_role_pack import (
+    Gate3FinancialRolePackFactory,
+)
+from .gate3_role_labeling import (
+    FINANCIAL_ANNOTATIONS_V2_SCHEMA_VERSION,
+    GATE3_ROLE_LABELING_INSTRUCTION_ID,
+    GATE3_ROLE_LABELING_INSTRUCTION_VERSION,
+    Gate3RoleLabelingError,
+    Gate3RoleValueResolverFactory,
+)
 from .gate3_structural_chunking import Gate3StructuralChunkFactory
 
 
 GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE = (
+    FINANCIAL_ANNOTATIONS_V2_SCHEMA_VERSION
+)
+GATE3_HISTORICAL_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE = (
     FINANCIAL_ANNOTATIONS_SCHEMA_VERSION
 )
 FACTORY_REQUIRED = (
@@ -50,14 +63,20 @@ _DOCUMENT_RESULT_KEYS = {
     "metrics",
     "merged_output",
 }
-_PAYLOAD_KEYS = {
+_V2_PAYLOAD_KEYS = {
     "schema_version",
     "canonical_binding",
     "dictionary_identity",
+    "role_pack_identity",
     "instruction_identity",
+    "role_instruction_identity",
     "model_identity",
     "annotations",
     "validation_status",
+}
+_V1_PAYLOAD_KEYS = _V2_PAYLOAD_KEYS - {
+    "role_pack_identity",
+    "role_instruction_identity",
 }
 
 
@@ -105,6 +124,7 @@ class Gate3FinancialAnnotationsPersistence:
         ).create(document_id=document_id, context=context)
         payload = self._validated_payload(
             document_id=document_id,
+            context=context,
             document_result=validated_document_result,
             chunk_set=chunk_set,
             provider_profile_id=provider_profile_id,
@@ -174,7 +194,10 @@ class Gate3FinancialAnnotationsPersistence:
         payload = resolved["payload"]
         if (
             record.artifact_type
-            != GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE
+            not in {
+                GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
+                GATE3_HISTORICAL_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
+            }
             or not isinstance(payload, dict)
             or record.document_id
             != (payload.get("canonical_binding") or {}).get("document_id")
@@ -183,10 +206,16 @@ class Gate3FinancialAnnotationsPersistence:
                 "gate3_annotations_artifact_invalid"
             )
         provider_profile_id = record.safe_metadata.get("provider_profile_id")
-        self._validate_payload_contract(
-            payload=payload,
-            provider_profile_id=provider_profile_id,
-        )
+        if record.artifact_type == GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE:
+            self._validate_payload_contract(
+                payload=payload,
+                provider_profile_id=provider_profile_id,
+            )
+        else:
+            self._validate_historical_v1_payload_contract(
+                payload=payload,
+                provider_profile_id=provider_profile_id,
+            )
         version = self._store.get_canonical_version(
             context=context,
             canonical_version_id=payload["canonical_binding"][
@@ -203,6 +232,7 @@ class Gate3FinancialAnnotationsPersistence:
         self,
         *,
         document_id: str,
+        context: ArtifactAccessContext,
         document_result: Mapping[str, Any],
         chunk_set: dict[str, Any],
         provider_profile_id: str,
@@ -260,6 +290,24 @@ class Gate3FinancialAnnotationsPersistence:
             for chunk in chunk_set["chunks"]
             for mapping in chunk["target_mappings"]
         }
+        try:
+            resolver = (
+                Gate3RoleValueResolverFactory.create_from_active_canonical(
+                    store=self._store,
+                    read_enabled=self._read_enabled,
+                    document_id=document_id,
+                    expected_canonical_version_id=binding[
+                        "canonical_version_id"
+                    ],
+                    context=context,
+                )
+            )
+        except Gate3RoleLabelingError as exc:
+            if exc.code == "gate3_role_canonical_binding_stale":
+                raise Gate3FinancialAnnotationsPersistenceError(
+                    "gate3_annotations_canonical_binding_mismatch"
+                ) from exc
+            raise Gate3FinancialAnnotationsPersistenceError(exc.code) from exc
         seen: set[str] = set()
         for annotation in annotations:
             identity = _stable_json(annotation)
@@ -273,6 +321,19 @@ class Gate3FinancialAnnotationsPersistence:
                     "gate3_annotations_duplicate"
                 )
             seen.add(identity)
+            for role_binding in annotation["roles"]:
+                if role_binding["status"] != "bound":
+                    continue
+                if _stable_json(role_binding["target"]) not in known_targets:
+                    raise Gate3FinancialAnnotationsPersistenceError(
+                        "gate3_annotations_role_target_unknown"
+                    )
+                try:
+                    resolver.resolve(role_binding)
+                except Gate3RoleLabelingError as exc:
+                    raise Gate3FinancialAnnotationsPersistenceError(
+                        exc.code
+                    ) from exc
         return copy.deepcopy(payload)
 
     @staticmethod
@@ -282,7 +343,138 @@ class Gate3FinancialAnnotationsPersistence:
         provider_profile_id: Any,
     ) -> None:
         if (
-            set(payload) != _PAYLOAD_KEYS
+            set(payload) != _V2_PAYLOAD_KEYS
+            or payload.get("schema_version")
+            != FINANCIAL_ANNOTATIONS_V2_SCHEMA_VERSION
+            or payload.get("validation_status") != "validated"
+            or not isinstance(payload.get("canonical_binding"), dict)
+            or set(payload["canonical_binding"])
+            != {"document_id", "canonical_version_id"}
+            or not all(
+                isinstance(value, str) and value
+                for value in payload["canonical_binding"].values()
+            )
+            or not isinstance(payload.get("dictionary_identity"), dict)
+            or set(payload["dictionary_identity"])
+            != {"dictionary_id", "semantic_version"}
+            or not isinstance(payload.get("role_pack_identity"), dict)
+            or set(payload["role_pack_identity"])
+            != {"role_pack_id", "semantic_version"}
+            or not isinstance(payload.get("instruction_identity"), dict)
+            or set(payload["instruction_identity"])
+            != {"instruction_id", "semantic_version"}
+            or payload["instruction_identity"]
+            != {
+                "instruction_id": GATE3_LABELING_INSTRUCTION_ID,
+                "semantic_version": GATE3_LABELING_INSTRUCTION_VERSION,
+            }
+            or not isinstance(payload.get("role_instruction_identity"), dict)
+            or set(payload["role_instruction_identity"])
+            != {"instruction_id", "semantic_version"}
+            or payload["role_instruction_identity"]
+            != {
+                "instruction_id": GATE3_ROLE_LABELING_INSTRUCTION_ID,
+                "semantic_version": GATE3_ROLE_LABELING_INSTRUCTION_VERSION,
+            }
+            or not isinstance(payload.get("model_identity"), dict)
+            or set(payload["model_identity"]) != {"model_id"}
+            or not isinstance(payload["model_identity"]["model_id"], str)
+            or not payload["model_identity"]["model_id"]
+            or not isinstance(payload.get("annotations"), list)
+            or not isinstance(provider_profile_id, str)
+            or not provider_profile_id
+        ):
+            raise Gate3FinancialAnnotationsPersistenceError(
+                "gate3_annotations_payload_contract_invalid"
+            )
+        dictionary = Gate3FinancialLabelDictionaryFactory.create().load_published(
+            payload["dictionary_identity"]["semantic_version"]
+        )
+        if payload["dictionary_identity"] != {
+            "dictionary_id": dictionary["dictionary_id"],
+            "semantic_version": dictionary["semantic_version"],
+        }:
+            raise Gate3FinancialAnnotationsPersistenceError(
+                "gate3_annotations_dictionary_identity_mismatch"
+            )
+        role_pack = Gate3FinancialRolePackFactory.create().load_published(
+            payload.get("role_pack_identity", {}).get("semantic_version")
+        )
+        if payload["role_pack_identity"] != {
+            "role_pack_id": role_pack["role_pack_id"],
+            "semantic_version": role_pack["semantic_version"],
+        }:
+            raise Gate3FinancialAnnotationsPersistenceError(
+                "gate3_annotations_role_pack_identity_mismatch"
+            )
+        known_labels = {item["label_id"] for item in dictionary["labels"]}
+        profiles = {
+            profile["financial_label"]: profile
+            for profile in role_pack["profiles"]
+        }
+        for annotation in payload["annotations"]:
+            if (
+                not isinstance(annotation, dict)
+                or set(annotation) != {"target", "financial_label", "roles"}
+                or not isinstance(annotation.get("target"), dict)
+                or annotation.get("financial_label") not in known_labels
+                or not isinstance(annotation.get("roles"), list)
+            ):
+                raise Gate3FinancialAnnotationsPersistenceError(
+                    "gate3_annotations_payload_contract_invalid"
+                )
+            profile = profiles[annotation["financial_label"]]
+            allowed_order = [
+                *profile["required_roles"],
+                *profile["optional_roles"],
+            ]
+            if [item.get("role") for item in annotation["roles"]] != allowed_order:
+                raise Gate3FinancialAnnotationsPersistenceError(
+                    "gate3_annotations_role_cardinality_invalid"
+                )
+            for role_binding in annotation["roles"]:
+                status = role_binding.get("status")
+                if status == "missing":
+                    valid = set(role_binding) == {"role", "status"}
+                elif status == "bound":
+                    valid = (
+                        set(role_binding)
+                        in (
+                            {"role", "status", "target"},
+                            {"role", "status", "target", "exact_text"},
+                        )
+                        and isinstance(role_binding.get("target"), dict)
+                        and (
+                            "exact_text" not in role_binding
+                            or isinstance(role_binding["exact_text"], str)
+                            and 0 < len(role_binding["exact_text"]) <= 2048
+                        )
+                    )
+                else:
+                    valid = False
+                if not valid:
+                    raise Gate3FinancialAnnotationsPersistenceError(
+                        "gate3_annotations_role_binding_invalid"
+                    )
+        try:
+            profile = gate2_provider_profile(provider_profile_id)
+        except Exception as exc:
+            raise Gate3FinancialAnnotationsPersistenceError(
+                "gate3_annotations_model_identity_mismatch"
+            ) from exc
+        if payload["model_identity"]["model_id"] not in profile.approved_model_ids:
+            raise Gate3FinancialAnnotationsPersistenceError(
+                "gate3_annotations_model_identity_mismatch"
+            )
+
+    @staticmethod
+    def _validate_historical_v1_payload_contract(
+        *,
+        payload: dict[str, Any],
+        provider_profile_id: Any,
+    ) -> None:
+        if (
+            set(payload) != _V1_PAYLOAD_KEYS
             or payload.get("schema_version")
             != FINANCIAL_ANNOTATIONS_SCHEMA_VERSION
             or payload.get("validation_status") != "validated"
@@ -297,8 +489,6 @@ class Gate3FinancialAnnotationsPersistence:
             or set(payload["dictionary_identity"])
             != {"dictionary_id", "semantic_version"}
             or not isinstance(payload.get("instruction_identity"), dict)
-            or set(payload["instruction_identity"])
-            != {"instruction_id", "semantic_version"}
             or payload["instruction_identity"]
             != {
                 "instruction_id": GATE3_LABELING_INSTRUCTION_ID,
@@ -367,6 +557,7 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE",
+    "GATE3_HISTORICAL_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE",
     "Gate3FinancialAnnotationsPersistence",
     "Gate3FinancialAnnotationsPersistenceError",
     "Gate3FinancialAnnotationsPersistenceFactory",

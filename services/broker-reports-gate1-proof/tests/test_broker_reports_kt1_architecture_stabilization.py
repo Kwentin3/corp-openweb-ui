@@ -487,6 +487,14 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_financial_role_pack.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_role_labeling.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate3_financial_annotations_persistence.py"
         ),
         (
@@ -980,7 +988,9 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         "tests/test_broker_reports_gate3_projection.py",
         "tests/test_broker_reports_gate3_structural_chunking.py",
         "tests/test_broker_reports_gate3_financial_label_dictionary.py",
+        "tests/test_broker_reports_gate3_financial_role_pack.py",
         "tests/test_broker_reports_gate3_bounded_labeling.py",
+        "tests/test_broker_reports_gate3_role_labeling.py",
         "tests/test_broker_reports_gate3_chunk_batch_labeling.py",
         "tests/test_broker_reports_gate3_financial_annotations_persistence.py",
         "tests/test_broker_reports_gate3_ndfl_case_readiness.py",
