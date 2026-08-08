@@ -13,6 +13,7 @@ CURRENT_PIPELINE_AUTHORITY = ONE
 CanonicalArtifactV1 = OUTPUT OF GATE 2
 GATE3_STATUS = CLOSED
 GATE4_STATUS = G4.3 MULTI-DOCUMENT FINANCIAL CASE ASSEMBLY CLOSED
+G4.4_RESEARCH_STATUS = CLOSED — NO_RELATION_LAYER_NEEDED_YET
 ```
 
 This contract is the sole current authority for Broker Reports gate numbering,
@@ -27,7 +28,7 @@ reports prove a bounded revision but cannot redefine this pipeline.
 | Gate 1 | authenticated source | custody, access checks, format detection, original-byte storage and route selection | stored source identity and intake/routing receipt | current |
 | Gate 2 | exact Gate 1 source identity plus trusted `ArtifactAccessContext` | format-specific extraction, deterministic non-financial normalization, validation and immutable version storage | validated immutable `CanonicalArtifactV1` | current |
 | Gate 3 | exact active validated `CanonicalArtifactV1`, read through `CanonicalReaderFactory.create` | financial semantic labeling plus source-bound role labeling: sparse selection of known types, then role bindings for the selected facts | immutable `FinancialAnnotationsV2` sidecar bound to that exact canonical version | `CLOSED`; active only in the NDFL workflow |
-| Gate 4 | current validated `FinancialAnnotationsV2` sidecars plus their exact active canonical bindings and trusted `ArtifactAccessContext` | materialize immutable typed facts and assemble every current eligible document into one technically scoped case set; later relation/read capabilities remain separately approved | current `Gate4FinancialCaseFactV1` set plus non-authoritative working SQL cache and derived case completeness | `G4.3_CLOSED`; G4.4-G4.7 not started |
+| Gate 4 | current validated `FinancialAnnotationsV2` sidecars plus their exact active canonical bindings and trusted `ArtifactAccessContext` | materialize immutable typed facts and assemble every current eligible document into one technically scoped case set; later relation/read capabilities remain separately approved | current `Gate4FinancialCaseFactV1` set plus non-authoritative working SQL cache and derived case completeness | `G4.3_CLOSED`; `G4.4_RESEARCH_CLOSED`; G4.5 not applicable without new evidence; G4.6-G4.7 not started |
 
 ## Gate 3 meaning
 
@@ -79,6 +80,15 @@ completeness. Similar-looking facts remain separate. Relations,
 reconciliation, tax logic, API and user-facing product activation remain
 absent. The historical Managed Financial Domain remains compatibility code,
 not current Gate 4.
+
+G4.4 research found no current downstream task that requires a separately
+persisted semantic relation. Queryable proximity by type, asset, date, amount
+or source remains a query, not an assertion that two facts are the same,
+related or conflicting. Therefore the current minimal relation set is empty,
+G4.5 has no implementation subject without new evidence, and G4.6 is the next
+allowed Goal. The closure-era next-Goal pointers in G4.1 and G4.3 describe the
+sequence before this decision; this sole pipeline authority owns the current
+sequence.
 
 ## Identity and version invariants
 
@@ -138,7 +148,9 @@ route.
 | [Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md) | `G4.1_CLOSED` |
 | [Gate 4 deterministic materializer and SQL cache](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md) | `G4.2_CLOSED` |
 | [Gate 4 multi-document case assembly](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md) | `G4.3_CLOSED` |
-| relations and read boundary | `G4.4-G4.6_NOT_STARTED` |
+| [G4.4 relation-necessity research](../../reports/2026-08-08/BROKER_REPORTS_GATE4_RELATION_NECESSITY_G4_4.report.md) | `G4.4_RESEARCH_CLOSED — NO_RELATION_LAYER_NEEDED_YET` |
+| G4.5 relation implementation | `NOT_APPLICABLE_WITHOUT_NEW_EVIDENCE` |
+| G4.6 read boundary | `NOT_STARTED — NEXT_ALLOWED_GOAL` |
 | representative Gate 4 closure | `G4.7_NOT_STARTED` |
 
 ## Authority and non-authority
