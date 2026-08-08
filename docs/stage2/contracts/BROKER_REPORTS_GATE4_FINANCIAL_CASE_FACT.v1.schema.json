@@ -297,6 +297,24 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "role": {
+                "enum": ["asset", "currency"]
+              }
+            },
+            "required": ["role"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "string",
+                "pattern": "\\S"
+              }
+            }
+          }
         }
       ]
     },

@@ -327,6 +327,12 @@ def test_missing_role_cannot_carry_invented_value_or_source() -> None:
     with pytest.raises(ValidationError):
         VALIDATOR.validate(fact)
 
+    blank_asset = _fact("DIVIDEND_INCOME", 2)
+    asset = next(item for item in blank_asset["roles"] if item["role"] == "asset")
+    asset["value"] = "   "
+    with pytest.raises(ValidationError):
+        VALIDATOR.validate(blank_asset)
+
 
 def test_g41_is_contract_only_and_reuses_existing_openwebui_scope_lifecycle() -> None:
     contract = CONTRACT_PATH.read_text(encoding="utf-8")
