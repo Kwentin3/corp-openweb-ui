@@ -226,7 +226,10 @@ separate bootstrap report.
   `FinancialAnnotationsV2` sidecar. V1 remains historical label-only evidence.
   Gate 3 is active only in stable workflow `broker-reports-ndfl`;
   historical `Gate2*` financial-semantic modules retain compatibility names.
-  Gate 4 is the next separate stage and is not designed by these instructions.
+  [Gate 4 Financial Case Fact v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md)
+  is the current G4.1 contract-only boundary. It reuses trusted OpenWebUI
+  case/chat scope and exact Gate 3 identity; G4.2 materialization/SQL is next.
+  Historical Financial Domain code is not current Gate 4 authority.
 
 ## Change and proof
 

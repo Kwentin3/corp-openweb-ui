@@ -158,6 +158,7 @@ jobs:
           tests/test_broker_reports_gate3_role_labeling.py
           tests/test_broker_reports_gate3_chunk_batch_labeling.py
           tests/test_broker_reports_gate3_financial_annotations_persistence.py
+          tests/test_broker_reports_gate4_financial_case_contract.py
           tests/test_broker_reports_gate3_ndfl_case_readiness.py
           tests/test_broker_reports_gate3_ndfl_workflow.py
           tests/test_broker_reports_gate3_openwebui_managed_dictionary.py
