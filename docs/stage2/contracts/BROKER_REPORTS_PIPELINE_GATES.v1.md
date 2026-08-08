@@ -12,7 +12,7 @@ Updated: 2026-08-08
 CURRENT_PIPELINE_AUTHORITY = ONE
 CanonicalArtifactV1 = OUTPUT OF GATE 2
 GATE3_STATUS = CLOSED
-GATE4_STATUS = NEXT / NOT_YET_DESIGNED_HERE
+GATE4_STATUS = G4.1 CONTRACT CLOSED / RUNTIME NOT STARTED
 ```
 
 This contract is the sole current authority for Broker Reports gate numbering,
@@ -27,7 +27,7 @@ reports prove a bounded revision but cannot redefine this pipeline.
 | Gate 1 | authenticated source | custody, access checks, format detection, original-byte storage and route selection | stored source identity and intake/routing receipt | current |
 | Gate 2 | exact Gate 1 source identity plus trusted `ArtifactAccessContext` | format-specific extraction, deterministic non-financial normalization, validation and immutable version storage | validated immutable `CanonicalArtifactV1` | current |
 | Gate 3 | exact active validated `CanonicalArtifactV1`, read through `CanonicalReaderFactory.create` | financial semantic labeling plus source-bound role labeling: sparse selection of known types, then role bindings for the selected facts | immutable `FinancialAnnotationsV2` sidecar bound to that exact canonical version | `CLOSED`; active only in the NDFL workflow |
-| Gate 4 | not defined here | separate downstream stage | not defined here | `NEXT / NOT_YET_DESIGNED_HERE` |
+| Gate 4 | current validated `FinancialAnnotationsV2` plus its exact active canonical binding and trusted `ArtifactAccessContext` | assemble immutable typed financial facts into a case, then add only separately approved cache/assembly/relation/read capabilities | current logical `Gate4FinancialCaseFactV1` contract; no materialized output or cache yet | `G4.1_CLOSED`; G4.2-G4.7 not started |
 
 ## Gate 3 meaning
 
@@ -45,7 +45,7 @@ Gate 3 does not:
 - combine different documents into one labeling context;
 - calculate tax, cost basis or FIFO;
 - reconcile a tax case or build a declaration;
-- perform or define Gate 4.
+- perform Gate 4 materialization, case assembly, relations or reads.
 
 Sparse omission, including `annotations: []`, makes no absence or completeness
 claim.
@@ -56,6 +56,19 @@ the product path uses `create_from_active_canonical` with the sidecar's expected
 version. Neither route needs to understand broker column names or ask an LLM
 which source value is a date, asset, quantity, price, amount or currency. A
 required role with `status=missing` remains explicitly unavailable.
+
+## Current Gate 4 boundary
+
+[Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md)
+defines the smallest current Gate 4 semantic unit. It binds one typed financial
+fact to the existing server-attested case/chat scope, one exact immutable
+`FinancialAnnotationsV2` artifact and annotation index, the matching canonical
+version, source-backed role literals and explicit missing roles.
+
+G4.1 is contract-only. It adds no materializer, ArtifactStore artifact type,
+SQL cache, multi-document assembly, relation layer, read service or product
+activation. The historical Managed Financial Domain remains compatibility
+code and is not a current Gate 4 authority.
 
 ## Identity and version invariants
 
@@ -91,6 +104,7 @@ second current pipeline output. The NDFL route resolves an exact canonical
 manifest reference through the canonical reader.
 The global product canonical
 read valve remains disabled outside explicitly authorized consumers.
+There is no active Gate 4 product route in G4.1.
 
 ## Current Gate 3 contract status
 
@@ -105,6 +119,16 @@ read valve remains disabled outside explicitly authorized consumers.
 | NDFL exact-identity product route | `G3.C5_ACTIVE` |
 | terminal Gate 3 system result | `G3.C5_CLOSED` |
 
+## Current Gate 4 contract status
+
+| Surface | Status |
+| --- | --- |
+| [Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md) | `G4.1_CLOSED` |
+| Gate 4 materializer and SQL cache | `G4.2_NOT_STARTED` |
+| multi-source case assembly | `G4.3_NOT_STARTED` |
+| relations and read boundary | `G4.4-G4.6_NOT_STARTED` |
+| representative Gate 4 closure | `G4.7_NOT_STARTED` |
+
 ## Authority and non-authority
 
 - `CanonicalArtifactV1` and its schema own Gate 2 normalized document meaning.
@@ -115,6 +139,8 @@ read valve remains disabled outside explicitly authorized consumers.
   meaning owner.
 - `broker-reports-financial-roles@<version>` is the sole role/profile and
   source-binding-rule owner.
+- `Gate4FinancialCaseFactV1` and its schema own only the current minimal Gate 4
+  fact shape; they do not own financial type/role meaning or storage.
 - Provider output is a proposal; validation and persistence do not make the
   provider an authority.
 - Original source bytes, parser units, crops, private evidence and provider
@@ -128,7 +154,8 @@ read valve remains disabled outside explicitly authorized consumers.
 2. Versioned DTO contracts own payload meaning and invariants.
 3. `BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md` owns maintained implementation
    entrypoints and duplicate-prevention boundaries.
-4. `BROKER_REPORTS_GATE3_HANDOFF.v1.md` is the short current supporting handoff.
+4. `BROKER_REPORTS_GATE3_HANDOFF.v1.md` is the short current supporting handoff
+   into the G4.1 contract.
 5. Dated reports and receipts are evidence only.
 6. Research, proposals, drafts and superseded blueprints are not current
    authority.

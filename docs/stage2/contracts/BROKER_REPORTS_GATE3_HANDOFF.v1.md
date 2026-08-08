@@ -31,7 +31,8 @@ Gate 3
 -> stores a separate immutable FinancialAnnotationsV2 sidecar
 
 Gate 4
--> next separate stage; not designed here
+-> G4.1 defines one minimal Gate4FinancialCaseFactV1 contract
+-> materialization, SQL, case assembly and relations are not started
 ```
 
 ## What is closed
@@ -137,6 +138,13 @@ omitted label, attach annotations A to canonical version B, mutate either
 upstream artifact, bypass the canonical reader, duplicate the financial
 dictionary or reimplement Gate 3 labeling.
 
+The current G4.1 boundary is
+[Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md).
+It reuses the existing OpenWebUI-injected `ArtifactAccessContext` case/chat
+scope, ArtifactStore lifecycle, exact Gate 3 artifact identity and shared
+target grammar. It defines no materializer, SQL cache, relation layer or active
+product route. G4.2 is the next allowed implementation Goal.
+
 ## Direct contracts and audit evidence
 
 Read direct upstream contracts before implementation:
@@ -147,7 +155,8 @@ Read direct upstream contracts before implementation:
 - [Gate 3 Minimal Labeling v1](./BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md);
 - [Gate 3 Role Labeling v1](./BROKER_REPORTS_GATE3_ROLE_LABELING.v1.md);
 - [FinancialAnnotationsV2 schema](./BROKER_REPORTS_FINANCIAL_ANNOTATIONS.v2.schema.json);
-- [Financial Label Dictionary v1](./BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v1.md).
+- [Financial Label Dictionary v1](./BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v1.md);
+- [Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md).
 
 Use reports only when auditing evidence:
 
@@ -158,7 +167,7 @@ Use reports only when auditing evidence:
 
 The actual `broker-reports-ndfl` product route end to end was exercised by the
 G3.C5 proof; this is evidence for the one stable-ID route, not authority for a
-second product or for Gate 4.
+second product or for Gate 4 runtime activation.
 
 The earlier G3.7 terminal report is superseded by G3.7C. All dated reports are
 evidence for their own revision and scope; none can override the current

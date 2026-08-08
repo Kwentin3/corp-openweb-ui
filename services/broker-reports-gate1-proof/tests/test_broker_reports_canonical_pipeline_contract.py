@@ -132,10 +132,11 @@ def test_gate3_context_recovery_documentation_guard():
 
     required_pipeline = {
         "GATE3_STATUS = CLOSED",
-        "GATE4_STATUS = NEXT / NOT_YET_DESIGNED_HERE",
+        "GATE4_STATUS = G4.1 CONTRACT CLOSED / RUNTIME NOT STARTED",
         "financial semantic labeling",
         "validated immutable `CanonicalArtifactV1`",
         "immutable `FinancialAnnotationsV2` sidecar",
+        "Gate4FinancialCaseFactV1",
         "Canonical version B != Annotations A",
     }
     assert all(marker in pipeline for marker in required_pipeline)
@@ -152,6 +153,7 @@ def test_gate3_context_recovery_documentation_guard():
         "Workspace -> Skills -> Broker Reports Financial Labels",
         "Display names are UI text, not lookup or routing authority",
         "reimplement Gate 3 labeling",
+        "G4.1 defines one minimal Gate4FinancialCaseFactV1 contract",
     }
     assert all(marker in handoff for marker in required_handoff)
 

@@ -1,0 +1,333 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.invalid/schemas/broker-reports/gate4-financial-case-fact-v1.schema.json",
+  "title": "Broker Reports Gate4FinancialCaseFactV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fact_id",
+    "case_binding",
+    "gate3_binding",
+    "financial_type",
+    "annotation_target",
+    "roles",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "broker_reports_gate4_financial_case_fact_v1"
+    },
+    "fact_id": {
+      "type": "string",
+      "pattern": "^g4fact_[0-9a-f]{32}$"
+    },
+    "case_binding": {
+      "$ref": "#/$defs/caseBinding"
+    },
+    "gate3_binding": {
+      "$ref": "#/$defs/gate3Binding"
+    },
+    "financial_type": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{2,63}$"
+    },
+    "annotation_target": {
+      "$ref": "https://kwentin3.invalid/schemas/broker-reports/gate3-target-v1.schema.json"
+    },
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {
+        "$ref": "#/$defs/roleEntry"
+      },
+      "allOf": [
+        {
+          "contains": {
+            "type": "object",
+            "properties": {"role": {"const": "date"}},
+            "required": ["role"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {"role": {"const": "asset"}},
+            "required": ["role"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {"role": {"const": "quantity"}},
+            "required": ["role"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {"role": {"const": "unit_price"}},
+            "required": ["role"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {"role": {"const": "amount"}},
+            "required": ["role"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "type": "object",
+            "properties": {"role": {"const": "currency"}},
+            "required": ["role"]
+          },
+          "minContains": 0,
+          "maxContains": 1
+        }
+      ]
+    },
+    "status": {
+      "enum": ["role_complete", "role_incomplete"]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"status": {"const": "role_complete"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "roles": {
+            "not": {
+              "contains": {
+                "type": "object",
+                "properties": {
+                  "requirement": {"const": "required"},
+                  "status": {"const": "missing"}
+                },
+                "required": ["requirement", "status"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {"status": {"const": "role_incomplete"}},
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "roles": {
+            "contains": {
+              "type": "object",
+              "properties": {
+                "requirement": {"const": "required"},
+                "status": {"const": "missing"}
+              },
+              "required": ["requirement", "status"]
+            },
+            "minContains": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "caseBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope_kind", "scope_id"],
+      "properties": {
+        "scope_kind": {
+          "enum": ["case", "chat"]
+        },
+        "scope_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      }
+    },
+    "canonicalBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["document_id", "canonical_version_id"],
+      "properties": {
+        "document_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "canonical_version_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      }
+    },
+    "gate3Binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "financial_annotations_artifact_id",
+        "financial_annotations_schema_version",
+        "annotation_index",
+        "canonical_binding"
+      ],
+      "properties": {
+        "financial_annotations_artifact_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "financial_annotations_schema_version": {
+          "const": "broker_reports_financial_annotations_v2"
+        },
+        "annotation_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "canonical_binding": {
+          "$ref": "#/$defs/canonicalBinding"
+        }
+      }
+    },
+    "sourceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "source_literal"],
+      "properties": {
+        "target": {
+          "$ref": "https://kwentin3.invalid/schemas/broker-reports/gate3-target-v1.schema.json"
+        },
+        "exact_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "source_literal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        }
+      }
+    },
+    "roleValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "requirement",
+        "status",
+        "value",
+        "source_binding"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "date",
+            "asset",
+            "quantity",
+            "unit_price",
+            "amount",
+            "currency"
+          ]
+        },
+        "requirement": {
+          "enum": ["required", "optional"]
+        },
+        "status": {
+          "const": "value"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        },
+        "source_binding": {
+          "$ref": "#/$defs/sourceBinding"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"role": {"const": "date"}},
+            "required": ["role"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "role": {
+                "enum": ["quantity", "unit_price", "amount"]
+              }
+            },
+            "required": ["role"]
+          },
+          "then": {
+            "properties": {
+              "value": {
+                "type": "string",
+                "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "missingRole": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "requirement", "status"],
+      "properties": {
+        "role": {
+          "enum": [
+            "date",
+            "asset",
+            "quantity",
+            "unit_price",
+            "amount",
+            "currency"
+          ]
+        },
+        "requirement": {
+          "enum": ["required", "optional"]
+        },
+        "status": {
+          "const": "missing"
+        }
+      }
+    },
+    "roleEntry": {
+      "oneOf": [
+        {"$ref": "#/$defs/roleValue"},
+        {"$ref": "#/$defs/missingRole"}
+      ]
+    }
+  }
+}
