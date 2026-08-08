@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://kwentin3.invalid/schemas/broker-reports/gate3-target-v1.schema.json",
   "title": "Broker Reports Gate 3 Canonical Target V1",
-  "$comment": "CONTRACT_DEFINED_INACTIVE: one minimal locator grammar shared by Gate3ProjectionV1 and FinancialAnnotationsV1.",
+  "$comment": "One minimal locator grammar shared by Gate3ProjectionV1 and FinancialAnnotationsV1/V2.",
   "oneOf": [
     {
       "$ref": "#/$defs/nodeTarget"

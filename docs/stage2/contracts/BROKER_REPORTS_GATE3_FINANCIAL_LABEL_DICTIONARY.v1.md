@@ -90,7 +90,8 @@ hash to the immutable published-version pin set. Existing version resources
 and pins must never be overwritten.
 
 Old annotation results bind `dictionary_id` and `semantic_version` under the
-existing `FinancialAnnotationsV1` contract. Publishing a later version cannot
+current `FinancialAnnotationsV2` contract (and historical V1 identity).
+Publishing a later version cannot
 silently change that binding.
 
 ## Deterministic model view

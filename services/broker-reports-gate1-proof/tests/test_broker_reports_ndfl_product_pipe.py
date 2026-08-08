@@ -85,7 +85,26 @@ def test_private_audit_is_exact_external_and_non_overwriting(tmp_path: Path) -> 
         execution_metadata={"provider": "test"},
         metrics={"calls": 1},
     )
-    outcome = SimpleNamespace(chunk={"content": "exact fragment"}, attempt=attempt)
+    role_attempt = SimpleNamespace(
+        facts=(),
+        role_pack={"roles": []},
+        role_pack_markdown="exact role pack",
+        instruction="exact role instruction",
+        model_visible_request=None,
+        final_provider_request=None,
+        raw_provider_response=None,
+        raw_model_output=None,
+        validated_output={"annotations": []},
+        execution_status="skipped_empty",
+        validation_error_code=None,
+        execution_metadata=None,
+        metrics={"provider_called": False},
+    )
+    outcome = SimpleNamespace(
+        chunk={"content": "exact fragment"},
+        attempt=attempt,
+        role_attempt=role_attempt,
+    )
     execution = SimpleNamespace(
         canonical_artifact_ref="manifest",
         activation_receipt=None,
@@ -95,9 +114,13 @@ def test_private_audit_is_exact_external_and_non_overwriting(tmp_path: Path) -> 
             batch_result=SimpleNamespace(
                 outcomes=(outcome,),
                 merged_output={"annotations": []},
+                metrics={
+                    "financial_labeling_provider_calls": 1,
+                    "role_labeling_provider_calls": 1,
+                },
             ),
             annotations_payload={
-                "schema_version": "broker_reports_financial_annotations_v1",
+                "schema_version": "broker_reports_financial_annotations_v2",
                 "annotations": [],
             },
             annotations_artifact_id="annotations",
@@ -109,13 +132,17 @@ def test_private_audit_is_exact_external_and_non_overwriting(tmp_path: Path) -> 
     exact = json.loads(exact_path.read_text(encoding="utf-8"))
 
     assert receipt["status"] == "saved"
+    assert pipe._ndfl_provider_calls_total([execution]) == 2
     assert exact["attempts"][0]["projection"]["model_view"]["content"] == (
         "exact fragment"
     )
     assert exact["attempts"][0]["dictionary_markdown"] == "exact dictionary"
     assert exact["attempts"][0]["instruction"] == "exact instruction"
     assert exact["attempts"][0]["raw_model_output"] == {"annotations": []}
-    assert exact["financial_annotations_v1"]["annotations"] == []
+    assert exact["attempts"][0]["role_attempt"]["role_pack_markdown"] == (
+        "exact role pack"
+    )
+    assert exact["financial_annotations_v2"]["annotations"] == []
     with pytest.raises(NdflWorkflowError) as failure:
         pipe._write_ndfl_private_audit([execution])
     assert failure.value.code == "ndfl_private_audit_target_not_new"

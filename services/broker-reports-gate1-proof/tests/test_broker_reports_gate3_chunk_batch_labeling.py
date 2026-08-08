@@ -63,7 +63,7 @@ def test_full_document_batch_is_sequential_and_merges_in_target_order(
 
     assert result.selection_mode == "full_document"
     assert result.document_status == "complete"
-    assert len(captured) == len(chunk_set["chunks"])
+    assert len(captured) == 2 * len(chunk_set["chunks"])
     assert result.metrics["chunks_validated"] == len(chunk_set["chunks"])
     assert result.metrics["chunks_rejected"] == 0
     assert result.metrics["chunks_provider_failed"] == 0
@@ -77,12 +77,19 @@ def test_full_document_batch_is_sequential_and_merges_in_target_order(
         for annotation in result.merged_output["annotations"]
     ] == expected_targets
     assert result.metrics["input_tokens_total"] == 100 * len(captured)
+    schema_versions = []
     for request in captured:
         assert len(request["messages"]) == 3
         schema = request["response_format"]["json_schema"]["schema"]
-        assert schema["properties"]["schema_version"] == {
-            "enum": ["broker_reports_gate3_labeling_response_v1"]
-        }
+        schema_versions.append(
+            schema["properties"]["schema_version"]["enum"][0]
+        )
+    assert schema_versions.count("broker_reports_gate3_labeling_response_v1") == (
+        len(chunk_set["chunks"])
+    )
+    assert schema_versions.count(
+        "broker_reports_gate3_role_labeling_response_v1"
+    ) == len(chunk_set["chunks"])
 
 
 def test_rejected_chunk_is_visible_and_document_is_incomplete_without_retry(
@@ -104,7 +111,7 @@ def test_rejected_chunk_is_visible_and_document_is_incomplete_without_retry(
         ).create(document_id=document_id, context=context)
     )
 
-    assert len(captured) == len(chunk_set["chunks"])
+    assert len(captured) == 2 * len(chunk_set["chunks"]) - 1
     assert result.document_status == "incomplete"
     assert result.metrics["chunks_rejected"] == 1
     assert result.metrics["chunks_validated"] == len(chunk_set["chunks"]) - 1
@@ -118,7 +125,9 @@ def test_rejected_chunk_is_visible_and_document_is_incomplete_without_retry(
     assert rejected[0].attempt is not None
     assert rejected[0].attempt.raw_model_output
     assert result.merged_output is not None
-    assert len(result.merged_output["annotations"]) == len(captured) - 1
+    assert len(result.merged_output["annotations"]) == (
+        len(chunk_set["chunks"]) - 1
+    )
 
 
 def test_predeclared_subset_is_never_reported_as_complete_document(
@@ -148,7 +157,7 @@ def test_predeclared_subset_is_never_reported_as_complete_document(
     assert result.selected_chunk_ordinals == selected
     assert result.selection_mode == "representative_subset"
     assert result.document_status == "representative_subset_validated"
-    assert len(captured) == 2
+    assert len(captured) == 4
     assert {
         outcome.chunk["canonical_binding"]["document_id"]
         for outcome in result.outcomes
@@ -246,25 +255,52 @@ def _selection_chunk(ordinal: int, kind: str, node_ref: str) -> dict:
 
 def _client(*, invalid_call: int | None = None):
     captured: list[dict] = []
+    label_calls = 0
 
     def complete(*, form_data, **_kwargs):
+        nonlocal label_calls
         captured.append(json.loads(json.dumps(form_data, ensure_ascii=False)))
         call = len(captured)
-        alias = ALIAS_RE.search(form_data["messages"][-1]["content"])
-        assert alias is not None
-        response = {
-            "schema_version": (
-                "wrong-schema"
-                if invalid_call == call
-                else "broker_reports_gate3_labeling_response_v1"
-            ),
-            "annotations": [
-                {
-                    "target_alias": alias.group(1),
-                    "financial_label": "DIVIDEND_INCOME",
-                }
-            ],
-        }
+        aliases = ALIAS_RE.findall(form_data["messages"][-1]["content"])
+        assert len(aliases) >= 2
+        fact_alias = aliases[0]
+        scalar_alias = aliases[1]
+        name = form_data["response_format"]["json_schema"]["name"]
+        if name == "broker_reports_gate3_labeling_response_v1":
+            label_calls += 1
+            response = {
+                "schema_version": (
+                    "wrong-schema"
+                    if invalid_call == label_calls
+                    else "broker_reports_gate3_labeling_response_v1"
+                ),
+                "annotations": [
+                    {
+                        "target_alias": fact_alias,
+                        "financial_label": "DIVIDEND_INCOME",
+                    }
+                ],
+            }
+        else:
+            assert name == "broker_reports_gate3_role_labeling_response_v1"
+            response = {
+                "schema_version": name,
+                "facts": [
+                    {
+                        "fact_alias": "f001",
+                        "financial_label": "DIVIDEND_INCOME",
+                        "roles": [
+                            {
+                                "role": role,
+                                "status": "bound",
+                                "target_alias": scalar_alias,
+                            }
+                            for role in ("date", "amount", "currency")
+                        ]
+                        + [{"role": "asset", "status": "missing"}],
+                    }
+                ],
+            }
         return {
             "id": f"gate3-batch-response-{call}",
             "model": MODEL_ID,

@@ -27,6 +27,7 @@ from broker_reports_gate1.gate3_financial_annotations_persistence import (
     FACTORY_REQUIRED,
     FORBIDDEN,
     GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
+    GATE3_HISTORICAL_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
 )
 
 
@@ -120,6 +121,50 @@ def test_sidecar_is_immutable_and_relabel_does_not_mutate_gate2(
     assert canonical_after.canonical_root_sha256 == canonical_before.canonical_root_sha256
 
 
+def test_historical_v1_sidecar_remains_readable(tmp_path: Path) -> None:
+    store, context, document_id, _canonical = _setup(tmp_path)
+    service = Gate3FinancialAnnotationsPersistenceFactory(
+        store=store, read_enabled=True
+    ).create()
+    current = service.save(
+        document_id=document_id,
+        context=context,
+        validated_document_result=_complete_result(store, context, document_id),
+        provider_profile_id=PROVIDER_PROFILE_ID,
+    )
+    current_payload = service.read(
+        artifact_id=current.artifact_id,
+        context=context,
+    )
+    historical_payload = {
+        key: copy.deepcopy(value)
+        for key, value in current_payload.items()
+        if key not in {"role_pack_identity", "role_instruction_identity"}
+    }
+    historical_payload["schema_version"] = (
+        GATE3_HISTORICAL_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE
+    )
+    historical_payload["annotations"] = [
+        {
+            "target": copy.deepcopy(annotation["target"]),
+            "financial_label": annotation["financial_label"],
+        }
+        for annotation in current_payload["annotations"]
+    ]
+    historical = copy.deepcopy(current)
+    historical.artifact_id = "historical-financial-annotations-v1"
+    historical.artifact_type = (
+        GATE3_HISTORICAL_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE
+    )
+    historical.payload = historical_payload
+    historical.safe_metadata = copy.deepcopy(current.safe_metadata)
+    stored = store.put_record(historical)
+
+    assert service.read(artifact_id=stored.artifact_id, context=context) == (
+        historical_payload
+    )
+
+
 @pytest.mark.parametrize(
     ("mutation", "expected_code"),
     [
@@ -140,6 +185,12 @@ def test_sidecar_is_immutable_and_relabel_does_not_mutate_gate2(
             "gate3_annotations_dictionary_identity_mismatch",
         ),
         (
+            lambda value: value["merged_output"]["role_pack_identity"].update(
+                role_pack_id="second-role-pack"
+            ),
+            "gate3_annotations_role_pack_identity_mismatch",
+        ),
+        (
             lambda value: value["merged_output"]["instruction_identity"].update(
                 semantic_version="9.9.9"
             ),
@@ -156,6 +207,24 @@ def test_sidecar_is_immutable_and_relabel_does_not_mutate_gate2(
                 target={"kind": "node", "node_id": "missing-node"}
             ),
             "gate3_annotations_target_unknown",
+        ),
+        (
+            lambda value: value["merged_output"]["annotations"][0]["roles"][
+                1
+            ].update(target={"kind": "node", "node_id": "missing-node"}),
+            "gate3_annotations_role_target_unknown",
+        ),
+        (
+            lambda value: value["merged_output"]["annotations"][0]["roles"][
+                1
+            ].update(exact_text="12,00"),
+            "gate3_role_exact_text_not_literal_substring",
+        ),
+        (
+            lambda value: value["merged_output"]["annotations"][0][
+                "roles"
+            ].pop(),
+            "gate3_annotations_role_cardinality_invalid",
         ),
     ],
 )
@@ -308,19 +377,41 @@ def _complete_result(store, context, document_id: str) -> dict:
         chunk_set["chunks"][0]["target_mappings"][0]["canonical_target"]
     )
     payload = {
-        "schema_version": "broker_reports_financial_annotations_v1",
+        "schema_version": "broker_reports_financial_annotations_v2",
         "canonical_binding": copy.deepcopy(chunk_set["canonical_binding"]),
         "dictionary_identity": {
             "dictionary_id": "broker-reports-financial-labels",
+            "semantic_version": "1.0.0",
+        },
+        "role_pack_identity": {
+            "role_pack_id": "broker-reports-financial-roles",
             "semantic_version": "1.0.0",
         },
         "instruction_identity": {
             "instruction_id": "broker-reports-bounded-semantic-labeling",
             "semantic_version": "1.0.1",
         },
+        "role_instruction_identity": {
+            "instruction_id": "broker-reports-source-bound-role-labeling",
+            "semantic_version": "1.0.0",
+        },
         "model_identity": {"model_id": MODEL_ID},
         "annotations": [
-            {"target": target, "financial_label": "TRANSACTION_CHARGE"}
+            {
+                "target": target,
+                "financial_label": "TRANSACTION_CHARGE",
+                "roles": [
+                    {"role": "date", "status": "missing"},
+                    {
+                        "role": "amount",
+                        "status": "bound",
+                        "target": copy.deepcopy(target),
+                        "exact_text": "12.00",
+                    },
+                    {"role": "currency", "status": "missing"},
+                    {"role": "asset", "status": "missing"},
+                ],
+            }
         ],
         "validation_status": "validated",
     }

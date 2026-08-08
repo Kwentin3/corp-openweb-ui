@@ -377,7 +377,18 @@ def _save_annotations(
         chunk_set["chunks"][0]["target_mappings"][0]["canonical_target"]
     )
     annotations = (
-        [{"target": target, "financial_label": financial_label}]
+        [
+            {
+                "target": target,
+                "financial_label": financial_label,
+                "roles": [
+                    {"role": "date", "status": "missing"},
+                    {"role": "amount", "status": "missing"},
+                    {"role": "currency", "status": "missing"},
+                    {"role": "asset", "status": "missing"},
+                ],
+            }
+        ]
         if annotations_total
         else []
     )
@@ -394,15 +405,23 @@ def _save_annotations(
             "annotations_validated": len(annotations),
         },
         "merged_output": {
-            "schema_version": "broker_reports_financial_annotations_v1",
+            "schema_version": "broker_reports_financial_annotations_v2",
             "canonical_binding": copy.deepcopy(chunk_set["canonical_binding"]),
             "dictionary_identity": {
                 "dictionary_id": "broker-reports-financial-labels",
                 "semantic_version": "1.0.0",
             },
+            "role_pack_identity": {
+                "role_pack_id": "broker-reports-financial-roles",
+                "semantic_version": "1.0.0",
+            },
             "instruction_identity": {
                 "instruction_id": "broker-reports-bounded-semantic-labeling",
                 "semantic_version": "1.0.1",
+            },
+            "role_instruction_identity": {
+                "instruction_id": "broker-reports-source-bound-role-labeling",
+                "semantic_version": "1.0.0",
             },
             "model_identity": {"model_id": MODEL_ID},
             "annotations": annotations,

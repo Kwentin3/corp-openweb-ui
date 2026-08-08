@@ -35,7 +35,9 @@ GATE2_DOMAIN_BUNDLE_PATH = (
 BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
 GATE1_RESOURCE_NAMES = (
     "gate3_financial_label_dictionary.v1.json",
+    "gate3_financial_role_pack.v1.json",
     "gate3_labeling_response.v1.schema.json",
+    "gate3_role_labeling_response.v1.schema.json",
 )
 
 MODULE_ORDER = [
@@ -174,9 +176,11 @@ GATE1_MODULE_ORDER = [
 ]
 GATE1_NDFL_GATE3_MODULES = [
     "gate3_financial_label_dictionary",
+    "gate3_financial_role_pack",
     "gate3_projection",
     "gate3_structural_chunking",
     "gate3_bounded_labeling",
+    "gate3_role_labeling",
     "gate3_chunk_batch_labeling",
     "gate3_financial_annotations_persistence",
     "gate3_ndfl_workflow",
@@ -281,8 +285,8 @@ def main() -> None:
             },
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.27.0-ndfl-gate3-v1-bundled",
-            package_version="gate1_ndfl_gate3_v1",
+            version="0.28.0-ndfl-gate3-roles-v2-bundled",
+            package_version="gate1_ndfl_gate3_roles_v2",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )

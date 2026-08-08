@@ -28,12 +28,14 @@ Product cutover: `NDFL_ONLY`
 
 Date: 2026-08-06
 
-Updated: 2026-08-07
+Updated: 2026-08-08
 
 ## 1. Purpose
 
-This contract defines Gate 3 as a minimal financial-label sidecar over one
-active validated `CanonicalArtifactV1` version:
+This contract defines the shared projection, alias and sparse financial-type
+pass of Gate 3 over one active validated `CanonicalArtifactV1` version. The
+current role-complete continuation is defined by
+[Gate 3 Role Labeling v1](./BROKER_REPORTS_GATE3_ROLE_LABELING.v1.md):
 
 ```text
 CanonicalReaderFactory.create
@@ -42,13 +44,17 @@ CanonicalReaderFactory.create
 -> exact selected managed dictionary and future instruction
 -> Gate3LabelingResponseV1 proposal
 -> code validation and alias restoration
--> FinancialAnnotationsV1
+-> label-only FinancialAnnotationsV1 intermediate
+-> Gate3RoleLabelingResponseV1 proposal over the same chunk
+-> code validation and source binding
+-> FinancialAnnotationsV2
 ```
 
 Gate 3 has one logical input, the exact active canonical version returned by
-the public reader, and one authoritative output, validated
-`FinancialAnnotationsV1`. Projection and model response are intermediate
-boundary contracts, not additional document or financial authorities.
+the public reader, and one current authoritative output, validated
+`FinancialAnnotationsV2`. Projection, both model responses and the V1
+label-only result are intermediate boundary contracts, not additional document
+or financial authorities.
 
 G3.1 defined these contracts. G3.2 implements the reader-backed
 `Gate3ProjectionV1` adapter. G3.3M adds only the explicitly loaded
@@ -59,8 +65,10 @@ sequential batch coordinator over the existing chunker and exact
 G3.4 labeling/validation path. Its original live proof validated 11 of 12
 selected chunks and preserved the remaining response as an explicit rejection.
 G3.4D then validated the compact document and frozen large-CSV chunk with exact
-bare aliases. G3.5 adds only the `broker_reports_financial_annotations_v1`
-private ArtifactStore sidecar type and its factory-backed save/read boundary;
+bare aliases. The 2026-08-08 refinement adds one Role Pack-owned second pass
+per non-empty chunk and advances current persistence to the compatible
+`broker_reports_financial_annotations_v2` sidecar; V1 remains immutable
+historical contract evidence.
 G3.C5 activates these same G3.2-G3.5 owners only through the stable NDFL
 Workspace Model/workflow. G3.6 remains a non-persisted, artifact-derived
 `NDFL` case-readiness view and code-owned follow-up actions.
@@ -73,8 +81,10 @@ Workspace Model/workflow. G3.6 remains a non-persisted, artifact-derived
 | `Gate3ProjectionV1` | one deterministic Markdown view and backend-only aliases for existing canonical targets | financial meaning, source parsing or document repair |
 | Managed Financial Label Dictionary v1 | exact published label IDs, meanings, application boundaries, examples and version lifecycle; stable Skill/Tool binding for generated OpenWebUI projections | canonical structure, target selection, model execution or workflow state |
 | `Gate3LabelingResponseV1` | a sparse provider proposal of alias/label pairs | canonical refs, new labels, source rewriting or completion state |
-| `FinancialAnnotationsV1` | validated canonical-target/label pairs plus the minimum reproduction identities | a rewritten document, Financial Domain, relations, calculations or tax meaning |
-| G3.4C batch result | ordered terminal chunk outcomes plus deterministic concatenation of validated annotations | semantic reconciliation, retry, repair, persistence or completion inference |
+| Managed Financial Role Pack v1 | role definitions, required/optional profiles, value-source and cardinality constraints | labels, canonical structure, provider execution or persistence |
+| `Gate3RoleLabelingResponseV1` | one proposal for all pass-1 facts in a non-empty chunk; source alias bindings or explicit `missing` | relabeling, normalized/computed values, canonical IDs or relations |
+| `FinancialAnnotationsV2` | validated canonical-target/type/role bindings plus reproduction identities | a rewritten document, Financial Domain, relations, calculations or tax meaning |
+| current batch result | ordered terminal pass-1/pass-2 chunk outcomes plus deterministic concatenation of validated annotations | semantic reconciliation, per-fact calls, retry, repair or persistence |
 | G3.5 persistence | full-document admission, exact active binding and immutable private ArtifactStore sidecar save/read | labeling, a second store, workflow state or product activation |
 | G3.6 readiness | deterministic case/document completion and fixed follow-up permissions derived from existing artifacts | persisted state, financial meaning, LLM decisions or Gate 4 execution |
 | NDFL workflow | exact validated-manifest selection, compare-and-swap activation, full-document Gate 3 coordination and exact sidecar handoff | any Gate 2 call to Gate 3, copied canonical payload, stage reimplementation, display-name routing or Gate 4 |
@@ -84,11 +94,18 @@ is the only owner of financial-label meaning. This contract names labels but
 defines none. Skill, Prompt, Tool, generated view or model output must not
 become a second meaning authority.
 
+The exact Role Pack loaded by `Gate3FinancialRolePackFactory.create` is the
+only owner of role IDs, per-label profiles and binding rules. Those rules must
+not be copied into Python branches, prompts, Skills, adapters or RAG.
+
 ## 3. Normative schemas
 
 - [`Gate3ProjectionV1`](./BROKER_REPORTS_GATE3_PROJECTION.v1.schema.json)
 - [`Gate3LabelingResponseV1`](./BROKER_REPORTS_GATE3_LABELING_RESPONSE.v1.schema.json)
 - [`FinancialAnnotationsV1`](./BROKER_REPORTS_FINANCIAL_ANNOTATIONS.v1.schema.json)
+- [`Gate3RoleLabelingResponseV1`](./BROKER_REPORTS_GATE3_ROLE_LABELING_RESPONSE.v1.schema.json)
+- [`FinancialAnnotationsV2`](./BROKER_REPORTS_FINANCIAL_ANNOTATIONS.v2.schema.json)
+- [Gate 3 Financial Role Pack v1](./BROKER_REPORTS_GATE3_FINANCIAL_ROLE_PACK.v1.schema.json)
 - shared [`Gate3CanonicalTargetV1`](./BROKER_REPORTS_GATE3_TARGET.v1.schema.json)
 
 The shared target schema is a small boundary component, not a fourth stage
@@ -261,9 +278,10 @@ proves all dynamic invariants:
 
 Schema validity alone is never semantic acceptance.
 
-## 8. FinancialAnnotationsV1
+## 8. Historical label-only FinancialAnnotationsV1
 
-`FinancialAnnotationsV1` is the separate validated Gate 3 result. Its payload
+`FinancialAnnotationsV1` is the validated pass-1 result and historical
+label-only sidecar shape. Its payload
 contains only:
 
 ```text
@@ -298,6 +316,10 @@ the exact `model_id`.
 A later dictionary version may produce a different sidecar for the same
 canonical version. The dictionary and instruction identities make the old
 sidecar reproducible without mutating it.
+
+The current persisted output is `FinancialAnnotationsV2`. Its role fields,
+validation rules and deterministic consumption boundary are normative in
+[Gate 3 Role Labeling v1](./BROKER_REPORTS_GATE3_ROLE_LABELING.v1.md).
 
 ## 9. Positive examples
 
@@ -438,7 +460,7 @@ The current G3.1-G3.6 contour does not implement or authorize:
 - a second persistence store, projection cache or projection database;
 - persisted workflow state, LLM-owned readiness or LLM-owned actions;
 - exhaustive classification or coverage claims;
-- Financial Domain, records, roles, relations, graph or materialization;
+- Financial Domain, records, cross-fact relations, graph or Gate 4 materialization;
 - calculations, reconciliation, tax meaning or Gate 4;
 - product canonical-read cutover outside the stable NDFL route, global runtime
   activation or destructive legacy deletion.
@@ -509,8 +531,8 @@ audit observed `2/16`; processing all 16 documents is not a Gate 3 acceptance
 criterion.
 
 The separately authorized product-integration chain supersedes the former
-Gate 4 continuation at this boundary. G3.C1-G3.C5 passed. The real NDFL product
-path processed one large document through exact Gate 2 manifest selection,
-chunks, one LLM proposal per chunk, deterministic merge and one immutable
-`FinancialAnnotationsV1` sidecar without changing Gate 2. There is no next
-Gate 3 GOAL; Gate 4 is not started by this contract.
+Gate 4 continuation at this boundary. G3.C1-G3.C5 passed for the historical
+label-only revision. The 2026-08-08 role refinement keeps the same NDFL route,
+projection, chunks, aliases, provider factory and persistence owner, adds one
+role proposal per non-empty chunk, and makes `FinancialAnnotationsV2` the
+current downstream-ready sidecar. Gate 4 is not started by this contract.

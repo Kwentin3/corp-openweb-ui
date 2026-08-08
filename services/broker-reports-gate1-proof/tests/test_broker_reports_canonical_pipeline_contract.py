@@ -135,7 +135,7 @@ def test_gate3_context_recovery_documentation_guard():
         "GATE4_STATUS = NEXT / NOT_YET_DESIGNED_HERE",
         "financial semantic labeling",
         "validated immutable `CanonicalArtifactV1`",
-        "immutable `FinancialAnnotationsV1` sidecar",
+        "immutable `FinancialAnnotationsV2` sidecar",
         "Canonical version B != Annotations A",
     }
     assert all(marker in pipeline for marker in required_pipeline)
@@ -143,7 +143,7 @@ def test_gate3_context_recovery_documentation_guard():
     required_handoff = {
         "Gate 3 status: `CLOSED`",
         "CanonicalReaderFactory.create",
-        "FinancialAnnotationsV1",
+        "FinancialAnnotationsV2",
         "creates structural chunks when needed",
         "document is labeled independently",
         "broker-reports-financial-labels@1.0.0",

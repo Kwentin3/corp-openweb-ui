@@ -1,4 +1,4 @@
-"""Inactive G3.4 document + dictionary + instruction -> LLM -> validation."""
+"""Gate 3 pass 1: document + dictionary + instruction -> validation."""
 
 from __future__ import annotations
 
@@ -67,6 +67,12 @@ class Gate3BoundedLabelingError(RuntimeError):
 
 class _DuplicateJsonKeyError(ValueError):
     pass
+
+
+def gate3_target_alias_is_valid(value: Any) -> bool:
+    """Return whether value follows the one backend-owned target alias grammar."""
+
+    return isinstance(value, str) and _ALIAS.fullmatch(value) is not None
 
 
 @dataclass(frozen=True)
@@ -435,7 +441,7 @@ def _validate_and_restore(
             )
         alias = annotation.get("target_alias")
         label = annotation.get("financial_label")
-        if not isinstance(alias, str) or _ALIAS.fullmatch(alias) is None:
+        if not gate3_target_alias_is_valid(alias):
             raise Gate3BoundedLabelingError(
                 "gate3_labeling_response_contract_invalid"
             )
@@ -576,4 +582,5 @@ __all__ = [
     "Gate3BoundedLabelingAttempt",
     "Gate3BoundedLabelingError",
     "Gate3BoundedLabelingFactory",
+    "gate3_target_alias_is_valid",
 ]

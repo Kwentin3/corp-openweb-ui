@@ -221,9 +221,10 @@ separate bootstrap report.
   creates complete code-owned options.
 - Canonical validation and materialization follow
   [Generic Materialization](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md).
-- Current Gate 3 is closed financial semantic labeling over an exact active
-  `CanonicalArtifactV1`, with a separate immutable `FinancialAnnotationsV1`
-  sidecar. It is active only in stable workflow `broker-reports-ndfl`;
+- Current Gate 3 is closed financial type and source-bound role labeling over
+  an exact active `CanonicalArtifactV1`, with one immutable
+  `FinancialAnnotationsV2` sidecar. V1 remains historical label-only evidence.
+  Gate 3 is active only in stable workflow `broker-reports-ndfl`;
   historical `Gate2*` financial-semantic modules retain compatibility names.
   Gate 4 is the next separate stage and is not designed by these instructions.
 

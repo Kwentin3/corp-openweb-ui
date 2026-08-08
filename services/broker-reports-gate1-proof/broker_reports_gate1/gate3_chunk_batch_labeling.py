@@ -1,4 +1,4 @@
-"""Inactive G3.4C sequential chunk labeling and deterministic merge proof."""
+"""Sequential Gate 3 type/role chunk labeling and deterministic merge."""
 
 from __future__ import annotations
 
@@ -10,25 +10,28 @@ from typing import Any, Iterable
 from .artifact_models import ArtifactAccessContext
 from .gate2_model_contracts import Gate2SourceFactRuntimeError
 from .gate3_bounded_labeling import (
-    FINANCIAL_ANNOTATIONS_SCHEMA_VERSION,
     Gate3BoundedLabelingAttempt,
     Gate3BoundedLabelingFactory,
+)
+from .gate3_role_labeling import (
+    Gate3RoleLabelingAttempt,
+    Gate3RoleLabelingFactory,
 )
 from .gate3_structural_chunking import Gate3StructuralChunkFactory
 
 
 GATE3_CHUNK_BATCH_LABELING_RESULT_SCHEMA_VERSION = (
-    "broker_reports_gate3_chunk_batch_labeling_result_v1"
+    "broker_reports_gate3_chunk_batch_labeling_result_v2"
 )
 FACTORY_REQUIRED = (
-    "Gate3ChunkBatchLabelingFactory.create is the only G3.4C sequential batch "
-    "and merge entrypoint; it must call Gate3StructuralChunkFactory.create "
-    "and Gate3BoundedLabelingFactory.create_from_chunk"
+    "Gate3ChunkBatchLabelingFactory.create is the only sequential Gate 3 "
+    "batch and merge entrypoint; it must call Gate3StructuralChunkFactory, "
+    "Gate3BoundedLabelingFactory and Gate3RoleLabelingFactory"
 )
 FORBIDDEN = (
-    "G3.4C must not change chunking, dictionary or instruction, retry, repair, "
-    "fall back, execute chunks concurrently, classify financial meaning in "
-    "code, semantically deduplicate, persist annotations or activate a route"
+    "Gate 3 batch must not change chunking, label or role meaning, retry, "
+    "repair, fall back, execute chunks concurrently, call once per fact, "
+    "semantically deduplicate, persist annotations or activate a route"
 )
 
 
@@ -42,9 +45,11 @@ class Gate3ChunkBatchLabelingError(RuntimeError):
 class Gate3ChunkLabelingOutcome:
     chunk: dict[str, Any] = field(repr=False)
     attempt: Gate3BoundedLabelingAttempt | None = field(repr=False)
+    role_attempt: Gate3RoleLabelingAttempt | None = field(repr=False)
     provider_error: Gate2SourceFactRuntimeError | None = field(repr=False)
     terminal_status: str
     error_code: str | None
+    failed_phase: str | None
 
 
 @dataclass(frozen=True)
@@ -107,6 +112,12 @@ class Gate3ChunkBatchLabelingFactory:
             model_client=self._model_client,
             model_id=self._model_id,
         )
+        role_labeling = Gate3RoleLabelingFactory(
+            store=self._store,
+            read_enabled=self._read_enabled,
+            model_client=self._model_client,
+            model_id=self._model_id,
+        )
         outcomes: list[Gate3ChunkLabelingOutcome] = []
         for chunk in selected:
             try:
@@ -116,9 +127,43 @@ class Gate3ChunkBatchLabelingFactory:
                     Gate3ChunkLabelingOutcome(
                         chunk=copy.deepcopy(chunk),
                         attempt=None,
+                        role_attempt=None,
                         provider_error=exc,
                         terminal_status="provider_failed",
                         error_code=exc.code,
+                        failed_phase="financial_labeling",
+                    )
+                )
+                continue
+            if attempt.validation_status != "validated":
+                outcomes.append(
+                    Gate3ChunkLabelingOutcome(
+                        chunk=copy.deepcopy(chunk),
+                        attempt=attempt,
+                        role_attempt=None,
+                        provider_error=None,
+                        terminal_status="rejected",
+                        error_code=attempt.validation_error_code,
+                        failed_phase="financial_labeling",
+                    )
+                )
+                continue
+            try:
+                role_attempt = await role_labeling.create_from_chunk(
+                    chunk=chunk,
+                    context=context,
+                    pass1_attempt=attempt,
+                )
+            except Gate2SourceFactRuntimeError as exc:
+                outcomes.append(
+                    Gate3ChunkLabelingOutcome(
+                        chunk=copy.deepcopy(chunk),
+                        attempt=attempt,
+                        role_attempt=None,
+                        provider_error=exc,
+                        terminal_status="provider_failed",
+                        error_code=exc.code,
+                        failed_phase="role_labeling",
                     )
                 )
                 continue
@@ -126,9 +171,21 @@ class Gate3ChunkBatchLabelingFactory:
                 Gate3ChunkLabelingOutcome(
                     chunk=copy.deepcopy(chunk),
                     attempt=attempt,
+                    role_attempt=role_attempt,
                     provider_error=None,
-                    terminal_status=attempt.validation_status,
-                    error_code=attempt.validation_error_code,
+                    terminal_status=(
+                        "validated"
+                        if role_attempt.execution_status
+                        in {"validated", "skipped_empty"}
+                        else "rejected"
+                    ),
+                    error_code=role_attempt.validation_error_code,
+                    failed_phase=(
+                        None
+                        if role_attempt.execution_status
+                        in {"validated", "skipped_empty"}
+                        else "role_labeling"
+                    ),
                 )
             )
 
@@ -199,10 +256,10 @@ def _merge_validated_attempts(
     outcomes: list[Gate3ChunkLabelingOutcome],
 ) -> dict[str, Any] | None:
     validated = [
-        outcome.attempt.validated_output
+        outcome.role_attempt.validated_output
         for outcome in outcomes
-        if outcome.attempt is not None
-        and outcome.attempt.validated_output is not None
+        if outcome.role_attempt is not None
+        and outcome.role_attempt.validated_output is not None
         and outcome.terminal_status == "validated"
     ]
     if not validated:
@@ -211,7 +268,9 @@ def _merge_validated_attempts(
     identity_fields = (
         "canonical_binding",
         "dictionary_identity",
+        "role_pack_identity",
         "instruction_identity",
+        "role_instruction_identity",
         "model_identity",
     )
     if first["canonical_binding"] != binding or any(
@@ -226,8 +285,8 @@ def _merge_validated_attempts(
     seen: set[str] = set()
     for outcome in outcomes:
         if (
-            outcome.attempt is None
-            or outcome.attempt.validated_output is None
+            outcome.role_attempt is None
+            or outcome.role_attempt.validated_output is None
             or outcome.terminal_status != "validated"
         ):
             continue
@@ -236,7 +295,7 @@ def _merge_validated_attempts(
             for index, mapping in enumerate(outcome.chunk["target_mappings"])
         }
         chunk_annotations = list(
-            outcome.attempt.validated_output["annotations"]
+            outcome.role_attempt.validated_output["annotations"]
         )
         try:
             ordered = sorted(
@@ -259,10 +318,14 @@ def _merge_validated_attempts(
             seen.add(identity)
             annotations.append(copy.deepcopy(annotation))
     return {
-        "schema_version": FINANCIAL_ANNOTATIONS_SCHEMA_VERSION,
+        "schema_version": first["schema_version"],
         "canonical_binding": copy.deepcopy(binding),
         "dictionary_identity": copy.deepcopy(first["dictionary_identity"]),
+        "role_pack_identity": copy.deepcopy(first["role_pack_identity"]),
         "instruction_identity": copy.deepcopy(first["instruction_identity"]),
+        "role_instruction_identity": copy.deepcopy(
+            first["role_instruction_identity"]
+        ),
         "model_identity": copy.deepcopy(first["model_identity"]),
         "annotations": annotations,
         "validation_status": "validated",
@@ -277,13 +340,17 @@ def _batch_metrics(
 ) -> dict[str, Any]:
     metadata = []
     for outcome in outcomes:
-        value = (
-            outcome.attempt.execution_metadata
-            if outcome.attempt is not None
-            else getattr(outcome.provider_error, "execution_metadata", None)
-        )
-        if value is not None:
-            metadata.append(value)
+        if outcome.attempt is not None and outcome.attempt.execution_metadata:
+            metadata.append(outcome.attempt.execution_metadata)
+        if (
+            outcome.role_attempt is not None
+            and outcome.role_attempt.execution_metadata is not None
+        ):
+            metadata.append(outcome.role_attempt.execution_metadata)
+        if outcome.provider_error is not None:
+            value = getattr(outcome.provider_error, "execution_metadata", None)
+            if value is not None:
+                metadata.append(value)
     input_tokens = [
         value.input_tokens
         for value in metadata
@@ -323,6 +390,26 @@ def _batch_metrics(
         ),
         "aliases_total": sum(
             int(chunk["metrics"]["target_count"]) for chunk in chunks
+        ),
+        "financial_labeling_provider_calls": sum(
+            outcome.attempt is not None
+            or outcome.failed_phase == "financial_labeling"
+            for outcome in outcomes
+        ),
+        "role_labeling_provider_calls": sum(
+            (
+                outcome.role_attempt is not None
+                and bool(
+                    outcome.role_attempt.metrics.get("provider_called")
+                )
+            )
+            or outcome.failed_phase == "role_labeling"
+            for outcome in outcomes
+        ),
+        "role_labeling_skipped_empty_chunks": sum(
+            outcome.role_attempt is not None
+            and outcome.role_attempt.execution_status == "skipped_empty"
+            for outcome in outcomes
         ),
         "input_tokens_total": sum(input_tokens) if input_tokens else None,
         "input_tokens_max": max(input_tokens) if input_tokens else None,
