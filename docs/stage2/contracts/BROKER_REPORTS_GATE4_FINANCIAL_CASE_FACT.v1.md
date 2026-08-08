@@ -63,7 +63,9 @@ status = role_complete | role_incomplete
 
 No case aggregate is introduced by G4.1. A Financial Case is the set of
 current Gate 4 facts carrying the same trusted `case_binding`. Multi-document
-assembly is G4.3; relations are G4.4-G4.5.
+assembly is now implemented by
+[Gate 4 Case Assembly v1](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md);
+relations remain G4.4-G4.5.
 
 Sparse Gate 3 omission remains a non-claim. If a current sidecar contains zero
 annotations, it produces zero Gate 4 facts and no assertion that the document
@@ -252,5 +254,6 @@ current Gate 3 role-complete fact can be represented with deterministic
 identity, typed values, explicit missing state and full upstream provenance,
 while stale binding and storage/runtime work remain outside this Goal.
 
-G4.2 implements this contract without changing its shape. Next allowed Goal:
-`G4.3 — multi-document case assembly`.
+G4.2 implements this contract without changing its shape, and G4.3 assembles
+its unchanged facts across current case documents. Next allowed Goal:
+`G4.4 — минимальный домен связей`.

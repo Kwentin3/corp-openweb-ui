@@ -33,7 +33,9 @@ Gate 3
 Gate 4
 -> G4.1 defines one minimal Gate4FinancialCaseFactV1 contract
 -> G4.2 deterministically materializes it and maintains a rebuildable SQL cache
--> multi-document assembly and relations are not started
+-> G4.3 assembles all current Gate 3 V2 sidecars into one deterministic case projection
+   without deduplication
+-> relations are not started
 ```
 
 ## What is closed
@@ -147,7 +149,12 @@ target grammar. G4.2 implements its ordinary-code materializer and same-store
 rebuildable SQL projection in
 [Gate 4 SQL Materialization v1](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md).
 The cache validates current Gate 3 selection before reads and remains neither a
-meaning owner nor an active user-facing product route.
+meaning owner nor an active user-facing product route. G4.3 reuses that same
+runtime/cache and the existing Gate 3 readiness source set to atomically
+assemble all current eligible case sidecars. Its completeness status is only
+technical completeness for the readiness-visible input set. Similar-looking
+facts from different documents remain separate. See
+[Gate 4 Case Assembly v1](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md).
 
 ## Direct contracts and audit evidence
 
@@ -162,6 +169,7 @@ Read direct upstream contracts before implementation:
 - [Financial Label Dictionary v1](./BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v1.md);
 - [Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md).
 - [Gate 4 SQL Materialization v1](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md).
+- [Gate 4 Case Assembly v1](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md).
 
 Use reports only when auditing evidence:
 

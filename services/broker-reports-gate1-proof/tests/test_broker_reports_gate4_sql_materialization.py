@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
@@ -14,6 +15,8 @@ from broker_reports_gate1 import (
     ArtifactAccessContext,
     ArtifactStoreConfig,
     ArtifactStoreFactory,
+    CASE_COMPLETE_FOR_CURRENT_INPUT_SET,
+    CASE_INCOMPLETE,
     CanonicalArtifactStoreFactory,
     CanonicalNormalizerConfig,
     CanonicalNormalizerFactory,
@@ -103,6 +106,13 @@ _FACT_SPECS = (
         ),
     ),
 )
+_SOURCE_ROW_BY_TYPE = {
+    financial_type: source_row
+    for (financial_type, _), source_row in zip(
+        _FACT_SPECS, _SOURCE_ROWS, strict=True
+    )
+}
+_FACT_SPEC_BY_TYPE = dict(_FACT_SPECS)
 
 
 def _read_json(path: Path) -> dict:
@@ -384,6 +394,367 @@ def test_cache_uses_existing_artifact_lifecycle_and_tenant_scope(
         assert repository.generations() == ()
 
 
+def test_case_assembly_combines_three_documents_and_keeps_duplicate_like_facts(
+    tmp_path: Path,
+) -> None:
+    store, context = _store_context(tmp_path)
+    published = (
+        _publish_document(
+            store=store,
+            context=context,
+            document_id="document-a",
+            financial_types=(
+                "SECURITY_PURCHASE",
+                "SECURITY_DISPOSAL",
+                "DIVIDEND_INCOME",
+            ),
+            sidecar_artifact_id="g3-v2-case-a",
+            created_at="2026-08-08T10:00:00+00:00",
+        ),
+        _publish_document(
+            store=store,
+            context=context,
+            document_id="document-b",
+            financial_types=("DIVIDEND_INCOME", "TAX_WITHHELD"),
+            sidecar_artifact_id="g3-v2-case-b",
+            created_at="2026-08-08T10:01:00+00:00",
+        ),
+        _publish_document(
+            store=store,
+            context=context,
+            document_id="document-c",
+            financial_types=("TRANSACTION_CHARGE",),
+            sidecar_artifact_id="g3-v2-case-c",
+            created_at="2026-08-08T10:02:00+00:00",
+        ),
+    )
+    runtime = Gate4FinancialCaseRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+
+    assembled = runtime.rebuild_case(context=context)
+
+    assert assembled.status == CASE_COMPLETE_FOR_CURRENT_INPUT_SET
+    assert assembled.gate3_case_status == "ready_for_gate4_handoff"
+    assert [source.document_id for source in assembled.sources] == [
+        "document-a",
+        "document-b",
+        "document-c",
+    ]
+    assert all(source.status == "CURRENT_GATE3_V2" for source in assembled.sources)
+    assert len(assembled.facts) == 6
+    assert {
+        financial_type: sum(
+            fact["financial_type"] == financial_type
+            for fact in assembled.facts
+        )
+        for financial_type in _FACT_SPEC_BY_TYPE
+    } == {
+        "SECURITY_PURCHASE": 1,
+        "SECURITY_DISPOSAL": 1,
+        "DIVIDEND_INCOME": 2,
+        "TRANSACTION_CHARGE": 1,
+        "TAX_WITHHELD": 1,
+    }
+    dividends = [
+        fact
+        for fact in assembled.facts
+        if fact["financial_type"] == "DIVIDEND_INCOME"
+    ]
+    assert [_values(fact) for fact in dividends] == [
+        {
+            "date": "2026-03-12",
+            "amount": "8.00",
+            "currency": "USD",
+            "asset": "ACME",
+        },
+        {
+            "date": "2026-03-12",
+            "amount": "8.00",
+            "currency": "USD",
+            "asset": "ACME",
+        },
+    ]
+    assert len({fact["fact_id"] for fact in dividends}) == 2
+    assert {
+        fact["gate3_binding"]["canonical_binding"]["document_id"]
+        for fact in dividends
+    } == {"document-a", "document-b"}
+    assert {
+        fact["gate3_binding"]["financial_annotations_artifact_id"]
+        for fact in assembled.facts
+    } == {item[2].artifact_id for item in published}
+    for fact in assembled.facts:
+        _FACT_VALIDATOR.validate(fact)
+
+    assert runtime.read_case(context=context) == assembled
+    assert tuple(runtime.list_facts(context=context)) == assembled.facts
+    for financial_type, expected_count in (
+        ("SECURITY_PURCHASE", 1),
+        ("SECURITY_DISPOSAL", 1),
+        ("DIVIDEND_INCOME", 2),
+        ("TRANSACTION_CHARGE", 1),
+        ("TAX_WITHHELD", 1),
+    ):
+        assert len(
+            runtime.list_by_financial_type(
+                context=context,
+                financial_type=financial_type,
+            )
+        ) == expected_count
+
+
+def test_case_rebuild_is_order_independent_and_byte_deterministic(
+    tmp_path: Path,
+) -> None:
+    store, context = _store_context(tmp_path)
+    for document_id, financial_type, created_at in (
+        ("document-c", "TRANSACTION_CHARGE", "2026-08-08T10:02:00+00:00"),
+        ("document-a", "SECURITY_PURCHASE", "2026-08-08T10:00:00+00:00"),
+        ("document-b", "DIVIDEND_INCOME", "2026-08-08T10:01:00+00:00"),
+    ):
+        _publish_document(
+            store=store,
+            context=context,
+            document_id=document_id,
+            financial_types=(financial_type,),
+            sidecar_artifact_id=f"g3-v2-rebuild-{document_id}",
+            created_at=created_at,
+        )
+    runtime = Gate4FinancialCaseRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+
+    first = runtime.rebuild_case(context=context)
+    first_bytes = _canonical_json(first.facts)
+    first_ids = tuple(fact["fact_id"] for fact in first.facts)
+    assert [source.document_id for source in first.sources] == [
+        "document-a",
+        "document-b",
+        "document-c",
+    ]
+
+    runtime.clear_case_cache(context=context)
+    with pytest.raises(Gate4FinancialCaseCacheError) as missing:
+        runtime.read_case(context=context)
+    assert missing.value.code == "gate4_cache_missing"
+
+    rebuilt = runtime.rebuild_case(context=context)
+    assert tuple(fact["fact_id"] for fact in rebuilt.facts) == first_ids
+    assert _canonical_json(rebuilt.facts) == first_bytes
+    assert rebuilt == first
+
+
+def test_case_completeness_is_technical_and_reports_not_ready_documents(
+    tmp_path: Path,
+) -> None:
+    store, context = _store_context(tmp_path)
+    _publish_document(
+        store=store,
+        context=context,
+        document_id="document-ready",
+        financial_types=("SECURITY_PURCHASE",),
+        sidecar_artifact_id="g3-v2-incomplete-ready",
+        created_at="2026-08-08T10:00:00+00:00",
+    )
+    not_ready_context = replace(
+        context,
+        normalization_run_id="g4-case-document-not-ready-v1",
+    )
+    _activate_canonical(
+        store=store,
+        context=not_ready_context,
+        document_id="document-not-ready",
+        artifact_version=1,
+        expected_previous_version_id=None,
+        source_rows=(_SOURCE_ROW_BY_TYPE["DIVIDEND_INCOME"],),
+    )
+    runtime = Gate4FinancialCaseRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+
+    assembled = runtime.rebuild_case(context=context)
+
+    assert assembled.status == CASE_INCOMPLETE
+    assert assembled.gate3_case_status == "gate3_incomplete"
+    assert len(assembled.facts) == 1
+    states = {source.document_id: source for source in assembled.sources}
+    assert states["document-ready"].status == "CURRENT_GATE3_V2"
+    assert states["document-not-ready"].status == "NOT_READY"
+    assert states["document-not-ready"].reason_codes == (
+        "GATE3_ANNOTATIONS_MISSING",
+    )
+    assert states["document-not-ready"].canonical_version_id is not None
+    assert states["document-not-ready"].financial_annotations_artifact_id is None
+
+
+def test_new_current_document_makes_case_stale_until_whole_case_rebuild(
+    tmp_path: Path,
+) -> None:
+    store, context = _store_context(tmp_path)
+    for document_id, financial_type in (
+        ("document-a", "SECURITY_PURCHASE"),
+        ("document-b", "DIVIDEND_INCOME"),
+    ):
+        _publish_document(
+            store=store,
+            context=context,
+            document_id=document_id,
+            financial_types=(financial_type,),
+            sidecar_artifact_id=f"g3-v2-add-{document_id}",
+            created_at="2026-08-08T10:00:00+00:00",
+        )
+    runtime = Gate4FinancialCaseRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+    first = runtime.rebuild_case(context=context)
+    assert len(first.facts) == 2
+
+    _publish_document(
+        store=store,
+        context=context,
+        document_id="document-c",
+        financial_types=("TRANSACTION_CHARGE",),
+        sidecar_artifact_id="g3-v2-add-document-c",
+        created_at="2026-08-08T10:01:00+00:00",
+    )
+    with pytest.raises(Gate4FinancialCaseCacheError) as stale_case:
+        runtime.read_case(context=context)
+    assert stale_case.value.code == "gate4_cache_stale"
+    with pytest.raises(Gate4FinancialCaseCacheError) as stale_query:
+        runtime.list_facts(context=context)
+    assert stale_query.value.code == "gate4_cache_stale"
+
+    rebuilt = runtime.rebuild_case(context=context)
+    assert rebuilt.status == CASE_COMPLETE_FOR_CURRENT_INPUT_SET
+    assert len(rebuilt.facts) == 3
+    assert {
+        fact["financial_type"] for fact in rebuilt.facts
+    } == {
+        "SECURITY_PURCHASE",
+        "DIVIDEND_INCOME",
+        "TRANSACTION_CHARGE",
+    }
+
+
+def test_replaced_canonical_and_sidecar_replace_old_case_facts(
+    tmp_path: Path,
+) -> None:
+    store, context = _store_context(tmp_path)
+    _document_context, first_canonical, _first_sidecar = _publish_document(
+        store=store,
+        context=context,
+        document_id="document-a",
+        financial_types=("SECURITY_PURCHASE",),
+        sidecar_artifact_id="g3-v2-replace-a-v1",
+        created_at="2026-08-08T10:00:00+00:00",
+    )
+    runtime = Gate4FinancialCaseRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+    first = runtime.rebuild_case(context=context)
+    first_ids = {fact["fact_id"] for fact in first.facts}
+
+    replacement_context = replace(
+        context,
+        normalization_run_id="g4-case-document-a-v2",
+    )
+    replacement = _activate_canonical(
+        store=store,
+        context=replacement_context,
+        document_id="document-a",
+        artifact_version=2,
+        expected_previous_version_id=first_canonical.canonical_version_id,
+        source_rows=(_SOURCE_ROW_BY_TYPE["SECURITY_PURCHASE"],),
+    )
+    with pytest.raises(Gate4FinancialCaseCacheError) as canonical_stale:
+        runtime.read_case(context=context)
+    assert canonical_stale.value.code == "gate4_cache_stale"
+
+    _persist_sidecar(
+        store=store,
+        context=replacement_context,
+        document_id="document-a",
+        canonical_version_id=replacement.canonical_version_id,
+        artifact_id="g3-v2-replace-a-v2",
+        created_at="2026-08-08T10:01:00+00:00",
+        fact_specs=((
+            "SECURITY_PURCHASE",
+            _FACT_SPEC_BY_TYPE["SECURITY_PURCHASE"],
+        ),),
+    )
+    with pytest.raises(Gate4FinancialCaseCacheError) as sidecar_stale:
+        runtime.list_facts(context=context)
+    assert sidecar_stale.value.code == "gate4_cache_stale"
+
+    rebuilt = runtime.rebuild_case(context=context)
+    assert rebuilt.status == CASE_COMPLETE_FOR_CURRENT_INPUT_SET
+    assert {fact["fact_id"] for fact in rebuilt.facts}.isdisjoint(first_ids)
+    assert {
+        fact["gate3_binding"]["canonical_binding"]["canonical_version_id"]
+        for fact in rebuilt.facts
+    } == {replacement.canonical_version_id}
+
+
+def test_expired_document_follows_existing_lifecycle_without_ghost_facts(
+    tmp_path: Path,
+) -> None:
+    store, context = _store_context(tmp_path)
+    _publish_document(
+        store=store,
+        context=context,
+        document_id="document-a",
+        financial_types=("SECURITY_PURCHASE",),
+        sidecar_artifact_id="g3-v2-expire-a",
+        created_at="2026-08-08T10:00:00+00:00",
+    )
+    document_b_context, _canonical_b, _sidecar_b = _publish_document(
+        store=store,
+        context=context,
+        document_id="document-b",
+        financial_types=("DIVIDEND_INCOME",),
+        sidecar_artifact_id="g3-v2-expire-b",
+        created_at="2026-08-08T10:01:00+00:00",
+    )
+    runtime = Gate4FinancialCaseRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+    first = runtime.rebuild_case(context=context)
+    expired_ids = {
+        fact["fact_id"]
+        for fact in first.facts
+        if fact["gate3_binding"]["canonical_binding"]["document_id"]
+        == "document-b"
+    }
+    assert expired_ids
+
+    expired = store.expire_run(
+        document_b_context,
+        now=datetime.now(timezone.utc) + timedelta(days=8),
+    )
+    assert expired.records_changed > 0
+
+    current = runtime.read_case(context=context)
+    assert current.status == CASE_INCOMPLETE
+    assert current.gate3_case_status == "gate3_incomplete"
+    states = {source.document_id: source.status for source in current.sources}
+    assert states == {
+        "document-a": "CURRENT_GATE3_V2",
+        "document-b": "NOT_READY",
+    }
+    assert {fact["fact_id"] for fact in current.facts}.isdisjoint(expired_ids)
+    assert {
+        fact["gate3_binding"]["canonical_binding"]["document_id"]
+        for fact in current.facts
+    } == {"document-a"}
+
+
 def test_factory_closed_world_and_non_goal_guards() -> None:
     assert "Gate4FinancialCaseMaterializerFactory.create" in (
         MATERIALIZER_FACTORY_REQUIRED
@@ -392,6 +763,8 @@ def test_factory_closed_world_and_non_goal_guards() -> None:
     assert "ArtifactStore" in CACHE_FACTORY_REQUIRED
     assert "LLM" in MATERIALIZER_FORBIDDEN
     assert "second database" in CACHE_FORBIDDEN
+    assert "deduplicate" in CACHE_FORBIDDEN
+    assert "reconcile" in CACHE_FORBIDDEN
 
     materializer_source = (
         SERVICE_ROOT
@@ -411,6 +784,11 @@ def test_factory_closed_world_and_non_goal_guards() -> None:
     )
     assert "Gate3FinancialRolePackFactory.create" in materializer_source
     assert "Gate3NdflCaseReadinessFactory" in cache_source
+    assert "def rebuild_case(" in cache_source
+    assert "def read_case(" in cache_source
+    assert "repository.replace_case" in cache_source
+    assert cache_source.count("CREATE TABLE IF NOT EXISTS") == 2
+    assert cache_source.count("CREATE INDEX IF NOT EXISTS") == 3
     assert "self._store.sqlite_path" in cache_source
     assert "process.env" not in cache_source
     for forbidden_source_marker in (
@@ -427,6 +805,19 @@ def test_factory_closed_world_and_non_goal_guards() -> None:
 
 
 def _setup(tmp_path: Path):
+    store, context = _store_context(tmp_path)
+    document_id = "g4-runtime-document"
+    canonical = _activate_canonical(
+        store=store,
+        context=context,
+        document_id=document_id,
+        artifact_version=1,
+        expected_previous_version_id=None,
+    )
+    return store, context, document_id, canonical
+
+
+def _store_context(tmp_path: Path):
     store = ArtifactStoreFactory(
         ArtifactStoreConfig(
             mode="sqlite",
@@ -441,15 +832,47 @@ def _setup(tmp_path: Path):
         workspace_model_id="broker-reports-ndfl",
         allow_private=True,
     )
-    document_id = "g4-runtime-document"
+    return store, context
+
+
+def _publish_document(
+    *,
+    store,
+    context: ArtifactAccessContext,
+    document_id: str,
+    financial_types: tuple[str, ...],
+    sidecar_artifact_id: str,
+    created_at: str,
+):
+    document_context = replace(
+        context,
+        normalization_run_id=f"g4-case-{document_id}-v1",
+    )
+    fact_specs = tuple(
+        (financial_type, _FACT_SPEC_BY_TYPE[financial_type])
+        for financial_type in financial_types
+    )
     canonical = _activate_canonical(
         store=store,
-        context=context,
+        context=document_context,
         document_id=document_id,
         artifact_version=1,
         expected_previous_version_id=None,
+        source_rows=tuple(
+            _SOURCE_ROW_BY_TYPE[financial_type]
+            for financial_type in financial_types
+        ),
     )
-    return store, context, document_id, canonical
+    sidecar = _persist_sidecar(
+        store=store,
+        context=document_context,
+        document_id=document_id,
+        canonical_version_id=canonical.canonical_version_id,
+        artifact_id=sidecar_artifact_id,
+        created_at=created_at,
+        fact_specs=fact_specs,
+    )
+    return document_context, canonical, sidecar
 
 
 def _activate_canonical(
@@ -459,9 +882,10 @@ def _activate_canonical(
     document_id: str,
     artifact_version: int,
     expected_previous_version_id: str | None,
+    source_rows: tuple[str, ...] = _SOURCE_ROWS,
 ):
     retention = build_retention_policy(mode="api_smoke")
-    source_ref = f"g4-runtime-source-{artifact_version}"
+    source_ref = f"g4-runtime-source-{document_id}-{artifact_version}"
     store.put_record(
         ArtifactRecord(
             artifact_id=source_ref,
@@ -473,7 +897,9 @@ def _activate_canonical(
             normalization_run_id=context.normalization_run_id,
             document_id=document_id,
             source_file_ref={
-                "openwebui_file_id": f"synthetic-g4-file-{artifact_version}"
+                "openwebui_file_id": (
+                    f"synthetic-g4-file-{document_id}-{artifact_version}"
+                )
             },
             visibility="private_case",
             storage_backend="project_artifact_payload",
@@ -498,7 +924,7 @@ def _activate_canonical(
         document={
             "container_format": "html_text",
             "sha256": hashlib.sha256(
-                f"g4-runtime-{artifact_version}".encode("utf-8")
+                f"g4-runtime-{document_id}-{artifact_version}".encode("utf-8")
             ).hexdigest(),
             "declared_mime_type": "text/html",
         },
@@ -512,7 +938,7 @@ def _activate_canonical(
                             "text": text,
                             "source_location": {"block_index": index},
                         }
-                        for index, text in enumerate(_SOURCE_ROWS, start=1)
+                        for index, text in enumerate(source_rows, start=1)
                     ]
                 }
             }
@@ -548,19 +974,20 @@ def _persist_sidecar(
     artifact_id: str,
     created_at: str,
     purchase_date: str | None = "10.01.2026",
+    fact_specs: tuple = _FACT_SPECS,
 ) -> ArtifactRecord:
     envelope = CanonicalReaderFactory(
         store=store,
         read_enabled=True,
     ).create().read_active_envelope(document_id, context)
     nodes = envelope.artifact["nodes"]
-    assert len(nodes) >= len(_FACT_SPECS)
+    assert len(nodes) >= len(fact_specs)
     annotations = []
-    for index, (financial_type, role_specs) in enumerate(_FACT_SPECS):
+    for index, (financial_type, role_specs) in enumerate(fact_specs):
         target = {"kind": "node", "node_id": nodes[index]["node_id"]}
         roles = []
         for role, literal in role_specs:
-            if index == 0 and role == "date":
+            if financial_type == "SECURITY_PURCHASE" and role == "date":
                 literal = purchase_date
             if literal is None:
                 roles.append({"role": role, "status": "missing"})

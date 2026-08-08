@@ -346,11 +346,12 @@ def test_g41_is_contract_only_and_reuses_existing_openwebui_scope_lifecycle() ->
         "ArtifactAccessContext",
         "ArtifactStore/ArtifactResolver",
         "OpenWebUI-injected context",
-        "Next allowed Goal:\n`G4.3",
+        "Next allowed Goal:\n`G4.4",
     ):
         assert marker in contract
     assert "G4.1_CLOSED" in pipeline
     assert "Gate 4 Financial Case Fact Contract" in authority
+    assert "Gate 4 Multi-Document Case Assembly" in authority
     assert "Historical Financial Domain Consumer" in authority
     assert "BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md" in handoff
     assert "broker_reports_gate4_financial_case_fact_v1" not in ARTIFACT_TYPES

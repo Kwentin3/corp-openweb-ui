@@ -122,6 +122,7 @@ redefined as a financial non-event.
 for its document, materializes it through the sole materializer, then replaces
 only that document's case-scoped cache rows atomically. It never iterates or
 assembles the case's other documents and never changes upstream artifacts.
+G4.3 adds whole-case orchestration without changing this G4.2 operation.
 
 ```text
 same exact sidecars + same active canonical + same G4.1 contract
@@ -133,8 +134,9 @@ same exact sidecars + same active canonical + same G4.1 contract
 `rebuild_artifact` for an exact input reconstructs the same facts without an
 LLM or broker-format read. A cache with no stored generation is
 `gate4_cache_missing`, not evidence that no financial facts exist. Case-scoped
-reads cover only materialized current generations and make no multi-document
-completeness claim; case assembly remains G4.3.
+reads now require exact equality with the current eligible generation set.
+Whole-case rebuild, derived completeness and the source-set result belong to
+[Gate 4 Case Assembly v1](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md).
 
 ## Freshness and lifecycle
 
@@ -162,7 +164,8 @@ in the generated `broker_reports_gate1_pipe` package bundle. They use Python
 standard-library SQLite and the package's existing modules only. No workspace
 path import, new dependency or environment variable is required.
 
-G4.2 provides an internal factory/runtime slice. It does not add a new
+G4.2 provides an internal factory/runtime slice. G4.3 reuses this same bundled
+slice and adds no second materializer or storage surface. Neither adds a new
 OpenWebUI user action, REST API or second Workspace Model.
 
 ## Representative proof
@@ -181,9 +184,10 @@ handling, canonical-version stale handling and ArtifactStore case purge.
 
 ## Non-goals
 
-G4.2 does not implement multi-document reconciliation, semantic deduplication,
-cross-fact relations, commission/tax/trade links, FIFO, cost basis, tax logic,
-conflict resolution, a relation LLM pass, Gate 5, declaration logic, graph DB,
-RAG, embeddings or a generic query API.
+G4.2 does not implement multi-document assembly or reconciliation, semantic
+deduplication, cross-fact relations, commission/tax/trade links, FIFO, cost
+basis, tax logic, conflict resolution, a relation LLM pass, Gate 5,
+declaration logic, graph DB, RAG, embeddings or a generic query API. G4.3 now
+owns assembly only and preserves every separate fact.
 
-Next allowed Goal: `G4.3 — multi-document case assembly`.
+Next allowed Goal: `G4.4 — минимальный домен связей`.

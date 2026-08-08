@@ -288,8 +288,8 @@ def main() -> None:
             },
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.29.0-ndfl-gate4-sql-v1-bundled",
-            package_version="gate1_ndfl_gate4_sql_v1",
+            version="0.30.0-ndfl-gate4-case-v1-bundled",
+            package_version="gate1_ndfl_gate4_case_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )
