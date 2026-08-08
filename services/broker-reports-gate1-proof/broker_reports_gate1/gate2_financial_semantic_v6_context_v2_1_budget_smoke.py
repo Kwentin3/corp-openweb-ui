@@ -312,6 +312,9 @@ def build_financial_semantic_v6_context_v2_1_budget_smoke_plan(
     fixture: Gate2FinancialSemanticV6QualificationFixture,
     outcome_audit_manifest: dict[str, Any],
     registry: Gate2FinancialEvidenceRegistrySnapshot,
+    provider_profile_resolver: Callable[
+        [str], Gate2ProviderProfile
+    ] = gate2_provider_profile,
 ) -> Gate2FinancialSemanticV6ContextV21BudgetSmokePlan:
     return (
         Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory(
@@ -323,6 +326,7 @@ def build_financial_semantic_v6_context_v2_1_budget_smoke_plan(
                     registry=registry
                 )
             ),
+            provider_profile_resolver=provider_profile_resolver,
         ).create(
             fixture=fixture,
             outcome_audit_manifest=outcome_audit_manifest,
@@ -350,15 +354,20 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator:
         safe_checkpoint: (
             Callable[[str, dict[str, Any]], None] | None
         ) = None,
+        provider_profile_resolver: Callable[
+            [str], Gate2ProviderProfile
+        ] = gate2_provider_profile,
     ) -> None:
         validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(
-            plan
+            plan,
+            provider_profile_resolver=provider_profile_resolver,
         )
         rebuilt = (
             build_financial_semantic_v6_context_v2_1_budget_smoke_plan(
                 fixture=fixture,
                 outcome_audit_manifest=outcome_audit_manifest,
                 registry=registry,
+                provider_profile_resolver=provider_profile_resolver,
             )
         )
         if rebuilt != plan:
@@ -407,6 +416,7 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator:
         self.consume_slot = consume_slot
         self.private_checkpoint = private_checkpoint
         self.safe_checkpoint = safe_checkpoint
+        self.provider_profile_resolver = provider_profile_resolver
         self._cases = {
             case_id: all_semantic_cases[case_id]
             for case_id in selected_case_ids
@@ -434,11 +444,12 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator:
                 slot=slot,
                 fixture=self.fixture,
                 outcome_audit_manifest=self.outcome_audit_manifest,
+                provider_profile_resolver=self.provider_profile_resolver,
             )
         )
         projection = self._projector(
             case=case,
-            provider_profile=gate2_provider_profile(
+            provider_profile=self.provider_profile_resolver(
                 slot.provider_profile_id
             ),
             exact_model_id=slot.exact_model_id,
@@ -450,6 +461,7 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator:
             financial_semantic_v6_context_v2_1_budget_smoke_operation_identity(
                 plan=self.plan,
                 slot=slot,
+                provider_profile_resolver=self.provider_profile_resolver,
             )
         )
         if not slot.immutable_model_id_proven:
@@ -650,11 +662,12 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator:
                 slot=slot,
                 fixture=self.fixture,
                 outcome_audit_manifest=self.outcome_audit_manifest,
+                provider_profile_resolver=self.provider_profile_resolver,
             )
         )
         projection = self._projector(
             case=case,
-            provider_profile=gate2_provider_profile(
+            provider_profile=self.provider_profile_resolver(
                 slot.provider_profile_id
             ),
             exact_model_id=slot.exact_model_id,
@@ -666,6 +679,7 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator:
             financial_semantic_v6_context_v2_1_budget_smoke_operation_identity(
                 plan=self.plan,
                 slot=slot,
+                provider_profile_resolver=self.provider_profile_resolver,
             )
         )
         return self._preflight_failure(
@@ -696,11 +710,12 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator:
                 slot=slot,
                 fixture=self.fixture,
                 outcome_audit_manifest=self.outcome_audit_manifest,
+                provider_profile_resolver=self.provider_profile_resolver,
             )
         )
         projection = self._projector(
             case=case,
-            provider_profile=gate2_provider_profile(
+            provider_profile=self.provider_profile_resolver(
                 slot.provider_profile_id
             ),
             exact_model_id=slot.exact_model_id,
@@ -712,6 +727,7 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator:
             financial_semantic_v6_context_v2_1_budget_smoke_operation_identity(
                 plan=self.plan,
                 slot=slot,
+                provider_profile_resolver=self.provider_profile_resolver,
             )
         )
         exc = Gate2SourceFactRuntimeError(

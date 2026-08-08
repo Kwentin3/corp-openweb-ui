@@ -1,0 +1,13 @@
+{
+  "schema_version": "broker_reports_gate3_g3_4c_private_evidence_manifest_safe_v1",
+  "private_evidence_available": true,
+  "private_evidence_location_committed": false,
+  "file_count": 31,
+  "total_bytes": 151988963,
+  "manifest_sha256": "6272bd9db56bd87260594d1203413f86d8399c29f86389efc585152c2a034bd5",
+  "contains_exact_model_inputs": true,
+  "contains_raw_model_outputs": true,
+  "contains_validation_records": true,
+  "contains_manual_adjudication": true,
+  "source_or_customer_values_in_safe_manifest": false
+}

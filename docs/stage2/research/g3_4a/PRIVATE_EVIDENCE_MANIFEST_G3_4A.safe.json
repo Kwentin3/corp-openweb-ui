@@ -1,0 +1,23 @@
+{
+  "schema_version": "broker_reports_gate3_projection_audit_private_manifest_safe_v1",
+  "goal": "G3.4A",
+  "private_bundle_outside_git": true,
+  "private_bundle_manifest_sha256": "2b26d0283e3bedb631bd2eb0fb5f582926f491951947415444d400bcdffca0da",
+  "store_byte_identical_after_read": true,
+  "files": [
+    {"name": "01_context_breakdown.private.json", "bytes": 87074, "sha256": "513248a634cd15de965e48e2585874b712cc7918f7d15d20b9c7f07c459fd8c9"},
+    {"name": "02_compact_input.private.json", "bytes": 27247, "sha256": "208602a7b144dbe21b7d73466753601c55639c5fa298a078509ff026c192f530"},
+    {"name": "02_compact_input.readable.private.md", "bytes": 27160, "sha256": "6f0a8459685953d83c2467ff9d90d2ae5231f29f02f6744d7f281975909f9a20"},
+    {"name": "03_large_input.private.json", "bytes": 385806, "sha256": "a4b8270d0aabfcd344afba9dcaed68adb7149357d89789e4a9e166ed731ca224"},
+    {"name": "03_large_input.readable.private.md", "bytes": 385703, "sha256": "fddac2e3a89e016c8efafb091030a744f7c3ba0a0ebdcc1c1d05a1f96450dbaa"},
+    {"name": "04_repo_projection.private.json", "bytes": 45659387, "sha256": "551249cca24f1c27a11affcb8916e582192a3fa0b55347012e0e05d3e6a028c4"},
+    {"name": "04_repo_projection.readable.private.md", "bytes": 4268880, "sha256": "630ab5b1d798b4df3cffd996dbd404c0fcba91b13256443e84f05436187c522a"},
+    {"name": "05_provider_schema_exact.private.json", "bytes": 1830, "sha256": "69101126b855948be4472180a9a3223ef09abfccfdbbcc2f9a1b5169bb81c4f9"},
+    {"name": "06_alias_inventory.private.json", "bytes": 30090, "sha256": "97cd074b9056cc3e5df9def98d5022f6e17383ed3b5f1b59572013c5795cee87"},
+    {"name": "07_table_expansion_examples.private.json", "bytes": 2264, "sha256": "84f2450dab52273bc0c09096350245067197159919a5b52c9a6a35da5e17a11e"},
+    {"name": "07_table_expansion_examples.readable.private.md", "bytes": 12059, "sha256": "e057d2a839c5708a73671731e23bb737b262f2cdedd83228620e6c10440a04c8"},
+    {"name": "08_size_matrix.private.json", "bytes": 1907, "sha256": "edda7c0dc63c99bf6a24bd8b4c655db87405c7c59fa725fff97d2033f2bc9e19"},
+    {"name": "09_redundancy_findings.private.json", "bytes": 518, "sha256": "d50da4595f81a8bb323e4456cc013308fc7c34eecc71cd369e2da19a260d5e7e"},
+    {"name": "10_design_options.private.json", "bytes": 759, "sha256": "16fdbfa9118e6bfbb15da76fd36179f8023212191013229dcc101d10fa1c4358"}
+  ]
+}

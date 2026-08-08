@@ -1,0 +1,23 @@
+{
+  "schema_version": "broker_reports_gate3_g3_4d_live_blocker_safe_v1",
+  "blocking_condition": "exact_approved_model_not_stably_published_by_openwebui",
+  "execution_preflight_attempts": 3,
+  "provider_submissions": 0,
+  "provider_responses": 0,
+  "model_catalog_stability_probe": {
+    "reads": 8,
+    "target_present": 7,
+    "target_absent": 1
+  },
+  "fallback_used": false,
+  "unapproved_model_used": false,
+  "provider_route_changed": false,
+  "pre_adjudicated_positive_documents": {
+    "checked": 2,
+    "available_in_active_authorized_store": 0,
+    "lookup_outcome": "ArtifactStoreError"
+  },
+  "compact_live_result": "NOT_RUN",
+  "chunk_live_result": "NOT_RUN",
+  "g3_4_status": "NOT_READY"
+}

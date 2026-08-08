@@ -15,8 +15,10 @@
   },
   "authorized_successor_repository_hashes": {
     "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_choice.py": "23742ea70d3541126585452e82dc458a5adc772d3e3665d2f4f2cabd6688f12b",
-    "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_evidence.py": "70a004390426d0312dd22406b3c64960ff4f456c17cbf1bfeb402494c935bfcd",
-    "docs/stage2/contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md": "d9b46dcebb99f5572a786fb22119dd76381be8798e1ec993747bbf52a594044a"
+    "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_evidence.py": "637941b0f5672aac9ab7a185bf064aa9ef32995bb41ddf3de132435ac7e54d33",
+    "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_requests.py": "6150109843f09f142ed6c3b125448690e3540eeb23c016fe7d2f5817e6da7726",
+    "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py": "a3b228b96869b607a5c08da625b1324a7457f190250981b695c25bfc3a90dc69",
+    "docs/stage2/contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md": "07e640184382127865d4d1d5283550699782130debbb74828914874f783fd889"
   },
   "contracts": {
     "request_schema": "broker_reports_type_first_request_v1",

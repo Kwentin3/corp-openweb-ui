@@ -1,0 +1,63 @@
+{
+  "schema_version": "broker_reports_gate3_corrected_terminal_receipt_v1",
+  "goal": "G3.7C",
+  "goal_g3_7c": "COMPLETED",
+  "g3_system_status": "READY_FOR_DOWNSTREAM_MVP",
+  "current_case_status": "INCOMPLETE_2_OF_16_DOCUMENTS_PROCESSED",
+  "current_case": {
+    "documents_total": 16,
+    "gate3_ready_documents": 2,
+    "gate3_unprocessed_documents": 14,
+    "gate4_handoff_ready": false,
+    "prepare_declaration_allowed": false,
+    "is_gate3_system_acceptance": false
+  },
+  "small_document_e2e": "PASS",
+  "large_chunked_document_e2e": "PASS",
+  "semantic_quality": "SUFFICIENT_FOR_MVP",
+  "financial_dictionary_owner": "ONE",
+  "financial_dictionary_identity": "broker-reports-financial-labels@1.0.0",
+  "parallel_semantic_classifier": "NONE",
+  "strict_output_contract": "PASS",
+  "persistence": "PASS",
+  "gate2_mutation": "NONE",
+  "exact_model_context_auditable": true,
+  "sparse_positive_only": true,
+  "deterministic_merge_only": true,
+  "known_unsupported_cases": [
+    "RETURN_OF_CAPITAL",
+    "STOCK_DISTRIBUTION_EVENT",
+    "REPO_EVENT",
+    "SECURITIES_CUSTODY_CHARGE",
+    "TAX_SETTLEMENT_OR_REFUND"
+  ],
+  "known_unmeasured_labels": [
+    "SECURITIES_LENDING_INCOME",
+    "ACCRUED_COUPON_COMPONENT"
+  ],
+  "what_gate3_guarantees": [
+    "CANONICAL_ARTIFACT_V1_ONLY_NORMALIZED_INPUT",
+    "BOUNDED_STRUCTURAL_CHUNKS",
+    "ONE_MANAGED_FINANCIAL_DICTIONARY",
+    "LLM_ONLY_SEMANTIC_CLASSIFIER",
+    "STRICT_FAIL_CLOSED_OUTPUT",
+    "DETERMINISTIC_NON_SEMANTIC_MERGE",
+    "IMMUTABLE_SEPARATE_FINANCIAL_ANNOTATIONS",
+    "EXACT_CANONICAL_AND_DICTIONARY_BINDING"
+  ],
+  "what_gate3_does_not_guarantee": [
+    "CURRENT_CASE_COMPLETION",
+    "GATE4_READINESS",
+    "TAX_CALCULATION",
+    "COST_BASIS",
+    "FIFO",
+    "DECLARATION_GENERATION",
+    "UNIVERSAL_RECALL",
+    "ALL_LABELS_OBSERVED"
+  ],
+  "kiss_check": "PASS",
+  "gate4_started": false,
+  "product_activation": false,
+  "supersedes_terminal_scope": "G3.7_NOT_READY_CASE_COMPLETION_SCOPE",
+  "next_candidate": "GATE4_SEPARATE_PROGRAM"
+}

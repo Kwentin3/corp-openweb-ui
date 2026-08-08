@@ -1,62 +1,140 @@
 # Broker Reports Gate 3 Handoff v1
 
-Status: `CURRENT_BOUNDARY`; Gate 3 implementation is `NOT_STARTED`
+Status: `CURRENT SUPPORTING DOC`
 
-Date: 2026-08-06
+Gate 3 status: `CLOSED`
 
-This document defines only the boundary prepared by Gate 2. It does not
-authorize Wave 2, global canonical reads, a product cutover or financial logic.
+Updated: 2026-08-08
 
-## Input contract
+This is the short recovery document for an agent approaching Gate 4 without
+conversation history. It explains the accepted handoff; it does not own gate
+numbering. The sole pipeline authority is
+[Broker Reports Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md).
+
+## Mental model
 
 ```text
-CanonicalReaderFactory.create
--> active validated CanonicalArtifactV1
--> future task-specific LLM-friendly projection
--> Gate 3
+Gate 1
+-> stores the authenticated source and its stable identity
+
+Gate 2
+-> creates and stores an immutable validated CanonicalArtifactV1 version
+
+NDFL workflow
+-> selects one exact canonical manifest/version by stable identity
+
+Gate 3
+-> reads that version through CanonicalReaderFactory.create
+-> creates structural chunks when needed
+-> selects only known financial labels
+-> stores a separate immutable FinancialAnnotationsV1 sidecar
+
+Gate 4
+-> next separate stage; not designed here
 ```
 
-The caller supplies an authenticated document identity/context to the public
-reader. It does not supply PDF, HTML, CSV, XLSX, parser units or a format flag.
-The future Gate 3 adapter may consume ordered containers, nodes, tables, issues
-and provenance from the reader result.
+## What is closed
 
-## Guarantees already provided by Gate 2
+Gate 3 financial semantic labeling is closed and active only in the NDFL
+product route. It provides a deterministic LLM-readable projection, bounded
+structural chunks, sparse dictionary-bound labeling, closed validation,
+deterministic non-semantic merge and immutable sidecar persistence.
 
-- one versioned public schema and one reader;
-- deterministic order and common table-cell semantics;
-- validated source/root/container/node references;
-- fail-closed meaningful-content completeness;
-- immutable version publication and atomic active pointer;
-- component and root verification after reconstruction;
-- compact provenance linked to the authenticated source;
-- explicit conflicts, ambiguities and unsupported-feature issues;
-- no provider result promoted directly to canonical truth.
+Gate 3 does not mutate Gate 2, calculate tax, determine cost basis/FIFO,
+reconcile multiple documents, prepare a declaration or implement Gate 4. Each
+document is labeled independently. An omitted annotation is not a negative
+claim.
 
-`CanonicalArtifactV1` is the source of truth for the normalized non-financial
-machine projection. Original bytes and Full Evidence remain audit truth behind
-their authenticated Gate 1 boundary; Gate 3 follows provenance through an
-authorized service when investigation is required and must not read private
-evidence directly.
+## Exact Gate 2 -> Gate 3 handoff
 
-## Gate 3 obligations
+```text
+NdflWorkflowFactory.create().run_product_path(manifest_ref, context)
+-> CanonicalReaderFactory.create().read_envelope(exact manifest_ref, context)
+-> require VALIDATED or the exact already-ACTIVE canonical version
+-> compare-and-swap activation when required
+-> pass only document_id + authenticated ArtifactAccessContext to Gate 3
+-> Gate3ChunkBatchLabelingFactory.create
+-> Gate3FinancialAnnotationsPersistenceFactory.create
+-> FinancialAnnotationsV1 bound to the exact canonical version
+-> verify canonical version/root/payload unchanged after Gate 3
+```
 
-Gate 3 must create and version its own task-specific projection/semantic
-contract without modifying canonical source meaning. It must preserve links to
-canonical version and provenance, propagate blocking issues, and treat
-conflicts/ambiguities as unresolved rather than facts.
+The handoff is persisted artifact identity. It is never “Gate 2 passes text to
+Gate 3”, a caller-supplied canonical payload, chat completion or Pipe-to-Pipe
+transfer. Gate 3 does not read original formats, parser units, physical layouts
+or private evidence.
 
-Gate 3 must not:
+If active canonical version A changes to B during labeling, persistence fails.
+If annotations A already exist when B becomes active, annotations A are stale
+for current-version use and B requires its own annotations.
 
-- parse the original file or branch on its format;
-- reconstruct PDF order, XLSX sheets or source tables;
-- call VLM/table proposals as authority;
-- normalize document structure again;
-- interpret literal labels, headings, cells, amounts or dates as already
-  classified financial semantics;
-- bypass `CanonicalReaderFactory`, read physical layouts or use silent legacy
-  fallback.
+## Managed financial dictionary
 
-The existing `render_neutral_canonical_projection` helper proves format-neutral
-traversal only. It is not the future LLM-friendly product projection and must
-not be promoted into Gate 3 without a separate contract and authorization.
+The sole meaning owner is:
+
+```text
+broker-reports-financial-labels@<version>
+current published identity: broker-reports-financial-labels@1.0.0
+```
+
+Operator path:
+
+```text
+OpenWebUI -> Workspace -> Skills -> Broker Reports Financial Labels
+```
+
+The runtime loads the pinned package resource through
+`Gate3FinancialLabelDictionaryFactory.create`. Generated Skill and Tool assets
+are exact projections of that owner:
+
+- Skill stable ID: `broker-reports-financial-labels`;
+- Tool stable ID: `broker_reports_financial_label_dictionary`;
+- Tool method: `load_financial_label_dictionary`.
+
+Do not create a second definitions copy in Python, Prompt, Skill, Tool or
+Knowledge/RAG. Display names are UI text, not lookup or routing authority.
+
+## NDFL product topology
+
+| Role | Stable identity | Rule |
+| --- | --- | --- |
+| user entrypoint | Workspace Model `broker-reports-ndfl` | the one user-facing NDFL product |
+| workflow | `broker-reports-ndfl` | owns the exact Gate 2 -> Gate 3 decision |
+| technical base Pipe | `broker_reports_gate1_pipe` | internal OpenWebUI runtime base, not a second product |
+| dictionary | `broker-reports-financial-labels@1.0.0` | one versioned meaning owner |
+
+## What Gate 4 may rely on
+
+Gate 4 may rely on a validated `CanonicalArtifactV1`, its exact immutable
+identity and a matching immutable `FinancialAnnotationsV1`. It may treat sparse
+annotations only as positive known-label claims.
+
+Gate 4 must not reinterpret Gate 3 as tax calculation, infer absence from an
+omitted label, attach annotations A to canonical version B, mutate either
+upstream artifact, bypass the canonical reader, duplicate the financial
+dictionary or reimplement Gate 3 labeling.
+
+## Direct contracts and audit evidence
+
+Read direct upstream contracts before implementation:
+
+- [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md);
+- [Canonical Artifact v1](./BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md);
+- [Canonical Reader v1](./BROKER_REPORTS_CANONICAL_READER.v1.md);
+- [Gate 3 Minimal Labeling v1](./BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md);
+- [FinancialAnnotationsV1 schema](./BROKER_REPORTS_FINANCIAL_ANNOTATIONS.v1.schema.json);
+- [Financial Label Dictionary v1](./BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v1.md).
+
+Use reports only when auditing evidence:
+
+- [corrected terminal Gate 3 proof](../../reports/2026-08-07/BROKER_REPORTS_GATE3_CORRECTED_TERMINAL_G3_7C.report.md);
+- [real NDFL product-path proof](../../reports/2026-08-07/BROKER_REPORTS_GATE3_REAL_NDFL_PRODUCT_PATH_G3_C5.report.md);
+- [managed dictionary OpenWebUI binding](../../reports/2026-08-07/BROKER_REPORTS_GATE3_MANAGED_DICTIONARY_OPENWEBUI_BINDING_G3_C1.report.md).
+
+The actual `broker-reports-ndfl` product route end to end was exercised by the
+G3.C5 proof; this is evidence for the one stable-ID route, not authority for a
+second product or for Gate 4.
+
+The earlier G3.7 terminal report is superseded by G3.7C. All dated reports are
+evidence for their own revision and scope; none can override the current
+pipeline contract.

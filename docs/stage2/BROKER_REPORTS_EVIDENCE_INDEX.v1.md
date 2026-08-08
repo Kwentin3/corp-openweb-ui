@@ -1,8 +1,16 @@
 # Broker Reports Evidence Index v1
 
-Status: canonical evidence classification
+Status: `HISTORICAL_EVIDENCE_INDEX_SUPERSEDED_FOR_CURRENT_AUTHORITY`
 
 Effective date: 2026-08-03
+
+This index preserves the evidence classification at its effective date. Its
+`CANONICAL_CURRENT` labels are historical and do not name current pipeline
+authority. Use
+[Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) for current
+gate meaning and
+[Architecture Authorities](contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md)
+for the current documentation classification.
 
 ## Current authority
 

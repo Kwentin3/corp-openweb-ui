@@ -1,10 +1,17 @@
 # Broker Reports Domain Map v1
 
-Status: normative architecture map
+Status: `SUPERSEDED_FOR_GATE_PLACEMENT_AND_GATE3_STATUS`
 
 Effective date: 2026-07-31
 
 Scope: Broker Reports / NDFL, Gate 1 through Gate 4
+
+This map is a preserved pre-Gate-3 owner snapshot. Its case-assembly Gate 3
+assignment and “normative” wording are historical. Current gate meaning is
+owned only by
+[Pipeline Gates v1](../contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md); current
+implementation ownership is in
+[Architecture Authorities](../contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md).
 
 ## Precedence and reading rule
 

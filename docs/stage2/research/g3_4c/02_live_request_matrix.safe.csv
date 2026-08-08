@@ -1,0 +1,13 @@
+document,chunk_ordinal,structural_kind,row_start,row_end,chunk_chars,aliases,input_tokens,output_tokens,total_tokens,duration_ms,validation,validated_annotations,dictionary_injections,schema_enum_visible,raw_schema_version_exact
+compact_html,1,whole_document,,,15042,612,10386,107,11940,11656,rejected,0,1,true,true
+large_csv,1,table_rows,1,240,59917,3064,41916,378,46529,25062,validated,10,1,true,true
+large_csv,2,table_rows,241,487,59992,2717,42863,4508,54478,52250,validated,129,1,true,true
+large_csv,3,table_rows,488,761,59964,2106,40644,986,49050,41281,validated,46,1,true,true
+large_csv,4,table_rows,762,980,59775,3081,44459,241,47195,17203,validated,9,1,true,true
+large_csv,5,table_rows,981,1197,59861,2860,43500,32,44001,6531,validated,0,1,true,true
+large_csv,6,table_rows,1198,1255,21738,290,9580,32,10322,6797,validated,0,1,true,true
+repo_xlsx,1,whole_table,,,4038,106,3462,32,4670,7141,validated,0,1,true,true
+repo_xlsx,28,table_rows,1,488,59921,2682,48522,32,49028,5968,validated,0,1,true,true
+repo_xlsx,31,table_rows,1499,2025,59999,2635,47889,26,48340,5797,validated,0,1,true,true
+repo_xlsx,32,table_rows,2026,2555,59978,2650,47793,23,48222,5547,validated,0,1,true,true
+repo_xlsx,33,table_rows,2556,2560,825,25,1765,26,2621,5859,validated,0,1,true,true

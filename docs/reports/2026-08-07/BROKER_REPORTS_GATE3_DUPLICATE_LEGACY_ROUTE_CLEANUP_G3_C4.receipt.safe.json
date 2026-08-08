@@ -1,0 +1,47 @@
+{
+  "schema_version": "broker_reports_gate3_duplicate_legacy_route_cleanup_g3_c4_receipt_v1",
+  "goal": "G3.C4",
+  "status": "PASS",
+  "date": "2026-08-07",
+  "disabled_live_routes": [
+    "broker_reports_gate1_normalizer_action",
+    "broker_reports_gate2_domain_source_fact_pipe",
+    "broker_reports_gate2_source_fact_pipe"
+  ],
+  "preserved_live_components": {
+    "broker_reports_gate1_pipe": "ndfl_base_pipe",
+    "broker_reports_private_intake_action": "server_attested_private_intake",
+    "broker_reports_gate2_economy_qualification_action": "qualification_only_not_global_not_attached_to_ndfl"
+  },
+  "owner_counts": {
+    "gate2_canonical_reader": 1,
+    "gate3_projection": 1,
+    "gate3_label_and_merge": 1,
+    "financial_label_meaning": 1,
+    "provider_route": 1,
+    "financial_annotations_persistence": 1,
+    "ndfl_orchestration": 1,
+    "ndfl_user_entrypoint": 1
+  },
+  "live_acceptance": {
+    "legacy_functions_inactive": 3,
+    "required_functions_active": 2,
+    "user_facing_ndfl_models": 1,
+    "visible_product_route_ids": [
+      "broker-reports-ndfl"
+    ],
+    "visible_internal_runtime_base_ids": [
+      "broker_reports_gate1_pipe"
+    ],
+    "duplicate_runtime_owners": "NONE",
+    "deleted_records": 0,
+    "provider_calls": 0,
+    "knowledge_rag": "NONE"
+  },
+  "tests": {
+    "passed": 21,
+    "failed": 0
+  },
+  "private_values_included": false,
+  "customer_content_included": false
+}

@@ -33,6 +33,7 @@ from broker_reports_gate1.gate2_financial_semantic_v6_context_v2_1_budget_smoke 
 from broker_reports_gate1.gate2_financial_semantic_v6_context_v2_1_budget_smoke_plan import (  # noqa: E402,E501
     BUDGET_SMOKE_MAXIMUM_PROVIDER_SUBMISSIONS,
     financial_semantic_v6_context_v2_1_budget_smoke_operation_identity,
+    goal12_historical_provider_profile,
     resolve_financial_semantic_v6_context_v2_1_budget_smoke_expected_answer,
     validate_financial_semantic_v6_context_v2_1_budget_smoke_plan,
 )
@@ -42,11 +43,6 @@ from broker_reports_gate1.gate2_financial_semantic_v6_outcome_audit import (  # 
 from broker_reports_gate1.gate2_financial_semantic_v6_qualification import (  # noqa: E402,E501
     Gate2FinancialSemanticV6QualificationFixtureFactory,
 )
-from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
-    gate2_provider_profile,
-)
-
-
 REPORT_ROOT = REPO_ROOT / "docs" / "reports" / "2026-07-29"
 SAFE_PLAN_PATH = (
     REPORT_ROOT
@@ -68,7 +64,6 @@ FORBIDDEN = (
     "include provider output, credentials, filesystem paths or private "
     "mapping material, or claim that the smoke ran"
 )
-
 _FORBIDDEN_ARTIFACT_KEYS = frozenset(
     {
         "api_key",
@@ -178,8 +173,12 @@ def build_artifacts() -> tuple[dict[str, Any], dict[str, Any]]:
         fixture=fixture,
         outcome_audit_manifest=audit_manifest,
         registry=registry,
+        provider_profile_resolver=goal12_historical_provider_profile,
     )
-    validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(plan)
+    validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(
+        plan,
+        provider_profile_resolver=goal12_historical_provider_profile,
+    )
     safe_plan = plan.to_safe_dict()
     semantic_cases = {
         item.case_id: item for item in fixture.semantic_cases
@@ -192,7 +191,7 @@ def build_artifacts() -> tuple[dict[str, Any], dict[str, Any]]:
     transparent_slots: list[dict[str, Any]] = []
     for slot in plan.slots:
         case = semantic_cases[slot.case_id]
-        provider_profile = gate2_provider_profile(
+        provider_profile = goal12_historical_provider_profile(
             slot.provider_profile_id
         )
         projection = projector(
@@ -208,12 +207,18 @@ def build_artifacts() -> tuple[dict[str, Any], dict[str, Any]]:
                 slot=slot,
                 fixture=fixture,
                 outcome_audit_manifest=audit_manifest,
+                provider_profile_resolver=(
+                    goal12_historical_provider_profile
+                ),
             )
         )
         operation_identity = (
             financial_semantic_v6_context_v2_1_budget_smoke_operation_identity(
                 plan=plan,
                 slot=slot,
+                provider_profile_resolver=(
+                    goal12_historical_provider_profile
+                ),
             )
         )
         _validate_projection(
@@ -389,6 +394,9 @@ def _validate_projection(
             model_visible_request=sealed_request.model_visible_request,
             exact_model_id=slot.exact_model_id,
             operation_identity=operation_identity,
+            provider_profile_resolver=(
+                goal12_historical_provider_profile
+            ),
         )
     ):
         raise ValueError(

@@ -1,0 +1,24 @@
+{
+  "schema_version": "broker_reports_gate3_provider_schema_audit_safe_v1",
+  "goal": "G3.4A",
+  "provider_response_format_compact_json": {
+    "chars": 710,
+    "utf8_bytes": 710,
+    "lines": 1
+  },
+  "shape": {
+    "type": "json_schema",
+    "strict": true,
+    "declares_annotation_fields": ["target_alias", "financial_label"],
+    "schema_version_property_in_frozen_calls": {}
+  },
+  "value_duplication": {
+    "concrete_alias_values": 0,
+    "alias_enum": false,
+    "dictionary_label_values": 0,
+    "canonical_target_mappings": 0,
+    "document_ids": 0,
+    "document_values": 0
+  },
+  "verdict": "SHAPE_ONLY_NO_DOCUMENT_VALUE_DUPLICATION"
+}

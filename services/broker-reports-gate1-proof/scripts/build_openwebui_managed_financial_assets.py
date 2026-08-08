@@ -8,22 +8,35 @@ import base64
 import copy
 import hashlib
 import json
+import sys
 import textwrap
 import zlib
 from pathlib import Path
 from typing import Any
 
-from broker_reports_financial_decision_reason_catalog_contracts import (
+SCRIPT_DIR = Path(__file__).resolve().parent
+SERVICE_ROOT = SCRIPT_DIR.parent
+REPO_ROOT = SERVICE_ROOT.parents[1]
+sys.path.insert(0, str(SERVICE_ROOT))
+
+from broker_reports_gate1.gate3_financial_label_dictionary import (  # noqa: E402
+    GATE3_DICTIONARY_ID,
+    GATE3_DICTIONARY_OPENWEBUI_SKILL_ID,
+    GATE3_DICTIONARY_OPENWEBUI_TOOL_ID,
+    GATE3_DICTIONARY_OPENWEBUI_TOOL_METHOD,
+    GATE3_DICTIONARY_V1_FILE_SHA256,
+    GATE3_DICTIONARY_V1_MODEL_VIEW_SHA256,
+    GATE3_DICTIONARY_V1_VERSION,
+    Gate3FinancialLabelDictionaryFactory,
+)
+from broker_reports_financial_decision_reason_catalog_contracts import (  # noqa: E402
     Gate2FinancialDecisionReasonCatalogContractFactory,
 )
-from broker_reports_financial_decision_reason_catalog_v2_contracts import (
+from broker_reports_financial_decision_reason_catalog_v2_contracts import (  # noqa: E402
     Gate2FinancialDecisionReasonCatalogV2ContractFactory,
 )
 
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-SERVICE_ROOT = SCRIPT_DIR.parent
-REPO_ROOT = SERVICE_ROOT.parents[1]
 ASSET_ROOT = SERVICE_ROOT / "managed_assets"
 
 SKILL_PATH = ASSET_ROOT / "skills" / "broker_reports_financial_domain_skill.v1.md"
@@ -43,6 +56,26 @@ MANIFEST_V3_PATH = (
 )
 MANIFEST_V3_SCHEMA_PATH = (
     ASSET_ROOT / "broker_reports_financial_domain_assets.v3.manifest.schema.json"
+)
+GATE3_SKILL_PATH = (
+    ASSET_ROOT / "skills" / "broker_reports_gate3_financial_labels_skill.v1.md"
+)
+GATE3_TOOL_PATH = (
+    ASSET_ROOT
+    / "tools"
+    / "broker_reports_gate3_financial_label_dictionary_tool.v1.py"
+)
+GATE3_MANIFEST_PATH = (
+    ASSET_ROOT / "broker_reports_gate3_financial_label_assets.v1.manifest.json"
+)
+GATE3_MANIFEST_SCHEMA_PATH = (
+    ASSET_ROOT
+    / "broker_reports_gate3_financial_label_assets.v1.manifest.schema.json"
+)
+GATE3_DICTIONARY_PATH = (
+    SERVICE_ROOT
+    / "broker_reports_gate1"
+    / "gate3_financial_label_dictionary.v1.json"
 )
 DECISION_REASON_ROOT = ASSET_ROOT / "decision_reasons"
 DECISION_REASON_CATALOG_PATH = (
@@ -186,6 +219,79 @@ def _verified_pack_json() -> str:
         or supplied_integrity != PACK_INTEGRITY_SHA256
     ):
         raise RuntimeError("financial_semantic_pack_integrity_mismatch")
+    return raw.decode("utf-8")
+'''
+
+GATE3_TOOL_TEMPLATE = '''"""
+title: Broker Reports Financial Labels
+author: Corp OpenWebUI
+version: 1.0.0
+required_open_webui_version: 0.9.6
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import zlib
+from typing import Any
+
+
+DICTIONARY_ID = "broker-reports-financial-labels"
+DICTIONARY_SEMANTIC_VERSION = "1.0.0"
+DICTIONARY_FILE_SHA256 = (
+    "182e8d7f3604ad3d06d93c4d913df17979f21aeea669123d70c10be9d9652850"
+)
+FACTORY_REQUIRED = (
+    "Tools.load_financial_label_dictionary is the only managed OpenWebUI "
+    "delivery entrypoint for the exact published Gate 3 dictionary"
+)
+FORBIDDEN = (
+    "The Tool must not read a runtime filesystem path, use network, Knowledge "
+    "or RAG, return a partial dictionary, or reinterpret financial meaning"
+)
+
+_DICTIONARY_PAYLOAD_B85 = (
+__GATE3_DICTIONARY_PAYLOAD_LINES__
+)
+
+
+class Tools:
+    """Expose the exact published Gate 3 financial-label dictionary."""
+
+    def __init__(self) -> None:
+        self._dictionary_json = _verified_dictionary_json()
+
+    def load_financial_label_dictionary(self) -> str:
+        """Return the complete pinned financial-label dictionary JSON.
+
+        :return: Exact UTF-8 repository dictionary content.
+        """
+
+        return self._dictionary_json
+
+
+def _verified_dictionary_json() -> str:
+    try:
+        raw = zlib.decompress(base64.b85decode(_DICTIONARY_PAYLOAD_B85))
+    except Exception as exc:
+        raise RuntimeError("financial_label_dictionary_payload_invalid") from exc
+    if hashlib.sha256(raw).hexdigest() != DICTIONARY_FILE_SHA256:
+        raise RuntimeError("financial_label_dictionary_file_hash_mismatch")
+    try:
+        payload: Any = json.loads(raw)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("financial_label_dictionary_json_invalid") from exc
+    if (
+        not isinstance(payload, dict)
+        or payload.get("dictionary_id") != DICTIONARY_ID
+        or payload.get("semantic_version") != DICTIONARY_SEMANTIC_VERSION
+        or payload.get("status") != "PUBLISHED"
+        or not isinstance(payload.get("labels"), list)
+        or len(payload["labels"]) != 9
+    ):
+        raise RuntimeError("financial_label_dictionary_identity_mismatch")
     return raw.decode("utf-8")
 '''
 
@@ -1028,6 +1134,229 @@ def _render_manifest_v3_schema(manifest_bytes: bytes) -> bytes:
     ).encode("utf-8")
 
 
+def _render_gate3_skill(*, model_view: str) -> bytes:
+    content = (
+        "# Broker Reports Financial Labels\n\n"
+        f"Asset ID: `{GATE3_DICTIONARY_OPENWEBUI_SKILL_ID}`\n\n"
+        f"Dictionary: `{GATE3_DICTIONARY_ID}@{GATE3_DICTIONARY_V1_VERSION}`\n\n"
+        f"Dictionary file SHA-256: `{GATE3_DICTIONARY_V1_FILE_SHA256}`\n\n"
+        f"Model-view SHA-256: `{GATE3_DICTIONARY_V1_MODEL_VIEW_SHA256}`\n\n"
+        "Status: generated operator-facing projection of the published "
+        "package resource.\n\n"
+        "This Skill is an inspection surface, not a second financial-meaning "
+        "authority. Edit and publish the versioned package dictionary through "
+        "its governed lifecycle, then rebuild and republish this asset. "
+        "Knowledge/RAG is not used.\n\n"
+        "## Published dictionary model view\n\n"
+        f"{model_view}"
+    )
+    return content.encode("utf-8")
+
+
+def _render_gate3_tool(dictionary_bytes: bytes) -> bytes:
+    if _sha256(dictionary_bytes) != GATE3_DICTIONARY_V1_FILE_SHA256:
+        raise ValueError("gate3_dictionary_file_hash_mismatch")
+    encoded = base64.b85encode(
+        zlib.compress(dictionary_bytes, level=9)
+    ).decode("ascii")
+    payload_lines = "\n".join(
+        f'    b"{part}"'
+        for part in textwrap.wrap(
+            encoded,
+            width=88,
+            break_long_words=True,
+            break_on_hyphens=False,
+        )
+    )
+    return (
+        GATE3_TOOL_TEMPLATE.replace(
+            "__GATE3_DICTIONARY_PAYLOAD_LINES__",
+            payload_lines,
+        )
+        .replace("\r\n", "\n")
+        .encode("utf-8")
+    )
+
+
+def _render_gate3_manifest(
+    *,
+    dictionary_bytes: bytes,
+    skill_bytes: bytes,
+    tool_bytes: bytes,
+) -> bytes:
+    manifest = {
+        "schema_version": (
+            "broker_reports_gate3_financial_label_managed_assets_v1"
+        ),
+        "family_id": "broker_reports_gate3_financial_label_assets",
+        "semantic_version": "1.0.0",
+        "authority_status": "managed_projection_of_package_resource",
+        "runtime_activation": "explicit_publish_and_exact_readback_required",
+        "hash_boundary": "git_blob_bytes",
+        "openwebui": {
+            "distribution": "open-webui",
+            "target_version": "0.9.6",
+            "upstream_tag": "v0.9.6",
+            "skill_api": "/api/v1/skills",
+            "tool_api": "/api/v1/tools",
+        },
+        "assets": [
+            {
+                "asset_id": "gate3_financial_labels_operator_skill",
+                "kind": "openwebui_skill",
+                "repository_relative_path": _repo_path(GATE3_SKILL_PATH),
+                "media_type": "text/markdown",
+                "git_blob_sha256": _sha256(skill_bytes),
+                "api_identity": {
+                    "id": GATE3_DICTIONARY_OPENWEBUI_SKILL_ID,
+                    "name": "Broker Reports Financial Labels",
+                    "description": (
+                        "Published Gate 3 financial-label dictionary"
+                    ),
+                    "is_active": True,
+                    "meta": {
+                        "tags": [
+                            "broker-reports",
+                            "gate3",
+                            "financial-labels",
+                            "managed",
+                        ]
+                    },
+                },
+            },
+            {
+                "asset_id": "gate3_financial_label_dictionary_tool",
+                "kind": "openwebui_workspace_tool",
+                "repository_relative_path": _repo_path(GATE3_TOOL_PATH),
+                "media_type": "text/x-python",
+                "git_blob_sha256": _sha256(tool_bytes),
+                "api_identity": {
+                    "id": GATE3_DICTIONARY_OPENWEBUI_TOOL_ID,
+                    "name": "Broker Reports Financial Label Dictionary",
+                    "description": (
+                        "Returns the complete byte-exact published Gate 3 "
+                        "financial-label dictionary"
+                    ),
+                    "meta": {
+                        "tool_method": (
+                            GATE3_DICTIONARY_OPENWEBUI_TOOL_METHOD
+                        ),
+                        "network_access": False,
+                    },
+                },
+            },
+        ],
+        "dependencies": [
+            {
+                "dependency_id": "gate3_financial_label_dictionary",
+                "kind": "published_dictionary",
+                "contract_identity": (
+                    f"{GATE3_DICTIONARY_ID}@"
+                    f"{GATE3_DICTIONARY_V1_VERSION}"
+                ),
+                "repository_relative_path": _repo_path(
+                    GATE3_DICTIONARY_PATH
+                ),
+                "git_blob_sha256": _sha256(dictionary_bytes),
+                "model_view_sha256": (
+                    GATE3_DICTIONARY_V1_MODEL_VIEW_SHA256
+                ),
+                "labels_total": 9,
+            }
+        ],
+        "composition": {
+            "financial_meaning_owner": (
+                "Gate3FinancialLabelDictionaryFactory.create"
+            ),
+            "operator_surface_asset_id": (
+                "gate3_financial_labels_operator_skill"
+            ),
+            "exact_delivery_asset_id": (
+                "gate3_financial_label_dictionary_tool"
+            ),
+            "exact_delivery_method": (
+                GATE3_DICTIONARY_OPENWEBUI_TOOL_METHOD
+            ),
+            "runtime_loader": (
+                "Gate3FinancialLabelDictionaryFactory.create"
+            ),
+            "prompt_asset_id": None,
+        },
+        "authority": {
+            "financial_meaning_owner_count": 1,
+            "skill_is_generated_projection": True,
+            "tool_is_exact_generated_delivery": True,
+            "prompt_definitions_allowed": False,
+            "python_definitions_allowed": False,
+            "knowledge_rag_allowed": False,
+        },
+        "supporting_knowledge": [],
+    }
+    manifest["manifest_sha256"] = _sha256(_canonical_json(manifest))
+    return (
+        json.dumps(
+            manifest,
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def _render_gate3_manifest_schema(manifest_bytes: bytes) -> bytes:
+    manifest = json.loads(manifest_bytes)
+    schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$id": "urn:broker-reports:managed-assets:gate3-financial-labels:v1",
+        "title": "Broker Reports Gate 3 financial-label managed assets v1",
+        "const": manifest,
+    }
+    return (
+        json.dumps(
+            schema,
+            ensure_ascii=False,
+            indent=2,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def build_gate3_financial_label_assets() -> tuple[bytes, bytes, bytes, bytes]:
+    dictionary_owner = Gate3FinancialLabelDictionaryFactory.create()
+    dictionary = dictionary_owner.load_published(
+        GATE3_DICTIONARY_V1_VERSION
+    )
+    binding = dictionary_owner.managed_binding(
+        GATE3_DICTIONARY_V1_VERSION
+    )
+    model_view = dictionary_owner.render_model_markdown(
+        GATE3_DICTIONARY_V1_VERSION
+    )
+    dictionary_bytes = _portable_text_blob(GATE3_DICTIONARY_PATH)
+    if (
+        dictionary.get("dictionary_id") != GATE3_DICTIONARY_ID
+        or dictionary.get("semantic_version")
+        != GATE3_DICTIONARY_V1_VERSION
+        or len(dictionary.get("labels", [])) != 9
+        or binding["dictionary_identity"]["file_sha256"]
+        != _sha256(dictionary_bytes)
+        or _sha256(model_view.encode("utf-8"))
+        != GATE3_DICTIONARY_V1_MODEL_VIEW_SHA256
+    ):
+        raise ValueError("gate3_managed_dictionary_binding_invalid")
+    skill_bytes = _render_gate3_skill(model_view=model_view)
+    tool_bytes = _render_gate3_tool(dictionary_bytes)
+    manifest_bytes = _render_gate3_manifest(
+        dictionary_bytes=dictionary_bytes,
+        skill_bytes=skill_bytes,
+        tool_bytes=tool_bytes,
+    )
+    manifest_schema_bytes = _render_gate3_manifest_schema(manifest_bytes)
+    return skill_bytes, tool_bytes, manifest_bytes, manifest_schema_bytes
+
+
 def build() -> tuple[bytes, bytes]:
     skill_bytes = _portable_text_blob(SKILL_PATH)
     prompt_bytes = _portable_text_blob(PROMPT_PATH)
@@ -1165,6 +1494,12 @@ def main() -> int:
         manifest_v3_bytes,
         manifest_v3_schema_bytes,
     ) = build_minimal_projection_family_v3()
+    (
+        gate3_skill_bytes,
+        gate3_tool_bytes,
+        gate3_manifest_bytes,
+        gate3_manifest_schema_bytes,
+    ) = build_gate3_financial_label_assets()
     _write_or_check(TOOL_PATH, tool_bytes, check=args.check)
     _write_or_check(MANIFEST_PATH, manifest_bytes, check=args.check)
     _write_or_check(
@@ -1197,6 +1532,26 @@ def main() -> int:
         manifest_v3_schema_bytes,
         check=args.check,
     )
+    _write_or_check(
+        GATE3_SKILL_PATH,
+        gate3_skill_bytes,
+        check=args.check,
+    )
+    _write_or_check(
+        GATE3_TOOL_PATH,
+        gate3_tool_bytes,
+        check=args.check,
+    )
+    _write_or_check(
+        GATE3_MANIFEST_PATH,
+        gate3_manifest_bytes,
+        check=args.check,
+    )
+    _write_or_check(
+        GATE3_MANIFEST_SCHEMA_PATH,
+        gate3_manifest_schema_bytes,
+        check=args.check,
+    )
     print(
         json.dumps(
             {
@@ -1216,6 +1571,18 @@ def main() -> int:
                 "manifest_v3_git_blob_sha256": _sha256(manifest_v3_bytes),
                 "manifest_v3_schema_git_blob_sha256": _sha256(
                     manifest_v3_schema_bytes
+                ),
+                "gate3_skill_git_blob_sha256": _sha256(
+                    gate3_skill_bytes
+                ),
+                "gate3_tool_git_blob_sha256": _sha256(
+                    gate3_tool_bytes
+                ),
+                "gate3_manifest_git_blob_sha256": _sha256(
+                    gate3_manifest_bytes
+                ),
+                "gate3_manifest_schema_git_blob_sha256": _sha256(
+                    gate3_manifest_schema_bytes
                 ),
             },
             sort_keys=True,

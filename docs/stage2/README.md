@@ -296,14 +296,14 @@ Next action:
 
 Finding:
 
-- Broker Reports uses the current three-stage contract: Gate 1 owns authenticated
-  intake/custody/routing, Gate 2 emits and versions one non-financial
-  `CanonicalArtifactV1` for PDF/HTML/CSV/XLSX, and future Gate 3 owns
-  product/task-specific LLM projection plus financial semantic analysis. Read
+- Broker Reports uses the current pipeline contract: Gate 1 stores the
+  authenticated source identity, Gate 2 emits an immutable non-financial
+  `CanonicalArtifactV1`, and closed Gate 3 performs financial semantic labeling
+  into a separate immutable `FinancialAnnotationsV1`. Gate 4 is next and is not
+  designed here. Start with
   [Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) and the
-  [Gate 2 Exit Contract v1](contracts/BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md)
-  first; the older global gate architecture is superseded for numbering. The
-  DOC33 neutral reader-only renderer is completeness proof tooling, not Gate 3.
+  [short Gate 3 handoff](contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md); the
+  older global gate architecture is superseded for current gate meaning.
 - OpenWebUI has extraction engines.
 - Broker-report PDFs with a text layer now have a bounded deterministic
   normalization/table path; corpus-wide acceptance still waits for customer

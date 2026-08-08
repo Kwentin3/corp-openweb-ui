@@ -309,6 +309,34 @@ class SqliteArtifactStoreAdapter:
             ).fetchall()
         return [_row_to_record(row) for row in rows]
 
+    def list_by_case_context(
+        self, context: ArtifactAccessContext
+    ) -> list[ArtifactRecord]:
+        """List one authenticated user/case/workspace scope across runs."""
+
+        self._validate_canonical_context(context, require_private=True)
+        if not context.case_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified", "Artifact case context is required"
+            )
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM artifact_records
+                WHERE user_id = ?
+                  AND case_id = ?
+                  AND workspace_model_id IS ?
+                ORDER BY created_at ASC, artifact_type ASC
+                """,
+                (
+                    context.user_id,
+                    context.case_id,
+                    context.workspace_model_id,
+                ),
+            ).fetchall()
+        return [_row_to_record(row) for row in rows]
+
     def list_by_type(self, normalization_run_id: str, artifact_type: str) -> list[ArtifactRecord]:
         return [
             record

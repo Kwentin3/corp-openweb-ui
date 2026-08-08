@@ -1,0 +1,4 @@
+document,source_format,aliases_total,heading_aliases,text_block_aliases,table_row_aliases,table_cell_aliases,explicit_empty_cell_aliases,alias_markup_chars,alias_markup_share_pct,projection_chars_after_empty_alias_suppression,raw_rejected_row_targets,raw_rejected_cell_targets,practical_note
+compact_html,html,612,2,14,63,533,71,3672,24.412,14616,0,3,cell_addressing_observed
+large_csv,csv,14118,0,0,1255,12863,922,101946,31.990,312219,269,96,row_and_cell_addressing_observed
+repo_xlsx,xlsx,182497,0,0,29145,153352,39499,1531476,39.426,3570962,N/A_NOT_SENT,N/A_NOT_SENT,technical_addressability_only_not_provider_measured

@@ -1,8 +1,13 @@
 # Broker Reports Sole Owner Matrix v1
 
-Status: normative ownership baseline
+Status: `HISTORICAL_PRE_GATE3_OWNERSHIP_BASELINE`
 
 Effective date: 2026-07-31
+
+This matrix remains useful for its dated Gate 1/2 inventory but is incomplete
+for current Gate 3 and is not current pipeline authority. Use
+[Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md) and
+[Architecture Authorities](./BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md).
 
 ## PROGRAM_OWNER_DECISIONS
 

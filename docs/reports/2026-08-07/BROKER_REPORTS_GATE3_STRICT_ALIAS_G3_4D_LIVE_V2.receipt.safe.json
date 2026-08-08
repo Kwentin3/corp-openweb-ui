@@ -1,0 +1,150 @@
+{
+  "accrued_coupon_positive": "NOT_MEASURED",
+  "alias_authority_count": 1,
+  "alias_repair_layer": "NONE",
+  "artifact_store_tree_byte_identical": true,
+  "chunks_provider_failed": 0,
+  "chunks_rejected": 0,
+  "chunks_validated": 2,
+  "complete_real_document": "PROVEN",
+  "dictionary_injection_counts": [
+    1
+  ],
+  "documents": {
+    "compact_html": {
+      "annotations_validated": 5,
+      "attempts": [
+        {
+          "aliases": 612,
+          "annotations_validated": 5,
+          "chunk_chars": 15042,
+          "chunk_ordinal": 1,
+          "dictionary_injection_count": 1,
+          "document_label": "compact_html",
+          "duration_ms": 28297,
+          "final_model_input_chars": 20737,
+          "input_tokens": 10438,
+          "labels_observed": [
+            "COUPON_INCOME",
+            "SECURITY_DISPOSAL",
+            "TAX_WITHHELD"
+          ],
+          "output_tokens": 200,
+          "private_evidence_sha256": "45074aac3c89c1dcf1ec16d079e08836b9d4f247da19ab3113e41d5a806e8a0a",
+          "provider_alias_description_exact": true,
+          "provider_alias_enum_absent": true,
+          "provider_alias_pattern_visible": false,
+          "provider_alias_schema_keys": [
+            "description",
+            "type"
+          ],
+          "provider_schema_version_singleton_enum": true,
+          "raw_alias_nonmember_count": 0,
+          "raw_aliases_all_exact_chunk_members": true,
+          "raw_annotation_count": 5,
+          "raw_schema_version_exact": true,
+          "row_end": null,
+          "row_start": null,
+          "structural_kind": "whole_document",
+          "terminal_status": "validated",
+          "total_tokens": 13187,
+          "validation_error_code": null,
+          "validation_status": "validated"
+        }
+      ],
+      "chunks_available": 1,
+      "chunks_provider_failed": 0,
+      "chunks_rejected": 0,
+      "chunks_validated": 1,
+      "document_status": "complete",
+      "private_batch_result_sha256": "c5be4f6a2e1728d04be10155787b02a1ef2fe0a3054e3530d4e72aba91555595",
+      "provider_submissions": 1,
+      "selected_chunk_ordinals": [
+        1
+      ],
+      "selection_mode": "full_document"
+    },
+    "large_csv_chunk3": {
+      "annotations_validated": 227,
+      "attempts": [
+        {
+          "aliases": 2106,
+          "annotations_validated": 227,
+          "chunk_chars": 59964,
+          "chunk_ordinal": 3,
+          "dictionary_injection_count": 1,
+          "document_label": "large_csv_chunk3",
+          "duration_ms": 87062,
+          "final_model_input_chars": 65768,
+          "input_tokens": 40696,
+          "labels_observed": [
+            "DIVIDEND_INCOME",
+            "INTEREST_INCOME",
+            "TAX_WITHHELD"
+          ],
+          "output_tokens": 7796,
+          "private_evidence_sha256": "afe73305423ee9b810595ee2be9e48bff7c773d07c354daf60c9c199b0e799e7",
+          "provider_alias_description_exact": true,
+          "provider_alias_enum_absent": true,
+          "provider_alias_pattern_visible": false,
+          "provider_alias_schema_keys": [
+            "description",
+            "type"
+          ],
+          "provider_schema_version_singleton_enum": true,
+          "raw_alias_nonmember_count": 0,
+          "raw_aliases_all_exact_chunk_members": true,
+          "raw_annotation_count": 227,
+          "raw_schema_version_exact": true,
+          "row_end": 761,
+          "row_start": 488,
+          "structural_kind": "table_rows",
+          "terminal_status": "validated",
+          "total_tokens": 60808,
+          "validation_error_code": null,
+          "validation_status": "validated"
+        }
+      ],
+      "chunks_available": 6,
+      "chunks_provider_failed": 0,
+      "chunks_rejected": 0,
+      "chunks_validated": 1,
+      "document_status": "representative_subset_validated",
+      "private_batch_result_sha256": "35ef96a7e691be7743eaa1e867f1206eeffe98457ad3020663aebf7bcd09e59d",
+      "provider_submissions": 1,
+      "selected_chunk_ordinals": [
+        3
+      ],
+      "selection_mode": "representative_subset"
+    }
+  },
+  "exact_model_evidence": "AVAILABLE",
+  "execution_policy": "two_predeclared_calls_no_retry_no_repair",
+  "fallback_count": 0,
+  "frozen_g34b_module_sha256": "203477af5d239c6a358dd3468c6727890fd94d9df8ac718b30fb0aef5edae0ba",
+  "frozen_plan_sha256": "d56bec5c5970571b1b0fd616c22cda5dbc85a1204a9709ceee42c9de8e40bc00",
+  "g3_4_status": "READY_TO_CLOSE",
+  "goal": "G3.4D",
+  "goal_status": "COMPLETED",
+  "instruction_version": "1.0.1",
+  "live_chunk_regression": "PASS",
+  "model_id": "models/gemini-3.5-flash",
+  "next_allowed_goal": "G3.5_AFTER_HUMAN_REVIEW",
+  "persistence_writes": 0,
+  "previously_failed_compact_case": "VALIDATED",
+  "private_evidence_available": true,
+  "private_evidence_location_committed": false,
+  "provider_alias_description_exact": true,
+  "provider_alias_enum_absent": true,
+  "provider_alias_pattern_visible": false,
+  "provider_profile_id": "google_gemini",
+  "provider_submissions_total": 2,
+  "raw_aliases_all_exact_chunk_members": true,
+  "repair_count": 0,
+  "response_schema_sha256": "59453c7dd4298a7d50f87d6d61be7abb4e5a0573a9b9b366f986407e7263867e",
+  "retry_count": 0,
+  "schema_version": "broker_reports_gate3_strict_alias_safe_receipt_v1",
+  "securities_lending_positive": "NOT_MEASURED",
+  "store_tree_sha256": "00c52459979ee2c20d3d3e2f32c766a17f3fb500d1ad4aba817c5e1e059ac0be",
+  "strict_alias_contract": "PROVEN"
+}

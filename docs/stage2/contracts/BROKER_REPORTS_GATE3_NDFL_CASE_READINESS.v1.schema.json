@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.invalid/schemas/broker-reports/gate3-ndfl-case-readiness-v1.schema.json",
+  "title": "Broker Reports Gate 3 NDFL Case Readiness v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "workflow_id", "case_status", "state_source", "state_persisted", "summary", "documents", "follow_up_actions"],
+  "properties": {
+    "schema_version": {"const": "broker_reports_gate3_ndfl_case_readiness_v1"},
+    "workflow_id": {"const": "NDFL"},
+    "case_status": {"enum": ["empty", "gate2_incomplete", "gate3_incomplete", "ready_for_gate4_handoff"]},
+    "state_source": {"const": "derived_from_existing_artifacts"},
+    "state_persisted": {"const": false},
+    "summary": {"$ref": "#/$defs/summary"},
+    "documents": {"type": "array", "items": {"$ref": "#/$defs/document"}},
+    "follow_up_actions": {"type": "array", "minItems": 6, "maxItems": 6, "items": {"$ref": "#/$defs/action"}}
+  },
+  "$defs": {
+    "nullableId": {"oneOf": [{"type": "string", "minLength": 1}, {"type": "null"}]},
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documents_total", "gate2_ready_documents", "gate3_ready_documents", "gate4_handoff_ready"],
+      "properties": {
+        "documents_total": {"type": "integer", "minimum": 0},
+        "gate2_ready_documents": {"type": "integer", "minimum": 0},
+        "gate3_ready_documents": {"type": "integer", "minimum": 0},
+        "gate4_handoff_ready": {"type": "boolean"}
+      }
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["document_id", "gate2_ready", "gate3_ready", "current_canonical_version_id", "selected_annotations_artifact_id", "selected_dictionary_version", "annotations_total", "annotation_candidates_total", "stale_annotation_candidates_total", "incomplete_annotation_candidates_total", "reason_codes"],
+      "properties": {
+        "document_id": {"type": "string", "minLength": 1},
+        "gate2_ready": {"type": "boolean"},
+        "gate3_ready": {"type": "boolean"},
+        "current_canonical_version_id": {"$ref": "#/$defs/nullableId"},
+        "selected_annotations_artifact_id": {"$ref": "#/$defs/nullableId"},
+        "selected_dictionary_version": {"$ref": "#/$defs/nullableId"},
+        "annotations_total": {"type": "integer", "minimum": 0},
+        "annotation_candidates_total": {"type": "integer", "minimum": 0},
+        "stale_annotation_candidates_total": {"type": "integer", "minimum": 0},
+        "incomplete_annotation_candidates_total": {"type": "integer", "minimum": 0},
+        "reason_codes": {"type": "array", "uniqueItems": true, "items": {"enum": ["GATE2_CANONICAL_MISSING", "GATE3_ANNOTATIONS_MISSING", "GATE3_ANNOTATIONS_STALE", "GATE3_ANNOTATIONS_INCOMPLETE"]}}
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action_id", "allowed", "reason_code"],
+      "properties": {
+        "action_id": {"enum": ["ADD_DOCUMENT", "PROCESS_REMAINING_DOCUMENT", "SHOW_FINANCIAL_FACTS", "VIEW_DICTIONARY", "PROPOSE_DICTIONARY_CHANGE", "PREPARE_DECLARATION"]},
+        "allowed": {"type": "boolean"},
+        "reason_code": {"enum": ["ALLOWED", "NO_REMAINING_DOCUMENTS", "NO_READY_ANNOTATIONS", "GATE3_CASE_NOT_READY"]}
+      }
+    }
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "schema_version": "broker_reports_gate3_structural_bounded_context_chunking_receipt_safe_v1",
+  "goal": "G3.4B",
+  "goal_status": "COMPLETED",
+  "date": "2026-08-07",
+  "runtime_status": "IMPLEMENTED_INACTIVE",
+  "budget": {
+    "measure": "model_view_chars",
+    "max_chunk_chars": 60000,
+    "token_estimate": false
+  },
+  "representative_documents": {
+    "compact_html": {
+      "old_projection_chars": 15042,
+      "aliases": 612,
+      "chunks": 1,
+      "min_chunk_chars": 15042,
+      "median_chunk_chars": 15042,
+      "max_chunk_chars": 15042,
+      "max_targets": 612,
+      "median_targets": 612,
+      "context_envelope_chars": 0,
+      "net_envelope_and_repetition_expansion_chars": 0,
+      "max_one_request_reduction_chars": 0
+    },
+    "large_csv": {
+      "old_projection_chars": 318684,
+      "aliases": 14118,
+      "historical_full_request_input_tokens": 215810,
+      "chunks": 6,
+      "min_chunk_chars": 21738,
+      "median_chunk_chars": 59889.0,
+      "max_chunk_chars": 59992,
+      "max_targets": 3081,
+      "median_targets": 2788.5,
+      "context_envelope_chars": 2897,
+      "net_envelope_and_repetition_expansion_chars": 2563,
+      "max_one_request_reduction_chars": 258692,
+      "max_one_request_reduction_percent": 81.175083
+    },
+    "repo_xlsx": {
+      "old_projection_chars": 3884393,
+      "aliases": 182497,
+      "historical_full_request_input_tokens": null,
+      "chunks": 76,
+      "whole_table_chunks": 4,
+      "oversized_tables": 15,
+      "row_group_chunks": 72,
+      "min_chunk_chars": 825,
+      "median_chunk_chars": 59923.5,
+      "max_chunk_chars": 59999,
+      "max_targets": 4980,
+      "median_targets": 2542.0,
+      "context_envelope_chars": 21523,
+      "net_envelope_and_repetition_expansion_chars": 17511,
+      "max_one_request_reduction_chars": 3824394,
+      "max_one_request_reduction_percent": 98.455383
+    }
+  },
+  "coverage": {
+    "lost_targets": 0,
+    "duplicated_working_targets": 0,
+    "context_only_target_aliases": 0,
+    "data_row_overlap": 0,
+    "target_order_preserved": true,
+    "document_mixing": 0,
+    "zero_target_chunks_in_representative_outputs": 0
+  },
+  "anti_smart_runtime": {
+    "financial_keyword_rules": 0,
+    "financial_label_decisions": 0,
+    "llm_provider_calls": 0,
+    "semantic_ranking": 0,
+    "rag": 0,
+    "persistence_writes": 0
+  },
+  "read_only_evidence": {
+    "new_provider_calls": 0,
+    "artifact_store_tree_byte_identical": true,
+    "source_store_files": 174,
+    "source_store_bytes": 109059448
+  },
+  "private_evidence": {
+    "available_outside_git": true,
+    "manifest_files": 26,
+    "manifest_bytes": 195011912,
+    "manifest_sha256": "79bdcabdd7a3e0d9e96bc897fb40b0d7b430d5989355e717867ea3452c5c3320"
+  },
+  "tests": {
+    "focused_gate3_and_architecture": {
+      "status": "PASSED",
+      "passed": 61
+    },
+    "package_module_and_ci_declaration_guard": {
+      "status": "PASSED",
+      "passed": 1
+    },
+    "ruff_touched_python": "PASSED",
+    "compileall_package": "PASSED",
+    "projected_bundle_facades": {
+      "status": "PASSED",
+      "facades_compiled": 3,
+      "gate3_ghost_imports": 0
+    },
+    "privacy_marker_scan": {
+      "status": "PASSED",
+      "findings": 0
+    }
+  },
+  "next_allowed_goal": "G3.4C_AFTER_HUMAN_REVIEW",
+  "g3_4c_started": false
+}

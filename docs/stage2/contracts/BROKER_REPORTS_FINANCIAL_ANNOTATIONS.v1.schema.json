@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.invalid/schemas/broker-reports/financial-annotations-v1.schema.json",
+  "title": "Broker Reports FinancialAnnotationsV1",
+  "$comment": "CONTRACT_DEFINED_INACTIVE: minimal validated sidecar payload; ArtifactStore registration and persistence belong to G3.5.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "canonical_binding",
+    "dictionary_identity",
+    "instruction_identity",
+    "model_identity",
+    "annotations",
+    "validation_status"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "broker_reports_financial_annotations_v1"
+    },
+    "canonical_binding": {
+      "$ref": "#/$defs/canonicalBinding"
+    },
+    "dictionary_identity": {
+      "$ref": "#/$defs/dictionaryIdentity"
+    },
+    "instruction_identity": {
+      "$ref": "#/$defs/instructionIdentity"
+    },
+    "model_identity": {
+      "$ref": "#/$defs/modelIdentity"
+    },
+    "annotations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/annotation"
+      },
+      "uniqueItems": true
+    },
+    "validation_status": {
+      "const": "validated"
+    }
+  },
+  "$defs": {
+    "canonicalBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_id",
+        "canonical_version_id"
+      ],
+      "properties": {
+        "document_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical_version_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "dictionaryIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dictionary_id",
+        "semantic_version"
+      ],
+      "properties": {
+        "dictionary_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "semantic_version": {
+          "$ref": "#/$defs/version"
+        }
+      }
+    },
+    "instructionIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instruction_id",
+        "semantic_version"
+      ],
+      "properties": {
+        "instruction_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "semantic_version": {
+          "$ref": "#/$defs/version"
+        }
+      }
+    },
+    "modelIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "annotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "financial_label"
+      ],
+      "properties": {
+        "target": {
+          "$ref": "https://kwentin3.invalid/schemas/broker-reports/gate3-target-v1.schema.json"
+        },
+        "financial_label": {
+          "$ref": "#/$defs/financialLabel"
+        }
+      }
+    },
+    "financialLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}

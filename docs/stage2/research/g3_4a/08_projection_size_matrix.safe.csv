@@ -1,0 +1,4 @@
+document,source_format,canonical_json_chars,canonical_json_utf8_bytes,canonical_displayed_content_chars,projection_chars,projection_utf8_bytes,projection_lines,aliases,alias_markup_chars,projection_excluding_alias_markup_chars,provider_schema_chars,final_request_compact_json_chars,actual_provider_input_tokens,provider_status
+compact_html,html,164389,176874,6501,15042,18773,158,612,3672,11370,710,20305,10386,SENT_ONCE_COMPLETED
+large_csv,csv,3691196,3921316,128088,318684,376214,1261,14118,101946,216738,710,325064,215810,SENT_ONCE_COMPLETED
+repo_xlsx,xlsx,42575234,43645545,1053240,3884393,4239155,29687,182497,1531476,2352917,N/A_NOT_SENT,N/A_NOT_SENT,N/A_NOT_SENT,N/A_NOT_SENT

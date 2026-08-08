@@ -5,7 +5,7 @@ import hashlib
 import json
 import re
 from dataclasses import asdict, dataclass, replace
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from .gate2_economy_model_policy import (
     WORKLOAD_GATE2_FINANCIAL_EVIDENCE,
@@ -42,9 +42,29 @@ BUDGET_SMOKE_PLAN_POLICY_VERSION = (
 )
 BUDGET_SMOKE_MAXIMUM_OUTPUT_TOKENS = 640
 BUDGET_SMOKE_MAXIMUM_PROVIDER_SUBMISSIONS = 12
+GOAL12_HISTORICAL_GOOGLE_ADAPTER_VERSION = "1.5.0"
+GOAL12_HISTORICAL_PLAN_INTEGRITY_HASH = (
+    "9191197bdc947d6ba86db3169ba0d8c911ef88423d611e2c4424a9379167cbab"
+)
 BUDGET_SMOKE_OUTCOME_AUDIT_INTEGRITY_SHA256 = (
     "774acd03c95ddc2d898112b6b62e3bed54613cfeaac7f98689e7c05224d271ae"
 )
+
+
+def goal12_historical_provider_profile(
+    profile_id: str,
+) -> Gate2ProviderProfile:
+    """Resolve the exact provider metadata sealed into closed GOAL 12."""
+
+    profile = gate2_provider_profile(profile_id)
+    if profile.profile_id == "google_gemini":
+        return replace(
+            profile,
+            adapter_version=GOAL12_HISTORICAL_GOOGLE_ADAPTER_VERSION,
+        )
+    return profile
+
+
 BUDGET_SMOKE_PROVIDER_MODELS = (
     ("openai_gpt", "gpt-5.4-nano-2026-03-17"),
     ("anthropic_claude", "claude-haiku-4-5-20251001"),
@@ -380,6 +400,9 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory:
         slot_projector: (
             Gate2FinancialSemanticV6ContextV21BudgetSmokeSlotProjector
         ),
+        provider_profile_resolver: Callable[
+            [str], Gate2ProviderProfile
+        ] = gate2_provider_profile,
     ) -> None:
         if (
             not isinstance(request_profile, str)
@@ -389,6 +412,7 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory:
             )
             or _REQUEST_PROFILE_RE.fullmatch(request_profile) is None
             or not callable(slot_projector)
+            or not callable(provider_profile_resolver)
         ):
             _fail(
                 "financial_semantic_v6_context_v2_1_"
@@ -396,6 +420,7 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory:
             )
         self.request_profile = request_profile
         self.slot_projector = slot_projector
+        self.provider_profile_resolver = provider_profile_resolver
 
     def create(
         self,
@@ -429,7 +454,7 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory:
         for provider_profile_id, exact_model_id in (
             BUDGET_SMOKE_PROVIDER_MODELS
         ):
-            profile = gate2_provider_profile(provider_profile_id)
+            profile = self.provider_profile_resolver(provider_profile_id)
             identity = {
                 item[0]: item[1:]
                 for item in BUDGET_SMOKE_PROVIDER_MODEL_IDENTITIES
@@ -505,6 +530,9 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory:
                     exact_model_id=exact_model_id,
                     request_profile=self.request_profile,
                     parameters=parameters,
+                    provider_profile_resolver=(
+                        self.provider_profile_resolver
+                    ),
                 )
                 draft = (
                     Gate2FinancialSemanticV6ContextV21BudgetSmokePlanSlot(
@@ -583,14 +611,25 @@ class Gate2FinancialSemanticV6ContextV21BudgetSmokePlanFactory:
             ),
         )
         validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(
-            plan
+            plan,
+            provider_profile_resolver=self.provider_profile_resolver,
         )
         return plan
 
 
 def validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(
     plan: Any,
+    *,
+    provider_profile_resolver: Callable[
+        [str], Gate2ProviderProfile
+    ] = gate2_provider_profile,
 ) -> None:
+    if (
+        provider_profile_resolver is gate2_provider_profile
+        and getattr(plan, "integrity_hash", None)
+        == GOAL12_HISTORICAL_PLAN_INTEGRITY_HASH
+    ):
+        provider_profile_resolver = goal12_historical_provider_profile
     if (
         type(plan)
         is not Gate2FinancialSemanticV6ContextV21BudgetSmokePlan
@@ -644,7 +683,7 @@ def validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(
     }
     expected_taxonomy = dict(BUDGET_SMOKE_CASES)
     for slot in plan.slots:
-        provider_profile = gate2_provider_profile(
+        provider_profile = provider_profile_resolver(
             slot.provider_profile_id
         )
         expected_identity = expected_identities.get(
@@ -723,8 +762,14 @@ def financial_semantic_v6_context_v2_1_budget_smoke_operation_identity(
     *,
     plan: Any,
     slot: Any,
+    provider_profile_resolver: Callable[
+        [str], Gate2ProviderProfile
+    ] = gate2_provider_profile,
 ) -> str:
-    validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(plan)
+    validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(
+        plan,
+        provider_profile_resolver=provider_profile_resolver,
+    )
     if (
         type(slot)
         is not Gate2FinancialSemanticV6ContextV21BudgetSmokePlanSlot
@@ -743,8 +788,14 @@ def resolve_financial_semantic_v6_context_v2_1_budget_smoke_expected_answer(
     slot: Any,
     fixture: Any,
     outcome_audit_manifest: Any,
+    provider_profile_resolver: Callable[
+        [str], Gate2ProviderProfile
+    ] = gate2_provider_profile,
 ) -> dict[str, Any]:
-    validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(plan)
+    validate_financial_semantic_v6_context_v2_1_budget_smoke_plan(
+        plan,
+        provider_profile_resolver=provider_profile_resolver,
+    )
     if (
         type(slot)
         is not Gate2FinancialSemanticV6ContextV21BudgetSmokePlanSlot
@@ -919,6 +970,9 @@ def _validated_projection_hashes(
     parameters: (
         Gate2FinancialSemanticV6ContextV21BudgetSmokeParameters
     ),
+    provider_profile_resolver: Callable[
+        [str], Gate2ProviderProfile
+    ] = gate2_provider_profile,
 ) -> dict[str, Any]:
     if (
         type(projection)
@@ -1024,6 +1078,7 @@ def _validated_projection_hashes(
                 "broker-reports-goal12-preflight:"
                 f"{provider_profile.profile_id}:{case.case_id}"
             ),
+            provider_profile_resolver=provider_profile_resolver,
         )
         or prepared_form_data.get("model") != exact_model_id
         or transport_contract.transport_policy

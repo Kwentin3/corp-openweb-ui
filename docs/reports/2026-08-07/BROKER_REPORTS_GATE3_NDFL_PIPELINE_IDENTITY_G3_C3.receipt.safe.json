@@ -1,0 +1,52 @@
+{
+  "schema_version": "broker_reports_gate3_ndfl_pipeline_identity_g3_c3_receipt_v1",
+  "goal": "G3.C3",
+  "status": "PASS",
+  "date": "2026-08-07",
+  "openwebui": {
+    "target_version": "0.9.6",
+    "gui_path": "Workspace -> Models -> NDFL",
+    "live_readback": "passed"
+  },
+  "stable_bindings": {
+    "workspace_model_id": "broker-reports-ndfl",
+    "base_pipe_id": "broker_reports_gate1_pipe",
+    "workflow_id": "broker-reports-ndfl",
+    "provider_profile_id": "google_gemini",
+    "provider_model_id": "models/gemini-3.5-flash",
+    "dictionary_id": "broker-reports-financial-labels",
+    "dictionary_semantic_version": "1.0.0",
+    "skill_id": "broker-reports-financial-labels",
+    "tool_id": "broker_reports_financial_label_dictionary",
+    "tool_method": "load_financial_label_dictionary",
+    "prompt_id": null,
+    "knowledge_ids": []
+  },
+  "live_acceptance": {
+    "user_facing_ndfl_models": 1,
+    "visible_product_route_ids": [
+      "broker-reports-ndfl"
+    ],
+    "visible_internal_runtime_base_ids": [
+      "broker_reports_gate1_pipe"
+    ],
+    "legacy_or_competing_routes_visible": [],
+    "legacy_test_inactive": true,
+    "technical_runtime_base_active": true,
+    "legacy_pipe_model_overrides_inactive": 2,
+    "gate1_pipe_function_required_active": true,
+    "provider_calls": 0
+  },
+  "routing_acceptance": {
+    "internal_bindings_by_stable_id": "PASS",
+    "behavioral_display_name_lookups": 0,
+    "rename_safety": "PASS",
+    "knowledge_rag": "NONE"
+  },
+  "tests": {
+    "passed": 14,
+    "failed": 0
+  },
+  "private_values_included": false,
+  "customer_content_included": false
+}

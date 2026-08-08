@@ -1,0 +1,24 @@
+{
+  "schema_version": "broker_reports_gate3_g3_4c_anti_duplication_safe_v1",
+  "owners": {
+    "projection": "Gate3ProjectionFactory.create",
+    "structural_chunking": "Gate3StructuralChunkFactory.create",
+    "dictionary": "Gate3FinancialLabelDictionaryFactory.create",
+    "provider_and_validation": "Gate3BoundedLabelingFactory.create_from_chunk",
+    "batch_coordination": "Gate3ChunkBatchLabelingFactory.create"
+  },
+  "new_parallel_provider_adapter": false,
+  "new_parallel_dictionary": false,
+  "new_parallel_validator": false,
+  "new_parallel_reader": false,
+  "semantic_merge_logic": false,
+  "merge_rule": "validated_outputs_only_in_selected_chunk_and_annotation_order",
+  "provider_submissions": 12,
+  "retry_count": 0,
+  "repair_count": 0,
+  "fallback_count": 0,
+  "persistence_writes": 0,
+  "product_activation": false,
+  "artifact_store_tree_byte_identical": true,
+  "parallel_semantic_classifier": "NONE"
+}

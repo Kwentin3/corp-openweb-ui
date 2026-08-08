@@ -146,7 +146,7 @@ EXPECTED_PROFILES = {
     "google_gemini": {
         "provider_id": "google",
         "adapter_id": "gemini_response_format",
-        "adapter_version": "1.5.0",
+        "adapter_version": "1.6.0",
         "structured_output_mode": "openwebui_response_format_json_schema",
         "local_model_id": "local-proof-google-profile-v1",
     },

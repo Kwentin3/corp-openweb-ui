@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.invalid/schemas/broker-reports/gate3-labeling-response-v1.schema.json",
+  "title": "Broker Reports Gate3LabelingResponseV1",
+  "$comment": "CONTRACT_DEFINED_INACTIVE: sparse provider proposal containing only confident target-alias to financial-label choices.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "annotations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "broker_reports_gate3_labeling_response_v1"
+    },
+    "annotations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/annotation"
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "annotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_alias",
+        "financial_label"
+      ],
+      "properties": {
+        "target_alias": {
+          "type": "string",
+          "pattern": "^t[0-9]{3,}$",
+          "description": "Exact bare alias value shown in the document: for [t123], return t123. The value itself must contain only t followed by digits; do not include brackets, Markdown, prefixes, or explanations."
+        },
+        "financial_label": {
+          "$ref": "#/$defs/financialLabel"
+        }
+      }
+    },
+    "financialLabel": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]*$"
+    }
+  }
+}

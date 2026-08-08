@@ -1,0 +1,38 @@
+{
+  "schema_version": "broker_reports_gate3_ndfl_handoff_receipt_v1",
+  "goal": "G3.C2",
+  "status": "COMPLETED",
+  "observed_at": "2026-08-07",
+  "workflow": {
+    "stable_id": "broker-reports-ndfl",
+    "display_name": "NDFL",
+    "factory": "NdflWorkflowFactory.create"
+  },
+  "gate2_ready_signal": "active_validated_canonical_version",
+  "handoff": {
+    "input_fields": [
+      "document_id",
+      "authenticated_access_context"
+    ],
+    "reader": "CanonicalReaderFactory.create().read_active_envelope",
+    "canonical_payload_copied": false,
+    "pipe_to_pipe_chat": false,
+    "gate2_calls_gate3": false
+  },
+  "version_proof": {
+    "version_a_sidecar_exact": true,
+    "version_b_marks_a_stale": true,
+    "version_b_requires_new_labels": true,
+    "mid_label_version_change_fails_before_persistence": true
+  },
+  "tests": {
+    "focused_passed": 32,
+    "focused_failed": 0
+  },
+  "privacy": {
+    "customer_content_included": false,
+    "credentials_included": false,
+    "private_runtime_paths_included": false
+  },
+  "next_goal": "G3.C3"
+}

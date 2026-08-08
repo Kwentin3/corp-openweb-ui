@@ -111,6 +111,17 @@ GATE2_BUSINESS_RUNTIME_MODULES = {
     "gate3_context_manifest",
 }
 GATE3_FINANCIAL_DOMAIN_SUCCESSOR = "gate3_financial_domain_context"
+GATE3_CURRENT_PROJECTION = "gate3_projection"
+GATE3_CURRENT_CHUNKING = "gate3_structural_chunking"
+GATE3_CURRENT_DICTIONARY = "gate3_financial_label_dictionary"
+GATE3_CURRENT_DICTIONARY_CLI = "gate3_financial_label_dictionary_cli"
+GATE3_CURRENT_LABELING = "gate3_bounded_labeling"
+GATE3_CURRENT_CHUNK_BATCH = "gate3_chunk_batch_labeling"
+GATE3_CURRENT_ANNOTATIONS_PERSISTENCE = (
+    "gate3_financial_annotations_persistence"
+)
+GATE3_CURRENT_CASE_READINESS = "gate3_ndfl_case_readiness"
+GATE3_CURRENT_NDFL_WORKFLOW = "gate3_ndfl_workflow"
 
 
 class BrokerReportsGateArchitectureTest(unittest.TestCase):
@@ -1421,6 +1432,159 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     "gate2_financial_domain_catalog",
                 } | GATE1_PRIVATE_IMPLEMENTATIONS
                 for imported in sorted(imports & forbidden_successor_imports):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_CURRENT_PROJECTION:
+                if "canonical_store" not in imports:
+                    violations.append(f"{module_name}:canonical_reader_missing")
+                forbidden_projection_imports = {
+                    "artifact_resolver",
+                    "artifact_store",
+                    "gate3_context_manifest",
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(imports & forbidden_projection_imports):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_CURRENT_CHUNKING:
+                if GATE3_CURRENT_PROJECTION not in imports:
+                    violations.append(
+                        f"{module_name}:projection_factory_boundary_missing"
+                    )
+                forbidden_chunking_imports = {
+                    "artifact_resolver",
+                    "artifact_store",
+                    "canonical_store",
+                    "gate3_context_manifest",
+                    GATE3_CURRENT_DICTIONARY,
+                    GATE3_CURRENT_LABELING,
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(imports & forbidden_chunking_imports):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_CURRENT_DICTIONARY:
+                forbidden_dictionary_imports = {
+                    "artifact_resolver",
+                    "artifact_store",
+                    "canonical_store",
+                    "gate3_context_manifest",
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(imports & forbidden_dictionary_imports):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_CURRENT_DICTIONARY_CLI:
+                if imports != {GATE3_CURRENT_DICTIONARY}:
+                    violations.append(
+                        f"{module_name}:dictionary_factory_boundary_missing"
+                    )
+            elif module_name == GATE3_CURRENT_LABELING:
+                required_labeling_imports = {
+                    GATE3_CURRENT_DICTIONARY,
+                    GATE3_CURRENT_PROJECTION,
+                }
+                if not required_labeling_imports <= imports:
+                    violations.append(
+                        f"{module_name}:labeling_factory_boundary_missing"
+                    )
+                forbidden_labeling_imports = {
+                    "artifact_resolver",
+                    "artifact_store",
+                    "canonical_store",
+                    "gate3_context_manifest",
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(imports & forbidden_labeling_imports):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_CURRENT_CHUNK_BATCH:
+                required_batch_imports = {
+                    GATE3_CURRENT_CHUNKING,
+                    GATE3_CURRENT_LABELING,
+                }
+                if not required_batch_imports <= imports:
+                    violations.append(
+                        f"{module_name}:batch_factory_boundary_missing"
+                    )
+                forbidden_batch_imports = {
+                    "artifact_resolver",
+                    "artifact_store",
+                    "canonical_store",
+                    "gate3_context_manifest",
+                    GATE3_CURRENT_DICTIONARY,
+                    GATE3_CURRENT_PROJECTION,
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(imports & forbidden_batch_imports):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_CURRENT_ANNOTATIONS_PERSISTENCE:
+                required_persistence_imports = {
+                    "artifact_resolver",
+                    GATE3_CURRENT_CHUNKING,
+                    GATE3_CURRENT_DICTIONARY,
+                    GATE3_CURRENT_LABELING,
+                    GATE3_CURRENT_CHUNK_BATCH,
+                }
+                if not required_persistence_imports <= imports:
+                    violations.append(
+                        f"{module_name}:persistence_factory_boundary_missing"
+                    )
+                forbidden_persistence_imports = {
+                    "artifact_store",
+                    "canonical_store",
+                    "gate3_context_manifest",
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(
+                    imports & forbidden_persistence_imports
+                ):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_CURRENT_CASE_READINESS:
+                required_readiness_imports = {
+                    "artifact_resolver",
+                    GATE3_CURRENT_ANNOTATIONS_PERSISTENCE,
+                }
+                if not required_readiness_imports <= imports:
+                    violations.append(
+                        f"{module_name}:readiness_factory_boundary_missing"
+                    )
+                forbidden_readiness_imports = {
+                    "artifact_store",
+                    "canonical_store",
+                    "gate3_context_manifest",
+                    GATE3_CURRENT_CHUNKING,
+                    GATE3_CURRENT_DICTIONARY,
+                    GATE3_CURRENT_LABELING,
+                    GATE3_CURRENT_CHUNK_BATCH,
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(imports & forbidden_readiness_imports):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_CURRENT_NDFL_WORKFLOW:
+                required_workflow_imports = {
+                    "canonical_store",
+                    GATE3_CURRENT_CHUNK_BATCH,
+                    GATE3_CURRENT_ANNOTATIONS_PERSISTENCE,
+                }
+                if not required_workflow_imports <= imports:
+                    violations.append(
+                        f"{module_name}:workflow_factory_boundary_missing"
+                    )
+                forbidden_workflow_imports = {
+                    "artifact_resolver",
+                    "artifact_store",
+                    "gate3_context_manifest",
+                    GATE3_CURRENT_PROJECTION,
+                    GATE3_CURRENT_CHUNKING,
+                    GATE3_CURRENT_DICTIONARY,
+                    GATE3_CURRENT_LABELING,
+                } | GATE1_PRIVATE_IMPLEMENTATIONS
+                for imported in sorted(imports & forbidden_workflow_imports):
                     violations.append(
                         f"{module_name}:forbidden_import:{imported}"
                     )

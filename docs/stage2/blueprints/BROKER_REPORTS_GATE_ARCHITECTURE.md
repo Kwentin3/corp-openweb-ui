@@ -10,6 +10,10 @@ for current gate numbering, inputs/outputs and terminology. The remainder of
 this file is preserved as pre-DOC26 migration context; its old four-gate
 assignment is not an active definition and does not override Pipeline Gates v1.
 
+> Everything below is historical, including statements that call this file or
+> its policies “authoritative” or “normative”. For current Gate 1-4 meaning,
+> Gate 3 closure and the next-stage boundary, use Pipeline Gates v1.
+
 Scope: the global Broker Reports product pipeline. This document does not
 number repository-wide Stage 2 governance gates and does not redefine local
 format-capability gates.

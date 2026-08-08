@@ -35,6 +35,10 @@ AUTHORIZED_SUCCESSOR_REPOSITORY_PATHS = frozenset(
         "gate2_financial_semantic_v6_choice.py",
         "services/broker-reports-gate1-proof/broker_reports_gate1/"
         "gate2_financial_semantic_v6_evidence.py",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate2_model_requests.py",
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate2_provider_adapters.py",
     }
 )
 

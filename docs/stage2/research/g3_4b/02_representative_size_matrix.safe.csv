@@ -1,0 +1,4 @@
+document,source_format,old_projection_chars,old_aliases,historical_full_request_input_tokens,token_scope,new_chunks,min_chunk_chars,median_chunk_chars,max_chunk_chars,min_targets,median_targets,max_targets,total_context_envelope_chars,net_envelope_and_repetition_expansion_chars,max_one_request_reduction_chars,max_one_request_reduction_percent,zero_target_chunks
+compact_html,html,15042,612,10386,historical_full_request_total_not_projection_or_chunk_estimate,1,15042,15042,15042,612,612,612,0,0,0,0.000000,0
+large_csv,csv,318684,14118,215810,historical_full_request_total_not_projection_or_chunk_estimate,6,21738,59889.0,59992,290,2788.5,3081,2897,2563,258692,81.175083,0
+repo_xlsx,xlsx,3884393,182497,N/A_NOT_SENT,no_provider_token_measurement,76,825,59923.5,59999,25,2542.0,4980,21523,17511,3824394,98.455383,0

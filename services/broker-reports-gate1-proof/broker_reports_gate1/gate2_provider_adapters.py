@@ -6,7 +6,7 @@ import hashlib
 import json
 import math
 from dataclasses import dataclass, field as dataclass_field, replace
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import (
@@ -472,9 +472,12 @@ class Gate2PreparedProviderRequest:
         model_visible_request: dict[str, Any],
         exact_model_id: str,
         operation_identity: str,
+        provider_profile_resolver: Callable[
+            [str], Gate2ProviderProfile
+        ] = gate2_provider_profile,
     ) -> bool:
         try:
-            authoritative_profile = gate2_provider_profile(
+            authoritative_profile = provider_profile_resolver(
                 provider_profile.profile_id
             )
         except (AttributeError, Gate2SourceFactRuntimeError):
@@ -569,6 +572,14 @@ class Gate2ProviderAdapter(Protocol):
         ...
 
     def prepare_context_v2_1_budget_smoke_form_data(
+        self,
+        *,
+        form_data: dict[str, Any],
+        response_format: dict[str, Any],
+    ) -> Gate2PreparedProviderRequest:
+        ...
+
+    def prepare_gate3_bounded_labeling_form_data(
         self,
         *,
         form_data: dict[str, Any],
@@ -955,6 +966,66 @@ class _Gate2OpenWebUIProviderAdapter:
         self._validate_context_v2_1_budget_smoke_wire_form_data(
             provider_form_data
         )
+        result = replace(
+            prepared_request,
+            form_data=provider_form_data,
+        )
+        result.validate_schema_binding()
+        return result
+
+    def prepare_gate3_bounded_labeling_form_data(
+        self,
+        *,
+        form_data: dict[str, Any],
+        response_format: dict[str, Any],
+    ) -> Gate2PreparedProviderRequest:
+        """Project one sealed Gate 3 request without model-visible metadata."""
+
+        prepared_request = self.prepare_form_data(
+            form_data=form_data,
+            response_format=response_format,
+        )
+        provider_form_data = copy.deepcopy(prepared_request.form_data)
+        provider_form_data.pop("metadata", None)
+        messages = provider_form_data.get("messages")
+        system = provider_form_data.get("system")
+        if system is None:
+            expected_keys = {"model", "messages", "stream", "response_format"}
+            roles = ["system", "user", "user"]
+            contents = (
+                [item.get("content") for item in messages]
+                if isinstance(messages, list)
+                and all(isinstance(item, dict) for item in messages)
+                else []
+            )
+        else:
+            expected_keys = {
+                "model",
+                "max_tokens",
+                "messages",
+                "output_config",
+                "system",
+            }
+            roles = ["user", "user"]
+            contents = (
+                [system, *[item.get("content") for item in messages]]
+                if isinstance(system, str)
+                and isinstance(messages, list)
+                and all(isinstance(item, dict) for item in messages)
+                else []
+            )
+        if (
+            set(provider_form_data) != expected_keys
+            or not isinstance(messages, list)
+            or [item.get("role") for item in messages if isinstance(item, dict)]
+            != roles
+            or len(contents) != 3
+            or any(not isinstance(content, str) or not content for content in contents)
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Gate 3 provider request contains unexpected model context",
+            )
         result = replace(
             prepared_request,
             form_data=provider_form_data,
@@ -1727,6 +1798,43 @@ def _validate_context_v2_1_terminal_response(
 
 
 class Gate2GeminiResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
+    def prepare_gate3_bounded_labeling_form_data(
+        self,
+        *,
+        form_data: dict[str, Any],
+        response_format: dict[str, Any],
+    ) -> Gate2PreparedProviderRequest:
+        """Keep the contract-owned bare-alias description model-visible."""
+
+        prepared_request = super().prepare_gate3_bounded_labeling_form_data(
+            form_data=form_data,
+            response_format=response_format,
+        )
+        canonical_schema = self._strict_schema(response_format)["schema"]
+        provider_schema = copy.deepcopy(
+            prepared_request.provider_visible_schema
+        )
+        restored_keywords = _project_gate3_alias_description(
+            canonical_schema=canonical_schema,
+            provider_schema=provider_schema,
+        )
+        prepared_form_data = copy.deepcopy(prepared_request.form_data)
+        provider_wrapper = self._strict_schema(
+            prepared_form_data["response_format"]
+        )
+        provider_wrapper["schema"] = copy.deepcopy(provider_schema)
+        result = replace(
+            prepared_request,
+            form_data=prepared_form_data,
+            provider_visible_schema=provider_schema,
+            adapted_schema_hash=_schema_hash(provider_schema),
+            schema_transform_count=(
+                prepared_request.schema_transform_count - restored_keywords
+            ),
+        )
+        result.validate_schema_binding()
+        return result
+
     def _adapt_schema(self, schema: dict[str, Any]) -> int:
         return _project_gemini_structural_schema(schema)
 
@@ -2124,6 +2232,7 @@ _GEMINI_PRESERVED_ENUM_PROPERTIES = {
     "precision",
     "reason",
     "reason_code",
+    "schema_version",
     "semantic_role",
     "source_granularity",
     "source_ref",
@@ -2249,6 +2358,11 @@ def _project_gemini_structural_schema(
                 "gate2_provider_schema_adaptation_conflict",
                 "Gemini schema adaptation found incompatible const and enum values",
             )
+        if (
+            existing_enum is None
+            and property_name in _GEMINI_PRESERVED_ENUM_PROPERTIES
+        ):
+            schema["enum"] = [copy.deepcopy(constant)]
     for keyword in _GEMINI_REMOVED_SCHEMA_KEYWORDS:
         if (
             keyword == "enum"
@@ -2295,6 +2409,50 @@ def _project_gemini_structural_schema(
                         property_name=property_name,
                     )
     return transform_count
+
+
+def _project_gate3_alias_description(
+    *,
+    canonical_schema: dict[str, Any],
+    provider_schema: dict[str, Any],
+) -> int:
+    """Project wording from the canonical schema; never redefine the grammar."""
+
+    path = ("$defs", "annotation", "properties", "target_alias")
+    canonical_alias: Any = canonical_schema
+    provider_alias: Any = provider_schema
+    for field in path:
+        canonical_alias = (
+            canonical_alias.get(field)
+            if isinstance(canonical_alias, dict)
+            else None
+        )
+        provider_alias = (
+            provider_alias.get(field)
+            if isinstance(provider_alias, dict)
+            else None
+        )
+    description = (
+        canonical_alias.get("description")
+        if isinstance(canonical_alias, dict)
+        else None
+    )
+    if (
+        not isinstance(description, str)
+        or not description
+        or not isinstance(canonical_alias.get("pattern"), str)
+        or canonical_alias.get("type") != "string"
+        or not isinstance(provider_alias, dict)
+        or provider_alias.get("type") != "string"
+        or "enum" in provider_alias
+    ):
+        raise Gate2SourceFactRuntimeError(
+            "gate2_model_request_invalid",
+            "Gate 3 bare-alias schema projection is not exact",
+        )
+    changed = provider_alias.get("description") != description
+    provider_alias["description"] = description
+    return int(changed)
 
 
 def _project_anthropic_structural_schema(schema: dict[str, Any]) -> int:

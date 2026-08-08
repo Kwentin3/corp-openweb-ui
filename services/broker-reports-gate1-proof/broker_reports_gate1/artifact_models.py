@@ -194,6 +194,7 @@ ARTIFACT_TYPES = {
     "broker_reports_gate2_financial_context_v2",
     "broker_reports_gate2_financial_evidence_production_receipt_v1",
     "broker_reports_gate2_financial_evidence_production_run_v1",
+    "broker_reports_financial_annotations_v1",
     "debug_diagnostic_v0",
 }
 
@@ -369,6 +370,12 @@ class ArtifactStorePort(Protocol):
     def get_record_unchecked(self, artifact_id: str) -> ArtifactRecord | None: ...
 
     def list_by_run(self, normalization_run_id: str) -> list[ArtifactRecord]: ...
+
+    def list_by_case(self, case_id: str) -> list[ArtifactRecord]: ...
+
+    def list_by_case_context(
+        self, context: ArtifactAccessContext
+    ) -> list[ArtifactRecord]: ...
 
     def read_payload(self, record: ArtifactRecord) -> Any: ...
 

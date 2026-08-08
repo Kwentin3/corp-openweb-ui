@@ -560,12 +560,38 @@ Comment:
 
 ## Брокерские отчеты / 3-НДФЛ
 
-Architecture authority, 2026-07-18: the global Broker Reports product sequence
-is Gate 1 source representation, Gate 2 source-local semantic interpretation,
-Gate 3 case assembly/deterministic reconciliation and Gate 4 tax/declaration
-output preparation. Local capability gates, Stage 2 implementation gates and
-vertical proof labels are separate namespaces. Start with the
-[canonical global gate architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
+Use this route for Broker Reports, NDFL or a request to begin Gate 4.
+
+Read first:
+
+1. [Pipeline Gates v1 — sole current authority](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md)
+2. [Gate 3 short context handoff](contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md)
+3. [Gate 2 Exit Contract v1](contracts/BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md),
+   [Canonical Artifact v1](contracts/BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md),
+   [Canonical Reader v1](contracts/BROKER_REPORTS_CANONICAL_READER.v1.md),
+   [Gate 3 Minimal Labeling v1](contracts/BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md)
+   and the
+   [FinancialAnnotationsV1 schema](contracts/BROKER_REPORTS_FINANCIAL_ANNOTATIONS.v1.schema.json).
+
+Then, if implementation ownership matters, read the
+[architecture authorities map](contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md).
+If acceptance evidence must be audited, read the
+[corrected terminal Gate 3 proof](../reports/2026-08-07/BROKER_REPORTS_GATE3_CORRECTED_TERMINAL_G3_7C.report.md)
+and the
+[real NDFL product-path proof](../reports/2026-08-07/BROKER_REPORTS_GATE3_REAL_NDFL_PRODUCT_PATH_G3_C5.report.md).
+
+Current recovery result: Gate 3 is `CLOSED`; it is financial semantic labeling
+over an exact immutable `CanonicalArtifactV1` and stores a separate immutable
+`FinancialAnnotationsV1`. Gate 4 is next and is not designed here.
+
+Do not start from the superseded global gate architecture, old 3NDFL blueprint,
+old Domain Map, dated reports, old context packs or research unless the task is
+historical investigation.
+
+### Historical pre-Gate-3 notes
+
+The dated notes below preserve earlier implementation context. They do not
+override the current route above.
 
 Code-isolation enforcement, 2026-07-18: Gate 2 now consumes Gate 1 through
 `gate1_public_contracts.py` and resolver-authorized versioned artifacts, not
@@ -629,9 +655,9 @@ Inventory overflow preserves the completed parser prefix. Candidate/page model
 requests may propose bounded physical regions and topology, but every adjusted
 bbox and accepted structure must bind completely to exact source atoms.
 
-Read first:
+Historical and goal-specific additional context (read only if needed):
 
-- [Canonical Broker Reports global gate architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
+- [Superseded Broker Reports global gate architecture](blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
 - [Broker Reports architecture authorities](contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md)
 - [Financial Semantic Pack v1](contracts/BROKER_REPORTS_FINANCIAL_SEMANTIC_PACK.v1.md)
 - [Managed OpenWebUI Financial Domain asset family v3 inactive minimal profile](contracts/BROKER_REPORTS_OPENWEBUI_FINANCIAL_DOMAIN_ASSET_FAMILY.v3.md)

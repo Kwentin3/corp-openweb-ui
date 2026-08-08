@@ -1,0 +1,73 @@
+{
+  "schema_version": "broker_reports_gate3_projection_context_breakdown_safe_v1",
+  "goal": "G3.4A",
+  "measurement": {
+    "chars": "Python Unicode code points",
+    "bytes": "UTF-8 bytes",
+    "lines": "Python str.splitlines count",
+    "final_request": "UTF-8 compact JSON with ensure_ascii=false and sorted keys",
+    "token_rule": "only provider-reported total input_tokens; no per-component estimate"
+  },
+  "compact_html": {
+    "raw_parts": {
+      "instruction": {"chars": 356, "utf8_bytes": 576, "lines": 1},
+      "dictionary": {"chars": 3670, "utf8_bytes": 5631, "lines": 172},
+      "projection": {"chars": 15042, "utf8_bytes": 18773, "lines": 158},
+      "response_schema_compact_json": {"chars": 710, "utf8_bytes": 710, "lines": 1},
+      "provider_wrapper_and_other_compact_json": {"chars": 173, "utf8_bytes": 173, "lines": 1}
+    },
+    "exact_wire_char_contributions": {
+      "instruction": 356,
+      "dictionary": 3848,
+      "projection": 15220,
+      "response_schema": 708,
+      "provider_wrapper_and_other": 173,
+      "final_request": 20305
+    },
+    "provider_reported_input_tokens": 10386,
+    "provider_duration_ms": 14031
+  },
+  "large_csv": {
+    "raw_parts": {
+      "instruction": {"chars": 356, "utf8_bytes": 576, "lines": 1},
+      "dictionary": {"chars": 3670, "utf8_bytes": 5631, "lines": 172},
+      "projection": {"chars": 318684, "utf8_bytes": 376214, "lines": 1261},
+      "response_schema_compact_json": {"chars": 710, "utf8_bytes": 710, "lines": 1},
+      "provider_wrapper_and_other_compact_json": {"chars": 173, "utf8_bytes": 173, "lines": 1}
+    },
+    "exact_wire_char_contributions": {
+      "instruction": 356,
+      "dictionary": 3848,
+      "projection": 319979,
+      "response_schema": 708,
+      "provider_wrapper_and_other": 173,
+      "final_request": 325064
+    },
+    "provider_reported_input_tokens": 215810,
+    "provider_duration_ms": 136968
+  },
+  "shared_components_byte_identical": {
+    "instruction": true,
+    "dictionary": true,
+    "provider_response_format": true,
+    "provider_wrapper_and_other": true
+  },
+  "exact_large_minus_compact": {
+    "projection_chars": 303642,
+    "provider_input_tokens": 205424
+  },
+  "request_shape": {
+    "keys": ["messages", "model", "response_format", "stream"],
+    "roles": ["system", "user", "user"],
+    "meaningful_context_parts": 3,
+    "hidden_history_messages": 0,
+    "dictionary_injections": 1,
+    "backend_target_mappings_model_visible": false
+  },
+  "read_only_proof": {
+    "store_files_total": 174,
+    "store_bytes_total": 109059448,
+    "store_tree_hash_size_snapshot_byte_identical_after_read": true,
+    "provider_calls_made": 0
+  }
+}

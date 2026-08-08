@@ -1,0 +1,76 @@
+{
+  "schema_version": "broker_reports_gate3_representative_semantic_quality_receipt_v1",
+  "goal": "G3.7B",
+  "goal_status": "COMPLETED",
+  "acceptance": "PASS",
+  "semantic_quality": "SUFFICIENT_FOR_MVP",
+  "instruction_diff": {
+    "from_version": "1.0.0",
+    "from_sha256": "c239af0eb3e4308576b1766d9c84a0a4317d2873c046775a5700a81e5e7ce7b3",
+    "to_version": "1.0.1",
+    "to_sha256": "ddce6621e2b64337fb06201bc95f355a06765ce4b66fafdb9e87b4930f47ea8a",
+    "change_scope": "TARGET_ALIAS_SERIALIZATION_ONLY",
+    "financial_task_semantics_changed": false,
+    "prior_semantic_observations_admissible": true
+  },
+  "label_coverage": {
+    "SECURITY_PURCHASE": "OBSERVED_FINAL_STRICT",
+    "SECURITY_DISPOSAL": "OBSERVED_FINAL_STRICT",
+    "DIVIDEND_INCOME": "OBSERVED_FINAL_STRICT",
+    "COUPON_INCOME": "OBSERVED_FINAL_STRICT",
+    "INTEREST_INCOME": "OBSERVED_FINAL_STRICT",
+    "SECURITIES_LENDING_INCOME": "NOT_MEASURED",
+    "ACCRUED_COUPON_COMPONENT": "NOT_MEASURED",
+    "TRANSACTION_CHARGE": "OBSERVED_FINAL_STRICT",
+    "TAX_WITHHELD": "OBSERVED_FINAL_STRICT"
+  },
+  "final_strict_label_counts": {
+    "SECURITY_PURCHASE": 22,
+    "SECURITY_DISPOSAL": 11,
+    "DIVIDEND_INCOME": 144,
+    "COUPON_INCOME": 2,
+    "INTEREST_INCOME": 12,
+    "TRANSACTION_CHARGE": 32,
+    "TAX_WITHHELD": 185
+  },
+  "counterexample_results": {
+    "return_of_capital_not_dividend": "CORRECT_OMISSION",
+    "stock_dividend_not_cash_dividend": "CORRECT_OMISSION",
+    "dividend_accrual": "CORRECT_OMISSION",
+    "debit_interest_not_income": "CORRECT_OMISSION",
+    "interest_accrual": "CORRECT_OMISSION",
+    "paid_coupon": "CORRECT_LABEL",
+    "transaction_nkd": "NOT_MEASURED",
+    "position_nkd": "CORRECT_OMISSION",
+    "transaction_commission": "CORRECT_LABEL",
+    "withholding_tax": "CORRECT_LABEL",
+    "tax_calculation": "CORRECT_OMISSION",
+    "repo_purchase_wording": "CORRECT_OMISSION"
+  },
+  "quality_accounting": {
+    "adjudicated_boundaries": 12,
+    "correct_label": 3,
+    "correct_omission": 8,
+    "false_positive": 0,
+    "wrong_label": 0,
+    "missed_obvious_fact": 0,
+    "invalid_output_final_contract": 0,
+    "not_measured": 1,
+    "historical_visible_invalid_output": 1
+  },
+  "known_unmeasured_labels": [
+    "SECURITIES_LENDING_INCOME",
+    "ACCRUED_COUPON_COMPONENT"
+  ],
+  "known_unsupported_facts": [
+    "RETURN_OF_CAPITAL",
+    "STOCK_DISTRIBUTION_EVENT",
+    "REPO_EVENT",
+    "SECURITIES_CUSTODY_CHARGE",
+    "TAX_SETTLEMENT_OR_REFUND"
+  ],
+  "parallel_deterministic_financial_classifier": "NONE",
+  "semantic_failures_visible_not_repaired": true,
+  "new_provider_submissions": 0,
+  "next_allowed_goal": "G3.7C"
+}

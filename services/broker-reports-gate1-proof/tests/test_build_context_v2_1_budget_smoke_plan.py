@@ -12,6 +12,7 @@ import pytest
 from broker_reports_gate1.gate2_financial_evidence_materialization_contracts import (
     sha256_json,
 )
+from broker_reports_gate1.gate2_model_contracts import gate2_provider_profile
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +54,18 @@ BUILDER = _load_builder()
 @pytest.fixture(scope="module")
 def built_artifacts():
     return BUILDER.build_artifacts()
+
+
+def test_goal12_replay_pins_history_without_mutating_runtime_profile() -> None:
+    current = gate2_provider_profile("google_gemini")
+    historical = BUILDER.goal12_historical_provider_profile(
+        "google_gemini"
+    )
+
+    assert current.adapter_version == "1.6.0"
+    assert historical.adapter_version == "1.5.0"
+    assert historical.profile_id == current.profile_id
+    assert gate2_provider_profile("google_gemini") is current
 
 
 def test_precall_artifacts_pin_all_exact_synthetic_requests(

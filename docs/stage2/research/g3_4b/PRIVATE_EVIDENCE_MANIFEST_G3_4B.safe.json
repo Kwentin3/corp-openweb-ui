@@ -1,0 +1,18 @@
+{
+  "schema_version": "broker_reports_gate3_structural_chunking_private_evidence_safe_pointer_v1",
+  "goal": "G3.4B",
+  "privacy": "EXACT_CUSTOMER_BEARING_EVIDENCE_OUTSIDE_GIT",
+  "available": true,
+  "private_manifest_files": 26,
+  "private_manifest_total_bytes": 195011912,
+  "private_manifest_sha256": "79bdcabdd7a3e0d9e96bc897fb40b0d7b430d5989355e717867ea3452c5c3320",
+  "contains": {
+    "compact_old_projection_and_chunks": true,
+    "large_csv_first_boundary_last_chunks": true,
+    "repo_xlsx_whole_table_and_oversized_row_chunks": true,
+    "per_document_size_matrices": true,
+    "exact_human_readable_examples": true,
+    "store_before_after_snapshots": true
+  },
+  "tracked_customer_values": 0
+}

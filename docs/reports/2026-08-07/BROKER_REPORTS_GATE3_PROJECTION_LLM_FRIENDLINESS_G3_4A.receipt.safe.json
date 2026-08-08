@@ -1,0 +1,66 @@
+{
+  "schema_version": "broker_reports_gate3_projection_llm_friendliness_audit_safe_receipt_v1",
+  "goal": "G3.4A",
+  "goal_status": "COMPLETED",
+  "date": "2026-08-07",
+  "audit_mode": "read_only_frozen_evidence_no_provider_calls",
+  "exact_context_audit": "PASSED_TWO_SENT_REQUESTS_ONE_UNSENT_EXACT_PROJECTION",
+  "root_cause": "full_document_one_shot_table_granularity_plus_dense_row_cell_addressing_and_markdown_scaffolding",
+  "one_shot": "VIABLE_ONLY_FOR_SMALL_DOCUMENTS",
+  "g3_2_projection_fitness": "FORMAT_FRIENDLY_NOT_CONTEXT_BOUNDED",
+  "schema_duplication": "NOT_FOUND",
+  "dictionary_injection_count": 1,
+  "hidden_history_messages": 0,
+  "measurements": {
+    "compact_html": {
+      "projection_chars": 15042,
+      "aliases": 612,
+      "final_request_compact_json_chars": 20305,
+      "provider_reported_input_tokens": 10386
+    },
+    "large_csv": {
+      "projection_chars": 318684,
+      "aliases": 14118,
+      "final_request_compact_json_chars": 325064,
+      "provider_reported_input_tokens": 215810
+    },
+    "repo_xlsx": {
+      "projection_chars": 3884393,
+      "aliases": 182497,
+      "provider_reported_input_tokens": null,
+      "provider_status": "N/A_NOT_SENT"
+    }
+  },
+  "provider_response_schema": {
+    "compact_json_chars": 710,
+    "concrete_alias_values": 0,
+    "dictionary_label_values": 0,
+    "canonical_mappings": 0,
+    "document_values": 0
+  },
+  "read_only_proof": {
+    "new_provider_calls": 0,
+    "artifact_store_tree_byte_identical_after_audit": true,
+    "runtime_or_contract_files_modified_by_g3_4a": 0,
+    "annotations_persisted": 0,
+    "workflow_or_product_route_changed": false
+  },
+  "private_evidence": {
+    "available_outside_git": true,
+    "manifest_sha256": "2b26d0283e3bedb631bd2eb0fb5f582926f491951947415444d400bcdffca0da",
+    "exact_compact_input": true,
+    "exact_large_input": true,
+    "exact_repo_projection": true,
+    "human_readable_exact_views": true
+  },
+  "safe_evidence": [
+    "docs/stage2/research/g3_4a/01_context_breakdown.safe.json",
+    "docs/stage2/research/g3_4a/05_provider_schema_exact.safe.json",
+    "docs/stage2/research/g3_4a/06_alias_inventory.safe.csv",
+    "docs/stage2/research/g3_4a/07_table_expansion_examples.safe.md",
+    "docs/stage2/research/g3_4a/08_projection_size_matrix.safe.csv",
+    "docs/stage2/research/g3_4a/09_structural_redundancy_findings.md",
+    "docs/stage2/research/g3_4a/10_design_options.md"
+  ],
+  "next_step_recommendation": "REVIEW_ONLY"
+}

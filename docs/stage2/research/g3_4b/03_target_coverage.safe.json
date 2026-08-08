@@ -1,0 +1,35 @@
+{
+  "schema_version": "broker_reports_gate3_structural_chunking_coverage_safe_v1",
+  "goal": "G3.4B",
+  "documents": {
+    "compact_html": {
+      "eligible_targets": 612,
+      "working_targets": 612,
+      "lost_targets": 0,
+      "duplicated_working_targets": 0,
+      "context_only_target_aliases": 0,
+      "data_row_overlap": 0,
+      "target_order_preserved": true
+    },
+    "large_csv": {
+      "eligible_targets": 14118,
+      "working_targets": 14118,
+      "lost_targets": 0,
+      "duplicated_working_targets": 0,
+      "context_only_target_aliases": 0,
+      "data_row_overlap": 0,
+      "target_order_preserved": true
+    },
+    "repo_xlsx": {
+      "eligible_targets": 182497,
+      "working_targets": 182497,
+      "lost_targets": 0,
+      "duplicated_working_targets": 0,
+      "context_only_target_aliases": 0,
+      "data_row_overlap": 0,
+      "target_order_preserved": true
+    }
+  },
+  "document_mixing": 0,
+  "store_tree_byte_identical_after_read_only_evidence_run": true
+}

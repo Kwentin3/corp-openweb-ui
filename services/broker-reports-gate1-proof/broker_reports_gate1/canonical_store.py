@@ -56,6 +56,7 @@ class CanonicalPersistResult:
 @dataclass(frozen=True)
 class CanonicalReadEnvelope:
     artifact: dict[str, Any]
+    document_id: str
     canonical_version_id: str
     canonical_version_number: int
     version_status: str
@@ -679,7 +680,11 @@ class CanonicalArtifactStore:
 
 
 class CanonicalReaderFactory:
-    """Sole public reader constructor for every canonical physical layout."""
+    """Sole public reader constructor for every canonical physical layout.
+
+    CanonicalArtifactV1 is immutable Gate 2 output. Downstream financial
+    semantics belong in a separate sidecar and must never be written into it.
+    """
 
     def __init__(self, *, store, read_enabled: bool) -> None:
         self.store = store
@@ -709,6 +714,17 @@ class CanonicalReader:
         )
         return self._read_version(version, context)
 
+    def read_envelope(
+        self, artifact_ref: str, context: ArtifactAccessContext
+    ) -> CanonicalReadEnvelope:
+        """Return one exact manifest-bound version with safe accounting."""
+
+        self._require_enabled()
+        version = self.store.get_canonical_version_by_manifest(
+            context=context, manifest_ref=artifact_ref
+        )
+        return self._read_envelope(version, context)
+
     def read_active(
         self, document_id: str, context: ArtifactAccessContext
     ) -> dict[str, Any]:
@@ -727,22 +743,7 @@ class CanonicalReader:
         version = self.store.get_active_canonical_version(
             context=context, document_id=document_id
         )
-        artifact = self._read_version(version, context)
-        components = self.store.list_canonical_components(
-            context=context, canonical_version_id=version.canonical_version_id
-        )
-        manifest = self._manifest(version, context)
-        return CanonicalReadEnvelope(
-            artifact=artifact,
-            canonical_version_id=version.canonical_version_id,
-            canonical_version_number=version.canonical_version_number,
-            version_status=version.status,
-            schema_version=version.schema_version,
-            canonical_root_sha256=version.canonical_root_sha256,
-            physical_layout=str(manifest.get("physical_layout") or ""),
-            component_count=len(components),
-            payload_bytes=len(_json_bytes(artifact)),
-        )
+        return self._read_envelope(version, context)
 
     def history(
         self, document_id: str, context: ArtifactAccessContext
@@ -961,6 +962,29 @@ class CanonicalReader:
             return version
         return self.store.get_active_canonical_version(
             context=context, document_id=document_id
+        )
+
+    def _read_envelope(
+        self,
+        version: CanonicalVersionRecord,
+        context: ArtifactAccessContext,
+    ) -> CanonicalReadEnvelope:
+        artifact = self._read_version(version, context)
+        components = self.store.list_canonical_components(
+            context=context, canonical_version_id=version.canonical_version_id
+        )
+        manifest = self._manifest(version, context)
+        return CanonicalReadEnvelope(
+            artifact=artifact,
+            document_id=version.document_id,
+            canonical_version_id=version.canonical_version_id,
+            canonical_version_number=version.canonical_version_number,
+            version_status=version.status,
+            schema_version=version.schema_version,
+            canonical_root_sha256=version.canonical_root_sha256,
+            physical_layout=str(manifest.get("physical_layout") or ""),
+            component_count=len(components),
+            payload_bytes=len(_json_bytes(artifact)),
         )
 
     def _manifest(

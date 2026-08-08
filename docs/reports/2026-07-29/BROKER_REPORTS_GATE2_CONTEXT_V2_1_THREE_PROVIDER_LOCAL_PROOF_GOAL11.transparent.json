@@ -657,7 +657,7 @@
         "metadata": {
           "broker_reports_gate2": {
             "provider_adapter_id": "gemini_response_format",
-            "provider_adapter_version": "1.5.0",
+            "provider_adapter_version": "1.6.0",
             "provider_profile_id": "google_gemini",
             "structured_output_mode": "openwebui_response_format_json_schema"
           }
@@ -759,7 +759,7 @@
           }
         ]
       },
-      "integrity_hash": "f22f0c4ce7a21b8d355ba1af7a9d504974b40016f75715527783203c023f67a1",
+      "integrity_hash": "cea4e75141544816060ba6bb4fa1e5def311e87cb2940c26e9dbd6870636b6d6",
       "normalized_canonical_answer": {
         "disposition": "unclassified_financial_input",
         "reason_code": "single_registry_type_no_safe_record"
@@ -771,13 +771,13 @@
         "replay_materialized_artifact_hash": "e4648cb46897fdf0af4e4c39594021cf69873db33d148fad34a2368026513464",
         "replay_snapshot_integrity_hash": "1eccbcabe69f8a3816f5650f9c135aab4c5fd67056c7bd596f4d36c3e24d90a0",
         "restore_exact": true,
-        "restored_private_evidence_hash": "18034426f74dabd9f401808d57312a645bb71b702e6aacd047776cd782403a1a",
-        "serialized_private_evidence_hash": "461c4f4da494938f0838d4415f6fbb5f096d2be124e1bb678cb98555d12e0a1e"
+        "restored_private_evidence_hash": "8cfdf1fbfc6eba6cda25d5d0d7373d53ea999ac440e287c5609c9b637ab1b490",
+        "serialized_private_evidence_hash": "2e46db65566b2016e30b6437cff427c2cdb10205b5ccf8d524cd51cb089d7180"
       },
       "provider": {
         "adapted_schema_hash": "bd17c1792c0b42e24c7639d4dc5614e1c961942245fca76a32a40566f8b5bb90",
         "adapter_id": "gemini_response_format",
-        "adapter_version": "1.5.0",
+        "adapter_version": "1.6.0",
         "canonical_schema_hash": "bd17c1792c0b42e24c7639d4dc5614e1c961942245fca76a32a40566f8b5bb90",
         "provider_id": "google",
         "provider_profile_id": "google_gemini",
@@ -810,7 +810,7 @@
         "metadata": {
           "broker_reports_gate2": {
             "provider_adapter_id": "gemini_response_format",
-            "provider_adapter_version": "1.5.0",
+            "provider_adapter_version": "1.6.0",
             "provider_profile_id": "google_gemini",
             "structured_output_mode": "openwebui_response_format_json_schema"
           }
@@ -912,7 +912,7 @@
           }
         ]
       },
-      "integrity_hash": "a78e478cc000e33109845906def2e3144397434cd7e89caccaf04c6bcd7eb7cd",
+      "integrity_hash": "472568ac2795547184850498dd88648901d906a33ec8d51341b04a16c9e2f3a0",
       "normalized_canonical_answer": {
         "disposition": "unclassified_financial_input",
         "reason_code": "ambiguous_registry_type"
@@ -924,13 +924,13 @@
         "replay_materialized_artifact_hash": "397ce642bde971cd2a809d70abb93e09a6cd5914c07ec5ca7ebde454f4009176",
         "replay_snapshot_integrity_hash": "1df53af31eaa89ca7a8e8400d6d40bce65095ac29adc806d1c280434a0a33508",
         "restore_exact": true,
-        "restored_private_evidence_hash": "fc2d4cd010ebe71fd0eb6c9a7a91134f2880a8e145f01311ebd003a3ac4583ff",
-        "serialized_private_evidence_hash": "c14bbe00e8c2bef3868eb53bb7a45a79e5f392430cbf998dbf73cc76c585b2fb"
+        "restored_private_evidence_hash": "7c64dfc57e672d1cc86ac955872c947e378a1c3a7a9d632dfbe0df97602cc009",
+        "serialized_private_evidence_hash": "ea0724fe78b97e99181f5a1fb76d976407374ee2c7c8eb19f80fdcdfbac9a766"
       },
       "provider": {
         "adapted_schema_hash": "bd17c1792c0b42e24c7639d4dc5614e1c961942245fca76a32a40566f8b5bb90",
         "adapter_id": "gemini_response_format",
-        "adapter_version": "1.5.0",
+        "adapter_version": "1.6.0",
         "canonical_schema_hash": "bd17c1792c0b42e24c7639d4dc5614e1c961942245fca76a32a40566f8b5bb90",
         "provider_id": "google",
         "provider_profile_id": "google_gemini",
@@ -963,7 +963,7 @@
         "metadata": {
           "broker_reports_gate2": {
             "provider_adapter_id": "gemini_response_format",
-            "provider_adapter_version": "1.5.0",
+            "provider_adapter_version": "1.6.0",
             "provider_profile_id": "google_gemini",
             "structured_output_mode": "openwebui_response_format_json_schema"
           }
@@ -1097,7 +1097,7 @@
           }
         ]
       },
-      "integrity_hash": "8b9c2bf71e178cedee77eaedf8c3ee843f0ea96f75b251b37b6a86a6b4cbc246",
+      "integrity_hash": "d5d7c7ff4efa3f5277cdb3cd91039227bb7fe3aed7e328e8ed57cf708c713866",
       "normalized_canonical_answer": {
         "disposition": "unclassified_financial_input",
         "reason_code": "no_registry_type"
@@ -1109,13 +1109,13 @@
         "replay_materialized_artifact_hash": "87e7a39be8de39b11a87864118535e71bf6b9ae5328c54a534642fb80cc8606e",
         "replay_snapshot_integrity_hash": "d906830fc29d351b4169355857ac33f34ff26d0e8aa0cc36151ee203342416bb",
         "restore_exact": true,
-        "restored_private_evidence_hash": "d2f04377d844e3822ac7391bea49d710d794c1b5d71324e5524b7c8c828d4985",
-        "serialized_private_evidence_hash": "bdbf8085ac53355accceb11d970ee26486b1f52397c71abe8db6d6b2a0b6add7"
+        "restored_private_evidence_hash": "78a46ed59e173aacb7f1a709653b05b04c04a1579dadf5fb7e2f9f9bfea505e8",
+        "serialized_private_evidence_hash": "6485e90c891e3b17ba08443c8e937dd553ee41c614c7530299ff98b08646985b"
       },
       "provider": {
         "adapted_schema_hash": "0b726d1b40ceefee44abc53cdf9d343c09c06457201841ac30d84cb1bd05efc4",
         "adapter_id": "gemini_response_format",
-        "adapter_version": "1.5.0",
+        "adapter_version": "1.6.0",
         "canonical_schema_hash": "0b726d1b40ceefee44abc53cdf9d343c09c06457201841ac30d84cb1bd05efc4",
         "provider_id": "google",
         "provider_profile_id": "google_gemini",
@@ -1148,7 +1148,7 @@
         "metadata": {
           "broker_reports_gate2": {
             "provider_adapter_id": "gemini_response_format",
-            "provider_adapter_version": "1.5.0",
+            "provider_adapter_version": "1.6.0",
             "provider_profile_id": "google_gemini",
             "structured_output_mode": "openwebui_response_format_json_schema"
           }
@@ -1282,7 +1282,7 @@
           }
         ]
       },
-      "integrity_hash": "4c1b072d9ae0a9a695d111dfba6f9d321cd2e7bdda27a112935da6c1d84f4aec",
+      "integrity_hash": "f8da166f9e8f36aeb7fc53d60670a3a2679ebe5840baa1d5b233527442bececd",
       "normalized_canonical_answer": {
         "disposition": "typed_input",
         "typed_option_id": "financial-typed-option:ddcf7fde28240dc392c4f143abb40d3f"
@@ -1294,13 +1294,13 @@
         "replay_materialized_artifact_hash": "988b6eed9d99dba41a0f3d550c43cf6b6044f6850b3e63a0ec7420e23c66885e",
         "replay_snapshot_integrity_hash": "8595dadc95ba3a9bb65e7764eec0c2672b3c80e2ef866256dc03c4c06194b58f",
         "restore_exact": true,
-        "restored_private_evidence_hash": "9d37ee6ec7d9d44e53f942e3e44e3d347a7430514f42a45a9608e7a12819e62e",
-        "serialized_private_evidence_hash": "66eb95f5035c5e7e98b6d2cd7ef0f0b5258fc7ac8266da4ec62fd112523416ab"
+        "restored_private_evidence_hash": "d8a929be145fd8dda4fdc0f2184ef574f054a771e2e535254799e58280179bea",
+        "serialized_private_evidence_hash": "061c41279d2bb5be95fd4bebf468ab9634d9b41dd4e409899a591a9b3b04f818"
       },
       "provider": {
         "adapted_schema_hash": "0b726d1b40ceefee44abc53cdf9d343c09c06457201841ac30d84cb1bd05efc4",
         "adapter_id": "gemini_response_format",
-        "adapter_version": "1.5.0",
+        "adapter_version": "1.6.0",
         "canonical_schema_hash": "0b726d1b40ceefee44abc53cdf9d343c09c06457201841ac30d84cb1bd05efc4",
         "provider_id": "google",
         "provider_profile_id": "google_gemini",

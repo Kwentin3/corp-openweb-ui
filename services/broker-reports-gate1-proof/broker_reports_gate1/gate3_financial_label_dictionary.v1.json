@@ -1,0 +1,187 @@
+{
+  "schema_version": "broker_reports_gate3_financial_label_dictionary_v1",
+  "dictionary_id": "broker-reports-financial-labels",
+  "semantic_version": "1.0.0",
+  "status": "PUBLISHED",
+  "published_at": "2026-08-07",
+  "approval": {
+    "approval_id": "g3.3m-explicit-goal-approval-2026-08-07",
+    "decision": "APPROVED",
+    "approved_by_role": "goal_setters",
+    "approved_at": "2026-08-07",
+    "basis": "G3.3M contract fixes the nine G3.3V-validated labels"
+  },
+  "labels": [
+    {
+      "label_id": "SECURITY_PURCHASE",
+      "meaning": "Исполненная покупка конкретной ценной бумаги для счёта.",
+      "apply_when": [
+        "Источник прямо показывает исполненную покупку ценной бумаги."
+      ],
+      "do_not_apply_when": [
+        "Это transfer, position, FX, заявка или РЕПО."
+      ],
+      "examples": [
+        "Покупка",
+        "Buy",
+        "Purchase"
+      ],
+      "confusable_with": [
+        "Перевод ценных бумаг",
+        "Stock distribution"
+      ]
+    },
+    {
+      "label_id": "SECURITY_DISPOSAL",
+      "meaning": "Исполненная продажа, погашение или иное возмездное выбытие ценной бумаги.",
+      "apply_when": [
+        "Источник показывает sale, redemption или maturity и полученные proceeds."
+      ],
+      "do_not_apply_when": [
+        "Это transfer out, отмена, изменение позиции, РЕПО или corporate action без доказанного возмездного выбытия."
+      ],
+      "examples": [
+        "Продажа",
+        "Погашение ЦБ",
+        "Sell",
+        "Redemption"
+      ],
+      "confusable_with": [
+        "Перевод ценных бумаг",
+        "Stock dividend"
+      ]
+    },
+    {
+      "label_id": "DIVIDEND_INCOME",
+      "meaning": "Выплаченный или зачисленный денежный дивиденд.",
+      "apply_when": [
+        "Источник прямо показывает paid или credited cash dividend."
+      ],
+      "do_not_apply_when": [
+        "Это dividend accrual, stock dividend или return of capital."
+      ],
+      "examples": [
+        "Наличный дивиденд",
+        "Обыкновенный дивиденд",
+        "Cash Dividend"
+      ],
+      "confusable_with": [
+        "Начисления дивидендов",
+        "Возврат капитала"
+      ]
+    },
+    {
+      "label_id": "COUPON_INCOME",
+      "meaning": "Выплаченный или зачисленный купон по облигации.",
+      "apply_when": [
+        "Источник прямо показывает payment или credit купона."
+      ],
+      "do_not_apply_when": [
+        "Это НКД сделки, погашение principal или общий interest."
+      ],
+      "examples": [
+        "Зачисление д/с (купон …)",
+        "Погашение купона",
+        "Coupon Payment"
+      ],
+      "confusable_with": [
+        "НКД покупки",
+        "НКД продажи",
+        "Погашение ЦБ"
+      ]
+    },
+    {
+      "label_id": "INTEREST_INCOME",
+      "meaning": "Фактически начисленный или зачисленный процентный доход по денежным средствам.",
+      "apply_when": [
+        "Источник и направление суммы подтверждают cash-interest income."
+      ],
+      "do_not_apply_when": [
+        "Это debit interest, coupon, НКД, unpaid accrual или доход от займа ценных бумаг."
+      ],
+      "examples": [
+        "Проценты по займам \"овернайт\"",
+        "Interest Credit"
+      ],
+      "confusable_with": [
+        "Дебетовый процент",
+        "Начисления процентов"
+      ]
+    },
+    {
+      "label_id": "SECURITIES_LENDING_INCOME",
+      "meaning": "Фактически начисленный или зачисленный доход за передачу ценных бумаг в заём.",
+      "apply_when": [
+        "Income row прямо называет securities или stock loan и содержит source value."
+      ],
+      "do_not_apply_when": [
+        "Это cash interest, margin charge, payment in lieu или общее описание договора."
+      ],
+      "examples": [
+        "Проценты по займам \"овернайт ЦБ\"",
+        "Securities Lending Income"
+      ],
+      "confusable_with": [
+        "Проценты по займам \"овернайт\" без ЦБ"
+      ]
+    },
+    {
+      "label_id": "ACCRUED_COUPON_COMPONENT",
+      "meaning": "НКД как компонент расчёта покупки или продажи облигации.",
+      "apply_when": [
+        "НКД или accrued coupon явно связан с transaction price, cost или proceeds."
+      ],
+      "do_not_apply_when": [
+        "Это выплаченный купон, общий accrual или informational position value."
+      ],
+      "examples": [
+        "НКД покупки",
+        "НКД продажи",
+        "Accrued Interest в trade row"
+      ],
+      "confusable_with": [
+        "Погашение купона",
+        "НКД на конец периода"
+      ]
+    },
+    {
+      "label_id": "TRANSACTION_CHARGE",
+      "meaning": "Комиссия, сбор или transaction tax, прямо связанные с конкретной покупкой или продажей ценной бумаги.",
+      "apply_when": [
+        "Связь с исполненной сделкой видна из той же строки или секции."
+      ],
+      "do_not_apply_when": [
+        "Это withholding, account или custody service, debit interest либо неопределённая комиссия."
+      ],
+      "examples": [
+        "Комиссионные затраты (транзактные)",
+        "Комиссия Брокера",
+        "Комиссия Биржи",
+        "Commission/Fee в trade row"
+      ],
+      "confusable_with": [
+        "Удерживаемый налог",
+        "Обслуживание счета депо"
+      ]
+    },
+    {
+      "label_id": "TAX_WITHHELD",
+      "meaning": "Налог, фактически удержанный из дохода.",
+      "apply_when": [
+        "Withholding подтверждён income event или однозначным income section."
+      ],
+      "do_not_apply_when": [
+        "Это transaction tax, tax calculated, tax payable либо неразделённые payment и refund."
+      ],
+      "examples": [
+        "Удерживаемый налог",
+        "Налог удержан",
+        "Withholding Tax"
+      ],
+      "confusable_with": [
+        "Расчет налога",
+        "Уплата/возврат налога"
+      ]
+    }
+  ]
+}

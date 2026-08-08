@@ -1,0 +1,27 @@
+{
+  "schema_version": "broker_reports_gate3_structural_chunking_anti_smart_audit_safe_v1",
+  "goal": "G3.4B",
+  "audited_module": "broker_reports_gate1.gate3_structural_chunking",
+  "financial_keyword_rules": 0,
+  "financial_label_decisions": 0,
+  "dictionary_imports": 0,
+  "old_gate2_semantic_imports": 0,
+  "semantic_ranking_paths": 0,
+  "provider_or_llm_imports": 0,
+  "provider_or_llm_calls": 0,
+  "embedding_or_rag_paths": 0,
+  "tokenizer_dependencies": 0,
+  "persistence_writes": 0,
+  "compiled_regexes": [
+    {
+      "purpose": "existing G3.2 target alias recognition and context stripping",
+      "count": 1
+    }
+  ],
+  "boundary_inputs": [
+    "existing rendered structural units",
+    "document order",
+    "exact model-view character size"
+  ],
+  "result": "PASS"
+}

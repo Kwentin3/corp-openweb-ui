@@ -81,7 +81,7 @@ CONTEXT_V2_1_PROVIDER_PROOF_PROFILE_AUTHORITY = {
     "google_gemini": {
         "provider_id": "google",
         "adapter_id": "gemini_response_format",
-        "adapter_version": "1.5.0",
+        "adapter_version": "1.6.0",
         "structured_output_mode": (
             "openwebui_response_format_json_schema"
         ),

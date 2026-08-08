@@ -1,0 +1,31 @@
+{
+  "schema_version": "broker_reports_gate3_g3_4c_manual_quality_safe_v1",
+  "review_method": "human_review_of_predeclared_and_boundary_specimens",
+  "specimens_reviewed": 10,
+  "outcomes": {
+    "correct_label": 4,
+    "correct_omission": 5,
+    "false_positive": 0,
+    "wrong_label": 0,
+    "missed_obvious_fact": 0,
+    "invalid_response": 1
+  },
+  "boundary_failures": 0,
+  "cases": {
+    "return_of_capital": "CORRECT_OMISSION",
+    "credited_interest_across_chunk_boundary": "CORRECT_LABEL_BOTH_SIDES",
+    "debit_interest": "CORRECT_OMISSION",
+    "interest_accrual": "CORRECT_OMISSION",
+    "transaction_charge": "CORRECT_LABEL",
+    "withholding": "CORRECT_LABEL",
+    "tax_calculation": "CORRECT_OMISSION",
+    "compact_coupon": "RAW_CHOICE_ALIGNED_BUT_RESPONSE_INVALID"
+  },
+  "coverage_limits": {
+    "positive_accrued_coupon_component_tested": false,
+    "positive_securities_lending_tested": false,
+    "compact_coupon_validated": false
+  },
+  "semantic_quality": "PARTIAL",
+  "sufficient_for_g3_5": false
+}

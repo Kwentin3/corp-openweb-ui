@@ -483,6 +483,22 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     allowed_standalone_contract_authorities = {
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_financial_label_dictionary.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_financial_annotations_persistence.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_ndfl_case_readiness.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_ndfl_workflow.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "managed_document_contracts.py"
         ),
         (
@@ -565,9 +581,33 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "xlsx_streaming.py"
         ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_projection.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_structural_chunking.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_bounded_labeling.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_chunk_batch_labeling.py"
+        ),
+    }
+    allowed_support_modules = {
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_financial_label_dictionary_cli.py"
+        ),
     }
     assert set(added_package_modules) <= (
-        allowed_subordinates | allowed_standalone_contract_authorities
+        allowed_subordinates
+        | allowed_standalone_contract_authorities
+        | allowed_support_modules
     )
     added_subordinates = set(added_package_modules) & allowed_subordinates
     if added_subordinates:
@@ -804,6 +844,127 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         assert "FORBIDDEN" in source
         assert "def main(" not in source
         assert "openwebui_actions" not in _imports(module)
+    gate3_projection_authority = (
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate3_projection.py"
+    )
+    if gate3_projection_authority in added_contract_authorities:
+        for path in (
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_GATE3_PROJECTION.v1.schema.json",
+            SERVICE_ROOT / "tests" / "test_broker_reports_gate3_projection.py",
+        ):
+            assert path.is_file()
+        authority_map = _read(ARCHITECTURE_AUTHORITIES)
+        assert "Gate3ProjectionFactory.create" in authority_map
+        module = REPO_ROOT / gate3_projection_authority
+        source = _read(module)
+        assert "FACTORY_REQUIRED" in source
+        assert "FORBIDDEN" in source
+        assert "CanonicalReaderFactory" in source
+        assert "def main(" not in source
+        assert "openwebui_actions" not in _imports(module)
+    gate3_chunking_authority = (
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate3_structural_chunking.py"
+    )
+    if gate3_chunking_authority in added_contract_authorities:
+        for path in (
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_GATE3_STRUCTURAL_CHUNKING.v1.md",
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_GATE3_STRUCTURAL_CHUNK_SET.v1.schema.json",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_gate3_structural_chunking.py",
+        ):
+            assert path.is_file()
+        authority_map = _read(ARCHITECTURE_AUTHORITIES)
+        assert "Gate3StructuralChunkFactory.create" in authority_map
+        module = REPO_ROOT / gate3_chunking_authority
+        source = _read(module)
+        assert "FACTORY_REQUIRED" in source
+        assert "FORBIDDEN" in source
+        assert "Gate3ProjectionFactory" in source
+        assert "def main(" not in source
+        assert "openwebui_actions" not in _imports(module)
+    gate3_dictionary_authority = (
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate3_financial_label_dictionary.py"
+    )
+    if gate3_dictionary_authority in added_contract_authorities:
+        for path in (
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v1.md",
+            PACKAGE_ROOT / "gate3_financial_label_dictionary.v1.json",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_gate3_financial_label_dictionary.py",
+        ):
+            assert path.is_file()
+        authority_map = _read(ARCHITECTURE_AUTHORITIES)
+        assert "Gate3FinancialLabelDictionaryFactory.create" in authority_map
+        module = REPO_ROOT / gate3_dictionary_authority
+        source = _read(module)
+        assert "FACTORY_REQUIRED" in source
+        assert "FORBIDDEN" in source
+        assert "resources.files(__package__)" in source
+        assert "def main(" not in source
+        assert "openwebui_actions" not in _imports(module)
+    gate3_labeling_authority = (
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate3_bounded_labeling.py"
+    )
+    if gate3_labeling_authority in added_contract_authorities:
+        for path in (
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md",
+            PACKAGE_ROOT / "gate3_labeling_response.v1.schema.json",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_gate3_bounded_labeling.py",
+        ):
+            assert path.is_file()
+        authority_map = _read(ARCHITECTURE_AUTHORITIES)
+        assert "Gate3BoundedLabelingFactory.create" in authority_map
+        module = REPO_ROOT / gate3_labeling_authority
+        source = _read(module)
+        assert "FACTORY_REQUIRED" in source
+        assert "FORBIDDEN" in source
+        assert "Gate3ProjectionFactory" in source
+        assert "Gate3FinancialLabelDictionaryFactory" in source
+        assert "def main(" not in source
+        assert "openwebui_actions" not in _imports(module)
+    gate3_chunk_batch_authority = (
+        "services/broker-reports-gate1-proof/broker_reports_gate1/"
+        "gate3_chunk_batch_labeling.py"
+    )
+    if gate3_chunk_batch_authority in added_contract_authorities:
+        for path in (
+            DOC_ROOT
+            / "contracts"
+            / "BROKER_REPORTS_GATE3_CHUNK_BATCH_LABELING.v1.md",
+            SERVICE_ROOT
+            / "tests"
+            / "test_broker_reports_gate3_chunk_batch_labeling.py",
+        ):
+            assert path.is_file()
+        authority_map = _read(ARCHITECTURE_AUTHORITIES)
+        assert "Gate3ChunkBatchLabelingFactory.create" in authority_map
+        module = REPO_ROOT / gate3_chunk_batch_authority
+        source = _read(module)
+        assert "FACTORY_REQUIRED" in source
+        assert "FORBIDDEN" in source
+        assert "Gate3StructuralChunkFactory" in source
+        assert "Gate3BoundedLabelingFactory" in source
+        assert "def main(" not in source
+        assert "openwebui_actions" not in _imports(module)
     workflow = _read(
         REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml"
     )
@@ -814,6 +975,19 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         "tests/test_broker_reports_managed_document_llm_view_v2.py",
     ):
         assert doc6_suite in workflow
+    for gate3_suite in (
+        "tests/test_broker_reports_gate3_minimal_labeling_contract.py",
+        "tests/test_broker_reports_gate3_projection.py",
+        "tests/test_broker_reports_gate3_structural_chunking.py",
+        "tests/test_broker_reports_gate3_financial_label_dictionary.py",
+        "tests/test_broker_reports_gate3_bounded_labeling.py",
+        "tests/test_broker_reports_gate3_chunk_batch_labeling.py",
+        "tests/test_broker_reports_gate3_financial_annotations_persistence.py",
+        "tests/test_broker_reports_gate3_ndfl_case_readiness.py",
+        "tests/test_broker_reports_gate3_ndfl_workflow.py",
+        "tests/test_broker_reports_gate3_openwebui_managed_dictionary.py",
+    ):
+        assert gate3_suite in workflow
     assert DOMAIN_MAP.is_file()
 
 

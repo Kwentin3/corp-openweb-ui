@@ -1,0 +1,17 @@
+{
+  "schema_version": "broker_reports_gate3_g3_4d_private_evidence_manifest_safe_v1",
+  "private_evidence_available": true,
+  "private_evidence_location_committed": false,
+  "preflight_sets": 3,
+  "files_per_set": 8,
+  "bytes_per_set": 734743,
+  "manifest_sha256_each": "e976f24ac2f830ff066b56aced7b5178b25c817b02be2df4ecb2f6056a67e446",
+  "contains_exact_instruction": true,
+  "contains_exact_dictionary": true,
+  "contains_exact_selected_chunks": true,
+  "contains_exact_canonical_schema": true,
+  "contains_exact_final_provider_input": false,
+  "contains_raw_model_output": false,
+  "contains_validation_result": false,
+  "source_or_customer_values_in_safe_manifest": false
+}

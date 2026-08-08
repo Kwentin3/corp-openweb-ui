@@ -800,7 +800,10 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
             "properties"
         ]["schema_version"]
         self.assertNotIn("const", sent_schema_version)
-        self.assertNotIn("enum", sent_schema_version)
+        self.assertEqual(
+            sent_schema_version["enum"],
+            ["broker_reports_source_facts_v0"],
+        )
         self.assertNotIn("default", sent_schema_version)
         self.assertNotIn("description", sent_schema_version)
         sent_properties = sent_response_format["json_schema"]["schema"][
@@ -819,7 +822,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(result.execution_metadata.provider_id, "google")
         self.assertEqual(result.execution_metadata.provider_profile_id, "google_gemini")
         self.assertEqual(result.execution_metadata.adapter_id, "gemini_response_format")
-        self.assertEqual(result.execution_metadata.adapter_version, "1.5.0")
+        self.assertEqual(result.execution_metadata.adapter_version, "1.6.0")
         self.assertEqual(result.execution_metadata.schema_transform_count, 4)
         self.assertEqual(
             len(result.execution_metadata.canonical_request_schema_hash),

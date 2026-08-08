@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.26.0-handoff-review-v1
+version: 0.27.0-ndfl-gate3-v1
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
 """
@@ -16,6 +16,7 @@ import inspect
 import json
 import re
 from contextlib import nullcontext
+from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -120,6 +121,24 @@ from broker_reports_gate1.pdf_structural_repair_shadow import (
 )
 from broker_reports_gate1.safe_report import render_safe_report
 from broker_reports_gate1.validators import validate_safe_report
+from broker_reports_gate1.gate2_model_clients import (
+    Gate2StructuredModelClientFactory,
+)
+from broker_reports_gate1.gate2_model_contracts import (
+    Gate2StructuredModelClientConfig,
+)
+from broker_reports_gate1.gate2_model_requests import (
+    GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
+)
+from broker_reports_gate1.gate3_ndfl_workflow import (
+    NDFL_PROVIDER_MODEL_ID,
+    NDFL_PROVIDER_PROFILE_ID,
+    NDFL_WORKFLOW_STABLE_ID,
+    NDFL_WORKSPACE_MODEL_STABLE_ID,
+    NdflWorkflowError,
+    NdflWorkflowFactory,
+    ndfl_product_binding_snapshot,
+)
 
 
 _GATE1_WORKLOAD_SCOPE_MODEL_ID = "broker_reports_gate1_pipe"
@@ -196,6 +215,19 @@ class Pipe:
             default=True,
             description="Compare Gate 2 canonical shadow with authoritative legacy handoff.",
         )
+        ndfl_gate3_enabled: bool = Field(
+            default=False,
+            description="Run Gate 3 only for the stable NDFL Workspace Model ID.",
+        )
+        ndfl_gate3_provider_profile_id: str = Field(
+            default=NDFL_PROVIDER_PROFILE_ID
+        )
+        ndfl_gate3_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
+        ndfl_gate3_private_audit_enabled: bool = Field(default=False)
+        ndfl_gate3_private_audit_root: str = Field(
+            default="/app/backend/data/broker_reports_gate1/gate3-product-proof"
+        )
+        ndfl_gate3_private_audit_id: str = Field(default="")
         pdf_table_intake_enabled: bool = Field(default=False)
         pdf_table_intake_provider_profile: str = Field(default="google_gemini")
         pdf_table_intake_model_id: str = Field(default="models/gemini-3.5-flash")
@@ -728,6 +760,18 @@ class Pipe:
             retention_policy=retention_policy,
             source_file_refs=self._source_file_refs(file_refs),
         )
+        ndfl_gate3 = await self._run_provider_awaitable(
+            self._maybe_run_ndfl_gate3(
+                store=artifact_store,
+                context=artifact_context,
+                artifact_manifest=artifact_manifest,
+                user=__user__,
+                request=__request__,
+                event_emitter=__event_emitter__,
+            ),
+            enabled=bool(self.valves.ndfl_gate3_enabled),
+            provider_id=self.valves.ndfl_gate3_provider_profile_id,
+        )
         self._finalize_workload_publication(
             gate2_handoff_status=str(
                 result.package.get("normalization_run", {}).get(
@@ -747,6 +791,7 @@ class Pipe:
                 structural_shadow
             ),
             "pdf_hybrid_shadow": hybrid_shadow,
+            "ndfl_gate3": ndfl_gate3,
         }
 
         if not file_refs:
@@ -760,6 +805,14 @@ class Pipe:
                 done=True,
             )
         chat_content = render_chat_content(result.safe_report)
+        if ndfl_gate3.get("status") == "completed":
+            chat_content = "\n".join(
+                [
+                    chat_content,
+                    "",
+                    "Gate 3: финансовые бирки сохранены для текущей версии документа.",
+                ]
+            )
         if self._live_smoke_requested(safe_body, messages_arg):
             smoke_lines = self._run_live_artifactstore_smoke(
                 store=artifact_store,
@@ -780,6 +833,239 @@ class Pipe:
                 ]
             )
         return chat_content
+
+    async def _maybe_run_ndfl_gate3(
+        self,
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+        artifact_manifest: Any,
+        user: Any,
+        request: Any,
+        event_emitter: Any,
+    ) -> dict[str, Any]:
+        if not self.valves.ndfl_gate3_enabled:
+            return {
+                "schema_version": "broker_reports_ndfl_gate3_product_run_v1",
+                "enabled": False,
+                "status": "disabled",
+                "provider_calls_total": 0,
+            }
+        if context.workspace_model_id != NDFL_WORKSPACE_MODEL_STABLE_ID:
+            raise NdflWorkflowError("ndfl_workspace_model_identity_required")
+        if (
+            not self.valves.canonical_gate2_write_enabled
+            or not self.valves.canonical_gate2_read_enabled
+        ):
+            raise NdflWorkflowError("ndfl_gate2_canonical_lifecycle_disabled")
+        if self.valves.ndfl_gate3_provider_profile_id != NDFL_PROVIDER_PROFILE_ID:
+            raise NdflWorkflowError("ndfl_provider_profile_binding_mismatch")
+        if self.valves.ndfl_gate3_model_id != NDFL_PROVIDER_MODEL_ID:
+            raise NdflWorkflowError("ndfl_provider_model_binding_mismatch")
+
+        refs_by_type = getattr(artifact_manifest, "artifact_refs_by_type", None)
+        canonical_refs = (
+            list(refs_by_type.get("broker_reports_canonical_artifact_v1") or [])
+            if isinstance(refs_by_type, dict)
+            else []
+        )
+        if not canonical_refs:
+            raise NdflWorkflowError("ndfl_gate2_canonical_artifact_missing")
+        if len(canonical_refs) != len(set(canonical_refs)):
+            raise NdflWorkflowError("ndfl_gate2_canonical_artifact_duplicate")
+
+        await self._emit(
+            event_emitter,
+            "NDFL is activating exact Gate 2 versions and running Gate 3...",
+            done=False,
+        )
+        model_client = Gate2StructuredModelClientFactory(
+            config=Gate2StructuredModelClientConfig(
+                request_profile=GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
+                provider_profile_id=NDFL_PROVIDER_PROFILE_ID,
+                capability_probe=False,
+                economy_budget_enforcement=False,
+            ),
+            user=user,
+            request=request,
+        ).create()
+        workflow = NdflWorkflowFactory(
+            store=store,
+            read_enabled=True,
+            model_client=model_client,
+            model_id=NDFL_PROVIDER_MODEL_ID,
+            provider_profile_id=NDFL_PROVIDER_PROFILE_ID,
+        ).create()
+        executions = []
+        for canonical_ref in canonical_refs:
+            self._workload_checkpoint()
+            executions.append(
+                await workflow.run_product_path(
+                    canonical_artifact_ref=canonical_ref,
+                    context=context,
+                )
+            )
+
+        audit = self._write_ndfl_private_audit(executions)
+        provider_calls_total = sum(
+            len(execution.gate3.batch_result.outcomes)
+            for execution in executions
+        )
+        return {
+            "schema_version": "broker_reports_ndfl_gate3_product_run_v1",
+            "enabled": True,
+            "status": "completed",
+            "workspace_model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+            "workflow_id": NDFL_WORKFLOW_STABLE_ID,
+            "binding": ndfl_product_binding_snapshot(),
+            "documents_total": len(executions),
+            "provider_calls_total": provider_calls_total,
+            "canonical_version_ids": [
+                execution.canonical_before_gate3.canonical_version_id
+                for execution in executions
+            ],
+            "canonical_root_sha256": [
+                execution.canonical_before_gate3.canonical_root_sha256
+                for execution in executions
+            ],
+            "annotations_artifact_ids": [
+                execution.gate3.annotations_artifact_id
+                for execution in executions
+            ],
+            "gate2_mutation": "none",
+            "private_audit": audit,
+        }
+
+    def _write_ndfl_private_audit(self, executions: list[Any]) -> dict[str, Any]:
+        if not self.valves.ndfl_gate3_private_audit_enabled:
+            return {"enabled": False, "status": "disabled"}
+        audit_id = str(self.valves.ndfl_gate3_private_audit_id or "").strip()
+        if re.fullmatch(r"g3c5_[a-z0-9][a-z0-9_-]{7,63}", audit_id) is None:
+            raise NdflWorkflowError("ndfl_private_audit_id_invalid")
+        root = Path(self.valves.ndfl_gate3_private_audit_root).resolve()
+        audit_dir = (root / audit_id).resolve()
+        if audit_dir.parent != root or audit_dir.exists():
+            raise NdflWorkflowError("ndfl_private_audit_target_not_new")
+        audit_dir.mkdir(parents=True, exist_ok=False)
+
+        files: list[dict[str, Any]] = []
+        for document_ordinal, execution in enumerate(executions, start=1):
+            attempts = []
+            for outcome in execution.gate3.batch_result.outcomes:
+                attempt = outcome.attempt
+                if attempt is None:
+                    raise NdflWorkflowError("ndfl_private_audit_attempt_missing")
+                attempts.append(
+                    {
+                        "chunk": outcome.chunk,
+                        "projection": attempt.projection,
+                        "dictionary": attempt.dictionary,
+                        "dictionary_managed_binding": (
+                            attempt.dictionary_managed_binding
+                        ),
+                        "dictionary_markdown": attempt.dictionary_markdown,
+                        "instruction": attempt.instruction,
+                        "model_visible_request": attempt.model_visible_request,
+                        "final_provider_request": attempt.final_provider_request,
+                        "raw_provider_response": attempt.raw_provider_response,
+                        "raw_model_output": attempt.raw_model_output,
+                        "validated_output": attempt.validated_output,
+                        "validation_status": attempt.validation_status,
+                        "validation_error_code": attempt.validation_error_code,
+                        "execution_metadata": self._ndfl_json_value(
+                            attempt.execution_metadata
+                        ),
+                        "metrics": attempt.metrics,
+                    }
+                )
+            payload = {
+                "schema_version": "broker_reports_ndfl_gate3_private_audit_v1",
+                "product_binding": ndfl_product_binding_snapshot(),
+                "canonical_artifact_ref": execution.canonical_artifact_ref,
+                "activation_receipt": (
+                    execution.activation_receipt.to_safe_dict()
+                    if execution.activation_receipt is not None
+                    else None
+                ),
+                "canonical_before_gate3": self._ndfl_envelope_audit(
+                    execution.canonical_before_gate3
+                ),
+                "attempts": attempts,
+                "merged_output": execution.gate3.batch_result.merged_output,
+                "financial_annotations_v1": execution.gate3.annotations_payload,
+                "annotations_artifact_id": (
+                    execution.gate3.annotations_artifact_id
+                ),
+                "canonical_after_gate3": self._ndfl_envelope_audit(
+                    execution.canonical_after_gate3
+                ),
+            }
+            filename = f"document_{document_ordinal:03d}.exact.json"
+            encoded = json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+            ).encode("utf-8")
+            (audit_dir / filename).write_bytes(encoded)
+            files.append(
+                {
+                    "filename": filename,
+                    "sha256": hashlib.sha256(encoded).hexdigest(),
+                    "bytes": len(encoded),
+                    "attempts": len(attempts),
+                }
+            )
+        manifest = {
+            "schema_version": "broker_reports_ndfl_gate3_private_audit_manifest_v1",
+            "audit_id": audit_id,
+            "files": files,
+            "exact_private_evidence": True,
+            "git_tracked": False,
+        }
+        manifest_bytes = json.dumps(
+            manifest,
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        ).encode("utf-8")
+        (audit_dir / "manifest.safe.json").write_bytes(manifest_bytes)
+        return {
+            "enabled": True,
+            "status": "saved",
+            "audit_id": audit_id,
+            "documents_total": len(files),
+            "exact_files_sha256": [item["sha256"] for item in files],
+            "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+            "private_bytes_in_git": False,
+        }
+
+    @classmethod
+    def _ndfl_json_value(cls, value: Any) -> Any:
+        if is_dataclass(value):
+            return cls._ndfl_json_value(asdict(value))
+        if isinstance(value, dict):
+            return {str(key): cls._ndfl_json_value(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [cls._ndfl_json_value(item) for item in value]
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        return str(value)
+
+    @classmethod
+    def _ndfl_envelope_audit(cls, envelope: Any) -> dict[str, Any]:
+        return {
+            "document_id": envelope.document_id,
+            "canonical_version_id": envelope.canonical_version_id,
+            "canonical_version_number": envelope.canonical_version_number,
+            "version_status": envelope.version_status,
+            "schema_version": envelope.schema_version,
+            "canonical_root_sha256": envelope.canonical_root_sha256,
+            "physical_layout": envelope.physical_layout,
+            "component_count": envelope.component_count,
+            "payload_bytes": envelope.payload_bytes,
+            "artifact": envelope.artifact,
+        }
 
     def _maybe_run_pdf_table_intake(
         self,

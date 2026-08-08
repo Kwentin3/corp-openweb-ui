@@ -1,8 +1,13 @@
 # Broker Reports Gate 2 Route Status v1
 
-Status: normative reachability baseline
+Status: `HISTORICAL_PRE_GATE3_REACHABILITY_SNAPSHOT`
 
 Effective date: 2026-07-31
+
+This is the Gate 2 route snapshot at its effective date. It does not define
+current Gate 3 status or the NDFL product topology. Start from
+[Pipeline Gates v1](../contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) for the
+current sequence.
 
 Consolidation base: `origin/main@cf84128e54692d541c000ad26c6d35fbcc1afe2f`
 

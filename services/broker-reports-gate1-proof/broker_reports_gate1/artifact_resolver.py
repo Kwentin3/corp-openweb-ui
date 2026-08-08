@@ -57,6 +57,36 @@ class ArtifactResolver:
             result.append(item)
         return result
 
+    def catalog_case(self, context: ArtifactAccessContext) -> list[ArtifactRecord]:
+        """Return access-checked metadata across runs in one authenticated case."""
+
+        if not context.case_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified", "Artifact case context is required"
+            )
+        records = self.store.list_by_case_context(context)
+        result: list[ArtifactRecord] = []
+        for record in records:
+            if record.case_id != context.case_id:
+                continue
+            if record.user_id != context.user_id:
+                continue
+            if (
+                record.workspace_model_id
+                and record.workspace_model_id != context.workspace_model_id
+            ):
+                continue
+            if record.visibility in PRIVATE_VISIBILITIES and not context.allow_private:
+                raise ArtifactStoreError(
+                    "artifact_access_denied",
+                    "Private case catalog access was not requested",
+                )
+            item = copy.deepcopy(record)
+            item.payload = None
+            item.payload_ref = None
+            result.append(item)
+        return result
+
     def _validate(self, record: ArtifactRecord, context: ArtifactAccessContext) -> None:
         self._validate_scope(record, context)
         if record.visibility in PRIVATE_VISIBILITIES and not context.allow_private:

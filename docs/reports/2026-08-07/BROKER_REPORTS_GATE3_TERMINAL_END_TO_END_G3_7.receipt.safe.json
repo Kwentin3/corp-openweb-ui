@@ -1,0 +1,52 @@
+{
+  "schema_version": "broker_reports_gate3_terminal_end_to_end_receipt_v1",
+  "goal": "G3.7",
+  "goal_status": "COMPLETED",
+  "gate3_status": "NOT_READY",
+  "end_to_end": "FAIL",
+  "exam_mutations": 0,
+  "provider_submissions": 0,
+  "current_case": {
+    "case_status": "gate3_incomplete",
+    "documents_total": 16,
+    "gate2_ready_documents": 16,
+    "gate3_ready_documents": 1,
+    "gate4_handoff_ready": false,
+    "prepare_declaration_allowed": false
+  },
+  "representative_proof": {
+    "multiple_broker_families": "PARTIAL_NOT_END_TO_END",
+    "multiple_formats": "PARTIAL_NOT_END_TO_END",
+    "small_document": "PASS_END_TO_END",
+    "large_chunked_document": "FAIL_CURRENT_COMPLETE_PERSISTED_CHAIN_ABSENT",
+    "multiple_documents_one_case": "FAIL_ONLY_ONE_OF_SIXTEEN_GATE3_READY",
+    "positive_financial_labels": "PASS",
+    "correct_omissions": "PARTIAL_PRIOR_LIVE_ADJUDICATION_ONLY",
+    "ambiguous_unsupported_facts": "PARTIAL_RESEARCH_ONLY",
+    "empty_valid_chunk_output": "PARTIAL_PRIOR_INSTRUCTION_VERSION_ONLY",
+    "version_binding": "PASS",
+    "access_control": "PASS"
+  },
+  "exact_context_audit": {
+    "exact_chunks_available": true,
+    "exact_context_envelopes_available": true,
+    "exact_dictionary_available": true,
+    "exact_instruction_available": true,
+    "exact_final_model_inputs_available": true,
+    "raw_model_outputs_available": true,
+    "validated_outputs_available": true,
+    "provider_token_usage_available": true,
+    "private_manifest_goal_mismatch_observed": true
+  },
+  "constitutional_acceptance_items_proven": 20,
+  "constitutional_acceptance_items_total": 20,
+  "terminal_blockers": [
+    "CURRENT_STRICT_LARGE_DOCUMENT_COMPLETE_PERSISTED_CHAIN_ABSENT",
+    "MULTI_DOCUMENT_CASE_HAS_ONE_OF_SIXTEEN_GATE3_READY",
+    "CURRENT_REPRESENTATIVE_OMISSION_EMPTY_AMBIGUITY_PROOF_INCOMPLETE"
+  ],
+  "gate2_immutable": true,
+  "financial_domain_absent_from_current_route": true,
+  "gate4_tax_logic_absent": true,
+  "next_candidate_goal": "NONE"
+}

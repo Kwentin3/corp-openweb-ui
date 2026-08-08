@@ -1,8 +1,13 @@
 # Broker Reports Document Pipeline Map v1
 
-Status: current code and released-route audit
+Status: `HISTORICAL_RELEASED_ROUTE_AUDIT`
 
 Effective date: 2026-07-31
+
+This audit describes the released route at its effective date. It is evidence,
+not the current pipeline or Gate 3 authority. Start from
+[Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) for current
+gate meaning.
 
 ## Plain-language result
 

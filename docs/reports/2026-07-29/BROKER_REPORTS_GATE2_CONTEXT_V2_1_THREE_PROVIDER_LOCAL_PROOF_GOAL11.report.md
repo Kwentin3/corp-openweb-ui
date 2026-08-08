@@ -20,9 +20,9 @@ The public case projector returns only a raw closed projection and cannot mint e
 
 Actual token counts, cost and latency are recorded as `null` with `NOT_APPLICABLE_NO_PROVIDER_CALL`; no live measurements are claimed.
 
-- Transparent report SHA-256: `f77c45bf6a11de8d42546cd04ca45a2103a083825fef1b2eca80486d0845910c`
+- Transparent report SHA-256: `6b2391280da7a4f3a93ec95d5baf854b4ba4404ff85e45dc3a89a7e354e1f807`
 - Privacy-safe aggregate: [safe receipt](./BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.receipt.safe.json)
-- Safe receipt integrity: `e81a6145309b0b7e11e96d55bc456683d10d875ac1ee6f172887077e309a5497`
+- Safe receipt integrity: `8f022fc864798cbadc202f3f40950e39cca9b2f0a8ac103f96a63f3301b868f8`
 
 ## Boundary
 

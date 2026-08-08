@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.invalid/schemas/broker-reports/gate3-target-v1.schema.json",
+  "title": "Broker Reports Gate 3 Canonical Target V1",
+  "$comment": "CONTRACT_DEFINED_INACTIVE: one minimal locator grammar shared by Gate3ProjectionV1 and FinancialAnnotationsV1.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/nodeTarget"
+    },
+    {
+      "$ref": "#/$defs/listItemTarget"
+    },
+    {
+      "$ref": "#/$defs/tableRowTarget"
+    },
+    {
+      "$ref": "#/$defs/tableCellTarget"
+    }
+  ],
+  "$defs": {
+    "nodeTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "node_id"
+      ],
+      "properties": {
+        "kind": {
+          "const": "node"
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "listItemTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "node_id",
+        "item_index"
+      ],
+      "properties": {
+        "kind": {
+          "const": "list_item"
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "item_index": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "tableRowTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "node_id",
+        "row"
+      ],
+      "properties": {
+        "kind": {
+          "const": "table_row"
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "row": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "tableCellTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "node_id",
+        "row",
+        "column"
+      ],
+      "properties": {
+        "kind": {
+          "const": "table_cell"
+        },
+        "node_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "row": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

@@ -85,7 +85,7 @@ The three layers are:
 ```text
 FULL EVIDENCE
 -> CanonicalArtifactV1 (Gate 2 machine projection)
--> neutral proof view or a future separately authorized Gate 3 projection
+-> neutral proof view or the separately versioned Gate 3 projection
 ```
 
 Full Evidence retains original bytes, parser units, coordinates, crops, table

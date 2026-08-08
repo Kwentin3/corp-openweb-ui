@@ -2409,7 +2409,9 @@ def _budget_smoke_request_authority(
             system_message=V6_SEMANTIC_SYSTEM_PROMPT,
             mapping_receipt=packet.context_v2_mapping_receipt,
         )
-        provider_profile = gate2_provider_profile(plan_slot.provider_profile_id)
+        provider_profile, provider_profile_resolver = (
+            _budget_smoke_provider_profile(plan_slot)
+        )
         prepared_request.validate_schema_binding()
     except (
         AttributeError,
@@ -2476,6 +2478,7 @@ def _budget_smoke_request_authority(
             model_visible_request=(sealed_request.model_visible_request),
             exact_model_id=plan_slot.exact_model_id,
             operation_identity=operation_identity,
+            provider_profile_resolver=provider_profile_resolver,
         )
     ):
         _fail(
@@ -2505,6 +2508,24 @@ def _budget_smoke_request_authority(
         "response_profile_hash": (response_profile.response_schema_hash),
         "mapping_receipt_hash": (packet.context_v2_mapping_receipt.integrity_hash),
     }
+
+
+def _budget_smoke_provider_profile(plan_slot: Any) -> tuple[Any, Any]:
+    resolver = gate2_provider_profile
+    profile = resolver(plan_slot.provider_profile_id)
+    if profile.adapter_version == plan_slot.provider_adapter_version:
+        return profile, resolver
+
+    from .gate2_financial_semantic_v6_context_v2_1_budget_smoke_plan import (  # noqa: E501
+        goal12_historical_provider_profile,
+    )
+
+    historical = goal12_historical_provider_profile(
+        plan_slot.provider_profile_id
+    )
+    if historical.adapter_version == plan_slot.provider_adapter_version:
+        return historical, goal12_historical_provider_profile
+    return profile, resolver
 
 
 def _budget_smoke_extract_adapter_output(
@@ -3236,7 +3257,9 @@ def _validate_budget_smoke_private_evidence(
         .get("json_schema", {})
         .get("schema")
     )
-    profile = gate2_provider_profile(private_evidence["provider_profile_id"])
+    profile, provider_profile_resolver = _budget_smoke_provider_profile(
+        private_slot
+    )
     if (
         not isinstance(canonical_schema, dict)
         or private_evidence["exact_final_provider_request"]
@@ -3260,6 +3283,7 @@ def _validate_budget_smoke_private_evidence(
             model_visible_request=private_evidence["exact_model_visible_request"],
             exact_model_id=private_slot.exact_model_id,
             operation_identity=private_evidence["operation_identity"],
+            provider_profile_resolver=provider_profile_resolver,
         )
     ):
         _fail("financial_semantic_v6_context_v2_1_budget_smoke_private_request_invalid")

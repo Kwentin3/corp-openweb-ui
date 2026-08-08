@@ -1,6 +1,12 @@
 # Broker Reports Owner Context v1
 
-Status: normative human-readable companion
+Status: `HISTORICAL_PRE_GATE3_OWNER_SNAPSHOT`
+
+This companion and its JSON describe the owner inventory at their dated
+checkpoint. They do not own current gate placement or Gate 3 status. Use
+[Pipeline Gates v1](../contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) and
+[Architecture Authorities](../contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md)
+for current routing.
 
 Machine authority:
 `docs/stage2/architecture/BROKER_REPORTS_OWNER_CONTEXT.v1.json`

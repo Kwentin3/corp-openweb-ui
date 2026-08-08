@@ -1,0 +1,56 @@
+{
+  "schema_version": "broker_reports_gate3_real_ndfl_product_path_g3_c5_receipt_v1",
+  "goal": "G3.C5",
+  "status": "PASS",
+  "date": "2026-08-07",
+  "product_path": {
+    "workspace_model_id": "broker-reports-ndfl",
+    "base_pipe_id": "broker_reports_gate1_pipe",
+    "workflow_id": "broker-reports-ndfl",
+    "provider_profile_id": "google_gemini",
+    "provider_model_id": "models/gemini-3.5-flash",
+    "dictionary_id": "broker-reports-financial-labels",
+    "dictionary_semantic_version": "1.0.0",
+    "skill_id": "broker-reports-financial-labels",
+    "tool_id": "broker_reports_financial_label_dictionary",
+    "tool_invoked_by_model": false,
+    "runtime_dictionary_loader": "Gate3FinancialLabelDictionaryFactory.create",
+    "knowledge_ids": []
+  },
+  "live_proof": {
+    "authorized_documents_total": 1,
+    "authorized_source_bytes": 212844,
+    "process_false": true,
+    "chunks_total": 6,
+    "validated_annotations_total": 109,
+    "persisted_annotations_total": 109,
+    "financial_annotations_artifacts": 1,
+    "gate2_mutation": "NONE",
+    "gate4_performed": false,
+    "bundle_sha256": "659856ab5616215fec19dcf7381602d9f6142bc0a3da4bb366d12c7e12587a61"
+  },
+  "private_audit": {
+    "audit_id": "g3c5_20260807_222353",
+    "exact_file_bytes": 27436168,
+    "exact_file_sha256": "14b5379aed57b13ad2a2238d0fd739a2eafd2205b0dbcdf41ec3803ac030d442",
+    "manifest_sha256": "81d8fa1c352819f4f3400ef13fb598fb9f62051676c249b59cfc7c7b5bf89069",
+    "saved_outside_git": true,
+    "private_path_disclosed": false
+  },
+  "acceptance": {
+    "semantic_core": "PASS",
+    "managed_dictionary_gui": "PASS",
+    "dictionary_runtime_binding": "PASS",
+    "gate2_to_gate3_handoff": "PASS",
+    "exact_version_binding": "PASS",
+    "single_ndfl_user_entrypoint": "PASS",
+    "stable_id_routing": "PASS",
+    "duplicate_runtime_owners": "NONE",
+    "real_ndfl_product_path": "PASS",
+    "gate2_mutation": "NONE",
+    "gate3_product_status": "CLOSED"
+  },
+  "failed_attempts_disclosed": true,
+  "private_values_included": false,
+  "customer_content_included": false
+}

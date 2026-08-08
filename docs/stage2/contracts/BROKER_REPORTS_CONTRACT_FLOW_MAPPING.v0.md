@@ -1,11 +1,14 @@
 ﻿# Broker Reports Contract Flow Mapping v0
 
-Status: Maintained flow mapping; global gate placement reconciled
+Status: `SUPERSEDED_FOR_CURRENT_GATE_FLOW`
 Date: 2026-07-06; ownership reconciled 2026-07-18
 Scope: Stage 2 Broker Reports / XLS NDFL contract-to-contract data flow
 
-Canonical gate placement is defined by the
-[Broker Reports gate architecture](../blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md).
+The flow below is preserved as historical pre-Gate-3 design. Current gate
+placement is defined by
+[Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md). In particular,
+current Gate 3 owns financial semantic labeling, not the case-assembly and
+intermediate-ledger role described below.
 
 ## 1. Flow
 

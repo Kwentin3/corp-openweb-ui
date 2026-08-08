@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import argparse
+import base64
 import json
 from pathlib import Path
 
@@ -32,6 +33,10 @@ GATE2_DOMAIN_BUNDLE_PATH = (
 )
 
 BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
+GATE1_RESOURCE_NAMES = (
+    "gate3_financial_label_dictionary.v1.json",
+    "gate3_labeling_response.v1.schema.json",
+)
 
 MODULE_ORDER = [
     "semantic_visual_table_contracts",
@@ -167,6 +172,23 @@ GATE1_MODULE_ORDER = [
     *GATE1_HYBRID_MODULES,
     *MODULE_ORDER[_GATE1_HYBRID_INSERT_AT:],
 ]
+GATE1_NDFL_GATE3_MODULES = [
+    "gate3_financial_label_dictionary",
+    "gate3_projection",
+    "gate3_structural_chunking",
+    "gate3_bounded_labeling",
+    "gate3_chunk_batch_labeling",
+    "gate3_financial_annotations_persistence",
+    "gate3_ndfl_workflow",
+]
+_GATE1_NDFL_GATE3_INSERT_AT = GATE1_MODULE_ORDER.index(
+    "gate3_context_manifest"
+) + 1
+GATE1_MODULE_ORDER = [
+    *GATE1_MODULE_ORDER[:_GATE1_NDFL_GATE3_INSERT_AT],
+    *GATE1_NDFL_GATE3_MODULES,
+    *GATE1_MODULE_ORDER[_GATE1_NDFL_GATE3_INSERT_AT:],
+]
 GATE2_ONLY_MODULES = ["gate2_chat_dcp_resolution"]
 GATE2_MODULE_ORDER = [
     name for name in MODULE_ORDER if name != "gate2_handoff"
@@ -234,6 +256,7 @@ def main() -> None:
         for name in sorted(
             set(MODULE_ORDER)
             | set(GATE1_HYBRID_MODULES)
+            | set(GATE1_NDFL_GATE3_MODULES)
             | set(GATE2_ONLY_MODULES)
             | set(GATE2_FINANCIAL_MODULES)
             | set(GATE2_SUCCESSOR_MODULES)
@@ -250,10 +273,16 @@ def main() -> None:
         )
         bundle = _render_bundle(
             modules=gate1_modules,
+            resources={
+                name: base64.b64encode((PACKAGE_ROOT / name).read_bytes()).decode(
+                    "ascii"
+                )
+                for name in GATE1_RESOURCE_NAMES
+            },
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.22.0-semantic-visual-v1-bundled",
-            package_version="gate1_semantic_visual_v1",
+            version="0.27.0-ndfl-gate3-v1-bundled",
+            package_version="gate1_ndfl_gate3_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
         )
@@ -269,6 +298,7 @@ def main() -> None:
         )
         gate2_bundle = _render_bundle(
             modules=gate2_modules,
+            resources={},
             pipe_source=gate2_pipe_source,
             title="Broker Reports Gate 2 Source Fact Extraction",
             version="0.15.0-positional-coverage-v1-bundled",
@@ -291,6 +321,7 @@ def main() -> None:
         )
         gate2_domain_bundle = _render_bundle(
             modules=gate2_domain_modules,
+            resources={},
             pipe_source=gate2_domain_pipe_source,
             title="Broker Reports Gate 2 Domain Source Fact Extraction",
             version="0.12.0-answer-context-v1-bundled",
@@ -519,6 +550,7 @@ def assert_gate2_bundle_contract(
 def _render_bundle(
     *,
     modules: dict[str, str],
+    resources: dict[str, str],
     pipe_source: str,
     title: str,
     version: str,
@@ -527,6 +559,9 @@ def _render_bundle(
     requirements: str,
 ) -> str:
     modules_literal = json.dumps(modules, ensure_ascii=False, indent=2, sort_keys=True)
+    resources_literal = json.dumps(
+        resources, ensure_ascii=True, indent=2, sort_keys=True
+    )
     order_literal = json.dumps(list(modules), ensure_ascii=True)
     return f'''"""
 title: {title}
@@ -540,12 +575,42 @@ from __future__ import annotations
 
 import sys
 import types
+import base64
+import importlib.abc
+import importlib.machinery
+import io
 
 
 _BUNDLED_PACKAGE_NAME = "broker_reports_gate1"
 _BUNDLED_PACKAGE_VERSION = "{package_version}"
 _BUNDLED_MODULE_ORDER = {order_literal}
 _BUNDLED_MODULES = {modules_literal}
+_BUNDLED_RESOURCES = {resources_literal}
+
+
+class _BundleResourceReader(importlib.abc.ResourceReader):
+    def open_resource(self, resource):
+        try:
+            encoded = _BUNDLED_RESOURCES[resource]
+        except KeyError as exc:
+            raise FileNotFoundError(resource) from exc
+        return io.BytesIO(base64.b64decode(encoded))
+
+    def resource_path(self, resource):
+        raise FileNotFoundError(resource)
+
+    def is_resource(self, name):
+        return name in _BUNDLED_RESOURCES
+
+    def contents(self):
+        return iter(_BUNDLED_RESOURCES)
+
+
+class _BundleLoader(importlib.abc.Loader):
+    def get_resource_reader(self, fullname):
+        if fullname == _BUNDLED_PACKAGE_NAME:
+            return _BundleResourceReader()
+        return None
 
 
 def _install_bundled_package() -> None:
@@ -553,10 +618,16 @@ def _install_bundled_package() -> None:
         if name == _BUNDLED_PACKAGE_NAME or name.startswith(f"{{_BUNDLED_PACKAGE_NAME}}."):
             del sys.modules[name]
 
+    loader = _BundleLoader()
     package = types.ModuleType(_BUNDLED_PACKAGE_NAME)
     package.__file__ = "<broker_reports_gate1_openwebui_bundle>"
     package.__package__ = _BUNDLED_PACKAGE_NAME
     package.__path__ = []
+    package.__spec__ = importlib.machinery.ModuleSpec(
+        _BUNDLED_PACKAGE_NAME,
+        loader,
+        is_package=True,
+    )
     package.__bundle_version__ = _BUNDLED_PACKAGE_VERSION
     sys.modules[_BUNDLED_PACKAGE_NAME] = package
 

@@ -1,8 +1,14 @@
 # Broker Reports Current State v1
 
-Status: canonical entry point after passed inactive DOC6 logical-row recovery
+Status: `HISTORICAL_SNAPSHOT_SUPERSEDED_FOR_CURRENT_ROUTING`
 
 Effective date: 2026-08-03
+
+This is the DOC6-era state snapshot, not the current Broker Reports entrypoint.
+Start from
+[Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) and the
+[Gate 3 handoff](contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md). Statements below
+remain evidence of their dated scope and cannot override current Gate 3 status.
 
 DOC1 implementation merge:
 `c4fa86d8229bc8afdd88bfd0371a96d260790942`.

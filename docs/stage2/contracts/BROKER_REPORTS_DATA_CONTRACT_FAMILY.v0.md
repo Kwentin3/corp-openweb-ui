@@ -1,15 +1,19 @@
 ﻿# Broker Reports Data Contract Family v0
 
-Status: Maintained conceptual contract family; gate placement reconciled
+Status: `SUPERSEDED_FOR_CURRENT_GATE_OWNERSHIP`
 Date: 2026-07-06; ownership reconciled 2026-07-18
 Scope: Stage 2 Broker Reports / XLS NDFL data contracts
+
+This conceptual family is preserved as pre-Gate-3 design history. Its Gate 3
+case-assembly ownership is not current. Use
+[Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md) for the current
+sequence and the direct versioned contracts for current payload meaning.
 
 ## 1. Purpose
 
 This document defines the contract family for the Broker Reports workflow.
 
-The workflow is intentionally layered. Global gate ownership is defined by the
-[Broker Reports gate architecture](../blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md):
+The historical workflow was described as follows:
 
 ```text
 Gate 1: source representation + document inventory + DCP

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.invalid/schemas/broker-reports/gate3-projection-v1.schema.json",
+  "title": "Broker Reports Gate3ProjectionV1",
+  "$comment": "IMPLEMENTED_INACTIVE_G3_2: deterministic reader-backed model view plus backend-only reversible target mappings; no persistence, model call or product activation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "canonical_binding",
+    "model_view",
+    "target_mappings"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "broker_reports_gate3_projection_v1"
+    },
+    "canonical_binding": {
+      "$ref": "#/$defs/canonicalBinding"
+    },
+    "model_view": {
+      "$ref": "#/$defs/modelView"
+    },
+    "target_mappings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/targetMapping"
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "canonicalBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_id",
+        "canonical_version_id"
+      ],
+      "properties": {
+        "document_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "canonical_version_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "modelView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "media_type",
+        "content"
+      ],
+      "properties": {
+        "media_type": {
+          "const": "text/markdown"
+        },
+        "content": {
+          "type": "string"
+        }
+      }
+    },
+    "targetMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_alias",
+        "canonical_target"
+      ],
+      "properties": {
+        "target_alias": {
+          "$ref": "#/$defs/targetAlias"
+        },
+        "canonical_target": {
+          "$ref": "https://kwentin3.invalid/schemas/broker-reports/gate3-target-v1.schema.json"
+        }
+      }
+    },
+    "targetAlias": {
+      "type": "string",
+      "pattern": "^t[0-9]{3,}$"
+    }
+  }
+}

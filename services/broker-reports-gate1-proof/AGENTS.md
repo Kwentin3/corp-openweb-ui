@@ -221,9 +221,11 @@ separate bootstrap report.
   creates complete code-owned options.
 - Canonical validation and materialization follow
   [Generic Materialization](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md).
-- Current Gate 3 is future LLM-friendly projection and financial semantic
-  analysis over `CanonicalArtifactV1`. DOC26 does not create or activate it;
+- Current Gate 3 is closed financial semantic labeling over an exact active
+  `CanonicalArtifactV1`, with a separate immutable `FinancialAnnotationsV1`
+  sidecar. It is active only in stable workflow `broker-reports-ndfl`;
   historical `Gate2*` financial-semantic modules retain compatibility names.
+  Gate 4 is the next separate stage and is not designed by these instructions.
 
 ## Change and proof
 

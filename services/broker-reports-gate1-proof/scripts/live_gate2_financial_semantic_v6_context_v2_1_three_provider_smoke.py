@@ -15,6 +15,7 @@ import secrets
 import subprocess
 import sys
 import tempfile
+from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -63,11 +64,12 @@ from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E4
 from broker_reports_gate1.gate2_financial_semantic_v6_context_v2_1_budget_smoke import (  # noqa: E402,E501
     BUDGET_SMOKE_CONTINUATION_KEY,
     BUDGET_SMOKE_SNAPSHOT_AUTHORITY_KEY,
-    Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator,
+    Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator as _BudgetSmokeCoordinator,
     build_financial_semantic_v6_context_v2_1_budget_smoke_plan,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_context_v2_1_budget_smoke_plan import (  # noqa: E402,E501
-    financial_semantic_v6_context_v2_1_budget_smoke_operation_identity,
+    financial_semantic_v6_context_v2_1_budget_smoke_operation_identity as _budget_smoke_operation_identity,
+    goal12_historical_provider_profile,
 )
 from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (  # noqa: E402,E501
     V6_CONTEXT_V2_1_BUDGET_SMOKE_FAILURE_PRIVATE_EVIDENCE_SCHEMA_VERSION,
@@ -103,6 +105,16 @@ from live_no_rag_source_intake_smoke import (  # noqa: E402
     _base_url,
     _read_env,
     _signin,
+)
+
+
+Gate2FinancialSemanticV6ContextV21BudgetSmokeCoordinator = partial(
+    _BudgetSmokeCoordinator,
+    provider_profile_resolver=goal12_historical_provider_profile,
+)
+financial_semantic_v6_context_v2_1_budget_smoke_operation_identity = partial(
+    _budget_smoke_operation_identity,
+    provider_profile_resolver=goal12_historical_provider_profile,
 )
 
 
@@ -627,6 +639,7 @@ def _authorities():
         fixture=fixture,
         outcome_audit_manifest=audit,
         registry=registry,
+        provider_profile_resolver=goal12_historical_provider_profile,
     )
     return registry, fixture, audit, plan
 
@@ -1751,6 +1764,9 @@ def _recover_slot_submission_claims(
             financial_semantic_v6_context_v2_1_budget_smoke_operation_identity(
                 plan=plan,
                 slot=slot,
+                provider_profile_resolver=(
+                    goal12_historical_provider_profile
+                ),
             )
         )
         expected = _slot_submission_claim_payload(
