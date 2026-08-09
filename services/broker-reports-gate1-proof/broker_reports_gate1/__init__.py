@@ -188,6 +188,10 @@ from .gate5_combined_requirement_check import (
     Gate5CombinedRequirementCheckRuntime,
     Gate5CombinedRequirementCheckRuntimeFactory,
 )
+from .gate5_supplemental_fact_discovery import (
+    Gate5SupplementalFactDiscoveryRuntime,
+    Gate5SupplementalFactDiscoveryRuntimeFactory,
+)
 from .gate3_ndfl_workflow import (
     NDFL_GATE3_HANDOFF_SCHEMA_VERSION,
     NDFL_ROLE_PACK_ID,
@@ -1179,6 +1183,8 @@ __all__ = [
     "Gate5CombinedRequirementCheckError",
     "Gate5CombinedRequirementCheckRuntime",
     "Gate5CombinedRequirementCheckRuntimeFactory",
+    "Gate5SupplementalFactDiscoveryRuntime",
+    "Gate5SupplementalFactDiscoveryRuntimeFactory",
     "NDFL_GATE3_HANDOFF_SCHEMA_VERSION",
     "NDFL_ROLE_PACK_ID",
     "NDFL_ROLE_PACK_SEMANTIC_VERSION",
