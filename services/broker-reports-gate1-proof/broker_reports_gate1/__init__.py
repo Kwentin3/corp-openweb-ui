@@ -203,6 +203,14 @@ from .gate5_single_input_human_loop import (
     gate5_single_input_proposal_response_format,
     gate5_single_input_question_response_format,
 )
+from .gate5_methodology_calculation import (
+    GATE5_CALCULATION_METHODOLOGY_SCHEMA_VERSION,
+    GATE5_CALCULATION_RESULT_SCHEMA_VERSION,
+    GATE5_SECURITY_DISPOSAL_NET_RESULT_BEHAVIOR_ID,
+    Gate5MethodologyCalculationError,
+    Gate5MethodologyCalculationRuntime,
+    Gate5MethodologyCalculationRuntimeFactory,
+)
 from .gate3_ndfl_workflow import (
     NDFL_GATE3_HANDOFF_SCHEMA_VERSION,
     NDFL_ROLE_PACK_ID,
@@ -1206,6 +1214,12 @@ __all__ = [
     "Gate5SingleInputHumanLoopRuntimeFactory",
     "gate5_single_input_proposal_response_format",
     "gate5_single_input_question_response_format",
+    "GATE5_CALCULATION_METHODOLOGY_SCHEMA_VERSION",
+    "GATE5_CALCULATION_RESULT_SCHEMA_VERSION",
+    "GATE5_SECURITY_DISPOSAL_NET_RESULT_BEHAVIOR_ID",
+    "Gate5MethodologyCalculationError",
+    "Gate5MethodologyCalculationRuntime",
+    "Gate5MethodologyCalculationRuntimeFactory",
     "NDFL_GATE3_HANDOFF_SCHEMA_VERSION",
     "NDFL_ROLE_PACK_ID",
     "NDFL_ROLE_PACK_SEMANTIC_VERSION",
