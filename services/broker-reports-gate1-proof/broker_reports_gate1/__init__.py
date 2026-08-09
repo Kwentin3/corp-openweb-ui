@@ -165,6 +165,13 @@ from .gate4_financial_case_cache import (
     Gate4FinancialCaseSqlCache,
     Gate4FinancialCaseSqlCacheFactory,
 )
+from .gate5_methodology_selection import (
+    GATE5_METHODOLOGY_REQUIREMENTS_SCHEMA_VERSION,
+    GATE5_METHODOLOGY_SELECTION_RESULT_SCHEMA_VERSION,
+    Gate5MethodologySelectionError,
+    Gate5MethodologySelectionRuntime,
+    Gate5MethodologySelectionRuntimeFactory,
+)
 from .gate3_ndfl_workflow import (
     NDFL_GATE3_HANDOFF_SCHEMA_VERSION,
     NDFL_ROLE_PACK_ID,
@@ -1139,6 +1146,11 @@ __all__ = [
     "Gate4FinancialCaseSource",
     "Gate4FinancialCaseSqlCache",
     "Gate4FinancialCaseSqlCacheFactory",
+    "GATE5_METHODOLOGY_REQUIREMENTS_SCHEMA_VERSION",
+    "GATE5_METHODOLOGY_SELECTION_RESULT_SCHEMA_VERSION",
+    "Gate5MethodologySelectionError",
+    "Gate5MethodologySelectionRuntime",
+    "Gate5MethodologySelectionRuntimeFactory",
     "NDFL_GATE3_HANDOFF_SCHEMA_VERSION",
     "NDFL_ROLE_PACK_ID",
     "NDFL_ROLE_PACK_SEMANTIC_VERSION",
