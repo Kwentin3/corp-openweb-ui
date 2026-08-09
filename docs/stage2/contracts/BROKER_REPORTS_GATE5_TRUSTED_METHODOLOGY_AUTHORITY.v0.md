@@ -94,6 +94,21 @@ route remain unchanged. The new identity is consumed by the inactive
 [`Gate 5 Declaration-Driven Tax Model v0`](./BROKER_REPORTS_GATE5_DECLARATION_DRIVEN_TAX_MODEL.v0.md)
 boundary, which owns its structure and behavior validation.
 
+G5.14 appends a new version under the same methodology ID; it does not replace
+the G5.13 bytes:
+
+```text
+methodology_id      = ru-ndfl-securities-tax-model-proof
+methodology_version = 2026.1-experimental
+resource            = gate5_tax_methodology.ru_ndfl_securities_operation_tax_model_proof.v0.json
+schema              = broker_reports_gate5_securities_disposal_operation_tax_model_methodology_v0
+resource_sha256     = 253f6f644eb88c963639833bcef8b169a51e4b8790ab2dcfa22c091b58e30bed
+```
+
+The inactive G5.13 `run_operation` path consumes this version for operation
+models that deliberately contain no category-completeness claim. G5.14 owns
+the later scope binding and aggregation.
+
 The owner binds that tuple to one package resource and one exact raw-resource
 SHA-256. The G5.7 canonical projection hash is computed independently from the
 decoded JSON and must be repeated exactly in the calculation result.

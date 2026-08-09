@@ -19,6 +19,7 @@ from .gate5_supplemental_fact_discovery import (
     Gate5SupplementalFactDiscoveryRuntimeFactory,
 )
 from .gate5_trusted_methodology import (
+    GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_SCHEMA_VERSION,
     GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_SCHEMA_VERSION,
     Gate5TrustedMethodologyAuthority,
     Gate5TrustedMethodologyAuthorityFactory,
@@ -35,6 +36,15 @@ GATE5_SECURITIES_DISPOSAL_TAX_MODEL_RESULT_SCHEMA_VERSION = (
     "broker_reports_gate5_securities_disposal_tax_model_result_v0"
 )
 GATE5_SECURITIES_DISPOSAL_TAX_MODEL_BEHAVIOR_ID = "securities_disposal_tax_model_v0"
+GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_BEHAVIOR_ID = (
+    "securities_disposal_operation_tax_model_v0"
+)
+GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION = (
+    "broker_reports_gate5_securities_disposal_operation_tax_model_v0"
+)
+GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_RESULT_SCHEMA_VERSION = (
+    "broker_reports_gate5_securities_disposal_operation_tax_model_result_v0"
+)
 
 FACTORY_REQUIRED = (
     "Gate5SecuritiesDisposalTaxModelRuntimeFactory.create",
@@ -74,7 +84,7 @@ _SOURCE_KINDS = {
     "proof_assumption",
     "user_verified_fact",
 }
-_APPLICABILITY_INPUTS = {
+_CLASSIFICATION_INPUTS = {
     "operation_kind",
     "organized_market_status",
     "iis_status",
@@ -82,7 +92,14 @@ _APPLICABILITY_INPUTS = {
     "residency",
     "exemption_applicability",
     "loss_treatment",
+}
+_LEGACY_CATEGORY_INPUTS = {
+    *_CLASSIFICATION_INPUTS,
     "scope_completeness",
+}
+_BEHAVIOR_INPUTS = {
+    GATE5_SECURITIES_DISPOSAL_TAX_MODEL_BEHAVIOR_ID: _LEGACY_CATEGORY_INPUTS,
+    GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_BEHAVIOR_ID: (_CLASSIFICATION_INPUTS),
 }
 _MONEY_INPUTS = {"gross_income", "acquisition_cost", "transaction_expense"}
 _MONEY = re.compile(r"^(?:0|[1-9][0-9]{0,17})(?:\.[0-9]{1,2})?$")
@@ -142,6 +159,71 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
         resolved_inputs: dict[str, Any],
         context: ArtifactAccessContext,
     ) -> dict[str, Any]:
+        inputs, resolved, behavior, applicability, money_inputs = self._prepare(
+            methodology_ref=methodology_ref,
+            resolved_inputs=resolved_inputs,
+            context=context,
+            expected_behavior_id=GATE5_SECURITIES_DISPOSAL_TAX_MODEL_BEHAVIOR_ID,
+        )
+        tax_model = _tax_model(
+            authority_binding=resolved["authority_binding"],
+            behavior=behavior,
+            inputs=inputs,
+            applicability=applicability,
+            money_inputs=money_inputs,
+        )
+        semantics = _declaration_semantics(tax_model)
+        return {
+            "schema_version": GATE5_SECURITIES_DISPOSAL_TAX_MODEL_RESULT_SCHEMA_VERSION,
+            "status": "projected",
+            "tax_model": tax_model,
+            "declaration_semantics": semantics,
+            "declaration_fragment": self._projector.project(proof_input=semantics),
+        }
+
+    def run_operation(
+        self,
+        *,
+        methodology_ref: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any]:
+        inputs, resolved, behavior, applicability, money_inputs = self._prepare(
+            methodology_ref=methodology_ref,
+            resolved_inputs=resolved_inputs,
+            context=context,
+            expected_behavior_id=(
+                GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_BEHAVIOR_ID
+            ),
+        )
+        return {
+            "schema_version": (
+                GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_RESULT_SCHEMA_VERSION
+            ),
+            "status": "modeled",
+            "tax_model": _operation_tax_model(
+                authority_binding=resolved["authority_binding"],
+                behavior=behavior,
+                inputs=inputs,
+                applicability=applicability,
+                money_inputs=money_inputs,
+            ),
+        }
+
+    def _prepare(
+        self,
+        *,
+        methodology_ref: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        context: ArtifactAccessContext,
+        expected_behavior_id: str,
+    ) -> tuple[
+        dict[str, Any],
+        dict[str, Any],
+        dict[str, Any],
+        dict[str, dict[str, Any]],
+        dict[str, dict[str, Any]],
+    ]:
         inputs = _resolved_inputs(resolved_inputs)
         resolved = self._authority.resolve(methodology_ref)
         methodology = _methodology(
@@ -149,7 +231,7 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
             authority_binding=resolved["authority_binding"],
         )
         behavior = methodology["behavior"]
-        if behavior["behavior_id"] != GATE5_SECURITIES_DISPOSAL_TAX_MODEL_BEHAVIOR_ID:
+        if behavior["behavior_id"] != expected_behavior_id:
             _fail("gate5_tax_model_behavior_unsupported")
         if any(
             item.get("subject_ref") != inputs["subject_ref"]
@@ -178,21 +260,7 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
             item["requirement_id"]: item for item in checked["requirements"]
         }
         money_inputs = _money_inputs(behavior["input_bindings"], requirements)
-        tax_model = _tax_model(
-            authority_binding=resolved["authority_binding"],
-            behavior=behavior,
-            inputs=inputs,
-            applicability=applicability,
-            money_inputs=money_inputs,
-        )
-        semantics = _declaration_semantics(tax_model)
-        return {
-            "schema_version": GATE5_SECURITIES_DISPOSAL_TAX_MODEL_RESULT_SCHEMA_VERSION,
-            "status": "projected",
-            "tax_model": tax_model,
-            "declaration_semantics": semantics,
-            "declaration_fragment": self._projector.project(proof_input=semantics),
-        }
+        return inputs, resolved, behavior, applicability, money_inputs
 
 
 def _resolved_inputs(value: Any) -> dict[str, Any]:
@@ -263,7 +331,10 @@ def _methodology(value: Any, *, authority_binding: dict[str, Any]) -> dict[str, 
             "legal_evidence",
         }
         or value.get("schema_version")
-        != GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_SCHEMA_VERSION
+        not in {
+            GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_SCHEMA_VERSION,
+            GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_SCHEMA_VERSION,
+        }
         or value.get("methodology_id") != authority_binding.get("methodology_id")
         or value.get("methodology_version")
         != authority_binding.get("methodology_version")
@@ -289,8 +360,10 @@ def _validate_behavior(behavior: dict[str, Any]) -> None:
     bindings = behavior.get("input_bindings")
     applicability = behavior.get("applicability_rule")
     rules = behavior.get("expense_rules")
+    expected_inputs = _BEHAVIOR_INPUTS.get(behavior.get("behavior_id"))
     if (
         not _identifier(behavior.get("behavior_id"))
+        or expected_inputs is None
         or not _identifier(behavior.get("model_id"))
         or not isinstance(bindings, dict)
         or set(bindings) != _MONEY_INPUTS
@@ -299,7 +372,7 @@ def _validate_behavior(behavior: dict[str, Any]) -> None:
         or not _identifier(applicability.get("rule_id"))
         or not _identifier(applicability.get("result_category"))
         or not isinstance(applicability.get("required_values"), dict)
-        or set(applicability["required_values"]) != _APPLICABILITY_INPUTS
+        or set(applicability["required_values"]) != expected_inputs
         or not isinstance(rules, list)
         or len(rules) != 2
     ):
@@ -488,7 +561,7 @@ def _amount(value: Any, name: str) -> str:
         ) from exc
 
 
-def _tax_model(
+def _operation_tax_model(
     *,
     authority_binding: dict[str, Any],
     behavior: dict[str, Any],
@@ -554,19 +627,20 @@ def _tax_model(
     currency = money_inputs["gross_income"]["value"]["currency"]
     classification = behavior["applicability_rule"]
     return {
-        "schema_version": GATE5_SECURITIES_DISPOSAL_TAX_MODEL_SCHEMA_VERSION,
+        "schema_version": (
+            GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION
+        ),
         "status": "complete",
         "model_id": behavior["model_id"],
         "model_kind": "securities_disposal",
-        "calculation_scope": {
+        "operation_scope": {
             "subject_ref": inputs["subject_ref"],
             "tax_period": copy.deepcopy(inputs["tax_context"]["tax_period"]),
             "residency": copy.deepcopy(inputs["tax_context"]["residency"]),
             "exemption_applicability": copy.deepcopy(
                 inputs["tax_context"]["exemption_applicability"]
             ),
-            "completeness": copy.deepcopy(inputs["scope"]["scope_completeness"]),
-            "aggregation_kind": "complete_category_scope",
+            "aggregation_kind": "single_operation_only",
         },
         "methodology_binding": {
             **copy.deepcopy(authority_binding),
@@ -596,14 +670,11 @@ def _tax_model(
                 },
             },
         },
-        "category_gross_income": {
+        "gross_income": {
             "value": copy.deepcopy(money_inputs["gross_income"]["value"]),
             "sources": copy.deepcopy(money_inputs["gross_income"]["sources"]),
             "derivation": {
-                "kind": "complete_scope_sum",
-                "scope_completeness": copy.deepcopy(
-                    inputs["scope"]["scope_completeness"]
-                ),
+                "kind": "resolved_operation_input",
             },
         },
         "related_expenses": {
@@ -617,6 +688,58 @@ def _tax_model(
         },
         "loss_treatment": copy.deepcopy(inputs["tax_context"]["loss_treatment"]),
         "proof_assumptions": _assumptions(inputs),
+    }
+
+
+def _tax_model(
+    *,
+    authority_binding: dict[str, Any],
+    behavior: dict[str, Any],
+    inputs: dict[str, Any],
+    applicability: dict[str, dict[str, Any]],
+    money_inputs: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    operation_model = _operation_tax_model(
+        authority_binding=authority_binding,
+        behavior=behavior,
+        inputs=inputs,
+        applicability=applicability,
+        money_inputs=money_inputs,
+    )
+    completeness = inputs["scope"].get("scope_completeness")
+    if completeness is None:
+        _fail("gate5_tax_model_scope_incomplete")
+    return {
+        "schema_version": GATE5_SECURITIES_DISPOSAL_TAX_MODEL_SCHEMA_VERSION,
+        "status": operation_model["status"],
+        "model_id": operation_model["model_id"],
+        "model_kind": operation_model["model_kind"],
+        "calculation_scope": {
+            "subject_ref": operation_model["operation_scope"]["subject_ref"],
+            "tax_period": copy.deepcopy(
+                operation_model["operation_scope"]["tax_period"]
+            ),
+            "residency": copy.deepcopy(operation_model["operation_scope"]["residency"]),
+            "exemption_applicability": copy.deepcopy(
+                operation_model["operation_scope"]["exemption_applicability"]
+            ),
+            "completeness": copy.deepcopy(completeness),
+            "aggregation_kind": "complete_category_scope",
+        },
+        "methodology_binding": copy.deepcopy(operation_model["methodology_binding"]),
+        "operation": copy.deepcopy(operation_model["operation"]),
+        "category_gross_income": {
+            "value": copy.deepcopy(operation_model["gross_income"]["value"]),
+            "sources": copy.deepcopy(operation_model["gross_income"]["sources"]),
+            "derivation": {
+                "kind": "complete_scope_sum",
+                "scope_completeness": copy.deepcopy(completeness),
+            },
+        },
+        "related_expenses": copy.deepcopy(operation_model["related_expenses"]),
+        "allowable_expenses": copy.deepcopy(operation_model["allowable_expenses"]),
+        "loss_treatment": copy.deepcopy(operation_model["loss_treatment"]),
+        "proof_assumptions": copy.deepcopy(operation_model["proof_assumptions"]),
     }
 
 
@@ -683,6 +806,9 @@ def _fail(code: str, field: str = "") -> None:
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_BEHAVIOR_ID",
+    "GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_RESULT_SCHEMA_VERSION",
+    "GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION",
     "GATE5_SECURITIES_DISPOSAL_RESOLVED_INPUTS_SCHEMA_VERSION",
     "GATE5_SECURITIES_DISPOSAL_TAX_MODEL_BEHAVIOR_ID",
     "GATE5_SECURITIES_DISPOSAL_TAX_MODEL_RESULT_SCHEMA_VERSION",

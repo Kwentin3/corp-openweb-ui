@@ -45,6 +45,21 @@ runtime.run(
 )
 ```
 
+G5.14 adds one compatible operation-only method on the same runtime:
+
+```python
+runtime.run_operation(
+    methodology_ref=...,
+    resolved_inputs=...,
+    context=trusted_artifact_access_context,
+)
+```
+
+`run_operation` returns the reviewed operation classification, money,
+expense decisions, loss state and provenance, but does not claim category
+completeness and does not call the declaration projector. The original `run`
+contract and result remain unchanged.
+
 The factory composes existing owners rather than bypassing them:
 
 - `Gate5TrustedMethodologyAuthorityFactory.create` resolves exact
@@ -77,6 +92,19 @@ gate5_tax_methodology.ru_ndfl_securities_tax_model_proof.v0.json
 The existing G5.8 authority map binds that identity and schema to one exact
 raw-resource SHA-256. The caller supplies no methodology content, rule,
 requirement, behavior, path, or hash.
+
+For the G5.14 operation-only seam the same methodology ID has an additive,
+separately hash-pinned version:
+
+```text
+methodology_version = 2026.1-experimental
+behavior_id         = securities_disposal_operation_tax_model_v0
+```
+
+Its applicability rule deliberately omits category completeness. This avoids
+turning a single complete operation model into a false complete-category
+claim. The G5.13 `2026.0-experimental` package bytes and legacy proof remain
+immutable.
 
 The methodology owns:
 
@@ -247,5 +275,10 @@ Context framework, rules DSL, reference platform, workflow, LLM, full
 declaration serializer, tax rate, or tax calculation.
 
 The representative semantic and projection proof passed with explicit
-production-evidence gaps, so `G5.13_CLOSED`. No later Gate 5 slice is
-authorized by this contract.
+production-evidence gaps, so `G5.13_CLOSED`. At that closure this contract did
+not itself authorize a later Gate 5 slice.
+
+The additive G5.14 compatibility seam adds one new hash-pinned methodology
+version and one operation-only result shape inside the same owner. Category
+scope, completeness binding and aggregation remain owned by the separate
+G5.14 contract.

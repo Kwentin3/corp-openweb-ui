@@ -18,7 +18,7 @@
     "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_financial_semantic_v6_evidence.py": "637941b0f5672aac9ab7a185bf064aa9ef32995bb41ddf3de132435ac7e54d33",
     "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_model_requests.py": "4cc687aba41dd6b1cc70df920dedb47ce41c82ff063c0c2939e896fa34d6f7e8",
     "services/broker-reports-gate1-proof/broker_reports_gate1/gate2_provider_adapters.py": "c954af90b70057fe2a4e1cfbd49fe4ea643db6606ad805a2aa1df94256f634df",
-    "docs/stage2/contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md": "bd98b892fc35ec8dad1ba2560a01361eb96a9754c268716e1e13b6a365eb804f"
+    "docs/stage2/contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md": "feac77f184b8fb2b71faffcfd8dd799e60af9044a2b27c7ec0ab4c829a13899d"
   },
   "contracts": {
     "request_schema": "broker_reports_type_first_request_v1",
