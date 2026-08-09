@@ -1,0 +1,50 @@
+{
+  "schema_version": "broker_reports_gate5_calculation_methodology_v0",
+  "methodology_id": "ru-ndfl-securities-proof",
+  "methodology_version": "2026.0-experimental",
+  "calculation": {
+    "calculation_id": "security-disposal-1-result",
+    "rule_id": "experimental-security-disposal-net-result-v0",
+    "behavior_id": "security_disposal_net_result_v0",
+    "input_bindings": {
+      "proceeds": {
+        "amount_requirement_id": "disposal-proceeds-required",
+        "currency_requirement_id": "disposal-currency-required"
+      },
+      "acquisition_cost": {
+        "amount_requirement_id": "acquisition-cost-required",
+        "currency_requirement_id": "acquisition-cost-required"
+      },
+      "transaction_expense": {
+        "amount_requirement_id": "transaction-expense-required",
+        "currency_requirement_id": "transaction-expense-required"
+      }
+    }
+  },
+  "requirements": [
+    {
+      "requirement_id": "disposal-proceeds-required",
+      "financial_type": "SECURITY_DISPOSAL",
+      "value_key": "amount",
+      "subject_ref": "security-disposal-1"
+    },
+    {
+      "requirement_id": "disposal-currency-required",
+      "financial_type": "SECURITY_DISPOSAL",
+      "value_key": "currency",
+      "subject_ref": "security-disposal-1"
+    },
+    {
+      "requirement_id": "acquisition-cost-required",
+      "financial_type": "SECURITY_DISPOSAL",
+      "value_key": "acquisition_cost",
+      "subject_ref": "security-disposal-1"
+    },
+    {
+      "requirement_id": "transaction-expense-required",
+      "financial_type": "SECURITY_DISPOSAL",
+      "value_key": "transaction_expense",
+      "subject_ref": "security-disposal-1"
+    }
+  ]
+}
