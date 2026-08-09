@@ -75,6 +75,25 @@ methodology_id      = ru-ndfl-securities-proof
 methodology_version = 2026.0-experimental
 ```
 
+## Additive G5.13 published identity
+
+G5.13 reuses this same authority instead of adding a second methodology
+loader. The closed published map now also binds:
+
+```text
+methodology_id      = ru-ndfl-securities-tax-model-proof
+methodology_version = 2026.0-experimental
+resource            = gate5_tax_methodology.ru_ndfl_securities_tax_model_proof.v0.json
+schema              = broker_reports_gate5_securities_disposal_tax_model_methodology_v0
+```
+
+Each published entry now carries its expected schema version together with
+the resource name and raw-resource SHA-256. This is an additive authority
+capability only: the original G5.8 identity and the composed G5.7 calculation
+route remain unchanged. The new identity is consumed by the inactive
+[`Gate 5 Declaration-Driven Tax Model v0`](./BROKER_REPORTS_GATE5_DECLARATION_DRIVEN_TAX_MODEL.v0.md)
+boundary, which owns its structure and behavior validation.
+
 The owner binds that tuple to one package resource and one exact raw-resource
 SHA-256. The G5.7 canonical projection hash is computed independently from the
 decoded JSON and must be repeated exactly in the calculation result.

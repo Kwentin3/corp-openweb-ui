@@ -1,4 +1,4 @@
-"""Resolve one hash-pinned Tax Methodology before the unchanged G5.7 runtime."""
+"""Resolve closed hash-pinned methodologies and retain the G5.7 adapter."""
 
 from __future__ import annotations
 
@@ -32,6 +32,19 @@ GATE5_TRUSTED_METHODOLOGY_RESOURCE = (
 GATE5_TRUSTED_METHODOLOGY_RESOURCE_SHA256 = (
     "220844b6e39678b4e26e6f5ff4eec3784b0086213767f1444b832fe99cecf4e9"
 )
+GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_SCHEMA_VERSION = (
+    "broker_reports_gate5_securities_disposal_tax_model_methodology_v0"
+)
+GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID = (
+    "ru-ndfl-securities-tax-model-proof"
+)
+GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_VERSION = "2026.0-experimental"
+GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_RESOURCE = (
+    "gate5_tax_methodology.ru_ndfl_securities_tax_model_proof.v0.json"
+)
+GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_RESOURCE_SHA256 = (
+    "a1b2db00a78e92e1b47d873b5841edd6c34794a09f0a483c0cb0bda3abd6fc63"
+)
 
 FACTORY_REQUIRED = (
     "Gate5TrustedMethodologyAuthorityFactory.create is the only trusted Tax "
@@ -61,6 +74,7 @@ class Gate5TrustedMethodologyError(ValueError):
 class _PublishedMethodologyResource:
     resource_name: str
     resource_sha256: str
+    schema_version: str
 
 
 _PUBLISHED_METHODOLOGIES = {
@@ -70,7 +84,18 @@ _PUBLISHED_METHODOLOGIES = {
     ): _PublishedMethodologyResource(
         resource_name=GATE5_TRUSTED_METHODOLOGY_RESOURCE,
         resource_sha256=GATE5_TRUSTED_METHODOLOGY_RESOURCE_SHA256,
-    )
+        schema_version=GATE5_CALCULATION_METHODOLOGY_SCHEMA_VERSION,
+    ),
+    (
+        GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
+        GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_VERSION,
+    ): _PublishedMethodologyResource(
+        resource_name=GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_RESOURCE,
+        resource_sha256=(
+            GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_RESOURCE_SHA256
+        ),
+        schema_version=(GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_SCHEMA_VERSION),
+    ),
 }
 
 
@@ -111,8 +136,7 @@ class Gate5TrustedMethodologyAuthority:
             ) from exc
         if (
             not isinstance(methodology, dict)
-            or methodology.get("schema_version")
-            != GATE5_CALCULATION_METHODOLOGY_SCHEMA_VERSION
+            or methodology.get("schema_version") != published.schema_version
             or methodology.get("methodology_id") != identity[0]
             or methodology.get("methodology_version") != identity[1]
         ):
@@ -229,6 +253,11 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "GATE5_TRUSTED_CALCULATION_RESULT_SCHEMA_VERSION",
+    "GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID",
+    "GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_RESOURCE",
+    "GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_RESOURCE_SHA256",
+    "GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_SCHEMA_VERSION",
+    "GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_VERSION",
     "GATE5_TRUSTED_METHODOLOGY_AUTHORITY_OWNER",
     "GATE5_TRUSTED_METHODOLOGY_ID",
     "GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION",
