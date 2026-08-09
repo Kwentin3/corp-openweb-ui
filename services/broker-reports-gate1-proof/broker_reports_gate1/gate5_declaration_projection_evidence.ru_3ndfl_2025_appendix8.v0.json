@@ -1,0 +1,225 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_projection_evidence_v0",
+  "evidence_pack_id": "ru-3ndfl-2025-appendix8-securities-proof",
+  "captured_on": "2026-08-09",
+  "declaration": {
+    "jurisdiction": "RU",
+    "tax_period": "2025",
+    "form": "3-NDFL",
+    "knd": "1151020",
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "electronic_format_version": "5.20",
+    "xsd": "NO_NDFL3_1_033_00_05_20_01.xsd"
+  },
+  "sources": [
+    {
+      "source_ref": "fns_form_pdf",
+      "authority_kind": "tax_authority_primary",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_1.pdf",
+      "sha256": "d751043f63af1f0095a14228a65a3831acf47fcd82c397e2eb38b0f9f8dc9565"
+    },
+    {
+      "source_ref": "fns_filling_procedure_docx",
+      "authority_kind": "tax_authority_primary",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_2.docx",
+      "sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc"
+    },
+    {
+      "source_ref": "fns_electronic_format_docx",
+      "authority_kind": "tax_authority_primary",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_3.docx",
+      "sha256": "f5215c237a8af73dd7a251cee94a2e09aacd8540173fcde2904b4c311129e3c2"
+    },
+    {
+      "source_ref": "fns_xsd_5_20_01",
+      "authority_kind": "tax_authority_primary",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/xsd/NO_NDFL3_1_033_00_05_20_01.xsd",
+      "sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484"
+    }
+  ],
+  "claims": [
+    {
+      "evidence_ref": "form_appendix8_lines_010_050",
+      "source_ref": "fns_form_pdf",
+      "locator": "Appendix 8, lines 010-050",
+      "supports": "visible_declaration_targets"
+    },
+    {
+      "evidence_ref": "procedure_paragraph_6_money_representation",
+      "source_ref": "fns_filling_procedure_docx",
+      "locator": "paragraph 6",
+      "supports": "rubles_and_kopecks_representation"
+    },
+    {
+      "evidence_ref": "procedure_paragraph_98_lines_010_050",
+      "source_ref": "fns_filling_procedure_docx",
+      "locator": "section XIII, paragraph 98, lines 010-050",
+      "supports": "appendix8_field_semantics"
+    },
+    {
+      "evidence_ref": "procedure_appendix8_operation_code_01",
+      "source_ref": "fns_filling_procedure_docx",
+      "locator": "Appendix 8 code table, code 01",
+      "supports": "organized_market_securities_outside_iis_to_01"
+    },
+    {
+      "evidence_ref": "format_table_4_46",
+      "source_ref": "fns_electronic_format_docx",
+      "locator": "table 4.46, DohOperCB attributes",
+      "supports": "field_names_types_and_requiredness"
+    },
+    {
+      "evidence_ref": "xsd_dohopercb_contract",
+      "source_ref": "fns_xsd_5_20_01",
+      "locator": "File/Document/NDFL3/DohOperCB definition",
+      "supports": "path_cardinality_attributes_types_and_enumerations"
+    }
+  ],
+  "target_contract": {
+    "path": "Файл/Документ/НДФЛ3/ДохОперЦБ",
+    "element": "ДохОперЦБ",
+    "min_occurs": 0,
+    "max_occurs": "unbounded",
+    "evidence_refs": [
+      "format_table_4_46",
+      "xsd_dohopercb_contract"
+    ],
+    "fields": [
+      {
+        "attribute": "ВидОпер",
+        "xsd_use": "required",
+        "datatype": {
+          "base": "string",
+          "length": 2
+        },
+        "proof_required_mapping": true
+      },
+      {
+        "attribute": "ДохСовОпер",
+        "xsd_use": "required",
+        "datatype": {
+          "base": "decimal",
+          "total_digits": 14,
+          "fraction_digits": 2
+        },
+        "proof_required_mapping": true
+      },
+      {
+        "attribute": "РасхРеалЦБ",
+        "xsd_use": "optional",
+        "datatype": {
+          "base": "decimal",
+          "total_digits": 14,
+          "fraction_digits": 2
+        },
+        "proof_required_mapping": true
+      },
+      {
+        "attribute": "РасхУмДохОпер",
+        "xsd_use": "optional",
+        "datatype": {
+          "base": "decimal",
+          "total_digits": 14,
+          "fraction_digits": 2
+        },
+        "proof_required_mapping": true
+      },
+      {
+        "attribute": "ПризУчетУбыт",
+        "xsd_use": "required",
+        "datatype": {
+          "base": "string",
+          "length": 1,
+          "enumeration": [
+            "0",
+            "1"
+          ]
+        },
+        "proof_required_mapping": true
+      }
+    ]
+  },
+  "mapping_claims": [
+    {
+      "source_concept": "operation_category",
+      "target_attribute": "ВидОпер",
+      "transform": {
+        "kind": "enum_code",
+        "values": {
+          "organized_market_securities_outside_iis": "01"
+        }
+      },
+      "required_evidence_refs": [
+        "form_appendix8_lines_010_050",
+        "procedure_paragraph_98_lines_010_050",
+        "procedure_appendix8_operation_code_01",
+        "format_table_4_46",
+        "xsd_dohopercb_contract"
+      ]
+    },
+    {
+      "source_concept": "operation_category_gross_income",
+      "target_attribute": "ДохСовОпер",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "required_evidence_refs": [
+        "form_appendix8_lines_010_050",
+        "procedure_paragraph_6_money_representation",
+        "procedure_paragraph_98_lines_010_050",
+        "format_table_4_46",
+        "xsd_dohopercb_contract"
+      ]
+    },
+    {
+      "source_concept": "related_expenses",
+      "target_attribute": "РасхРеалЦБ",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "required_evidence_refs": [
+        "form_appendix8_lines_010_050",
+        "procedure_paragraph_6_money_representation",
+        "procedure_paragraph_98_lines_010_050",
+        "format_table_4_46",
+        "xsd_dohopercb_contract"
+      ]
+    },
+    {
+      "source_concept": "allowable_expenses",
+      "target_attribute": "РасхУмДохОпер",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "required_evidence_refs": [
+        "form_appendix8_lines_010_050",
+        "procedure_paragraph_6_money_representation",
+        "procedure_paragraph_98_lines_010_050",
+        "format_table_4_46",
+        "xsd_dohopercb_contract"
+      ]
+    },
+    {
+      "source_concept": "loss_treatment",
+      "target_attribute": "ПризУчетУбыт",
+      "transform": {
+        "kind": "enum_code",
+        "values": {
+          "none": "0"
+        }
+      },
+      "required_evidence_refs": [
+        "form_appendix8_lines_010_050",
+        "procedure_paragraph_98_lines_010_050",
+        "format_table_4_46",
+        "xsd_dohopercb_contract"
+      ]
+    }
+  ]
+}
