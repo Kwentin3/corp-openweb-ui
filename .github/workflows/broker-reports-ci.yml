@@ -161,6 +161,7 @@ jobs:
           tests/test_broker_reports_gate4_financial_case_contract.py
           tests/test_broker_reports_gate4_sql_materialization.py
           tests/test_broker_reports_gate5_methodology_selection.py
+          tests/test_broker_reports_gate5_supplemental_fact.py
           tests/test_broker_reports_gate3_ndfl_case_readiness.py
           tests/test_broker_reports_gate3_ndfl_workflow.py
           tests/test_broker_reports_gate3_openwebui_managed_dictionary.py

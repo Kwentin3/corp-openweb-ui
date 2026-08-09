@@ -172,6 +172,15 @@ from .gate5_methodology_selection import (
     Gate5MethodologySelectionRuntime,
     Gate5MethodologySelectionRuntimeFactory,
 )
+from .gate5_supplemental_fact import (
+    GATE5_SUPPLEMENTAL_FACT_ARTIFACT_TYPE,
+    GATE5_SUPPLEMENTAL_FACT_INPUT_SCHEMA_VERSION,
+    GATE5_SUPPLEMENTAL_FACT_RESULT_SCHEMA_VERSION,
+    GATE5_SUPPLEMENTAL_FACT_SCHEMA_VERSION,
+    Gate5SupplementalFactError,
+    Gate5SupplementalFactRuntime,
+    Gate5SupplementalFactRuntimeFactory,
+)
 from .gate3_ndfl_workflow import (
     NDFL_GATE3_HANDOFF_SCHEMA_VERSION,
     NDFL_ROLE_PACK_ID,
@@ -1151,6 +1160,13 @@ __all__ = [
     "Gate5MethodologySelectionError",
     "Gate5MethodologySelectionRuntime",
     "Gate5MethodologySelectionRuntimeFactory",
+    "GATE5_SUPPLEMENTAL_FACT_ARTIFACT_TYPE",
+    "GATE5_SUPPLEMENTAL_FACT_INPUT_SCHEMA_VERSION",
+    "GATE5_SUPPLEMENTAL_FACT_RESULT_SCHEMA_VERSION",
+    "GATE5_SUPPLEMENTAL_FACT_SCHEMA_VERSION",
+    "Gate5SupplementalFactError",
+    "Gate5SupplementalFactRuntime",
+    "Gate5SupplementalFactRuntimeFactory",
     "NDFL_GATE3_HANDOFF_SCHEMA_VERSION",
     "NDFL_ROLE_PACK_ID",
     "NDFL_ROLE_PACK_SEMANTIC_VERSION",
