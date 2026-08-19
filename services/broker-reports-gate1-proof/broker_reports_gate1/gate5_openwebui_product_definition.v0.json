@@ -1,0 +1,31 @@
+{
+  "schema_version": "broker_reports_gate5_openwebui_product_definition_v0",
+  "definition_id": "gate5-openwebui-supplied-case-product",
+  "definition_version": "2026-08-14.0-g545",
+  "answer_marker": "3-НДФЛ факты:",
+  "required_case_sections": [
+    "scope",
+    "residency_evidence",
+    "supplemental_money",
+    "securities_disposal",
+    "tax_period_category",
+    "income_group",
+    "settlement",
+    "filing_and_party_identity",
+    "taxable_income_source",
+    "budget_disposition",
+    "financial_investment"
+  ],
+  "critical_provenance": [
+    {"fact_key":"declaration_date","nature":"DECLARATION / FILING CONTEXT","case_fact_path":"filing_and_party_identity.filing_instance.declaration_date","semantic_value_path":"filing_instance.declaration_date","trusted_owner":"Gate5FilingAndPartyIdentityRuntimeFactory.create","domain_id":"filing_and_party_identity","projection_source":"$root.domain_payloads.filing_and_party_identity.filing_instance.declaration_date"},
+    {"fact_key":"tax_authority_code","nature":"DECLARATION / FILING CONTEXT","case_fact_path":"filing_and_party_identity.filing_instance.tax_authority_code","semantic_value_path":"filing_instance.tax_authority_code","trusted_owner":"Gate5FilingAndPartyIdentityRuntimeFactory.create","domain_id":"filing_and_party_identity","projection_source":"$root.domain_payloads.filing_and_party_identity.filing_instance.tax_authority_code"},
+    {"fact_key":"taxpayer_inn","nature":"USER / CASE FACT","case_fact_path":"filing_and_party_identity.taxpayer.inn","semantic_value_path":"taxpayer.inn","trusted_owner":"Gate5FilingAndPartyIdentityRuntimeFactory.create","domain_id":"filing_and_party_identity","projection_source":"$root.domain_payloads.filing_and_party_identity.taxpayer.inn"},
+    {"fact_key":"taxpayer_status","nature":"METHODOLOGY-DERIVED TAX FACT","case_fact_path":"residency_evidence.proposal.presence_intervals","semantic_value_path":"taxpayer.period_status","trusted_owner":"Gate5ResidencyEvidenceRuntimeFactory.create","domain_id":"filing_and_party_identity","projection_source":"$root.domain_payloads.filing_and_party_identity.taxpayer.period_status"},
+    {"fact_key":"signer_capacity","nature":"DECLARATION / FILING CONTEXT","case_fact_path":"filing_and_party_identity.signer.signer_capacity","semantic_value_path":"signer.signer_capacity","trusted_owner":"Gate5FilingAndPartyIdentityRuntimeFactory.create","domain_id":"filing_and_party_identity","projection_source":"$root.domain_payloads.filing_and_party_identity.signer.signer_capacity"},
+    {"fact_key":"source_party_inn","nature":"SOURCE / FINANCIAL FACT","case_fact_path":"taxable_income_source.source_party.inn","semantic_value_path":"source_entries.0.source_party.inn","trusted_owner":"Gate5DeclarationIncomeSourcesRuntimeFactory.create","domain_id":"taxable_income_by_source","projection_source":"$item.source_party.inn"},
+    {"fact_key":"source_party_oktmo","nature":"EXTERNAL REFERENCE FACT","case_fact_path":"taxable_income_source.source_party.oktmo","semantic_value_path":"source_entries.0.source_party.oktmo","trusted_owner":"Gate5DeclarationIncomeSourcesRuntimeFactory.create","domain_id":"taxable_income_by_source","projection_source":"$item.source_party.oktmo"},
+    {"fact_key":"budget_kbk","nature":"EXTERNAL REFERENCE FACT","case_fact_path":"budget_disposition.kbk","semantic_value_path":"budget_allocations.0.kbk","trusted_owner":"Gate5DeclarationBudgetOutcomeRuntimeFactory.create","domain_id":"declaration_budget_disposition","projection_source":"$item.kbk"},
+    {"fact_key":"budget_oktmo","nature":"DECLARATION / FILING CONTEXT","case_fact_path":"budget_disposition.oktmo","semantic_value_path":"budget_allocations.0.oktmo","trusted_owner":"Gate5DeclarationBudgetOutcomeRuntimeFactory.create","domain_id":"declaration_budget_disposition","projection_source":"$item.oktmo"},
+    {"fact_key":"budget_disposition","nature":"METHODOLOGY-DERIVED TAX FACT","case_fact_path":"budget_disposition.budget_allocation_ref","semantic_value_path":"budget_allocations.0.amount","trusted_owner":"Gate5DeclarationBudgetOutcomeRuntimeFactory.create","domain_id":"declaration_budget_disposition","projection_source":"$item.amount"}
+  ]
+}

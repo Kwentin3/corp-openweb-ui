@@ -1,0 +1,165 @@
+{
+  "schema_version": "broker_reports_gate5_consumer_first_boundary_confirmation_v0",
+  "goal": "G5.39AC",
+  "verified_on": "2026-08-12",
+  "mode": "confirmatory_research_and_refactor_impact_audit_only",
+  "terminal": "THREE_CONTRACT_RUNTIME_BOUNDARY_CONFIRMED",
+  "answer": "YES_FOR_THE_FROZEN_SUPPLIED_CASE",
+  "baseline": {
+    "repository": {
+      "branch": "feature/gate5-tax-period-category-aggregation",
+      "head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+      "tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+      "origin_main_observed": "a55abe5d08a1cc2a47a679287bba0f479185595b",
+      "canonical_tree_was_dirty": true,
+      "user_changes_modified": false,
+      "experiment_location": "temporary detached worktree with byte-exact current service overlay"
+    },
+    "resolved_package": {
+      "declared_package_sha256": "8ada423c40828bfa227f011f0f10571c076495fd073c0951e750f85fb3c2c461",
+      "canonical_bytes": 147888,
+      "canonical_bytes_sha256": "8d870aaa885bcd709f2a532b755059f84355d2102aede622751a27a40b00f9fb",
+      "run_identity_bound": true
+    },
+    "semantic_input": {
+      "declared_semantic_input_sha256": "aa8bb90305bc2cb018effcc7dc064e928da5bfe7412f69833df208c32e440283",
+      "canonical_bytes": 11124,
+      "canonical_bytes_sha256": "2dd39d35654bdc17b00e4b710b50e6881a9dacc65357a45a0c744baff1ded660",
+      "run_identity_bound": true
+    },
+    "projection_definition": {
+      "projection_id": "ru_3ndfl_2025_full_target_supplied_case",
+      "projection_version": "2026-08-11.0-proof",
+      "resource_bytes": 21551,
+      "resource_sha256": "48109cc6b3de6fd4d242346648660d99b40863310e622ab2cec44dc641ec7b26"
+    },
+    "official_xsd": {
+      "bytes": 178427,
+      "sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484"
+    },
+    "trusted_definition": {
+      "status": "trusted_repository_published",
+      "definition_id": "ru_3ndfl_2025_root_declaration",
+      "definition_version": "2026-08-10.1",
+      "definition_sha256": "8d2a4ad11c766a5d346f4840b033d08e6c854fe07e336836541f9437ea8bf19d",
+      "validation_sha256": "f3e4993ac54f154be53cb5d21a4ffaed0713cf49b3025b10d4e9b8b9c1bf79f6",
+      "obligation_package_sha256": "8065a2047b2d7bf5a1a3b87ed4dd49f65bd39e97b6a42c1acf24d2d62548b23c"
+    },
+    "valid_xml": {
+      "bytes": 1112,
+      "sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a",
+      "xsd_valid": true
+    },
+    "completeness_receipt": {
+      "receipt_sha256": "f8dffdbde0a597287cfc40ee0ed9ec594830ffc2301ce5c7a5978a96c2433288",
+      "canonical_bytes": 803,
+      "canonical_bytes_sha256": "4af1a0cea1e04d33009fc2857beee460078be804cd8b3add0d670d71b5f2fc8d",
+      "blockers": 0
+    },
+    "projection_mapping_occurrences": 49,
+    "focused_replay": {
+      "command": "python -m pytest -q tests/test_broker_reports_gate5_end_to_end_full_target_xml.py::test_source_to_official_xml_replays_every_gate_and_emits_hash_chain",
+      "result": "1 passed",
+      "seconds": 2.48
+    }
+  },
+  "baseline_replay_note": {
+    "fresh_run_package_and_semantic_input_hashes_are_not_global_determinism_claims": true,
+    "reason": "fresh SQLite runs introduce run-local artifact and evidence references that propagate through sealed hashes",
+    "fresh_run_xml_byte_equality_observed": true,
+    "candidate_hash_stable_across_separate_replay": true,
+    "historical_g5_35_xml_sha256_equal": true
+  },
+  "candidate": {
+    "canonical_bytes": 2507,
+    "canonical_bytes_sha256": "105e8883bc138b3a72ef0f1563b0ca32fadd72ccdc419729a535c1847db962b6",
+    "root_fields": 8,
+    "redacted_manifest": "BROKER_REPORTS_GATE5_CONSUMER_FIRST_BOUNDARY_G5_39AC.candidate.safe.json",
+    "production_dto": false
+  },
+  "release_gate": {
+    "package_status_complete": true,
+    "completeness_receipt_status_complete": true,
+    "blockers_empty": true,
+    "obligations_total": 25,
+    "obligation_refs_unique": 25,
+    "terminal_state_counts": {
+      "RESOLVED": 11,
+      "NOT_APPLICABLE": 0,
+      "NOT_ACTIVATED_FOR_SUPPLIED_CASE": 14
+    },
+    "all_terminal": true,
+    "projection_value_or_mechanics_bindings": 49,
+    "passed_before_projection": true
+  },
+  "calculation_evidence": [
+    {"declared_value_path":"financial_investment_results[0].allowable_expenses","kind":"CALCULATION_EVIDENCE","replay_equal":true,"declared_value_sha256":"445354b167f077e15aad021281954bc627a68dcd72986f0dffbf274f8dbab017","methodology_binding_sha256":"6376b8900f264b80de3f801921a42fc52d7573a0a0122caa737e592bc49dae87","input_snapshot_sha256":"0eca759dc417443817266647443377d601a76e853709c872125e55f57ee9c3ab","formula_trace_sha256":"4210468ad6c88c6f5d8ab9c7b8b48dc9202461bc8208893b262a04b76a6071f5"},
+    {"declared_value_path":"income_group_results[0].tax_base","kind":"CALCULATION_EVIDENCE","replay_equal":true,"declared_value_sha256":"5d67024c3fdcacd81c186057d9c9ddf46332db3269c52c81341121cdbd41df88","methodology_binding_sha256":"98ffc7289c5cd325ffe7fc9e09258e69548318936e0d64f3dbc057fa62894d00","input_snapshot_sha256":"abad3678f576a95f7cf0da5a2beb49b193027d646a17fb9eeb94b06e4472d4b3","formula_trace_sha256":"aca90598182b288fb0a4fcbdf0a82c3d98147bcd2c1f25dfe89e64c525f4b3a3"},
+    {"declared_value_path":"income_group_results[0].calculated_tax","kind":"CALCULATION_EVIDENCE","replay_equal":true,"declared_value_sha256":"9716f2cd5cd90b161b73e766c683cf0975836c9484347d91d49b00197da1c15f","methodology_binding_sha256":"61863f3104072d475c9e76ff3c3bd18115dc3802ea7333eeb229fd01bf1cf148","input_snapshot_sha256":"ba7675900df3f083ae319c2bdfaa70f712d8e33e773d2b9dd5adf2180aaef0ec","formula_trace_sha256":"dcf098b33c6f9f8be4860405288b798c80b42fa7685876a72f0e07d3426c2ff8"},
+    {"declared_value_path":"budget_dispositions[0].amount","kind":"CALCULATION_EVIDENCE","replay_equal":true,"declared_value_sha256":"9716f2cd5cd90b161b73e766c683cf0975836c9484347d91d49b00197da1c15f","methodology_binding_sha256":"61863f3104072d475c9e76ff3c3bd18115dc3802ea7333eeb229fd01bf1cf148","input_snapshot_sha256":"a50e7f2be58db024f05075cebcc8516a51720d38375fb15578adafc616c1d976","formula_trace_sha256":"11b84a3924b268b7ed300fad2360e3d82ae5805e20fba42edb57870913ed8c22"},
+    {"declared_value_path":"russian_source_income[0].withheld_tax","kind":"DIRECT_EVIDENCE_CONTROL","replay_equal":true,"declared_value_sha256":"f00c558c06a3e9c11bac9819d601a031727e2c6e9154a9283a6405f43e6b5661","evidence_binding_sha256":"6b7e41ae76454f0930df6167d7f0f1ab53b4adfa439e516b8360ec65dae76534","calculation_object_created":false}
+  ],
+  "projection_experiment": {
+    "production_definition_changed": false,
+    "research_copy_change": "source paths only",
+    "target_tree_transforms_constants_and_codes_unchanged": true,
+    "mapping_value_hashes_equal": "49/49",
+    "target_paths_equal": "49/49",
+    "xml_byte_equal": true,
+    "minimal_xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a",
+    "xsd_valid": true,
+    "separate_target_mechanics_probe": {
+      "changed_input": "electronic file id only",
+      "equal_mapping_values": "48/49",
+      "different_mapping_ids": ["file-id"],
+      "xml_byte_equal": false,
+      "xml_sha256": "1e4f79e7b078b8660b8224fa97b5dc1f51e9774587fd555e08d96bf4e4f7f174",
+      "xsd_valid": true
+    }
+  },
+  "negative_tests": {
+    "required_allowable_expenses_removed": {
+      "failed_closed": true,
+      "error_code": "gate5_full_target_projection_source_value_missing",
+      "error_field": "$item.allowable_expenses",
+      "xml_emitted": false,
+      "package_fallback": false
+    },
+    "audit_metadata_removed_after_release": {
+      "audit_metadata_in_projector_input": false,
+      "xml_byte_equal": true,
+      "xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a"
+    }
+  },
+  "scope_limits": [
+    "proof is for the frozen supplied case, not every 3-NDFL declaration",
+    "refund, balanced, multi-allocation and inactive-domain target mechanics were not activated by this case",
+    "no production refactor, migration or compatibility decision was made",
+    "real-world taxpayer tax completeness is not asserted"
+  ],
+  "privacy": {
+    "raw_customer_or_private_values_in_git": false,
+    "exact_package_semantic_candidate_and_xml_bytes_persisted_to_git": false,
+    "safe_evidence_only": true
+  },
+  "cleanup": {
+    "temporary_worktree_path_removed": true,
+    "temporary_overlay_patch_removed": true,
+    "experimental_code_retained": false,
+    "stale_git_worktree_metadata": {
+      "path": ".git/worktrees/codex-g539ac-worktree",
+      "active_worktree_exists": false,
+      "git_registration_removed": true,
+      "git_worktree_list_clean": true,
+      "shell_visible_directory_entry_remains": true,
+      "normal_git_prune_result": "registration_removed_but_directory_entry_retained_by_windows_acl",
+      "manual_acl_or_destructive_override_performed": false,
+      "impact": "none on Git worktree registration or tracked and untracked product files"
+    }
+  },
+  "scope_stop": {
+    "production_refactor_authorized": false,
+    "g5_40_authorized": false,
+    "next_allowed_boundary": "discussion of a bounded minimal refactor in a separately authorized GOAL"
+  }
+}

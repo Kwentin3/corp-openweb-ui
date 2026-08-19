@@ -1,0 +1,85 @@
+{
+  "schema_version": "broker_reports_gate5_consumer_first_projection_demand_matrix_v0",
+  "goal": "G5.39AG",
+  "value_contract": {
+    "id": "ru_3ndfl_2025_supplied_case_declaration_values",
+    "version": "2026-08-12.0-bounded"
+  },
+  "accounting": {
+    "released_value_leaves": 46,
+    "leaves_with_current_target_demand": 44,
+    "leaves_without_current_target_demand": 2,
+    "target_mapping_occurrences": 49,
+    "released_value_dependent_mapping_occurrences": 44,
+    "target_instance_mechanic_mapping_occurrences": 1,
+    "target_constant_mapping_occurrences": 4
+  },
+  "released_value_demands": [
+    {"path":"$.tax_period","class":"DECLARATION_VALUE","consumers":["reporting-year"]},
+    {"path":"$.filing.correction_number","class":"DECLARATION_VALUE","consumers":["correction-number"]},
+    {"path":"$.filing.declaration_date","class":"DECLARATION_VALUE","consumers":["document-date"]},
+    {"path":"$.filing.tax_authority_code","class":"DECLARATION_VALUE","consumers":["tax-authority-code"]},
+    {"path":"$.taxpayer.inn","class":"DECLARATION_VALUE","consumers":["taxpayer-inn-text"]},
+    {"path":"$.taxpayer.name.last_name","class":"DECLARATION_VALUE","consumers":["taxpayer-last-name"]},
+    {"path":"$.taxpayer.name.first_name","class":"DECLARATION_VALUE","consumers":["taxpayer-first-name"]},
+    {"path":"$.taxpayer.name.middle_name","class":"DECLARATION_VALUE","consumers":["taxpayer-middle-name"]},
+    {"path":"$.taxpayer.period_status","class":"TARGET_ENUM_CODE_MAPPING_INPUT","consumers":["taxpayer-status"]},
+    {"path":"$.taxpayer.declarant_category","class":"TARGET_ENUM_CODE_MAPPING_INPUT","consumers":["declarant-category"]},
+    {"path":"$.signer.identity","class":"NO_CURRENT_TARGET_DEMAND","consumers":[]},
+    {"path":"$.signer.capacity","class":"TARGET_ENUM_CODE_MAPPING_INPUT","consumers":["signer-capacity"]},
+    {"path":"$.budget_dispositions[0].kind","class":"TARGET_SHAPING_INPUT","consumers":["budget-payable","budget-refundable"]},
+    {"path":"$.budget_dispositions[0].kbk","class":"DECLARATION_VALUE","consumers":["budget-kbk"]},
+    {"path":"$.budget_dispositions[0].oktmo","class":"DECLARATION_VALUE","consumers":["budget-oktmo"]},
+    {"path":"$.budget_dispositions[0].amount","class":"TARGET_SHAPING_VALUE","consumers":["budget-payable","budget-refundable"]},
+    {"path":"$.income_group_results[0].income_group","class":"TARGET_ENUM_CODE_MAPPING_INPUT","consumers":["income-group-code"]},
+    {"path":"$.income_group_results[0].total_income","class":"DECLARATION_VALUE","consumers":["total-income"]},
+    {"path":"$.income_group_results[0].non_taxable_income","class":"DECLARATION_VALUE","consumers":["non-taxable-income"]},
+    {"path":"$.income_group_results[0].taxable_income","class":"DECLARATION_VALUE","consumers":["taxable-income"]},
+    {"path":"$.income_group_results[0].tax_deductions","class":"DECLARATION_VALUE","consumers":["tax-deductions"]},
+    {"path":"$.income_group_results[0].accepted_expenses","class":"DECLARATION_VALUE","consumers":["accepted-expenses"]},
+    {"path":"$.income_group_results[0].tax_base","class":"DECLARATION_VALUE","consumers":["tax-base"]},
+    {"path":"$.income_group_results[0].calculated_tax","class":"DECLARATION_VALUE","consumers":["calculated-tax"]},
+    {"path":"$.income_group_results[0].settlement_amounts.withheld_at_source","class":"DECLARATION_VALUE","consumers":["withheld-at-source"]},
+    {"path":"$.income_group_results[0].settlement_amounts.material_benefit_withheld","class":"DECLARATION_VALUE","consumers":["material-benefit-withheld"]},
+    {"path":"$.income_group_results[0].settlement_amounts.trade_fee_credit","class":"DECLARATION_VALUE","consumers":["trade-fee-credit"]},
+    {"path":"$.income_group_results[0].settlement_amounts.fixed_advance_credit","class":"DECLARATION_VALUE","consumers":["fixed-advance-credit"]},
+    {"path":"$.income_group_results[0].settlement_amounts.foreign_tax_credit","class":"DECLARATION_VALUE","consumers":["foreign-tax-credit"]},
+    {"path":"$.income_group_results[0].settlement_amounts.patent_credit","class":"DECLARATION_VALUE","consumers":["patent-credit"]},
+    {"path":"$.income_group_results[0].settlement_amounts.simplified_procedure_returned_or_credited","class":"DECLARATION_VALUE","consumers":["simplified-returned-or-credited"]},
+    {"path":"$.income_group_results[0].tax_payable","class":"DECLARATION_VALUE","consumers":["tax-payable"]},
+    {"path":"$.income_group_results[0].tax_refundable","class":"DECLARATION_VALUE","consumers":["tax-refundable"]},
+    {"path":"$.russian_source_income[0].income_kind","class":"TARGET_ENUM_CODE_MAPPING_INPUT","consumers":["source-income-kind"]},
+    {"path":"$.russian_source_income[0].source_party.party_kind","class":"NO_CURRENT_TARGET_DEMAND","consumers":[]},
+    {"path":"$.russian_source_income[0].source_party.display_name","class":"DECLARATION_VALUE","consumers":["source-organization-name"]},
+    {"path":"$.russian_source_income[0].source_party.inn","class":"DECLARATION_VALUE","consumers":["source-organization-inn"]},
+    {"path":"$.russian_source_income[0].source_party.kpp","class":"DECLARATION_VALUE","consumers":["source-organization-kpp"]},
+    {"path":"$.russian_source_income[0].source_party.oktmo","class":"DECLARATION_VALUE","consumers":["source-oktmo"]},
+    {"path":"$.russian_source_income[0].gross_income","class":"DECLARATION_VALUE","consumers":["source-income"]},
+    {"path":"$.russian_source_income[0].withheld_tax","class":"DECLARATION_VALUE","consumers":["source-tax-withheld"]},
+    {"path":"$.financial_investment_results[0].operation_category","class":"TARGET_ENUM_CODE_MAPPING_INPUT","consumers":["securities-operation-kind"]},
+    {"path":"$.financial_investment_results[0].category_gross_income","class":"DECLARATION_VALUE","consumers":["securities-gross-income"]},
+    {"path":"$.financial_investment_results[0].related_expenses","class":"DECLARATION_VALUE","consumers":["securities-related-expenses"]},
+    {"path":"$.financial_investment_results[0].allowable_expenses","class":"DECLARATION_VALUE","consumers":["securities-allowable-expenses"]},
+    {"path":"$.financial_investment_results[0].loss_treatment","class":"TARGET_ENUM_CODE_MAPPING_INPUT","consumers":["securities-loss-treatment"]}
+  ],
+  "target_mechanics": {
+    "instance_input": [
+      {"path":"$.electronic_file_id","class":"TARGET_MECHANIC","consumer":"file-id"}
+    ],
+    "definition_owned_constants": [
+      {"mapping_id":"program-version","class":"TARGET_CONSTANT"},
+      {"mapping_id":"format-version","class":"TARGET_CONSTANT"},
+      {"mapping_id":"document-knd","class":"TARGET_CONSTANT"},
+      {"mapping_id":"tax-period-code","class":"TARGET_CONSTANT"}
+    ],
+    "definition_owned_mechanics": [
+      "released_kind_to_dual_target_amounts_v0",
+      "preserve_released_order",
+      "XML hierarchy and attribute order",
+      "enum/code transforms",
+      "windows-1251 serialization",
+      "official XSD validation"
+    ]
+  },
+  "unjustified_dependencies": []
+}

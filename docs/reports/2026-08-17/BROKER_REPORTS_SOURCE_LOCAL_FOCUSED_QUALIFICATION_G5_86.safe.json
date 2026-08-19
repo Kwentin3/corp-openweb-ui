@@ -1,0 +1,77 @@
+{
+  "checks": {
+    "aliases_restore_only_canonical_targets": true,
+    "artifact_store_unchanged": true,
+    "duplicate_annotation_pairs_zero": true,
+    "existing_tax_controls_preserved": false,
+    "true_dividend_controls_preserved": true,
+    "wrong_rows_no_longer_dividend": false
+  },
+  "controls": {
+    "duplicate_annotation_pairs": 0,
+    "new_targets_outside_chunk": 0,
+    "paired_existing_tax_preserved": 86,
+    "paired_existing_tax_regressed": 16,
+    "paired_existing_tax_total": 102,
+    "true_dividend_preserved": 25,
+    "true_dividend_total": 25,
+    "wrong_rows_no_longer_dividend": 26,
+    "wrong_rows_still_dividend": 79,
+    "wrong_rows_total": 105
+  },
+  "decision": {
+    "candidate_instruction_qualified": false,
+    "full_semantic_inventory_resumed": false,
+    "gate4_rebuild": false,
+    "gate5_executed": false,
+    "ordinary_gate3_replay": false,
+    "second_provider_replay": false
+  },
+  "first_remaining_wrong": {
+    "annotation_index": 63,
+    "chunk_ordinal": 12,
+    "page": 5,
+    "structural_class_id": "sc_97649d53686922a3"
+  },
+  "goal": "G5.86",
+  "private_result_sha256": "7d005e481c16740dc198e3bc8c24073412d71075d9354fe33d7afe58655547ec",
+  "provider_calls_semantic": 6,
+  "provider_calls_transport": 6,
+  "remaining_wrong_by_structural_class": {
+    "sc_2411884a0555dbc7": 9,
+    "sc_3d4a1c0266efbbe2": 1,
+    "sc_97649d53686922a3": 46,
+    "sc_e36889664a26ad71": 1,
+    "sc_eb49e5e76a94429d": 22
+  },
+  "repaired_by_structural_class": {
+    "sc_2411884a0555dbc7": 1,
+    "sc_4f30a191be699a96": 1,
+    "sc_97649d53686922a3": 24
+  },
+  "root_cause_requalification": {
+    "candidate_result": "REJECTED_BY_FOCUSED_CONTROLS",
+    "first_wrong_owner": "Gate3 source-local assertion packaging",
+    "minimal_next_shape": {
+      "assertion": [
+        "row_target_ref",
+        "local_row_text"
+      ],
+      "implementation_in_this_goal": false,
+      "new_framework": false,
+      "structural_context": [
+        "column_headers",
+        "table_header",
+        "section_header"
+      ]
+    },
+    "previous_candidate": "instruction_only_local_precedence",
+    "proof": "Every alias is unique, but pass 1 receives one whole-table blob and no predeclared assertion object. The provider still chooses its own cell or row targets, so instruction-only precedence is not stable.",
+    "requalified_class": "B_LOCAL_ASSERTION_BOUNDARY_CONTRACT_GAP",
+    "terminal": "LOCAL_ASSERTION_CONTEXT_CONTRACT_GAP_PROVEN"
+  },
+  "schema_version": "broker_reports_g586_focused_qualification_safe_v1",
+  "semantic_retries": 0,
+  "terminal": "GATE3_SEMANTIC_ROOT_CAUSE_REQUALIFICATION_REQUIRED",
+  "vlm_calls": 0
+}

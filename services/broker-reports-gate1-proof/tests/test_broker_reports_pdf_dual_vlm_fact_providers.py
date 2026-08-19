@@ -119,6 +119,94 @@ class PdfDualVlmFactProviderFactoryTests(unittest.TestCase):
 
 
 class OpenAIResponsesVisionAdapterTests(unittest.TestCase):
+    def test_text_invoke_preserves_messages_and_sends_no_image(self) -> None:
+        transport = _FakeUrlOpen()
+        adapter = _bundle(transport).openai
+        schema = _fact_schema()
+        schema["properties"]["facts"]["uniqueItems"] = True
+        request = {
+            "messages": [
+                {"role": "system", "content": "same instruction"},
+                {"role": "user", "content": "same contract"},
+                {"role": "user", "content": "same frozen Markdown"},
+            ],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "metadata",
+                    "strict": True,
+                    "schema": schema,
+                },
+            },
+        }
+
+        result = adapter.invoke_text(
+            task_id="text_openai",
+            model_visible_request=request,
+            output_schema=schema,
+            attempt_number=1,
+            attempt_lineage=[],
+        )
+
+        submitted = json.loads(transport.requests[-1].data.decode("utf-8"))
+        self.assertEqual(
+            ["system", "user", "user"],
+            [item["role"] for item in submitted["input"]],
+        )
+        self.assertEqual(
+            [item["content"] for item in request["messages"]],
+            [item["content"][0]["text"] for item in submitted["input"]],
+        )
+        self.assertNotIn("input_image", json.dumps(submitted))
+        self.assertNotIn("temperature", submitted)
+        self.assertNotIn(
+            "uniqueItems", json.dumps(submitted["text"]["format"]["schema"])
+        )
+        self.assertEqual(
+            "openai_responses_native_text_json_schema",
+            result["attempt"]["transport_identity"],
+        )
+        self.assertEqual(1, result["attempt"]["schema_transform_count"])
+
+    def test_provider_schema_projection_removes_only_unique_items(self) -> None:
+        transport = _FakeUrlOpen()
+        adapter = _bundle(transport).openai
+        png = b"\x89PNG\r\n\x1a\nprojection-crop"
+        crop_hash = hashlib.sha256(png).hexdigest()
+        schema = _fact_schema()
+        schema["properties"]["facts"]["uniqueItems"] = True
+        canonical = json.loads(json.dumps(schema))
+
+        result = adapter.invoke(
+            task_id="crop_projection_openai",
+            model_view={"task": "facts"},
+            output_schema=schema,
+            png_bytes=png,
+            crop_sha256=crop_hash,
+            attempt_number=1,
+            attempt_lineage=[],
+        )
+
+        self.assertEqual(canonical, schema)
+        self.assertEqual(1, result["attempt"]["schema_transform_count"])
+        self.assertNotEqual(
+            result["attempt"]["canonical_schema_hash"],
+            result["attempt"]["adapted_schema_hash"],
+        )
+        self.assertEqual(
+            PROVIDERS.OPENAI_SCHEMA_PROJECTION_VERSION,
+            result["attempt"]["schema_projection_version"],
+        )
+        response_request = next(
+            request
+            for request in transport.requests
+            if _request_path(request) == "/responses"
+        )
+        wire_schema = json.loads(response_request.data.decode("utf-8"))["text"][
+            "format"
+        ]["schema"]
+        self.assertNotIn("uniqueItems", json.dumps(wire_schema))
+
     def test_one_count_then_one_generate_uses_same_png_and_strict_schema(self) -> None:
         transport = _FakeUrlOpen()
         adapter = _bundle(transport).openai
@@ -177,7 +265,7 @@ class OpenAIResponsesVisionAdapterTests(unittest.TestCase):
         self.assertEqual(schema, response_body["text"]["format"]["schema"])
         self.assertTrue(response_body["text"]["format"]["strict"])
         self.assertEqual("json_schema", response_body["text"]["format"]["type"])
-        self.assertEqual(0, response_body["temperature"])
+        self.assertNotIn("temperature", response_body)
         self.assertEqual(16_384, response_body["max_output_tokens"])
         self.assertIs(False, response_body["store"])
         self.assertNotIn("temperature", count_body)

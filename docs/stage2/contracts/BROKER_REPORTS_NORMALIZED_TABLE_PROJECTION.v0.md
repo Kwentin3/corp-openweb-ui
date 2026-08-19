@@ -23,7 +23,7 @@ Every projection contains:
 - `schema_version=broker_reports_normalized_table_projection_v0`;
 - `table_projection_id`, `table_ref` and `table_projection_checksum_ref`;
 - `source_format=csv|html|xlsx|pdf|txt|unknown`;
-- `table_origin=native_table|parser_table|reconstructed_candidate|geometry_candidate|line_cluster_fallback|legacy_preview`;
+- `table_origin=native_table|parser_table|reconstructed_candidate|geometry_candidate|vlm_located_pdfplumber_source_bound|line_cluster_fallback|legacy_preview`;
 - `source_document_ref`, `source_unit_ref` and `parent_payload_ref`;
 - `normalization_run_id`;
 - `parser_ref`, parser engine/version/config refs where available;
@@ -108,6 +108,14 @@ XLSX is supported only through the existing stdlib ZIP/XML parser path. No new s
 
 ## PDF mapping
 
+The current product path for PDF tables is source-bound. The VLM contributes
+only one native normalized bounding box per visual table. Deterministic code
+maps it to PDF points, and pdfplumber supplies all words, rows, cells and
+source-value refs from the original PDF. The projection records
+`model_values_used_as_source_literals=false` and
+`pdfplumber_settings_selected_by_model=false`. Exact ownership is defined by
+[PDF Source-Bound Table Normalization v1](./BROKER_REPORTS_PDF_SOURCE_BOUND_TABLE_NORMALIZATION.v1.md).
+
 `PdfTableCandidateProjectionBuilder` accepts only a `pdf_table_candidate_unit` and its resolver-matched private parent payload. It checks:
 
 - candidate inventory presence;
@@ -116,11 +124,15 @@ XLSX is supported only through the existing stdlib ZIP/XML parser path. No new s
 - deterministic cell bbox presence;
 - one owner per contributing word;
 - exact contributing-word coverage;
+- for `aligned_text_v0`, one repeated multi-column occupancy pattern across a
+  strict majority of non-empty rows (parser spacer rows are ignored);
 - supported reconstruction strategy.
 
-`table_candidate_status=validated_geometry` means those structural checks passed. It never means business or semantic truth.
+`table_candidate_status=validated_geometry|validated_source_bound_geometry`
+means those structural checks passed. It never means business or semantic
+truth.
 
-If checks fail, the projection is `blocked` with `table_candidate_status=rejected_to_line_cluster`, no rows/cells, explicit rejected refs and preserved line fallback refs. Gate 2 continues through the existing line-cluster unit; it must not receive fake cells.
+If checks fail, the projection is `blocked` with `table_candidate_status=rejected_to_line_cluster`, no rows/cells, explicit rejected refs and in-scope line fallback refs. Page-line refs outside the candidate's selected scope remain owned by their existing line-cluster units and are not copied into projection coverage. Gate 2 continues through the existing line-cluster unit; it must not receive fake cells.
 
 ## Coverage
 
@@ -172,8 +184,9 @@ Always false:
 - `tax_meaning_inferred`;
 - `knowledge_rag_used`;
 - `vectorization_performed`;
-- `ocr_vlm_used`;
-- `page_rendering_used_for_extraction`.
+- `ocr_vlm_used` (the locator is not an OCR authority);
+- `page_rendering_used_for_extraction` (the render locates a region; source
+  extraction still reads the original PDF).
 
 No OpenWebUI core patch, ordinary processed upload, OCR, VLM, page rendering, model extraction, source facts, tax calculation, declaration generation or XLS/XLSX output belongs to this contract.
 

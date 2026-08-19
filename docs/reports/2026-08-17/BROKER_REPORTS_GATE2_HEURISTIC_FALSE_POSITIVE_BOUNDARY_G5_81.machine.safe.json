@@ -1,0 +1,50 @@
+{
+  "schema_version": "broker_reports_g581_gate2_false_positive_boundary_receipt_v1",
+  "goal": "G5.81",
+  "status": "STOPPED_AFTER_PART_A",
+  "heuristic": {
+    "owner": "NormalizedTableProjectionFactory.create / _pdf_geometry_reasons",
+    "old_predicate": "min(row_cell_counts.values()) < 2",
+    "new_predicate": "max(row_cell_counts.values()) < 2",
+    "broker_page_coordinate_rules": 0,
+    "financial_semantics_used": false
+  },
+  "fresh_machine_corpus": {
+    "source_documents": 4,
+    "pages_total": 103,
+    "candidates_total": 90,
+    "current_ready_total": 89,
+    "current_blocked_total": 1,
+    "promoted_only_by_new_rule_candidates_total": 79,
+    "promoted_only_by_new_rule_pages_total": 69
+  },
+  "visual_qualification": {
+    "known_failure_pages_repaired": 6,
+    "known_failure_pages_total": 6,
+    "known_good_structured_candidates_preserved": 9,
+    "new_rule_false_positive_pages": 2,
+    "pre_existing_false_positive_pages_observed": 1,
+    "correct_negative_pages": 5,
+    "visual_truth_injected_into_production": false
+  },
+  "false_positive_boundary": {
+    "new_rule_case_count": 2,
+    "shared_strategy": "ruled_lines_v0",
+    "vertical_vector_evidence_total_per_case": [0, 0],
+    "rectangle_only_geometry_observed": true,
+    "general_condition_candidate": "require real column-boundary evidence for relaxed ruled-lines candidates",
+    "general_condition_status": "OBSERVED_NOT_IMPLEMENTED_OR_PROVEN"
+  },
+  "scope_stops": {
+    "gate2_product_change_in_g581": 0,
+    "gate3_incident_audit_started": false,
+    "gate3_change": 0,
+    "prompt_model_retry_best_of_n_changes": 0,
+    "decimal_changes": 0,
+    "methodology_changes": 0,
+    "metadata_vlm_product_changes": 0,
+    "manual_facts": 0,
+    "production_visual_dependency": false
+  },
+  "terminal": "GATE2_TABLE_HEURISTIC_FALSE_POSITIVE_BOUNDARY_PROVEN"
+}

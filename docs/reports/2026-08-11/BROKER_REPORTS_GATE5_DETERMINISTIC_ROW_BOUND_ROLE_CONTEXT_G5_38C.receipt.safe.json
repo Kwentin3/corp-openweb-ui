@@ -1,0 +1,86 @@
+{
+  "schema_version": "broker_reports_gate5_g538c_safe_receipt_v0",
+  "goal_id": "G5.38C",
+  "status": "strategic_stop",
+  "terminal": "STRATEGIC_STOP",
+  "date": "2026-08-11",
+  "official_source": {
+    "kind": "public_pdf",
+    "sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67"
+  },
+  "final_implementation": {
+    "role_context_schema_version": "broker_reports_gate3_role_context_v1",
+    "role_instruction_semantic_version": "1.1.0",
+    "role_owner_sha256": "9c1bfbadebf67d4ed47547b9e69daaaa75eb7411605c67a9daeaff92e5b3bdfd",
+    "bundle_sha256": "7718c36492f2d8ebe5306af4e896336cb4143c5c062def0b5081c8f6836d7305",
+    "coarse_region_to_unrelated_rows": false,
+    "broker_specific_logic_added": false
+  },
+  "clean_experiments": [
+    {
+      "experiment_id": "live-row-context-001",
+      "fresh_user_case": true,
+      "semantic_provider_calls": 1,
+      "role_provider_calls": 1,
+      "provider_retry_merge_repair_total": 0,
+      "accepted_facts_total": 4,
+      "accepted_targets_total": 2,
+      "excluded_targets_total": 2,
+      "source_context_chars": 8036,
+      "role_context_chars": 5467,
+      "role_complete_purchase": false,
+      "role_complete_charge": true,
+      "purchase_only_xml_created": false,
+      "browser_safe_sha256": "170d29559ef7e5997aae4f54fc2f79daa103253fbb4923c97d2b7c15e1a076c2",
+      "private_exact_sha256": "9a4c86b66c31a824eac889611af07f0d27af18e6a635c8b4d27bb2a7ca82cae4",
+      "private_manifest_safe_sha256": "d602ef8b8a3cadb575376f863f8c23dc935e011d73c205e4e74afb63c1607c0a",
+      "control_restored_safe_sha256": "d6c1257931e2245f2a8aea355257aa089e4ad223d178cb95650be2c3bd24cddc"
+    },
+    {
+      "experiment_id": "live-structured-row-context-002",
+      "fresh_user_case": true,
+      "semantic_provider_calls": 1,
+      "role_provider_calls": 1,
+      "provider_retry_merge_repair_total": 0,
+      "accepted_facts_total": 4,
+      "accepted_targets_total": 2,
+      "excluded_targets_total": 2,
+      "source_context_chars": 8036,
+      "diagnostic_role_context_chars": 5228,
+      "diagnostic_structural_projections_total": 4,
+      "diagnostic_structural_rows_total": 16,
+      "diagnostic_structural_cells_total": 274,
+      "literal_complete_purchase": true,
+      "literal_complete_charge": true,
+      "single_structural_row_purchase": false,
+      "single_structural_row_charge": false,
+      "accepted_as_product_proof": false,
+      "purchase_only_xml_created": false,
+      "browser_safe_sha256": "fab7bcdbd9c2b531b20c1a4695329bbfbc3ba213c91b653968560a34b58cf5b4",
+      "private_exact_sha256": "406350828457f465f13d91ce500cc3da1b348009cba6bc151801aa6876e14745",
+      "private_manifest_safe_sha256": "22a410948c4d41908a6ccea90bd707677ef4ea1def21f800f092b15bb629e810",
+      "control_restored_safe_sha256": "0d044ca93a5aa5e45d20a6f20d15b449aa26e0e428e13d5ee333ef86e74ee280"
+    }
+  ],
+  "downstream": {
+    "gate4_public_case_run": false,
+    "relation_public_case_run": false,
+    "controlled_disposal_added": false,
+    "fresh_case_xml_created": false,
+    "fresh_case_xsd_validated": false,
+    "reason": "accepted semantic targets are page regions and diagnostic role literals do not converge on one structural row"
+  },
+  "regression": {
+    "targeted_passed": 76,
+    "targeted_failed": 0,
+    "integrated_end_to_end_xml_passed": true,
+    "isolated_full_target_fixture_errors": 7,
+    "isolated_full_target_fixture_error_code": "gate4_cache_missing"
+  },
+  "live_cleanup": {
+    "state_restored": true,
+    "temporary_users_removed": 2
+  },
+  "report_sha256": "c3b4a1148defe373f9eb310a116fbe401b882b422f71f838cdfa5cb4638fae1f",
+  "contract_sha256": "ad28d00b6d3d42cd3772450200f71118022a792988e25ed614ca9fb62c4ff179"
+}

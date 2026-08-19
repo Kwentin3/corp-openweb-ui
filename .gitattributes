@@ -5,5 +5,27 @@ docs/reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHIT
 docs/stage2/contracts/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED.v1.* text eol=lf
 docs/reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED_CONTRACT_GOAL16.* text eol=lf
 services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_role_pack.v1.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_label_dictionary.v2.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_role_pack.v2.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_label_dictionary.v2_1.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_role_pack.v3_1.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate3_predeclared_assertion_labeling_response.v1.schema.json text eol=lf
+docs/stage2/contracts/BROKER_REPORTS_SOURCE_FACT_DOMAIN_BOUNDARIES.v1.md text eol=lf
+docs/stage2/contracts/BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v2.md text eol=lf
+docs/stage2/contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.* text eol=lf
+docs/reports/2026-08-12/BROKER_REPORTS_GATE5_SOURCE_FACT_DOMAIN_CONTRACTS_G5_40C.* text eol=lf
 services/broker-reports-gate1-proof/broker_reports_gate1/gate3_role_labeling_response.v1.schema.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_runtime_capability_contract.v0.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_runtime_capability_contract.v1.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_declaration_definition_authoring_context.v0.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_declaration_definition_candidate.ru_3ndfl_2025_securities.v0.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_clean_context_declaration_trial.primary.v0.payload.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_clean_context_declaration_trial.primary.v0.response.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_clean_context_declaration_trial.primary.v1.payload.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_clean_context_declaration_trial.primary.v1.response.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_full_target_xml_projection.ru_3ndfl_2025.v0.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_full_target_xml_schema.NO_NDFL3_1_033_00_05_20_01.xsd.b64 text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/gate5_end_to_end_supplied_case.proof.v0.json text eol=lf
+docs/reports/2026-08-10/BROKER_REPORTS_GATE5_CLEAN_CONTEXT_DECLARATION_AUTHORING_G5_19.* text eol=lf
+docs/reports/2026-08-14/BROKER_REPORTS_GATE5_DECLARATION_INPUT_CONTRACT_AUDIT_G5_43.report.md text eol=lf whitespace=-trailing-space
 docs/stage2/contracts/BROKER_REPORTS_GATE3_ROLE_LABELING_RESPONSE.v1.schema.json text eol=lf

@@ -1,0 +1,76 @@
+{
+  "schema_version": "broker_reports_table_instance_holdout_g5104_final_safe_v1",
+  "goal": "G5.104",
+  "decision": "TABLE_INSTANCE_SEPARATION_CROSS_REPORT_HOLDOUT_PASSED",
+  "scope": "visual_table_instance_bbox_and_count_only",
+  "corpus_role": "cross_report_holdout_relative_to_g5103",
+  "global_unseen_claim": false,
+  "frozen_contract": {
+    "prompt_changed_from_g5103": false,
+    "response_schema_changed_from_g5103": false,
+    "model": "models/gemini-3.5-flash",
+    "thinking_level": "minimal",
+    "attempts_per_page": 1,
+    "retry": false,
+    "best_of_n": false,
+    "prompt_repair": false,
+    "broker_or_domain_hint": false
+  },
+  "holdout": {
+    "documents": 2,
+    "pages": 5,
+    "positive_pages": 3,
+    "negative_pages": 2,
+    "expected_visual_tables": 3,
+    "proposed_tables": 3,
+    "projected_boxes": 3,
+    "pages_with_exact_table_count": 5,
+    "false_boxes_on_negative_pages": 0,
+    "invalid_responses": 0,
+    "provider_non_success_terminals": 0,
+    "positive_boxes_visually_correct": 3,
+    "merge_failures": 0,
+    "split_failures": 0,
+    "whole_page_boxes": 0,
+    "adjacent_prose_captures": 0,
+    "input_tokens": 7070,
+    "output_tokens": 98,
+    "total_tokens": 7168,
+    "provider_duration_ms_sum": 17577,
+    "hidden_retry": false,
+    "provider_failover": false
+  },
+  "limitations": {
+    "globally_unseen_corpus": false,
+    "repeatability_test_executed": false,
+    "rotation_supported_by_frozen_projection": false,
+    "rotated_candidate_excluded_before_provider": true,
+    "monetary_cost_derived": false
+  },
+  "source_authority": {
+    "vlm_body_values_used": 0,
+    "invented_source_literals": 0,
+    "table_extraction_attempted": false,
+    "column_geometry_attempted": false,
+    "canonical_materialization_attempted": false
+  },
+  "next_allowed_goal": "BOUNDED_PARSER_EXTRACTION_INSIDE_FROZEN_TABLE_REGIONS",
+  "production_activation": false,
+  "gate3_plus_changed": false,
+  "evidence": {
+    "private_execution_file_sha256": "4eff500acd4be391e4d242ac2a64b00354c327e8da78624ffa15e0669428bb5e",
+    "private_visual_adjudication_file_sha256": "55b78916327792ad448fff1ae58e1bf490875d091c40569187f575f2cb9b0862",
+    "execution_safe_file_sha256": "77af8ba5c41cf4981b4add6b2953574ec22a630c0532fc4a2f823a02f5b465be",
+    "manifest_sha256": "2ef919c02dcbc757261711f024b3202ffc01d8e83806e3ea2a8bf6f0e1622ac9",
+    "harness_sha256": "871ffc29b595d632a5dac52f1ff2dc6221ba7bdc2635f41529f1a013c77993b2",
+    "focused_test_sha256": "58a972c53432e4cfa21fb7090542ada20459fae6893047192c85f06a14823b05"
+  },
+  "privacy": {
+    "customer_bytes_in_git": false,
+    "raw_provider_response_in_git": false,
+    "source_literals_in_safe_report": false,
+    "private_paths_in_safe_report": false,
+    "normalized_coordinates_in_safe_report": false,
+    "pdf_coordinates_in_safe_report": false
+  }
+}

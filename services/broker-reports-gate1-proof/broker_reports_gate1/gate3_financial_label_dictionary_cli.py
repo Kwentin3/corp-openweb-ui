@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 from .gate3_financial_label_dictionary import (
+    GATE3_DICTIONARY_CURRENT_VERSION,
     Gate3FinancialLabelDictionaryError,
     Gate3FinancialLabelDictionaryFactory,
 )
@@ -26,11 +27,11 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
 
     show = commands.add_parser("show")
-    show.add_argument("--version", default="1.0.0")
+    show.add_argument("--version", default=GATE3_DICTIONARY_CURRENT_VERSION)
     show.add_argument("--format", choices=("json", "markdown"), default="markdown")
 
     draft = commands.add_parser("draft")
-    draft.add_argument("--base-version", default="1.0.0")
+    draft.add_argument("--base-version", default=GATE3_DICTIONARY_CURRENT_VERSION)
     draft.add_argument("--proposed-version", required=True)
     draft.add_argument("--proposal-id", required=True)
     draft.add_argument("--output", type=Path, required=True)

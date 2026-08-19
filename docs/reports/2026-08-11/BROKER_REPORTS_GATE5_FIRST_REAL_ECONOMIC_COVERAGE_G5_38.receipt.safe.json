@@ -1,0 +1,53 @@
+{
+  "schema_version": "broker_reports_gate5_first_real_economic_coverage_receipt_v0",
+  "goal": "G5.38",
+  "terminal_status": "STRATEGIC_STOP",
+  "official_source_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+  "qualification": {
+    "profile_id": "broker_reports_semantic_visual_financial_profile_v2",
+    "receipt_sha256": "c266aef5c4f24a79d3c2b5742e08fa19a00fa636e8890c911317b6f7ce0ef055",
+    "gate_sha256": "72b59094c64b3f684c527989bcc3590a2f212ea241b2bcc1b8cd854f7eaa772b",
+    "valid_regions": 13,
+    "rejected_regions": 2,
+    "accepted_tables": 4,
+    "unsupported_tables": 9,
+    "provider_retries": 0,
+    "provider_merges": 0,
+    "provider_repairs": 0
+  },
+  "real_economic_coverage": {
+    "security_purchase_role_complete": 2,
+    "transaction_charge_role_complete": 2,
+    "exact_purchase_charge_target_pairs": 2,
+    "named_broker_support_added": false
+  },
+  "relation_contract": {
+    "whole_quantity_only": true,
+    "fifo": false,
+    "partial_allocation": false,
+    "first_match_selection": false,
+    "purchase_only_creates_tax": false,
+    "ambiguous_charge_resolved": false
+  },
+  "final_product_attempt": {
+    "official_financial_labels": 4,
+    "official_role_complete_facts": 0,
+    "blocker_code": "gate5_related_events_purchase_missing",
+    "controlled_disposal_explicitly_synthetic": true,
+    "tax_model_created": false,
+    "xml_created": false,
+    "unchanged_provider_retry_performed": false
+  },
+  "verification": {
+    "targeted_tests_passed": 60,
+    "bundle_sha256": "66ffc63e0a2447a3927b9d06925217291860fd9c2ba7f871a513878fd273f747",
+    "staging_state_restored": true,
+    "product_valves_enabled_after_proof": false
+  },
+  "privacy": {
+    "private_source_bytes_in_git": false,
+    "private_provider_payloads_in_git": false,
+    "temporary_users_deleted": true
+  },
+  "next_allowed_boundary": "G5.38_ROW_BOUND_ROLE_CONTEXT_CONTINUATION_ONLY"
+}

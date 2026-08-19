@@ -1,0 +1,149 @@
+{
+  "schema_version": "broker_reports_gate5_minimal_consumer_first_refactor_research_receipt_v0",
+  "goal": "G5.39AD",
+  "verified_on": "2026-08-12",
+  "status": "MINIMAL_REFRACTOR_DESIGN_READY",
+  "mode": "refactor_design_research_only",
+  "baseline": {
+    "branch": "feature/gate5-tax-period-category-aggregation",
+    "head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "head_tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+    "dirty_tree_preserved": true
+  },
+  "consumer_inventory": {
+    "classified_surfaces": 13,
+    "classes_observed": [
+      "PROJECTOR_VALUE",
+      "AUDIT_CONSUMER",
+      "COMPLETENESS_CONSUMER",
+      "PERSISTED_FORMAT_CONSUMER",
+      "TEST_ONLY",
+      "RESEARCH_ONLY",
+      "UNKNOWN_EXTERNAL"
+    ],
+    "raw_semantic_input_standalone_artifact_found": false,
+    "raw_semantic_input_fixture_found": false,
+    "direct_cli_consumer_found": false,
+    "external_surface_fully_enumerable": false,
+    "compatibility_holds": [
+      "root_package_exports",
+      "e2e_runtime_return",
+      "product_result_v0_semantic_input_sha256",
+      "xml_artifact_v0_and_nested_receipts",
+      "generated_openwebui_bundle"
+    ],
+    "strategic_stop": "not_triggered_for_additive_inactive_slice; required_before_any_destructive_or_public_change"
+  },
+  "selected_seam": {
+    "owner": "Gate5DeclarationSemanticInputRuntimeFactory.create",
+    "future_method": "compile_declaration_value_candidate",
+    "property": "additive_inactive_factory_owned",
+    "second_semantic_owner": false,
+    "current_v0_changed": false,
+    "persisted_or_public_shape_changed": false,
+    "neutral_if_abandoned": true
+  },
+  "future_dual_path": {
+    "same_resolved_package": true,
+    "legacy_path_retained": true,
+    "legacy_authority_during_shadow": true,
+    "candidate_persisted_during_shadow": false,
+    "parity_failure_action": "discard_candidate_keep_legacy",
+    "upstream_tax_or_source_rerun": false
+  },
+  "parity_requirements": {
+    "rendered_values": "all_occurrences",
+    "target_paths": "all_occurrences",
+    "target_value_hashes": "all_occurrences",
+    "official_xsd": "both_paths_when_success_expected",
+    "byte_equality": "required_when_target_mechanics_identical",
+    "missing_value_fallback": false
+  },
+  "test_plan": {
+    "tests_specified": 23,
+    "families": [
+      "strict_value_view",
+      "release_gate_25_obligations_and_evidence",
+      "old_new_parity",
+      "required_value_negative",
+      "audit_omission",
+      "stable_value_identity",
+      "file_id_and_budget_target_mechanics",
+      "every_projected_derived_field_evidence",
+      "persistence_readability",
+      "rollback",
+      "factory_closed_world"
+    ],
+    "production_tests_modified_by_g5_39ad": false
+  },
+  "calculation_evidence": {
+    "derived_path_patterns": 16,
+    "thin_view_over_existing_package_evidence": true,
+    "new_calculation_engine": false,
+    "new_store_slices_1_to_4": false,
+    "runtime_tax_replay": false,
+    "persistence_decision": "deferred"
+  },
+  "legacy_mechanics_probe": {
+    "kind": "isolated_research_only_semantic_payload_mutation",
+    "valid_alternative_tax_or_package_cases": false,
+    "current_payable": {"terminal":"FULL_TARGET_XML_VALID","xml_bytes":1112,"mapping_occurrences":49},
+    "balanced_empty_mutation": {"terminal":"FULL_TARGET_XML_VALID","xml_bytes":1015,"mapping_occurrences":45},
+    "refund_empty_mutation": {"terminal":"FULL_TARGET_XML_VALID","xml_bytes":1015,"mapping_occurrences":45},
+    "payable_two_allocation_mutation": {"terminal":"FULL_TARGET_XML_VALID","xml_bytes":1199,"mapping_occurrences":53},
+    "finding": "xsd_transport_success_does_not_prove_semantic_or_completeness_correctness"
+  },
+  "identity_contract": {
+    "audit_envelope_hash": "semantic_input_sha256",
+    "semantic_value_hash": "semantic_value_sha256",
+    "target_hashes": ["target_value_sha256", "xml_sha256"],
+    "distinct_meanings": true
+  },
+  "ordered_slices": 7,
+  "recommended_first_implementation_goal": {
+    "goal": "G5.39AE",
+    "title": "Additive Inactive Declaration Value Candidate",
+    "one_smallest_slice": true,
+    "release_or_projection_or_product_call": false
+  },
+  "validation": {
+    "shell": "Windows PowerShell",
+    "e2e_test": {
+      "node": "test_source_to_official_xml_replays_every_gate_and_emits_hash_chain",
+      "runner_executed": true,
+      "result": "passed",
+      "summary": "1 passed in 1.72s"
+    },
+    "projection_test": {
+      "node": "test_full_target_projection_is_complete_deterministic_and_officially_valid",
+      "runner_executed": true,
+      "result": "fixture_setup_failed_before_projection_assertion",
+      "primary_error": "Gate4FinancialCaseCacheError: gate4_cache_missing",
+      "production_test_or_fixture_edited": false
+    }
+  },
+  "outputs": [
+    "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_MINIMAL_CONSUMER_FIRST_REFACTOR_G5_39AD.report.md",
+    "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_MINIMAL_CONSUMER_FIRST_REFACTOR_G5_39AD.matrix.safe.json",
+    "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_MINIMAL_CONSUMER_FIRST_REFACTOR_G5_39AD.receipt.safe.json"
+  ],
+  "scope_stop": {
+    "production_implementation": false,
+    "production_test_change": false,
+    "migration": false,
+    "dto_or_schema_change": false,
+    "projection_definition_change": false,
+    "current_semantic_input_deletion": false,
+    "activation": false,
+    "commit": false,
+    "push": false,
+    "pull_request": false,
+    "g5_40_authorized": false
+  },
+  "privacy": {
+    "raw_customer_or_private_values": false,
+    "raw_xml_bytes": false,
+    "raw_package_or_semantic_candidate": false,
+    "safe_contract_counts_and_hashes_only": true
+  }
+}

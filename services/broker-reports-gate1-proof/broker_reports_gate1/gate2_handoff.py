@@ -1269,11 +1269,18 @@ def _persist_canonical_artifact_shadow(
             document_id,
             field="document_id",
         )
-        table_projections = _document_items(
-            package.get("private_normalized_table_projections"),
-            document_id,
-            field="source_document_ref",
-        )
+        table_projections = [
+            *_document_items(
+                package.get("private_normalized_table_projections"),
+                document_id,
+                field="source_document_ref",
+            ),
+            *_document_items(
+                package.get("private_semantic_visual_table_projections"),
+                document_id,
+                field="source_document_ref",
+            ),
+        ]
         try:
             artifact = CanonicalNormalizerFactory(
                 CanonicalNormalizerConfig(normalizer_version=normalizer_version)

@@ -1,0 +1,46 @@
+{
+  "schema_version": "broker_reports_pipeline_architecture_refinement_receipt_v1",
+  "goal": "G5.50",
+  "date": "2026-08-14",
+  "status": "ARCHITECTURE_REFINEMENT_CORE_PROVEN",
+  "full_terminal_claimed": false,
+  "terminals": [
+    "PIPELINE_MENTAL_MODEL_PUBLISHED",
+    "DOMAIN_CONTRACTS_REFINED",
+    "ARCHITECTURE_AUTHORITY_HIERARCHY_PROVEN",
+    "EXECUTABLE_DOMAIN_GUARDRAILS_PROVEN",
+    "COLD_AGENT_NAVIGATION_PROVEN"
+  ],
+  "physical_boundary_debt": [
+    {
+      "module": "gate5_end_to_end_full_target_xml",
+      "risk": "Gate5-prefixed full-pipeline composition can be mistaken for Gate5 ownership",
+      "current_consumers": [
+        "product pipe",
+        "gate5_openwebui_product",
+        "bundled delivery",
+        "end-to-end and exact replay tests"
+      ],
+      "why_not_safely_removable": "Moving the large compatibility orchestrator changes production imports, bundle ordering and frozen replay consumers",
+      "recommended_migration": "Create a product-composition owner, retain a temporary shim, migrate all consumers, prove installed and bundled parity, then remove the shim"
+    }
+  ],
+  "verification": {
+    "focused_tests_passed": 123,
+    "full_relevant_tests_passed": 716,
+    "warnings": 5,
+    "ruff_changed_scope": "passed",
+    "compileall": "passed",
+    "git_diff_check": "passed",
+    "provider_calls": 0,
+    "real_corpus_mutations": 0
+  },
+  "scope_stop": {
+    "feature_work": false,
+    "product_activation": false,
+    "commit": false,
+    "push": false,
+    "pull_request": false,
+    "next_allowed_goal": "G5.51 — Product Composition Physical Boundary Migration"
+  }
+}

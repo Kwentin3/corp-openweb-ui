@@ -1,0 +1,85 @@
+{
+  "artifacts": {
+    "candidate": {
+      "path": "docs/reports/2026-08-10/BROKER_REPORTS_GATE5_DECLARATION_AUTHORING_LANGUAGE_G5_21.candidate.json",
+      "sha256": "8cde1468c6a37917432ec5f6f1c0412107093b2c6d339f64fa8d8d2fe29277fe",
+      "utf8_bytes": 10209
+    },
+    "compilation": {
+      "path": "docs/reports/2026-08-10/BROKER_REPORTS_GATE5_DECLARATION_AUTHORING_LANGUAGE_G5_21.compilation.safe.json",
+      "sha256": "6cf9d149f2a54161be57e5c53776bcbd12232442e171ec4f6083a5bcc5b71707",
+      "utf8_bytes": 11482
+    },
+    "plan": {
+      "path": "docs/reports/2026-08-10/BROKER_REPORTS_GATE5_DECLARATION_AUTHORING_LANGUAGE_G5_21.plan.safe.json",
+      "sha256": "228d8fc597e82e9bac98c0502fb6d9c29670fe576b4e6dce1772750d86f1f6c7",
+      "utf8_bytes": 3239
+    }
+  },
+  "frozen_input": {
+    "bias_audit": "passed",
+    "history": "none",
+    "resource": "gate5_declaration_authoring_language.primary.v2.payload.json",
+    "sha256": "90294e3cbecb8c273db51271646dbc9b6281e4db8f2a8d62bcf16a3571633787",
+    "utf8_bytes": 24971
+  },
+  "invocation": {
+    "client_version": "codex-cli 0.147.0-alpha.6.5",
+    "conversation_mode": "ephemeral_new_session",
+    "elapsed_seconds": 119.593,
+    "exec_rules": "ignored",
+    "follow_up_messages_total": 0,
+    "manual_repairs_total": 0,
+    "model": "gpt-5.6-sol",
+    "observable_candidates_total": 1,
+    "provider": "openai_codex_cli",
+    "provider_calls_total": 1,
+    "provider_output_schema": "none",
+    "reasoning_effort": "high",
+    "retries_total": 0,
+    "return_code": 0,
+    "sandbox": "read-only",
+    "semantic_attempts_total": 1,
+    "stderr_bytes": 35664,
+    "stdout_bytes": 10210,
+    "user_config": "ignored",
+    "workspace": "empty_temporary_directory"
+  },
+  "pre_provider_harness_incidents": [
+    {
+      "code": "unicode_absolute_payload_path_invalid",
+      "effect": "none_on_frozen_input_or_invocation_profile",
+      "provider_started": false,
+      "semantic_attempt_created": false
+    }
+  ],
+  "privacy_scan": {
+    "aws_access_key": false,
+    "email": false,
+    "github_token": false,
+    "openai_key": false,
+    "pem_private_key": false,
+    "unc_path": false,
+    "windows_absolute_path": false
+  },
+  "product_status": "inactive_proof",
+  "schema_version": "broker_reports_gate5_declaration_authoring_language_trial_record_v2",
+  "status": "semantic_validation_passed",
+  "trial_id": "g5.21-primary-2026-08-10-001",
+  "validation": {
+    "candidate_bytes_unchanged": true,
+    "case_input_assessment": "not_evaluated",
+    "closed_json_schema": "passed",
+    "definition_status": "partially_compilable",
+    "deterministic_compilation": "passed",
+    "first_blocking_gap_id": "section2_calculation_behavior_missing",
+    "gaps_total": 3,
+    "json_parse": "passed",
+    "privacy_scan": "passed",
+    "requirements_total": 4,
+    "resolved_compositions_total": 7,
+    "semantic_identity_validation": "passed",
+    "supported_requirements_total": 2,
+    "unsupported_requirements_total": 2
+  }
+}

@@ -55,11 +55,11 @@ FUNCTION_CONTRACTS = (
             "gate2_provider_execution_metadata_v1",
             "PdfGridExperimentProviderFactory",
             "PdfTableIntakeRuntimeFactory",
-            "SemanticVisualTableMigrationFactory",
-            "broker_reports_semantic_visual_table_envelope_v1",
-            "broker_reports_pdf_table_detection_response_v2",
-            "broker_reports_pdf_table_candidate_v1",
-            "pdf_table_candidate_raster_policy_v1",
+            "PdfTableLocatorProjectionFactory",
+            "broker_reports_pdf_table_locator_response_v1",
+            "broker_reports_pdf_table_locator_projection_v1",
+            "vlm_located_pdfplumber_source_bound",
+            "pdf_table_normalization_incomplete",
             "PdfContinuationDiscoveryFactory",
             "PdfStructuralRowWindowFactory",
             "PdfStructuralRepairRuntimeFactory",
@@ -240,11 +240,11 @@ def main() -> int:
         "gate1_pdf_table_intake_default_on": gate1_operational_state[
             "table_intake_enabled"
         ],
-        "gate1_pdf_dual_vlm_default_on": gate1_operational_state[
-            "dual_vlm_enabled"
+        "gate1_pdf_dual_vlm_default_off": gate1_operational_state[
+            "dual_vlm_disabled"
         ],
-        "gate1_semantic_downstream_default_on": gate1_operational_state[
-            "semantic_downstream_enabled"
+        "gate1_semantic_downstream_default_off": gate1_operational_state[
+            "semantic_downstream_disabled"
         ],
         "gate1_semantic_migration_identity_exact": gate1_operational_state[
             "semantic_migration_identity_exact"
@@ -442,13 +442,13 @@ def evaluate_gate1_operational_state(
         and not page_allowlist.strip(),
         "semantic_header_shadow_disabled": semantic_value is False,
         "table_intake_enabled": table_intake_enabled is True,
-        "dual_vlm_enabled": dual_vlm_enabled is True,
-        "semantic_downstream_enabled": semantic_downstream_enabled is True,
+        "dual_vlm_disabled": dual_vlm_enabled is False,
+        "semantic_downstream_disabled": semantic_downstream_enabled is False,
         "semantic_migration_identity_exact": (
             semantic_migration_policy
             == "broker_reports_semantic_visual_table_migration_policy_v1"
             and semantic_profile
-            == "broker_reports_semantic_visual_numeric_profile_v1"
+            == "broker_reports_semantic_visual_financial_profile_v2"
         ),
         "table_intake_provider_configured": table_intake_provider
         == "google_gemini",

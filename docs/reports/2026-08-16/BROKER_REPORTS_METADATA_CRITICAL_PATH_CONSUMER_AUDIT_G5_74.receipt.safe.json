@@ -1,0 +1,76 @@
+{
+  "schema_version": "broker_reports_g574_metadata_critical_path_receipt_safe_v1",
+  "goal": "G5.74",
+  "date": "2026-08-16",
+  "status": "CLOSED",
+  "critical_routing_defect": false,
+  "product_runtime_changed": false,
+  "metadata_contract_changed": false,
+  "metadata_fields": {
+    "calculation_critical": [],
+    "scope_critical": [],
+    "evidence_completeness": [
+      "PARTY_NAME",
+      "PERSON_BIRTH_DATE",
+      "TAXPAYER_TAX_IDENTIFIER",
+      "PERSON_CITIZENSHIP",
+      "DOCUMENT_TYPE",
+      "DOCUMENT_NUMBER",
+      "DOCUMENT_DATE",
+      "STATEMENT_PERIOD",
+      "ACCOUNT_IDENTIFIER",
+      "ACCOUNT_CONTRACT_IDENTIFIER"
+    ],
+    "descriptive": [
+      "BROKER_LEGAL_NAME"
+    ]
+  },
+  "counterfactual": {
+    "scenarios": [
+      "correct",
+      "wrong_account",
+      "missing_account",
+      "wrong_contract",
+      "wrong_broker",
+      "wrong_period",
+      "missing_period",
+      "multiple_periods",
+      "name_mismatch"
+    ],
+    "factories_only": true,
+    "mocks": 0,
+    "financial_fingerprint_sha256": "3a74568a848bfb7b526faaf0c14a79cc41d975250e5c81544da0bd13de1c1927",
+    "all_scenarios_equal": true,
+    "financial_facts_total": 10,
+    "source_facts_total": 10,
+    "calculation_count": 1,
+    "active_demands": 9,
+    "tax_period": "2025",
+    "preparation_status": "PREPARATION_INCOMPLETE"
+  },
+  "verification": {
+    "targeted_tests": "2 passed in 8.45s",
+    "contract_architecture_tests": "162 passed in 65.37s",
+    "ruff_check": "passed",
+    "ruff_format_check": "passed",
+    "holdout_a": {
+      "before": 39,
+      "after": 39,
+      "exact_frozen_equality": true
+    },
+    "holdout_b": {
+      "before": 129,
+      "after": 129,
+      "exact_frozen_equality": true
+    }
+  },
+  "terminals": [
+    "METADATA_CONSUMER_CRITICALITY_MAPPED",
+    "ACCOUNT_IDENTIFIER_NOT_FINANCIAL_AUTHORITY",
+    "LOW_CRITICALITY_METADATA_CANNOT_DROP_FINANCIAL_FACTS",
+    "FINANCIAL_FACT_ADMISSION_INDEPENDENT_OF_DESCRIPTIVE_METADATA",
+    "PERIOD_AND_IDENTITY_CRITICAL_PATH_EXPLICIT",
+    "FINANCIAL_GENERALIZATION_PRESERVED"
+  ],
+  "private_values_committed": false
+}

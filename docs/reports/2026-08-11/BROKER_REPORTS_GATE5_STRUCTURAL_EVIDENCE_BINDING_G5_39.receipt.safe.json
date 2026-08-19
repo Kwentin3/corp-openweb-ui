@@ -1,0 +1,72 @@
+{
+  "schema_version": "broker_reports_gate5_g539_safe_receipt_v1",
+  "goal_id": "G5.39",
+  "date": "2026-08-11",
+  "status": "no_strategy_proven",
+  "terminal": "NO_STRATEGY_PROVEN",
+  "production_implementation_created": false,
+  "baseline": {
+    "product_head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "g538c_receipt_sha256": "0c73e4ae741b15dc1c177aac4ddaf104b3afc5d6e06856a303f3639c594c5044",
+    "research_commit": "1fb05ed3e725ff27701d97b1136dcb7ca01aee7d",
+    "research_tree": "8370cebde17bcf6f0c39ea10b2f03c2cf4512ae5"
+  },
+  "corpus": {
+    "version": "broker_reports_gate5_g539_corpus_v3_safe",
+    "manifest_sha256": "dc9619eb446c01c82cbce538e01c70be7c170c25da95c4ef230efce217d61c2d",
+    "private_oracle_sha256": "d76ade254cfe2c323e0ab73daf0fcf83d598034022e096dba6c86173a65e6c85",
+    "development_real": true,
+    "holdout_real": true,
+    "large_real": true,
+    "large_whole_projection_forbidden": true,
+    "csv_html_xlsx_regressions_present": true
+  },
+  "experiments": {
+    "hypotheses_total": 5,
+    "winner": null,
+    "experiment_commits": {
+      "H1": "483284897851fa1216274062aaecfe398c03b639",
+      "H2": "1a9c829d6e3d372acebf2301cea5015223408c8d",
+      "H3": "d89c24c3fafc754d7367d9c126655b79ef844442",
+      "H4": "3c8c348a4b9065497d2024d324b692cc45378d8b",
+      "H5": "f7fc8be01b97e275a0ebf001b0323c686205bf66"
+    },
+    "provider_calls_total": 24,
+    "provider_input_tokens_total": 27826,
+    "provider_output_tokens_total": 3451,
+    "semantic_retry_total": 0,
+    "repair_total": 0,
+    "best_of_n": false,
+    "answer_merge": false,
+    "pre_inference_transport_failures": 2,
+    "hard_invariant_survivors": ["H1"],
+    "dev_holdout_large_survivors": []
+  },
+  "adjudication": {
+    "correction_commit": "4e815d9d40d137f15dc78a7faeacd266e1e9282b",
+    "semantic_outputs_replayed": false,
+    "validator_tests_passed": 3,
+    "validator_tests_failed": 0
+  },
+  "regression": {
+    "csv_html_xlsx_product_route_and_related_events_passed": 8,
+    "csv_html_xlsx_product_route_and_related_events_failed": 0,
+    "expanded_passed": 13,
+    "expanded_failed": 3,
+    "expanded_failure_code": "gate4_cache_missing"
+  },
+  "cleanup": {
+    "experiment_worktrees_removed": true,
+    "experiment_branches_removed_with_nested_repository": true,
+    "experiment_code_removed": true,
+    "private_evidence_retained_outside_git": true,
+    "gate4_plus_changed_by_g539": false,
+    "commit_push_pr_issue_created": false
+  },
+  "artifacts": {
+    "ledger_sha256": "f811a9831b7cec0790ad8a381cd78bebc363e9d41d89b03e834407388198d10d",
+    "report_sha256": "e89885ec9e6b7bc6796c59e5e6d8b0f619c7d7a61ed19b9b53674cc7921f44f1"
+  },
+  "next_allowed_goal": "G5.39R — Source-authored Structural Relation Proof",
+  "g540_authorized": false
+}

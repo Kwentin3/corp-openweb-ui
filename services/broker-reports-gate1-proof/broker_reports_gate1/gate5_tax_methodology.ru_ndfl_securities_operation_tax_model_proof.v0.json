@@ -1,0 +1,120 @@
+{
+  "schema_version": "broker_reports_gate5_securities_disposal_operation_tax_model_methodology_v0",
+  "methodology_id": "ru-ndfl-securities-tax-model-proof",
+  "methodology_version": "2026.1-experimental",
+  "behavior": {
+    "behavior_id": "securities_disposal_operation_tax_model_v0",
+    "model_id": "securities-disposal-operation-tax-model",
+    "input_bindings": {
+      "acquisition_cost": {
+        "amount_requirement_id": "acquisition-cost-required",
+        "currency_requirement_id": "acquisition-cost-required"
+      },
+      "gross_income": {
+        "amount_requirement_id": "disposal-proceeds-required",
+        "currency_requirement_id": "disposal-currency-required"
+      },
+      "transaction_expense": {
+        "amount_requirement_id": "transaction-expense-required",
+        "currency_requirement_id": "transaction-expense-required"
+      }
+    },
+    "applicability_rule": {
+      "rule_id": "securities-sale-organized-market-outside-iis-2025-operation-v0",
+      "required_values": {
+        "exemption_applicability": "not_applicable",
+        "iis_status": "outside_iis",
+        "loss_treatment": "none",
+        "operation_kind": "sale",
+        "organized_market_status": "organized_market",
+        "residency": "resident_individual",
+        "tax_period": "2025"
+      },
+      "result_category": "organized_market_securities_outside_iis"
+    },
+    "expense_rules": [
+      {
+        "component_id": "acquisition_cost",
+        "input_name": "acquisition_cost",
+        "expense_kind": "security_acquisition_cost",
+        "rule_id": "article-214.1-10-acquisition-cost-v0",
+        "required_evidence_flags": [
+          "actually_incurred",
+          "documented",
+          "related_to_operation"
+        ],
+        "evidence_refs": [
+          "federal-law-281-fz-article-2",
+          "rf-tax-code-214.1-10"
+        ]
+      },
+      {
+        "component_id": "transaction_expense",
+        "input_name": "transaction_expense",
+        "expense_kind": "professional_participant_service_fee",
+        "rule_id": "article-214.1-10-professional-fee-v0",
+        "required_evidence_flags": [
+          "actually_incurred",
+          "documented",
+          "related_to_operation"
+        ],
+        "evidence_refs": [
+          "federal-law-281-fz-article-2",
+          "rf-tax-code-214.1-10"
+        ]
+      }
+    ]
+  },
+  "requirements": [
+    {
+      "requirement_id": "disposal-proceeds-required",
+      "financial_type": "SECURITY_DISPOSAL",
+      "value_key": "amount",
+      "subject_ref": "security-disposal-1"
+    },
+    {
+      "requirement_id": "disposal-currency-required",
+      "financial_type": "SECURITY_DISPOSAL",
+      "value_key": "currency",
+      "subject_ref": "security-disposal-1"
+    },
+    {
+      "requirement_id": "acquisition-cost-required",
+      "financial_type": "SECURITY_DISPOSAL",
+      "value_key": "acquisition_cost",
+      "subject_ref": "security-disposal-1"
+    },
+    {
+      "requirement_id": "transaction-expense-required",
+      "financial_type": "SECURITY_DISPOSAL",
+      "value_key": "transaction_expense",
+      "subject_ref": "security-disposal-1"
+    }
+  ],
+  "legal_evidence": [
+    {
+      "evidence_ref": "rf-tax-code-214.1-10",
+      "authority_kind": "official_legal_text",
+      "source_url": "https://pravo.gov.ru/proxy/ips/?docbody=&nd=102067058",
+      "source_document_id": "tax-code-rf-part-two",
+      "locator": "Article 214.1 paragraph 10: documented and actually incurred securities expenses; acquisition amounts and professional-participant services",
+      "capture_status": "official_locator_verified_no_bytes",
+      "content_bytes": null,
+      "content_sha256": null,
+      "verified_on": "2026-08-09",
+      "effective_tax_period": "2025"
+    },
+    {
+      "evidence_ref": "federal-law-281-fz-article-2",
+      "authority_kind": "tax_authority_primary",
+      "source_url": "https://www.nalog.gov.ru/html/docs/281_fz.rtf",
+      "source_document_id": "Federal-Law-281-FZ-2009-11-25",
+      "locator": "Article 2 replacement text for Tax Code Article 214.1 paragraph 10, including acquisition amounts and professional-participant services",
+      "capture_status": "downloaded_official_bytes_verified",
+      "content_bytes": 766722,
+      "content_sha256": "7246df15386c36a3bc0ffee3699aacc1edef752a7f8e442b058de204a3f1a417",
+      "verified_on": "2026-08-09",
+      "effective_tax_period": "2025"
+    }
+  ]
+}

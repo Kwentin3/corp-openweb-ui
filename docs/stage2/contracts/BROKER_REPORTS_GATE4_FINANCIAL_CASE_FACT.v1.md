@@ -1,6 +1,7 @@
 # Broker Reports Gate 4 Financial Case Fact v1
 
-Status: `CURRENT_CONTRACT`
+Status: `HISTORICAL`; superseded by
+[Gate 4 Financial Case Fact v2](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.md).
 
 Goal status: `G4.1_CLOSED`
 

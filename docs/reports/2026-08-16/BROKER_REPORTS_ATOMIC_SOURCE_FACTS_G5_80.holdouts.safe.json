@@ -1,0 +1,30 @@
+{
+  "schema_version": "broker_reports_g580_financial_regression_safe_v1",
+  "goal": "G5.80",
+  "qualification_route": "gate4_annotation_materialization_decision",
+  "qualification_limit": "frozen sidecars expired; verifies the only changed admission seam, not a fresh full Gate4 rebuild",
+  "source_stores_unchanged": true,
+  "cases": [
+    {
+      "alias": "holdout_a",
+      "frozen_facts": 39,
+      "frozen_annotations": 39,
+      "admitted_annotations": 39,
+      "blocked_annotations": 0,
+      "changed_seam_admission_compatibility": true,
+      "passed": true
+    },
+    {
+      "alias": "holdout_b",
+      "frozen_facts": 129,
+      "frozen_annotations": 129,
+      "admitted_annotations": 129,
+      "blocked_annotations": 0,
+      "changed_seam_admission_compatibility": true,
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "terminal": "FINANCIAL_GENERALIZATION_PRESERVED",
+  "private_values_committed": false
+}

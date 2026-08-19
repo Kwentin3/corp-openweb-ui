@@ -1,0 +1,25 @@
+{
+  "schema_version": "broker_reports_foreign_tax_adjustment_methodology_g5_90_safe_v1",
+  "goal": "G5.90",
+  "status": "FOREIGN_TAX_ADJUSTMENT_METHODOLOGY_GAP_LOCALIZED",
+  "strategic_stop": "METHODOLOGY_LEGAL_INTERPRETATION_REVIEW_REQUIRED",
+  "date": "2026-08-17",
+  "decisions": {
+    "withholding_vs_adjustment_required": true,
+    "refund_reversal_other_taxonomy_required": false,
+    "netting_or_relation_inferred": false,
+    "versioned_methodology_resource_changed": false,
+    "gate3_or_gate4_changed": false,
+    "ready_to_reevaluate_source_contract": false
+  },
+  "privacy": {
+    "private_source_bytes_in_git": false,
+    "private_paths_in_git": false,
+    "private_values_in_git": false,
+    "provider_calls": 0
+  },
+  "verification": {
+    "baseline_passed": 53,
+    "post_change_passed": 109
+  }
+}

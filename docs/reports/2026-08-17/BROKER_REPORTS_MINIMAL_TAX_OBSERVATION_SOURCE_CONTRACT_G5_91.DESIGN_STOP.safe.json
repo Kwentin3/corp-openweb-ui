@@ -1,0 +1,74 @@
+{
+  "schema_version": "broker_reports_g591_design_stop_safe_v1",
+  "goal": "G5.91",
+  "verdict": "DESIGN_STOP",
+  "terminal": "CURRENT_GATE3_SOURCE_LOCAL_ASSERTION_BOUNDARY_INSUFFICIENT",
+  "architecture_bootstrap": {
+    "pipeline_authority_used": true,
+    "dictionary_owner": "Gate3FinancialLabelDictionaryFactory.create",
+    "role_pack_owner": "Gate3FinancialRolePackFactory.create",
+    "gate4_owner": "Gate4FinancialCaseMaterializerFactory.create",
+    "named_consumer_evidence": "G5.90 withholding versus adjustment methodology-input distinction"
+  },
+  "minimal_candidate": {
+    "dictionary_version": "2.1.0",
+    "role_pack_version": "3.1.0",
+    "new_financial_labels": ["TAX_ADJUSTMENT"],
+    "new_roles": ["source_wording"],
+    "refund_reversal_other_taxonomy_added": false,
+    "gate4_materialization_proven": true,
+    "gate5_tax_formula_consumption": false,
+    "runtime_default": false
+  },
+  "qualification": {
+    "refinement_cycles": 4,
+    "provider_calls": 24,
+    "semantic_retries_within_cycle": 0,
+    "best_of_n": false,
+    "prompt_variants_within_cycle": 0,
+    "vlm_calls": 0,
+    "tax_calculations": 0,
+    "final_cycle": {
+      "tax_adjustment_correct": 53,
+      "tax_adjustment_total": 105,
+      "wrong_dividend": 52,
+      "ordinary_withholding_correct": 113,
+      "ordinary_withholding_total": 113,
+      "true_dividend_correct": 25,
+      "true_dividend_total": 25,
+      "structural_unmapped_correct": 12,
+      "structural_unmapped_total": 12
+    }
+  },
+  "safety": {
+    "current_dictionary_version": "2.0.1",
+    "current_role_pack_version": "3.0.0",
+    "managed_runtime_projection_unchanged": true,
+    "production_activation": false,
+    "broker_specific_rules": 0,
+    "inferred_relations": 0,
+    "invented_facts": 0,
+    "production_visual_dependency": 0
+  },
+  "private_evidence": {
+    "cycle_1_qualification_sha256": "f52c75feaa5c6c4841000c54872e8af50455a0c55de74ccc7bd3ba5350ac1df0",
+    "cycle_2_qualification_sha256": "7fd4fae2d0a0270944cbc18640ee17dcac5e364c6b3df65868b2b54a785648ab",
+    "cycle_3_qualification_sha256": "801a19d2a8914134bf796950608710f791507e6db1667e758834daa17bc1cde7",
+    "cycle_4_qualification_sha256": "ef89c861b5a6c683789c0c3cc2abdbe50a7f73c1d41bab6223981eee3617a365"
+  },
+  "proven_terminals": [
+    "MINIMAL_GATE3_GATE4_CANDIDATE_REPRESENTABILITY_PROVEN",
+    "TAX_CONCLUSION_REMAINS_AFTER_GATE4",
+    "BROKER_SPECIFIC_RULES_ZERO",
+    "INFERRED_RELATIONS_ZERO",
+    "TRUE_DIVIDEND_CONTROLS_PRESERVED_IN_FINAL_CYCLE",
+    "ORDINARY_WITHHOLDING_CONTROLS_PRESERVED_IN_FINAL_CYCLE",
+    "UNMAPPED_FAIL_CLOSED_PRESERVED"
+  ],
+  "unproven_desired_terminals": [
+    "BROKER_TAX_OBSERVATION_SOURCE_CONTRACT_PROVEN",
+    "WITHHOLDING_VS_ADJUSTMENT_SOURCE_DISTINCTION_PROVEN",
+    "SYSTEMATIC_TAX_ADJUSTMENT_AS_DIVIDEND_ERROR_REMOVED",
+    "READY_TO_CONTINUE_SOURCE_DATA_PREPARATION"
+  ]
+}

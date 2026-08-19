@@ -1,0 +1,128 @@
+{
+  "schema_version": "broker_reports_g540d_tax_demand_matrix_safe_v1",
+  "goal": "G5.40D",
+  "scope": "2025 resident individual, organized-market securities, outside IIS, bounded proof only",
+  "allowed_input_statuses": [
+    "AVAILABLE",
+    "AVAILABLE_AFTER_SIMPLE_DETERMINISTIC_SELECTION",
+    "MISSING_FROM_SOURCE",
+    "LOST_UPSTREAM",
+    "METHODOLOGY_UNRESOLVED"
+  ],
+  "consumer_chain": [
+    "declaration_fragment",
+    "securities_disposal_tax_model",
+    "gross_income_acquisition_cost_transaction_expense",
+    "gate4_normalized_source_facts"
+  ],
+  "tax_demands": [
+    {
+      "demand_id": "disposal_gross_income",
+      "consumer": "securities_disposal_tax_model",
+      "required_source_fact": "SECURITY_DISPOSAL(date,asset,quantity,amount,currency)",
+      "controlled_proof_status": "AVAILABLE",
+      "selection": "select exact disposal fact_id"
+    },
+    {
+      "demand_id": "fifo_acquisition_cost",
+      "consumer": "securities_disposal_tax_model",
+      "required_source_fact": "SECURITY_PURCHASE(date,asset,quantity,amount,currency)",
+      "controlled_proof_status": "AVAILABLE_AFTER_SIMPLE_DETERMINISTIC_SELECTION",
+      "selection": "same asset and currency; acquisition date not after disposal; date-ordered FIFO",
+      "stored_event_or_relation_required": false
+    },
+    {
+      "demand_id": "direct_transaction_expense",
+      "consumer": "securities_disposal_tax_model",
+      "required_source_fact": "TRANSACTION_CHARGE(amount,currency)",
+      "controlled_proof_status": "AVAILABLE_AFTER_SIMPLE_DETERMINISTIC_SELECTION",
+      "selection": "exact canonical binding and annotation target equality with disposal"
+    },
+    {
+      "demand_id": "commission_assertions",
+      "consumer": "source_granularity_audit",
+      "required_source_fact": "COMMISSION or TRANSACTION_CHARGE plus optional COMMISSION_TOTAL",
+      "controlled_proof_status": "AVAILABLE",
+      "selection": "detail and aggregate retained independently; no reconciliation"
+    },
+    {
+      "demand_id": "withheld_tax_assertions",
+      "consumer": "source_granularity_audit",
+      "required_source_fact": "TAX_WITHHELD plus optional TAX_WITHHELD_TOTAL",
+      "controlled_proof_status": "AVAILABLE",
+      "selection": "detail and aggregate retained independently; no reconciliation"
+    },
+    {
+      "demand_id": "partial_acquisition_commission",
+      "consumer": "future_acquisition_cost_methodology",
+      "required_source_fact": null,
+      "controlled_proof_status": "METHODOLOGY_UNRESOLVED",
+      "relation_evidence_necessity_established": false
+    }
+  ],
+  "real_document_coverage": [
+    {
+      "sample_id": "DEV_PUBLIC_TBANK",
+      "source_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+      "source_observations": [
+        "purchase",
+        "commission"
+      ],
+      "disposal_gross_income": "MISSING_FROM_SOURCE",
+      "fifo_acquisition_cost": "LOST_UPSTREAM",
+      "direct_transaction_expense": "MISSING_FROM_SOURCE",
+      "first_loss": "visual table projection to canonical loses row/cell/column binding"
+    },
+    {
+      "sample_id": "HOLDOUT_REAL_001",
+      "source_sha256": "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+      "source_observations": [
+        "purchase",
+        "disposal",
+        "commission",
+        "withheld_tax",
+        "source_totals"
+      ],
+      "disposal_gross_income": "LOST_UPSTREAM",
+      "fifo_acquisition_cost": "LOST_UPSTREAM",
+      "direct_transaction_expense": "LOST_UPSTREAM",
+      "first_loss": "trade rows survive structurally but do not carry row-local ISO currency required by current Fact v2"
+    },
+    {
+      "sample_id": "LARGE_REAL_001",
+      "source_sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+      "source_observations": [
+        "purchase",
+        "disposal",
+        "commission",
+        "withheld_tax",
+        "source_totals"
+      ],
+      "disposal_gross_income": "LOST_UPSTREAM",
+      "fifo_acquisition_cost": "LOST_UPSTREAM",
+      "direct_transaction_expense": "LOST_UPSTREAM",
+      "first_loss": "visual table projection to canonical loses table identity, rows, headers and column binding; Gate 3 also fragments relevant pages"
+    },
+    {
+      "sample_id": "PUBLIC_FIDELITY_STATEMENT",
+      "source_sha256": "36a166a5a13e6d6d86b391233023f83f6f7b4d268a4a23fbae01cb81290e3b96",
+      "source_observations": [
+        "purchase",
+        "disposal",
+        "commission",
+        "withheld_tax",
+        "source_totals"
+      ],
+      "disposal_gross_income": "LOST_UPSTREAM",
+      "fifo_acquisition_cost": "LOST_UPSTREAM",
+      "direct_transaction_expense": "LOST_UPSTREAM",
+      "first_loss": "source uses a currency symbol rather than a row-local ISO code; symbol-to-currency inference is forbidden"
+    }
+  ],
+  "proof_terminals": [
+    "DETERMINISTIC_SOURCE_FACT_CONSUMPTION_PROVEN",
+    "FIFO_WITHOUT_STORED_EVENT_PROVEN",
+    "SOURCE_GRANULARITY_PRESERVED"
+  ],
+  "overall_terminal": "UPSTREAM_SOURCE_FACT_GAP_LOCALIZED"
+}

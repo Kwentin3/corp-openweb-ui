@@ -1,0 +1,181 @@
+{
+  "schema_version": "broker_reports_gate5_g539y_safe_ledger_v1",
+  "goal": "G5.39Y",
+  "date": "2026-08-12",
+  "mode": "exploratory_research_only",
+  "terminal": "VISUAL_SIGNAL_NOT_SUFFICIENT",
+  "secondary_finding": "SEMANTIC_RECONCILIATION_CAPABILITY_UNRESOLVED",
+  "confirmation_opened": false,
+  "candidate_contract": null,
+  "product": {
+    "head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+    "branch": "feature/gate5-tax-period-category-aggregation",
+    "preexisting_dirty_tree_preserved": true,
+    "product_code_changed_by_goal": false
+  },
+  "frozen_authorities": {
+    "g539x_report_sha256": "4e20dedef46a5170dec15b3a1e800cc9e7250bc67bb186cf2d14d42c4ee0fc58",
+    "g539w_prepared_sha256": "8c2cc837a89af0de91a6755d877c91ea403a49ca4d591e90a00a11e68aeb1aa3",
+    "g539v_trace_sha256": "18407e17a19b50568950bc93c21dc0be5fc7b7ed8172218355854910c86f5766",
+    "oracle_sha256": "d76ade254cfe2c323e0ab73daf0fcf83d598034022e096dba6c86173a65e6c85",
+    "role_pack_sha256": "43e98dcbef4637506d79927ef19ae1790f9bcfcb69b0045f97c2af9648cd5ba6"
+  },
+  "human_baseline": {
+    "reviewer": "agent_visual_review",
+    "independent_human_reviewer": "NOT_RUN",
+    "cases": {
+      "DEV_PUBLIC_TBANK": {
+        "human_can_identify_event": "YES",
+        "bounded_rendered_pages": 2,
+        "decisive_cue_class": "cross_table_semantic_and_arithmetic_reconciliation",
+        "visual_only_cue_decisive": false
+      },
+      "HOLDOUT_REAL_001": {
+        "human_can_identify_event": "YES",
+        "bounded_rendered_pages": 1,
+        "decisive_cue_class": "same_row_under_explicit_header",
+        "visual_only_cue_decisive": false
+      },
+      "LARGE_REAL_001": {
+        "human_can_identify_event": "YES",
+        "bounded_rendered_pages": 3,
+        "decisive_cue_class": "cross_page_semantic_and_arithmetic_reconciliation",
+        "visual_only_cue_decisive": false
+      },
+      "NEGATIVE_AB_001": {
+        "human_can_identify_two_events": "YES",
+        "bounded_rendered_controls": 1,
+        "decisive_cue_class": "explicit_cross_table_order_key",
+        "visual_only_cue_decisive": false
+      }
+    }
+  },
+  "cue_finding": {
+    "rendered_only_cues": [
+      "typography",
+      "borders",
+      "whitespace",
+      "physical_column_geometry"
+    ],
+    "rendered_only_cues_decisive_on_frozen_targets": false,
+    "stage_c_and_text_ib_preserve": [
+      "section_and_table_titles",
+      "headers",
+      "row_and_cell identity",
+      "source order",
+      "exact operands needed for reconciliation"
+    ],
+    "not_explicitly_source_authored": [
+      "same_economic_event assertion",
+      "aggregate arithmetic relation",
+      "gross_tax_net relation"
+    ]
+  },
+  "provider": {
+    "provider_profile": "google_gemini",
+    "provider_profile_revision": "f0c2fd84daeee8cb33d907435dd843d70eb2db7b0f88b66bc49533f3fb9ac4e3",
+    "requested_model_id": "models/gemini-3.5-flash",
+    "resolved_model_id": "models/gemini-3.5-flash",
+    "status": "qualified",
+    "image_input_supported": true,
+    "structured_output_supported": true,
+    "native_provider_transport": true,
+    "credentials_from_openwebui_connection": true,
+    "hidden_retry": false,
+    "provider_failover": false,
+    "temperature": 0,
+    "candidate_count": 1,
+    "thinking_level": "minimal"
+  },
+  "iterations": [
+    {
+      "iteration": "H1",
+      "hypothesis": "rendered_schema_plus_neutral_locators_enables_complete_distributed_grouping",
+      "plan_sha256": "913b834a5a937d6ae47d5f4afa56de631088d594f9e98674cd7df796d7bcf6e5",
+      "private_audit_sha256": "8e4f4a2f7ad6bcfcdfa2a4538adbfeb1f674a3cad26b51c9424435b529bfaca1",
+      "safe_audit_sha256": "6286f790d00716f9266ba4788272401c3746e8a92fb79ebb8975496f60d62fca",
+      "calls": 4,
+      "input_tokens": 98538,
+      "output_tokens": 5621,
+      "source_images": 7,
+      "verdict": "FALSIFIED",
+      "results": {
+        "DEV_PUBLIC_TBANK": "0 groups; best reviewed coverage 2/6",
+        "HOLDOUT_REAL_001": "2 groups; reviewed target coverage 0/9",
+        "LARGE_REAL_001": "1 incomplete group; reviewed coverage 5/9",
+        "NEGATIVE_AB_001": "2 separate groups; target A coverage 6/6; no A+B mix"
+      }
+    },
+    {
+      "iteration": "H2",
+      "hypothesis": "rendered_schema_enables_relation_only_grouping_over_frozen_role_pack_atoms",
+      "plan_sha256": "4ba43eb55cefbe95e9dd7911823bed047d6bbd643fed3ec1e410de0df03ff0a1",
+      "private_audit_sha256": "647c1ee190f6202253d5fe3af3410cf98d220d2074862785fb01ea6542960b59",
+      "safe_audit_sha256": "218d5606d4da9a137394245de0eff7fa3c62cbe09242d6982bff577009c27112",
+      "calls": 4,
+      "input_tokens": 102408,
+      "output_tokens": 951,
+      "source_images": 7,
+      "verdict": "FALSIFIED",
+      "results": {
+        "DEV_PUBLIC_TBANK": "3 row-local groups; best reviewed coverage 2/6",
+        "HOLDOUT_REAL_001": "2 groups; reviewed coverage 5/9",
+        "LARGE_REAL_001": "1 incomplete group; reviewed coverage 5/9",
+        "NEGATIVE_AB_001": "UNRESOLVED because frozen H2 atom set is empty"
+      }
+    }
+  ],
+  "aggregate_execution": {
+    "semantic_calls": 8,
+    "provider_submissions": 8,
+    "provider_responses": 8,
+    "input_tokens": 200946,
+    "output_tokens": 6572,
+    "unique_composite_images": 4,
+    "unique_composite_image_bytes": 1818502,
+    "semantic_retries": 0,
+    "repairs": 0,
+    "best_of_n": false,
+    "merges": 0
+  },
+  "safety": {
+    "invented_refs": 0,
+    "invented_literals": 0,
+    "negative_cross_event_groups": 0,
+    "invalid_witness_refs": 0,
+    "missing_group_members": 0,
+    "oracle_in_model_input": false,
+    "target_rows_highlighted": false,
+    "schema_invalid_outputs": 8,
+    "schema_failure": "model copied input schema_version instead of canonical output const",
+    "schema_outputs_repaired": 0,
+    "semantic_outputs_replayed": 0,
+    "accepted_outputs": 0
+  },
+  "knowledge": {
+    "proven": [
+      "human grouping on distributed cases uses table semantics plus arithmetic reconciliation",
+      "neutral rendered regions can preserve exact refs and avoid A/B mixing",
+      "adding the rendered channel did not improve distributed target completeness over text baselines"
+    ],
+    "falsified": [
+      "rendered region plus full neutral locator legend is sufficient for complete DEV and LARGE grouping",
+      "rendered region makes a relation-only pass over frozen Role Pack atoms sufficient"
+    ],
+    "unknown": [
+      "broker-neutral authoring method for semantic reconciliation evidence",
+      "sensitivity to a separately frozen stronger multimodal model",
+      "non-oracle bounded-region discovery"
+    ]
+  },
+  "cleanup": {
+    "experimental_production_code": false,
+    "private_evidence_ignored": true,
+    "commit": false,
+    "push": false,
+    "pull_request": false,
+    "production_activation": false,
+    "dependent_goal_authorized": false
+  }
+}

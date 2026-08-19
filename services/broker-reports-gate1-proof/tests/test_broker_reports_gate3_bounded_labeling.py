@@ -27,6 +27,7 @@ from broker_reports_gate1 import (
 )
 from broker_reports_gate1.artifact_lifecycle import lifecycle_for_visibility
 from broker_reports_gate1.artifact_models import ARTIFACT_TYPES, ArtifactRecord
+from broker_reports_gate1.gate2_model_contracts import Gate2SourceFactRuntimeError
 from broker_reports_gate1.gate3_bounded_labeling import (
     FACTORY_REQUIRED,
     FORBIDDEN,
@@ -34,12 +35,128 @@ from broker_reports_gate1.gate3_bounded_labeling import (
     GATE3_LABELING_INSTRUCTION_VERSION,
     GATE3_LABELING_RESPONSE_SCHEMA_SHA256,
 )
+from broker_reports_gate1.gate3_financial_label_dictionary import (
+    GATE3_DICTIONARY_CURRENT_VERSION,
+    GATE3_DICTIONARY_V2_0_1_FILE_SHA256,
+)
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = SERVICE_ROOT.parents[1]
 PACKAGE_ROOT = SERVICE_ROOT / "broker_reports_gate1"
 MODEL_ID = "models/gemini-3.5-flash"
+
+
+def test_operational_no_response_retry_reuses_exact_request_and_stops_on_response(
+    tmp_path: Path,
+) -> None:
+    store, context, document_id = _active_store(tmp_path)
+    client, captured = _sequence_client(
+        [
+            {"detail": {"status": 502, "message": "bad gateway"}},
+            _provider_payload(
+                {
+                    "schema_version": "broker_reports_gate3_labeling_response_v1",
+                    "annotations": [],
+                }
+            ),
+        ]
+    )
+
+    attempt = asyncio.run(
+        Gate3BoundedLabelingFactory(
+            store=store,
+            read_enabled=True,
+            model_client=client,
+            model_id=MODEL_ID,
+        ).create(document_id=document_id, context=context)
+    )
+
+    assert attempt.validation_status == "validated"
+    assert len(captured) == 2
+    assert captured[0] == captured[1] == attempt.final_provider_request
+    receipt = attempt.operational_retry_receipt
+    assert receipt is not None
+    assert receipt["semantic_attempts"] == 1
+    assert receipt["transport_submissions"] == 2
+    assert receipt["transport_failures_before_semantic_response"] == 1
+    assert receipt["operational_retries"] == 1
+    assert receipt["semantic_responses_received"] == 1
+    assert receipt["semantic_rejections"] == 0
+
+
+def test_operational_retry_ceiling_is_one_and_terminal_receipt_is_preserved(
+    tmp_path: Path,
+) -> None:
+    store, context, document_id = _active_store(tmp_path)
+    client, captured = _sequence_client(
+        [{"error": {"status": 503, "message": "service unavailable"}}] * 2
+    )
+
+    with pytest.raises(Gate2SourceFactRuntimeError) as rejected:
+        asyncio.run(
+            Gate3BoundedLabelingFactory(
+                store=store,
+                read_enabled=True,
+                model_client=client,
+                model_id=MODEL_ID,
+            ).create(document_id=document_id, context=context)
+        )
+
+    assert rejected.value.code == "gate2_model_provider_unavailable"
+    assert len(captured) == 2
+    assert captured[0] == captured[1]
+    receipt = rejected.value.operational_retry_receipt
+    assert receipt["transport_submissions"] == 2
+    assert receipt["transport_failures_before_semantic_response"] == 2
+    assert receipt["operational_retries"] == 1
+    assert receipt["semantic_responses_received"] == 0
+
+
+def test_semantic_rejection_and_auth_failure_never_retry(tmp_path: Path) -> None:
+    store, context, document_id = _active_store(tmp_path)
+    client, captured = _sequence_client(
+        [
+            _provider_payload(
+                {
+                    "schema_version": "broker_reports_gate3_labeling_response_v1",
+                    "annotations": [
+                        {
+                            "target_alias": "t999",
+                            "financial_label": "DIVIDEND_INCOME",
+                        }
+                    ],
+                }
+            )
+        ]
+    )
+    attempt = asyncio.run(
+        Gate3BoundedLabelingFactory(
+            store=store,
+            read_enabled=True,
+            model_client=client,
+            model_id=MODEL_ID,
+        ).create(document_id=document_id, context=context)
+    )
+    assert attempt.validation_status == "rejected"
+    assert len(captured) == 1
+    assert attempt.operational_retry_receipt["operational_retries"] == 0
+
+    auth_client, auth_captured = _sequence_client(
+        [{"error": {"status": 401, "message": "unauthorized"}}]
+    )
+    with pytest.raises(Gate2SourceFactRuntimeError) as auth_rejected:
+        asyncio.run(
+            Gate3BoundedLabelingFactory(
+                store=store,
+                read_enabled=True,
+                model_client=auth_client,
+                model_id=MODEL_ID,
+            ).create(document_id=document_id, context=context)
+        )
+    assert auth_rejected.value.code == "gate2_model_provider_auth_failed"
+    assert len(auth_captured) == 1
+    assert auth_rejected.value.operational_retry_receipt["operational_retries"] == 0
 
 
 def test_bounded_labeling_uses_exact_three_part_context_and_restores_alias(
@@ -71,10 +188,8 @@ def test_bounded_labeling_uses_exact_three_part_context_and_restores_alias(
         ),
         "dictionary_identity": {
             "dictionary_id": "broker-reports-financial-labels",
-            "semantic_version": "1.0.0",
-            "file_sha256": (
-                "182e8d7f3604ad3d06d93c4d913df17979f21aeea669123d70c10be9d9652850"
-            ),
+            "semantic_version": GATE3_DICTIONARY_CURRENT_VERSION,
+            "file_sha256": GATE3_DICTIONARY_V2_0_1_FILE_SHA256,
             "model_view_sha256": hashlib.sha256(
                 attempt.dictionary_markdown.encode("utf-8")
             ).hexdigest(),
@@ -97,11 +212,11 @@ def test_bounded_labeling_uses_exact_three_part_context_and_restores_alias(
         "canonical_binding": attempt.projection["canonical_binding"],
         "dictionary_identity": {
             "dictionary_id": "broker-reports-financial-labels",
-            "semantic_version": "1.0.0",
+            "semantic_version": GATE3_DICTIONARY_CURRENT_VERSION,
         },
         "instruction_identity": {
             "instruction_id": "broker-reports-bounded-semantic-labeling",
-            "semantic_version": "1.0.1",
+            "semantic_version": "1.0.2",
         },
         "model_identity": {"model_id": MODEL_ID},
         "annotations": [
@@ -154,7 +269,9 @@ def test_bounded_labeling_uses_exact_three_part_context_and_restores_alias(
     }
     assert "enum" not in adapted_alias
     assert "для [t123] значение поля равно t123" in GATE3_LABELING_INSTRUCTION
-    assert GATE3_LABELING_INSTRUCTION_VERSION == "1.0.1"
+    assert GATE3_LABELING_INSTRUCTION_VERSION == "1.0.2"
+    assert "несколько разрешённых фактов" in GATE3_LABELING_INSTRUCTION
+    assert "detail assertions и aggregate totals" in GATE3_LABELING_INSTRUCTION
     assert attempt.metrics["dictionary_injection_count"] == 1
     assert attempt.metrics["meaningful_context_parts"] == 3
     assert client.qualification_lifecycle_snapshot() == {
@@ -467,6 +584,51 @@ def _client(
                 "total_tokens": 120,
             },
         }
+
+    user = SimpleNamespace(id="gate3-user")
+    client = Gate2StructuredModelClientFactory(
+        config=Gate2StructuredModelClientConfig(
+            request_profile=GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
+            provider_profile_id="google_gemini",
+        ),
+        user=user,
+        request=SimpleNamespace(),
+        completion_resolver=lambda _user_id: (complete, user),
+    ).create()
+    return client, captured
+
+
+def _provider_payload(response: dict | str) -> dict:
+    return {
+        "id": "gate3-local-seam-response",
+        "model": MODEL_ID,
+        "choices": [
+            {
+                "message": {
+                    "content": (
+                        response
+                        if isinstance(response, str)
+                        else json.dumps(response, ensure_ascii=False)
+                    )
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+        },
+    }
+
+
+def _sequence_client(provider_responses: list[dict]):
+    captured: list[dict] = []
+    responses = [json.loads(json.dumps(item, ensure_ascii=False)) for item in provider_responses]
+
+    def complete(*, form_data, **_kwargs):
+        captured.append(json.loads(json.dumps(form_data, ensure_ascii=False)))
+        return responses.pop(0)
 
     user = SimpleNamespace(id="gate3-user")
     client = Gate2StructuredModelClientFactory(

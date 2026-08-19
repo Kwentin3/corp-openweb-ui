@@ -1,0 +1,123 @@
+{
+  "schema_version": "broker_reports_gate5_mission_context_effect_preregistration_v0",
+  "goal": "G5.28A.1",
+  "status": "frozen_before_inference",
+  "frozen_at": "2026-08-10T19:48:40Z",
+  "hypothesis": "A short stable mission and downstream-consumer context improves same-policy semantic-domain grouping without answer leakage.",
+  "independent_variable": {
+    "variant_a": "base prompt plus shared input only",
+    "variant_b": "identical base prompt plus the frozen mission-context block plus identical shared input"
+  },
+  "controlled_inputs": [
+    "official evidence",
+    "reviewed obligation package",
+    "evidence-policy definitions",
+    "typed component inventory",
+    "local grouping principles",
+    "output schema",
+    "model and reasoning effort",
+    "clean execution settings"
+  ],
+  "frozen_input_resources": {
+    "base_prompt": {
+      "utf8_bytes": 939,
+      "sha256": "0df102cda164369973486b49eb22d5e3ff3efb62e240fbce8d5c8b4cbe5dd840"
+    },
+    "mission_context": {
+      "utf8_bytes": 743,
+      "sha256": "bd2c05ded1d681db3e3a16b82078bbf8cd0cbcf787add56d9e77de00e96b56a0"
+    },
+    "shared_input": {
+      "utf8_bytes": 18101,
+      "sha256": "dd72c7e725f4fae0df4543c2492743f767ba4f4162004f90249045ad95e3ce0a"
+    },
+    "provider_output_schema": {
+      "utf8_bytes": 1777,
+      "sha256": "30be9bb0711ab8d9c7b90b98dce9666df70636ca4fa909ce39d4787169fa6021"
+    },
+    "variant_a_exact_prompt": {
+      "composition": "base_prompt + LF LF + SHARED INPUT + LF LF + shared_input",
+      "utf8_bytes": 19056,
+      "sha256": "8213e22d1ce816ffdcbe0da93224fe19e21614d9584eff0d69c657783123f9c4"
+    },
+    "variant_b_exact_prompt": {
+      "composition": "base_prompt + LF LF + mission_context + LF + SHARED INPUT + LF LF + shared_input",
+      "utf8_bytes": 19800,
+      "sha256": "65cc4a055ec29e3d0f84c5482d2b0aa1faaf6f1cdf5eec2fca03af22aa64b717"
+    }
+  },
+  "budget": {
+    "variant_a_calls": 3,
+    "variant_b_calls": 3,
+    "reason": "Three calls per variant is the smallest allowed budget that exposes within-variant stability rather than one-pair noise.",
+    "frozen_before_outputs": true
+  },
+  "invocation_order": ["A1", "B1", "A2", "B2", "A3", "B3"],
+  "execution_contract": {
+    "provider": "openai",
+    "client": "codex-cli 0.147.0-alpha.6.5",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "sandbox": "read-only",
+    "working_directory": "new_empty_temporary_directory_per_call",
+    "session": "ephemeral",
+    "user_config": "ignored",
+    "repository_rules": "ignored",
+    "history_messages": 0,
+    "retry_count": 0,
+    "follow_up_count": 0,
+    "repair_count": 0,
+    "selection_or_best_of": false,
+    "all_assigned_outputs_count": true,
+    "transport_or_parse_failure_counts_as_result": true
+  },
+  "blindness_for_model": [
+    "G5.28 candidate",
+    "G5.28 or G5.28A finding",
+    "G5.27 domain list",
+    "previous or expected domain IDs",
+    "expected domain count or partition",
+    "known failure example",
+    "roadmap or next gap"
+  ],
+  "hard_validation": [
+    "strict provider-schema JSON",
+    "all obligations exactly once",
+    "no unknown obligation refs",
+    "no empty domain",
+    "one identical policy per domain",
+    "no invented or overclaimed component contract",
+    "no target-layout grouping",
+    "no executable rules, workflow or case-time behavior"
+  ],
+  "blinded_consumer_fit_review": {
+    "candidate_order": "ascending candidate SHA-256 with aliases R1 through R6",
+    "variant_and_call_hidden_until_review_frozen": true,
+    "questions": [
+      "Can one scope-resolver applicability decision honestly apply or not apply the whole domain?",
+      "Does applicability activate one coherent typed component family?",
+      "Does the merge force meanings with independently different life states to activate together?",
+      "Has one coherent domain been split merely because obligations are separate sentences?",
+      "Is the boundary target-independent rather than section, appendix, XML or PDF driven?"
+    ],
+    "defect_categories": [
+      "unsafe_merge",
+      "unnecessary_split",
+      "target_layout_grouping",
+      "invented_execution_semantics"
+    ],
+    "domain_count_is_score": false
+  },
+  "verdict_rule": {
+    "MISSION_CONTEXT_HELPFUL": "Variant B hard-pass rate is not lower, its median total consumer-fit defect count is lower, and it introduces no recurring new defect category in at least two B candidates.",
+    "MISSION_CONTEXT_HARMFUL": "Variant B hard-pass rate is lower, its median total consumer-fit defect count is higher, or a new target-layout or invented-execution defect recurs in at least two B candidates.",
+    "MISSION_CONTEXT_NEUTRAL": "Neither the helpful nor harmful rule is met; small or one-off differences are treated as noise."
+  },
+  "scope_stops": [
+    "no corrected G5.28 trial",
+    "no Definition publication",
+    "no G5.29",
+    "no Scope Resolver or runtime change",
+    "no new capability, Tax Model, Declaration Model, tax calculation, XML or PDF implementation"
+  ]
+}

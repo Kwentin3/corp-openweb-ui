@@ -1,0 +1,130 @@
+{
+  "schema_version": "broker_reports_g571_closeout_receipt_safe_v1",
+  "goal": "G5.71",
+  "status": "CLOSED_NO_MINIMAL_RELIABLE_ADAPTER_FOUND",
+  "terminal": [
+    "MINIMAL_RELIABLE_METADATA_ADAPTER_NOT_FOUND",
+    "HYPOTHESIS_SPACE_EXHAUSTED_WITHIN_KISS_BOUNDARY",
+    "EXACT_REMAINING_FAILURE_CLASSES_LOCALIZED",
+    "NO_OVERENGINEERED_FALLBACK_ADDED",
+    "FINANCIAL_GENERALIZATION_PRESERVED"
+  ],
+  "freeze": {
+    "contract_version": "1.0.0",
+    "allowed_fact_type_count": 11,
+    "new_metadata_fields": 0,
+    "development_cases": 3,
+    "broker_hints": 0,
+    "regex_semantics": 0,
+    "prompt_blacklist": 0,
+    "fixed_layout_semantics": 0
+  },
+  "hypotheses": [
+    {
+      "id": "H1_VISUAL_AMBIGUITY_OR_CROP_NOISE",
+      "verdict": "REFUTED"
+    },
+    {
+      "id": "H2_CONTRACT_ROLE_DEFINITION_AMBIGUITY",
+      "verdict": "REFUTED"
+    },
+    {
+      "id": "H3_POSITIVE_ONLY_SCHEMA_COERCION",
+      "verdict": "REFUTED",
+      "provider_submissions": 9,
+      "case_b_exact": "3/3",
+      "case_f_exact": "0/3",
+      "case_f_wrong_role": "3/3",
+      "case_c_exact": "0/3",
+      "total_tokens": 18966,
+      "duration_ms": 25551
+    },
+    {
+      "id": "H4_MODEL_CAPABILITY_FLOOR",
+      "verdict": "REFUTED_GENERAL_RELIABILITY_NOT_PROVEN",
+      "pre_output_technical_submissions": 18,
+      "semantic_provider_submissions": 9,
+      "case_b_exact": "2/3",
+      "case_f_exact": "3/3",
+      "case_c_exact": "2/3",
+      "total_tokens": 11210,
+      "duration_ms": 60979
+    },
+    {
+      "id": "H5_JOINT_EXTRACTION_CLASSIFICATION_OVERLOAD",
+      "verdict": "REFUTED_GENERAL_RELIABILITY_NOT_PROVEN",
+      "provider_calls_per_document": 2,
+      "provider_submissions": 6,
+      "case_b_exact": "0/1",
+      "case_f_exact": "1/1",
+      "case_c_exact": "1/1",
+      "total_tokens": 8468,
+      "duration_ms": 22233
+    }
+  ],
+  "deferred": [
+    {
+      "id": "H6_EXTRACT_THEN_VERIFY_REQUIRED",
+      "reason": "EXCEEDS_KISS_BOUNDARY_AFTER_TWO_STAGE_FAILURE"
+    }
+  ],
+  "provider_compatibility": {
+    "owner": "OpenAIResponsesVisionAdapter",
+    "canonical_schema_changed": false,
+    "wire_schema_projection_version": "openai_responses_strict_schema_projection_v1",
+    "removed_wire_keywords": [
+      "uniqueItems"
+    ],
+    "request_parameter_policy_version": "openai_responses_model_compatible_v1",
+    "temperature_sent": false,
+    "generated_bundle_parity": true
+  },
+  "execution_policy": {
+    "retries": 0,
+    "provider_failover": false,
+    "best_of_n": false,
+    "voting": false,
+    "judge_model": false,
+    "result_selection": false,
+    "manual_output_repair": false,
+    "truth_changed_after_output": false
+  },
+  "decision": {
+    "selected_candidate": null,
+    "solution_frozen": false,
+    "untouched_holdout_executed": false,
+    "holdout_reason": "NO_CANDIDATE_MET_DEVELOPMENT_CORRECTNESS_AND_CONTROL_INVARIANTS",
+    "overengineered_fallback_added": false
+  },
+  "artifact_hashes": {
+    "h3_result_safe_sha256": "ee4b321393777fc835db64fc9baae8d8c03c7280a5c2233766909597115e2523",
+    "h4_result_safe_sha256": "b9cc755b63003ef25b7517434095d50f0a8a50edcac182247fbb2f643eef452b",
+    "h5_result_safe_sha256": "bb4ed42a0e577dd0b4af7801d6d6f2172c9ad60f1a9aff5e38c62a99a940c0d7",
+    "financial_result_safe_sha256": "3df33f7ad7cc63c8027cd2afa50981a03b11d231a52b40ac617e2499cfa02fd4",
+    "architecture_decision_sha256": "db90e158c0cbee1205561a3e3cddd414a0480bb8f101bdcd3b1a1aba48b95548",
+    "one_stage_harness_sha256": "eaf4b9cfe41e58bee5ec1ad2963af64dd687b786becff36f588637bfb715b3bd",
+    "two_stage_harness_sha256": "350ef1805265955c9e18cad5c92a1f74ef2f50f3ffe939d891f77310b1e5a27d",
+    "provider_owner_sha256": "192be1cd8325e7f9eb503e41e04c04d021a8ac83cd42b844d50ba2e383516ff0",
+    "generated_bundle_sha256": "e5c67600ac8e49efb54e4c6c78e7d0edec944a902e4c26eb713ccebde20f46e2"
+  },
+  "financial_replay": {
+    "factory_route": "Gate4FinancialCaseRuntimeFactory.create().rebuild_case",
+    "holdout_a_fact_count": 39,
+    "holdout_b_fact_count": 129,
+    "exact_frozen_equality": true,
+    "source_stores_unchanged": true
+  },
+  "verification": {
+    "focused_passed": 169,
+    "post_bundle_passed": 59,
+    "failed": 0,
+    "ruff_passed": true,
+    "compileall_passed": true,
+    "bundle_parity_passed": true
+  },
+  "private_evidence_committed": false,
+  "product_activation": false,
+  "financial_source_changed": false,
+  "commit_or_push": false,
+  "next_goal_started": false
+}

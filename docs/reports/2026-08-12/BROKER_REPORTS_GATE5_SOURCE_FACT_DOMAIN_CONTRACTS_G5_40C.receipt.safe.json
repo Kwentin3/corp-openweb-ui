@@ -1,0 +1,45 @@
+{
+  "schema_version": "broker_reports_gate5_source_fact_domain_contracts_receipt_safe_v1",
+  "goal": "G5.40C",
+  "status": "SOURCE_FACT_DOMAIN_CONTRACTS_PROVEN",
+  "secondary_statuses": ["OVERINTERPRETATION_REMOVED", "DOMAIN_BOUNDARIES_EXPLICIT"],
+  "contains_private_source_values": false,
+  "authorities": {
+    "dictionary": {"semantic_version": "2.0.0", "sha256": "a43e20351a83d19e6f12efdcde48a90e5c70fb995c37459d446d10c399109a87"},
+    "role_pack": {"semantic_version": "2.0.0", "sha256": "22b033a2f6ff041b29ad62d4c966e042b72e258dd67f7e2a0b6606627998723e"},
+    "gate4_fact_schema": "broker_reports_gate4_financial_case_fact_v2",
+    "semantic_kind": "normalized_source_fact",
+    "gate1_bundle_sha256": "2c4d41fdbbe297ff1b4ab113d686a79744ed812a05ce010d67faa70e307ea77f"
+  },
+  "pressure_proofs": {
+    "commission_detail_values": ["10", "15"],
+    "commission_source_total": "30",
+    "tax_withheld_detail": "4",
+    "tax_withheld_source_total": "7",
+    "reconciliation_performed": false,
+    "relations_created": false
+  },
+  "consumer_replay": {
+    "status": "END_TO_END_FULL_TARGET_XML_VALID",
+    "target_status": "FULL_TARGET_XML_VALID",
+    "xsd_valid": true,
+    "semantic_mapping_status": "passed",
+    "hash_chain_stages": 16,
+    "xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a"
+  },
+  "negative_boundary": {
+    "relation_runtime_present": false,
+    "missing_methodology_input_error": "gate5_tax_model_inputs_not_satisfied",
+    "tax_model_created": false,
+    "xml_created": false
+  },
+  "verification": [
+    {"selection": "pre_refactor_focused_baseline", "passed": 71},
+    {"selection": "expanded_gate3_gate4_gate5_architecture", "passed": 138},
+    {"selection": "source_boundary_consumer_replay", "passed": 33},
+    {"selection": "standalone_bundle", "passed": 2},
+    {"selection": "final_broad_gate3_gate4_gate5_bundle_architecture_51_files", "passed": 574}
+  ],
+  "remaining_gap": "partial acquisition-cost attribution and commission allocation require explicit relation evidence and an authorized downstream methodology",
+  "external_mutations": {"github_journal_issue": 278, "github_journal_comment": 5272001585, "commit": false, "push": false, "pull_request": false, "production_activation": false}
+}

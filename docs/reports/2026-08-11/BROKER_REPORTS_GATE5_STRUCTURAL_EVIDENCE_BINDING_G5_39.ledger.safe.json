@@ -1,0 +1,110 @@
+{
+  "schema_version": "broker_reports_gate5_g539_experiment_ledger_v1_safe",
+  "goal_id": "G5.39",
+  "terminal": "NO_STRATEGY_PROVEN",
+  "date": "2026-08-11",
+  "privacy": "safe_aggregate_evidence_only",
+  "baseline": {
+    "product_head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "g538c_receipt_sha256": "0c73e4ae741b15dc1c177aac4ddaf104b3afc5d6e06856a303f3639c594c5044",
+    "research_commit": "1fb05ed3e725ff27701d97b1136dcb7ca01aee7d",
+    "research_tree": "8370cebde17bcf6f0c39ea10b2f03c2cf4512ae5"
+  },
+  "corpus": {
+    "version": "broker_reports_gate5_g539_corpus_v3_safe",
+    "safe_manifest_sha256": "dc9619eb446c01c82cbce538e01c70be7c170c25da95c4ef230efce217d61c2d",
+    "private_oracle_sha256": "d76ade254cfe2c323e0ab73daf0fcf83d598034022e096dba6c86173a65e6c85",
+    "v1_invalidated_pre_inference": true,
+    "v2_h1_invalidated_before_comparison": true
+  },
+  "provider": {
+    "model": "gpt-5.4-mini-2026-03-17",
+    "temperature": 0,
+    "retry": 0,
+    "repair": 0,
+    "best_of_n": false,
+    "answer_merge": false,
+    "pre_inference_transport_400_total": 2,
+    "transport_cause": "gateway JSON mode required an explicit JSON word in messages"
+  },
+  "adjudication_correction": {
+    "commit": "4e815d9d40d137f15dc78a7faeacd266e1e9282b",
+    "reason": "forbidden mixed refs are one complete A-A-B-B pattern, not an any-ref predicate",
+    "semantic_outputs_replayed": false,
+    "validator_tests_passed": 3
+  },
+  "experiments": [
+    {
+      "hypothesis": "H1",
+      "experiment_commit": "483284897851fa1216274062aaecfe398c03b639",
+      "raw_result_sha256": "e55b4a7b309584709770254835334727cf6d6b5144043e5a2f70e86ff767fb2f",
+      "corrected_adjudication_sha256": "88e8f09b4c63a1b6fda41601211ab24057350e3562beef37b40fb441b347a366",
+      "implementation": {"loc": 49, "runtime_concepts": 2, "new_persistence_schema_surface": 0},
+      "metrics": {"facts_expected": 4, "facts_proven": 1, "role_complete": 1, "false_joins": 0, "unresolved": 3, "provider_calls": 4, "input_chars": 6474, "input_tokens": 1861, "output_tokens": 605, "retrieval_rounds": 0, "retrieved_chars": 3621},
+      "cases": {"dev": "FAIL_CLOSED", "holdout": "PROVEN", "large": "FAIL_CLOSED", "negative_ab": "FAIL_CLOSED"},
+      "hard_invariants": "PASS",
+      "verdict": "REJECT",
+      "reason": "row-local evidence cannot prove the real cross-row/cross-table development or large facts"
+    },
+    {
+      "hypothesis": "H2",
+      "experiment_commit": "1a9c829d6e3d372acebf2301cea5015223408c8d",
+      "raw_result_sha256": "f76c7ad70664549c80a5793fc255efd301569881dc259ffa521b0e2b176cc0a1",
+      "corrected_adjudication_sha256": "011f30973ab92416f4a5247d20726a92507dbf1c3122d5d8cbbe5605e5e2154e",
+      "implementation": {"loc": 80, "runtime_concepts": 2, "new_persistence_schema_surface": 0},
+      "metrics": {"facts_expected": 4, "facts_proven": 0, "role_complete": 0, "false_joins": 1, "unresolved": 4, "provider_calls": 2, "input_chars": 10915, "input_tokens": 3894, "output_tokens": 448, "retrieval_rounds": 0, "retrieved_chars": 0},
+      "cases": {"dev": "INVALID_PROOF", "holdout": "BUDGET_BLOCKED", "large": "BUDGET_BLOCKED", "negative_ab": "INVALID_PROOF"},
+      "hard_invariants": "FAIL",
+      "verdict": "REJECT",
+      "reason": "a closed bundle is insufficient as a discovery mechanism and one-pass complete spaces do not scale"
+    },
+    {
+      "hypothesis": "H3",
+      "experiment_commit": "d89c24c3fafc754d7367d9c126655b79ef844442",
+      "raw_result_sha256": "b28333f7c0618999f419273024a6ae7fe5a88a3fdb5a081d36d3c61872472195",
+      "corrected_adjudication_sha256": "1eee0bbf9dfeacd98e160a441defdc61b7a6e4dd8af91021831f17f2d81e3b39",
+      "implementation": {"loc": 103, "runtime_concepts": 4, "new_persistence_schema_surface": 0},
+      "metrics": {"facts_expected": 4, "facts_proven": 1, "role_complete": 1, "false_joins": 0, "unresolved": 3, "provider_calls": 4, "input_chars": 14153, "input_tokens": 5104, "output_tokens": 675, "retrieval_rounds": 0, "retrieved_chars": 10273},
+      "cases": {"dev": "INVALID_PROOF", "holdout": "PROVEN", "large": "FAIL_CLOSED", "negative_ab": "INVALID_PROOF"},
+      "hard_invariants": "FAIL",
+      "verdict": "REJECT",
+      "reason": "containment/proximity is locally useful but does not close remote evidence and still permits invalid ref use"
+    },
+    {
+      "hypothesis": "H4",
+      "experiment_commit": "3c8c348a4b9065497d2024d324b692cc45378d8b",
+      "raw_result_sha256": "0ecdcd2bda3ae281b52c072cae8f0581a668ac5af78400c59c3ab6266134ea93",
+      "corrected_adjudication_sha256": "2da818791331e0319ed2a80917d77a7b637e036ce12cd920835d7e7b3a09746e",
+      "implementation": {"loc": 165, "runtime_concepts": 6, "new_persistence_schema_surface": 0},
+      "metrics": {"facts_expected": 4, "facts_proven": 0, "role_complete": 0, "false_joins": 0, "unresolved": 4, "provider_calls": 10, "input_chars": 23556, "input_tokens": 8632, "output_tokens": 606, "retrieval_rounds": 6, "retrieved_chars": 19703},
+      "cases": {"dev": "INVALID_PROOF", "holdout": "FAIL_CLOSED", "large": "FAIL_CLOSED_BUDGET_GUARD", "negative_ab": "INVALID_PROOF"},
+      "hard_invariants": "FAIL",
+      "verdict": "REJECT",
+      "reason": "model-directed exact-ref navigation selected incomplete/wrong evidence and did not produce a valid final bundle"
+    },
+    {
+      "hypothesis": "H5",
+      "experiment_commit": "f7fc8be01b97e275a0ebf001b0323c686205bf66",
+      "raw_result_sha256": "1250d50b527fbae35d64f7a40bb2c80e2270f04e9992dfc5987820e8033935e3",
+      "corrected_adjudication_sha256": "dfb893c9ace634ae030a24bb022120d03b260b66499edc1244b5c2260a2361d1",
+      "implementation": {"loc": 158, "runtime_concepts": 5, "new_persistence_schema_surface": 0},
+      "metrics": {"facts_expected": 4, "facts_proven": 1, "role_complete": 1, "false_joins": 2, "unresolved": 3, "provider_calls": 4, "input_chars": 22428, "input_tokens": 8335, "output_tokens": 1117, "retrieval_rounds": 4, "retrieved_chars": 18324},
+      "cases": {"dev": "INVALID_PROOF", "holdout": "INVALID_PROOF", "large": "INVALID_PROOF", "negative_ab": "PROVEN"},
+      "hard_invariants": "FAIL",
+      "verdict": "REJECT",
+      "reason": "exact-literal closure solved the explicit A/B relation but was incomplete on DEV and joined unrelated rows on holdout/large"
+    }
+  ],
+  "regression": {
+    "csv_html_xlsx_product_route_and_related_events": {"passed": 8, "failed": 0},
+    "expanded_run": {"passed": 13, "failed": 3, "failure_code": "gate4_cache_missing", "classification": "known isolated fixture initialization failure"},
+    "gate4_plus_changed_by_g539": false
+  },
+  "selection": {
+    "winner": null,
+    "winner_contract": null,
+    "reason": "no hypothesis passed hard invariants plus DEV, holdout and large-context pressure",
+    "next_allowed_goal": "G5.39R — Source-authored Structural Relation Proof",
+    "g540_authorized": false
+  }
+}

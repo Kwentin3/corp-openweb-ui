@@ -19,7 +19,7 @@ from .gate3_financial_annotations_persistence import (
 )
 from .gate3_financial_role_pack import (
     GATE3_ROLE_PACK_ID,
-    GATE3_ROLE_PACK_V1_VERSION,
+    GATE3_ROLE_PACK_CURRENT_VERSION,
 )
 from .gate3_role_labeling import Gate3RoleLabelingError
 NDFL_WORKFLOW_STABLE_ID = "broker-reports-ndfl"
@@ -31,12 +31,12 @@ NDFL_PROVIDER_MODEL_ID = "models/gemini-3.5-flash"
 NDFL_PRODUCT_BINDING_SCHEMA_VERSION = "broker_reports_ndfl_product_binding_v1"
 NDFL_GATE3_HANDOFF_SCHEMA_VERSION = "broker_reports_ndfl_gate3_handoff_v1"
 NDFL_DICTIONARY_ID = "broker-reports-financial-labels"
-NDFL_DICTIONARY_SEMANTIC_VERSION = "1.0.0"
+NDFL_DICTIONARY_SEMANTIC_VERSION = "2.0.0"
 NDFL_DICTIONARY_SKILL_ID = "broker-reports-financial-labels"
 NDFL_DICTIONARY_TOOL_ID = "broker_reports_financial_label_dictionary"
 NDFL_DICTIONARY_TOOL_METHOD = "load_financial_label_dictionary"
 NDFL_ROLE_PACK_ID = GATE3_ROLE_PACK_ID
-NDFL_ROLE_PACK_SEMANTIC_VERSION = GATE3_ROLE_PACK_V1_VERSION
+NDFL_ROLE_PACK_SEMANTIC_VERSION = GATE3_ROLE_PACK_CURRENT_VERSION
 FACTORY_REQUIRED = (
     "NdflWorkflowFactory.create is the only NDFL Gate 2 to Gate 3 decision "
     "owner; Gate 3 must receive only document identity and authenticated access"
@@ -190,7 +190,10 @@ class NdflWorkflow:
                 read_enabled=self._read_enabled,
                 model_client=self._model_client,
                 model_id=self._model_id,
-            ).create(document_id=document_id, context=context)
+            ).create(
+                document_id=document_id,
+                context=context,
+            )
         except Gate3RoleLabelingError as exc:
             if exc.code == "gate3_role_canonical_binding_stale":
                 raise NdflWorkflowError(
@@ -221,6 +224,7 @@ class NdflWorkflow:
             )
         document_result = {
             "schema_version": GATE3_CHUNK_BATCH_LABELING_RESULT_SCHEMA_VERSION,
+            "semantic_scope": copy.deepcopy(batch_result.semantic_scope),
             "selected_chunk_ordinals": list(
                 batch_result.selected_chunk_ordinals
             ),

@@ -1,6 +1,7 @@
 ﻿# Broker Reports Gate 3 Financial Label Dictionary v1
 
-Status: `G3.C1_MANAGED_OPENWEBUI_BINDING_ACTIVE`
+Status: `HISTORICAL`; superseded by
+[Gate 3 Financial Label Dictionary v2](./BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v2.md).
 
 Closeout status: `G3.3M_C_COMPLETED`
 
@@ -14,10 +15,10 @@ Date: 2026-08-07
 
 ## Purpose and sole authority
 
-The sole normative owner of current Gate 3 financial-label meaning is the
+The immutable historical owner of Gate 3 v1 financial-label meaning is the
 versioned package resource
 [`gate3_financial_label_dictionary.v1.json`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_label_dictionary.v1.json).
-All loads, drafts, validation, diffs and deterministic model rendering go
+Explicit v1 loads, drafts, validation, diffs and deterministic rendering go
 through
 [`Gate3FinancialLabelDictionaryFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_label_dictionary.py).
 

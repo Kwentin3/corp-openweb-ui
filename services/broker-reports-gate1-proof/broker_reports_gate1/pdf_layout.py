@@ -27,7 +27,7 @@ class PdfLayoutParserConfig:
     max_words_per_page: int = 10_000
     max_lines_per_page: int = 2_000
     max_vector_objects_per_page: int = 5_000
-    max_inventory_objects_per_document: int = 75_000
+    max_inventory_objects_per_document: int = 400_000
     max_table_candidates_per_page: int = 20
     max_table_detection_words_per_page: int = 5_000
     max_table_detection_vector_objects_per_page: int = 5_000
@@ -103,7 +103,12 @@ class PdfPlumberLayoutAdapter:
         self.config = config
         self.requested_capability = requested_capability
 
-    def parse(self, content_bytes: bytes) -> PdfLayoutParseResult:
+    def parse(
+        self,
+        content_bytes: bytes,
+        *,
+        table_locator_pages: list[dict[str, Any]] | None = None,
+    ) -> PdfLayoutParseResult:
         if not content_bytes.startswith(b"%PDF-"):
             return self._terminal_result("blocked", ["pdf_layout_header_missing"])
         if len(content_bytes) > self.config.max_document_bytes:
@@ -147,8 +152,19 @@ class PdfPlumberLayoutAdapter:
                 return self._terminal_result(
                     "partial", ["pdf_layout_page_budget_exceeded"]
                 )
+            locator_by_page = {
+                int(item.get("page_number") or 0): item
+                for item in table_locator_pages or []
+                if isinstance(item, dict)
+            }
+            locator_mode = table_locator_pages is not None
             for page_number, page in enumerate(pdf.pages, start=1):
-                page_result = self._parse_page(page=page, page_number=page_number)
+                page_result = self._parse_page(
+                    page=page,
+                    page_number=page_number,
+                    locator_page=locator_by_page.get(page_number),
+                    locator_mode=locator_mode,
+                )
                 page.close()
                 page_inventory_objects_total = sum(
                     len(page_result.get(key) or [])
@@ -266,7 +282,14 @@ class PdfPlumberLayoutAdapter:
             },
         )
 
-    def _parse_page(self, *, page: Any, page_number: int) -> dict[str, Any]:
+    def _parse_page(
+        self,
+        *,
+        page: Any,
+        page_number: int,
+        locator_page: dict[str, Any] | None = None,
+        locator_mode: bool = False,
+    ) -> dict[str, Any]:
         started = time.monotonic()
         layout_reasons: list[str] = []
         table_reason_codes: list[str] = []
@@ -338,15 +361,25 @@ class PdfPlumberLayoutAdapter:
                     "pdf_table_detection_preflight_budget_exceeded"
                 )
             else:
-                try:
-                    table_candidates, table_reason_codes = self._find_table_candidates(
-                        page=page,
-                        words=words,
-                        vector_lines=vector_lines,
-                        rects=rects,
-                    )
-                except Exception:
-                    table_reason_codes.append("pdf_table_candidate_detection_failed")
+                if locator_mode and (
+                    locator_page is None or locator_page.get("status") == "failed"
+                ):
+                    table_reason_codes.append("pdf_table_locator_page_failed")
+                else:
+                    try:
+                        table_candidates, table_reason_codes = self._find_table_candidates(
+                            page=page,
+                            words=words,
+                            vector_lines=vector_lines,
+                            rects=rects,
+                            locator_regions=(
+                                list(locator_page.get("regions") or [])
+                                if locator_mode and locator_page is not None
+                                else None
+                            ),
+                        )
+                    except Exception:
+                        table_reason_codes.append("pdf_table_candidate_detection_failed")
         if len(table_candidates) > self.config.max_table_candidates_per_page:
             table_candidates = []
             table_reason_codes.append("pdf_table_candidate_budget_exceeded")
@@ -394,9 +427,44 @@ class PdfPlumberLayoutAdapter:
             "elapsed_milliseconds": elapsed_ms,
             "page_rendering_used_for_extraction": False,
             "ocr_vlm_used": False,
+            "table_locator_mode": locator_mode,
+            "table_locator_status": (
+                str(locator_page.get("status") or "missing")
+                if locator_mode and locator_page is not None
+                else ("missing" if locator_mode else "not_requested")
+            ),
+            "table_locator_regions_total": (
+                len(locator_page.get("regions") or [])
+                if locator_mode and locator_page is not None
+                else 0
+            ),
         }
 
     def _find_table_candidates(
+        self,
+        *,
+        page: Any,
+        words: list[dict[str, Any]],
+        vector_lines: list[dict[str, Any]],
+        rects: list[dict[str, Any]],
+        locator_regions: list[dict[str, Any]] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        if locator_regions is not None:
+            return self._find_locator_scoped_table_candidates(
+                page=page,
+                words=words,
+                vector_lines=vector_lines,
+                rects=rects,
+                locator_regions=locator_regions,
+            )
+        return self._find_unbounded_table_candidates(
+            page=page,
+            words=words,
+            vector_lines=vector_lines,
+            rects=rects,
+        )
+
+    def _find_unbounded_table_candidates(
         self,
         *,
         page: Any,
@@ -487,6 +555,94 @@ class PdfPlumberLayoutAdapter:
                 continue
             accepted.append(candidate)
         return accepted, sorted(set(reasons))
+
+    def _find_locator_scoped_table_candidates(
+        self,
+        *,
+        page: Any,
+        words: list[dict[str, Any]],
+        vector_lines: list[dict[str, Any]],
+        rects: list[dict[str, Any]],
+        locator_regions: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        page_bbox = [_number(value) for value in list(page.bbox)]
+        selected: list[dict[str, Any]] = []
+        reasons: list[str] = []
+        locator_bboxes: list[list[float]] = []
+        for ordinal, region in enumerate(locator_regions, 1):
+            bbox = (
+                list(region.get("bbox_pdf_points") or [])
+                if isinstance(region, dict)
+                else []
+            )
+            if (
+                len(bbox) != 4
+                or any(not isinstance(value, (int, float)) for value in bbox)
+                or bbox[0] >= bbox[2]
+                or bbox[1] >= bbox[3]
+                or bbox[0] < page_bbox[0]
+                or bbox[1] < page_bbox[1]
+                or bbox[2] > page_bbox[2]
+                or bbox[3] > page_bbox[3]
+                or any(_bbox_overlap(bbox, other) for other in locator_bboxes)
+            ):
+                reasons.append("pdf_table_locator_region_invalid_failed")
+                continue
+            locator_bboxes.append([_number(value) for value in bbox])
+            region_words = [
+                word
+                for word in words
+                if _bbox_center_inside(word.get("bbox") or [], bbox)
+            ]
+            region_lines = [
+                line
+                for line in vector_lines
+                if _bbox_overlap(line.get("bbox") or [], bbox)
+            ]
+            region_rects = [
+                rect
+                for rect in rects
+                if _bbox_overlap(rect.get("bbox") or [], bbox)
+            ]
+            try:
+                crop = page.crop(tuple(bbox), strict=False)
+                candidates, region_reasons = self._find_unbounded_table_candidates(
+                    page=crop,
+                    words=region_words,
+                    vector_lines=region_lines,
+                    rects=region_rects,
+                )
+            except Exception:
+                reasons.append("pdf_table_locator_region_native_extraction_failed")
+                continue
+            reasons.extend(region_reasons)
+            if len(candidates) != 1:
+                reasons.append(
+                    "pdf_table_locator_region_native_table_not_found_failed"
+                    if not candidates
+                    else "pdf_table_locator_region_native_table_ambiguous_failed"
+                )
+                continue
+            candidate = candidates[0]
+            candidate["locator_region_ref"] = str(
+                region.get("region_ref") or f"locator_region_{ordinal}"
+            )
+            candidate["locator_bbox_pdf_points"] = [
+                round(_number(value), 6) for value in bbox
+            ]
+            candidate["locator_scope_status"] = "source_bound"
+            candidate["model_values_used_as_source_literals"] = False
+            candidate["pdfplumber_settings_selected_by_model"] = False
+            candidate["reconstruction_reason_codes"] = sorted(
+                {
+                    *candidate.get("reconstruction_reason_codes", []),
+                    "vlm_region_pdfplumber_structure_source_literals",
+                }
+            )
+            selected.append(candidate)
+        if any(reason.endswith("_failed") for reason in reasons):
+            return [], sorted(set(reasons))
+        return selected, sorted(set(reasons))
 
     def _provided_capabilities(self) -> list[str]:
         ordered = ["layout_words", "layout_lines", "table_candidates"]

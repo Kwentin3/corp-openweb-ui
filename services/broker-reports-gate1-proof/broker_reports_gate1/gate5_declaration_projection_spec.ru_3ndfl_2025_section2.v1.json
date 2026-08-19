@@ -1,0 +1,195 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_projection_spec_v1",
+  "projection_id": "ru-3ndfl-2025-section2-securities-income-group-proof",
+  "projection_version": "2026.0-proof",
+  "status": "inactive_evidence_bound_definition",
+  "declaration": {
+    "jurisdiction": "RU",
+    "tax_period": "2025",
+    "form": "3-NDFL",
+    "knd": "1151020",
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "electronic_format_version": "5.20",
+    "xsd": "NO_NDFL3_1_033_00_05_20_01.xsd"
+  },
+  "input_contract": {
+    "schema_version": "broker_reports_gate5_income_group_tax_base_model_v0",
+    "model_kind": "stable_income_group_tax_base",
+    "income_group_semantic": "resident_securities_and_derivatives_non_iis",
+    "concepts": [
+      {
+        "concept": "income_group_semantic",
+        "value_kind": "stable_enum"
+      },
+      {
+        "concept": "total_income",
+        "value_kind": "money"
+      },
+      {
+        "concept": "non_taxable_income",
+        "value_kind": "money"
+      },
+      {
+        "concept": "taxable_income",
+        "value_kind": "money"
+      },
+      {
+        "concept": "tax_deductions",
+        "value_kind": "money"
+      },
+      {
+        "concept": "accepted_expenses",
+        "value_kind": "money"
+      },
+      {
+        "concept": "tax_base",
+        "value_kind": "money"
+      }
+    ]
+  },
+  "target": {
+    "path": "Файл/Документ/НДФЛ3/НалБаза",
+    "root_node_id": "section2_tax_base",
+    "nodes": [
+      {
+        "node_id": "section2_tax_base",
+        "parent_node_id": null,
+        "path": "Файл/Документ/НДФЛ3/НалБаза",
+        "element": "НалБаза",
+        "min_occurs": 1,
+        "max_occurs": 1
+      },
+      {
+        "node_id": "section2_calculation",
+        "parent_node_id": "section2_tax_base",
+        "path": "Файл/Документ/НДФЛ3/НалБаза/РасчНалБаза",
+        "element": "РасчНалБаза",
+        "min_occurs": 1,
+        "max_occurs": 1
+      }
+    ]
+  },
+  "mappings": [
+    {
+      "mapping_id": "section2-income-group",
+      "source_concept": "income_group_semantic",
+      "target_node_id": "section2_tax_base",
+      "target_attribute": "ГрупДоход",
+      "target_use": "required",
+      "transform": {
+        "kind": "enum_code",
+        "values": {
+          "resident_securities_and_derivatives_non_iis": "02"
+        }
+      },
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "securities_income_group_02_type_003",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "mapping_id": "section2-total-income",
+      "source_concept": "total_income",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "СумДох",
+      "target_use": "required",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "mapping_id": "section2-non-taxable-income",
+      "source_concept": "non_taxable_income",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "СумДохНеНал",
+      "target_use": "required",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "mapping_id": "section2-taxable-income",
+      "source_concept": "taxable_income",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "СумДохНал",
+      "target_use": "required",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "mapping_id": "section2-tax-deductions",
+      "source_concept": "tax_deductions",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "СумНалВыч",
+      "target_use": "required",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "mapping_id": "section2-accepted-expenses",
+      "source_concept": "accepted_expenses",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "СумРасх",
+      "target_use": "required",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "mapping_id": "section2-tax-base",
+      "source_concept": "tax_base",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "НалБаза",
+      "target_use": "required",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    }
+  ]
+}

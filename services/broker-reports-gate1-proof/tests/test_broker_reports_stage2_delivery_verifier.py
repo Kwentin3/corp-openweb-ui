@@ -193,13 +193,13 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
     def test_gate1_operational_state_requires_supported_table_intake_config(self):
         table_intake_valves = {
             "pdf_table_intake_enabled": True,
-            "pdf_dual_vlm_enabled": True,
-            "pdf_semantic_visual_table_downstream_enabled": True,
+            "pdf_dual_vlm_enabled": False,
+            "pdf_semantic_visual_table_downstream_enabled": False,
             "pdf_semantic_visual_table_migration_policy_version": (
                 "broker_reports_semantic_visual_table_migration_policy_v1"
             ),
             "pdf_semantic_visual_table_accepted_profile_id": (
-                "broker_reports_semantic_visual_numeric_profile_v1"
+                "broker_reports_semantic_visual_financial_profile_v2"
             ),
             "pdf_table_intake_provider_profile": "google_gemini",
             "pdf_table_intake_model_id": "models/gemini-3.5-flash",
@@ -242,8 +242,8 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
         self.assertTrue(passed["semantic_header_shadow_disabled"])
         self.assertTrue(passed["fitz_version_match"])
         self.assertTrue(passed["table_intake_enabled"])
-        self.assertTrue(passed["dual_vlm_enabled"])
-        self.assertTrue(passed["semantic_downstream_enabled"])
+        self.assertTrue(passed["dual_vlm_disabled"])
+        self.assertTrue(passed["semantic_downstream_disabled"])
         self.assertTrue(passed["semantic_migration_identity_exact"])
         self.assertTrue(passed["table_intake_provider_configured"])
         self.assertTrue(passed["table_intake_model_configured"])

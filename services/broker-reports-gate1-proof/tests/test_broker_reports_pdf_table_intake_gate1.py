@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-import base64
 import hashlib
 import sys
-import tempfile
-import unittest
 from pathlib import Path
 
 import fitz
@@ -12,44 +9,44 @@ import fitz
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from broker_reports_gate1.artifact_models import ArtifactAccessContext
-from broker_reports_gate1.artifact_retention import build_retention_policy
-from broker_reports_gate1.artifact_store import (
-    ArtifactStoreConfig,
-    ArtifactStoreFactory,
-)
-from broker_reports_gate1.gate2_handoff import persist_gate1_result
-from broker_reports_gate1.inputs import FileInput
-from broker_reports_gate1.normalizer import Gate1Normalizer
-from broker_reports_gate1.pdf_table_intake_runtime import (
-    PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
+from broker_reports_gate1.inputs import FileInput  # noqa: E402
+from broker_reports_gate1.normalizer import Gate1Normalizer  # noqa: E402
+from broker_reports_gate1.pdf_table_intake_runtime import (  # noqa: E402
     PdfTableIntakeConfig,
-    PdfTableIntakeError,
     PdfTableIntakeRuntimeFactory,
-    validate_table_detection_output,
 )
-from broker_reports_gate1.pdf_table_raster import (
-    PdfTableRasterConfig,
-    PdfTableRasterError,
-    PdfTableRasterFactory,
+from broker_reports_gate1.pdf_table_locator import (  # noqa: E402
+    PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
+    PDF_TABLE_LOCATOR_PROMPT,
 )
 
 
-def _single_page_pdf(*, width: float = 100, height: float = 200) -> bytes:
+def _single_page_pdf() -> bytes:
     document = fitz.open()
-    page = document.new_page(width=width, height=height)
-    page.draw_rect(fitz.Rect(20, 40, 80, 160), color=(0, 0, 0), width=1)
-    page.insert_text((25, 60), "A  1  2")
-    page.insert_text((25, 90), "B  3  4")
+    page = document.new_page(width=100, height=120)
+    for x in (10, 40, 70, 90):
+        page.draw_line((x, 25), (x, 95), color=(0, 0, 0), width=1)
+    for y in (25, 50, 75, 95):
+        page.draw_line((10, y), (90, y), color=(0, 0, 0), width=1)
+    page.insert_text((14, 42), "Name")
+    page.insert_text((44, 42), "Qty")
+    page.insert_text((74, 42), "Sum")
+    page.insert_text((14, 67), "AAA")
+    page.insert_text((44, 67), "2")
+    page.insert_text((74, 67), "10")
+    page.insert_text((14, 88), "BBB")
+    page.insert_text((44, 88), "3")
+    page.insert_text((74, 88), "20")
     data = document.tobytes(deflate=True)
     document.close()
     return data
 
 
 class StaticDetectorProvider:
-    def __init__(self, regions: list[list[float]], *, malformed: bool = False) -> None:
-        self.regions = regions
+    def __init__(self, boxes: list[list[int]], *, malformed: bool = False) -> None:
+        self.boxes = boxes
         self.malformed = malformed
+        self.invocations = 0
 
     def qualify(self):
         return {
@@ -77,23 +74,8 @@ class StaticDetectorProvider:
         }
 
     def invoke(self, **kwargs):
-        request_id = kwargs["model_view"]["request_id"]
-        value = {
-            "schema_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-            "request_id": request_id,
-            "table_presence": "present" if self.regions else "absent",
-            "regions": [
-                {
-                    "outer_bbox_normalized": {
-                        "left_x": region[0],
-                        "top_y": region[1],
-                        "right_x": region[2],
-                        "bottom_y": region[3],
-                    }
-                }
-                for region in self.regions
-            ],
-        }
+        self.invocations += 1
+        value = {"tables": [{"box_2d": box} for box in self.boxes]}
         if self.malformed:
             value["semantic_summary"] = "forbidden"
         return {
@@ -114,363 +96,169 @@ class StaticDetectorProvider:
         }
 
 
-class PdfTableDetectionContractTest(unittest.TestCase):
-    def test_detector_output_is_strict_and_order_is_deterministic(self):
-        value = {
-            "schema_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-            "request_id": "request-1",
-            "table_presence": "present",
-            "regions": [
-                {
-                    "outer_bbox_normalized": {
-                        "left_x": 0.5,
-                        "top_y": 0.6,
-                        "right_x": 0.9,
-                        "bottom_y": 0.9,
-                    }
-                },
-                {
-                    "outer_bbox_normalized": {
-                        "left_x": 0.1,
-                        "top_y": 0.1,
-                        "right_x": 0.4,
-                        "bottom_y": 0.3,
-                    }
-                },
-            ],
-        }
-        self.assertEqual(
-            [[0.1, 0.1, 0.4, 0.3], [0.5, 0.6, 0.9, 0.9]],
-            validate_table_detection_output(
-                value, request_id="request-1", maximum_candidates=8
-            ),
-        )
-
-    def test_detector_request_requires_outer_boundary_not_data_only_box(self):
-        model_view = (
-            PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
-            .create_with_provider(StaticDetectorProvider([]))
-            ._model_view(request_id="request-1", page_number=1)
-        )
-        instructions = " ".join(model_view["instructions"])
-        self.assertIn("OUTER boundary", instructions)
-        self.assertIn("leftmost row label or first column", instructions)
-        self.assertIn("complete visible continuation", instructions)
-        self.assertIn("padding is only a safety margin", instructions)
-        self.assertEqual(
-            "named_fields_not_positional_array",
-            model_view["coordinate_contract"]["representation"],
-        )
-
-    def test_detector_rejects_semantics_uncertainty_and_ambiguous_regions(self):
-        base = {
-            "schema_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-            "request_id": "request-1",
-            "table_presence": "present",
-            "regions": [
-                {
-                    "outer_bbox_normalized": {
-                        "left_x": 0.1,
-                        "top_y": 0.1,
-                        "right_x": 0.8,
-                        "bottom_y": 0.8,
-                    }
-                }
-            ],
-        }
-        with self.assertRaisesRegex(
-            PdfTableIntakeError, "pdf_table_detector_output_shape_invalid"
-        ):
-            validate_table_detection_output(
-                {**base, "rows": []}, request_id="request-1", maximum_candidates=8
-            )
-        with self.assertRaisesRegex(
-            PdfTableIntakeError, "pdf_table_detector_boundary_uncertain"
-        ):
-            validate_table_detection_output(
-                {**base, "table_presence": "uncertain", "regions": []},
-                request_id="request-1",
-                maximum_candidates=8,
-            )
-        with self.assertRaisesRegex(
-            PdfTableIntakeError, "pdf_table_detector_regions_ambiguous"
-        ):
-            validate_table_detection_output(
-                {
-                    **base,
-                    "regions": [
-                        {
-                            "outer_bbox_normalized": {
-                                "left_x": 0.1,
-                                "top_y": 0.1,
-                                "right_x": 0.8,
-                                "bottom_y": 0.8,
-                            }
-                        },
-                        {
-                            "outer_bbox_normalized": {
-                                "left_x": 0.11,
-                                "top_y": 0.11,
-                                "right_x": 0.79,
-                                "bottom_y": 0.79,
-                            }
-                        },
-                    ],
-                },
-                request_id="request-1",
-                maximum_candidates=8,
-            )
-
-    def test_detector_rejects_legacy_positional_bbox_array(self):
-        value = {
-            "schema_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-            "request_id": "request-1",
-            "table_presence": "present",
-            "regions": [{"bbox_normalized": [0.1, 0.2, 0.8, 0.9]}],
-        }
-        with self.assertRaisesRegex(
-            PdfTableIntakeError, "pdf_table_detector_region_shape_invalid"
-        ):
-            validate_table_detection_output(
-                value, request_id="request-1", maximum_candidates=8
-            )
-
-
-class PdfTableRasterCandidateTest(unittest.TestCase):
-    def test_canonical_table_region_is_exact_clamped_and_repeatable(self):
-        pdf_bytes = _single_page_pdf()
-        pdf_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
-        renderer = PdfTableRasterFactory().create()
-        kwargs = {
-            "pdf_bytes": pdf_bytes,
-            "pdf_sha256": pdf_sha256,
-            "document_ref": "doc-1",
-            "page_number": 1,
-            "candidate_ref": "candidate-1",
-            "detected_bbox_normalized": [0.2, 0.2, 0.8, 0.8],
-            "detector_contract_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-            "detector_identity": {"model": "test"},
-        }
-        first = renderer.render_detected_region(**kwargs)
-        second = renderer.render_detected_region(**kwargs)
-        manifest = first["manifest"]
-        self.assertEqual(
-            [20.0, 40.0, 80.0, 160.0],
-            manifest["table_region"]["source_candidate_bbox"],
-        )
-        self.assertEqual([18.0, 38.0, 82.0, 162.0], manifest["rendered_bbox"])
-        self.assertEqual("CROP_CLEAN", manifest["table_region"]["status"])
-        self.assertEqual("canonical_table_region", manifest["padding_basis"])
-        self.assertFalse(manifest["legacy_padding_configuration"]["applied"])
-        self.assertEqual(first, second)
-        self.assertEqual(
-            manifest["png_sha256"],
-            hashlib.sha256(base64.b64decode(first["private_png_base64"])).hexdigest(),
-        )
-
-        edge = renderer.render_detected_region(
-            **{**kwargs, "detected_bbox_normalized": [0.01, 0.01, 0.4, 0.4]}
-        )
-        self.assertEqual([0.0, 0.0, 58.800999, 82.0], edge["manifest"]["rendered_bbox"])
-
-    def test_legacy_padding_config_is_not_applied_and_invalid_config_fails_closed(self):
-        pdf_bytes = _single_page_pdf()
-        renderer = PdfTableRasterFactory(
-            PdfTableRasterConfig(
-                horizontal_padding_fraction=0.08,
-                vertical_padding_fraction=0.04,
-            )
-        ).create()
-        rendered = renderer.render_detected_region(
-            pdf_bytes=pdf_bytes,
-            pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
-            document_ref="doc-1",
-            page_number=1,
-            candidate_ref="candidate-1",
-            detected_bbox_normalized=[0.2, 0.2, 0.8, 0.8],
-            detector_contract_version=PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-            detector_identity={"model": "test"},
-        )
-        self.assertEqual(
-            [18.0, 38.0, 82.0, 162.0], rendered["manifest"]["rendered_bbox"]
-        )
-        self.assertEqual(
-            {"horizontal_fraction": 0.08, "vertical_fraction": 0.04, "applied": False},
-            rendered["manifest"]["legacy_padding_configuration"],
-        )
-        with self.assertRaisesRegex(
-            PdfTableRasterError, "pdf_table_raster_padding_fraction_invalid"
-        ):
-            PdfTableRasterFactory(
-                PdfTableRasterConfig(horizontal_padding_fraction=0.5)
-            ).create()
-
-
-class PdfTableIntakeRuntimeTest(unittest.TestCase):
-    def test_runtime_produces_deterministic_gate2_raster_candidate(self):
-        pdf_bytes = _single_page_pdf()
-        config = PdfTableIntakeConfig(enabled=True)
-        runtime = PdfTableIntakeRuntimeFactory(config).create_with_provider(
-            StaticDetectorProvider([[0.2, 0.2, 0.8, 0.8]])
-        )
-        documents = [
-            {
-                "document_ref": "doc-1",
-                "pdf_bytes": pdf_bytes,
-                "pdf_sha256": hashlib.sha256(pdf_bytes).hexdigest(),
-            }
-        ]
-        first = runtime.run(documents)
-        second = runtime.run(documents)
-        self.assertEqual("completed", first.safe_summary["status"])
-        self.assertTrue(first.safe_summary["gate2_boundary_ready"])
-        self.assertEqual(1, first.safe_summary["candidates_total"])
-        self.assertFalse(first.safe_summary["rows_columns_cells_inferred"])
-        self.assertFalse(first.safe_summary["financial_semantics_inferred"])
-        self.assertEqual(first.private_candidates, second.private_candidates)
-        self.assertEqual(
-            "gate2_raster_candidate",
-            first.private_candidates[0]["manifest"]["downstream_contract"],
-        )
-
-    def test_invalid_detector_terminal_has_no_success_candidate(self):
-        pdf_bytes = _single_page_pdf()
-        runtime = PdfTableIntakeRuntimeFactory(
-            PdfTableIntakeConfig(enabled=True)
-        ).create_with_provider(
-            StaticDetectorProvider([[0.2, 0.2, 0.8, 0.8]], malformed=True)
-        )
-        result = runtime.run(
+def _run_intake(provider: StaticDetectorProvider):
+    pdf_bytes = _single_page_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    result = (
+        PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
+        .create_with_provider(provider)
+        .run(
             [
                 {
-                    "document_ref": "doc-1",
+                    "document_ref": "pdfsource_test",
                     "pdf_bytes": pdf_bytes,
-                    "pdf_sha256": hashlib.sha256(pdf_bytes).hexdigest(),
+                    "pdf_sha256": digest,
                 }
             ]
         )
-        self.assertEqual("failed", result.safe_summary["status"])
-        self.assertFalse(result.safe_summary["gate2_boundary_ready"])
-        self.assertEqual([], result.private_candidates)
-        self.assertEqual([], result.private_detection_attempts)
-        self.assertEqual(
-            "pdf_table_detector_output_shape_invalid",
-            result.safe_summary["failed_pages"][0]["failure_code"],
-        )
-
-    def test_candidate_is_persisted_and_exposed_in_gate2_handoff(self):
-        pdf_bytes = _single_page_pdf()
-        pdf_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
-        result = Gate1Normalizer().normalize(
-            [
-                FileInput(
-                    private_ref="file-1",
-                    original_filename_private="table.pdf",
-                    mime_type="application/pdf",
-                    source_kind="unit_test",
-                    declared_size_bytes=len(pdf_bytes),
-                    bytes_provider=lambda: pdf_bytes,
-                    provider_label="unit_test",
-                )
-            ],
-            entrypoint="unit_test",
-            trigger_type="unit_test",
-        )
-        intake = (
-            PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
-            .create_with_provider(StaticDetectorProvider([[0.2, 0.2, 0.8, 0.8]]))
-            .run(
-                [
-                    {
-                        "document_ref": result.package["document_inventory"][
-                            "documents"
-                        ][0]["document_id"],
-                        "pdf_bytes": pdf_bytes,
-                        "pdf_sha256": pdf_sha256,
-                    }
-                ]
-            )
-        )
-        result.package["pdf_table_intake"] = intake.safe_summary
-        result.package["private_pdf_table_candidates"] = intake.private_candidates
-        result.package["private_pdf_table_detection_attempts"] = (
-            intake.private_detection_attempts
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            store = ArtifactStoreFactory(
-                ArtifactStoreConfig(
-                    mode="sqlite",
-                    sqlite_path=root / "artifacts.sqlite3",
-                    payload_root=root / "payloads",
-                )
-            ).create()
-            context = ArtifactAccessContext(
-                user_id="user-1",
-                normalization_run_id=result.package["normalization_run"]["run_id"],
-                case_id="case-1",
-                chat_id="chat-1",
-                workspace_model_id="broker_reports_gate1_pipe",
-                allow_private=True,
-            )
-            manifest = persist_gate1_result(
-                store=store,
-                result=result,
-                context=context,
-                retention_policy=build_retention_policy(
-                    mode="api_smoke", explicit=True, ttl_seconds=3600
-                ),
-                source_file_refs=[
-                    {
-                        "provider": "unit_test",
-                        "openwebui_file_id": "file-1",
-                        "content_type": "application/pdf",
-                        "size_bytes": len(pdf_bytes),
-                    }
-                ],
-            )
-            self.assertEqual(1, len(manifest.pdf_table_candidate_refs))
-            self.assertEqual(1, len(manifest.pdf_table_detection_attempt_refs))
-            candidate_record = store.get_record_unchecked(
-                manifest.pdf_table_candidate_refs[0]
-            )
-            self.assertIsNotNone(candidate_record)
-            candidate = store.read_payload(candidate_record)
-            self.assertEqual(
-                candidate["manifest"]["png_sha256"],
-                hashlib.sha256(
-                    base64.b64decode(candidate["private_png_base64"])
-                ).hexdigest(),
-            )
-            handoff_record = store.get_record_unchecked(manifest.gate2_handoff_ref)
-            self.assertIsNotNone(handoff_record)
-            handoff = store.read_payload(handoff_record)
-            self.assertTrue(
-                handoff["pdf_table_intake_contract"]["gate2_boundary_ready"]
-            )
-            self.assertEqual(
-                manifest.pdf_table_candidate_refs,
-                handoff["pdf_table_candidate_refs"],
-            )
+    )
+    return pdf_bytes, digest, result
 
 
-class PdfTableIntakeFactoryBoundaryTest(unittest.TestCase):
-    def test_pipe_and_bundle_builder_use_maintained_factory_path(self):
-        pipe_source = (
-            ROOT / "openwebui_actions" / "broker_reports_gate1_pipe.py"
-        ).read_text(encoding="utf-8")
-        runtime_source = (
-            ROOT / "broker_reports_gate1" / "pdf_table_intake_runtime.py"
-        ).read_text(encoding="utf-8")
-        bundle_builder = (
-            ROOT / "scripts" / "build_openwebui_pipe_bundle.py"
-        ).read_text(encoding="utf-8")
-        self.assertIn("PdfTableIntakeRuntimeFactory(config)", pipe_source)
-        self.assertNotIn("GeminiGridExperimentAdapter(", pipe_source)
-        self.assertIn("FACTORY_REQUIRED", runtime_source)
-        self.assertIn("FORBIDDEN", runtime_source)
-        self.assertIn('"pdf_table_intake_runtime"', bundle_builder)
+def test_locator_prompt_is_native_coordinates_and_locator_only() -> None:
+    model_view = (
+        PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
+        .create_with_provider(StaticDetectorProvider([]))
+        ._model_view(request_id="request-1", page_number=1)
+    )
+    assert model_view["task"] == PDF_TABLE_LOCATOR_PROMPT
+    assert "[ymin, xmin, ymax, xmax]" in model_view["task"]
+    assert "Never use one box that encloses two distinct grids" in model_view["task"]
+    assert "Do not transcribe text" in model_view["task"]
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_runtime_returns_pdf_regions_without_vlm_transcription_crops() -> None:
+    provider = StaticDetectorProvider([[150, 100, 850, 900]])
+    _, digest, result = _run_intake(provider)
+
+    assert provider.invocations == 1
+    assert result.safe_summary["status"] == "completed"
+    assert result.safe_summary["candidates_total"] == 1
+    assert result.safe_summary["rows_columns_cells_inferred"] is False
+    assert result.private_candidates == []
+    assert len(result.private_page_results) == 1
+    page = result.private_page_results[0]
+    assert page["status"] == "located"
+    assert page["pdf_sha256"] == digest
+    assert len(page["regions"]) == 1
+    assert page["regions"][0]["box_2d_normalized"] == [150, 100, 850, 900]
+    assert page["model_values_used_as_source_literals"] is False
+    assert page["pdfplumber_settings_selected_by_model"] is False
+
+
+def test_absent_table_page_is_a_valid_negative() -> None:
+    _, _, result = _run_intake(StaticDetectorProvider([]))
+
+    assert result.safe_summary["status"] == "completed"
+    assert result.safe_summary["candidates_total"] == 0
+    assert result.private_page_results[0]["status"] == "located_no_tables"
+    assert result.private_page_results[0]["regions"] == []
+
+
+def test_invalid_locator_output_fails_closed_without_partial_region() -> None:
+    _, _, result = _run_intake(
+        StaticDetectorProvider([[150, 100, 850, 900]], malformed=True)
+    )
+
+    assert result.safe_summary["status"] == "failed"
+    assert result.safe_summary["gate2_boundary_ready"] is False
+    assert result.private_candidates == []
+    assert result.private_page_results[0]["status"] == "failed"
+    assert result.private_detection_attempts[0]["terminal_status"] == "rejected"
+    assert (
+        result.private_detection_attempts[0]["validation_error_code"]
+        == "pdf_table_locator_response_shape_invalid"
+    )
+
+
+def test_normalizer_uses_locator_region_pdfplumber_structure_and_source_literals() -> None:
+    pdf_bytes, digest, intake = _run_intake(
+        StaticDetectorProvider([[180, 80, 820, 920]])
+    )
+    file_input = FileInput(
+        private_ref="file-1",
+        original_filename_private="table.pdf",
+        mime_type="application/pdf",
+        source_kind="unit_test",
+        declared_size_bytes=len(pdf_bytes),
+        bytes_provider=lambda: pdf_bytes,
+        provider_label="unit_test",
+    )
+    normalized = Gate1Normalizer().normalize(
+        [file_input],
+        pdf_table_locator_pages_by_sha256={digest: intake.private_page_results},
+    )
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+
+    assert len(projections) == 1
+    projection = projections[0]
+    assert projection["projection_status"] == "ready"
+    assert projection["validator_status"] == "passed"
+    assert projection["table_origin"] == "vlm_located_pdfplumber_source_bound"
+    assert projection["row_count"] == 3
+    assert projection["column_count"] == 3
+    assert projection["source_value_refs"]
+    assert projection["geometry"]["model_values_used_as_source_literals"] is False
+    assert projection["geometry"]["pdfplumber_settings_selected_by_model"] is False
+    assert not any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        for item in normalized.package["normalization_blockers"]
+    )
+
+
+def test_missing_or_failed_locator_page_blocks_table_normalization() -> None:
+    pdf_bytes = _single_page_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    file_input = FileInput(
+        private_ref="file-1",
+        original_filename_private="table.pdf",
+        mime_type="application/pdf",
+        source_kind="unit_test",
+        declared_size_bytes=len(pdf_bytes),
+        bytes_provider=lambda: pdf_bytes,
+        provider_label="unit_test",
+    )
+    normalized = Gate1Normalizer().normalize(
+        [file_input],
+        pdf_table_locator_pages_by_sha256={
+            digest: [{"page_number": 1, "status": "failed", "regions": []}]
+        },
+    )
+
+    assert not [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        and item.get("blocks_next_gate") is True
+        for item in normalized.package["normalization_blockers"]
+    )
+
+
+def test_coordinate_contract_is_explicitly_recorded() -> None:
+    assert (
+        PDF_TABLE_LOCATOR_COORDINATE_CONTRACT
+        == "gemini_box_2d_ymin_xmin_ymax_xmax_normalized_0_1000"
+    )
+
+
+def test_pipe_and_bundle_builder_use_the_maintained_factory_path() -> None:
+    pipe_source = (ROOT / "openwebui_actions/broker_reports_gate1_pipe.py").read_text(
+        encoding="utf-8"
+    )
+    runtime_source = (
+        ROOT / "broker_reports_gate1/pdf_table_intake_runtime.py"
+    ).read_text(encoding="utf-8")
+    bundle_builder = (ROOT / "scripts/build_openwebui_pipe_bundle.py").read_text(
+        encoding="utf-8"
+    )
+    assert "PdfTableIntakeRuntimeFactory(config)" in pipe_source
+    assert "pdf_table_locator_pages_by_sha256=locator_pages_by_sha256" in pipe_source
+    assert "PdfTableLocatorProjectionFactory" in runtime_source
+    assert '"pdf_table_locator"' in bundle_builder

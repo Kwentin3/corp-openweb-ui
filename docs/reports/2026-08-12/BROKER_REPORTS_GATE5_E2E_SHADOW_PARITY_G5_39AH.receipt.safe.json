@@ -1,0 +1,137 @@
+{
+  "schema_version": "broker_reports_gate5_e2e_shadow_parity_research_receipt_v0",
+  "goal": "G5.39AH",
+  "verified_on": "2026-08-12",
+  "terminal": "E2E_SHADOW_PARITY_PROVEN",
+  "supported_profiles": [
+    "payable_one_allocation"
+  ],
+  "unproven_profiles": [
+    "refund_available",
+    "balanced",
+    "multiple_budget_allocations",
+    "empty_budget_allocations"
+  ],
+  "frozen_control_run": {
+    "legacy_result": {
+      "status": "END_TO_END_FULL_TARGET_XML_VALID",
+      "result_keys": [
+        "receipt",
+        "semantic_input",
+        "status",
+        "xml_bytes"
+      ],
+      "xml_bytes": 1112,
+      "xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a"
+    },
+    "shadow_receipt": {
+      "schema_version": "broker_reports_gate5_e2e_projection_shadow_receipt_v0",
+      "status": "E2E_SHADOW_PARITY_PROVEN",
+      "blockers": [],
+      "profile": {
+        "profile_id": "payable_one_allocation",
+        "proof_boundary": "G5.39AG"
+      },
+      "package_binding": {
+        "resolved_package_sha256": "bb9ffd405cfc5eab18e10083c02fb2c8d16cc20788cc0a9d09387a412ed4f6c3",
+        "legacy_package_sha256": "bb9ffd405cfc5eab18e10083c02fb2c8d16cc20788cc0a9d09387a412ed4f6c3",
+        "shadow_release_package_sha256": "bb9ffd405cfc5eab18e10083c02fb2c8d16cc20788cc0a9d09387a412ed4f6c3",
+        "same_resolved_package": true
+      },
+      "released_value_binding": {
+        "semantic_value_sha256": "83484fd29f261888d4c1fd466672ba52ace4653a46d89ed445ac574a47258090",
+        "release_receipt_sha256": "dad5d89002c00e43a7f9c0acc170c59dc1dfe80c0527fecf79dda32404dcc148",
+        "projection_input_sha256": "c017b54897e76ac863842fefb23fcfd079ead54aa1af7c0263817812d3dec014"
+      },
+      "parity_evidence": {
+        "legacy_mapping_occurrences_total": 49,
+        "shadow_mapping_occurrences_total": 49,
+        "legacy_mapping_projection_sha256": "b683a24528920a1a78a191906fa9946d7ce200c1663ad70ecb0ed927b69eee09",
+        "shadow_mapping_projection_sha256": "b683a24528920a1a78a191906fa9946d7ce200c1663ad70ecb0ed927b69eee09",
+        "legacy_xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a",
+        "shadow_xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a"
+      },
+      "parity": {
+        "mapping_id_target_value_hashes_equal": true,
+        "official_xsd_conformance_equal": true,
+        "xml_binding_equal": true,
+        "xml_bytes_equal": true
+      },
+      "safety": {
+        "legacy_product_authority": true,
+        "shadow_returned_to_user": false,
+        "shadow_persisted": false,
+        "shadow_downloadable": false,
+        "candidate_disposition": "DISCARDED"
+      },
+      "rollback": {
+        "action": "stop_shadow_receipt_sink_invocation",
+        "data_migration_required": false,
+        "tax_replay_required": false
+      },
+      "receipt_sha256": "4e18da07ae4d284d6166251ca327e182acf230416b49849f0fc779658b940121"
+    }
+  },
+  "call_accounting": {
+    "gate4_rebuild_calls": 1,
+    "tax_model_tail_calls": 1,
+    "resolved_package_assemble_calls": 1,
+    "legacy_projection_calls": 1,
+    "consumer_projection_calls": 1,
+    "semantic_runtime_public_compile_calls": 2,
+    "semantic_runtime_compile_explanation": "one legacy semantic compile and one consumer release-candidate compile after the shared Package boundary",
+    "provider_calls": 2,
+    "provider_calls_explanation": "the unchanged Gate 3 labeling calls; shadow adds zero provider calls",
+    "source_helper_calls": 2,
+    "source_helper_calls_explanation": "the unchanged run and validated-Gate-3 boundary checks; the shadow evaluator contains no source read",
+    "shadow_added_gate4_calls": 0,
+    "shadow_added_tax_model_calls": 0,
+    "shadow_added_package_builds": 0,
+    "shadow_added_source_reads": 0,
+    "shadow_added_sql_queries": 0,
+    "shadow_added_provider_calls": 0
+  },
+  "isolation": {
+    "legacy_result_shape_unchanged": true,
+    "legacy_xml_unchanged_on_shadow_success": true,
+    "legacy_xml_unchanged_on_parity_failure": true,
+    "legacy_xml_unchanged_on_profile_not_proven": true,
+    "persisted_artifact_type_multiset_equal_to_legacy_baseline": true,
+    "persisted_artifact_records_total": 26,
+    "persisted_artifact_types_total": 25,
+    "shadow_artifact_types_total": 0,
+    "product_owner_invokes_shadow": false,
+    "product_owner_invokes_consumer_projector": false,
+    "parity_failure_terminal": "E2E_SHADOW_PARITY_FAILED",
+    "unsupported_profile_terminal": "PROFILE_NOT_PROVEN",
+    "candidate_published_on_failure": false
+  },
+  "implementation": {
+    "existing_e2e_owner_extended": true,
+    "control_mechanism": "optional private receipt sink",
+    "new_service": false,
+    "new_projection_engine": false,
+    "new_registry_or_framework": false,
+    "new_persistence_artifact": false,
+    "new_product_feature_flag": false,
+    "gate1_bundle_sha256": "348266f250fa19fb86270f14cad060ecd1a65916d01508aa279d679839ae899d"
+  },
+  "replay": {
+    "focused_ah": "4 passed",
+    "focused_legacy_ag_ah": "20 passed",
+    "targeted_bundle_and_projection": "25 passed, 5 warnings",
+    "all_gate5": "411 passed",
+    "product_persistence_download_acl_bundle_architecture": "96 passed, 6 warnings",
+    "ruff": "passed"
+  },
+  "scope_stop": {
+    "legacy_authority": true,
+    "product_activation": false,
+    "persistence_change": false,
+    "cutover": false,
+    "g5_39ai_started": false,
+    "commit": false,
+    "push": false,
+    "pull_request": false
+  }
+}

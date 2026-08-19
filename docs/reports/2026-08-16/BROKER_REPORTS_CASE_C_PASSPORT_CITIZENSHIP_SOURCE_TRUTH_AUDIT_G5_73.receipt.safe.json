@@ -1,0 +1,28 @@
+{
+  "schema_version": "broker_reports_g573_safe_receipt_v1",
+  "goal": "G5.73",
+  "date": "2026-08-16",
+  "mode": "AUDIT_ONLY",
+  "verdict": "CASE_C_GEMINI_CITIZENSHIP_SEMANTIC_ERROR_PROVEN",
+  "oracle_changed": false,
+  "markdown_faithful": true,
+  "g572_requalified_without_model_rerun": true,
+  "g572_result_changed": false,
+  "gemini_exact_cases": 2,
+  "gemini_total_cases": 3,
+  "strong_exact_cases": 2,
+  "strong_total_cases": 3,
+  "provider_calls": 0,
+  "model_reruns": 0,
+  "prompt_changes": 0,
+  "contract_changes": 0,
+  "pipeline_changes": 0,
+  "financial_runs": 0,
+  "financial_code_changes": 0,
+  "product_activation": 0,
+  "private_bundle": "../corp-openweb-ui-private-evidence/g573-case-c-citizenship-audit-2026-08-16",
+  "terminal": [
+    "CASE_C_GEMINI_CITIZENSHIP_SEMANTIC_ERROR_PROVEN",
+    "G5_72_CLASSIFIER_RESULT_REQUALIFIED_WITHOUT_MODEL_RERUN"
+  ]
+}

@@ -35,9 +35,38 @@ GATE2_DOMAIN_BUNDLE_PATH = (
 BUNDLE_ADAPTER_MARKER = "# Begin maintainable source adapter:"
 GATE1_RESOURCE_NAMES = (
     "gate3_financial_label_dictionary.v1.json",
+    "gate3_financial_label_dictionary.v2.json",
+    "gate3_financial_label_dictionary.v2_0_1.json",
+    "gate3_financial_label_dictionary.v2_1.json",
     "gate3_financial_role_pack.v1.json",
+    "gate3_financial_role_pack.v2.json",
+    "gate3_financial_role_pack.v3.json",
+    "gate3_financial_role_pack.v3_1.json",
     "gate3_labeling_response.v1.schema.json",
+    "gate3_predeclared_assertion_labeling_response.v1.schema.json",
     "gate3_role_labeling_response.v1.schema.json",
+    "gate5_declaration_projection_evidence.ru_3ndfl_2025_appendix8.v0.json",
+    "gate5_declaration_projection_evidence.ru_3ndfl_2025_section2.v1.json",
+    "gate5_declaration_projection_spec.ru_3ndfl_2025_appendix8.v0.json",
+    "gate5_declaration_projection_spec.ru_3ndfl_2025_section2.v1.json",
+    "gate5_full_declaration_definition_authoring.primary.v1.payload.json",
+    "gate5_full_declaration_definition_candidate.g528b.json",
+    "gate5_full_declaration_definition_review.g528b.json",
+    "gate5_full_declaration_obligations.ru_3ndfl_2025.v1.json",
+    "gate5_consumer_first_xml_projection.ru_3ndfl_2025.v0.json",
+    "gate5_full_target_xml_projection.ru_3ndfl_2025.v0.json",
+    "gate5_full_target_xml_schema.NO_NDFL3_1_033_00_05_20_01.xsd.b64",
+    "gate5_openwebui_product_definition.v0.json",
+    "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v1.json",
+    "gate5_tax_methodology.ru_3ndfl_2025_income_group_settlement.v0.json",
+    "gate5_tax_methodology.ru_3ndfl_2025_income_group_settlement.v1.json",
+    "gate5_tax_methodology.ru_ndfl_securities_income_group_tax_base_proof.v0.json",
+    "gate5_tax_methodology.ru_ndfl_securities_operation_tax_model_proof.v0.json",
+    "gate5_tax_methodology.ru_ndfl_securities_proof.v0.json",
+    "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v0.json",
+    "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v1.json",
+    "gate5_tax_methodology.ru_ndfl_securities_source_fact_consumption_proof.v0.json",
+    "gate5_tax_methodology.ru_ndfl_securities_tax_model_proof.v0.json",
 )
 
 MODULE_ORDER = [
@@ -151,6 +180,7 @@ GATE1_HYBRID_MODULES = [
     "pdf_vlm_product_routing",
     "pdf_vlm_region_binding",
     "pdf_grid_experiment_provider",
+    "pdf_table_locator",
     "pdf_table_intake_runtime",
     "pdf_dual_vlm_canonical_table_contracts",
     "pdf_dual_vlm_legacy_decision_contracts",
@@ -177,6 +207,7 @@ GATE1_MODULE_ORDER = [
 GATE1_NDFL_GATE3_MODULES = [
     "gate3_financial_label_dictionary",
     "gate3_financial_role_pack",
+    "gate3_evidence_demand_port",
     "gate3_projection",
     "gate3_structural_chunking",
     "gate3_bounded_labeling",
@@ -188,6 +219,35 @@ GATE1_NDFL_GATE3_MODULES = [
     "gate4_financial_case_cache",
     "gate3_ndfl_workflow",
 ]
+GATE1_GATE5_MODULES = [
+    "gate5_evidence_demand",
+    "gate5_methodology_selection",
+    "gate5_supplemental_fact",
+    "gate5_combined_requirement_check",
+    "gate5_declaration_filing_context",
+    "declaration_semantics",
+    "gate5_declaration_projection",
+    "gate5_supplemental_fact_discovery",
+    "gate5_methodology_calculation",
+    "gate5_trusted_methodology",
+    "gate5_residency_evidence",
+    "gate5_deterministic_source_fact_consumption",
+    "gate5_securities_disposal_tax_model",
+    "gate5_tax_period_category_aggregation",
+    "gate5_income_group_tax_base",
+    "gate5_declaration_tax_settlement",
+    "gate5_declaration_budget_outcome",
+    "gate5_declaration_financial_investment_results",
+    "gate5_declaration_income_sources",
+    "gate5_full_declaration_definition",
+    "gate5_real_tax_case_assembly",
+    "gate5_declaration_scope_resolution",
+    "gate5_resolved_declaration_package",
+    "gate5_declaration_semantic_input",
+    "gate5_full_target_xml_projection",
+    "gate5_end_to_end_full_target_xml",
+    "gate5_openwebui_product",
+]
 _GATE1_NDFL_GATE3_INSERT_AT = GATE1_MODULE_ORDER.index(
     "gate3_context_manifest"
 ) + 1
@@ -195,6 +255,12 @@ GATE1_MODULE_ORDER = [
     *GATE1_MODULE_ORDER[:_GATE1_NDFL_GATE3_INSERT_AT],
     *GATE1_NDFL_GATE3_MODULES,
     *GATE1_MODULE_ORDER[_GATE1_NDFL_GATE3_INSERT_AT:],
+]
+_GATE1_GATE5_INSERT_AT = GATE1_MODULE_ORDER.index("normalizer") + 1
+GATE1_MODULE_ORDER = [
+    *GATE1_MODULE_ORDER[:_GATE1_GATE5_INSERT_AT],
+    *GATE1_GATE5_MODULES,
+    *GATE1_MODULE_ORDER[_GATE1_GATE5_INSERT_AT:],
 ]
 GATE2_ONLY_MODULES = ["gate2_chat_dcp_resolution"]
 GATE2_MODULE_ORDER = [
@@ -264,6 +330,7 @@ def main() -> None:
             set(MODULE_ORDER)
             | set(GATE1_HYBRID_MODULES)
             | set(GATE1_NDFL_GATE3_MODULES)
+            | set(GATE1_GATE5_MODULES)
             | set(GATE2_ONLY_MODULES)
             | set(GATE2_FINANCIAL_MODULES)
             | set(GATE2_SUCCESSOR_MODULES)
@@ -288,10 +355,10 @@ def main() -> None:
             },
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.30.0-ndfl-gate4-case-v1-bundled",
-            package_version="gate1_ndfl_gate4_case_v1",
+            version="0.37.0-pdf-source-bound-table-v1-bundled",
+            package_version="gate1_pdf_source_bound_table_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
-            requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5",
+            requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1",
         )
         BUNDLE_PATH.write_text(bundle, encoding="utf-8", newline="\n")
         print(str(BUNDLE_PATH))

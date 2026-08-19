@@ -1,0 +1,30 @@
+{
+  "schema_version": "broker_reports_gate5_source_fact_domain_contracts_matrix_safe_v1",
+  "goal": "G5.40C",
+  "status": "SOURCE_FACT_DOMAIN_CONTRACTS_PROVEN",
+  "contains_private_source_values": false,
+  "boundaries": [
+    {"domain": "canonical", "semantic_ceiling": "source_structure", "consumer": "gate3"},
+    {"domain": "gate3", "semantic_ceiling": "source_fact_and_explicit_same_target_context", "consumer": "gate4"},
+    {"domain": "gate4", "semantic_ceiling": "normalized_source_fact", "consumer": "gate5"},
+    {"domain": "gate5", "semantic_ceiling": "published_methodology_and_declaration_projection", "consumer": "declaration_xml"}
+  ],
+  "constructs": [
+    {"id": "canonical_rich_structure", "verdict": "KEEP"},
+    {"id": "transaction_charge", "verdict": "NARROW"},
+    {"id": "commission", "verdict": "KEEP_AS_SOURCE_FACT"},
+    {"id": "commission_total", "verdict": "KEEP_AS_INDEPENDENT_SOURCE_FACT"},
+    {"id": "tax_withheld_detail_total", "verdict": "SPLIT"},
+    {"id": "gate4_semantic_authority", "verdict": "KEEP_AND_VERSION"},
+    {"id": "inferred_purchase_disposal_relation", "verdict": "REMOVE"},
+    {"id": "partial_allocation", "verdict": "UNRESOLVED_METHODOLOGY_GAP"}
+  ],
+  "forbidden_upstream_operations": [
+    "calculate",
+    "reconcile_detail_and_total",
+    "allocate_commission",
+    "infer_hidden_relation",
+    "fifo",
+    "repair_source_value"
+  ]
+}

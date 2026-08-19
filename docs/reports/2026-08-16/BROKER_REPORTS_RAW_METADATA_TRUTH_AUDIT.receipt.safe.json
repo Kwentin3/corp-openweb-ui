@@ -1,0 +1,49 @@
+{
+  "schema_version": "broker_reports_raw_metadata_truth_audit_receipt_safe_v1",
+  "status": "AUDIT_COMPLETE_TWO_DIVERGENCE_OWNERS_LOCALIZED",
+  "cases_total": 3,
+  "cases": [
+    {
+      "case_id": "case_f",
+      "role": "KNOWN_CLIENT_CODE_ACCOUNT_FAILURE",
+      "truth_authority": "VISUAL_HUMAN_TRUTH",
+      "classification": "LLM_SEMANTIC_ERROR",
+      "whole_validator_status": "rejected",
+      "focused_fact_validator_status": "accepted"
+    },
+    {
+      "case_id": "case_c",
+      "role": "CLEAN_SUCCESS_CONTROL",
+      "truth_authority": "VISUAL_HUMAN_TRUTH",
+      "classification": "NO_DIVERGENCE",
+      "whole_validator_status": "validated",
+      "accepted_assertions": 9
+    },
+    {
+      "case_id": "case_b",
+      "role": "BOUNDARY_TWO_COLUMN_METADATA_BLOCK",
+      "truth_authority": "VISUAL_HUMAN_TRUTH",
+      "classification": "CANONICAL_ERROR",
+      "literal_loss": false,
+      "structural_pairing_loss": true,
+      "focused_relations_rejected": 3
+    }
+  ],
+  "model_visible_request_sha256": {
+    "case_f": "2d541f11a4e8eb9193980c8f4de4bacb483584a95d5dbd7d11526bc239278033",
+    "case_c": "c84f02ccb95177634109de8990550a3f2c12b9de5572ef6ad2bc911c4c790048",
+    "case_b": "2d4110c7f8edbe236c6d5b48a289c30735117ec39eff4ad391bdaf154b30f1ad"
+  },
+  "instruction_version": "1.2.0",
+  "private_bundle_files_excluding_manifest": 64,
+  "source_pdf_hashes_match_freeze": true,
+  "source_inputs_unchanged": true,
+  "provider_calls_during_audit": 0,
+  "pipeline_changes": 0,
+  "prompt_changes": 0,
+  "contract_changes": 0,
+  "validator_changes": 0,
+  "private_evidence_committed": false,
+  "product_activation": false,
+  "commit_or_push": false
+}

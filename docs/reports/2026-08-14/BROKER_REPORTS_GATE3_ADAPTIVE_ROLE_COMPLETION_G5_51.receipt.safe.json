@@ -1,0 +1,89 @@
+{
+  "schema": "broker_reports_gate3_adaptive_role_completion_g5_51_safe_receipt_v1",
+  "date": "2026-08-14",
+  "status": "PARTIAL_PROOF_FAIL_CLOSED",
+  "terminals": {
+    "adaptive_context_pipeline_proven": true,
+    "one_real_role_pack_complete_fact_proven": false,
+    "gate3_role_completion_path_proven": false,
+    "role_completion_blocker_localized": "UPSTREAM_DOCUMENT_TO_CANONICAL_PDF_TABLE_PROJECTION/pdf_table_projection_terminal_fallback_text/no_exact_row_or_cell_target_identity"
+  },
+  "selected_target": {
+    "safe_alias": "security_disposal_target_1",
+    "financial_label": "SECURITY_DISPOSAL",
+    "canonical_target_kind": "node",
+    "canonical_node_type": "TEXT",
+    "canonical_target_chars": 1765,
+    "canonical_target_lines": 64,
+    "roles": {
+      "date": "value",
+      "asset": "value",
+      "quantity": "value",
+      "amount": "value",
+      "currency": "missing",
+      "unit_price": "value"
+    },
+    "gate4_status": "role_incomplete"
+  },
+  "adaptive_context": {
+    "document_mode": "structural_blocks",
+    "document_chunks": 2,
+    "selected_chunk_ordinal": 1,
+    "selected_chunk_chars": 51874,
+    "selected_chunk_targets": 27,
+    "role_context_chars": 1870,
+    "bindable_targets": 1,
+    "excluded_chunk_targets": 26,
+    "structural_sources": 0,
+    "context_loss_detected": false
+  },
+  "active_document_inventory": {
+    "documents": 4,
+    "whole_document_mode": 2,
+    "structural_chunk_mode": 2,
+    "large_document_chunk_counts": [
+      4,
+      2
+    ]
+  },
+  "purchase_corroboration": {
+    "g5_48_chunk_chars": 58149,
+    "g5_48_chunk_targets": 40,
+    "incomplete_purchase_targets": 6,
+    "inspected_fallback_text_refs": 58,
+    "inspected_rows": 0,
+    "inspected_cells": 0,
+    "canonical_issue": "pdf_table_projection_terminal_fallback_text",
+    "reason_codes": [
+      "geometry_only_non_semantic_candidate",
+      "ruling_line_grid_detected"
+    ]
+  },
+  "execution": {
+    "live_preflight_terminal": "model_not_published",
+    "provider_submissions": 0,
+    "retries": 0,
+    "repairs": 0,
+    "fallbacks": 0,
+    "store_mutations": 0,
+    "gate4_materializations": 0,
+    "gate5_replays": 0
+  },
+  "verification": {
+    "focused_tests_passed": 86,
+    "focused_tests_failed": 0,
+    "expanded_test_files": 66,
+    "expanded_tests_passed": 716,
+    "expanded_tests_failed": 0,
+    "expanded_test_warnings": 5,
+    "initial_expanded_runner_timeout_seconds": 123,
+    "runtime_files_changed_by_g5_51": 0,
+    "contracts_changed_by_g5_51": 0
+  },
+  "privacy": {
+    "source_literals_published": 0,
+    "customer_values_published": 0,
+    "private_identifiers_published": 0,
+    "private_paths_published": 0
+  }
+}

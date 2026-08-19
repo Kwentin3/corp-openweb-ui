@@ -1,0 +1,95 @@
+{
+  "schema_version": "broker_reports_holdout_generalization_g5_58_receipt_v1",
+  "goal": "G5.58",
+  "terminal": "HOLDOUT_GENERALIZATION_PARTIAL",
+  "financial_terminal": "SOURCE_TO_GATE4_FINANCIAL_GENERALIZATION_PROVEN",
+  "selection_frozen_before_execution": true,
+  "holdouts": 2,
+  "final_execution": {
+    "retry_count": 0,
+    "best_of_n": false,
+    "manual_repair": false,
+    "holdout_specific_semantic_rules": 0,
+    "provider_profile": "google_gemini",
+    "model_id": "models/gemini-3.5-flash",
+    "dictionary_version": "2.0.1",
+    "instruction_version": "1.0.2"
+  },
+  "holdout_a_compact": {
+    "adaptive_mode": "whole_document",
+    "contexts": 1,
+    "maximum_context_chars": 17342,
+    "canonical_tables": 12,
+    "eligible_targets": 755,
+    "provider_submissions": 2,
+    "gate4_status": "CASE_COMPLETE_FOR_CURRENT_INPUT_SET",
+    "gate4_facts": 39,
+    "role_complete_facts": 5,
+    "role_incomplete_due_true_source_absence": 34,
+    "fact_counts": {
+      "COMMISSION": 4,
+      "COMMISSION_TOTAL": 1,
+      "COUPON_INCOME": 2,
+      "DIVIDEND_INCOME": 2,
+      "SECURITY_DISPOSAL": 9,
+      "SECURITY_PURCHASE": 9,
+      "TRANSACTION_CHARGE": 12
+    },
+    "financial_source_present_facts_lost": 0,
+    "invented_facts": 0,
+    "wrong_fact_types": 0,
+    "wrong_role_bindings": 0,
+    "duplicated_source_assertions": 0,
+    "unsupported_relations": 0,
+    "metadata_source_assertions_not_published": 3
+  },
+  "holdout_b_large": {
+    "adaptive_mode": "structural_chunks",
+    "contexts": 54,
+    "maximum_context_chars": 7123,
+    "canonical_tables": 49,
+    "eligible_targets": 10168,
+    "provider_submissions": 59,
+    "gate4_status": "CASE_COMPLETE_FOR_CURRENT_INPUT_SET",
+    "gate4_facts": 129,
+    "role_complete_facts": 129,
+    "fact_counts": {
+      "COMMISSION_TOTAL": 1,
+      "COUPON_INCOME": 12,
+      "DIVIDEND_INCOME": 12,
+      "SECURITY_DISPOSAL": 18,
+      "SECURITY_PURCHASE": 35,
+      "TRANSACTION_CHARGE": 51
+    },
+    "financial_source_present_facts_lost": 0,
+    "invented_facts": 0,
+    "wrong_fact_types": 0,
+    "wrong_role_bindings": 0,
+    "duplicated_source_assertions": 0,
+    "unsupported_relations": 0,
+    "metadata_source_assertions_not_published": 2,
+    "canonical_only_out_of_ontology_rows": 10
+  },
+  "metadata_contract": {
+    "typed_metadata_facts_a": 0,
+    "typed_metadata_facts_b": 0,
+    "general_pipeline_gap_localized": "Gate3MetadataSourceFactRuntime._metadata_facts scans table cells independently and cannot bind an explicitly labelled adjacent label/value row",
+    "tax_meaning_assigned": false
+  },
+  "architecture": {
+    "gate4_provider_calls": 0,
+    "gate5_canonical_reads": 0,
+    "gate5_source_semantic_provider_calls": 0,
+    "projection_changes": 0
+  },
+  "verification": {
+    "targeted_tests_passed": 214,
+    "managed_asset_exact_check": "passed",
+    "pipe_bundle_generation": "passed",
+    "full_suite": "not_terminal_global_timeout",
+    "broad_relevant_63_file_shard": "not_terminal_global_timeout"
+  },
+  "private_evidence_committed": false,
+  "push_pr_activation_performed": false,
+  "next_allowed_goal": "NARROW_METADATA_LABEL_VALUE_ROW_BINDING_PROOF"
+}

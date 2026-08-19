@@ -96,6 +96,25 @@ def raster_requires_review(run_id: str, document_id: str) -> dict:
     )
 
 
+def pdf_table_normalization_incomplete(
+    run_id: str, document_id: str, reason: str
+) -> dict:
+    return make_blocker(
+        run_id=run_id,
+        document_id=document_id,
+        code="pdf_table_normalization_incomplete",
+        severity="error",
+        blocks_next_gate=True,
+        created_by_step="pdf_source_bound_table_normalization",
+        safe_message=(
+            "One or more PDF table pages could not be normalized from parser-owned "
+            "source values and require review."
+        ),
+        review_action="review_pdf_table_page_or_retry_locator",
+        reason=reason,
+    )
+
+
 def zip_requires_review(run_id: str, document_id: str) -> dict:
     return make_blocker(
         run_id=run_id,

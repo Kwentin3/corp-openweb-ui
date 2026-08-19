@@ -150,6 +150,15 @@ def main() -> int:
     document_result["schema_version"] = (
         GATE3_CHUNK_BATCH_LABELING_RESULT_SCHEMA_VERSION
     )
+    document_result["semantic_scope"] = {
+        "publication_mode": "FULL",
+        "document_id": DOCUMENT_ID,
+        "requested_financial_labels": [],
+        "requested_roles": [],
+        "selected_chunk_ordinals": copy.deepcopy(
+            document_result["selected_chunk_ordinals"]
+        ),
+    }
 
     private_root.mkdir(parents=True, exist_ok=True)
     _atomic_write(

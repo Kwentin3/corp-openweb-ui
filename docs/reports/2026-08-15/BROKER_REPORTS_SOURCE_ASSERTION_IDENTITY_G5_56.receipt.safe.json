@@ -1,0 +1,114 @@
+{
+  "schema_version": "broker_reports_g556_source_assertion_identity_receipt_v1",
+  "goal": "G5.56",
+  "status": "PROVEN_WITH_REAL_ROLE_CONFLICT_FAIL_CLOSED",
+  "qualification": {
+    "old_purchase_assertions": 5,
+    "recovered_purchase_assertions": 5,
+    "visible_source_assertions": 5,
+    "exact_canonical_target_overlap": 0,
+    "same_canonical_document_version": true,
+    "visual_audit_agrees_with_deterministic_lineage": true,
+    "production_visual_dependency": false,
+    "financial_values_used_for_identity": false
+  },
+  "pairs": [
+    {
+      "old_alias": "old_purchase_1",
+      "recovered_alias": "recovered_purchase_1",
+      "classification": "SAME_SOURCE_ASSERTION_PROVEN",
+      "canonical_row": 2,
+      "row_owner_sha256_12": "3adb4d88083f",
+      "old_target_kind": "table_cell",
+      "old_target_sha256_12": "c6b1012c50bd",
+      "recovered_target_kind": "table_row",
+      "recovered_target_sha256_12": "ee9215a04f66"
+    },
+    {
+      "old_alias": "old_purchase_2",
+      "recovered_alias": "recovered_purchase_2",
+      "classification": "SAME_SOURCE_ASSERTION_PROVEN",
+      "canonical_row": 3,
+      "row_owner_sha256_12": "50b879552a48",
+      "old_target_kind": "table_cell",
+      "old_target_sha256_12": "0bd00237240c",
+      "recovered_target_kind": "table_row",
+      "recovered_target_sha256_12": "168ace470cad"
+    },
+    {
+      "old_alias": "old_purchase_3",
+      "recovered_alias": "recovered_purchase_3",
+      "classification": "SAME_SOURCE_ASSERTION_PROVEN",
+      "canonical_row": 4,
+      "row_owner_sha256_12": "4dfed161ced5",
+      "old_target_kind": "table_cell",
+      "old_target_sha256_12": "fab8a640758d",
+      "recovered_target_kind": "table_row",
+      "recovered_target_sha256_12": "07a9300f3f98"
+    },
+    {
+      "old_alias": "old_purchase_4",
+      "recovered_alias": "recovered_purchase_4",
+      "classification": "SAME_SOURCE_ASSERTION_PROVEN",
+      "canonical_row": 5,
+      "row_owner_sha256_12": "e968c1c82ab5",
+      "old_target_kind": "table_cell",
+      "old_target_sha256_12": "753ab1987abf",
+      "recovered_target_kind": "table_row",
+      "recovered_target_sha256_12": "04379eac31b0"
+    },
+    {
+      "old_alias": "old_purchase_5",
+      "recovered_alias": "recovered_purchase_5",
+      "classification": "SAME_SOURCE_ASSERTION_PROVEN",
+      "canonical_row": 6,
+      "row_owner_sha256_12": "3c6ed0f91408",
+      "old_target_kind": "table_cell",
+      "old_target_sha256_12": "1a3e4860aee4",
+      "recovered_target_kind": "table_row",
+      "recovered_target_sha256_12": "d172bb504c9c"
+    }
+  ],
+  "role_provenance_comparison": {
+    "same_target_roles_per_pair": [
+      "asset",
+      "date",
+      "quantity",
+      "unit_price"
+    ],
+    "different_target_roles_per_pair": [
+      "amount",
+      "currency"
+    ],
+    "real_recovery_decision": "gate3_annotations_recovery_conflict",
+    "semantic_output_repaired": false
+  },
+  "real_replay": {
+    "provider_calls": 0,
+    "source_store_unchanged": true,
+    "artifact_records_written_by_recovery": 0,
+    "annotations_before": 21,
+    "demand_annotations": 5,
+    "annotations_after": 21,
+    "purchases_after": 5,
+    "unrelated_commission_charge_after": 16,
+    "gate4_document_facts_after": 21,
+    "gate4_status": "CASE_COMPLETE_FOR_CURRENT_INPUT_SET",
+    "gate5_security_facts_after": 48,
+    "gate5_terminals": [
+      "SOURCE_FACT_ASSERTIONS_PRESERVED"
+    ],
+    "stored_financial_event_relations": 0,
+    "deleted_total": 0,
+    "provider_result_sha256": "628d84b56ec361b1a945be093ff7855b3d9c37bab1f523a8e0d7073e31930b46"
+  },
+  "terminals": [
+    "SOURCE_ASSERTION_REFINEMENT_LINEAGE_PROVEN",
+    "CROSS_CANONICAL_ANCHOR_SUPERSESSION_PROVEN",
+    "DUPLICATE_SOURCE_ASSERTION_PUBLICATION_ELIMINATED",
+    "GATE4_GATE5_SOURCE_ASSERTION_COUNT_CORRECT",
+    "REAL_G554_ROLE_BINDING_CONFLICT_FAIL_CLOSED"
+  ],
+  "private_literals_present": false,
+  "private_visual_evidence_retained_outside_git": true
+}

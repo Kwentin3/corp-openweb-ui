@@ -31,7 +31,7 @@ Gate 3
 -> stores a separate immutable FinancialAnnotationsV2 sidecar
 
 Gate 4
--> G4.1 defines one minimal Gate4FinancialCaseFactV1 contract
+-> G4.1 defines one minimal Gate4FinancialCaseFactV2 contract
 -> G4.2 deterministically materializes it and maintains a rebuildable SQL cache
 -> G4.3 assembles all current Gate 3 V2 sidecars into one deterministic case projection
    without deduplication
@@ -111,7 +111,7 @@ The sole role/profile owner is:
 
 ```text
 broker-reports-financial-roles@<version>
-current published identity: broker-reports-financial-roles@1.0.0
+current published identity: broker-reports-financial-roles@3.0.0
 ```
 
 `Gate3FinancialRolePackFactory.create` loads the exact hash-pinned package
@@ -128,7 +128,7 @@ not contain independent role/profile copies.
 | workflow | `broker-reports-ndfl` | owns the exact Gate 2 -> Gate 3 decision |
 | technical base Pipe | `broker_reports_gate1_pipe` | internal OpenWebUI runtime base, not a second product |
 | dictionary | `broker-reports-financial-labels@1.0.0` | one versioned meaning owner |
-| Role Pack | `broker-reports-financial-roles@1.0.0` | one versioned role/profile owner |
+| Role Pack | `broker-reports-financial-roles@3.0.0` | one versioned role/profile owner; 1.0.0 and 2.0.0 remain historical |
 
 ## What Gate 4 may rely on
 
@@ -138,13 +138,19 @@ annotations only as positive known-label claims. For every selected fact it
 may mechanically resolve each role binding to canonical target text or its
 validated literal `exact_text`; it must preserve explicit `missing`.
 
+A validated sidecar may contain role-incomplete facts. A source-invalid role
+binding is rejected at that role boundary and represented only as `missing`;
+its target or literal is not handed off. This does not authorize inference,
+repair or suppression of other independently validated facts. Gate 4 retains
+the existing `role_incomplete` status for any fact missing a required role.
+
 Gate 4 must not reinterpret Gate 3 as tax calculation, infer absence from an
 omitted label, attach annotations A to canonical version B, mutate either
 upstream artifact, bypass the canonical reader, duplicate the financial
 dictionary or reimplement Gate 3 labeling.
 
 The current fact boundary is
-[Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md).
+[Gate 4 Financial Case Fact v2](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.md).
 It reuses the existing OpenWebUI-injected `ArtifactAccessContext` case/chat
 scope, ArtifactStore lifecycle, exact Gate 3 artifact identity and shared
 target grammar. G4.2 implements its ordinary-code materializer and same-store
@@ -171,7 +177,7 @@ Read direct upstream contracts before implementation:
 - [Gate 3 Role Labeling v1](./BROKER_REPORTS_GATE3_ROLE_LABELING.v1.md);
 - [FinancialAnnotationsV2 schema](./BROKER_REPORTS_FINANCIAL_ANNOTATIONS.v2.schema.json);
 - [Financial Label Dictionary v1](./BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v1.md);
-- [Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md).
+- [Gate 4 Financial Case Fact v2](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.md).
 - [Gate 4 SQL Materialization v1](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md).
 - [Gate 4 Case Assembly v1](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md).
 - [Gate 4 -> Gate 5 Handoff v1](./BROKER_REPORTS_GATE4_HANDOFF.v1.md).

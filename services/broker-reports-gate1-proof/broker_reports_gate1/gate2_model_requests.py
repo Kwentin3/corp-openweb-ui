@@ -37,10 +37,10 @@ FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE = (
 FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE = (
     "financial_semantic_v6_context_v2_1_budget_smoke_v1"
 )
-FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = (
-    "financial_context_checksum_v1"
-)
+FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = "financial_context_checksum_v1"
 GATE3_BOUNDED_LABELING_REQUEST_PROFILE = "gate3_bounded_labeling_v1"
+GATE3_LLM_METADATA_REQUEST_PROFILE = "gate3_llm_metadata_v1"
+GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE = "gate5_single_input_hitl_v0"
 FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_context_lint_receipt_v1"
 )
@@ -68,6 +68,8 @@ _SUPPORTED_REQUEST_PROFILES = (
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
     GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
+    GATE3_LLM_METADATA_REQUEST_PROFILE,
+    GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE,
 )
 
 
@@ -123,17 +125,13 @@ class Gate2FinancialSemanticV6ContextLintReceipt:
             "prompt_hash": self.prompt_hash,
             "slim_view_hash": self.slim_view_hash,
             "local_choice_schema_hash": self.local_choice_schema_hash,
-            "alias_receipt_integrity_hash": (
-                self.alias_receipt_integrity_hash
-            ),
+            "alias_receipt_integrity_hash": (self.alias_receipt_integrity_hash),
             "model_visible_request_hash": self.model_visible_request_hash,
             "model_visible_utf8_bytes": self.model_visible_utf8_bytes,
             "token_estimator_id": self.token_estimator_id,
             "estimated_input_tokens": self.estimated_input_tokens,
             "semantic_literals_total": self.semantic_literals_total,
-            "semantic_literals_covered_total": (
-                self.semantic_literals_covered_total
-            ),
+            "semantic_literals_covered_total": (self.semantic_literals_covered_total),
             "duplicate_literals_total": self.duplicate_literals_total,
             "null_fields_total": self.null_fields_total,
             "opaque_ids_total": self.opaque_ids_total,
@@ -147,9 +145,7 @@ class Gate2FinancialSemanticV6ContextLintReceipt:
             ),
             "structural_hierarchy_valid": self.structural_hierarchy_valid,
             "exact_option_coverage": self.exact_option_coverage,
-            "alias_receipt_integrity_valid": (
-                self.alias_receipt_integrity_valid
-            ),
+            "alias_receipt_integrity_valid": (self.alias_receipt_integrity_valid),
             "provider_calls_total": self.provider_calls_total,
         }
 
@@ -200,11 +196,7 @@ def financial_semantic_v6_estimated_input_tokens(
 ) -> int:
     return max(
         1,
-        (
-            financial_semantic_v6_model_visible_utf8_bytes(projection)
-            + 3
-        )
-        // 4
+        (financial_semantic_v6_model_visible_utf8_bytes(projection) + 3) // 4
         + _FINANCIAL_SEMANTIC_V6_CONTEXT_TOKEN_ESTIMATOR_OVERHEAD,
     )
 
@@ -299,31 +291,29 @@ class Gate2OpenWebUIRequestBuilder:
                 model_id=model_id,
                 response_format=response_format,
             )
-        if (
-            self.request_profile
-            == FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE
-        ):
+        if self.request_profile == FINANCIAL_SEMANTIC_V6_QUALIFICATION_REQUEST_PROFILE:
             return self._build_financial_semantic_v6_qualification(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
                 response_format=response_format,
             )
-        if (
-            self.request_profile
-            == FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE
-        ):
+        if self.request_profile == FINANCIAL_SEMANTIC_V6_SLIM_LINTED_REQUEST_PROFILE:
             return self._build_financial_semantic_v6_slim_linted(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
                 response_format=response_format,
             )
-        if (
-            self.request_profile
-            == FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE
-        ):
+        if self.request_profile == FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE:
             return self._build_financial_context_checksum(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
+        if self.request_profile == GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE:
+            return self._build_gate5_single_input_hitl(
                 prompt=prompt,
                 package=package,
                 model_id=model_id,
@@ -357,19 +347,104 @@ class Gate2OpenWebUIRequestBuilder:
             response_format=response_format,
         )
 
+    def _build_gate5_single_input_hitl(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        phase = package.get("phase") if isinstance(package, dict) else None
+        required_keys = (
+            {"phase", "missing_input"}
+            if phase == "ask"
+            else {"phase", "missing_input", "human_answer"}
+        )
+        missing_input = (
+            package.get("missing_input") if isinstance(package, dict) else None
+        )
+        json_schema = (
+            response_format.get("json_schema")
+            if isinstance(response_format, dict)
+            else None
+        )
+        if (
+            phase not in {"ask", "interpret"}
+            or set(package) != required_keys
+            or not isinstance(missing_input, dict)
+            or set(missing_input)
+            != {
+                "financial_type",
+                "value_key",
+                "value_kind",
+                "currency_required",
+            }
+            or not isinstance(missing_input.get("financial_type"), str)
+            or not missing_input["financial_type"]
+            or not isinstance(missing_input.get("value_key"), str)
+            or not missing_input["value_key"]
+            or missing_input.get("value_kind") != "money"
+            or missing_input.get("currency_required") is not True
+            or (
+                phase == "interpret"
+                and (
+                    not isinstance(package.get("human_answer"), str)
+                    or not package["human_answer"]
+                )
+            )
+            or not isinstance(getattr(prompt, "content", None), str)
+            or not prompt.content
+            or not isinstance(response_format, dict)
+            or response_format.get("type") != "json_schema"
+            or not isinstance(json_schema, dict)
+            or set(json_schema) != {"name", "strict", "schema"}
+            or json_schema.get("strict") is not True
+            or not isinstance(json_schema.get("schema"), dict)
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate5_single_input_model_request_invalid",
+                "Gate 5 single-input model request is not closed and strict",
+            )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": prompt.content},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        package,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                },
+            ],
+            "stream": False,
+            "response_format": copy.deepcopy(response_format),
+            "metadata": {
+                "broker_reports_gate5": {
+                    "single_input_hitl": True,
+                    "phase": phase,
+                    "structured_output_mode": ("openwebui_response_format_json_schema"),
+                    "prompt_ref": getattr(prompt, "prompt_ref", None),
+                    "prompt_hash": getattr(prompt, "hash", None),
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                }
+            },
+        }
+
     def build_from_sealed_context_v2_1(
         self,
         *,
         model_visible_request: dict[str, Any],
         model_id: str,
     ) -> dict[str, Any]:
-        if (
-            self.request_profile
-            not in {
-                FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE,
-                FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
-            }
-        ):
+        if self.request_profile not in {
+            FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE,
+            FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
+        }:
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_profile_mismatch",
                 "Context V2.1 sealed request requires its local proof profile",
@@ -473,6 +548,59 @@ class Gate2OpenWebUIRequestBuilder:
         projected["stream"] = False
         return projected
 
+    def build_from_sealed_gate3_metadata(
+        self,
+        *,
+        model_visible_request: dict[str, Any],
+        model_id: str,
+    ) -> dict[str, Any]:
+        """Bind one exact three-part metadata request to a selected model."""
+
+        if self.request_profile != GATE3_LLM_METADATA_REQUEST_PROFILE:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_profile_mismatch",
+                "Gate 3 LLM metadata requires its sealed request profile",
+            )
+        if (
+            not isinstance(model_id, str)
+            or not model_id.strip()
+            or len(model_id) > 512
+            or not isinstance(model_visible_request, dict)
+            or tuple(model_visible_request) != ("messages", "response_format")
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Gate 3 LLM metadata request is invalid",
+            )
+        messages = model_visible_request.get("messages")
+        response_format = model_visible_request.get("response_format")
+        if (
+            not isinstance(messages, list)
+            or len(messages) != 3
+            or [item.get("role") for item in messages if isinstance(item, dict)]
+            != ["system", "user", "user"]
+            or any(
+                not isinstance(item, dict)
+                or set(item) != {"role", "content"}
+                or not isinstance(item["content"], str)
+                or not item["content"]
+                for item in messages
+            )
+            or not isinstance(response_format, dict)
+            or response_format.get("type") != "json_schema"
+            or not isinstance(response_format.get("json_schema"), dict)
+            or response_format["json_schema"].get("strict") is not True
+            or not isinstance(response_format["json_schema"].get("schema"), dict)
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Gate 3 LLM metadata request shape is invalid",
+            )
+        projected = copy.deepcopy(model_visible_request)
+        projected["model"] = model_id
+        projected["stream"] = False
+        return projected
+
     def _build_source(
         self,
         *,
@@ -562,10 +690,7 @@ class Gate2OpenWebUIRequestBuilder:
                     "role": "user",
                     "content": json.dumps(
                         {
-                            "task": (
-                                "qualify_broker_reports_source_"
-                                "secretary_v1"
-                            ),
+                            "task": ("qualify_broker_reports_source_secretary_v1"),
                             "instruction": (
                                 "Return exactly one strict source "
                                 "qualification object for every supplied "
@@ -583,15 +708,11 @@ class Gate2OpenWebUIRequestBuilder:
                 "broker_reports_gate2": {
                     "source_qualification": True,
                     "synthetic_non_customer": True,
-                    "structured_output_mode": (
-                        "openwebui_response_format_json_schema"
-                    ),
+                    "structured_output_mode": ("openwebui_response_format_json_schema"),
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
                     "output_schema_id": prompt.output_schema_id,
-                    "output_schema_version": (
-                        prompt.output_schema_version
-                    ),
+                    "output_schema_version": (prompt.output_schema_version),
                     "output_schema_hash": package.get(
                         "output_schema",
                         {},
@@ -638,12 +759,8 @@ class Gate2OpenWebUIRequestBuilder:
                     "role": "user",
                     "content": json.dumps(
                         {
-                            "task": (
-                                "decide_broker_reports_financial_evidence_v1"
-                            ),
-                            "source_scope_ref": package.get(
-                                "source_scope_ref"
-                            ),
+                            "task": ("decide_broker_reports_financial_evidence_v1"),
+                            "source_scope_ref": package.get("source_scope_ref"),
                             "instruction": (
                                 "Return exactly one decision object allowed "
                                 "by the supplied strict JSON Schema."
@@ -659,9 +776,7 @@ class Gate2OpenWebUIRequestBuilder:
             "metadata": {
                 "broker_reports_gate2": {
                     "financial_evidence_shadow": True,
-                    "structured_output_mode": (
-                        "openwebui_response_format_json_schema"
-                    ),
+                    "structured_output_mode": ("openwebui_response_format_json_schema"),
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
                     "source_scope_ref": package.get("source_scope_ref"),
@@ -725,9 +840,7 @@ class Gate2OpenWebUIRequestBuilder:
                 "broker_reports_gate2": {
                     "financial_evidence_successor_qualification": True,
                     "synthetic_non_customer": True,
-                    "structured_output_mode": (
-                        "openwebui_response_format_json_schema"
-                    ),
+                    "structured_output_mode": ("openwebui_response_format_json_schema"),
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
                     "knowledge_rag_used": False,
@@ -772,8 +885,7 @@ class Gate2OpenWebUIRequestBuilder:
                     "content": json.dumps(
                         {
                             "task": (
-                                "qualify_broker_reports_financial_evidence_"
-                                "successor_v2"
+                                "qualify_broker_reports_financial_evidence_successor_v2"
                             ),
                             "instruction": (
                                 "Return exactly one decision object allowed "
@@ -791,9 +903,7 @@ class Gate2OpenWebUIRequestBuilder:
                 "broker_reports_gate2": {
                     "financial_evidence_successor_qualification_v2": True,
                     "synthetic_non_customer": True,
-                    "structured_output_mode": (
-                        "openwebui_response_format_json_schema"
-                    ),
+                    "structured_output_mode": ("openwebui_response_format_json_schema"),
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
                     "knowledge_rag_used": False,
@@ -843,8 +953,7 @@ class Gate2OpenWebUIRequestBuilder:
                     "content": json.dumps(
                         {
                             "task": (
-                                "qualify_broker_reports_financial_evidence_"
-                                "successor_v3"
+                                "qualify_broker_reports_financial_evidence_successor_v3"
                             ),
                             "instruction": (
                                 "Return exactly one decision object allowed "
@@ -864,9 +973,7 @@ class Gate2OpenWebUIRequestBuilder:
                     "synthetic_non_customer": True,
                     "semantic_pack_complete": True,
                     "semantic_selection_owner": "llm",
-                    "structured_output_mode": (
-                        "openwebui_response_format_json_schema"
-                    ),
+                    "structured_output_mode": ("openwebui_response_format_json_schema"),
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
                     "knowledge_rag_used": False,
@@ -923,9 +1030,7 @@ class Gate2OpenWebUIRequestBuilder:
             "metadata": {
                 "broker_reports_gate2": {
                     "financial_semantic_v5": True,
-                    "structured_output_mode": (
-                        "openwebui_response_format_json_schema"
-                    ),
+                    "structured_output_mode": ("openwebui_response_format_json_schema"),
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
                     "semantic_selection_owner": "llm",
@@ -1056,8 +1161,7 @@ class Gate2OpenWebUIRequestBuilder:
             or receipt.prompt_version != getattr(prompt, "version", None)
             or receipt.prompt_hash != getattr(prompt, "hash", None)
             or receipt.prompt_hash != _sha256_json(prompt.content)
-            or receipt.slim_view_hash
-            != getattr(prompt, "packet_hash", None)
+            or receipt.slim_view_hash != getattr(prompt, "packet_hash", None)
             or receipt.slim_view_hash != _sha256_json(package)
             or not isinstance(response_format, dict)
             or response_format.get("type") != "json_schema"
@@ -1068,8 +1172,7 @@ class Gate2OpenWebUIRequestBuilder:
             or not isinstance(json_schema.get("schema"), dict)
             or receipt.local_choice_schema_hash
             != getattr(prompt, "choice_schema_hash", None)
-            or receipt.local_choice_schema_hash
-            != _sha256_json(json_schema["schema"])
+            or receipt.local_choice_schema_hash != _sha256_json(json_schema["schema"])
             or receipt.model_visible_request_hash != _sha256_json(projection)
             or receipt.model_visible_utf8_bytes
             != financial_semantic_v6_model_visible_utf8_bytes(projection)
@@ -1094,8 +1197,7 @@ class Gate2OpenWebUIRequestBuilder:
             or receipt.exact_option_coverage is not True
             or receipt.alias_receipt_integrity_valid is not True
             or receipt.provider_calls_total != 0
-            or receipt.integrity_hash
-            != _sha256_json(receipt.integrity_payload())
+            or receipt.integrity_hash != _sha256_json(receipt.integrity_payload())
         ):
             raise Gate2PromptError(
                 "gate2_financial_semantic_v6_context_lint_required",
@@ -1116,9 +1218,7 @@ class Gate2OpenWebUIRequestBuilder:
                     "prompt_hash": prompt.hash,
                     "slim_view_hash": prompt.packet_hash,
                     "local_choice_schema_hash": prompt.choice_schema_hash,
-                    "context_lint_receipt_integrity_hash": (
-                        receipt.integrity_hash
-                    ),
+                    "context_lint_receipt_integrity_hash": (receipt.integrity_hash),
                     "semantic_selection_owner": "llm",
                     "knowledge_rag_used": False,
                     "vectorization_performed": False,
@@ -1184,17 +1284,13 @@ class Gate2OpenWebUIRequestBuilder:
                 "broker_reports_gate2": {
                     "domain_qualification": True,
                     "synthetic_non_customer": True,
-                    "structured_output_mode": (
-                        "openwebui_response_format_json_schema"
-                    ),
+                    "structured_output_mode": ("openwebui_response_format_json_schema"),
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
                     "case_id": package.get("case_id"),
                     "extractor_domain": package.get("extractor_domain"),
                     "output_schema_id": prompt.output_schema_id,
-                    "output_schema_version": (
-                        prompt.output_schema_version
-                    ),
+                    "output_schema_version": (prompt.output_schema_version),
                     "output_schema_hash": package.get(
                         "output_schema",
                         {},
@@ -1324,9 +1420,7 @@ class Gate2OpenWebUIRequestBuilder:
             "metadata": {
                 "broker_reports_gate2": {
                     "financial_context_checksum": True,
-                    "structured_output_mode": (
-                        "openwebui_response_format_json_schema"
-                    ),
+                    "structured_output_mode": ("openwebui_response_format_json_schema"),
                     "prompt_ref": prompt.prompt_ref,
                     "prompt_hash": prompt.hash,
                     "financial_context_integrity_hash": package.get(

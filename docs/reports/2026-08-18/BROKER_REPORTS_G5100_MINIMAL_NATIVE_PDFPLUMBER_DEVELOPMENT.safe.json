@@ -1,0 +1,40 @@
+{
+  "schema_version": "broker_reports_minimal_native_pdfplumber_g5100_development_safe_v1",
+  "goal": "G5.100",
+  "phase": "development",
+  "pdfplumber_version": "0.11.10",
+  "whitelist": [
+    "crop/bbox",
+    "vertical_strategy=explicit",
+    "explicit_vertical_lines",
+    "horizontal_strategy=lines|text"
+  ],
+  "tolerance_knobs": 0,
+  "provider_calls": 9,
+  "metrics": {
+    "pages": 9,
+    "expected_visual_tables": 9,
+    "proposed_tables": 9,
+    "native_tables_extracted": 2,
+    "pages_with_exact_plan_count": 9,
+    "pages_with_exact_native_count": 6,
+    "false_table_plans_on_negative_pages": 0,
+    "invalid_plans": 1,
+    "execution_errors": 1,
+    "non_success_terminals": 3,
+    "canonical_pages_valid": 6,
+    "canonical_pages_exactly_accounted": 6,
+    "vlm_body_values_used": 0,
+    "invented_source_literals": 0
+  },
+  "terminals": [
+    "NATIVE_PDFPLUMBER_PLAN_PROMISING_BUT_INCOMPLETE"
+  ],
+  "freeze_permitted": false,
+  "private_file_sha256": "67a357018fbcfeb6d8374161d0ac0b6104e6c6bbc0de1f0838ca4512fbe65c29",
+  "privacy": {
+    "customer_bytes_in_git": false,
+    "raw_provider_response_in_git": false,
+    "cell_values_in_git": false
+  }
+}

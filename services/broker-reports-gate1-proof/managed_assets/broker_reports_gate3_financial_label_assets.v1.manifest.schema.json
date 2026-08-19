@@ -5,7 +5,7 @@
   "const": {
     "schema_version": "broker_reports_gate3_financial_label_managed_assets_v1",
     "family_id": "broker_reports_gate3_financial_label_assets",
-    "semantic_version": "1.0.0",
+    "semantic_version": "2.0.1",
     "authority_status": "managed_projection_of_package_resource",
     "runtime_activation": "explicit_publish_and_exact_readback_required",
     "hash_boundary": "git_blob_bytes",
@@ -22,7 +22,7 @@
         "kind": "openwebui_skill",
         "repository_relative_path": "services/broker-reports-gate1-proof/managed_assets/skills/broker_reports_gate3_financial_labels_skill.v1.md",
         "media_type": "text/markdown",
-        "git_blob_sha256": "f486826d017f7314c2da807fd8613a3524521135c29509df4003aeb21e5c9d7d",
+        "git_blob_sha256": "eb976654842dbb36c4dbbd9e00a10df1402b9c00dda0cf55d2b4d056ec835a67",
         "api_identity": {
           "id": "broker-reports-financial-labels",
           "name": "Broker Reports Financial Labels",
@@ -43,7 +43,7 @@
         "kind": "openwebui_workspace_tool",
         "repository_relative_path": "services/broker-reports-gate1-proof/managed_assets/tools/broker_reports_gate3_financial_label_dictionary_tool.v1.py",
         "media_type": "text/x-python",
-        "git_blob_sha256": "1b03692f04abc6eb59fc043244b29db7842de0b62f0445b4ee85e75ea7e30371",
+        "git_blob_sha256": "34f70ee0555b8a7f9b850dd61471ada8bb09cd5eb5e9ddc4e1fde6121cefecb8",
         "api_identity": {
           "id": "broker_reports_financial_label_dictionary",
           "name": "Broker Reports Financial Label Dictionary",
@@ -59,11 +59,11 @@
       {
         "dependency_id": "gate3_financial_label_dictionary",
         "kind": "published_dictionary",
-        "contract_identity": "broker-reports-financial-labels@1.0.0",
-        "repository_relative_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_label_dictionary.v1.json",
-        "git_blob_sha256": "182e8d7f3604ad3d06d93c4d913df17979f21aeea669123d70c10be9d9652850",
-        "model_view_sha256": "b5b89e1b17932c6429b71724667053287e65f7a72b0beec7dcd86cc1190d1b5b",
-        "labels_total": 9
+        "contract_identity": "broker-reports-financial-labels@2.0.1",
+        "repository_relative_path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_label_dictionary.v2_0_1.json",
+        "git_blob_sha256": "30b395b13387cad5d3d51269bc3bae989bb3b524c9547053841dc5d146c569fe",
+        "model_view_sha256": "7f41ecf9bbe5dee17331a94817d0b3b531421856f4a70492ce1cdb8d1d81b888",
+        "labels_total": 12
       }
     ],
     "composition": {
@@ -83,6 +83,6 @@
       "knowledge_rag_allowed": false
     },
     "supporting_knowledge": [],
-    "manifest_sha256": "4e09eea7cdb8561e1c03bea32c709b14d7d0c32fe2fe60fdb04260834f5c74e4"
+    "manifest_sha256": "438e6b773548af32e6131fd54131e2dc5526f4d2089e8395940ecd00d9178907"
   }
 }

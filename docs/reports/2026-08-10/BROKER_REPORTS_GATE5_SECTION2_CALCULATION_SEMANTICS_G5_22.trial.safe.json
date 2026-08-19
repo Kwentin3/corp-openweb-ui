@@ -1,0 +1,94 @@
+{
+  "artifacts": {
+    "candidate": {
+      "path": "docs/reports/2026-08-10/BROKER_REPORTS_GATE5_SECTION2_CALCULATION_SEMANTICS_G5_22.candidate.json",
+      "sha256": "dee9cec002449e31ae7536a36e1a897fe2df1c7355f65ec999c7723cf5d70bf2",
+      "utf8_bytes": 17613
+    },
+    "compilation": {
+      "path": "docs/reports/2026-08-10/BROKER_REPORTS_GATE5_SECTION2_CALCULATION_SEMANTICS_G5_22.compilation.safe.json",
+      "sha256": "23d062de130fcb41c2e5f33dc14f7128a1957c5e95f9f30b77d6ba88633e9cc1",
+      "utf8_bytes": 1109
+    },
+    "plan": {
+      "path": "docs/reports/2026-08-10/BROKER_REPORTS_GATE5_SECTION2_CALCULATION_SEMANTICS_G5_22.plan.safe.json",
+      "sha256": "19f0dba809d1f91afdaaf5ea43b16db727d869e740a4cf6111ec6797fe15cd9d",
+      "utf8_bytes": 3156
+    }
+  },
+  "frozen_input": {
+    "bias_audit": "passed",
+    "history": "none",
+    "published_inventory_version": "2026.2-proof",
+    "resource": "gate5_declaration_authoring_language.primary.g522.payload.json",
+    "sha256": "cd186b746aabbe699820e4ec58bd08a8cfd1e7041de373af0d4d2ee971267736",
+    "utf8_bytes": 26614
+  },
+  "invocation": {
+    "client_version": "codex-cli 0.147.0-alpha.6.5",
+    "conversation_mode": "ephemeral_new_session",
+    "elapsed_seconds": 162.3,
+    "exec_rules": "ignored",
+    "follow_up_messages_total": 0,
+    "manual_repairs_total": 0,
+    "model": "gpt-5.6-sol",
+    "observable_candidates_total": 1,
+    "provider": "openai_codex_cli",
+    "provider_calls_total": 1,
+    "provider_output_schema": "none",
+    "reasoning_effort": "high",
+    "retries_total": 0,
+    "return_code": 0,
+    "sandbox": "read-only",
+    "semantic_attempts_total": 1,
+    "user_config": "ignored",
+    "workspace": "empty_temporary_directory"
+  },
+  "pre_provider_harness_incidents": [
+    {
+      "code": "reasoning_effort_cli_quoting_invalid",
+      "effect": "none_on_frozen_input_or_semantic_invocation_profile",
+      "provider_started": false,
+      "semantic_attempt_created": false
+    }
+  ],
+  "privacy_scan": {
+    "aws_access_key": false,
+    "email": false,
+    "github_token": false,
+    "openai_key": false,
+    "pem_private_key": false,
+    "status": "passed",
+    "unc_path": false,
+    "windows_absolute_path": false
+  },
+  "product_status": "inactive_proof",
+  "schema_version": "broker_reports_gate5_section2_calculation_semantics_trial_record_v0",
+  "status": "model_gap_observed_compilation_rejected",
+  "trial_id": "g5.22-history-free-replay-2026-08-10-001",
+  "validation": {
+    "candidate_bytes_unchanged": true,
+    "candidate_observations": {
+      "compositions_total": 12,
+      "definition_id": "ru.3ndfl.2025.securities_disposal",
+      "first_blocking_gap_id": "gap.singleton_category_aggregation",
+      "gaps_total": 4,
+      "new_behavior_identity_present": true,
+      "previous_first_gap_present": false,
+      "requirements_total": 8,
+      "supported_requirements_total": 2,
+      "unsupported_requirements_total": 6
+    },
+    "closed_json_schema": "passed",
+    "deterministic_compilation": {
+      "code": "gate5_declaration_authoring_language_artifact_missing",
+      "field": "requirements[6].compositions[1]",
+      "status": "rejected"
+    },
+    "json_parse": "passed",
+    "limitation": "The unchanged candidate used project_validated_declaration_fragment_v0 with an empty artifact list inside a later unsupported projection requirement; the existing compiler rejects that composition before producing a compilation result.",
+    "manual_repairs_total": 0,
+    "schema_version": "broker_reports_gate5_declaration_authoring_g522_compilation_audit_v0",
+    "status": "deterministic_compilation_rejected"
+  }
+}

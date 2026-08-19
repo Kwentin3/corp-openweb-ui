@@ -83,6 +83,14 @@ The following policy decisions are normative:
     calls with separate provider budgets. Worker leases detect crashes; they
     are not a fixed wall timeout for otherwise healthy work. Local OCR worker
     pools are forbidden.
+12. Visual inspection of an original document is a development and
+    qualification instrument only. When a machine result is implausible,
+    contradictory or unclear about source presence, the developer first
+    compares the original visual source with Canonical and each downstream
+    representation, locates the first divergence and repairs the owning
+    production mechanism. Human or agent visual observations must never be
+    copied into production facts, calculations or persisted source truth; the
+    corrected machine path must be replayed from the source.
 
 The global product sequence has four gates:
 

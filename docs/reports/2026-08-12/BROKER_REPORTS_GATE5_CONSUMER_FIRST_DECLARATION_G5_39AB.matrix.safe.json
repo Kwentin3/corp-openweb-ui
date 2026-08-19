@@ -1,0 +1,286 @@
+{
+  "schema_version": "broker_reports_gate5_consumer_first_declaration_research_v0",
+  "goal": "G5.39AB",
+  "verified_on": "2026-08-12",
+  "mode": "research_only",
+  "terminal": {
+    "result": "THREE_CONTRACT_BOUNDARY_PROVEN_FOR_SUPPLIED_CASE",
+    "semantic_input_can_be_simpler_than_resolved_package": true,
+    "current_live_supplied_case_reexecution_asserted": false,
+    "strategic_stopper": "UNRESEARCHED_LEGAL_METHODOLOGIES_FOR_INACTIVE_DOMAINS"
+  },
+  "scope": {
+    "jurisdiction": "RU",
+    "declaration_kind": "3-NDFL",
+    "tax_period": "2025",
+    "definition_id": "ru_3ndfl_2025_root_declaration",
+    "definition_version": "2026-08-10.1",
+    "supplied_case_domains_resolved": 5,
+    "supplied_case_domains_not_activated": 6,
+    "obligations_projected": 8,
+    "obligations_terminal_not_activated": 17,
+    "obligations_unaccounted": 0,
+    "real_world_taxpayer_completeness_asserted": false
+  },
+  "official_authority": {
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "order_page": "https://www.nalog.gov.ru/rn77/about_fts/docs/16589324/",
+    "form_pdf_sha256": "d751043f63af1f0095a14228a65a3831acf47fcd82c397e2eb38b0f9f8dc9565",
+    "filling_procedure_sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+    "electronic_format_sha256": "f5215c237a8af73dd7a251cee94a2e09aacd8540173fcde2904b4c311129e3c2",
+    "xsd_sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484",
+    "filling_procedure_bytes_reverified": 106008
+  },
+  "minimal_declaration_semantic_contract": {
+    "role": "target_independent_values_immediately_before_projection_definition",
+    "not_contained": [
+      "methodology definitions",
+      "calculation traces",
+      "source bytes or source hashes",
+      "component snapshots or component hashes",
+      "obligation dispositions",
+      "scope receipts or resolution manifests",
+      "XML or PDF locators",
+      "KND, electronic format version, program version or file identifier"
+    ],
+    "root": [
+      "tax_period",
+      "filing",
+      "taxpayer",
+      "signer",
+      "budget_dispositions[]",
+      "income_group_results[]",
+      "russian_source_income[]",
+      "financial_investment_results[]"
+    ],
+    "fields": [
+      {"path": "tax_period", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "DECLARATION/FILING_CONTEXT"},
+      {"path": "filing.correction_number", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "DECLARATION/FILING_CONTEXT"},
+      {"path": "filing.declaration_date", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "DECLARATION/FILING_CONTEXT"},
+      {"path": "filing.tax_authority_code", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "EXTERNAL_REFERENCE_FACT"},
+      {"path": "taxpayer.inn", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "USER/CASE_FACT"},
+      {"path": "taxpayer.name", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "USER/CASE_FACT"},
+      {"path": "taxpayer.period_status", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "USER/CASE_FACT"},
+      {"path": "taxpayer.declarant_category", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "USER/CASE_FACT"},
+      {"path": "signer.identity", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "USER/CASE_FACT"},
+      {"path": "signer.capacity", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "DECLARATION/FILING_CONTEXT"},
+      {"path": "signer.representation_authority", "class": "DECLARATION_SUPPORT_SEMANTIC", "origin": "USER/CASE_FACT", "condition": "representative signs"},
+      {"path": "budget_dispositions[].kind", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "budget_dispositions[].kbk", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "EXTERNAL_REFERENCE_FACT"},
+      {"path": "budget_dispositions[].oktmo", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "DECLARATION/FILING_CONTEXT"},
+      {"path": "budget_dispositions[].amount", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "income_group_results[].income_group", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "income_group_results[].total_income", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "income_group_results[].non_taxable_income", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "income_group_results[].taxable_income", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "income_group_results[].tax_deductions", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "income_group_results[].accepted_expenses", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "income_group_results[].tax_base", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "income_group_results[].calculated_tax", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "income_group_results[].settlement_amounts", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "SOURCE_USER_EXTERNAL_OR_DERIVED_FACTS"},
+      {"path": "income_group_results[].tax_payable", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "income_group_results[].tax_refundable", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "russian_source_income[].income_kind", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "russian_source_income[].source_party", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "SOURCE/FINANCIAL_FACT"},
+      {"path": "russian_source_income[].gross_income", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "SOURCE/FINANCIAL_FACT"},
+      {"path": "russian_source_income[].withheld_tax", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "SOURCE/FINANCIAL_FACT"},
+      {"path": "financial_investment_results[].operation_category", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "financial_investment_results[].category_gross_income", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "financial_investment_results[].related_expenses", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "financial_investment_results[].allowable_expenses", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"},
+      {"path": "financial_investment_results[].loss_treatment", "class": "DIRECT_DECLARATION_SEMANTIC", "origin": "METHODOLOGY_DERIVED_TAX_FACT"}
+    ]
+  },
+  "calculation_evidence_contract": {
+    "role": "retrospective_reproduction_of_each_methodology_derived_declared_value",
+    "required_fields": [
+      "calculation_id",
+      "declared_value_path",
+      "declared_value",
+      "methodology_id",
+      "methodology_version",
+      "methodology_content_sha256",
+      "effective_tax_period",
+      "rule_or_formula_trace",
+      "used_fact_refs[]",
+      "used_fact_values[]",
+      "source_evidence_refs[]",
+      "external_reference_refs[]",
+      "dependency_calculation_refs[]",
+      "calculation_sha256"
+    ],
+    "rules": [
+      "every derived declared value has exactly one calculation owner",
+      "direct declaration facts retain evidence bindings but do not require fake calculations",
+      "intermediate values may be replayable receipt data and need not become domain entities",
+      "safe publications may replace private values and refs with hashes and aggregate counts"
+    ]
+  },
+  "completeness_receipt_contract": {
+    "role": "prove_every_official_obligation_has_one_terminal_supplied_case_disposition",
+    "required_fields": [
+      "definition_id",
+      "definition_version",
+      "definition_sha256",
+      "case_scope_binding_sha256",
+      "tax_period",
+      "obligation_dispositions[]",
+      "blockers[]",
+      "real_world_taxpayer_completeness_asserted",
+      "receipt_sha256"
+    ],
+    "terminal_dispositions": [
+      "RESOLVED",
+      "NOT_APPLICABLE",
+      "NOT_ACTIVATED_FOR_SUPPLIED_CASE"
+    ],
+    "nonterminal_dispositions": [
+      "SCOPE_UNRESOLVED",
+      "SCOPE_CONFLICT",
+      "REQUIRED_MISSING"
+    ],
+    "release_rule": "projection may receive declaration semantics only when blockers is empty and all 25 obligations have exactly one terminal disposition",
+    "must_not_be_embedded_in_declaration_semantics": true
+  },
+  "declaration_demand_matrix": [
+    {"requirement_id":"obl_filing_instance_identity","semantic_meaning":"filing instance, correction, period and destination authority","declaration_consumer":"title and electronic document header","supplied_case_disposition":"RESOLVED","semantic_class":"DIRECT_DECLARATION_SEMANTIC","methodology_owner":"none","required_input_types":["filing context","tax authority reference"],"evidence_classes":["USER/CASE FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"definition_mandatory","current_owner":"filing_and_party_identity component","recommended_owner":"minimal declaration semantics"},
+    {"requirement_id":"obl_taxpayer_identity_and_period_status","semantic_meaning":"taxpayer identity and period status","declaration_consumer":"title and taxpayer electronic node","supplied_case_disposition":"RESOLVED","semantic_class":"DIRECT_DECLARATION_SEMANTIC","methodology_owner":"none","required_input_types":["taxpayer identity","period status"],"evidence_classes":["USER/CASE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"definition_mandatory","current_owner":"filing_and_party_identity component","recommended_owner":"minimal declaration semantics"},
+    {"requirement_id":"obl_signer_and_representation_authority","semantic_meaning":"signer and conditional representation authority","declaration_consumer":"signature section and electronic signer node","supplied_case_disposition":"RESOLVED","semantic_class":"DIRECT_AND_SUPPORT_DECLARATION_SEMANTIC","methodology_owner":"none","required_input_types":["signer identity","signer capacity","representation evidence if applicable"],"evidence_classes":["USER/CASE FACT","DECLARATION/FILING CONTEXT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"definition_mandatory","current_owner":"filing_and_party_identity component","recommended_owner":"minimal declaration semantics plus evidence binding"},
+    {"requirement_id":"obl_declaration_budget_disposition","semantic_meaning":"payment, reduction or refund budget disposition","declaration_consumer":"Section 1","supplied_case_disposition":"RESOLVED","semantic_class":"DIRECT_DECLARATION_SEMANTIC","methodology_owner":"budget disposition from completed settlement","required_input_types":["income-group settlement","KBK","OKTMO"],"evidence_classes":["METHODOLOGY-DERIVED TAX FACT","EXTERNAL REFERENCE FACT","DECLARATION/FILING CONTEXT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"definition_mandatory","current_owner":"declaration_budget_disposition component","recommended_owner":"minimal declaration semantics with separate calculation evidence"},
+    {"requirement_id":"obl_income_group_tax_base_results","semantic_meaning":"complete base result per applicable income group","declaration_consumer":"Section 2 base calculation","supplied_case_disposition":"RESOLVED","semantic_class":"DIRECT_DECLARATION_SEMANTIC","methodology_owner":"income-group tax-base methodology","required_input_types":["classified category totals","other group income","exempt income","deductions","allowable expenses"],"evidence_classes":["SOURCE/FINANCIAL FACT","USER/CASE FACT","METHODOLOGY-DERIVED TAX FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"definition_mandatory","current_owner":"income_group_tax_results component","recommended_owner":"minimal declaration semantics with separate calculation evidence"},
+    {"requirement_id":"obl_income_group_tax_settlement_results","semantic_meaning":"tax calculation and settlement paired to each income group","declaration_consumer":"Section 2 settlement calculation","supplied_case_disposition":"RESOLVED","semantic_class":"DIRECT_DECLARATION_SEMANTIC","methodology_owner":"income-group settlement methodology","required_input_types":["tax base","taxpayer status","rate schedule","withheld tax and applicable credits"],"evidence_classes":["SOURCE/FINANCIAL FACT","EXTERNAL REFERENCE FACT","METHODOLOGY-DERIVED TAX FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"definition_mandatory","current_owner":"income_group_tax_results component","recommended_owner":"minimal declaration semantics with separate calculation evidence"},
+    {"requirement_id":"obl_refundable_amount_disposal_election","semantic_meaning":"authenticated refund disposal election and destination","declaration_consumer":"Section 1 appendix","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"refund eligibility plus authenticated election","required_input_types":["established refund","user election","destination account"],"evidence_classes":["USER/CASE FACT","METHODOLOGY-DERIVED TAX FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"elective_claim","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_russian_source_taxable_income","semantic_meaning":"Russian-source income, source, kind and tax-agent facts","declaration_consumer":"Appendix 1","supplied_case_disposition":"RESOLVED","semantic_class":"DIRECT_DECLARATION_SEMANTIC","methodology_owner":"income-kind and source-jurisdiction classification","required_input_types":["gross income","source identity","income kind facts","withheld tax"],"evidence_classes":["SOURCE/FINANCIAL FACT","EXTERNAL REFERENCE FACT","METHODOLOGY-DERIVED TAX FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"factual_occurrence","current_owner":"taxable_income_by_source component","recommended_owner":"minimal declaration semantics with separate classification evidence"},
+    {"requirement_id":"obl_foreign_source_taxable_income_and_foreign_tax","semantic_meaning":"foreign-source income and foreign-tax credit facts","declaration_consumer":"Appendix 2","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"foreign-source, currency and credit methodology","required_input_types":["foreign source","currency","income date","official exchange rate","foreign tax evidence"],"evidence_classes":["SOURCE/FINANCIAL FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"factual_occurrence","current_owner":"terminal obligation resolution inside source component","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_professional_activity_income_expense_and_advances","semantic_meaning":"professional activity income, expenses and advances","declaration_consumer":"Appendix 3","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"professional activity classification and deduction methodology","required_input_types":["activity type","income","documented expenses","advance payments"],"evidence_classes":["SOURCE/FINANCIAL FACT","USER/CASE FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"typed_legal_classification","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_civil_contract_professional_deduction_claim","semantic_meaning":"civil-contract professional deduction claim","declaration_consumer":"Appendix 3","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"claim eligibility and amount methodology","required_input_types":["authenticated claim","contract income","eligible expenses"],"evidence_classes":["USER/CASE FACT","SOURCE/FINANCIAL FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"elective_claim","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_author_creator_professional_deduction_claim","semantic_meaning":"author or creator professional deduction claim","declaration_consumer":"Appendix 3","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"claim eligibility and amount methodology","required_input_types":["authenticated claim","remuneration facts","eligible expenses or normative rate"],"evidence_classes":["USER/CASE FACT","SOURCE/FINANCIAL FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"elective_claim","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_tax_exempt_income_classification_and_limits","semantic_meaning":"exempt income and applicable limits","declaration_consumer":"Appendix 4","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"exemption classification and limit methodology","required_input_types":["income facts","exemption category facts","official limits"],"evidence_classes":["SOURCE/FINANCIAL FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"typed_legal_classification","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_standard_deduction_claims","semantic_meaning":"standard deduction claims and eligible amounts","declaration_consumer":"Appendix 5","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"claim eligibility and amount methodology","required_input_types":["authenticated claim","eligibility facts","official amounts"],"evidence_classes":["USER/CASE FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"elective_claim","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_social_deduction_claims_and_limits","semantic_meaning":"social deductions, eligible categories, amounts and limits","declaration_consumer":"Appendix 5 and deduction calculation","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"social deduction eligibility and limit methodology","required_input_types":["authenticated claim","eligible expense evidence","category","official limits"],"evidence_classes":["USER/CASE FACT","SOURCE/FINANCIAL FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"elective_claim","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_investment_deduction_claims_and_limits","semantic_meaning":"investment deductions, eligible categories, amounts and limits","declaration_consumer":"Appendix 5, Appendix 8 and deduction calculation","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"investment deduction eligibility and limit methodology","required_input_types":["authenticated claim","account and transaction facts","official limits"],"evidence_classes":["USER/CASE FACT","SOURCE/FINANCIAL FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"elective_claim","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_long_term_savings_deduction_claims","semantic_meaning":"long-term savings deduction claims and eligible amounts","declaration_consumer":"Appendix 5 and deduction calculation","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"claim eligibility and amount methodology","required_input_types":["authenticated claim","contribution and contract facts","official conditions"],"evidence_classes":["USER/CASE FACT","SOURCE/FINANCIAL FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"elective_claim","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_property_and_right_disposition_results","semantic_meaning":"property or right disposition result","declaration_consumer":"Appendix 6 and object-level calculation","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"property classification, basis and deduction methodology","required_input_types":["object identity","ownership dates","proceeds","basis or deduction facts","external valuations when applicable"],"evidence_classes":["SOURCE/FINANCIAL FACT","USER/CASE FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"typed_legal_classification","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_vehicle_disposition_results","semantic_meaning":"vehicle disposition result","declaration_consumer":"Appendix 6 and object-level calculation","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"vehicle classification, basis and deduction methodology","required_input_types":["vehicle identity","ownership dates","proceeds","basis or deduction facts"],"evidence_classes":["SOURCE/FINANCIAL FACT","USER/CASE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"typed_legal_classification","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_gift_income_classification","semantic_meaning":"gift income and taxable result","declaration_consumer":"Appendix 6 and object calculation","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"gift and relationship classification methodology","required_input_types":["gift object","donor relationship","value and valuation facts"],"evidence_classes":["SOURCE/FINANCIAL FACT","USER/CASE FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"typed_legal_classification","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_property_acquisition_construction_deduction_claim","semantic_meaning":"property acquisition or construction deduction claim","declaration_consumer":"Appendix 7","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"claim eligibility, carry-forward and limit methodology","required_input_types":["authenticated claim","property identity","ownership and expense facts","prior-use facts"],"evidence_classes":["USER/CASE FACT","SOURCE/FINANCIAL FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"elective_claim","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_property_interest_deduction_claim","semantic_meaning":"property-related interest deduction claim","declaration_consumer":"Appendix 7","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"interest eligibility, carry-forward and limit methodology","required_input_types":["authenticated claim","loan purpose","interest payments","prior-use facts"],"evidence_classes":["USER/CASE FACT","SOURCE/FINANCIAL FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"elective_claim","current_owner":"terminal domain row","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_securities_and_derivatives_results","semantic_meaning":"securities and derivatives category results, losses and deductions","declaration_consumer":"Appendix 8","supplied_case_disposition":"RESOLVED","semantic_class":"DIRECT_DECLARATION_SEMANTIC","methodology_owner":"securities operation and category tax methodologies","required_input_types":["transaction atoms","instrument and account classification facts","expense evidence","scope completeness"],"evidence_classes":["SOURCE/FINANCIAL FACT","USER/CASE FACT","EXTERNAL REFERENCE FACT","METHODOLOGY-DERIVED TAX FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"typed_legal_classification","current_owner":"financial_investment_results component","recommended_owner":"minimal declaration semantics with separate calculation evidence"},
+    {"requirement_id":"obl_digital_financial_asset_and_right_results","semantic_meaning":"digital financial asset or right results","declaration_consumer":"Appendix 8","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"digital asset/right classification and result methodology","required_input_types":["asset/right transaction facts","expense evidence","loss and deduction facts"],"evidence_classes":["SOURCE/FINANCIAL FACT","USER/CASE FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"typed_legal_classification","current_owner":"terminal obligation resolution inside financial component","recommended_owner":"completeness receipt until activated"},
+    {"requirement_id":"obl_investment_partnership_results","semantic_meaning":"investment partnership results, losses and deductions","declaration_consumer":"Appendix 8","supplied_case_disposition":"NOT_ACTIVATED_FOR_SUPPLIED_CASE","semantic_class":"COMPLETENESS_AUDIT_ONLY_FOR_SUPPLIED_CASE","methodology_owner":"investment partnership classification and result methodology","required_input_types":["participation and transaction facts","expense evidence","loss and deduction facts"],"evidence_classes":["SOURCE/FINANCIAL FACT","USER/CASE FACT","EXTERNAL REFERENCE FACT"],"projection_consumers":["XML","PDF/form"],"completeness_policy":"typed_legal_classification","current_owner":"terminal obligation resolution inside financial component","recommended_owner":"completeness receipt until activated"}
+  ],
+  "methodology_dependency_matrix": [
+    {"declared_value":"filing and taxpayer values","methodology":"none; evidence validation only","minimal_facts":["filing context","taxpayer identity","signer identity"],"evidence":["authenticated user/case facts","tax authority reference"]},
+    {"declared_value":"Russian source income row","methodology":"source jurisdiction and income-kind classification","minimal_facts":["gross income","source party","tax-agent withholding","income nature"],"evidence":["source records","party and OKTMO references"]},
+    {"declared_value":"Appendix 8 category row","methodology":"operation classification, expense eligibility/allocation and category aggregation","minimal_facts":["acquisitions","disposals","fees","instrument/account context","complete category scope"],"evidence":["source records","payment/document refs","user scope attestation","official methodology"]},
+    {"declared_value":"Section 2 tax base","methodology":"income-group aggregation and base calculation","minimal_facts":["category results","other group income","exempt income","deductions","accepted expenses"],"evidence":["upstream calculation receipts","scope completeness"]},
+    {"declared_value":"Section 2 calculated tax and settlement","methodology":"period-specific rate schedule, rounding and credit settlement","minimal_facts":["tax base","taxpayer status","withheld tax","applicable credits"],"evidence":["official rate methodology","source tax evidence","external credit evidence"]},
+    {"declared_value":"Section 1 budget line","methodology":"declaration-level disposition of completed settlements","minimal_facts":["payable/refundable result","KBK","OKTMO"],"evidence":["settlement receipt","classification references","filing context"]},
+    {"declared_value":"inactive-domain values","methodology":"domain-specific legal methodology not derived by G5.39AB","minimal_facts":["consumer-shaped facts listed in declaration_demand_matrix"],"evidence":["future official-methodology research"],"status":"UNKNOWN_OUTSIDE_SUPPLIED_CASE"}
+  ],
+  "minimal_financial_fact_demand": [
+    {"fact_family":"income receipt","required_meanings":["gross amount","currency","actual receipt date","source party","income nature","source evidence ref"],"consumer":"source-income row and income-group aggregation"},
+    {"fact_family":"tax withheld or paid","required_meanings":["amount","tax kind","withholding/paying party","period/date","authority evidence ref"],"consumer":"source row and settlement"},
+    {"fact_family":"security acquisition","required_meanings":["instrument identity","sequence/date-time","quantity","purchase price","currency","payment/document refs","account context if relevant"],"consumer":"securities cost-basis methodology"},
+    {"fact_family":"security disposal","required_meanings":["instrument identity","sequence/date-time","quantity","gross proceeds","currency","receipt/document refs","account context if relevant"],"consumer":"securities result and source-income methodology"},
+    {"fact_family":"financial expense","required_meanings":["amount","currency","actual expense date","source-authored description","payment/document refs","direct scope when source-authored"],"consumer":"expense eligibility and allocation methodology"},
+    {"fact_family":"external reference","required_meanings":["official code/rate/limit","effective date or period","authority ref","content/version binding"],"consumer":"classification, currency, limits and projection mappings"},
+    {"fact_family":"coverage fact","required_meanings":["taxpayer","period","domain/category scope","covered source set","terminal assertion authority"],"consumer":"completeness receipt only"}
+  ],
+  "current_vs_minimal_diff": [
+    {"current_entity":"Trusted Full Declaration Definition","classification":"COMPLETENESS_AUDIT_ONLY","action":"KEEP","reason":"sole reviewed obligation and applicability inventory; not a declared value payload"},
+    {"current_entity":"Declaration Scope Receipt","classification":"COMPLETENESS_AUDIT_ONLY","action":"MOVE_TO_COMPLETENESS","reason":"decides supplied-case applicability and never maps to a declaration value"},
+    {"current_entity":"Resolved Declaration Package","classification":"CALCULATION_EVIDENCE_AND_COMPLETENESS_AUDIT","action":"KEEP_AS_SEALED_AUDIT_ENVELOPE","reason":"valid technical prerequisite today but not the consumer semantic contract or business-value owner"},
+    {"current_entity":"Definition and scope snapshots inside Package","classification":"COMPLETENESS_AUDIT_ONLY","action":"MOVE_TO_COMPLETENESS","reason":"release and audit bindings"},
+    {"current_entity":"component_snapshots","classification":"CALCULATION_EVIDENCE_ONLY","action":"MOVE_TO_CALCULATION_EVIDENCE","reason":"replay and validation material, not declared values"},
+    {"current_entity":"requirement_resolutions and resolution_manifest","classification":"COMPLETENESS_AUDIT_ONLY","action":"MOVE_TO_COMPLETENESS","reason":"terminal obligation accounting"},
+    {"current_entity":"Semantic Input source_binding hashes","classification":"COMPLETENESS_AUDIT_ONLY","action":"REMOVE_FROM_REQUIRED_CONTRACT","reason":"projector reads values, while audit gate can bind hashes separately"},
+    {"current_entity":"Semantic Input completeness object","classification":"COMPLETENESS_AUDIT_ONLY","action":"MOVE_TO_COMPLETENESS","reason":"real-world disclaimer and supplied-case closure are not declaration values"},
+    {"current_entity":"Semantic Input domain rows, semantic_meaning, obligation_refs and state","classification":"COMPLETENESS_AUDIT_ONLY","action":"MOVE_TO_COMPLETENESS","reason":"no target value consumer requires the wrappers"},
+    {"current_entity":"typed_components wrappers and source component IDs/hashes","classification":"CALCULATION_EVIDENCE_ONLY","action":"MOVE_TO_CALCULATION_EVIDENCE","reason":"audit links around payloads"},
+    {"current_entity":"filing declaration_instance_ref","classification":"TARGET_REPRESENTATION_ONLY","action":"TARGET_ONLY","reason":"electronic file identifier; not a paper declaration business meaning"},
+    {"current_entity":"scope_ref, taxpayer_scope_ref, case_id, normalization_run_ref and scope_binding_sha256","classification":"COMPLETENESS_AUDIT_ONLY","action":"MOVE_TO_COMPLETENESS","reason":"case access and replay scope, not declared values"},
+    {"current_entity":"filing/taxpayer/signer business fields","classification":"REQUIRED_DECLARATION_SEMANTIC","action":"KEEP","reason":"official filing, taxpayer and signer consumers"},
+    {"current_entity":"representation authority evidence_ref","classification":"CALCULATION_EVIDENCE_ONLY","action":"MOVE_TO_CALCULATION_EVIDENCE","reason":"support evidence for a conditional declared representation meaning"},
+    {"current_entity":"budget disposition business values","classification":"REQUIRED_DECLARATION_SEMANTIC","action":"KEEP","reason":"Section 1 consumer"},
+    {"current_entity":"budget component duplicate calculated/credited/reduction totals","classification":"METHODOLOGY_INTERNAL","action":"MOVE_TO_METHODOLOGY","reason":"Section 2 owns those values; budget contract needs final disposition lines"},
+    {"current_entity":"income_group_code alongside income_group_semantic","classification":"TARGET_REPRESENTATION_ONLY","action":"TARGET_ONLY","reason":"Projection Definition maps the semantic group to the official code"},
+    {"current_entity":"income-group tax rate derivation value","classification":"CALCULATION_EVIDENCE_ONLY","action":"MOVE_TO_CALCULATION_EVIDENCE","reason":"needed to reproduce calculated tax but not mapped as a supplied-case declared value"},
+    {"current_entity":"income-group declared totals and settlement results","classification":"REQUIRED_DECLARATION_SEMANTIC","action":"KEEP","reason":"Section 2 consumers"},
+    {"current_entity":"source_ref, jurisdiction tags and source-entry provenance","classification":"CALCULATION_EVIDENCE_ONLY","action":"MOVE_TO_CALCULATION_EVIDENCE","reason":"minimal supplied-case contract can expose a typed Russian-source collection"},
+    {"current_entity":"source-entry taxable_income","classification":"METHODOLOGY_INTERNAL","action":"MOVE_TO_METHODOLOGY","reason":"not consumed by the supplied-case source-row projection; group-level taxable income remains declared"},
+    {"current_entity":"source party, income kind, gross income and withheld tax","classification":"REQUIRED_DECLARATION_SEMANTIC","action":"KEEP","reason":"Appendix 1 consumers"},
+    {"current_entity":"financial model_kind, status and obligation_resolutions","classification":"COMPLETENESS_AUDIT_ONLY","action":"MOVE_TO_COMPLETENESS","reason":"not Appendix 8 values"},
+    {"current_entity":"financial operation category, gross, related/allowable expenses and loss treatment","classification":"REQUIRED_DECLARATION_SEMANTIC","action":"KEEP","reason":"Appendix 8 consumers"},
+    {"current_entity":"operation Tax Models, category aggregates and income-group derivations","classification":"METHODOLOGY_INTERNAL","action":"MOVE_TO_CALCULATION_EVIDENCE","reason":"they prove declared results but need not be embedded in semantic input"},
+    {"current_entity":"Projection Definition mappings, enum maps, constants and target paths","classification":"TARGET_REPRESENTATION_ONLY","action":"KEEP","reason":"sole target representation owner"},
+    {"current_entity":"full XML tree and serialized bytes","classification":"TARGET_REPRESENTATION_ONLY","action":"KEEP","reason":"terminal representation, never semantic authority"},
+    {"current_entity":"distributed financial event, reconciled operation wrapper and relation IDs","classification":"RESEARCH_SCAR","action":"REMOVE_FROM_REQUIRED_CONTRACT","reason":"no declaration, methodology or completeness consumer proved a mandatory stored entity"}
+  ],
+  "provenance_traces": [
+    {"declared_value":"XML taxpayer INN","chain":["minimal semantics taxpayer.inn","authenticated taxpayer case fact","identity evidence"],"calculation_required":false},
+    {"declared_value":"Appendix 1 gross income and withheld tax","chain":["minimal Russian-source row","classified domestic income source result","gross income and withholding source facts","broker/source evidence refs"],"calculation_required":true},
+    {"declared_value":"Appendix 8 allowable expenses","chain":["minimal financial-investment category result","category aggregation","operation expense eligibility and allocation methodology","acquisition/disposal/fee facts","source payment and document refs"],"calculation_required":true},
+    {"declared_value":"Section 2 tax base","chain":["minimal income-group result","income-group base methodology","category totals plus other income/exempt/deduction facts","calculation receipts and source/user evidence"],"calculation_required":true},
+    {"declared_value":"Section 2 calculated tax","chain":["minimal income-group settlement result","period-specific rate and rounding methodology","tax base and taxpayer status","official methodology bytes and upstream calculation receipt"],"calculation_required":true},
+    {"declared_value":"Section 1 payable budget amount","chain":["minimal budget disposition line","declaration budget disposition methodology","completed income-group settlements plus KBK/OKTMO","settlement receipt and official reference facts"],"calculation_required":true},
+    {"declared_value":"absence of foreign-source appendix","chain":["no semantic value emitted","completeness receipt says NOT_ACTIVATED_FOR_SUPPLIED_CASE","exact policy-authorized supplied-case evidence"],"calculation_required":false}
+  ],
+  "current_knowledge": {
+    "PROVEN": [
+      "current official 2025 form, procedure, electronic format and XSD agree with the reviewed trusted obligation inventory",
+      "the supplied-case projection accounts for 25 of 25 obligations with 8 projected and 17 terminal non-activated",
+      "declaration semantics, calculation evidence and completeness accounting have different consumers and can be separate results",
+      "the semantic value input can be materially smaller than the Resolved Package",
+      "target-independent business values can be separated from XML and PDF mechanics",
+      "the Resolved Package is best interpreted as a sealed calculation/completeness audit envelope, not a declaration DTO",
+      "no universal distributed financial event or relation object is required by the audited declaration consumers"
+    ],
+    "FALSIFIED": [
+      "the Resolved Package direct DTO is the minimal projection consumer contract",
+      "domain rows, obligation states, component hashes and source bindings are mandatory declaration semantics",
+      "every Tax Model intermediate must be carried into projection input",
+      "the current five semantic component wrappers are themselves official declaration meanings",
+      "XML/PDF locators belong in a target-independent semantic contract"
+    ],
+    "UNKNOWN": [
+      "complete legal calculation methodologies for the 17 obligations not activated in the supplied case",
+      "universal identity fallback fields for cases where the supplied-case INN path is unavailable",
+      "authoritative partial acquisition-commission allocation for securities",
+      "whether current product storage should persist all calculation evidence or deterministically regenerate some intermediates",
+      "current live supplied-case closure in this dirty checkout; G5.39AB performed no implementation or live declaration rerun"
+    ]
+  },
+  "research_scars": [
+    {"entity":"distributed financial event","why_it_appeared":"attempt to recover multi-row event identity before proving a consumer","why_not_required":"no audited declaration or tax-result consumer reads the composite"},
+    {"entity":"generic relation ID or reconciled operation","why_it_appeared":"structural-evidence research generalized a local allocation question","why_not_required":"methodology needs facts and allocation evidence, not a universal stored relation"},
+    {"entity":"Resolved Package as declaration model","why_it_appeared":"one sealed object made completeness and replay convenient","why_not_required":"projectors consume only business values; audit mechanics have a separate consumer"},
+    {"entity":"domain and typed-component wrappers in semantic input","why_it_appeared":"projection was compiled by selecting exact-root components","why_not_required":"the wrappers prove origin/completeness but are not declared meanings"},
+    {"entity":"duplicated semantic and target codes","why_it_appeared":"target pressure restored fields into component payloads","why_not_required":"Projection Definition owns enum/code representation"}
+  ],
+  "recommended_conceptual_architecture": {
+    "flow": [
+      "source/user/external facts",
+      "trusted tax methodologies",
+      "declaration values plus separate calculation evidence",
+      "independent completeness receipt",
+      "release gate requiring valid evidence and terminal completeness",
+      "minimal declaration semantic contract",
+      "one trusted Projection Definition",
+      "XML or PDF representation"
+    ],
+    "owners": {
+      "declaration_values": "one target-independent declaration semantic owner",
+      "calculation_reproducibility": "existing Tax Methodology and Tax Model owners plus a calculation receipt",
+      "scope_and_completeness": "trusted Definition and completeness receipt owner",
+      "target_representation": "Projection Definition and generic projector"
+    },
+    "no_new_owner_required": [
+      "universal financial ontology",
+      "event graph",
+      "relation registry",
+      "parallel declaration model",
+      "new SQL authority"
+    ]
+  }
+}

@@ -1,0 +1,224 @@
+{
+  "schema_version": "broker_reports_gate5_consumer_first_xml_projection_definition_v0",
+  "projection_id": "ru_3ndfl_2025_consumer_first_supplied_case",
+  "projection_version": "2026-08-12.0-consumer-first-proof",
+  "status": "trusted_hash_bound_inactive_proof",
+  "input_contract": {
+    "schema_version": "broker_reports_gate5_released_declaration_projection_input_v0",
+    "status": "DECLARATION_VALUES_RELEASED",
+    "value_contract_id": "ru_3ndfl_2025_supplied_case_declaration_values",
+    "value_contract_version": "2026-08-14.0-g545-bounded"
+  },
+  "target": {
+    "jurisdiction": "RU",
+    "tax_period": "2025",
+    "form": "3-NDFL",
+    "knd": "1151020",
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "electronic_format_version": "5.20",
+    "xml_encoding": "windows-1251",
+    "xsd_name": "NO_NDFL3_1_033_00_05_20_01.xsd",
+    "xsd_resource": "gate5_full_target_xml_schema.NO_NDFL3_1_033_00_05_20_01.xsd.b64",
+    "xsd_sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484",
+    "schematron": null
+  },
+  "target_mechanics_contract": {
+    "schema_version": "broker_reports_gate5_ru_3ndfl_2025_target_mechanics_v0",
+    "status": "TARGET_MECHANICS_READY",
+    "instance_fields": ["electronic_file_id"],
+    "budget_disposition_shaping": "released_kind_to_dual_target_amounts_v0",
+    "collection_order": "preserve_released_order",
+    "supported_profile": "payable_single_allocation_supplied_case_v0"
+  },
+  "authoritative_sources": [
+    {
+      "source_ref": "fns_order_page",
+      "url": "https://www.nalog.gov.ru/rn77/about_fts/docs/16589324/",
+      "content_sha256": null
+    },
+    {
+      "source_ref": "fns_filling_procedure_docx",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_2.docx",
+      "content_sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc"
+    },
+    {
+      "source_ref": "fns_electronic_format_docx",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_3.docx",
+      "content_sha256": "f5215c237a8af73dd7a251cee94a2e09aacd8540173fcde2904b4c311129e3c2"
+    },
+    {
+      "source_ref": "fns_xsd_5_20_01",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/xsd/NO_NDFL3_1_033_00_05_20_01.xsd",
+      "content_sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484"
+    }
+  ],
+  "tree": {
+    "node_id": "file",
+    "element": "Файл",
+    "attributes": [
+      {"mapping_id": "file-id", "name": "ИдФайл", "source": "$root.target_mechanics.electronic_file_id", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+      {"mapping_id": "program-version", "name": "ВерсПрог", "source": null, "transform": {"kind": "constant", "value": "BrokerReports-G5.34-proof"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+      {"mapping_id": "format-version", "name": "ВерсФорм", "source": null, "transform": {"kind": "constant", "value": "5.20"}, "evidence_refs": ["fns_xsd_5_20_01"]}
+    ],
+    "children": [
+      {
+        "node_id": "document",
+        "element": "Документ",
+        "attributes": [
+          {"mapping_id": "document-knd", "name": "КНД", "source": null, "transform": {"kind": "constant", "value": "1151020"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+          {"mapping_id": "document-date", "name": "ДатаДок", "source": "$root.declaration_values.filing.declaration_date", "transform": {"kind": "iso_date_to_ddmmyyyy"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+          {"mapping_id": "tax-period-code", "name": "Период", "source": null, "transform": {"kind": "constant", "value": "34"}, "evidence_refs": ["fns_xsd_5_20_01", "fns_electronic_format_docx"]},
+          {"mapping_id": "reporting-year", "name": "ОтчетГод", "source": "$root.declaration_values.tax_period", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+          {"mapping_id": "tax-authority-code", "name": "КодНО", "source": "$root.declaration_values.filing.tax_authority_code", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+          {"mapping_id": "correction-number", "name": "НомКорр", "source": "$root.declaration_values.filing.correction_number", "transform": {"kind": "integer"}, "evidence_refs": ["fns_xsd_5_20_01"]}
+        ],
+        "children": [
+          {
+            "node_id": "taxpayer-information",
+            "element": "СвНП",
+            "attributes": [],
+            "children": [
+              {
+                "node_id": "individual-taxpayer",
+                "element": "НПФЛ3",
+                "attributes": [
+                  {"mapping_id": "declarant-category", "name": "ДокПредст", "source": "$root.declaration_values.taxpayer.declarant_category", "transform": {"kind": "enum", "values": {"other_individual_declaring_article_228_income": "760"}}, "evidence_refs": ["fns_filling_procedure_docx", "fns_xsd_5_20_01"]},
+                  {"mapping_id": "taxpayer-status", "name": "Статус", "source": "$root.declaration_values.taxpayer.period_status", "transform": {"kind": "enum", "values": {"resident_individual": "1", "nonresident_individual": "2"}}, "evidence_refs": ["fns_xsd_5_20_01"]}
+                ],
+                "children": [
+                  {
+                    "node_id": "taxpayer-name",
+                    "element": "ФИОФЛ",
+                    "attributes": [
+                      {"mapping_id": "taxpayer-last-name", "name": "Фамилия", "source": "$root.declaration_values.taxpayer.name.last_name", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "taxpayer-first-name", "name": "Имя", "source": "$root.declaration_values.taxpayer.name.first_name", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "taxpayer-middle-name", "name": "Отчество", "source": "$root.declaration_values.taxpayer.name.middle_name", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]}
+                    ],
+                    "children": []
+                  },
+                  {
+                    "node_id": "taxpayer-inn",
+                    "element": "ИННФЛ",
+                    "attributes": [],
+                    "text_mapping": {"mapping_id": "taxpayer-inn-text", "source": "$root.declaration_values.taxpayer.inn", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "node_id": "signer",
+            "element": "Подписант",
+            "attributes": [
+              {"mapping_id": "signer-capacity", "name": "ПрПодп", "source": "$root.declaration_values.signer.capacity", "transform": {"kind": "enum", "values": {"taxpayer_self": "1", "representative": "2"}}, "evidence_refs": ["fns_xsd_5_20_01"]}
+            ],
+            "children": []
+          },
+          {
+            "node_id": "declaration",
+            "element": "НДФЛ3",
+            "attributes": [],
+            "children": [
+              {
+                "node_id": "budget-summary",
+                "element": "СумНалПу",
+                "attributes": [],
+                "children": [
+                  {
+                    "node_id": "budget-allocation",
+                    "element": "СумНалПуИскл227",
+                    "repeat": "$root.declaration_values.budget_dispositions",
+                    "attributes": [
+                      {"mapping_id": "budget-kbk", "name": "КБК", "source": "$item.kbk", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "budget-oktmo", "name": "ОКТМО", "source": "$item.oktmo", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "budget-payable", "name": "ПодлУпл", "source": "$item.payable", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "budget-refundable", "name": "ПодлВозв", "source": "$item.refundable", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]}
+                    ],
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "node_id": "income-group",
+                "element": "НалБаза",
+                "repeat": "$root.declaration_values.income_group_results",
+                "attributes": [
+                  {"mapping_id": "income-group-code", "name": "ГрупДоход", "source": "$item.income_group", "transform": {"kind": "enum", "values": {"resident_securities_and_derivatives_non_iis": "02"}}, "evidence_refs": ["fns_filling_procedure_docx", "fns_xsd_5_20_01"]}
+                ],
+                "children": [
+                  {
+                    "node_id": "tax-base-calculation",
+                    "element": "РасчНалБаза",
+                    "attributes": [
+                      {"mapping_id": "total-income", "name": "СумДох", "source": "$item.total_income", "transform": {"kind": "money_decimal", "currency": "RUB", "scale": 2}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "non-taxable-income", "name": "СумДохНеНал", "source": "$item.non_taxable_income", "transform": {"kind": "money_decimal", "currency": "RUB", "scale": 2}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "taxable-income", "name": "СумДохНал", "source": "$item.taxable_income", "transform": {"kind": "money_decimal", "currency": "RUB", "scale": 2}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "tax-deductions", "name": "СумНалВыч", "source": "$item.tax_deductions", "transform": {"kind": "money_decimal", "currency": "RUB", "scale": 2}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "accepted-expenses", "name": "СумРасх", "source": "$item.accepted_expenses", "transform": {"kind": "money_decimal", "currency": "RUB", "scale": 2}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "tax-base", "name": "НалБаза", "source": "$item.tax_base", "transform": {"kind": "money_decimal", "currency": "RUB", "scale": 2}, "evidence_refs": ["fns_xsd_5_20_01"]}
+                    ],
+                    "children": []
+                  },
+                  {
+                    "node_id": "tax-settlement-calculation",
+                    "element": "РасчНалПУ",
+                    "attributes": [
+                      {"mapping_id": "calculated-tax", "name": "Исчисл", "source": "$item.calculated_tax", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "withheld-at-source", "name": "Удерж", "source": "$item.settlement_amounts.withheld_at_source", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "material-benefit-withheld", "name": "СумУдержМат", "source": "$item.settlement_amounts.material_benefit_withheld", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "trade-fee-credit", "name": "ТСУплПерЗач", "source": "$item.settlement_amounts.trade_fee_credit", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "fixed-advance-credit", "name": "СумФиксАван", "source": "$item.settlement_amounts.fixed_advance_credit", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "foreign-tax-credit", "name": "УплИнПодлЗач", "source": "$item.settlement_amounts.foreign_tax_credit", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "patent-credit", "name": "УплПатентЗач", "source": "$item.settlement_amounts.patent_credit", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "tax-payable", "name": "ПодлУпл", "source": "$item.tax_payable", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "tax-refundable", "name": "ПодлВозв", "source": "$item.tax_refundable", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "simplified-returned-or-credited", "name": "СумВозвУпр", "source": "$item.settlement_amounts.simplified_procedure_returned_or_credited", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]}
+                    ],
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "node_id": "russian-income-source",
+                "element": "ДоходИстРФ",
+                "repeat": "$root.declaration_values.russian_source_income",
+                "attributes": [
+                  {"mapping_id": "source-income-kind", "name": "ВидДоход", "source": "$item.income_kind", "transform": {"kind": "enum", "values": {"securities_disposal": "003"}}, "evidence_refs": ["fns_filling_procedure_docx", "fns_xsd_5_20_01"]},
+                  {"mapping_id": "source-oktmo", "name": "ОКТМО", "source": "$item.source_party.oktmo", "transform": {"kind": "identity"}, "evidence_refs": ["fns_filling_procedure_docx", "fns_xsd_5_20_01"]},
+                  {"mapping_id": "source-income", "name": "Доход", "source": "$item.gross_income", "transform": {"kind": "money_decimal", "currency": "RUB", "scale": 2}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                  {"mapping_id": "source-tax-withheld", "name": "НалУдерж", "source": "$item.withheld_tax", "transform": {"kind": "money_integer", "currency": "RUB"}, "evidence_refs": ["fns_xsd_5_20_01"]}
+                ],
+                "children": [
+                  {
+                    "node_id": "russian-income-source-organization",
+                    "element": "ИстЮЛ",
+                    "attributes": [
+                      {"mapping_id": "source-organization-name", "name": "Наим", "source": "$item.source_party.display_name", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "source-organization-inn", "name": "ИННЮЛ", "source": "$item.source_party.inn", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                      {"mapping_id": "source-organization-kpp", "name": "КПП", "source": "$item.source_party.kpp", "transform": {"kind": "identity"}, "evidence_refs": ["fns_xsd_5_20_01"]}
+                    ],
+                    "children": []
+                  }
+                ]
+              },
+              {
+                "node_id": "securities-results",
+                "element": "ДохОперЦБ",
+                "repeat": "$root.declaration_values.financial_investment_results",
+                "attributes": [
+                  {"mapping_id": "securities-operation-kind", "name": "ВидОпер", "source": "$item.operation_category", "transform": {"kind": "enum", "values": {"organized_market_securities_outside_iis": "01"}}, "evidence_refs": ["fns_filling_procedure_docx", "fns_xsd_5_20_01"]},
+                  {"mapping_id": "securities-gross-income", "name": "ДохСовОпер", "source": "$item.category_gross_income", "transform": {"kind": "money_decimal", "currency": "RUB", "scale": 2}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                  {"mapping_id": "securities-related-expenses", "name": "РасхРеалЦБ", "source": "$item.related_expenses", "transform": {"kind": "money_decimal", "currency": "RUB", "scale": 2}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                  {"mapping_id": "securities-allowable-expenses", "name": "РасхУмДохОпер", "source": "$item.allowable_expenses", "transform": {"kind": "money_decimal", "currency": "RUB", "scale": 2}, "evidence_refs": ["fns_xsd_5_20_01"]},
+                  {"mapping_id": "securities-loss-treatment", "name": "ПризУчетУбыт", "source": "$item.loss_treatment", "transform": {"kind": "enum", "values": {"none": "0"}}, "evidence_refs": ["fns_filling_procedure_docx", "fns_xsd_5_20_01"]}
+                ],
+                "children": []
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

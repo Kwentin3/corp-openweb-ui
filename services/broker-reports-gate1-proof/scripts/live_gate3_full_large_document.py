@@ -446,6 +446,7 @@ def main() -> int:
 
     document_result = {
         "schema_version": GATE3_CHUNK_BATCH_LABELING_RESULT_SCHEMA_VERSION,
+        "semantic_scope": copy.deepcopy(result.semantic_scope),
         "selected_chunk_ordinals": list(result.selected_chunk_ordinals),
         "selection_mode": result.selection_mode,
         "document_status": result.document_status,

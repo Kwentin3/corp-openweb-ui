@@ -1,0 +1,260 @@
+{
+  "schema_version": "broker_reports_table_layout_contract_g596_manifest_v1",
+  "goal": "G5.96",
+  "frozen": true,
+  "source": {
+    "document_id": "document_04",
+    "pdf_sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+    "pdf_bytes": 479750,
+    "pages": 65,
+    "g594_manifest_file_sha256": "d84919e08cfcd20f16601efde67f722737c70b118e218cd1a4e235651aa2955e",
+    "g595_manifest_file_sha256": "88b803cd75ea68967791cc9c5625bd0b8ad13844700743429c910461347bb808",
+    "g595_private_review_file_sha256": "a592fabd1f9590fd7894f6856156341a02068eb80c77a456871cd2366775da68"
+  },
+  "provider": {
+    "provider_profile": "google_gemini",
+    "model_id": "models/gemini-3.5-flash",
+    "temperature": 0,
+    "thinking_level": "minimal",
+    "candidate_count": 1,
+    "maximum_counted_input_tokens": 24000,
+    "maximum_output_tokens": 4096,
+    "hidden_retry": false,
+    "provider_failover": false,
+    "best_of_n": false,
+    "input": "one_frozen_original_page_png",
+    "prompt": "Inspect this one rendered PDF page only for visual table layout. Return tables in top-to-bottom order. Do not transcribe or return any body row, date, number, amount, security, quantity, code, or other body value. Do not classify financial meaning. Do not invent Canonical IDs and do not return bounding boxes. For each visible table return only: a disposable local name; short textual breadcrumb tokens for its section or heading; its ordinal relative to that anchor; a structural end boundary (next_section, footer, or end_of_page) and short next-section tokens only when needed; visual column count; header-row count; continuation flag; repeated/mixed/none body-row pattern; present/absent/unknown flags for wrapped and subtotal rows; and, only when a visible column header is present, one short array of visible header-word hints per visual column. Breadcrumbs and header words are hints, not extracted values. If there is no visual table, return an empty tables array.",
+    "response_schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tables"
+      ],
+      "properties": {
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "local_name",
+              "start_hints",
+              "end_hints",
+              "structure",
+              "header_cell_token_hints"
+            ],
+            "properties": {
+              "local_name": {
+                "type": "string"
+              },
+              "start_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "anchor_tokens",
+                  "table_ordinal_after_anchor"
+                ],
+                "properties": {
+                  "anchor_tokens": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "table_ordinal_after_anchor": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "end_hints": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "boundary",
+                  "anchor_tokens"
+                ],
+                "properties": {
+                  "boundary": {
+                    "type": "string",
+                    "enum": [
+                      "next_section",
+                      "footer",
+                      "end_of_page"
+                    ]
+                  },
+                  "anchor_tokens": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "structure": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "columns",
+                  "header_rows",
+                  "continuation",
+                  "body_row_pattern",
+                  "wrapped_rows",
+                  "subtotal_rows"
+                ],
+                "properties": {
+                  "columns": {
+                    "type": "integer"
+                  },
+                  "header_rows": {
+                    "type": "integer"
+                  },
+                  "continuation": {
+                    "type": "boolean"
+                  },
+                  "body_row_pattern": {
+                    "type": "string",
+                    "enum": [
+                      "repeated",
+                      "mixed",
+                      "none"
+                    ]
+                  },
+                  "wrapped_rows": {
+                    "type": "string",
+                    "enum": [
+                      "present",
+                      "absent",
+                      "unknown"
+                    ]
+                  },
+                  "subtotal_rows": {
+                    "type": "string",
+                    "enum": [
+                      "present",
+                      "absent",
+                      "unknown"
+                    ]
+                  }
+                }
+              },
+              "header_cell_token_hints": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "tokens"
+                  ],
+                  "properties": {
+                    "tokens": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "development_01",
+      "role": "known_wrong_column_relation",
+      "page": 23,
+      "visual_table_ordinal": 2,
+      "variant_a_page_sha256": "06d1215180d7dcedb23a28d2cafbd0a3ec053c94c55cf655b7048b08256ba77c",
+      "expected_parser_columns": 13,
+      "expected_visual_columns": 11,
+      "expected_rows": 4
+    },
+    {
+      "case_id": "development_02",
+      "role": "known_wrong_column_relation_continuation_subtotal",
+      "page": 24,
+      "visual_table_ordinal": 1,
+      "variant_a_page_sha256": "49f5b992b9fad897b029f7b1b8001018a209fb0d57afee34d18638d493510abe",
+      "expected_parser_columns": 13,
+      "expected_visual_columns": 11,
+      "expected_rows": 34
+    },
+    {
+      "case_id": "development_03",
+      "role": "known_wrong_column_relation_continuation_subtotal",
+      "page": 25,
+      "visual_table_ordinal": 1,
+      "variant_a_page_sha256": "c54e1447e8a1ba25c2a9fd02a12b11ac51e6b16dc5824d889148153248c66567",
+      "expected_parser_columns": 13,
+      "expected_visual_columns": 11,
+      "expected_rows": 36
+    },
+    {
+      "case_id": "development_04",
+      "role": "known_wrong_column_relation_continuation_subtotal",
+      "page": 26,
+      "visual_table_ordinal": 1,
+      "variant_a_page_sha256": "fb0f3a7b6bf104d8d917540e511742134c6438f90d67b7878e2051f8e5c45514",
+      "expected_parser_columns": 13,
+      "expected_visual_columns": 11,
+      "expected_rows": 36
+    },
+    {
+      "case_id": "development_05",
+      "role": "known_wrong_column_relation_continuation_subtotal",
+      "page": 27,
+      "visual_table_ordinal": 1,
+      "variant_a_page_sha256": "8fb44c35041837cf06930665094b8f81c1e7ba41e780046f0a2e425b3f57ff9b",
+      "expected_parser_columns": 13,
+      "expected_visual_columns": 11,
+      "expected_rows": 28
+    },
+    {
+      "case_id": "known_good_01",
+      "role": "known_good_table_control",
+      "page": 28,
+      "visual_table_ordinal": 1,
+      "variant_a_page_sha256": "cb944c891e23ededff7505e28dfec088f8cd44303fee73ae1961cb8c6ca7cce0",
+      "expected_parser_columns": 5,
+      "expected_visual_columns": 5,
+      "expected_rows": 48
+    },
+    {
+      "case_id": "non_table_01",
+      "role": "ordinary_prose_control",
+      "page": 64,
+      "visual_table_ordinal": 0,
+      "variant_a_page_sha256": "4fdf65bed2406c2c64fc45ab7759981f40ceea47296e81a27b319a212cbdb970",
+      "expected_parser_columns": 0,
+      "expected_visual_columns": 0,
+      "expected_rows": 0
+    }
+  ],
+  "acceptance": {
+    "vlm_body_values_used": 0,
+    "vlm_canonical_ids": 0,
+    "vlm_exact_bboxes": 0,
+    "invented_source_literals": 0,
+    "source_words_refs_from_parser_ratio": 1.0,
+    "known_wrong_column_relations_corrected": 5,
+    "known_good_controls_preserved": 1,
+    "non_table_controls_fail_closed": 1,
+    "ambiguous_localization_fail_closed": true,
+    "broker_specific_rules": 0,
+    "page_specific_production_rules": 0,
+    "financial_semantic_rules": 0,
+    "production_activation": false
+  },
+  "scope": {
+    "research_only": true,
+    "gate2_only": true,
+    "provider_routing_design": false,
+    "reconciliation_design": false,
+    "fallback_design": false,
+    "gate3_plus": false,
+    "production_activation": false
+  }
+}

@@ -118,7 +118,7 @@ class PdfDualVlmRuntimeConfig:
     timeout_seconds: int = 240
     maximum_output_tokens: int = 16_384
     maximum_counted_input_tokens: int = 24_000
-    maximum_candidates: int = 8
+    maximum_candidates: int = 16
 
 
 @dataclass(frozen=True)

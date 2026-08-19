@@ -1,6 +1,13 @@
 # Broker Reports Managed Financial Domain Consumer Contract v1
 
-Status: normative target contract; repository-defined, not live-activated
+Status: `COMPATIBILITY_ONLY` — pre-current-gate contract; not live-activated
+
+Architecture notice (G5.50): this preserved v1 contract predates the current
+Gate numbering and must not be used to infer current ownership. The current
+[Pipeline Architecture v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md) owns domain
+placement: Gate 2 preserves Canonical form, Gate 3 owns source-semantic
+financial labeling, Gate 4 owns normalized source facts, and Gate 5 owns
+reviewed deterministic tax methodology.
 
 Contract version: `broker_reports_managed_financial_domain_contract_v1`
 
@@ -9,8 +16,10 @@ Machine-readable schema:
 
 ## 1. Purpose and ownership
 
-This contract defines the stable Gate 2 boundary consumed by Gate 3. Gate 2
-owns financial record classification, immutable domain snapshots, source
+Historically, this contract defined a boundary then called Gate 2 and consumed
+by what was then called Gate 3. In current terminology this is compatibility
+evidence only. Its historical owner handled financial record classification,
+immutable domain snapshots, source
 coverage, provenance, deterministic filtering, pagination, and query
 completeness. Gate 3 may describe and reason over records returned through this
 boundary, but does not own their type identity, source lineage, or completeness
@@ -329,7 +338,8 @@ An implementation of v1 is invalid if any of the following is possible:
 - `query_result_complete=true` is emitted before the final page;
 - provenance can resolve outside the authorized snapshot scope;
 - current live/stage identity is inferred from stale receipts;
-- Gate 3 tax methodology is embedded in the domain DTOs.
+- tax methodology is embedded in these compatibility DTOs (current Gate 5 is
+  the only tax-methodology runtime owner).
 
 ## 11. Implementation slices and deferred work
 

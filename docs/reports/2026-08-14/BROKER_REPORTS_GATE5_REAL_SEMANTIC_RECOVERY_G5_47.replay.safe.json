@@ -1,0 +1,54 @@
+{
+  "cross_domain_consistency": {
+    "acquisition_basis_coverage_contract_changed": false,
+    "commission_selection_contract_changed": false,
+    "declaration_semantic_model_changed": false,
+    "financial_event_relations_created": 0,
+    "four_legal_methodology_gaps_changed": false,
+    "reconciliation_performed": false,
+    "representation_only_projection_changed": false,
+    "residency_evidence_boundary_changed": false,
+    "source_granularity_preserved": true
+  },
+  "declaration_release": false,
+  "goal": "G5.47",
+  "persistence": "transient_projection_only",
+  "private_values_committed": false,
+  "product_activation": false,
+  "replay": {
+    "after_advisory_findings": 1,
+    "after_required_action_kinds": {
+      "USER_FACT": 4
+    },
+    "after_required_actions": 4,
+    "after_required_blockers": 19,
+    "base_financial_facts": 186,
+    "before_advisory_findings": 1,
+    "before_required_actions": 4,
+    "before_required_blockers": 19,
+    "entrypoint": "Gate5RealSemanticRecoveryRuntimeFactory.create",
+    "new_findings_after_replay": 0,
+    "ordinary_path": [
+      "typed source fact",
+      "Gate4CanonicalRecoveryProjectorFactory.create",
+      "Gate5DeterministicSourceFactConsumptionRuntime",
+      "Gate5RealTaxCaseAssemblyRuntime",
+      "Gate5ClientEvidenceReviewRuntime",
+      "Gate5DeclarationPreparationRuntime"
+    ],
+    "original_findings_closed": 0,
+    "projected_financial_facts": 2,
+    "superseded_same_target_facts": 2,
+    "tax_model_direct_from_llm": false
+  },
+  "schema_version": "broker_reports_gate5_g547_replay_safe_v1",
+  "source_literals_committed": false,
+  "terminals": [
+    "SOURCE_FACT_CONTRACT_CONSOLIDATION_PROVEN",
+    "SHARED_FACT_MULTI_CONSUMER_BINDING_PROVEN",
+    "TRUE_SOURCE_GAPS_LOCALIZED",
+    "REAL_SEMANTIC_RECOVERY_CORE_PROVEN",
+    "REAL_CANONICAL_SEMANTIC_RECOVERY_PROVEN",
+    "CANONICAL_PRESERVATION_GAP_FOUND=[PARTIAL:pdf_table_projection_terminal_fallback_text]"
+  ]
+}

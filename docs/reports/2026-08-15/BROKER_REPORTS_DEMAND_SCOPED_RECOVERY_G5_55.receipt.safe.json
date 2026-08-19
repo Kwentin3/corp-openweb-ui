@@ -1,0 +1,25 @@
+{
+  "added_total": 5,
+  "annotations_after": 26,
+  "annotations_before": 21,
+  "base_purchase_targets": 5,
+  "deleted_total": 0,
+  "demand_annotations": 5,
+  "exact_purchase_target_overlap": 0,
+  "gate4_document_facts_after": 26,
+  "gate4_status": "CASE_COMPLETE_FOR_CURRENT_INPUT_SET",
+  "gate5_security_facts_after": 53,
+  "gate5_terminals": [
+    "SOURCE_FACT_ASSERTIONS_PRESERVED"
+  ],
+  "preserved_unrelated_total": 16,
+  "provider_calls": 0,
+  "provider_result_sha256": "628d84b56ec361b1a945be093ff7855b3d9c37bab1f523a8e0d7073e31930b46",
+  "purchases_after": 10,
+  "schema_version": "broker_reports_g555_replay_receipt_v1",
+  "source_store_unchanged": true,
+  "stored_financial_event_relations": 0,
+  "superseded_total": 0,
+  "unchanged_recovered_total": 0,
+  "unrelated_commission_charge_after": 16
+}

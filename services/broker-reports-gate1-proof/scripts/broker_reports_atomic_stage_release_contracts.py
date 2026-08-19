@@ -18,6 +18,14 @@ from broker_reports_gate1.architecture_policy import (
     WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED,
 )
 from broker_reports_gate1.pdf_hybrid_provider import project_gemini_schema
+from broker_reports_gate1.pdf_table_locator import (
+    PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
+    PDF_TABLE_LOCATOR_OUTPUT_SCHEMA,
+    PDF_TABLE_LOCATOR_POLICY_VERSION,
+    PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
+    PDF_TABLE_LOCATOR_PROMPT,
+    PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
+)
 from broker_reports_gate1.gate2_financial_evidence_registry import (
     Gate2FinancialEvidenceRegistryFactory,
 )
@@ -39,7 +47,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 
-SCHEMA_VERSION = "broker_reports_atomic_stage_release_v3"
+SCHEMA_VERSION = "broker_reports_atomic_stage_release_v4"
 RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -99,7 +107,7 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
     "pdf_table_intake_maximum_candidates_per_page": 32,
     "pdf_table_intake_horizontal_padding_fraction": 0.08,
     "pdf_table_intake_vertical_padding_fraction": 0.08,
-    "pdf_dual_vlm_enabled": True,
+    "pdf_dual_vlm_enabled": False,
     "pdf_dual_vlm_provider_selection_policy_version": (
         "pdf_semantic_vlm_provider_selection_v1"
     ),
@@ -109,8 +117,8 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
     "pdf_dual_vlm_timeout_seconds": 240,
     "pdf_dual_vlm_maximum_output_tokens": 16_384,
     "pdf_dual_vlm_maximum_counted_input_tokens": 24_000,
-    "pdf_dual_vlm_maximum_candidates": 8,
-    "pdf_semantic_visual_table_downstream_enabled": True,
+    "pdf_dual_vlm_maximum_candidates": 16,
+    "pdf_semantic_visual_table_downstream_enabled": False,
     "pdf_semantic_visual_table_migration_policy_version": (
         SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION
     ),
@@ -141,8 +149,8 @@ DOMAIN_RELEASE_VALVES: dict[str, Any] = {
     "default_document_batch_limit": 1,
     "default_source_unit_limit": 1,
     "segmentation_enabled": True,
-    "prefer_table_projections": False,
-    "allow_standalone_semantic_visual_projections": True,
+    "prefer_table_projections": True,
+    "allow_standalone_semantic_visual_projections": False,
     "candidate_binding_enabled": False,
     "gate3_context_manifest_enabled": False,
     "answer_context_selection_enabled": True,
@@ -179,6 +187,9 @@ FUNCTION_CONTRACTS = (
         valves=GATE1_RELEASE_VALVES,
         required_markers=(
             "WorkloadAuthorityFactory",
+            "PdfTableLocatorProjectionFactory",
+            "vlm_located_pdfplumber_source_bound",
+            "pdf_table_normalization_incomplete",
             "PdfVisualTableReviewFactory",
             "Gate2TablePackageFactory",
             "SemanticVisualTableMigrationFactory",
@@ -365,7 +376,8 @@ def build_manifest(
         "runtime": {
             "fitz_version": REQUIRED_FITZ_VERSION,
             "vlm_default_enabled": True,
-            "semantic_visual_profile_default_enabled": True,
+            "source_bound_table_normalization_default_enabled": True,
+            "semantic_visual_profile_default_enabled": False,
             "visual_auto_publication_enabled": False,
             "gate1_heavy_concurrency": 1,
             "gate2_local_maximum_concurrency": 2,
@@ -423,7 +435,8 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     runtime = manifest.get("runtime") or {}
     if (
         runtime.get("vlm_default_enabled") is not True
-        or runtime.get("semantic_visual_profile_default_enabled") is not True
+        or runtime.get("source_bound_table_normalization_default_enabled") is not True
+        or runtime.get("semantic_visual_profile_default_enabled") is not False
         or runtime.get("visual_auto_publication_enabled") is not False
     ):
         raise ValueError("stage_release_manifest_semantic_activation_invalid")
@@ -432,6 +445,11 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     ) or {}
     if semantic != semantic_visual_table_contract_manifest():
         raise ValueError("stage_release_manifest_semantic_contract_invalid")
+    source_bound = (manifest.get("provider_policy") or {}).get(
+        "source_bound_table_contract"
+    ) or {}
+    if source_bound != source_bound_table_contract_manifest():
+        raise ValueError("stage_release_manifest_source_bound_contract_invalid")
     registry = Gate2FinancialEvidenceRegistryFactory().create()
     financial_registry = (
         (manifest.get("provider_policy") or {}).get(
@@ -471,11 +489,11 @@ def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, An
     registry = Gate2FinancialEvidenceRegistryFactory().create()
     return {
         "gate2_profile_contract": "gate2_provider_profile_registry_v1",
-        "gate1_visual_selection_policy": "pdf_semantic_vlm_provider_selection_v1",
+        "gate1_visual_selection_policy": PDF_TABLE_LOCATOR_POLICY_VERSION,
         "gate1_visual_model_ids": {
             "google_gemini": "models/gemini-3.5-flash",
-            "openai_gpt": "gpt-5.4-mini-2026-03-17",
         },
+        "source_bound_table_contract": source_bound_table_contract_manifest(),
         "semantic_visual_table_contract": semantic_visual_table_contract_manifest(),
         "financial_evidence_registry": {
             "registry_id": registry.registry_id,
@@ -498,6 +516,7 @@ def semantic_visual_table_contract_manifest() -> dict[str, Any]:
     schema = semantic_table_transcription_schema()
     gemini_schema, gemini_transforms = project_gemini_schema(schema)
     return {
+        "active_for_new_writes": False,
         "prompt_version": SEMANTIC_TABLE_TRANSCRIPTION_PROMPT_VERSION,
         "prompt_sha256": sha256_text(SEMANTIC_TABLE_TRANSCRIPTION_PROMPT),
         "schema_version": SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION,
@@ -528,4 +547,26 @@ def semantic_visual_table_contract_manifest() -> dict[str, Any]:
                 WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED
             ),
         },
+    }
+
+
+def source_bound_table_contract_manifest() -> dict[str, Any]:
+    return {
+        "active_for_new_writes": True,
+        "locator_policy_version": PDF_TABLE_LOCATOR_POLICY_VERSION,
+        "prompt_sha256": sha256_text(PDF_TABLE_LOCATOR_PROMPT),
+        "response_schema": PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
+        "response_schema_sha256": sha256_text(
+            canonical_json(PDF_TABLE_LOCATOR_OUTPUT_SCHEMA)
+        ),
+        "projection_schema": PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
+        "coordinate_contract": PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
+        "table_structure_authority": "pdfplumber",
+        "source_literal_authority": "original_pdf",
+        "canonical_publication_authority": "Gate1Normalizer",
+        "model_values_used_as_source_literals": False,
+        "pdfplumber_settings_selected_by_model": False,
+        "hidden_retry": False,
+        "provider_failover": False,
+        "terminal_blocker": "pdf_table_normalization_incomplete",
     }

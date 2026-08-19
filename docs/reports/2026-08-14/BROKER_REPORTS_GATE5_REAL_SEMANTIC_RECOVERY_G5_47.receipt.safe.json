@@ -1,0 +1,72 @@
+{
+  "artifacts": [
+    {
+      "bytes": 22125,
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate4_financial_case_materialization.py",
+      "sha256": "2dd641864d78bd9ff8fed0ed6301f43110ff0e3239cb4cd9cc5af3f62905a567"
+    },
+    {
+      "bytes": 63946,
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_real_semantic_recovery.py",
+      "sha256": "95e6aefa854c7db8953c2b87b137a1db1a1aafedf17d9ca693acad7ea9d0b944"
+    },
+    {
+      "bytes": 27072,
+      "path": "services/broker-reports-gate1-proof/scripts/live_gate5_real_semantic_recovery.py",
+      "sha256": "143c93958bd7d26ab28a853c9f83ed8ce0fc0a8013ab0e9065dd6413b74cbf35"
+    },
+    {
+      "bytes": 14150,
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate5_real_semantic_recovery.py",
+      "sha256": "4a1577803a0b8a7140d2501b33cf118ddcd4728e4ac588c65d0f503ddc7f0943"
+    },
+    {
+      "bytes": 7723,
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_cross_gate_contract_architecture.py",
+      "sha256": "a3c72ca3c88620bfb8447d3b233af813f55a282a3121e16d0e4a58e83947e3d9"
+    },
+    {
+      "bytes": 6432,
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE5_REAL_CANONICAL_SEMANTIC_RECOVERY.v1.md",
+      "sha256": "59157c495ae9b6539e4691212c6b8a2a6d3ff3fd4e4014184ba2444b1c2acb52"
+    },
+    {
+      "bytes": 8143,
+      "path": "docs/reports/2026-08-14/BROKER_REPORTS_GATE5_REAL_CANONICAL_SEMANTIC_RECOVERY_G5_47.report.md",
+      "sha256": "36df8f6e8918c8b76b0e39d18f86c48471d74f134f7ba6ec0695d64e89d04a46"
+    }
+  ],
+  "best_of_n": 1,
+  "canonical_mutations": 0,
+  "declaration_release": false,
+  "frozen_store_snapshot": {
+    "bytes": 374141368,
+    "files": 415,
+    "manifest_sha256": "0ecfdb6c4732c42c1c41f7b79220f4b087dbf22551b16a0568ff71f2ddfac42a"
+  },
+  "frozen_store_unchanged": true,
+  "goal": "G5.47",
+  "ingestion_reruns": 0,
+  "persistence": "transient_projection_only",
+  "private_result_sha256": "40d7929ca9c388d29f0e17ba9f14ac4e46a2b8bd049657d109031e63d7efab16",
+  "private_values_committed": false,
+  "product_activation": false,
+  "provider_calls": 4,
+  "provider_evidence_mode": "ORIGINAL_CLEAN_CALLS_REVALIDATED",
+  "provider_retries": 0,
+  "safe_output_sha256": {
+    "consolidation": "e364213912b7b1a1b1689ff5fa0db87450d33a19f69407e4fa16971c4e80b46f",
+    "recovery": "cd04803bbe452cdafef67e9afaf5fe02d3a901e85ee1c0a4f9f39886241f0800",
+    "replay": "2fe7dc6cfe60b0be2ab686a5174719cd759b2d4f79460eb5333ce5114e8d9e58"
+  },
+  "schema_version": "broker_reports_gate5_g547_receipt_safe_v1",
+  "source_byte_reads": 0,
+  "terminals": [
+    "SOURCE_FACT_CONTRACT_CONSOLIDATION_PROVEN",
+    "SHARED_FACT_MULTI_CONSUMER_BINDING_PROVEN",
+    "TRUE_SOURCE_GAPS_LOCALIZED",
+    "REAL_SEMANTIC_RECOVERY_CORE_PROVEN",
+    "REAL_CANONICAL_SEMANTIC_RECOVERY_PROVEN",
+    "CANONICAL_PRESERVATION_GAP_FOUND=[PARTIAL:pdf_table_projection_terminal_fallback_text]"
+  ]
+}

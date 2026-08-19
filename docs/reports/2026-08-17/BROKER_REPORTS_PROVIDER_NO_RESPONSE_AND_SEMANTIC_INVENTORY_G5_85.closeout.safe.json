@@ -1,0 +1,81 @@
+{
+  "schema_version": "broker_reports_g585_closeout_safe_v1",
+  "goal": "G5.85",
+  "terminal": "SEMANTIC_INVENTORY_REQUALIFICATION_REQUIRED",
+  "part_a": {
+    "status": "PROVIDER_NO_RESPONSE_POLICY_PROVEN",
+    "policy_id": "gate3_operational_no_response_v1",
+    "maximum_operational_retries": 1,
+    "ceiling_rationale": "One retry is the smallest positive bound that can absorb one isolated transient no-response failure without repeated semantic sampling.",
+    "retryable_contract": {
+      "code": "gate2_model_provider_unavailable",
+      "failure_classes": [
+        "provider_transport",
+        "provider_error_response"
+      ],
+      "semantic_response_exists": false
+    },
+    "semantic_response_rejection_retryable": false,
+    "exact_prepared_request_identity_reused": true,
+    "accounting_fields": [
+      "semantic_attempts",
+      "transport_failures_before_semantic_response",
+      "operational_retries",
+      "semantic_responses_received",
+      "semantic_rejections"
+    ],
+    "semantic_retry": 0
+  },
+  "part_b": {
+    "status": "FAILED_SYSTEMATIC_ERROR",
+    "facts_in_machine_inventory": 1489,
+    "facts_accounted": 1489,
+    "machine_coverage_percent": 100.0,
+    "structural_clusters_total": 51,
+    "negative_control_families_inventory_total": 58,
+    "systematic_conflict": {
+      "kind": "DIVIDEND_INCOME_on_source_rows_explicitly_described_as_US_tax",
+      "affected_facts": 105,
+      "affected_pages": 6,
+      "affected_structural_clusters": 6,
+      "affected_provider_chunks": 6
+    },
+    "first_divergence": {
+      "owner": "Gate3 pass-1 provider semantic proposal",
+      "annotation_index": 22,
+      "source_page": 4,
+      "provider_chunk_ordinal": 10,
+      "provider_fact_alias": "f005",
+      "provider_target_alias": "t1241"
+    },
+    "original_pdf_visually_inspected_pages": [4, 5, 7],
+    "development_visual_only": true,
+    "vlm_calls": 0,
+    "fix_applied": false
+  },
+  "part_c": {
+    "ordinary_replay_executed": false,
+    "gate4_rebuild_after_ordinary_replay": false,
+    "reason": "Part B is not clean; mandatory STOP applied."
+  },
+  "scope_stops": {
+    "prompt_changed": false,
+    "model_changed": false,
+    "role_pack_changed": false,
+    "dictionary_changed": false,
+    "parser_heuristics_changed": false,
+    "decimal_changed": false,
+    "methodology_changed": false,
+    "metadata_changed": false,
+    "vlm_used": false,
+    "gate5_executed": false,
+    "git_cleanup_or_commit": false
+  },
+  "verification": {
+    "focused_and_architecture_tests_passed": 146,
+    "focused_and_architecture_tests_failed": 0,
+    "ruff": "passed",
+    "py_compile": "passed",
+    "generated_bundle_parity": "passed"
+  }
+}

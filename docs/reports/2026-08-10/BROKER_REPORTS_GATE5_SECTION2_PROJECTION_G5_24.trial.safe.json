@@ -1,0 +1,155 @@
+{
+  "candidate_semantic_audit": {
+    "findings": [
+      {
+        "finding_id": "section2_income_type_003_is_evidence_qualifier_not_fragment_field",
+        "impact": "candidate semantic_outputs names income type 003 although the validated Section 2 fragment emits only group code 02 and six monetary fields"
+      },
+      {
+        "finding_id": "project_composition_artifact_cardinality_not_compiler_enforced",
+        "impact": "unsupported full-document composition lists two projection artifacts while one PROJECT invocation accepts one projection_ref"
+      }
+    ],
+    "status": "limitations_recorded_without_repair"
+  },
+  "execution": {
+    "candidate_capture": "exact_output_last_message_bytes",
+    "candidate_sha256": "c2efa5639a8d083ef6f7c9d9cef4f873a1027cdfbcc4d765b80c66555aa8c8c1",
+    "candidate_utf8_bytes": 7405,
+    "conversation_history": "none",
+    "follow_up_messages_total": 0,
+    "provider_invocations_total": 1,
+    "provider_terminal_event": "turn.completed",
+    "provider_terminal_exit_code": 0,
+    "provider_usage": {
+      "cached_input_tokens": 9984,
+      "input_tokens": 20556,
+      "output_tokens": 3243,
+      "reasoning_output_tokens": 1552
+    },
+    "repairs_total": 0,
+    "retries_total": 0,
+    "workspace_items_before_inference": 0
+  },
+  "pre_inference": {
+    "application_messages": [
+      {
+        "content_binding": "exact_frozen_payload_bytes",
+        "content_sha256": "c69a096ad656ccb0c843930977f7ed12b0e148cd5467528dca06ea6fe08241f3",
+        "content_utf8_bytes": 28631,
+        "role": "user"
+      }
+    ],
+    "bias_audit": {
+      "disallowed_hits": [],
+      "forbidden_terms": [
+        "g5.16",
+        "g5.17",
+        "g5.18",
+        "g5.19",
+        "g5.20",
+        "g5.21",
+        "g5.22",
+        "g5.23",
+        "g5.24",
+        "previous candidate",
+        "validator error",
+        "expected gap",
+        "first missing capability",
+        "section2_validated_projection_artifact_missing",
+        "section2_projection_contract_incompatible",
+        "следующий шаг"
+      ],
+      "official_evidence_allowed_hits": [],
+      "policy": "no_history_error_or_expected_gap_outside_official_evidence_v2",
+      "schema_version": "broker_reports_gate5_declaration_authoring_bias_audit_v2",
+      "status": "passed"
+    },
+    "conversation_history": "none",
+    "derived_metadata_policy": {
+      "behavior_io_contracts": "deterministic_registry",
+      "capability_io_contracts": "deterministic_resolver",
+      "case_input_assessment": "not_evaluated_no_case_evidence",
+      "definition_status": "deterministic_compiler"
+    },
+    "invocation_profile": {
+      "candidate_parser": "one_utf8_json_object_no_repair_v1",
+      "client_version": "codex-cli 0.147.0-alpha.6.5",
+      "conversation_mode": "ephemeral_new_session",
+      "exec_rules": "ignored",
+      "final_message_capture": "output_last_message_file",
+      "model": "gpt-5.6-sol",
+      "provider": "openai_codex_cli",
+      "provider_output_schema": "none",
+      "reasoning_effort": "high",
+      "response_repair": "forbidden",
+      "retry_limit": 0,
+      "sandbox": "read-only",
+      "user_config": "ignored",
+      "workspace": "empty_temporary_directory"
+    },
+    "model_visible_output_schema_sha256": "2cc6e735220508fb3e2889dbb6fcdd7cf7c8a751ff2b4a36664c6311bbd6810d",
+    "payload_sha256": "c69a096ad656ccb0c843930977f7ed12b0e148cd5467528dca06ea6fe08241f3",
+    "schema_version": "broker_reports_gate5_declaration_authoring_language_trial_plan_v2",
+    "section_metrics": {
+      "enveloped_payload_utf8_bytes": 28631,
+      "sections": [
+        {
+          "section": "system_instructions",
+          "unicode_lexical_tokens": 428,
+          "utf8_bytes": 2251
+        },
+        {
+          "section": "research_policy",
+          "unicode_lexical_tokens": 130,
+          "utf8_bytes": 656
+        },
+        {
+          "section": "runtime_capabilities",
+          "unicode_lexical_tokens": 1378,
+          "utf8_bytes": 7976
+        },
+        {
+          "section": "published_artifact_inventory",
+          "unicode_lexical_tokens": 1567,
+          "utf8_bytes": 8542
+        },
+        {
+          "section": "official_evidence",
+          "unicode_lexical_tokens": 1071,
+          "utf8_bytes": 4528
+        },
+        {
+          "section": "output_schema",
+          "unicode_lexical_tokens": 1926,
+          "utf8_bytes": 4540
+        }
+      ],
+      "token_metric": "unicode_lexical_tokens_v0_not_model_tokenizer",
+      "utf8_bytes_div_4_token_proxy": 7158
+    },
+    "status": "frozen_before_inference",
+    "trial_id": "g5.24-history-free-replay-2026-08-10-001"
+  },
+  "result": {
+    "definition_status": "partially_compilable",
+    "first_blocking_gap_id": "complete_electronic_declaration_assembly_gap",
+    "gaps_total": 1,
+    "previous_projection_gaps_present": false,
+    "requirements_total": 5,
+    "supported_requirements_total": 4,
+    "unsupported_requirements_total": 1
+  },
+  "schema_version": "broker_reports_gate5_declaration_authoring_language_trial_result_v2",
+  "scope_stop": {
+    "next_boundary_identified_not_implemented": "complete_electronic_declaration_assembly_gap",
+    "product_status": "inactive_proof"
+  },
+  "trial_id": "g5.24-history-free-replay-2026-08-10-001",
+  "validation": {
+    "deterministic_compiler": "passed",
+    "draft_2020_12_schema": "passed",
+    "manual_repairs_total": 0,
+    "plain_json_parser": "passed"
+  }
+}

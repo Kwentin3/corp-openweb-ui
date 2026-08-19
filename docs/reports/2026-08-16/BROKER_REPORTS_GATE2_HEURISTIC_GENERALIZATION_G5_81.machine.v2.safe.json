@@ -1,0 +1,1178 @@
+{
+  "broker_page_coordinate_rules": 0,
+  "candidates_total": 90,
+  "current_blocked_total": 1,
+  "current_ready_total": 89,
+  "documents": [
+    {
+      "candidates_total": 75,
+      "current_blocked_total": 1,
+      "current_ready_total": 74,
+      "old_and_new_ready_total": 0,
+      "pages": [
+        {
+          "candidate_count": 3,
+          "current_blocked": 1,
+          "current_ready": 2,
+          "old_and_new_ready": 0,
+          "page": 1,
+          "promoted_only_by_new_rule": 2
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 2,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 2,
+          "current_blocked": 0,
+          "current_ready": 2,
+          "old_and_new_ready": 0,
+          "page": 3,
+          "promoted_only_by_new_rule": 2
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 4,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 5,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 6,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 7,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 8,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 9,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 10,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 11,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 12,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 13,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 14,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 15,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 16,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 17,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 18,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 19,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 20,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 21,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 2,
+          "current_blocked": 0,
+          "current_ready": 2,
+          "old_and_new_ready": 0,
+          "page": 22,
+          "promoted_only_by_new_rule": 2
+        },
+        {
+          "candidate_count": 2,
+          "current_blocked": 0,
+          "current_ready": 2,
+          "old_and_new_ready": 0,
+          "page": 23,
+          "promoted_only_by_new_rule": 2
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 24,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 25,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 26,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 2,
+          "current_blocked": 0,
+          "current_ready": 2,
+          "old_and_new_ready": 0,
+          "page": 27,
+          "promoted_only_by_new_rule": 2
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 28,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 2,
+          "current_blocked": 0,
+          "current_ready": 2,
+          "old_and_new_ready": 0,
+          "page": 29,
+          "promoted_only_by_new_rule": 2
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 30,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 31,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 32,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 33,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 34,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 35,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 36,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 37,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 38,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 39,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 40,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 41,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 42,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 43,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 44,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 45,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 46,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 47,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 48,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 49,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 2,
+          "current_blocked": 0,
+          "current_ready": 2,
+          "old_and_new_ready": 0,
+          "page": 50,
+          "promoted_only_by_new_rule": 2
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 51,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 52,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 53,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 54,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 55,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 56,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 57,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 58,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 59,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 2,
+          "current_blocked": 0,
+          "current_ready": 2,
+          "old_and_new_ready": 0,
+          "page": 60,
+          "promoted_only_by_new_rule": 2
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 61,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 2,
+          "current_blocked": 0,
+          "current_ready": 2,
+          "old_and_new_ready": 0,
+          "page": 62,
+          "promoted_only_by_new_rule": 2
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 63,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 64,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 0,
+          "page": 65,
+          "promoted_only_by_new_rule": 1
+        }
+      ],
+      "pages_total": 65,
+      "promoted_only_by_new_rule_total": 74,
+      "source_alias": "large_real",
+      "source_sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015"
+    },
+    {
+      "candidates_total": 15,
+      "current_blocked_total": 0,
+      "current_ready_total": 15,
+      "old_and_new_ready_total": 10,
+      "pages": [
+        {
+          "candidate_count": 3,
+          "current_blocked": 0,
+          "current_ready": 3,
+          "old_and_new_ready": 2,
+          "page": 1,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 2,
+          "current_blocked": 0,
+          "current_ready": 2,
+          "old_and_new_ready": 2,
+          "page": 2,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 2,
+          "current_blocked": 0,
+          "current_ready": 2,
+          "old_and_new_ready": 1,
+          "page": 3,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 3,
+          "current_blocked": 0,
+          "current_ready": 3,
+          "old_and_new_ready": 1,
+          "page": 4,
+          "promoted_only_by_new_rule": 2
+        },
+        {
+          "candidate_count": 4,
+          "current_blocked": 0,
+          "current_ready": 4,
+          "old_and_new_ready": 3,
+          "page": 5,
+          "promoted_only_by_new_rule": 1
+        },
+        {
+          "candidate_count": 1,
+          "current_blocked": 0,
+          "current_ready": 1,
+          "old_and_new_ready": 1,
+          "page": 6,
+          "promoted_only_by_new_rule": 0
+        }
+      ],
+      "pages_total": 6,
+      "promoted_only_by_new_rule_total": 5,
+      "source_alias": "holdout_real",
+      "source_sha256": "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d"
+    },
+    {
+      "candidates_total": 0,
+      "current_blocked_total": 0,
+      "current_ready_total": 0,
+      "old_and_new_ready_total": 0,
+      "pages": [
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 1,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 2,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 3,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 4,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 5,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 6,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 7,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 8,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 9,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 10,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 11,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 12,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 13,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 14,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 15,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 16,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 17,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 18,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 19,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 20,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 21,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 22,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 23,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 24,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 25,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 26,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 27,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 28,
+          "promoted_only_by_new_rule": 0
+        }
+      ],
+      "pages_total": 28,
+      "promoted_only_by_new_rule_total": 0,
+      "source_alias": "fidelity_sample",
+      "source_sha256": "36a166a5a13e6d6d86b391233023f83f6f7b4d268a4a23fbae01cb81290e3b96"
+    },
+    {
+      "candidates_total": 0,
+      "current_blocked_total": 0,
+      "current_ready_total": 0,
+      "old_and_new_ready_total": 0,
+      "pages": [
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 1,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 2,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 3,
+          "promoted_only_by_new_rule": 0
+        },
+        {
+          "candidate_count": 0,
+          "current_blocked": 0,
+          "current_ready": 0,
+          "old_and_new_ready": 0,
+          "page": 4,
+          "promoted_only_by_new_rule": 0
+        }
+      ],
+      "pages_total": 4,
+      "promoted_only_by_new_rule_total": 0,
+      "source_alias": "dev_public_tbank",
+      "source_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67"
+    }
+  ],
+  "goal": "G5.81",
+  "heuristic": {
+    "financial_semantics_used": false,
+    "new_predicate": "max(row_cell_counts.values()) < 2",
+    "new_rule": "require at least one represented multi-column row",
+    "old_predicate": "min(row_cell_counts.values()) < 2",
+    "old_rule": "reject when any represented row has fewer than two cells",
+    "other_acceptance_checks_changed": false,
+    "owner": "NormalizedTableProjectionFactory.create / _pdf_geometry_reasons",
+    "structural_input": "candidate cell_inventory row_ordinal counts"
+  },
+  "pages_total": 103,
+  "private_output_sha256": "6888f64982e9df345c35ddf9bc0fb66c08027c1d697be010b44a4069daa429e0",
+  "production_visual_dependency": false,
+  "promoted_only_by_new_rule_candidates_total": 79,
+  "promoted_only_by_new_rule_pages": [
+    {
+      "page": 1,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 2,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 3,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 4,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 5,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 6,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 7,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 8,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 9,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 10,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 11,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 12,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 13,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 14,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 15,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 16,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 17,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 18,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 19,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 20,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 21,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 22,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 23,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 24,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 25,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 26,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 27,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 28,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 29,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 30,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 31,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 32,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 33,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 34,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 35,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 36,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 37,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 38,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 39,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 40,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 41,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 42,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 43,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 44,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 45,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 46,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 47,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 48,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 49,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 50,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 51,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 52,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 53,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 54,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 55,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 56,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 57,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 58,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 59,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 60,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 61,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 62,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 63,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 64,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 65,
+      "source_alias": "large_real"
+    },
+    {
+      "page": 1,
+      "source_alias": "holdout_real"
+    },
+    {
+      "page": 3,
+      "source_alias": "holdout_real"
+    },
+    {
+      "page": 4,
+      "source_alias": "holdout_real"
+    },
+    {
+      "page": 5,
+      "source_alias": "holdout_real"
+    }
+  ],
+  "promoted_only_by_new_rule_pages_total": 69,
+  "provider_calls": 0,
+  "schema_version": "broker_reports_g581_table_heuristic_receipt_v2",
+  "source_documents": 4,
+  "visual_truth_injected_into_machine_decision": false
+}

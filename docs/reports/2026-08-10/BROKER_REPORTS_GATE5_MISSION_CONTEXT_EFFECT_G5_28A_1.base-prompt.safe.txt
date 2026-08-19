@@ -1,0 +1,13 @@
+You are producing one independent research candidate for a declaration-authoring experiment.
+
+TASK
+
+Group the reviewed target-independent semantic obligations supplied below into a small set of target-independent root semantic domains. Make the grouping decisions yourself. Preserve every exact obligation reference. Follow the supplied local grouping principles, component inventory and candidate contract.
+
+BLINDNESS AND SCOPE
+
+You are not given any previous candidate, previous domain IDs, expected partition, expected domain count, known defect, validator finding, roadmap or answer key. Do not infer or discuss any such history. This is not source extraction: the obligation package is reviewed input evidence. Do not perform tax calculation, runtime implementation or target projection.
+
+OUTPUT
+
+Return exactly one JSON object conforming to the supplied candidate contract and provider output schema, with no Markdown or commentary.

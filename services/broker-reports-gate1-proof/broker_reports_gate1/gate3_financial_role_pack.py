@@ -11,20 +11,33 @@ import re
 from typing import Any
 
 from .gate3_financial_label_dictionary import (
-    GATE3_DICTIONARY_V1_VERSION,
     Gate3FinancialLabelDictionaryFactory,
 )
 
 
-GATE3_ROLE_PACK_SCHEMA_VERSION = (
-    "broker_reports_gate3_financial_role_pack_v1"
-)
+GATE3_ROLE_PACK_SCHEMA_VERSION = "broker_reports_gate3_financial_role_pack_v1"
 GATE3_ROLE_PACK_ID = "broker-reports-financial-roles"
 GATE3_ROLE_PACK_V1_VERSION = "1.0.0"
 GATE3_ROLE_PACK_V1_RESOURCE = "gate3_financial_role_pack.v1.json"
 GATE3_ROLE_PACK_V1_FILE_SHA256 = (
     "43e98dcbef4637506d79927ef19ae1790f9bcfcb69b0045f97c2af9648cd5ba6"
 )
+GATE3_ROLE_PACK_V2_VERSION = "2.0.0"
+GATE3_ROLE_PACK_V2_RESOURCE = "gate3_financial_role_pack.v2.json"
+GATE3_ROLE_PACK_V2_FILE_SHA256 = (
+    "22b033a2f6ff041b29ad62d4c966e042b72e258dd67f7e2a0b6606627998723e"
+)
+GATE3_ROLE_PACK_V3_VERSION = "3.0.0"
+GATE3_ROLE_PACK_V3_RESOURCE = "gate3_financial_role_pack.v3.json"
+GATE3_ROLE_PACK_V3_FILE_SHA256 = (
+    "c91884fa16152a8a81cd2e2e17775bb119ceb6ac876bc1fad5c33bd2f83d0e09"
+)
+GATE3_ROLE_PACK_V3_1_VERSION = "3.1.0"
+GATE3_ROLE_PACK_V3_1_RESOURCE = "gate3_financial_role_pack.v3_1.json"
+GATE3_ROLE_PACK_V3_1_FILE_SHA256 = (
+    "662ce9c95b78c4619c912a4f767d508b7dd83da868d352d22b933d55256cf277"
+)
+GATE3_ROLE_PACK_CURRENT_VERSION = GATE3_ROLE_PACK_V3_VERSION
 
 FACTORY_REQUIRED = (
     "Gate3FinancialRolePackFactory.create is the only Gate 3 role definition, "
@@ -81,7 +94,26 @@ _PUBLISHED_VERSIONS = {
     GATE3_ROLE_PACK_V1_VERSION: _PublishedRolePackResource(
         resource_name=GATE3_ROLE_PACK_V1_RESOURCE,
         file_sha256=GATE3_ROLE_PACK_V1_FILE_SHA256,
-    )
+    ),
+    GATE3_ROLE_PACK_V2_VERSION: _PublishedRolePackResource(
+        resource_name=GATE3_ROLE_PACK_V2_RESOURCE,
+        file_sha256=GATE3_ROLE_PACK_V2_FILE_SHA256,
+    ),
+    GATE3_ROLE_PACK_V3_VERSION: _PublishedRolePackResource(
+        resource_name=GATE3_ROLE_PACK_V3_RESOURCE,
+        file_sha256=GATE3_ROLE_PACK_V3_FILE_SHA256,
+    ),
+    GATE3_ROLE_PACK_V3_1_VERSION: _PublishedRolePackResource(
+        resource_name=GATE3_ROLE_PACK_V3_1_RESOURCE,
+        file_sha256=GATE3_ROLE_PACK_V3_1_FILE_SHA256,
+    ),
+}
+
+_DICTIONARY_VERSION_BY_ROLE_PACK_VERSION = {
+    GATE3_ROLE_PACK_V1_VERSION: "1.0.0",
+    GATE3_ROLE_PACK_V2_VERSION: "2.0.0",
+    GATE3_ROLE_PACK_V3_VERSION: "2.0.0",
+    GATE3_ROLE_PACK_V3_1_VERSION: "2.1.0",
 }
 
 
@@ -93,13 +125,11 @@ class Gate3FinancialRolePack:
 
     def load_published(
         self,
-        semantic_version: str = GATE3_ROLE_PACK_V1_VERSION,
+        semantic_version: str = GATE3_ROLE_PACK_CURRENT_VERSION,
     ) -> dict[str, Any]:
         resource = _PUBLISHED_VERSIONS.get(semantic_version)
         if resource is None:
-            raise Gate3FinancialRolePackError(
-                "gate3_role_pack_version_not_published"
-            )
+            raise Gate3FinancialRolePackError("gate3_role_pack_version_not_published")
         try:
             raw = (
                 resources.files(__package__)
@@ -111,22 +141,18 @@ class Gate3FinancialRolePack:
                 "gate3_role_pack_resource_unavailable"
             ) from exc
         if hashlib.sha256(raw).hexdigest() != resource.file_sha256:
-            raise Gate3FinancialRolePackError(
-                "gate3_role_pack_file_hash_mismatch"
-            )
+            raise Gate3FinancialRolePackError("gate3_role_pack_file_hash_mismatch")
         try:
             payload: Any = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise Gate3FinancialRolePackError(
-                "gate3_role_pack_json_invalid"
-            ) from exc
+            raise Gate3FinancialRolePackError("gate3_role_pack_json_invalid") from exc
         _validate_published(payload, expected_version=semantic_version)
         return copy.deepcopy(payload)
 
     def profile_for_label(
         self,
         financial_label: str,
-        semantic_version: str = GATE3_ROLE_PACK_V1_VERSION,
+        semantic_version: str = GATE3_ROLE_PACK_CURRENT_VERSION,
     ) -> dict[str, Any]:
         pack = self.load_published(semantic_version)
         for profile in pack["profiles"]:
@@ -136,7 +162,7 @@ class Gate3FinancialRolePack:
 
     def render_model_markdown(
         self,
-        semantic_version: str = GATE3_ROLE_PACK_V1_VERSION,
+        semantic_version: str = GATE3_ROLE_PACK_CURRENT_VERSION,
     ) -> str:
         pack = self.load_published(semantic_version)
         lines = [
@@ -209,15 +235,12 @@ def _validate_published(payload: Any, *, expected_version: str) -> None:
         not isinstance(binding, dict)
         or set(binding) != _BINDING_CONTRACT_KEYS
         or binding.get("value_source") != "canonical_target_text"
-        or binding.get("exact_text_policy")
-        != "optional_nonempty_literal_substring"
+        or binding.get("exact_text_policy") != "optional_nonempty_literal_substring"
         or binding.get("normalized_or_computed_values_allowed") is not False
         or binding.get("maximum_bindings_per_role_per_fact") != 1
         or binding.get("missing_status") != "missing"
     ):
-        raise Gate3FinancialRolePackError(
-            "gate3_role_pack_binding_contract_invalid"
-        )
+        raise Gate3FinancialRolePackError("gate3_role_pack_binding_contract_invalid")
 
     roles = payload.get("roles")
     if not isinstance(roles, list) or not roles:
@@ -232,31 +255,23 @@ def _validate_published(payload: Any, *, expected_version: str) -> None:
             or not _nonempty(role.get("meaning"))
             or not _nonempty(role.get("value_kind"))
         ):
-            raise Gate3FinancialRolePackError(
-                "gate3_role_pack_role_invalid"
-            )
+            raise Gate3FinancialRolePackError("gate3_role_pack_role_invalid")
         role_ids.append(role["role_id"])
     if len(role_ids) != len(set(role_ids)):
-        raise Gate3FinancialRolePackError(
-            "gate3_role_pack_role_duplicate"
-        )
+        raise Gate3FinancialRolePackError("gate3_role_pack_role_duplicate")
 
     dictionary = Gate3FinancialLabelDictionaryFactory.create().load_published(
-        GATE3_DICTIONARY_V1_VERSION
+        _DICTIONARY_VERSION_BY_ROLE_PACK_VERSION[expected_version]
     )
     dictionary_labels = [item["label_id"] for item in dictionary["labels"]]
     profiles = payload.get("profiles")
     if not isinstance(profiles, list) or not profiles:
-        raise Gate3FinancialRolePackError(
-            "gate3_role_pack_profiles_required"
-        )
+        raise Gate3FinancialRolePackError("gate3_role_pack_profiles_required")
     profile_labels: list[str] = []
     known_roles = set(role_ids)
     for profile in profiles:
         if not isinstance(profile, dict) or set(profile) != _PROFILE_KEYS:
-            raise Gate3FinancialRolePackError(
-                "gate3_role_pack_profile_invalid"
-            )
+            raise Gate3FinancialRolePackError("gate3_role_pack_profile_invalid")
         required = profile.get("required_roles")
         optional = profile.get("optional_roles")
         if (
@@ -270,9 +285,7 @@ def _validate_published(payload: Any, *, expected_version: str) -> None:
             or not set(required) | set(optional)
             or not (set(required) | set(optional)) <= known_roles
         ):
-            raise Gate3FinancialRolePackError(
-                "gate3_role_pack_profile_invalid"
-            )
+            raise Gate3FinancialRolePackError("gate3_role_pack_profile_invalid")
         profile_labels.append(profile["financial_label"])
     if profile_labels != dictionary_labels:
         raise Gate3FinancialRolePackError(
@@ -288,9 +301,16 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "GATE3_ROLE_PACK_ID",
+    "GATE3_ROLE_PACK_CURRENT_VERSION",
     "GATE3_ROLE_PACK_SCHEMA_VERSION",
     "GATE3_ROLE_PACK_V1_FILE_SHA256",
     "GATE3_ROLE_PACK_V1_VERSION",
+    "GATE3_ROLE_PACK_V2_FILE_SHA256",
+    "GATE3_ROLE_PACK_V2_VERSION",
+    "GATE3_ROLE_PACK_V3_FILE_SHA256",
+    "GATE3_ROLE_PACK_V3_VERSION",
+    "GATE3_ROLE_PACK_V3_1_FILE_SHA256",
+    "GATE3_ROLE_PACK_V3_1_VERSION",
     "Gate3FinancialRolePack",
     "Gate3FinancialRolePackError",
     "Gate3FinancialRolePackFactory",

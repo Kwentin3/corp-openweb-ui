@@ -1,0 +1,197 @@
+{
+  "attempts": [
+    {
+      "attempt_number": 1,
+      "duration_ms": 4195,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1435,
+        "output_tokens": 9,
+        "total_tokens": 1444
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 4591,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1435,
+        "output_tokens": 9,
+        "total_tokens": 1444
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 5910,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1435,
+        "output_tokens": 461,
+        "total_tokens": 1896
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 4595,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1435,
+        "output_tokens": 241,
+        "total_tokens": 1676
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 7916,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1435,
+        "output_tokens": 564,
+        "total_tokens": 1999
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 9564,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1435,
+        "output_tokens": 397,
+        "total_tokens": 1832
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 5221,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1435,
+        "output_tokens": 9,
+        "total_tokens": 1444
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 4219,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1435,
+        "output_tokens": 9,
+        "total_tokens": 1444
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 4131,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1435,
+        "output_tokens": 9,
+        "total_tokens": 1444
+      }
+    }
+  ],
+  "attempts_per_page": 1,
+  "best_of_n": false,
+  "goal": "G5.98",
+  "implementation_sha256": "be83b01d7d32965c34d0f30029bee73bce1ec68f4965c2c7473c6e348cdffeaf",
+  "phase": "frozen_unseen_holdout_execution",
+  "post_holdout_tuning": false,
+  "privacy": {
+    "customer_literals_in_safe_output": false,
+    "customer_paths_in_safe_output": false,
+    "private_evidence_outside_git": true,
+    "provider_payloads_in_safe_output": false,
+    "source_coordinates_in_safe_output": false
+  },
+  "private_file_sha256": "584de320a0a9a44daa38c93289271d9aecf4b3d7884a1235bad106cd7a772696",
+  "proposed_tables": 7,
+  "provider_calls": 9,
+  "resolver_terminals": {
+    "NOT_FOUND": 3,
+    "RESOLVED": 4
+  },
+  "retry": false,
+  "schema_version": "broker_reports_addressable_visual_breadcrumb_g598_safe_v1"
+}

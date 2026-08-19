@@ -126,6 +126,10 @@ jobs:
           tests/test_broker_reports_kt16_canonical_context.py
           tests/test_broker_reports_kt2_same_source_type_first_proof.py
           tests/test_broker_reports_gate1_pipe_bundle.py
+          tests/test_broker_reports_pdf_table_intake_gate1.py
+          tests/test_broker_reports_pdf_layout_slice2.py
+          tests/test_broker_reports_table_projection.py
+          tests/test_broker_reports_atomic_stage_release.py
           tests/test_broker_reports_gate2_pipe_bundle.py
           tests/test_broker_reports_managed_decision_reason_catalog.py
           tests/test_broker_reports_gate2_outcome_taxonomy_catalog_v2.py
@@ -160,6 +164,13 @@ jobs:
           tests/test_broker_reports_gate3_financial_annotations_persistence.py
           tests/test_broker_reports_gate4_financial_case_contract.py
           tests/test_broker_reports_gate4_sql_materialization.py
+          tests/test_broker_reports_gate5_methodology_selection.py
+          tests/test_broker_reports_gate5_supplemental_fact.py
+          tests/test_broker_reports_gate5_combined_requirement_check.py
+          tests/test_broker_reports_gate5_supplemental_fact_discovery.py
+          tests/test_broker_reports_gate5_single_input_human_loop.py
+          tests/test_broker_reports_gate5_methodology_calculation.py
+          tests/test_broker_reports_gate5_trusted_methodology.py
           tests/test_broker_reports_gate3_ndfl_case_readiness.py
           tests/test_broker_reports_gate3_ndfl_workflow.py
           tests/test_broker_reports_gate3_openwebui_managed_dictionary.py

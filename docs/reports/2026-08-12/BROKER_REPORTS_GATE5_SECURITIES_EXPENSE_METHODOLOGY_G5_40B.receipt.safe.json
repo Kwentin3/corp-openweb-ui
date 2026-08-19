@@ -1,0 +1,76 @@
+{
+  "schema_version": "broker_reports_gate5_securities_expense_methodology_receipt_v0",
+  "goal": "G5.40B",
+  "mode": "research_only",
+  "as_of": "2026-08-12",
+  "terminal": "STRATEGIC_STOP_LEGAL_AUTHORITY_GAP",
+  "blocker": "PARTIAL_ACQUISITION_COMMISSION_RECOGNITION_NOT_PRESCRIBED",
+  "artifacts": [
+    {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_SECURITIES_EXPENSE_METHODOLOGY_G5_40B.matrix.safe.json",
+      "sha256": "0435489ca535825e2435214099e71eeff516c1b46f3af7c3fb4bb7918027b3d6"
+    },
+    {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_SECURITIES_EXPENSE_METHODOLOGY_G5_40B.report.md",
+      "sha256": "696516867357f2a102f58cefe4bcc7fce46e73606915d8d43c75155e3c6c4bc7"
+    }
+  ],
+  "authority_verification": {
+    "official_authorities": 10,
+    "tax_code_current_text_checked": true,
+    "fns_3ndfl_procedure_sha256_expected": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+    "fns_3ndfl_procedure_sha256_actual": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+    "fns_transfer_order_attachment_sha256": "42d26c2106883d8da87468008af9ea6a0a44e7410b2a719183b3e520dc0a46b1",
+    "verification_date": "2026-08-12",
+    "secondary_non_official_authority_used": false
+  },
+  "expense_accounting": {
+    "expense_rows": 8,
+    "proven": 5,
+    "proven_bounded": 1,
+    "legal_authority_gap": 1,
+    "fail_closed": 1
+  },
+  "special_question": {
+    "answer": "NO_AUTHORITATIVE_YES_OR_NO_FOUND",
+    "declaration_relation_question_was_too_broad": true,
+    "tax_recognition_amount_question_remains_valid": true
+  },
+  "validation": [
+    {
+      "check": "methodology_matrix_json_parse",
+      "result": "PASS"
+    },
+    {
+      "check": "expense_type_accounting",
+      "result": "PASS",
+      "rows": 8,
+      "gap_rows": 1
+    },
+    {
+      "check": "official_attachment_hashes",
+      "result": "PASS"
+    },
+    {
+      "check": "unproven_partial_commission_formula_not_accepted",
+      "result": "PASS"
+    },
+    {
+      "check": "no_universal_event_or_relation_added",
+      "result": "PASS"
+    },
+    {
+      "check": "repository_runtime_unchanged",
+      "result": "PASS"
+    }
+  ],
+  "boundaries": {
+    "implementation_authorized": false,
+    "g5_40c_opened": false,
+    "code_changed": false,
+    "tests_changed": false,
+    "projection_activated": false,
+    "commit_created": false,
+    "push_or_pr_created": false
+  }
+}

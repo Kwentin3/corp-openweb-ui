@@ -1,0 +1,131 @@
+{
+  "schema_version": "broker_reports_g572_closeout_receipt_safe_v1",
+  "goal": "G5.72",
+  "status": "CLOSED_INTERMEDIATE_PROVEN_CLASSIFICATION_NOT_RELIABLE",
+  "terminal": [
+    "VISUAL_MARKDOWN_INTERMEDIATE_PROVEN",
+    "IMAGE_TO_MARKDOWN_SEMANTIC_NEUTRALITY_PROVEN",
+    "MARKDOWN_PRESERVES_METADATA_LAYOUT",
+    "SAME_MARKDOWN_CROSS_MODEL_CLASSIFICATION_MEASURED",
+    "GEMINI_IMPROVES_ON_MARKDOWN",
+    "MARKDOWN_CLASSIFICATION_NOT_RELIABLE",
+    "NO_EXTRA_SEMANTIC_LAYER_ADDED",
+    "FINANCIAL_GENERALIZATION_PRESERVED"
+  ],
+  "transcription": {
+    "model_id": "models/gemini-3.5-flash",
+    "case_count": 3,
+    "provider_submissions": 3,
+    "technically_valid": true,
+    "human_qualified_cases": 3,
+    "lost_source_text": 0,
+    "invented_text": 0,
+    "semantic_rewrites": 0,
+    "broken_label_value_relations": 0,
+    "broken_row_column_relations": 0,
+    "changed_value_boundaries": 0,
+    "metadata_roles_visible_to_transcriber": false,
+    "total_tokens": 3832,
+    "duration_ms": 5563
+  },
+  "classification_freeze": {
+    "contract_version": "1.0.0",
+    "allowed_fact_type_count": 11,
+    "same_markdown_across_models": true,
+    "semantic_instruction_sha256": "dd18bcc17c69fd111d29e2bbde4f8aaf6058bfac51b9c9506de25d516ca58d67",
+    "response_schema_sha256": "524e8fb2b3b55fb55af3d62fe7465f147f7ad6da18ad9c9cca5b68ecf458ac29",
+    "model_specific_prompt": false,
+    "manual_markdown_repair": false,
+    "markdown_regenerated_after_audit": false
+  },
+  "classification": {
+    "gemini": {
+      "model_id": "models/gemini-3.5-flash",
+      "provider_submissions": 3,
+      "case_b_exact": true,
+      "case_f_exact": true,
+      "case_c_exact": false,
+      "case_c_extra_fact": "PERSON_CITIZENSHIP",
+      "total_tokens": 6806,
+      "duration_ms": 20485
+    },
+    "strong": {
+      "model_id": "gpt-5.6-sol",
+      "initial_pre_output_transport_failures": 3,
+      "technical_replay_provider_submissions": 3,
+      "case_b_exact": false,
+      "case_f_exact": true,
+      "case_c_exact": true,
+      "case_b_correct": 3,
+      "case_b_missed": 2,
+      "case_b_wrong_value_boundary": 1,
+      "total_tokens": 3474,
+      "duration_ms": 22083
+    }
+  },
+  "decision": {
+    "selected_candidate": null,
+    "repeatability_executed": false,
+    "repeatability_reason": "NO_CLASSIFIER_PASSED_ALL_B_F_C_IN_ONE_CLEAN_RUN",
+    "untouched_holdout_executed": false,
+    "holdout_reason": "NO_STABLE_DEVELOPMENT_CANDIDATE",
+    "third_semantic_layer_added": false,
+    "product_activation": false
+  },
+  "execution_policy": {
+    "broker_specific_rules": 0,
+    "regex_growth": 0,
+    "synonym_dictionary_growth": 0,
+    "client_code_blacklist": 0,
+    "retries": 0,
+    "best_of_n": false,
+    "voting": false,
+    "judge_model": false,
+    "result_selection": false,
+    "manual_output_repair": false,
+    "truth_changed_after_output": false
+  },
+  "provider_reuse": {
+    "visual_owner": "PdfGridExperimentProviderFactory.create_for_openwebui",
+    "gemini_text_owner": "Gate2StructuredModelClientFactory.create",
+    "strong_text_owner": "PdfDualVlmFactProviderFactory.create_for_openwebui",
+    "openai_text_transport": "openai_responses_native_text_json_schema",
+    "new_provider_framework": false,
+    "generated_bundle_parity": true
+  },
+  "artifact_hashes": {
+    "transcription_private_sha256": "f3ab2b3e0c4024561b55a7fd722ad0f8b885ed35b3567669d960838ac4308d31",
+    "transcription_safe_sha256": "8bbb38a8ef6aa657ac241e01e660f7c82c2075b8ed2e48f7c85e3d404ea38f2d",
+    "human_audit_sha256": "65415d4926605b374f8ceb29c0c849735b4c8f4b0b040be8df1224f5dcb34cd2",
+    "development_freeze_sha256": "ac38a1feed830791c5c2e0b0421b5051810f9e5633835772c0593eb477fb4a48",
+    "development_result_safe_sha256": "d6d419d395881beb6196cdc5b1b6fe984ed26166305917b50a4ee4c2458db6c7",
+    "strong_replay_freeze_sha256": "b4f8f0b20279781e4da29705b0a78a0c5575e86b464537c7270d956fcce5bbca",
+    "strong_replay_result_safe_sha256": "6b6d5111652cea7d56f8629a494940053d13198c7a521057ef90b76f64a51832",
+    "architecture_decision_sha256": "979c5d58bb769d2ba77f8e35dbc61e01a98cb3d0d76b4e89193ee47b00d8cb4b",
+    "financial_result_safe_sha256": "3df33f7ad7cc63c8027cd2afa50981a03b11d231a52b40ac617e2499cfa02fd4",
+    "harness_sha256": "5f0c5db8c91d0f130575cce6580e551cda51f3a26369e5e7741c57ff620dce93",
+    "harness_tests_sha256": "60712349c26403f5dab06b80f60f1731b9ca87ed77bd80bc217a954bd4aebc4c",
+    "provider_owner_sha256": "2f7bb9f0435cbe23149493e4b8bbf926f9bdcea5369a5c8f84e0a9a11a20e782",
+    "provider_tests_sha256": "0d4ca7d3dc98d447cc503362406a56112f50e2c9645ec714d1d726774253534b",
+    "generated_bundle_sha256": "78ff199eaef14139a7bd64d3fedc3e12edf6e56008b1414f82a9a6d3d6a390b8"
+  },
+  "financial_replay": {
+    "factory_route": "Gate4FinancialCaseRuntimeFactory.create().rebuild_case",
+    "holdout_a_fact_count": 39,
+    "holdout_b_fact_count": 129,
+    "exact_frozen_equality": true,
+    "source_stores_unchanged": true
+  },
+  "verification": {
+    "focused_passed": 178,
+    "final_owner_harness_passed": 20,
+    "failed": 0,
+    "ruff_passed": true,
+    "compileall_passed": true,
+    "bundle_parity_passed": true
+  },
+  "private_evidence_committed": false,
+  "financial_source_changed": false,
+  "commit_or_push": false,
+  "next_goal_started": false
+}

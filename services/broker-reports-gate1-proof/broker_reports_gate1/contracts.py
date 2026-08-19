@@ -156,6 +156,7 @@ TERMINAL_GATE2_BLOCKER_CODES = {
     "encrypted_file",
     "corrupt_file",
     "parser_failed",
+    "pdf_table_normalization_incomplete",
 }
 
 BLOCKER_CODES = {
@@ -166,6 +167,7 @@ BLOCKER_CODES = {
     "corrupt_file",
     "parser_failed",
     "raster_requires_ocr_or_review",
+    "pdf_table_normalization_incomplete",
     "zip_requires_review",
     "unknown_role",
     "llm_passport_prompt_unavailable",

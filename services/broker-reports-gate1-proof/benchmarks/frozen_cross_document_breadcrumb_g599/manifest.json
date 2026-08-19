@@ -1,0 +1,180 @@
+{
+  "schema_version": "broker_reports_addressable_visual_breadcrumb_g598_manifest_v1",
+  "qualification_schema_version": "broker_reports_frozen_cross_document_breadcrumb_g599_manifest_v1",
+  "goal": "G5.99",
+  "frozen": true,
+  "frozen_at": "2026-08-18T20:46:54.6001558+03:00",
+  "selection_policy": {
+    "selected_before_page_render_review": true,
+    "selected_before_provider_execution": true,
+    "selected_before_provider_predictions": true,
+    "selected_before_visual_truth_adjudication": true,
+    "selection_inputs": [
+      "source_pdf_sha256",
+      "source_pdf_byte_count",
+      "source_pdf_page_count",
+      "current_factory_page_line_count",
+      "current_factory_page_word_count",
+      "current_factory_table_candidate_count"
+    ],
+    "selection_forbidden_inputs": [
+      "page_text_literals",
+      "page_render_content",
+      "provider_output",
+      "resolver_output",
+      "visual_ground_truth"
+    ],
+    "one_attempt_per_page": true,
+    "retry": false,
+    "best_of_n": false,
+    "model_change": false,
+    "post_result_tuning": false
+  },
+  "source_documents": [
+    {
+      "document_id": "g599_document_01",
+      "pdf_sha256": "27a888feac809bfede8a9c7570615b065aa5b91eae7e0c6f42a58ce079eb19ca",
+      "pdf_bytes": 1384001,
+      "pages": 16,
+      "layout_family_candidate": "unseen_document_family_01"
+    },
+    {
+      "document_id": "g599_document_02",
+      "pdf_sha256": "e4dba251aad8bdc86d1d6a6ff755be7bcabaa22e622cc12ac1a757a625815c07",
+      "pdf_bytes": 196970,
+      "pages": 21,
+      "layout_family_candidate": "unseen_document_family_02"
+    },
+    {
+      "document_id": "g599_document_03",
+      "pdf_sha256": "1ec8d1b0f08a359d1ac2d2c8bd9d7a854d8dbd0571c1574506d1ace3ce4af2e7",
+      "pdf_bytes": 1154169,
+      "pages": 17,
+      "layout_family_candidate": "unseen_document_family_03"
+    },
+    {
+      "document_id": "g599_document_04",
+      "pdf_sha256": "fbe6a299b05615643a0f0264568c65a64bd857b6b77752163b8c2e52bbcbf71e",
+      "pdf_bytes": 288909,
+      "pages": 9,
+      "layout_family_candidate": "unseen_document_family_04"
+    }
+  ],
+  "development": [],
+  "unseen_holdout": [
+    {
+      "case_id": "g599_holdout_01",
+      "document_id": "g599_document_01",
+      "page": 7,
+      "objective_profile": "dense_single_candidate_sequence_part_1",
+      "layout_family_candidate": "unseen_document_family_01",
+      "parser_table_candidates_before_freeze": 1,
+      "page_png_sha256": "5c8a1fb6a75a7db9395929253886aca346973502e26a74feb5d2621943a1d5b0"
+    },
+    {
+      "case_id": "g599_holdout_02",
+      "document_id": "g599_document_01",
+      "page": 8,
+      "objective_profile": "dense_single_candidate_sequence_part_2",
+      "layout_family_candidate": "unseen_document_family_01",
+      "parser_table_candidates_before_freeze": 1,
+      "page_png_sha256": "f503a4f5c26e3c538c40433e3db5b38432af35b2805b4fcf3fc3d3a339bdcc3e"
+    },
+    {
+      "case_id": "g599_holdout_03",
+      "document_id": "g599_document_01",
+      "page": 11,
+      "objective_profile": "multiple_candidate_regions",
+      "layout_family_candidate": "unseen_document_family_01",
+      "parser_table_candidates_before_freeze": 2,
+      "page_png_sha256": "0b3da4304c886adc04621ce3b3ad9daee7759241f0c3ba05decca40774e73af7"
+    },
+    {
+      "case_id": "g599_holdout_04",
+      "document_id": "g599_document_02",
+      "page": 5,
+      "objective_profile": "multiple_candidate_regions",
+      "layout_family_candidate": "unseen_document_family_02",
+      "parser_table_candidates_before_freeze": 2,
+      "page_png_sha256": "c3836c00e196555c374b57936416720bedccc3d602277608408e6991512429a7"
+    },
+    {
+      "case_id": "g599_holdout_05",
+      "document_id": "g599_document_02",
+      "page": 18,
+      "objective_profile": "many_candidate_regions",
+      "layout_family_candidate": "unseen_document_family_02",
+      "parser_table_candidates_before_freeze": 6,
+      "page_png_sha256": "9956ce11de1ea9df92154fea3246216936121160434b563b1097814f1a97e6ad"
+    },
+    {
+      "case_id": "g599_holdout_06",
+      "document_id": "g599_document_03",
+      "page": 5,
+      "objective_profile": "different_dense_single_candidate_family",
+      "layout_family_candidate": "unseen_document_family_03",
+      "parser_table_candidates_before_freeze": 1,
+      "page_png_sha256": "19eaef7aae9453cb91adee58b84d6c479ec8c9888b4df97a118b31bbd21ad8bc"
+    },
+    {
+      "case_id": "g599_holdout_07",
+      "document_id": "g599_document_01",
+      "page": 1,
+      "objective_profile": "zero_candidate_control",
+      "layout_family_candidate": "unseen_document_family_01",
+      "parser_table_candidates_before_freeze": 0,
+      "page_png_sha256": "cff93f3fbc5d7ad88671de44229e85a9b13b2f0788a48bbe53b67809cafa15cf"
+    },
+    {
+      "case_id": "g599_holdout_08",
+      "document_id": "g599_document_03",
+      "page": 1,
+      "objective_profile": "zero_candidate_control",
+      "layout_family_candidate": "unseen_document_family_03",
+      "parser_table_candidates_before_freeze": 0,
+      "page_png_sha256": "df4cde690b23f311640f03eaa9ad5cf14bc1254afcc9857e5496cd6c9b094021"
+    },
+    {
+      "case_id": "g599_holdout_09",
+      "document_id": "g599_document_04",
+      "page": 1,
+      "objective_profile": "zero_candidate_control",
+      "layout_family_candidate": "unseen_document_family_04",
+      "parser_table_candidates_before_freeze": 0,
+      "page_png_sha256": "385361de187681641c1747afed35522766c71ecdafa400b197456f3db00e5106"
+    }
+  ],
+  "frozen_g598": {
+    "implementation_sha256": "be83b01d7d32965c34d0f30029bee73bce1ec68f4965c2c7473c6e348cdffeaf",
+    "prompt_sha256": "a7030b9a6b07c094a2271ca71dc81b71f7ab0a5bd09d18b377cbc440688b39e4",
+    "response_schema_sha256": "b5234742ef277c2707ec4fa13c0b7321a843f7d1abfabf1b459590c51060a406",
+    "original_freeze_private_sha256": "ba9785615cc4dcc3a99a60a09b242b7732cf7c7b7d53b6fe9bada28f4ab34ef2",
+    "original_manifest_sha256": "121a00be74cd4360982f4278f7868b0187bd56b8deadc0b85e725c8e2b390d0f"
+  },
+  "private_preselection_sha256": "8998ea62f37b6f9193c96ae029636d8277cc65db85a68c56946579832298abea",
+  "private_render_receipt_sha256": "b67e10b444da3bf85a638a469e9c2e9d2616a9dcdf427c2c3da33ffc2a1b3134",
+  "g598_exclusions": {
+    "source_pdf_sha256": [
+      "36a166a5a13e6d6d86b391233023f83f6f7b4d268a4a23fbae01cb81290e3b96",
+      "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+      "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015"
+    ],
+    "old_development_pages_reused": 0,
+    "old_holdout_pages_reused": 0,
+    "historical_p029_reused": false
+  },
+  "scope": {
+    "qualification_only": true,
+    "gate2_physical_structure_only": true,
+    "new_dependency": false,
+    "g598_prompt_changed": false,
+    "g598_schema_changed": false,
+    "g598_resolver_changed": false,
+    "g598_normalization_changed": false,
+    "model_changed": false,
+    "production_owner_changes": false,
+    "gate3_plus": false,
+    "financial_semantics": false,
+    "production_activation": false
+  }
+}

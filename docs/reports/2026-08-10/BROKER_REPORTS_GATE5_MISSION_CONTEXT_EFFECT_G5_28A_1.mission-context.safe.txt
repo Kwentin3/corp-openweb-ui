@@ -1,0 +1,13 @@
+MISSION CONTEXT
+
+FINAL GOAL
+
+The Definition will be consumed by deterministic runtime assembly of one concrete declaration for a case and tax period.
+
+ROLE OF THIS ARTIFACT
+
+Each root domain is an independently resolvable unit of applicability. A downstream scope resolver must be able to decide whether that domain applies to the case and period. An applicable domain activates resolution of one coherent typed semantic component family. Resolving all applicable domains produces a complete target-independent Declaration Model; a separate projector later maps that model to XML or PDF.
+
+NOT THIS ARTIFACT'S JOB
+
+Tax calculation, XML or PDF mapping, runtime workflow, human questions and case-time legal reasoning are outside this artifact.

@@ -1,0 +1,38 @@
+{
+  "comparison": {
+    "input_token_reduction_percent_for_bounded_one_gap": 90.76,
+    "provider_call_reduction_for_bounded_one_gap": 2,
+    "same_scope_warning": "G5.47 measured four whole documents; G5.48 measured one exact gap chunk. The ratio proves bounding, not corpus-wide cost parity."
+  },
+  "current_g548": {
+    "binding_adapter": "Gate3EvidenceDemandAdapterFactory.create",
+    "context_owner": "Gate3StructuralChunkFactory.create",
+    "demand_owner": "Gate5EvidenceDemandRuntimeFactory.create",
+    "gate4_path": "validated persisted FinancialAnnotationsV2 only",
+    "one_gap_chunk_chars": 58149,
+    "one_gap_chunk_targets": 40,
+    "one_gap_demanded_annotations": 8,
+    "one_gap_demanded_complete_annotations": 0,
+    "one_gap_input_tokens": 61670,
+    "one_gap_provider_calls": 2,
+    "role_context_owner": "Gate3RoleContextFactory.create_from_accepted_facts",
+    "source_or_canonical_read_by_gate5": false,
+    "source_semantics_owner": "Gate3ChunkBatchLabelingFactory.create",
+    "store_unchanged": true
+  },
+  "goal": "G5.48",
+  "legacy_g547": {
+    "gate4_path": "transient Canonical recovery projector",
+    "input_tokens": 667531,
+    "provider_calls": 4,
+    "reader_owner": "Gate5RealSemanticRecoveryRuntime",
+    "source_view": "whole Canonical document atoms",
+    "status": "REMOVED_FROM_MAINTAINED_RUNTIME"
+  },
+  "recovery_terminal": {
+    "BOUNDED_CONTEXT_EXECUTION_PROVEN": true,
+    "BOUNDED_CONTEXT_RECOVERY_PROVEN": false,
+    "reason": "demanded type re-emitted but no Role-Pack-complete fact"
+  },
+  "schema_version": "broker_reports_g548_path_diff_v1"
+}

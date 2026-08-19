@@ -1,0 +1,92 @@
+{
+  "schema_version": "broker_reports_g566_closeout_receipt_safe_v1",
+  "goal": "G5.66",
+  "status": "CLOSED_WITH_LOCALIZED_SEMANTIC_RESIDUALS",
+  "terminal": [
+    "UNSEEN_HOLDOUT_SOURCE_BINDING_PROVEN",
+    "REPEATED_LITERAL_PHYSICAL_AMBIGUITY_ZERO",
+    "HOLDOUT_ORACLE_VISIBILITY_5_OF_5",
+    "FROZEN_METADATA_VISIBILITY_24_OF_24_PRESERVED",
+    "SAME_LLM_INSTRUCTION_1_1_REPLAY_COMPLETED",
+    "FINANCIAL_GENERALIZATION_PRESERVED",
+    "LLM_METADATA_SEMANTIC_RESULT=RESIDUAL_FAILURES_LOCALIZED"
+  ],
+  "frozen": {
+    "unseen_holdout_same": true,
+    "holdout_oracle_facts": 5,
+    "metadata_contract_version": "1.0.0",
+    "instruction_version": "1.1.0",
+    "model": "models/gemini-3.5-flash",
+    "provider": "google_gemini",
+    "semantic_fields_added": 0,
+    "financial_gate4_gate5_unchanged": true
+  },
+  "structural_binding": {
+    "input_context_policy_version": "broker_reports_metadata_context_policy_v3",
+    "context_policy_version": "broker_reports_metadata_context_policy_v4",
+    "first_wrong_owner": "build_metadata_context_package_full_text_target",
+    "new_text_target_kind": "TEXT_LINE",
+    "g565_ambiguous_bindings_qualified": 4,
+    "holdout_visibility": 5,
+    "holdout_ambiguity": 0,
+    "frozen_visibility": 24,
+    "frozen_ambiguity": 0,
+    "semantic_hints": 0,
+    "broker_specific_rules": 0,
+    "fixed_character_windows": 0,
+    "selector_accepts_oracle": false
+  },
+  "replay": {
+    "provider_submissions": 1,
+    "calls_per_document": 1,
+    "retries": 0,
+    "best_of_n": false,
+    "manual_output_repair": false,
+    "raw_output_repaired": false,
+    "second_replay_performed": false,
+    "source_store_unchanged": true,
+    "input_tokens": 10265,
+    "output_tokens": 401,
+    "provider_reported_total_tokens": 13738,
+    "duration_ms": 18484,
+    "validator_status": "validated"
+  },
+  "qualification": {
+    "source_truth": 5,
+    "raw_facts": 7,
+    "published_facts": 7,
+    "correct": 4,
+    "missed": 1,
+    "semantic_extras": 3,
+    "wrong_role": 2,
+    "incomplete_or_overinclusive_value": 1,
+    "ambiguous_bindings": 0,
+    "invented_literals": 0,
+    "invalid_provenance": 0,
+    "unsupported_fields": 0
+  },
+  "residual_classes": [
+    "TRADING_CODE_MISCLASSIFIED_AS_ACCOUNT_IDENTIFIER",
+    "BROKER_ROLE_INFERRED_NOT_EXPLICIT",
+    "CONTRACT_IDENTIFIER_LABEL_OVERINCLUSION"
+  ],
+  "financial_replay": {
+    "factory_route": "Gate4FinancialCaseRuntimeFactory.create().rebuild_case",
+    "holdout_a_fact_count": 39,
+    "holdout_b_fact_count": 129,
+    "status_complete_for_current_input_set": true
+  },
+  "verification": {
+    "focused_passed": 37,
+    "architecture_passed": 65,
+    "failed": 0,
+    "factory_required_forbidden_enforced": true,
+    "architecture_guards_green": true,
+    "financial_exact": true
+  },
+  "private_evidence_committed": false,
+  "semantic_prompt_tuning": 0,
+  "product_activation": false,
+  "commit_or_push": false,
+  "next_goal_started": false
+}

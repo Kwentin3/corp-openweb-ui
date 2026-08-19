@@ -1,0 +1,314 @@
+{
+  "corpus": {
+    "development_pages": 32,
+    "documents": 4,
+    "holdout_pages": 21,
+    "pages_executed": 103,
+    "pages_visually_scored": 53
+  },
+  "fidelity": {
+    "all": {
+      "A": {
+        "errors": {
+          "broken_order": 15,
+          "changed_currency_symbols": 0,
+          "changed_decimal_separators": 0,
+          "changed_literals": 0,
+          "distorted_dates": 0,
+          "duplicated_rows": 0,
+          "false_tables": 0,
+          "incorrect_headers": 48,
+          "invented_rows": 0,
+          "invented_text_segments": 0,
+          "lost_column_relations": 48,
+          "lost_rows": 243,
+          "lost_signs": 0,
+          "lost_tables": 48,
+          "lost_text_segments": 0,
+          "merged_rows": 0,
+          "split_rows": 0
+        },
+        "literal_errors_total": 0,
+        "pages": 53,
+        "structural_errors_total": 402
+      },
+      "B": {
+        "errors": {
+          "broken_order": 0,
+          "changed_currency_symbols": 0,
+          "changed_decimal_separators": 0,
+          "changed_literals": 13,
+          "distorted_dates": 0,
+          "duplicated_rows": 0,
+          "false_tables": 0,
+          "incorrect_headers": 1,
+          "invented_rows": 0,
+          "invented_text_segments": 0,
+          "lost_column_relations": 1,
+          "lost_rows": 30,
+          "lost_signs": 0,
+          "lost_tables": 1,
+          "lost_text_segments": 5,
+          "merged_rows": 0,
+          "split_rows": 0
+        },
+        "literal_errors_total": 18,
+        "pages": 53,
+        "structural_errors_total": 33
+      }
+    },
+    "development": {
+      "A": {
+        "errors": {
+          "broken_order": 10,
+          "changed_currency_symbols": 0,
+          "changed_decimal_separators": 0,
+          "changed_literals": 0,
+          "distorted_dates": 0,
+          "duplicated_rows": 0,
+          "false_tables": 0,
+          "incorrect_headers": 31,
+          "invented_rows": 0,
+          "invented_text_segments": 0,
+          "lost_column_relations": 31,
+          "lost_rows": 196,
+          "lost_signs": 0,
+          "lost_tables": 31,
+          "lost_text_segments": 0,
+          "merged_rows": 0,
+          "split_rows": 0
+        },
+        "literal_errors_total": 0,
+        "pages": 32,
+        "structural_errors_total": 299
+      },
+      "B": {
+        "errors": {
+          "broken_order": 0,
+          "changed_currency_symbols": 0,
+          "changed_decimal_separators": 0,
+          "changed_literals": 11,
+          "distorted_dates": 0,
+          "duplicated_rows": 0,
+          "false_tables": 0,
+          "incorrect_headers": 0,
+          "invented_rows": 0,
+          "invented_text_segments": 0,
+          "lost_column_relations": 0,
+          "lost_rows": 0,
+          "lost_signs": 0,
+          "lost_tables": 0,
+          "lost_text_segments": 2,
+          "merged_rows": 0,
+          "split_rows": 0
+        },
+        "literal_errors_total": 13,
+        "pages": 32,
+        "structural_errors_total": 0
+      }
+    },
+    "holdout": {
+      "A": {
+        "errors": {
+          "broken_order": 5,
+          "changed_currency_symbols": 0,
+          "changed_decimal_separators": 0,
+          "changed_literals": 0,
+          "distorted_dates": 0,
+          "duplicated_rows": 0,
+          "false_tables": 0,
+          "incorrect_headers": 17,
+          "invented_rows": 0,
+          "invented_text_segments": 0,
+          "lost_column_relations": 17,
+          "lost_rows": 47,
+          "lost_signs": 0,
+          "lost_tables": 17,
+          "lost_text_segments": 0,
+          "merged_rows": 0,
+          "split_rows": 0
+        },
+        "literal_errors_total": 0,
+        "pages": 21,
+        "structural_errors_total": 103
+      },
+      "B": {
+        "errors": {
+          "broken_order": 0,
+          "changed_currency_symbols": 0,
+          "changed_decimal_separators": 0,
+          "changed_literals": 2,
+          "distorted_dates": 0,
+          "duplicated_rows": 0,
+          "false_tables": 0,
+          "incorrect_headers": 1,
+          "invented_rows": 0,
+          "invented_text_segments": 0,
+          "lost_column_relations": 1,
+          "lost_rows": 30,
+          "lost_signs": 0,
+          "lost_tables": 1,
+          "lost_text_segments": 3,
+          "merged_rows": 0,
+          "split_rows": 0
+        },
+        "literal_errors_total": 5,
+        "pages": 21,
+        "structural_errors_total": 33
+      }
+    }
+  },
+  "goal": "G5.94",
+  "manifest_sha256": "6b1c0b657ea356d71cf9af6a9ceb739833f8b2d82cff5a42f3d4ccc27f0d7917",
+  "phase": "scored",
+  "privacy": {
+    "page_images_in_safe_output": false,
+    "private_paths_in_safe_output": false,
+    "provider_payloads_in_safe_output": false,
+    "raw_customer_text_in_safe_output": false
+  },
+  "recommendation": "HYBRID_JUSTIFIED",
+  "recommendation_basis": "A retains literal and coordinate authority while B recovers otherwise lost visual table structure; B is not safe as a universal replacement because it has terminal coverage gaps, confirmed literal changes, no source coordinates, stochastic repeats, higher latency, and provider cost.",
+  "schema_version": "broker_reports_pdf_ingestion_ab_g594_safe_v1",
+  "scope": {
+    "best_of_n": false,
+    "ensemble": false,
+    "gate3_plus_changes": 0,
+    "parser_changes": 0,
+    "production_activation": false,
+    "retry": false,
+    "semantic_vlm_work": 0
+  },
+  "status": "complete",
+  "variant_a": {
+    "addressability": {
+      "cells_total": 18516,
+      "cells_with_source_paths": 18516,
+      "lines_total": 5542,
+      "lines_with_page_source_and_bbox_refs": 5542
+    },
+    "blocked_tables": 4,
+    "documents": 4,
+    "duration_ms": 160782,
+    "maintenance_complexity": {
+      "direct_parser_tests": 25,
+      "known_structural_debt_classes": 4,
+      "local_numeric_or_ratio_decisions_approx": 23,
+      "named_thresholds": 14,
+      "rejection_classes": 11,
+      "table_strategies": 2,
+      "threshold_or_ratio_knobs_order_approx": 37
+    },
+    "pages": 103,
+    "ready_tables": 86
+  },
+  "variant_b": {
+    "addressability": {
+      "markdown_line_identity": true,
+      "page_identity": true,
+      "source_cell_identity": false,
+      "source_coordinate_identity": false
+    },
+    "execution": {
+      "best_of_n": false,
+      "duration_ms_this_process": 1367324,
+      "estimated_cost": {
+        "currency": "USD",
+        "input": 0.203754,
+        "output": 2.11293,
+        "pricing_effective_date": "2026-08-17",
+        "pricing_source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+        "total": 2.316684
+      },
+      "hidden_retry": false,
+      "manifest_sha256": "6b1c0b657ea356d71cf9af6a9ceb739833f8b2d82cff5a42f3d4ccc27f0d7917",
+      "phase": "executed",
+      "privacy": {
+        "page_images_in_safe_output": false,
+        "private_paths_in_safe_output": false,
+        "provider_payloads_in_safe_output": false,
+        "raw_customer_text_in_safe_output": false
+      },
+      "provider_calls_total": 111,
+      "provider_failover": false,
+      "provider_qualification": {
+        "credentials_from_openwebui_connection": true,
+        "exact_model_match": true,
+        "hidden_retry": false,
+        "http_status": 200,
+        "image_input_supported": true,
+        "maximum_input_tokens": 1048576,
+        "maximum_output_tokens": 65536,
+        "native_provider_transport": true,
+        "provider_failover": false,
+        "provider_profile": "google_gemini",
+        "provider_profile_revision": "f0c2fd84daeee8cb33d907435dd843d70eb2db7b0f88b66bc49533f3fb9ac4e3",
+        "requested_model_id": "models/gemini-3.5-flash",
+        "resolved_model_id": "models/gemini-3.5-flash",
+        "response_hash": "19f8f11eb4e1d3eed2306cf1ba2628d5f47620840adb5bb90e63120989747108",
+        "status": "qualified",
+        "structured_output_supported": true
+      },
+      "repeatability": {
+        "both_accepted_pairs": 7,
+        "classification": "STOCHASTIC",
+        "exact_match_pairs": 6,
+        "outputs_selected": 0,
+        "planned_pages": 8,
+        "structural_match_pairs": 6,
+        "terminal_pairs": 8
+      },
+      "schema_version": "broker_reports_pdf_ingestion_ab_g594_safe_v1",
+      "slots": {
+        "accepted": 105,
+        "failed": 6,
+        "interrupted_claims": 0,
+        "planned": 111,
+        "primary_terminal": 103,
+        "repeat_terminal": 8,
+        "skipped_existing_terminal": 1,
+        "submitted_this_process": 110,
+        "terminal": 111
+      },
+      "status": "complete",
+      "tokens": {
+        "input": 135836,
+        "output": 234770,
+        "total": 370606
+      }
+    },
+    "maintenance_complexity": {
+      "markdown_validation_rules": 4,
+      "new_product_runtime_modules": 0,
+      "observed_failure_classes": 6,
+      "prompt_contracts": 1,
+      "provider_specific_compatibility_owners_added": 0,
+      "research_coordinator_scripts": 1,
+      "response_fields": 1
+    },
+    "primary_economics": {
+      "accepted": 98,
+      "availability_ratio": 0.951456,
+      "duration_mean_ms": 12665.9,
+      "duration_median_ms": 9902,
+      "duration_total_ms": 1304587,
+      "estimated_cost": {
+        "currency": "USD",
+        "input": 0.188952,
+        "output": 1.997334,
+        "pricing_effective_date": "2026-08-17",
+        "pricing_source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+        "projected_per_1000_pages_same_mix": 21.2261,
+        "total": 2.186286
+      },
+      "failed": 5,
+      "pages": 103,
+      "tokens": {
+        "input": 125968,
+        "mean_per_page": 3377.6,
+        "output": 221926,
+        "total": 347894
+      }
+    }
+  }
+}

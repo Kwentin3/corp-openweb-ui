@@ -1,0 +1,605 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_demand_map_v0",
+  "goal": "G5.40A",
+  "status": "DECLARATION_DEMAND_MAP_PROVEN",
+  "as_of": "2026-08-12",
+  "scope": {
+    "jurisdiction": "RU",
+    "form": "3-NDFL",
+    "tax_period": "2025",
+    "case": "resident individual; Russian-source disposal of organized-market securities outside IIS; payable single-allocation bounded case",
+    "real_taxpayer_completeness_asserted": false,
+    "projection_activation_asserted": false
+  },
+  "authoritative_sources": [
+    {
+      "source_id": "FNS_ORDER_2025",
+      "url": "https://www.nalog.gov.ru/rn77/about_fts/docs/16589324/",
+      "supports": "current 3-NDFL form, filling procedure and electronic format for tax period 2025"
+    },
+    {
+      "source_id": "FNS_FORM_2025",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_1.pdf",
+      "supports": "declaration fields and line meanings"
+    },
+    {
+      "source_id": "FNS_PROCEDURE_2025",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_2.docx",
+      "sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+      "supports": "conditions, classifications and calculations for Title, Sections 1 and 2, Appendix 1 and Appendix 8"
+    },
+    {
+      "source_id": "FNS_XSD_5_20_01",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/xsd/NO_NDFL3_1_033_00_05_20_01.xsd",
+      "sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484",
+      "supports": "electronic target structure and field constraints"
+    },
+    {
+      "source_id": "NK_210",
+      "url": "https://nalog.garant.ru/fns/nk/6a3eaa02cea3fe2db1e9b04e275d1439/",
+      "supports": "separate securities tax base and RUB conversion rule"
+    },
+    {
+      "source_id": "NK_214_1",
+      "url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/",
+      "supports": "securities income, eligible expense classes, corresponding-expense rule, category allocation and FIFO"
+    },
+    {
+      "source_id": "NK_225",
+      "url": "https://nalog.garant.ru/fns/nk/019663de1a1d5400d8d7e472836929d5/",
+      "supports": "tax calculation and settlement"
+    },
+    {
+      "source_id": "NK_226_1",
+      "url": "https://nalog.garant.ru/fns/nk/6cd8d3f6905f78365f70b64fb5f0a8a7/",
+      "supports": "tax-agent evidence requirements for externally incurred acquisition and storage expenses"
+    }
+  ],
+  "rows": [
+    {
+      "demand_id": "form_identity_constants",
+      "declaration_block": "electronic file and document",
+      "declaration_value_paths": [
+        "target_mechanics.electronic_file_id",
+        "target.KND",
+        "target.tax_period_code",
+        "declaration_values.tax_period",
+        "target.format_version"
+      ],
+      "required_when": "every electronic declaration",
+      "value_kind": "form_constant_plus_generated_mechanic",
+      "tax_or_form_rule": "FNS_ORDER_2025 + FNS_XSD_5_20_01",
+      "required_facts": [
+        "selected declaration form/version",
+        "tax period",
+        "unique electronic file identity"
+      ],
+      "source_or_missing": "official form constants proven; file identity is generated target mechanics",
+      "current_owner": "consumer-first projection definition",
+      "boundary": "no financial entity required"
+    },
+    {
+      "demand_id": "filing_instance",
+      "declaration_block": "Title / document attributes",
+      "declaration_value_paths": [
+        "declaration_values.filing.correction_number",
+        "declaration_values.filing.declaration_date",
+        "declaration_values.filing.tax_authority_code"
+      ],
+      "required_when": "every declaration",
+      "value_kind": "direct_filing_fact",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraphs 26-27",
+      "required_facts": [
+        "initial or correction filing intent",
+        "declaration date",
+        "destination tax authority"
+      ],
+      "source_or_missing": "MISSING real filing instruction; repository fixture is synthetic proof evidence only",
+      "current_owner": "filing_and_party_identity component",
+      "boundary": "not a broker-document fact"
+    },
+    {
+      "demand_id": "taxpayer_identity",
+      "declaration_block": "Title / taxpayer",
+      "declaration_value_paths": [
+        "declaration_values.taxpayer.inn",
+        "declaration_values.taxpayer.name.last_name",
+        "declaration_values.taxpayer.name.first_name",
+        "declaration_values.taxpayer.name.middle_name"
+      ],
+      "required_when": "every declaration; name is required by the bounded projection",
+      "value_kind": "direct_party_fact",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraphs 26-27 + FNS_XSD_5_20_01",
+      "required_facts": [
+        "authenticated taxpayer identity",
+        "TIN",
+        "legal name"
+      ],
+      "source_or_missing": "MISSING real authenticated taxpayer source; repository fixture is synthetic",
+      "current_owner": "filing_and_party_identity component",
+      "boundary": "not a financial event"
+    },
+    {
+      "demand_id": "taxpayer_status_and_declarant_category",
+      "declaration_block": "Title / taxpayer",
+      "declaration_value_paths": [
+        "declaration_values.taxpayer.period_status",
+        "declaration_values.taxpayer.declarant_category"
+      ],
+      "required_when": "every declaration",
+      "value_kind": "legal_classification",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 27 and code dictionaries",
+      "required_facts": [
+        "tax residency for the tax period",
+        "legal reason/category for filing",
+        "facts supporting Article 228 self-declaration where applicable"
+      ],
+      "source_or_missing": "MISSING real period-status and filing-category evidence",
+      "current_owner": "filing_and_party_identity component",
+      "boundary": "classification consumes facts, not an event graph"
+    },
+    {
+      "demand_id": "signer_identity_and_capacity",
+      "declaration_block": "Title / signer",
+      "declaration_value_paths": [
+        "declaration_values.signer.identity",
+        "declaration_values.signer.capacity"
+      ],
+      "required_when": "every declaration",
+      "value_kind": "authenticated_direct_fact",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 27 + FNS_XSD_5_20_01",
+      "required_facts": [
+        "authenticated signer",
+        "self or representative capacity"
+      ],
+      "source_or_missing": "MISSING real authenticated signing instruction",
+      "current_owner": "filing_and_party_identity component",
+      "boundary": "not a broker-document fact"
+    },
+    {
+      "demand_id": "representation_authority",
+      "declaration_block": "Title / signer",
+      "declaration_value_paths": [
+        "declaration_values.signer.representation_authority.identity",
+        "declaration_values.signer.representation_authority.kind"
+      ],
+      "required_when": "only when signer capacity is representative",
+      "value_kind": "direct_legal_authority_fact",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 27",
+      "required_facts": [
+        "authority document identity",
+        "authority kind"
+      ],
+      "source_or_missing": "NOT_APPLICABLE for taxpayer-self bounded case; MISSING if representative case is activated",
+      "current_owner": "filing_and_party_identity component",
+      "boundary": "conditional and unrelated to securities facts"
+    },
+    {
+      "demand_id": "section1_budget_classification",
+      "declaration_block": "Section 1 lines 020-030",
+      "declaration_value_paths": [
+        "declaration_values.budget_dispositions[].kind",
+        "declaration_values.budget_dispositions[].kbk",
+        "declaration_values.budget_dispositions[].oktmo"
+      ],
+      "required_when": "for each distinct budget/OKTMO allocation after Section 2 calculations",
+      "value_kind": "calculated_outcome_plus_direct_or_classified_budget_facts",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraphs 28-31",
+      "required_facts": [
+        "payable, refundable or zero outcome",
+        "applicable KBK",
+        "residence/accounting or withholding-source OKTMO",
+        "complete allocation set"
+      ],
+      "source_or_missing": "MISSING real KBK/OKTMO allocation evidence; current component uses synthetic proof evidence",
+      "current_owner": "declaration_budget_disposition component",
+      "boundary": "depends on settlement result, not trade relations"
+    },
+    {
+      "demand_id": "section1_budget_amounts",
+      "declaration_block": "Section 1 lines 040-050",
+      "declaration_value_paths": [
+        "declaration_values.budget_dispositions[].amount"
+      ],
+      "required_when": "every Section 1 allocation",
+      "value_kind": "calculation",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraphs 28-31; amount comes from Section 2",
+      "required_facts": [
+        "complete per-income-group payable/refundable results",
+        "budget allocation classification"
+      ],
+      "source_or_missing": "bounded calculation owner exists; MISSING real complete settlement input",
+      "current_owner": "declaration_budget_disposition component",
+      "boundary": "calculated declaration outcome"
+    },
+    {
+      "demand_id": "section2_income_group",
+      "declaration_block": "Section 2 line 001",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].income_group"
+      ],
+      "required_when": "one Section 2 page per applicable income-group code",
+      "value_kind": "legal_classification",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraphs 37-38 and Appendix 4; bounded case maps to group 02 / income kind 003",
+      "required_facts": [
+        "tax residency",
+        "securities/derivatives income classification",
+        "outside-IIS status",
+        "complete set of applicable income groups"
+      ],
+      "source_or_missing": "official classification proven; MISSING real case classification/completeness evidence",
+      "current_owner": "income_group_tax_results component",
+      "boundary": "category classification only"
+    },
+    {
+      "demand_id": "section2_total_income",
+      "declaration_block": "Section 2 line 010",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].total_income"
+      ],
+      "required_when": "every applicable Section 2 income group",
+      "value_kind": "calculation",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 40: sum of source-appendix income for the group",
+      "required_facts": [
+        "all source income entries for the group",
+        "gross income in RUB",
+        "source coverage completeness"
+      ],
+      "source_or_missing": "bounded owner exists; MISSING real broker/source extraction and complete-source proof",
+      "current_owner": "income_group_tax_base plus taxable_income_by_source owners",
+      "boundary": "aggregate consumed; no universal transaction entity required"
+    },
+    {
+      "demand_id": "section2_non_taxable_income",
+      "declaration_block": "Section 2 line 020",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].non_taxable_income"
+      ],
+      "required_when": "when the income group contains income exempt under Chapter 23; zero still requires bounded completeness",
+      "value_kind": "legal_classification_plus_calculation",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 41",
+      "required_facts": [
+        "candidate exempt income facts",
+        "applicable exemption rule and limits",
+        "complete activation/absence evidence for the supplied case"
+      ],
+      "source_or_missing": "MISSING real tax-exempt-income facts or scoped absence evidence",
+      "current_owner": "income_group_tax_base owner for bounded zero",
+      "boundary": "do not infer zero from missing documents"
+    },
+    {
+      "demand_id": "section2_taxable_income",
+      "declaration_block": "Section 2 line 030",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].taxable_income"
+      ],
+      "required_when": "every applicable Section 2 income group",
+      "value_kind": "calculation",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 42: line 010 minus line 020",
+      "required_facts": [
+        "total income",
+        "non-taxable income"
+      ],
+      "source_or_missing": "formula proven; inherits source/completeness gaps of inputs",
+      "current_owner": "income_group_tax_base owner",
+      "boundary": "pure derived value"
+    },
+    {
+      "demand_id": "section2_tax_deductions",
+      "declaration_block": "Section 2 line 040",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].tax_deductions"
+      ],
+      "required_when": "when a deduction applicable to income group 02 is claimed or a carried loss is accepted; zero requires scoped no-claim/no-loss evidence",
+      "value_kind": "authenticated_election_plus_legal_calculation",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 43",
+      "required_facts": [
+        "applicable investment or long-term-savings deduction claims",
+        "accepted prior-period losses",
+        "eligibility and limit facts",
+        "claim/completeness evidence"
+      ],
+      "source_or_missing": "MISSING real claims or scoped absence evidence",
+      "current_owner": "income_group_tax_base owner for bounded zero",
+      "boundary": "claim is not created from broker data alone"
+    },
+    {
+      "demand_id": "section2_accepted_expenses",
+      "declaration_block": "Section 2 line 050",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].accepted_expenses"
+      ],
+      "required_when": "when expenses/current losses are accepted against the income group",
+      "value_kind": "tax_methodology_result",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 44: Appendix 8 line 040 plus accepted current-period line 052 losses",
+      "required_facts": [
+        "Appendix 8 allowable expenses by operation category",
+        "accepted current-period losses",
+        "complete applicable category set"
+      ],
+      "source_or_missing": "LEGAL_METHODOLOGY_GAP delegated to G5.40B for partial-lot acquisition commission; real evidence also MISSING",
+      "current_owner": "income_group_tax_base owner consumes category result",
+      "boundary": "this is the nearest unresolved tax-rule output"
+    },
+    {
+      "demand_id": "section2_tax_base",
+      "declaration_block": "Section 2 line 060",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].tax_base"
+      ],
+      "required_when": "every applicable Section 2 income group",
+      "value_kind": "calculation",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraphs 45-46: max-bounded deductions/expenses and line 030 minus lines 040 and 050",
+      "required_facts": [
+        "taxable income",
+        "tax deductions",
+        "accepted expenses"
+      ],
+      "source_or_missing": "formula and bounded owner proven; inherits accepted-expense and completeness gaps",
+      "current_owner": "income_group_tax_base owner",
+      "boundary": "pure derived value"
+    },
+    {
+      "demand_id": "section2_calculated_tax",
+      "declaration_block": "Section 2 line 070",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].calculated_tax"
+      ],
+      "required_when": "every applicable Section 2 income group",
+      "value_kind": "tax_methodology_result",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 48 and NK_225: group 02 uses 13% through RUB 2.4m, then RUB 312k plus 15% of excess",
+      "required_facts": [
+        "complete group-02 tax base aggregate",
+        "tax-period rate-band thresholds"
+      ],
+      "source_or_missing": "official rule and bounded two-band owner proven; inherits tax-base gaps",
+      "current_owner": "income_group_tax_settlement owner",
+      "boundary": "rate calculation does not consume trades"
+    },
+    {
+      "demand_id": "section2_withheld_at_source",
+      "declaration_block": "Section 2 line 080",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].settlement_amounts.withheld_at_source"
+      ],
+      "required_when": "when a source/tax agent withheld tax; zero requires complete source coverage",
+      "value_kind": "aggregate_of_direct_facts",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 49: sum of Appendix 1 line 080",
+      "required_facts": [
+        "withheld tax per Russian source",
+        "complete source list"
+      ],
+      "source_or_missing": "MISSING real tax-agent evidence and complete-source proof",
+      "current_owner": "income_group_tax_results plus taxable_income_by_source owners",
+      "boundary": "source-level tax fact"
+    },
+    {
+      "demand_id": "section2_conditional_credits",
+      "declaration_block": "Section 2 lines 090, 100, 120, 130 and 140",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].settlement_amounts.material_benefit_withheld",
+        "declaration_values.income_group_results[].settlement_amounts.trade_fee_credit",
+        "declaration_values.income_group_results[].settlement_amounts.fixed_advance_credit",
+        "declaration_values.income_group_results[].settlement_amounts.foreign_tax_credit",
+        "declaration_values.income_group_results[].settlement_amounts.patent_credit"
+      ],
+      "required_when": "only when the line-specific legal condition applies; material-benefit, trade-fee and patent lines do not apply to the bounded group-02 Russian-source case; line 120 can contain Article 214 corporate-profit credit for group 02",
+      "value_kind": "conditional_direct_fact_plus_legal_eligibility",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraphs 50-54",
+      "required_facts": [
+        "credit type",
+        "paid or withheld amount",
+        "income group",
+        "legal eligibility",
+        "complete activation/absence evidence"
+      ],
+      "source_or_missing": "NOT_APPLICABLE where excluded by group/source; otherwise MISSING real credit evidence; zero cannot be inferred from silence",
+      "current_owner": "income_group_tax_results component",
+      "boundary": "conditional settlement facts, not securities expense facts"
+    },
+    {
+      "demand_id": "section2_simplified_returned_or_credited",
+      "declaration_block": "Section 2 line 170",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].settlement_amounts.simplified_procedure_returned_or_credited"
+      ],
+      "required_when": "when tax was previously returned/credited through the simplified deduction procedure",
+      "value_kind": "direct_tax_administration_fact",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 56",
+      "required_facts": [
+        "prior simplified-procedure return/credit amount",
+        "complete activation/absence evidence"
+      ],
+      "source_or_missing": "MISSING real tax-administration evidence or scoped absence proof",
+      "current_owner": "declaration_budget_disposition component supplies bounded value",
+      "boundary": "not derivable from broker documents"
+    },
+    {
+      "demand_id": "section2_payable_or_refundable",
+      "declaration_block": "Section 2 lines 150-160",
+      "declaration_value_paths": [
+        "declaration_values.income_group_results[].tax_payable",
+        "declaration_values.income_group_results[].tax_refundable"
+      ],
+      "required_when": "every applicable Section 2 income group; one or both values may be zero",
+      "value_kind": "calculation",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraphs 47-56 and NK_225",
+      "required_facts": [
+        "calculated tax",
+        "all applicable withholding/credit amounts",
+        "complete settlement fact set"
+      ],
+      "source_or_missing": "bounded calculation owner exists; MISSING real complete settlement evidence",
+      "current_owner": "income_group_tax_settlement owner",
+      "boundary": "calculated outcome"
+    },
+    {
+      "demand_id": "appendix1_income_kind",
+      "declaration_block": "Appendix 1 line 010",
+      "declaration_value_paths": [
+        "declaration_values.russian_source_income[].income_kind"
+      ],
+      "required_when": "for each Russian source and income kind; bounded securities case maps to income kind 003",
+      "value_kind": "legal_classification",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraphs 57-60 and Appendix 4",
+      "required_facts": [
+        "Russian-source classification",
+        "income nature as securities disposal",
+        "outside-IIS status"
+      ],
+      "source_or_missing": "official code mapping proven; MISSING real source classification evidence",
+      "current_owner": "taxable_income_by_source component",
+      "boundary": "source/category classification only"
+    },
+    {
+      "demand_id": "appendix1_source_party",
+      "declaration_block": "Appendix 1 lines 030-060",
+      "declaration_value_paths": [
+        "declaration_values.russian_source_income[].source_party.party_kind",
+        "declaration_values.russian_source_income[].source_party.inn",
+        "declaration_values.russian_source_income[].source_party.kpp",
+        "declaration_values.russian_source_income[].source_party.oktmo",
+        "declaration_values.russian_source_income[].source_party.display_name"
+      ],
+      "required_when": "for each Russian source/income-kind row; operation kind may replace the name when the source name cannot be established from available documents",
+      "value_kind": "direct_source_identity_fact",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 59",
+      "required_facts": [
+        "source legal identity or permitted operation description",
+        "source TIN/KPP/OKTMO where applicable"
+      ],
+      "source_or_missing": "MISSING real source-party evidence; synthetic broker identity is proof-only",
+      "current_owner": "taxable_income_by_source component",
+      "boundary": "party identity; no trade relation"
+    },
+    {
+      "demand_id": "appendix1_income_and_withholding",
+      "declaration_block": "Appendix 1 lines 070-080",
+      "declaration_value_paths": [
+        "declaration_values.russian_source_income[].gross_income",
+        "declaration_values.russian_source_income[].withheld_tax"
+      ],
+      "required_when": "gross income for each source row; withheld tax when the source is a tax agent",
+      "value_kind": "direct_or_source_aggregate_fact",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 59",
+      "required_facts": [
+        "gross taxable-period income per source and kind",
+        "tax-agent status",
+        "tax withheld",
+        "complete source coverage"
+      ],
+      "source_or_missing": "MISSING real broker/source extraction and completeness proof",
+      "current_owner": "taxable_income_by_source component",
+      "boundary": "source aggregate is sufficient for declaration"
+    },
+    {
+      "demand_id": "appendix8_operation_category",
+      "declaration_block": "Appendix 8 line 010",
+      "declaration_value_paths": [
+        "declaration_values.financial_investment_results[].operation_category"
+      ],
+      "required_when": "one row per applicable operation category; bounded case maps to code 01",
+      "value_kind": "legal_classification",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraphs 97-98 and Appendix 8 code dictionary",
+      "required_facts": [
+        "security type/status",
+        "organized-market status at disposal",
+        "IIS status",
+        "complete applicable category set"
+      ],
+      "source_or_missing": "official classification proven; MISSING real classification and category-completeness evidence",
+      "current_owner": "financial_investment_results component consumes category tax models",
+      "boundary": "category is demanded; universal event identity is not"
+    },
+    {
+      "demand_id": "appendix8_category_gross_income",
+      "declaration_block": "Appendix 8 line 020",
+      "declaration_value_paths": [
+        "declaration_values.financial_investment_results[].category_gross_income"
+      ],
+      "required_when": "every applicable operation category",
+      "value_kind": "calculation",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 98: total income across the category's operations; NK_214_1 paragraph 7",
+      "required_facts": [
+        "disposal proceeds and other legally included securities income",
+        "RUB conversion where applicable",
+        "all category operations",
+        "category completeness"
+      ],
+      "source_or_missing": "bounded aggregation owner exists; MISSING real source facts and complete category coverage",
+      "current_owner": "tax-period category tax model",
+      "boundary": "operation facts aggregate to category"
+    },
+    {
+      "demand_id": "appendix8_related_expenses",
+      "declaration_block": "Appendix 8 line 030",
+      "declaration_value_paths": [
+        "declaration_values.financial_investment_results[].related_expenses"
+      ],
+      "required_when": "every category with acquisition, disposal, storage or redemption expenses",
+      "value_kind": "tax_methodology_result",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 98; NK_214_1 paragraph 10",
+      "required_facts": [
+        "documented and actually incurred purchase cost",
+        "documented acquisition commission",
+        "documented disposal commission",
+        "documented storage/depositary expenses",
+        "legal connection to securities activity",
+        "RUB amount at the legally relevant date"
+      ],
+      "source_or_missing": "expense classes proven; MISSING real expense evidence; partial-lot acquisition-commission timing/allocation remains G5.40B",
+      "current_owner": "tax-period category tax model",
+      "boundary": "declaration consumes one category aggregate, not an event graph"
+    },
+    {
+      "demand_id": "appendix8_allowable_expenses",
+      "declaration_block": "Appendix 8 line 040",
+      "declaration_value_paths": [
+        "declaration_values.financial_investment_results[].allowable_expenses"
+      ],
+      "required_when": "when related expenses are legally accepted against category income",
+      "value_kind": "tax_methodology_result",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 98; NK_214_1 paragraphs 10-13",
+      "required_facts": [
+        "eligible documented expenses",
+        "FIFO acquisition-cost result for disposed securities",
+        "directly attributable expenses",
+        "category allocation for expenses not directly attributable to an income type",
+        "current-period recognition eligibility",
+        "complete applicable expense set"
+      ],
+      "source_or_missing": "LEGAL_METHODOLOGY_GAP for partial-lot acquisition commission; other bounded rules proven; real source facts MISSING",
+      "current_owner": "tax-period category tax model consumes resolved allowable expenses",
+      "boundary": "only facts demanded by this tax rule may be added"
+    },
+    {
+      "demand_id": "appendix8_loss_treatment",
+      "declaration_block": "Appendix 8 lines 050-052",
+      "declaration_value_paths": [
+        "declaration_values.financial_investment_results[].loss_treatment"
+      ],
+      "required_when": "line 050 is present for the category; lines 051-052 only when loss is accepted",
+      "value_kind": "legal_classification_plus_authenticated_election",
+      "tax_or_form_rule": "FNS_PROCEDURE_2025 paragraph 98 and NK_214_1 paragraph 12",
+      "required_facts": [
+        "current category financial result",
+        "eligible current/prior loss",
+        "loss category and amount",
+        "authenticated intent to account for loss where required",
+        "ten-year history/usage completeness when prior losses are claimed"
+      ],
+      "source_or_missing": "bounded case proves only no-loss marker; MISSING real loss history or scoped absence evidence",
+      "current_owner": "financial_investment_results component",
+      "boundary": "loss history is conditional; do not create it for coverage"
+    }
+  ],
+  "negative_findings": [
+    "No researched declaration field consumes a universal financial event, graph edge, purchase-to-sale relation or purchase-commission-to-sale relation.",
+    "The declaration consumes source rows, income-group aggregates and Appendix 8 category aggregates.",
+    "A more specific relation may still be required by the tax methodology that computes an aggregate; G5.40A does not invent it.",
+    "Synthetic repository fixtures do not prove real taxpayer facts or real broker-document coverage.",
+    "Zero is not evidence of absence: conditional fields require explicit bounded non-activation or completeness evidence."
+  ],
+  "next_required_goal": "G5.40B",
+  "next_question": "Determine the legally required expense recognition level, especially for acquisition commission on a partially disposed FIFO lot."
+}

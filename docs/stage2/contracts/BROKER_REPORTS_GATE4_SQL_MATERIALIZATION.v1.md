@@ -20,20 +20,23 @@ rebuildable SQL read cache:
 current FinancialAnnotationsV2
 + exact active CanonicalArtifactV1
 + trusted ArtifactAccessContext
--> Gate4FinancialCaseFactV1[]
+-> Gate4FinancialCaseFactV2[]
 -> same-ArtifactStore SQLite projection
 -> ordinary code queries
 ```
 
 The semantic source of truth remains the immutable Gate 3 sidecar, active
 canonical version, published Role Pack and
-[Gate4FinancialCaseFactV1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md).
+[Gate4FinancialCaseFactV2](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.md).
 The SQL rows do not define a new financial record type.
 
 G4.6 audited the implemented read surface and found no missing downstream
 operation. The existing factory-composed runtime is the official Gate 4 read
 boundary; G4.6 adds no Read Model, Repository, Service, DTO family or query
 abstraction.
+
+The physical SQL cache remains a rebuildable, non-authoritative projection;
+it is not a second Gate 4 read owner.
 
 ## Sole runtime entrypoints
 
@@ -80,17 +83,18 @@ columns and does not call a model.
 
 ### Normalization policy
 
-Normalization is deliberately small and fail-closed:
+Normalization is deliberately small and source-preserving:
 
-- date accepts exact `YYYY-MM-DD` or exact `DD.MM.YYYY`, validates the calendar
-  date and emits `YYYY-MM-DD`;
-- quantity, unit price and amount accept an optional minus sign, digits and at
-  most one dot or comma decimal separator, with no exponent or grouping; comma
-  is mechanically changed to dot and scale is preserved;
+- a valid exact `YYYY-MM-DD` or exact `DD.MM.YYYY` calendar date emits
+  `YYYY-MM-DD`; any other non-empty date literal remains unchanged;
+- quantity, unit price and amount normalize plain dot/comma decimals plus
+  unambiguous space-grouped, comma-grouped/dot-decimal and
+  dot-grouped/comma-decimal forms; any other non-empty literal remains
+  unchanged;
 - asset and currency trim only surrounding whitespace and otherwise preserve
   source text;
-- any other source literal fails materialization; there is no guessed locale,
-  grouping or financial default.
+- no locale, currency or financial default is guessed. A downstream consumer
+  must reject a preserved literal that is not valid for its own contract.
 
 `source_literal`, target and optional `exact_text` remain exact provenance.
 The normalized value is a separate deterministic projection.
@@ -132,9 +136,11 @@ list_by_period(context, date_from, date_to)
 ```
 
 Every query is case-scoped in SQL and returns the complete G4.1 fact JSON.
-`asset` and `date` are SQL projections only when the corresponding role has
-`status=value`; explicit `missing` remains present inside the fact and is not
-redefined as a financial non-event.
+`asset` is projected when its corresponding role has `status=value`. `date` is
+projected only when that role contains a valid exact ISO calendar date; partial
+or unrecognized date literals remain authoritative only inside `fact_json` and
+cannot enter period queries. Explicit `missing` remains present inside the fact
+and is not redefined as a financial non-event.
 
 `read_case` returns the current technical assembly together with all current
 facts and source readiness. Each returned fact retains `fact_id`,

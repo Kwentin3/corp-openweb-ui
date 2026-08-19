@@ -1,0 +1,239 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_definition_v0",
+  "definition_id": "ru-3ndfl-2025-securities-supported-surface",
+  "definition_version": "2026.0-agent-candidate",
+  "status": "partially_compilable",
+  "target": {
+    "jurisdiction": "RU",
+    "tax_period": "2025",
+    "form": "3-NDFL",
+    "knd": "1151020",
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "electronic_format_version": "5.20",
+    "xsd": "NO_NDFL3_1_033_00_05_20_01.xsd"
+  },
+  "scope": {
+    "domain": "securities_disposal",
+    "taxpayer_profile": "resident_individual",
+    "operation_profile": "organized_market_securities_outside_iis",
+    "boundary": "static_definition_compilation_only"
+  },
+  "requirements": [
+    {
+      "requirement_id": "appendix8_operation_members_from_case",
+      "official_requirement": "Supply source-tagged operation-level meanings needed to substantiate aggregate securities income and expense values.",
+      "evidence_refs": [
+        "appendix8_procedure_paragraphs_97_98",
+        "appendix8_operation_code_01"
+      ],
+      "semantic_output": {
+        "semantic_id": "compatible_operation_model_members",
+        "contract": "broker_reports_gate5_operation_model_members_v0",
+        "contract_status": "published_input_only"
+      },
+      "declared_inputs": [],
+      "capability_refs": [],
+      "artifact_refs": [],
+      "preconditions": [
+        "current_case_contains_sufficient_source_tagged_operation_evidence"
+      ],
+      "completion_criteria": [
+        "each_relevant_disposal_has_one_compatible_complete_operation_model"
+      ],
+      "status": "not_compilable",
+      "gap_refs": [
+        "gap-operation-member-production"
+      ]
+    },
+    {
+      "requirement_id": "appendix8_complete_category_aggregation",
+      "official_requirement": "Derive one complete category-level securities occurrence with aggregate income, related expenses, allowable expenses and loss treatment.",
+      "evidence_refs": [
+        "appendix8_form_lines_010_050",
+        "appendix8_procedure_paragraphs_97_98",
+        "appendix8_operation_code_01"
+      ],
+      "semantic_output": {
+        "semantic_id": "complete_category_aggregation",
+        "contract": "broker_reports_gate5_tax_period_category_aggregation_result_v0",
+        "contract_status": "published"
+      },
+      "declared_inputs": [
+        {
+          "input_name": "scope",
+          "contract": "broker_reports_gate5_tax_period_category_scope_v0",
+          "required": true,
+          "source": "definition_boundary"
+        },
+        {
+          "input_name": "operation_members",
+          "contract": "broker_reports_gate5_operation_model_members_v0",
+          "required": true,
+          "source": "definition_boundary"
+        },
+        {
+          "input_name": "completeness_evidence",
+          "contract": "broker_reports_gate5_tax_period_completeness_evidence_v0",
+          "required": true,
+          "source": "definition_boundary"
+        }
+      ],
+      "capability_refs": [
+        {
+          "schema_version": "broker_reports_gate5_runtime_capability_ref_v0",
+          "capability_id": "aggregate_complete_category_scope_v0"
+        }
+      ],
+      "artifact_refs": [
+        {
+          "artifact_kind": "trusted_methodology",
+          "artifact_id": "ru-ndfl-securities-tax-model-proof",
+          "artifact_version": "2026.1-experimental",
+          "role": "accepted_operation_member_binding"
+        },
+        {
+          "artifact_kind": "validated_declaration_projection",
+          "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+          "artifact_version": "2026.0-proof",
+          "role": "nested_validated_projection"
+        }
+      ],
+      "preconditions": [
+        "at_least_two_compatible_complete_operation_models",
+        "exact_scope_and_member_hash_completeness_binding"
+      ],
+      "completion_criteria": [
+        "aggregation_status_is_complete",
+        "declaration_projection_is_present"
+      ],
+      "status": "compilable",
+      "gap_refs": []
+    },
+    {
+      "requirement_id": "appendix8_projection_from_complete_semantics",
+      "official_requirement": "Project the five complete securities meanings into the validated 2025 Appendix 8 electronic occurrence.",
+      "evidence_refs": [
+        "appendix8_form_lines_010_050",
+        "appendix8_format_table_4_46",
+        "appendix8_xsd_contract"
+      ],
+      "semantic_output": {
+        "semantic_id": "appendix8_declaration_fragment",
+        "contract": "broker_reports_gate5_declaration_projection_fragment_v0",
+        "contract_status": "published"
+      },
+      "declared_inputs": [
+        {
+          "input_name": "declaration_semantics",
+          "contract": "broker_reports_gate5_declaration_projection_proof_input_v0",
+          "required": true,
+          "source": "definition_boundary"
+        }
+      ],
+      "capability_refs": [
+        {
+          "schema_version": "broker_reports_gate5_runtime_capability_ref_v0",
+          "capability_id": "project_validated_declaration_fragment_v0"
+        }
+      ],
+      "artifact_refs": [
+        {
+          "artifact_kind": "validated_declaration_projection",
+          "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+          "artifact_version": "2026.0-proof",
+          "role": "validated_projection"
+        }
+      ],
+      "preconditions": [
+        "all_five_projection_concepts_are_complete_and_compatible"
+      ],
+      "completion_criteria": [
+        "fragment_is_bound_to_validated_projection_and_official_evidence"
+      ],
+      "status": "compilable",
+      "gap_refs": []
+    },
+    {
+      "requirement_id": "section2_group_tax_base",
+      "official_requirement": "Derive the income-group-bound tax base required after the relevant securities income, deductions and accepted expenses are assembled.",
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "securities_income_group_02_type_003",
+        "section2_electronic_contract"
+      ],
+      "semantic_output": {
+        "semantic_id": "group_level_tax_base",
+        "contract": null,
+        "contract_status": "missing"
+      },
+      "declared_inputs": [
+        {
+          "input_name": "complete_category_aggregation",
+          "contract": "broker_reports_gate5_tax_period_category_aggregation_result_v0",
+          "required": true,
+          "source": "definition_boundary"
+        }
+      ],
+      "capability_refs": [],
+      "artifact_refs": [],
+      "preconditions": [
+        "complete_group_income_and_adjustment_inputs"
+      ],
+      "completion_criteria": [
+        "group_level_tax_base_is_deterministically_derived_and_evidence_bound"
+      ],
+      "status": "not_compilable",
+      "gap_refs": [
+        "gap-section2-group-tax-base"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "gap_id": "gap-operation-member-production",
+      "requirement_id": "appendix8_operation_members_from_case",
+      "gap_type": "missing_runtime_capability",
+      "required_semantic": "compatible source-tagged operation model members",
+      "runtime_user_pain": "The runtime cannot turn current case evidence into the operation-model members required by category aggregation through any published capability.",
+      "related_capability_refs": [],
+      "missing_artifact_kind": null,
+      "evidence_refs": [
+        "appendix8_procedure_paragraphs_97_98"
+      ]
+    },
+    {
+      "gap_id": "gap-section2-group-tax-base",
+      "requirement_id": "section2_group_tax_base",
+      "gap_type": "missing_published_behavior",
+      "required_semantic": "declaration-required group-level tax base",
+      "runtime_user_pain": "The runtime cannot deterministically derive the declaration-required group-level tax base from complete income-group inputs with a reviewed published behavior.",
+      "related_capability_refs": [
+        {
+          "schema_version": "broker_reports_gate5_runtime_capability_ref_v0",
+          "capability_id": "execute_published_calculation_behavior_v0"
+        }
+      ],
+      "missing_artifact_kind": "methodology_behavior",
+      "evidence_refs": [
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    }
+  ],
+  "findings": {
+    "supported_fragment_requirement_ids": [
+      "appendix8_complete_category_aggregation",
+      "appendix8_projection_from_complete_semantics"
+    ],
+    "first_runtime_composition_gap_id": "gap-operation-member-production",
+    "first_downstream_declaration_gap_id": "gap-section2-group-tax-base"
+  },
+  "authoring": {
+    "phase": "authoring_time",
+    "model_role": "llm_research_synthesis",
+    "case_time_research_assumed": false,
+    "prompt_bias_check": "expected_gap_not_named_in_system_instructions_or_research_policy",
+    "trial_independence": "structural_prompt_only_not_blind_to_governance_goal"
+  }
+}

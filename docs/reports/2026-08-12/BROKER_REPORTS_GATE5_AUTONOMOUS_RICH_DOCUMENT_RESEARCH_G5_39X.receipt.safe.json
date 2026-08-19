@@ -1,0 +1,50 @@
+{
+  "schema_version": "broker_reports_g539x_safe_receipt_v1",
+  "goal": "G5.39X",
+  "date": "2026-08-12",
+  "terminal": "NO_STRATEGY_PROVEN",
+  "report": {
+    "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_AUTONOMOUS_RICH_DOCUMENT_RESEARCH_G5_39X.report.md",
+    "sha256": "4e20dedef46a5170dec15b3a1e800cc9e7250bc67bb186cf2d14d42c4ee0fc58",
+    "bytes": 12128
+  },
+  "ledger": {
+    "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_AUTONOMOUS_RICH_DOCUMENT_RESEARCH_G5_39X.ledger.safe.json",
+    "sha256": "55eb61fa2a60dcccd6d807d2f4554f426eadf7ab99a27f722d464d51308ad3f0",
+    "bytes": 3724
+  },
+  "research": {
+    "final_isolated_commit": "f2bbfc4085250728683f0437f8cdec1864a5185f",
+    "semantic_calls": 16,
+    "provider_submissions": 16,
+    "provider_responses": 16,
+    "confirmatory_calls": 0,
+    "candidate_contract": null
+  },
+  "safety": {
+    "invented_refs": 0,
+    "invented_literals": 0,
+    "negative_cross_event_facts": 0,
+    "negative_mixed_groups": 0,
+    "oracle_strings_scanned": 80,
+    "oracle_string_leaks": 0,
+    "semantic_retry": 0,
+    "repair": 0,
+    "answer_merge": 0
+  },
+  "verification": {
+    "isolated_research_tests": "16 passed in 0.393 s",
+    "product_regressions": "48 passed in 6.47 s",
+    "factory_anchors_present": true,
+    "product_head_unchanged": true,
+    "product_tree_unchanged": true,
+    "production_changes": false
+  },
+  "privacy": {
+    "private_evidence_ignored": true,
+    "customer_values_in_git": false,
+    "private_refs_in_git": false,
+    "provider_traces_in_git": false
+  },
+  "issue_url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278"
+}

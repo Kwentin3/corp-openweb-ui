@@ -1,0 +1,91 @@
+{
+  "schema_version": "broker_reports_g560_minimal_person_document_metadata_receipt_v1",
+  "goal": "G5.60",
+  "terminals": [
+    "MINIMAL_PERSON_DOCUMENT_METADATA_CONTRACT_PROVEN",
+    "MINIMAL_METADATA_CONTRACT_PROVEN_WITH_SOURCE_ABSENCE",
+    "PERSON_IDENTITY_SOURCE_FACTS_PROVEN_FOR_AVAILABLE_SOURCE",
+    "DOCUMENT_IDENTITY_SOURCE_FACTS_PROVEN_FOR_AVAILABLE_SOURCE",
+    "DOCUMENT_PERIOD_SOURCE_FACT_PROVEN",
+    "ISSUER_SOURCE_FACT_PROVEN",
+    "ACCOUNT_IDENTITY_SOURCE_FACTS_PROVEN",
+    "TAX_RESIDENCY_BOUNDARY_PRESERVED",
+    "NO_GENERIC_METADATA_EXTRACTION",
+    "NO_SYNTHETIC_SUPPORT_ADDED",
+    "FINANCIAL_GENERALIZATION_PRESERVED"
+  ],
+  "contract_version": "1.0.0",
+  "contract_frozen_before_code": true,
+  "closed_field_count": 11,
+  "source_accounting": {
+    "physical_pdfs_scanned": 31,
+    "unique_documents_scanned": 29,
+    "real_source_example_fields": [
+      "PARTY_NAME",
+      "DOCUMENT_TYPE",
+      "DOCUMENT_DATE",
+      "STATEMENT_PERIOD",
+      "BROKER_LEGAL_NAME",
+      "ACCOUNT_IDENTIFIER",
+      "ACCOUNT_CONTRACT_IDENTIFIER"
+    ],
+    "no_real_source_example_fields": [
+      "PERSON_BIRTH_DATE",
+      "TAXPAYER_TAX_IDENTIFIER",
+      "PERSON_CITIZENSHIP",
+      "DOCUMENT_NUMBER"
+    ],
+    "synthetic_production_support_added": false
+  },
+  "allowed_source_structures": [
+    "ADJACENT_TABLE_LABEL_VALUE",
+    "EXPLICIT_HEADER_TEXT",
+    "EXPLICIT_COLUMN_HEADER_VALUES_ACCOUNT_ONLY"
+  ],
+  "real_replay": {
+    "representative_pdf_002_metadata_facts": 8,
+    "representative_pdf_024_metadata_facts": 5,
+    "holdout_a_metadata_facts": 3,
+    "holdout_b_metadata_facts": 5,
+    "holdout_b_distinct_account_identifiers": 3,
+    "duplicate_metadata_assertions": 0,
+    "invented_metadata_facts": 0,
+    "wrong_metadata_bindings": 0
+  },
+  "financial_regression": {
+    "holdout_a_facts": 39,
+    "holdout_b_facts": 129,
+    "holdout_a_exact_frozen_result": true,
+    "holdout_b_exact_frozen_result": true,
+    "invented_financial_facts": 0,
+    "wrong_financial_roles": 0,
+    "unsupported_relations": 0
+  },
+  "discarded_diagnostic": {
+    "input": "baseline-r1 stores",
+    "result": "0/0 financial facts",
+    "cause": "archived stores did not contain final G5.58 annotations",
+    "counted_as_product_result": false
+  },
+  "boundaries": {
+    "tax_residency_from_citizenship": false,
+    "person_inn_from_organization_inn": false,
+    "value_shape_inference": false,
+    "fixed_column_or_page_magic": false,
+    "broker_specific_branches": false,
+    "gate5_source_reads_added": false,
+    "generic_metadata_framework_added": false,
+    "document_deduplication_added": false,
+    "visual_runtime_dependency_added": false
+  },
+  "verification": {
+    "focused_tests": "41 passed",
+    "architecture_and_regression_union": "116 passed",
+    "scoped_diff_check": "passed",
+    "metadata_llm_calls": 0
+  },
+  "contains_private_payload": false,
+  "private_values_committed": false,
+  "full_source_absence_terminal_claimed": true,
+  "metadata_direction_stopped": true
+}

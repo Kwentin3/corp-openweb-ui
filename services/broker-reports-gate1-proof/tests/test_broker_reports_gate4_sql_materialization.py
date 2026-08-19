@@ -24,7 +24,6 @@ from broker_reports_gate1 import (
     CanonicalReaderFactory,
     CanonicalStorageConfig,
     Gate4FinancialCaseCacheError,
-    Gate4FinancialCaseMaterializationError,
     Gate4FinancialCaseRuntimeFactory,
     Gate4FinancialCaseSqlCacheFactory,
     build_retention_policy,
@@ -34,6 +33,9 @@ from broker_reports_gate1.artifact_models import ArtifactRecord
 from broker_reports_gate1.gate3_financial_annotations_persistence import (
     GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
 )
+from broker_reports_gate1.gate3_role_labeling import (
+    GATE3_ROLE_LABELING_INSTRUCTION_VERSION,
+)
 from broker_reports_gate1.gate4_financial_case_cache import (
     FACTORY_REQUIRED as CACHE_FACTORY_REQUIRED,
     FORBIDDEN as CACHE_FORBIDDEN,
@@ -41,6 +43,7 @@ from broker_reports_gate1.gate4_financial_case_cache import (
 from broker_reports_gate1.gate4_financial_case_materialization import (
     FACTORY_REQUIRED as MATERIALIZER_FACTORY_REQUIRED,
     FORBIDDEN as MATERIALIZER_FORBIDDEN,
+    _normalize_role_value,
 )
 
 
@@ -160,7 +163,7 @@ def _read_json(path: Path) -> dict:
 
 
 _FACT_SCHEMA = _read_json(
-    CONTRACTS / "BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.schema.json"
+    CONTRACTS / "BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.schema.json"
 )
 _TARGET_SCHEMA = _read_json(
     CONTRACTS / "BROKER_REPORTS_GATE3_TARGET.v1.schema.json"
@@ -203,6 +206,17 @@ def test_materializes_five_representative_types_without_financial_inference(
     assert all(fact["status"] == "role_complete" for fact in result.facts)
     for fact in result.facts:
         _FACT_VALIDATOR.validate(fact)
+        assert fact["semantic_kind"] == "normalized_source_fact"
+        assert fact["semantic_binding"] == {
+            "dictionary": {
+                "authority_id": "broker-reports-financial-labels",
+                "semantic_version": "1.0.0",
+            },
+            "role_pack": {
+                "authority_id": "broker-reports-financial-roles",
+                "semantic_version": "1.0.0",
+            },
+        }
         assert fact["gate3_binding"]["financial_annotations_artifact_id"] == (
             sidecar.artifact_id
         )
@@ -224,6 +238,87 @@ def test_materializes_five_representative_types_without_financial_inference(
     amount = next(item for item in charge["roles"] if item["role"] == "amount")
     assert amount["source_binding"]["source_literal"] == "1,25"
     assert amount["value"] == "1.25"
+
+
+def test_current_tax_adjustment_materializes_with_literal_evidence_only(
+    tmp_path: Path,
+) -> None:
+    store, context = _store_context(tmp_path)
+    document_id = "g591-tax-adjustment"
+    source_row = "Tax adjustment|12.03.2026|1,20|USD"
+    canonical = _activate_canonical(
+        store=store,
+        context=context,
+        document_id=document_id,
+        artifact_version=1,
+        expected_previous_version_id=None,
+        source_rows=(source_row,),
+    )
+    sidecar = _persist_sidecar(
+        store=store,
+        context=context,
+        document_id=document_id,
+        canonical_version_id=canonical.canonical_version_id,
+        artifact_id="g591-tax-adjustment-sidecar",
+        created_at="2026-08-17T12:00:00+00:00",
+        fact_specs=(
+            (
+                "TAX_ADJUSTMENT",
+                (
+                    ("date", "12.03.2026"),
+                    ("amount", "1,20"),
+                    ("currency", "USD"),
+                    ("source_wording", "Tax adjustment"),
+                    ("asset", None),
+                ),
+            ),
+        ),
+        semantic_version="2.1.0",
+        role_pack_semantic_version="3.1.0",
+    )
+
+    runtime = Gate4FinancialCaseRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+    result = runtime.materialize_artifact(
+        financial_annotations_artifact_id=sidecar.artifact_id,
+        context=context,
+    )
+
+    assert len(result.facts) == 1
+    fact = result.facts[0]
+    _FACT_VALIDATOR.validate(fact)
+    assert fact["financial_type"] == "TAX_ADJUSTMENT"
+    assert fact["semantic_kind"] == "normalized_source_fact"
+    assert fact["semantic_binding"] == {
+        "dictionary": {
+            "authority_id": "broker-reports-financial-labels",
+            "semantic_version": "2.1.0",
+        },
+        "role_pack": {
+            "authority_id": "broker-reports-financial-roles",
+            "semantic_version": "3.1.0",
+        },
+    }
+    assert _values(fact) == {
+        "date": "2026-03-12",
+        "amount": "1.20",
+        "currency": "USD",
+        "source_wording": "Tax adjustment",
+        "asset": None,
+    }
+    wording = next(
+        item for item in fact["roles"] if item["role"] == "source_wording"
+    )
+    assert wording["source_binding"]["source_literal"] == "Tax adjustment"
+    assert wording["source_binding"]["exact_text"] == "Tax adjustment"
+    assert {
+        "tax_effect",
+        "refund",
+        "reversal",
+        "related_fact_id",
+    }.isdisjoint(fact)
 
 
 def test_required_missing_is_preserved_and_unsupported_value_fails_closed(
@@ -281,13 +376,132 @@ def test_required_missing_is_preserved_and_unsupported_value_fails_closed(
         created_at="2026-08-08T10:01:00+00:00",
         purchase_date="10",
     )
-    with pytest.raises(Gate4FinancialCaseMaterializationError) as failure:
-        runtime.materialize_artifact(
-            financial_annotations_artifact_id=invalid.artifact_id,
-            context=context,
-        )
-    assert failure.value.code == "gate4_role_value_invalid"
+    preserved = runtime.materialize_artifact(
+        financial_annotations_artifact_id=invalid.artifact_id,
+        context=context,
+    )
+    date_role = next(
+        role for role in preserved.facts[0]["roles"] if role["role"] == "date"
+    )
+    assert date_role["value"] == "10"
 
+
+@pytest.mark.parametrize(
+    ("source", "normalized"),
+    (
+        ("1,234.56", "1234.56"),
+        ("1 234.56", "1234.56"),
+        ("1.234,56", "1234.56"),
+        ("1'234.56", "1'234.56"),
+    ),
+)
+def test_real_grouped_numeric_literals_normalize_only_when_unambiguous(
+    source: str,
+    normalized: str,
+) -> None:
+    assert _normalize_role_value("amount", source) == normalized
+
+
+def test_source_detail_and_aggregate_observations_survive_without_reconciliation(
+    tmp_path: Path,
+) -> None:
+    source_rows = (
+        "Операция A|10.01.2026|Комиссия|10|RUB",
+        "Операция B|11.01.2026|Комиссия|15|RUB",
+        "Итого комиссии|30|RUB",
+        "Доход A|12.01.2026|Налог удержан|4|RUB",
+        "Итого удержано|7|RUB",
+    )
+    fact_specs = (
+        (
+            "TRANSACTION_CHARGE",
+            (("date", "10.01.2026"), ("amount", "10"), ("currency", "RUB"), ("asset", None)),
+        ),
+        (
+            "TRANSACTION_CHARGE",
+            (("date", "11.01.2026"), ("amount", "15"), ("currency", "RUB"), ("asset", None)),
+        ),
+        (
+            "COMMISSION_TOTAL",
+            (("amount", "30"), ("currency", "RUB"), ("date", None), ("asset", None)),
+        ),
+        (
+            "TAX_WITHHELD",
+            (("date", "12.01.2026"), ("amount", "4"), ("currency", "RUB"), ("asset", None)),
+        ),
+        (
+            "TAX_WITHHELD_TOTAL",
+            (("amount", "7"), ("currency", "RUB"), ("date", None), ("asset", None)),
+        ),
+    )
+    store, context, document_id, _ = _setup(tmp_path)
+    context = replace(
+        context,
+        normalization_run_id="g4-source-granularity-run",
+    )
+    canonical = _activate_canonical(
+        store=store,
+        context=context,
+        document_id=document_id,
+        artifact_version=2,
+        expected_previous_version_id=store.get_active_canonical_version(
+            context=context,
+            document_id=document_id,
+        ).canonical_version_id,
+        source_rows=source_rows,
+    )
+    sidecar = _persist_sidecar(
+        store=store,
+        context=context,
+        document_id=document_id,
+        canonical_version_id=canonical.canonical_version_id,
+        artifact_id="g3-v2-source-granularity",
+        created_at="2026-08-12T10:00:00+00:00",
+        fact_specs=fact_specs,
+        semantic_version="2.0.0",
+    )
+    runtime = Gate4FinancialCaseRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+
+    facts = runtime.rebuild_artifact(
+        financial_annotations_artifact_id=sidecar.artifact_id,
+        context=context,
+    )
+
+    assert [fact["financial_type"] for fact in facts] == [
+        "TRANSACTION_CHARGE",
+        "TRANSACTION_CHARGE",
+        "COMMISSION_TOTAL",
+        "TAX_WITHHELD",
+        "TAX_WITHHELD_TOTAL",
+    ]
+    assert [_values(fact)["amount"] for fact in facts] == [
+        "10",
+        "15",
+        "30",
+        "4",
+        "7",
+    ]
+    assert all(
+        fact["semantic_binding"]["dictionary"]["semantic_version"] == "2.0.0"
+        and fact["semantic_binding"]["role_pack"]["semantic_version"] == "2.0.0"
+        for fact in facts
+    )
+    assert len(runtime.list_by_financial_type(
+        context=context,
+        financial_type="TRANSACTION_CHARGE",
+    )) == 2
+    assert len(runtime.list_by_financial_type(
+        context=context,
+        financial_type="COMMISSION_TOTAL",
+    )) == 1
+    assert all(
+        {"relation", "relations", "reconciliation", "aggregate_members"}.isdisjoint(fact)
+        for fact in facts
+    )
+    assert len({json.dumps(fact["annotation_target"], sort_keys=True) for fact in facts}) == 5
 
 def test_sql_queries_and_delete_rebuild_preserve_exact_facts(
     tmp_path: Path,
@@ -1039,6 +1253,7 @@ def _activate_canonical(
     artifact_version: int,
     expected_previous_version_id: str | None,
     source_rows: tuple[str, ...] = _SOURCE_ROWS,
+    table_rows: tuple[tuple[str, ...], ...] | None = None,
 ):
     retention = build_retention_policy(mode="api_smoke")
     source_ref = f"g4-runtime-source-{document_id}-{artifact_version}"
@@ -1074,33 +1289,89 @@ def _activate_canonical(
             normalizer_version=f"g4-runtime-test-v{artifact_version}"
         )
     ).create()
+    source_payloads = [
+        {
+            "canonical_projection": {
+                "blocks": [
+                    {
+                        "kind": "text",
+                        "text": text,
+                        "source_location": {"block_index": index},
+                    }
+                    for index, text in enumerate(source_rows, start=1)
+                ]
+            }
+        }
+    ]
+    source_units = []
+    table_projections = []
+    container_format = "html_text"
+    declared_mime_type = "text/html"
+    if table_rows is not None:
+        container_format = "pdf"
+        declared_mime_type = "application/pdf"
+        source_payloads = [
+            {
+                "parser_completeness_status": "complete",
+                "parser_completeness_reason_codes": [],
+                "pdf_text_layer_projection": {
+                    "page_inventory": [{"page_number": 1}],
+                    "line_inventory": [],
+                },
+            }
+        ]
+        source_units = [
+            {
+                "unit_ref": "g4-test-table-unit",
+                "source_location": {"page": 1, "line_start": 1},
+                "text": "\n".join(" ".join(row) for row in table_rows),
+            }
+        ]
+        values = [
+            (row_index, column_index, value)
+            for row_index, row in enumerate(table_rows, start=1)
+            for column_index, value in enumerate(row, start=1)
+        ]
+        table_projections = [
+            {
+                "projection_status": "ready",
+                "table_projection_id": "g4-test-table-projection",
+                "source_unit_ref": "g4-test-table-unit",
+                "row_count": len(table_rows),
+                "column_count": max(len(row) for row in table_rows),
+                "cells": [
+                    {
+                        "row_ordinal": row_index,
+                        "column_ordinal": column_index,
+                        "normalized_private_value_path": (
+                            f"v-{row_index}-{column_index}"
+                        ),
+                    }
+                    for row_index, column_index, _value in values
+                ],
+                "private_values": [
+                    {
+                        "value_path_ref": f"v-{row_index}-{column_index}",
+                        "normalized_value": value,
+                    }
+                    for row_index, column_index, value in values
+                ],
+            }
+        ]
     artifact = normalizer.build(
         tenant_id=context.user_id,
         artifact_version=artifact_version,
         document={
-            "container_format": "html_text",
+            "container_format": container_format,
             "sha256": hashlib.sha256(
                 f"g4-runtime-{document_id}-{artifact_version}".encode("utf-8")
             ).hexdigest(),
-            "declared_mime_type": "text/html",
+            "declared_mime_type": declared_mime_type,
         },
         source_artifact_ref=source_ref,
-        source_payloads=[
-            {
-                "canonical_projection": {
-                    "blocks": [
-                        {
-                            "kind": "text",
-                            "text": text,
-                            "source_location": {"block_index": index},
-                        }
-                        for index, text in enumerate(source_rows, start=1)
-                    ]
-                }
-            }
-        ],
-        source_units=[],
-        table_projections=[],
+        source_payloads=source_payloads,
+        source_units=source_units,
+        table_projections=table_projections,
     )
     canonical = CanonicalArtifactStoreFactory(
         store=store,
@@ -1131,16 +1402,36 @@ def _persist_sidecar(
     created_at: str,
     purchase_date: str | None = "10.01.2026",
     fact_specs: tuple = _FACT_SPECS,
+    semantic_version: str = "1.0.0",
+    role_pack_semantic_version: str | None = None,
+    target_indexes: tuple[int, ...] | None = None,
+    target_rows: tuple[int, ...] | None = None,
 ) -> ArtifactRecord:
     envelope = CanonicalReaderFactory(
         store=store,
         read_enabled=True,
     ).create().read_active_envelope(document_id, context)
     nodes = envelope.artifact["nodes"]
-    assert len(nodes) >= len(fact_specs)
+    if target_indexes is None:
+        target_indexes = tuple(range(len(fact_specs)))
+    assert len(target_indexes) == len(fact_specs)
+    assert target_indexes
+    assert min(target_indexes) >= 0
+    assert len(nodes) > max(target_indexes)
     annotations = []
     for index, (financial_type, role_specs) in enumerate(fact_specs):
-        target = {"kind": "node", "node_id": nodes[index]["node_id"]}
+        target = (
+            {
+                "kind": "table_row",
+                "node_id": nodes[target_indexes[index]]["node_id"],
+                "row": target_rows[index],
+            }
+            if target_rows is not None
+            else {
+                "kind": "node",
+                "node_id": nodes[target_indexes[index]]["node_id"],
+            }
+        )
         roles = []
         for role, literal in role_specs:
             if financial_type == "SECURITY_PURCHASE" and role == "date":
@@ -1148,11 +1439,22 @@ def _persist_sidecar(
             if literal is None:
                 roles.append({"role": role, "status": "missing"})
             else:
+                role_target = target
+                if target_rows is not None:
+                    table_row = nodes[target_indexes[index]]["content"]["rows"][
+                        target_rows[index] - 1
+                    ]
+                    role_target = {
+                        "kind": "table_cell",
+                        "node_id": nodes[target_indexes[index]]["node_id"],
+                        "row": target_rows[index],
+                        "column": table_row.index(literal) + 1,
+                    }
                 roles.append(
                     {
                         "role": role,
                         "status": "bound",
-                        "target": copy.deepcopy(target),
+                        "target": copy.deepcopy(role_target),
                         "exact_text": literal,
                     }
                 )
@@ -1171,19 +1473,19 @@ def _persist_sidecar(
         },
         "dictionary_identity": {
             "dictionary_id": "broker-reports-financial-labels",
-            "semantic_version": "1.0.0",
+            "semantic_version": semantic_version,
         },
         "role_pack_identity": {
             "role_pack_id": "broker-reports-financial-roles",
-            "semantic_version": "1.0.0",
+            "semantic_version": role_pack_semantic_version or semantic_version,
         },
         "instruction_identity": {
             "instruction_id": "broker-reports-bounded-semantic-labeling",
-            "semantic_version": "1.0.1",
+            "semantic_version": "1.0.2",
         },
         "role_instruction_identity": {
             "instruction_id": "broker-reports-source-bound-role-labeling",
-            "semantic_version": "1.0.0",
+            "semantic_version": GATE3_ROLE_LABELING_INSTRUCTION_VERSION,
         },
         "model_identity": {"model_id": MODEL_ID},
         "annotations": annotations,

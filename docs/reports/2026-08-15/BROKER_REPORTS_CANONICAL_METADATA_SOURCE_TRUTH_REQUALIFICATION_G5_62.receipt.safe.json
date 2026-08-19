@@ -1,0 +1,84 @@
+{
+  "schema_version": "broker_reports_g562_closeout_receipt_safe_v1",
+  "goal": "G5.62",
+  "status": "CLOSED",
+  "terminal": [
+    "METADATA_SOURCE_TRUTH_ORACLE_REQUALIFIED",
+    "CANONICAL_METADATA_PRESERVATION_PROVEN",
+    "FROZEN_CORPUS_CONTRACT_METADATA_CANONICAL_LOSS_ZERO",
+    "FALSE_ORACLE_BINDINGS_REMOVED",
+    "ORACLE_COVERAGE_REQUALIFIED",
+    "LLM_METADATA_ADAPTER_UNCHANGED",
+    "FINANCIAL_GENERALIZATION_PRESERVED"
+  ],
+  "frozen": {
+    "corpus": ["pdf_002", "pdf_024", "holdout_a", "holdout_b"],
+    "metadata_contract_version": "1.0.0",
+    "allowed_fact_types": 11,
+    "new_fact_types": 0
+  },
+  "execution": {
+    "provider_calls": 0,
+    "llm_replay": false,
+    "old_oracle_authority": false,
+    "llm_output_authority": false,
+    "oracle_source": "visual_source_plus_canonical_provenance"
+  },
+  "source_truth": {
+    "visually_requalified_documents": 4,
+    "source_truth_facts": 24,
+    "canonical_bound_facts": 24,
+    "canonical_losses": 0,
+    "ambiguous_assertions_promoted": 0,
+    "multiple_values_collapsed": 0,
+    "source_absence_fact_types": [
+      "DOCUMENT_NUMBER",
+      "PERSON_BIRTH_DATE",
+      "PERSON_CITIZENSHIP",
+      "TAXPAYER_TAX_IDENTIFIER"
+    ]
+  },
+  "cases": [
+    {"alias": "pdf_002", "source_truth_facts": 9, "canonical_losses": 0},
+    {"alias": "pdf_024", "source_truth_facts": 6, "canonical_losses": 0},
+    {"alias": "holdout_a", "source_truth_facts": 3, "canonical_losses": 0},
+    {"alias": "holdout_b", "source_truth_facts": 6, "canonical_losses": 0}
+  ],
+  "old_oracle": {
+    "facts": 21,
+    "correct": 18,
+    "false_binding": 3,
+    "missing_from_oracle": 6
+  },
+  "negative_qualifications": [
+    "SIGNER_NOT_REPORT_SUBJECT",
+    "CLIENT_CODE_NOT_ACCOUNT_IDENTIFIER"
+  ],
+  "canonical_diagnosis": {
+    "fix_required": false,
+    "previous_loss_hypothesis": "context_selection_visibility_loss_not_canonical_literal_loss",
+    "broker_specific_fixes": 0,
+    "fixed_page_or_column_rules_added": 0
+  },
+  "financial_replay": {
+    "holdout_a_fact_count": 39,
+    "holdout_b_fact_count": 129,
+    "canonical_json_exact": true,
+    "source_stores_changed": false
+  },
+  "unchanged": {
+    "llm_adapter_instruction_context_schema_validator": true,
+    "g560_deterministic_extractor": true,
+    "financial_pipeline_gate4_gate5": true,
+    "forbidden_owner_hashes_exact": true
+  },
+  "verification": {
+    "focused_passed": 4,
+    "broad_passed": 148,
+    "failed": 0,
+    "architecture_guards_green": true
+  },
+  "private_evidence_committed": false,
+  "next_allowed_goal": "G5.63 same frozen LLM adapter against corrected Canonical and oracle",
+  "next_goal_started": false
+}

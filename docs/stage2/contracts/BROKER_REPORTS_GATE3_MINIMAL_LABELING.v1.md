@@ -84,7 +84,7 @@ Workspace Model/workflow. G3.6 remains a non-persisted, artifact-derived
 | Managed Financial Role Pack v1 | role definitions, required/optional profiles, value-source and cardinality constraints | labels, canonical structure, provider execution or persistence |
 | `Gate3RoleLabelingResponseV1` | one proposal for all pass-1 facts in a non-empty chunk; source alias bindings or explicit `missing` | relabeling, normalized/computed values, canonical IDs or relations |
 | `FinancialAnnotationsV2` | validated canonical-target/type/role bindings plus reproduction identities | a rewritten document, Financial Domain, relations, calculations or tax meaning |
-| current batch result | ordered terminal pass-1/pass-2 chunk outcomes plus deterministic concatenation of validated annotations | semantic reconciliation, per-fact calls, retry, repair or persistence |
+| current batch result | ordered terminal pass-1/pass-2 chunk outcomes, bounded no-response operational accounting and deterministic concatenation of validated annotations | semantic reconciliation, per-fact calls, semantic retry, repair or persistence |
 | G3.5 persistence | full-document admission, exact active binding and immutable private ArtifactStore sidecar save/read | labeling, a second store, workflow state or product activation |
 | G3.6 readiness | deterministic case/document completion and fixed follow-up permissions derived from existing artifacts | persisted state, financial meaning, LLM decisions or Gate 4 execution |
 | NDFL workflow | exact validated-manifest selection, compare-and-swap activation, full-document Gate 3 coordination and exact sidecar handoff | any Gate 2 call to Gate 3, copied canonical payload, stage reimplementation, display-name routing or Gate 4 |
@@ -97,6 +97,22 @@ become a second meaning authority.
 The exact Role Pack loaded by `Gate3FinancialRolePackFactory.create` is the
 only owner of role IDs, per-label profiles and binding rules. Those rules must
 not be copied into Python branches, prompts, Skills, adapters or RAG.
+
+### Atomic annotation boundary
+
+One accepted financial annotation is one source assertion whose occurrence is
+unambiguously addressable by its exact Canonical target. A target may be a
+row, region, line, record, structured block or cell; table shape is not
+required. A coarse target that contains repeated occurrences of the same
+financial assertion type proves only presence/discovery. It must be omitted
+from `FinancialAnnotationsV2` until Gate 2 exposes an exact target for one
+occurrence. It must not silently become one transaction annotation.
+
+This rule does not require Gate 2 to infer purchase, sale, commission or tax
+meaning. Gate 2 preserves sufficient source structure; Gate 3 chooses meaning
+only after one occurrence can be addressed. Different independent assertions
+may still share one exact target when each is unambiguous. Repeated operations
+of the same type inside one indivisible target are not that case.
 
 ## 3. Normative schemas
 
@@ -395,7 +411,7 @@ The omission of `t002` makes no negative claim. The following is also valid:
   },
   "instruction_identity": {
     "instruction_id": "broker-reports-bounded-semantic-labeling",
-    "semantic_version": "1.0.1"
+    "semantic_version": "1.0.2"
   },
   "model_identity": {
     "model_id": "model-exact-id"
@@ -455,7 +471,7 @@ The current G3.1-G3.6 contour does not implement or authorize:
 - any dictionary version other than an explicitly reviewed and hash-pinned
   package resource;
 - a Prompt-owned definition copy, Knowledge/RAG source or model-invoked semantic Tool call; the G3.C1 Skill/Tool remain generated management projections of the package owner;
-- retry, response repair, fallback or provider qualification;
+- semantic-response retry, response repair, fallback or provider qualification;
 - alias stripping, regex extraction, best-effort parsing or an alias normalizer;
 - a second persistence store, projection cache or projection database;
 - persisted workflow state, LLM-owned readiness or LLM-owned actions;
@@ -497,7 +513,8 @@ remain unproven.
 G3.4D makes the existing output contract unambiguous without changing its
 grammar: the canonical schema still enforces `^t[0-9]{3,}$`, its exact bare
 alias description is projected through the existing provider adapter, and
-instruction version `1.0.1` states `[t123] -> t123`. The bounded live closeout
+instruction version `1.0.2` states `[t123] -> t123` and preserves multiple
+independent source assertions from one exact target. The bounded live closeout
 validated the complete compact document and the frozen large-CSV chunk with
 two submissions and zero retry, repair or fallback.
 

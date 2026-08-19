@@ -1,0 +1,99 @@
+{
+  "schema_version": "broker_reports_table_instance_separation_holdout_g5104_manifest_v1",
+  "goal": "G5.104",
+  "status": "frozen_before_provider",
+  "corpus_role": "cross_report_holdout_relative_to_g5103",
+  "global_unseen_claim": false,
+  "selection": {
+    "documents": "two different source hashes absent from G5.102/G5.103 development",
+    "positive_pages": "three pages with pre-existing independent table-reference metadata",
+    "negative_pages": "earliest rotation-compatible cover page from each selected report",
+    "page_content_reviewed_before_provider": true,
+    "prompt_changed_after_page_review": false,
+    "excluded_case": {
+      "case_id": "g5104_report_02_p001",
+      "reason": "page_rotation_not_supported_by_frozen_g5102_projection_seam",
+      "replacement": "g5104_report_02_p003"
+    }
+  },
+  "frozen_contract": {
+    "prompt_sha256": "55e47421527618833894a0246194fe2f82c3e290e1682609556025cf23d93176",
+    "response_schema_sha256": "037b53bec8c00989e613ef32d032669d8e13c050f300c7ace6f22f735691433c",
+    "g5103_harness_sha256": "9ce3def61d4c29bb110d28ab0f8d97cbf4451cbfd9c2a0d96f944a758f75a958",
+    "g5102_projection_owner_sha256": "d76623e5dc186dc68176a72e07a06172a28866c2b302d356fc9e95d39db32083",
+    "model": "models/gemini-3.5-flash",
+    "thinking_level": "minimal",
+    "attempts_per_page": 1,
+    "retry": false,
+    "best_of_n": false,
+    "prompt_repair": false,
+    "broker_or_domain_hint": false
+  },
+  "documents": [
+    {
+      "document_id": "g5104_report_01",
+      "source_sha256": "6486885e58867d382bd433228193e476a07b6cea2061ddbd74bef1dc6c65a118",
+      "page_count": 29
+    },
+    {
+      "document_id": "g5104_report_02",
+      "source_sha256": "738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57",
+      "page_count": 12
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "g5104_report_01_p001",
+      "document_id": "g5104_report_01",
+      "page": 1,
+      "page_png_sha256": "45613ef1335e60b8621daf6d1f0d63cfd71d5d8a3dd4161f232863774a78513f",
+      "expected_visual_tables": 0
+    },
+    {
+      "case_id": "g5104_report_01_p011",
+      "document_id": "g5104_report_01",
+      "page": 11,
+      "page_png_sha256": "0a1b59295ecff54ce83a5cd24044532766929fe49de4eca65a9f65cbe8d4e26c",
+      "expected_visual_tables": 1
+    },
+    {
+      "case_id": "g5104_report_02_p003",
+      "document_id": "g5104_report_02",
+      "page": 3,
+      "page_png_sha256": "1db2bf559625e03408c266ce3266adaf98b3306311c886a584aa605c06f340f5",
+      "expected_visual_tables": 0
+    },
+    {
+      "case_id": "g5104_report_02_p007",
+      "document_id": "g5104_report_02",
+      "page": 7,
+      "page_png_sha256": "872ce93ff119655a9941b91189589e7f231ca98dd16348d2abc595e9523b0f4c",
+      "expected_visual_tables": 1
+    },
+    {
+      "case_id": "g5104_report_02_p009",
+      "document_id": "g5104_report_02",
+      "page": 9,
+      "page_png_sha256": "b03f258a3f8aa493a5353dc64efbc7ebe20b27580ce3e593de088e83981e33b2",
+      "expected_visual_tables": 1
+    }
+  ],
+  "expected_totals": {
+    "documents": 2,
+    "pages": 5,
+    "positive_pages": 3,
+    "negative_pages": 2,
+    "visual_tables": 3
+  },
+  "private_evidence_hashes": {
+    "freeze_renders_file_sha256": "c1cfd6edd4a3a9eb3e19d85eef9594c24d9ed29bd33f40e6a86bccd73029f639",
+    "visual_truth_file_sha256": "0cad2621f2e555aabe21c23d48d9e8f65ceed6597f04bce34388415504bca846"
+  },
+  "scope_stops": {
+    "table_extraction": false,
+    "column_geometry": false,
+    "canonical_materialization": false,
+    "production_activation": false,
+    "gate3_plus_changes": false
+  }
+}

@@ -16,14 +16,11 @@ def test_current_pipeline_contract_assigns_canonical_only_to_gate2():
     )
     assert "Status: `CURRENT`" in pipeline
     assert "CanonicalArtifactV1 = OUTPUT OF GATE 2" in pipeline
-    assert "Gate 3 Minimal Labeling v1" in pipeline
-    assert "`CURRENT_ACTIVE_IN_NDFL`" in pipeline
-    assert "current Gate 3 projection" in pipeline
-    assert "`ACTIVE_IN_NDFL`" in pipeline
-    assert "current Gate 3 financial-label dictionary" in pipeline
-    assert "`G3.C5_ACTIVE`" in pipeline
-    assert "current Gate 3 bounded labeling" in pipeline
-    assert "current Gate 3 FinancialAnnotations persistence" in pipeline
+    assert "GATE3_STATUS = CLOSED" in pipeline
+    assert "### Gate 3 — Source semantic adapter" in pipeline
+    assert "`Gate3ChunkBatchLabelingFactory.create`" in pipeline
+    assert "`Gate3EvidenceDemandPortFactory.create`" in pipeline
+    assert "Canonical-bound `FinancialAnnotationsV2`" in pipeline
 
 
 def test_active_canonical_docs_have_no_gate1_output_claim():
@@ -137,14 +134,15 @@ def test_gate3_gate4_context_recovery_documentation_guard():
         "GATE2_STATUS = CLOSED",
         "GATE3_STATUS = CLOSED",
         "GATE4_STATUS = CLOSED",
-        "G4.6_STATUS = CLOSED — NO_NEW_READ_LAYER_REQUIRED",
-        "G4.7_STATUS = CLOSED — READY_FOR_GATE5_DESIGN",
-        "NEXT_ALLOWED_BOUNDARY = GATE5_DESIGN",
-        "financial semantic labeling",
+        "GATE5_PRODUCT_STATUS = INACTIVE",
+        "### Adaptive Context Boundary",
+        "### Gate 3 — Source semantic adapter",
+        "### Gate 5 — Tax methodology and deterministic calculation",
         "validated immutable `CanonicalArtifactV1`",
-        "immutable `FinancialAnnotationsV2` sidecar",
-        "Gate4FinancialCaseFactV1",
-        "Canonical version B != Annotations A",
+        "Canonical-bound `FinancialAnnotationsV2`",
+        "`Gate4FinancialCaseFactV2`",
+        "Gate3EvidenceDemandPortFactory.create",
+        "### Projection",
     }
     assert all(marker in pipeline for marker in required_pipeline)
 

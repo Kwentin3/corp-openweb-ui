@@ -1,0 +1,107 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_input_contract_audit_receipt_g5_43_v1",
+  "goal": "G5.43",
+  "verification_date": "2026-08-14",
+  "result": "PARTIAL_TERMINAL_ACCEPTED",
+  "terminals": [
+    "EVIDENCE_REQUIREMENTS_CONTRACT_PROVEN",
+    "FACT_TO_METHODOLOGY_BRIDGE_PROVEN",
+    "DECLARATION_INPUT_CORE_PROVEN"
+  ],
+  "full_terminal_claimed": false,
+  "legal_methodology_gaps": [
+    "ambiguous_security_disposal_source_classification",
+    "partial_acquisition_commission_allocation",
+    "non_rub_intermediate_precision_and_rounding",
+    "treaty_specific_foreign_tax_credit_limit"
+  ],
+  "real_corpus_replay": {
+    "documents": 4,
+    "canonical_targets": 2906,
+    "gate3_financial_annotations": 186,
+    "gate4_financial_source_facts": 186,
+    "metadata_source_facts": 15,
+    "active_declaration_demands": 9,
+    "active_demands_with_methodology_binding": 9,
+    "terminal_counts": {
+      "MISSING_EVIDENCE": 4,
+      "METHODOLOGY_UNRESOLVED": 4,
+      "SOURCE_EVIDENCE_INSUFFICIENT": 1
+    },
+    "source_present_required_facts_lost": 0,
+    "invented_source_facts": 0,
+    "invented_relations": 0,
+    "unnecessary_user_questions": 0,
+    "unresolved_values_without_exact_reason": 0,
+    "frozen_store_unchanged": true,
+    "private_evidence_location": "OUTSIDE_GIT"
+  },
+  "verification": [
+    {
+      "command_scope": "changed Gate3/Gate4/Gate5 owners plus bundle and artifact contracts",
+      "result": "48 passed, 5 third-party SWIG deprecation warnings"
+    },
+    {
+      "command_scope": "all test_broker_reports_gate5_* modules (37 files)",
+      "result": "430 passed"
+    },
+    {
+      "command_scope": "all test_broker_reports_gate3_* and test_broker_reports_gate4_* modules (15 files)",
+      "result": "150 passed"
+    },
+    {
+      "command_scope": "python compileall over package, scripts and tests",
+      "result": "PASS"
+    },
+    {
+      "command_scope": "git diff --check",
+      "result": "PASS_WITH_EXISTING_LINE_ENDING_WARNINGS"
+    },
+    {
+      "command_scope": "deterministic Gate1 bundle rebuild",
+      "result": "IDENTICAL_SHA256"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE5_EVIDENCE_TAX_METHODOLOGY_BRIDGE.v1.md",
+      "bytes": 6176,
+      "sha256": "61d83043133d6d4d02b82058a87ff53faafd9a7ddb88905a0d3d69bdaac429bb"
+    },
+    {
+      "path": "docs/reports/2026-08-14/BROKER_REPORTS_GATE5_DECLARATION_INPUT_CONTRACT_AUDIT_G5_43.report.md",
+      "bytes": 17471,
+      "sha256": "c890d5e6f096af7c73ab38f01309ca9b53f46bc89cd0544eeee01b3a538480aa"
+    },
+    {
+      "path": "docs/reports/2026-08-14/BROKER_REPORTS_GATE5_DECLARATION_INPUT_CONTRACT_AUDIT_G5_43.audit.safe.json",
+      "bytes": 20005,
+      "sha256": "c65d21051cd40ab5ba33205a47743032997806d9c3305d6156d4c92095fcf060"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v1.json",
+      "bytes": 15055,
+      "sha256": "061ad89169ccbe8cdd575958e20cfc0ceee369acbcc050dd096b2c21fd0570bc"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_tax_methodology.ru_3ndfl_2025_income_group_settlement.v1.json",
+      "bytes": 2633,
+      "sha256": "69931290db849acea3512395a0bb954ace53de8b0956694090c8983d346e5816"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate1_pipe_bundled.py",
+      "bytes": 6356717,
+      "sha256": "f5db4efdfa9c69a2e5d1319b2260805b3690fc7b019d8ad6fa1a7ac7e571fc3d"
+    }
+  ],
+  "safety": {
+    "customer_or_private_values_in_git_artifacts": false,
+    "post_normalization_llm_tax_reasoning": false,
+    "reconciliation_performed": false,
+    "declaration_projection_activated": false,
+    "xml_or_pdf_emitted": false,
+    "commit_created": false,
+    "push_performed": false,
+    "pull_request_created": false
+  }
+}

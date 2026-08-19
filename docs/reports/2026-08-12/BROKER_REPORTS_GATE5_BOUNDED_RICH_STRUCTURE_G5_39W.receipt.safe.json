@@ -1,0 +1,75 @@
+{
+  "schema_version": "broker_reports_g539w_safe_receipt_v1",
+  "goal": "G5.39W",
+  "date": "2026-08-12",
+  "status": "COMPLETE",
+  "terminal": "RICH_STRUCTURE_INTERPRETATION_NOT_PROVEN",
+  "artifacts": {
+    "preregistration_sha256": "874436576887487f836ff0047340cc45184fc2ced3cd5662ad2e7a95e5ef377d",
+    "preregistration_v2_sha256": "83efae69697fd6cb941ca42b2683f8730e2edf1df2551df993a2b52c22a80a2d",
+    "preregistration_v3_sha256": "4e359742c14142f997e322f14307b2ce66bf715bc192a65a7a5b408d716f61fb",
+    "report_sha256": "889417add5a16578b6d772f6c4ba75dba9867d97d5fc6735c685da83d4f8e9b8",
+    "ledger_sha256": "962cf4b6420912047a8eae8a8629b55eff8a9f67f4941d1e07cdc4185af2e9e2",
+    "retired_v1_aggregate_sha256": "fe96383e414ca3d1f77b69de464bf6ae1e82f287df18e08c76c031c7a729f350",
+    "v2_prepared_sha256": "8c2cc837a89af0de91a6755d877c91ea403a49ca4d591e90a00a11e68aeb1aa3",
+    "private_evaluation_sha256": "479c5f91e2c04a2921c33a962311d10f5e5317b015dc4632980ab341d55bc556",
+    "safe_evaluation_sha256": "88a29de43f5e37b8d5a0c1e5e755c549633fd5e94d47bb1ce85707b78f325c05"
+  },
+  "experiments": {
+    "freeze_commit": "e4e5e2e1e672e4254818d70f23c3da461cd13ef7",
+    "transport_v2_commit": "e77621008af6c573e3161cc353b3186998912fc0",
+    "adjudication_commit": "04ba9e4e1fd1d099466c6602cd2fe14bc02d37c7",
+    "v2_provider_submissions": 16,
+    "v2_provider_responses": 16,
+    "semantic_retry": 0,
+    "repair": 0,
+    "answer_merge": 0,
+    "best_of_n": false
+  },
+  "verification": [
+    {
+      "scope": "phase_a_contract_before_inference",
+      "result": "6_passed",
+      "duration_seconds": 0.204
+    },
+    {
+      "scope": "phase_a_final_adjudicator",
+      "result": "7_passed",
+      "duration_seconds": 0.359
+    },
+    {
+      "scope": "existing_model_client_and_bounded_labeling",
+      "result": "40_passed",
+      "duration_seconds": 2.97
+    },
+    {
+      "scope": "safe_oracle_literal_and_ref_scan",
+      "sensitive_strings_checked": 82,
+      "exact_leaks": 0
+    }
+  ],
+  "github": {
+    "issue_url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278",
+    "comment_url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278#issuecomment-5264558073",
+    "comment_id": 5264558073
+  },
+  "cleanup": {
+    "experimental_research_repository_removed": true,
+    "private_exact_evidence_retained_under_git_ignored_local": true,
+    "private_exact_evidence_tracked_by_git": false,
+    "production_source_changed": false
+  },
+  "phase_transitions": {
+    "phase_b_run": false,
+    "phase_c_run": false,
+    "downstream_pressure_run": false,
+    "winner_selected": false,
+    "g540_authorized": false
+  },
+  "delivery": {
+    "staged": false,
+    "committed": false,
+    "pushed": false,
+    "pull_request_opened": false
+  }
+}

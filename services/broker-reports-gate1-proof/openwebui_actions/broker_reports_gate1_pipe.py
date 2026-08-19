@@ -1,9 +1,9 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.28.0-ndfl-gate3-roles-v2
+version: 0.37.0-pdf-source-bound-table-v1
 required_open_webui_version: 0.9.6
-requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5
+requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1
 """
 
 from __future__ import annotations
@@ -12,9 +12,11 @@ import asyncio
 import base64
 import binascii
 import hashlib
+import io
 import inspect
 import json
 import re
+import uuid
 from contextlib import nullcontext
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
@@ -40,7 +42,9 @@ from broker_reports_gate1 import (
     FileProcessingOutcomeFactory,
     Gate1BoundedGraphConfig,
     Gate1BoundedGraphFactory,
+    Gate1ArtifactManifest,
     Gate1Normalizer,
+    GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
     ManagedPrompt,
     NORMALIZER_VERSION,
     PromptUserContext,
@@ -76,6 +80,12 @@ from broker_reports_gate1 import (
     PdfTableIntakeConfig,
     PdfTableIntakeError,
     PdfTableIntakeRuntimeFactory,
+    PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
+    PDF_TABLE_INTAKE_POLICY_VERSION,
+    PDF_TABLE_INTAKE_RUN_SCHEMA,
+    PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
+    PDF_TABLE_LOCATOR_POLICY_VERSION,
+    PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
     PdfDualVlmRuntimeConfig,
     PdfDualVlmRuntimeError,
     PdfDualVlmRuntimeFactory,
@@ -89,7 +99,7 @@ from broker_reports_gate1 import (
     SemanticVisualTableMigrationError,
     SemanticVisualTableMigrationFactory,
 )
-from broker_reports_gate1.detectors import extension_from_name
+from broker_reports_gate1.detectors import detect_container, extension_from_name
 from broker_reports_gate1.normalizer import NormalizationResult
 from broker_reports_gate1.pdf_hybrid_evidence import PdfHybridEvidenceConfig
 from broker_reports_gate1.pdf_hybrid_provider import (
@@ -138,6 +148,14 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
     NdflWorkflowError,
     NdflWorkflowFactory,
     ndfl_product_binding_snapshot,
+)
+from broker_reports_gate1.gate5_end_to_end_full_target_xml import (
+    Gate5EndToEndFullTargetXmlRuntimeFactory,
+)
+from broker_reports_gate1.gate5_openwebui_product import (
+    GATE5_OPENWEBUI_PRODUCT_STATUS,
+    Gate5OpenWebUIProductError,
+    Gate5OpenWebUIProductRuntimeFactory,
 )
 
 
@@ -228,7 +246,18 @@ class Pipe:
             default="/app/backend/data/broker_reports_gate1/gate3-product-proof"
         )
         ndfl_gate3_private_audit_id: str = Field(default="")
-        pdf_table_intake_enabled: bool = Field(default=False)
+        ndfl_full_product_enabled: bool = Field(
+            default=False,
+            description="Controlled synthetic proof-only Gate 4 -> XML continuation.",
+        )
+        ndfl_full_product_synthetic_only: bool = Field(default=True)
+        pdf_table_intake_enabled: bool = Field(
+            default=True,
+            description=(
+                "Locate PDF table instances visually, then let pinned pdfplumber "
+                "reconstruct structure and source literals. Fail closed per page."
+            ),
+        )
         pdf_table_intake_provider_profile: str = Field(default="google_gemini")
         pdf_table_intake_model_id: str = Field(default="models/gemini-3.5-flash")
         pdf_table_intake_dpi: int = Field(default=150)
@@ -254,7 +283,7 @@ class Pipe:
         pdf_dual_vlm_maximum_counted_input_tokens: int = Field(
             default=24_000, ge=1, le=128_000
         )
-        pdf_dual_vlm_maximum_candidates: int = Field(default=8, ge=1, le=32)
+        pdf_dual_vlm_maximum_candidates: int = Field(default=16, ge=1, le=32)
         pdf_semantic_visual_table_downstream_enabled: bool = Field(default=False)
         pdf_semantic_visual_table_migration_policy_version: str = Field(
             default=SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION
@@ -305,6 +334,20 @@ class Pipe:
     ) -> str:
         safe_body = body if isinstance(body, dict) else {}
         messages_arg = __messages__ or kwargs.get("__messages__")
+        metadata = await self._server_attested_runtime_metadata(
+            request=__request__,
+            metadata=(
+                __metadata__ if isinstance(__metadata__, dict) else {}
+            ),
+            user=__user__,
+        )
+        interaction_message = await self._trusted_interaction_message(
+            body=safe_body,
+            messages_arg=messages_arg,
+            request=__request__,
+            metadata=metadata,
+            user=__user__,
+        )
         if self.valves.require_trigger_phrase and not self._has_trigger_phrase(
             safe_body, messages_arg
         ):
@@ -312,14 +355,13 @@ class Pipe:
                 body,
                 __user__=__user__,
                 __request__=__request__,
-                __metadata__=__metadata__,
+                __metadata__=metadata,
                 __files__=__files__,
                 __messages__=__messages__,
                 __event_emitter__=__event_emitter__,
                 **kwargs,
             )
 
-        metadata = __metadata__ if isinstance(__metadata__, dict) else {}
         session = None
         try:
             access = WorkloadAccessContext.from_artifact_context(
@@ -342,6 +384,11 @@ class Pipe:
             idempotency_key = self._workload_idempotency_key(
                 access=access,
                 file_refs=file_refs,
+                interaction_sha256=(
+                    hashlib.sha256(interaction_message.encode("utf-8")).hexdigest()
+                    if interaction_message
+                    else None
+                ),
             )
             authority = self._workload_authority()
             ticket = authority.submit(
@@ -400,7 +447,7 @@ class Pipe:
                         body,
                         __user__=__user__,
                         __request__=__request__,
-                        __metadata__=__metadata__,
+                        __metadata__=metadata,
                         __files__=__files__,
                         __messages__=__messages__,
                         __event_emitter__=__event_emitter__,
@@ -451,6 +498,7 @@ class Pipe:
         *,
         access: WorkloadAccessContext,
         file_refs: list[dict[str, Any]],
+        interaction_sha256: str | None = None,
     ) -> str | None:
         source_ids = sorted(
             {
@@ -471,6 +519,7 @@ class Pipe:
                 "chat_id": access.chat_id,
                 "workspace_model_id": access.workspace_model_id,
                 "source_file_ids": source_ids,
+                "interaction_sha256": interaction_sha256,
             },
             ensure_ascii=False,
             sort_keys=True,
@@ -527,6 +576,13 @@ class Pipe:
         safe_metadata = __metadata__ if isinstance(__metadata__, dict) else {}
         messages_arg = __messages__ or kwargs.get("__messages__")
         files_arg = __files__ or kwargs.get("__files__")
+        latest_user_message = await self._trusted_interaction_message(
+            body=safe_body,
+            messages_arg=messages_arg,
+            request=__request__,
+            metadata=safe_metadata,
+            user=__user__,
+        )
 
         if self.valves.require_trigger_phrase and not self._has_trigger_phrase(
             safe_body, messages_arg
@@ -592,6 +648,19 @@ class Pipe:
                 source_file_refs=tuple(self._source_file_refs(file_refs)),
             )
         ).create(normalization_run_id=planned_run_id)
+        table_intake = self._maybe_run_pdf_table_intake(
+            file_inputs=file_inputs,
+            request=__request__,
+        )
+        locator_pages_by_sha256: dict[str, list[dict[str, Any]]] | None = None
+        if self.valves.pdf_table_intake_enabled:
+            locator_pages_by_sha256 = {}
+            for page_result in table_intake.get("private_page_results") or []:
+                if not isinstance(page_result, dict):
+                    continue
+                digest = str(page_result.get("pdf_sha256") or "")
+                if digest:
+                    locator_pages_by_sha256.setdefault(digest, []).append(page_result)
         result = self._normalizer.normalize(
             file_inputs,
             entrypoint="broker_reports_gate1_pipe",
@@ -653,14 +722,10 @@ class Pipe:
                 ),
             },
             extra_private_markers=self._private_markers(file_refs),
+            pdf_table_locator_pages_by_sha256=locator_pages_by_sha256,
             bounded_graph=bounded_graph,
             workload_checkpoint=self._workload_checkpoint,
             workload_progress=self._workload_progress,
-        )
-        table_intake = self._maybe_run_pdf_table_intake(
-            result=result,
-            file_inputs=file_inputs,
-            request=__request__,
         )
         result.package["pdf_table_intake"] = table_intake["safe_summary"]
         result.package["private_pdf_table_candidates"] = table_intake[
@@ -668,6 +733,9 @@ class Pipe:
         ]
         result.package["private_pdf_table_detection_attempts"] = table_intake[
             "private_detection_attempts"
+        ]
+        result.package["private_pdf_table_locator_pages"] = table_intake[
+            "private_page_results"
         ]
         dual_vlm = self._maybe_run_pdf_dual_vlm(
             table_intake=table_intake,
@@ -753,18 +821,47 @@ class Pipe:
             or 0
         )
         self._workload_checkpoint()
-        artifact_manifest = persist_gate1_result(
-            store=artifact_store,
-            result=result,
-            context=artifact_context,
-            retention_policy=retention_policy,
-            source_file_refs=self._source_file_refs(file_refs),
+        persisted_continuation = bool(
+            self.valves.ndfl_full_product_enabled
+            and "3-НДФЛ факты:" in latest_user_message
+            and self._persisted_gate3_annotations_artifact_id(
+                store=artifact_store,
+                context=artifact_context,
+            )
         )
+        if persisted_continuation:
+            # Human-residual turns consume the immutable Gate 3 sidecar from
+            # this exact owner/case/run. Re-persisting Gate 1 would mutate an
+            # already sealed run and is not part of the continuation contract.
+            artifact_manifest = Gate1ArtifactManifest(
+                normalization_run_id=planned_run_id,
+                gate2_handoff_ref="",
+                safe_refs=[],
+                private_slice_refs=[],
+                private_source_payload_refs=[],
+                private_source_unit_refs=[],
+                pdf_table_candidate_refs=[],
+                pdf_table_detection_attempt_refs=[],
+                blocker_refs=[],
+                artifact_refs_by_type={},
+            )
+        else:
+            artifact_manifest = persist_gate1_result(
+                store=artifact_store,
+                result=result,
+                context=artifact_context,
+                retention_policy=retention_policy,
+                source_file_refs=self._source_file_refs(file_refs),
+            )
         ndfl_gate3 = await self._run_provider_awaitable(
             self._maybe_run_ndfl_gate3(
                 store=artifact_store,
                 context=artifact_context,
                 artifact_manifest=artifact_manifest,
+                file_inputs=file_inputs,
+                file_refs=file_refs,
+                latest_user_message=latest_user_message,
+                retention_policy=retention_policy,
                 user=__user__,
                 request=__request__,
                 event_emitter=__event_emitter__,
@@ -798,6 +895,12 @@ class Pipe:
             await self._emit(
                 __event_emitter__, "No uploaded file refs were visible.", done=True
             )
+        elif persisted_continuation:
+            await self._emit(
+                __event_emitter__,
+                "Persisted Gate 3 continuation completed.",
+                done=True,
+            )
         else:
             await self._emit(
                 __event_emitter__,
@@ -813,6 +916,25 @@ class Pipe:
                     "Gate 3: финансовые типы и их роли сохранены для текущей версии документа.",
                 ]
             )
+        product = ndfl_gate3.get("product")
+        if isinstance(product, dict):
+            if product.get("status") == GATE5_OPENWEBUI_PRODUCT_STATUS:
+                chat_content = "\n".join(
+                    [
+                        chat_content,
+                        "",
+                        "Декларация сформирована.",
+                        f"[Скачать XML]({product['download_url']})",
+                    ]
+                )
+            elif product.get("status") == "blocked":
+                chat_content = "\n".join(
+                    [
+                        chat_content,
+                        "",
+                        self._ndfl_product_blocker_content(product),
+                    ]
+                )
         if self._live_smoke_requested(safe_body, messages_arg):
             smoke_lines = self._run_live_artifactstore_smoke(
                 store=artifact_store,
@@ -840,6 +962,10 @@ class Pipe:
         store: Any,
         context: ArtifactAccessContext,
         artifact_manifest: Any,
+        file_inputs: list[FileInput] | None = None,
+        file_refs: list[dict[str, Any]] | None = None,
+        latest_user_message: str = "",
+        retention_policy: Any = None,
         user: Any,
         request: Any,
         event_emitter: Any,
@@ -870,6 +996,61 @@ class Pipe:
             else []
         )
         if not canonical_refs:
+            persisted_annotations_artifact_id = (
+                self._persisted_gate3_annotations_artifact_id(
+                    store=store,
+                    context=context,
+                )
+                if self.valves.ndfl_full_product_enabled
+                else None
+            )
+            if persisted_annotations_artifact_id is not None:
+                model_client = Gate2StructuredModelClientFactory(
+                    config=Gate2StructuredModelClientConfig(
+                        request_profile=GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
+                        provider_profile_id=NDFL_PROVIDER_PROFILE_ID,
+                        capability_probe=False,
+                        economy_budget_enforcement=False,
+                    ),
+                    user=user,
+                    request=request,
+                ).create()
+                product = await self._maybe_run_ndfl_full_product(
+                    store=store,
+                    context=context,
+                    executions=[],
+                    financial_annotations_artifact_id=(
+                        persisted_annotations_artifact_id
+                    ),
+                    file_inputs=list(file_inputs or []),
+                    file_refs=list(file_refs or []),
+                    latest_user_message=latest_user_message,
+                    retention_policy=retention_policy,
+                    model_client=model_client,
+                    user=user,
+                )
+                return {
+                    "schema_version": "broker_reports_ndfl_gate3_product_run_v1",
+                    "enabled": True,
+                    "status": "completed",
+                    "workspace_model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+                    "workflow_id": NDFL_WORKFLOW_STABLE_ID,
+                    "binding": ndfl_product_binding_snapshot(),
+                    "documents_total": 1,
+                    "provider_calls_total": 0,
+                    "canonical_version_ids": [],
+                    "canonical_root_sha256": [],
+                    "annotations_artifact_ids": [
+                        persisted_annotations_artifact_id
+                    ],
+                    "gate2_mutation": "none",
+                    "persisted_gate3_continuation": True,
+                    "private_audit": {
+                        "enabled": False,
+                        "status": "not_repeated_for_persisted_continuation",
+                    },
+                    "product": product,
+                }
             raise NdflWorkflowError("ndfl_gate2_canonical_artifact_missing")
         if len(canonical_refs) != len(set(canonical_refs)):
             raise NdflWorkflowError("ndfl_gate2_canonical_artifact_duplicate")
@@ -908,6 +1089,17 @@ class Pipe:
 
         audit = self._write_ndfl_private_audit(executions)
         provider_calls_total = self._ndfl_provider_calls_total(executions)
+        product = await self._maybe_run_ndfl_full_product(
+            store=store,
+            context=context,
+            executions=executions,
+            file_inputs=list(file_inputs or []),
+            file_refs=list(file_refs or []),
+            latest_user_message=latest_user_message,
+            retention_policy=retention_policy,
+            model_client=model_client,
+            user=user,
+        )
         return {
             "schema_version": "broker_reports_ndfl_gate3_product_run_v1",
             "enabled": True,
@@ -931,7 +1123,30 @@ class Pipe:
             ],
             "gate2_mutation": "none",
             "private_audit": audit,
+            "product": product,
         }
+
+    @staticmethod
+    def _persisted_gate3_annotations_artifact_id(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+    ) -> str | None:
+        resolver = ArtifactResolver(store)
+        candidates = [
+            record
+            for record in resolver.catalog_run(context)
+            if record.artifact_type
+            == GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE
+        ]
+        if not candidates:
+            return None
+        if len(candidates) != 1:
+            raise NdflWorkflowError(
+                "ndfl_gate3_financial_annotations_ambiguous"
+            )
+        resolver.resolve_record(candidates[0].artifact_id, context)
+        return candidates[0].artifact_id
 
     @staticmethod
     def _ndfl_provider_calls_total(executions: list[Any]) -> int:
@@ -947,6 +1162,232 @@ class Pipe:
                 )
             )
             for execution in executions
+        )
+
+    async def _maybe_run_ndfl_full_product(
+        self,
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+        executions: list[Any],
+        financial_annotations_artifact_id: str | None = None,
+        file_inputs: list[FileInput],
+        file_refs: list[dict[str, Any]],
+        latest_user_message: str,
+        retention_policy: Any,
+        model_client: Any,
+        user: Any,
+    ) -> dict[str, Any]:
+        if not self.valves.ndfl_full_product_enabled:
+            return {
+                "schema_version": "broker_reports_gate5_openwebui_product_result_v0",
+                "status": "disabled",
+                "xml_created": False,
+            }
+        if self.valves.ndfl_full_product_synthetic_only is not True:
+            raise Gate5OpenWebUIProductError(
+                "gate5_product_synthetic_only_boundary_required"
+            )
+        annotations_artifact_id = (
+            financial_annotations_artifact_id
+            or (
+                executions[0].gate3.annotations_artifact_id
+                if len(executions) == 1
+                else None
+            )
+        )
+        if (
+            annotations_artifact_id is None
+            or len(file_inputs) != 1
+            or len(file_refs) != 1
+        ):
+            return {
+                "schema_version": "broker_reports_gate5_openwebui_product_result_v0",
+                "status": "blocked",
+                "blocker_code": "gate5_product_one_source_required",
+                "blocker": {
+                    "stage": "supplied_source_boundary",
+                    "action": "upload_exactly_one_synthetic_broker_source",
+                },
+                "xml_created": False,
+            }
+        read_result = file_inputs[0].read_bytes()
+        if read_result.status != "available" or read_result.content_bytes is None:
+            return {
+                "schema_version": "broker_reports_gate5_openwebui_product_result_v0",
+                "status": "blocked",
+                "blocker_code": "gate5_product_source_bytes_unavailable",
+                "blocker": {
+                    "stage": "supplied_source_boundary",
+                    "action": "restore_uploaded_source_access",
+                },
+                "xml_created": False,
+            }
+        full_target_runtime = Gate5EndToEndFullTargetXmlRuntimeFactory(
+            store=store,
+            read_enabled=True,
+            retention_policy=retention_policy,
+            gate3_model_client=model_client,
+            gate3_model_id=self.valves.ndfl_gate3_model_id,
+            gate3_provider_profile_id=self.valves.ndfl_gate3_provider_profile_id,
+        ).create()
+        product_runtime = Gate5OpenWebUIProductRuntimeFactory(
+            store=store,
+            retention_policy=retention_policy,
+            full_target_runtime=full_target_runtime,
+        ).create()
+        try:
+            product = product_runtime.process(
+                context=context,
+                source_file_id=str(file_refs[0].get("file_id") or ""),
+                source_filename=file_inputs[0].original_filename_private,
+                source_mime_type=file_inputs[0].mime_type,
+                source_bytes=read_result.content_bytes,
+                financial_annotations_artifact_id=(
+                    annotations_artifact_id
+                ),
+                latest_user_message=latest_user_message,
+            )
+        except Gate5OpenWebUIProductError as exc:
+            return {
+                "schema_version": "broker_reports_gate5_openwebui_product_result_v0",
+                "status": "blocked",
+                "blocker_code": exc.code,
+                "blocker": {
+                    "stage": "trusted_case_fact_boundary",
+                    "action": "correct_structured_answer",
+                },
+                "xml_created": False,
+            }
+        if product.get("status") != GATE5_OPENWEBUI_PRODUCT_STATUS:
+            return product
+
+        native_file_id = await self._publish_ndfl_xml_file(
+            user=user,
+            filename=product["xml_filename"],
+            xml_bytes=product["xml_bytes"],
+            xml_sha256=product["xml_sha256"],
+        )
+        delivery = product_runtime.persist_delivery_receipt(
+            context=context,
+            source_file_id=str(file_refs[0].get("file_id") or ""),
+            xml_artifact_id=product["xml_artifact_id"],
+            openwebui_file_id=native_file_id,
+            xml_sha256=product["xml_sha256"],
+        )
+        return {
+            key: copy_value
+            for key, copy_value in {
+                **product,
+                "xml_bytes": None,
+                "fact_artifact_ids": None,
+                "openwebui_file_id": native_file_id,
+                "delivery_receipt_artifact_id": delivery.artifact_id,
+                "download_url": (
+                    f"/api/v1/files/{native_file_id}/content?attachment=true"
+                ),
+            }.items()
+            if copy_value is not None
+        }
+
+    @staticmethod
+    async def _publish_ndfl_xml_file(
+        *,
+        user: Any,
+        filename: str,
+        xml_bytes: bytes,
+        xml_sha256: str,
+    ) -> str:
+        if not isinstance(user, dict) or not str(user.get("id") or "").strip():
+            raise Gate5OpenWebUIProductError(
+                "gate5_product_authenticated_user_required"
+            )
+        try:
+            from open_webui.models.files import FileForm, Files
+            from open_webui.storage.provider import Storage
+        except ImportError as exc:
+            raise Gate5OpenWebUIProductError(
+                "gate5_product_native_file_boundary_unavailable"
+            ) from exc
+        file_id = str(uuid.uuid4())
+        storage_name = f"{file_id}_{filename}"
+        contents, file_path = await asyncio.to_thread(
+            Storage.upload_file,
+            io.BytesIO(xml_bytes),
+            storage_name,
+            {
+                "OpenWebUI-User-Email": str(user.get("email") or ""),
+                "OpenWebUI-User-Id": str(user["id"]),
+                "OpenWebUI-User-Name": str(user.get("name") or ""),
+                "OpenWebUI-File-Id": file_id,
+            },
+        )
+        if hashlib.sha256(contents).hexdigest() != xml_sha256:
+            raise Gate5OpenWebUIProductError(
+                "gate5_product_native_file_hash_mismatch"
+            )
+        file_item = await Files.insert_new_file(
+            str(user["id"]),
+            FileForm(
+                id=file_id,
+                hash=xml_sha256,
+                filename=filename,
+                path=file_path,
+                data={},
+                meta={
+                    "name": filename,
+                    "content_type": "application/xml",
+                    "size": len(contents),
+                    "file_hash": xml_sha256,
+                    "data": {
+                        "synthetic_proof_evidence": True,
+                        "real_user_fact": False,
+                        "broker_reports_gate5_product": True,
+                    },
+                },
+            ),
+        )
+        if file_item is None:
+            raise Gate5OpenWebUIProductError(
+                "gate5_product_native_file_record_failed"
+            )
+        return file_id
+
+    @staticmethod
+    def _ndfl_product_blocker_content(product: dict[str, Any]) -> str:
+        blocker = product.get("blocker")
+        blocker = blocker if isinstance(blocker, dict) else {}
+        missing_fact = str(product.get("missing_fact") or "").strip()
+        missing_roles = blocker.get("missing_role_names")
+        if isinstance(missing_roles, list) and missing_roles:
+            return (
+                "XML не создан: в загруженном источнике отсутствуют обязательные "
+                "финансовые значения: " + ", ".join(map(str, missing_roles)) + "."
+            )
+        if missing_fact:
+            return (
+                "XML не создан. Укажите обязательный факт `"
+                + missing_fact
+                + "` ответом `3-НДФЛ факты: {…}`."
+            )
+        missing_sections = blocker.get("missing_sections")
+        if isinstance(missing_sections, list) and missing_sections:
+            return (
+                "Для supplied case нужны структурированные факты по разделам: "
+                + ", ".join(map(str, missing_sections))
+                + ". Ответьте `3-НДФЛ факты: {…}`; значения будут проверены и "
+                "сохранены до повторного запуска. Контракт ответа распознан: "
+                + (
+                    "да"
+                    if blocker.get("answer_marker_observed") is True
+                    else "нет"
+                )
+                + f" ({int(blocker.get('interaction_chars') or 0)} символов)."
+            )
+        return (
+            "XML не создан: machine blocker `"
+            + str(product.get("blocker_code") or "unknown")
+            + "`. Исправьте структурированный ответ и повторите запуск."
         )
 
     def _write_ndfl_private_audit(self, executions: list[Any]) -> dict[str, Any]:
@@ -992,6 +1433,10 @@ class Pipe:
                         "role_attempt": (
                             {
                                 "facts": outcome.role_attempt.facts,
+                                "role_context": outcome.role_attempt.role_context,
+                                "role_provenance": (
+                                    outcome.role_attempt.role_provenance
+                                ),
                                 "role_pack": outcome.role_attempt.role_pack,
                                 "role_pack_markdown": (
                                     outcome.role_attempt.role_pack_markdown
@@ -1120,7 +1565,6 @@ class Pipe:
     def _maybe_run_pdf_table_intake(
         self,
         *,
-        result: NormalizationResult,
         file_inputs: list[FileInput],
         request: Any,
     ) -> dict[str, Any]:
@@ -1147,53 +1591,54 @@ class Pipe:
                 "safe_summary": disabled.safe_summary,
                 "private_candidates": [],
                 "private_detection_attempts": [],
+                "private_page_results": [],
             }
-        inventory = {
-            str(item.get("sha256") or ""): item
-            for item in result.package.get("document_inventory", {}).get(
-                "documents", []
+        documents_by_sha256: dict[str, dict[str, Any]] = {}
+        for file_input in file_inputs:
+            read = file_input.read_bytes()
+            if read.status != "available" or not isinstance(read.content_bytes, bytes):
+                continue
+            extension = extension_from_name(
+                file_input.original_filename_private,
+                file_input.mime_type,
             )
-            if isinstance(item, dict) and item.get("container_format") == "pdf"
-        }
-        if not inventory:
+            detection = detect_container(
+                extension=extension,
+                mime_type=file_input.mime_type,
+                content_bytes=read.content_bytes,
+            )
+            if detection.get("container_format") != "pdf":
+                continue
+            digest = hashlib.sha256(read.content_bytes).hexdigest()
+            documents_by_sha256.setdefault(
+                digest,
+                {
+                    "document_ref": f"pdfsource_{digest[:24]}",
+                    "pdf_bytes": read.content_bytes,
+                    "pdf_sha256": digest,
+                },
+            )
+        documents = list(documents_by_sha256.values())
+        if not documents:
             empty = factory.create_with_provider(None).run([])
             return {
                 "safe_summary": empty.safe_summary,
                 "private_candidates": [],
                 "private_detection_attempts": [],
+                "private_page_results": [],
             }
-        documents = []
-        for file_input in file_inputs:
-            read = file_input.read_bytes()
-            if read.status != "available" or not isinstance(read.content_bytes, bytes):
-                continue
-            digest = hashlib.sha256(read.content_bytes).hexdigest()
-            document = inventory.get(digest)
-            if document is None:
-                continue
-            documents.append(
-                {
-                    "document_ref": str(document.get("document_id") or ""),
-                    "pdf_bytes": read.content_bytes,
-                    "pdf_sha256": digest,
-                }
-            )
-        if len(documents) != len(inventory):
-            return self._pdf_table_intake_failure(
-                config,
-                "pdf_table_intake_source_bytes_unavailable",
-                documents_total=len(inventory),
-            )
         try:
             with self._provider_slot_if_enabled(
                 True,
                 config.detector_provider_profile,
+                resume_state=WorkloadState.NORMALIZING,
             ):
                 outcome = factory.create_for_openwebui(request).run(documents)
             return {
                 "safe_summary": outcome.safe_summary,
                 "private_candidates": outcome.private_candidates,
                 "private_detection_attempts": outcome.private_detection_attempts,
+                "private_page_results": outcome.private_page_results,
             }
         except WorkloadAuthorityError:
             raise
@@ -1212,29 +1657,33 @@ class Pipe:
         documents_total: int,
     ) -> dict[str, Any]:
         summary = {
-            "schema_version": "broker_reports_pdf_table_intake_run_v1",
-            "policy_version": "pdf_table_intake_policy_v3",
+            "schema_version": PDF_TABLE_INTAKE_RUN_SCHEMA,
+            "policy_version": PDF_TABLE_INTAKE_POLICY_VERSION,
             "enabled": config.enabled,
             "status": "failed",
             "documents_total": documents_total,
             "pages_total": 0,
             "candidates_total": 0,
+            "regions_total": 0,
             "failed_pages_total": 0,
             "failed_pages": [],
             "terminal_failure_code": failure_code,
-            "detector_contract_version": (
-                "broker_reports_pdf_table_detection_response_v2"
-            ),
-            "candidate_contract_version": "broker_reports_pdf_table_candidate_v1",
-            "raster_policy_version": "pdf_table_candidate_raster_policy_v1",
+            "detector_contract_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
+            "locator_policy_version": PDF_TABLE_LOCATOR_POLICY_VERSION,
+            "locator_projection_schema": PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
+            "coordinate_contract": PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
             "detector_provider_profile": config.detector_provider_profile,
             "detector_model_id": config.detector_model_id,
             "dpi": config.dpi,
             "horizontal_padding_fraction": config.horizontal_padding_fraction,
             "vertical_padding_fraction": config.vertical_padding_fraction,
-            "padding_basis": "page_dimensions_per_side",
+            "padding_basis": "legacy_configuration_retained_not_applied",
+            "crop_boundary_basis": "locator_region_pdf_points",
             "detector_qualification": None,
             "gate2_boundary_ready": False,
+            "legacy_vlm_transcription_route_active": False,
+            "model_values_used_as_source_literals": False,
+            "pdfplumber_settings_selected_by_model": False,
             "rows_columns_cells_inferred": False,
             "financial_semantics_inferred": False,
         }
@@ -1242,6 +1691,7 @@ class Pipe:
             "safe_summary": summary,
             "private_candidates": [],
             "private_detection_attempts": [],
+            "private_page_results": [],
         }
 
     def _maybe_run_pdf_dual_vlm(
@@ -1269,31 +1719,20 @@ class Pipe:
         )
         try:
             factory = PdfDualVlmRuntimeFactory(config)
-            if not config.enabled:
-                disabled = factory.create_with_providers(
-                    gemini=None,
-                    openai=None,
-                ).run([])
-                return {
-                    "safe_summary": disabled.safe_summary,
-                    "private_decisions": [],
-                    "private_provider_evidence": [],
-                }
-            intake_summary = table_intake.get("safe_summary")
-            if (
-                not isinstance(intake_summary, dict)
-                or intake_summary.get("enabled") is not True
-                or intake_summary.get("status") != "completed"
-            ):
-                raise PdfDualVlmRuntimeError("pdf_dual_vlm_table_intake_not_ready")
-            outcome = factory.create_for_openwebui(
-                request,
-                provider_budget=self._dual_vlm_provider_budget,
-            ).run(table_intake.get("private_candidates") or [])
+            if config.enabled:
+                return self._pdf_dual_vlm_failure(
+                    config,
+                    "pdf_dual_vlm_transcription_route_retired",
+                    candidates_total=0,
+                )
+            disabled = factory.create_with_providers(
+                gemini=None,
+                openai=None,
+            ).run([])
             return {
-                "safe_summary": outcome.safe_summary,
-                "private_decisions": outcome.private_decisions,
-                "private_provider_evidence": outcome.private_provider_evidence,
+                "safe_summary": disabled.safe_summary,
+                "private_decisions": [],
+                "private_provider_evidence": [],
             }
         except WorkloadAuthorityError:
             raise
@@ -2836,12 +3275,18 @@ class Pipe:
                 safe_detail=detail,
             )
 
-    def _provider_slot_if_enabled(self, enabled: bool, provider_id: str):
+    def _provider_slot_if_enabled(
+        self,
+        enabled: bool,
+        provider_id: str,
+        *,
+        resume_state: WorkloadState = WorkloadState.VALIDATING,
+    ):
         if not enabled or self._active_workload_session is None:
             return nullcontext()
         return self._active_workload_session.provider_slot(
             str(provider_id),
-            resume_state=WorkloadState.VALIDATING,
+            resume_state=resume_state,
         )
 
     def _dual_vlm_provider_budget(self, provider_name: str):
@@ -3323,6 +3768,216 @@ class Pipe:
             return [source]
         return []
 
+    def _latest_user_message(self, body: dict, messages_arg: Any) -> str:
+        structured = self._find_structured_case_fact_message(
+            (body, messages_arg),
+            depth=0,
+        )
+        if structured:
+            return structured
+        messages: list[str] = []
+        for source in (
+            body.get("message"),
+            body.get("messages"),
+            messages_arg,
+        ):
+            for item in self._message_iter(source):
+                if (
+                    not isinstance(item, dict)
+                    or item.get("role") in {"assistant", "system", "tool"}
+                ):
+                    continue
+                content_value = item.get("content")
+                text = self._message_text(
+                    content_value
+                    if content_value is not None and content_value != ""
+                    else item.get("text")
+                )
+                if text:
+                    messages.append(text)
+        if messages:
+            return messages[-1]
+        for key in ("prompt", "query", "content", "text"):
+            text = self._message_text(body.get(key))
+            if text:
+                return text
+        return ""
+
+    @classmethod
+    def _find_structured_case_fact_message(
+        cls,
+        value: Any,
+        *,
+        depth: int,
+    ) -> str:
+        if depth > 8:
+            return ""
+        if isinstance(value, str):
+            return value if "3-НДФЛ факты:" in value else ""
+        if isinstance(value, dict):
+            for item in value.values():
+                found = cls._find_structured_case_fact_message(
+                    item,
+                    depth=depth + 1,
+                )
+                if found:
+                    return found
+        if isinstance(value, (list, tuple)):
+            for item in reversed(value):
+                found = cls._find_structured_case_fact_message(
+                    item,
+                    depth=depth + 1,
+                )
+                if found:
+                    return found
+        return ""
+
+    @classmethod
+    def _message_text(cls, value: Any) -> str:
+        if isinstance(value, str):
+            return value
+        if isinstance(value, list):
+            return "\n".join(
+                part
+                for item in value
+                if (part := cls._message_text(item))
+            )
+        if isinstance(value, dict):
+            for key in ("text", "input_text", "content", "value"):
+                part = cls._message_text(value.get(key))
+                if part:
+                    return part
+        return ""
+
+    def _latest_user_message_sha256(
+        self,
+        body: dict,
+        messages_arg: Any,
+    ) -> str | None:
+        value = self._latest_user_message(body, messages_arg)
+        return hashlib.sha256(value.encode("utf-8")).hexdigest() if value else None
+
+    async def _server_attested_runtime_metadata(
+        self,
+        *,
+        request: Any,
+        metadata: dict[str, Any],
+        user: Any,
+    ) -> dict[str, Any]:
+        """Recover a native chat scope only after an owner-bound DB lookup."""
+
+        result = dict(metadata)
+        if result.get("chat_id") and result.get("model_id"):
+            return result
+        if request is None or not callable(getattr(request, "json", None)):
+            return result
+        try:
+            request_body = await request.json()
+        except Exception:
+            request_body = {}
+        if not isinstance(request_body, dict):
+            return result
+        request_metadata = request_body.get("metadata")
+        request_metadata = (
+            request_metadata if isinstance(request_metadata, dict) else {}
+        )
+        chat_id = str(
+            result.get("chat_id")
+            or request_metadata.get("chat_id")
+            or request_body.get("chat_id")
+            or ""
+        ).strip()
+        user_id = (
+            str(user.get("id") or user.get("user_id") or "").strip()
+            if isinstance(user, dict)
+            else ""
+        )
+        if not chat_id or not user_id:
+            return result
+        try:
+            from open_webui.models.chats import Chats
+
+            chat = await Chats.get_chat_by_id_and_user_id(chat_id, user_id)
+        except (ImportError, AttributeError):
+            return result
+        if chat is None:
+            return result
+        result["chat_id"] = chat_id
+        chat_payload = chat.chat if isinstance(chat.chat, dict) else {}
+        models = chat_payload.get("models")
+        if (
+            isinstance(models, list)
+            and NDFL_WORKSPACE_MODEL_STABLE_ID in models
+        ):
+            result["model_id"] = NDFL_WORKSPACE_MODEL_STABLE_ID
+        return result
+
+    async def _trusted_interaction_message(
+        self,
+        *,
+        body: dict,
+        messages_arg: Any,
+        request: Any,
+        metadata: dict,
+        user: Any,
+    ) -> str:
+        value = self._latest_user_message(body, messages_arg)
+        if "3-НДФЛ факты:" in value:
+            return value
+        if request is None or not callable(getattr(request, "json", None)):
+            return value
+        try:
+            request_body = await request.json()
+        except Exception:
+            request_body = {}
+        if not isinstance(request_body, dict):
+            request_body = {}
+        trusted = self._latest_user_message(request_body, None)
+        if "3-НДФЛ факты:" in trusted:
+            return trusted
+        chat_id = str(metadata.get("chat_id") or "").strip()
+        user_id = (
+            str(user.get("id") or user.get("user_id") or "").strip()
+            if isinstance(user, dict)
+            else ""
+        )
+        if not chat_id or not user_id:
+            return trusted or value
+        try:
+            from open_webui.models.chats import Chats
+
+            chat = await Chats.get_chat_by_id_and_user_id(chat_id, user_id)
+        except (ImportError, AttributeError):
+            return trusted or value
+        if chat is None:
+            return trusted or value
+        history = (
+            chat.chat.get("history", {}).get("messages", {})
+            if isinstance(chat.chat, dict)
+            else {}
+        )
+        candidates = []
+        for message_id, message in (
+            history.items() if isinstance(history, dict) else ()
+        ):
+            if not isinstance(message, dict) or message.get("role") != "user":
+                continue
+            text = self._message_text(message.get("content"))
+            if "3-НДФЛ факты:" not in text:
+                continue
+            candidates.append(
+                (
+                    float(
+                        message.get("timestamp")
+                        or message.get("created_at")
+                        or 0
+                    ),
+                    str(message_id),
+                    text,
+                )
+            )
+        return max(candidates)[2] if candidates else (trusted or value)
+
     def _file_obj(self, item: Any) -> dict[str, Any] | None:
         if not isinstance(item, dict):
             return None
@@ -3519,6 +4174,14 @@ class Pipe:
         if isinstance(model_context, dict):
             model_context = model_context.get("id") or model_context.get("model_id")
         workspace_model_id = metadata.get("model_id") or model_context
+        if (
+            not case_id
+            and chat_id
+            and workspace_model_id == NDFL_WORKSPACE_MODEL_STABLE_ID
+        ):
+            # An authenticated server-attested chat is the natural bounded case
+            # for the existing NDFL Workspace Model product path.
+            case_id = str(chat_id)
         if not case_id and not chat_id:
             raise ArtifactStoreError(
                 "artifact_scope_unverified",

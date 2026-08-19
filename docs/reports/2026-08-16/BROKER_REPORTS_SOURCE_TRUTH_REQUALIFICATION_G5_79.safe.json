@@ -1,0 +1,84 @@
+{
+  "schema_version": "broker_reports_g579_source_truth_requalification_safe_v1",
+  "goal": "G5.79",
+  "status": "STRATEGIC_STOP",
+  "terminals": [
+    "SOURCE_TRUTH_REQUALIFICATION_REQUIRED",
+    "GATE2_CONTRACT_VIOLATION_PROVEN",
+    "NO_OWNER_FIX_APPLIED_AFTER_STOP"
+  ],
+  "baseline": {
+    "facts": 391,
+    "required_role_missing": 13,
+    "decimal_invalid": 3,
+    "security_source_ready": 80,
+    "false_user_document_requests": 0
+  },
+  "qualification": {
+    "incidents_total": 16,
+    "incidents_qualified": 16,
+    "role_incidents": {
+      "total": 13,
+      "coarse_multi_assertion_page_targets": 12,
+      "coarse_targets": 6,
+      "source_row_missing_amount_and_currency": 1,
+      "confirmed_lost_role_bindings": 0
+    },
+    "decimal_incidents": {
+      "total": 3,
+      "gate4_normalization_first_divergence": 3,
+      "currency_decorated_grouped_amount": 1,
+      "negative_disposal_quantity": 2,
+      "fixes_applied_after_stop": 0
+    }
+  },
+  "after": {
+    "facts": 391,
+    "required_role_missing": 13,
+    "decimal_invalid": 3,
+    "security_source_ready": 80,
+    "false_user_document_requests": 0,
+    "invented_facts": 0,
+    "invented_relations": 0,
+    "provider_calls": 0
+  },
+  "preservation": {
+    "maintained_owner_files_equal_to_g579_baseline": "8/8",
+    "source_runtime_code_changed": false,
+    "source_store_mutated": false,
+    "gate5_workaround_added": false,
+    "broker_specific_rules_added": false,
+    "methodology_changed": false,
+    "metadata_changed": false,
+    "product_activated": false,
+    "dirty_tree_boundary": "PRESERVE_USER_OWNED"
+  },
+  "frozen_canary": {
+    "basis": "G5.78 exact frozen canary remains applicable because maintained financial code is byte-identical",
+    "holdout_a": {
+      "facts": 39,
+      "exact_equality": true
+    },
+    "holdout_b": {
+      "facts": 129,
+      "exact_equality": true
+    }
+  },
+  "verification": {
+    "focused_tests_passed": 43,
+    "focused_tests_failed": 0,
+    "utf8_valid": true,
+    "bom_present": false,
+    "markdown_fences_balanced": true,
+    "secret_like_hits": 0
+  },
+  "private_bundle": {
+    "files_before_report_publication": 29,
+    "tree_sha256": "e2081a13f6b4e1103ac574fa159164f58a85f5d58bbe8b40958747e880cf953c",
+    "incident_freeze_sha256": "1d051cf8dc85d3fe47ad4b8bb237dea83314eadb7cfca48d8dd2a519951cf12e",
+    "raw_full_pages": 9,
+    "raw_crops": 9,
+    "contact_sheets": 1,
+    "private_values_committed": false
+  }
+}

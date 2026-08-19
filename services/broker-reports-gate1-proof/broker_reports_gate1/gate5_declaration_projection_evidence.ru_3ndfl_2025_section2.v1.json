@@ -1,0 +1,287 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_projection_evidence_v1",
+  "evidence_pack_id": "ru-3ndfl-2025-section2-securities-income-group-proof",
+  "captured_on": "2026-08-10",
+  "declaration": {
+    "jurisdiction": "RU",
+    "tax_period": "2025",
+    "form": "3-NDFL",
+    "knd": "1151020",
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "electronic_format_version": "5.20",
+    "xsd": "NO_NDFL3_1_033_00_05_20_01.xsd"
+  },
+  "sources": [
+    {
+      "source_ref": "fns_form_pdf",
+      "authority_kind": "tax_authority_primary",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_1.pdf",
+      "sha256": "d751043f63af1f0095a14228a65a3831acf47fcd82c397e2eb38b0f9f8dc9565"
+    },
+    {
+      "source_ref": "fns_filling_procedure_docx",
+      "authority_kind": "tax_authority_primary",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_2.docx",
+      "sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc"
+    },
+    {
+      "source_ref": "fns_electronic_format_docx",
+      "authority_kind": "tax_authority_primary",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_3.docx",
+      "sha256": "f5215c237a8af73dd7a251cee94a2e09aacd8540173fcde2904b4c311129e3c2"
+    },
+    {
+      "source_ref": "fns_xsd_5_20_01",
+      "authority_kind": "tax_authority_primary",
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/xsd/NO_NDFL3_1_033_00_05_20_01.xsd",
+      "sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484"
+    }
+  ],
+  "claims": [
+    {
+      "evidence_ref": "section2_form_lines_001_060",
+      "source_refs": [
+        "fns_form_pdf"
+      ],
+      "locator": "Section 2, field 001 and lines 010-060",
+      "supports": "visible_section2_targets"
+    },
+    {
+      "evidence_ref": "section2_procedure_paragraphs_37_46",
+      "source_refs": [
+        "fns_filling_procedure_docx"
+      ],
+      "locator": "section V, paragraphs 37-46",
+      "supports": "one_calculation_per_income_group_and_lines_010_060_semantics"
+    },
+    {
+      "evidence_ref": "securities_income_group_02_type_003",
+      "source_refs": [
+        "fns_filling_procedure_docx"
+      ],
+      "locator": "Appendix 4, income group 02 and income type 003 row",
+      "supports": "resident_securities_and_derivatives_non_iis_classification"
+    },
+    {
+      "evidence_ref": "section2_electronic_contract",
+      "source_refs": [
+        "fns_electronic_format_docx",
+        "fns_xsd_5_20_01"
+      ],
+      "locator": "electronic format tables 4.14-4.15 and File/Document/NDFL3/NalBaza XSD definition",
+      "supports": "section2_node_paths_attributes_types_requiredness_and_cardinality"
+    }
+  ],
+  "classification_binding": {
+    "income_group_semantic": "resident_securities_and_derivatives_non_iis",
+    "income_group_code": "02",
+    "income_type_code": "003",
+    "income_type_projection_scope": "evidence_only_not_section2_target",
+    "evidence_ref": "securities_income_group_02_type_003"
+  },
+  "target_contract": {
+    "path": "Файл/Документ/НДФЛ3/НалБаза",
+    "root_node_id": "section2_tax_base",
+    "nodes": [
+      {
+        "node_id": "section2_tax_base",
+        "parent_node_id": null,
+        "path": "Файл/Документ/НДФЛ3/НалБаза",
+        "element": "НалБаза",
+        "min_occurs": 1,
+        "max_occurs": 1,
+        "fields": [
+          {
+            "attribute": "ГрупДоход",
+            "xsd_use": "required",
+            "datatype": {
+              "base": "string",
+              "length": 2,
+              "pattern": "[0-9]{2}"
+            },
+            "proof_required_mapping": true
+          }
+        ]
+      },
+      {
+        "node_id": "section2_calculation",
+        "parent_node_id": "section2_tax_base",
+        "path": "Файл/Документ/НДФЛ3/НалБаза/РасчНалБаза",
+        "element": "РасчНалБаза",
+        "min_occurs": 1,
+        "max_occurs": 1,
+        "fields": [
+          {
+            "attribute": "СумДох",
+            "xsd_use": "required",
+            "datatype": {
+              "base": "decimal",
+              "total_digits": 15,
+              "fraction_digits": 2
+            },
+            "proof_required_mapping": true
+          },
+          {
+            "attribute": "СумДохНеНал",
+            "xsd_use": "required",
+            "datatype": {
+              "base": "decimal",
+              "total_digits": 15,
+              "fraction_digits": 2
+            },
+            "proof_required_mapping": true
+          },
+          {
+            "attribute": "СумДохНал",
+            "xsd_use": "required",
+            "datatype": {
+              "base": "decimal",
+              "total_digits": 15,
+              "fraction_digits": 2
+            },
+            "proof_required_mapping": true
+          },
+          {
+            "attribute": "СумНалВыч",
+            "xsd_use": "required",
+            "datatype": {
+              "base": "decimal",
+              "total_digits": 15,
+              "fraction_digits": 2
+            },
+            "proof_required_mapping": true
+          },
+          {
+            "attribute": "СумРасх",
+            "xsd_use": "required",
+            "datatype": {
+              "base": "decimal",
+              "total_digits": 15,
+              "fraction_digits": 2
+            },
+            "proof_required_mapping": true
+          },
+          {
+            "attribute": "НалБаза",
+            "xsd_use": "required",
+            "datatype": {
+              "base": "decimal",
+              "total_digits": 15,
+              "fraction_digits": 2
+            },
+            "proof_required_mapping": true
+          }
+        ]
+      }
+    ]
+  },
+  "mapping_claims": [
+    {
+      "source_concept": "income_group_semantic",
+      "target_node_id": "section2_tax_base",
+      "target_attribute": "ГрупДоход",
+      "transform": {
+        "kind": "enum_code",
+        "values": {
+          "resident_securities_and_derivatives_non_iis": "02"
+        }
+      },
+      "required_evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "securities_income_group_02_type_003",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "source_concept": "total_income",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "СумДох",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "required_evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "source_concept": "non_taxable_income",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "СумДохНеНал",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "required_evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "source_concept": "taxable_income",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "СумДохНал",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "required_evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "source_concept": "tax_deductions",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "СумНалВыч",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "required_evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "source_concept": "accepted_expenses",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "СумРасх",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "required_evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    },
+    {
+      "source_concept": "tax_base",
+      "target_node_id": "section2_calculation",
+      "target_attribute": "НалБаза",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "required_evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ]
+    }
+  ]
+}

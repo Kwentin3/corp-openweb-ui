@@ -1,0 +1,67 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_demand_map_receipt_v0",
+  "goal": "G5.40A",
+  "status": "DECLARATION_DEMAND_MAP_PROVEN",
+  "as_of": "2026-08-12",
+  "scope": "ru_3ndfl_2025_resident_russian_source_organized_market_securities_outside_iis_bounded_case",
+  "artifacts": [
+    {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_DECLARATION_DEMAND_MAP_G5_40A.matrix.safe.json",
+      "sha256": "763af13747169a4813f87b9a9212bb8ea8303f77ac6393fc106256593c9e1283"
+    },
+    {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_DECLARATION_DEMAND_MAP_G5_40A.report.md",
+      "sha256": "24a35d2bdd3c50eeaa6628f25186ab1db5526b7570b17b4bca523af6053fe661"
+    }
+  ],
+  "source_verification": {
+    "official_sources": 8,
+    "fns_filling_procedure_sha256_expected": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+    "fns_filling_procedure_sha256_actual": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+    "fns_filling_procedure_hash_match": true,
+    "verification_date": "2026-08-12"
+  },
+  "accounting": {
+    "demand_rows": 28,
+    "semantic_leaves_expected": 48,
+    "semantic_leaves_accounted": 48,
+    "semantic_leaves_missing": 0,
+    "semantic_leaves_extra": 0,
+    "consumer_first_target_mappings": 49
+  },
+  "boundaries": {
+    "real_taxpayer_completeness_asserted": false,
+    "real_broker_document_coverage_asserted": false,
+    "projection_activation_asserted": false,
+    "runtime_changed": false,
+    "new_financial_entity_added": false,
+    "new_financial_relation_added": false,
+    "unresolved_legal_methodology": [
+      "partial_fifo_lot_acquisition_commission_recognition"
+    ]
+  },
+  "validation": [
+    {
+      "check": "matrix_json_parse",
+      "result": "PASS"
+    },
+    {
+      "check": "semantic_leaf_exact_accounting",
+      "result": "PASS",
+      "expected": 48,
+      "actual": 48,
+      "missing": 0,
+      "extra": 0
+    },
+    {
+      "check": "official_procedure_hash_pin",
+      "result": "PASS"
+    },
+    {
+      "check": "no_unconsumed_financial_entity_or_relation",
+      "result": "PASS"
+    }
+  ],
+  "terminal": "DECLARATION_DEMAND_MAP_PROVEN",
+  "next_authorized_goal": "G5.40B"
+}

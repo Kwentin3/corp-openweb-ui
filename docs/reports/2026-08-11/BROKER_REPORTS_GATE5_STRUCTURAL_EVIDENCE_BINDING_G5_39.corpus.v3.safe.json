@@ -1,0 +1,65 @@
+{
+  "schema_version": "broker_reports_gate5_g539_corpus_v3_safe",
+  "goal_id": "G5.39",
+  "frozen_date": "2026-08-11",
+  "privacy": "safe_metadata_only_no_customer_values_no_private_paths",
+  "supersedes": {
+    "corpus": "broker_reports_gate5_g539_corpus_v2_safe",
+    "sha256": "26615ec1f3aa148cf19d4b642d73a3df948b48f975bfeb98d1c47a141488145e",
+    "reason": "post-H1 pre-H2 completeness audit found oracle-filtered dev and holdout experiment projections; H1/v2 was invalidated and no strategy was selected"
+  },
+  "selection_policy": "same frozen source documents as v2; complete structural evidence spaces are supplied before comparative inference",
+  "samples": [
+    {
+      "sample_id": "DEV_PUBLIC_TBANK",
+      "assignment": "development",
+      "origin": "official_public_broker_pdf",
+      "content_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+      "structural_space": {"tables": 4, "rows": 16, "cells": 274, "projection_chars": 13585},
+      "expected_economic_events": "known purchase plus transaction-charge cross-table case"
+    },
+    {
+      "sample_id": "HOLDOUT_REAL_001",
+      "assignment": "independent_holdout",
+      "origin": "private_real_customer_broker_pdf_existing_doc6_corpus",
+      "content_sha256": "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+      "structural_space": {"pages": 6, "tables": 12, "rows": 212, "cells": 1927, "projection_chars": 525510},
+      "expected_economic_events": "private adjudication sealed before v3 comparative inference"
+    },
+    {
+      "sample_id": "LARGE_REAL_001",
+      "assignment": "large_document_context_pressure",
+      "origin": "private_real_customer_broker_pdf_existing_actual_corpus",
+      "content_sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+      "structural_space": {"pages": 65, "rows": 3455, "cells": 3474, "text_projection_chars": 217842},
+      "expected_economic_events": "private adjudication sealed before v3 comparative inference"
+    },
+    {
+      "sample_id": "NEGATIVE_AB_001",
+      "assignment": "ambiguity_negative_and_positive_cross_table_control",
+      "origin": "controlled_synthetic",
+      "content_sha256": "c66b97a950b07ac25d8716884369867078e0c5e4474f58dd822e0b3660e5f639",
+      "structural_space": {"tables": 2, "rows": 4, "cells": 18},
+      "expected_economic_events": "one explicit-relation positive fact and one forbidden A/B mixed fact"
+    },
+    {
+      "sample_id": "REGRESSION_CSV_DISPOSAL",
+      "assignment": "existing_regression",
+      "origin": "tracked_controlled_fixture",
+      "content_sha256": "6d25a5d527058c52000afa782ea6f6cfb90a919444878256ca665ef6bf58b3ea"
+    },
+    {
+      "sample_id": "REGRESSION_HTML_DISPOSAL",
+      "assignment": "existing_regression",
+      "origin": "tracked_controlled_fixture",
+      "content_sha256": "1a24c1cb84738e5ac777ce734c3701a39e69c9c85fe1127a495c59971b84667d"
+    },
+    {
+      "sample_id": "REGRESSION_XLSX_DISPOSAL",
+      "assignment": "existing_regression",
+      "origin": "tracked_controlled_fixture",
+      "content_sha256": "8ebdafd5f9a22fd0f103aec0935b162682d8088410f9d4918516c3c0ece19168"
+    }
+  ],
+  "post_freeze_rule": "no sample or projection filtering after comparative inference; a critical defect requires corpus v4 and a restarted tournament"
+}

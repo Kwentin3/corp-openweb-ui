@@ -13,7 +13,9 @@ from broker_reports_gate1.pdf_dual_vlm_canonical_table_contracts import (
 
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = ROOT.parents[1]
-ARCHITECTURE_DOCUMENT = REPOSITORY_ROOT / architecture_policy.ARCHITECTURE_AUTHORITY
+ARCHITECTURE_DOCUMENT = (
+    REPOSITORY_ROOT / architecture_policy.VISUAL_TABLE_CONTRACT_AUTHORITY
+)
 SEMANTIC_CONTRACT_DOCUMENT = (
     REPOSITORY_ROOT
     / "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_TRANSCRIPTION.v1.md"
@@ -76,7 +78,7 @@ def test_boundary_parse_is_strict_and_performs_no_repair() -> None:
 
 def test_architecture_policy_makes_semantic_boundary_authoritative() -> None:
     assert architecture_policy.ARCHITECTURE_POLICY_VERSION == (
-        "broker_reports_architecture_policy_v2"
+        "broker_reports_architecture_policy_v4"
     )
     assert architecture_policy.VISUAL_TABLE_MODEL_FACING_CONTRACT == (
         contracts.SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION
@@ -96,7 +98,7 @@ def test_architecture_policy_makes_semantic_boundary_authoritative() -> None:
     assert architecture_policy.VISUAL_TABLE_SYSTEM_ENVELOPE_OWNER == (
         "deterministic_application_code"
     )
-    assert architecture_policy.VISUAL_TABLE_FINANCIAL_INTERPRETATION_OWNER == "gate2"
+    assert architecture_policy.VISUAL_TABLE_FINANCIAL_INTERPRETATION_OWNER == "gate3"
     assert "production visual provider factory" in architecture_policy.FACTORY_REQUIRED
     assert "deterministic semantic validator/materializer" in (
         architecture_policy.FACTORY_REQUIRED

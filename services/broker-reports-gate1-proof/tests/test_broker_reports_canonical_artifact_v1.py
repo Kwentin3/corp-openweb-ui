@@ -302,6 +302,188 @@ class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
             artifact["nodes"][0]["content"]["rows"],
             [["A", "B"], ["1", "2"]],
         )
+        rectangular_cells = artifact["nodes"][0]["content"]["cells"]
+        self.assertEqual(
+            [cell["source_coordinate"] for cell in rectangular_cells],
+            ["R1C1", "R1C2", "R2C1", "R2C2"],
+        )
+        self.assertEqual(
+            len({cell["source_refs"][0] for cell in rectangular_cells}),
+            1,
+        )
+
+    def test_pdf_projection_preserves_sparse_source_cells_and_cell_provenance(self):
+        units = [
+            {
+                "unit_ref": "sparse-table-unit",
+                "source_location": {"page": 1, "line_start": 1},
+                "text": "Section A B C",
+            }
+        ]
+        projection = {
+            "projection_status": "ready",
+            "table_projection_id": "sparse-projection-1",
+            "source_unit_ref": "sparse-table-unit",
+            "page_refs": ["page_1"],
+            "row_count": 2,
+            "column_count": 3,
+            "cells": [
+                {
+                    "cell_ref": "cell-1-1",
+                    "row_ordinal": 1,
+                    "column_ordinal": 1,
+                    "bbox_ref": "bbox-1-1",
+                    "source_value_refs": ["value-1-1"],
+                    "normalized_private_value_path": "v11",
+                },
+                *[
+                    {
+                        "cell_ref": f"cell-2-{column}",
+                        "row_ordinal": 2,
+                        "column_ordinal": column,
+                        "bbox_ref": f"bbox-2-{column}",
+                        "source_value_refs": [f"value-2-{column}"],
+                        "normalized_private_value_path": f"v2{column}",
+                    }
+                    for column in range(1, 4)
+                ],
+            ],
+            "private_values": [
+                {"value_path_ref": "v11", "normalized_value": "Section"},
+                {"value_path_ref": "v21", "normalized_value": "A"},
+                {"value_path_ref": "v22", "normalized_value": "B"},
+                {"value_path_ref": "v23", "normalized_value": "C"},
+            ],
+            "header_model": {"header_row_refs": []},
+        }
+        artifact = CanonicalNormalizerFactory(
+            CanonicalNormalizerConfig(normalizer_version="canonical-test-v1")
+        ).create().build(
+            tenant_id="tenant",
+            artifact_version=1,
+            document={
+                "container_format": "pdf",
+                "sha256": "d" * 64,
+                "declared_mime_type": "application/pdf",
+            },
+            source_artifact_ref="source-pdf",
+            source_payloads=[
+                {
+                    "parser_completeness_status": "complete",
+                    "parser_completeness_reason_codes": [],
+                    "pdf_text_layer_projection": {
+                        "page_inventory": [{"page_number": 1}],
+                        "line_inventory": [],
+                    },
+                }
+            ],
+            source_units=units,
+            table_projections=[projection],
+        )
+        table = next(node for node in artifact["nodes"] if node["node_type"] == "TABLE")
+
+        self.assertEqual(len(table["content"]["cells"]), 4)
+        self.assertEqual(
+            [(cell["row"], cell["column"]) for cell in table["content"]["cells"]],
+            [(1, 1), (2, 1), (2, 2), (2, 3)],
+        )
+        provenance_by_id = {
+            item["provenance_id"]: item for item in artifact["provenance"]
+        }
+        cell_locators = [
+            provenance_by_id[cell["source_refs"][0]]["source_locator"]
+            for cell in table["content"]["cells"]
+        ]
+        self.assertTrue(
+            all(locator["kind"] == "pdf_table_projection_cell" for locator in cell_locators)
+        )
+        self.assertEqual(
+            [(locator["row"], locator["column"]) for locator in cell_locators],
+            [(1, 1), (2, 1), (2, 2), (2, 3)],
+        )
+        self.assertEqual(
+            [len(locator["source_value_refs"]) for locator in cell_locators],
+            [1, 1, 1, 1],
+        )
+
+    def test_source_bound_visual_projection_survives_without_parser_unit_alias(self):
+        projection = {
+            "projection_status": "ready",
+            "table_projection_id": "semantic-projection-1",
+            "canonical_table_id": "semantic-table-1",
+            "source_unit_ref": "visual-candidate-1",
+            "source_document_ref": "document-pdf",
+            "page_refs": ["page_1"],
+            "row_count": 2,
+            "column_count": 2,
+            "cells": [
+                {
+                    "logical_row_index": row,
+                    "logical_column_index": column,
+                    "normalized_private_value_path": f"v{row}{column}",
+                }
+                for row in range(2)
+                for column in range(2)
+            ],
+            "private_values": [
+                {"value_path_ref": "v00", "normalized_value": "Header A"},
+                {"value_path_ref": "v01", "normalized_value": "Header B"},
+                {"value_path_ref": "v10", "normalized_value": "Value A"},
+                {"value_path_ref": "v11", "normalized_value": "Value B"},
+            ],
+            "header_model": {"header_row_refs": []},
+            "table_candidate_status": "canonical_table_accepted",
+        }
+        artifact = CanonicalNormalizerFactory(
+            CanonicalNormalizerConfig(normalizer_version="canonical-test-v1")
+        ).create().build(
+            tenant_id="tenant",
+            artifact_version=1,
+            document={
+                "container_format": "pdf",
+                "sha256": "e" * 64,
+                "declared_mime_type": "application/pdf",
+            },
+            source_artifact_ref="source-pdf",
+            source_payloads=[
+                {
+                    "parser_completeness_status": "complete",
+                    "parser_completeness_reason_codes": [],
+                    "pdf_text_layer_projection": {
+                        "page_inventory": [{"page_number": 1}],
+                        "line_inventory": [],
+                    },
+                }
+            ],
+            source_units=[
+                {
+                    "unit_ref": "parser-page-1",
+                    "source_location": {"page": 1, "line_start": 1},
+                    "text": "Parser text remains independently preserved.",
+                }
+            ],
+            table_projections=[projection],
+        )
+
+        self.assertEqual(
+            [item["node_type"] for item in artifact["nodes"]],
+            ["TEXT", "TABLE"],
+        )
+        table = artifact["nodes"][1]
+        self.assertEqual(
+            table["content"]["rows"],
+            [["Header A", "Header B"], ["Value A", "Value B"]],
+        )
+        self.assertTrue(
+            table["content"]["metadata"]["standalone_source_bound_projection"]
+        )
+        receipt = next(
+            item
+            for item in artifact["containers"]
+            if item["container_type"] == "DOCUMENT"
+        )["metadata"]["pdf_completeness"]
+        self.assertEqual(receipt["table_node_count"], 1)
+        self.assertEqual(receipt["represented_ready_table_projections_total"], 1)
 
     def test_csv_duplicate_headers_are_preserved_without_silent_repair(self):
         built = FullSourceArtifactFactory(

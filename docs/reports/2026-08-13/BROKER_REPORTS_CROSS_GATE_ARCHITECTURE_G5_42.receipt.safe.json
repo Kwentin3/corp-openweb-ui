@@ -1,0 +1,63 @@
+{
+  "schema_version": "broker_reports_cross_gate_architecture_g5_42_safe_receipt_v1",
+  "goal": "G5.42",
+  "date": "2026-08-13",
+  "terminals": [
+    "CROSS_GATE_CORE_ARCHITECTURE_PROVEN",
+    "TECHNICAL_DEBT_REFRACTORED",
+    "DOMAIN_OWNERSHIP_EXPLICIT"
+  ],
+  "compatibility_debt_remains": [
+    "gate2_candidate_relation_compatibility",
+    "published_income_source_and_residency_methodology"
+  ],
+  "full_terminal_claimed": false,
+  "gate_regression": {
+    "gate1": 125,
+    "gate2": 982,
+    "gate3": 120,
+    "gate4": 30,
+    "gate5": 422,
+    "focused_architecture": 64,
+    "final_release_bundle_architecture": 60
+  },
+  "runner_limitations": [
+    {
+      "scope": "monolithic_repository_pytest",
+      "seconds": 904,
+      "pytest_terminal_observed": false,
+      "counted_as_pass": false
+    },
+    {
+      "scope": "monolithic_gate2_pytest",
+      "seconds": 604,
+      "pytest_terminal_observed": false,
+      "counted_as_pass": false,
+      "replacement": "same_fixed_81_file_set_in_non_overlapping_terminal_shards"
+    }
+  ],
+  "generated_artifacts": {
+    "gate1_bundle_sha256": "e088ebe88b062d6c554984ed906768881192a45b1b7a7229f458b9f56885a705",
+    "gate2_source_bundle_sha256": "4bf54deb3493648023166059bd0ce6a812530253276bc34d749186337087ff6d",
+    "gate2_domain_bundle_sha256": "4a90751e798af28137917dbc231d2f6c7876213ae08d48f60ce4b235905e8d69"
+  },
+  "checks": {
+    "managed_financial_assets": "passed",
+    "compileall": "passed",
+    "git_diff_check": "passed_with_line_ending_warnings_only",
+    "secret_like_scan": "no_matches"
+  },
+  "safety": {
+    "provider_calls_for_g5_42": 0,
+    "new_runtime_dependencies": 0,
+    "new_environment_requirements": 0,
+    "new_database_or_persistence": false,
+    "relation_inference_added": false,
+    "tax_methodology_invented": false,
+    "product_activated": false,
+    "commit_created": false,
+    "push_performed": false,
+    "pull_request_created": false
+  },
+  "github_journal": "https://github.com/Kwentin3/corp-openweb-ui/issues/278"
+}

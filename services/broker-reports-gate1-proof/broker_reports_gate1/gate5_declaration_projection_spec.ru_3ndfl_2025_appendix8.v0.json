@@ -1,0 +1,139 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_projection_spec_v0",
+  "spec_id": "ru-3ndfl-2025-appendix8-securities-proof",
+  "spec_version": "2026.0-proof",
+  "status": "inactive_agent_generated_candidate",
+  "declaration": {
+    "jurisdiction": "RU",
+    "tax_period": "2025",
+    "form": "3-NDFL",
+    "knd": "1151020",
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "electronic_format_version": "5.20",
+    "xsd": "NO_NDFL3_1_033_00_05_20_01.xsd"
+  },
+  "input_contract": {
+    "schema_version": "broker_reports_gate5_declaration_projection_proof_input_v0",
+    "concepts": [
+      {
+        "concept": "operation_category",
+        "value_kind": "stable_enum"
+      },
+      {
+        "concept": "operation_category_gross_income",
+        "value_kind": "money"
+      },
+      {
+        "concept": "related_expenses",
+        "value_kind": "money"
+      },
+      {
+        "concept": "allowable_expenses",
+        "value_kind": "money"
+      },
+      {
+        "concept": "loss_treatment",
+        "value_kind": "stable_enum"
+      }
+    ]
+  },
+  "target": {
+    "path": "Файл/Документ/НДФЛ3/ДохОперЦБ",
+    "element": "ДохОперЦБ",
+    "min_occurs": 0,
+    "max_occurs": "unbounded"
+  },
+  "mappings": [
+    {
+      "mapping_id": "appendix8-operation-category",
+      "source_concept": "operation_category",
+      "target_attribute": "ВидОпер",
+      "target_use": "required",
+      "transform": {
+        "kind": "enum_code",
+        "values": {
+          "organized_market_securities_outside_iis": "01"
+        }
+      },
+      "evidence_refs": [
+        "form_appendix8_lines_010_050",
+        "procedure_paragraph_98_lines_010_050",
+        "procedure_appendix8_operation_code_01",
+        "format_table_4_46",
+        "xsd_dohopercb_contract"
+      ]
+    },
+    {
+      "mapping_id": "appendix8-category-gross-income",
+      "source_concept": "operation_category_gross_income",
+      "target_attribute": "ДохСовОпер",
+      "target_use": "required",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "evidence_refs": [
+        "form_appendix8_lines_010_050",
+        "procedure_paragraph_6_money_representation",
+        "procedure_paragraph_98_lines_010_050",
+        "format_table_4_46",
+        "xsd_dohopercb_contract"
+      ]
+    },
+    {
+      "mapping_id": "appendix8-related-expenses",
+      "source_concept": "related_expenses",
+      "target_attribute": "РасхРеалЦБ",
+      "target_use": "optional",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "evidence_refs": [
+        "form_appendix8_lines_010_050",
+        "procedure_paragraph_6_money_representation",
+        "procedure_paragraph_98_lines_010_050",
+        "format_table_4_46",
+        "xsd_dohopercb_contract"
+      ]
+    },
+    {
+      "mapping_id": "appendix8-allowable-expenses",
+      "source_concept": "allowable_expenses",
+      "target_attribute": "РасхУмДохОпер",
+      "target_use": "optional",
+      "transform": {
+        "kind": "money_amount",
+        "currency": "RUB",
+        "scale": 2
+      },
+      "evidence_refs": [
+        "form_appendix8_lines_010_050",
+        "procedure_paragraph_6_money_representation",
+        "procedure_paragraph_98_lines_010_050",
+        "format_table_4_46",
+        "xsd_dohopercb_contract"
+      ]
+    },
+    {
+      "mapping_id": "appendix8-loss-treatment",
+      "source_concept": "loss_treatment",
+      "target_attribute": "ПризУчетУбыт",
+      "target_use": "required",
+      "transform": {
+        "kind": "enum_code",
+        "values": {
+          "none": "0"
+        }
+      },
+      "evidence_refs": [
+        "form_appendix8_lines_010_050",
+        "procedure_paragraph_98_lines_010_050",
+        "format_table_4_46",
+        "xsd_dohopercb_contract"
+      ]
+    }
+  ]
+}

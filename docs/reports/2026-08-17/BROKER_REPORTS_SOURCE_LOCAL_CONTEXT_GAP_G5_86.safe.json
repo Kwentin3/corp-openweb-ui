@@ -1,0 +1,115 @@
+{
+  "broker_specific_literal_rule": false,
+  "classes": [
+    {
+      "assertion_predeclared_before_provider": false,
+      "broader_context_separately_identifiable": true,
+      "chunk_ordinal": 14,
+      "first_root_cause": "B_LOCAL_ASSERTION_BOUNDARY_CONTRACT_GAP",
+      "local_source_literal_visible": true,
+      "output_target_alias_uniquely_restored": true,
+      "structural_class_id": "sc_2411884a0555dbc7",
+      "target_column": null,
+      "target_kind": "table_row"
+    },
+    {
+      "assertion_predeclared_before_provider": false,
+      "broader_context_separately_identifiable": true,
+      "chunk_ordinal": 12,
+      "first_root_cause": "B_LOCAL_ASSERTION_BOUNDARY_CONTRACT_GAP",
+      "local_source_literal_visible": true,
+      "output_target_alias_uniquely_restored": true,
+      "structural_class_id": "sc_3d4a1c0266efbbe2",
+      "target_column": 2,
+      "target_kind": "table_cell"
+    },
+    {
+      "assertion_predeclared_before_provider": false,
+      "broader_context_separately_identifiable": true,
+      "chunk_ordinal": 10,
+      "first_root_cause": "B_LOCAL_ASSERTION_BOUNDARY_CONTRACT_GAP",
+      "local_source_literal_visible": true,
+      "output_target_alias_uniquely_restored": true,
+      "structural_class_id": "sc_4f30a191be699a96",
+      "target_column": 2,
+      "target_kind": "table_cell"
+    },
+    {
+      "assertion_predeclared_before_provider": false,
+      "broader_context_separately_identifiable": true,
+      "chunk_ordinal": 10,
+      "first_root_cause": "B_LOCAL_ASSERTION_BOUNDARY_CONTRACT_GAP",
+      "local_source_literal_visible": true,
+      "output_target_alias_uniquely_restored": true,
+      "structural_class_id": "sc_97649d53686922a3",
+      "target_column": 3,
+      "target_kind": "table_cell"
+    },
+    {
+      "assertion_predeclared_before_provider": false,
+      "broader_context_separately_identifiable": true,
+      "chunk_ordinal": 16,
+      "first_root_cause": "B_LOCAL_ASSERTION_BOUNDARY_CONTRACT_GAP",
+      "local_source_literal_visible": true,
+      "output_target_alias_uniquely_restored": true,
+      "structural_class_id": "sc_e36889664a26ad71",
+      "target_column": 5,
+      "target_kind": "table_cell"
+    },
+    {
+      "assertion_predeclared_before_provider": false,
+      "broader_context_separately_identifiable": true,
+      "chunk_ordinal": 16,
+      "first_root_cause": "B_LOCAL_ASSERTION_BOUNDARY_CONTRACT_GAP",
+      "local_source_literal_visible": true,
+      "output_target_alias_uniquely_restored": true,
+      "structural_class_id": "sc_eb49e5e76a94429d",
+      "target_column": 5,
+      "target_kind": "table_cell"
+    }
+  ],
+  "common_first_wrong_owner": "Gate3 source-local assertion packaging",
+  "controls": {
+    "ambiguous_target_cells_in_wrong_set": 25,
+    "paired_existing_correct_tax_rows": 105,
+    "true_dividend_rows_outside_frozen_wrong_set": 434,
+    "wrong_class_rows": 105
+  },
+  "dictionary_changed": false,
+  "frozen_systematic_set": {
+    "facts_exact": true,
+    "facts_total": 105,
+    "pages": [
+      4,
+      5,
+      6,
+      7,
+      9,
+      10
+    ],
+    "pages_exact": true,
+    "provider_chunks": [
+      10,
+      12,
+      14,
+      16,
+      20,
+      22
+    ],
+    "provider_chunks_exact": true,
+    "source_rows_explicit": true,
+    "structural_classes_exact": true,
+    "structural_classes_total": 6
+  },
+  "goal": "G5.86",
+  "new_schema": false,
+  "payload_decision": "MINIMAL_LOCAL_ASSERTION_ENVELOPE_REQUIRED",
+  "private_result_sha256": "237e277f049bbd81a833605f5720ada9181f370ed868e10a617b3a3e22215f84",
+  "provider_calls": 0,
+  "root_cause_counts": {
+    "B_LOCAL_ASSERTION_BOUNDARY_CONTRACT_GAP": 6
+  },
+  "schema_version": "broker_reports_g586_source_local_context_safe_v1",
+  "terminal": "LOCAL_ASSERTION_CONTEXT_CONTRACT_GAP_PROVEN",
+  "vlm_calls": 0
+}

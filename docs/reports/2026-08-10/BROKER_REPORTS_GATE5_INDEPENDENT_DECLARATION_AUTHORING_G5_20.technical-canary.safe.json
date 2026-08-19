@@ -1,0 +1,30 @@
+{
+  "schema_version": "broker_reports_gate5_independent_authoring_technical_canary_v1",
+  "goal": "G5.20",
+  "date": "2026-08-10",
+  "status": "passed",
+  "purpose": "non_semantic_json_transport_preflight",
+  "provider": "openai_codex_cli",
+  "client_version": "codex-cli 0.147.0-alpha.6.5",
+  "model": "gpt-5.6-sol",
+  "reasoning_effort": "high",
+  "conversation_history": "none",
+  "workspace": "empty_temporary_directory",
+  "sandbox": "read-only",
+  "provider_output_schema": null,
+  "candidate_parser": "one_utf8_json_object_no_repair_v1",
+  "declaration_semantics_supplied": false,
+  "runtime_capabilities_supplied": false,
+  "published_artifacts_supplied": false,
+  "prompt_sha256": "e234d940dc52af1d502c15a2d93785fbc6d2d5e524cb99a8dfea40120790310d",
+  "prompt_utf8_bytes": 173,
+  "response_sha256": "5fafb8b453673a2a5495cf9b5fca76df52a5caab584f27715083500cc143866b",
+  "response_utf8_bytes": 68,
+  "candidate": {
+    "schema_version": "g5_20_json_transport_canary_v1",
+    "status": "ready"
+  },
+  "inference_calls_completed_total": 1,
+  "manual_repairs_total": 0,
+  "retries_total": 0
+}

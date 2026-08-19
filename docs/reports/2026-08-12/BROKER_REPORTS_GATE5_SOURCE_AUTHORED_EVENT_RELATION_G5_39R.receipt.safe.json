@@ -1,0 +1,70 @@
+{
+  "schema_version": "broker_reports_gate5_g539r_relation_research_receipt_v1_safe",
+  "goal_id": "G5.39R",
+  "date": "2026-08-12",
+  "terminal": "NO_RELATION_STRATEGY_PROVEN",
+  "blocker": "UPSTREAM_STRUCTURE_RELATION_LOSS",
+  "privacy": "safe_aggregate_evidence_only_no_customer_values_no_private_paths",
+  "artifacts": {
+    "preregistration_sha256": "de7c206fa103139ace2ca5c730e1fa9c443f32f2eabd2d9118482b996cdab112",
+    "report_sha256": "cdb72729f4ed554efc1f374c27439e9d0ede22f3fe6a7d489305dfb9f0fdbebe",
+    "ledger_sha256": "a631c59b37c87a18188e1ba1248f525501a91bab18c27f857a6f40d4abdb6092",
+    "g539_corpus_v3_safe_manifest_sha256": "dc9619eb446c01c82cbce538e01c70be7c170c25da95c4ef230efce217d61c2d"
+  },
+  "baseline": {
+    "product_head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "product_head_tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+    "research_commit": "93dbfbb89ddd5ae75627ea590cc9cf26e8892246",
+    "research_tree": "4b86762cbe40b6cffd38737247bf6687392c1392"
+  },
+  "private_hashes": {
+    "frozen_corpus_oracle_sha256": "d76ade254cfe2c323e0ab73daf0fcf83d598034022e096dba6c86173a65e6c85",
+    "oracle_free_runtime_sha256": "b840856d776b419851fd482b1da03cdde7deaea468c4201cd7a551a0835fd744",
+    "evaluator_sha256": "661a1165422a218fe278a191beec699672f153b742df07f178f86055f6401ef8",
+    "R1_proposal_sha256": "d90223f4afda652a370b3b65023a03f6781518c6d21bd09c8d9a4a4adc7410d9",
+    "R1_evaluation_sha256": "b89b2b90eb2b68fff746269b098e4c18c1013db9f8032daeee3329d7eae78a6c",
+    "R2_proposal_sha256": "0bd92a987413314b48995b228931a61121a26b26dc951f291974d500e85a1621",
+    "R2_evaluation_sha256": "c4747b1cb06c0d40b6d5cabb4f27dafc62b836795d3ecd9bce315acbf963fd15",
+    "R3_proposal_sha256": "52a4ac75271b6be9fd446788b195c41a8d6701b837c4a2da264c780d36dbe24f",
+    "R3_evaluation_sha256": "c24e41569c7b00bd2a9318f475854b5dff053ee765e33a26e8c180312fe434ca",
+    "R4_proposal_sha256": "064c34cc87133d64f71ab6e3132146660287b594c38a355cac07bd28a1e670c1",
+    "R4_evaluation_sha256": "48e98f8a3303bd09a01c6594a77f44e1974c689587229ddf192e10dbdd0427be"
+  },
+  "relation_results": {
+    "false_relations_total": 0,
+    "cross_event_joins_total": 0,
+    "R1_correct": 1,
+    "R2_correct": 1,
+    "R3_correct": 0,
+    "R4_correct": 1,
+    "winner": null,
+    "partial_winner": null
+  },
+  "role_finalist": {
+    "status": "NOT_RUN_NO_RELATION_FINALIST",
+    "provider_calls": 0
+  },
+  "tests": {
+    "research_terminal_behavior_passed": 23,
+    "product_regressions_passed": 8,
+    "product_regressions_failed": 0,
+    "runner_executed_tests": true,
+    "shell": "Windows PowerShell"
+  },
+  "cleanup": {
+    "experiment_worktrees_present": 0,
+    "experiment_branches_present": 0,
+    "nested_research_repository_present": false,
+    "private_exact_evidence_retained_ignored": true,
+    "production_experiment_code_present": false
+  },
+  "journal": {
+    "github_issue": 278,
+    "url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278"
+  },
+  "authorization": {
+    "g540_authorized": false,
+    "commit_push_pr_performed": false,
+    "production_activation_performed": false
+  }
+}

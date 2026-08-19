@@ -6,6 +6,7 @@ import inspect
 import json
 from pathlib import Path
 import re
+from types import SimpleNamespace
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -30,6 +31,7 @@ from broker_reports_gate1.artifact_models import ARTIFACT_TYPES, ArtifactRecord
 from broker_reports_gate1.gate3_structural_chunking import (
     FACTORY_REQUIRED,
     FORBIDDEN,
+    _chunk_rendered_units,
 )
 
 
@@ -230,6 +232,143 @@ def test_text_blocks_pack_in_order_with_natural_container_context(
         for chunk in result["chunks"]
     )
     _assert_exact_target_coverage(projection=projection, chunk_set=result)
+
+
+def test_page_breaks_remain_visible_without_forcing_one_chunk_per_page(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    context = _context()
+    document_id = "g3-chunk-multipage-pdf"
+    source_ref = f"source-{document_id}"
+    artifact = _normalizer().build(
+        tenant_id=context.user_id,
+        artifact_version=1,
+        document={
+            "container_format": "pdf",
+            "sha256": hashlib.sha256(document_id.encode()).hexdigest(),
+            "declared_mime_type": "application/pdf",
+        },
+        source_artifact_ref=source_ref,
+        source_payloads=[
+            {
+                "parser_completeness_status": "complete",
+                "parser_completeness_reason_codes": [],
+                "pdf_text_layer_projection": {
+                    "page_inventory": [
+                        {"page_number": 1},
+                        {"page_number": 2},
+                        {"page_number": 3},
+                    ],
+                    "line_inventory": [],
+                },
+            }
+        ],
+        source_units=[
+            {
+                "unit_ref": f"page-{page}",
+                "source_location": {"page": page, "line_start": 1},
+                "text": f"Page {page} " + "x" * 250,
+            }
+            for page in range(1, 4)
+        ],
+        table_projections=[],
+    )
+    _put_and_activate(
+        store,
+        context=context,
+        document_id=document_id,
+        artifact=artifact,
+    )
+
+    result = Gate3StructuralChunkFactory(
+        store=store,
+        read_enabled=True,
+        max_chunk_chars=800,
+    ).create(document_id=document_id, context=context)
+
+    assert len(result["chunks"]) == 2
+    assert result["chunks"][0]["metrics"]["target_count"] == 2
+    assert result["chunks"][0]["model_view"]["content"].count("Page break") == 1
+    assert len(result["chunks"][0]["structural_scope"]["container_refs"]) == 2
+
+
+def test_adjacent_same_shape_headerless_table_reuses_source_header_as_context() -> None:
+    grid = (
+        "| row | column 1 | column 2 |",
+        "| --- | --- | --- |",
+    )
+    first_rows = (
+        "| [t001] header | [t002] Operation | [t003] Amount |",
+        "| [t004] 2 | [t005] Purchase | [t006] 10.00 |",
+    )
+    second_rows = (
+        "| [t007] 1 | [t008] Sale | [t009] 20.00 |",
+    )
+
+    def table_unit(node_id: str, page: int, rows: tuple[str, ...], header: bool):
+        heading = "### Table"
+        content = "\n".join((heading, *grid, *rows))
+        return SimpleNamespace(
+            unit_kind="table",
+            container_id=f"page-{page}",
+            ancestor_headings=("# Document", f"## Page {page}"),
+            node_id=node_id,
+            node_type="TABLE",
+            content=content,
+            table=SimpleNamespace(
+                heading_lines=(heading,),
+                grid_header_lines=grid,
+                row_lines=rows,
+                note_lines=(),
+                header_present=header,
+            ),
+        )
+
+    units = (
+        table_unit("table-1", 1, first_rows, True),
+        SimpleNamespace(
+            unit_kind="break",
+            container_id="page-2",
+            ancestor_headings=("# Document", "## Page 2"),
+            node_id=None,
+            node_type="PAGE_BREAK",
+            content="Page break",
+            table=None,
+        ),
+        table_unit("table-2", 2, second_rows, False),
+    )
+    aliases = [f"t{index:03d}" for index in range(1, 10)]
+    mappings = {
+        alias: {
+            "target_alias": alias,
+            "canonical_target": {"kind": "node", "node_id": alias},
+        }
+        for alias in aliases
+    }
+
+    chunks = _chunk_rendered_units(
+        units=units,
+        binding={
+            "document_id": "continuation-document",
+            "canonical_version_id": "continuation-version",
+        },
+        mapping_by_alias=mappings,
+        mapping_order={alias: index for index, alias in enumerate(aliases)},
+        max_chunk_chars=10_000,
+    )
+
+    assert len(chunks) == 2
+    assert chunks[0]["context_policy"]["repeated_table_header"] is False
+    assert chunks[1]["context_policy"]["repeated_table_header"] is True
+    assert "Operation" in chunks[1]["model_view"]["content"]
+    assert "Amount" in chunks[1]["model_view"]["content"]
+    assert "[t002]" not in chunks[1]["model_view"]["content"]
+    assert [
+        mapping["target_alias"]
+        for chunk in chunks
+        for mapping in chunk["target_mappings"]
+    ] == aliases
 
 
 def test_indivisible_row_exceeding_budget_fails_closed(tmp_path: Path) -> None:

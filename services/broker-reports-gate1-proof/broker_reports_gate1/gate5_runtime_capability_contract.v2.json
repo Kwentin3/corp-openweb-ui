@@ -1,0 +1,296 @@
+{
+  "schema_version": "broker_reports_gate5_runtime_capability_contract_v2",
+  "contract_id": "broker_reports_gate5_runtime_capabilities",
+  "contract_version": "2.0.0-experimental",
+  "status": "inactive_proof",
+  "capability_ref_schema_version": "broker_reports_gate5_runtime_capability_ref_v2",
+  "capabilities": [
+    {
+      "capability_id": "resolve_required_values_v0",
+      "execution_phase": "case_time",
+      "meaning": "Resolve each closed semantic requirement from the current Financial Case first and then from eligible same-run user supplemental facts, retaining exactly one tagged source when satisfied.",
+      "inputs": [
+        {
+          "name": "requirements",
+          "contract": "broker_reports_gate5_combined_requirements_v0",
+          "required": true
+        },
+        {
+          "name": "trusted_case_context",
+          "contract": "artifact_access_context",
+          "required": true
+        }
+      ],
+      "preconditions": [
+        "trusted_case_context_complete",
+        "gate4_financial_case_current",
+        "requirements_closed_and_non_empty",
+        "supplemental_facts_same_run_only"
+      ],
+      "output": {
+        "contract": "broker_reports_gate5_combined_requirement_check_result_v0",
+        "guarantees": [
+          "each_requirement_is_satisfied_or_missing",
+          "satisfied_requirement_has_exactly_one_tagged_source",
+          "missing_requirement_has_no_invented_value"
+        ]
+      },
+      "failure_conditions": [
+        "invalid_closed_input",
+        "stale_or_missing_financial_case",
+        "foreign_or_invalid_supplemental_fact",
+        "ambiguous_supplemental_match"
+      ],
+      "provenance_classes": [
+        "financial_case_evidence",
+        "user_case_evidence"
+      ],
+      "supported_value_kinds": [
+        "financial_case_role_value",
+        "money"
+      ],
+      "implementation_status": "proven",
+      "conformance": {
+        "binding_id": "gate5.resolve_required_values.v0",
+        "owner_contract": "broker_reports_gate5_supplemental_fact_discovery_v0"
+      }
+    },
+    {
+      "capability_id": "obtain_one_missing_money_input_v0",
+      "execution_phase": "case_time",
+      "meaning": "Ask for and deterministically accept one currently missing money value from a human, persist it in trusted case scope, and recheck the requirement.",
+      "inputs": [
+        {
+          "name": "requirements",
+          "contract": "broker_reports_gate5_combined_requirements_v0",
+          "required": true
+        },
+        {
+          "name": "trusted_case_context",
+          "contract": "artifact_access_context",
+          "required": true
+        },
+        {
+          "name": "human_answer",
+          "contract": "bounded_human_text",
+          "required": false
+        }
+      ],
+      "preconditions": [
+        "exactly_one_current_missing_requirement",
+        "missing_value_kind_is_money",
+        "strict_structured_model_path_available",
+        "trusted_case_context_complete"
+      ],
+      "output": {
+        "contract": "broker_reports_gate5_single_input_interaction_v0",
+        "guarantees": [
+          "question_phase_returns_structured_question",
+          "accepted_answer_is_deterministically_verified",
+          "accepted_value_is_persisted_before_satisfied_recheck",
+          "ambiguous_answer_creates_no_fact"
+        ]
+      },
+      "failure_conditions": [
+        "zero_or_multiple_missing_requirements",
+        "free_form_or_fallback_model_output",
+        "ambiguous_human_money_evidence",
+        "proposal_does_not_match_human_evidence",
+        "persistence_or_recheck_failure"
+      ],
+      "provenance_classes": [
+        "user_case_evidence"
+      ],
+      "supported_value_kinds": [
+        "money"
+      ],
+      "implementation_status": "proven",
+      "conformance": {
+        "binding_id": "gate5.obtain_one_missing_money_input.v0",
+        "owner_contract": "broker_reports_gate5_single_input_human_loop_v0"
+      }
+    },
+    {
+      "capability_id": "execute_published_typed_behavior_v1",
+      "execution_phase": "case_time",
+      "meaning": "Resolve one exact published behavior and execute only its statically registered deterministic implementation over its exact registered typed input, returning its exact registered typed output in a common provenance-retaining envelope.",
+      "inputs": [
+        {
+          "name": "behavior_ref",
+          "contract": "broker_reports_gate5_published_behavior_ref_v1",
+          "required": true
+        },
+        {
+          "name": "input_contract_id",
+          "contract": "broker_reports_gate5_contract_identity_v1",
+          "required": true
+        },
+        {
+          "name": "output_contract_id",
+          "contract": "broker_reports_gate5_contract_identity_v1",
+          "required": true
+        },
+        {
+          "name": "behavior_input",
+          "contract": "registered_behavior_input",
+          "required": true
+        },
+        {
+          "name": "trusted_case_context",
+          "contract": "artifact_access_context",
+          "required": true
+        }
+      ],
+      "preconditions": [
+        "behavior_identity_and_version_are_published",
+        "exact_input_output_contract_pair_is_registered",
+        "implementation_binding_is_reviewed_and_static",
+        "methodology_and_artifact_hashes_are_valid",
+        "behavior_input_matches_registered_contract",
+        "all_required_values_are_satisfied"
+      ],
+      "output": {
+        "contract": "broker_reports_gate5_typed_behavior_result_v1",
+        "guarantees": [
+          "behavior_input_and_output_contract_identities_are_retained",
+          "result_payload_matches_the_registered_output_contract",
+          "methodology_and_artifact_binding_is_retained",
+          "source_provenance_remains_in_the_typed_payload",
+          "no_unregistered_implementation_is_executed"
+        ]
+      },
+      "failure_conditions": [
+        "behavior_not_registered",
+        "input_contract_invalid_or_mismatched",
+        "output_contract_invalid_or_mismatched",
+        "input_or_output_validation_failed",
+        "required_provenance_missing",
+        "methodology_artifact_or_hash_invalid"
+      ],
+      "provenance_classes": [
+        "financial_case_evidence",
+        "user_case_evidence",
+        "proof_context_input",
+        "external_authoritative_evidence",
+        "methodology_derived_result"
+      ],
+      "supported_value_kinds": [
+        "money",
+        "registered_typed_input",
+        "registered_typed_output",
+        "source_tagged_operation_model"
+      ],
+      "implementation_status": "proven",
+      "conformance": {
+        "binding_id": "gate5.execute_published_typed_behavior.v1",
+        "owner_contract": "broker_reports_gate5_published_typed_behavior_v1"
+      }
+    },
+    {
+      "capability_id": "project_validated_declaration_fragment_v0",
+      "execution_phase": "case_time",
+      "meaning": "Project a complete stable semantic input through the current repository-pinned and evidence-validated declaration projection into one deterministic declaration-shaped fragment.",
+      "inputs": [
+        {
+          "name": "declaration_semantics",
+          "contract": "broker_reports_gate5_declaration_projection_proof_input_v0",
+          "required": true
+        }
+      ],
+      "preconditions": [
+        "repository_projection_spec_is_valid",
+        "official_evidence_pack_hash_is_valid",
+        "all_projection_concepts_are_present",
+        "input_value_kinds_match_projection_contract"
+      ],
+      "output": {
+        "contract": "broker_reports_gate5_declaration_projection_fragment_v0",
+        "guarantees": [
+          "projection_is_deterministic",
+          "mapping_provenance_is_retained",
+          "result_is_structurally_consistent_not_full_xml_validated"
+        ]
+      },
+      "failure_conditions": [
+        "projection_spec_or_evidence_invalid",
+        "unknown_or_missing_source_concept",
+        "unsupported_target_or_code",
+        "invalid_or_incomplete_projection_input"
+      ],
+      "provenance_classes": [
+        "methodology_derived_result",
+        "declaration_projection"
+      ],
+      "supported_value_kinds": [
+        "money",
+        "stable_enum"
+      ],
+      "implementation_status": "proven",
+      "conformance": {
+        "binding_id": "gate5.project_validated_declaration_fragment.v0",
+        "owner_contract": "broker_reports_gate5_declaration_projection_v0"
+      }
+    },
+    {
+      "capability_id": "aggregate_complete_category_scope_v0",
+      "execution_phase": "case_time",
+      "meaning": "Aggregate a non-empty compatible set of complete operation models for one taxpayer, category and tax period, and admit complete category semantics only with exact member-set completeness evidence.",
+      "inputs": [
+        {
+          "name": "scope",
+          "contract": "broker_reports_gate5_tax_period_category_scope_v0",
+          "required": true
+        },
+        {
+          "name": "operation_members",
+          "contract": "broker_reports_gate5_operation_model_members_v0",
+          "required": true
+        },
+        {
+          "name": "completeness_evidence",
+          "contract": "broker_reports_gate5_tax_period_completeness_evidence_v0",
+          "required": false
+        }
+      ],
+      "preconditions": [
+        "at_least_one_complete_operation_model",
+        "members_have_published_methodology_bindings",
+        "members_agree_on_period_category_currency_and_loss_state",
+        "complete_status_requires_exact_scope_and_member_hash_binding"
+      ],
+      "output": {
+        "contract": "broker_reports_gate5_tax_period_category_aggregation_result_v0",
+        "guarantees": [
+          "known_values_are_deterministically_aggregated",
+          "missing_completeness_evidence_returns_incomplete_scope",
+          "declaration_projection_exists_only_for_complete_scope",
+          "member_contribution_provenance_is_retained"
+        ]
+      },
+      "failure_conditions": [
+        "empty_operation_member_set",
+        "invalid_or_duplicate_operation_member",
+        "unknown_or_stale_methodology_binding",
+        "period_category_currency_or_loss_mismatch",
+        "invalid_or_stale_completeness_binding"
+      ],
+      "provenance_classes": [
+        "financial_case_evidence",
+        "user_case_evidence",
+        "user_verified_completeness",
+        "methodology_derived_result",
+        "declaration_projection"
+      ],
+      "supported_value_kinds": [
+        "money",
+        "stable_enum",
+        "source_tagged_operation_model"
+      ],
+      "implementation_status": "proven",
+      "conformance": {
+        "binding_id": "gate5.aggregate_complete_category_scope.v0",
+        "owner_contract": "broker_reports_gate5_tax_period_category_aggregation_v0"
+      }
+    }
+  ]
+}

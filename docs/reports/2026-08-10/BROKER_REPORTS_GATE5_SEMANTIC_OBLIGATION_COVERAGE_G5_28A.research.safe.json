@@ -1,0 +1,222 @@
+{
+  "schema_version": "broker_reports_gate5_semantic_obligation_coverage_research_v0",
+  "goal": "G5.28A",
+  "status": "closed",
+  "recommendation": "SEMANTIC_OBLIGATION_ACCOUNTING_REQUIRED",
+  "scope": {
+    "plane": "authoring_and_publication_research_only",
+    "runtime_changed": false,
+    "corrected_g5_28_trial_run": false,
+    "g5_29_started": false
+  },
+  "official_evidence": {
+    "declaration": "RU 3-NDFL tax period 2025",
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "filling_procedure_sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+    "verified_on": "2026-08-10"
+  },
+  "hypotheses": [
+    {
+      "hypothesis_id": "H1",
+      "name": "surface_accounting_plus_stronger_instruction",
+      "support": "no new evidence concept and the smallest prompt",
+      "counter_evidence": "G5.28 already instructed the model to split different applicability or evidence owners, yet one mixed surface was merged; the validator accepts both the lossy and split variants",
+      "cheapest_test": "validate the frozen 12-domain candidate and a disposable 13-domain split over the same official surface reference",
+      "observed_result": "both return eligible_for_review",
+      "verdict": "falsified_as_proof_mechanism",
+      "complexity": "low_but_semantically_blind"
+    },
+    {
+      "hypothesis_id": "H2",
+      "name": "semantic_obligation_units",
+      "support": "an explicit bounded checklist makes omission observable without prescribing domain IDs",
+      "counter_evidence": "sentence, paragraph or field atomization would become a form mirror and maintenance taxonomy",
+      "cheapest_test": "represent only decision-significant meanings in five heterogeneous official cases",
+      "observed_result": "the mixed surface needs two units; coherent, mandatory and elective aggregates do not need field-level atoms",
+      "verdict": "survives_with_decision_significant_granularity",
+      "complexity": "low"
+    },
+    {
+      "hypothesis_id": "H3",
+      "name": "split_only_on_independent_applicability_or_evidence_policy",
+      "support": "directly explains the G5.28 failure and preserves aggregate components when scope is coupled",
+      "counter_evidence": "policy equality alone cannot prove that a proposed aggregate component is coherent",
+      "cheapest_test": "apply the rule to coherent occurrence, mandatory aggregate, mixed policy, elective aggregate and component-owner pressure cases",
+      "observed_result": "all five cases receive a stable decision without XML or paragraph atomization; component coherence remains a separate review gate",
+      "verdict": "survives_as_primary_split_rule",
+      "complexity": "low"
+    },
+    {
+      "hypothesis_id": "H4",
+      "name": "post_hoc_derived_deterministic_audit_without_obligations",
+      "support": "keeps the model input and official evidence unchanged",
+      "counter_evidence": "code cannot infer missing legal meanings from free text without a tax ontology or hardcoded rules; an LLM critic is not deterministic authority",
+      "cheapest_test": "ask what input lets code distinguish the two G5.28 variants",
+      "observed_result": "surface IDs and candidate text contain no closed expected meaning set",
+      "verdict": "falsified_as_sole_validator",
+      "complexity": "high_if_forced"
+    },
+    {
+      "hypothesis_id": "H5",
+      "name": "reference_preserving_obligation_accounting",
+      "support": "authoritative meanings remain in reviewed evidence and the model only groups exact refs",
+      "counter_evidence": "the evidence package must itself receive a completeness review",
+      "cheapest_test": "exact-once reference accounting plus closed policy compatibility over the discriminating cases",
+      "observed_result": "good grouping passes; lost obligation and mixed-policy grouping fail deterministically",
+      "verdict": "survives_and_preferred",
+      "complexity": "low"
+    },
+    {
+      "hypothesis_id": "H6",
+      "name": "model_self_declares_covered_submeanings",
+      "support": "requires no pre-authoring evidence refinement",
+      "counter_evidence": "the same model can omit a meaning from both the domain and its self-declared checklist",
+      "cheapest_test": "remove one self-declared meaning and inspect available deterministic inputs",
+      "observed_result": "no upstream expected set remains to detect the omission",
+      "verdict": "falsified",
+      "complexity": "low_but_circular"
+    },
+    {
+      "hypothesis_id": "H7",
+      "name": "expected_domain_partition_answer_key",
+      "support": "makes coverage and grouping trivially checkable",
+      "counter_evidence": "leaks the answer and destroys the independent authoring proof",
+      "cheapest_test": "compare the supplied keys with the claimed independent output",
+      "observed_result": "the author becomes a copier or renamer",
+      "verdict": "falsified_by_independence_contract",
+      "complexity": "medium"
+    },
+    {
+      "hypothesis_id": "H8",
+      "name": "sentence_field_or_xsd_atom_graph",
+      "support": "maximizes local source traceability",
+      "counter_evidence": "creates target-layout atoms, relationships and maintenance graph unrelated to root applicability",
+      "cheapest_test": "apply the boundary to title, deduction calculations and repeated target fields",
+      "observed_result": "unit count follows document layout rather than independent scope decisions",
+      "verdict": "falsified_by_kiss_and_target_independence",
+      "complexity": "very_high"
+    },
+    {
+      "hypothesis_id": "H9",
+      "name": "two_model_consensus_or_critic",
+      "support": "can expose authoring misses without manual answer keys",
+      "counter_evidence": "agreement reduces risk but does not create deterministic completeness or authority",
+      "cheapest_test": "consider a shared omission by author and critic",
+      "observed_result": "no exact closed set exists for terminal validation",
+      "verdict": "supplementary_review_only",
+      "complexity": "medium"
+    }
+  ],
+  "discriminating_cases": [
+    {
+      "case_id": "coherent_occurrence",
+      "official_pattern": "domestic taxable income plus source, kind and tax-agent facts",
+      "applicability": "factual_occurrence",
+      "component_pressure": "details are internal values of one source-income family",
+      "decision": "keep_one_obligation"
+    },
+    {
+      "case_id": "multiple_meanings_same_mandatory_decision",
+      "official_pattern": "filing instance, taxpayer identity/status and signer authorization",
+      "applicability": "definition_mandatory",
+      "component_pressure": "package subcomponents may differ but none is independently not applicable",
+      "decision": "aggregate_allowed_at_root"
+    },
+    {
+      "case_id": "mixed_applicability_surface",
+      "official_pattern": "professional activity income and civil-contract or author professional deduction claim",
+      "applicability": "typed_legal_classification_plus_elective_claim",
+      "component_pressure": "independent typed owners and independent scope outcomes",
+      "decision": "split_two_obligations"
+    },
+    {
+      "case_id": "elective_aggregate_with_calculation_detail",
+      "official_pattern": "standard, social, investment and long-term-savings deduction claims plus calculation details",
+      "applicability": "elective_claim",
+      "component_pressure": "one aggregate deduction-claim family can retain internal variants",
+      "decision": "aggregate_allowed_at_root"
+    },
+    {
+      "case_id": "mandatory_aggregate",
+      "official_pattern": "income-group tax base and tax settlement",
+      "applicability": "definition_mandatory",
+      "component_pressure": "one non-empty aggregate with bounded group subcomponents",
+      "decision": "keep_one_obligation"
+    }
+  ],
+  "experiments": [
+    {
+      "experiment_id": "surface_accounting_discrimination",
+      "frozen_candidate": {
+        "sha256": "3a5cf39a0a70b308c72e8f8688c6785618746a4634d2c41360d6ee5f871db639",
+        "domain_count": 12,
+        "semantic_review": "missing_elective_professional_deduction_obligation",
+        "validator_status": "eligible_for_review"
+      },
+      "disposable_split_variant": {
+        "sha256": "e0962b1557ed733625c5c60dcf1817c71cd13416e26c295b63f9a9e455d5e84a",
+        "domain_count": 13,
+        "semantic_review": "both_mixed_surface_obligations_represented",
+        "validator_status": "eligible_for_review"
+      },
+      "validator_discriminates": false
+    },
+    {
+      "experiment_id": "minimal_obligation_reference_accounting",
+      "obligation_fields": [
+        "obligation_id",
+        "semantic_requirement",
+        "applicability_policy_id",
+        "official_evidence_refs"
+      ],
+      "good_partition": "passed",
+      "lost_obligation_partition": "failed_uncovered_obligation_ref",
+      "mixed_policy_partition": "failed_mixed_policy_domain",
+      "graph_edges": 0,
+      "form_field_atoms": 0,
+      "runtime_artifact": false
+    }
+  ],
+  "semantic_coverage_principle": "Keep official meanings together only while they can share one applicability decision, one closed evidence policy and one coherent aggregate component completeness boundary; otherwise split the authoring evidence into separate obligations.",
+  "minimal_obligation_representation": {
+    "fields": [
+      "obligation_id",
+      "semantic_requirement",
+      "applicability_policy_id",
+      "official_evidence_refs"
+    ],
+    "lifecycle": "hash_pinned_reviewed_authoring_evidence",
+    "runtime_artifact": false,
+    "relationships": false,
+    "target_paths_or_fields": false,
+    "formulas_or_conditions": false
+  },
+  "deterministic_validation": [
+    "every trusted obligation is referenced by exactly one candidate root domain",
+    "unknown, duplicate and uncovered obligation references fail closed",
+    "every candidate domain contains at least one obligation",
+    "all obligations grouped into one domain have one identical closed applicability policy",
+    "domain policy, official evidence refs and semantic meanings are compiled from obligation refs rather than trusted from model repetition",
+    "every official surface is backed by at least one obligation and every obligation has official evidence",
+    "component contracts remain exact inventory refs or honest gaps",
+    "target layout, executable rules and runtime workflow remain forbidden"
+  ],
+  "publication_review_residual": [
+    "whether same-policy obligations form one understandable applicability question",
+    "whether one aggregate typed component family is coherent",
+    "whether the reviewed obligation evidence itself fully reflects official requirements"
+  ],
+  "future_clean_trial": {
+    "run_in_g5_28a": false,
+    "prior_candidate_visible": false,
+    "prior_domain_ids_visible": false,
+    "expected_partition_visible": false,
+    "expected_domain_count_visible": false,
+    "model_output": "domain groups over exact obligation refs plus expected component families",
+    "history_messages": 0,
+    "retry_count": 0,
+    "repair_allowed": false,
+    "post_hoc_comparison_only": true
+  },
+  "next_boundary": "authoring-only obligation evidence and validator revision followed by a new independent G5.28 trial; G5.29 remains forbidden"
+}

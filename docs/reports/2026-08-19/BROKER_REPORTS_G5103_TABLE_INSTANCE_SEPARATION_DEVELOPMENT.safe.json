@@ -1,0 +1,61 @@
+{
+  "schema_version": "broker_reports_table_instance_separation_g5103_development_safe_v1",
+  "goal": "G5.103",
+  "phase": "development",
+  "hypothesis": "explicit_visual_table_instance_boundary_prevents_merge",
+  "controlled_delta": {
+    "changed": [
+      "visual_table_instance_definition_in_prompt"
+    ],
+    "unchanged": [
+      "pages",
+      "page_png_bytes",
+      "model",
+      "thinking_level",
+      "response_schema",
+      "coordinate_contract",
+      "raster_factory",
+      "provider_factory",
+      "projection_factory",
+      "attempts_per_page",
+      "retry_policy",
+      "evaluation"
+    ],
+    "broker_or_domain_hint_added": false
+  },
+  "provider_calls": 9,
+  "metrics": {
+    "pages": 9,
+    "positive_pages": 4,
+    "negative_pages": 5,
+    "expected_visual_tables": 9,
+    "proposed_tables": 9,
+    "projected_boxes": 9,
+    "pages_with_exact_table_count": 9,
+    "false_boxes_on_negative_pages": 0,
+    "invalid_responses": 0,
+    "provider_non_success_terminals": 0,
+    "expressible_truth_regions": 7,
+    "exact_truth_regions": 7,
+    "truth_regions_with_full_coverage": 7,
+    "truth_region_minimum_coverage_percent": 100.0,
+    "truth_region_mean_coverage_percent": 100.0,
+    "extraneous_parser_lines_total": 0,
+    "nonexpressible_embedded_truth_regions": 2,
+    "vlm_body_values_used": 0,
+    "invented_source_literals": 0
+  },
+  "terminals": [
+    "TABLE_INSTANCE_SEPARATION_MACHINE_CHECKS_PASSED"
+  ],
+  "freeze_permitted": false,
+  "unseen_holdout_executed": false,
+  "private_canonical_json_sha256": "1c6e5cd0ac9e3eed5f96d25a4c3021ab87ef498de4294019451fa787d5acded0",
+  "privacy": {
+    "customer_bytes_in_git": false,
+    "raw_provider_response_in_git": false,
+    "normalized_coordinates_in_safe_report": false,
+    "pdf_coordinates_in_safe_report": false,
+    "cell_values_in_git": false
+  }
+}

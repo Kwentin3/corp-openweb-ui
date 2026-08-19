@@ -1,0 +1,40 @@
+{
+  "chunks_provider_failed": 1,
+  "chunks_rejected": 1,
+  "chunks_total": 140,
+  "chunks_validated": 138,
+  "chunks_with_local_failures": 4,
+  "document_status": "incomplete",
+  "facts_incomplete_due_to_role_rejection": 4,
+  "facts_rejected": 26,
+  "facts_role_complete": 1181,
+  "facts_role_incomplete": 240,
+  "fallback_count": 0,
+  "fully_unusable_chunks": 2,
+  "gate4_rebuilt": false,
+  "goal": "G5.83",
+  "local_role_rejection_codes": {
+    "gate3_role_exact_text_not_literal_substring": 4
+  },
+  "manual_facts": 0,
+  "ordinary_provider_replay_attempts": 1,
+  "ordinary_replay_private_result_sha256": "336e2a5fa750ba7d03502750c639140685d7e181cee3e4b25f2d704fb5cf685a",
+  "production_visual_dependency": false,
+  "provider_failure_codes": {
+    "gate2_model_provider_unavailable": 1
+  },
+  "provider_submissions": 188,
+  "provider_submissions_returned": 188,
+  "rejected_proposal_codes": {
+    "gate3_role_fact_set_mismatch": 1
+  },
+  "repair_count": 0,
+  "retry_count": 0,
+  "role_bindings_rejected": 4,
+  "role_pass_provider_failed_pass1_facts": 32,
+  "schema_version": "broker_reports_g583_ordinary_replay_safe_v1",
+  "sidecar_persisted": false,
+  "source_fact_completeness_status": "incomplete",
+  "source_receipt_sha256": "27b926259ac352f6272a3ce8acaff31bc65c2ffa3bd1a6dd1f95ea01e3fcde52",
+  "terminal": "DOWNSTREAM_REPLAY_INCOMPLETE"
+}

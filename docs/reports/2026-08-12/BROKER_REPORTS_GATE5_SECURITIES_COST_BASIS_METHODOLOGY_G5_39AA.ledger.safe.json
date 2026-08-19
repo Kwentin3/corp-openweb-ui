@@ -1,0 +1,163 @@
+{
+  "schema_version": "broker_reports_gate5_securities_cost_basis_methodology_ledger_v0",
+  "goal": "G5.39AA",
+  "mode": "research_only",
+  "verified_on": "2026-08-12",
+  "repository": "Kwentin3/corp-openweb-ui",
+  "baseline": {
+    "branch": "feature/gate5-tax-period-category-aggregation",
+    "head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+    "origin_main": "a55abe5d08a1cc2a47a679287bba0f479185595b",
+    "preexisting_status_entries": 138,
+    "ownership": "dirty_tree_preserved"
+  },
+  "authority_map": [
+    {
+      "authority_id": "RF_TAX_CODE_214_1_10",
+      "rank": 1,
+      "conclusion": "Documented and actually incurred expenses connected with acquisition, disposal, storage and redemption are eligible; the list expressly includes professional-participant services, exchange fees and registrar services.",
+      "url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/"
+    },
+    {
+      "authority_id": "RF_TAX_CODE_214_1_12",
+      "rank": 1,
+      "conclusion": "Expenses not directly attributable to an income type are allocated proportionally to each income type share; financial result is income less corresponding expenses.",
+      "url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/"
+    },
+    {
+      "authority_id": "RF_TAX_CODE_214_1_13",
+      "rank": 1,
+      "conclusion": "Acquisition price is recognized by first-in-first-out for a securities disposal.",
+      "url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/"
+    },
+    {
+      "authority_id": "RF_TAX_CODE_210_5",
+      "rank": 1,
+      "conclusion": "Foreign-currency income and deductible expense are converted at the official Bank of Russia rate on the actual income or expense date.",
+      "url": "https://nalog.garant.ru/fns/nk/6a3eaa02cea3fe2db1e9b04e275d1439/"
+    },
+    {
+      "authority_id": "RF_TAX_CODE_226_1_4",
+      "rank": 1,
+      "conclusion": "A tax agent may account for acquisition and storage expenses incurred outside that agent only on taxpayer application and supporting documents.",
+      "url": "https://nalog.garant.ru/fns/nk/6cd8d3f6905f78365f70b64fb5f0a8a7/"
+    },
+    {
+      "authority_id": "FNS_SECURITIES_EXPENSE_SUMMARY_2025",
+      "rank": 3,
+      "conclusion": "FNS confirms that securities sale income is reduced by acquisition, disposal, storage and redemption expenses.",
+      "url": "https://www.nalog.gov.ru/rn11/news/smi/15956801/"
+    },
+    {
+      "authority_id": "FNS_FOREIGN_SECURITIES_2022_ARCHIVE",
+      "rank": 3,
+      "conclusion": "Archived FNS guidance corroborates the expense list, operation/category result boundary and foreign-currency dates; current Code text remains controlling.",
+      "url": "https://www.nalog.gov.ru/rn78/ifns/imns78_07/info/11815510/"
+    }
+  ],
+  "expense_taxonomy": [
+    {
+      "expense_type": "purchase_price",
+      "eligibility": "ELIGIBLE",
+      "scope": "ACQUISITION_LOT",
+      "allocation": "FIFO"
+    },
+    {
+      "expense_type": "broker_commission_acquisition",
+      "eligibility": "ELIGIBLE_IF_DOCUMENTED_INCURRED_AND_LINKED",
+      "scope": "ACQUISITION",
+      "allocation": "UNRESOLVED_FOR_PARTIAL_DISPOSAL"
+    },
+    {
+      "expense_type": "broker_commission_disposal",
+      "eligibility": "ELIGIBLE_IF_DOCUMENTED_INCURRED_AND_LINKED",
+      "scope": "DISPOSAL",
+      "allocation": "DIRECT"
+    },
+    {
+      "expense_type": "exchange_fee",
+      "eligibility": "ELIGIBLE_IF_DOCUMENTED_AND_INCURRED",
+      "scope": "SOURCE_AUTHORED_DIRECT_OR_SHARED",
+      "allocation": "DIRECT_OR_ARTICLE_214_1_12"
+    },
+    {
+      "expense_type": "depositary_or_custody_fee",
+      "eligibility": "ELIGIBLE_IF_DOCUMENTED_INCURRED_AND_CONNECTED_TO_STORAGE_OR_PROFESSIONAL_SERVICE",
+      "scope": "DIRECT_OR_INCOME_TYPE",
+      "allocation": "DIRECT_OR_ARTICLE_214_1_12"
+    },
+    {
+      "expense_type": "other_broker_charge",
+      "eligibility": "CONDITIONAL",
+      "scope": "UNKNOWN_UNTIL_SERVICE_AND_RELATION_ARE_PROVEN",
+      "allocation": "FAIL_CLOSED"
+    }
+  ],
+  "ownership": {
+    "SOURCE_FACT": [
+      "security_identity",
+      "acquisition_sequence",
+      "quantity",
+      "purchase_price",
+      "disposal_proceeds",
+      "fee_amount",
+      "currency",
+      "actual_payment_or_receipt_date",
+      "document_refs",
+      "source_authored_fee_scope"
+    ],
+    "TAX_CLASSIFICATION": [
+      "operation_category",
+      "expense_eligibility",
+      "direct_or_shared_expense_scope"
+    ],
+    "TAX_ALLOCATION": [
+      "FIFO_lot_consumption",
+      "partial_quantity_purchase_price",
+      "income_type_shared_expense_allocation"
+    ],
+    "TAX_DERIVED_VALUE": [
+      "recognized_acquisition_price",
+      "allowable_expense_total",
+      "financial_result"
+    ]
+  },
+  "consumer_gap": {
+    "current_input_shape": [
+      "gross_income",
+      "acquisition_cost",
+      "transaction_expense"
+    ],
+    "current_strength": "Consumes precomputed operation-level values and preserves related and allowable totals into category aggregation.",
+    "missing": [
+      "ordered acquisition lot atoms",
+      "FIFO purchase-price allocation",
+      "expense type and direct/shared scope",
+      "category-level shared expense input",
+      "foreign-currency date and rate binding"
+    ],
+    "implementation_authorized": false
+  },
+  "strategic_stopper": {
+    "code": "ACQUISITION_COMMISSION_PARTIAL_ALLOCATION_AUTHORITY_UNRESOLVED",
+    "reason": "Current official authority proves eligibility but no exact allocation prescription was found for a ticket-level acquisition commission when only part of the acquired quantity is disposed.",
+    "forbidden_inference": "Do not apply commission times disposed quantity divided by acquired quantity without an authoritative prescription."
+  },
+  "terminal": [
+    "COST_BASIS_METHOD_PROVEN_FOR_PURCHASE_PRICE",
+    "CATEGORY_LEVEL_EXPENSES_SUFFICIENT_FOR_SHARED_FEES",
+    "LEGAL_AUTHORITY_AMBIGUOUS_FOR_PARTIAL_ACQUISITION_COMMISSION",
+    "STRATEGIC_STOP"
+  ],
+  "scope_stops": [
+    "no_code_change",
+    "no_test_change",
+    "no_gate3_change",
+    "no_relation_engine",
+    "no_distributed_event_entity",
+    "no_corporate_actions",
+    "no_repos_shorts_lending_derivatives",
+    "no_commit_push_or_pr"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": "broker_reports_g538_financial_profile_qualification_receipt_v0",
+  "profile_id": "broker_reports_semantic_visual_financial_profile_v2",
+  "source": {
+    "kind": "official_public_broker_report_sample",
+    "content_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+    "private_bytes_in_git": false
+  },
+  "one_attempt_policy": {
+    "provider_retries": 0,
+    "provider_merges": 0,
+    "provider_repairs": 0,
+    "manual_value_repairs": 0
+  },
+  "detector": {
+    "valid_regions": 13,
+    "rejected_regions": 2,
+    "invalid_regions_promoted": 0
+  },
+  "semantic_migration": {
+    "accepted": 4,
+    "unsupported": 9,
+    "accepted_shapes": [
+      {"rows": 6, "columns": 32},
+      {"rows": 6, "columns": 7},
+      {"rows": 2, "columns": 12},
+      {"rows": 2, "columns": 8}
+    ],
+    "literal_crop_review": "passed",
+    "raw_values_in_receipt": false
+  },
+  "gate3_financial_result": {
+    "role_complete_facts": 4,
+    "financial_type_counts": {
+      "SECURITY_PURCHASE": 2,
+      "TRANSACTION_CHARGE": 2
+    },
+    "exact_purchase_charge_target_pairs": 2,
+    "required_role_missing_total": 0
+  },
+  "privacy_scan": {
+    "private_paths": 0,
+    "customer_values": 0,
+    "provider_payloads": 0,
+    "status": "passed"
+  },
+  "qualification_status": "passed"
+}

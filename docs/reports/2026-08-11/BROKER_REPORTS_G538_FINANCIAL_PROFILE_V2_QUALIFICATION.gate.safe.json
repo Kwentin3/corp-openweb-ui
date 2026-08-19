@@ -1,0 +1,15 @@
+{
+  "schema_version": "broker_reports_g538_financial_profile_qualification_gate_v0",
+  "profile_id": "broker_reports_semantic_visual_financial_profile_v2",
+  "receipt_sha256": "c266aef5c4f24a79d3c2b5742e08fa19a00fa636e8890c911317b6f7ce0ef055",
+  "hard_gates": {
+    "official_public_source": true,
+    "strict_terminal_schema": true,
+    "literal_transcription_review": true,
+    "invalid_regions_fail_closed": true,
+    "unsupported_tables_not_promoted": true,
+    "no_retry_merge_or_repair": true,
+    "privacy_scan_passed": true
+  },
+  "decision": "qualified"
+}

@@ -67,6 +67,9 @@ class Gate1Normalizer:
         trigger_type: str = "backend_core",
         input_context: dict | None = None,
         extra_private_markers: list[str] | None = None,
+        pdf_table_locator_pages_by_sha256: (
+            dict[str, list[dict[str, Any]]] | None
+        ) = None,
         bounded_graph=None,
         workload_checkpoint: Callable[[], Any] | None = None,
         workload_progress: Callable[[str, dict[str, Any]], Any] | None = None,
@@ -310,6 +313,14 @@ class Gate1Normalizer:
                     container_format=container,
                     content_bytes=content_bytes,
                     source_checksum_sha256=content_sha256,
+                    pdf_table_locator_pages=(
+                        (pdf_table_locator_pages_by_sha256 or {}).get(
+                            content_sha256, []
+                        )
+                        if container == "pdf"
+                        and pdf_table_locator_pages_by_sha256 is not None
+                        else None
+                    ),
                 )
                 full_source_document_summaries.append(full_source_result.summary)
                 table_projection_started = time.perf_counter()
@@ -326,6 +337,63 @@ class Gate1Normalizer:
                     table_projection_runtime_seconds_max,
                     table_projection_elapsed,
                 )
+                if (
+                    container == "pdf"
+                    and pdf_table_locator_pages_by_sha256 is not None
+                ):
+                    locator_pages = (
+                        pdf_table_locator_pages_by_sha256.get(content_sha256, [])
+                    )
+                    expected_pages = sum(
+                        len(
+                            (
+                                payload.get("pdf_text_layer_projection")
+                                if isinstance(payload, dict)
+                                else {}
+                            ).get("page_inventory", [])
+                        )
+                        for payload in full_source_result.payloads
+                        if isinstance(
+                            payload.get("pdf_text_layer_projection"), dict
+                        )
+                    )
+                    located_regions = sum(
+                        len(page.get("regions") or [])
+                        for page in locator_pages
+                        if isinstance(page, dict)
+                    )
+                    ready_projections = sum(
+                        projection.get("projection_status") == "ready"
+                        and projection.get("validator_status") == "passed"
+                        for projection in table_projection_result.projections
+                        if isinstance(projection, dict)
+                        and projection.get("source_format") == "pdf"
+                    )
+                    failed_pages = sum(
+                        not isinstance(page, dict)
+                        or page.get("status") == "failed"
+                        for page in locator_pages
+                    )
+                    if (
+                        len(locator_pages) != expected_pages
+                        or failed_pages
+                        or ready_projections != located_regions
+                    ):
+                        reason = (
+                            "locator_pages_or_native_table_count_mismatch:"
+                            f"expected_pages={expected_pages};"
+                            f"locator_pages={len(locator_pages)};"
+                            f"failed_pages={failed_pages};"
+                            f"located_regions={located_regions};"
+                            f"ready_projections={ready_projections}"
+                        )
+                        blocker = blocker_factory.pdf_table_normalization_incomplete(
+                            run_id,
+                            doc_id,
+                            reason,
+                        )
+                        doc_blockers.append(blocker)
+                        blockers.append(blocker)
             elif container == "zip" and archive_manifest is not None:
                 archive_complete = (
                     archive_manifest.get("terminal_status") == "complete"

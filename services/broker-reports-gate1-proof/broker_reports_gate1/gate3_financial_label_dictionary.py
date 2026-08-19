@@ -30,6 +30,33 @@ GATE3_DICTIONARY_V1_FILE_SHA256 = (
 GATE3_DICTIONARY_V1_MODEL_VIEW_SHA256 = (
     "b5b89e1b17932c6429b71724667053287e65f7a72b0beec7dcd86cc1190d1b5b"
 )
+GATE3_DICTIONARY_V2_VERSION = "2.0.0"
+GATE3_DICTIONARY_V2_RESOURCE = "gate3_financial_label_dictionary.v2.json"
+GATE3_DICTIONARY_V2_FILE_SHA256 = (
+    "a43e20351a83d19e6f12efdcde48a90e5c70fb995c37459d446d10c399109a87"
+)
+GATE3_DICTIONARY_V2_MODEL_VIEW_SHA256 = (
+    "473c66f879a739223a43c812d1bd75c1671bb36beb93a69db94250258a028b96"
+)
+GATE3_DICTIONARY_V2_0_1_VERSION = "2.0.1"
+GATE3_DICTIONARY_V2_0_1_RESOURCE = (
+    "gate3_financial_label_dictionary.v2_0_1.json"
+)
+GATE3_DICTIONARY_V2_0_1_FILE_SHA256 = (
+    "30b395b13387cad5d3d51269bc3bae989bb3b524c9547053841dc5d146c569fe"
+)
+GATE3_DICTIONARY_V2_0_1_MODEL_VIEW_SHA256 = (
+    "7f41ecf9bbe5dee17331a94817d0b3b531421856f4a70492ce1cdb8d1d81b888"
+)
+GATE3_DICTIONARY_V2_1_VERSION = "2.1.0"
+GATE3_DICTIONARY_V2_1_RESOURCE = "gate3_financial_label_dictionary.v2_1.json"
+GATE3_DICTIONARY_V2_1_FILE_SHA256 = (
+    "e82cf0b6b72de17a58771b4214db92d1f84f29366c0cf4a13557b0ddb4de49c7"
+)
+GATE3_DICTIONARY_V2_1_MODEL_VIEW_SHA256 = (
+    "f5cd11d955d28c1fffc9f0bb9d620f3ca350728b42e3fd1b0cd20dc3ac6ee160"
+)
+GATE3_DICTIONARY_CURRENT_VERSION = GATE3_DICTIONARY_V2_0_1_VERSION
 GATE3_DICTIONARY_OPENWEBUI_SKILL_ID = (
     "broker-reports-financial-labels"
 )
@@ -111,7 +138,19 @@ _PUBLISHED_VERSIONS = {
     GATE3_DICTIONARY_V1_VERSION: _PublishedDictionaryResource(
         resource_name=GATE3_DICTIONARY_V1_RESOURCE,
         file_sha256=GATE3_DICTIONARY_V1_FILE_SHA256,
-    )
+    ),
+    GATE3_DICTIONARY_V2_VERSION: _PublishedDictionaryResource(
+        resource_name=GATE3_DICTIONARY_V2_RESOURCE,
+        file_sha256=GATE3_DICTIONARY_V2_FILE_SHA256,
+    ),
+    GATE3_DICTIONARY_V2_0_1_VERSION: _PublishedDictionaryResource(
+        resource_name=GATE3_DICTIONARY_V2_0_1_RESOURCE,
+        file_sha256=GATE3_DICTIONARY_V2_0_1_FILE_SHA256,
+    ),
+    GATE3_DICTIONARY_V2_1_VERSION: _PublishedDictionaryResource(
+        resource_name=GATE3_DICTIONARY_V2_1_RESOURCE,
+        file_sha256=GATE3_DICTIONARY_V2_1_FILE_SHA256,
+    ),
 }
 
 
@@ -126,7 +165,7 @@ class Gate3FinancialLabelDictionary:
 
     def load_published(
         self,
-        semantic_version: str = GATE3_DICTIONARY_V1_VERSION,
+        semantic_version: str = GATE3_DICTIONARY_CURRENT_VERSION,
     ) -> dict[str, Any]:
         resource = _PUBLISHED_VERSIONS.get(semantic_version)
         if resource is None:
@@ -152,7 +191,7 @@ class Gate3FinancialLabelDictionary:
 
     def render_model_markdown(
         self,
-        semantic_version: str = GATE3_DICTIONARY_V1_VERSION,
+        semantic_version: str = GATE3_DICTIONARY_CURRENT_VERSION,
     ) -> str:
         dictionary = self.load_published(semantic_version)
         model_view = _render_model_markdown(dictionary)
@@ -168,7 +207,7 @@ class Gate3FinancialLabelDictionary:
 
     def managed_binding(
         self,
-        semantic_version: str = GATE3_DICTIONARY_V1_VERSION,
+        semantic_version: str = GATE3_DICTIONARY_CURRENT_VERSION,
     ) -> dict[str, Any]:
         """Return stable OpenWebUI projection IDs for the exact version."""
 
@@ -181,11 +220,9 @@ class Gate3FinancialLabelDictionary:
             "dictionary_identity": {
                 "dictionary_id": dictionary["dictionary_id"],
                 "semantic_version": dictionary["semantic_version"],
-                "file_sha256": (
-                    GATE3_DICTIONARY_V1_FILE_SHA256
-                    if semantic_version == GATE3_DICTIONARY_V1_VERSION
-                    else ""
-                ),
+                "file_sha256": _PUBLISHED_VERSIONS[
+                    semantic_version
+                ].file_sha256,
                 "model_view_sha256": _sha256(
                     model_view.encode("utf-8")
                 ),
@@ -557,12 +594,20 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "GATE3_DICTIONARY_APPROVAL_SCHEMA_VERSION",
+    "GATE3_DICTIONARY_CURRENT_VERSION",
     "GATE3_DICTIONARY_DRAFT_SCHEMA_VERSION",
     "GATE3_DICTIONARY_ID",
     "GATE3_DICTIONARY_SCHEMA_VERSION",
     "GATE3_DICTIONARY_V1_FILE_SHA256",
     "GATE3_DICTIONARY_V1_MODEL_VIEW_SHA256",
     "GATE3_DICTIONARY_V1_VERSION",
+    "GATE3_DICTIONARY_V2_FILE_SHA256",
+    "GATE3_DICTIONARY_V2_MODEL_VIEW_SHA256",
+    "GATE3_DICTIONARY_V2_VERSION",
+    "GATE3_DICTIONARY_V2_0_1_VERSION",
+    "GATE3_DICTIONARY_V2_1_FILE_SHA256",
+    "GATE3_DICTIONARY_V2_1_MODEL_VIEW_SHA256",
+    "GATE3_DICTIONARY_V2_1_VERSION",
     "GATE3_DICTIONARY_OPENWEBUI_SKILL_ID",
     "GATE3_DICTIONARY_OPENWEBUI_TOOL_ID",
     "GATE3_DICTIONARY_OPENWEBUI_TOOL_METHOD",

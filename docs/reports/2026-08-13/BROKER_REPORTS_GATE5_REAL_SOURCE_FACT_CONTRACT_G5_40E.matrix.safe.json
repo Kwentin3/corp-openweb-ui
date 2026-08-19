@@ -1,0 +1,277 @@
+{
+  "schema_version": "broker_reports_gate5_real_source_fact_contract_matrix_v0",
+  "goal": "G5.40E",
+  "terminal": "REAL_SOURCE_CONTRACT_PARTIALLY_PROVEN",
+  "statuses": [
+    "UPSTREAM_SOURCE_FACT_LOSS_ELIMINATED",
+    "SOURCE_CONTEXT_PRESERVED",
+    "NO_UNSUPPORTED_SEMANTIC_INFERENCE"
+  ],
+  "classification_vocabulary": [
+    "AVAILABLE",
+    "MISSING_FROM_SOURCE",
+    "SOURCE_EVIDENCE_INSUFFICIENT",
+    "METHODOLOGY_UNRESOLVED"
+  ],
+  "lost_upstream_count": 0,
+  "provider_policy": {
+    "frozen_replays": 1,
+    "provider_submissions": 15,
+    "retry_count": 0,
+    "repair_count": 0,
+    "fallback_count": 0,
+    "provider_rerun_count": 0
+  },
+  "documents": [
+    {
+      "sample_id": "DEV_PUBLIC_TBANK",
+      "source_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+      "canonical": {
+        "physical_layout": "single_payload",
+        "nodes": 11,
+        "tables": 4,
+        "logical_rows": 16,
+        "cells": 274
+      },
+      "gate3": {
+        "chunks": 1,
+        "eligible_targets": 294,
+        "lost_targets": 0,
+        "duplicated_targets": 0,
+        "annotations": 21
+      },
+      "required_facts": [
+        {
+          "meaning": "security acquisition",
+          "source_present": "YES_EXACT_LITERAL_BOUND",
+          "canonical_preserved": true,
+          "gate3_bound": 5,
+          "gate4_ready": 5,
+          "consumer": "ready",
+          "classification": "AVAILABLE"
+        },
+        {
+          "meaning": "security disposal",
+          "source_present": "NO_IN_DOCUMENT_SCOPE",
+          "canonical_preserved": true,
+          "gate3_bound": 0,
+          "gate4_ready": 0,
+          "consumer": "disposal_missing",
+          "classification": "MISSING_FROM_SOURCE"
+        },
+        {
+          "meaning": "commission detail",
+          "source_present": "YES",
+          "canonical_preserved": true,
+          "gate3_bound": 16,
+          "gate4_ready": 15,
+          "consumer": "detail_preserved_without_reconciliation",
+          "classification": "AVAILABLE"
+        },
+        {
+          "meaning": "commission aggregate",
+          "source_present": "NO_ACCEPTED_AGGREGATE",
+          "canonical_preserved": true,
+          "gate3_bound": 0,
+          "gate4_ready": 0,
+          "consumer": "none",
+          "classification": "MISSING_FROM_SOURCE"
+        }
+      ]
+    },
+    {
+      "sample_id": "HOLDOUT_REAL_001",
+      "source_sha256": "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+      "canonical": {
+        "physical_layout": "chunked",
+        "nodes": 25,
+        "tables": 14,
+        "logical_rows": 201,
+        "cells": 2237
+      },
+      "gate3": {
+        "chunks": 1,
+        "eligible_targets": 2444,
+        "lost_targets": 0,
+        "duplicated_targets": 0,
+        "annotations": 63
+      },
+      "required_facts": [
+        {
+          "meaning": "security acquisition",
+          "source_present": "YES_EXACT_LITERAL_BOUND",
+          "canonical_preserved": true,
+          "gate3_bound": 8,
+          "gate4_ready": 8,
+          "consumer": "ready_but_total_prior_quantity_insufficient",
+          "classification": "SOURCE_EVIDENCE_INSUFFICIENT"
+        },
+        {
+          "meaning": "security disposal",
+          "source_present": "YES_EXACT_LITERAL_BOUND",
+          "canonical_preserved": true,
+          "gate3_bound": 12,
+          "gate4_ready": 12,
+          "consumer": "ready_but_total_prior_quantity_insufficient",
+          "classification": "SOURCE_EVIDENCE_INSUFFICIENT"
+        },
+        {
+          "meaning": "commission detail and aggregate",
+          "source_present": "YES",
+          "canonical_preserved": true,
+          "gate3_bound": 28,
+          "gate4_ready": 28,
+          "consumer": "hybrid_preserved_without_reconciliation",
+          "classification": "AVAILABLE"
+        },
+        {
+          "meaning": "withheld-tax aggregate",
+          "source_present": "PARTIAL_NO_ROW_LOCAL_CURRENCY",
+          "canonical_preserved": true,
+          "gate3_bound": 1,
+          "gate4_ready": 0,
+          "consumer": "aggregate_preserved_as_role_incomplete",
+          "classification": "SOURCE_EVIDENCE_INSUFFICIENT"
+        }
+      ]
+    },
+    {
+      "sample_id": "LARGE_REAL_001",
+      "source_sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+      "canonical": {
+        "physical_layout": "chunked",
+        "nodes": 204,
+        "tables": 0,
+        "logical_rows": 0,
+        "cells": 0,
+        "source_text_and_page_context_preserved": true
+      },
+      "gate3": {
+        "chunks": 4,
+        "eligible_targets": 140,
+        "lost_targets": 0,
+        "duplicated_targets": 0,
+        "annotations": 90
+      },
+      "required_facts": [
+        {
+          "meaning": "security acquisition and disposal",
+          "source_present": "MIXED_EXACT_AND_INCOMPLETE_BINDINGS",
+          "canonical_preserved": true,
+          "gate3_bound": 21,
+          "gate4_ready": 8,
+          "consumer": "8_ready_13_source_evidence_insufficient",
+          "classification": "SOURCE_EVIDENCE_INSUFFICIENT"
+        },
+        {
+          "meaning": "commission detail and aggregate",
+          "source_present": "YES_WITH_MIXED_ROLE_COMPLETENESS",
+          "canonical_preserved": true,
+          "gate3_bound": 7,
+          "gate4_ready": 1,
+          "consumer": "hybrid_preserved_without_reconciliation",
+          "classification": "SOURCE_EVIDENCE_INSUFFICIENT"
+        },
+        {
+          "meaning": "withheld-tax detail and aggregate",
+          "source_present": "YES_WITH_MIXED_ROLE_COMPLETENESS",
+          "canonical_preserved": true,
+          "gate3_bound": 37,
+          "gate4_ready": 12,
+          "consumer": "hybrid_preserved_without_reconciliation",
+          "classification": "SOURCE_EVIDENCE_INSUFFICIENT"
+        },
+        {
+          "meaning": "direct disposal commission relation",
+          "source_present": "NO_SAFE_CANONICAL_ROW_IDENTITY",
+          "canonical_preserved": true,
+          "gate3_bound": 0,
+          "gate4_ready": 0,
+          "consumer": "ordinary_text_node_equality_rejected",
+          "classification": "SOURCE_EVIDENCE_INSUFFICIENT"
+        }
+      ]
+    },
+    {
+      "sample_id": "PUBLIC_FIDELITY_STATEMENT",
+      "source_sha256": "36a166a5a13e6d6d86b391233023f83f6f7b4d268a4a23fbae01cb81290e3b96",
+      "canonical": {
+        "physical_layout": "single_payload",
+        "nodes": 55,
+        "tables": 0,
+        "logical_rows": 0,
+        "cells": 0,
+        "source_text_and_page_context_preserved": true
+      },
+      "gate3": {
+        "chunks": 2,
+        "eligible_targets": 28,
+        "lost_targets": 0,
+        "duplicated_targets": 0,
+        "annotations": 12
+      },
+      "required_facts": [
+        {
+          "meaning": "security acquisition and disposal",
+          "source_present": "PARTIAL_DATE_AND_CURRENCY_AUTHORITY",
+          "canonical_preserved": true,
+          "gate3_bound": 2,
+          "gate4_ready": 0,
+          "consumer": "partial_date_or_required_role_missing",
+          "classification": "SOURCE_EVIDENCE_INSUFFICIENT"
+        },
+        {
+          "meaning": "currency",
+          "source_present": "SYMBOL_ONLY",
+          "canonical_preserved": true,
+          "gate3_bound": 8,
+          "gate4_ready": 8,
+          "consumer": "non_iso_literal_rejected_without_mapping",
+          "classification": "SOURCE_EVIDENCE_INSUFFICIENT"
+        },
+        {
+          "meaning": "commission detail and aggregate",
+          "source_present": "YES_SYMBOL_CURRENCY",
+          "canonical_preserved": true,
+          "gate3_bound": 3,
+          "gate4_ready": 3,
+          "consumer": "hybrid_preserved_without_reconciliation",
+          "classification": "AVAILABLE"
+        },
+        {
+          "meaning": "withheld-tax detail and aggregate",
+          "source_present": "YES_SYMBOL_CURRENCY",
+          "canonical_preserved": true,
+          "gate3_bound": 2,
+          "gate4_ready": 2,
+          "consumer": "hybrid_preserved_without_reconciliation",
+          "classification": "AVAILABLE"
+        }
+      ]
+    }
+  ],
+  "corpus_totals": {
+    "canonical_targets": 2906,
+    "lost_targets": 0,
+    "duplicated_targets": 0,
+    "gate3_annotations": 186,
+    "gate4_facts": 186,
+    "gate4_role_complete": 123,
+    "gate4_role_incomplete": 63,
+    "security_facts": 48,
+    "security_tax_ready": 33,
+    "security_source_evidence_insufficient": 15,
+    "commission_detail": 47,
+    "commission_aggregate": 7,
+    "withheld_tax_detail": 37,
+    "withheld_tax_aggregate": 3,
+    "stored_financial_event_relations": 0
+  },
+  "source_evidence_gaps": [
+    "DEV_PUBLIC_TBANK has no accepted disposal in document scope",
+    "HOLDOUT_REAL_001 does not provide enough prior acquisition quantity for the accepted disposals in the bounded source scope",
+    "LARGE_REAL_001 contains mixed complete and incomplete source bindings and no safe row identity for direct-disposal commission",
+    "PUBLIC_FIDELITY_STATEMENT supplies partial dates and symbol-only currency authority for the tax-input slice"
+  ],
+  "private_values_committed": false
+}

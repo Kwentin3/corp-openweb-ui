@@ -1022,6 +1022,7 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
 
     def test_structural_shadow_failure_is_safe_and_visible_to_passport_llm(self):
         pipe = self._passport_pipe()
+        pipe.valves.pdf_table_intake_enabled = False
         pipe.valves.pdf_structural_repair_shadow_enabled = True
         pipe.valves.pdf_semantic_header_shadow_enabled = True
 

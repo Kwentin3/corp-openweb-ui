@@ -1,0 +1,392 @@
+{
+  "bounded_semantic_review": {
+    "aggregate_variant_retention": "passed",
+    "coherent_component_boundary": "passed",
+    "honest_applicability_question": "passed",
+    "obligation_package_completeness": "passed",
+    "review_sha256": "731ae53ed77046cfd89b2aac8e53f5416c51cdb732709327a7702c2c28de1619",
+    "status": "passed"
+  },
+  "candidate": {
+    "sha256": "8d2a4ad11c766a5d346f4840b033d08e6c854fe07e336836541f9437ea8bf19d",
+    "utf8_bytes": 5391
+  },
+  "deterministic_validation": {
+    "applicability_audit": {
+      "rows": [
+        {
+          "allowed_authority_classes": [
+            "trusted_declaration_definition"
+          ],
+          "domain_id": "filing_and_party_identity",
+          "mode": "always",
+          "official_evidence_refs": [
+            "official_surface_01"
+          ],
+          "policy": "definition_mandatory"
+        },
+        {
+          "allowed_authority_classes": [
+            "trusted_declaration_definition"
+          ],
+          "domain_id": "declaration_budget_disposition",
+          "mode": "always",
+          "official_evidence_refs": [
+            "official_surface_02"
+          ],
+          "policy": "definition_mandatory"
+        },
+        {
+          "allowed_authority_classes": [
+            "trusted_declaration_definition"
+          ],
+          "domain_id": "income_group_tax_results",
+          "mode": "always",
+          "official_evidence_refs": [
+            "official_surface_04"
+          ],
+          "policy": "definition_mandatory"
+        },
+        {
+          "allowed_authority_classes": [
+            "authenticated_declarant_attestation",
+            "user_case_evidence"
+          ],
+          "domain_id": "refundable_amount_disposal",
+          "mode": "conditional",
+          "official_evidence_refs": [
+            "official_surface_03"
+          ],
+          "policy": "elective_claim"
+        },
+        {
+          "allowed_authority_classes": [
+            "financial_case_evidence",
+            "user_case_evidence",
+            "validated_typed_component"
+          ],
+          "domain_id": "taxable_income_by_source",
+          "mode": "conditional",
+          "official_evidence_refs": [
+            "official_surface_05",
+            "official_surface_06"
+          ],
+          "policy": "factual_occurrence"
+        },
+        {
+          "allowed_authority_classes": [
+            "published_typed_classification",
+            "validated_typed_component"
+          ],
+          "domain_id": "professional_activity_results",
+          "mode": "conditional",
+          "official_evidence_refs": [
+            "official_surface_07"
+          ],
+          "policy": "typed_legal_classification"
+        },
+        {
+          "allowed_authority_classes": [
+            "authenticated_declarant_attestation",
+            "user_case_evidence"
+          ],
+          "domain_id": "deduction_claims",
+          "mode": "conditional",
+          "official_evidence_refs": [
+            "official_surface_07",
+            "official_surface_09",
+            "official_surface_11",
+            "official_surface_14"
+          ],
+          "policy": "elective_claim"
+        },
+        {
+          "allowed_authority_classes": [
+            "published_typed_classification",
+            "validated_typed_component"
+          ],
+          "domain_id": "tax_exempt_income",
+          "mode": "conditional",
+          "official_evidence_refs": [
+            "official_surface_08"
+          ],
+          "policy": "typed_legal_classification"
+        },
+        {
+          "allowed_authority_classes": [
+            "published_typed_classification",
+            "validated_typed_component"
+          ],
+          "domain_id": "property_and_vehicle_dispositions",
+          "mode": "conditional",
+          "official_evidence_refs": [
+            "official_surface_10",
+            "official_surface_13"
+          ],
+          "policy": "typed_legal_classification"
+        },
+        {
+          "allowed_authority_classes": [
+            "published_typed_classification",
+            "validated_typed_component"
+          ],
+          "domain_id": "gift_income",
+          "mode": "conditional",
+          "official_evidence_refs": [
+            "official_surface_10"
+          ],
+          "policy": "typed_legal_classification"
+        },
+        {
+          "allowed_authority_classes": [
+            "published_typed_classification",
+            "validated_typed_component"
+          ],
+          "domain_id": "financial_investment_results",
+          "mode": "conditional",
+          "official_evidence_refs": [
+            "official_surface_12"
+          ],
+          "policy": "typed_legal_classification"
+        }
+      ],
+      "status": "passed"
+    },
+    "component_audit": {
+      "rows": [
+        {
+          "availability": "missing",
+          "contract_ids": [],
+          "domain_id": "filing_and_party_identity",
+          "family": "filing_and_party_identity"
+        },
+        {
+          "availability": "missing",
+          "contract_ids": [],
+          "domain_id": "declaration_budget_disposition",
+          "family": "declaration_budget_disposition"
+        },
+        {
+          "availability": "published_bounded",
+          "contract_ids": [
+            "broker_reports_gate5_income_group_tax_base_model_v0"
+          ],
+          "domain_id": "income_group_tax_results",
+          "family": "income_group_tax_results"
+        },
+        {
+          "availability": "missing",
+          "contract_ids": [],
+          "domain_id": "refundable_amount_disposal",
+          "family": "refundable_amount_disposal_election"
+        },
+        {
+          "availability": "missing",
+          "contract_ids": [],
+          "domain_id": "taxable_income_by_source",
+          "family": "taxable_income_by_source"
+        },
+        {
+          "availability": "missing",
+          "contract_ids": [],
+          "domain_id": "professional_activity_results",
+          "family": "professional_activity_results"
+        },
+        {
+          "availability": "missing",
+          "contract_ids": [],
+          "domain_id": "deduction_claims",
+          "family": "deduction_claims"
+        },
+        {
+          "availability": "missing",
+          "contract_ids": [],
+          "domain_id": "tax_exempt_income",
+          "family": "tax_exempt_income"
+        },
+        {
+          "availability": "missing",
+          "contract_ids": [],
+          "domain_id": "property_and_vehicle_dispositions",
+          "family": "property_and_vehicle_disposition_results"
+        },
+        {
+          "availability": "missing",
+          "contract_ids": [],
+          "domain_id": "gift_income",
+          "family": "gift_income_classification"
+        },
+        {
+          "availability": "published_bounded",
+          "contract_ids": [
+            "broker_reports_gate5_securities_disposal_tax_model_v0",
+            "broker_reports_gate5_securities_disposal_operation_tax_model_v0",
+            "broker_reports_gate5_tax_period_category_tax_model_v0"
+          ],
+          "domain_id": "financial_investment_results",
+          "family": "financial_investment_results"
+        }
+      ],
+      "status": "passed"
+    },
+    "definition_id": "ru_3ndfl_2025_root_declaration",
+    "definition_version": "2026-08-10.1",
+    "domain_count": 11,
+    "obligation_accounting": {
+      "duplicate_obligation_ids": [],
+      "missing_obligation_ids": [],
+      "obligation_count": 25,
+      "package_id": "fns-ru-3ndfl-2025-reviewed-obligations",
+      "package_sha256": "8065a2047b2d7bf5a1a3b87ed4dd49f65bd39e97b6a42c1acf24d2d62548b23c",
+      "package_version": "2026-08-10.1",
+      "rows": [
+        {
+          "domain_id": "deduction_claims",
+          "obligation_id": "obl_author_creator_professional_deduction_claim"
+        },
+        {
+          "domain_id": "deduction_claims",
+          "obligation_id": "obl_civil_contract_professional_deduction_claim"
+        },
+        {
+          "domain_id": "declaration_budget_disposition",
+          "obligation_id": "obl_declaration_budget_disposition"
+        },
+        {
+          "domain_id": "financial_investment_results",
+          "obligation_id": "obl_digital_financial_asset_and_right_results"
+        },
+        {
+          "domain_id": "filing_and_party_identity",
+          "obligation_id": "obl_filing_instance_identity"
+        },
+        {
+          "domain_id": "taxable_income_by_source",
+          "obligation_id": "obl_foreign_source_taxable_income_and_foreign_tax"
+        },
+        {
+          "domain_id": "gift_income",
+          "obligation_id": "obl_gift_income_classification"
+        },
+        {
+          "domain_id": "income_group_tax_results",
+          "obligation_id": "obl_income_group_tax_base_results"
+        },
+        {
+          "domain_id": "income_group_tax_results",
+          "obligation_id": "obl_income_group_tax_settlement_results"
+        },
+        {
+          "domain_id": "deduction_claims",
+          "obligation_id": "obl_investment_deduction_claims_and_limits"
+        },
+        {
+          "domain_id": "financial_investment_results",
+          "obligation_id": "obl_investment_partnership_results"
+        },
+        {
+          "domain_id": "deduction_claims",
+          "obligation_id": "obl_long_term_savings_deduction_claims"
+        },
+        {
+          "domain_id": "professional_activity_results",
+          "obligation_id": "obl_professional_activity_income_expense_and_advances"
+        },
+        {
+          "domain_id": "deduction_claims",
+          "obligation_id": "obl_property_acquisition_construction_deduction_claim"
+        },
+        {
+          "domain_id": "property_and_vehicle_dispositions",
+          "obligation_id": "obl_property_and_right_disposition_results"
+        },
+        {
+          "domain_id": "deduction_claims",
+          "obligation_id": "obl_property_interest_deduction_claim"
+        },
+        {
+          "domain_id": "refundable_amount_disposal",
+          "obligation_id": "obl_refundable_amount_disposal_election"
+        },
+        {
+          "domain_id": "taxable_income_by_source",
+          "obligation_id": "obl_russian_source_taxable_income"
+        },
+        {
+          "domain_id": "financial_investment_results",
+          "obligation_id": "obl_securities_and_derivatives_results"
+        },
+        {
+          "domain_id": "filing_and_party_identity",
+          "obligation_id": "obl_signer_and_representation_authority"
+        },
+        {
+          "domain_id": "deduction_claims",
+          "obligation_id": "obl_social_deduction_claims_and_limits"
+        },
+        {
+          "domain_id": "deduction_claims",
+          "obligation_id": "obl_standard_deduction_claims"
+        },
+        {
+          "domain_id": "tax_exempt_income",
+          "obligation_id": "obl_tax_exempt_income_classification_and_limits"
+        },
+        {
+          "domain_id": "filing_and_party_identity",
+          "obligation_id": "obl_taxpayer_identity_and_period_status"
+        },
+        {
+          "domain_id": "property_and_vehicle_dispositions",
+          "obligation_id": "obl_vehicle_disposition_results"
+        }
+      ],
+      "status": "passed",
+      "unknown_obligation_ids": []
+    },
+    "schema_version": "broker_reports_gate5_full_declaration_definition_validation_v1",
+    "status": "eligible_for_review",
+    "target_independence_audit": {
+      "forbidden_domain_term_pattern": "\\b(xml|xsd|xpath|pdf|namespace|encoding|tag|element|attribute|section|appendix|page|line|field|coordinate|formula|predicate|workflow|roadmap|python|javascript|sql|if|then|unless)\\b",
+      "forbidden_schema_keys": [
+        "action",
+        "code",
+        "condition",
+        "coordinate",
+        "element_order",
+        "expression",
+        "fact_path",
+        "formula",
+        "namespace",
+        "predicate",
+        "query",
+        "question",
+        "rule",
+        "step",
+        "workflow",
+        "xml_tag",
+        "xpath"
+      ],
+      "status": "passed"
+    }
+  },
+  "first_downstream_blocker": "trusted case-period filing-context binding for filing_and_party_identity is absent",
+  "g5_29": "ALLOWED_NOT_IMPLEMENTED",
+  "goal": "G5.28B",
+  "resolution_probe": {
+    "id_version_hash_match": "resolved",
+    "wrong_hash": "fails_closed"
+  },
+  "runtime_capability_basis_changed": false,
+  "schema_version": "broker_reports_gate5_obligation_backed_full_declaration_validation_evidence_v1",
+  "status": "PROVEN",
+  "trusted_publication": {
+    "definition_id": "ru_3ndfl_2025_root_declaration",
+    "definition_sha256": "8d2a4ad11c766a5d346f4840b033d08e6c854fe07e336836541f9437ea8bf19d",
+    "definition_version": "2026-08-10.1",
+    "obligation_package_sha256": "8065a2047b2d7bf5a1a3b87ed4dd49f65bd39e97b6a42c1acf24d2d62548b23c",
+    "schema_version": "broker_reports_gate5_full_declaration_definition_publication_v1",
+    "status": "trusted_repository_published",
+    "validation_sha256": "f3e4993ac54f154be53cb5d21a4ffaed0713cf49b3025b10d4e9b8b9c1bf79f6"
+  }
+}

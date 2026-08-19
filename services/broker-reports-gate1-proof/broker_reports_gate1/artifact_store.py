@@ -84,7 +84,9 @@ class SqliteArtifactStoreAdapter:
                 return stored
             raise ArtifactStoreError(
                 "artifact_immutable",
-                "Existing artifact ids cannot be overwritten with different content",
+                "Existing "
+                + record.artifact_type
+                + " artifact ids cannot be overwritten with different content",
             )
         self._validate_record(record)
         payload_ref = record.payload_ref
@@ -218,7 +220,9 @@ class SqliteArtifactStoreAdapter:
                 ) != _immutable_record_material(record, incoming_payload):
                     raise ArtifactStoreError(
                         "artifact_immutable",
-                        "Existing artifact ids cannot be overwritten with different content",
+                        "Existing "
+                        + record.artifact_type
+                        + " artifact ids cannot be overwritten with different content",
                     )
                 prepared.append(
                     (

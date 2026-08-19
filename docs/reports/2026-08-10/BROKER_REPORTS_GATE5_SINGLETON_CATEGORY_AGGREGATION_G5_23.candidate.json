@@ -1,0 +1,255 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_authoring_language_v2",
+  "definition_id": "ru.3ndfl.2025.securities_disposal.declaration_surface",
+  "definition_version": "2026.2-proof",
+  "target": {
+    "jurisdiction": "RU",
+    "tax_period": "2025",
+    "form": "3-NDFL",
+    "knd": "1151020",
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "electronic_format_version": "5.20",
+    "xsd": "NO_NDFL3_1_033_00_05_20_01.xsd"
+  },
+  "scope": {
+    "domain": "2025 Russian 3-NDFL declaration authoring for securities-disposal income.",
+    "taxpayer_profile": "Russian tax resident declaring securities operations outside an individual investment account.",
+    "operation_profile": "Organized-market securities operations assigned Appendix 8 operation code 01 and, for the stated resident scope, income group 02 and income type 003.",
+    "boundary": "Covers production of one complete-category Appendix 8 securities occurrence, the corresponding income-group tax-base semantics, and assessment of the required group-bound Section 2 declaration surface. Excludes other operation families, individual investment accounts, final XML serialization and validation, PDF rendering, filing, and tax-payable calculation."
+  },
+  "requirements": [
+    {
+      "requirement_id": "appendix8_complete_securities_occurrence",
+      "official_requirement": "For organized-market securities operations outside an individual investment account, produce a repeatable ДохОперЦБ occurrence with operation kind 01, aggregate income, related expenses, expenses reducing income, and the loss-treatment indicator.",
+      "evidence_refs": [
+        "appendix8_form_lines_010_050",
+        "appendix8_procedure_paragraphs_97_98",
+        "appendix8_operation_code_01",
+        "appendix8_format_table_4_46",
+        "appendix8_xsd_contract"
+      ],
+      "semantic_outputs": [
+        "appendix8_operation_kind_01",
+        "appendix8_aggregate_income",
+        "appendix8_related_expenses",
+        "appendix8_income_reducing_expenses",
+        "appendix8_loss_treatment_indicator",
+        "appendix8_dohopercb_occurrence"
+      ],
+      "runtime_support": "supported",
+      "compositions": [
+        {
+          "capability_id": "execute_published_typed_behavior_v1",
+          "behavior_ref": {
+            "methodology_id": "ru-ndfl-securities-tax-model-proof",
+            "methodology_version": "2026.1-experimental",
+            "behavior_id": "securities_disposal_operation_tax_model_v0"
+          },
+          "artifact_refs": [
+            {
+              "artifact_kind": "trusted_methodology",
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_version": "2026.1-experimental"
+            }
+          ]
+        },
+        {
+          "capability_id": "aggregate_complete_category_scope_v0",
+          "behavior_ref": null,
+          "artifact_refs": [
+            {
+              "artifact_kind": "trusted_methodology",
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_version": "2026.1-experimental"
+            },
+            {
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_version": "2026.0-proof"
+            }
+          ]
+        },
+        {
+          "capability_id": "project_validated_declaration_fragment_v0",
+          "behavior_ref": null,
+          "artifact_refs": [
+            {
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_version": "2026.0-proof"
+            }
+          ]
+        }
+      ],
+      "gap_refs": []
+    },
+    {
+      "requirement_id": "section2_income_group_tax_base_semantics",
+      "official_requirement": "For the securities income group, derive total income, taxable income, accepted expenses and the tax base after applicable non-taxable income and deductions, with relevant Appendix 8 securities expenses contributing to the accepted-expense amount.",
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "appendix8_procedure_paragraphs_97_98"
+      ],
+      "semantic_outputs": [
+        "section2_income_group_total_income",
+        "section2_income_group_taxable_income",
+        "section2_income_group_accepted_expenses",
+        "section2_income_group_tax_base",
+        "section2_appendix8_expense_contribution"
+      ],
+      "runtime_support": "supported",
+      "compositions": [
+        {
+          "capability_id": "execute_published_typed_behavior_v1",
+          "behavior_ref": {
+            "methodology_id": "ru-ndfl-securities-tax-model-proof",
+            "methodology_version": "2026.1-experimental",
+            "behavior_id": "securities_disposal_operation_tax_model_v0"
+          },
+          "artifact_refs": [
+            {
+              "artifact_kind": "trusted_methodology",
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_version": "2026.1-experimental"
+            }
+          ]
+        },
+        {
+          "capability_id": "aggregate_complete_category_scope_v0",
+          "behavior_ref": null,
+          "artifact_refs": [
+            {
+              "artifact_kind": "trusted_methodology",
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_version": "2026.1-experimental"
+            },
+            {
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_version": "2026.0-proof"
+            }
+          ]
+        },
+        {
+          "capability_id": "execute_published_typed_behavior_v1",
+          "behavior_ref": {
+            "methodology_id": "ru-ndfl-securities-tax-model-proof",
+            "methodology_version": "2026.2-experimental",
+            "behavior_id": "securities_income_group_tax_base_v0"
+          },
+          "artifact_refs": [
+            {
+              "artifact_kind": "trusted_methodology",
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_version": "2026.2-experimental"
+            }
+          ]
+        }
+      ],
+      "gap_refs": []
+    },
+    {
+      "requirement_id": "section2_group_bound_declaration_projection",
+      "official_requirement": "Produce a separate group-bound Section 2 declaration structure for resident securities operations outside an individual investment account, using income group 02 and income type 003 and exposing the required income, non-taxable income, taxable income, deduction, accepted-expense and tax-base fields.",
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "securities_income_group_02_type_003",
+        "section2_electronic_contract"
+      ],
+      "semantic_outputs": [
+        "section2_income_group_code_02",
+        "section2_income_type_code_003",
+        "section2_total_income",
+        "section2_non_taxable_income",
+        "section2_taxable_income",
+        "section2_deductions",
+        "section2_accepted_expenses",
+        "section2_tax_base",
+        "section2_group_bound_calculation_structure"
+      ],
+      "runtime_support": "unsupported",
+      "compositions": [
+        {
+          "capability_id": "execute_published_typed_behavior_v1",
+          "behavior_ref": {
+            "methodology_id": "ru-ndfl-securities-tax-model-proof",
+            "methodology_version": "2026.2-experimental",
+            "behavior_id": "securities_income_group_tax_base_v0"
+          },
+          "artifact_refs": [
+            {
+              "artifact_kind": "trusted_methodology",
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_version": "2026.2-experimental"
+            }
+          ]
+        }
+      ],
+      "gap_refs": [
+        "section2_validated_projection_artifact_missing",
+        "section2_projection_contract_incompatible"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "gap_id": "section2_validated_projection_artifact_missing",
+      "requirement_id": "section2_group_bound_declaration_projection",
+      "gap_type": "missing_artifact",
+      "required_semantic": "A published, evidence-bound declaration projection must map the income-group tax-base semantics and the fixed group 02 and income type 003 classifications into the required Section 2 fields and group-bound electronic structure.",
+      "related_capability_ids": [
+        "project_validated_declaration_fragment_v0"
+      ],
+      "related_artifact_refs": [
+        {
+          "artifact_kind": "trusted_methodology",
+          "artifact_id": "ru-ndfl-securities-tax-model-proof",
+          "artifact_version": "2026.2-experimental"
+        },
+        {
+          "artifact_kind": "validated_declaration_projection",
+          "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+          "artifact_version": "2026.0-proof"
+        }
+      ],
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "securities_income_group_02_type_003",
+        "section2_electronic_contract"
+      ],
+      "explanation": "The supplied artifacts publish a Section 2 tax-base calculation behavior and an Appendix 8 projection, but no validated declaration projection artifact bound to the supplied Section 2 form, classification and electronic-contract evidence."
+    },
+    {
+      "gap_id": "section2_projection_contract_incompatible",
+      "requirement_id": "section2_group_bound_declaration_projection",
+      "gap_type": "incompatible_contract",
+      "required_semantic": "An executable projection contract must consume the provenance-retaining income-group tax-base model and produce a group-bound Section 2 structure containing the required classifications and lines 001 through 060 semantics.",
+      "related_capability_ids": [
+        "execute_published_typed_behavior_v1",
+        "project_validated_declaration_fragment_v0"
+      ],
+      "related_artifact_refs": [
+        {
+          "artifact_kind": "trusted_methodology",
+          "artifact_id": "ru-ndfl-securities-tax-model-proof",
+          "artifact_version": "2026.2-experimental"
+        },
+        {
+          "artifact_kind": "validated_declaration_projection",
+          "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+          "artifact_version": "2026.0-proof"
+        }
+      ],
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "securities_income_group_02_type_003",
+        "section2_electronic_contract"
+      ],
+      "explanation": "The published tax-base behavior returns a calculation model, while the supplied projection contract accepts only the five Appendix 8 semantics and returns an Appendix 8 fragment. No supplied contract composes that tax-base output into the required Section 2 structure."
+    }
+  ],
+  "first_blocking_gap_id": "section2_validated_projection_artifact_missing"
+}
