@@ -159,7 +159,8 @@ def evaluate_remote_runtime(
         == expected_manifest["loader"]["content_sha256"],
         "fitz_version_exact": runtime.get("fitz_version")
         == expected_manifest["runtime"]["fitz_version"],
-        "workload_quiescent": workload.get("nonterminal_jobs") == 0,
+        "workload_quiescent": workload.get("release_blocking_jobs") == 0,
+        "parked_reviews_safe": workload.get("unsafe_review_jobs") == 0,
         "workload_temp_clean": workload.get("owned_temp_entries") == 0,
         "release_staging_clean": runtime.get("release_staging_entries") == 0,
         "rollback_identity_exact": (
@@ -173,6 +174,47 @@ def evaluate_remote_runtime(
         ),
     }
     return checks
+
+
+def evaluate_route_activation(
+    *,
+    expected_manifest: Mapping[str, Any],
+    gate1_valves: Mapping[str, Any],
+    domain_valves: Mapping[str, Any],
+) -> dict[str, bool]:
+    runtime = dict(expected_manifest.get("runtime") or {})
+    provider_policy = dict(expected_manifest.get("provider_policy") or {})
+    source_bound = dict(provider_policy.get("source_bound_table_contract") or {})
+    semantic = dict(provider_policy.get("semantic_visual_table_contract") or {})
+    return {
+        "source_bound_table_route_default_on": (
+            gate1_valves.get("pdf_table_intake_enabled") is True
+            and gate1_valves.get("pdf_dual_vlm_enabled") is False
+            and gate1_valves.get(
+                "pdf_semantic_visual_table_downstream_enabled"
+            )
+            is False
+            and domain_valves.get(
+                "allow_standalone_semantic_visual_projections"
+            )
+            is False
+        ),
+        "source_bound_contract_identity_exact": (
+            source_bound.get("active_for_new_writes") is True
+            and source_bound.get("table_structure_authority") == "pdfplumber"
+            and source_bound.get("source_literal_authority") == "original_pdf"
+            and source_bound.get("model_values_used_as_source_literals") is False
+            and semantic.get("active_for_new_writes") is False
+            and runtime.get("source_bound_table_normalization_default_enabled")
+            is True
+            and runtime.get("semantic_visual_profile_default_enabled") is False
+        ),
+        "vlm_bounded_input_configured": (
+            gate1_valves.get("pdf_table_intake_maximum_pages") == 64
+            and gate1_valves.get("pdf_table_intake_maximum_candidates_per_page")
+            == 32
+        ),
+    }
 
 
 def _read_remote_runtime_state(
@@ -214,6 +256,7 @@ with sqlite3.connect(db_path) as conn:
     }
 workload_db = data_root / "broker_reports_gate1" / "workloads.sqlite3"
 state_counts = {}
+unsafe_review_jobs = 0
 if workload_db.is_file():
     with sqlite3.connect(workload_db) as conn:
         if conn.execute(
@@ -224,8 +267,18 @@ if workload_db.is_file():
                 for state, count in conn.execute(
                     "select state, count(*) from workload_jobs group by state")
             }
+            unsafe_review_jobs = int(conn.execute(
+                "select count(*) from workload_jobs "
+                "where state='awaiting_review' and ("
+                "worker_id is not null or lease_token is not null or "
+                "provider_lease_token is not null or cleanup_status != 'cleaned'"
+                ")").fetchone()[0])
 terminal = {"completed", "failed", "cancelled"}
+release_quiescent = {*terminal, "awaiting_review"}
 nonterminal = sum(v for k, v in state_counts.items() if k not in terminal)
+release_blocking = sum(
+    v for k, v in state_counts.items() if k not in release_quiescent
+) + unsafe_review_jobs
 temp_root = data_root / "broker_reports_gate1" / "workload-temp"
 temp_entries = (
     sum(1 for item in temp_root.iterdir() if item.name.startswith("brjob_"))
@@ -287,6 +340,8 @@ print(json.dumps({
     "workload": {
         "state_counts": state_counts,
         "nonterminal_jobs": nonterminal,
+        "release_blocking_jobs": release_blocking,
+        "unsafe_review_jobs": unsafe_review_jobs,
         "owned_temp_entries": temp_entries,
     },
     "counters": counters,
@@ -433,43 +488,10 @@ def main() -> int:
         "single_workload_authority_configuration": all(
             item == workload_valves[0] for item in workload_valves[1:]
         ),
-        "qualified_semantic_vlm_default_on": function_checks[0]["valves"].get(
-            "pdf_table_intake_enabled"
-        )
-        is True
-        and function_checks[0]["valves"].get("pdf_dual_vlm_enabled") is True
-        and function_checks[0]["valves"].get(
-            "pdf_semantic_visual_table_downstream_enabled"
-        )
-        is True
-        and function_checks[2]["valves"].get(
-            "allow_standalone_semantic_visual_projections"
-        )
-        is True,
-        "semantic_contract_identity_exact": (
-            manifest["provider_policy"].get("semantic_visual_table_contract")
-            is not None
-            and manifest["runtime"].get("vlm_default_enabled") is True
-            and manifest["runtime"].get(
-                "semantic_visual_profile_default_enabled"
-            )
-            is True
-        ),
-        "vlm_bounded_input_configured": (
-            function_checks[0]["valves"].get("pdf_table_intake_maximum_pages")
-            == 64
-            and function_checks[0]["valves"].get(
-                "pdf_table_intake_maximum_candidates_per_page"
-            )
-            == 32
-            and function_checks[0]["valves"].get(
-                "pdf_dual_vlm_maximum_candidates"
-            )
-            == 8
-            and function_checks[0]["valves"].get(
-                "pdf_dual_vlm_maximum_counted_input_tokens"
-            )
-            == 24_000
+        **evaluate_route_activation(
+            expected_manifest=manifest,
+            gate1_valves=function_checks[0]["valves"],
+            domain_valves=function_checks[2]["valves"],
         ),
         "legacy_visual_auto_publication_disabled": manifest["runtime"][
             "visual_auto_publication_enabled"

@@ -47,7 +47,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 
-SCHEMA_VERSION = "broker_reports_atomic_stage_release_v4"
+SCHEMA_VERSION = "broker_reports_atomic_stage_release_v5"
 RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -72,6 +72,9 @@ ACTION_PATH = (
 LOADER_PATH = ROOT / "deploy" / "openwebui-static" / "loader.js"
 
 TERMINAL_WORKLOAD_STATES = frozenset({"completed", "failed", "cancelled"})
+RELEASE_QUIESCENT_WORKLOAD_STATES = frozenset(
+    {*TERMINAL_WORKLOAD_STATES, "awaiting_review"}
+)
 
 WORKLOAD_PROVIDER_BUDGETS = {
     "alibaba_qwen": 1,
@@ -307,6 +310,14 @@ def nonterminal_workload_count(state_counts: Mapping[str, int]) -> int:
     )
 
 
+def release_blocking_workload_count(state_counts: Mapping[str, int]) -> int:
+    return sum(
+        int(count)
+        for state, count in state_counts.items()
+        if state not in RELEASE_QUIESCENT_WORKLOAD_STATES
+    )
+
+
 def build_manifest(
     *,
     source_revision: str,
@@ -379,6 +390,9 @@ def build_manifest(
             "source_bound_table_normalization_default_enabled": True,
             "semantic_visual_profile_default_enabled": False,
             "visual_auto_publication_enabled": False,
+            "release_quiescent_workload_states": sorted(
+                RELEASE_QUIESCENT_WORKLOAD_STATES
+            ),
             "gate1_heavy_concurrency": 1,
             "gate2_local_maximum_concurrency": 2,
         },
@@ -438,6 +452,8 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         or runtime.get("source_bound_table_normalization_default_enabled") is not True
         or runtime.get("semantic_visual_profile_default_enabled") is not False
         or runtime.get("visual_auto_publication_enabled") is not False
+        or runtime.get("release_quiescent_workload_states")
+        != sorted(RELEASE_QUIESCENT_WORKLOAD_STATES)
     ):
         raise ValueError("stage_release_manifest_semantic_activation_invalid")
     semantic = (manifest.get("provider_policy") or {}).get(
