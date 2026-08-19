@@ -62,6 +62,7 @@ def evaluate_function_release(
     live_valves: Mapping[str, Any] | None,
     source_revision: str,
     manifest_sha256: str,
+    expected_active: bool,
 ) -> dict[str, Any]:
     live = dict(live_function or {})
     valves = dict(live_valves or {})
@@ -79,11 +80,19 @@ def evaluate_function_release(
     checks = {
         "present": bool(live_function),
         "type_pipe": live.get("type") == "pipe",
-        "active": live.get("is_active") is True
-        or (
-            isinstance(live.get("is_active"), int)
-            and not isinstance(live.get("is_active"), bool)
-            and live.get("is_active") == 1
+        "activation_policy_preserve_existing": (
+            expected.get("activation_policy") == "preserve_existing"
+        ),
+        "activation_preserved": (
+            (
+                live.get("is_active") is True
+                or (
+                    isinstance(live.get("is_active"), int)
+                    and not isinstance(live.get("is_active"), bool)
+                    and live.get("is_active") == 1
+                )
+            )
+            is expected_active
         ),
         "not_global": live.get("is_global") is False
         or live.get("is_global") == 0,
@@ -107,6 +116,7 @@ def evaluate_function_release(
         "repository_content_sha256": expected.get("content_sha256"),
         "live_content_sha256": _sha256_text(content) if content else None,
         "valves": projected_valves,
+        "expected_active": expected_active,
     }
 
 
@@ -143,6 +153,13 @@ def evaluate_remote_runtime(
     expected_image = dict(expected_manifest.get("image") or {})
     image = dict(runtime.get("image") or {})
     workload = dict(runtime.get("workload") or {})
+    previous_function_activation = dict(
+        runtime.get("previous_function_activation") or {}
+    )
+    expected_function_ids = {
+        str(item["function_id"])
+        for item in expected_manifest.get("functions", [])
+    }
     checks = {
         "image_identity_exact": all(
             image.get(key) == expected_image.get(key)
@@ -171,6 +188,13 @@ def evaluate_remote_runtime(
         "rollback_loader_hash_exact": (
             rollback_identity_sha256 is None
             or runtime.get("rollback_loader_hash_exact") is True
+        ),
+        "rollback_activation_snapshot_exact": (
+            set(previous_function_activation) == expected_function_ids
+            and all(
+                isinstance(value, bool)
+                for value in previous_function_activation.values()
+            )
         ),
     }
     return checks
@@ -317,6 +341,13 @@ rollback_loader_hash_exact = bool(
     and hashlib.sha256(rollback_loader.read_bytes()).hexdigest()
     == (rollback_value.get("previous_loader") or {}).get("content_sha256")
 )
+previous_function_activation = {
+    str(function_id): row.get("is_active") in (1, True)
+    for function_id, row in (
+        rollback_value.get("previous_function_rows") or {}
+    ).items()
+    if isinstance(row, dict)
+}
 staging = ROOT / ".broker-reports-release-staging"
 staging_entries = (
     sum(1 for item in staging.iterdir() if item.is_dir())
@@ -347,6 +378,7 @@ print(json.dumps({
     "counters": counters,
     "rollback_identity_sha256": rollback_hash,
     "rollback_loader_hash_exact": rollback_loader_hash_exact,
+    "previous_function_activation": previous_function_activation,
     "release_staging_entries": staging_entries,
 }, ensure_ascii=False, sort_keys=True))
 '''
@@ -411,6 +443,13 @@ def main() -> int:
     token = _signin(session, base_url, env)
     session.headers.update({"Authorization": f"Bearer {token}"})
 
+    runtime = _read_remote_runtime_state(
+        ssh_target=ssh_target,
+        release_id=manifest["release_id"],
+    )
+    previous_function_activation = dict(
+        runtime.get("previous_function_activation") or {}
+    )
     function_checks = []
     for expected in manifest["functions"]:
         function_id = str(expected["function_id"])
@@ -423,6 +462,7 @@ def main() -> int:
                 ),
                 source_revision=args.source_revision,
                 manifest_sha256=manifest["manifest_sha256"],
+                expected_active=previous_function_activation.get(function_id),
             )
         )
     action_check = evaluate_action_release(
@@ -438,10 +478,6 @@ def main() -> int:
         evaluate_prompt_contract(expected_prompts[prompt_id], live_prompts.get(prompt_id))
         for prompt_id in sorted(expected_prompts)
     ]
-    runtime = _read_remote_runtime_state(
-        ssh_target=ssh_target,
-        release_id=manifest["release_id"],
-    )
     runtime_checks = evaluate_remote_runtime(
         expected_manifest=manifest,
         runtime=runtime,
