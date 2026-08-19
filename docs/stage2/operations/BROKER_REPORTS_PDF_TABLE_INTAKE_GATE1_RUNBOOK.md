@@ -1,18 +1,18 @@
 ﻿# PDF Table Intake Gate 1: operator runbook
 
-Дата: 2026-08-04
+Дата: 2026-08-19
 
 Статус: поддерживаемая операционная инструкция для закрытой локальной
 PDF-возможности.
 
 Authority: этот файл определяет deploy/proof/review procedure. Runtime behavior
 и настройки определяет
-[versioned contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v2.md),
+[versioned contract](../contracts/BROKER_REPORTS_PDF_SOURCE_BOUND_TABLE_NORMALIZATION.v1.md),
 а место локального gate в global Broker Reports pipeline —
-[architecture entry](../blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md).
+[pipeline contract](../contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md).
 
-`Gate 1` в имени скриптов означает локальную границу `PDF -> private raster
-candidates` внутри global Broker Reports Gate 1. Это не global Gate 2
+`Gate 1` в имени скриптов означает локальную границу `PDF -> source-bound
+normalized tables` внутри global Broker Reports Gate 1. Это не global Gate 2
 source-fact acceptance.
 
 ## Обычный пользовательский путь
@@ -22,34 +22,32 @@ source-fact acceptance.
 3. Отправить команду нормализации.
 4. Pipe сохранит safe report в чате и private-case артефакты в ArtifactStore.
 
-Пользователь не выбирает геометрию для каждой таблицы. Единый
-`PdfTableRasterFactory` разрешает canonical table region; legacy padding valves
-принимаются для совместимости, но не применяются. PNG и исходные байты не
-публикуются в чат.
+Пользователь не выбирает геометрию для каждой таблицы. VLM указывает только
+отдельные области таблиц в координатах страницы. Детерминированный код переводит
+координаты в систему PDF, а `pdfplumber` восстанавливает строки, столбцы и
+исходные значения. Значения VLM и выбранные моделью настройки парсера не могут
+стать источником данных. PNG, исходные байты и сырой ответ модели не публикуются
+в чат или операторский proof.
 
 ## Deploy и scoped parity
 
 Из корня репозитория:
 
 ```powershell
-python services/broker-reports-gate1-proof/scripts/build_openwebui_pipe_bundle.py --target gate1
-python services/broker-reports-gate1-proof/scripts/live_update_function_and_passport_prompt.py
+$revision = git rev-parse HEAD
+python services/broker-reports-gate1-proof/scripts/live_release_broker_reports_atomic_stage.py --source-revision $revision
+python services/broker-reports-gate1-proof/scripts/live_release_broker_reports_atomic_stage.py --source-revision $revision --apply --prove-rollback
+python services/broker-reports-gate1-proof/scripts/live_verify_broker_reports_atomic_stage_release.py --source-revision $revision --rollback-identity-sha256 "<identity from release receipt>"
 python services/broker-reports-gate1-proof/scripts/live_verify_broker_reports_stage2_delivery.py --scope gate1
 ```
 
-Update-скрипт публикует Function bundle, проверяет SHA и явно выставляет все
-принятые PDF Table Intake valves. Старые structural/semantic shadows остаются
-выключенными.
-
-Изменение только валидного Function valve применяется к следующему запросу без
-пересборки bundle и рестарта OpenWebUI. Для принятой stage-конфигурации не
-редактировать отдельный valve вручную: повторить update и scoped verifier,
-чтобы сохранить полный configuration proof.
+Atomic release публикует ровно утверждённые Function bundles, доказывает
+rollback и проверяет их чтением с сервера. Source-bound route включён; прежние
+transcription, dual-VLM и research routes остаются выключенными. Отдельные
+valves вручную не редактировать.
 
 `--scope gate1` подтверждает PDF Table Intake и соседний global Gate 1 runtime,
-но намеренно не объявляет parity global Gate 2 Functions. Полный verifier без
-`--scope` — отдельная общая проверка; его независимый Gate 2 drift нельзя
-приписывать этому локальному gate.
+но намеренно не объявляет parity global Gate 2 Functions.
 
 ## Operator proof на representative PDF
 
@@ -66,58 +64,51 @@ python services/broker-reports-gate1-proof/scripts/live_pdf_table_intake_gate1_o
 - подтверждает, что Workspace Model оборачивает `broker_reports_gate1_pipe`;
 - загружает PDF в OpenWebUI с `process=false`;
 - вызывает обычный `/api/chat/completions`;
-- читает run/candidate/attempt/handoff artifacts;
-- сверяет PNG SHA, contract versions, canonical region и raster refs;
-- сохраняет PNG в `local/stage2/...` для визуального осмотра;
-- удаляет временные OpenWebUI uploads.
+- читает только безопасные метаданные run/attempt/source-unit/projection и
+  handoff artifacts;
+- проверяет, что числу найденных областей соответствует число source-bound
+  таблиц, а их значения принадлежат `pdfplumber`, не VLM;
+- подтверждает отсутствие retry, provider failover и legacy candidate route;
+- сохраняет только безопасный `proof.json` в `local/stage2/...`;
+- удаляет временные OpenWebUI chat и uploads.
 
-`gate2_boundary_ready=true` в результате означает готовность raster refs для
-downstream table normalizer. Отдельно проверить global metadata/source
-eligibility; он может быть `blocked` и не опровергает успешный crop proof.
+`gate2_boundary_ready=true` означает, что проверенные private source units
+готовы к существующей границе Gate 2. Это не означает, что любой PDF любого
+брокера будет распознан без ошибок.
 
 ## Когда обязателен visual review
 
-Автоматического `passed` недостаточно для product acceptance. Оператор обязан
-просмотреть все сохранённые PNG:
+Автоматического `passed` недостаточно для гарантии на новый неизвестный формат.
+Отдельное сравнение исходного PDF с восстановленной таблицей нужно:
 
 - при первом принятии нового representative format;
 - после смены detector model или provider profile;
-- после изменения prompt, request/response contract, renderer, DPI или crop policy;
-- при повторном formal closure или расследовании geometry regression.
+- после изменения prompt, координатного контракта или стратегии `pdfplumber`;
+- при расследовании geometry или structure regression.
 
-Для обычного неизменённого production path технические проверки продолжают
-работать на каждом запуске; новый closure report не создаётся для каждого PDF.
-
-При visual review подтвердить:
-
-- внутри находится ожидаемая таблица;
-- табличные заголовки, крайние подписи, строки и итоги не срезаны;
-- canonical region не содержит соседнюю таблицу, narrative или footer;
-- crop не превратился без необходимости в почти целую страницу.
-
-Итог, representative corpus и конкретные ограничения фиксируются в датированном
-acceptance/closure report. Один успешный PDF не является доказательством
-универсальной точности на всех брокерских шаблонах.
+Для обычного неизменённого production path техническая проверка подтверждает
+контракт автоматически. Реальная ширина поддержки брокерских форматов
+уточняется в тестовой эксплуатации продукта.
 
 ## Диагностика
 
 - `pdf_table_detector_not_qualified`: stage не подтвердил выбранную модель или
   её возможности.
-- `pdf_table_detector_boundary_uncertain`: VLM не смогла надёжно очертить
-  таблицу; это корректный явный отказ.
-- `pdf_table_detector_output_shape_invalid`: модель вернула ответ вне строгой
+- `pdf_table_locator_response_shape_invalid`: модель вернула ответ вне строгой
   схемы.
+- `pdf_table_locator_box_invalid`, `pdf_table_locator_box_out_of_range` или
+  `pdf_table_locator_box_order_invalid`: координаты не прошли строгую проверку.
+- `pdf_table_locator_page_failed`: страница не получила подтверждённых областей.
+- `pdf_table_locator_region_native_table_not_found_failed`: внутри области
+  `pdfplumber` не подтвердил таблицу; это корректный явный отказ.
+- `pdf_table_locator_region_native_table_ambiguous_failed`: внутри одной области
+  осталось несколько конкурирующих таблиц; автоматическое слияние запрещено.
 - `pdf_table_intake_dpi_invalid`: DPI отличается от поддерживаемого `150`.
 - `pdf_table_intake_page_budget_invalid`: page limit вне `1..512`.
 - `pdf_table_intake_candidate_budget_invalid`: candidate limit вне `1..64`.
 - `pdf_table_intake_padding_invalid` или
   `pdf_table_raster_padding_fraction_invalid`: legacy X/Y valve вне `0..0.25`;
-  валидное значение принимается, но не влияет на crop.
-- `pdf_table_raster_crop_ambiguous`: несколько сопоставимых регионов нельзя
-  безопасно разделить; PNG не создаётся.
-- `pdf_table_raster_crop_blocked`: coordinate space или required geometry не
-  подтверждены; PNG не создаётся.
-- `pdf_table_raster_dimension_budget_exceeded`: crop превышает размерный лимит.
+  валидное значение принимается для совместимости, но не меняет locator region.
 - `operator_repository_tree_not_clean`: proof запущен не из clean committed
   revision.
 
@@ -125,7 +116,7 @@ acceptance/closure report. Один успешный PDF не является �
 Pipe, smoke или shell-команды.
 
 Принятое доказательство:
-[closure report](../../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_CLOSURE.report.md).
+[implementation report](../../reports/2026-08-19/BROKER_REPORTS_PDF_SOURCE_BOUND_NORMALIZATION_IMPLEMENTATION.report.md).
 
 ## DOC32 canonical normalization handoff
 
@@ -135,5 +126,6 @@ units and table projections through `CanonicalNormalizerFactory`, represent
 every ready table exactly once, terminally classify non-ready projections, and
 emit `canonical_pdf_completeness_v1`. A non-empty PDF with zero logical nodes or
 less than 100% source-atom accounting is a terminal failure and must not change
-the active pointer. Parser/VLM payloads and crops remain private resolver-backed
-evidence; a projector may consume only `CanonicalReader` output.
+the active pointer. Parser/VLM payloads and page rasters remain private
+resolver-backed evidence; a projector may consume only `CanonicalReader`
+output.
