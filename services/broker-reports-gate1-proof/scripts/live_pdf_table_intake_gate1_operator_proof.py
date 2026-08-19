@@ -9,6 +9,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,7 @@ import requests
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 FUNCTION_ID = "broker_reports_gate1_pipe"
-DEFAULT_WORKSPACE_MODEL_ID = "test"
+DEFAULT_WORKSPACE_MODEL_ID = "broker-reports-ndfl"
 ARTIFACT_DB = "/app/backend/data/broker_reports_gate1/artifacts.sqlite3"
 PAYLOAD_ROOT = "/app/backend/data/broker_reports_gate1/payloads"
 
@@ -55,7 +56,7 @@ def main() -> int:
             raise RuntimeError(f"operator_pdf_invalid:{path}")
     revision = _repository_revision()
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    case_id = f"case_pdf_table_intake_gate1_{timestamp.lower()}"
+    case_id = ""
     output_dir = (
         Path(args.output_dir).resolve()
         if args.output_dir
@@ -82,6 +83,7 @@ def main() -> int:
         raise RuntimeError("operator_workspace_model_function_mismatch")
 
     uploads: list[dict[str, Any]] = []
+    native_chat: dict[str, Any] | None = None
     chat_content = ""
     try:
         for ordinal, path in enumerate(pdf_paths, start=1):
@@ -93,12 +95,20 @@ def main() -> int:
                     upload_filename=f"gate1-table-proof-{timestamp}-{ordinal}.pdf",
                 )
             )
+        native_chat = _create_native_chat(
+            session,
+            base_url,
+            workspace_model_id=args.workspace_model_id,
+            uploads=uploads,
+        )
+        case_id = str(native_chat["chat_id"])
         chat_content = _run_chat(
             session,
             base_url,
             workspace_model_id=args.workspace_model_id,
             case_id=case_id,
             uploads=uploads,
+            native_chat=native_chat,
             timeout=args.chat_timeout,
         )
         remote_evidence = _read_remote_evidence(
@@ -148,6 +158,8 @@ def main() -> int:
         print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
         return 0 if summary["status"] == "passed" else 2
     finally:
+        if native_chat is not None:
+            _delete_chat(session, base_url, str(native_chat.get("chat_id") or ""))
         for upload in uploads:
             _delete_upload(session, base_url, str(upload.get("id") or ""))
 
@@ -203,6 +215,7 @@ def _run_chat(
     workspace_model_id: str,
     case_id: str,
     uploads: list[dict[str, Any]],
+    native_chat: dict[str, Any],
     timeout: int,
 ) -> str:
     files = [
@@ -223,9 +236,21 @@ def _run_chat(
         _url(base_url, "/api/chat/completions"),
         json={
             "model": workspace_model_id,
+            "parent_id": native_chat["user_message_id"],
             "stream": False,
             "case_id": case_id,
-            "metadata": {"case_id": case_id, "files": files},
+            "metadata": {
+                "case_id": case_id,
+                "chat_id": native_chat["chat_id"],
+                "session_id": native_chat["chat_id"],
+                "message_id": native_chat["assistant_message_id"],
+                "files": files,
+                "retention_policy": {
+                    "mode": "api_smoke",
+                    "explicit": True,
+                    "ttl_seconds": 24 * 60 * 60,
+                },
+            },
             "broker_reports_gate1": {
                 "case_id": case_id,
                 "retention_policy": {
@@ -257,6 +282,75 @@ def _run_chat(
     if not content:
         raise RuntimeError("operator_chat_content_missing")
     return content
+
+
+def _create_native_chat(
+    session: requests.Session,
+    base_url: str,
+    *,
+    workspace_model_id: str,
+    uploads: list[dict[str, Any]],
+) -> dict[str, Any]:
+    user_message_id = str(uuid.uuid4())
+    assistant_message_id = str(uuid.uuid4())
+    files = [
+        {
+            "type": "file",
+            "file": {
+                "id": upload["id"],
+                "filename": upload["filename"],
+                "name": upload["filename"],
+                "mime_type": upload["mime_type"],
+                "content_type": upload["mime_type"],
+                "size": upload["size"],
+            },
+        }
+        for upload in uploads
+    ]
+    user_message = {
+        "id": user_message_id,
+        "parentId": None,
+        "childrenIds": [assistant_message_id],
+        "role": "user",
+        "content": "Run the supported source-bound PDF table normalization path.",
+        "files": files,
+    }
+    assistant_message = {
+        "id": assistant_message_id,
+        "parentId": user_message_id,
+        "childrenIds": [],
+        "role": "assistant",
+        "content": "",
+        "model": workspace_model_id,
+    }
+    chat = {
+        "title": "Synthetic source-bound PDF table smoke",
+        "models": [workspace_model_id],
+        "params": {},
+        "history": {
+            "messages": {
+                user_message_id: user_message,
+                assistant_message_id: assistant_message,
+            },
+            "currentId": assistant_message_id,
+        },
+        "messages": [user_message, assistant_message],
+        "tags": [],
+    }
+    response = session.post(
+        _url(base_url, "/api/v1/chats/new"),
+        json={"chat": chat},
+        timeout=30,
+    )
+    response.raise_for_status()
+    value = response.json()
+    if not isinstance(value, dict) or not value.get("id"):
+        raise RuntimeError("operator_native_chat_create_invalid")
+    return {
+        "chat_id": str(value["id"]),
+        "user_message_id": user_message_id,
+        "assistant_message_id": assistant_message_id,
+    }
 
 
 def _read_remote_evidence(*, ssh_target: str, case_id: str) -> dict[str, Any]:
@@ -485,6 +579,14 @@ def _delete_upload(
     if not file_id:
         return
     response = session.delete(_url(base_url, f"/api/v1/files/{file_id}"), timeout=30)
+    if response.status_code not in {200, 204, 404}:
+        response.raise_for_status()
+
+
+def _delete_chat(session: requests.Session, base_url: str, chat_id: str) -> None:
+    if not chat_id:
+        return
+    response = session.delete(_url(base_url, f"/api/v1/chats/{chat_id}"), timeout=30)
     if response.status_code not in {200, 204, 404}:
         response.raise_for_status()
 

@@ -10,6 +10,7 @@ services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_role_pa
 services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_label_dictionary.v2_1.json text eol=lf
 services/broker-reports-gate1-proof/broker_reports_gate1/gate3_financial_role_pack.v3_1.json text eol=lf
 services/broker-reports-gate1-proof/broker_reports_gate1/gate3_predeclared_assertion_labeling_response.v1.schema.json text eol=lf
+services/broker-reports-gate1-proof/broker_reports_gate1/*.json text eol=lf
 docs/stage2/contracts/BROKER_REPORTS_SOURCE_FACT_DOMAIN_BOUNDARIES.v1.md text eol=lf
 docs/stage2/contracts/BROKER_REPORTS_GATE3_FINANCIAL_LABEL_DICTIONARY.v2.md text eol=lf
 docs/stage2/contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.* text eol=lf
