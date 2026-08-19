@@ -20,6 +20,7 @@ import broker_reports_atomic_stage_remote as remote  # noqa: E402
 import live_release_broker_reports_atomic_stage as driver  # noqa: E402
 from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
     FUNCTION_CONTRACTS,
+    SCHEMA_VERSION,
     build_manifest,
     merged_valves,
     nonterminal_workload_count,
@@ -184,6 +185,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         manifest = _manifest()
 
         validate_manifest(manifest)
+        remote._validate_manifest(manifest)
 
         self.assertEqual(3, len(manifest["functions"]))
         self.assertEqual(12, len(manifest["managed_prompts"]))
@@ -191,6 +193,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             "broker_reports_atomic_stage_release_v4",
             manifest["schema_version"],
         )
+        self.assertEqual(SCHEMA_VERSION, remote.MANIFEST_SCHEMA_VERSION)
         self.assertEqual("loader.js", manifest["loader"]["file_name"])
         self.assertEqual(
             remote._sha256_bytes(
