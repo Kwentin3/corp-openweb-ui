@@ -36,6 +36,7 @@ from broker_reports_release_source import (  # noqa: E402
 )
 from broker_reports_gate1 import GATE2_PROVIDER_PROFILES  # noqa: E402
 from live_verify_broker_reports_atomic_stage_release import (  # noqa: E402
+    _read_remote_runtime_state,
     evaluate_action_release,
     evaluate_function_release,
     evaluate_remote_runtime,
@@ -62,6 +63,23 @@ def _manifest():
 
 
 class AtomicStageReleaseContractTests(unittest.TestCase):
+    def test_remote_verifier_payload_is_valid_python(self):
+        def validate_remote_payload(*args, **kwargs):
+            compile(kwargs["input"], "remote_runtime_verifier.py", "exec")
+            return subprocess.CompletedProcess(args[0], 0, stdout="{}", stderr="")
+
+        with mock.patch(
+            "live_verify_broker_reports_atomic_stage_release.subprocess.run",
+            side_effect=validate_remote_payload,
+        ):
+            self.assertEqual(
+                {},
+                _read_remote_runtime_state(
+                    ssh_target="validated-target",
+                    release_id="broker-reports-" + "a" * 12,
+                ),
+            )
+
     def test_delivery_verifier_scopes_financial_markers_to_domain_function(self):
         source_contract = DELIVERY_FUNCTION_CONTRACTS[1]
         domain_contract = DELIVERY_FUNCTION_CONTRACTS[2]
@@ -193,8 +211,14 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(3, len(manifest["functions"]))
         self.assertEqual(12, len(manifest["managed_prompts"]))
         self.assertEqual(
-            "broker_reports_atomic_stage_release_v5",
+            "broker_reports_atomic_stage_release_v6",
             manifest["schema_version"],
+        )
+        self.assertTrue(
+            all(
+                item["activation_policy"] == "preserve_existing"
+                for item in manifest["functions"]
+            )
         )
         self.assertEqual(SCHEMA_VERSION, remote.MANIFEST_SCHEMA_VERSION)
         self.assertEqual("loader.js", manifest["loader"]["file_name"])
@@ -388,6 +412,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             live_valves=expected["valves"],
             source_revision=REVISION,
             manifest_sha256=manifest["manifest_sha256"],
+            expected_active=True,
         )
         live["meta"]["broker_reports_release"]["source_revision"] = "b" * 40
         failed = evaluate_function_release(
@@ -396,6 +421,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             live_valves=expected["valves"],
             source_revision=REVISION,
             manifest_sha256=manifest["manifest_sha256"],
+            expected_active=True,
         )
 
         self.assertTrue(passed["passed"], passed)
@@ -435,6 +461,10 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             "release_staging_entries": 0,
             "rollback_identity_sha256": "c" * 64,
             "rollback_loader_hash_exact": True,
+            "previous_function_activation": {
+                item["function_id"]: index == 0
+                for index, item in enumerate(manifest["functions"])
+            },
         }
         checks = evaluate_remote_runtime(
             expected_manifest=manifest,
@@ -451,6 +481,34 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertTrue(action["passed"], action)
         self.assertTrue(all(checks.values()), checks)
         self.assertFalse(failed["workload_quiescent"])
+
+    def test_function_release_preserves_an_inactive_pipe(self):
+        manifest = _manifest()
+        expected = manifest["functions"][1]
+        content = FUNCTION_CONTRACTS[1].bundle_path.read_text(encoding="utf-8")
+        result = evaluate_function_release(
+            expected=expected,
+            live_function={
+                "content": content,
+                "type": "pipe",
+                "is_active": 0,
+                "is_global": 0,
+                "meta": {
+                    "broker_reports_release": {
+                        "source_revision": REVISION,
+                        "manifest_sha256": manifest["manifest_sha256"],
+                        "bundle_sha256": expected["content_sha256"],
+                    }
+                },
+            },
+            live_valves=expected["valves"],
+            source_revision=REVISION,
+            manifest_sha256=manifest["manifest_sha256"],
+            expected_active=False,
+        )
+
+        self.assertTrue(result["passed"], result)
+        self.assertFalse(result["expected_active"])
 
     def test_parked_review_is_quiescent_only_without_runtime_ownership(self):
         remote._assert_quiescent(
@@ -748,11 +806,12 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
             before_state = {
                 "functions": [
                     {
+                        "function_id": contract.function_id,
                         "active": True,
                         "global": False,
                         "type": "pipe",
                     }
-                    for _ in FUNCTION_CONTRACTS
+                    for contract in FUNCTION_CONTRACTS
                 ],
                 "loader": {
                     "content_sha256": remote._sha256_bytes(prior_loader),
@@ -972,6 +1031,35 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 json.loads(row["meta"])["preserved_operator_key"] is True
                 for row in desired.values()
             )
+        )
+
+    def test_desired_function_rows_preserve_existing_activation(self):
+        manifest = _manifest()
+        current = {
+            contract.function_id: {
+                "content": "old",
+                "meta": "{}",
+                "valves": "{}",
+                "type": "pipe",
+                "is_active": 1 if index == 0 else 0,
+                "is_global": 0,
+                "updated_at": index,
+            }
+            for index, contract in enumerate(FUNCTION_CONTRACTS)
+        }
+
+        desired = remote._desired_rows(
+            staging_dir=ROOT
+            / "services"
+            / "broker-reports-gate1-proof"
+            / "openwebui_actions",
+            manifest=manifest,
+            current_rows=current,
+        )
+
+        self.assertEqual(
+            {function_id: row["is_active"] for function_id, row in current.items()},
+            {function_id: row["is_active"] for function_id, row in desired.items()},
         )
 
     def test_candidate_apply_and_exact_rollback_reach_terminal_states(self):

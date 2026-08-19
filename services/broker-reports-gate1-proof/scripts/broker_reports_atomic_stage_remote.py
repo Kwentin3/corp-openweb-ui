@@ -40,7 +40,7 @@ RELEASE_QUIESCENT_WORKLOAD_STATES = {
     *TERMINAL_WORKLOAD_STATES,
     "awaiting_review",
 }
-MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v5"
+MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v6"
 
 
 class StageReleaseError(RuntimeError):
@@ -135,6 +135,14 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> None:
         "release_quiescent_workload_states"
     ) != sorted(RELEASE_QUIESCENT_WORKLOAD_STATES):
         raise StageReleaseError("stage_release_workload_policy_invalid")
+    functions = manifest.get("functions") or []
+    if not functions or any(not isinstance(item, dict) for item in functions):
+        raise StageReleaseError("stage_release_function_contract_invalid")
+    if any(
+        item.get("activation_policy") != "preserve_existing"
+        for item in functions
+    ):
+        raise StageReleaseError("stage_release_activation_policy_invalid")
 
 
 def _validate_payload(staging_dir: Path, manifest: Mapping[str, Any]) -> None:
@@ -263,6 +271,21 @@ def _safe_function_state(
                 },
             }
         )
+    return result
+
+
+def _function_activation_state(
+    rows: Mapping[str, Mapping[str, Any]],
+) -> dict[str, bool]:
+    result: dict[str, bool] = {}
+    for function_id, row in rows.items():
+        value = row.get("is_active")
+        if isinstance(value, bool):
+            result[function_id] = value
+        elif isinstance(value, int) and value in (0, 1):
+            result[function_id] = value == 1
+        else:
+            raise StageReleaseError("stage_release_existing_activation_invalid")
     return result
 
 
@@ -552,7 +575,11 @@ def _assert_quiescent(state: Mapping[str, Any]) -> None:
         raise StageReleaseError("stage_release_workload_temp_not_clean")
 
 
-def _assert_candidate(state: Mapping[str, Any], manifest: Mapping[str, Any]) -> None:
+def _assert_candidate(
+    state: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    expected_activation: Mapping[str, bool],
+) -> None:
     expected = {str(item["function_id"]): item for item in manifest["functions"]}
     live = {str(item["function_id"]): item for item in state["functions"]}
     if set(live) != set(expected):
@@ -561,7 +588,7 @@ def _assert_candidate(state: Mapping[str, Any], manifest: Mapping[str, Any]) -> 
         item = live[function_id]
         if (
             item.get("content_sha256") != contract.get("content_sha256")
-            or item.get("active") is not True
+            or item.get("active") is not expected_activation.get(function_id)
             or item.get("global") is not False
             or item.get("type") != "pipe"
             or item.get("release_revision") != manifest.get("source_revision")
@@ -775,7 +802,7 @@ def _desired_rows(
             "meta": _canonical_json(meta),
             "valves": _canonical_json(valves),
             "type": "pipe",
-            "is_active": 1,
+            "is_active": current.get("is_active"),
             "is_global": 0,
             "updated_at": now,
         }
@@ -1094,12 +1121,13 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
     _assert_prompt_set_present(before, manifest)
     _assert_quiescent(before)
     if not all(
-        item.get("active") is True
+        item.get("active") in (True, False)
         and item.get("global") is False
         and item.get("type") == "pipe"
         for item in before["functions"]
     ):
         raise StageReleaseError("stage_release_existing_function_state_invalid")
+    activation_before = _function_activation_state(current_function_rows)
     desired_rows = _desired_rows(
         staging_dir=staging_dir,
         manifest=manifest,
@@ -1118,6 +1146,10 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             "before_sha256": before_hashes[function_id],
             "candidate_sha256": desired_hashes[function_id],
             "change_required": before_hashes[function_id] != desired_hashes[function_id],
+            "activation_preserved": (
+                desired_rows[function_id].get("is_active")
+                == current_function_rows[function_id].get("is_active")
+            ),
         }
         for function_id in function_ids
     }
@@ -1212,7 +1244,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             manifest,
             require_candidate_loader=True,
         )
-        _assert_candidate(candidate, manifest)
+        _assert_candidate(candidate, manifest, activation_before)
         _assert_quiescent(candidate)
         if prove_rollback:
             _stop_container()
@@ -1278,7 +1310,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
                 manifest,
                 require_candidate_loader=True,
             )
-            _assert_candidate(candidate, manifest)
+            _assert_candidate(candidate, manifest, activation_before)
             _assert_quiescent(candidate)
             rollback_proof["candidate_state_restored"] = True
             rollback_proof["loader_candidate_state_restored"] = True

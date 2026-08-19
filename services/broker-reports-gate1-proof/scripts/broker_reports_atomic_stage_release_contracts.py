@@ -47,7 +47,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 
-SCHEMA_VERSION = "broker_reports_atomic_stage_release_v5"
+SCHEMA_VERSION = "broker_reports_atomic_stage_release_v6"
 RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -343,6 +343,7 @@ def build_manifest(
             {
                 "function_id": contract.function_id,
                 "bundle_name": contract.bundle_path.name,
+                "activation_policy": "preserve_existing",
                 "content_sha256": sha256_text(content),
                 "required_markers": list(contract.required_markers),
                 "valves": dict(contract.valves),
@@ -416,6 +417,11 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     function_ids = [item.get("function_id") for item in manifest.get("functions", [])]
     if function_ids != [contract.function_id for contract in FUNCTION_CONTRACTS]:
         raise ValueError("stage_release_manifest_function_set_invalid")
+    if any(
+        item.get("activation_policy") != "preserve_existing"
+        for item in manifest.get("functions", [])
+    ):
+        raise ValueError("stage_release_manifest_activation_policy_invalid")
     prompts = manifest.get("managed_prompts") or []
     if not prompts or any(not isinstance(item, dict) for item in prompts):
         raise ValueError("stage_release_manifest_prompt_set_invalid")
