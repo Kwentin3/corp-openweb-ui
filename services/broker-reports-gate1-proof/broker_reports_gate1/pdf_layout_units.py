@@ -569,6 +569,7 @@ class PdfLayoutUnitBuilder:
                 table_ref=table_ref,
                 page_ref=page_ref,
                 raw_cells=_dicts(raw.get("cell_inventory")),
+                rows_total=int(raw.get("rows_total") or 0),
                 word_by_ordinal=word_by_ordinal,
                 bbox_ref=bbox_ref,
             )
@@ -1179,35 +1180,69 @@ def _materialize_candidate_cells(
     table_ref: str,
     page_ref: str,
     raw_cells: list[dict[str, Any]],
+    rows_total: int,
     word_by_ordinal: dict[int, dict[str, Any]],
     bbox_ref,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    ordered = sorted(raw_cells, key=_geometry_key)
-    row_groups: list[list[dict[str, Any]]] = []
-    for cell in ordered:
-        top = float((_bbox(cell.get("bbox")))[1])
-        target = next(
-            (
-                group
-                for group in reversed(row_groups)
-                if abs(top - float(_bbox(group[0].get("bbox"))[1])) <= 2.0
+    grid_addressed = bool(raw_cells) and all(
+        int(cell.get("row_ordinal") or 0) > 0
+        and int(cell.get("column_ordinal") or 0) > 0
+        for cell in raw_cells
+    )
+    if grid_addressed:
+        ordered = sorted(
+            raw_cells,
+            key=lambda cell: (
+                int(cell.get("row_ordinal") or 0),
+                int(cell.get("column_ordinal") or 0),
             ),
-            None,
         )
-        if target is None:
-            row_groups.append([cell])
-        else:
-            target.append(cell)
+        row_groups = [
+            [
+                cell
+                for cell in ordered
+                if int(cell.get("row_ordinal") or 0) == row_ordinal
+            ]
+            for row_ordinal in range(
+                1,
+                max(rows_total, max(int(cell["row_ordinal"]) for cell in ordered)) + 1,
+            )
+        ]
+    else:
+        ordered = sorted(raw_cells, key=_geometry_key)
+        row_groups = []
+        for cell in ordered:
+            top = float((_bbox(cell.get("bbox")))[1])
+            target = next(
+                (
+                    group
+                    for group in reversed(row_groups)
+                    if abs(top - float(_bbox(group[0].get("bbox"))[1])) <= 2.0
+                ),
+                None,
+            )
+            if target is None:
+                row_groups.append([cell])
+            else:
+                target.append(cell)
     rows: list[dict[str, Any]] = []
     cells: list[dict[str, Any]] = []
     for row_ordinal, group in enumerate(row_groups, 1):
-        row_ref = "pdftablerow_" + stable_digest(
-            [table_ref, row_ordinal], length=24
-        )
+        row_ref = "pdftablerow_" + stable_digest([table_ref, row_ordinal], length=24)
         row_cell_refs = []
-        for column_ordinal, raw in enumerate(
-            sorted(group, key=lambda value: float(_bbox(value.get("bbox"))[0])), 1
-        ):
+        ordered_group = (
+            sorted(group, key=lambda value: int(value.get("column_ordinal") or 0))
+            if grid_addressed
+            else sorted(group, key=lambda value: float(_bbox(value.get("bbox"))[0]))
+        )
+        for fallback_column_ordinal, raw in enumerate(ordered_group, 1):
+            column_ordinal = (
+                int(raw.get("column_ordinal") or 0)
+                if grid_addressed
+                else fallback_column_ordinal
+            )
+            row_span = max(1, int(raw.get("row_span") or 1))
+            column_span = max(1, int(raw.get("column_span") or 1))
             cell_ref = "pdftablecell_" + stable_digest(
                 [table_ref, row_ordinal, column_ordinal, raw.get("bbox")], length=24
             )
@@ -1225,6 +1260,23 @@ def _materialize_candidate_cells(
                     "page_ref": page_ref,
                     "row_ordinal": row_ordinal,
                     "column_ordinal": column_ordinal,
+                    "row_span": row_span,
+                    "column_span": column_span,
+                    "merged_cell_group_ref": (
+                        "pdfmergedcell_"
+                        + stable_digest(
+                            [
+                                table_ref,
+                                row_ordinal,
+                                column_ordinal,
+                                row_span,
+                                column_span,
+                            ],
+                            length=24,
+                        )
+                        if row_span > 1 or column_span > 1
+                        else None
+                    ),
                     "bbox_ref": bbox_ref(raw.get("bbox")),
                     "word_refs": word_refs,
                     "semantic_role": "not_claimed",

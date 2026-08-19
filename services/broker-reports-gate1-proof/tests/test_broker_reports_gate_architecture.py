@@ -131,6 +131,40 @@ GATE3_CURRENT_EVIDENCE_DEMAND_PORT = "gate3_evidence_demand_port"
 
 
 class BrokerReportsGateArchitectureTest(unittest.TestCase):
+    def test_pdf_table_context_keeps_existing_domain_owners_separate(self):
+        normalizer = (PACKAGE / "normalizer.py").read_text(encoding="utf-8")
+        locator = (PACKAGE / "pdf_table_locator.py").read_text(encoding="utf-8")
+        layout = (PACKAGE / "pdf_layout.py").read_text(encoding="utf-8")
+        projection = (PACKAGE / "table_projection.py").read_text(
+            encoding="utf-8"
+        )
+        canonical = (PACKAGE / "canonical_artifact.py").read_text(
+            encoding="utf-8"
+        )
+        locator_imports = {
+            str(node.module or "")
+            for node in ast.walk(ast.parse(locator))
+            if isinstance(node, ast.ImportFrom)
+        }
+        layout_imports = {
+            str(node.module or "")
+            for node in ast.walk(ast.parse(layout))
+            if isinstance(node, ast.ImportFrom)
+        }
+
+        self.assertIn("NormalizedTableProjectionFactory(", normalizer)
+        self.assertIn("PdfTableLocatorProjectionFactory", locator)
+        self.assertFalse(
+            {"pdf_layout", "pdf_layout_units", "table_projection"}
+            & locator_imports
+        )
+        self.assertIn("class PdfPlumberLayoutAdapter", layout)
+        self.assertNotIn("pdf_table_locator", layout_imports)
+        self.assertIn("class TableProjectionValidator", projection)
+        self.assertNotIn("CanonicalNormalizerFactory", projection)
+        self.assertIn("class CanonicalNormalizerFactory", canonical)
+        self.assertNotIn("PdfTableIntakeRuntimeFactory", canonical)
+
     def test_canonical_architecture_contains_runtime_authority_markers(self):
         authority = ARCHITECTURE_DOCUMENT.read_text(encoding="utf-8")
         required = {

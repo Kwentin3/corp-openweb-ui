@@ -116,6 +116,12 @@ source-value refs from the original PDF. The projection records
 `pdfplumber_settings_selected_by_model=false`. Exact ownership is defined by
 [PDF Source-Bound Table Normalization v1](./BROKER_REPORTS_PDF_SOURCE_BOUND_TABLE_NORMALIZATION.v1.md).
 
+The parser may expand only its crop by one PDF point while source-word
+ownership remains bounded by the original locator box. Native pdfplumber row
+slots, `None` slots, `row_span` and `column_span` are preserved. Axes with no
+source words anywhere may be compacted deterministically; populated axes may
+not be dropped or joined.
+
 `PdfTableCandidateProjectionBuilder` accepts only a `pdf_table_candidate_unit` and its resolver-matched private parent payload. It checks:
 
 - candidate inventory presence;
@@ -132,7 +138,16 @@ source-value refs from the original PDF. The projection records
 means those structural checks passed. It never means business or semantic
 truth.
 
-If checks fail, the projection is `blocked` with `table_candidate_status=rejected_to_line_cluster`, no rows/cells, explicit rejected refs and in-scope line fallback refs. Page-line refs outside the candidate's selected scope remain owned by their existing line-cluster units and are not copied into projection coverage. Gate 2 continues through the existing line-cluster unit; it must not receive fake cells.
+If checks fail, the projection is `blocked` with `table_candidate_status=rejected_to_line_cluster`, no rows/cells, explicit rejected refs and in-scope line refs. Page-line refs outside the candidate's selected scope remain owned by their existing line-cluster units and are not copied into projection coverage. These line refs preserve source evidence only: they are not an accepted table fallback and do not turn the failed table normalization into success. Gate 2 must not receive fake cells.
+
+### PDF continuation link
+
+Adjacent physical projections may carry `logical_table_id` together with
+`continuation.schema_version=broker_reports_pdf_table_continuation_v1`. The
+continuation validator requires source-bound origin, mechanical status,
+`start|middle|end` role-consistent previous/next refs, fixed structural reason
+codes and `semantic_table_truth_claimed=false`. Physical rows and cells are not
+merged. A broken or partial link fails validation.
 
 ## Coverage
 
@@ -154,7 +169,7 @@ The owner buckets form an exact partition of selected refs. Fallback refs never 
 
 `Gate2TablePackageFactory` produces `broker_reports_source_fact_package_v0` with mode `gate2_normalized_table_projection_no_model_call`.
 
-The package contains bounded rows, repeated headers, selected cells, source-value refs, issue refs, quality metadata and PDF fallback metadata. Header/repeated-header/blank/layout rows are explicit deterministic no-fact coverage entries. Data/summary/subtotal/footer/unknown rows remain candidates for later Gate 2 classification.
+The package contains bounded rows, repeated headers, selected cells, source-value refs, issue refs, quality metadata and PDF source-retention metadata. Header/repeated-header/blank/layout rows are explicit deterministic no-fact coverage entries. Data/summary/subtotal/footer/unknown rows remain candidates for later Gate 2 classification.
 
 Gate 2 table package eligibility is strict:
 

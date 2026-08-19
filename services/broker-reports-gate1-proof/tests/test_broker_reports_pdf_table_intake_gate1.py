@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import sys
 from pathlib import Path
@@ -19,6 +20,10 @@ from broker_reports_gate1.bounded_graph import (  # noqa: E402
     Gate1BoundedGraphConfig,
     Gate1BoundedGraphFactory,
 )
+from broker_reports_gate1.canonical_artifact import (  # noqa: E402
+    CanonicalNormalizerConfig,
+    CanonicalNormalizerFactory,
+)
 from broker_reports_gate1.inputs import FileInput  # noqa: E402
 from broker_reports_gate1.normalizer import Gate1Normalizer  # noqa: E402
 from broker_reports_gate1.pdf_text_layer import (  # noqa: E402
@@ -31,6 +36,9 @@ from broker_reports_gate1.pdf_table_intake_runtime import (  # noqa: E402
 from broker_reports_gate1.pdf_table_locator import (  # noqa: E402
     PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
     PDF_TABLE_LOCATOR_PROMPT,
+)
+from broker_reports_gate1.table_projection import (  # noqa: E402
+    TableProjectionValidator,
 )
 
 
@@ -74,6 +82,106 @@ def _two_table_pdf() -> bytes:
             for x, value in zip((56, 263, 398), row, strict=True):
                 page.insert_text((x, baseline), value, fontsize=10)
     page.insert_text((48, 800), "Synthetic fixture. No customer data.", fontsize=8)
+    data = document.tobytes(deflate=True)
+    document.close()
+    return data
+
+
+def _merged_header_table_pdf() -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=320, height=180)
+    for start, end in (
+        ((10, 20), (290, 20)),
+        ((80, 40), (290, 40)),
+        ((10, 60), (290, 60)),
+        ((10, 85), (290, 85)),
+        ((10, 110), (290, 110)),
+        ((10, 20), (10, 110)),
+        ((80, 20), (80, 110)),
+        ((140, 40), (140, 110)),
+        ((200, 20), (200, 110)),
+        ((290, 20), (290, 110)),
+    ):
+        page.draw_line(start, end, color=(0, 0, 0), width=1)
+    for x, y, text in (
+        (18, 43, "Identity"),
+        (100, 33, "Period values"),
+        (225, 33, "Currency"),
+        (92, 53, "Start"),
+        (150, 53, "End"),
+        (220, 53, "Code"),
+        (18, 77, "AAA"),
+        (92, 77, "10"),
+        (150, 77, "20"),
+        (220, 77, "RUB"),
+        (18, 102, "Total"),
+        (92, 102, "10"),
+        (150, 102, "20"),
+        (220, 102, "RUB"),
+    ):
+        page.insert_text((x, y), text, fontsize=7)
+    data = document.tobytes(deflate=True)
+    document.close()
+    return data
+
+
+def _borderless_aligned_table_pdf() -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=320, height=140)
+    for y, values in (
+        (32, ("Name", "Amount", "Currency")),
+        (62, ("AAA", "10", "RUB")),
+        (92, ("BBB", "20", "RUB")),
+    ):
+        for x, value in zip((18, 145, 245), values, strict=True):
+            page.insert_text((x, y), value, fontsize=8)
+    data = document.tobytes(deflate=True)
+    document.close()
+    return data
+
+
+def _two_page_table_pdf(*, second_page_header: bool) -> bytes:
+    document = fitz.open()
+    first = document.new_page(width=320, height=320)
+
+    def draw_table(page, edges, rows):
+        for y in edges:
+            page.draw_line((20, y), (300, y), color=(0, 0, 0), width=1)
+        for x in (20, 110, 210, 300):
+            page.draw_line((x, edges[0]), (x, edges[-1]), color=(0, 0, 0), width=1)
+        for row_ordinal, values in enumerate(rows):
+            baseline = edges[row_ordinal] + 17
+            for x, value in zip((28, 125, 225), values, strict=True):
+                page.insert_text((x, baseline), value, fontsize=7)
+
+    draw_table(
+        first,
+        [220, 245, 270, 294, 318],
+        [
+            ("Name", "Amount", "Currency"),
+            ("AAA", "10", "RUB"),
+            ("BBB", "20", "RUB"),
+            ("CCC", "30", "RUB"),
+        ],
+    )
+    second = document.new_page(width=320, height=320)
+    draw_table(
+        second,
+        [2, 27, 52, 77],
+        (
+            [
+                ("Name", "Amount", "Currency"),
+                ("DDD", "40", "RUB"),
+                ("EEE", "50", "RUB"),
+            ]
+            if second_page_header
+            else [
+                ("DDD", "40", "RUB"),
+                ("EEE", "50", "RUB"),
+                ("FFF", "60", "RUB"),
+            ]
+        ),
+    )
     data = document.tobytes(deflate=True)
     document.close()
     return data
@@ -247,7 +355,7 @@ def test_normalizer_uses_locator_region_pdfplumber_structure_and_source_literals
     )
 
 
-def test_tight_source_bound_regions_persist_when_no_fallback_lines_exist(
+def test_tight_source_bound_regions_persist_independent_of_fallback_lines(
     tmp_path: Path,
 ) -> None:
     pdf_bytes = _two_table_pdf()
@@ -332,7 +440,6 @@ def test_tight_source_bound_regions_persist_when_no_fallback_lines_exist(
     ]
 
     assert len(table_units) == 2
-    assert all(not item.get("table_fallback_text_refs") for item in table_units)
     assert all(not validate_pdf_source_unit_structure(item) for item in table_units)
     assert len(projections) == 2
     assert all(item.get("validator_status") == "passed" for item in projections)
@@ -350,10 +457,248 @@ def test_tight_source_bound_regions_persist_when_no_fallback_lines_exist(
     }
     legacy_without_fallback = dict(table_units[0])
     legacy_without_fallback["table_locator_scope_status"] = None
+    legacy_without_fallback["table_fallback_text_refs"] = []
     assert "pdf_table_source_unit_fallback_missing" in {
         item["code"]
         for item in validate_pdf_source_unit_structure(legacy_without_fallback)
     }
+
+
+def test_borderless_table_compacts_only_empty_parser_axes() -> None:
+    pdf_bytes = _borderless_aligned_table_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    normalized = Gate1Normalizer().normalize(
+        [
+            FileInput(
+                private_ref="borderless-grid",
+                original_filename_private="borderless-grid.pdf",
+                mime_type="application/pdf",
+                source_kind="unit_test",
+                declared_size_bytes=len(pdf_bytes),
+                bytes_provider=lambda: pdf_bytes,
+                provider_label="unit_test",
+            )
+        ],
+        pdf_table_locator_pages_by_sha256={
+            digest: [
+                {
+                    "page_number": 1,
+                    "status": "located",
+                    "regions": [
+                        {
+                            "region_ref": "borderless-grid-region",
+                            "bbox_pdf_points": [9.0, 15.0, 305.0, 105.0],
+                            "model_values_used_as_source_literals": False,
+                            "pdfplumber_settings_selected_by_model": False,
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    projection = next(
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    )
+
+    assert projection["projection_status"] == "ready"
+    assert projection["row_count"] == 3
+    assert projection["column_count"] == 3
+    assert projection["cell_count"] == 9
+    assert "empty_grid_axes_compacted" in projection["reconstruction_reason_codes"]
+
+
+def test_tight_locator_margin_and_merged_grid_survive_into_canonical() -> None:
+    pdf_bytes = _merged_header_table_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    original_locator_bbox = [9.5, 19.5, 289.5, 110.5]
+    file_input = FileInput(
+        private_ref="merged-grid",
+        original_filename_private="merged-grid.pdf",
+        mime_type="application/pdf",
+        source_kind="unit_test",
+        declared_size_bytes=len(pdf_bytes),
+        bytes_provider=lambda: pdf_bytes,
+        provider_label="unit_test",
+    )
+
+    normalized = Gate1Normalizer().normalize(
+        [file_input],
+        pdf_table_locator_pages_by_sha256={
+            digest: [
+                {
+                    "page_number": 1,
+                    "status": "located",
+                    "regions": [
+                        {
+                            "region_ref": "merged-grid-region",
+                            "bbox_pdf_points": original_locator_bbox,
+                            "model_values_used_as_source_literals": False,
+                            "pdfplumber_settings_selected_by_model": False,
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    projection = next(
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    )
+
+    assert projection["projection_status"] == "ready"
+    assert projection["row_count"] == 4
+    assert projection["column_count"] == 4
+    assert projection["geometry"]["table_locator_bbox_pdf_points"] == (
+        original_locator_bbox
+    )
+    spans = {
+        (item["row_ordinal"], item["column_ordinal"]): (
+            item["row_span"],
+            item["column_span"],
+        )
+        for item in projection["cells"]
+    }
+    assert spans[(1, 1)] == (2, 1)
+    assert spans[(1, 2)] == (1, 2)
+    assert (2, 1) not in spans
+    assert (1, 3) not in spans
+
+    document = normalized.package["document_inventory"]["documents"][0]
+    canonical = (
+        CanonicalNormalizerFactory(
+            CanonicalNormalizerConfig(normalizer_version="merged-grid-test-v1")
+        )
+        .create()
+        .build(
+            tenant_id="tenant",
+            artifact_version=1,
+            document=document,
+            source_artifact_ref="source-merged-grid",
+            source_payloads=normalized.package["private_normalized_source_payloads"],
+            source_units=normalized.package["private_normalized_source_units"],
+            table_projections=normalized.package[
+                "private_normalized_table_projections"
+            ],
+        )
+    )
+    table = next(item for item in canonical["nodes"] if item["node_type"] == "TABLE")
+    merged_ranges = {
+        item["merged_range"]
+        for item in table["content"]["cells"]
+        if item["merged_range"]
+    }
+    assert {"R1C1:R2C1", "R1C2:R1C3"} <= merged_ranges
+
+
+def test_cross_page_table_segments_get_only_strict_structural_link() -> None:
+    def normalize(second_page_header: bool):
+        pdf_bytes = _two_page_table_pdf(second_page_header=second_page_header)
+        digest = hashlib.sha256(pdf_bytes).hexdigest()
+        return Gate1Normalizer().normalize(
+            [
+                FileInput(
+                    private_ref=f"continuation-{second_page_header}",
+                    original_filename_private="continuation.pdf",
+                    mime_type="application/pdf",
+                    source_kind="unit_test",
+                    declared_size_bytes=len(pdf_bytes),
+                    bytes_provider=lambda: pdf_bytes,
+                    provider_label="unit_test",
+                )
+            ],
+            pdf_table_locator_pages_by_sha256={
+                digest: [
+                    {
+                        "page_number": 1,
+                        "status": "located",
+                        "regions": [
+                            {
+                                "region_ref": "continuation-start",
+                                "bbox_pdf_points": [19.5, 219.5, 299.5, 318.5],
+                                "model_values_used_as_source_literals": False,
+                                "pdfplumber_settings_selected_by_model": False,
+                            }
+                        ],
+                    },
+                    {
+                        "page_number": 2,
+                        "status": "located",
+                        "regions": [
+                            {
+                                "region_ref": "continuation-end",
+                                "bbox_pdf_points": [19.5, 1.5, 299.5, 77.5],
+                                "model_values_used_as_source_literals": False,
+                                "pdfplumber_settings_selected_by_model": False,
+                            }
+                        ],
+                    },
+                ]
+            },
+        )
+
+    linked = normalize(False)
+    projections = [
+        item
+        for item in linked.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert len(projections) == 2
+    assert {item["projection_status"] for item in projections} == {"ready"}
+    assert len({item.get("logical_table_id") for item in projections}) == 1
+    assert None not in {item.get("logical_table_id") for item in projections}
+    assert [item["continuation"]["role"] for item in projections] == [
+        "start",
+        "end",
+    ]
+    assert (
+        projections[0]["continuation"]["next_table_projection_ref"]
+        == projections[1]["table_projection_id"]
+    )
+    assert (
+        projections[1]["continuation"]["previous_table_projection_ref"]
+        == projections[0]["table_projection_id"]
+    )
+    broken_link = copy.deepcopy(projections[0])
+    broken_link["continuation"]["next_table_projection_ref"] = None
+    assert "pdf_table_continuation_role_refs_invalid" in {
+        item["code"]
+        for item in TableProjectionValidator().validate(broken_link)["errors"]
+    }
+
+    document = linked.package["document_inventory"]["documents"][0]
+    canonical = (
+        CanonicalNormalizerFactory(
+            CanonicalNormalizerConfig(normalizer_version="continuation-test-v1")
+        )
+        .create()
+        .build(
+            tenant_id="tenant",
+            artifact_version=1,
+            document=document,
+            source_artifact_ref="source-continuation",
+            source_payloads=linked.package["private_normalized_source_payloads"],
+            source_units=linked.package["private_normalized_source_units"],
+            table_projections=projections,
+        )
+    )
+    tables = [item for item in canonical["nodes"] if item["node_type"] == "TABLE"]
+    assert len(tables) == 2
+    assert {item["content"]["metadata"]["logical_table_id"] for item in tables} == {
+        projections[0]["logical_table_id"]
+    }
+
+    independently_headed = normalize(True)
+    independent_projections = [
+        item
+        for item in independently_headed.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert len(independent_projections) == 2
+    assert all("logical_table_id" not in item for item in independent_projections)
+    assert all("continuation" not in item for item in independent_projections)
 
 
 def test_missing_or_failed_locator_page_blocks_table_normalization() -> None:
