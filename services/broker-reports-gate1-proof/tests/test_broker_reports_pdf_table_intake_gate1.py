@@ -25,6 +25,7 @@ from broker_reports_gate1.canonical_artifact import (  # noqa: E402
     CanonicalNormalizerFactory,
 )
 from broker_reports_gate1.inputs import FileInput  # noqa: E402
+from broker_reports_gate1.gate2_handoff import persist_gate1_result  # noqa: E402
 from broker_reports_gate1.normalizer import Gate1Normalizer  # noqa: E402
 from broker_reports_gate1.pdf_text_layer import (  # noqa: E402
     validate_pdf_source_unit_structure,
@@ -730,6 +731,71 @@ def test_missing_or_failed_locator_page_blocks_table_normalization() -> None:
         and item.get("blocks_next_gate") is True
         for item in normalized.package["normalization_blockers"]
     )
+
+
+def test_incomplete_pdf_table_normalization_cannot_publish_canonical_candidate(
+    tmp_path: Path,
+) -> None:
+    pdf_bytes = _single_page_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    file_input = FileInput(
+        private_ref="file-incomplete-table",
+        original_filename_private="incomplete-table.pdf",
+        mime_type="application/pdf",
+        source_kind="unit_test",
+        declared_size_bytes=len(pdf_bytes),
+        bytes_provider=lambda: pdf_bytes,
+        provider_label="unit_test",
+    )
+    normalized = Gate1Normalizer().normalize(
+        [file_input],
+        input_context={
+            "canonical_gate2_write_enabled": True,
+            "canonical_gate2_read_enabled": True,
+            "canonical_gate2_compare_enabled": True,
+            "normalizer_version": "canonical-table-contract-test-v1",
+        },
+        pdf_table_locator_pages_by_sha256={
+            digest: [{"page_number": 1, "status": "failed", "regions": []}]
+        },
+    )
+    store = ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=tmp_path / "artifacts.sqlite3",
+            payload_root=tmp_path / "payloads",
+        )
+    ).create()
+    context = ArtifactAccessContext(
+        user_id="user-1",
+        case_id="case-incomplete-table",
+        chat_id="chat-incomplete-table",
+        workspace_model_id="broker-reports-ndfl",
+        normalization_run_id=normalized.package["normalization_run"]["run_id"],
+        allow_private=True,
+        require_source_available=True,
+    )
+
+    manifest = persist_gate1_result(
+        store=store,
+        result=normalized,
+        context=context,
+        retention_policy=build_retention_policy(mode="api_smoke"),
+    )
+
+    assert "broker_reports_canonical_artifact_v1" not in manifest.artifact_refs_by_type
+    failure_ref = manifest.artifact_refs_by_type[
+        "broker_reports_canonical_build_failure_v1"
+    ][0]
+    failure = store.get_record_unchecked(failure_ref)
+    assert failure is not None
+    assert failure.safe_metadata == {
+        "failure_code": "canonical_pdf_table_normalization_incomplete",
+        "canonical_required": True,
+        "legacy_fallback_used": False,
+        "downstream_status": "blocked",
+        "cutover_authorized": False,
+    }
 
 
 def test_coordinate_contract_is_explicitly_recorded() -> None:
