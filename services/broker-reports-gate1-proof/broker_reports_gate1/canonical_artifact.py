@@ -384,6 +384,18 @@ class CanonicalNormalizer:
                             "table_candidate_status"
                         ),
                         "parser_duplicate_text_suppressed": True,
+                        **(
+                            {
+                                "logical_table_id": projection.get(
+                                    "logical_table_id"
+                                ),
+                                "continuation": copy.deepcopy(
+                                    projection.get("continuation")
+                                ),
+                            }
+                            if projection.get("logical_table_id")
+                            else {}
+                        ),
                     },
                     canonical_cells=_projection_canonical_cells(
                         builder, projection, location
@@ -467,6 +479,16 @@ class CanonicalNormalizer:
                     ),
                     "standalone_source_bound_projection": True,
                     "parser_duplicate_text_suppressed": False,
+                    **(
+                        {
+                            "logical_table_id": projection.get("logical_table_id"),
+                            "continuation": copy.deepcopy(
+                                projection.get("continuation")
+                            ),
+                        }
+                        if projection.get("logical_table_id")
+                        else {}
+                    ),
                 },
                 canonical_cells=_projection_canonical_cells(
                     builder,

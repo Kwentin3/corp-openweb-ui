@@ -11,7 +11,7 @@ from .contracts import stable_digest
 
 PDFPLUMBER_PINNED_VERSION = "0.11.10"
 PDFMINER_PINNED_VERSION = "20260107"
-PDF_LAYOUT_POLICY_VERSION = "pdfplumber_layout_policy_v1"
+PDF_LAYOUT_POLICY_VERSION = "pdfplumber_layout_policy_v2"
 PDF_LAYOUT_CAPABILITIES = frozenset(
     {"layout_words", "layout_lines", "table_candidates"}
 )
@@ -38,6 +38,7 @@ class PdfLayoutParserConfig:
     table_snap_tolerance: float = 3.0
     table_join_tolerance: float = 3.0
     table_intersection_tolerance: float = 3.0
+    locator_crop_margin_points: float = 1.0
     aligned_table_min_rows: int = 3
     aligned_table_min_columns: int = 2
 
@@ -65,6 +66,7 @@ class PdfLayoutParserConfig:
                 self.table_snap_tolerance,
                 self.table_join_tolerance,
                 self.table_intersection_tolerance,
+                self.locator_crop_margin_points,
                 self.aligned_table_min_rows,
                 self.aligned_table_min_columns,
             ],
@@ -594,18 +596,23 @@ class PdfPlumberLayoutAdapter:
                 for word in words
                 if _bbox_center_inside(word.get("bbox") or [], bbox)
             ]
+            crop_bbox = _expanded_bbox(
+                bbox,
+                page_bbox=page_bbox,
+                margin=self.config.locator_crop_margin_points,
+            )
             region_lines = [
                 line
                 for line in vector_lines
-                if _bbox_overlap(line.get("bbox") or [], bbox)
+                if _bbox_overlap(line.get("bbox") or [], crop_bbox)
             ]
             region_rects = [
                 rect
                 for rect in rects
-                if _bbox_overlap(rect.get("bbox") or [], bbox)
+                if _bbox_overlap(rect.get("bbox") or [], crop_bbox)
             ]
             try:
-                crop = page.crop(tuple(bbox), strict=False)
+                crop = page.crop(tuple(crop_bbox), strict=False)
                 candidates, region_reasons = self._find_unbounded_table_candidates(
                     page=crop,
                     words=region_words,
@@ -636,6 +643,7 @@ class PdfPlumberLayoutAdapter:
             candidate["reconstruction_reason_codes"] = sorted(
                 {
                     *candidate.get("reconstruction_reason_codes", []),
+                    "locator_boundary_margin_applied",
                     "vlm_region_pdfplumber_structure_source_literals",
                 }
             )
@@ -850,34 +858,68 @@ def _table_candidate_from_pdfplumber(
         return None
     rows = list(getattr(table, "rows", []) or [])
     columns = list(getattr(table, "columns", []) or [])
-    cells = [list(cell) if cell is not None else None for cell in getattr(table, "cells", []) or []]
     rows_total = len(rows)
     columns_total = len(columns)
-    if rows_total < 2 or columns_total < 2 or not cells:
+    if rows_total < 2 or columns_total < 2:
         return None
     contributing = [
         int(word["parser_ordinal"])
         for word in words
         if _bbox_center_inside(word.get("bbox") or [], bbox)
     ]
-    if len(contributing) < max(4, rows_total):
+    grid_cells = [
+        [list(cell) if cell is not None else None for cell in row.cells] for row in rows
+    ]
+    cell_bboxes = [
+        [_number(value) for value in cell]
+        for row in grid_cells
+        for cell in row
+        if cell is not None and len(cell) == 4
+    ]
+    if not cell_bboxes:
         return None
+    x_edges = sorted({value for cell in cell_bboxes for value in (cell[0], cell[2])})
+    y_edges = sorted({value for cell in cell_bboxes for value in (cell[1], cell[3])})
     cell_inventory = []
-    for cell_ordinal, cell_bbox in enumerate(cells, 1):
-        if not cell_bbox or len(cell_bbox) != 4:
-            continue
-        normalized_bbox = [_number(value) for value in cell_bbox]
-        cell_inventory.append(
-            {
-                "cell_ordinal": cell_ordinal,
-                "bbox": normalized_bbox,
-                "word_parser_ordinals": [
-                    int(word["parser_ordinal"])
-                    for word in words
-                    if _bbox_center_inside(word.get("bbox") or [], normalized_bbox)
-                ],
-            }
-        )
+    cell_ordinal = 0
+    for row_ordinal, row_cells in enumerate(grid_cells, 1):
+        for column_ordinal, cell_bbox in enumerate(row_cells, 1):
+            if cell_bbox is None or len(cell_bbox) != 4:
+                continue
+            cell_ordinal += 1
+            normalized_bbox = [_number(value) for value in cell_bbox]
+            cell_inventory.append(
+                {
+                    "cell_ordinal": cell_ordinal,
+                    "row_ordinal": row_ordinal,
+                    "column_ordinal": column_ordinal,
+                    "row_span": _axis_span(
+                        y_edges, normalized_bbox[1], normalized_bbox[3]
+                    ),
+                    "column_span": _axis_span(
+                        x_edges, normalized_bbox[0], normalized_bbox[2]
+                    ),
+                    "bbox": normalized_bbox,
+                    "word_parser_ordinals": [
+                        int(word["parser_ordinal"])
+                        for word in words
+                        if _bbox_center_inside(word.get("bbox") or [], normalized_bbox)
+                    ],
+                }
+            )
+    original_rows_total = rows_total
+    original_columns_total = columns_total
+    compacted = _compact_empty_table_axes(
+        rows=rows,
+        columns=columns,
+        cells=cell_inventory,
+        words=words,
+    )
+    rows_total = compacted["rows_total"]
+    columns_total = compacted["columns_total"]
+    cell_inventory = compacted["cells"]
+    if rows_total < 2 or columns_total < 2 or len(contributing) < max(4, rows_total):
+        return None
     ruling_evidence_total = sum(
         1
         for item in [*vector_lines, *rects]
@@ -904,8 +946,102 @@ def _table_candidate_from_pdfplumber(
                 if strategy_ref == "ruled_lines_v0"
                 else "repeated_text_alignment_detected"
             ),
+            *(
+                ["empty_grid_axes_compacted"]
+                if rows_total != original_rows_total
+                or columns_total != original_columns_total
+                else []
+            ),
         ],
     }
+
+
+def _axis_span(edges: list[float], start: float, end: float) -> int:
+    if len(edges) < 2:
+        return 1
+    start_index = min(range(len(edges)), key=lambda index: abs(edges[index] - start))
+    end_index = min(range(len(edges)), key=lambda index: abs(edges[index] - end))
+    return max(1, end_index - start_index)
+
+
+def _compact_empty_table_axes(
+    *,
+    rows: list[Any],
+    columns: list[Any],
+    cells: list[dict[str, Any]],
+    words: list[dict[str, Any]],
+) -> dict[str, Any]:
+    active_rows = [
+        ordinal
+        for ordinal, row in enumerate(rows, 1)
+        if any(
+            _bbox_center_inside(word.get("bbox") or [], list(row.bbox))
+            for word in words
+        )
+    ]
+    active_columns = [
+        ordinal
+        for ordinal, column in enumerate(columns, 1)
+        if any(
+            _bbox_center_inside(word.get("bbox") or [], list(column.bbox))
+            for word in words
+        )
+    ]
+    row_positions = {
+        original: compacted for compacted, original in enumerate(active_rows, 1)
+    }
+    column_positions = {
+        original: compacted for compacted, original in enumerate(active_columns, 1)
+    }
+    compacted_cells: list[dict[str, Any]] = []
+    for cell in cells:
+        row_ordinal = int(cell.get("row_ordinal") or 0)
+        column_ordinal = int(cell.get("column_ordinal") or 0)
+        retained_rows = [
+            ordinal
+            for ordinal in range(
+                row_ordinal,
+                row_ordinal + max(1, int(cell.get("row_span") or 1)),
+            )
+            if ordinal in row_positions
+        ]
+        retained_columns = [
+            ordinal
+            for ordinal in range(
+                column_ordinal,
+                column_ordinal + max(1, int(cell.get("column_span") or 1)),
+            )
+            if ordinal in column_positions
+        ]
+        if not retained_rows or not retained_columns:
+            continue
+        compacted_cells.append(
+            {
+                **cell,
+                "cell_ordinal": len(compacted_cells) + 1,
+                "row_ordinal": row_positions[retained_rows[0]],
+                "column_ordinal": column_positions[retained_columns[0]],
+                "row_span": len(retained_rows),
+                "column_span": len(retained_columns),
+            }
+        )
+    return {
+        "rows_total": len(active_rows),
+        "columns_total": len(active_columns),
+        "cells": compacted_cells,
+    }
+
+
+def _expanded_bbox(
+    bbox: list[float], *, page_bbox: list[float], margin: float
+) -> list[float]:
+    bounded_margin = max(0.0, float(margin))
+    return [
+        max(page_bbox[0], _number(bbox[0]) - bounded_margin),
+        max(page_bbox[1], _number(bbox[1]) - bounded_margin),
+        min(page_bbox[2], _number(bbox[2]) + bounded_margin),
+        min(page_bbox[3], _number(bbox[3]) + bounded_margin),
+    ]
 
 
 def _geometry_key(item: dict[str, Any]) -> tuple[float, float, int]:

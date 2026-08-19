@@ -79,6 +79,12 @@ Every cell preserves its row/column coordinate, source refs, and applicable:
 - source coordinate;
 - hidden state and number-format identity.
 
+For a source-bound PDF table, merged ranges come from parser-native row/column
+spans. A table segment that is mechanically linked across a page boundary also
+carries `logical_table_id` and the validated `continuation` metadata. Segments
+remain separate ordered `TABLE` nodes; Canonical does not join their values or
+claim that they are semantically one table.
+
 CSV preserves encoding, delimiter, quote rules, header state, empty cells, row
 order, and row/column coordinates. XLSX preserves workbook/sheet order, sheet
 visibility, formulas and cached displayed values, raw values, cell types,
@@ -109,6 +115,12 @@ validated structured table at its source position, and preserves unmatched
 parser content plus explicit conflict/ambiguity issues. DOC23 conservative
 deduplication is allowed only when source coverage is proved. DOC24 remains the
 material regression baseline; it is evidence, not product authority.
+
+PDF table text is owned by the original locator region even when the parser
+uses a one-point crop margin to recover a clipped ruling. Globally empty parser
+axes may be removed, but populated axes and source refs remain accounted.
+Ambiguous wrapped-text row boundaries retain their physical ordering and low
+quality marker instead of being semantically joined.
 
 For every non-empty PDF, the root container carries a counts-only
 `canonical_pdf_completeness_v1` receipt. Validation requires page and container
