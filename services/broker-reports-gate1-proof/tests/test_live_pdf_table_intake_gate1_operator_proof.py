@@ -30,15 +30,18 @@ class _Response:
 
 
 class _Session:
-    def __init__(self):
+    def __init__(self, *, completion_content: str = "completed"):
         self.posts = []
         self.deletes = []
+        self.completion_content = completion_content
 
     def post(self, url, **kwargs):
         self.posts.append((url, kwargs))
         if url.endswith("/api/v1/chats/new"):
             return _Response({"id": "chat-attested"})
-        return _Response({"choices": [{"message": {"content": "completed"}}]})
+        return _Response(
+            {"choices": [{"message": {"content": self.completion_content}}]}
+        )
 
     def delete(self, url, **kwargs):
         self.deletes.append((url, kwargs))
@@ -97,7 +100,84 @@ def test_operator_deletes_the_exact_temporary_chat():
     ]
 
 
+def test_operator_keeps_gate1_evidence_readable_when_downstream_chat_is_empty():
+    session = _Session(completion_content="")
+    native_chat = _create_native_chat(
+        session,
+        "https://example.invalid",
+        workspace_model_id="broker-reports-ndfl",
+        uploads=_uploads(),
+    )
+
+    content = _run_chat(
+        session,
+        "https://example.invalid",
+        workspace_model_id="broker-reports-ndfl",
+        case_id=native_chat["chat_id"],
+        uploads=_uploads(),
+        native_chat=native_chat,
+        timeout=30,
+    )
+
+    assert content == ""
+
+
 def test_operator_accepts_source_bound_units_and_parser_owned_projections():
+    remote_evidence = _passing_remote_evidence()
+
+    checks = _evaluate(
+        remote_evidence=remote_evidence,
+        chat_content="Gate 1 completed",
+        uploads=_uploads(),
+    )
+
+    assert checks
+    assert all(checks.values())
+
+
+def test_operator_gate1_acceptance_does_not_depend_on_downstream_chat_content():
+    remote_evidence = _passing_remote_evidence()
+
+    checks = _evaluate(
+        remote_evidence=remote_evidence,
+        chat_content="",
+        uploads=_uploads(),
+    )
+
+    assert checks["downstream_chat_response_private_safe"] is True
+    assert all(checks.values())
+
+
+def test_operator_accepts_validated_source_bound_low_quality_projection():
+    remote_evidence = _passing_remote_evidence()
+    remote_evidence["table_projections"][0]["safe_metadata"][
+        "reconstruction_quality"
+    ] = "low"
+
+    checks = _evaluate(
+        remote_evidence=remote_evidence,
+        chat_content="",
+        uploads=_uploads(),
+    )
+
+    assert checks["table_projections_match_regions"] is True
+    assert all(checks.values())
+
+
+def test_operator_gate1_acceptance_does_not_depend_on_business_handoff():
+    remote_evidence = _passing_remote_evidence()
+    remote_evidence["handoff"]["private_source_unit_refs"] = []
+
+    checks = _evaluate(
+        remote_evidence=remote_evidence,
+        chat_content="",
+        uploads=_uploads(),
+    )
+
+    assert all(checks.values())
+
+
+def _passing_remote_evidence():
     table_units = [
         _source_unit("artifact-table-1", "unit-table-1"),
         _source_unit("artifact-table-2", "unit-table-2"),
@@ -106,7 +186,7 @@ def test_operator_accepts_source_bound_units_and_parser_owned_projections():
         _projection("unit-table-1", rows=2, cells=4),
         _projection("unit-table-2", rows=3, cells=6),
     ]
-    remote_evidence = {
+    return {
         "run_summary": {
             "status": "completed",
             "gate2_boundary_ready": True,
@@ -140,15 +220,6 @@ def test_operator_accepts_source_bound_units_and_parser_owned_projections():
         "source_units": table_units,
         "table_projections": projections,
     }
-
-    checks = _evaluate(
-        remote_evidence=remote_evidence,
-        chat_content="Gate 1 completed",
-        uploads=_uploads(),
-    )
-
-    assert checks
-    assert all(checks.values())
 
 
 def _source_unit(artifact_id: str, unit_ref: str):

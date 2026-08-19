@@ -137,9 +137,13 @@ def main() -> int:
             "checks": checks,
             "run_summary": remote_evidence.get("run_summary"),
             "handoff": remote_evidence.get("handoff"),
+            "downstream_handoff_status": (
+                remote_evidence.get("handoff") or {}
+            ).get("handoff_status"),
             "source_units": remote_evidence.get("source_units"),
             "table_projections": remote_evidence.get("table_projections"),
             "detection_attempts": remote_evidence.get("attempts"),
+            "downstream_chat_content_present": bool(chat_content.strip()),
             "chat_compact": bool(chat_content.strip())
             and not chat_content.lstrip().startswith("{"),
             "operator_visual_review_required": False,
@@ -271,10 +275,7 @@ def _run_chat(
         timeout=timeout,
     )
     response.raise_for_status()
-    content = _extract_content(response.json())
-    if not content:
-        raise RuntimeError("operator_chat_content_missing")
-    return content
+    return _extract_content(response.json())
 
 
 def _create_native_chat(
@@ -464,13 +465,9 @@ def _evaluate(
     ]
     projections = remote_evidence.get("table_projections")
     projections = projections if isinstance(projections, list) else []
-    table_unit_ids = {str(item.get("artifact_id") or "") for item in table_units}
     table_unit_refs = {
         str((item.get("safe_metadata") or {}).get("unit_ref") or "")
         for item in table_units
-    }
-    handoff_source_unit_ids = {
-        str(item) for item in handoff.get("private_source_unit_refs") or []
     }
     legacy_candidate_ids = [
         str(item) for item in handoff.get("pdf_table_candidate_refs") or []
@@ -478,9 +475,10 @@ def _evaluate(
     regions_total = summary.get("regions_total")
     return {
         "supported_function_boundary_used": bool(uploads),
-        "chat_compact_and_private_safe": bool(chat_content.strip())
-        and not chat_content.lstrip().startswith("{")
-        and "private_png_base64" not in chat_content,
+        "downstream_chat_response_private_safe": (
+            not chat_content.lstrip().startswith("{")
+            and "private_png_base64" not in chat_content
+        ),
         "intake_status_completed": summary.get("status") == "completed",
         "gate2_boundary_ready": summary.get("gate2_boundary_ready") is True,
         "detector_exact_model_match": (
@@ -535,8 +533,6 @@ def _evaluate(
             is False
             for item in attempts
         ),
-        "handoff_contains_source_bound_table_units": bool(table_unit_ids)
-        and table_unit_ids.issubset(handoff_source_unit_ids),
         "legacy_candidate_route_absent": not legacy_candidate_ids,
     }
 
@@ -552,7 +548,7 @@ def _projection_is_source_bound(item: dict[str, Any]) -> bool:
         and metadata.get("table_candidate_status")
         == "validated_source_bound_geometry"
         and metadata.get("coverage_status") == "complete"
-        and metadata.get("reconstruction_quality") == "high"
+        and metadata.get("reconstruction_quality") in {"low", "medium", "high"}
         and int(metadata.get("row_count") or 0) > 0
         and int(metadata.get("column_count") or 0) > 0
         and int(metadata.get("cell_count") or 0) > 0

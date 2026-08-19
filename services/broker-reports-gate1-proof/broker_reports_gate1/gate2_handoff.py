@@ -702,7 +702,7 @@ def persist_gate1_result(
         retention_policy=retention_policy,
         access_policy=access_policy,
     )
-    _persist_canonical_artifact_shadow(
+    _persist_canonical_artifacts(
         put=put,
         store=store,
         package=package,
@@ -1232,7 +1232,7 @@ def persist_gate1_result(
     )
 
 
-def _persist_canonical_artifact_shadow(
+def _persist_canonical_artifacts(
     *,
     put,
     store: SqliteArtifactStoreAdapter,
@@ -1282,6 +1282,14 @@ def _persist_canonical_artifact_shadow(
             ),
         ]
         try:
+            if _document_has_pdf_table_normalization_blocker(
+                package=package,
+                document_id=document_id,
+            ):
+                raise CanonicalArtifactError(
+                    "canonical_pdf_table_normalization_incomplete",
+                    document_id,
+                )
             artifact = CanonicalNormalizerFactory(
                 CanonicalNormalizerConfig(normalizer_version=normalizer_version)
             ).create().build(
@@ -1329,12 +1337,16 @@ def _persist_canonical_artifact_shadow(
                         "schema_version": "canonical_build_failure_v1",
                         "document_ref": document_id,
                         "failure_code": code,
-                        "legacy_authoritative": True,
+                        "canonical_required": True,
+                        "legacy_fallback_used": False,
+                        "downstream_status": "blocked",
                         "cutover_authorized": False,
                     },
                     safe_metadata={
                         "failure_code": code,
-                        "legacy_authoritative": True,
+                        "canonical_required": True,
+                        "legacy_fallback_used": False,
+                        "downstream_status": "blocked",
                         "cutover_authorized": False,
                     },
                     access_policy=access_policy,
@@ -1349,6 +1361,20 @@ def _persist_canonical_artifact_shadow(
                 refs_by_type["broker_reports_canonical_build_failure_v1"].append(
                     failure.artifact_id
                 )
+
+
+def _document_has_pdf_table_normalization_blocker(
+    *,
+    package: dict[str, Any],
+    document_id: str,
+) -> bool:
+    return any(
+        isinstance(item, dict)
+        and item.get("document_id") == document_id
+        and item.get("code") == "pdf_table_normalization_incomplete"
+        and item.get("blocks_next_gate") is True
+        for item in package.get("normalization_blockers", [])
+    )
 
 
 def _persist_pdf_compact_dual_write(
