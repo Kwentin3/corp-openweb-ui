@@ -9,8 +9,21 @@ import fitz
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from broker_reports_gate1.artifact_models import ArtifactAccessContext  # noqa: E402
+from broker_reports_gate1.artifact_retention import build_retention_policy  # noqa: E402
+from broker_reports_gate1.artifact_store import (  # noqa: E402
+    ArtifactStoreConfig,
+    ArtifactStoreFactory,
+)
+from broker_reports_gate1.bounded_graph import (  # noqa: E402
+    Gate1BoundedGraphConfig,
+    Gate1BoundedGraphFactory,
+)
 from broker_reports_gate1.inputs import FileInput  # noqa: E402
 from broker_reports_gate1.normalizer import Gate1Normalizer  # noqa: E402
+from broker_reports_gate1.pdf_text_layer import (  # noqa: E402
+    validate_pdf_source_unit_structure,
+)
 from broker_reports_gate1.pdf_table_intake_runtime import (  # noqa: E402
     PdfTableIntakeConfig,
     PdfTableIntakeRuntimeFactory,
@@ -37,6 +50,30 @@ def _single_page_pdf() -> bytes:
     page.insert_text((14, 88), "BBB")
     page.insert_text((44, 88), "3")
     page.insert_text((74, 88), "20")
+    data = document.tobytes(deflate=True)
+    document.close()
+    return data
+
+
+def _two_table_pdf() -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=595, height=842)
+    page.insert_text((48, 38), "Synthetic Broker Statement", fontsize=15)
+    for table_number, title, top, rows in (
+        (1, "Transactions", 90, (("ABC purchase", "2", "100.25"), ("XYZ sale", "1", "75.50"))),
+        (2, "Cash movements", 360, (("Deposit", "1", "500.00"), ("Fee", "1", "5.00"))),
+    ):
+        page.insert_text((48, top - 12), f"Table {table_number} - {title}", fontsize=12)
+        for x in (48, 255, 390, 547):
+            page.draw_line((x, top), (x, top + 102), color=(0, 0, 0), width=1)
+        for y in (top, top + 34, top + 68, top + 102):
+            page.draw_line((48, y), (547, y), color=(0, 0, 0), width=1)
+        values = (("Description", "Quantity", "Amount"), *rows)
+        for row_ordinal, row in enumerate(values):
+            baseline = top + 24 + row_ordinal * 34
+            for x, value in zip((56, 263, 398), row, strict=True):
+                page.insert_text((x, baseline), value, fontsize=10)
+    page.insert_text((48, 800), "Synthetic fixture. No customer data.", fontsize=8)
     data = document.tobytes(deflate=True)
     document.close()
     return data
@@ -208,6 +245,115 @@ def test_normalizer_uses_locator_region_pdfplumber_structure_and_source_literals
         item.get("code") == "pdf_table_normalization_incomplete"
         for item in normalized.package["normalization_blockers"]
     )
+
+
+def test_tight_source_bound_regions_persist_when_no_fallback_lines_exist(
+    tmp_path: Path,
+) -> None:
+    pdf_bytes = _two_table_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    intake = (
+        PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
+        .create_with_provider(
+            StaticDetectorProvider(
+                [[107, 80, 229, 919], [426, 80, 549, 919]]
+            )
+        )
+        .run(
+            [
+                {
+                    "document_ref": "pdfsource_tight_regions",
+                    "pdf_bytes": pdf_bytes,
+                    "pdf_sha256": digest,
+                }
+            ]
+        )
+    )
+    file_input = FileInput(
+        private_ref="file-tight-regions",
+        original_filename_private="tight-regions.pdf",
+        mime_type="application/pdf",
+        source_kind="unit_test",
+        declared_size_bytes=len(pdf_bytes),
+        bytes_provider=lambda: pdf_bytes,
+        provider_label="unit_test",
+    )
+    normalizer = Gate1Normalizer()
+    run_id = normalizer.plan_run_id([file_input])
+    store = ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=tmp_path / "artifacts.sqlite3",
+            payload_root=tmp_path / "payloads",
+        )
+    ).create()
+    context = ArtifactAccessContext(
+        user_id="user-1",
+        case_id="case-1",
+        chat_id="chat-1",
+        workspace_model_id="broker-reports",
+        normalization_run_id=run_id,
+        allow_private=True,
+        require_source_available=True,
+    )
+    graph = Gate1BoundedGraphFactory(
+        Gate1BoundedGraphConfig(
+            store=store,
+            context=context,
+            retention_policy=build_retention_policy(
+                mode="customer_approved_test", explicit=True
+            ),
+            source_file_refs=(
+                {
+                    "provider": "unit_test",
+                    "openwebui_file_id": "file-tight-regions",
+                    "content_type": "application/pdf",
+                    "size_bytes": len(pdf_bytes),
+                    "source_deleted": False,
+                },
+            ),
+        )
+    ).create(normalization_run_id=run_id)
+
+    normalized = normalizer.normalize(
+        [file_input],
+        pdf_table_locator_pages_by_sha256={digest: intake.private_page_results},
+        bounded_graph=graph,
+    )
+    table_units = [
+        item
+        for item in normalized.package["private_normalized_source_units"]
+        if item.get("pdf_unit_type") == "pdf_table_candidate_unit"
+    ]
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+
+    assert len(table_units) == 2
+    assert all(not item.get("table_fallback_text_refs") for item in table_units)
+    assert all(not validate_pdf_source_unit_structure(item) for item in table_units)
+    assert len(projections) == 2
+    assert all(item.get("validator_status") == "passed" for item in projections)
+    assert all(
+        item.get("table_origin") == "vlm_located_pdfplumber_source_bound"
+        for item in projections
+    )
+    assert graph.compact_receipt()["sealed"] is True
+
+    invalid_locator_unit = dict(table_units[0])
+    invalid_locator_unit["table_locator_region_ref"] = None
+    assert "pdf_table_source_bound_locator_contract_invalid" in {
+        item["code"]
+        for item in validate_pdf_source_unit_structure(invalid_locator_unit)
+    }
+    legacy_without_fallback = dict(table_units[0])
+    legacy_without_fallback["table_locator_scope_status"] = None
+    assert "pdf_table_source_unit_fallback_missing" in {
+        item["code"]
+        for item in validate_pdf_source_unit_structure(legacy_without_fallback)
+    }
 
 
 def test_missing_or_failed_locator_page_blocks_table_normalization() -> None:

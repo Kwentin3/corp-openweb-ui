@@ -348,14 +348,14 @@ def main() -> None:
         bundle = _render_bundle(
             modules=gate1_modules,
             resources={
-                name: base64.b64encode((PACKAGE_ROOT / name).read_bytes()).decode(
-                    "ascii"
-                )
+                name: base64.b64encode(
+                    _canonical_resource_bytes(PACKAGE_ROOT / name)
+                ).decode("ascii")
                 for name in GATE1_RESOURCE_NAMES
             },
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.37.0-pdf-source-bound-table-v1-bundled",
+            version="0.37.1-pdf-source-bound-table-v1-bundled",
             package_version="gate1_pdf_source_bound_table_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1",
@@ -726,6 +726,12 @@ _install_bundled_package()
 # Begin maintainable source adapter: {source_label}
 {pipe_source.rstrip()}
 '''
+
+
+def _canonical_resource_bytes(path: Path) -> bytes:
+    """Keep bundled text resources identical on Windows and Linux."""
+
+    return path.read_text(encoding="utf-8").encode("utf-8")
 
 
 if __name__ == "__main__":

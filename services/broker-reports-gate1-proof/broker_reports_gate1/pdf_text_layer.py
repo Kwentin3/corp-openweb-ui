@@ -912,7 +912,31 @@ def validate_pdf_source_unit_structure(
                     errors.append(_error("pdf_table_source_unit_field_missing", f"{unit_ref}:{field}"))
             if not list(unit.get("table_contributing_word_refs") or []):
                 errors.append(_error("pdf_table_source_unit_words_missing", unit_ref))
-            if not list(unit.get("table_fallback_text_refs") or []):
+            source_bound = unit.get("table_locator_scope_status") == "source_bound"
+            locator_bbox = unit.get("table_locator_bbox_pdf_points")
+            locator_bbox_valid = (
+                isinstance(locator_bbox, list)
+                and len(locator_bbox) == 4
+                and all(
+                    isinstance(value, (int, float)) and not isinstance(value, bool)
+                    for value in locator_bbox
+                )
+                and locator_bbox[0] < locator_bbox[2]
+                and locator_bbox[1] < locator_bbox[3]
+            )
+            if source_bound and (
+                not unit.get("table_locator_region_ref")
+                or not locator_bbox_valid
+                or unit.get("model_values_used_as_source_literals") is not False
+                or unit.get("pdfplumber_settings_selected_by_model") is not False
+            ):
+                errors.append(
+                    _error("pdf_table_source_bound_locator_contract_invalid", unit_ref)
+                )
+            if (
+                not source_bound
+                and not list(unit.get("table_fallback_text_refs") or [])
+            ):
                 errors.append(_error("pdf_table_source_unit_fallback_missing", unit_ref))
         elif unit.get("table_reconstruction_status") != "not_claimed":
             errors.append(_error("pdf_line_cluster_claims_table_reconstruction", unit_ref))
