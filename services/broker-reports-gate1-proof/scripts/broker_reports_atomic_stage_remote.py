@@ -36,6 +36,7 @@ VOLUME = "openwebui_data"
 STAGING_NAME_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 TERMINAL_WORKLOAD_STATES = {"completed", "failed", "cancelled"}
+MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v4"
 
 
 class StageReleaseError(RuntimeError):
@@ -114,7 +115,7 @@ def _validated_staging_dir(value: str) -> Path:
 
 
 def _validate_manifest(manifest: Mapping[str, Any]) -> None:
-    if manifest.get("schema_version") != "broker_reports_atomic_stage_release_v3":
+    if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise StageReleaseError("stage_release_manifest_schema_invalid")
     release_id = str(manifest.get("release_id") or "")
     if not STAGING_NAME_RE.fullmatch(release_id):
