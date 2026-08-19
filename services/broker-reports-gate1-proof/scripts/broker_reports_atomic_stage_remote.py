@@ -36,7 +36,11 @@ VOLUME = "openwebui_data"
 STAGING_NAME_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 TERMINAL_WORKLOAD_STATES = {"completed", "failed", "cancelled"}
-MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v4"
+RELEASE_QUIESCENT_WORKLOAD_STATES = {
+    *TERMINAL_WORKLOAD_STATES,
+    "awaiting_review",
+}
+MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v5"
 
 
 class StageReleaseError(RuntimeError):
@@ -127,6 +131,10 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> None:
     material.pop("manifest_sha256", None)
     if _sha256_text(_canonical_json(material)) != supplied:
         raise StageReleaseError("stage_release_manifest_digest_mismatch")
+    if (manifest.get("runtime") or {}).get(
+        "release_quiescent_workload_states"
+    ) != sorted(RELEASE_QUIESCENT_WORKLOAD_STATES):
+        raise StageReleaseError("stage_release_workload_policy_invalid")
 
 
 def _validate_payload(staging_dir: Path, manifest: Mapping[str, Any]) -> None:
@@ -389,6 +397,7 @@ def _database_counters(db_path: Path, data_root: Path) -> dict[str, int]:
 def _workload_state(data_root: Path) -> dict[str, Any]:
     db_path = data_root / "broker_reports_gate1" / "workloads.sqlite3"
     state_counts: dict[str, int] = {}
+    unsafe_review_jobs = 0
     if db_path.is_file():
         conn = sqlite3.connect(db_path)
         try:
@@ -403,6 +412,15 @@ def _workload_state(data_root: Path) -> dict[str, Any]:
                         "SELECT state, COUNT(*) FROM workload_jobs GROUP BY state"
                     )
                 }
+                unsafe_review_jobs = int(
+                    conn.execute(
+                        "SELECT COUNT(*) FROM workload_jobs "
+                        "WHERE state = 'awaiting_review' AND ("
+                        "worker_id IS NOT NULL OR lease_token IS NOT NULL OR "
+                        "provider_lease_token IS NOT NULL OR cleanup_status != 'cleaned'"
+                        ")"
+                    ).fetchone()[0]
+                )
         finally:
             conn.close()
     nonterminal = sum(
@@ -410,6 +428,11 @@ def _workload_state(data_root: Path) -> dict[str, Any]:
         for state, count in state_counts.items()
         if state not in TERMINAL_WORKLOAD_STATES
     )
+    release_blocking = sum(
+        count
+        for state, count in state_counts.items()
+        if state not in RELEASE_QUIESCENT_WORKLOAD_STATES
+    ) + unsafe_review_jobs
     temp_root = data_root / "broker_reports_gate1" / "workload-temp"
     temp_entries = (
         sum(1 for item in temp_root.iterdir() if item.name.startswith("brjob_"))
@@ -419,6 +442,8 @@ def _workload_state(data_root: Path) -> dict[str, Any]:
     return {
         "state_counts": state_counts,
         "nonterminal_jobs": nonterminal,
+        "release_blocking_jobs": release_blocking,
+        "unsafe_review_jobs": unsafe_review_jobs,
         "owned_temp_entries": temp_entries,
     }
 
@@ -521,7 +546,7 @@ def _assert_prompt_contracts(
 
 def _assert_quiescent(state: Mapping[str, Any]) -> None:
     workload = state["workload"]
-    if workload.get("nonterminal_jobs") != 0:
+    if workload.get("release_blocking_jobs") != 0:
         raise StageReleaseError("stage_release_workload_not_quiescent")
     if workload.get("owned_temp_entries") != 0:
         raise StageReleaseError("stage_release_workload_temp_not_clean")

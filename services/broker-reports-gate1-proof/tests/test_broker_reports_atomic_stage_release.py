@@ -20,11 +20,13 @@ import broker_reports_atomic_stage_remote as remote  # noqa: E402
 import live_release_broker_reports_atomic_stage as driver  # noqa: E402
 from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
     FUNCTION_CONTRACTS,
+    RELEASE_QUIESCENT_WORKLOAD_STATES,
     SCHEMA_VERSION,
     build_manifest,
     merged_valves,
     nonterminal_workload_count,
     provider_policy_manifest,
+    release_blocking_workload_count,
     validate_manifest,
     valves_match,
 )
@@ -37,6 +39,7 @@ from live_verify_broker_reports_atomic_stage_release import (  # noqa: E402
     evaluate_action_release,
     evaluate_function_release,
     evaluate_remote_runtime,
+    evaluate_route_activation,
 )
 from live_verify_broker_reports_stage2_delivery import (  # noqa: E402
     FUNCTION_CONTRACTS as DELIVERY_FUNCTION_CONTRACTS,
@@ -190,7 +193,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(3, len(manifest["functions"]))
         self.assertEqual(12, len(manifest["managed_prompts"]))
         self.assertEqual(
-            "broker_reports_atomic_stage_release_v4",
+            "broker_reports_atomic_stage_release_v5",
             manifest["schema_version"],
         )
         self.assertEqual(SCHEMA_VERSION, remote.MANIFEST_SCHEMA_VERSION)
@@ -345,18 +348,20 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         )
 
     def test_quiescence_counts_every_nonterminal_state(self):
+        state_counts = {
+            "queued": 1,
+            "normalizing": 2,
+            "awaiting_review": 1,
+            "completed": 9,
+            "failed": 2,
+            "cancelled": 3,
+        }
+
+        self.assertEqual(4, nonterminal_workload_count(state_counts))
+        self.assertEqual(3, release_blocking_workload_count(state_counts))
         self.assertEqual(
-            4,
-            nonterminal_workload_count(
-                {
-                    "queued": 1,
-                    "normalizing": 2,
-                    "awaiting_review": 1,
-                    "completed": 9,
-                    "failed": 2,
-                    "cancelled": 3,
-                }
-            ),
+            RELEASE_QUIESCENT_WORKLOAD_STATES,
+            remote.RELEASE_QUIESCENT_WORKLOAD_STATES,
         )
 
     def test_verifier_requires_exact_function_revision_hash_and_valves(self):
@@ -421,7 +426,12 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             },
             "loader_sha256": manifest["loader"]["content_sha256"],
             "fitz_version": manifest["runtime"]["fitz_version"],
-            "workload": {"nonterminal_jobs": 0, "owned_temp_entries": 0},
+            "workload": {
+                "nonterminal_jobs": 5,
+                "release_blocking_jobs": 0,
+                "unsafe_review_jobs": 0,
+                "owned_temp_entries": 0,
+            },
             "release_staging_entries": 0,
             "rollback_identity_sha256": "c" * 64,
             "rollback_loader_hash_exact": True,
@@ -431,7 +441,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             runtime=runtime,
             rollback_identity_sha256="c" * 64,
         )
-        runtime["workload"]["nonterminal_jobs"] = 1
+        runtime["workload"]["release_blocking_jobs"] = 1
         failed = evaluate_remote_runtime(
             expected_manifest=manifest,
             runtime=runtime,
@@ -441,6 +451,51 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertTrue(action["passed"], action)
         self.assertTrue(all(checks.values()), checks)
         self.assertFalse(failed["workload_quiescent"])
+
+    def test_parked_review_is_quiescent_only_without_runtime_ownership(self):
+        remote._assert_quiescent(
+            {
+                "workload": {
+                    "nonterminal_jobs": 5,
+                    "release_blocking_jobs": 0,
+                    "unsafe_review_jobs": 0,
+                    "owned_temp_entries": 0,
+                }
+            }
+        )
+
+        with self.assertRaisesRegex(
+            remote.StageReleaseError,
+            "stage_release_workload_not_quiescent",
+        ):
+            remote._assert_quiescent(
+                {
+                    "workload": {
+                        "nonterminal_jobs": 5,
+                        "release_blocking_jobs": 1,
+                        "unsafe_review_jobs": 1,
+                        "owned_temp_entries": 0,
+                    }
+                }
+            )
+
+    def test_verifier_requires_only_source_bound_table_route_active(self):
+        manifest = _manifest()
+        checks = evaluate_route_activation(
+            expected_manifest=manifest,
+            gate1_valves=FUNCTION_CONTRACTS[0].valves,
+            domain_valves=FUNCTION_CONTRACTS[2].valves,
+        )
+        self.assertTrue(all(checks.values()), checks)
+
+        drifted = dict(FUNCTION_CONTRACTS[0].valves)
+        drifted["pdf_dual_vlm_enabled"] = True
+        failed = evaluate_route_activation(
+            expected_manifest=manifest,
+            gate1_valves=drifted,
+            domain_valves=FUNCTION_CONTRACTS[2].valves,
+        )
+        self.assertFalse(failed["source_bound_table_route_default_on"])
 
     def test_local_driver_surfaces_only_typed_safe_remote_error(self):
         completed = subprocess.CompletedProcess(
