@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Prove the supported PDF table detection/crop path through live OpenWebUI."""
+"""Prove source-bound PDF table normalization through live OpenWebUI."""
 
 from __future__ import annotations
 
 import argparse
-import base64
 import hashlib
 import json
 import subprocess
@@ -115,19 +114,13 @@ def main() -> int:
             ssh_target=ssh_target,
             case_id=case_id,
         )
-        crop_evidence = _download_and_validate_candidates(
-            ssh_target=ssh_target,
-            output_dir=output_dir,
-            candidates=remote_evidence.get("candidates") or [],
-        )
         checks = _evaluate(
             remote_evidence=remote_evidence,
-            crop_evidence=crop_evidence,
             chat_content=chat_content,
             uploads=uploads,
         )
         summary = {
-            "schema_version": "broker_reports_pdf_table_intake_gate1_operator_proof_v1",
+            "schema_version": "broker_reports_pdf_table_intake_gate1_operator_proof_v2",
             "status": "passed" if all(checks.values()) else "failed",
             "repository_revision": revision,
             "case_id": case_id,
@@ -144,12 +137,12 @@ def main() -> int:
             "checks": checks,
             "run_summary": remote_evidence.get("run_summary"),
             "handoff": remote_evidence.get("handoff"),
-            "candidate_artifacts": crop_evidence,
+            "source_units": remote_evidence.get("source_units"),
+            "table_projections": remote_evidence.get("table_projections"),
             "detection_attempts": remote_evidence.get("attempts"),
             "chat_compact": bool(chat_content.strip())
             and not chat_content.lstrip().startswith("{"),
-            "operator_visual_review_required": True,
-            "operator_visual_review_dir": str(output_dir),
+            "operator_visual_review_required": False,
         }
         (output_dir / "proof.json").write_text(
             json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True),
@@ -364,15 +357,16 @@ payload_root = pathlib.Path(__PAYLOAD_ROOT__)
 case_id = __CASE_ID__
 types = (
     "broker_reports_pdf_table_intake_run_v1",
-    "broker_reports_pdf_table_candidate_v1",
     "broker_reports_pdf_table_detection_attempt_v1",
     "gate2_handoff_v0",
+    "private_normalized_source_unit_v0",
+    "broker_reports_normalized_table_projection_v0",
 )
 conn = sqlite3.connect(db_path)
 conn.row_factory = sqlite3.Row
 try:
     rows = conn.execute(
-        "select * from artifact_records where case_id = ? and artifact_type in (?, ?, ?, ?) order by created_at asc",
+        "select * from artifact_records where case_id = ? and artifact_type in (?, ?, ?, ?, ?) order by created_at asc",
         (case_id, *types),
     ).fetchall()
 finally:
@@ -383,7 +377,13 @@ def payload(row):
         return json.loads((payload_root / row["payload_ref"]).read_text(encoding="utf-8"))
     return json.loads(row["payload_inline_json"] or "null")
 
-result = {"run_summary": None, "candidates": [], "attempts": [], "handoff": None}
+result = {
+    "run_summary": None,
+    "attempts": [],
+    "handoff": None,
+    "source_units": [],
+    "table_projections": [],
+}
 for row in rows:
     record = {
         "artifact_id": row["artifact_id"],
@@ -392,19 +392,19 @@ for row in rows:
         "document_id": row["document_id"],
         "validation_status": row["validation_status"],
         "lifecycle_status": row["lifecycle_status"],
-        "payload_ref": row["payload_ref"],
         "checksum_sha256": row["checksum_sha256"],
         "safe_metadata": json.loads(row["safe_metadata_json"]),
     }
-    value = payload(row)
     if row["artifact_type"] == "broker_reports_pdf_table_intake_run_v1":
-        result["run_summary"] = value
-    elif row["artifact_type"] == "broker_reports_pdf_table_candidate_v1":
-        result["candidates"].append(record)
+        result["run_summary"] = payload(row)
     elif row["artifact_type"] == "broker_reports_pdf_table_detection_attempt_v1":
-        result["attempts"].append({**record, "payload": value})
+        result["attempts"].append(record)
     elif row["artifact_type"] == "gate2_handoff_v0":
-        result["handoff"] = value
+        result["handoff"] = payload(row)
+    elif row["artifact_type"] == "private_normalized_source_unit_v0":
+        result["source_units"].append(record)
+    elif row["artifact_type"] == "broker_reports_normalized_table_projection_v0":
+        result["table_projections"].append(record)
 print(json.dumps(result, ensure_ascii=False, sort_keys=True))
 '''
     code = (
@@ -442,80 +442,9 @@ print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     return value
 
 
-def _download_and_validate_candidates(
-    *,
-    ssh_target: str,
-    output_dir: Path,
-    candidates: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    result = []
-    for ordinal, record in enumerate(candidates, start=1):
-        payload_ref = str(record.get("payload_ref") or "")
-        if not payload_ref or "/" in payload_ref or "\\" in payload_ref:
-            raise RuntimeError("operator_candidate_payload_ref_invalid")
-        local_payload = output_dir / f"candidate-{ordinal:03d}.json"
-        completed = subprocess.run(
-            [
-                "ssh",
-                "-o",
-                "BatchMode=yes",
-                "-o",
-                "ConnectTimeout=10",
-                "-o",
-                "StrictHostKeyChecking=yes",
-                ssh_target,
-                "docker",
-                "exec",
-                "openwebui",
-                "cat",
-                f"{PAYLOAD_ROOT}/{payload_ref}",
-            ],
-            check=True,
-            capture_output=True,
-            timeout=120,
-        )
-        local_payload.write_bytes(completed.stdout)
-        candidate = json.loads(local_payload.read_text(encoding="utf-8"))
-        manifest = candidate.get("manifest") if isinstance(candidate, dict) else {}
-        png = base64.b64decode(
-            str(candidate.get("private_png_base64") or "").encode("ascii"),
-            validate=True,
-        )
-        png_sha256 = hashlib.sha256(png).hexdigest()
-        png_path = output_dir / f"candidate-{ordinal:03d}.png"
-        png_path.write_bytes(png)
-        result.append(
-            {
-                **{key: value for key, value in record.items() if key != "payload_ref"},
-                "candidate_ref": manifest.get("candidate_ref"),
-                "document_ref": manifest.get("document_ref"),
-                "page_number": manifest.get("page_number"),
-                "detected_bbox_normalized": manifest.get(
-                    "detected_bbox_normalized"
-                ),
-                "rendered_bbox": manifest.get("rendered_bbox"),
-                "width": manifest.get("width"),
-                "height": manifest.get("height"),
-                "png_bytes": len(png),
-                "png_sha256": png_sha256,
-                "manifest_png_sha256": manifest.get("png_sha256"),
-                "png_hash_match": png_sha256 == manifest.get("png_sha256"),
-                "horizontal_padding_fraction": manifest.get(
-                    "horizontal_padding_fraction"
-                ),
-                "vertical_padding_fraction": manifest.get(
-                    "vertical_padding_fraction"
-                ),
-                "local_png": str(png_path),
-            }
-        )
-    return result
-
-
 def _evaluate(
     *,
     remote_evidence: dict[str, Any],
-    crop_evidence: list[dict[str, Any]],
     chat_content: str,
     uploads: list[dict[str, Any]],
 ) -> dict[str, bool]:
@@ -525,10 +454,28 @@ def _evaluate(
     handoff = handoff if isinstance(handoff, dict) else {}
     attempts = remote_evidence.get("attempts")
     attempts = attempts if isinstance(attempts, list) else []
-    candidate_ids = [str(item.get("artifact_id") or "") for item in crop_evidence]
-    handoff_candidate_ids = [
+    source_units = remote_evidence.get("source_units")
+    source_units = source_units if isinstance(source_units, list) else []
+    table_units = [
+        item
+        for item in source_units
+        if (item.get("safe_metadata") or {}).get("pdf_unit_type")
+        == "pdf_table_candidate_unit"
+    ]
+    projections = remote_evidence.get("table_projections")
+    projections = projections if isinstance(projections, list) else []
+    table_unit_ids = {str(item.get("artifact_id") or "") for item in table_units}
+    table_unit_refs = {
+        str((item.get("safe_metadata") or {}).get("unit_ref") or "")
+        for item in table_units
+    }
+    handoff_source_unit_ids = {
+        str(item) for item in handoff.get("private_source_unit_refs") or []
+    }
+    legacy_candidate_ids = [
         str(item) for item in handoff.get("pdf_table_candidate_refs") or []
     ]
+    regions_total = summary.get("regions_total")
     return {
         "supported_function_boundary_used": bool(uploads),
         "chat_compact_and_private_safe": bool(chat_content.strip())
@@ -546,31 +493,73 @@ def _evaluate(
         ),
         "no_semantic_inference": summary.get("rows_columns_cells_inferred") is False
         and summary.get("financial_semantics_inferred") is False,
-        "candidate_count_positive": bool(crop_evidence)
-        and summary.get("candidates_total") == len(crop_evidence),
-        "candidate_png_hashes_match": bool(crop_evidence)
-        and all(item.get("png_hash_match") is True for item in crop_evidence),
-        "candidate_artifacts_validated": bool(crop_evidence)
+        "model_not_used_for_source_literals_or_parser_settings": (
+            summary.get("model_values_used_as_source_literals") is False
+            and summary.get("pdfplumber_settings_selected_by_model") is False
+        ),
+        "source_bound_table_units_match_regions": bool(table_units)
+        and regions_total == len(table_units)
         and all(
             item.get("validation_status") == "validated"
             and item.get("lifecycle_status") == "private_ready"
-            for item in crop_evidence
+            and (item.get("safe_metadata") or {}).get(
+                "parser_completeness_status"
+            )
+            == "complete"
+            and (item.get("safe_metadata") or {}).get(
+                "pdf_text_layer_projection_status"
+            )
+            == "complete"
+            and (item.get("safe_metadata") or {}).get("ocr_vlm_used") is False
+            and (item.get("safe_metadata") or {}).get(
+                "page_rendering_used_for_extraction"
+            )
+            is False
+            for item in table_units
         ),
-        "candidate_padding_matches_run": bool(crop_evidence)
-        and all(
-            item.get("horizontal_padding_fraction") == 0.08
-            and item.get("vertical_padding_fraction") == 0.08
-            for item in crop_evidence
-        ),
+        "table_projections_match_regions": bool(projections)
+        and regions_total == len(projections)
+        and summary.get("candidates_total") == len(projections)
+        and all(_projection_is_source_bound(item) for item in projections),
+        "projection_source_units_match": {
+            str((item.get("safe_metadata") or {}).get("source_unit_ref") or "")
+            for item in projections
+        }
+        == table_unit_refs,
         "detection_attempts_terminal": bool(attempts)
         and all(
-            (item.get("payload") or {}).get("terminal_status") == "validated"
-            and (item.get("payload") or {}).get("hidden_retry") is False
-            and (item.get("payload") or {}).get("provider_failover") is False
+            (item.get("safe_metadata") or {}).get("terminal_status")
+            == "validated"
+            and (item.get("safe_metadata") or {}).get("hidden_retry") is False
+            and (item.get("safe_metadata") or {}).get("provider_failover")
+            is False
             for item in attempts
         ),
-        "handoff_candidate_refs_match": candidate_ids == handoff_candidate_ids,
+        "handoff_contains_source_bound_table_units": bool(table_unit_ids)
+        and table_unit_ids.issubset(handoff_source_unit_ids),
+        "legacy_candidate_route_absent": not legacy_candidate_ids,
     }
+
+
+def _projection_is_source_bound(item: dict[str, Any]) -> bool:
+    metadata = item.get("safe_metadata") or {}
+    return (
+        item.get("validation_status") == "validated"
+        and item.get("lifecycle_status") == "private_ready"
+        and metadata.get("table_origin")
+        == "vlm_located_pdfplumber_source_bound"
+        and metadata.get("projection_status") == "ready"
+        and metadata.get("table_candidate_status")
+        == "validated_source_bound_geometry"
+        and metadata.get("coverage_status") == "complete"
+        and metadata.get("reconstruction_quality") == "high"
+        and int(metadata.get("row_count") or 0) > 0
+        and int(metadata.get("column_count") or 0) > 0
+        and int(metadata.get("cell_count") or 0) > 0
+        and int(metadata.get("source_value_refs_count") or 0) > 0
+        and metadata.get("knowledge_rag_used") is False
+        and metadata.get("vectorization_performed") is False
+    )
 
 
 def _delete_upload(
