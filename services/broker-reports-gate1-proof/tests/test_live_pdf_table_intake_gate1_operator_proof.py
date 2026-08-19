@@ -11,6 +11,7 @@ sys.path.insert(0, str(SCRIPTS))
 from live_pdf_table_intake_gate1_operator_proof import (  # noqa: E402
     _create_native_chat,
     _delete_chat,
+    _evaluate,
     _run_chat,
 )
 
@@ -94,3 +95,94 @@ def test_operator_deletes_the_exact_temporary_chat():
     assert session.deletes == [
         ("https://example.invalid/api/v1/chats/chat-attested", {"timeout": 30})
     ]
+
+
+def test_operator_accepts_source_bound_units_and_parser_owned_projections():
+    table_units = [
+        _source_unit("artifact-table-1", "unit-table-1"),
+        _source_unit("artifact-table-2", "unit-table-2"),
+    ]
+    projections = [
+        _projection("unit-table-1", rows=2, cells=4),
+        _projection("unit-table-2", rows=3, cells=6),
+    ]
+    remote_evidence = {
+        "run_summary": {
+            "status": "completed",
+            "gate2_boundary_ready": True,
+            "detector_qualification": {"exact_model_match": True},
+            "horizontal_padding_fraction": 0.08,
+            "vertical_padding_fraction": 0.08,
+            "rows_columns_cells_inferred": False,
+            "financial_semantics_inferred": False,
+            "model_values_used_as_source_literals": False,
+            "pdfplumber_settings_selected_by_model": False,
+            "regions_total": 2,
+            "candidates_total": 2,
+        },
+        "handoff": {
+            "private_source_unit_refs": [
+                "artifact-table-1",
+                "artifact-table-2",
+                "artifact-text-1",
+            ],
+            "pdf_table_candidate_refs": [],
+        },
+        "attempts": [
+            {
+                "safe_metadata": {
+                    "terminal_status": "validated",
+                    "hidden_retry": False,
+                    "provider_failover": False,
+                }
+            }
+        ],
+        "source_units": table_units,
+        "table_projections": projections,
+    }
+
+    checks = _evaluate(
+        remote_evidence=remote_evidence,
+        chat_content="Gate 1 completed",
+        uploads=_uploads(),
+    )
+
+    assert checks
+    assert all(checks.values())
+
+
+def _source_unit(artifact_id: str, unit_ref: str):
+    return {
+        "artifact_id": artifact_id,
+        "validation_status": "validated",
+        "lifecycle_status": "private_ready",
+        "safe_metadata": {
+            "unit_ref": unit_ref,
+            "pdf_unit_type": "pdf_table_candidate_unit",
+            "parser_completeness_status": "complete",
+            "pdf_text_layer_projection_status": "complete",
+            "ocr_vlm_used": False,
+            "page_rendering_used_for_extraction": False,
+        },
+    }
+
+
+def _projection(source_unit_ref: str, *, rows: int, cells: int):
+    return {
+        "validation_status": "validated",
+        "lifecycle_status": "private_ready",
+        "safe_metadata": {
+            "source_unit_ref": source_unit_ref,
+            "table_origin": "vlm_located_pdfplumber_source_bound",
+            "projection_status": "ready",
+            "table_candidate_status": "validated_source_bound_geometry",
+            "coverage_status": "complete",
+            "reconstruction_quality": "high",
+            "row_count": rows,
+            "column_count": 2,
+            "cell_count": cells,
+            "source_value_refs_count": cells,
+            "knowledge_rag_used": False,
+            "vectorization_performed": False,
+        },
+    }
