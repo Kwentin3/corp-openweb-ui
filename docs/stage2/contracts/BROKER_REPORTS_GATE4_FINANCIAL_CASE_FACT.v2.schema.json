@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kwentin3.invalid/schemas/broker-reports/gate4-financial-case-fact-v2.schema.json",
+  "title": "Broker Reports Gate4FinancialCaseFactV2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fact_id",
+    "case_binding",
+    "gate3_binding",
+    "semantic_kind",
+    "semantic_binding",
+    "financial_type",
+    "annotation_target",
+    "roles",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {"const": "broker_reports_gate4_financial_case_fact_v2"},
+    "fact_id": {"type": "string", "pattern": "^g4fact_[0-9a-f]{32}$"},
+    "case_binding": {"$ref": "#/$defs/caseBinding"},
+    "gate3_binding": {"$ref": "#/$defs/gate3Binding"},
+    "semantic_kind": {"const": "normalized_source_fact"},
+    "semantic_binding": {"$ref": "#/$defs/semanticBinding"},
+    "financial_type": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,63}$"},
+    "annotation_target": {"$ref": "https://kwentin3.invalid/schemas/broker-reports/gate3-target-v1.schema.json"},
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "items": {"oneOf": [{"$ref": "#/$defs/roleValue"}, {"$ref": "#/$defs/roleMissing"}]}
+    },
+    "status": {"enum": ["role_complete", "role_incomplete"]}
+  },
+  "$defs": {
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authority_id", "semantic_version"],
+      "properties": {
+        "authority_id": {"type": "string", "minLength": 1, "maxLength": 128},
+        "semantic_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+      }
+    },
+    "semanticBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dictionary", "role_pack"],
+      "properties": {
+        "dictionary": {"$ref": "#/$defs/identity"},
+        "role_pack": {"$ref": "#/$defs/identity"}
+      }
+    },
+    "caseBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope_kind", "scope_id"],
+      "properties": {
+        "scope_kind": {"enum": ["case", "chat"]},
+        "scope_id": {"type": "string", "minLength": 1, "maxLength": 512}
+      }
+    },
+    "canonicalBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["document_id", "canonical_version_id"],
+      "properties": {
+        "document_id": {"type": "string", "minLength": 1, "maxLength": 512},
+        "canonical_version_id": {"type": "string", "minLength": 1, "maxLength": 512}
+      }
+    },
+    "gate3Binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["financial_annotations_artifact_id", "financial_annotations_schema_version", "annotation_index", "canonical_binding"],
+      "properties": {
+        "financial_annotations_artifact_id": {"type": "string", "minLength": 1, "maxLength": 512},
+        "financial_annotations_schema_version": {"const": "broker_reports_financial_annotations_v2"},
+        "annotation_index": {"type": "integer", "minimum": 0},
+        "canonical_binding": {"$ref": "#/$defs/canonicalBinding"}
+      }
+    },
+    "sourceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "source_literal"],
+      "properties": {
+        "target": {"$ref": "https://kwentin3.invalid/schemas/broker-reports/gate3-target-v1.schema.json"},
+        "exact_text": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "source_literal": {"type": "string", "minLength": 1, "maxLength": 65536}
+      }
+    },
+    "roleValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "requirement", "status", "value", "source_binding"],
+      "properties": {
+        "role": {"enum": ["date", "asset", "quantity", "unit_price", "amount", "currency", "source_wording"]},
+        "requirement": {"enum": ["required", "optional"]},
+        "status": {"const": "value"},
+        "value": {"type": "string", "minLength": 1, "maxLength": 65536},
+        "source_binding": {"$ref": "#/$defs/sourceBinding"}
+      }
+    },
+    "roleMissing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "requirement", "status"],
+      "properties": {
+        "role": {"enum": ["date", "asset", "quantity", "unit_price", "amount", "currency", "source_wording"]},
+        "requirement": {"enum": ["required", "optional"]},
+        "status": {"const": "missing"}
+      }
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": "broker_reports_g539v_safe_receipt_v1",
+  "goal": "G5.39V",
+  "date": "2026-08-12",
+  "status": "COMPLETE",
+  "terminal_finding": "CANONICAL_STRUCTURE_LOSS",
+  "secondary_finding": "LARGE_GATE3_PAGE_CHUNK_FRAGMENTATION",
+  "artifacts": {
+    "preregistration_sha256": "05a55e4d0759969c4f4264a322b3586cd627efd5ca921d82bf3122b6d13ab6cc",
+    "preregistration_v2_sha256": "719d4bde6f7349b881e281eba3768a480a7e36a6640b7c30f9fe6095efc9b68b",
+    "preregistration_v3_sha256": "0d647d40b7a9708109e1cec1cdd2ead88f57afc8043b47180ac915f48c3bcff4",
+    "report_sha256": "8f0bea630781f895e1903d2004934fc070048988f327191ca5f57b41c4281585",
+    "ledger_sha256": "ce81b0971ee3be11069fe7312e378739fc16c11f0ab1ca1b6f544abec90c2311",
+    "private_trace_sha256": "18407e17a19b50568950bc93c21dc0be5fc7b7ed8172218355854910c86f5766",
+    "private_evaluation_sha256": "8936763a5d5dcf666cc331801d806a70bbd277e353dd5e9fe7c398430b245587",
+    "probe_aggregate_sha256": "210a282bc05593d967aba4db1e3e556ce5d5885d97a796e5314371a265f3e0d9"
+  },
+  "verification": [
+    {
+      "command_scope": "model_client_and_bounded_labeling",
+      "result": "40_passed",
+      "duration_seconds": 2.88
+    },
+    {
+      "command_scope": "projection_structural_chunking_role_labeling",
+      "result": "25_passed",
+      "duration_seconds": 4.52
+    }
+  ],
+  "github": {
+    "issue_url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278",
+    "comment_url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278#issuecomment-5264026712",
+    "comment_id": 5264026712
+  },
+  "cleanup": {
+    "experimental_research_repository_removed": true,
+    "private_exact_evidence_retained_under_git_ignored_local": true,
+    "private_exact_evidence_tracked_by_git": false,
+    "production_source_changed": false
+  },
+  "delivery": {
+    "staged": false,
+    "committed": false,
+    "pushed": false,
+    "pull_request_opened": false,
+    "next_goal_authorized": false
+  }
+}

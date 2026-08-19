@@ -1,0 +1,270 @@
+{
+  "all_documents_complete": true,
+  "deterministic_resume_code_sha256": {
+    "canonical_artifact.py": "f7a09ddb17d529266465f127782e6fb77b20974beaee34379b354f1992f0f734",
+    "full_source.py": "2445e64a86901ff1df2f1ec24e86dbc429e6614855dbae58d32245c6e7adabd8",
+    "gate2_handoff.py": "a994f4c085f34792b5fde88510dbfffbb49332119a80817ef1d7580ea514e84e",
+    "gate3_bounded_labeling.py": "054b12829e640c4f9ad9a43a9ba12531b86115e1893aad8628a8dbf6be850599",
+    "gate3_chunk_batch_labeling.py": "8cfe043375c62c89e70361c14827560481bf43f0ebd251f1f20ae248999e5da0",
+    "gate3_role_labeling.py": "2c02ce658a981850b6e1d976fab131e3c9967393c226b169fe2caabffcb4667b",
+    "gate3_structural_chunking.py": "6e11cb94d0015f2f2fe8f99da08170d81f7317a8b439454fb4e18229007e8860",
+    "gate4_financial_case_materialization.py": "0af9d38306c3d73e3dcf3facabac3cc7503b35b42db6e7a71aaf87ba33e2076c",
+    "gate5_deterministic_source_fact_consumption.py": "23d7cc5abdaec5da534cdeef83b6a4f59c11089c0380c181ed6c09c95f2f621b",
+    "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v0.json": "06947c90e1a24ff7ec62f893eff582e9de4e637a6173bd1a4b027eb783045091"
+  },
+  "documents": {
+    "DEV_PUBLIC_TBANK": {
+      "annotations_validated": 22,
+      "chunks_provider_failed": 0,
+      "chunks_rejected": 0,
+      "chunks_total": 1,
+      "chunks_validated": 1,
+      "document_status": "complete",
+      "financial_type_counts": {
+        "COMMISSION": 2,
+        "SECURITY_PURCHASE": 5,
+        "TRANSACTION_CHARGE": 15
+      },
+      "private_result_sha256": "5c41872ff2c01d2058e706ae97b021bcb1b232aa81262948acbb38ab6078a397",
+      "provider_submissions": 2,
+      "role_binding_status_counts": {
+        "bound": 94,
+        "missing": 4
+      },
+      "selection_mode": "full_document"
+    },
+    "HOLDOUT_REAL_001": {
+      "annotations_validated": 264,
+      "chunks_provider_failed": 0,
+      "chunks_rejected": 0,
+      "chunks_total": 1,
+      "chunks_validated": 1,
+      "document_status": "complete",
+      "financial_type_counts": {
+        "ACCRUED_COUPON_COMPONENT": 51,
+        "COMMISSION": 15,
+        "COMMISSION_TOTAL": 2,
+        "COUPON_INCOME": 9,
+        "SECURITY_DISPOSAL": 60,
+        "SECURITY_PURCHASE": 8,
+        "TAX_WITHHELD_TOTAL": 1,
+        "TRANSACTION_CHARGE": 118
+      },
+      "private_result_sha256": "853127c9438537f64fe38536b18ce3289485330568cc9be1cfdc05cd5a173bc5",
+      "provider_submissions": 2,
+      "role_binding_status_counts": {
+        "bound": 1065,
+        "missing": 25
+      },
+      "selection_mode": "full_document"
+    },
+    "LARGE_REAL_001": {
+      "annotations_validated": 95,
+      "chunks_provider_failed": 0,
+      "chunks_rejected": 0,
+      "chunks_total": 4,
+      "chunks_validated": 4,
+      "document_status": "complete",
+      "financial_type_counts": {
+        "COMMISSION": 5,
+        "COMMISSION_TOTAL": 2,
+        "DIVIDEND_INCOME": 25,
+        "SECURITY_DISPOSAL": 7,
+        "SECURITY_PURCHASE": 14,
+        "TAX_WITHHELD": 36,
+        "TAX_WITHHELD_TOTAL": 2,
+        "TRANSACTION_CHARGE": 4
+      },
+      "private_result_sha256": "ae82c25a892401fd87df43286e8b9e4e35955b8d7b9d89dac16a6f0af8fcc5e4",
+      "provider_submissions": 8,
+      "role_binding_status_counts": {
+        "bound": 158,
+        "missing": 264
+      },
+      "selection_mode": "full_document"
+    },
+    "PUBLIC_FIDELITY_STATEMENT": {
+      "annotations_validated": 10,
+      "chunks_provider_failed": 0,
+      "chunks_rejected": 0,
+      "chunks_total": 2,
+      "chunks_validated": 2,
+      "document_status": "complete",
+      "financial_type_counts": {
+        "COMMISSION": 1,
+        "COMMISSION_TOTAL": 1,
+        "COUPON_INCOME": 2,
+        "DIVIDEND_INCOME": 2,
+        "SECURITY_DISPOSAL": 1,
+        "SECURITY_PURCHASE": 1,
+        "TAX_WITHHELD": 1,
+        "TAX_WITHHELD_TOTAL": 1
+      },
+      "private_result_sha256": "e46c124be30658309d5efd128af315bca52128042eff52768a3e83f63b5e8bdf",
+      "provider_submissions": 3,
+      "role_binding_status_counts": {
+        "bound": 39,
+        "missing": 5
+      },
+      "selection_mode": "full_document"
+    }
+  },
+  "execution_policy": "one_frozen_sequential_replay_no_retry_no_repair",
+  "fallback_count": 0,
+  "frozen_inference_code_sha256": {
+    "canonical_artifact.py": "f7a09ddb17d529266465f127782e6fb77b20974beaee34379b354f1992f0f734",
+    "full_source.py": "2445e64a86901ff1df2f1ec24e86dbc429e6614855dbae58d32245c6e7adabd8",
+    "gate2_handoff.py": "a994f4c085f34792b5fde88510dbfffbb49332119a80817ef1d7580ea514e84e",
+    "gate3_bounded_labeling.py": "8e1db998441aa6c5762930b1d90a14cdbb0b7e6af18fd4d20b4134b155674ad5",
+    "gate3_chunk_batch_labeling.py": "8cfe043375c62c89e70361c14827560481bf43f0ebd251f1f20ae248999e5da0",
+    "gate3_role_labeling.py": "2c02ce658a981850b6e1d976fab131e3c9967393c226b169fe2caabffcb4667b",
+    "gate3_structural_chunking.py": "6e11cb94d0015f2f2fe8f99da08170d81f7317a8b439454fb4e18229007e8860",
+    "gate4_financial_case_materialization.py": "0af9d38306c3d73e3dcf3facabac3cc7503b35b42db6e7a71aaf87ba33e2076c",
+    "gate5_deterministic_source_fact_consumption.py": "23d7cc5abdaec5da534cdeef83b6a4f59c11089c0380c181ed6c09c95f2f621b",
+    "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v0.json": "06947c90e1a24ff7ec62f893eff582e9de4e637a6173bd1a4b027eb783045091"
+  },
+  "frozen_plan_sha256": "98bc8a78a2e0ca5859b2fa0fb25cc42d91cfadce45efa70d95de585f4374d6ef",
+  "gate4": {
+    "annotation_target_kind_counts": {
+      "node": 105,
+      "table_cell": 286
+    },
+    "currency_source_literal_counts": {
+      "iso_literal": 316,
+      "missing": 62,
+      "non_iso_literal": 13
+    },
+    "fact_status_counts": {
+      "role_complete": 329,
+      "role_incomplete": 62
+    },
+    "facts_total": 391,
+    "financial_type_counts": {
+      "ACCRUED_COUPON_COMPONENT": 51,
+      "COMMISSION": 23,
+      "COMMISSION_TOTAL": 5,
+      "COUPON_INCOME": 11,
+      "DIVIDEND_INCOME": 27,
+      "SECURITY_DISPOSAL": 68,
+      "SECURITY_PURCHASE": 28,
+      "TAX_WITHHELD": 37,
+      "TAX_WITHHELD_TOTAL": 4,
+      "TRANSACTION_CHARGE": 137
+    },
+    "gate3_case_status": "ready_for_gate4_handoff",
+    "sources_total": 4,
+    "status": "CASE_COMPLETE_FOR_CURRENT_INPUT_SET"
+  },
+  "gate5_assessment": {
+    "commissions": {
+      "aggregate_facts": 5,
+      "aggregate_status_counts": {
+        "role_complete": 4,
+        "role_incomplete": 1
+      },
+      "detail_facts": 160,
+      "detail_status_counts": {
+        "role_complete": 153,
+        "role_incomplete": 7
+      },
+      "mode": "hybrid",
+      "reconciliation": "not_performed"
+    },
+    "document_consumption": {
+      "DEV_PUBLIC_TBANK": {
+        "reason_code": "gate5_source_fact_disposal_missing",
+        "securities_consumed": 0,
+        "status": "SOURCE_EVIDENCE_INSUFFICIENT"
+      },
+      "HOLDOUT_REAL_001": {
+        "reason_code": "gate5_source_fact_required_input_insufficient",
+        "securities_consumed": 0,
+        "status": "SOURCE_EVIDENCE_INSUFFICIENT"
+      },
+      "LARGE_REAL_001": {
+        "reason_code": "gate5_source_fact_required_input_insufficient",
+        "securities_consumed": 0,
+        "status": "SOURCE_EVIDENCE_INSUFFICIENT"
+      },
+      "PUBLIC_FIDELITY_STATEMENT": {
+        "reason_code": "gate5_source_fact_required_input_insufficient",
+        "securities_consumed": 0,
+        "status": "SOURCE_EVIDENCE_INSUFFICIENT"
+      }
+    },
+    "facts_total": 391,
+    "reconciliation": "not_performed",
+    "security_by_document": {
+      "DEV_PUBLIC_TBANK": {
+        "ready": 5,
+        "total": 5
+      },
+      "HOLDOUT_REAL_001": {
+        "ready": 67,
+        "reason:gate5_source_fact_required_role_missing": 1,
+        "source_evidence_insufficient": 1,
+        "total": 68
+      },
+      "LARGE_REAL_001": {
+        "ready": 8,
+        "reason:gate5_source_fact_decimal_invalid": 1,
+        "reason:gate5_source_fact_required_role_missing": 12,
+        "source_evidence_insufficient": 13,
+        "total": 21
+      },
+      "PUBLIC_FIDELITY_STATEMENT": {
+        "reason:gate5_source_fact_decimal_invalid": 2,
+        "source_evidence_insufficient": 2,
+        "total": 2
+      }
+    },
+    "security_fact_counts": {
+      "ready": 80,
+      "source_evidence_insufficient": 16,
+      "total": 96
+    },
+    "security_insufficiency_reason_counts": {
+      "gate5_source_fact_decimal_invalid": 3,
+      "gate5_source_fact_required_role_missing": 13
+    },
+    "security_tax_input_status": "SOURCE_EVIDENCE_INSUFFICIENT",
+    "status": "assessed",
+    "stored_financial_event_relations": 0,
+    "terminals": [
+      "SOURCE_FACT_ASSERTIONS_PRESERVED"
+    ],
+    "withheld_tax": {
+      "aggregate_facts": 4,
+      "aggregate_status_counts": {
+        "role_complete": 1,
+        "role_incomplete": 3
+      },
+      "detail_facts": 37,
+      "detail_status_counts": {
+        "role_complete": 13,
+        "role_incomplete": 24
+      },
+      "mode": "hybrid",
+      "reconciliation": "not_performed"
+    }
+  },
+  "gate5_consumer": {
+    "error_code": "gate5_source_fact_required_role_missing",
+    "field_present": true,
+    "status": "fail_closed"
+  },
+  "goal": "G5.40E",
+  "model_id": "models/gemini-3.5-flash",
+  "private_evidence_available": true,
+  "private_evidence_location_committed": false,
+  "provider_profile_id": "google_gemini",
+  "provider_rerun_count": 0,
+  "provider_submissions_max": 16,
+  "provider_submissions_total": 15,
+  "repair_count": 0,
+  "retry_count": 0,
+  "schema_version": "broker_reports_gate5_real_source_fact_receipt_v0",
+  "sidecars_persisted": 4,
+  "store_after_sha256": "65ec9055cb55f8dc8cf723f41d8310e008f726d6ef8a7fd5ab062a0815c56534",
+  "store_before_sha256": "39b9b26e0600cc8fb926c237caf68c297137c69b582645eb45aa0e8b97ec2eaf"
+}

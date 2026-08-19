@@ -1,6 +1,6 @@
 # Broker Reports Gate 5 Tax-Period Category Aggregation v0
 
-Status: `CURRENT SUPPORTING CONTRACT`
+Status: `SUPERSEDED SUPPORTING CONTRACT`
 
 Goal status: `G5.14_CLOSED`
 
@@ -9,6 +9,10 @@ Proof outcome: `PROVEN_WITH_USER_VERIFIED_COMPLETENESS`
 Product status: `INACTIVE PROOF`
 
 Date: 2026-08-09
+
+Superseded on 2026-08-10 by [v1](./BROKER_REPORTS_GATE5_TAX_PERIOD_CATEGORY_AGGREGATION.v1.md).
+This file remains the exact G5.14 A+B proof contract. Its minimum-two-member
+condition is historical evidence, not the current runtime cardinality.
 
 ## Purpose
 
@@ -68,6 +72,29 @@ runtime.run(
     completeness_evidence=...,
 )
 ```
+
+G5.18 adds one validation-only method on the same factory-created runtime:
+
+```python
+runtime.validate_operation_member(tax_model=...)
+```
+
+It applies the exact existing G5.14 member contract to one producer output so
+the versioned typed executor can reject an incompatible payload before
+composition. It does not aggregate, assert completeness or become a separate
+model-visible capability.
+
+G5.22 adds a second validation-only method on that same owner:
+
+```python
+runtime.validate_category_model(tax_model=...)
+```
+
+It rechecks the complete category schema, exact scope/member/completeness hash,
+aggregate arithmetic, member contribution provenance, loss treatment and the
+published operation-methodology binding before a downstream stable tax
+behavior can consume the category result. It neither recalculates operations
+nor creates another capability or aggregation owner.
 
 `describe_scope` validates and deterministically closes the scope/member set.
 It does not assert completeness. `run` computes known totals and admits a

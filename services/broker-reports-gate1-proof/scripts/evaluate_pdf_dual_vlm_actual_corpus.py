@@ -237,6 +237,7 @@ def run_actual_corpus(
         enabled=True,
         gemini_model_id=gemini_model,
         openai_model_id=openai_model,
+        maximum_candidates=DEFAULT_MAXIMUM_CANDIDATES,
     )
     if runtime_config.maximum_candidates != DEFAULT_MAXIMUM_CANDIDATES:
         raise ActualCorpusVlmEvaluationError("actual_corpus_runtime_budget_drift")

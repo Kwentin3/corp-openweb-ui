@@ -1,0 +1,73 @@
+{
+  "schema_version": "broker_reports_minimal_native_pdfplumber_g5100_final_safe_v1",
+  "goal": "G5.100",
+  "decision": "VLM_NATIVE_TABLE_PLAN_UNSAFE",
+  "secondary_observation": "NATIVE_PDFPLUMBER_PLAN_PROMISING_BUT_INCOMPLETE",
+  "pinned_runtime": {
+    "pdfplumber": "0.11.10",
+    "pdfminer.six": "20260107"
+  },
+  "tested_native_whitelist": [
+    "crop/bbox",
+    "vertical_strategy=explicit",
+    "explicit_vertical_lines",
+    "horizontal_strategy=lines|text"
+  ],
+  "extraction_tolerance_knobs": 0,
+  "development": {
+    "pages": 9,
+    "positive_pages": 4,
+    "negative_pages": 5,
+    "expected_visual_tables": 9,
+    "provider_calls": 9,
+    "attempts_per_page": 1,
+    "retry": false,
+    "best_of_n": false,
+    "pages_with_exact_visual_table_presence_and_count": 9,
+    "false_table_plans_on_negative_pages": 0,
+    "strictly_invalid_plans": 1,
+    "native_table_objects_reaching_canonical": 2,
+    "native_grids_rejected_before_canonical": 2,
+    "fully_correct_tables_extracted": 0,
+    "known_truth_region_coverage_percent": [
+      0.0,
+      0.0,
+      57.1,
+      53.8
+    ],
+    "canonical_pages_valid": 6,
+    "canonical_pages_with_exact_source_accounting": 6
+  },
+  "source_authority": {
+    "vlm_body_values_used": 0,
+    "invented_source_literals": 0,
+    "source_values_from_pdf_words_only": true,
+    "canonical_source_atom_accounting_percent_on_successful_pages": 100.0,
+    "duplicate_layout_refs_on_successful_pages": 0,
+    "unaccounted_layout_refs_on_successful_pages": 0
+  },
+  "failure_classes": [
+    "coordinate_crop_missed_true_table_regions",
+    "bbox_axis_or_field_order_instability",
+    "crop_truncated_ruled_table_rows",
+    "embedded_layout_source_binding_failed_closed"
+  ],
+  "next_native_knob_justified": false,
+  "next_native_knob_reason": "No pdfplumber tolerance can repair wrong or truncated crops, swapped bbox fields, or a Gate 2 source-binding mismatch.",
+  "freeze_permitted": false,
+  "unseen_holdout_executed": false,
+  "old_g596_g598_repair_used": false,
+  "production_activation": false,
+  "gate3_plus_changed": false,
+  "evidence": {
+    "private_execution_sha256": "a1c12891e88b521b24686ee8c703678011f34f069de600222c628ba1f0c6e3c7",
+    "adapter_sha256": "c3f5186a7b059d02050cb9ebeb0c0a2c3787570f30ab13d94f6f9f8ae6885c81",
+    "harness_sha256": "6c54e8f3f0da6188b0367557ecd21acf27932328e07231cd2a02ca247e2f8d73"
+  },
+  "privacy": {
+    "customer_bytes_in_git": false,
+    "raw_provider_response_in_git": false,
+    "source_literals_in_safe_report": false,
+    "private_paths_in_safe_report": false
+  }
+}

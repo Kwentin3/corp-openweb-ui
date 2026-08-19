@@ -1,0 +1,61 @@
+{
+  "schema_version": "broker_reports_gate5_independent_authoring_audit_v1",
+  "goal": "G5.20",
+  "date": "2026-08-10",
+  "candidate_sha256": "093879f7e08cbba68ce0ab0df938acf86b8a0a0708cf8c04f0a6818848d15a75",
+  "candidate_utf8_bytes": 20848,
+  "parse_status": "passed",
+  "json_schema_status": "passed",
+  "target_match": true,
+  "authoring_boundary_match": true,
+  "neutral_semantic_validator": {
+    "status": "failed",
+    "code": "gate5_clean_context_candidate_case_evidence_overclaim",
+    "field": "requirements[0]"
+  },
+  "requirements_total": 10,
+  "requirements_repository_audit_passed": 8,
+  "requirements_repository_audit_failed": 2,
+  "capability_bindings_total": 6,
+  "capability_bindings_passed": 5,
+  "capability_bindings_failed": 1,
+  "gap_objects_total": 5,
+  "gap_taxonomy_passed": 4,
+  "gap_taxonomy_failed": 1,
+  "valid_supported_units": [
+    "appendix8_five_operation_semantics",
+    "appendix8_operation_code_01",
+    "appendix8_electronic_occurrence"
+  ],
+  "authoring_defects": [
+    {
+      "path": "requirements[0]",
+      "requirement_id": "target_order_and_period",
+      "codes": [
+        "gate5_clean_context_candidate_case_evidence_overclaim",
+        "gate5_clean_context_candidate_supported_unit_invalid"
+      ]
+    },
+    {
+      "path": "requirements[5].capability_bindings[0]",
+      "requirement_id": "appendix8_repeated_occurrences",
+      "codes": [
+        "gate5_clean_context_candidate_input_contract_mismatch"
+      ]
+    },
+    {
+      "path": "gaps[2]",
+      "gap_id": "section2_calculation_behavior_gap",
+      "codes": [
+        "gate5_clean_context_candidate_gap_type_inconsistent"
+      ]
+    }
+  ],
+  "model_first_blocking_gap_id": "appendix8_expense_to_section2_gap",
+  "first_blocker_repository_truth": "supported_absence_claim",
+  "blocker_was_supplied_as_expected_answer": false,
+  "candidate_mutations_total": 0,
+  "manual_repairs_total": 0,
+  "verdict": "PARTIALLY_PROVEN",
+  "localized_boundary": "authoring_contract_and_context_precision"
+}

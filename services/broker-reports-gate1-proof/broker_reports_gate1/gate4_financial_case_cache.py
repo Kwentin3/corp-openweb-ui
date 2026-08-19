@@ -893,7 +893,7 @@ class _Gate4CacheRepository:
                 fact["financial_type"],
                 fact["status"],
                 _role_value(fact, "asset"),
-                _role_value(fact, "date"),
+                _indexed_date_value(fact),
                 _canonical_json(fact),
                 GATE4_FINANCIAL_CASE_CACHE_SCHEMA_VERSION,
             ),
@@ -970,7 +970,7 @@ def _fact_from_row(*, row: sqlite3.Row, scope: _CacheScope) -> dict[str, Any]:
         or fact.get("financial_type") != str(row["financial_type"])
         or fact.get("status") != str(row["fact_status"])
         or _role_value(fact, "asset") != row["asset_value"]
-        or _role_value(fact, "date") != row["fact_date"]
+        or _indexed_date_value(fact) != row["fact_date"]
     ):
         raise Gate4FinancialCaseCacheError("gate4_cache_corrupt")
     return copy.deepcopy(fact)
@@ -990,6 +990,19 @@ def _role_value(fact: dict[str, Any], role: str) -> str | None:
     if not isinstance(value, str) or not value:
         raise Gate4FinancialCaseCacheError("gate4_fact_contract_invalid")
     return value
+
+
+def _indexed_date_value(fact: dict[str, Any]) -> str | None:
+    """Index only a real ISO calendar day; keep other literals in fact_json."""
+
+    value = _role_value(fact, "date")
+    if value is None:
+        return None
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError:
+        return None
+    return value if parsed.isoformat() == value else None
 
 
 def _canonical_json(value: Any) -> str:

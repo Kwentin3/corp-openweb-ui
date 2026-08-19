@@ -1,0 +1,117 @@
+{
+  "schema_version": "broker_reports_gate5_additive_inactive_value_candidate_receipt_v0",
+  "goal": "G5.39AE",
+  "verified_on": "2026-08-12",
+  "terminal": "G5_39AE_ADDITIVE_INACTIVE_VALUE_CANDIDATE_PROVEN",
+  "mode": "test_first_local_implementation",
+  "baseline": {
+    "branch": "feature/gate5-tax-period-category-aggregation",
+    "head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "head_tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+    "dirty_tree_preserved": true,
+    "new_branch_or_worktree": false
+  },
+  "owner": {
+    "factory": "Gate5DeclarationSemanticInputRuntimeFactory.create",
+    "runtime": "Gate5DeclarationSemanticInputRuntime",
+    "method": "compile_declaration_value_candidate",
+    "existing_compile_calls": 1,
+    "second_owner": false
+  },
+  "candidate_contract": {
+    "schema_version": "broker_reports_gate5_declaration_value_candidate_v0",
+    "status": "DECLARATION_VALUE_CANDIDATE_READY_NOT_RELEASED",
+    "value_contract": {
+      "id": "ru_3ndfl_2025_supplied_case_declaration_values",
+      "version": "2026-08-12.0-bounded"
+    },
+    "roots": [
+      "tax_period",
+      "filing",
+      "taxpayer",
+      "signer",
+      "budget_dispositions",
+      "income_group_results",
+      "russian_source_income",
+      "financial_investment_results"
+    ],
+    "canonicalization": "UTF-8 JSON; sort_keys=true; separators=comma-colon; ensure_ascii=false; allow_nan=false",
+    "hash_material": ["value_contract", "declaration_values"],
+    "declaration_value_canonical_bytes": 2507,
+    "declaration_value_sha256": "105e8883bc138b3a72ef0f1563b0ca32fadd72ccdc419729a535c1847db962b6",
+    "semantic_value_sha256": "83484fd29f261888d4c1fd466672ba52ace4653a46d89ed445ac574a47258090",
+    "release_authority": false,
+    "audit_or_completeness_authority": false,
+    "target_identity": false
+  },
+  "tests": {
+    "functional_red": "139 failed on absent method or validator",
+    "ae_focused": "143 passed",
+    "required_path_cases": 133,
+    "audit_leak_cases": 4,
+    "collection_profiles": 3,
+    "fresh_store_identity_profiles": 2,
+    "legacy_e2e": "8 passed",
+    "architecture_factory_bundle": "52 passed",
+    "black_check": "passed",
+    "py_compile": "passed",
+    "git_diff_check": "passed_with_line_ending_warnings_only"
+  },
+  "stable_identity": {
+    "fresh_sqlite_stores": 2,
+    "package_sha256_equal": false,
+    "semantic_input_sha256_equal": false,
+    "declaration_values_equal": true,
+    "semantic_value_sha256_equal": true
+  },
+  "usage_scan": {
+    "production_definitions": 1,
+    "production_callers": 0,
+    "test_callers_only": true,
+    "persisted": false,
+    "product_routed": false
+  },
+  "bundle": {
+    "builder": "scripts/build_openwebui_pipe_bundle.py --target gate1",
+    "rebuilt_twice_byte_identical": true,
+    "gate1_sha256": "d0acb85c67f8c42ef6947357fa46931f863ad22ace3da023f0113237d16229a3",
+    "gate2_source_fact_sha256_unchanged": "f339c02b82e6dc801d7d13c3113f09359613a9036605c1b00a608894916abeb4",
+    "gate2_domain_source_fact_sha256_unchanged": "a753a98e278caaa742dd8efb591d8bfb71d46bf6ffc505666d4c5e85e5c7aa4f"
+  },
+  "legacy_semantic_input_suite": {
+    "pre_ae": "3 failed, 1 passed",
+    "post_ae": "3 failed, 1 passed",
+    "failure_before_unit_under_test": true,
+    "attribution": "unrelated dirty Gate3 role instruction v1.1.0 versus stale synthetic Gate4 fixture v1.0.0",
+    "primary_contract_error": "gate3_annotations_payload_contract_invalid",
+    "downstream_setup_error": "gate4_cache_missing",
+    "unrelated_infrastructure_changed_by_ae": false,
+    "current_real_e2e_green": true
+  },
+  "scope_stop": {
+    "release": false,
+    "calculation_evidence_bindings": false,
+    "projector_or_projection_definition_change": false,
+    "parity_or_shadow": false,
+    "e2e_candidate_routing": false,
+    "persistence": false,
+    "product_or_public_output_change": false,
+    "tax_model_or_gate4_change": false,
+    "migration_or_activation": false,
+    "commit": false,
+    "push": false,
+    "pull_request": false
+  },
+  "github_journal": {
+    "repository": "Kwentin3/corp-openweb-ui",
+    "issue_number": 278,
+    "comment_id": 5269182866,
+    "status": "posted"
+  },
+  "privacy": {
+    "raw_customer_or_private_values": false,
+    "raw_package_or_semantic_candidate": false,
+    "raw_xml_bytes": false,
+    "safe_counts_hashes_and_contract_only": true
+  }
+}

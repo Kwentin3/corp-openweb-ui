@@ -6,6 +6,7 @@ from broker_reports_gate1 import (
     ArtifactAccessContext,
     ArtifactStoreConfig,
     ArtifactStoreFactory,
+    CanonicalReaderFactory,
     FileInput,
     Gate1Normalizer,
     Gate2InputReadinessConfig,
@@ -56,6 +57,8 @@ def test_semantic_projection_requires_explicit_gate2_boundary_and_preserves_sour
         input_context={
             "clarification_criticality_refinement_enabled": True,
             "pdf_layout_slice2_enabled": False,
+            "canonical_gate2_write_enabled": True,
+            "normalizer_version": "g5.40e-source-context-v1",
         },
     )
     document = normalized.package["document_inventory"]["documents"][0]
@@ -96,6 +99,24 @@ def test_semantic_projection_requires_explicit_gate2_boundary_and_preserves_sour
         retention_policy=build_retention_policy(mode="api_smoke"),
     )
     dcp_ref = manifest.artifact_refs_by_type["domain_context_packet_v0"][0]
+    canonical_ref = manifest.artifact_refs_by_type[
+        "broker_reports_canonical_artifact_v1"
+    ][0]
+    canonical = CanonicalReaderFactory(
+        store=store, read_enabled=True
+    ).create().read(canonical_ref, context)
+    semantic_table = next(
+        node
+        for node in canonical["nodes"]
+        if (node.get("content") or {}).get("metadata", {}).get(
+            "standalone_source_bound_projection"
+        )
+    )
+    assert semantic_table["content"]["rows"] == [
+        ["Item", "Amount"],
+        ["Cash", "1,000"],
+        ["Total", "1,000"],
+    ]
 
     artifact_types = {record.artifact_type for record in store.list_by_run(
         context.normalization_run_id
@@ -205,6 +226,7 @@ def _migration_for_document(*, document_ref: str, source_sha256: str):
     manifest.pop("manifest_hash")
     manifest["document_ref"] = document_ref
     manifest["pdf_sha256"] = source_sha256
+    manifest["page_number"] = 1
     manifest["manifest_hash"] = sha256_json(manifest)
     runtime = PdfDualVlmRuntimeFactory(
         PdfDualVlmRuntimeConfig(enabled=True)

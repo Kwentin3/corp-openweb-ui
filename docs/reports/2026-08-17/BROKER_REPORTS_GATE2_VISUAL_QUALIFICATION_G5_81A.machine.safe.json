@@ -1,0 +1,94 @@
+{
+  "schema_version": "broker_reports_g581a_visual_qualification_safe_v1",
+  "goal": "G5.81A",
+  "date": "2026-08-17",
+  "status": "FALSE_POSITIVE_BOUNDARY_PROVEN_STRATEGIC_STOP",
+  "population": {
+    "sha256": "bae2abc528bd168150876af47887103fb1065accc5b86e6ff73197c7166da338",
+    "total": 79,
+    "visual_table": 77,
+    "visual_not_table": 2,
+    "ambiguous": 0,
+    "sampled": false
+  },
+  "breakdown": {
+    "large_real": {
+      "total": 74,
+      "visual_table": 72,
+      "visual_not_table": 2,
+      "ambiguous": 0
+    },
+    "holdout_real": {
+      "total": 5,
+      "visual_table": 5,
+      "visual_not_table": 0,
+      "ambiguous": 0
+    }
+  },
+  "false_positives": [
+    {
+      "ordinal": 73,
+      "source_alias": "large_real",
+      "page": 64,
+      "candidate_ref": "pdftablecand_e42ae0b0bfb9f80e98b4a447",
+      "strategy": "ruled_lines_v0",
+      "vertical_vector_lines": 0,
+      "horizontal_vector_lines": 0,
+      "rectangles": 43
+    },
+    {
+      "ordinal": 74,
+      "source_alias": "large_real",
+      "page": 65,
+      "candidate_ref": "pdftablecand_893c6e585e6889497afe4395",
+      "strategy": "ruled_lines_v0",
+      "vertical_vector_lines": 0,
+      "horizontal_vector_lines": 1,
+      "rectangles": 18
+    }
+  ],
+  "structural_boundary": {
+    "class": "RECTANGLE_ONLY_OR_SINGLE_LINE_TEXT_GEOMETRY_MISTAKEN_FOR_RULED_GRID",
+    "candidate_discriminator": "max(vertical_vector_lines, horizontal_vector_lines) >= 2",
+    "scope": "QUALIFIED_ON_G5_81A_POPULATION_AND_POSITIVE_CONTROLS_ONLY",
+    "promoted_true_preserved": 77,
+    "promoted_false_rejected": 2,
+    "positive_controls_preserved": 10,
+    "generalization_claimed": false
+  },
+  "controls": {
+    "positive_total": 10,
+    "positive_visual_tables": 10,
+    "positive_path_ready": 10,
+    "positive_real": 9,
+    "positive_synthetic_calibration": 1,
+    "negative_total": 10,
+    "negative_rejected": 9,
+    "negative_accepted_false_positive": 1,
+    "independent_existing_false_positive_strategy": "aligned_text_v0"
+  },
+  "decision": {
+    "strategic_stop": true,
+    "product_patch_applied": false,
+    "ready_for_gate3_fail_closed_granularity_audit": false,
+    "reason": "A separate pre-existing aligned_text_v0 false positive remains in negative controls. Fixing it is outside the one-question G5.81A boundary."
+  },
+  "guardrails": {
+    "human_visual_oracle": true,
+    "vlm_used_as_judge": false,
+    "financial_semantics_used": false,
+    "broker_specific_rules_added": 0,
+    "page_specific_rules_added": 0,
+    "production_visual_dependency": false,
+    "product_runtime_changed": false
+  },
+  "private_bundle": {
+    "relative_delivery": "docs/out/g5.81a-gate2-visual-qualification-private-2026-08-17",
+    "artifact_manifest_sha256": "579b632964886c0ec09177f6a51cf67e5513db428cfcb387a0b0d5f012807146",
+    "artifact_files_excluding_manifest": 118
+  },
+  "privacy": {
+    "customer_content_in_this_receipt": false,
+    "private_paths_in_this_receipt": false
+  }
+}

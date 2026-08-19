@@ -1,0 +1,112 @@
+{
+  "schema_version": "broker_reports_gate3_financial_label_dictionary_v1",
+  "dictionary_id": "broker-reports-financial-labels",
+  "semantic_version": "2.0.1",
+  "status": "PUBLISHED",
+  "published_at": "2026-08-12",
+  "approval": {
+    "approval_id": "g5.58-holdout-generalization-2026-08-15",
+    "decision": "APPROVED",
+    "approved_by_role": "goal_setters",
+    "approved_at": "2026-08-15",
+    "basis": "G5.58 holdout evidence requires explicit source-authored income-payment fees to remain independent commission assertions without inferred relations"
+  },
+  "labels": [
+    {
+      "label_id": "SECURITY_PURCHASE",
+      "meaning": "Исполненная покупка конкретной ценной бумаги, которую источник прямо утверждает в точном source target.",
+      "apply_when": ["Источник прямо показывает исполненную покупку ценной бумаги."],
+      "do_not_apply_when": ["Это transfer, position, FX, заявка или РЕПО."],
+      "examples": ["Покупка", "Buy", "Purchase"],
+      "confusable_with": ["Перевод ценных бумаг", "Stock distribution"]
+    },
+    {
+      "label_id": "SECURITY_DISPOSAL",
+      "meaning": "Исполненная продажа, погашение или иное возмездное выбытие ценной бумаги, которое источник прямо утверждает в точном source target.",
+      "apply_when": ["Источник показывает sale, redemption или maturity и полученные proceeds."],
+      "do_not_apply_when": ["Это transfer out, отмена, изменение позиции, РЕПО или corporate action без доказанного возмездного выбытия."],
+      "examples": ["Продажа", "Погашение ЦБ", "Sell", "Redemption"],
+      "confusable_with": ["Перевод ценных бумаг", "Stock dividend"]
+    },
+    {
+      "label_id": "DIVIDEND_INCOME",
+      "meaning": "Выплаченный или зачисленный денежный дивиденд, прямо сообщённый источником.",
+      "apply_when": ["Источник прямо показывает paid или credited cash dividend."],
+      "do_not_apply_when": ["Это dividend accrual, stock dividend или return of capital."],
+      "examples": ["Наличный дивиденд", "Обыкновенный дивиденд", "Cash Dividend"],
+      "confusable_with": ["Начисления дивидендов", "Возврат капитала"]
+    },
+    {
+      "label_id": "COUPON_INCOME",
+      "meaning": "Выплаченный или зачисленный купон по облигации, прямо сообщённый источником.",
+      "apply_when": ["Источник прямо показывает payment или credit купона."],
+      "do_not_apply_when": ["Это НКД сделки, погашение principal или общий interest."],
+      "examples": ["Зачисление д/с (купон …)", "Погашение купона", "Coupon Payment"],
+      "confusable_with": ["НКД покупки", "НКД продажи", "Погашение ЦБ"]
+    },
+    {
+      "label_id": "INTEREST_INCOME",
+      "meaning": "Фактически начисленный или зачисленный процентный доход по денежным средствам, прямо сообщённый источником.",
+      "apply_when": ["Источник и направление суммы прямо подтверждают cash-interest income."],
+      "do_not_apply_when": ["Это debit interest, coupon, НКД, unpaid accrual или доход от займа ценных бумаг."],
+      "examples": ["Проценты по займам \"овернайт\"", "Interest Credit"],
+      "confusable_with": ["Дебетовый процент", "Начисления процентов"]
+    },
+    {
+      "label_id": "SECURITIES_LENDING_INCOME",
+      "meaning": "Фактически начисленный или зачисленный доход за передачу ценных бумаг в заём, прямо сообщённый источником.",
+      "apply_when": ["Income row прямо называет securities или stock loan и содержит source value."],
+      "do_not_apply_when": ["Это cash interest, margin charge, payment in lieu или общее описание договора."],
+      "examples": ["Проценты по займам \"овернайт ЦБ\"", "Securities Lending Income"],
+      "confusable_with": ["Проценты по займам \"овернайт\" без ЦБ"]
+    },
+    {
+      "label_id": "ACCRUED_COUPON_COMPONENT",
+      "meaning": "НКД как явно названный источником компонент строки покупки или продажи облигации.",
+      "apply_when": ["НКД или accrued coupon прямо находится в source target transaction price, cost или proceeds."],
+      "do_not_apply_when": ["Это выплаченный купон, общий accrual или informational position value."],
+      "examples": ["НКД покупки", "НКД продажи", "Accrued Interest в trade row"],
+      "confusable_with": ["Погашение купона", "НКД на конец периода"]
+    },
+    {
+      "label_id": "TRANSACTION_CHARGE",
+      "meaning": "Комиссия, сбор или transaction tax, которые источник прямо сообщает в контексте конкретной source transaction row или секции; этот контекст не является налоговой или самостоятельно восстановленной экономической связью.",
+      "apply_when": ["Комиссия или сбор и конкретная исполненная сделка находятся в одном явно заданном source target."],
+      "do_not_apply_when": ["Не выводи связь по дате, активу, сумме, соседству или сходству; для комиссии без source transaction context используй COMMISSION."],
+      "examples": ["Комиссия в строке сделки", "Exchange Fee in trade row", "Transaction tax in execution row"],
+      "confusable_with": ["Удерживаемый налог", "Комиссия за период"]
+    },
+    {
+      "label_id": "COMMISSION",
+      "meaning": "Комиссия, сбор или вознаграждение, прямо сообщённые источником без связи с конкретной операцией; точный source target остаётся единственным контекстом.",
+      "apply_when": ["Источник прямо называет комиссию или сбор и сумму, но не утверждает relation с конкретной transaction row."],
+      "do_not_apply_when": ["Не распределяй сумму по операциям, активам, лотам или продажам и не выводи скрытую relation."],
+      "examples": ["Комиссия: 100", "Broker fee", "Вознаграждение брокера", "Сбор агента при выплате дохода"],
+      "confusable_with": ["Комиссия в строке сделки", "Итого комиссии"]
+    },
+    {
+      "label_id": "COMMISSION_TOTAL",
+      "meaning": "Итоговая комиссия или сбор за явно названный источником период, раздел или statement scope.",
+      "apply_when": ["Источник прямо помечает сумму как итог комиссии для своего точного aggregate target."],
+      "do_not_apply_when": ["Не суммируй детали, не сверяй их с итогом, не заменяй итог деталями и не раскладывай итог обратно."],
+      "examples": ["Итого", "Total commission", "Комиссия за период"],
+      "confusable_with": ["Комиссия: 100", "Комиссия в строке сделки"]
+    },
+    {
+      "label_id": "TAX_WITHHELD",
+      "meaning": "Налог, который источник прямо утверждает как удержанный в точном detail source target.",
+      "apply_when": ["Withholding прямо указан в строке дохода или иной детальной source row."],
+      "do_not_apply_when": ["Это transaction tax, tax calculated, tax payable, refund или aggregate total."],
+      "examples": ["Налог удержан в строке дохода", "Withholding Tax Detail"],
+      "confusable_with": ["Расчет налога", "Итого удержанный налог"]
+    },
+    {
+      "label_id": "TAX_WITHHELD_TOTAL",
+      "meaning": "Итог удержанного налога за явно названный источником период, раздел или statement scope.",
+      "apply_when": ["Источник прямо помечает сумму как total withheld tax для exact aggregate target."],
+      "do_not_apply_when": ["Не суммируй детали, не сверяй их с итогом, не связывай итог с отдельными доходами и не заменяй source value."],
+      "examples": ["Итого удержано", "Total tax withheld", "Налог удержанный за период"],
+      "confusable_with": ["Налог удержан в строке дохода", "Tax payable"]
+    }
+  ]
+}

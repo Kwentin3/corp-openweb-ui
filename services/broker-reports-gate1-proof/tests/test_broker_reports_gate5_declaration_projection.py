@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import ast
 import copy
+import hashlib
 import inspect
 from importlib import resources
 import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
 
 import pytest
 
@@ -12,16 +18,32 @@ from broker_reports_gate1 import (
     GATE5_DECLARATION_PROJECTION_EVIDENCE_RESOURCE,
     GATE5_DECLARATION_PROJECTION_FRAGMENT_SCHEMA_VERSION,
     GATE5_DECLARATION_PROJECTION_INPUT_SCHEMA_VERSION,
+    GATE5_DECLARATION_PROJECTION_SECTION2_EVIDENCE_RESOURCE,
+    GATE5_DECLARATION_PROJECTION_SECTION2_EVIDENCE_RESOURCE_SHA256,
+    GATE5_DECLARATION_PROJECTION_SECTION2_ID,
+    GATE5_DECLARATION_PROJECTION_SECTION2_SPEC_RESOURCE,
+    GATE5_DECLARATION_PROJECTION_SECTION2_SPEC_RESOURCE_SHA256,
+    GATE5_DECLARATION_PROJECTION_SECTION2_VERSION,
     GATE5_DECLARATION_PROJECTION_SPEC_RESOURCE,
+    GATE5_DECLARATION_PROJECTION_V1_FRAGMENT_SCHEMA_VERSION,
+    GATE5_DECLARATION_PROJECTION_V1_REF_SCHEMA_VERSION,
+    GATE5_INCOME_GROUP_TAX_BASE_MODEL_SCHEMA_VERSION,
     Gate5DeclarationProjectionError,
     Gate5DeclarationProjectionRuntime,
     Gate5DeclarationProjectionRuntimeFactory,
+    Gate5DeclarationProjectionRuntimeV1Factory,
+    Gate5IncomeGroupTaxBaseRuntimeFactory,
 )
 from broker_reports_gate1 import gate5_declaration_projection as projection_module
 from broker_reports_gate1.gate5_declaration_projection import (
     FACTORY_REQUIRED,
     FORBIDDEN,
 )
+import test_broker_reports_gate5_income_group_tax_base as tax_base_fixtures
+
+
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_ROOT = SERVICE_ROOT / "broker_reports_gate1"
 
 
 def test_agent_candidate_projects_expected_appendix8_fragment_deterministically() -> (
@@ -209,6 +231,301 @@ def test_projector_has_no_representative_mapping_or_external_runtime_path() -> N
     assert "best-effort" in FORBIDDEN[2]
 
 
+def test_section2_projection_consumes_real_tax_model_without_recalculation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _store, _context, category = tax_base_fixtures._complete_category(
+        tmp_path, monkeypatch
+    )
+    tax_model_owner = Gate5IncomeGroupTaxBaseRuntimeFactory.create()
+    status = tax_base_fixtures._tagged(
+        "resident_individual", "taxpayer-status", "taxpayer_status"
+    )
+    values = tax_base_fixtures._group_values(
+        other_income="10.00",
+        other_expenses="4.00",
+        non_taxable="5.00",
+        deductions="3.00",
+    )
+    binding = tax_model_owner.describe_input(
+        category_tax_model=category,
+        taxpayer_status=status,
+        group_values=values,
+    )
+    tax_model = tax_model_owner.run(
+        methodology_ref=tax_base_fixtures._methodology_ref(),
+        behavior_input=tax_base_fixtures._behavior_input(
+            category=category,
+            status=status,
+            values=values,
+            binding_sha256=binding["input_binding_sha256"],
+        ),
+    )
+    runtime = Gate5DeclarationProjectionRuntimeV1Factory.create()
+
+    first = runtime.project(
+        projection_ref=_section2_projection_ref(),
+        declaration_semantics=tax_model,
+    )
+    replayed = Gate5DeclarationProjectionRuntimeV1Factory.create().project(
+        projection_ref=_section2_projection_ref(),
+        declaration_semantics=tax_model,
+    )
+
+    assert first == replayed
+    assert first["schema_version"] == (
+        GATE5_DECLARATION_PROJECTION_V1_FRAGMENT_SCHEMA_VERSION
+    )
+    assert first["source_binding"]["input_contract"] == (
+        GATE5_INCOME_GROUP_TAX_BASE_MODEL_SCHEMA_VERSION
+    )
+    assert first["fragment"] == {
+        "element": "НалБаза",
+        "attributes": {"ГрупДоход": "02"},
+        "children": [
+            {
+                "element": "РасчНалБаза",
+                "attributes": {
+                    "СумДох": "160.00",
+                    "СумДохНеНал": "5.00",
+                    "СумДохНал": "155.00",
+                    "СумНалВыч": "3.00",
+                    "СумРасх": "104.00",
+                    "НалБаза": "48.00",
+                },
+            }
+        ],
+    }
+    assert "003" not in json.dumps(first["fragment"], ensure_ascii=False)
+    assert first["validation"] == {
+        "projection_definition": "passed",
+        "upstream_tax_model": "owner_revalidated",
+        "required_mappings": "passed",
+        "xsd_claim": "partial_section2_fragment_not_full_xml_validated",
+    }
+    assert len(first["provenance"]) == 7
+    assert all(
+        set(item) == {"source", "rule", "target"}
+        and item["source"]["trace"]
+        and item["rule"]["evidence_refs"]
+        for item in first["provenance"]
+    )
+
+
+def test_versioned_project_keeps_the_published_appendix8_artifact_executable() -> (
+    None
+):
+    result = Gate5DeclarationProjectionRuntimeV1Factory.create().project(
+        projection_ref={
+            "schema_version": GATE5_DECLARATION_PROJECTION_V1_REF_SCHEMA_VERSION,
+            "projection_id": "ru-3ndfl-2025-appendix8-securities-proof",
+            "projection_version": "2026.0-proof",
+        },
+        declaration_semantics=_proof_input(),
+    )
+
+    assert result["schema_version"] == (
+        GATE5_DECLARATION_PROJECTION_V1_FRAGMENT_SCHEMA_VERSION
+    )
+    assert result["fragment"] == {
+        "element": "ДохОперЦБ",
+        "attributes": {
+            "ВидОпер": "01",
+            "ДохСовОпер": "100.00",
+            "РасхРеалЦБ": "72.00",
+            "РасхУмДохОпер": "72.00",
+            "ПризУчетУбыт": "0",
+        },
+        "children": [],
+    }
+
+
+def test_section2_projection_classification_is_versioned_evidence_not_runtime_code() -> (
+    None
+):
+    spec = _resource_json(GATE5_DECLARATION_PROJECTION_SECTION2_SPEC_RESOURCE)
+    evidence = _resource_json(GATE5_DECLARATION_PROJECTION_SECTION2_EVIDENCE_RESOURCE)
+    classification = evidence["classification_binding"]
+
+    assert classification == {
+        "income_group_semantic": "resident_securities_and_derivatives_non_iis",
+        "income_group_code": "02",
+        "income_type_code": "003",
+        "income_type_projection_scope": "evidence_only_not_section2_target",
+        "evidence_ref": "securities_income_group_02_type_003",
+    }
+    target_attributes = {
+        field["attribute"]
+        for node in evidence["target_contract"]["nodes"]
+        for field in node["fields"]
+    }
+    assert target_attributes == {
+        "ГрупДоход",
+        "СумДох",
+        "СумДохНеНал",
+        "СумДохНал",
+        "СумНалВыч",
+        "СумРасх",
+        "НалБаза",
+    }
+    assert all(
+        mapping["source_concept"] != "income_type_code"
+        for mapping in spec["mappings"]
+    )
+    module_source = inspect.getsource(projection_module)
+    for declaration_literal in target_attributes | {"02", "003"}:
+        assert f'"{declaration_literal}"' not in module_source
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    (
+        (
+            lambda spec, _evidence: spec["mappings"].append(
+                {
+                    **copy.deepcopy(spec["mappings"][0]),
+                    "mapping_id": "ambiguous-second-income-group-mapping",
+                }
+            ),
+            "gate5_declaration_projection_conflicting_mapping",
+        ),
+        (
+            lambda spec, _evidence: spec["mappings"].pop(),
+            "gate5_declaration_projection_missing_required_mapping",
+        ),
+        (
+            lambda spec, evidence: _mutate_classification_mapping(spec, evidence),
+            "gate5_declaration_projection_classification_incompatible",
+        ),
+    ),
+)
+def test_section2_definition_ambiguity_or_incompatible_mapping_fails_closed(
+    mutation,
+    expected_code: str,
+) -> None:
+    spec = _resource_json(GATE5_DECLARATION_PROJECTION_SECTION2_SPEC_RESOURCE)
+    evidence = _resource_json(GATE5_DECLARATION_PROJECTION_SECTION2_EVIDENCE_RESOURCE)
+    mutation(spec, evidence)
+
+    with pytest.raises(Gate5DeclarationProjectionError) as caught:
+        projection_module._validate_v1_projection(
+            spec=spec,
+            evidence=evidence,
+            expected_identity=(
+                GATE5_DECLARATION_PROJECTION_SECTION2_ID,
+                GATE5_DECLARATION_PROJECTION_SECTION2_VERSION,
+            ),
+        )
+
+    assert caught.value.code == expected_code
+
+
+def test_section2_projection_rejects_unknown_artifact_and_tampered_upstream_model(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = Gate5DeclarationProjectionRuntimeV1Factory.create()
+    with pytest.raises(Gate5DeclarationProjectionError) as missing:
+        runtime.project(
+            projection_ref={
+                **_section2_projection_ref(),
+                "projection_version": "unpublished-version",
+            },
+            declaration_semantics={},
+        )
+    assert missing.value.code == "gate5_declaration_projection_artifact_unavailable"
+
+    _store, _context, category = tax_base_fixtures._complete_category(
+        tmp_path, monkeypatch
+    )
+    tax_model = tax_base_fixtures.Gate5IncomeGroupTaxBaseRuntimeFactory.create().run(
+        methodology_ref=tax_base_fixtures._methodology_ref(),
+        behavior_input=tax_base_fixtures._valid_input(category),
+    )
+    tax_model["tax_base"]["value"]["amount"] = "999.00"
+    with pytest.raises(Gate5DeclarationProjectionError) as tampered:
+        runtime.project(
+            projection_ref=_section2_projection_ref(),
+            declaration_semantics=tax_model,
+        )
+    assert tampered.value.code == (
+        "gate5_declaration_projection_upstream_semantics_invalid"
+    )
+
+
+def test_section2_projection_resources_are_hash_pinned_and_closed_world(
+    tmp_path: Path,
+) -> None:
+    for resource_name, expected_sha256 in (
+        (
+            GATE5_DECLARATION_PROJECTION_SECTION2_SPEC_RESOURCE,
+            GATE5_DECLARATION_PROJECTION_SECTION2_SPEC_RESOURCE_SHA256,
+        ),
+        (
+            GATE5_DECLARATION_PROJECTION_SECTION2_EVIDENCE_RESOURCE,
+            GATE5_DECLARATION_PROJECTION_SECTION2_EVIDENCE_RESOURCE_SHA256,
+        ),
+    ):
+        raw = (PACKAGE_ROOT / resource_name).read_bytes()
+        assert hashlib.sha256(raw).hexdigest() == expected_sha256
+
+    package_copy = tmp_path / "broker_reports_gate1"
+    shutil.copytree(
+        PACKAGE_ROOT,
+        package_copy,
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    script = """
+from broker_reports_gate1 import Gate5DeclarationProjectionRuntimeV1Factory
+r=Gate5DeclarationProjectionRuntimeV1Factory.create()
+print(type(r).__name__)
+"""
+    environment = os.environ.copy()
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    completed = subprocess.run(
+        [sys.executable, "-B", "-c", script],
+        cwd=tmp_path,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.strip() == "Gate5DeclarationProjectionRuntimeV1"
+
+
+def test_section2_projection_evidence_hash_drift_fails_in_closed_copy(
+    tmp_path: Path,
+) -> None:
+    package_copy = tmp_path / "broker_reports_gate1"
+    shutil.copytree(
+        PACKAGE_ROOT,
+        package_copy,
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    resource = package_copy / GATE5_DECLARATION_PROJECTION_SECTION2_EVIDENCE_RESOURCE
+    resource.write_bytes(resource.read_bytes().replace(b'"02"', b'"09"', 1))
+    script = """
+from broker_reports_gate1 import Gate5DeclarationProjectionRuntimeV1Factory
+Gate5DeclarationProjectionRuntimeV1Factory.create()
+"""
+    environment = os.environ.copy()
+    environment["PYTHONDONTWRITEBYTECODE"] = "1"
+    completed = subprocess.run(
+        [sys.executable, "-B", "-c", script],
+        cwd=tmp_path,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert "gate5_declaration_projection_evidence_hash_mismatch" in completed.stderr
+
+
 def _proof_input() -> dict:
     return {
         "schema_version": GATE5_DECLARATION_PROJECTION_INPUT_SCHEMA_VERSION,
@@ -221,6 +538,23 @@ def _proof_input() -> dict:
         "allowable_expenses": {"amount": "72.00", "currency": "RUB"},
         "loss_treatment": "none",
     }
+
+
+def _section2_projection_ref() -> dict[str, str]:
+    return {
+        "schema_version": GATE5_DECLARATION_PROJECTION_V1_REF_SCHEMA_VERSION,
+        "projection_id": GATE5_DECLARATION_PROJECTION_SECTION2_ID,
+        "projection_version": GATE5_DECLARATION_PROJECTION_SECTION2_VERSION,
+    }
+
+
+def _mutate_classification_mapping(spec: dict, evidence: dict) -> None:
+    spec["mappings"][0]["transform"]["values"][
+        "resident_securities_and_derivatives_non_iis"
+    ] = "09"
+    evidence["mapping_claims"][0]["transform"]["values"][
+        "resident_securities_and_derivatives_non_iis"
+    ] = "09"
 
 
 def _resource_json(resource_name: str) -> dict:

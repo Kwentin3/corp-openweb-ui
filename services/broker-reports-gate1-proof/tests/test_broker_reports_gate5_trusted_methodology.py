@@ -13,6 +13,8 @@ import sys
 import pytest
 
 from broker_reports_gate1 import (
+    GATE5_DECLARATION_INPUT_METHODOLOGY_ID,
+    GATE5_DECLARATION_INPUT_METHODOLOGY_VERSION,
     GATE5_TRUSTED_CALCULATION_RESULT_SCHEMA_VERSION,
     GATE5_TRUSTED_METHODOLOGY_AUTHORITY_OWNER,
     GATE5_TRUSTED_METHODOLOGY_ID,
@@ -246,6 +248,90 @@ def test_g57_unknown_behavior_failure_propagates_through_trusted_runtime(
         )
     assert unsupported.value.code == "gate5_calculation_behavior_unsupported"
     assert calculation_fixtures._supplemental_refs(store, context) == (artifacts_before)
+
+
+def test_declaration_input_methodology_is_closed_versioned_and_authority_bound() -> None:
+    resolved = Gate5TrustedMethodologyAuthorityFactory.create().resolve(
+        {
+            "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+            "methodology_id": GATE5_DECLARATION_INPUT_METHODOLOGY_ID,
+            "methodology_version": GATE5_DECLARATION_INPUT_METHODOLOGY_VERSION,
+        }
+    )
+    methodology = resolved["methodology"]
+    rules = methodology["rules"]
+    authority_refs = {
+        item["evidence_ref"] for item in methodology["legal_evidence"]
+    }
+
+    assert methodology["status"] == "PUBLISHED_AUDITED_INPUT_CONTRACT"
+    assert methodology["scope"] == {
+        "tax_period": "2025",
+        "jurisdiction": "RU",
+        "scenario": "mandatory_common_filing_plus_observed_broker_securities_income",
+    }
+    assert len(rules) == 12
+    assert len({item["rule_id"] for item in rules}) == len(rules)
+    assert {
+        "filing-context-fns-order-913-v1",
+        "signer-context-fns-order-913-v1",
+        "budget-disposition-fns-order-913-v1",
+        "taxpayer-residency-article-207-v1",
+        "dividend-source-article-208-v1",
+        "security-disposal-source-article-208-v1",
+        "coupon-securities-income-article-214.1-v1",
+        "dividend-income-group-articles-210-214-v1",
+        "organized-market-classification-article-214.1-v1",
+        "foreign-currency-conversion-article-210-v1",
+        "foreign-tax-credit-articles-214-232-v1",
+        "partial-acquisition-commission-v1",
+    } == {item["rule_id"] for item in rules}
+    assert all(item["required_inputs"] for item in rules)
+    assert all(set(item["authority_refs"]).issubset(authority_refs) for item in rules)
+    assert all(
+        item["operation"]
+        in {
+            "COMPARE",
+            "CLASSIFY",
+            "SELECT",
+            "VALIDATE",
+            "LOOKUP_MULTIPLY_DIVIDE",
+            "VERIFY_COMPARE_APPLY_RULE",
+            "NONE",
+        }
+        for item in rules
+    )
+    assert {
+        item["rule_id"]
+        for item in rules
+        if item["insufficient_inputs"] == "METHODOLOGY_UNRESOLVED"
+    } == {
+        "security-disposal-source-article-208-v1",
+        "foreign-currency-conversion-article-210-v1",
+        "foreign-tax-credit-articles-214-232-v1",
+        "partial-acquisition-commission-v1",
+    }
+    demand_bindings = methodology["demand_bindings"]
+    assert len(demand_bindings) == 9
+    assert {item["demand"] for item in demand_bindings} == {
+        "obl_filing_instance_identity",
+        "obl_taxpayer_identity_and_period_status",
+        "obl_signer_and_representation_authority",
+        "obl_declaration_budget_disposition",
+        "obl_russian_source_taxable_income",
+        "obl_foreign_source_taxable_income_and_foreign_tax",
+        "obl_securities_and_derivatives_results",
+        "obl_income_group_tax_base_results",
+        "obl_income_group_tax_settlement_results",
+    }
+    rule_ids = {item["rule_id"] for item in rules}
+    assert all(
+        set(item["rule_ids"]).issubset(rule_ids) and item["owner"].endswith(".create")
+        for item in demand_bindings
+    )
+    assert resolved["authority_binding"]["resource_sha256"] == (
+        trusted_module.GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE_SHA256
+    )
 
 
 def test_factory_route_is_read_only_and_caller_cannot_supply_methodology_bytes() -> (

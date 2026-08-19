@@ -1,0 +1,22 @@
+{
+  "broker_specific_rules_added": 0,
+  "canonical_after_table_pages": 6,
+  "canonical_before_coarse_text_pages": 6,
+  "canonical_version_changed": true,
+  "document_id": "brdoc_001_7cfd297786cc",
+  "first_divergence_owner": "NormalizedTableProjectionFactory.create",
+  "first_divergence_reason": "pdf_table_geometry_column_structure_insufficient",
+  "goal": "G5.80",
+  "manual_financial_facts_created": 0,
+  "pages_qualified": 6,
+  "persisted_blocked_projection_counts": {
+    "rejected_to_line_cluster": 5,
+    "rejected_to_line_cluster,rejected_to_line_cluster": 1
+  },
+  "private_evidence_sha256": "4e19724d1df89023739e5275cd55849e5ee64b2da3bfa6b12f3afa4c24927e08",
+  "production_visual_dependency": false,
+  "proof_store_capacity_policy": "isolated_copy_low_disk_ratio_override",
+  "provider_calls": 0,
+  "rebuilt_ready_pages": 6,
+  "schema_version": "broker_reports_g580_gate2_addressability_safe_v1"
+}

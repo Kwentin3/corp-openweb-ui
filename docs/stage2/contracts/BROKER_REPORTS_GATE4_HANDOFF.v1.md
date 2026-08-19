@@ -6,7 +6,7 @@ Gate 4 status: `CLOSED`
 
 Next allowed boundary: `GATE5_DESIGN`
 
-Updated: 2026-08-08
+Updated: 2026-08-12 (`G5.40C` source-fact boundary)
 
 This is the short recovery document for a developer starting Gate 5. It does
 not define gate numbering, financial types, roles or tax rules. Those meanings
@@ -53,7 +53,7 @@ list_by_period(context, date_from, date_to)
 `ArtifactAccessContext` remains the trusted OpenWebUI user/case/workspace
 scope. Gate 5 must not supply those identities as separate query parameters.
 
-The returned Financial Case contains complete `Gate4FinancialCaseFactV1`
+The returned Financial Case contains complete `Gate4FinancialCaseFactV2`
 payloads. Each fact provides:
 
 ```text
@@ -108,13 +108,15 @@ rules, declaration, FNS XML or PDF projection.
 
 1. [Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md) — sole current
    gate map and status authority.
-2. [Gate 4 Financial Case Fact v1](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md)
+2. [Gate 4 Financial Case Fact v2](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.md)
    — exact fact meaning and schema.
 3. [Gate 4 Case Assembly v1](./BROKER_REPORTS_GATE4_CASE_ASSEMBLY.v1.md) —
    whole-case and technical completeness semantics.
 4. [Gate 4 SQL Materialization v1](./BROKER_REPORTS_GATE4_SQL_MATERIALIZATION.v1.md)
    — official runtime, cache, rebuild and stale semantics.
-5. [Architecture Authorities](./BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md) —
+5. [Source-Fact Domain Boundaries v1](./BROKER_REPORTS_SOURCE_FACT_DOMAIN_BOUNDARIES.v1.md)
+   — semantic ceiling and Gate 2-5 responsibility map.
+6. [Architecture Authorities](./BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md) —
    maintained implementation owners.
 
 Read [Gate 3 Handoff v1](./BROKER_REPORTS_GATE3_HANDOFF.v1.md) only when an

@@ -39,6 +39,7 @@ FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE = (
 )
 FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE = "financial_context_checksum_v1"
 GATE3_BOUNDED_LABELING_REQUEST_PROFILE = "gate3_bounded_labeling_v1"
+GATE3_LLM_METADATA_REQUEST_PROFILE = "gate3_llm_metadata_v1"
 GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE = "gate5_single_input_hitl_v0"
 FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_context_lint_receipt_v1"
@@ -67,6 +68,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
     FINANCIAL_CONTEXT_CHECKSUM_REQUEST_PROFILE,
     GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
+    GATE3_LLM_METADATA_REQUEST_PROFILE,
     GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE,
 )
 
@@ -540,6 +542,59 @@ class Gate2OpenWebUIRequestBuilder:
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_invalid",
                 "Gate 3 bounded labeling request shape is invalid",
+            )
+        projected = copy.deepcopy(model_visible_request)
+        projected["model"] = model_id
+        projected["stream"] = False
+        return projected
+
+    def build_from_sealed_gate3_metadata(
+        self,
+        *,
+        model_visible_request: dict[str, Any],
+        model_id: str,
+    ) -> dict[str, Any]:
+        """Bind one exact three-part metadata request to a selected model."""
+
+        if self.request_profile != GATE3_LLM_METADATA_REQUEST_PROFILE:
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_profile_mismatch",
+                "Gate 3 LLM metadata requires its sealed request profile",
+            )
+        if (
+            not isinstance(model_id, str)
+            or not model_id.strip()
+            or len(model_id) > 512
+            or not isinstance(model_visible_request, dict)
+            or tuple(model_visible_request) != ("messages", "response_format")
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Gate 3 LLM metadata request is invalid",
+            )
+        messages = model_visible_request.get("messages")
+        response_format = model_visible_request.get("response_format")
+        if (
+            not isinstance(messages, list)
+            or len(messages) != 3
+            or [item.get("role") for item in messages if isinstance(item, dict)]
+            != ["system", "user", "user"]
+            or any(
+                not isinstance(item, dict)
+                or set(item) != {"role", "content"}
+                or not isinstance(item["content"], str)
+                or not item["content"]
+                for item in messages
+            )
+            or not isinstance(response_format, dict)
+            or response_format.get("type") != "json_schema"
+            or not isinstance(response_format.get("json_schema"), dict)
+            or response_format["json_schema"].get("strict") is not True
+            or not isinstance(response_format["json_schema"].get("schema"), dict)
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Gate 3 LLM metadata request shape is invalid",
             )
         projected = copy.deepcopy(model_visible_request)
         projected["model"] = model_id

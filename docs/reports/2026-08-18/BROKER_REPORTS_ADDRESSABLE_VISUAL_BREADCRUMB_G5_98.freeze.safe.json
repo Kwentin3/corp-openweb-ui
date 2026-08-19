@@ -1,0 +1,30 @@
+{
+  "development_metrics": {
+    "ambiguous": 0,
+    "cases": 10,
+    "contract_not_verified": 0,
+    "exact_case": 10,
+    "expected_regions": 14,
+    "false_localization": 0,
+    "false_table_admitted": 0,
+    "missed_expected": 0,
+    "not_found": 0,
+    "proposed_tables": 14,
+    "unique_correct": 14
+  },
+  "frozen": true,
+  "goal": "G5.98",
+  "implementation_sha256": "be83b01d7d32965c34d0f30029bee73bce1ec68f4965c2c7473c6e348cdffeaf",
+  "phase": "schema_and_resolver_freeze",
+  "privacy": {
+    "customer_literals_in_safe_output": false,
+    "customer_paths_in_safe_output": false,
+    "private_evidence_outside_git": true,
+    "provider_payloads_in_safe_output": false,
+    "source_coordinates_in_safe_output": false
+  },
+  "private_file_sha256": "ba9785615cc4dcc3a99a60a09b242b7732cf7c7b7d53b6fe9bada28f4ab34ef2",
+  "prompt_sha256": "a7030b9a6b07c094a2271ca71dc81b71f7ab0a5bd09d18b377cbc440688b39e4",
+  "response_schema_sha256": "b5234742ef277c2707ec4fa13c0b7321a843f7d1abfabf1b459590c51060a406",
+  "schema_version": "broker_reports_addressable_visual_breadcrumb_g598_safe_v1"
+}

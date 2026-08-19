@@ -1,0 +1,61 @@
+{
+  "schema_version": "broker_reports_g578_owner_routing_matrix_safe_v1",
+  "goal": "G5.78",
+  "baseline": {
+    "gate5_source_fact_required_role_missing": {
+      "findings": 13,
+      "closure_type": "ADDITIONAL_DOCUMENT",
+      "answer_kind": "document_submission"
+    },
+    "gate5_source_fact_decimal_invalid": {
+      "findings": 3,
+      "closure_type": "ADDITIONAL_DOCUMENT",
+      "answer_kind": "document_submission"
+    },
+    "private_result_sha256": "0d5817aa9917b7ecbe910b58b782450bc73d9306c2351a2f7675a856d2722c62"
+  },
+  "replay": {
+    "gate5_source_fact_required_role_missing": {
+      "findings": 13,
+      "ownership_state": "SOURCE_HAS_IT_ROLE_BINDING_LOST",
+      "closure_type": "EXISTING_EVIDENCE",
+      "route": "UPSTREAM_SOURCE_FACT_PRODUCTION_REVIEW",
+      "owner": "Gate3EvidenceDemandPortFactory.create -> Gate4FinancialCaseMaterializerFactory.create",
+      "user_or_additional_document_allowed": false
+    },
+    "gate5_source_fact_decimal_invalid": {
+      "findings": 3,
+      "ownership_state": "SOURCE_HAS_IT_NORMALIZATION_FAILED",
+      "closure_type": "EXISTING_EVIDENCE",
+      "route": "NORMALIZATION_OWNER_REVIEW",
+      "owner": "Gate4FinancialCaseMaterializerFactory.create",
+      "user_or_additional_document_allowed": false
+    },
+    "evidence_horizon_acquisition_gaps": {
+      "findings": 4,
+      "actions": 4,
+      "ownership_state": "SOURCE_ABSENT_WITHIN_SUPPLIED_EVIDENCE_HORIZON",
+      "closure_type": "ADDITIONAL_DOCUMENT",
+      "route": "EVIDENCE_HORIZON_EXTERNAL_DEMAND"
+    },
+    "methodology_gaps": {
+      "findings": 1,
+      "actions": 1,
+      "closure_type": "METHODOLOGY_RESEARCH",
+      "owner": "Gate5TrustedMethodologyAuthorityFactory.create"
+    },
+    "required_action_split": {
+      "user_facing": 9,
+      "internal_owner": 3,
+      "dialog_adapter_visible": 9
+    },
+    "false_additional_document_actions_from_role_and_decimal": 0,
+    "user_case_semantic_hash_before": "e2c6bc2f90d9219b5a5c6d0e1a1a119b6ae8f23cabb0f877ab31e994d1a6ad4b",
+    "user_case_semantic_hash_after": "e2c6bc2f90d9219b5a5c6d0e1a1a119b6ae8f23cabb0f877ab31e994d1a6ad4b",
+    "private_result_sha256": "a97ca2e5e69bea03d1f7cf08c256bc843ee55ac47f5dc554c8d3e744c1f1d6ac"
+  },
+  "underlying_role_or_decimal_values_repaired": 0,
+  "new_routing_frameworks": 0,
+  "provider_calls": 0,
+  "private_values_committed": false
+}

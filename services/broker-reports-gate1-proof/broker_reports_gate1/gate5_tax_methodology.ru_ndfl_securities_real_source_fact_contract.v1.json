@@ -1,0 +1,63 @@
+{
+  "schema_version": "broker_reports_gate5_deterministic_source_fact_consumption_methodology_v0",
+  "methodology_id": "ru-ndfl-securities-source-fact-consumption-proof",
+  "methodology_version": "2026.6-interpretation-contract",
+  "status": "PUBLISHED_PROOF_ONLY",
+  "behavior": {
+    "behavior_id": "securities_fifo_source_fact_consumption_v0",
+    "source_fact_schema_version": "broker_reports_gate4_financial_case_fact_v2",
+    "source_fact_semantic_kind": "normalized_source_fact",
+    "acquisition": {
+      "financial_type": "SECURITY_PURCHASE",
+      "required_roles": ["date", "asset", "quantity", "amount", "currency"],
+      "money_magnitude": "absolute_source_amount"
+    },
+    "disposal": {
+      "financial_type": "SECURITY_DISPOSAL",
+      "required_roles": ["date", "asset", "quantity", "amount", "currency"],
+      "money_magnitude": "absolute_source_amount"
+    },
+    "fifo": {
+      "rule_id": "article-214.1-fifo-acquisition-cost-proof-v0",
+      "order_by": ["date"],
+      "allocation": "source_amount_times_consumed_quantity_divided_by_source_quantity",
+      "same_date_policy": "fail_closed_when_unordered_same_date_facts_make_cost_attribution_material",
+      "rounding_policy": "exact_currency_minor_unit_only"
+    },
+    "direct_disposal_expense": {
+      "financial_type": "TRANSACTION_CHARGE",
+      "binding": "same_canonical_table_row",
+      "required_roles": ["amount", "currency"],
+      "money_magnitude": "absolute_source_amount",
+      "source_semantic": "source_authored_transaction_charge_context",
+      "tax_deductibility": "not_determined_by_source_context"
+    },
+    "independent_assertions": {
+      "commission_detail_types": ["COMMISSION", "TRANSACTION_CHARGE"],
+      "commission_total_type": "COMMISSION_TOTAL",
+      "withheld_tax_detail_type": "TAX_WITHHELD",
+      "withheld_tax_total_type": "TAX_WITHHELD_TOTAL",
+      "reconciliation": "forbidden",
+      "commission_selection": {
+        "detail_precedence": "only_when_exact_required_scope_coverage_is_proven",
+        "aggregate_fallback": "only_when_detail_coverage_is_unproven_or_absent_and_exact_aggregate_scope_is_proven",
+        "preserve_both_representations": true,
+        "select_one_representation": true,
+        "compare_detail_and_aggregate_values": false,
+        "tax_eligibility": "not_decided_by_evidence_selection"
+      }
+    },
+    "unsupported": {
+      "partial_acquisition_commission": "METHODOLOGY_UNRESOLVED",
+      "inferred_purchase_disposal_relation": "FORBIDDEN",
+      "inferred_commission_relation": "FORBIDDEN",
+      "currency_conversion": "METHODOLOGY_UNRESOLVED"
+    }
+  },
+  "evidence_binding": {
+    "declaration_demand_map_goal": "G5.44",
+    "operation_tax_model_methodology_id": "ru-ndfl-securities-tax-model-proof",
+    "operation_tax_model_methodology_version": "2026.1-experimental",
+    "evidence_refs": ["federal-law-281-fz-article-2", "rf-tax-code-214.1-10"]
+  }
+}

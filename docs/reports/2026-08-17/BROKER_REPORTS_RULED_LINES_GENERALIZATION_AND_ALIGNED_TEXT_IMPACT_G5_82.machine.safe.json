@@ -1,0 +1,95 @@
+{
+  "schema_version": "broker_reports_g582_closeout_safe_v1",
+  "goal": "G5.82",
+  "date": "2026-08-17",
+  "status": "COMPLETE",
+  "rule": {
+    "owner": "NormalizedTableProjectionFactory.create / _pdf_geometry_reasons",
+    "strategy_scope": "ruled_lines_v0",
+    "predicate": "at least two distinct parallel axis-aligned vector rulings overlap the candidate on the same page",
+    "rectangles_count_as_rulings": false,
+    "single_isolated_line_is_sufficient": false,
+    "broker_specific": false,
+    "page_specific": false,
+    "financial_semantics_used": false
+  },
+  "replay": {
+    "documents": 4,
+    "pages": 103,
+    "candidate_refs_identical": true,
+    "candidates_total": 90,
+    "before_ready": 89,
+    "after_ready": 87,
+    "before_blocked": 1,
+    "after_blocked": 3,
+    "status_or_reason_changes": 2,
+    "unexplained_changes": 0,
+    "promoted_true_ready": 77,
+    "promoted_true_total": 77,
+    "promoted_false_blocked": 2,
+    "promoted_false_total": 2,
+    "known_six_pages_structured": true
+  },
+  "controls": {
+    "positive_total": 10,
+    "positive_real": 9,
+    "positive_synthetic_calibration": 1,
+    "positive_ready": 10,
+    "negative_total": 10,
+    "negative_rejected_before_candidate": 9,
+    "aligned_text_existing_false_positive_ready": true,
+    "synthetic_unaccounted_refs": 0,
+    "synthetic_duplicate_refs": 0
+  },
+  "aligned_text_consumer_impact": {
+    "detector_changed": false,
+    "current_code_rebuild_activated": false,
+    "active_canonical_page_representation": "TEXT_FROM_PDF_LINE_CLUSTER",
+    "gate3_annotations_total": 264,
+    "page_targeted_gate3_annotations": 0,
+    "gate4_facts_total": 264,
+    "page_provenance_gate4_facts": 0,
+    "types_values_roles_provenance_exact_after_exclusion": true,
+    "impact": "ZERO_CURRENT_ACTIVE_CASE",
+    "classification": "TECH_DEBT_NOT_CURRENT_CRITICAL_PATH",
+    "future_activation_impact_proven": false
+  },
+  "financial_regression": {
+    "qualification": "FROZEN_ANNOTATION_ADMISSION_SEAM",
+    "holdout_a_admitted": 39,
+    "holdout_a_total": 39,
+    "holdout_b_admitted": 129,
+    "holdout_b_total": 129,
+    "full_rebuild_claimed": false
+  },
+  "verification": {
+    "focused_pytest_passed": 46,
+    "ruff": "PASS",
+    "py_compile": "PASS",
+    "factory_anchor_test": "PASS"
+  },
+  "scope": {
+    "gate3_changes": 0,
+    "decimal_changes": 0,
+    "methodology_changes": 0,
+    "metadata_changes": 0,
+    "vlm_changes": 0,
+    "provider_calls": 0,
+    "manual_facts": 0,
+    "production_visual_dependency": false,
+    "new_imports_dependencies_env_paths": 0
+  },
+  "private_bundle": {
+    "relative_delivery": "docs/out/g5.82-ruled-lines-and-consumer-impact-private-2026-08-17",
+    "artifact_manifest_sha256": "5541ae6ba632137a4aff45ba9a125cc0974d6f812f465260acf18afd432e217b",
+    "artifact_files_excluding_manifest": 122
+  },
+  "terminal": [
+    "RULED_LINES_TABLE_ADMISSION_GENERALIZATION_PROVEN",
+    "PROMOTED_TRUE_TABLES_PRESERVED",
+    "NEW_RULE_FALSE_POSITIVES_ZERO",
+    "ALIGNED_TEXT_FALSE_POSITIVE_CONSUMER_IMPACT_ZERO_CURRENT_ACTIVE_CASE",
+    "ALIGNED_TEXT_FALSE_POSITIVE_DEFERRED_AS_TECH_DEBT",
+    "READY_FOR_GATE3_MINIMAL_FAIL_CLOSED_GRANULARITY_AUDIT"
+  ]
+}

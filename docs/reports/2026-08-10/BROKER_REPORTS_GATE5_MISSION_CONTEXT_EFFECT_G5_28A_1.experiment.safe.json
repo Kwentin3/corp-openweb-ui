@@ -1,0 +1,307 @@
+{
+  "schema_version": "broker_reports_gate5_mission_context_effect_experiment_v0",
+  "goal": "G5.28A.1",
+  "status": "closed",
+  "verdict": "MISSION_CONTEXT_NEUTRAL",
+  "scope": {
+    "comparative_authoring_experiment_only": true,
+    "corrected_g5_28_trial_run": false,
+    "definition_published": false,
+    "g5_29_started": false,
+    "runtime_changed": false
+  },
+  "protocol_recovery": {
+    "v0_preregistration_sha256": "1cce235771751b5762a51730bc7c5d1b66eb23d37be3542b3ecf34ec288ad2e7",
+    "v0_status": "aborted_before_model_inference",
+    "local_launch_failures": [
+      {
+        "cause": "ProcessStartInfo.ArgumentList was unavailable in Windows PowerShell",
+        "process_started": false,
+        "input_accepted": false,
+        "provider_inference": false
+      }
+    ],
+    "provider_rejections": [
+      {
+        "assignments": ["A1", "B1", "A2"],
+        "error_code": "invalid_json_schema",
+        "exact_known_error_from": "A2",
+        "error": "schema_version used const without an explicit string type",
+        "candidate_created": false,
+        "reported_usage_present": false,
+        "model_authored_output": false
+      }
+    ],
+    "reason_not_mixed_with_v1": "The v0 response-format protocol produced no model-authored candidate and therefore did not measure mission context."
+  },
+  "protocol": {
+    "version": "v1",
+    "preregistration_sha256": "34a43042bf96bb035497cc2544aaf136844433d74ef953c04a09a92c38d0cde9",
+    "budget": {
+      "variant_a": 3,
+      "variant_b": 3
+    },
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "client": "codex-cli 0.147.0-alpha.6.5",
+    "provider_response_format": null,
+    "history_messages_per_call": 0,
+    "retry_count_per_authoring_call": 0,
+    "follow_up_count_per_authoring_call": 0,
+    "repair_count_per_authoring_call": 0,
+    "selection_or_best_of": false,
+    "working_directory": "new_empty_temporary_directory_per_call",
+    "sandbox": "read-only",
+    "session": "ephemeral",
+    "user_config": "ignored",
+    "repository_rules": "ignored",
+    "variant_a_prompt": {
+      "utf8_bytes": 19056,
+      "sha256": "8213e22d1ce816ffdcbe0da93224fe19e21614d9584eff0d69c657783123f9c4"
+    },
+    "variant_b_prompt": {
+      "utf8_bytes": 19800,
+      "sha256": "65cc4a055ec29e3d0f84c5482d2b0aa1faaf6f1cdf5eec2fca03af22aa64b717"
+    },
+    "only_prompt_difference": {
+      "resource": "mission-context.safe.txt",
+      "utf8_bytes": 743,
+      "sha256": "bd2c05ded1d681db3e3a16b82078bbf8cd0cbcf787add56d9e77de00e96b56a0"
+    },
+    "shared_input": {
+      "obligation_count": 25,
+      "official_surface_count": 14,
+      "sha256": "dd72c7e725f4fae0df4543c2492743f767ba4f4162004f90249045ad95e3ce0a"
+    },
+    "post_response_candidate_schema_sha256": "9475d8468c90b5c25e5c40840b324d7b5ffdf747d5ca0b6fe0d56698a38ff2c4"
+  },
+  "authoring_calls": [
+    {
+      "call_id": "A1",
+      "variant": "A",
+      "started_at": "2026-08-10T19:56:37.7642038Z",
+      "completed_at": "2026-08-10T19:57:40.9304039Z",
+      "duration_seconds": 63.166,
+      "exit_code": 0,
+      "candidate_bytes": 8826,
+      "candidate_sha256": "3609ba8050368471cc2b81343857e9bee66f5a311ff9cb7c61f424c8a5cadcb3",
+      "domain_count": 19,
+      "input_tokens": 17911,
+      "cached_input_tokens": 9984,
+      "output_tokens": 2581,
+      "reasoning_output_tokens": 698,
+      "hard_validation": "passed"
+    },
+    {
+      "call_id": "A2",
+      "variant": "A",
+      "started_at": "2026-08-10T19:58:40.3826116Z",
+      "completed_at": "2026-08-10T19:59:39.5981062Z",
+      "duration_seconds": 59.215,
+      "exit_code": 0,
+      "candidate_bytes": 7332,
+      "candidate_sha256": "45089509beb969f4fd7e957fb08b490c55fb3d80f58cfa12eceeee70007e7947",
+      "domain_count": 14,
+      "input_tokens": 17913,
+      "cached_input_tokens": 0,
+      "output_tokens": 2462,
+      "reasoning_output_tokens": 927,
+      "hard_validation": "passed"
+    },
+    {
+      "call_id": "A3",
+      "variant": "A",
+      "started_at": "2026-08-10T20:00:23.1516298Z",
+      "completed_at": "2026-08-10T20:01:47.6256441Z",
+      "duration_seconds": 84.474,
+      "exit_code": 0,
+      "candidate_bytes": 6762,
+      "candidate_sha256": "88ecef078419f5784473888c28427391c1d51e1c9d2ab29659eb51ec77f0023d",
+      "domain_count": 13,
+      "input_tokens": 17905,
+      "cached_input_tokens": 9984,
+      "output_tokens": 3120,
+      "reasoning_output_tokens": 1681,
+      "hard_validation": "passed"
+    },
+    {
+      "call_id": "B1",
+      "variant": "B",
+      "started_at": "2026-08-10T19:56:37.9367442Z",
+      "completed_at": "2026-08-10T19:57:44.4880690Z",
+      "duration_seconds": 66.551,
+      "exit_code": 0,
+      "candidate_bytes": 8522,
+      "candidate_sha256": "12a612d14647ff21d8028c1be75dc38e15611b4c64fff65e2e9eded6a3aa2073",
+      "domain_count": 18,
+      "input_tokens": 18049,
+      "cached_input_tokens": 9984,
+      "output_tokens": 2859,
+      "reasoning_output_tokens": 1034,
+      "hard_validation": "passed"
+    },
+    {
+      "call_id": "B2",
+      "variant": "B",
+      "started_at": "2026-08-10T19:58:40.4642903Z",
+      "completed_at": "2026-08-10T19:59:58.3735961Z",
+      "duration_seconds": 77.909,
+      "exit_code": 0,
+      "candidate_bytes": 6399,
+      "candidate_sha256": "dc38c0e46aa0dd1cec5ddad739c5ce195eedbfdd2a05b40ed0292d394d55cfb3",
+      "domain_count": 11,
+      "input_tokens": 18055,
+      "cached_input_tokens": 9984,
+      "output_tokens": 3667,
+      "reasoning_output_tokens": 2327,
+      "hard_validation": "passed"
+    },
+    {
+      "call_id": "B3",
+      "variant": "B",
+      "started_at": "2026-08-10T20:00:23.2462929Z",
+      "completed_at": "2026-08-10T20:01:47.7041809Z",
+      "duration_seconds": 84.458,
+      "exit_code": 0,
+      "candidate_bytes": 7678,
+      "candidate_sha256": "cb4966ef67baa2ea1afcb5a82b7be584a56c4fa8b1b98df3b1f43026e1722452",
+      "domain_count": 15,
+      "input_tokens": 18043,
+      "cached_input_tokens": 9984,
+      "output_tokens": 3293,
+      "reasoning_output_tokens": 1680,
+      "hard_validation": "passed"
+    }
+  ],
+  "hard_validation_summary": {
+    "variant_a_passed": 3,
+    "variant_a_total": 3,
+    "variant_b_passed": 3,
+    "variant_b_total": 3,
+    "every_candidate_obligation_refs": 25,
+    "unknown_refs_total": 0,
+    "duplicate_refs_total": 0,
+    "mixed_policy_domains_total": 0,
+    "invented_or_overclaimed_contracts_total": 0,
+    "target_layout_grouping_total": 0,
+    "invented_execution_semantics_total": 0
+  },
+  "blinded_review": {
+    "resource_sha256": "8da4c5ecf2ac74eb486f9e33d010b20fadbe9ac224e717067340e504ad835c6d",
+    "strict_structure_validation": "passed",
+    "reviewer_model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "history_messages": 0,
+    "agent_retry_count": 0,
+    "repair_count": 0,
+    "provider_stream_reconnects_inside_turn": 1,
+    "provider_stream_reconnect_cause": "WebSocket connection reset without closing handshake",
+    "started_at": "2026-08-10T20:05:04.7087017Z",
+    "completed_at": "2026-08-10T20:10:46.7860464Z",
+    "duration_seconds": 342.077,
+    "alias_mapping_after_review_freeze": {
+      "R1": "B1",
+      "R2": "A1",
+      "R3": "A2",
+      "R4": "A3",
+      "R5": "B3",
+      "R6": "B2"
+    },
+    "raw_defect_counts": {
+      "A1": 3,
+      "A2": 5,
+      "A3": 6,
+      "B1": 4,
+      "B2": 6,
+      "B3": 5
+    },
+    "variant_a": {
+      "values": [3, 5, 6],
+      "median": 5,
+      "total": 14
+    },
+    "variant_b": {
+      "values": [4, 6, 5],
+      "median": 5,
+      "total": 15
+    },
+    "target_layout_defects": {
+      "variant_a": 0,
+      "variant_b": 0
+    },
+    "invented_execution_semantics_defects": {
+      "variant_a": 0,
+      "variant_b": 0
+    },
+    "review_limit": "The reviewer systematically treated independently optional members of coherent any-of aggregates as forced joint activation. The raw review is preserved and its preregistered equal-median comparison remains valid; its absolute unsafe-merge counts are not promoted to architecture truth."
+  },
+  "salient_merge_frequency": [
+    {
+      "pattern": "filing_identity_taxpayer_signer",
+      "variant_a": "3/3",
+      "variant_b": "3/3"
+    },
+    {
+      "pattern": "income_group_base_plus_settlement",
+      "variant_a": "3/3",
+      "variant_b": "3/3"
+    },
+    {
+      "pattern": "declaration_budget_plus_income_group_results",
+      "variant_a": "0/3",
+      "variant_b": "2/3"
+    },
+    {
+      "pattern": "russian_plus_foreign_source_income",
+      "variant_a": "1/3",
+      "variant_b": "2/3"
+    },
+    {
+      "pattern": "civil_plus_author_professional_deductions",
+      "variant_a": "3/3",
+      "variant_b": "3/3"
+    },
+    {
+      "pattern": "all_four_personal_deduction_families",
+      "variant_a": "2/3",
+      "variant_b": "1/3"
+    },
+    {
+      "pattern": "property_plus_vehicle_dispositions",
+      "variant_a": "3/3",
+      "variant_b": "3/3"
+    },
+    {
+      "pattern": "gift_plus_property_and_vehicle_dispositions",
+      "variant_a": "0/3",
+      "variant_b": "1/3"
+    },
+    {
+      "pattern": "property_acquisition_plus_interest_deductions",
+      "variant_a": "3/3",
+      "variant_b": "3/3"
+    },
+    {
+      "pattern": "securities_digital_assets_investment_partnership",
+      "variant_a": "2/3",
+      "variant_b": "2/3"
+    }
+  ],
+  "verdict_evidence": {
+    "helpful_rule_met": false,
+    "harmful_rule_met": false,
+    "neutral_rule_met": true,
+    "reason": "Hard-pass rates and preregistered median consumer-fit defect counts are equal. The mission block caused some broader merges but did not improve boundary quality or stability consistently, and it did not introduce recurring target-layout or execution semantics."
+  },
+  "future_g5_28b_context_contract": {
+    "mission_pipeline_narrative": "omitted",
+    "keep_local_boundary_constraints": [
+      "one honest applicability question for the case and period",
+      "one coherent typed semantic component family",
+      "one identical closed applicability policy per domain",
+      "target independence and no runtime or projection behavior"
+    ],
+    "reason": "These local invariants already conveyed the useful consumer boundary. The additional final-goal, Scope Resolver, Declaration Model and projector narrative produced no stable improvement."
+  },
+  "next_boundary": "A separate G5.28B clean authoring trial may use the minimal local context contract; G5.29 remains forbidden."
+}

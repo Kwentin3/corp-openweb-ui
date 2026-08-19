@@ -1,0 +1,58 @@
+{
+  "schema_version": "broker_reports_g587_safe_receipt_v1",
+  "goal": "G5.87",
+  "terminal": "KISS_TABLE_CONTRACT_QUALIFICATION_INCOMPLETE_LOCAL_VALIDATOR_ABORT",
+  "semantic_verdict": "NOT_ESTABLISHED",
+  "contract": {
+    "unit": "one_existing_canonical_markdown_table_per_call",
+    "row_coverage": "exhaustive_exact",
+    "row_statuses": [
+      "CLASSIFIED",
+      "NONE",
+      "UNMAPPED"
+    ],
+    "assertions_per_row": "0..N",
+    "model_output_authority": "financial_type_and_role_to_cell_alias_only",
+    "literals_from_model": false,
+    "second_role_llm": false,
+    "deterministic_v2_mapping": true
+  },
+  "frozen_controls": {
+    "affected_tax_exact": 105,
+    "true_dividend_exact": 25,
+    "existing_tax_exact": 114,
+    "structural_none": 12,
+    "cross_type": 6,
+    "holdout_other_layout": 7
+  },
+  "execution": {
+    "local_preflight_provider_submissions": 0,
+    "development_transport_submissions": 1,
+    "development_semantic_responses": 1,
+    "development_scored_responses": 0,
+    "semantic_retries": 0,
+    "remaining_development_calls": 0,
+    "holdout_calls": 0,
+    "vlm_calls": 0
+  },
+  "abort": {
+    "phase": "deterministic_role_binding_validation",
+    "error_code": "gate3_role_target_text_empty",
+    "raw_semantic_response_preserved": false,
+    "clean_rerun_in_goal": false
+  },
+  "safety": {
+    "artifact_store_unchanged": true,
+    "active_pointers_changed": false,
+    "production_activation": false,
+    "runtime_bundle_changed": false,
+    "gate4_run": false,
+    "gate5_run": false
+  },
+  "local_validator": {
+    "focused_tests_passed": 11,
+    "empty_source_binding_now_rejects_to_missing": true,
+    "post_response_fix_used_for_rerun": false
+  },
+  "private_evidence_bundle": "broker-reports-g5.87-20260817-v2"
+}

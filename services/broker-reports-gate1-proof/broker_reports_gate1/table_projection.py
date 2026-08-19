@@ -49,6 +49,7 @@ PDF_STATUSES = {
     "candidate",
     "canonical_table_accepted",
     "validated_geometry",
+    "validated_source_bound_geometry",
     "rejected_to_line_cluster",
     "partial",
     "blocked",
@@ -60,7 +61,7 @@ class NormalizedTableProjectionConfig:
     max_rows: int = 10_000
     max_cells: int = 100_000
     max_payload_bytes: int = 20_000_000
-    min_pdf_geometry_confidence: float = 0.90
+    min_pdf_geometry_confidence: float = 0.80
     broker_pdf_neutral_table_profile_v1_enabled: bool = False
 
 
@@ -401,6 +402,7 @@ class PdfTableCandidateProjectionBuilder:
                 source_unit.get("unit_ref"),
                 candidate_ref,
                 source_unit.get("pdf_layout_unit_checksum_ref"),
+                source_unit.get("table_locator_region_ref"),
             ],
             length=24,
         )
@@ -428,6 +430,9 @@ class PdfTableCandidateProjectionBuilder:
             source_unit=source_unit,
             candidate=candidate,
             words=words,
+            bboxes=bboxes,
+            vector_lines=_dicts(parent_projection.get("vector_line_inventory")),
+            vector_line_contract_present="vector_line_inventory" in parent_projection,
             min_confidence=self.config.min_pdf_geometry_confidence,
         )
         candidate_rows = _dicts(_object(candidate).get("row_inventory"))
@@ -446,7 +451,10 @@ class PdfTableCandidateProjectionBuilder:
         )
         fallback_text_refs = _strings(source_unit.get("table_fallback_text_refs"))
         if reasons:
-            rejected_refs = sorted(set(selected) - set(fallback_text_refs))
+            in_scope_fallback_text_refs = sorted(
+                set(selected) & set(fallback_text_refs)
+            )
+            rejected_refs = sorted(set(selected) - set(in_scope_fallback_text_refs))
             projection = _base_projection(
                 projection_id=projection_id,
                 table_ref=candidate_ref,
@@ -464,7 +472,7 @@ class PdfTableCandidateProjectionBuilder:
                     projection_id=projection_id,
                     selected=selected,
                     table_owned=[],
-                    fallback=fallback_text_refs,
+                    fallback=in_scope_fallback_text_refs,
                     rejected=rejected_refs,
                 ),
                 quality=_quality(
@@ -598,6 +606,7 @@ class PdfTableCandidateProjectionBuilder:
             row_provenance=candidate_rows,
             cells=cells,
             private_values=private_values,
+            require_structural_header_evidence=True,
         )
         normalized_rows = [
             {
@@ -626,7 +635,11 @@ class PdfTableCandidateProjectionBuilder:
             projection_id=projection_id,
             table_ref=candidate_ref,
             source_format="pdf",
-            table_origin="reconstructed_candidate",
+            table_origin=(
+                "vlm_located_pdfplumber_source_bound"
+                if source_unit.get("table_locator_scope_status") == "source_bound"
+                else "reconstructed_candidate"
+            ),
             source_unit=source_unit,
             row_refs=[str(item.get("row_ref") or "") for item in normalized_rows],
             column_refs=column_refs,
@@ -652,7 +665,11 @@ class PdfTableCandidateProjectionBuilder:
             sheet_refs=[],
             section_refs=[],
             table_bbox_ref=source_unit.get("table_bbox_ref"),
-            table_candidate_status="validated_geometry",
+            table_candidate_status=(
+                "validated_source_bound_geometry"
+                if source_unit.get("table_locator_scope_status") == "source_bound"
+                else "validated_geometry"
+            ),
             reconstruction_strategy=_pdf_strategy(source_unit),
             reconstruction_reason_codes=["pdf_geometry_mechanically_validated"],
         )
@@ -667,6 +684,17 @@ class PdfTableCandidateProjectionBuilder:
             ),
             "duplicate_ownership_refs": [],
             "unaccounted_ownership_refs": [],
+            "table_locator_region_ref": source_unit.get(
+                "table_locator_region_ref"
+            ),
+            "table_locator_bbox_pdf_points": copy.deepcopy(
+                source_unit.get("table_locator_bbox_pdf_points")
+            ),
+            "table_locator_scope_status": source_unit.get(
+                "table_locator_scope_status"
+            ),
+            "model_values_used_as_source_literals": False,
+            "pdfplumber_settings_selected_by_model": False,
         }
         return _finish_projection(_apply_serialized_budget(projection, self.config))
 
@@ -1029,6 +1057,7 @@ def _classify_rows(
     row_provenance: list[dict[str, Any]],
     cells: list[dict[str, Any]],
     private_values: list[dict[str, Any]],
+    require_structural_header_evidence: bool = False,
 ) -> dict[str, str]:
     values = {
         str(item.get("value_path_ref") or ""): str(item.get("normalized_value") or "")
@@ -1051,7 +1080,55 @@ def _classify_rows(
         (ref for ref, row in row_values.items() if any(value.strip() for value in row)),
         None,
     )
-    header_signature = _row_signature(row_values.get(first_nonblank, []))
+    header_ref = first_nonblank
+    if require_structural_header_evidence and first_nonblank is not None:
+        ordered_nonblank_refs = [
+            str(row.get("row_ref") or "")
+            for row in row_provenance
+            if any(
+                value.strip()
+                for value in row_values.get(str(row.get("row_ref") or ""), [])
+            )
+        ]
+        next_nonblank_ref = next(
+            (ref for ref in ordered_nonblank_refs if ref != first_nonblank),
+            None,
+        )
+        cells_by_ref = {
+            str(cell.get("cell_ref") or ""): cell for cell in cells
+        }
+
+        def row_hint_sets(row_ref: str | None) -> list[set[str]]:
+            row = next(
+                (
+                    item
+                    for item in row_provenance
+                    if str(item.get("row_ref") or "") == str(row_ref or "")
+                ),
+                None,
+            )
+            if row is None:
+                return []
+            return [
+                set(_strings(cells_by_ref.get(cell_ref, {}).get("value_kind_hints")))
+                for cell_ref in _strings(row.get("cell_refs"))
+                if not cells_by_ref.get(cell_ref, {}).get("empty_cell")
+            ]
+
+        first_hints = row_hint_sets(first_nonblank)
+        next_hints = row_hint_sets(next_nonblank_ref)
+        header_has_text_columns = (
+            len(first_hints) >= 2
+            and all(hints == {"text"} for hints in first_hints)
+        )
+        next_row_has_typed_value = any(
+            hints - {"blank", "text", "multi_line_text"}
+            for hints in next_hints
+        )
+        if not (header_has_text_columns and next_row_has_typed_value):
+            header_ref = None
+
+    header_signature = _row_signature(row_values.get(header_ref, []))
     roles: dict[str, str] = {}
     for row in row_provenance:
         row_ref = str(row.get("row_ref") or "")
@@ -1059,7 +1136,7 @@ def _classify_rows(
         nonblank = [value.strip() for value in current if value.strip()]
         if not nonblank:
             role = "blank_row"
-        elif row_ref == first_nonblank:
+        elif row_ref == header_ref:
             role = "header_row"
         elif header_signature and _row_signature(current) == header_signature:
             role = "repeated_header_row"
@@ -1162,11 +1239,25 @@ def _pdf_geometry_reasons(
     source_unit: dict[str, Any],
     candidate: dict[str, Any] | None,
     words: dict[str, dict[str, Any]],
+    bboxes: dict[str, dict[str, Any]],
+    vector_lines: list[dict[str, Any]],
+    vector_line_contract_present: bool,
     min_confidence: float,
 ) -> list[str]:
     reasons = []
     if candidate is None:
         return ["pdf_table_candidate_inventory_missing"]
+    if source_unit.get("table_locator_scope_status") == "source_bound":
+        if (
+            not source_unit.get("table_locator_region_ref")
+            or source_unit.get("table_locator_region_ref")
+            != candidate.get("locator_region_ref")
+            or source_unit.get("table_locator_bbox_pdf_points")
+            != candidate.get("locator_bbox_pdf_points")
+            or source_unit.get("model_values_used_as_source_literals") is not False
+            or source_unit.get("pdfplumber_settings_selected_by_model") is not False
+        ):
+            reasons.append("pdf_table_source_bound_locator_contract_invalid")
     confidence = float(source_unit.get("geometry_confidence") or 0.0)
     if confidence < min_confidence:
         reasons.append("pdf_table_geometry_confidence_below_threshold")
@@ -1174,9 +1265,31 @@ def _pdf_geometry_reasons(
     cells = _dicts(candidate.get("cell_inventory"))
     if len(rows) < 2 or len(cells) < 4:
         reasons.append("pdf_table_geometry_insufficient_structure")
-    column_counts = Counter(int(item.get("row_ordinal") or 0) for item in cells)
-    if not column_counts or min(column_counts.values(), default=0) < 2:
+    row_cell_counts = Counter(int(item.get("row_ordinal") or 0) for item in cells)
+    if not row_cell_counts or max(row_cell_counts.values(), default=0) < 2:
         reasons.append("pdf_table_geometry_column_structure_insufficient")
+    source_bound = source_unit.get("table_locator_scope_status") == "source_bound"
+    if (
+        not source_bound
+        and vector_line_contract_present
+        and source_unit.get("table_strategy_ref") == "ruled_lines_v0"
+        and not (
+        _has_repeated_axis_aligned_rulings(
+            candidate=candidate,
+            vector_lines=vector_lines,
+            bboxes=bboxes,
+        )
+        )
+    ):
+        reasons.append("pdf_table_geometry_parallel_ruling_family_missing")
+    if (
+        not source_bound
+        and source_unit.get("table_strategy_ref") == "aligned_text_v0"
+        and not (
+        _has_stable_aligned_column_pattern(candidate)
+        )
+    ):
+        reasons.append("pdf_table_aligned_text_stable_column_pattern_missing")
     owned = [
         ref for cell in cells for ref in _strings(cell.get("word_refs"))
     ]
@@ -1197,6 +1310,101 @@ def _pdf_geometry_reasons(
     }:
         reasons.append("pdf_table_reconstruction_strategy_unsupported")
     return sorted(set(reasons))
+
+
+def _has_repeated_axis_aligned_rulings(
+    *,
+    candidate: dict[str, Any],
+    vector_lines: list[dict[str, Any]],
+    bboxes: dict[str, dict[str, Any]],
+) -> bool:
+    # A ruled table needs a family of boundaries. One isolated line, or any
+    # number of text/decoration rectangles, cannot establish such a family.
+    minimum_distinct_parallel_rulings = 2
+    axis_tolerance_points = 0.5
+    candidate_bbox = _bbox_coordinates(
+        bboxes.get(str(candidate.get("bbox_ref") or ""))
+    )
+    candidate_page_ref = str(candidate.get("page_ref") or "")
+    if candidate_bbox is None or not candidate_page_ref:
+        return False
+
+    horizontal_positions: set[int] = set()
+    vertical_positions: set[int] = set()
+    for line in vector_lines:
+        if str(line.get("page_ref") or "") != candidate_page_ref:
+            continue
+        line_bbox = _bbox_coordinates(
+            bboxes.get(str(line.get("bbox_ref") or ""))
+        )
+        if line_bbox is None or not _bbox_overlaps(line_bbox, candidate_bbox):
+            continue
+        width = abs(line_bbox[2] - line_bbox[0])
+        height = abs(line_bbox[3] - line_bbox[1])
+        if width > axis_tolerance_points and height <= axis_tolerance_points:
+            position = (line_bbox[1] + line_bbox[3]) / 2.0
+            horizontal_positions.add(round(position / axis_tolerance_points))
+        elif height > axis_tolerance_points and width <= axis_tolerance_points:
+            position = (line_bbox[0] + line_bbox[2]) / 2.0
+            vertical_positions.add(round(position / axis_tolerance_points))
+
+    return max(len(horizontal_positions), len(vertical_positions)) >= (
+        minimum_distinct_parallel_rulings
+    )
+
+
+def _has_stable_aligned_column_pattern(candidate: dict[str, Any]) -> bool:
+    # Text-only table geometry needs repeated records, not merely repeated word
+    # starts. Ignore pdfplumber's empty spacer rows, then require one multi-
+    # column occupancy pattern to describe a strict majority of content rows.
+    rows = _dicts(candidate.get("row_inventory"))
+    cells_by_ref = {
+        str(item.get("cell_ref") or ""): item
+        for item in _dicts(candidate.get("cell_inventory"))
+    }
+    content_patterns: list[tuple[int, ...]] = []
+    for row in rows:
+        occupied_columns = tuple(
+            sorted(
+                {
+                    int(cell.get("column_ordinal") or 0)
+                    for cell_ref in _strings(row.get("cell_refs"))
+                    if (cell := cells_by_ref.get(cell_ref)) is not None
+                    and _strings(cell.get("word_refs"))
+                    and int(cell.get("column_ordinal") or 0) > 0
+                }
+            )
+        )
+        if occupied_columns:
+            content_patterns.append(occupied_columns)
+
+    if len(content_patterns) < 3:
+        return False
+    dominant_pattern, dominant_rows = Counter(content_patterns).most_common(1)[0]
+    return len(dominant_pattern) >= 2 and dominant_rows * 2 > len(content_patterns)
+
+
+def _bbox_coordinates(value: Any) -> tuple[float, float, float, float] | None:
+    raw = _object(value).get("bbox")
+    if not isinstance(raw, list) or len(raw) != 4:
+        return None
+    try:
+        result = tuple(float(item) for item in raw)
+    except (TypeError, ValueError):
+        return None
+    if result[2] < result[0] or result[3] < result[1]:
+        return None
+    return result
+
+
+def _bbox_overlaps(
+    left: tuple[float, float, float, float],
+    right: tuple[float, float, float, float],
+) -> bool:
+    return (
+        max(left[0], right[0]) <= min(left[2], right[2])
+        and max(left[1], right[1]) <= min(left[3], right[3])
+    )
 
 
 def _pdf_strategy(source_unit: dict[str, Any]) -> str:

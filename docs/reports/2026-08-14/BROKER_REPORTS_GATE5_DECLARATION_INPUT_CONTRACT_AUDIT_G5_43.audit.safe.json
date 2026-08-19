@@ -1,0 +1,459 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_input_contract_audit_g5_43_v1",
+  "goal": "G5.43",
+  "date": "2026-08-14",
+  "scope": "mandatory_common_filing_plus_observed_broker_securities_income_for_tax_period_2025",
+  "terminals": [
+    "EVIDENCE_REQUIREMENTS_CONTRACT_PROVEN",
+    "FACT_TO_METHODOLOGY_BRIDGE_PROVEN",
+    "DECLARATION_INPUT_CORE_PROVEN"
+  ],
+  "full_terminal_claimed": false,
+  "legal_methodology_gaps": [
+    "ambiguous_security_disposal_source_classification",
+    "partial_acquisition_commission_allocation",
+    "non_rub_intermediate_precision_and_rounding",
+    "treaty_specific_foreign_tax_credit_limit"
+  ],
+  "corpus": {
+    "documents": 4,
+    "canonical_targets": 2906,
+    "gate3_financial_annotations": 186,
+    "gate4_financial_source_facts": 186,
+    "metadata_source_facts": 15,
+    "source_present_required_facts_lost": 0,
+    "invented_source_facts": 0,
+    "invented_relations": 0,
+    "provenance_complete": true,
+    "provider_calls_for_g5_43": 0,
+    "provider_reruns_for_g5_43": 0
+  },
+  "preparation_replay": {
+    "status": "PREPARATION_INCOMPLETE",
+    "active_declaration_demands": 9,
+    "active_demands_with_methodology_binding": 9,
+    "terminal_counts": {
+      "MISSING_EVIDENCE": 4,
+      "METHODOLOGY_UNRESOLVED": 4,
+      "SOURCE_EVIDENCE_INSUFFICIENT": 1
+    },
+    "inactive_demands": 16,
+    "known_document_facts_reused": 2,
+    "unnecessary_user_questions": 0,
+    "unresolved_values_without_exact_reason": 0,
+    "frozen_store_unchanged": true
+  },
+  "evidence_map": [
+    {
+      "source": "explicitly labelled party or client header",
+      "normalized_fact": "PARTY_NAME",
+      "count": 1,
+      "producer": "Gate3MetadataSourceFactRuntimeFactory.create",
+      "consumers": ["Gate5HumanGapClosureRuntimeFactory.create"],
+      "required_by_active_consumer": true,
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "explicitly tagged entity INN in a document header",
+      "normalized_fact": "REPORTED_ENTITY_TAX_IDENTIFIER",
+      "count": 1,
+      "producer": "Gate3MetadataSourceFactRuntimeFactory.create",
+      "consumers": ["Gate5HumanGapClosureRuntimeFactory.create"],
+      "required_by_active_consumer": true,
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "explicit broker legal-name header",
+      "normalized_fact": "BROKER_LEGAL_NAME",
+      "count": 1,
+      "producer": "Gate3MetadataSourceFactRuntimeFactory.create",
+      "consumers": ["Gate5EvidenceIntakeRuntime.query"],
+      "required_by_active_consumer": false,
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "explicit account number or contract label",
+      "normalized_fact": "ACCOUNT_IDENTIFIER_or_ACCOUNT_CONTRACT_IDENTIFIER",
+      "count": 4,
+      "producer": "Gate3MetadataSourceFactRuntimeFactory.create",
+      "consumers": ["Gate5EvidenceIntakeRuntime.query"],
+      "required_by_active_consumer": false,
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "explicit statement or reporting period",
+      "normalized_fact": "STATEMENT_PERIOD",
+      "count": 8,
+      "producer": "Gate3MetadataSourceFactRuntimeFactory.create",
+      "consumers": ["Gate5EvidenceIntakeRuntime.query"],
+      "required_by_active_consumer": false,
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "security purchase observation",
+      "normalized_fact": "Gate4FinancialCaseFactV2:SECURITY_PURCHASE",
+      "count": 28,
+      "producer": "Gate4FinancialCaseRuntimeFactory.create",
+      "consumers": ["Gate5DeterministicSourceFactConsumptionRuntimeFactory.create"],
+      "required_roles": ["date", "asset", "quantity", "amount", "currency"],
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "security disposal observation",
+      "normalized_fact": "Gate4FinancialCaseFactV2:SECURITY_DISPOSAL",
+      "count": 20,
+      "producer": "Gate4FinancialCaseRuntimeFactory.create",
+      "consumers": ["Gate5DeterministicSourceFactConsumptionRuntimeFactory.create"],
+      "required_roles": ["date", "asset", "quantity", "amount", "currency"],
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "direct transaction charge observation",
+      "normalized_fact": "Gate4FinancialCaseFactV2:TRANSACTION_CHARGE",
+      "count": 29,
+      "producer": "Gate4FinancialCaseRuntimeFactory.create",
+      "consumers": ["Gate5DeterministicSourceFactConsumptionRuntimeFactory.create"],
+      "required_roles": ["amount", "currency"],
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "commission detail observation",
+      "normalized_fact": "Gate4FinancialCaseFactV2:COMMISSION",
+      "count": 18,
+      "producer": "Gate4FinancialCaseRuntimeFactory.create",
+      "consumers": [
+        "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create",
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "explicit commission total",
+      "normalized_fact": "Gate4FinancialCaseFactV2:COMMISSION_TOTAL",
+      "count": 7,
+      "producer": "Gate4FinancialCaseRuntimeFactory.create",
+      "consumers": [
+        "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create",
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "selection": "preserve_independently_no_reconciliation",
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "explicit tax-withheld detail",
+      "normalized_fact": "Gate4FinancialCaseFactV2:TAX_WITHHELD",
+      "count": 37,
+      "producer": "Gate4FinancialCaseRuntimeFactory.create",
+      "consumers": [
+        "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create",
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "explicit tax-withheld total",
+      "normalized_fact": "Gate4FinancialCaseFactV2:TAX_WITHHELD_TOTAL",
+      "count": 3,
+      "producer": "Gate4FinancialCaseRuntimeFactory.create",
+      "consumers": [
+        "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create",
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "selection": "preserve_independently_no_reconciliation",
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "dividend income observation",
+      "normalized_fact": "Gate4FinancialCaseFactV2:DIVIDEND_INCOME",
+      "count": 27,
+      "producer": "Gate4FinancialCaseRuntimeFactory.create",
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create",
+        "Gate5RealTaxCaseAssemblyRuntimeFactory.create"
+      ],
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "coupon income observation",
+      "normalized_fact": "Gate4FinancialCaseFactV2:COUPON_INCOME",
+      "count": 11,
+      "producer": "Gate4FinancialCaseRuntimeFactory.create",
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create",
+        "Gate5RealTaxCaseAssemblyRuntimeFactory.create"
+      ],
+      "tax_meaning_assigned": false
+    },
+    {
+      "source": "accrued coupon component observation",
+      "normalized_fact": "Gate4FinancialCaseFactV2:ACCRUED_COUPON_COMPONENT",
+      "count": 6,
+      "producer": "Gate4FinancialCaseRuntimeFactory.create",
+      "consumers": ["Gate5EvidenceIntakeRuntimeFactory.create"],
+      "required_by_active_consumer": false,
+      "tax_meaning_assigned": false
+    }
+  ],
+  "methodology_map": [
+    {
+      "declaration_demand": "obl_filing_instance_identity",
+      "rule": "filing-context-fns-order-913-v1",
+      "inputs": ["filing instance", "correction", "tax period", "destination authority"],
+      "official_authority": ["FNS Order ED-7-11/913@ of 2025-10-20"],
+      "owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "output": "filing_and_party_identity_component",
+      "status": "PUBLISHED_INPUT_MISSING"
+    },
+    {
+      "declaration_demand": "obl_taxpayer_identity_and_period_status",
+      "rule": "filing-context-fns-order-913-v1 plus taxpayer-residency-article-207-v1",
+      "inputs": ["authenticated identity", "presence days", "Article 207 exception evidence"],
+      "official_authority": ["FNS Order ED-7-11/913@", "Tax Code Article 207(2)"],
+      "owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "output": "taxpayer identity and period status",
+      "status": "PUBLISHED_INPUT_MISSING"
+    },
+    {
+      "declaration_demand": "obl_signer_and_representation_authority",
+      "rule": "signer-context-fns-order-913-v1",
+      "inputs": ["signer identity", "capacity", "authority evidence if represented"],
+      "official_authority": ["FNS Order ED-7-11/913@"],
+      "owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "output": "signer and representation input",
+      "status": "PUBLISHED_INPUT_MISSING"
+    },
+    {
+      "declaration_demand": "obl_declaration_budget_disposition",
+      "rule": "budget-disposition-fns-order-913-v1",
+      "inputs": ["complete settlement", "authenticated disposition intent", "budget destination"],
+      "official_authority": ["FNS Order ED-7-11/913@"],
+      "owner": "Gate5DeclarationBudgetOutcomeRuntimeFactory.create",
+      "output": "budget disposition component",
+      "status": "PUBLISHED_INPUT_MISSING"
+    },
+    {
+      "declaration_demand": "obl_russian_source_taxable_income",
+      "rule": "Article 208 dividend and disposal source classification",
+      "inputs": ["income kind", "payer jurisdiction or realization location", "tax-agent facts"],
+      "official_authority": ["Tax Code Article 208(1),(3),(4)"],
+      "owner": "Gate5DeclarationIncomeSourcesRuntimeFactory.create",
+      "output": "russian source entry",
+      "status": "PUBLISHED_BRIDGE_INPUT_MISSING"
+    },
+    {
+      "declaration_demand": "obl_foreign_source_taxable_income_and_foreign_tax",
+      "rule": "Articles 208, 214 and 232 source and foreign-tax contract",
+      "inputs": ["payer or realization jurisdiction", "foreign-tax document", "translation", "treaty"],
+      "official_authority": ["Tax Code Articles 208, 214(2), 232(1)-(3)"],
+      "owner": "Gate5DeclarationIncomeSourcesRuntimeFactory.create",
+      "output": "foreign source entry and credit candidate",
+      "status": "PUBLISHED_LEGAL_AND_INPUT_GAPS"
+    },
+    {
+      "declaration_demand": "obl_securities_and_derivatives_results",
+      "rule": "Article 214.1 FIFO, expense and market-category rules",
+      "inputs": ["purchase/disposal atoms", "direct expenses", "market/IIS/residency facts", "FX facts"],
+      "official_authority": ["Tax Code Article 214.1(1),(3),(4),(7),(10),(12),(13)"],
+      "owner": "Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create",
+      "output": "securities category tax model",
+      "status": "PUBLISHED_BOUNDED_SOURCE_AND_LEGAL_GAPS"
+    },
+    {
+      "declaration_demand": "obl_income_group_tax_base_results",
+      "rule": "securities base 2026.2 plus coupon/dividend/FX input rules",
+      "inputs": ["complete category models", "all other group income/reductions", "residency", "RUB amounts"],
+      "official_authority": ["Tax Code Articles 210, 214, 214.1", "FNS Order ED-7-11/913@"],
+      "owner": "Gate5IncomeGroupTaxBaseRuntimeFactory.create",
+      "output": "income group tax base model",
+      "status": "PUBLISHED_UPSTREAM_BLOCKED"
+    },
+    {
+      "declaration_demand": "obl_income_group_tax_settlement_results",
+      "rule": "ru-3ndfl-2025-income-group-settlement-proof@2026.4-audited",
+      "inputs": ["complete income group base", "withheld and credit facts"],
+      "official_authority": ["Tax Code Article 210(6)", "Tax Code Article 224(1.1)", "FNS Order ED-7-11/913@"],
+      "owner": "Gate5DeclarationTaxSettlementRuntimeFactory.create",
+      "output": "income group tax result",
+      "status": "PUBLISHED_AUDITED_UPSTREAM_BLOCKED"
+    }
+  ],
+  "bridge_matrix": [
+    {
+      "methodology_input": "purchase acquisition order and cost",
+      "normalized_fact": "SECURITY_PURCHASE(date,asset,quantity,amount,currency)",
+      "deterministic_selection": "FILTER asset and date before disposal; ORDER date; FIFO consume quantity",
+      "status": "PARTIAL_SOURCE"
+    },
+    {
+      "methodology_input": "disposal proceeds and quantity",
+      "normalized_fact": "SECURITY_DISPOSAL(date,asset,quantity,amount,currency)",
+      "deterministic_selection": "FILTER complete disposal facts; process canonical fact id order",
+      "status": "PARTIAL_SOURCE"
+    },
+    {
+      "methodology_input": "direct disposal expense",
+      "normalized_fact": "TRANSACTION_CHARGE(amount,currency)",
+      "deterministic_selection": "SELECT only exact canonical table-row binding to disposal",
+      "status": "PROVEN"
+    },
+    {
+      "methodology_input": "commission assertions",
+      "normalized_fact": "COMMISSION and COMMISSION_TOTAL",
+      "deterministic_selection": "SELECT independently by fact type; never reconcile or split aggregate",
+      "status": "METHODOLOGY"
+    },
+    {
+      "methodology_input": "coupon securities income",
+      "normalized_fact": "COUPON_INCOME(date,asset,amount,currency) when roles exist",
+      "deterministic_selection": "FILTER complete coupon facts; classify under Article 214.1(7) after market and FX inputs",
+      "status": "CONTRACT"
+    },
+    {
+      "methodology_input": "dividend income group",
+      "normalized_fact": "DIVIDEND_INCOME(date,amount,currency) plus payer identity/source",
+      "deterministic_selection": "FILTER complete dividend facts; classify payer jurisdiction; GROUP separately",
+      "status": "CONTRACT"
+    },
+    {
+      "methodology_input": "domestic or foreign income source",
+      "normalized_fact": "income observation plus payer_organization_jurisdiction or realization_location_jurisdiction",
+      "deterministic_selection": "CLASSIFY exact Article 208 factual input; FAIL CLOSED when ambiguous",
+      "status": "CONTRACT"
+    },
+    {
+      "methodology_input": "taxpayer residence",
+      "normalized_fact": "authenticated presence days plus Article 207 exception evidence",
+      "deterministic_selection": "COMPARE days to 183 only after exception review",
+      "status": "USER/CASE"
+    },
+    {
+      "methodology_input": "organized market status",
+      "normalized_fact": "security identity, disposal date, admitted exchange and market quotation external facts",
+      "deterministic_selection": "APPLY Article 214.1(3)-(4) criteria on disposal date",
+      "status": "CONTRACT"
+    },
+    {
+      "methodology_input": "IIS status and exemption/loss applicability",
+      "normalized_fact": "authenticated account regime and exact claim/carry-forward facts",
+      "deterministic_selection": "SELECT exact case facts; no defaults",
+      "status": "USER/CASE"
+    },
+    {
+      "methodology_input": "RUB value for non-RUB income or expense",
+      "normalized_fact": "amount,currency,date plus exact CBR rate and nominal external fact",
+      "deterministic_selection": "LOOKUP exact currency/date; MULTIPLY_DIVIDE using Decimal; no fallback rate",
+      "status": "METHODOLOGY"
+    },
+    {
+      "methodology_input": "foreign tax credit",
+      "normalized_fact": "foreign income/tax document facts, payment date, authority/source, translation and treaty",
+      "deterministic_selection": "VERIFY treaty and Article 232 evidence; COMPARE/APPLY reviewed treaty rule",
+      "status": "METHODOLOGY"
+    },
+    {
+      "methodology_input": "withheld tax at source",
+      "normalized_fact": "TAX_WITHHELD and TAX_WITHHELD_TOTAL independent observations",
+      "deterministic_selection": "requires explicit income-group/tax-agent binding; literal equality or proximity forbidden",
+      "status": "CONTRACT"
+    },
+    {
+      "methodology_input": "filing instance, signer and budget intent",
+      "normalized_fact": "typed authenticated user/case facts",
+      "deterministic_selection": "SELECT exact fact key and scope; validate enum/authority",
+      "status": "USER/CASE"
+    },
+    {
+      "methodology_input": "2025 securities income-group rate",
+      "normalized_fact": "complete resident securities and derivatives non-IIS RUB tax base",
+      "deterministic_selection": "COMPARE to RUB 2.4m; APPLY 13 percent or RUB 312k plus 15 percent excess",
+      "status": "PROVEN"
+    }
+  ],
+  "gap_register": [
+    {
+      "class": "SOURCE",
+      "gap_id": "acquisition_quantity_insufficient",
+      "observed_count": 4,
+      "next_action": "obtain statements covering the missing prior acquisition quantities for the exact instruments"
+    },
+    {
+      "class": "SOURCE",
+      "gap_id": "required_financial_roles_missing",
+      "observed_count": 13,
+      "next_action": "obtain a clearer official broker export containing the exact missing date, asset, quantity, amount or currency role"
+    },
+    {
+      "class": "SOURCE",
+      "gap_id": "invalid_source_date_or_decimal",
+      "observed_count": 2,
+      "next_action": "obtain corrected source evidence; do not repair the value after normalization"
+    },
+    {
+      "class": "SOURCE",
+      "gap_id": "payer_jurisdiction_and_foreign_tax_documents_absent",
+      "next_action": "obtain issuer or payer jurisdiction, realization-location, tax-agent and foreign-tax documents"
+    },
+    {
+      "class": "INTAKE",
+      "gap_id": "explicit_entity_inn_was_not_normalized",
+      "status": "CLOSED_IN_G5_43",
+      "next_action": "retain REPORTED_ENTITY_TAX_IDENTIFIER and require user confirmation before assigning taxpayer role"
+    },
+    {
+      "class": "CONTRACT",
+      "gap_id": "issuer_payer_and_realization_location_fact_contracts_missing",
+      "next_action": "add narrow source-fact types only for explicitly asserted issuer, payer or venue data and prove them on an untouched corpus"
+    },
+    {
+      "class": "CONTRACT",
+      "gap_id": "organized_market_iis_and_cbr_reference_fact_contracts_missing",
+      "next_action": "publish typed external/user facts for market admission/quotation, account regime and exact CBR rate lookup"
+    },
+    {
+      "class": "CONTRACT",
+      "gap_id": "withholding_to_income_group_binding_missing",
+      "next_action": "require an explicit source assertion or reviewed methodology key; never relate by proximity, amount or document membership"
+    },
+    {
+      "class": "METHODOLOGY",
+      "gap_id": "partial_acquisition_commission_allocation",
+      "next_action": "obtain authority review for the bounded allocation question; until then emit no allocated expense"
+    },
+    {
+      "class": "METHODOLOGY",
+      "gap_id": "non_rub_intermediate_precision_and_rounding",
+      "next_action": "review the exact conversion precision/rounding contract and publish an additive methodology version"
+    },
+    {
+      "class": "METHODOLOGY",
+      "gap_id": "treaty_specific_foreign_tax_credit_limit",
+      "next_action": "review the exact treaty and jurisdiction before publishing credit eligibility and cap behavior"
+    },
+    {
+      "class": "METHODOLOGY",
+      "gap_id": "ambiguous_security_disposal_source_classification",
+      "next_action": "obtain an authoritative ruling or reviewed interpretation for the exact ambiguous realization-location case under Article 208(4)"
+    },
+    {
+      "class": "USER/CASE",
+      "gap_id": "filing_identity_signer_and_budget_intent",
+      "next_action": "collect typed authenticated filing instance, signer/authority and payment/reduction/refund intent facts"
+    },
+    {
+      "class": "USER/CASE",
+      "gap_id": "taxpayer_confirmation_and_residence_inputs",
+      "next_action": "confirm the taxpayer identity already evidenced by the document and collect factual presence-day and exception evidence, not a residency conclusion"
+    }
+  ],
+  "safety": {
+    "private_values_committed": false,
+    "reconciliation_performed": false,
+    "post_normalization_llm_tax_reasoning": false,
+    "product_activation": false,
+    "xml_emitted": false,
+    "pdf_emitted": false,
+    "commit_created": false,
+    "push_performed": false,
+    "pull_request_created": false
+  }
+}

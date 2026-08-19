@@ -1,0 +1,82 @@
+{
+  "schema_version": "broker_reports_gate5_goal_receipt_v0",
+  "goal": "G5.39AF",
+  "terminal": "DECLARATION_RELEASE_AUTHORITY_PROVEN",
+  "verified_at": "2026-08-12",
+  "release_contract": {
+    "schema_version": "broker_reports_gate5_released_declaration_values_v0",
+    "receipt_schema_version": "broker_reports_gate5_declaration_release_receipt_v0",
+    "status": "DECLARATION_VALUES_RELEASED",
+    "policy_id": "supplied_case_existing_evidence_release",
+    "policy_version": "2026-08-12.0-bounded",
+    "persisted": false,
+    "product_callers": 0,
+    "projector_callers": 0
+  },
+  "frozen_supplied_case": {
+    "candidate_status": "DECLARATION_VALUE_CANDIDATE_READY_NOT_RELEASED",
+    "candidate_semantic_value_sha256": "83484fd29f261888d4c1fd466672ba52ace4653a46d89ed445ac574a47258090",
+    "release_receipt_sha256": "c825f777fb9d410ec24fec8b3405cf92f71bfdebcc9e49a601e22eba6bc0a296",
+    "released_values_sha256": "dde1d303c8b2cd2c9f8e0ff84bd12360d91b7607015045b0d17ff22230e7a26c",
+    "legacy_e2e_terminal": "END_TO_END_FULL_TARGET_XML_VALID"
+  },
+  "obligation_accounting": {
+    "total_count": 25,
+    "unique_count": 25,
+    "terminal_count": 25,
+    "state_counts": {
+      "RESOLVED": 11,
+      "NOT_APPLICABLE": 0,
+      "NOT_ACTIVATED_FOR_SUPPLIED_CASE": 14
+    },
+    "blockers": 0,
+    "real_world_taxpayer_completeness_asserted": false,
+    "obligation_manifest_sha256": "88883f05c12fc93a7c8a5a0a97f519f1d8eb2e59f4c0b6939274ba810275aeaa"
+  },
+  "evidence_accounting": {
+    "declared_value_count": 46,
+    "unique_value_path_count": 46,
+    "origin_kind_counts": {
+      "DERIVED": 15,
+      "DIRECT": 28,
+      "REFERENCE": 3
+    },
+    "missing_bindings": 0,
+    "duplicate_bindings": 0,
+    "unknown_owners": 0,
+    "direct_bindings_with_calculation_receipts": 0,
+    "evidence_binding_manifest_sha256": "8b589631119598b1b69115938d05a706b43a9a9dec3c5fc49dc5796fea117a11"
+  },
+  "negative_tests": {
+    "candidate_tamper": "gate5_declaration_release_candidate_mismatch",
+    "missing_evidence": "gate5_declaration_release_evidence_binding_missing",
+    "duplicate_evidence": "gate5_declaration_release_evidence_binding_duplicate",
+    "unknown_evidence_owner": "gate5_declaration_release_evidence_owner_unknown",
+    "incomplete_package": "gate5_declaration_semantic_source_package_incomplete"
+  },
+  "verification": {
+    "af_focused": "7 passed",
+    "semantic_candidate_release_e2e": "162 passed",
+    "package_component_tax_owners": "65 passed",
+    "architecture_product_bundle": "25 passed",
+    "full_gate5": "399 passed",
+    "black_af_files": "passed",
+    "py_compile": "passed",
+    "git_diff_check": "passed_with_line_ending_warnings_only",
+    "gate1_bundle_sha256": "8b834107636c009ff1e66ae0a95e87d7793b021dacf5d1bf204c4edee725a331",
+    "gate1_bundle_rebuild_stable": true
+  },
+  "source_hashes": {
+    "gate5_declaration_semantic_input_before_af_sha256": "07c239b04d4991032260d9353c17ab55165d3ce3d882c58135bbeaeb0b18ea25",
+    "gate5_declaration_semantic_input_after_af_sha256": "165458717a8aeab08544426826fe3b9bc0947120376154e7ec955ccfb658d3d8",
+    "af_test_sha256": "9bc6cdf448b04a4238b3cec905709d71b1868a48b72b68692f36457ed9eb04d5"
+  },
+  "scope_stop": {
+    "next_boundary": "G5.39AG - Consumer-First Projection Contract",
+    "g5_39ag_started": false,
+    "activation_performed": false,
+    "commit_performed": false,
+    "push_performed": false,
+    "pull_request_created": false
+  }
+}

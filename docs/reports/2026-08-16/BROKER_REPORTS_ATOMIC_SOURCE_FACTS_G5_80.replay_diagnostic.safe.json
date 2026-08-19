@@ -1,0 +1,113 @@
+{
+  "schema_version": "broker_reports_g580_replay_diagnostic_v1",
+  "goal": "G5.80",
+  "terminal": "CURRENT_CASE_SOURCE_FACTS_NOT_REQUALIFIED",
+  "canonical_version_id": "canver_lvs64r6lTXf56n30XPIfbV0FRxwVW1lE",
+  "ordinary_path_used": true,
+  "document_status": "incomplete",
+  "chunks": {
+    "total": 140,
+    "validated": 135,
+    "rejected": 5,
+    "provider_failed": 0
+  },
+  "annotations_validated": 1316,
+  "provider": {
+    "submissions": 188,
+    "submissions_returned": 188,
+    "submissions_max": 280,
+    "retry_count": 0,
+    "repair_count": 0,
+    "fallback_count": 0
+  },
+  "repaired_pages": [
+    {
+      "page": 16,
+      "chunk_ordinals": [34, 35],
+      "terminal_status": "validated",
+      "annotations": 40
+    },
+    {
+      "page": 19,
+      "chunk_ordinals": [40, 41],
+      "terminal_status": "validated",
+      "annotations": 43
+    },
+    {
+      "page": 24,
+      "chunk_ordinals": [52, 53],
+      "terminal_status": "validated",
+      "annotations": 22
+    },
+    {
+      "page": 25,
+      "chunk_ordinals": [54, 55],
+      "terminal_status": "validated",
+      "annotations": 19
+    },
+    {
+      "page": 26,
+      "chunk_ordinals": [56, 57],
+      "terminal_status": "validated",
+      "annotations": 38
+    },
+    {
+      "page": 27,
+      "chunk_ordinals": [58, 59, 60],
+      "terminal_status": "validated",
+      "annotations": 28
+    }
+  ],
+  "rejections": [
+    {
+      "chunk_ordinal": 10,
+      "page": 4,
+      "failed_phase": "role_labeling",
+      "error_code": "gate3_role_target_outside_fact_context",
+      "classification": "LLM_ROLE_BOUND_TO_DIFFERENT_ROW_ALIAS",
+      "validator_decision_correct": true
+    },
+    {
+      "chunk_ordinal": 12,
+      "page": 5,
+      "failed_phase": "role_labeling",
+      "error_code": "gate3_role_exact_text_not_literal_substring",
+      "classification": "LLM_CURRENCY_BOUND_TO_DATE_CELL",
+      "validator_decision_correct": true
+    },
+    {
+      "chunk_ordinal": 42,
+      "page": 20,
+      "failed_phase": "role_labeling",
+      "error_code": "gate3_role_exact_text_not_literal_substring",
+      "classification": "LLM_AMOUNT_BOUND_TO_DESCRIPTION_CELL",
+      "validator_decision_correct": true
+    },
+    {
+      "chunk_ordinal": 44,
+      "page": 21,
+      "failed_phase": "role_labeling",
+      "error_code": "gate3_role_exact_text_not_literal_substring",
+      "classification": "LLM_AMOUNT_BOUND_TO_DESCRIPTION_CELL",
+      "validator_decision_correct": true
+    },
+    {
+      "chunk_ordinal": 76,
+      "page": 35,
+      "failed_phase": "role_labeling",
+      "error_code": "gate3_role_target_text_ambiguous",
+      "classification": "LLM_ROLE_BOUND_TO_MULTI_VALUE_ROW_WITHOUT_LITERAL",
+      "validator_decision_correct": true
+    }
+  ],
+  "repaired_pages_all_validated": true,
+  "rejection_pages_overlap_repaired_pages": false,
+  "rejections_caused_by_gate2_addressability": false,
+  "rejections_caused_by_validator_defect": false,
+  "rejections_caused_by_llm_role_binding_output": true,
+  "financial_annotations_sidecar_persisted": false,
+  "gate4_rebuilt": false,
+  "manual_facts": 0,
+  "production_visual_dependency": false,
+  "next_bottleneck": "GATE3_ROLE_BINDING_SINGLE_SHOT_RELIABILITY"
+}

@@ -1,0 +1,31 @@
+{
+  "artifact_store_unchanged": true,
+  "best_of_n": false,
+  "chunk_ordinals": [
+    10,
+    12,
+    14,
+    16,
+    20,
+    22
+  ],
+  "chunks_provider_failed": 0,
+  "chunks_rejected": 0,
+  "chunks_validated": 6,
+  "goal": "G5.86",
+  "instruction_version": "1.1.0",
+  "model_changed": false,
+  "model_id": "models/gemini-3.5-flash",
+  "operational_retries": 0,
+  "persistence_writes": 0,
+  "physical_submission_counter": 6,
+  "private_result_sha256": "790701e58f8c5bce458aaad1d5201cb0c13a7524601c197486332b70ea48e738",
+  "provider_profile_id": "google_gemini",
+  "role_provider_calls": 0,
+  "schema_version": "broker_reports_g586_focused_replay_safe_v1",
+  "semantic_attempts": 6,
+  "semantic_retries": 0,
+  "temperature_variants": 0,
+  "terminal": "FOCUSED_PASS1_REPLAY_CONTRACT_VALID",
+  "transport_submissions": 6
+}

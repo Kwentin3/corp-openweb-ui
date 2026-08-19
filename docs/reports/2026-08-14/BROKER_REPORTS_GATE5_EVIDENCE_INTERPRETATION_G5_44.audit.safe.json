@@ -1,0 +1,98 @@
+{
+  "schema_version": "broker_reports_gate5_evidence_interpretation_g5_44_v1",
+  "goal": "G5.44",
+  "status": "CONTRACTS_PROVEN_WITH_EXTERNAL_LEGAL_GAPS",
+  "terminals": [
+    "EVIDENCE_INTERPRETATION_CONTRACTS_PROVEN",
+    "COMMISSION_SELECTION_CONTRACT_PROVEN",
+    "ACQUISITION_BASIS_COVERAGE_CONTRACT_PROVEN",
+    "RESIDENCY_EVIDENCE_BOUNDARY_PROVEN",
+    "CROSS_DOMAIN_REFACTOR_CONSISTENCY_PROVEN"
+  ],
+  "authorities": {
+    "residency": {
+      "owner": "Gate5ResidencyEvidenceRuntimeFactory.create",
+      "methodology": "ru-3ndfl-2025-declaration-input-contract@2026.0-audited",
+      "resource_sha256": "061ad89169ccbe8cdd575958e20cfc0ceee369acbcc050dd096b2c21fd0570bc"
+    },
+    "source_interpretation": {
+      "owner": "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create",
+      "methodology": "ru-ndfl-securities-source-fact-consumption-proof@2026.6-interpretation-contract",
+      "resource_sha256": "360cf24aae51c039fcb67fc9470d7978208bd80961a6de0d85561366d868c281"
+    },
+    "tax_eligibility": {
+      "owner": "Gate5SecuritiesDisposalTaxModelRuntimeFactory.create",
+      "same_row_charge_is_conclusion": false
+    },
+    "projection": {
+      "representation_only": true,
+      "interpretation_authority": false
+    }
+  },
+  "black_box_scenarios": [
+    {"id": "A", "case": "natural_language_residency", "result": "RESIDENT_FROM_TYPED_EVIDENCE", "passed": true},
+    {"id": "B", "case": "commission_details_only", "result": "DETAIL_SELECTED_ON_PROVEN_COVERAGE", "passed": true},
+    {"id": "C", "case": "commission_aggregate_only", "result": "AGGREGATE_SELECTED_ON_PROVEN_SCOPE", "passed": true},
+    {"id": "D", "case": "commission_both", "result": "BOTH_PRESERVED_ONE_REPRESENTATION_SELECTED", "passed": true},
+    {"id": "E", "case": "commission_detail_aggregate_disagreement", "result": "DETAIL_25_AGGREGATE_40_NO_REPAIR_OR_COMPARISON", "passed": true},
+    {"id": "F", "case": "commission_detail_coverage_uncertain", "result": "MATCHING_AGGREGATE_SELECTED_OTHERWISE_FAIL_CLOSED", "passed": true},
+    {"id": "G", "case": "acquisition_70_disposal_100", "result": "SUPPORTED_70_GAP_30_NO_ZERO_COST", "passed": true},
+    {"id": "H", "case": "one_lot_100_ten_disposals_10", "result": "TEN_TRANSIENT_FIFO_CALCULATIONS_ZERO_STORED_PAIRS", "passed": true},
+    {"id": "I", "case": "same_row_charge_unproven_tax_evidence", "result": "SOURCE_CONTEXT_ONLY_NOT_ALLOWED_UNPROVEN", "passed": true}
+  ],
+  "cross_domain_consistency": [
+    {"meaning": "residency", "producer": "typed_authenticated_evidence", "contract": "broker_reports_gate5_residency_evidence_v0", "consumer": "methodology_derived_result_only", "projection_reclassification": false},
+    {"meaning": "commission_representation", "producer": "independent_gate4_assertions", "contract": "broker_reports_gate5_commission_evidence_selection_v0", "consumer": "one_selected_representation", "projection_reclassification": false},
+    {"meaning": "acquisition_basis_coverage", "producer": "independent_purchase_disposal_observations", "contract": "broker_reports_gate5_acquisition_basis_coverage_v0", "consumer": "review_plus_separate_methodology_blocking", "projection_reclassification": false},
+    {"meaning": "direct_transaction_charge", "producer": "same_canonical_transaction_row", "contract": "TRANSACTION_CHARGE_EVIDENCE_NOT_EVALUATED", "consumer": "independent_tax_model_expense_evidence", "projection_reclassification": false}
+  ],
+  "external_legal_methodology_gaps": [
+    "ambiguous_security_disposal_source_classification",
+    "partial_acquisition_commission_allocation",
+    "non_rub_intermediate_precision_and_rounding",
+    "treaty_specific_foreign_tax_credit_limit"
+  ],
+  "real_corpus_replay": {
+    "documents": 4,
+    "source_facts": 186,
+    "metadata_facts": 15,
+    "active_demands": 9,
+    "status": "PREPARATION_INCOMPLETE",
+    "residency_classification": "INSUFFICIENT_EVIDENCE",
+    "residency_reason": "residency_evidence_missing",
+    "required_actions": 12,
+    "required_action_closure_types": {"ADDITIONAL_DOCUMENT": 8, "USER_FACT": 4},
+    "calculation_count": 0,
+    "provider_calls": 0,
+    "frozen_store_unchanged": true
+  },
+  "verification": {
+    "focused_a_i_and_contract_tests": 32,
+    "gate5_tests": 449,
+    "gate5_modules": 39,
+    "gate3_gate4_tests": 150,
+    "gate3_gate4_modules": 15,
+    "bundle_and_control_vertical_tests": 17,
+    "compileall": "PASS",
+    "diff_check": "PASS_WITH_LINE_ENDING_WARNINGS_ONLY"
+  },
+  "metrics": {
+    "invented_facts": 0,
+    "invented_relations": 0,
+    "stored_purchase_disposal_pairs": 0,
+    "commission_reconciliation_performed": false,
+    "detail_aggregate_value_comparison_performed": false,
+    "user_tax_status_accepted": false,
+    "projection_tax_interpretation_performed": false
+  },
+  "safety": {
+    "product_activated": false,
+    "declaration_released": false,
+    "xml_or_pdf_emitted_for_real_case": false,
+    "provider_call_performed": false,
+    "private_values_in_artifact": false,
+    "commit_created": false,
+    "push_performed": false,
+    "pr_opened": false
+  }
+}

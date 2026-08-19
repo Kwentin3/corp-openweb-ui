@@ -109,6 +109,22 @@ The inactive G5.13 `run_operation` path consumes this version for operation
 models that deliberately contain no category-completeness claim. G5.14 owns
 the later scope binding and aggregation.
 
+G5.22 appends another immutable version under the same authority and
+methodology ID:
+
+```text
+methodology_id      = ru-ndfl-securities-tax-model-proof
+methodology_version = 2026.2-experimental
+resource            = gate5_tax_methodology.ru_ndfl_securities_income_group_tax_base_proof.v0.json
+schema              = broker_reports_gate5_securities_income_group_tax_base_methodology_v0
+resource_sha256     = 56bcc7554c69757623a67497aa728cefc662e8c08a5795dfcb5562da1559bb80
+```
+
+It is consumed only by the inactive stable income-group Tax Base behavior.
+The earlier `2026.0` and `2026.1` resources remain exact and independently
+replayable. G5.8 still owns the sole closed resource/hash resolver; no new
+methodology service or mutable catalog was introduced.
+
 The owner binds that tuple to one package resource and one exact raw-resource
 SHA-256. The G5.7 canonical projection hash is computed independently from the
 decoded JSON and must be repeated exactly in the calculation result.

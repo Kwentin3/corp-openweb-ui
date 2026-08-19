@@ -1,0 +1,128 @@
+{
+  "schema_version": "broker_reports_g561_closeout_receipt_safe_v1",
+  "goal": "G5.61",
+  "status": "CLOSED_NEGATIVE",
+  "terminal": [
+    "LLM_METADATA_ADAPTER_NOT_YET_RELIABLE",
+    "EXACT_FAILURE_CLASS_LOCALIZED",
+    "FINANCIAL_GENERALIZATION_PRESERVED"
+  ],
+  "exact_failure_classes": [
+    "LLM_METADATA_ROLE_OVERREACH",
+    "UPSTREAM_CANONICAL_METADATA_VALUE_LOSS",
+    "FROZEN_G5_60_ORACLE_NOT_SOURCE_TRUE",
+    "G5_60_ORACLE_COVERAGE_INCOMPLETE"
+  ],
+  "frozen_before_implementation": true,
+  "contract": {
+    "metadata_contract_version": "1.0.0",
+    "allowed_fact_types": 11,
+    "instruction_version": "1.0.0",
+    "context_policy_version": "broker_reports_metadata_context_policy_v1",
+    "proposal_schema_version": "broker_reports_llm_metadata_proposal_v1"
+  },
+  "corpus": [
+    "pdf_002",
+    "pdf_024",
+    "holdout_a",
+    "holdout_b"
+  ],
+  "execution": {
+    "provider_profile": "google_gemini",
+    "model_id": "models/gemini-3.5-flash",
+    "documents": 4,
+    "provider_submissions_total": 4,
+    "provider_submissions_per_document": 1,
+    "retries": 0,
+    "best_of_n": false,
+    "manual_output_repair": false,
+    "source_stores_unchanged": true,
+    "rendered_context_chars": 33344,
+    "final_model_input_chars": 54921,
+    "input_tokens": 23080,
+    "output_tokens": 1509,
+    "provider_reported_total_tokens": 34678,
+    "duration_ms_total": 53767
+  },
+  "cases": [
+    {
+      "alias": "pdf_002",
+      "selected_targets": 18,
+      "rendered_context_chars": 14945,
+      "candidate_facts": 9,
+      "source_truth_correct": 9,
+      "wrong_role": 0,
+      "source_present_missed": 0
+    },
+    {
+      "alias": "pdf_024",
+      "selected_targets": 6,
+      "rendered_context_chars": 7440,
+      "candidate_facts": 4,
+      "source_truth_correct": 3,
+      "wrong_role": 1,
+      "source_present_missed": 3
+    },
+    {
+      "alias": "holdout_a",
+      "selected_targets": 59,
+      "rendered_context_chars": 9273,
+      "candidate_facts": 4,
+      "source_truth_correct": 3,
+      "wrong_role": 1,
+      "source_present_missed": 0
+    },
+    {
+      "alias": "holdout_b",
+      "selected_targets": 14,
+      "rendered_context_chars": 1686,
+      "candidate_facts": 6,
+      "source_truth_correct": 6,
+      "wrong_role": 0,
+      "source_present_missed": 0
+    }
+  ],
+  "source_truth_qualification": {
+    "candidate_facts": 23,
+    "correct_source_facts": 21,
+    "wrong_semantic_roles": 2,
+    "source_present_facts_missed": 3,
+    "invented_literals": 0,
+    "invalid_physical_provenance": 0,
+    "duplicate_assertions": 0,
+    "source_absence_fields_emitted": 0
+  },
+  "oracle_audit": {
+    "source_truth_omissions": 6,
+    "false_bindings": 3,
+    "canonical_value_loss_cases": 1
+  },
+  "raw_output_revalidation": {
+    "provider_calls": 0,
+    "raw_model_output_repaired": false,
+    "validator_passed_documents": 4,
+    "machine_failure_class": "semantic_oracle_mismatch"
+  },
+  "architecture": {
+    "broker_specific_prompts": 0,
+    "broker_specific_runtime_branches": 0,
+    "fixed_page_or_column_rules": 0,
+    "human_language_regex_growth": 0,
+    "new_persistence": false,
+    "product_activation": false,
+    "g560_deterministic_extractor_changed": false,
+    "llm_selected_as_primary": false
+  },
+  "financial_replay": {
+    "holdout_a_fact_count": 39,
+    "holdout_b_fact_count": 129,
+    "canonical_json_exact": true
+  },
+  "verification": {
+    "focused_passed": 85,
+    "broad_passed": 178,
+    "broad_failed": 0
+  },
+  "private_evidence_committed": false,
+  "next_allowed_goal": "Canonical Metadata Preservation & Oracle Requalification"
+}

@@ -41,6 +41,9 @@ GATE5_TAX_PERIOD_CATEGORY_TAX_MODEL_SCHEMA_VERSION = (
 GATE5_TAX_PERIOD_CATEGORY_AGGREGATION_RESULT_SCHEMA_VERSION = (
     "broker_reports_gate5_tax_period_category_aggregation_result_v0"
 )
+GATE5_TAX_PERIOD_CATEGORY_OPERATION_MEMBER_CONTRACT = (
+    GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION
+)
 
 FACTORY_REQUIRED = (
     "Gate5TaxPeriodCategoryAggregationRuntimeFactory.create",
@@ -92,6 +95,7 @@ _AMOUNT = re.compile(r"^(?:0|[1-9][0-9]{0,17})\.[0-9]{2}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _TAGGED_SOURCE_KINDS = {
     "external_authoritative_evidence",
+    "methodology_derived_result",
     "proof_assumption",
     "user_verified_fact",
 }
@@ -122,6 +126,14 @@ class Gate5TaxPeriodCategoryAggregationRuntime:
     ) -> None:
         self._authority = authority
         self._projector = projector
+
+    def validate_operation_member(self, *, tax_model: dict[str, Any]) -> dict[str, Any]:
+        """Validate one producer result against the exact G5.14 member boundary."""
+        return _operation_model(tax_model, authority=self._authority)
+
+    def validate_category_model(self, *, tax_model: dict[str, Any]) -> dict[str, Any]:
+        """Validate one complete category result for a downstream tax behavior."""
+        return _validated_category_tax_model(tax_model, authority=self._authority)
 
     def describe_scope(
         self,
@@ -214,7 +226,7 @@ def _members(
     scope: dict[str, str],
     authority: Gate5TrustedMethodologyAuthority,
 ) -> list[dict[str, Any]]:
-    if not isinstance(value, list) or len(value) < 2:
+    if not isinstance(value, list) or not value:
         _fail("gate5_tax_period_members_invalid")
     result = []
     for item in value:
@@ -254,7 +266,7 @@ def _operation_model(
         not isinstance(value, dict)
         or set(value) != _MODEL_KEYS
         or value.get("schema_version")
-        != GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION
+        != GATE5_TAX_PERIOD_CATEGORY_OPERATION_MEMBER_CONTRACT
         or value.get("status") != "complete"
         or value.get("model_kind") != "securities_disposal"
         or not _identifier(value.get("model_id"))
@@ -289,7 +301,15 @@ def _operation_model(
         period["value"]
     ):
         _fail("gate5_tax_period_operation_model_invalid")
-    _tagged(operation_scope.get("residency"), "minimal_tax_context")
+    residency = _tagged(operation_scope.get("residency"), "minimal_tax_context")
+    if (
+        residency["provenance"].get("source_kind")
+        != "methodology_derived_result"
+        or not residency["provenance"].get("source_ref", "").startswith(
+            "residency-classification:"
+        )
+    ):
+        _fail("gate5_tax_period_residency_classification_required")
     _tagged(operation_scope.get("exemption_applicability"), "minimal_tax_context")
     _tagged(operation.get("kind"), "resolved_operation_property")
     _tagged(value.get("loss_treatment"), "minimal_tax_context")
@@ -561,6 +581,289 @@ def _category_tax_model(
     }
 
 
+def _validated_category_tax_model(
+    value: Any,
+    *,
+    authority: Gate5TrustedMethodologyAuthority,
+) -> dict[str, Any]:
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema_version",
+            "status",
+            "model_kind",
+            "calculation_scope",
+            "methodology_binding",
+            "operation_category",
+            "member_operations",
+            "category_gross_income",
+            "related_expenses",
+            "allowable_expenses",
+            "loss_treatment",
+        }
+        or value.get("schema_version")
+        != GATE5_TAX_PERIOD_CATEGORY_TAX_MODEL_SCHEMA_VERSION
+        or value.get("status") != "complete"
+        or value.get("model_kind") != "securities_disposal_category"
+    ):
+        _fail("gate5_tax_period_category_model_invalid")
+
+    calculation_scope = value.get("calculation_scope")
+    if (
+        not isinstance(calculation_scope, dict)
+        or set(calculation_scope)
+        != {*_SCOPE_KEYS, "scope_binding_sha256", "completeness"}
+        or not isinstance(calculation_scope.get("scope_binding_sha256"), str)
+        or _SHA256.fullmatch(calculation_scope["scope_binding_sha256"]) is None
+    ):
+        _fail("gate5_tax_period_category_model_invalid", "calculation_scope")
+    scope = _scope({key: calculation_scope[key] for key in _SCOPE_KEYS})
+    completeness = _completeness_evidence(
+        calculation_scope.get("completeness"),
+        scope_binding_sha256=calculation_scope["scope_binding_sha256"],
+    )
+    if completeness is None:
+        _fail("gate5_tax_period_category_model_incomplete")
+
+    members = _validated_category_member_refs(value.get("member_operations"))
+    scope_binding = {
+        "schema_version": GATE5_TAX_PERIOD_CATEGORY_SCOPE_BINDING_SCHEMA_VERSION,
+        "scope": scope,
+        "members": members,
+    }
+    if _canonical_sha256(scope_binding) != calculation_scope["scope_binding_sha256"]:
+        _fail("gate5_tax_period_category_model_scope_binding_mismatch")
+
+    category = value.get("operation_category")
+    expected_refs = [item["operation_ref"] for item in members]
+    if (
+        not isinstance(category, dict)
+        or set(category) != {"value", "derivation"}
+        or category.get("value") != scope["operation_category"]
+        or not isinstance(category.get("derivation"), dict)
+        or category["derivation"]
+        != {
+            "kind": "stable_member_classification_consensus",
+            "member_operation_refs": expected_refs,
+        }
+    ):
+        _fail("gate5_tax_period_category_model_invalid", "operation_category")
+
+    gross = _validated_category_aggregate(
+        value.get("category_gross_income"),
+        members=members,
+        operation_value_path="gross_income",
+        field="category_gross_income",
+    )
+    related = _validated_category_aggregate(
+        value.get("related_expenses"),
+        members=members,
+        operation_value_path="related_expenses",
+        field="related_expenses",
+    )
+    allowable = _validated_category_aggregate(
+        value.get("allowable_expenses"),
+        members=members,
+        operation_value_path="allowable_expenses",
+        field="allowable_expenses",
+    )
+    if (
+        len(
+            {
+                gross["value"]["currency"],
+                related["value"]["currency"],
+                allowable["value"]["currency"],
+            }
+        )
+        != 1
+    ):
+        _fail("gate5_tax_period_currency_mismatch")
+
+    _validated_category_loss_treatment(
+        value.get("loss_treatment"),
+        members=members,
+    )
+    _category_methodology_binding(
+        value.get("methodology_binding"),
+        operation_category=scope["operation_category"],
+        authority=authority,
+    )
+    try:
+        return json.loads(json.dumps(value, ensure_ascii=False, sort_keys=True))
+    except (TypeError, ValueError) as exc:
+        raise Gate5TaxPeriodCategoryAggregationError(
+            "gate5_tax_period_category_model_invalid"
+        ) from exc
+
+
+def _validated_category_member_refs(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list) or not value:
+        _fail("gate5_tax_period_category_model_invalid", "member_operations")
+    result: list[dict[str, str]] = []
+    for item in value:
+        if (
+            not isinstance(item, dict)
+            or set(item)
+            != {"operation_ref", "source_scope_ref", "operation_model_sha256"}
+            or not _identifier(item.get("operation_ref"))
+            or not _identifier(item.get("source_scope_ref"))
+            or not isinstance(item.get("operation_model_sha256"), str)
+            or _SHA256.fullmatch(item["operation_model_sha256"]) is None
+        ):
+            _fail("gate5_tax_period_category_model_invalid", "member_operations")
+        result.append(copy.deepcopy(item))
+    identities = [(item["operation_ref"], item["source_scope_ref"]) for item in result]
+    hashes = [item["operation_model_sha256"] for item in result]
+    if (
+        len(set(identities)) != len(identities)
+        or len(set(hashes)) != len(hashes)
+        or identities != sorted(identities)
+    ):
+        _fail("gate5_tax_period_category_model_invalid", "member_operations")
+    return result
+
+
+def _validated_category_aggregate(
+    value: Any,
+    *,
+    members: list[dict[str, str]],
+    operation_value_path: str,
+    field: str,
+) -> dict[str, Any]:
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"value", "derivation"}
+        or not isinstance(value.get("derivation"), dict)
+        or set(value["derivation"]) != {"kind", "contributions"}
+        or value["derivation"].get("kind") != "sum_of_complete_operation_tax_models"
+        or not isinstance(value["derivation"].get("contributions"), list)
+        or len(value["derivation"]["contributions"]) != len(members)
+    ):
+        _fail("gate5_tax_period_category_model_invalid", field)
+    aggregate = _money(value.get("value"), field)
+    total = Decimal("0.00")
+    for member, contribution in zip(
+        members,
+        value["derivation"]["contributions"],
+        strict=True,
+    ):
+        if (
+            not isinstance(contribution, dict)
+            or set(contribution)
+            != {
+                "operation_ref",
+                "source_scope_ref",
+                "operation_model_sha256",
+                "operation_value_path",
+                "value",
+                "source_evidence",
+            }
+            or any(
+                contribution.get(name) != member[name]
+                for name in (
+                    "operation_ref",
+                    "source_scope_ref",
+                    "operation_model_sha256",
+                )
+            )
+            or contribution.get("operation_value_path") != operation_value_path
+            or not isinstance(contribution.get("source_evidence"), list)
+            or not contribution["source_evidence"]
+            or not _contains_source_kind(contribution["source_evidence"])
+        ):
+            _fail("gate5_tax_period_category_model_invalid", field)
+        money = _money(contribution.get("value"), field)
+        if money["currency"] != aggregate["currency"]:
+            _fail("gate5_tax_period_currency_mismatch")
+        total += Decimal(money["amount"])
+    if f"{total:.2f}" != aggregate["amount"]:
+        _fail("gate5_tax_period_category_model_total_mismatch", field)
+    return value
+
+
+def _validated_category_loss_treatment(
+    value: Any,
+    *,
+    members: list[dict[str, str]],
+) -> None:
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"value", "member_provenance"}
+        or not isinstance(value.get("value"), str)
+        or not isinstance(value.get("member_provenance"), list)
+        or len(value["member_provenance"]) != len(members)
+    ):
+        _fail("gate5_tax_period_category_model_invalid", "loss_treatment")
+    for member, provenance in zip(
+        members,
+        value["member_provenance"],
+        strict=True,
+    ):
+        if (
+            not isinstance(provenance, dict)
+            or set(provenance) != {"operation_ref", "operation_model_sha256", "value"}
+            or provenance.get("operation_ref") != member["operation_ref"]
+            or provenance.get("operation_model_sha256")
+            != member["operation_model_sha256"]
+            or _tagged(provenance.get("value"), "minimal_tax_context")["value"]
+            != value["value"]
+        ):
+            _fail("gate5_tax_period_category_model_invalid", "loss_treatment")
+
+
+def _category_methodology_binding(
+    value: Any,
+    *,
+    operation_category: str,
+    authority: Gate5TrustedMethodologyAuthority,
+) -> None:
+    if (
+        not isinstance(value, dict)
+        or set(value) != _METHODOLOGY_BINDING_KEYS
+        or value.get("behavior_id")
+        != GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_BEHAVIOR_ID
+        or not _identifier(value.get("applicability_rule_id"))
+    ):
+        _fail("gate5_tax_period_methodology_unsupported")
+    try:
+        resolved = authority.resolve(
+            {
+                "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+                "methodology_id": value.get("methodology_id"),
+                "methodology_version": value.get("methodology_version"),
+            }
+        )
+    except Gate5TrustedMethodologyError as exc:
+        raise Gate5TaxPeriodCategoryAggregationError(
+            "gate5_tax_period_methodology_unknown"
+        ) from exc
+    authority_binding = resolved["authority_binding"]
+    behavior = resolved["methodology"].get("behavior")
+    if (
+        any(
+            value.get(name) != authority_binding.get(name) for name in authority_binding
+        )
+        or not isinstance(behavior, dict)
+        or behavior.get("behavior_id") != value["behavior_id"]
+        or not isinstance(behavior.get("applicability_rule"), dict)
+        or behavior["applicability_rule"].get("rule_id")
+        != value["applicability_rule_id"]
+        or behavior["applicability_rule"].get("result_category") != operation_category
+    ):
+        _fail("gate5_tax_period_methodology_binding_mismatch")
+
+
+def _contains_source_kind(value: Any) -> bool:
+    if isinstance(value, dict):
+        if isinstance(value.get("source_kind"), str):
+            return True
+        return any(_contains_source_kind(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_contains_source_kind(item) for item in value)
+    return False
+
+
 def _declaration_semantics(model: dict[str, Any]) -> dict[str, Any]:
     def money(section: str) -> dict[str, str]:
         value = model[section]["value"]
@@ -638,6 +941,7 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "GATE5_TAX_PERIOD_CATEGORY_AGGREGATION_RESULT_SCHEMA_VERSION",
+    "GATE5_TAX_PERIOD_CATEGORY_OPERATION_MEMBER_CONTRACT",
     "GATE5_TAX_PERIOD_CATEGORY_SCOPE_BINDING_SCHEMA_VERSION",
     "GATE5_TAX_PERIOD_CATEGORY_SCOPE_SCHEMA_VERSION",
     "GATE5_TAX_PERIOD_CATEGORY_TAX_MODEL_SCHEMA_VERSION",

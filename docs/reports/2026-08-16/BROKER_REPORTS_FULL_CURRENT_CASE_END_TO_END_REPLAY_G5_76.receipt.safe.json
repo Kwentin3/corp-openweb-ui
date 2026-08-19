@@ -1,0 +1,176 @@
+{
+  "schema_version": "broker_reports_full_current_case_end_to_end_replay_g576_safe_v1",
+  "goal": "G5.76",
+  "frozen_at": "2026-08-16T15:00:00+03:00",
+  "repository": {
+    "branch": "feature/gate5-tax-period-category-aggregation",
+    "head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "dirty_boundary": "PRESERVE_USER_OWNED",
+    "commit_created": false,
+    "push_performed": false
+  },
+  "freeze": {
+    "documents": 4,
+    "evidence_mode": "REAL_EVIDENCE",
+    "target": "ru_3ndfl_2025",
+    "trusted_user_case_inputs": "ABSENT_AT_FREEZE",
+    "metadata_activation": false,
+    "manifest_sha256": "7e1c3407330f4dea5874d9db9a35e22b46cd060e1146a330ba0cd2e581abe372",
+    "source_sha256": [
+      "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+      "36a166a5a13e6d6d86b391233023f83f6f7b4d268a4a23fbae01cb81290e3b96",
+      "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+      "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015"
+    ],
+    "private_bundle_committed": false
+  },
+  "source_replay": {
+    "route": "active Canonical binding -> current Adaptive Context -> current Gate 3 -> Gate 4 factory",
+    "raw_to_active_canonical_sha256_verified": true,
+    "gate1_normalization_rebuilt_from_zero": false,
+    "old_sidecars_accepted_as_current_authority": false,
+    "current_gate3_clean_replay": true,
+    "provider_profile_id": "google_gemini",
+    "model_id": "models/gemini-3.5-flash",
+    "provider_submissions": 15,
+    "provider_retry_count": 0,
+    "provider_repair_count": 0,
+    "provider_fallback_count": 0,
+    "provider_rerun_count": 0,
+    "documents_complete": 4
+  },
+  "gate4": {
+    "status": "CASE_COMPLETE_FOR_CURRENT_INPUT_SET",
+    "documents": 4,
+    "facts": 391,
+    "role_complete": 329,
+    "role_incomplete": 62,
+    "security_facts": 96,
+    "security_ready": 80,
+    "security_source_evidence_insufficient": 16,
+    "stored_financial_event_relations": 0,
+    "invented_facts": 0,
+    "invented_relations": 0
+  },
+  "gate5": {
+    "declaration_demands": 25,
+    "active_demands": 9,
+    "blocked_demands": 9,
+    "resolved_demands": 0,
+    "not_activated_demands": 16,
+    "tax_model_ready_calculations": 0,
+    "fifo_calculations": 0,
+    "synthetic_completion": 0,
+    "reconciliation": "not_performed"
+  },
+  "blocker_classification": {
+    "SOURCE_FACT_GAP": {
+      "source_does_not_have_it": {
+        "count": 4,
+        "reason": "acquisition_quantity_insufficient",
+        "owner": "SOURCE_DOCUMENT evidence demand",
+        "consumer": "Gate5 real tax case assembly"
+      },
+      "source_has_it_pipeline_lost": {
+        "count": 13,
+        "reason": "required_role_missing",
+        "owner": "Gate3 to Gate4 source binding contract",
+        "consumer": "Gate5 deterministic source fact consumption"
+      },
+      "source_has_it_normalization_lost": {
+        "count": 3,
+        "reason": "decimal_invalid",
+        "owner": "source literal normalization contract",
+        "consumer": "Gate5 deterministic source fact consumption"
+      }
+    },
+    "USER_CASE_FACT_GAP": {
+      "count": 4,
+      "facts": [
+        "taxpayer_identity_confirmed",
+        "residency_evidence",
+        "signer_and_representation",
+        "filing_instance_identity"
+      ],
+      "owner": "USER_CASE factual human adapter",
+      "consumer": "Declaration Preparation and sealed semantic input"
+    },
+    "EXTERNAL_REFERENCE_GAP": {
+      "count": 0
+    },
+    "METHODOLOGY_GAP": {
+      "count": 1,
+      "reason": "fifo_rounding_methodology_unresolved",
+      "owner": "versioned tax methodology",
+      "consumer": "Gate5 real tax case assembly"
+    },
+    "MODEL_CONTRACT_GAP": {
+      "count": 0,
+      "note": "The 13 binding and 3 normalization defects are classified exclusively as SOURCE_FACT_GAP/source_has_it, per the G5.76 one-class rule."
+    }
+  },
+  "declaration_path": {
+    "required_actions": 12,
+    "required_user_fact_actions": 4,
+    "required_additional_document_actions": 7,
+    "required_methodology_actions": 1,
+    "advisory_actions": 1,
+    "deferred_actions": 1,
+    "declaration_ready": false,
+    "semantic_input_status": "NOT_SEALED",
+    "release_status": "AWAITING_SEALED_DECLARATION_SEMANTIC_INPUT",
+    "projection_entered": false,
+    "xml_emitted": false,
+    "pdf_emitted": false
+  },
+  "first_remaining_boundary": {
+    "class": "USER_CASE_FACT_GAP",
+    "exact_bundle": [
+      "taxpayer_identity_confirmed",
+      "residency_evidence",
+      "signer_and_representation",
+      "filing_instance_identity"
+    ],
+    "strategic_stop": true
+  },
+  "code_change": {
+    "files": 1,
+    "description": "Persist provider_rerun_count=0 in the first-execution source replay receipt so the existing deterministic downstream consumer receives its declared execution contract.",
+    "product_activation": false,
+    "metadata_changes": 0,
+    "tax_methodology_changes": 0,
+    "source_semantic_changes": 0
+  },
+  "financial_regression": {
+    "mode": "frozen-time exact replay before recorded artifact TTL",
+    "factory_route": "Gate4FinancialCaseRuntimeFactory.create.rebuild_case",
+    "live_time_operational_claim": false,
+    "holdout_a": {
+      "expected": 39,
+      "actual": 39,
+      "sha256": "64f06cacc05f715031dceebf86ab3219d67716fcad9f773da918775c6d2b03a1",
+      "exact_frozen_equality": true
+    },
+    "holdout_b": {
+      "expected": 129,
+      "actual": 129,
+      "sha256": "0c836d13213280d0b4427c9b064157b44ed7d53c50e72a3afcfc8758fbeb3354",
+      "exact_frozen_equality": true
+    }
+  },
+  "verification": {
+    "py_compile": "passed",
+    "ruff": "passed",
+    "focused_tests": "58 passed",
+    "g575_architecture_guards": "6 passed",
+    "diff_check": "passed",
+    "safe_docs_utf8_json_fences_whitespace": "passed",
+    "safe_docs_secret_like_patterns": 0
+  },
+  "terminals": [
+    "CURRENT_REAL_CASE_END_TO_END_BLOCKED_WITH_EXACT_DEMANDS",
+    "ALL_BLOCKERS_CONSUMER_CLASSIFIED",
+    "NO_UNJUSTIFIED_SOURCE_LAYER_WORK_OPENED",
+    "CURRENT_CASE_READY_UP_TO_FIRST_EXTERNAL_OR_USER_OR_METHODOLOGY_BOUNDARY"
+  ]
+}

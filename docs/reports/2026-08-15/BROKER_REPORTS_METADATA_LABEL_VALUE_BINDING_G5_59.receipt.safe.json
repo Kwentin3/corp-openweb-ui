@@ -1,0 +1,59 @@
+{
+  "schema_version": "broker_reports_g559_metadata_label_value_binding_receipt_v1",
+  "goal": "G5.59",
+  "terminal": "METADATA_LABEL_VALUE_BINDING_PARTIAL",
+  "contains_private_payload": false,
+  "source_visual_qualification": {
+    "holdout_a": {
+      "supported_adjacent_pairs": 1,
+      "published_fact_types": [
+        "CLIENT_IDENTIFIER"
+      ],
+      "non_adjacent_or_unsupported_expected_assertions": 2
+    },
+    "holdout_b": {
+      "supported_adjacent_pairs": 0,
+      "published_fact_types": [],
+      "non_adjacent_or_unsupported_expected_assertions": 2
+    }
+  },
+  "canonical_structure_preserved": true,
+  "first_wrong_owner_for_proven_adjacent_pair": "Gate3MetadataSourceFactRuntime._metadata_facts",
+  "binding_contract": {
+    "same_table": true,
+    "same_row": true,
+    "exactly_two_structural_cells": true,
+    "adjacent_columns": true,
+    "merged_or_duplicate_coordinates_rejected": true,
+    "both_cells_non_empty": true,
+    "type_from_existing_label_vocabulary_only": true,
+    "value_shape_typing": false
+  },
+  "replay": {
+    "holdout_a_metadata_facts": 1,
+    "holdout_b_metadata_facts": 0,
+    "invented_metadata_facts": 0,
+    "wrong_metadata_bindings": 0,
+    "duplicate_metadata_assertions": 0,
+    "holdout_a_financial_facts": 39,
+    "holdout_b_financial_facts": 129,
+    "financial_fact_hashes_equal_to_g558_frozen_results": true
+  },
+  "verification": [
+    "23 passed",
+    "103 passed",
+    "148 passed",
+    "233 passed post-format regression",
+    "scoped whitespace check passed"
+  ],
+  "forbidden_changes": {
+    "gate2_changes": 0,
+    "financial_pipeline_changes": 0,
+    "gate4_changes": 0,
+    "gate5_changes": 0,
+    "vocabulary_changes": 0,
+    "broker_specific_rules": 0,
+    "visual_runtime_dependencies": 0
+  },
+  "full_terminal_claimed": false
+}

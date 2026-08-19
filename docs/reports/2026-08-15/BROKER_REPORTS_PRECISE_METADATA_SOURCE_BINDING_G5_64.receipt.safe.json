@@ -1,0 +1,115 @@
+{
+  "schema_version": "broker_reports_g564_closeout_receipt_safe_v1",
+  "goal": "G5.64",
+  "status": "CLOSED_WITH_LOCALIZED_SEMANTIC_RESIDUALS",
+  "terminal": [
+    "METADATA_STRUCTURAL_SOURCE_BINDING_PROVEN",
+    "FROZEN_ORACLE_VISIBILITY_24_OF_24_PRESERVED",
+    "REPEATED_ASSERTION_EVIDENCE_MODEL_PROVEN",
+    "SAME_FACT_DUPLICATE_PUBLICATION_ZERO",
+    "MULTI_VALUE_METADATA_PRESERVED",
+    "WHOLE_TABLE_LITERAL_AMBIGUITY_REMOVED",
+    "SAME_LLM_ADAPTER_CLEAN_REPLAY_COMPLETED",
+    "FINANCIAL_GENERALIZATION_PRESERVED",
+    "LLM_METADATA_SEMANTIC_RESULT=RESIDUAL_FAILURES_LOCALIZED"
+  ],
+  "frozen": {
+    "corpus": ["pdf_002", "pdf_024", "holdout_a", "holdout_b"],
+    "metadata_contract_version": "1.0.0",
+    "context_policy_version": "broker_reports_metadata_context_policy_v3",
+    "oracle": "G5.62",
+    "oracle_fact_count": 24,
+    "canonical_loss_count": 0,
+    "instruction_exact": true,
+    "proposal_schema_exact": true,
+    "model": "models/gemini-3.5-flash",
+    "provider": "google_gemini",
+    "financial_gate4_gate5_unchanged": true
+  },
+  "structural_binding": {
+    "provider_calls": 0,
+    "visible": 24,
+    "invisible": 0,
+    "qualified_ambiguity": 0,
+    "whole_table_targets": 0,
+    "row_header_targets": 56,
+    "selected_targets": 97,
+    "rendered_context_chars": 119313,
+    "semantic_hints": 0,
+    "broker_specific_rules": 0,
+    "selector_accepts_oracle": false
+  },
+  "duplicate_evidence_contract": {
+    "same_assertion_multiple_evidence_proven": true,
+    "primary_is_first_source_order": true,
+    "all_evidence_locations_preserved": true,
+    "same_role_different_values_preserved": true,
+    "same_literal_different_context_not_collapsed": true,
+    "same_physical_binding_repeat_rejected": true,
+    "generic_dedup_framework_added": false
+  },
+  "replay": {
+    "provider_calls": 4,
+    "provider_calls_per_document": 1,
+    "retries": 0,
+    "best_of_n": false,
+    "manual_output_repair": false,
+    "raw_output_repaired": false,
+    "second_replay_performed": false,
+    "source_stores_unchanged": true,
+    "rendered_context_chars": 119313,
+    "final_model_input_chars": 147398,
+    "input_tokens": 88958,
+    "output_tokens": 2031,
+    "provider_reported_total_tokens": 103022,
+    "duration_ms": 72515
+  },
+  "qualification": {
+    "raw_facts": 25,
+    "published_facts": 25,
+    "correct_unique": 22,
+    "source_present_missed": 2,
+    "semantic_extra_unique": 3,
+    "raw_repeated_assertions": 0,
+    "collapsed_repeated_assertions": 0,
+    "published_duplicate_assertions": 0,
+    "independent_multi_value_facts": 8,
+    "ambiguous_literal_facts": 0,
+    "invented_literals": 0,
+    "invalid_provenance_or_value": 0,
+    "unsupported_field_facts": 0,
+    "validator_accepted_documents": 4,
+    "validator_rejected_documents": 0
+  },
+  "residual_classes": [
+    "INCOMPLETE_CONTRACT_IDENTIFIER",
+    "CLIENT_CODE_NOT_ACCOUNT_IDENTIFIER",
+    "DOCUMENT_TYPE_CONTAMINATED_BY_ADJACENT_ISSUER"
+  ],
+  "financial_replay": {
+    "factory_route": "Gate4FinancialCaseRuntimeFactory.create().rebuild_case",
+    "holdout_a_fact_count": 39,
+    "holdout_b_fact_count": 129,
+    "status_complete_for_current_input_set": true,
+    "canonical_json_exact": true
+  },
+  "factory_route_anchors": [
+    "services/broker-reports-gate1-proof/scripts/live_g561_llm_metadata_generalization.py:142",
+    "services/broker-reports-gate1-proof/scripts/live_g561_llm_metadata_generalization.py:303",
+    "services/broker-reports-gate1-proof/broker_reports_gate1/gate3_llm_metadata_adapter.py:109",
+    "services/broker-reports-gate1-proof/broker_reports_gate1/gate3_llm_metadata_adapter.py:162"
+  ],
+  "verification": {
+    "focused_passed": 25,
+    "broad_passed": 141,
+    "failed": 0,
+    "factory_required_forbidden_enforced": true,
+    "architecture_guards_green": true,
+    "financial_exact": true
+  },
+  "private_evidence_committed": false,
+  "semantic_prompt_tuning": 0,
+  "product_activation": false,
+  "commit_or_push": false,
+  "next_goal_started": false
+}

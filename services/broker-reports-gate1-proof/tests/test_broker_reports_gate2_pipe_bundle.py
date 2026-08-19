@@ -189,15 +189,15 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertIn("gate2_source_fact_selection", source)
         self.assertIn("gate2_source_fact_validation", source)
         self.assertIn("gate2_source_fact_runtime", source)
-        self.assertNotIn(
-            "gate2_financial_evidence_production_runtime",
-            source,
-        )
         self.assertNotIn("financial_evidence_enabled", source)
         self.assertNotIn("sys.path.insert", source)
         self.assertNotIn("services/broker-reports-gate1-proof/broker_reports_gate1", source)
 
         module = load_bundle_module()
+        self.assertNotIn(
+            "gate2_financial_evidence_production_runtime",
+            module._BUNDLED_MODULES,
+        )
         bundled_package = sys.modules["broker_reports_gate1"]
         self.assertTrue(hasattr(bundled_package, "Gate2SourceFactRuntimeFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2ManagedPromptResolverFactory"))

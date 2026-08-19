@@ -10,6 +10,8 @@ Product status: `INACTIVE PROOF`
 
 Date: 2026-08-09
 
+Updated: 2026-08-13 (`G5.40D` additive source-fact seam)
+
 ## Purpose
 
 This contract owns one narrow deterministic semantic boundary:
@@ -60,6 +62,24 @@ expense decisions, loss state and provenance, but does not claim category
 completeness and does not call the declaration projector. The original `run`
 contract and result remain unchanged.
 
+G5.40D adds one compatible factory-owned source-fact method on the same
+runtime:
+
+```python
+runtime.run_from_current_source_facts(
+    methodology_ref=...,
+    source_fact_methodology_ref=...,
+    resolved_inputs=...,
+    disposal_fact_id=...,
+    context=trusted_artifact_access_context,
+)
+```
+
+The method invokes the deterministic source-fact consumer composed by the
+factory. It accepts no caller-supplied consumption payload. Its money inputs
+are complete current Gate 4 facts selected under the G5.40D proof-only
+methodology; the Tax Model and declaration result contracts remain unchanged.
+
 The factory composes existing owners rather than bypassing them:
 
 - `Gate5TrustedMethodologyAuthorityFactory.create` resolves exact
@@ -67,6 +87,8 @@ The factory composes existing owners rather than bypassing them:
 - `Gate5SupplementalFactDiscoveryRuntimeFactory.create` obtains the current
   Financial Case and persistent Supplemental Fact values through the G5.5
   boundary;
+- `Gate5DeterministicSourceFactConsumptionRuntimeFactory.create` owns the
+  additive G5.40D normalized-source-fact input path;
 - `Gate5DeclarationProjectionRuntimeFactory.create` owns all
   declaration-specific paths, attributes, codes, transforms, and evidence.
 
@@ -246,6 +268,8 @@ G5.12 remains the sole declaration representation owner.
 - invalid methodology shape/evidence binding, unknown behavior, resource
   identity mismatch, or resource hash mismatch fails closed;
 - no partial Tax Model or declaration fragment is persisted.
+- a missing exact-target transaction charge on the G5.40D path blocks Tax
+  Model production; it never becomes zero.
 
 ## Representative result
 
@@ -282,3 +306,7 @@ The additive G5.14 compatibility seam adds one new hash-pinned methodology
 version and one operation-only result shape inside the same owner. Category
 scope, completeness binding and aggregation remain owned by the separate
 G5.14 contract.
+
+The additive G5.40D seam adds no second Tax Model or source reader. Its bounded
+FIFO, source-granularity and unresolved-methodology rules are owned by
+[Deterministic Source-Fact Consumption v0](./BROKER_REPORTS_GATE5_DETERMINISTIC_SOURCE_FACT_CONSUMPTION.v0.md).

@@ -1,0 +1,160 @@
+{
+  "schema_version": "broker_reports_gate5_coverage_expansion_receipt_v0",
+  "status": "COVERAGE_EXPANSION_LOOP_PROVEN",
+  "proof_date": "2026-08-11",
+  "blockers": [],
+  "scope": {
+    "corpus_id": "gate5-coverage-first-wave",
+    "corpus_version": "2026-08-11.0",
+    "samples_total": 4,
+    "new_synthetic_pressure_reports_supported_without_downstream_tax_changes": 2,
+    "new_real_public_reports_fully_supported": 0,
+    "new_document_classes_full_product_xml_valid": [
+      "xlsx"
+    ]
+  },
+  "environment": {
+    "type": "controlled_staging_plus_local_regression",
+    "repository_head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "branch": "feature/gate5-tax-period-category-aggregation",
+    "worktree_dirty": true,
+    "implementation_files": 11,
+    "implementation_manifest_sha256": "7a4cb780ac88a467a79649e1eca9d944581f19a75114c702ce5e434a1fec01e6",
+    "gate1_bundle_sha256": "ae742f7522bf6e44b34b8f3eae605f73704e1e2b8047b5181bc44a44ff03a88b",
+    "provider_profile": "google_gemini",
+    "provider_model": "models/gemini-3.5-flash",
+    "browser": "local_playwright_1.59.1_chromium"
+  },
+  "corpus": [
+    {
+      "sample_id": "g536_csv_disposal_baseline",
+      "format": "csv",
+      "origin": "synthetic_baseline",
+      "content_sha256": "fbf9d6bd6562b334943a15c5a70ea4bca959a507cdee7671f84128a3249b877c",
+      "economic_meanings": [
+        "SECURITY_DISPOSAL"
+      ],
+      "initial_terminal": "REAL_PRODUCT_PATH_XML_VALID",
+      "root_cause": "NONE_BASELINE",
+      "changed_owner": "NONE",
+      "final_terminal": "REPORT_SUPPORTED+REAL_PRODUCT_PATH_XML_VALID",
+      "downstream_changes": "NONE"
+    },
+    {
+      "sample_id": "g537_html_russian_vocabulary_disposal",
+      "format": "html",
+      "origin": "synthetic_pressure_fixture",
+      "content_sha256": "1a24c1cb84738e5ac777ce734c3701a39e69c9c85fe1127a495c59971b84667d",
+      "economic_meanings": [
+        "SECURITY_DISPOSAL"
+      ],
+      "initial_terminal": "GATE1_COMPLETED_WITH_ADVISORY_UNKNOWN_ROLE",
+      "root_cause": "NO_BLOCKING_GAP_ON_PRODUCT_ROUTE",
+      "changed_owner": "NONE",
+      "final_terminal": "REPORT_SUPPORTED+LOCAL_END_TO_END_FULL_TARGET_XML_VALID",
+      "downstream_changes": "NONE"
+    },
+    {
+      "sample_id": "g537_xlsx_multisheet_disposal",
+      "format": "xlsx",
+      "origin": "synthetic_pressure_fixture",
+      "content_sha256": "8ebdafd5f9a22fd0f103aec0935b162682d8088410f9d4918516c3c0ece19168",
+      "economic_meanings": [
+        "SECURITY_DISPOSAL"
+      ],
+      "initial_terminal": "gate5_product_synthetic_utf8_source_required",
+      "root_cause": "PRODUCT_INTEGRATION_GAP",
+      "changed_owner": "G5_SOURCE_ENVELOPE_AND_OPENWEBUI_PRODUCT_ADAPTER",
+      "minimal_fix": "strict_hash_bound_canonical_base64_transport_and_actual_upload_mime",
+      "final_terminal": "REPORT_SUPPORTED+REAL_PRODUCT_PATH_XML_VALID",
+      "downstream_changes": "NONE"
+    },
+    {
+      "sample_id": "g537_tbank_public_pdf_purchase",
+      "format": "pdf",
+      "origin": "official_public_broker_sample",
+      "publisher_page": "https://www.tbank.ru/business/help/business-invest/account/use/documents/",
+      "source_url": "https://cdn.tbank.ru/static/documents/7b9ccdee-5a02-4ed6-9499-c76082cd8d30.pdf",
+      "content_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+      "economic_meanings_observed": [
+        "SECURITY_PURCHASE",
+        "TRANSACTION_CHARGE"
+      ],
+      "gate1_terminal": "completed_with_blockers",
+      "gate1_blockers": [
+        "unknown_role"
+      ],
+      "live_gate3_annotations_total": 3,
+      "initial_terminal": "EXPECTED_STRUCTURED_FACTS_MACHINE_BLOCKER",
+      "root_cause": "FINANCIAL_SEMANTIC_ROLE_COMPLETENESS_GAP",
+      "changed_owner": "NONE",
+      "final_terminal": "STRUCTURAL_EXTRACTION_SUPPORTED+STRATEGIC_STOP_BEFORE_GATE4",
+      "downstream_changes": "NONE"
+    }
+  ],
+  "canonical_convergence": {
+    "samples": [
+      "g536_csv_disposal_baseline",
+      "g537_html_russian_vocabulary_disposal",
+      "g537_xlsx_multisheet_disposal"
+    ],
+    "gate4_business_semantics_equivalent": true,
+    "declaration_semantics_equivalent": true,
+    "local_xml_byte_identical": true,
+    "local_xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a",
+    "official_xsd_valid": true
+  },
+  "live_product_proof": {
+    "baseline_csv": {
+      "status": "REAL_PRODUCT_PATH_XML_VALID",
+      "downloaded_xml_sha256": "69a2185184ec9c076c8557defd746f04a664caa6fcbc457f494eae1b0b0b16f6",
+      "downloaded_xml_bytes": 1109,
+      "replay_byte_identical": true,
+      "official_xsd_valid": true
+    },
+    "new_xlsx": {
+      "status": "REAL_PRODUCT_PATH_XML_VALID",
+      "downloaded_xml_sha256": "69a2185184ec9c076c8557defd746f04a664caa6fcbc457f494eae1b0b0b16f6",
+      "downloaded_xml_bytes": 1109,
+      "replay_byte_identical": true,
+      "official_xsd_valid": true
+    },
+    "cross_format_downloaded_xml_byte_identical": true,
+    "official_xsd_sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484",
+    "public_pdf_provider_smoke_completed": true,
+    "acl_negative_statuses": {
+      "source": 404,
+      "xml": 404,
+      "chat": 401
+    }
+  },
+  "regression": {
+    "passed": 287,
+    "failed": 0,
+    "warnings": 6,
+    "targeted_coverage_tests_passed": 3
+  },
+  "anti_drift": {
+    "broker_specific_adapter": false,
+    "broker_specific_downstream_tax_branch": false,
+    "new_tax_model": false,
+    "declaration_definition_changed": false,
+    "projection_or_xml_mapping_changed": false,
+    "validator_weakened": false,
+    "new_database_or_registry": false,
+    "second_pipeline": false
+  },
+  "cleanup": {
+    "state_restored": true,
+    "function_global_restored": true,
+    "model_grants_restored": true,
+    "valves_restored": true,
+    "proof_valves_enabled": false
+  },
+  "privacy": {
+    "raw_public_pdf_bytes_in_repository": false,
+    "raw_provider_payload_in_repository": false,
+    "customer_data_in_repository": false,
+    "native_ids_in_receipt": false
+  }
+}

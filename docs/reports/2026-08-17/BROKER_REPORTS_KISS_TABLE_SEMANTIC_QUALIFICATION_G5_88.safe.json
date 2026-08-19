@@ -1,0 +1,74 @@
+{
+  "schema_version": "broker_reports_g588_safe_receipt_v1",
+  "goal": "G5.88",
+  "terminal": "KISS_TABLE_MARKDOWN_TO_JSON_REJECTED",
+  "recommendation": "REJECT",
+  "contract_integrity": {
+    "semantic_instruction_changed_after_development": false,
+    "model_changed": false,
+    "semantic_retries": 0,
+    "best_of_n": false,
+    "prompt_variants": 0,
+    "model_created_literals": 0,
+    "second_semantic_pass": 0,
+    "invented_or_cross_row_refs": 0
+  },
+  "development": {
+    "provider_calls": 7,
+    "validated_table_outputs": 7,
+    "affected_tax_credit_reversals_total": 105,
+    "affected_tax_credit_reversals_unmapped": 25,
+    "affected_tax_credit_reversals_wrong_dividend": 80,
+    "true_dividend_passed": 25,
+    "true_dividend_total": 25,
+    "existing_tax_passed": 110,
+    "existing_tax_total_after_oracle_correction": 113,
+    "structural_none_passed": 12,
+    "structural_none_total": 12,
+    "cross_type_passed": 4,
+    "cross_type_total": 4
+  },
+  "untouched_holdout": {
+    "provider_calls": 1,
+    "passed": 6,
+    "total": 7,
+    "failure": "COMMISSION_TOTAL_returned_as_NONE"
+  },
+  "same_seven_chunk_cost": {
+    "current_two_pass": {
+      "provider_calls": 14,
+      "input_tokens": 129103,
+      "output_tokens": 69712,
+      "provider_total_tokens": 345936,
+      "duration_ms": 913015
+    },
+    "kiss_one_pass": {
+      "provider_calls": 7,
+      "input_tokens": 59138,
+      "output_tokens": 45703,
+      "provider_total_tokens": 163265,
+      "duration_ms": 462579
+    }
+  },
+  "runtime_readiness": {
+    "compatibility_payloads_checked": 8,
+    "honest_kiss_identity_accepted": false,
+    "bound_roles_total": 1104,
+    "bindings_with_exact_text": 0,
+    "whole_description_asset_or_currency_bindings": 458,
+    "direct_runtime_materialization_proven": false
+  },
+  "safety": {
+    "artifact_store_unchanged": true,
+    "production_activation": false,
+    "product_runtime_changed": false,
+    "runtime_bundle_changed": false,
+    "vlm_calls": 0
+  },
+  "private_evidence": {
+    "bundle": "broker-reports-g5.88-20260817-v1",
+    "development_source_truth_qualification_sha256": "b2c307cb060f002d5e504a86d2f821523287fe51afe9649fe4518699854ecc34",
+    "holdout_sha256": "6d06d5216ae245609cc3fa8a55bb49bf1e9a9b8ee1ed4b20bd9ea4caa9f16028",
+    "runtime_readiness_sha256": "70cc384e5ea9a1b632ed588baef446b17e727f31e14fe1a7c6f3b71b6f630b7e"
+  }
+}

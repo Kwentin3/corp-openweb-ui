@@ -1,0 +1,265 @@
+{
+  "schema_version": "broker_reports_gate5_g539r_relation_research_ledger_v1_safe",
+  "goal_id": "G5.39R",
+  "date": "2026-08-12",
+  "mode": "research_only",
+  "terminal": "NO_RELATION_STRATEGY_PROVEN",
+  "blocker": "UPSTREAM_STRUCTURE_RELATION_LOSS",
+  "privacy": "safe_aggregate_evidence_only_no_customer_values_no_private_paths",
+  "baseline": {
+    "product_head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "product_head_tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+    "product_tree_dirty_on_entry": true,
+    "g539_research_commit": "1fb05ed3e725ff27701d97b1136dcb7ca01aee7d",
+    "g539_research_tree": "8370cebde17bcf6f0c39ea10b2f03c2cf4512ae5",
+    "g539r_research_commit": "93dbfbb89ddd5ae75627ea590cc9cf26e8892246",
+    "g539r_research_tree": "4b86762cbe40b6cffd38737247bf6687392c1392",
+    "preregistration_sha256": "de7c206fa103139ace2ca5c730e1fa9c443f32f2eabd2d9118482b996cdab112"
+  },
+  "corpus": {
+    "version": "broker_reports_gate5_g539_corpus_v3_safe",
+    "changed_from_g539": false,
+    "safe_manifest_sha256": "dc9619eb446c01c82cbce538e01c70be7c170c25da95c4ef230efce217d61c2d",
+    "private_reviewed_oracle_sha256": "d76ade254cfe2c323e0ab73daf0fcf83d598034022e096dba6c86173a65e6c85",
+    "runtime_oracle_free_sha256": "b840856d776b419851fd482b1da03cdde7deaea468c4201cd7a551a0835fd744",
+    "private_evaluator_sha256": "661a1165422a218fe278a191beec699672f153b742df07f178f86055f6401ef8",
+    "runtime_oracle_leak_count": 0,
+    "cases": [
+      "DEV_PUBLIC_TBANK",
+      "HOLDOUT_REAL_001",
+      "LARGE_REAL_001",
+      "NEGATIVE_AB_001"
+    ]
+  },
+  "method": {
+    "relation_llm_calls": 0,
+    "strategy_process_oracle_access": false,
+    "proposal_before_adjudication": true,
+    "retry": 0,
+    "repair": 0,
+    "best_of_n": false,
+    "merge": false,
+    "whole_document_model_context": false,
+    "new_persistence": false,
+    "generic_graph": false
+  },
+  "experiments": [
+    {
+      "hypothesis": "R1",
+      "name": "explicit source identity",
+      "experiment_commit": "b628c29fa87744c63b19d5695c35328d07916aa6",
+      "experiment_tree": "f7f70663025b00816245869077cb22ab38b976f0",
+      "proposal_sha256": "d90223f4afda652a370b3b65023a03f6781518c6d21bd09c8d9a4a4adc7410d9",
+      "evaluation_sha256": "b89b2b90eb2b68fff746269b098e4c18c1013db9f8032daeee3329d7eae78a6c",
+      "proposal_replay_byte_equal": true,
+      "strategy_loc": 113,
+      "new_production_schemas": 0,
+      "new_persistence_surfaces": 0,
+      "cases": {
+        "DEV_PUBLIC_TBANK": "UNRESOLVED",
+        "HOLDOUT_REAL_001": "UNRESOLVED",
+        "LARGE_REAL_001": "UNRESOLVED",
+        "NEGATIVE_AB_001": "CORRECT"
+      },
+      "metrics": {
+        "events_expected": 4,
+        "correct_witnesses": 1,
+        "false_relations": 0,
+        "cross_event_joins": 0,
+        "incomplete": 0,
+        "ambiguous": 0,
+        "unresolved": 3,
+        "invalid": 0,
+        "precision": 1.0,
+        "recall": 0.25,
+        "refs_examined": 9463,
+        "source_chars_examined": 0,
+        "largest_witness_refs": 11,
+        "hard_invariants": "PASS"
+      },
+      "verdict": "REJECT_SYNTHETIC_ONLY_COVERAGE"
+    },
+    {
+      "hypothesis": "R2",
+      "name": "source structural container",
+      "experiment_commit": "e1e458313754d724778e52a59f6da943da70dd20",
+      "experiment_tree": "3180b8c3cdf1362777120439cf9054f0aa59768d",
+      "proposal_sha256": "0bd92a987413314b48995b228931a61121a26b26dc951f291974d500e85a1621",
+      "evaluation_sha256": "c4747b1cb06c0d40b6d5cabb4f27dafc62b836795d3ecd9bce315acbf963fd15",
+      "proposal_replay_byte_equal": true,
+      "strategy_loc": 47,
+      "new_production_schemas": 0,
+      "new_persistence_surfaces": 0,
+      "cases": {
+        "DEV_PUBLIC_TBANK": "INCOMPLETE",
+        "HOLDOUT_REAL_001": "CORRECT",
+        "LARGE_REAL_001": "INCOMPLETE",
+        "NEGATIVE_AB_001": "INCOMPLETE"
+      },
+      "metrics": {
+        "events_expected": 4,
+        "correct_witnesses": 1,
+        "false_relations": 0,
+        "cross_event_joins": 0,
+        "incomplete": 3,
+        "ambiguous": 0,
+        "unresolved": 0,
+        "invalid": 0,
+        "precision": 0.25,
+        "recall": 0.25,
+        "refs_examined": 38,
+        "source_chars_examined": 0,
+        "largest_witness_refs": 16,
+        "hard_invariants": "PASS"
+      },
+      "verdict": "REJECT_ROW_LOCAL_ONLY"
+    },
+    {
+      "hypothesis": "R3",
+      "name": "exact deterministic identity constraints",
+      "experiment_commit": "806793449497597afaab39b2c86b4826717e6f96",
+      "experiment_tree": "11f299dc7194f63ed4314b18ee29ad8add838b6d",
+      "proposal_sha256": "52a4ac75271b6be9fd446788b195c41a8d6701b837c4a2da264c780d36dbe24f",
+      "evaluation_sha256": "c24e41569c7b00bd2a9318f475854b5dff053ee765e33a26e8c180312fe434ca",
+      "proposal_replay_byte_equal": true,
+      "strategy_loc": 100,
+      "new_production_schemas": 0,
+      "new_persistence_surfaces": 0,
+      "cases": {
+        "DEV_PUBLIC_TBANK": "UNRESOLVED",
+        "HOLDOUT_REAL_001": "UNRESOLVED",
+        "LARGE_REAL_001": "UNRESOLVED",
+        "NEGATIVE_AB_001": "UNRESOLVED"
+      },
+      "metrics": {
+        "events_expected": 4,
+        "correct_witnesses": 0,
+        "false_relations": 0,
+        "cross_event_joins": 0,
+        "incomplete": 0,
+        "ambiguous": 0,
+        "unresolved": 4,
+        "invalid": 0,
+        "precision": null,
+        "recall": 0.0,
+        "refs_examined": 9463,
+        "source_chars_examined": 302580,
+        "largest_witness_refs": 0,
+        "hard_invariants": "PASS"
+      },
+      "verdict": "REJECT_NO_TARGET_GRANULAR_IDENTITY"
+    },
+    {
+      "hypothesis": "R4",
+      "name": "hybrid minimal witness",
+      "experiment_commit": "b7e1cce06576163eed43be8926e4e3783463c74e",
+      "experiment_tree": "89519e2bd033bce74aab40ba597aa28d0e084c0b",
+      "proposal_sha256": "064c34cc87133d64f71ab6e3132146660287b594c38a355cac07bd28a1e670c1",
+      "evaluation_sha256": "48e98f8a3303bd09a01c6594a77f44e1974c689587229ddf192e10dbdd0427be",
+      "proposal_replay_byte_equal": true,
+      "strategy_loc": 143,
+      "new_production_schemas": 0,
+      "new_persistence_surfaces": 0,
+      "cases": {
+        "DEV_PUBLIC_TBANK": "UNRESOLVED",
+        "HOLDOUT_REAL_001": "UNRESOLVED",
+        "LARGE_REAL_001": "UNRESOLVED",
+        "NEGATIVE_AB_001": "CORRECT"
+      },
+      "metrics": {
+        "events_expected": 4,
+        "correct_witnesses": 1,
+        "false_relations": 0,
+        "cross_event_joins": 0,
+        "incomplete": 0,
+        "ambiguous": 0,
+        "unresolved": 3,
+        "invalid": 0,
+        "precision": 1.0,
+        "recall": 0.25,
+        "refs_examined": 9463,
+        "source_chars_examined": 302580,
+        "largest_witness_refs": 11,
+        "hard_invariants": "PASS"
+      },
+      "verdict": "REJECT_SYNTHETIC_ONLY_COVERAGE"
+    }
+  ],
+  "structural_loss_audit": {
+    "DEV_PUBLIC_TBANK": {
+      "oracle_event_rows": 9,
+      "required_refs": 24,
+      "explicit_relation_edges": 0,
+      "anchor_identity_kinds": 0,
+      "event_granular_container_metadata": 0,
+      "conclusion": "distributed membership absent from source-derived runtime structure"
+    },
+    "HOLDOUT_REAL_001": {
+      "oracle_event_rows": 1,
+      "required_refs": 9,
+      "explicit_relation_edges": 0,
+      "anchor_explicit_identity_values": 1,
+      "anchor_identity_row_frequency": 1,
+      "conclusion": "row container is sufficient; identity does not relate another row"
+    },
+    "LARGE_REAL_001": {
+      "oracle_event_rows": 3,
+      "required_refs": 17,
+      "explicit_relation_edges": 0,
+      "anchor_identity_kinds": 0,
+      "event_granular_container_metadata": 0,
+      "non_event_table_date_range_containers": 57,
+      "conclusion": "distributed membership absent; page/table/date-range metadata is not event identity"
+    },
+    "NEGATIVE_AB_001": {
+      "oracle_event_rows": 2,
+      "required_refs": 8,
+      "explicit_relation_edges": 2,
+      "conclusion": "explicit source relation proves the positive event with zero A/B join"
+    }
+  },
+  "role_finalist": {
+    "status": "NOT_RUN_NO_RELATION_FINALIST",
+    "provider_calls": 0,
+    "reason": "no strategy passed DEV plus independent real holdout relation correctness"
+  },
+  "regression": {
+    "command_shell": "Windows PowerShell",
+    "tests": [
+      "tests/test_broker_reports_gate5_coverage_expansion.py",
+      "tests/test_broker_reports_gate5_related_securities_events.py"
+    ],
+    "passed": 8,
+    "failed": 0,
+    "duration_seconds": 3.89,
+    "production_code_changed_by_g539r": false
+  },
+  "research_tests": {
+    "common_evaluator_passed": 4,
+    "R1_total_passed": 6,
+    "R2_total_passed": 5,
+    "R3_total_passed": 6,
+    "R4_total_passed": 6,
+    "cross_event_negative_asserted": true,
+    "raw_literal_identity_negative_asserted": true,
+    "arithmetic_only_identity_negative_asserted": true
+  },
+  "journal": {
+    "github_issue": 278,
+    "url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278"
+  },
+  "cleanup": {
+    "experiment_worktrees_removed": true,
+    "experiment_branches_removed": true,
+    "nested_research_repository_removed": true,
+    "private_exact_evidence_retained_under_ignored_local": true,
+    "product_safe_artifacts_retained": true
+  },
+  "selection": {
+    "winner": null,
+    "partial_winner": null,
+    "reason": "no source-authored strategy passed DEV and independent real holdout; explicit relation coverage was synthetic-only and row-container coverage was row-local only",
+    "g540_authorized": false,
+    "next_authorization": null
+  }
+}

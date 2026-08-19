@@ -1,0 +1,201 @@
+{
+  "goal": "G5.96",
+  "manifest_sha256": "db7c19e4b17d0714969e448b75618995ac5d9cdeda494a10a36ffbca864f2799",
+  "pages": [
+    {
+      "attempt": {
+        "attempt_number": 1,
+        "duration_ms": 23083,
+        "finish_reason": "STOP",
+        "hidden_retry": false,
+        "http_status": 200,
+        "model_requested": "models/gemini-3.5-flash",
+        "model_resolved": "models/gemini-3.5-flash",
+        "parse_result": "parsed_object",
+        "provider": "google",
+        "provider_failover": false,
+        "provider_profile": "google_gemini",
+        "terminal_failure_class": null,
+        "usage": {
+          "input_tokens": 1316,
+          "output_tokens": 667,
+          "total_tokens": 1983
+        }
+      },
+      "page": 23,
+      "response_hash": "b6877cbb9d86be86f30660823362a6fd25478fb4f7daeea4172de21be054f85c",
+      "status": "blocked",
+      "tables": 0,
+      "validation_error": "g596_vlm_end_anchor_not_allowed"
+    },
+    {
+      "attempt": {
+        "attempt_number": 1,
+        "duration_ms": 12793,
+        "finish_reason": "STOP",
+        "hidden_retry": false,
+        "http_status": 200,
+        "model_requested": "models/gemini-3.5-flash",
+        "model_resolved": "models/gemini-3.5-flash",
+        "parse_result": "parsed_object",
+        "provider": "google",
+        "provider_failover": false,
+        "provider_profile": "google_gemini",
+        "terminal_failure_class": null,
+        "usage": {
+          "input_tokens": 1316,
+          "output_tokens": 201,
+          "total_tokens": 1517
+        }
+      },
+      "page": 24,
+      "response_hash": "489f4bac8704174d74a4c33a8e4e44c4c2bd85c8e89616870d1cffe5814eaf77",
+      "status": "blocked",
+      "tables": 0,
+      "validation_error": "g596_vlm_end_anchor_not_allowed"
+    },
+    {
+      "attempt": {
+        "attempt_number": 1,
+        "duration_ms": 2212,
+        "finish_reason": null,
+        "hidden_retry": false,
+        "http_status": null,
+        "model_requested": "models/gemini-3.5-flash",
+        "model_resolved": null,
+        "parse_result": "not_parsed",
+        "provider": "google",
+        "provider_failover": false,
+        "provider_profile": "google_gemini",
+        "terminal_failure_class": "timeout_or_transport",
+        "usage": {
+          "input_tokens": null,
+          "output_tokens": null,
+          "total_tokens": null
+        }
+      },
+      "page": 25,
+      "response_hash": "5a29b3e1cd8f5c835188e4388b5b63b2e1b01d8c942de5297c55703ff4cc6ab4",
+      "status": "blocked",
+      "tables": 0,
+      "validation_error": "g596_vlm_contract_top_level_invalid"
+    },
+    {
+      "attempt": {
+        "attempt_number": 1,
+        "duration_ms": 12392,
+        "finish_reason": "STOP",
+        "hidden_retry": false,
+        "http_status": 200,
+        "model_requested": "models/gemini-3.5-flash",
+        "model_resolved": "models/gemini-3.5-flash",
+        "parse_result": "parsed_object",
+        "provider": "google",
+        "provider_failover": false,
+        "provider_profile": "google_gemini",
+        "terminal_failure_class": null,
+        "usage": {
+          "input_tokens": 1316,
+          "output_tokens": 200,
+          "total_tokens": 1516
+        }
+      },
+      "page": 26,
+      "response_hash": "8addec42467005a2e2bf1deca4ecdd19cfea50d9d057e798496c4684b632bba4",
+      "status": "blocked",
+      "tables": 0,
+      "validation_error": "g596_vlm_end_anchor_not_allowed"
+    },
+    {
+      "attempt": {
+        "attempt_number": 1,
+        "duration_ms": 23757,
+        "finish_reason": "STOP",
+        "hidden_retry": false,
+        "http_status": 200,
+        "model_requested": "models/gemini-3.5-flash",
+        "model_resolved": "models/gemini-3.5-flash",
+        "parse_result": "parsed_object",
+        "provider": "google",
+        "provider_failover": false,
+        "provider_profile": "google_gemini",
+        "terminal_failure_class": null,
+        "usage": {
+          "input_tokens": 1316,
+          "output_tokens": 585,
+          "total_tokens": 1901
+        }
+      },
+      "page": 27,
+      "response_hash": "b55eb31988a46f8ed7de9a87ebbf1d1f3f9542b1a996e01ef3c4970154e265e4",
+      "status": "blocked",
+      "tables": 0,
+      "validation_error": "g596_vlm_end_anchor_not_allowed"
+    },
+    {
+      "attempt": {
+        "attempt_number": 1,
+        "duration_ms": 24167,
+        "finish_reason": "STOP",
+        "hidden_retry": false,
+        "http_status": 200,
+        "model_requested": "models/gemini-3.5-flash",
+        "model_resolved": "models/gemini-3.5-flash",
+        "parse_result": "parsed_object",
+        "provider": "google",
+        "provider_failover": false,
+        "provider_profile": "google_gemini",
+        "terminal_failure_class": null,
+        "usage": {
+          "input_tokens": 1316,
+          "output_tokens": 359,
+          "total_tokens": 1675
+        }
+      },
+      "page": 28,
+      "response_hash": "31eab4861249e62efbd9da22353ab8ad3af2c4f156b8bc61488bb0d702722450",
+      "status": "blocked",
+      "tables": 0,
+      "validation_error": "g596_vlm_end_anchor_not_allowed"
+    },
+    {
+      "attempt": {
+        "attempt_number": 1,
+        "duration_ms": 39059,
+        "finish_reason": "STOP",
+        "hidden_retry": false,
+        "http_status": 200,
+        "model_requested": "models/gemini-3.5-flash",
+        "model_resolved": "models/gemini-3.5-flash",
+        "parse_result": "parsed_object",
+        "provider": "google",
+        "provider_failover": false,
+        "provider_profile": "google_gemini",
+        "terminal_failure_class": null,
+        "usage": {
+          "input_tokens": 1316,
+          "output_tokens": 759,
+          "total_tokens": 2075
+        }
+      },
+      "page": 64,
+      "response_hash": "a21288d8e691504f0521fe122d7470ffa532579fec6a87aab279a9ce2c703ab0",
+      "status": "blocked",
+      "tables": 0,
+      "validation_error": "g596_vlm_end_anchor_not_allowed"
+    }
+  ],
+  "phase": "vlm_layout_contract",
+  "privacy": {
+    "page_images_in_safe_output": false,
+    "private_paths_in_safe_output": false,
+    "provider_payloads_in_safe_output": false,
+    "raw_customer_text_in_safe_output": false
+  },
+  "provider_calls": 7,
+  "schema_version": "broker_reports_table_materialization_g596_safe_v1",
+  "status": "blocked",
+  "vlm_body_values_used": 0,
+  "vlm_canonical_ids": 0,
+  "vlm_exact_bboxes": 0
+}

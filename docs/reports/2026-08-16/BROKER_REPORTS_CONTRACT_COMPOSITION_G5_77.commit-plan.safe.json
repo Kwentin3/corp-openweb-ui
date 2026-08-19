@@ -1,0 +1,29 @@
+{
+  "schema_version": "broker_reports_g577_focused_commit_plan_v1",
+  "goal": "G5.77",
+  "intent": "docs(broker-reports): harden stage-aware consumer contracts",
+  "focused_commit_prepared": true,
+  "isolated_commit_sha": "4a0f1f29aa9398ae5f078e4e28d522f5331bcbe4",
+  "format_patch_sha256": "8d29d3308299b9dced20d9de956536316c4bb71db9027a823ee8094f02d5b80e",
+  "format_patch_git_am_check": "PASS",
+  "main_worktree_commit_created": false,
+  "staged": false,
+  "reason": "required prerequisite files are untracked and tracked authority files contain unrelated user-owned changes",
+  "allowed_scope": [
+    "maintained contract composition hunks",
+    "Pipeline Gates stage/consumer map hunks",
+    "Architecture Authorities precedence hunks",
+    "minimal Declaration Preparation API comment",
+    "G5.77 anti-drift test",
+    "G5.77 safe closeout artifacts"
+  ],
+  "excluded_scope": [
+    "13 role fixes",
+    "3 decimal fixes",
+    "FIFO methodology implementation",
+    "Gate 5 calculation changes",
+    "metadata experiments",
+    "unrelated dirty-tree changes"
+  ],
+  "next_safe_action": "after the prerequisite chain is committed unchanged, apply the verified format-patch or raw patch; do not stage unrelated dirty-tree files"
+}

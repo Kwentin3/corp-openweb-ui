@@ -1,0 +1,621 @@
+{
+  "consumer_specific_fact_types_created": 0,
+  "contract_gaps_remaining": 0,
+  "demand_rows_per_unique_fact_meaning": "32/10",
+  "existing_fact_meanings_reused": 7,
+  "goal": "G5.47",
+  "input_gap_rows": 32,
+  "matrix": [
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_034285a5177356751ed2cc753b13a46f",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_0483be7ccaa21caa2fe51d5d2233f362",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_2ca9ce1bce096828c9d61f7c6ebcc3f2",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_3a4f0207737ecf551916f877ac9632b0",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_4158cdecba1c138818bfa4a18bfd893d",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_4a8aa6d2726bcd818b341cd55ac4be98",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_5e81e1dd6c01588344f9867e3f6f428b",
+      "underlying_semantic_meanings": [
+        "source_meaning:tax_withheld",
+        "source_meaning:tax_withheld_total"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_876111b9322697d451a0d06d7a9aaee6",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_895cddd0cab6bcf62b0e9feea07fcb1c",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_8e10d8827e0d095d4cca5e2ec87b5e6e",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_9287bdb708b2a816aa07f0b57011118c",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_a6a2e6ffa78c2d8ae81b4d66ff35387e",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_b122d237a52d968e67053e82c594e163",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_c6d6f1535984b73b820df8949762bc5f",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_d2766462f65738d2b3f66d08c44a9b37",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_d5e76314ef2add472c215f9b265221f9",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_d7e43153daf00b6748edd1bd6fe5face",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_e5e24ae749f0a5bb8bb15d784110ae64",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_f73a6978db8b5a5906e4d54e00ea85cd",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5ClientEvidenceReviewRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "client_review:g5finding_fdb3ca0d431aaa5e657188c885868f4e",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create",
+        "Gate5IncomeGroupTaxBaseRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "coupon_currency",
+      "underlying_semantic_meanings": [
+        "source_meaning:coupon_income"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create",
+        "Gate5IncomeGroupTaxBaseRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "disposal_date",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5IncomeGroupTaxBaseRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "dividend_amount",
+      "underlying_semantic_meanings": [
+        "source_meaning:dividend_income"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5IncomeGroupTaxBaseRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "dividend_currency",
+      "underlying_semantic_meanings": [
+        "source_meaning:dividend_income"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5IncomeGroupTaxBaseRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "dividend_income_date",
+      "underlying_semantic_meanings": [
+        "source_meaning:dividend_income"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create",
+        "Gate5IncomeGroupTaxBaseRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "income_or_expense_date",
+      "underlying_semantic_meanings": [
+        "source_meaning:commission",
+        "source_meaning:dividend_income",
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5IncomeGroupTaxBaseRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": false,
+      "new_fact_needed": true,
+      "required_input": "payer_organization_identity",
+      "underlying_semantic_meanings": [
+        "source_meaning:payer_organization_identity"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5DeclarationIncomeSourcesRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": false,
+      "new_fact_needed": true,
+      "required_input": "payer_organization_jurisdiction",
+      "underlying_semantic_meanings": [
+        "source_meaning:payer_organization_jurisdiction"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5DeclarationIncomeSourcesRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": false,
+      "new_fact_needed": true,
+      "required_input": "realization_location_jurisdiction",
+      "underlying_semantic_meanings": [
+        "source_meaning:realization_location_jurisdiction"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create",
+        "Gate5IncomeGroupTaxBaseRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "security_identity",
+      "underlying_semantic_meanings": [
+        "source_meaning:security_disposal",
+        "source_meaning:security_purchase"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create",
+        "Gate5IncomeGroupTaxBaseRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "source_amount",
+      "underlying_semantic_meanings": [
+        "source_meaning:dividend_income",
+        "source_meaning:security_disposal"
+      ]
+    },
+    {
+      "consumers": [
+        "Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create",
+        "Gate5IncomeGroupTaxBaseRuntimeFactory.create"
+      ],
+      "contract_gap_remaining": false,
+      "existing_fact_contract": true,
+      "new_fact_needed": false,
+      "required_input": "source_currency",
+      "underlying_semantic_meanings": [
+        "source_meaning:coupon_income",
+        "source_meaning:dividend_income",
+        "source_meaning:security_disposal"
+      ]
+    }
+  ],
+  "new_distinct_source_meanings": 3,
+  "private_values_committed": false,
+  "schema_version": "broker_reports_gate5_g547_consolidation_safe_v1",
+  "source_literals_committed": false,
+  "unique_fact_meanings": 10,
+  "unique_meanings": [
+    {
+      "consumer_count": 2,
+      "consumer_required_roles": [
+        "date"
+      ],
+      "demand_count": 1,
+      "existing_owner": "Gate4FinancialCaseFactV2",
+      "fact_meaning": "one explicit COMMISSION source observation",
+      "fact_type": "COMMISSION",
+      "meaning_id": "source_meaning:commission",
+      "optional_roles": [
+        "date",
+        "asset"
+      ],
+      "required_roles": [
+        "amount",
+        "currency"
+      ],
+      "source_ceiling": "EXPLICIT_FINANCIAL_OBSERVATION_ONLY"
+    },
+    {
+      "consumer_count": 2,
+      "consumer_required_roles": [
+        "currency"
+      ],
+      "demand_count": 2,
+      "existing_owner": "Gate4FinancialCaseFactV2",
+      "fact_meaning": "one explicit COUPON_INCOME source observation",
+      "fact_type": "COUPON_INCOME",
+      "meaning_id": "source_meaning:coupon_income",
+      "optional_roles": [
+        "asset"
+      ],
+      "required_roles": [
+        "date",
+        "amount",
+        "currency"
+      ],
+      "source_ceiling": "EXPLICIT_FINANCIAL_OBSERVATION_ONLY"
+    },
+    {
+      "consumer_count": 2,
+      "consumer_required_roles": [
+        "amount",
+        "currency",
+        "date"
+      ],
+      "demand_count": 6,
+      "existing_owner": "Gate4FinancialCaseFactV2",
+      "fact_meaning": "one explicit DIVIDEND_INCOME source observation",
+      "fact_type": "DIVIDEND_INCOME",
+      "meaning_id": "source_meaning:dividend_income",
+      "optional_roles": [
+        "asset"
+      ],
+      "required_roles": [
+        "date",
+        "amount",
+        "currency"
+      ],
+      "source_ceiling": "EXPLICIT_FINANCIAL_OBSERVATION_ONLY"
+    },
+    {
+      "consumer_count": 1,
+      "consumer_required_roles": [
+        "value"
+      ],
+      "demand_count": 1,
+      "existing_owner": "Gate5 bounded literal source fact",
+      "fact_meaning": "explicit payer organization identity",
+      "fact_type": "PAYER_ORGANIZATION_IDENTITY",
+      "meaning_id": "source_meaning:payer_organization_identity",
+      "optional_roles": [],
+      "required_roles": [
+        "value"
+      ],
+      "source_ceiling": "EXPLICIT_ROLE_LITERAL_ONLY"
+    },
+    {
+      "consumer_count": 1,
+      "consumer_required_roles": [
+        "value"
+      ],
+      "demand_count": 1,
+      "existing_owner": "Gate5 bounded literal source fact",
+      "fact_meaning": "explicit jurisdiction of the payer organization",
+      "fact_type": "PAYER_ORGANIZATION_JURISDICTION",
+      "meaning_id": "source_meaning:payer_organization_jurisdiction",
+      "optional_roles": [],
+      "required_roles": [
+        "value"
+      ],
+      "source_ceiling": "EXPLICIT_ROLE_LITERAL_ONLY"
+    },
+    {
+      "consumer_count": 1,
+      "consumer_required_roles": [
+        "value"
+      ],
+      "demand_count": 1,
+      "existing_owner": "Gate5 bounded literal source fact",
+      "fact_meaning": "explicit jurisdiction of realization, not a generic location",
+      "fact_type": "REALIZATION_LOCATION_JURISDICTION",
+      "meaning_id": "source_meaning:realization_location_jurisdiction",
+      "optional_roles": [],
+      "required_roles": [
+        "value"
+      ],
+      "source_ceiling": "EXPLICIT_ROLE_LITERAL_ONLY"
+    },
+    {
+      "consumer_count": 3,
+      "consumer_required_roles": [
+        "amount",
+        "asset",
+        "currency",
+        "date",
+        "quantity"
+      ],
+      "demand_count": 13,
+      "existing_owner": "Gate4FinancialCaseFactV2",
+      "fact_meaning": "one explicit SECURITY_DISPOSAL source observation",
+      "fact_type": "SECURITY_DISPOSAL",
+      "meaning_id": "source_meaning:security_disposal",
+      "optional_roles": [
+        "unit_price"
+      ],
+      "required_roles": [
+        "date",
+        "asset",
+        "quantity",
+        "amount",
+        "currency"
+      ],
+      "source_ceiling": "EXPLICIT_FINANCIAL_OBSERVATION_ONLY"
+    },
+    {
+      "consumer_count": 3,
+      "consumer_required_roles": [
+        "amount",
+        "asset",
+        "currency",
+        "date",
+        "quantity"
+      ],
+      "demand_count": 12,
+      "existing_owner": "Gate4FinancialCaseFactV2",
+      "fact_meaning": "one explicit SECURITY_PURCHASE source observation",
+      "fact_type": "SECURITY_PURCHASE",
+      "meaning_id": "source_meaning:security_purchase",
+      "optional_roles": [
+        "unit_price"
+      ],
+      "required_roles": [
+        "date",
+        "asset",
+        "quantity",
+        "amount",
+        "currency"
+      ],
+      "source_ceiling": "EXPLICIT_FINANCIAL_OBSERVATION_ONLY"
+    },
+    {
+      "consumer_count": 1,
+      "consumer_required_roles": [
+        "amount",
+        "asset",
+        "currency",
+        "date"
+      ],
+      "demand_count": 1,
+      "existing_owner": "Gate4FinancialCaseFactV2",
+      "fact_meaning": "one explicit TAX_WITHHELD source observation",
+      "fact_type": "TAX_WITHHELD",
+      "meaning_id": "source_meaning:tax_withheld",
+      "optional_roles": [
+        "asset"
+      ],
+      "required_roles": [
+        "date",
+        "amount",
+        "currency"
+      ],
+      "source_ceiling": "EXPLICIT_FINANCIAL_OBSERVATION_ONLY"
+    },
+    {
+      "consumer_count": 1,
+      "consumer_required_roles": [
+        "amount",
+        "asset",
+        "currency"
+      ],
+      "demand_count": 1,
+      "existing_owner": "Gate4FinancialCaseFactV2",
+      "fact_meaning": "one explicit TAX_WITHHELD_TOTAL source observation",
+      "fact_type": "TAX_WITHHELD_TOTAL",
+      "meaning_id": "source_meaning:tax_withheld_total",
+      "optional_roles": [
+        "date",
+        "asset"
+      ],
+      "required_roles": [
+        "amount",
+        "currency"
+      ],
+      "source_ceiling": "EXPLICIT_FINANCIAL_OBSERVATION_ONLY"
+    }
+  ]
+}

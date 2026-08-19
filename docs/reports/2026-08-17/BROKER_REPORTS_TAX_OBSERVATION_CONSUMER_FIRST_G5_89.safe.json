@@ -1,0 +1,23 @@
+{
+  "schema_version": "broker_reports_g5_89_safe_receipt_v1",
+  "goal": "G5.89",
+  "status": "METHODOLOGY_INPUT_CONTRACT_GAP_PROVEN",
+  "date": "2026-08-17",
+  "privacy": {
+    "private_source_bytes_in_git": false,
+    "private_paths_in_git": false,
+    "source_values_in_git": false,
+    "provider_calls": 0
+  },
+  "decision": {
+    "new_source_type_added": false,
+    "named_downstream_consumer": null,
+    "unmapped_retention_sufficient": true,
+    "architecture_boundary_change_required": false,
+    "contract_implementation_drift_proven": false
+  },
+  "verification": {
+    "baseline_passed": 61,
+    "post_change_passed": 85
+  }
+}

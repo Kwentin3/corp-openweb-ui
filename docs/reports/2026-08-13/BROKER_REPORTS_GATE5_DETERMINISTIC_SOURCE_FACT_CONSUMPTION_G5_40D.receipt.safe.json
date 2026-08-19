@@ -1,0 +1,48 @@
+{
+  "schema_version": "broker_reports_g540d_proof_receipt_safe_v1",
+  "goal": "G5.40D",
+  "date": "2026-08-13",
+  "core_terminals": [
+    "DETERMINISTIC_SOURCE_FACT_CONSUMPTION_PROVEN",
+    "FIFO_WITHOUT_STORED_EVENT_PROVEN",
+    "SOURCE_GRANULARITY_PRESERVED"
+  ],
+  "overall_terminal": "UPSTREAM_SOURCE_FACT_GAP_LOCALIZED",
+  "methodology": {
+    "methodology_id": "ru-ndfl-securities-source-fact-consumption-proof",
+    "methodology_version": "2026.4-experimental",
+    "resource_sha256": "ed541a77f390cd7ee787f5ff179208545df6ef0c66d6e2d02c106cdc54a98ac7"
+  },
+  "controlled_behavior": {
+    "purchase_fact_count": 2,
+    "disposal_fact_count": 1,
+    "fifo_lot_count": 2,
+    "stored_event_count": 0,
+    "stored_relation_count": 0,
+    "commission_assertion_mode": "hybrid",
+    "withheld_tax_assertion_mode": "hybrid",
+    "reconciliation_performed": false,
+    "declaration_projection_status": "projected"
+  },
+  "verification": {
+    "focused_source_fact_tests": "6 passed",
+    "supported_declaration_xml_and_architecture_replay": "72 passed, 6 existing deprecation warnings",
+    "gate1_bundle_sha256": "64d8b9019a2eadb640774f0df4dd008966af7300ee2cce739992a24a422cd246",
+    "test_runner_executed": true
+  },
+  "research_journal": {
+    "issue": "Kwentin3/corp-openweb-ui#278",
+    "comment_id": 5276735983
+  },
+  "broad_service_suite": {
+    "collected_tests": 3405,
+    "attempt_1": "RUNNER_TIMEOUT_AFTER_364_SECONDS_WITHOUT_ASSERTION_OUTPUT",
+    "attempt_2": "RUNNER_TIMEOUT_AFTER_904_SECONDS_WITHOUT_ASSERTION_OUTPUT"
+  },
+  "privacy": {
+    "real_document_values_in_receipt": false,
+    "real_document_paths_in_receipt": false,
+    "source_identification": "safe sample IDs and SHA-256 only"
+  },
+  "activation": "NOT_AUTHORIZED"
+}

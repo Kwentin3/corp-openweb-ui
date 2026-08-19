@@ -1,0 +1,22 @@
+{
+  "annotations_validated": 1421,
+  "canonical_version_id": "canver_lvs64r6lTXf56n30XPIfbV0FRxwVW1lE",
+  "chunks_provider_failed": 1,
+  "chunks_rejected": 1,
+  "chunks_total": 140,
+  "chunks_validated": 138,
+  "document_id": "brdoc_001_7cfd297786cc",
+  "document_status": "incomplete",
+  "fallback_count": 0,
+  "goal": "G5.80",
+  "manual_facts": 0,
+  "private_result_sha256": "336e2a5fa750ba7d03502750c639140685d7e181cee3e4b25f2d704fb5cf685a",
+  "production_visual_dependency": false,
+  "provider_submissions": 188,
+  "provider_submissions_max": 280,
+  "provider_submissions_returned": 188,
+  "repair_count": 0,
+  "retry_count": 0,
+  "schema_version": "broker_reports_g580_atomic_replay_receipt_v1",
+  "terminal": "DOWNSTREAM_REPLAY_INCOMPLETE"
+}

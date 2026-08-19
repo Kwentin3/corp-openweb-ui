@@ -39,6 +39,9 @@ from broker_reports_gate1.pdf_text_layer import (
     FORBIDDEN,
     resolve_pdf_payload_source_value,
 )
+from broker_reports_gate1.pdf_layout_units import (
+    _page_text_supports_layout_partition,
+)
 
 
 def _font_resource(writer: PdfWriter):
@@ -166,6 +169,32 @@ def _ruled_table_pdf() -> bytes:
     return _pdf_bytes([{"texts": texts, "vectors": vectors}])
 
 
+def _ruled_table_with_cross_boundary_line_pdf() -> bytes:
+    texts = [
+        (30, 220, "Date"),
+        (125, 220, "Amount"),
+        (225, 220, "Currency"),
+        (30, 195, "2026-01-01"),
+        (125, 195, "10.00"),
+        (225, 195, "USD"),
+        (305, 195, "X"),
+        (30, 170, "2026-01-02"),
+        (125, 170, "20.00"),
+        (225, 170, "EUR"),
+    ]
+    vectors = [
+        "20 155 m 300 155 l S",
+        "20 180 m 300 180 l S",
+        "20 205 m 300 205 l S",
+        "20 230 m 300 230 l S",
+        "20 155 m 20 230 l S",
+        "110 155 m 110 230 l S",
+        "210 155 m 210 230 l S",
+        "300 155 m 300 230 l S",
+    ]
+    return _pdf_bytes([{"texts": texts, "vectors": vectors}])
+
+
 def _aligned_table_pdf(*, ambiguous: bool = False) -> bytes:
     rows = [
         (250, "Date", "Amount", "Currency"),
@@ -274,11 +303,36 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         ):
             resolve_pdf_layout_unit_source_values(checksum, [checksum_ref])
 
-    def test_document_inventory_cap_default_remains_75000(self) -> None:
+    def test_document_inventory_cap_covers_bounded_large_statement(self) -> None:
         self.assertEqual(
-            75_000,
+            400_000,
             PdfLayoutParserConfig().max_inventory_objects_per_document,
         )
+
+    def test_matching_layout_can_partition_bounded_text_layer_diagnostics(self):
+        page = {
+            "page_projection_status": "partial",
+            "reason_codes": [
+                "pdf_page_projection_reconciliation_failed",
+                "pdf_unknown_font_mapping",
+            ],
+            "text": "Synthetic source text",
+            "layout_projection_status": "complete",
+            "_layout_words": [
+                {"canonical_page_text_match_status": "exact"},
+                {"canonical_page_text_match_status": "normalized_whitespace"},
+            ],
+        }
+
+        self.assertTrue(_page_text_supports_layout_partition(page))
+        failed_parse = copy.deepcopy(page)
+        failed_parse["reason_codes"].append("pdf_page_parse_failed")
+        self.assertFalse(_page_text_supports_layout_partition(failed_parse))
+        mismatched_layout = copy.deepcopy(page)
+        mismatched_layout["_layout_words"][0][
+            "canonical_page_text_match_status"
+        ] = "mismatch"
+        self.assertFalse(_page_text_supports_layout_partition(mismatched_layout))
 
     def test_factory_pins_layout_backend_and_never_downgrades(self):
         self.assertIn("PdfTextLayerParserFactory.create", FACTORY_REQUIRED)
@@ -445,6 +499,36 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
                 for unit in ambiguous.units
             )
         )
+
+    def test_cross_boundary_line_is_partitioned_without_losing_table(self):
+        built = self._build(_ruled_table_with_cross_boundary_line_pdf())
+        projection = built.payloads[0]["pdf_text_layer_projection"]
+        table_units = [
+            unit
+            for unit in built.units
+            if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
+        ]
+        line_units = [
+            unit
+            for unit in built.units
+            if unit.get("pdf_unit_type") == "pdf_line_cluster_unit"
+        ]
+
+        self.assertEqual(len(table_units), 1)
+        self.assertTrue(line_units)
+        self.assertIn(
+            "pdf_table_candidate_cross_line_partial_partitioned",
+            projection["page_inventory"][0]["table_reason_codes"],
+        )
+        self.assertTrue(projection["layout_coverage"]["all_selected_refs_accounted"])
+        owned = [
+            ref
+            for unit in [*table_units, *line_units]
+            for ref in unit["pdf_layout_coverage"]["accounted_source_refs"]
+        ]
+        self.assertEqual(len(owned), len(set(owned)))
+        self.assertIn("X", "\n".join(unit["text"] for unit in line_units))
+        self.assertNotIn("X", table_units[0]["text"])
 
     def test_layout_and_unit_budgets_fail_partial_without_weakening_page_text(self):
         content = _paragraph_pdf()

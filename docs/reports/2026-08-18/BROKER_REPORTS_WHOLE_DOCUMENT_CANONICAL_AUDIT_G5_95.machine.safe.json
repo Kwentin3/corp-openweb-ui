@@ -1,0 +1,102 @@
+{
+  "adapter_verdict": "MECHANICAL",
+  "architecture_verdict": "LOCAL_COLUMN_RELATION_GAIN_ONLY_NO_WHOLE_DOCUMENT_REPLACEMENT_CASE",
+  "coverage": {
+    "A": {
+      "body_rows_represented": 2281,
+      "broken_order": 0,
+      "headers_preserved": 77,
+      "invented_text_segments": 0,
+      "literal_changes": 10,
+      "literal_errors_total": 11,
+      "lost_text_segments": 1,
+      "pages_represented": 65,
+      "pages_total": 65,
+      "structural_errors_total": 21,
+      "tables_represented": 72,
+      "unavailable_pages": 0,
+      "visual_body_rows": 2295,
+      "visual_headers": 77,
+      "visual_tables": 74,
+      "wrong_column_relations": 5,
+      "wrong_row_structure": 0
+    },
+    "B": {
+      "body_rows_represented": 2239,
+      "broken_order": 0,
+      "headers_preserved": 75,
+      "invented_text_segments": 0,
+      "literal_changes": 17,
+      "literal_errors_total": 23,
+      "lost_text_segments": 6,
+      "pages_represented": 63,
+      "pages_total": 65,
+      "structural_errors_total": 61,
+      "tables_represented": 72,
+      "unavailable_pages": 2,
+      "visual_body_rows": 2295,
+      "visual_headers": 77,
+      "visual_tables": 74,
+      "wrong_column_relations": 0,
+      "wrong_row_structure": 1
+    }
+  },
+  "goal": "G5.95",
+  "manifest_sha256": "8d162dadc7de08cc907b0bfb1f07305499fb4ea69217f503742d83b400f96f7b",
+  "page_ordinals_complete": true,
+  "private_projection_sha256": "0ba6cf6a02a67d3e7b9a26a8baf7b2c7da7fbc105df8944fa8a671caf7992bd2",
+  "private_review_sha256": "1c0c2b910d6db182a0ede3e8b32ea758b49c6b1873488d7e9d40048ab07262d5",
+  "projection": {
+    "body_rows": 2239,
+    "cells": 16267,
+    "heading_nodes": 76,
+    "pages": 65,
+    "represented_pages": 63,
+    "table_nodes": 73,
+    "text_nodes": 141,
+    "unavailable_pages": 2
+  },
+  "provenance_capabilities": {
+    "A_frozen": {
+      "glyph_or_word_refs": true,
+      "node_order": true,
+      "page_identity": true,
+      "pdf_cell_path": true,
+      "source_coordinates": true
+    },
+    "B_adapter": {
+      "glyph_or_word_refs": false,
+      "markdown_line_identity": true,
+      "node_order": true,
+      "page_identity": true,
+      "pdf_cell_path": false,
+      "source_coordinates": false
+    }
+  },
+  "reviewed_pages": 65,
+  "schema_version": "broker_reports_whole_document_canonical_audit_g595_safe_v1",
+  "scope": {
+    "gate3_plus_changes": 0,
+    "hybrid_designs": 0,
+    "raw_customer_text_in_safe_output": false,
+    "variant_a_parser_changes": 0,
+    "variant_b_prompt_or_model_changes": 0,
+    "variant_b_retries": 0
+  },
+  "selection": {
+    "criterion": "maximum_declared_page_count_then_document_id_ascending",
+    "fixed_before_g595_comparative_review": true,
+    "pages": 65,
+    "selected_document_id": "document_04",
+    "selected_pdf_sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015"
+  },
+  "terminals": [
+    "WHOLE_DOCUMENT_CANONICAL_AUDIT_PROVEN",
+    "VARIANT_A_WHOLE_DOCUMENT_COVERAGE_MEASURED",
+    "VARIANT_B_WHOLE_DOCUMENT_COVERAGE_MEASURED",
+    "MARKDOWN_TO_CANONICAL_THIN_ADAPTER_PROVEN",
+    "G594_SAMPLE_CONCLUSION_NOT_CONFIRMED_WHOLE_DOCUMENT",
+    "COLUMN_RELATION_ADVANTAGE_B_CONFIRMED",
+    "LITERAL_AUTHORITY_ADVANTAGE_A_CONFIRMED"
+  ]
+}

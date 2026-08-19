@@ -1,0 +1,14 @@
+{
+  "schema_version": "broker_reports_g586_visual_audit_safe_v1",
+  "goal": "G5.86",
+  "original_pdf_sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+  "pages_inspected": [4, 5, 6, 7, 9, 10],
+  "distinct_affected_pages_total": 6,
+  "distinct_structural_classes_covered": 6,
+  "row_local_meaning_visually_confirmed": true,
+  "paired_credit_debit_structure_visually_confirmed": true,
+  "true_dividend_opposite_controls_visually_confirmed": true,
+  "verdict": "ALL_SIX_AFFECTED_PAGE_CLASSES_VISUALLY_CONFIRM_SOURCE_LOCAL_BOUNDARY_GAP",
+  "production_visual_dependency": false,
+  "vlm_calls": 0
+}

@@ -11,6 +11,7 @@ import pytest
 from broker_reports_gate1 import (
     GATE5_DECLARATION_PROJECTION_SPEC_RESOURCE,
     GATE5_SECURITIES_DISPOSAL_RESOLVED_INPUTS_SCHEMA_VERSION,
+    GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION,
     GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
     GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_RESOURCE,
     GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_RESOURCE_SHA256,
@@ -123,7 +124,7 @@ def test_first_declaration_driven_tax_model_replays_and_projects_appendix8(
         == model["methodology_binding"]["projection_sha256"]
         for item in model["allowable_expenses"]["decisions"]
     )
-    assert len(model["proof_assumptions"]) == 14
+    assert len(model["proof_assumptions"]) == 13
     assert {item["input_path"] for item in model["proof_assumptions"]} >= {
         "operation_properties.organized_market_status",
         "tax_context.loss_treatment",
@@ -215,6 +216,36 @@ def test_unresolved_classification_loss_or_scope_blocks_tax_model(
         )
 
     assert caught.value.code == expected_code
+
+
+def test_missing_expense_methodology_inputs_fail_closed_without_relation_inference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _config, store, context = calculation_fixtures._representative_case(
+        tmp_path,
+        monkeypatch,
+    )
+
+    with pytest.raises(Gate5SecuritiesDisposalTaxModelError) as caught:
+        _runtime(store).run_operation(
+            methodology_ref={
+                **_methodology_ref(),
+                "methodology_version": (
+                    GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION
+                ),
+            },
+            resolved_inputs={
+                **_resolved_inputs(),
+                "scope": {},
+            },
+            context=context,
+        )
+
+    assert caught.value.code == "gate5_tax_model_inputs_not_satisfied"
+    source = inspect.getsource(tax_model_module)
+    assert "related_financial_case" not in source
+    assert "run_operation_from_related_events" not in source
 
 
 def test_related_but_unproven_expense_is_not_automatically_allowable(
@@ -362,6 +393,9 @@ def test_factory_composes_existing_owners_without_form_or_storage_logic() -> Non
     assert "Gate5SecuritiesDisposalTaxModelRuntimeFactory.create" in FACTORY_REQUIRED
     assert "Gate5TrustedMethodologyAuthorityFactory.create()" in factory_source
     assert "Gate5SupplementalFactDiscoveryRuntimeFactory(" in factory_source
+    assert (
+        "Gate5DeterministicSourceFactConsumptionRuntimeFactory(" in factory_source
+    )
     assert "Gate5DeclarationProjectionRuntimeFactory.create()" in factory_source
     assert "self._authority.resolve(methodology_ref)" in runtime_source
     assert "self._discovery.check(" in runtime_source
@@ -375,8 +409,9 @@ def test_factory_composes_existing_owners_without_form_or_storage_logic() -> Non
         "typing",
         "artifact_models",
         "gate5_combined_requirement_check",
-        "gate5_declaration_projection",
-        "gate5_supplemental_fact_discovery",
+            "gate5_declaration_projection",
+            "gate5_deterministic_source_fact_consumption",
+            "gate5_supplemental_fact_discovery",
         "gate5_trusted_methodology",
     }
     for forbidden_path in (
@@ -447,11 +482,13 @@ def _methodology_ref() -> dict[str, str]:
 
 
 def _resolved_inputs() -> dict:
-    def tagged(value, source_ref: str, input_channel: str) -> dict:
+    def tagged(
+        value, source_ref: str, input_channel: str, *, source_kind="proof_assumption"
+    ) -> dict:
         return {
             "value": value,
             "provenance": {
-                "source_kind": "proof_assumption",
+                "source_kind": source_kind,
                 "source_ref": source_ref,
                 "input_channel": input_channel,
             },
@@ -475,7 +512,12 @@ def _resolved_inputs() -> dict:
         },
         "tax_context": {
             "tax_period": tagged("2025", "proof-tax-period", tax_context),
-            "residency": tagged("resident_individual", "proof-residency", tax_context),
+            "residency": tagged(
+                "resident_individual",
+                "residency-classification:proof",
+                tax_context,
+                source_kind="methodology_derived_result",
+            ),
             "exemption_applicability": tagged(
                 "not_applicable", "proof-exemption", tax_context
             ),

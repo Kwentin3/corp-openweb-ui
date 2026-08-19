@@ -1,0 +1,136 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_model_assembly_g5_45_v1",
+  "goal": "G5.45",
+  "status": "DECLARATION_MODEL_ASSEMBLY_PROVEN",
+  "terminals": [
+    "DECLARATION_CONSUMER_MODEL_PROVEN",
+    "DECLARATION_SEMANTIC_MODEL_COMPLETE",
+    "END_TO_END_DECLARATION_ASSEMBLY_PROVEN",
+    "DECLARATION_VALUE_TRACEABILITY_PROVEN",
+    "CROSS_DOMAIN_DECLARATION_CONSISTENCY_PROVEN"
+  ],
+  "profile": {
+    "form": "3-NDFL",
+    "tax_period": "2025",
+    "scope": "bounded_russian_source_broker_securities_payable",
+    "controlled_evidence": true,
+    "real_taxpayer_evidence": false
+  },
+  "controlled_runtime_receipt": {
+    "schema_version": "broker_reports_gate5_declaration_model_assembly_audit_receipt_v0",
+    "receipt_sha256": "4257bc41c181a2a9e18f78a297f3953695c8ceaf55e718d53172291f9c9f25c7",
+    "xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a",
+    "official_xsd_valid": true,
+    "consumer_target_status": "CONSUMER_FIRST_TARGET_XML_VALID",
+    "legacy_target_byte_identical": true,
+    "semantic_bypass": false,
+    "release_required": true
+  },
+  "consumer_inventory": {
+    "emitted_value_count": 49,
+    "released_semantic_value_count": 44,
+    "released_semantic_values_consumed": 44,
+    "official_constant_count": 4,
+    "target_mechanics_count": 1,
+    "unconsumed_released_semantic_value_count": 0,
+    "unknown_origin_count": 0,
+    "unowned_value_count": 0
+  },
+  "traceability": {
+    "mapping_occurrences": 49,
+    "origin_count_at_least_one": 49,
+    "methodology_or_direct_binding_known": 49,
+    "exact_target_path_and_hash": 49,
+    "exact_resolved_semantic_path_and_hash": 44,
+    "official_constant_authority_bindings": 4,
+    "target_mechanics_authority_bindings": 1,
+    "taxpayer_status_owner": "Gate5ResidencyEvidenceRuntimeFactory.create",
+    "taxpayer_status_rule_id": "taxpayer-residency-article-207-v1"
+  },
+  "minimality": {
+    "removed_from_released_values_but_retained_in_component_or_audit_envelope": [
+      "signer.identity",
+      "budget_disposition.kind",
+      "source_party.party_kind"
+    ],
+    "projection_budget_interpretation_removed": true,
+    "implicit_refund_zero_removed": true
+  },
+  "projection": {
+    "allowed_operations": [
+      "MAP",
+      "FORMAT",
+      "ENCODE",
+      "REPEAT",
+      "PLACE",
+      "SERIALIZE",
+      "VALIDATE"
+    ],
+    "interpretation_authority": false,
+    "audit_envelope_is_projection_input": false,
+    "target_depends_on_audit_metadata": false,
+    "projection_definition_sha256": "d6e29e91e68463184e79f5ce8a0c2cea9d3aacdaacb534a61faee54499854834"
+  },
+  "conditional_scope": {
+    "russian_source_obligation": "RESOLVED",
+    "foreign_source_obligation": "NOT_ACTIVATED_FOR_SUPPLIED_CASE",
+    "foreign_target_mapping_count": 0,
+    "unrelated_conditional_domains_activated": 0,
+    "foreign_control_activates_only_foreign_obligation": true
+  },
+  "adversarial_tests": [
+    {"id": "A", "result": "COMPLETE_CONTROLLED_ASSEMBLY_XSD_VALID", "passed": true},
+    {"id": "B", "result": "MISSING_RESIDENCY_EXACT_BLOCKER_NO_RELEASE", "passed": true},
+    {"id": "C", "result": "AUDIT_METADATA_REMOVAL_BYTE_IDENTICAL", "passed": true},
+    {"id": "D", "result": "PROCEEDS_PLUS_100_EXACT_EIGHT_MAPPING_DELTA", "passed": true},
+    {"id": "E", "result": "PROJECTION_AUDIT_ENVELOPE_INDEPENDENT", "passed": true},
+    {"id": "F", "result": "RAW_SEMANTICS_REJECTED_BY_RELEASE_ONLY_ROUTE", "passed": true},
+    {"id": "G", "result": "FOREIGN_DOMAIN_ABSENT_AND_NOT_PROJECTED", "passed": true},
+    {"id": "H", "result": "FOREIGN_SOURCE_ACTIVATES_EXACT_OBLIGATION_ONLY", "passed": true},
+    {"id": "I", "result": "ALL_49_VALUES_OWNED_AND_ORIGIN_BOUND", "passed": true}
+  ],
+  "real_corpus_replay": {
+    "status": "PREPARATION_INCOMPLETE",
+    "documents": 4,
+    "source_facts": 186,
+    "metadata_facts": 15,
+    "definition_demands": 25,
+    "active_demands": 9,
+    "inactive_demands": 16,
+    "terminal_counts": {
+      "MISSING_EVIDENCE": 4,
+      "SOURCE_EVIDENCE_INSUFFICIENT": 1,
+      "METHODOLOGY_UNRESOLVED": 4
+    },
+    "model_gap_count": 0,
+    "unknown_input_path_count": 0,
+    "unowned_declaration_value_count": 0,
+    "required_actions": 12,
+    "required_action_closure_types": {
+      "ADDITIONAL_DOCUMENT": 8,
+      "USER_FACT": 4
+    },
+    "calculation_count": 0,
+    "provider_calls": 0,
+    "invented_facts": 0,
+    "invented_relations": 0,
+    "frozen_store_unchanged": true,
+    "xml_emitted": false
+  },
+  "legal_methodology_gaps_remain": [
+    "ambiguous_security_disposal_source_classification",
+    "partial_acquisition_commission_allocation",
+    "non_rub_intermediate_precision_and_rounding",
+    "treaty_specific_foreign_tax_credit_limit"
+  ],
+  "safety": {
+    "product_activated": false,
+    "legacy_product_authority_replaced": false,
+    "controlled_case_called_real": false,
+    "real_case_declaration_released": false,
+    "commit_created": false,
+    "push_performed": false,
+    "pr_opened": false,
+    "private_values_in_artifact": false
+  }
+}

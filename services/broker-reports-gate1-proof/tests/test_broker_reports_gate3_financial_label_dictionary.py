@@ -11,6 +11,7 @@ import sys
 import pytest
 
 from broker_reports_gate1 import (
+    GATE3_DICTIONARY_CURRENT_VERSION,
     GATE3_DICTIONARY_ID,
     GATE3_DICTIONARY_SCHEMA_VERSION,
     GATE3_DICTIONARY_V1_VERSION,
@@ -79,7 +80,12 @@ def _approval(draft: dict) -> dict:
 
 def test_published_v1_is_exactly_the_nine_human_approved_labels() -> None:
     owner = _owner()
-    assert owner.list_published_versions() == ("1.0.0",)
+    assert owner.list_published_versions() == (
+        "1.0.0",
+        "2.0.0",
+        "2.0.1",
+        "2.1.0",
+    )
     dictionary = owner.load_published("1.0.0")
 
     assert dictionary["schema_version"] == GATE3_DICTIONARY_SCHEMA_VERSION
@@ -95,6 +101,52 @@ def test_published_v1_is_exactly_the_nine_human_approved_labels() -> None:
     changed = copy.deepcopy(dictionary)
     changed["labels"][0]["meaning"] = "mutated caller copy"
     assert owner.load_published("1.0.0") == dictionary
+
+
+def test_current_dictionary_preserves_source_granularity_without_economic_inference() -> None:
+    owner = _owner()
+
+    assert GATE3_DICTIONARY_CURRENT_VERSION == "2.0.1"
+    dictionary = owner.load_published()
+    labels = {item["label_id"]: item for item in dictionary["labels"]}
+
+    assert dictionary["semantic_version"] == "2.0.1"
+    commission = next(
+        item for item in dictionary["labels"] if item["label_id"] == "COMMISSION"
+    )
+    assert "Сбор агента при выплате дохода" in commission["examples"]
+    assert {
+        "COMMISSION",
+        "COMMISSION_TOTAL",
+        "TAX_WITHHELD_TOTAL",
+    } <= set(labels)
+    assert "source transaction row" in labels["TRANSACTION_CHARGE"]["meaning"]
+    assert "не является налоговой" in labels["TRANSACTION_CHARGE"]["meaning"]
+    assert "без связи с конкретной операцией" in labels["COMMISSION"]["meaning"]
+    assert "Итого" in labels["COMMISSION_TOTAL"]["examples"]
+    assert "Итого удержано" in labels["TAX_WITHHELD_TOTAL"]["examples"]
+    rendered = owner.render_model_markdown()
+    assert "не суммируй" in rendered.casefold()
+    assert "не сверяй" in rendered.casefold()
+
+
+def test_inactive_g591_candidate_is_minimal_and_broker_neutral() -> None:
+    labels = {
+        item["label_id"]: item
+        for item in _owner().load_published("2.1.0")["labels"]
+    }
+
+    assert "TAX_ADJUSTMENT" in labels
+    assert "налоговый эффект" in labels["TAX_ADJUSTMENT"]["meaning"]
+    assert "направление без явного tax meaning" in (
+        labels["TAX_ADJUSTMENT"]["do_not_apply_when"][0]
+    )
+    assert "us tax" not in json.dumps(labels, ensure_ascii=False).casefold()
+    assert not {
+        "TAX_REFUND",
+        "TAX_REVERSAL",
+        "TAX_OTHER_ADJUSTMENT",
+    } & set(labels)
 
 
 def test_model_markdown_is_deterministic_exact_and_not_a_second_authority() -> None:
@@ -284,6 +336,8 @@ def test_cli_exposes_reviewable_flow_without_silent_activation(
     create = _run_cli(
         environment,
         "draft",
+        "--base-version",
+        "1.0.0",
         "--proposed-version",
         "1.1.0",
         "--proposal-id",

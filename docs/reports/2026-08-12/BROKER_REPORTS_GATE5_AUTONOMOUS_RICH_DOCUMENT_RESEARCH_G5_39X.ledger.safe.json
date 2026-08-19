@@ -1,0 +1,102 @@
+{
+  "schema_version": "broker_reports_g539x_safe_ledger_v1",
+  "goal": "G5.39X",
+  "date": "2026-08-12",
+  "mode": "exploratory_research_only",
+  "terminal": "NO_STRATEGY_PROVEN",
+  "product_head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+  "product_head_tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+  "production_changes": false,
+  "provider": {
+    "profile": "google_gemini",
+    "model": "models/gemini-3.5-flash",
+    "factory_route": "Gate2StructuredModelClientFactory.create.label_gate3_once",
+    "openwebui_completion_boundary": true,
+    "semantic_retry": 0,
+    "repair": 0,
+    "answer_merge": 0,
+    "best_of_n": false
+  },
+  "corpus": {
+    "DEV_PUBLIC_TBANK": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+    "HOLDOUT_REAL_001": "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+    "LARGE_REAL_001": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+    "NEGATIVE_AB_001": "frozen_synthetic_A_B"
+  },
+  "authorities": {
+    "g539w_prepared_sha256": "8c2cc837a89af0de91a6755d877c91ea403a49ca4d591e90a00a11e68aeb1aa3",
+    "trace_sha256": "18407e17a19b50568950bc93c21dc0be5fc7b7ed8172218355854910c86f5766",
+    "private_oracle_sha256": "d76ade254cfe2c323e0ab73daf0fcf83d598034022e096dba6c86173a65e6c85",
+    "role_pack_sha256": "43e98dcbef4637506d79927ef19ae1790f9bcfcb69b0045f97c2af9648cd5ba6"
+  },
+  "iterations": {
+    "H1": {
+      "freeze_commit": "16ccce6de30d7da892eece8c841711017926a4a5",
+      "audit_sha256": "74001ac39dd27adf2dc376861e5e8e9083e3b9fa81c0e1db64ca68b5d5d2981b",
+      "calls": 4,
+      "input_tokens": 92669,
+      "output_tokens": 9406,
+      "facts": 23,
+      "target_complete": 0,
+      "verdict": "FALSIFIED"
+    },
+    "H2": {
+      "freeze_commit": "e60eba7c169765b67a31de1904ce0d688012dab6",
+      "audit_sha256": "7107bc4c028f81c8aff8757565177289457f6f34d9e64dfad461753f1b9629a0",
+      "calls": 4,
+      "input_tokens": 93221,
+      "output_tokens": 6576,
+      "role_pack_valid_atomic_facts": 18,
+      "verdict": "SUPPORTED_AS_BUILDING_BLOCK_ONLY"
+    },
+    "H3": {
+      "freeze_commit": "199003881cad8887c00dd5aa3689c2810edf0101",
+      "audit_sha256": "3091b8895c32b54f577a8503c2a11a4347b98f399e75ce76ad8774895815d4ca",
+      "calls": 4,
+      "input_tokens": 93313,
+      "output_tokens": 6734,
+      "role_pack_valid_atomic_facts": 20,
+      "groups": 5,
+      "dev_groups": 0,
+      "large_groups": 0,
+      "verdict": "FALSIFIED"
+    },
+    "H4V2": {
+      "freeze_commit": "2df0fd054dcc73c2df8beec7a4c8fce04ab0a533",
+      "audit_sha256": "e3bb7307ece2c15ccbfa4e1427820a35a513c3d8120bee6f4803b515dff67671",
+      "calls": 4,
+      "input_tokens": 97302,
+      "output_tokens": 695,
+      "relation_groups": 4,
+      "complete_distributed_groups": 0,
+      "verdict": "FALSIFIED"
+    }
+  },
+  "aggregate": {
+    "calls": 16,
+    "provider_submissions": 16,
+    "provider_responses": 16,
+    "input_tokens": 376505,
+    "output_tokens": 23411,
+    "maximum_input_tokens": 53367,
+    "invented_refs": 0,
+    "invented_literals": 0,
+    "negative_cross_event_facts": 0,
+    "negative_mixed_groups": 0,
+    "oracle_leaks": 0
+  },
+  "candidate_contract": null,
+  "confirmatory_proof": "NOT_RUN",
+  "fundamental_missing_capability": "source_verifiable_relation_or_aggregation_witness_authoring",
+  "final_research_commit": "f2bbfc4085250728683f0437f8cdec1864a5185f",
+  "tests": {
+    "isolated_research": "16 passed in 0.393 s",
+    "product_regressions": "48 passed in 6.47 s"
+  },
+  "privacy": {
+    "customer_values_in_git": false,
+    "private_refs_in_git": false,
+    "private_prompts_or_provider_traces_in_git": false
+  },
+  "issue_url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278"
+}

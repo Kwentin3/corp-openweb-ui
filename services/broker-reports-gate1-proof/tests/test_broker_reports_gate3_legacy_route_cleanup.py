@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 
@@ -88,17 +89,22 @@ def test_product_orchestrator_delegates_to_existing_owners_only() -> None:
         assert bypass not in source
 
 
-def test_nine_label_definitions_are_not_copied_into_python_or_prompts() -> None:
-    label_ids = {
-        "SECURITY_PURCHASE",
-        "SECURITY_DISPOSAL",
-        "DIVIDEND_INCOME",
-        "COUPON_INCOME",
-        "INTEREST_INCOME",
-        "SECURITIES_LENDING_INCOME",
-        "ACCRUED_COUPON_COMPONENT",
-        "TRANSACTION_CHARGE",
-        "TAX_WITHHELD",
+def test_current_label_definitions_are_not_copied_into_python_or_prompts() -> None:
+    dictionary = json.loads(
+        (
+            SERVICE_ROOT
+            / "broker_reports_gate1"
+            / "gate3_financial_label_dictionary.v2.json"
+        ).read_text(encoding="utf-8")
+    )
+    normative_phrases = {
+        phrase
+        for label in dictionary["labels"]
+        for phrase in [
+            label["meaning"],
+            *label["apply_when"],
+            *label["do_not_apply_when"],
+        ]
     }
     inspected = [
         *sorted((SERVICE_ROOT / "broker_reports_gate1").glob("*.py")),
@@ -108,4 +114,4 @@ def test_nine_label_definitions_are_not_copied_into_python_or_prompts() -> None:
         if not path.is_file():
             continue
         text = path.read_text(encoding="utf-8")
-        assert not {label_id for label_id in label_ids if label_id in text}, path
+        assert not {phrase for phrase in normative_phrases if phrase in text}, path

@@ -1,0 +1,296 @@
+{
+  "case_input_assessment": {
+    "reason": "no_case_evidence_in_authoring_context",
+    "status": "not_evaluated"
+  },
+  "definition_id": "ru.3ndfl.2025.securities_disposal",
+  "definition_status": "partially_compilable",
+  "first_blocking_gap_id": "section2_calculation_behavior_missing",
+  "gaps": [
+    {
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "securities_income_group_02_type_003"
+      ],
+      "explanation": "The published operation model and category aggregation can supply securities-derived sub-semantics, but no supplied published behavior produces the complete Section 2 income-group calculation.",
+      "gap_id": "section2_calculation_behavior_missing",
+      "gap_type": "missing_published_behavior",
+      "related_artifact_refs": [
+        {
+          "artifact_id": "ru-ndfl-securities-tax-model-proof",
+          "artifact_kind": "trusted_methodology",
+          "artifact_version": "2026.1-experimental"
+        }
+      ],
+      "related_capability_ids": [
+        "execute_published_typed_behavior_v1",
+        "aggregate_complete_category_scope_v0"
+      ],
+      "required_semantic": "Deterministically derive the complete group-bound Section 2 line 001-060 semantics for income group 02 and income type 003, including the tax base after deductions and accepted expenses.",
+      "requirement_id": "section2_group_tax_base"
+    },
+    {
+      "evidence_refs": [
+        "section2_form_lines_001_060",
+        "section2_procedure_paragraphs_37_46",
+        "section2_electronic_contract"
+      ],
+      "explanation": "The supplied validated projection artifact covers only Appendix 8. No published artifact maps Section 2 group and tax-base semantics to the official declaration structure.",
+      "gap_id": "section2_projection_artifact_missing",
+      "gap_type": "missing_artifact",
+      "related_artifact_refs": [
+        {
+          "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+          "artifact_kind": "validated_declaration_projection",
+          "artifact_version": "2026.0-proof"
+        }
+      ],
+      "related_capability_ids": [
+        "project_validated_declaration_fragment_v0"
+      ],
+      "required_semantic": "Project the complete income-group calculation into the official Section 2 declaration structure for group 02 and income type 003.",
+      "requirement_id": "section2_group_tax_base"
+    },
+    {
+      "evidence_refs": [
+        "appendix8_xsd_contract",
+        "section2_electronic_contract"
+      ],
+      "explanation": "The available projection returns one structurally consistent Appendix 8 fragment and explicitly does not provide full XML validation. Its contract cannot establish the required complete XSD-conformant, group-bound electronic declaration.",
+      "gap_id": "full_electronic_contract_incompatible",
+      "gap_type": "incompatible_contract",
+      "related_artifact_refs": [
+        {
+          "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+          "artifact_kind": "validated_declaration_projection",
+          "artifact_version": "2026.0-proof"
+        }
+      ],
+      "related_capability_ids": [
+        "project_validated_declaration_fragment_v0"
+      ],
+      "required_semantic": "Serialize and validate the repeated Appendix 8 occurrences together with the group-bound Section 2 calculation against the complete supplied 5.20 XSD contract.",
+      "requirement_id": "electronic_group_bound_document"
+    }
+  ],
+  "gaps_total": 3,
+  "manual_repairs_total": 0,
+  "requirements": [
+    {
+      "case_input_status": "not_evaluated_no_case_evidence",
+      "requirement_id": "appendix8_category_semantics",
+      "resolved_compositions": [
+        {
+          "artifact_refs": [],
+          "behavior_binding": null,
+          "capability_id": "resolve_required_values_v0",
+          "capability_inputs": [
+            {
+              "contract": "broker_reports_gate5_combined_requirements_v0",
+              "name": "requirements",
+              "required": true
+            },
+            {
+              "contract": "artifact_access_context",
+              "name": "trusted_case_context",
+              "required": true
+            }
+          ],
+          "capability_output_contract": "broker_reports_gate5_combined_requirement_check_result_v0"
+        },
+        {
+          "artifact_refs": [
+            {
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_kind": "trusted_methodology",
+              "artifact_version": "2026.1-experimental"
+            }
+          ],
+          "behavior_binding": {
+            "behavior_ref": {
+              "behavior_id": "securities_disposal_operation_tax_model_v0",
+              "methodology_id": "ru-ndfl-securities-tax-model-proof",
+              "methodology_version": "2026.1-experimental",
+              "schema_version": "broker_reports_gate5_published_behavior_ref_v1"
+            },
+            "input_contract_id": "broker_reports_gate5_securities_disposal_resolved_inputs_v0",
+            "output_contract_id": "broker_reports_gate5_securities_disposal_operation_tax_model_v0"
+          },
+          "capability_id": "execute_published_typed_behavior_v1",
+          "capability_inputs": [
+            {
+              "contract": "broker_reports_gate5_published_behavior_ref_v1",
+              "name": "behavior_ref",
+              "required": true
+            },
+            {
+              "contract": "broker_reports_gate5_contract_identity_v1",
+              "name": "input_contract_id",
+              "required": true
+            },
+            {
+              "contract": "broker_reports_gate5_contract_identity_v1",
+              "name": "output_contract_id",
+              "required": true
+            },
+            {
+              "contract": "registered_behavior_input",
+              "name": "behavior_input",
+              "required": true
+            },
+            {
+              "contract": "artifact_access_context",
+              "name": "trusted_case_context",
+              "required": true
+            }
+          ],
+          "capability_output_contract": "broker_reports_gate5_typed_behavior_result_v1"
+        },
+        {
+          "artifact_refs": [
+            {
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_kind": "trusted_methodology",
+              "artifact_version": "2026.1-experimental"
+            }
+          ],
+          "behavior_binding": null,
+          "capability_id": "aggregate_complete_category_scope_v0",
+          "capability_inputs": [
+            {
+              "contract": "broker_reports_gate5_tax_period_category_scope_v0",
+              "name": "scope",
+              "required": true
+            },
+            {
+              "contract": "broker_reports_gate5_operation_model_members_v0",
+              "name": "operation_members",
+              "required": true
+            },
+            {
+              "contract": "broker_reports_gate5_tax_period_completeness_evidence_v0",
+              "name": "completeness_evidence",
+              "required": false
+            }
+          ],
+          "capability_output_contract": "broker_reports_gate5_tax_period_category_aggregation_result_v0"
+        }
+      ],
+      "runtime_support": "supported"
+    },
+    {
+      "case_input_status": "not_evaluated_no_case_evidence",
+      "requirement_id": "appendix8_declaration_occurrence",
+      "resolved_compositions": [
+        {
+          "artifact_refs": [
+            {
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_version": "2026.0-proof"
+            }
+          ],
+          "behavior_binding": null,
+          "capability_id": "project_validated_declaration_fragment_v0",
+          "capability_inputs": [
+            {
+              "contract": "broker_reports_gate5_declaration_projection_proof_input_v0",
+              "name": "declaration_semantics",
+              "required": true
+            }
+          ],
+          "capability_output_contract": "broker_reports_gate5_declaration_projection_fragment_v0"
+        }
+      ],
+      "runtime_support": "supported"
+    },
+    {
+      "case_input_status": "not_applicable_until_runtime_support",
+      "requirement_id": "section2_group_tax_base",
+      "resolved_compositions": [
+        {
+          "artifact_refs": [
+            {
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_kind": "trusted_methodology",
+              "artifact_version": "2026.1-experimental"
+            }
+          ],
+          "behavior_binding": null,
+          "capability_id": "aggregate_complete_category_scope_v0",
+          "capability_inputs": [
+            {
+              "contract": "broker_reports_gate5_tax_period_category_scope_v0",
+              "name": "scope",
+              "required": true
+            },
+            {
+              "contract": "broker_reports_gate5_operation_model_members_v0",
+              "name": "operation_members",
+              "required": true
+            },
+            {
+              "contract": "broker_reports_gate5_tax_period_completeness_evidence_v0",
+              "name": "completeness_evidence",
+              "required": false
+            }
+          ],
+          "capability_output_contract": "broker_reports_gate5_tax_period_category_aggregation_result_v0"
+        },
+        {
+          "artifact_refs": [
+            {
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_version": "2026.0-proof"
+            }
+          ],
+          "behavior_binding": null,
+          "capability_id": "project_validated_declaration_fragment_v0",
+          "capability_inputs": [
+            {
+              "contract": "broker_reports_gate5_declaration_projection_proof_input_v0",
+              "name": "declaration_semantics",
+              "required": true
+            }
+          ],
+          "capability_output_contract": "broker_reports_gate5_declaration_projection_fragment_v0"
+        }
+      ],
+      "runtime_support": "unsupported"
+    },
+    {
+      "case_input_status": "not_applicable_until_runtime_support",
+      "requirement_id": "electronic_group_bound_document",
+      "resolved_compositions": [
+        {
+          "artifact_refs": [
+            {
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_version": "2026.0-proof"
+            }
+          ],
+          "behavior_binding": null,
+          "capability_id": "project_validated_declaration_fragment_v0",
+          "capability_inputs": [
+            {
+              "contract": "broker_reports_gate5_declaration_projection_proof_input_v0",
+              "name": "declaration_semantics",
+              "required": true
+            }
+          ],
+          "capability_output_contract": "broker_reports_gate5_declaration_projection_fragment_v0"
+        }
+      ],
+      "runtime_support": "unsupported"
+    }
+  ],
+  "requirements_total": 4,
+  "resolved_compositions_total": 7,
+  "schema_version": "broker_reports_gate5_declaration_definition_compilation_v2",
+  "status": "passed",
+  "supported_requirements_total": 2,
+  "unsupported_requirements_total": 2
+}

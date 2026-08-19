@@ -25,6 +25,7 @@ from broker_reports_gate1.architecture_policy import (
     VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES,
     WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED,
 )
+from broker_reports_gate1 import architecture_policy
 from broker_reports_gate1.gate2_financial_evidence_registry import (
     Gate2FinancialEvidenceRegistryFactory,
 )
@@ -124,31 +125,56 @@ GATE3_CURRENT_ANNOTATIONS_PERSISTENCE = (
 )
 GATE3_CURRENT_CASE_READINESS = "gate3_ndfl_case_readiness"
 GATE3_CURRENT_NDFL_WORKFLOW = "gate3_ndfl_workflow"
+GATE3_CURRENT_METADATA_SOURCE_FACTS = "gate3_metadata_source_facts"
+GATE3_LLM_METADATA_ADAPTER = "gate3_llm_metadata_adapter"
+GATE3_CURRENT_EVIDENCE_DEMAND_PORT = "gate3_evidence_demand_port"
 
 
 class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_canonical_architecture_contains_runtime_authority_markers(self):
         authority = ARCHITECTURE_DOCUMENT.read_text(encoding="utf-8")
         required = {
-            "separate controlled source-processing pipeline",
-            "Knowledge, RAG, embeddings or vectorization",
-            "Production visual-table provider profiles are exactly `google_gemini` and",
-            "`openai_gpt`",
-            "whole-document provider upload is",
-            "PaddleOCR, PaddleOCR-VL",
-            "MODEL_CANONICAL_AUTHORITY:",
-            "BROKER_REPORTS_CUSTOMER_TEST_DEBT.v1.md",
-            "ArtifactResolver",
-            "Gate1BoundedGraphFactory.create",
-            "Run-wide decoded private graphs",
-            "WorkloadAuthorityFactory.create",
-            "Gate 1 heavy work at concurrency 1",
-            "maximum concurrency 2",
-            "worker_lease_expired",
+            "Status: `CURRENT`",
+            "CURRENT_PIPELINE_AUTHORITY = ONE",
+            "### Gate 1 — Source custody",
+            "### Gate 2 — Canonical source representation",
+            "### Adaptive Context Boundary",
+            "### Gate 3 — Source semantic adapter",
+            "### Gate 4 — Normalized source facts",
+            "### Gate 5 — Tax methodology and deterministic calculation",
+            "### Declaration Semantics",
+            "### Release / Completeness",
+            "### Projection",
+            "Gate3EvidenceDemandPortFactory.create",
+            "Gate 5 never receives Canonical bytes",
+            "Cold-agent navigation checks",
         }
         self.assertEqual(
             sorted(marker for marker in required if marker not in authority),
             [],
+        )
+
+    def test_machine_readable_gate_ownership_matches_current_pipeline(self):
+        self.assertEqual(
+            architecture_policy.ARCHITECTURE_POLICY_VERSION,
+            "broker_reports_architecture_policy_v4",
+        )
+        self.assertEqual(
+            architecture_policy.GATE_OWNERSHIP,
+            {
+                "gate1": "authenticated_source_intake_and_custody",
+                "gate2": "canonical_source_preservation",
+                "adaptive_context": "structure_preserving_context_packaging",
+                "gate3": "source_financial_labeling_and_role_binding",
+                "gate4": "normalized_source_facts_and_case_query",
+                "gate5": "deterministic_tax_methodology_and_calculation",
+                "human_adapter": "typed_factual_human_evidence",
+                "external_reference_facts": "typed_authoritative_external_evidence",
+                "methodology_adapter": "reviewed_methodology_proposals_only",
+                "declaration_semantics": "target_independent_declaration_meaning",
+                "release": "evidence_completeness_and_release_decision",
+                "projection": "representation_only",
+            },
         )
 
     def test_machine_readable_policy_is_fail_closed(self):
@@ -1628,6 +1654,59 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     GATE3_CURRENT_LABELING,
                 } | GATE1_PRIVATE_IMPLEMENTATIONS
                 for imported in sorted(imports & forbidden_workflow_imports):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_CURRENT_METADATA_SOURCE_FACTS:
+                required_metadata_imports = {"artifact_resolver", "canonical_store"}
+                if not required_metadata_imports <= imports:
+                    violations.append(
+                        f"{module_name}:metadata_source_boundary_missing"
+                    )
+                for imported in sorted(
+                    item
+                    for item in imports
+                    if item.startswith("gate4_")
+                    or item.startswith("gate5_")
+                    or item == "gate3_context_manifest"
+                ):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_LLM_METADATA_ADAPTER:
+                required_adapter_imports = {
+                    "artifact_resolver",
+                    "canonical_store",
+                    GATE3_CURRENT_METADATA_SOURCE_FACTS,
+                }
+                if not required_adapter_imports <= imports:
+                    violations.append(
+                        f"{module_name}:llm_metadata_adapter_boundary_missing"
+                    )
+                for imported in sorted(
+                    item
+                    for item in imports
+                    if item.startswith("gate4_")
+                    or item.startswith("gate5_")
+                    or item == "gate3_context_manifest"
+                ):
+                    violations.append(
+                        f"{module_name}:forbidden_import:{imported}"
+                    )
+            elif module_name == GATE3_CURRENT_EVIDENCE_DEMAND_PORT:
+                required_port_imports = {
+                    GATE3_CURRENT_DICTIONARY,
+                    GATE3_CURRENT_ROLE_PACK,
+                }
+                if not required_port_imports <= imports:
+                    violations.append(
+                        f"{module_name}:published_contract_boundary_missing"
+                    )
+                for imported in sorted(
+                    item
+                    for item in imports
+                    if item.startswith("gate4_") or item.startswith("gate5_")
+                ):
                     violations.append(
                         f"{module_name}:forbidden_import:{imported}"
                     )

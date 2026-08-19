@@ -1,0 +1,33 @@
+{
+  "goal": "G5.98",
+  "implementation_sha256": "be83b01d7d32965c34d0f30029bee73bce1ec68f4965c2c7473c6e348cdffeaf",
+  "implementation_unchanged_after_holdout": true,
+  "metrics": {
+    "ambiguous": 0,
+    "cases": 4,
+    "contract_not_verified": 0,
+    "exact_case": 4,
+    "expected_regions": 3,
+    "false_localization": 0,
+    "false_table_admitted": 0,
+    "missed_expected": 0,
+    "not_found": 0,
+    "proposed_tables": 3,
+    "unique_correct": 3
+  },
+  "phase": "holdout_final",
+  "privacy": {
+    "customer_literals_in_safe_output": false,
+    "customer_paths_in_safe_output": false,
+    "private_evidence_outside_git": true,
+    "provider_payloads_in_safe_output": false,
+    "source_coordinates_in_safe_output": false
+  },
+  "private_file_sha256": "7bcd8e267c7031d737efaa98b57bcb948b60a48f9ea51ceab3b1eb40151669f3",
+  "resolved_layout_families": 1,
+  "schema_version": "broker_reports_addressable_visual_breadcrumb_g598_safe_v1",
+  "terminals": [
+    "ADDRESSABILITY_CONTRACT_PROMISING_BUT_INCOMPLETE",
+    "FALSE_LOCALIZATION_ZERO"
+  ]
+}

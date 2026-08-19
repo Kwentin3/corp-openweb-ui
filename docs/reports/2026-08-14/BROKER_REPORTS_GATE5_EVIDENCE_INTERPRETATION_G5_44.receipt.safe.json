@@ -1,0 +1,66 @@
+{
+  "schema_version": "broker_reports_gate5_evidence_interpretation_g5_44_receipt_v1",
+  "goal": "G5.44",
+  "result": "CONTRACTS_PROVEN_WITH_EXTERNAL_LEGAL_GAPS",
+  "terminals": [
+    "EVIDENCE_INTERPRETATION_CONTRACTS_PROVEN",
+    "COMMISSION_SELECTION_CONTRACT_PROVEN",
+    "ACQUISITION_BASIS_COVERAGE_CONTRACT_PROVEN",
+    "RESIDENCY_EVIDENCE_BOUNDARY_PROVEN",
+    "CROSS_DOMAIN_REFACTOR_CONSISTENCY_PROVEN"
+  ],
+  "artifacts": [
+    {
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE5_EVIDENCE_INTERPRETATION_CONTRACTS.v1.md",
+      "bytes": 4892,
+      "sha256": "901b9ca21955a7b27005491728775cd7b24e6b4282a71b310cfe1bb0d14c968a"
+    },
+    {
+      "path": "docs/reports/2026-08-14/BROKER_REPORTS_GATE5_EVIDENCE_INTERPRETATION_G5_44.report.md",
+      "bytes": 6177,
+      "sha256": "8f03a2ee290f93a100f34a410b2b22d25d6de0d33a60b655525c15f729f68096"
+    },
+    {
+      "path": "docs/reports/2026-08-14/BROKER_REPORTS_GATE5_EVIDENCE_INTERPRETATION_G5_44.audit.safe.json",
+      "bytes": 5063,
+      "sha256": "01241f6f4d99c14f1681dbcb7ec2aebdba7f0810f1f99883d4210d4af789a91a"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_residency_evidence.py",
+      "bytes": 17216,
+      "sha256": "bc28ca3154859fe75cbd4525d7730e2bfdacc3f1b2b207412e4fb0c27c57e589"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v1.json",
+      "bytes": 2922,
+      "sha256": "360cf24aae51c039fcb67fc9470d7978208bd80961a6de0d85561366d868c281"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_deterministic_source_fact_consumption.py",
+      "bytes": 61194,
+      "sha256": "23d7cc5abdaec5da534cdeef83b6a4f59c11089c0380c181ed6c09c95f2f621b"
+    },
+    {
+      "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate1_pipe_bundled.py",
+      "bytes": 6396807,
+      "sha256": "82cba4744ab37f2b7e4f6c797f59025f5cd51cbc986339985b52ac99786e3c94"
+    }
+  ],
+  "verification": {
+    "focused": "32 passed",
+    "gate5": "449 passed",
+    "gate3_gate4": "150 passed",
+    "bundle_control_vertical": "17 passed",
+    "compileall": "PASS",
+    "diff_check": "PASS_WITH_LINE_ENDING_WARNINGS_ONLY",
+    "real_corpus_store_unchanged": true,
+    "provider_calls": 0
+  },
+  "scope_stop": {
+    "external_legal_methodology_gaps": 4,
+    "product_activated": false,
+    "commit_created": false,
+    "push_performed": false,
+    "pr_opened": false
+  }
+}

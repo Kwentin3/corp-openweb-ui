@@ -14,6 +14,11 @@ from .gate5_declaration_projection import (
     Gate5DeclarationProjectionRuntime,
     Gate5DeclarationProjectionRuntimeFactory,
 )
+from .gate5_deterministic_source_fact_consumption import (
+    Gate5DeterministicSourceFactConsumptionRuntime,
+    Gate5DeterministicSourceFactConsumptionRuntimeFactory,
+    gate5_source_fact_tax_model_inputs,
+)
 from .gate5_supplemental_fact_discovery import (
     Gate5SupplementalFactDiscoveryRuntime,
     Gate5SupplementalFactDiscoveryRuntimeFactory,
@@ -51,6 +56,8 @@ FACTORY_REQUIRED = (
     "Gate5TrustedMethodologyAuthorityFactory.create owns methodology resolution",
     "Gate5SupplementalFactDiscoveryRuntimeFactory.create owns case input discovery",
     "Gate5DeclarationProjectionRuntimeFactory.create owns declaration representation",
+    "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create owns the "
+    "normalized-source-fact result consumed by run_from_current_source_facts",
 )
 FORBIDDEN = (
     "direct Gate 4, Supplemental Fact, ArtifactStore, SQL, source or provider reads",
@@ -81,6 +88,7 @@ _SECTIONS = {
 _EXPENSE_FLAGS = {"actually_incurred", "documented", "related_to_operation"}
 _SOURCE_KINDS = {
     "external_authoritative_evidence",
+    "methodology_derived_result",
     "proof_assumption",
     "user_verified_fact",
 }
@@ -136,6 +144,12 @@ class Gate5SecuritiesDisposalTaxModelRuntimeFactory:
                 read_enabled=self._read_enabled,
                 retention_policy=self._retention_policy,
             ).create(),
+            source_fact_consumption=(
+                Gate5DeterministicSourceFactConsumptionRuntimeFactory(
+                    store=self._store,
+                    read_enabled=self._read_enabled,
+                ).create()
+            ),
             projector=Gate5DeclarationProjectionRuntimeFactory.create(),
         )
 
@@ -146,10 +160,12 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
         *,
         authority: Gate5TrustedMethodologyAuthority,
         discovery: Gate5SupplementalFactDiscoveryRuntime,
+        source_fact_consumption: Gate5DeterministicSourceFactConsumptionRuntime,
         projector: Gate5DeclarationProjectionRuntime,
     ) -> None:
         self._authority = authority
         self._discovery = discovery
+        self._source_fact_consumption = source_fact_consumption
         self._projector = projector
 
     def run(
@@ -210,6 +226,47 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
             ),
         }
 
+    def run_from_current_source_facts(
+        self,
+        *,
+        methodology_ref: dict[str, Any],
+        source_fact_methodology_ref: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        disposal_fact_id: str,
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any]:
+        """Build the existing category model from a validated source-fact result."""
+
+        inputs, resolved, _, behavior, applicability = self._prepare_contract(
+            methodology_ref=methodology_ref,
+            resolved_inputs=resolved_inputs,
+            expected_behavior_id=GATE5_SECURITIES_DISPOSAL_TAX_MODEL_BEHAVIOR_ID,
+        )
+        consumed = self._source_fact_consumption.run(
+            methodology_ref=source_fact_methodology_ref,
+            context=context,
+        )
+        money_inputs = gate5_source_fact_tax_model_inputs(
+            consumed,
+            disposal_fact_id=disposal_fact_id,
+            context=context,
+        )
+        tax_model = _tax_model(
+            authority_binding=resolved["authority_binding"],
+            behavior=behavior,
+            inputs=inputs,
+            applicability=applicability,
+            money_inputs=money_inputs,
+        )
+        semantics = _declaration_semantics(tax_model)
+        return {
+            "schema_version": GATE5_SECURITIES_DISPOSAL_TAX_MODEL_RESULT_SCHEMA_VERSION,
+            "status": "projected",
+            "tax_model": tax_model,
+            "declaration_semantics": semantics,
+            "declaration_fragment": self._projector.project(proof_input=semantics),
+        }
+
     def _prepare(
         self,
         *,
@@ -222,6 +279,41 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
         dict[str, Any],
         dict[str, Any],
         dict[str, dict[str, Any]],
+        dict[str, dict[str, Any]],
+    ]:
+        inputs, resolved, methodology, behavior, applicability = (
+            self._prepare_contract(
+            methodology_ref=methodology_ref,
+            resolved_inputs=resolved_inputs,
+            expected_behavior_id=expected_behavior_id,
+            )
+        )
+        checked = self._discovery.check(
+            methodology={
+                "schema_version": GATE5_COMBINED_REQUIREMENTS_SCHEMA_VERSION,
+                "requirements": copy.deepcopy(methodology["requirements"]),
+            },
+            context=context,
+        )
+        if checked["summary"]["missing"]:
+            _fail("gate5_tax_model_inputs_not_satisfied")
+        requirements = {
+            item["requirement_id"]: item for item in checked["requirements"]
+        }
+        money_inputs = _money_inputs(behavior["input_bindings"], requirements)
+        return inputs, resolved, behavior, applicability, money_inputs
+
+    def _prepare_contract(
+        self,
+        *,
+        methodology_ref: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        expected_behavior_id: str,
+    ) -> tuple[
+        dict[str, Any],
+        dict[str, Any],
+        dict[str, Any],
+        dict[str, Any],
         dict[str, dict[str, Any]],
     ]:
         inputs = _resolved_inputs(resolved_inputs)
@@ -238,7 +330,6 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
             for item in methodology["requirements"]
         ):
             _fail("gate5_tax_model_subject_binding_mismatch")
-
         applicability = {
             **inputs["operation_properties"],
             **inputs["tax_context"],
@@ -247,20 +338,7 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
         _require_applicability(
             behavior["applicability_rule"]["required_values"], applicability
         )
-        checked = self._discovery.check(
-            methodology={
-                "schema_version": GATE5_COMBINED_REQUIREMENTS_SCHEMA_VERSION,
-                "requirements": copy.deepcopy(methodology["requirements"]),
-            },
-            context=context,
-        )
-        if checked["summary"]["missing"]:
-            _fail("gate5_tax_model_inputs_not_satisfied")
-        requirements = {
-            item["requirement_id"]: item for item in checked["requirements"]
-        }
-        money_inputs = _money_inputs(behavior["input_bindings"], requirements)
-        return inputs, resolved, behavior, applicability, money_inputs
+        return inputs, resolved, methodology, behavior, applicability
 
 
 def _resolved_inputs(value: Any) -> dict[str, Any]:
@@ -278,6 +356,16 @@ def _resolved_inputs(value: Any) -> dict[str, Any]:
     }
     for name, (allowed, channel) in _SECTIONS.items():
         result[name] = _tagged_section(value.get(name), allowed, channel)
+    residency = result["tax_context"].get("residency")
+    if (
+        not isinstance(residency, dict)
+        or residency["provenance"].get("source_kind")
+        != "methodology_derived_result"
+        or not residency["provenance"].get("source_ref", "").startswith(
+            "residency-classification:"
+        )
+    ):
+        _fail("gate5_tax_model_residency_classification_required", "residency")
     raw_evidence = value.get("expense_evidence")
     if not isinstance(raw_evidence, dict):
         _fail("gate5_tax_model_expense_evidence_invalid")

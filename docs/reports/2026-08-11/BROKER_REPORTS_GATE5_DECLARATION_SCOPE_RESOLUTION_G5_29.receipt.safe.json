@@ -1,0 +1,138 @@
+{
+  "active": false,
+  "conflicts": [],
+  "definition_binding": {
+    "definition_id": "ru_3ndfl_2025_root_declaration",
+    "definition_sha256": "8d2a4ad11c766a5d346f4840b033d08e6c854fe07e336836541f9437ea8bf19d",
+    "definition_version": "2026-08-10.1",
+    "obligation_package_sha256": "8065a2047b2d7bf5a1a3b87ed4dd49f65bd39e97b6a42c1acf24d2d62548b23c",
+    "schema_version": "broker_reports_gate5_full_declaration_definition_publication_v1",
+    "status": "trusted_repository_published",
+    "validation_sha256": "f3e4993ac54f154be53cb5d21a4ffaed0713cf49b3025b10d4e9b8b9c1bf79f6"
+  },
+  "domain_accounting": [
+    {
+      "decision_sha256": "4352d4d8148090c854be789272d41ca2a72a52f585c0b0231e531095925d4de0",
+      "domain_id": "filing_and_party_identity",
+      "resolution_route": "RESOLVE",
+      "state": "APPLICABLE"
+    },
+    {
+      "decision_sha256": "a66087e8e4b1dd453dd809ae4e45c7976479506c92556aee069b2af6ffd1ea72",
+      "domain_id": "declaration_budget_disposition",
+      "resolution_route": "RESOLVE",
+      "state": "APPLICABLE"
+    },
+    {
+      "decision_sha256": "f8c26ccdaa07bfd07ba5ac65ac5b26a7976ab11faebaa502381383eaa23f220a",
+      "domain_id": "income_group_tax_results",
+      "resolution_route": "RESOLVE",
+      "state": "APPLICABLE"
+    },
+    {
+      "decision_sha256": "8a0697461e7ab7e1890100fb1c6a50da5f213aacf050350aea6eba8ea8b09500",
+      "domain_id": "refundable_amount_disposal",
+      "resolution_route": "RESOLVE",
+      "state": "UNRESOLVED"
+    },
+    {
+      "decision_sha256": "014dadfdaffc62f0a660bb72a5d4f05a75f307b8b2edccc58c0913ab30c69f50",
+      "domain_id": "taxable_income_by_source",
+      "resolution_route": "RESOLVE",
+      "state": "UNRESOLVED"
+    },
+    {
+      "decision_sha256": "588abd78d65c977e52832158daf8b06315e598a60e13f9e2de478f2159213efd",
+      "domain_id": "professional_activity_results",
+      "resolution_route": "RESOLVE",
+      "state": "UNRESOLVED"
+    },
+    {
+      "decision_sha256": "5aa49c65c18aa0b3187e7ad22d7806ba56e97a93a7f65510c8be77342c248027",
+      "domain_id": "deduction_claims",
+      "resolution_route": "RESOLVE",
+      "state": "UNRESOLVED"
+    },
+    {
+      "decision_sha256": "f1ee216d83c7ee6eae77a68625b22bb8acc1886ead91c6124a9bee635843513c",
+      "domain_id": "tax_exempt_income",
+      "resolution_route": "RESOLVE",
+      "state": "UNRESOLVED"
+    },
+    {
+      "decision_sha256": "a448abff2ab431bfa2c2c9f7e51f2a42b805f04b7e3aadcde19630472056fa38",
+      "domain_id": "property_and_vehicle_dispositions",
+      "resolution_route": "RESOLVE",
+      "state": "UNRESOLVED"
+    },
+    {
+      "decision_sha256": "7bf20383b50739a67b5351a0bf45c6d00363f88747441f08498796317419e528",
+      "domain_id": "gift_income",
+      "resolution_route": "RESOLVE",
+      "state": "UNRESOLVED"
+    },
+    {
+      "decision_sha256": "70ecc36313f6d0ae423cf853c7397e5f997e1b7b40c44cd25429a5600c8a18fe",
+      "domain_id": "financial_investment_results",
+      "resolution_route": "EXECUTE",
+      "state": "APPLICABLE"
+    }
+  ],
+  "first_downstream_blocker": {
+    "component_availability": "missing",
+    "component_family": "filing_and_party_identity",
+    "domain_id": "filing_and_party_identity",
+    "reason": "required_component_missing"
+  },
+  "gate4_binding": {
+    "binding_sha256": "ca8a8c9a0bb27f425b4eb027104c0106eeb2c27fbbfc6d84305681b598509292",
+    "boundary": "Gate4FinancialCaseRuntimeFactory.create",
+    "fact_count": 1,
+    "source_count": 1,
+    "status": "CASE_COMPLETE_FOR_CURRENT_INPUT_SET"
+  },
+  "human_residual": {
+    "answer_contract": [
+      "yes",
+      "no"
+    ],
+    "definition_sha256": "8d2a4ad11c766a5d346f4840b033d08e6c854fe07e336836541f9437ea8bf19d",
+    "domain_id": "refundable_amount_disposal",
+    "policy": "elective_claim",
+    "question_context": {
+      "semantic_meaning": "Authenticated election governing disposal of an established refundable amount and its destination semantics.",
+      "tax_period": "2025"
+    },
+    "request_sha256": "2489e165f2bf0396b2deaf9c27de43b87d0679b30ec01b6932e01a3ff8ba16d2",
+    "schema_version": "broker_reports_gate5_declaration_scope_human_request_v0",
+    "scope_binding_sha256": "3d9be2b6b1798fe559352ab5b18b671f48f8ad4958fb0737844dc33ebb0302e6"
+  },
+  "privacy": {
+    "customer_data": false,
+    "identities": "synthetic_only",
+    "provider_payloads": false
+  },
+  "proof_case": "synthetic_single_security_disposal_2025",
+  "receipt_sha256": "16fa11f2a82fb690abc85037dee5fa521b88222d61ca2d0e4b3d4f129de4e621",
+  "schema_version": "broker_reports_gate5_declaration_scope_resolution_proof_v0",
+  "scope_binding": {
+    "authenticated_user_ref": "g5-tax-period-user",
+    "case_id": "g5-tax-period-case-scope",
+    "normalization_run_ref": "g5-tax-period-run-scope",
+    "schema_version": "broker_reports_gate5_declaration_scope_v0",
+    "scope_binding_sha256": "3d9be2b6b1798fe559352ab5b18b671f48f8ad4958fb0737844dc33ebb0302e6",
+    "scope_ref": "g529-bounded-scope-proof",
+    "tax_period": "2025",
+    "taxpayer_scope_ref": "security-disposal-1"
+  },
+  "status": "SCOPE_INCOMPLETE",
+  "unresolved_domains": [
+    "refundable_amount_disposal",
+    "taxable_income_by_source",
+    "professional_activity_results",
+    "deduction_claims",
+    "tax_exempt_income",
+    "property_and_vehicle_dispositions",
+    "gift_income"
+  ]
+}

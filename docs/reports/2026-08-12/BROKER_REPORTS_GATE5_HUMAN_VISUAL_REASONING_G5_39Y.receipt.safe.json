@@ -1,0 +1,67 @@
+{
+  "schema_version": "broker_reports_gate5_g539y_safe_receipt_v1",
+  "goal": "G5.39Y",
+  "date": "2026-08-12",
+  "terminal": "VISUAL_SIGNAL_NOT_SUFFICIENT",
+  "secondary_finding": "SEMANTIC_RECONCILIATION_CAPABILITY_UNRESOLVED",
+  "confirmation_opened": false,
+  "candidate_contract": null,
+  "artifacts": {
+    "report": {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_HUMAN_VISUAL_REASONING_G5_39Y.report.md",
+      "sha256": "79a3d55f9440b1ea767b942be3dcc774d6eac00e251bce3efa03d54ef0a61620"
+    },
+    "safe_ledger": {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_HUMAN_VISUAL_REASONING_G5_39Y.ledger.safe.json",
+      "sha256": "f6dae952923c443318b30c735d725f30564dd0f61afbbaf32718485df74733d3"
+    }
+  },
+  "private_evidence_hashes": {
+    "h1_plan": "913b834a5a937d6ae47d5f4afa56de631088d594f9e98674cd7df796d7bcf6e5",
+    "h1_audit": "8e4f4a2f7ad6bcfcdfa2a4538adbfeb1f674a3cad26b51c9424435b529bfaca1",
+    "h2_plan": "4ba43eb55cefbe95e9dd7911823bed047d6bbd643fed3ec1e410de0df03ff0a1",
+    "h2_audit": "647c1ee190f6202253d5fe3af3410cf98d220d2074862785fb01ea6542960b59"
+  },
+  "execution": {
+    "semantic_calls": 8,
+    "provider_submissions": 8,
+    "provider_responses": 8,
+    "input_tokens": 200946,
+    "output_tokens": 6572,
+    "semantic_retries": 0,
+    "repairs": 0,
+    "merges": 0,
+    "invented_refs": 0,
+    "invented_literals": 0,
+    "negative_cross_event_groups": 0,
+    "schema_invalid_outputs": 8,
+    "accepted_outputs": 0
+  },
+  "verification": {
+    "isolated_adjudicator_tests": "4 passed in 0.95s",
+    "product_regressions": "57 passed in 7.04s",
+    "shell": "Windows PowerShell",
+    "test_env_override": false,
+    "product_code_changed": false,
+    "privacy_scan": "passed_no_hits",
+    "git_diff_check": "passed"
+  },
+  "issue_journal": {
+    "repository": "Kwentin3/corp-openweb-ui",
+    "issue": 278,
+    "comment_id": 5265672835,
+    "url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278#issuecomment-5265672835"
+  },
+  "scope_stops": {
+    "confirmatory_proof": false,
+    "production_implementation": false,
+    "canonical_redesign": false,
+    "new_parser": false,
+    "provider_abstraction": false,
+    "commit": false,
+    "push": false,
+    "pull_request": false,
+    "activation": false,
+    "dependent_goal_authorized": false
+  }
+}

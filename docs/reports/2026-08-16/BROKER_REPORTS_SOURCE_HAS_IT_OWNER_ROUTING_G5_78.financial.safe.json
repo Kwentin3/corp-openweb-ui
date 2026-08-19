@@ -1,0 +1,27 @@
+{
+  "schema_version": "broker_reports_g578_financial_regression_safe_v1",
+  "goal": "G5.78",
+  "factory_route": "Gate4FinancialCaseRuntimeFactory.create.rebuild_case",
+  "source_stores_unchanged": true,
+  "cases": [
+    {
+      "alias": "holdout_a",
+      "before_facts": 39,
+      "after_facts": 39,
+      "before_sha256": "64f06cacc05f715031dceebf86ab3219d67716fcad9f773da918775c6d2b03a1",
+      "after_sha256": "64f06cacc05f715031dceebf86ab3219d67716fcad9f773da918775c6d2b03a1",
+      "exact_frozen_equality": true
+    },
+    {
+      "alias": "holdout_b",
+      "before_facts": 129,
+      "after_facts": 129,
+      "before_sha256": "0c836d13213280d0b4427c9b064157b44ed7d53c50e72a3afcfc8758fbeb3354",
+      "after_sha256": "0c836d13213280d0b4427c9b064157b44ed7d53c50e72a3afcfc8758fbeb3354",
+      "exact_frozen_equality": true
+    }
+  ],
+  "passed": true,
+  "terminal": "FINANCIAL_GENERALIZATION_PRESERVED",
+  "private_values_committed": false
+}

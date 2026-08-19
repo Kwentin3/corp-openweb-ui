@@ -14,27 +14,15 @@ PACKAGE_ROOT = SERVICE_ROOT / "broker_reports_gate1"
 DOC_ROOT = REPO_ROOT / "docs" / "stage2"
 
 DOMAIN_MAP = DOC_ROOT / "architecture" / "BROKER_REPORTS_DOMAIN_MAP.v1.md"
-ROUTE_STATUS = (
-    DOC_ROOT / "architecture" / "BROKER_REPORTS_GATE2_ROUTE_STATUS.v1.md"
-)
-OWNER_CONTEXT = (
-    DOC_ROOT / "architecture" / "BROKER_REPORTS_OWNER_CONTEXT.v1.json"
-)
-OWNER_CONTEXT_GUIDE = (
-    DOC_ROOT / "architecture" / "BROKER_REPORTS_OWNER_CONTEXT.v1.md"
-)
-OWNER_MATRIX = (
-    DOC_ROOT / "contracts" / "BROKER_REPORTS_SOLE_OWNER_MATRIX.v1.md"
-)
+ROUTE_STATUS = DOC_ROOT / "architecture" / "BROKER_REPORTS_GATE2_ROUTE_STATUS.v1.md"
+OWNER_CONTEXT = DOC_ROOT / "architecture" / "BROKER_REPORTS_OWNER_CONTEXT.v1.json"
+OWNER_CONTEXT_GUIDE = DOC_ROOT / "architecture" / "BROKER_REPORTS_OWNER_CONTEXT.v1.md"
+OWNER_MATRIX = DOC_ROOT / "contracts" / "BROKER_REPORTS_SOLE_OWNER_MATRIX.v1.md"
 ARCHITECTURE_AUTHORITIES = (
     DOC_ROOT / "contracts" / "BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md"
 )
-CONVERGENCE_ADR = (
-    DOC_ROOT / "adr" / "BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md"
-)
-COMMENT_POLICY = (
-    DOC_ROOT / "agent" / "BROKER_REPORTS_CODE_COMMENT_POLICY.v1.md"
-)
+CONVERGENCE_ADR = DOC_ROOT / "adr" / "BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md"
+COMMENT_POLICY = DOC_ROOT / "agent" / "BROKER_REPORTS_CODE_COMMENT_POLICY.v1.md"
 
 EXPECTED_OWNER_IDS = {
     "pdf_vlm_visual_execution",
@@ -141,9 +129,7 @@ def _defined_symbols(path: Path) -> set[str]:
 
 
 def _route_markers() -> dict[str, str]:
-    pattern = re.compile(
-        r"<!-- route_id=([a-z0-9_]+);status=([A-Z_]+) -->"
-    )
+    pattern = re.compile(r"<!-- route_id=([a-z0-9_]+);status=([A-Z_]+) -->")
     return dict(pattern.findall(_read(ROUTE_STATUS)))
 
 
@@ -173,9 +159,7 @@ def _changed_paths() -> list[tuple[str, str]]:
     for line in tracked:
         status, path = line.split("\t", maxsplit=1)
         result.append((status, path.replace("\\", "/")))
-    result.extend(
-        ("A", path.replace("\\", "/")) for path in untracked
-    )
+    result.extend(("A", path.replace("\\", "/")) for path in untracked)
     return result
 
 
@@ -228,20 +212,12 @@ def test_05_sole_owner_matrix_is_consistent_with_metadata() -> None:
     matrix = _read(OWNER_MATRIX)
     required_matrix_markers = {
         "pdf_vlm_visual_execution": ("PdfDualVlmRuntimeFactory",),
-        "semantic_visual_validation": (
-            "SemanticVisualTableValidatorFactory",
-        ),
-        "logical_table_materialization": (
-            "SemanticVisualTableMaterializationFactory",
-        ),
+        "semantic_visual_validation": ("SemanticVisualTableValidatorFactory",),
+        "logical_table_materialization": ("SemanticVisualTableMaterializationFactory",),
         "gate2_table_package": ("Gate2TablePackageFactory",),
-        "current_source_fact_orchestration": (
-            "Gate2DomainSourceFactRuntimeFactory",
-        ),
+        "current_source_fact_orchestration": ("Gate2DomainSourceFactRuntimeFactory",),
         "historical_source_fact_selection": ("source_fact_selection_v3",),
-        "financial_type_authority": (
-            "Gate2FinancialSemanticContractFactory",
-        ),
+        "financial_type_authority": ("Gate2FinancialSemanticContractFactory",),
         "semantic_choice_and_expansion": (
             "Gate2FinancialSemanticV6ChoiceContractFactory",
             "Gate2FinancialSemanticV6DecisionExpansionFactory",
@@ -274,9 +250,7 @@ def test_05_sole_owner_matrix_is_consistent_with_metadata() -> None:
 def test_06_historical_route_is_read_only() -> None:
     owner = _owners()["historical_source_fact_selection"]
     assert owner["runtime_status"] == "HISTORICAL_READ_ONLY"
-    assert _route_markers()["source_fact_selection_v3"] == (
-        "HISTORICAL_READ_ONLY"
-    )
+    assert _route_markers()["source_fact_selection_v3"] == ("HISTORICAL_READ_ONLY")
 
 
 def test_07_historical_product_and_provider_reachability_are_forbidden() -> None:
@@ -294,9 +268,7 @@ def test_07_historical_product_and_provider_reachability_are_forbidden() -> None
         "explicit_product_decision",
     ]
     pipe = _read(
-        SERVICE_ROOT
-        / "openwebui_actions"
-        / "broker_reports_gate2_source_fact_pipe.py"
+        SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate2_source_fact_pipe.py"
     )
     tree = ast.parse(pipe)
     guard = next(
@@ -309,9 +281,8 @@ def test_07_historical_product_and_provider_reachability_are_forbidden() -> None
     assert len(returns) == 1
     assert isinstance(returns[0].value, ast.Constant)
     assert returns[0].value.value is False
-    assert (
-        "gate2_source_fact_selection"
-        not in _imports(PACKAGE_ROOT / "gate2_domain_runtime.py")
+    assert "gate2_source_fact_selection" not in _imports(
+        PACKAGE_ROOT / "gate2_domain_runtime.py"
     )
 
 
@@ -326,8 +297,7 @@ def test_08_goal17_is_not_a_current_main_implementation() -> None:
     ).exists()
     assert _route_markers()["goal17_type_first_v6"] == "CONTRACT_ONLY"
     assert not any(
-        "goal17" in owner_id or "type_first" in owner_id
-        for owner_id in _owners()
+        "goal17" in owner_id or "type_first" in owner_id for owner_id in _owners()
     )
 
 
@@ -368,8 +338,7 @@ def test_10_future_semantic_route_is_singular() -> None:
     adr = _read(CONVERGENCE_ADR)
     assert (
         adr.count(
-            "one Pack-backed Type-First classifier inside the existing "
-            "product boundary"
+            "one Pack-backed Type-First classifier inside the existing product boundary"
         )
         == 1
     )
@@ -380,12 +349,9 @@ def test_11_canonical_materializer_has_one_authority() -> None:
     owners = [
         path
         for path in PACKAGE_ROOT.glob("*.py")
-        if "Gate2FinancialEvidenceMaterializerFactory"
-        in _defined_symbols(path)
+        if "Gate2FinancialEvidenceMaterializerFactory" in _defined_symbols(path)
     ]
-    assert owners == [
-        PACKAGE_ROOT / "gate2_financial_evidence_materialization.py"
-    ]
+    assert owners == [PACKAGE_ROOT / "gate2_financial_evidence_materialization.py"]
     assert _owners()["canonical_financial_materializer"]["symbols"] == [
         "Gate2FinancialEvidenceMaterializerFactory"
     ]
@@ -397,9 +363,7 @@ def test_12_financial_type_authority_is_singular() -> None:
         for path in PACKAGE_ROOT.glob("*.py")
         if "Gate2FinancialSemanticContractFactory" in _defined_symbols(path)
     ]
-    assert owners == [
-        PACKAGE_ROOT / "gate2_financial_semantic_contract.py"
-    ]
+    assert owners == [PACKAGE_ROOT / "gate2_financial_semantic_contract.py"]
     assert _owners()["financial_type_authority"]["symbols"] == [
         "Gate2FinancialSemanticContractFactory"
     ]
@@ -409,8 +373,7 @@ def test_13_evidence_and_replay_authority_is_singular() -> None:
     evidence_owners = [
         path
         for path in PACKAGE_ROOT.glob("*.py")
-        if "Gate2FinancialSemanticV6DecisionEvidenceFactory"
-        in _defined_symbols(path)
+        if "Gate2FinancialSemanticV6DecisionEvidenceFactory" in _defined_symbols(path)
     ]
     replay_owners = [
         path
@@ -465,9 +428,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         path
         for status, path in _changed_paths()
         if status.startswith("A")
-        and path.startswith(
-            "services/broker-reports-gate1-proof/broker_reports_gate1/"
-        )
+        and path.startswith("services/broker-reports-gate1-proof/broker_reports_gate1/")
         and path.endswith(".py")
     ]
     allowed_subordinates = {
@@ -481,6 +442,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ),
     }
     allowed_standalone_contract_authorities = {
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_table_locator.py"
+        ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate3_financial_label_dictionary.py"
@@ -504,6 +469,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate3_ndfl_workflow.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_evidence_demand_port.py"
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
@@ -543,19 +512,147 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_deterministic_source_fact_consumption.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_metadata_source_facts.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate3_llm_metadata_adapter.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_evidence_intake.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_evidence_demand.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_evidence_demand_contract.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_methodology_evidence.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_residency_evidence.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_real_tax_case_assembly.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_client_evidence_review.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_scope_resolution.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_human_gap_closure.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_preparation.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate5_external_evidence.py"
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate5_declaration_projection.py"
         ),
-        (
-            "services/broker-reports-gate1-proof/broker_reports_gate1/"
-            "gate5_securities_disposal_tax_model.py"
-        ),
+            (
+                "services/broker-reports-gate1-proof/broker_reports_gate1/"
+                "gate5_securities_disposal_tax_model.py"
+            ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate5_tax_period_category_aggregation.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_income_group_tax_base.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_runtime_capabilities.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_published_typed_behavior.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_definition.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_clean_context_declaration_trial.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_authoring_language.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_full_declaration_definition.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_scope_resolution.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_filing_context.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_budget_outcome.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_tax_settlement.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_income_sources.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_financial_investment_results.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_resolved_declaration_package.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_semantic_input.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_full_target_xml_projection.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_end_to_end_full_target_xml.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_openwebui_product.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "declaration_semantics.py"
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
@@ -625,10 +722,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "canonical_artifact.py"
         ),
-        (
-            "services/broker-reports-gate1-proof/broker_reports_gate1/"
-            "canonical_store.py"
-        ),
+        ("services/broker-reports-gate1-proof/broker_reports_gate1/canonical_store.py"),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "canonical_consumer_migration.py"
@@ -637,10 +731,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "canonical_wave2_shadow.py"
         ),
-        (
-            "services/broker-reports-gate1-proof/broker_reports_gate1/"
-            "xlsx_streaming.py"
-        ),
+        ("services/broker-reports-gate1-proof/broker_reports_gate1/xlsx_streaming.py"),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate3_projection.py"
@@ -661,6 +752,18 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     allowed_support_modules = {
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gemini_normalized_table_boxes.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_native_navigation_overlay.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "visual_pdfplumber_table_plan.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate3_financial_label_dictionary_cli.py"
         ),
     }
@@ -674,9 +777,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         capabilities = _owners()["current_source_fact_orchestration"][
             "inactive_subordinate_capabilities"
         ]
-        assert added_subordinates <= {
-            item["module"] for item in capabilities
-        }
+        assert added_subordinates <= {item["module"] for item in capabilities}
         assert all(item["canonical_owner_delta"] == 0 for item in capabilities)
     added_contract_authorities = (
         set(added_package_modules) & allowed_standalone_contract_authorities
@@ -687,14 +788,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     )
     if managed_document_contracts in added_contract_authorities:
         managed_contract = (
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_MANAGED_DOCUMENT.v1.md"
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_MANAGED_DOCUMENT.v1.md"
         )
         managed_test = (
-            SERVICE_ROOT
-            / "tests"
-            / "test_broker_reports_managed_document_contract.py"
+            SERVICE_ROOT / "tests" / "test_broker_reports_managed_document_contract.py"
         )
         module = PACKAGE_ROOT / "managed_document_contracts.py"
         assert managed_contract.is_file()
@@ -718,9 +815,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     }
     if added_contract_authorities & doc2_authorities:
         coverage_contract = (
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_MANAGED_DOCUMENT_COVERAGE.v1.md"
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_MANAGED_DOCUMENT_COVERAGE.v1.md"
         )
         parity_contract = (
             DOC_ROOT
@@ -728,9 +823,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             / "BROKER_REPORTS_PDF_ARTIFACT_PARITY_CHECKLIST.v1.md"
         )
         doc2_test = (
-            SERVICE_ROOT
-            / "tests"
-            / "test_broker_reports_managed_pdf_document.py"
+            SERVICE_ROOT / "tests" / "test_broker_reports_managed_pdf_document.py"
         )
         assert coverage_contract.is_file()
         assert parity_contract.is_file()
@@ -755,14 +848,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     }
     if added_contract_authorities & doc3_authorities:
         view_contract = (
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_LLM_DOCUMENT_VIEW.v1.md"
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_LLM_DOCUMENT_VIEW.v1.md"
         )
         view_test = (
-            SERVICE_ROOT
-            / "tests"
-            / "test_broker_reports_managed_document_llm_view.py"
+            SERVICE_ROOT / "tests" / "test_broker_reports_managed_document_llm_view.py"
         )
         assert view_contract.is_file()
         assert view_test.is_file()
@@ -799,12 +888,8 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     if added_contract_authorities & doc6_authorities:
         for path in (
             DOC_ROOT / "contracts" / "BROKER_REPORTS_MANAGED_DOCUMENT.v2.md",
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_MANAGED_DOCUMENT.v2.schema.json",
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_LLM_DOCUMENT_VIEW.v2.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_MANAGED_DOCUMENT.v2.schema.json",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_LLM_DOCUMENT_VIEW.v2.md",
             DOC_ROOT / "BROKER_REPORTS_DOC6_LOGICAL_ROW_MODEL_DECISION.v1.md",
             SERVICE_ROOT
             / "tests"
@@ -812,9 +897,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             SERVICE_ROOT
             / "tests"
             / "test_broker_reports_logical_row_table_recovery.py",
-            SERVICE_ROOT
-            / "tests"
-            / "test_broker_reports_managed_pdf_document_v2.py",
+            SERVICE_ROOT / "tests" / "test_broker_reports_managed_pdf_document_v2.py",
             SERVICE_ROOT
             / "tests"
             / "test_broker_reports_managed_document_llm_view_v2.py",
@@ -838,22 +921,15 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "canonical_artifact.py"
         ),
-        (
-            "services/broker-reports-gate1-proof/broker_reports_gate1/"
-            "canonical_store.py"
-        ),
+        ("services/broker-reports-gate1-proof/broker_reports_gate1/canonical_store.py"),
     }
     if added_contract_authorities & doc26_authorities:
         for path in (
             DOC_ROOT / "contracts" / "BROKER_REPORTS_PIPELINE_GATES.v1.md",
             DOC_ROOT / "contracts" / "BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md",
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_CANONICAL_STORAGE_LIFECYCLE.v1.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_CANONICAL_STORAGE_LIFECYCLE.v1.md",
             DOC_ROOT / "contracts" / "BROKER_REPORTS_CANONICAL_READER.v1.md",
-            SERVICE_ROOT
-            / "tests"
-            / "test_broker_reports_canonical_artifact_v1.py",
+            SERVICE_ROOT / "tests" / "test_broker_reports_canonical_artifact_v1.py",
             SERVICE_ROOT
             / "tests"
             / "test_broker_reports_canonical_storage_lifecycle_v1.py",
@@ -882,9 +958,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             DOC_ROOT
             / "contracts"
             / "BROKER_REPORTS_GATE2_CONSUMER_MIGRATION_MATRIX.v1.md",
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_GATE2_MIGRATION_STRATEGY.v1.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_GATE2_MIGRATION_STRATEGY.v1.md",
             DOC_ROOT / "contracts" / "BROKER_REPORTS_CANONICAL_READER.v1.md",
             SERVICE_ROOT
             / "tests"
@@ -905,14 +979,11 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         assert "def main(" not in source
         assert "openwebui_actions" not in _imports(module)
     gate3_projection_authority = (
-        "services/broker-reports-gate1-proof/broker_reports_gate1/"
-        "gate3_projection.py"
+        "services/broker-reports-gate1-proof/broker_reports_gate1/gate3_projection.py"
     )
     if gate3_projection_authority in added_contract_authorities:
         for path in (
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md",
             DOC_ROOT / "contracts" / "BROKER_REPORTS_GATE3_PROJECTION.v1.schema.json",
             SERVICE_ROOT / "tests" / "test_broker_reports_gate3_projection.py",
         ):
@@ -932,15 +1003,11 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     )
     if gate3_chunking_authority in added_contract_authorities:
         for path in (
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_GATE3_STRUCTURAL_CHUNKING.v1.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_GATE3_STRUCTURAL_CHUNKING.v1.md",
             DOC_ROOT
             / "contracts"
             / "BROKER_REPORTS_GATE3_STRUCTURAL_CHUNK_SET.v1.schema.json",
-            SERVICE_ROOT
-            / "tests"
-            / "test_broker_reports_gate3_structural_chunking.py",
+            SERVICE_ROOT / "tests" / "test_broker_reports_gate3_structural_chunking.py",
         ):
             assert path.is_file()
         authority_map = _read(ARCHITECTURE_AUTHORITIES)
@@ -982,13 +1049,9 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     )
     if gate3_labeling_authority in added_contract_authorities:
         for path in (
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md",
             PACKAGE_ROOT / "gate3_labeling_response.v1.schema.json",
-            SERVICE_ROOT
-            / "tests"
-            / "test_broker_reports_gate3_bounded_labeling.py",
+            SERVICE_ROOT / "tests" / "test_broker_reports_gate3_bounded_labeling.py",
         ):
             assert path.is_file()
         authority_map = _read(ARCHITECTURE_AUTHORITIES)
@@ -1007,9 +1070,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     )
     if gate3_chunk_batch_authority in added_contract_authorities:
         for path in (
-            DOC_ROOT
-            / "contracts"
-            / "BROKER_REPORTS_GATE3_CHUNK_BATCH_LABELING.v1.md",
+            DOC_ROOT / "contracts" / "BROKER_REPORTS_GATE3_CHUNK_BATCH_LABELING.v1.md",
             SERVICE_ROOT
             / "tests"
             / "test_broker_reports_gate3_chunk_batch_labeling.py",
@@ -1025,9 +1086,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         assert "Gate3BoundedLabelingFactory" in source
         assert "def main(" not in source
         assert "openwebui_actions" not in _imports(module)
-    workflow = _read(
-        REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml"
-    )
+    workflow = _read(REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml")
     for doc6_suite in (
         "tests/test_broker_reports_managed_document_contract_v2.py",
         "tests/test_broker_reports_logical_row_table_recovery.py",
@@ -1084,9 +1143,7 @@ def test_18_doc6_runtime_is_inactive_and_factory_routed() -> None:
         "LogicalRowTableRecoveryRuntime": (
             PACKAGE_ROOT / "logical_row_table_recovery.py"
         ),
-        "ManagedPdfDocumentV2Builder": (
-            PACKAGE_ROOT / "managed_pdf_document_v2.py"
-        ),
+        "ManagedPdfDocumentV2Builder": (PACKAGE_ROOT / "managed_pdf_document_v2.py"),
         "_ManagedDocumentLlmViewV2Renderer": (
             PACKAGE_ROOT / "managed_document_llm_view_v2.py"
         ),
@@ -1105,9 +1162,7 @@ def test_18_doc6_runtime_is_inactive_and_factory_routed() -> None:
             imported_candidates: set[str] = set()
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
-                    imported_candidates.update(
-                        alias.name for alias in node.names
-                    )
+                    imported_candidates.update(alias.name for alias in node.names)
                 elif isinstance(node, ast.ImportFrom):
                     module = node.module or ""
                     if module:
@@ -1120,13 +1175,8 @@ def test_18_doc6_runtime_is_inactive_and_factory_routed() -> None:
                     node.func,
                     ast.Name,
                 ):
-                    allowed_path = factory_internal_constructors.get(
-                        node.func.id
-                    )
-                    if (
-                        allowed_path is not None
-                        and path != allowed_path
-                    ):
+                    allowed_path = factory_internal_constructors.get(node.func.id)
+                    if allowed_path is not None and path != allowed_path:
                         constructor_violations.append(
                             f"{path.relative_to(SERVICE_ROOT).as_posix()}:"
                             f"{node.lineno}:{node.func.id}"
@@ -1141,8 +1191,7 @@ def test_18_doc6_runtime_is_inactive_and_factory_routed() -> None:
             for target_module in imported_doc6:
                 if (path, target_module) not in allowed_import_edges:
                     import_violations.append(
-                        f"{path.relative_to(SERVICE_ROOT).as_posix()}"
-                        f"->{target_module}"
+                        f"{path.relative_to(SERVICE_ROOT).as_posix()}->{target_module}"
                     )
 
     assert sorted(import_violations) == []

@@ -41,18 +41,21 @@ OPENAI_MODEL_QUALIFICATION_ALLOWLIST = frozenset(
         "gpt-5.6-sol",
     }
 )
-OPENAI_ADAPTER_VERSION = "openai_responses_png_semantic_table_json_schema_v1"
+OPENAI_ADAPTER_VERSION = "openai_responses_native_structured_json_schema_v3"
 OPENAI_SCHEMA_NAME = "broker_reports_semantic_table_transcription_v1"
 MAX_OPENAI_RESPONSE_BYTES = 2 * 1024 * 1024
+OPENAI_SCHEMA_PROJECTION_VERSION = "openai_responses_strict_schema_projection_v1"
+OPENAI_REQUEST_PARAMETER_POLICY_VERSION = "openai_responses_model_compatible_v1"
+_OPENAI_REMOVED_SCHEMA_KEYWORDS = frozenset({"uniqueItems"})
 
 FACTORY_REQUIRED = (
-    "PdfDualVlmFactProviderFactory.create_for_openwebui is the only live visual-table "
-    "provider entrypoint"
+    "PdfDualVlmFactProviderFactory.create_for_openwebui is the only live native "
+    "Gemini/OpenAI structured provider entrypoint"
 )
 FORBIDDEN = (
-    "Visual-table orchestration must not construct provider payloads, resolve secrets, "
-    "instantiate adapters, retry, merge providers, or invoke OpenAI without an explicit "
-    "versioned control/fallback policy"
+    "Proof and visual-table orchestration must not construct provider payloads, "
+    "resolve secrets, instantiate adapters, retry, merge providers, or invoke OpenAI "
+    "without an explicit versioned control/fallback policy"
 )
 
 
@@ -241,10 +244,12 @@ class OpenAIResponsesVisionAdapter:
         crop_sha256: str,
     ) -> dict[str, Any]:
         self._validate_crop(png_bytes, crop_sha256)
-        response_body = self._response_body(
-            model_view=model_view,
-            output_schema=output_schema,
-            png_bytes=png_bytes,
+        response_body, canonical_schema_hash, adapted_schema_hash, transforms = (
+            self._response_body(
+                model_view=model_view,
+                output_schema=output_schema,
+                png_bytes=png_bytes,
+            )
         )
         count_body = {
             "model": response_body["model"],
@@ -284,16 +289,19 @@ class OpenAIResponsesVisionAdapter:
                     ),
                 },
             )
-        schema_hash = _sha256_json(output_schema)
         return {
             "total_tokens": input_tokens,
             "input_tokens": input_tokens,
             "http_status": status,
             "request_hash": _sha256_json(count_body),
             "response_hash": hashlib.sha256(body).hexdigest(),
-            "canonical_schema_hash": schema_hash,
-            "adapted_schema_hash": schema_hash,
-            "schema_transform_count": 0,
+            "canonical_schema_hash": canonical_schema_hash,
+            "adapted_schema_hash": adapted_schema_hash,
+            "schema_transform_count": transforms,
+            "schema_projection_version": OPENAI_SCHEMA_PROJECTION_VERSION,
+            "request_parameter_policy_version": (
+                OPENAI_REQUEST_PARAMETER_POLICY_VERSION
+            ),
             "model_requested": self.config.openai_model_id,
             "transport_identity": "openai_responses_input_tokens_png_json_schema",
             "within_hard_guard": True,
@@ -316,11 +324,70 @@ class OpenAIResponsesVisionAdapter:
                 "attempt_policy",
             )
         self._validate_crop(png_bytes, crop_sha256)
-        response_body = self._response_body(
-            model_view=model_view,
-            output_schema=output_schema,
-            png_bytes=png_bytes,
+        response_body, canonical_schema_hash, adapted_schema_hash, transforms = (
+            self._response_body(
+                model_view=model_view,
+                output_schema=output_schema,
+                png_bytes=png_bytes,
+            )
         )
+        return self._invoke_response_body(
+            task_id=task_id,
+            response_body=response_body,
+            model_view_hash=_sha256_json(model_view),
+            canonical_schema_hash=canonical_schema_hash,
+            adapted_schema_hash=adapted_schema_hash,
+            transforms=transforms,
+            transport_identity="openai_responses_native_png_json_schema",
+            source_identity={"crop_sha256": crop_sha256},
+        )
+
+    def invoke_text(
+        self,
+        *,
+        task_id: str,
+        model_visible_request: dict[str, Any],
+        output_schema: dict[str, Any],
+        attempt_number: int,
+        attempt_lineage: list[str],
+    ) -> dict[str, Any]:
+        """Invoke the same Responses owner with text messages and no image input."""
+
+        if attempt_number != 1 or attempt_lineage:
+            raise PdfDualVlmFactProviderError(
+                "pdf_dual_vlm_openai_attempt_lineage_invalid",
+                "attempt_policy",
+            )
+        response_body, canonical_schema_hash, adapted_schema_hash, transforms = (
+            self._text_response_body(
+                model_visible_request=model_visible_request,
+                output_schema=output_schema,
+            )
+        )
+        request_hash = _sha256_json(model_visible_request)
+        return self._invoke_response_body(
+            task_id=task_id,
+            response_body=response_body,
+            model_view_hash=request_hash,
+            canonical_schema_hash=canonical_schema_hash,
+            adapted_schema_hash=adapted_schema_hash,
+            transforms=transforms,
+            transport_identity="openai_responses_native_text_json_schema",
+            source_identity={"text_request_sha256": request_hash},
+        )
+
+    def _invoke_response_body(
+        self,
+        *,
+        task_id: str,
+        response_body: dict[str, Any],
+        model_view_hash: str,
+        canonical_schema_hash: str,
+        adapted_schema_hash: str,
+        transforms: int,
+        transport_identity: str,
+        source_identity: dict[str, str],
+    ) -> dict[str, Any]:
         started_at = _utc_now()
         started = time.perf_counter()
         status: int | None = None
@@ -394,7 +461,6 @@ class OpenAIResponsesVisionAdapter:
             else {}
         )
         visible = text.encode("utf-8") if isinstance(text, str) else b""
-        schema_hash = _sha256_json(output_schema)
         attempt = {
             "task_id": task_id,
             "attempt_id": f"{task_id}_a1",
@@ -406,13 +472,16 @@ class OpenAIResponsesVisionAdapter:
             "model_requested": self.config.openai_model_id,
             "model_resolved": resolved or None,
             "adapter_identity": OPENAI_ADAPTER_VERSION,
-            "transport_identity": "openai_responses_native_png_json_schema",
+            "transport_identity": transport_identity,
             "request_hash": _sha256_json(response_body),
-            "crop_sha256": crop_sha256,
-            "model_view_hash": _sha256_json(model_view),
-            "canonical_schema_hash": schema_hash,
-            "adapted_schema_hash": schema_hash,
-            "schema_transform_count": 0,
+            "model_view_hash": model_view_hash,
+            "canonical_schema_hash": canonical_schema_hash,
+            "adapted_schema_hash": adapted_schema_hash,
+            "schema_transform_count": transforms,
+            "schema_projection_version": OPENAI_SCHEMA_PROJECTION_VERSION,
+            "request_parameter_policy_version": (
+                OPENAI_REQUEST_PARAMETER_POLICY_VERSION
+            ),
             "started_at": started_at,
             "ended_at": _utc_now(),
             "duration_ms": round((time.perf_counter() - started) * 1000),
@@ -430,6 +499,7 @@ class OpenAIResponsesVisionAdapter:
             "terminal_failure_class": failure_class,
             "hidden_retry": False,
             "provider_failover": False,
+            **source_identity,
         }
         return {
             "attempt": attempt,
@@ -444,14 +514,82 @@ class OpenAIResponsesVisionAdapter:
             ),
         }
 
+    def _text_response_body(
+        self,
+        *,
+        model_visible_request: dict[str, Any],
+        output_schema: dict[str, Any],
+    ) -> tuple[dict[str, Any], str, str, int]:
+        messages = model_visible_request.get("messages")
+        response_format = model_visible_request.get("response_format")
+        wrapper = (
+            response_format.get("json_schema")
+            if isinstance(response_format, dict)
+            else None
+        )
+        if (
+            tuple(model_visible_request) != ("messages", "response_format")
+            or not isinstance(messages, list)
+            or not messages
+            or any(
+                not isinstance(message, dict)
+                or set(message) != {"role", "content"}
+                or message.get("role") not in {"system", "user", "assistant"}
+                or not isinstance(message.get("content"), str)
+                or not message["content"]
+                for message in messages
+            )
+            or not isinstance(wrapper, dict)
+            or wrapper.get("strict") is not True
+            or wrapper.get("schema") != output_schema
+        ):
+            raise PdfDualVlmFactProviderError(
+                "pdf_dual_vlm_openai_text_request_invalid",
+                "request_validation",
+            )
+        canonical_schema = copy.deepcopy(output_schema)
+        adapted_schema = copy.deepcopy(output_schema)
+        transforms = _project_openai_schema(adapted_schema)
+        body = {
+            "model": self.config.openai_model_id,
+            "input": [
+                {
+                    "role": message["role"],
+                    "content": [
+                        {"type": "input_text", "text": message["content"]}
+                    ],
+                }
+                for message in messages
+            ],
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": OPENAI_SCHEMA_NAME,
+                    "strict": True,
+                    "schema": adapted_schema,
+                }
+            },
+            "max_output_tokens": self.config.extraction_maximum_output_tokens,
+            "store": False,
+        }
+        return (
+            body,
+            _sha256_json(canonical_schema),
+            _sha256_json(adapted_schema),
+            transforms,
+        )
+
     def _response_body(
         self,
         *,
         model_view: dict[str, Any],
         output_schema: dict[str, Any],
         png_bytes: bytes,
-    ) -> dict[str, Any]:
-        return {
+    ) -> tuple[dict[str, Any], str, str, int]:
+        canonical_schema = copy.deepcopy(output_schema)
+        adapted_schema = copy.deepcopy(output_schema)
+        transforms = _project_openai_schema(adapted_schema)
+        body = {
             "model": self.config.openai_model_id,
             "input": [
                 {
@@ -480,13 +618,18 @@ class OpenAIResponsesVisionAdapter:
                     "type": "json_schema",
                     "name": OPENAI_SCHEMA_NAME,
                     "strict": True,
-                    "schema": copy.deepcopy(output_schema),
+                    "schema": adapted_schema,
                 }
             },
-            "temperature": 0,
             "max_output_tokens": self.config.extraction_maximum_output_tokens,
             "store": False,
         }
+        return (
+            body,
+            _sha256_json(canonical_schema),
+            _sha256_json(adapted_schema),
+            transforms,
+        )
 
     @staticmethod
     def _validate_crop(png_bytes: bytes, crop_sha256: str) -> None:
@@ -571,6 +714,23 @@ def _has_refusal(payload: dict[str, Any]) -> bool:
             if content.get("type") == "refusal" or content.get("refusal"):
                 return True
     return False
+
+
+def _project_openai_schema(value: Any) -> int:
+    """Remove only provider-unsupported non-semantic schema constraints."""
+
+    transforms = 0
+    if isinstance(value, dict):
+        for keyword in _OPENAI_REMOVED_SCHEMA_KEYWORDS:
+            if keyword in value:
+                value.pop(keyword)
+                transforms += 1
+        for child in value.values():
+            transforms += _project_openai_schema(child)
+    elif isinstance(value, list):
+        for child in value:
+            transforms += _project_openai_schema(child)
+    return transforms
 
 
 def _http_failure_class(status: int) -> str:

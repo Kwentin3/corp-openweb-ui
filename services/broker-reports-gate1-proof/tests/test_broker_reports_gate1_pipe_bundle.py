@@ -48,16 +48,13 @@ def _broker_reports_modules() -> dict[str, object]:
     return {
         name: module
         for name, module in sys.modules.items()
-        if name == "broker_reports_gate1"
-        or name.startswith("broker_reports_gate1.")
+        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1.")
     }
 
 
 def _clear_broker_reports_modules() -> None:
     for name in list(sys.modules):
-        if name == "broker_reports_gate1" or name.startswith(
-            "broker_reports_gate1."
-        ):
+        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1."):
             del sys.modules[name]
 
 
@@ -94,14 +91,24 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_ndfl_gate4_case_v1",
+            "gate1_pdf_source_bound_table_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("gate3_ndfl_workflow", module._BUNDLED_MODULES)
         self.assertIn("gate4_financial_case_materialization", module._BUNDLED_MODULES)
         self.assertIn("gate4_financial_case_cache", module._BUNDLED_MODULES)
+        self.assertIn("gate5_real_tax_case_assembly", module._BUNDLED_MODULES)
+        self.assertIn("gate5_declaration_scope_resolution", module._BUNDLED_MODULES)
+        self.assertLess(
+            module._BUNDLED_MODULE_ORDER.index("gate5_real_tax_case_assembly"),
+            module._BUNDLED_MODULE_ORDER.index("gate5_declaration_scope_resolution"),
+        )
         self.assertIn(
             "gate3_financial_label_dictionary.v1.json",
+            module._BUNDLED_RESOURCES,
+        )
+        self.assertIn(
+            "gate3_financial_label_dictionary.v2.json",
             module._BUNDLED_RESOURCES,
         )
         self.assertIn(
@@ -113,8 +120,56 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             module._BUNDLED_RESOURCES,
         )
         self.assertIn(
+            "gate3_financial_role_pack.v2.json",
+            module._BUNDLED_RESOURCES,
+        )
+        self.assertIn(
+            "gate3_financial_role_pack.v3.json",
+            module._BUNDLED_RESOURCES,
+        )
+        self.assertIn(
             "gate3_role_labeling_response.v1.schema.json",
             module._BUNDLED_RESOURCES,
+        )
+        self.assertIn(
+            "gate5_consumer_first_xml_projection.ru_3ndfl_2025.v0.json",
+            module._BUNDLED_RESOURCES,
+        )
+        self.assertIn(
+            "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v1.json",
+            module._BUNDLED_RESOURCES,
+        )
+        self.assertIn(
+            "gate5_tax_methodology.ru_3ndfl_2025_income_group_settlement.v1.json",
+            module._BUNDLED_RESOURCES,
+        )
+        bundled_methodology = sys.modules[
+            "broker_reports_gate1.gate5_trusted_methodology"
+        ]
+        resolved = bundled_methodology.Gate5TrustedMethodologyAuthorityFactory.create().resolve(
+            {
+                "schema_version": (
+                    bundled_methodology.GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION
+                ),
+                "methodology_id": (
+                    bundled_methodology.GATE5_DECLARATION_INPUT_METHODOLOGY_ID
+                ),
+                "methodology_version": (
+                    bundled_methodology.GATE5_DECLARATION_INPUT_METHODOLOGY_VERSION
+                ),
+            }
+        )
+        self.assertEqual(
+            "PUBLISHED_AUDITED_INPUT_CONTRACT",
+            resolved["methodology"]["status"],
+        )
+        bundled_projection = sys.modules[
+            "broker_reports_gate1.gate5_full_target_xml_projection"
+        ]
+        consumer_definition = bundled_projection.Gate5ConsumerFirstXmlProjectionDefinitionAuthorityFactory.create().resolve()
+        self.assertEqual(
+            "ru_3ndfl_2025_consumer_first_supplied_case",
+            consumer_definition["projection_id"],
         )
         self.assertIn(
             "gate2_economy_model_policy",
@@ -214,6 +269,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("gate2_model_clients", module._BUNDLED_MODULES)
         self.assertIn("gate2_source_fact_validation", module._BUNDLED_MODULES)
         self.assertIn("gate2_source_fact_runtime", module._BUNDLED_MODULES)
+        self.assertIn(
+            "gate5_deterministic_source_fact_consumption", module._BUNDLED_MODULES
+        )
         bundled_package = sys.modules["broker_reports_gate1"]
         self.assertTrue(hasattr(bundled_package, "NormalizedSliceProvenanceFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate1DocumentMemoryFactory"))
@@ -224,14 +282,18 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertTrue(hasattr(bundled_package, "PdfTextLayerParserFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfTableIntakeRuntimeFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfDualVlmRuntimeFactory"))
-        self.assertTrue(
-            hasattr(bundled_package, "SemanticVisualTableMigrationFactory")
-        )
+        self.assertTrue(hasattr(bundled_package, "SemanticVisualTableMigrationFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfLayoutUnitBuilder"))
         self.assertTrue(hasattr(bundled_package, "PdfStructuralRowWindowFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfCompactCanonicalFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfNormalizationAcceptanceFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfCompactGate2AdapterFactory"))
+        self.assertTrue(
+            hasattr(
+                bundled_package,
+                "Gate5DeterministicSourceFactConsumptionRuntimeFactory",
+            )
+        )
         self.assertEqual(bundled_package.PDFPLUMBER_PINNED_VERSION, "0.11.10")
         self.assertEqual(bundled_package.PDFMINER_PINNED_VERSION, "20260107")
         pipe = module.Pipe()
@@ -314,15 +376,16 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertNotIn('"rows"', content)
         self.assertNotIn('"text"', content)
 
-    def test_bundled_pipe_dual_writes_compact_pdf_only_when_explicitly_enabled(self):
+    def test_bundled_pipe_defaults_to_source_bound_table_intake(self):
         module = load_bundle_module()
         pipe = module.Pipe()
         root = Path(self._tmp.name)
         pipe.valves.artifact_store_path = str(root / "compact.sqlite3")
         pipe.valves.artifact_payload_root = str(root / "compact-payloads")
         self.assertFalse(pipe.valves.pdf_compact_canonical_dual_write)
-        self.assertFalse(pipe.valves.pdf_table_intake_enabled)
+        self.assertTrue(pipe.valves.pdf_table_intake_enabled)
         self.assertFalse(pipe.valves.pdf_dual_vlm_enabled)
+        self.assertFalse(pipe.valves.pdf_semantic_visual_table_downstream_enabled)
         self.assertEqual(
             "pdf_semantic_vlm_provider_selection_v1",
             pipe.valves.pdf_dual_vlm_provider_selection_policy_version,

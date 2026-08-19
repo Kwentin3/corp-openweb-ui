@@ -1,0 +1,58 @@
+{
+  "schema_version": "broker_reports_gate5_g539z_downstream_necessity_ledger_v0",
+  "goal": "G5.39Z",
+  "date": "2026-08-12",
+  "mode": "research_only",
+  "provider_calls": 0,
+  "product_files_changed": false,
+  "terminals": [
+    "DISTRIBUTED_EVENT_ENTITY_NOT_JUSTIFIED",
+    "DERIVED_VALUES_BELONG_TO_TAX_MODEL",
+    "STRATEGIC_STOP_COST_BASIS_ALLOCATION_AUTHORITY_UNRESOLVED"
+  ],
+  "demand_summary": {
+    "distributed_event_required_by_declaration": false,
+    "relation_id_read_by_xml": false,
+    "category_totals_required": true,
+    "separate_income_and_withheld_tax_facts_required": true,
+    "general_cost_basis_allocation_proven": false
+  },
+  "classifications": {
+    "distributed_securities_event": "NOT_JUSTIFIED",
+    "exact_purchase_charge_association": "DERIVABLE_AT_CONSUMER_BOUNDED_CASE",
+    "general_acquisition_lot_to_disposal_allocation": "UNKNOWN_REQUIREMENT",
+    "category_aggregates": "DERIVABLE_AT_CONSUMER_TAX_MODEL",
+    "distributed_dividend_event": "NOT_CONSUMED",
+    "dividend_income_and_withheld_tax_atoms": "ATOMS_SUFFICIENT_FOR_AUDITED_FIELDS",
+    "accrual_wrapper": "NOT_CONSUMED"
+  },
+  "atom_only_replay": {
+    "semantic_decision_reached": false,
+    "gate4_status": "CASE_INCOMPLETE",
+    "first_runtime_error": "gate4_cache_missing",
+    "attribution": "pre_semantic_fixture_or_cache_initialization",
+    "semantic_retry_count": 0,
+    "product_repairs": 0
+  },
+  "verification": {
+    "related_event_tests": "5 passed in 0.85s",
+    "broad_downstream_selection": "18 passed, 30 failed in 12.52s",
+    "declaration_projection_selection": "17 passed, 2 failed in 4.85s",
+    "primary_failure": "expected CASE_COMPLETE_FOR_CURRENT_INPUT_SET, actual CASE_INCOMPLETE",
+    "shared_downstream_error": "gate4_cache_missing"
+  },
+  "official_evidence": {
+    "authority": "FNS Order ED-7-11/913@ Appendix 2 paragraphs 97-98",
+    "verified_on": "2026-08-12",
+    "bytes": 106008,
+    "sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+    "demand": "operation-code aggregate income and expense totals"
+  },
+  "authorizations": {
+    "implementation": false,
+    "g540": false,
+    "push": false,
+    "pull_request": false,
+    "product_activation": false
+  }
+}

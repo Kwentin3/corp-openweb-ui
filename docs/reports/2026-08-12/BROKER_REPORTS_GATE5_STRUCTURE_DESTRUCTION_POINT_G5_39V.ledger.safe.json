@@ -1,0 +1,103 @@
+{
+  "schema_version": "broker_reports_g539v_safe_ledger_v1",
+  "goal": "G5.39V",
+  "date": "2026-08-12",
+  "mode": "research_only",
+  "product_head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+  "product_head_tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+  "production_changes": false,
+  "corpus": {
+    "DEV_PUBLIC_TBANK": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+    "HOLDOUT_REAL_001": "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+    "LARGE_REAL_001": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+    "negative_control": "synthetic_A_B"
+  },
+  "oracle_sha256": "d76ade254cfe2c323e0ab73daf0fcf83d598034022e096dba6c86173a65e6c85",
+  "trace_sha256": "18407e17a19b50568950bc93c21dc0be5fc7b7ed8172218355854910c86f5766",
+  "evaluation_sha256": "8936763a5d5dcf666cc331801d806a70bbd277e353dd5e9fe7c398430b245587",
+  "probe_aggregate_sha256": "210a282bc05593d967aba4db1e3e556ce5d5885d97a796e5314371a265f3e0d9",
+  "trace": {
+    "DEV_PUBLIC_TBANK": {
+      "A": "YES",
+      "B": "YES",
+      "C": "YES",
+      "D": "NO",
+      "E": "NO",
+      "first_loss": "C_TO_D"
+    },
+    "HOLDOUT_REAL_001": {
+      "A": "YES",
+      "B": "YES",
+      "C": "YES",
+      "D": "YES",
+      "E": "YES",
+      "first_loss": "NONE_OBSERVED"
+    },
+    "LARGE_REAL_001": {
+      "A": "YES",
+      "B": "YES_VISUAL_UNIT_LAYOUT_INVENTORY_UNAVAILABLE",
+      "C": "YES",
+      "D": "NO",
+      "E": "NO",
+      "first_loss": "C_TO_D",
+      "secondary_loss": "GATE3_PAGE_CHUNK_FRAGMENTATION"
+    }
+  },
+  "context": {
+    "DEV_PUBLIC_TBANK": {
+      "c_whole_chars": 29336,
+      "c_reviewed_chars": 29244,
+      "c_reviewed_fraction": 0.9968639215,
+      "c_minimum_fact_chars": 20220,
+      "c_minimum_fact_fraction": 0.6892555222,
+      "before_input_tokens": 13501,
+      "after_input_tokens": 3854
+    },
+    "HOLDOUT_REAL_001": {
+      "c_whole_chars": 224775,
+      "c_reviewed_chars": 107472,
+      "c_reviewed_fraction": 0.4781314648,
+      "c_minimum_fact_chars": 1736,
+      "c_minimum_fact_fraction": 0.0077232788,
+      "before_input_tokens": 48700,
+      "after_input_tokens": 20002
+    },
+    "LARGE_REAL_001": {
+      "c_whole_chars": 1022810,
+      "c_reviewed_chars": 48630,
+      "c_reviewed_fraction": 0.0475454874,
+      "c_minimum_fact_chars": 2794,
+      "c_minimum_fact_fraction": 0.0027316901,
+      "before_input_tokens": 26981,
+      "after_input_tokens": 3291
+    }
+  },
+  "probe": {
+    "provider_model": "published_approved_gemini_3_5_flash",
+    "v2_provider_submissions": 0,
+    "v3_slots": 7,
+    "v3_provider_submissions_per_slot": 1,
+    "retry_repair_best_of_n_merge": false,
+    "results": {
+      "dev_before": "INVALID_INCOMPLETE_SAME_EVENT",
+      "dev_after": "INVALID_INCOMPLETE",
+      "holdout_before": "PROPOSED_CORRECT",
+      "holdout_after": "INVALID_INCOMPLETE",
+      "large_before": "INVALID_INCOMPLETE_SAME_EVENT",
+      "large_after": "INVALID_WRONG_ROW",
+      "negative": "UNRESOLVED_NO_FALSE_JOIN"
+    }
+  },
+  "terminal_finding": "CANONICAL_STRUCTURE_LOSS",
+  "secondary_finding": "LARGE_GATE3_PAGE_CHUNK_FRAGMENTATION",
+  "table_hypothesis": "SUPPORTED_ON_BOUNDED_CORPUS",
+  "llm_grouping_authority_hypothesis": "NOT_PROVEN",
+  "next_goal_authorized": false,
+  "issue_url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278",
+  "privacy": {
+    "customer_values_in_git": false,
+    "private_images_in_git": false,
+    "private_prompts_or_provider_traces_in_git": false,
+    "exact_private_evidence_location": "git_ignored_outside_safe_reports"
+  }
+}

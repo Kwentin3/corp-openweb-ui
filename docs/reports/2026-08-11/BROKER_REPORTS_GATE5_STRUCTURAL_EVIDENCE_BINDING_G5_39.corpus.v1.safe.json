@@ -1,0 +1,62 @@
+{
+  "schema_version": "broker_reports_gate5_g539_corpus_v1_safe",
+  "goal_id": "G5.39",
+  "frozen_date": "2026-08-11",
+  "privacy": "safe_metadata_only_no_customer_values_no_private_paths",
+  "selection_policy": "assignment by origin and structural size before financial-content review",
+  "samples": [
+    {
+      "sample_id": "DEV_PUBLIC_TBANK",
+      "assignment": "development",
+      "origin": "official_public_broker_pdf",
+      "content_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+      "expected_economic_events": "known G5.38C purchase plus transaction-charge cross-table case",
+      "whole_projection_chars_observed": 13585
+    },
+    {
+      "sample_id": "HOLDOUT_REAL_001",
+      "assignment": "independent_holdout",
+      "origin": "private_real_broker_pdf_existing_doc6_corpus",
+      "content_sha256": "427b3621fe31bc96a4e98aacf9f36dd3cddfa1b48b3f138d3a3d3181deadc879",
+      "expected_economic_events": "private adjudication sealed after assignment and before first comparative inference",
+      "structural_profile": {"pages": 1, "tables": 4, "rows": 22, "entries": 42}
+    },
+    {
+      "sample_id": "LARGE_REAL_001",
+      "assignment": "large_document_context_pressure",
+      "origin": "private_real_broker_pdf_existing_doc6_corpus",
+      "content_sha256": "79af73d5be78df446f768f516ed6eaebd5a9d4bfc6f98c98a4a53a5b5131f37d",
+      "expected_economic_events": "private adjudication sealed after assignment and before first comparative inference",
+      "structural_profile": {"pages": 6, "tables": 12, "rows": 212, "entries": 1927, "whole_projection_chars": 525510}
+    },
+    {
+      "sample_id": "NEGATIVE_AB_001",
+      "assignment": "ambiguity_negative_and_positive_cross_table_control",
+      "origin": "controlled_synthetic",
+      "content_sha256": "c66b97a950b07ac25d8716884369867078e0c5e4474f58dd822e0b3660e5f639",
+      "expected_economic_events": "one explicit-relation positive fact and one forbidden A/B mixed fact"
+    },
+    {
+      "sample_id": "REGRESSION_CSV_DISPOSAL",
+      "assignment": "existing_regression",
+      "origin": "tracked_controlled_fixture",
+      "content_sha256": "6d25a5d527058c52000afa782ea6f6cfb90a919444878256ca665ef6bf58b3ea",
+      "expected_economic_events": "existing controlled disposal"
+    },
+    {
+      "sample_id": "REGRESSION_HTML_DISPOSAL",
+      "assignment": "existing_regression",
+      "origin": "tracked_controlled_fixture",
+      "content_sha256": "1a24c1cb84738e5ac777ce734c3701a39e69c9c85fe1127a495c59971b84667d",
+      "expected_economic_events": "existing Russian-vocabulary disposal"
+    },
+    {
+      "sample_id": "REGRESSION_XLSX_DISPOSAL",
+      "assignment": "existing_regression",
+      "origin": "tracked_controlled_fixture",
+      "content_sha256": "8ebdafd5f9a22fd0f103aec0935b162682d8088410f9d4918516c3c0ece19168",
+      "expected_economic_events": "existing multisheet disposal"
+    }
+  ],
+  "post_freeze_rule": "no sample replacement or addition after comparative inference; a critical defect requires corpus v2 and a restarted tournament"
+}

@@ -18,13 +18,13 @@ SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION = (
     "broker_reports_semantic_visual_table_migration_policy_v1"
 )
 SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID = (
-    "broker_reports_semantic_visual_numeric_profile_v1"
+    "broker_reports_semantic_visual_financial_profile_v2"
 )
 GOAL5_QUALIFICATION_RECEIPT_HASH = (
-    "96820ec84e1a4bfa167ac4c85090c0295f337ac24d2694d4f6fde0c535ed2ad7"
+    "c266aef5c4f24a79d3c2b5742e08fa19a00fa636e8890c911317b6f7ce0ef055"
 )
 GOAL5_QUALIFICATION_GATE_HASH = (
-    "2860e0d181ae4a8137ec4db796b2f26070f2df32e4581f4438107410fc62adbb"
+    "72b59094c64b3f684c527989bcc3590a2f212ea241b2bcc1b8cd854f7eaa772b"
 )
 
 FACTORY_REQUIRED = (
@@ -62,9 +62,9 @@ class SemanticVisualTableMigrationConfig:
     accepted_profile_id: str = SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID
     qualification_receipt_hash: str = GOAL5_QUALIFICATION_RECEIPT_HASH
     qualification_gate_hash: str = GOAL5_QUALIFICATION_GATE_HASH
-    maximum_rows: int = 64
-    maximum_columns: int = 4
-    maximum_cell_characters: int = 256
+    maximum_rows: int = 200
+    maximum_columns: int = 32
+    maximum_cell_characters: int = 12_000
 
 
 @dataclass(frozen=True)
@@ -91,11 +91,11 @@ class SemanticVisualTableMigrationFactory:
             or self.config.qualification_gate_hash
             != GOAL5_QUALIFICATION_GATE_HASH
             or self.config.maximum_rows < 1
-            or self.config.maximum_rows > 64
+            or self.config.maximum_rows > 200
             or self.config.maximum_columns < 1
-            or self.config.maximum_columns > 4
+            or self.config.maximum_columns > 32
             or self.config.maximum_cell_characters < 1
-            or self.config.maximum_cell_characters > 256
+            or self.config.maximum_cell_characters > 12_000
         ):
             raise SemanticVisualTableMigrationError(
                 "semantic_visual_table_migration_config_invalid"
@@ -283,7 +283,7 @@ def _accepted_profile_errors(
         or decision.get("canonical_table") is not None
     ):
         errors.append("semantic_decision_not_terminally_valid")
-    if len(rows) < 2 or len(rows) > config.maximum_rows:
+    if len(rows) < 1 or len(rows) > config.maximum_rows:
         errors.append("accepted_profile_row_count_out_of_bounds")
     if any(
         not isinstance(row, list)

@@ -1,0 +1,79 @@
+{
+  "schema_version": "broker_reports_gate5_obligation_backed_full_declaration_trial_plan_v1",
+  "goal": "G5.28B",
+  "frozen_at": "2026-08-10T23:36:46+03:00",
+  "status": "ready_for_single_inference",
+  "obligation_package": {
+    "resource": "gate5_full_declaration_obligations.ru_3ndfl_2025.v1.json",
+    "utf8_bytes": 14797,
+    "sha256": "8065a2047b2d7bf5a1a3b87ed4dd49f65bd39e97b6a42c1acf24d2d62548b23c",
+    "reviewed_obligation_count": 25,
+    "official_surface_count": 14,
+    "official_source_count": 4,
+    "official_bytes_reverified_on": "2026-08-10",
+    "official_hash_match": true
+  },
+  "payload": {
+    "resource": "gate5_full_declaration_definition_authoring.primary.v1.payload.json",
+    "utf8_bytes": 17576,
+    "sha256": "5a51aa10b3aa5e880254722f79543fefe234c189969b25d2deae8291e30bc541",
+    "factory_replay": "passed",
+    "bias_audit": "passed"
+  },
+  "validator_preflight": {
+    "synthetic_only": true,
+    "terminal_tests_passed": 12,
+    "terminal_tests_deselected_pending_candidate": 1,
+    "obligation_accounting": "25_of_25_exact_once",
+    "provider_call": false
+  },
+  "invocation": {
+    "provider": "openai_codex_cli",
+    "client": "codex-cli 0.147.0-alpha.6.5",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "sandbox": "read-only",
+    "working_directory": "new_empty_temporary_directory",
+    "session": "ephemeral",
+    "user_config": "ignored",
+    "repository_rules": "ignored",
+    "input_transport": "exact_frozen_utf8_bytes_over_stdin",
+    "output_transport": "output_last_message_file",
+    "provider_output_schema": null,
+    "history_messages": 0,
+    "authorized_semantic_call_count": 1,
+    "retry_count": 0,
+    "repair_allowed": false,
+    "follow_up_allowed": false,
+    "selection_or_best_of": false,
+    "transport_failure_before_inference_may_be_corrected": true
+  },
+  "model_blindness": [
+    "G5.28 candidate and finding",
+    "G5.27 partition",
+    "G5.28A and G5.28A.1 outputs or findings",
+    "previous or expected domain IDs",
+    "expected domain count or partition",
+    "roadmap and downstream gap"
+  ],
+  "post_inference_rule": {
+    "candidate_bytes_are_immutable": true,
+    "deterministic_validation_required": true,
+    "semantic_review_questions": [
+      "one honest applicability decision for the whole domain",
+      "one coherent aggregate-aware typed component family",
+      "complete reviewed obligation package"
+    ],
+    "aggregate_rule": "An aggregate is allowed when any relevant member makes it applicable and the component retains the member variants.",
+    "publish_only_if_all_pass": true,
+    "candidate_is_authority": false,
+    "authority_resolution": "definition_id_plus_version_plus_sha256"
+  },
+  "scope_stops": [
+    "no G5.29 implementation or Scope Resolver",
+    "no questionnaire or case-time applicability",
+    "no Tax Models, Declaration Model or tax calculation",
+    "no PROJECT, XML or PDF implementation",
+    "no push, PR or product activation"
+  ]
+}

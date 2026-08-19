@@ -1,0 +1,95 @@
+{
+  "schema_version": "broker_reports_g593_parser_saturation_safe_v1",
+  "goal": "G5.93",
+  "status": "ONE_FINAL_GENERAL_LOW_HANGING_FIX_APPLIED",
+  "verdict": "PARSER_BASELINE_MATURE",
+  "private_evidence_manifest_sha256": "4b08b1b939fb47de233b416515de4882775dd91ee36d16bf9ee59a5d4dd9e936",
+  "corpus": {
+    "documents": 4,
+    "pages": 103,
+    "candidates": 90,
+    "before_ready": 87,
+    "after_ready": 86,
+    "before_blocked": 3,
+    "after_blocked": 4,
+    "status_changes": 1,
+    "new_ready_candidates": 0
+  },
+  "qualification": {
+    "visually_true_tables_ready": 77,
+    "visually_true_tables_total": 77,
+    "reviewed_ruled_false_tables_blocked": 2,
+    "reviewed_ruled_false_tables_total": 2,
+    "aligned_false_positive_blocked": true,
+    "positive_controls_ready": 10,
+    "positive_controls_total": 10,
+    "repaired_pages_structured": 6,
+    "repaired_pages_total": 6,
+    "lost_or_unaccounted_ref_cases": 0,
+    "duplicate_ref_cases": 0,
+    "validator_failures": 0
+  },
+  "rule": {
+    "owner": "NormalizedTableProjectionFactory.create/_pdf_geometry_reasons",
+    "strategy": "aligned_text_v0",
+    "reason_code": "pdf_table_aligned_text_stable_column_pattern_missing",
+    "text_inspection": false,
+    "broker_specific": false,
+    "page_specific": false,
+    "document_specific": false,
+    "financial_semantics": false
+  },
+  "complexity": {
+    "emitted_table_strategies": 2,
+    "recognized_projection_strategy_refs": 4,
+    "projection_rejection_classes": 11,
+    "fallback_terminal_families": 3,
+    "named_config_thresholds": 14,
+    "local_numeric_or_ratio_decisions_approx": 23,
+    "threshold_order_of_magnitude_approx": 37,
+    "direct_parser_tests": 25,
+    "known_structural_debt_classes": 4
+  },
+  "scope": {
+    "gate3_plus_maintained_source_changes": 0,
+    "new_parser_frameworks": 0,
+    "provider_calls": 0,
+    "vlm_ocr_calls": 0,
+    "production_visual_dependency": false,
+    "activation": false,
+    "deploy": false
+  },
+  "verification": {
+    "focused_tests_passed": 52,
+    "adjacent_tests_passed": 294,
+    "bundle_tests_passed_after_isolating_unrelated_guard": 12,
+    "unrelated_bundle_guard_failures": 1,
+    "bundle_table_projection_exact": 3,
+    "bundle_workspace_path_imports": 0,
+    "ruff": "passed",
+    "py_compile": "passed",
+    "fresh_replay_seconds": 128.3
+  },
+  "source_hashes": {
+    "full_source.py": "2445e64a86901ff1df2f1ec24e86dbc429e6614855dbae58d32245c6e7adabd8",
+    "pdf_layout.py": "820875738c7a5edd28b19ee5c4ab24639670e7c445d97959803a4aa4715c1173",
+    "table_projection.py": "f4184d966c2b83a744657669351f2a3e14346559fb91caa67f74463c8d6499e7",
+    "test_broker_reports_pdf_layout_slice2.py": "2e39f095273c6e14b39675d82ce3fe38832436be7d22f4c1bd8a61d58c66ab16",
+    "test_broker_reports_table_projection.py": "967789ef50af3c0f71807097b51f5514c1a12906b89ecf40a7dd38bd51a5ced0",
+    "BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md": "e57a6fa3bb50fb4f2fb3b88c48e22ecb47902fa4da907e98b9db751fd494626f",
+    "broker_reports_gate1_pipe_bundled.py": "046f281342c86ec4441f8ce7958ffbf209e440252491935d37a5a94f656cd24d",
+    "broker_reports_gate2_source_fact_pipe_bundled.py": "c4427264808ea08b141b50d1bb2c62edf758dfe218633ba4ecf89be8a4710462",
+    "broker_reports_gate2_domain_source_fact_pipe_bundled.py": "a02ffbb19069b8cd9849819b228553fc1181d9dbd4d5e2955d69f8e83dda36d7"
+  },
+  "terminal": [
+    "DETERMINISTIC_PDF_PARSER_SATURATION_PROVEN",
+    "GENERAL_STRUCTURAL_LOW_HANGING_FIXES_EXHAUSTED",
+    "BROKER_SPECIFIC_HEURISTICS_ZERO",
+    "PAGE_SPECIFIC_HEURISTICS_ZERO",
+    "PRODUCTION_VISUAL_DEPENDENCY_ZERO",
+    "KNOWN_STRUCTURAL_LIMITATIONS_FROZEN",
+    "PARSER_COMPLEXITY_BASELINE_FROZEN",
+    "VARIANT_A_READY_FOR_FAIR_COMPARISON"
+  ],
+  "next_goal": "VLM_VS_DETERMINISTIC_PARSER"
+}

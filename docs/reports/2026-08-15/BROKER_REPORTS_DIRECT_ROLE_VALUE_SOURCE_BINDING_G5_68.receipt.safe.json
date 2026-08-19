@@ -1,0 +1,90 @@
+{
+  "schema_version": "broker_reports_g568_closeout_receipt_safe_v1",
+  "goal": "G5.68",
+  "status": "CLOSED_STRUCTURE_PROVEN_WITH_UNREPAIRED_LLM_RESIDUALS",
+  "terminal": [
+    "DIRECT_ROLE_VALUE_SOURCE_BINDING_PROVEN",
+    "COMPOSITE_ROLE_EVIDENCE_OVERREACH_REMOVED",
+    "PHYSICAL_AND_ROLE_EVIDENCE_BINDING_VALID",
+    "CLIENT_CODE_ACCOUNT_SEMANTIC_ERROR_PERSISTS",
+    "PURE_LLM_SEMANTIC_FAILURE_PROVEN",
+    "NON_DIRECT_MODEL_EVIDENCE_REJECTED",
+    "NO_HEURISTIC_FALLBACK_ADDED",
+    "FINANCIAL_GENERALIZATION_PRESERVED"
+  ],
+  "contract": {
+    "metadata_contract_version": "1.0.0",
+    "metadata_fact_types": 11,
+    "instruction_version": "1.2.0",
+    "instruction_sha256": "dd18bcc17c69fd111d29e2bbde4f8aaf6058bfac51b9c9506de25d516ca58d67",
+    "context_policy_version": "broker_reports_metadata_context_policy_v4",
+    "context_schema_version": "broker_reports_llm_metadata_context_v2",
+    "binding_registry_schema_version": "broker_reports_llm_metadata_binding_registry_v2",
+    "proposal_schema_version": "broker_reports_llm_metadata_proposal_v2",
+    "proposal_schema_sha256": "524e8fb2b3b55fb55af3d62fe7465f147f7ad6da18ad9c9cca5b68ecf458ac29",
+    "human_language_semantics_in_validator": 0,
+    "broker_specific_rules": 0,
+    "regex_or_synonym_growth": 0
+  },
+  "offline": {
+    "provider_calls": 0,
+    "development_visibility": 24,
+    "development_expected": 24,
+    "current_visibility": 5,
+    "current_expected": 5,
+    "physical_ambiguity": 0,
+    "false_wide_binding_is_direct": false,
+    "local_same_row_binding_is_direct": true
+  },
+  "execution": {
+    "documents": 5,
+    "provider_submissions": 5,
+    "calls_per_document": 1,
+    "retries": 0,
+    "best_of_n": false,
+    "manual_output_repair": false,
+    "raw_output_repaired": false,
+    "input_tokens": 369917,
+    "output_tokens": 2835,
+    "provider_reported_total_tokens": 388404,
+    "duration_ms": 99313,
+    "source_stores_unchanged": true,
+    "provider_balance_or_transport_400": false
+  },
+  "qualification": {
+    "raw_facts": 30,
+    "structurally_accepted_assertions": 26,
+    "correct_facts": 21,
+    "missed_facts": 8,
+    "semantic_extras": 5,
+    "wrong_roles": 1,
+    "role_value_structural_failures": 4,
+    "invented_literals": 0,
+    "invalid_provenance": 0,
+    "duplicates": 0,
+    "known_client_code_account_relation": "SAME_TABLE_ROW",
+    "known_client_code_account_pure_llm_semantic_failure": true,
+    "development_semantic_exact": false,
+    "current_semantic_exact": false
+  },
+  "financial_replay": {
+    "factory_route": "Gate4FinancialCaseRuntimeFactory.create().rebuild_case",
+    "holdout_a_fact_count": 39,
+    "holdout_b_fact_count": 129,
+    "status_complete_for_current_input_set": true,
+    "exact_frozen_equality": true,
+    "source_stores_unchanged": true
+  },
+  "verification": {
+    "focused_passed": 56,
+    "architecture_passed": 55,
+    "failed": 0,
+    "bundle_parity": true,
+    "architecture_guards_green": true
+  },
+  "semantic_tuning_after_replay": 0,
+  "private_evidence_committed": false,
+  "product_activation": false,
+  "commit_or_push": false,
+  "next_goal_started": false
+}

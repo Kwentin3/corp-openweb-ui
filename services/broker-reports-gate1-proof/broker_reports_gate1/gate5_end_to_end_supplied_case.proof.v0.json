@@ -1,0 +1,207 @@
+{
+  "schema_version": "broker_reports_gate5_end_to_end_supplied_case_v0",
+  "case_fact_set_id": "g535_supplied_broker_source_2025",
+  "case_fact_set_version": "2026-08-14.0-g545-controlled-proof",
+  "binding": {
+    "authenticated_user_ref": "g535-synthetic-user",
+    "case_id": "g535-synthetic-case",
+    "workspace_model_id": "broker-reports-ndfl",
+    "normalization_run_ref": "normrun_254c2549468a7f96",
+    "taxpayer_scope_ref": "security-disposal-1",
+    "tax_period": "2025",
+    "synthetic_proof_evidence": true,
+    "real_user_fact": false
+  },
+  "supplied_source": {
+    "private_ref": "synthetic-source-e2e",
+    "filename": "broker.csv",
+    "mime_type": "text/csv",
+    "source_kind": "synthetic",
+    "content_utf8": "Type,Date,Description,Asset,Quantity,Unit Price,Amount,Currency\nSELL,2025-02-11,Trade,ASSET-E2E,1,100.00,100.00,RUB\n",
+    "content_sha256": "6b4ff0453368df9d7ab09293b1276e49ed5f66d45cadb4bf38a3cd7407163cbb",
+    "custody": {
+      "openwebui_file_id": "g535-synthetic-supplied-source",
+      "authenticated_owner_ref": "g535-synthetic-user",
+      "original_custody": true,
+      "synthetic_proof_evidence": true,
+      "real_user_fact": false
+    }
+  },
+  "scope": {
+    "scope_ref": "g535-bounded-supplied-case",
+    "taxpayer_scope_ref": "security-disposal-1",
+    "tax_period": "2025"
+  },
+  "residency_evidence": {
+    "source_ref": "g545-controlled-residency-answer",
+    "human_answer": "В 2025 году я находился в России с 01.01.2025 по 02.07.2025, а отсутствовал с 03.07.2025 по 31.12.2025. Иных причин отсутствия нет.",
+    "proposal": {
+      "schema_version": "broker_reports_gate5_residency_evidence_proposal_v0",
+      "tax_period": "2025",
+      "window_start": "2025-01-01",
+      "window_end": "2025-12-31",
+      "presence_intervals": [
+        {"start_date": "2025-01-01", "end_date": "2025-07-02"}
+      ],
+      "absence_intervals": [
+        {"start_date": "2025-07-03", "end_date": "2025-12-31"}
+      ],
+      "absence_reason_evidence": [],
+      "all_absence_reasons_reported": true,
+      "evidence_refs": ["g545-controlled-residency-answer"]
+    }
+  },
+  "supplemental_money": [
+    {
+      "requirement_ref": "acquisition-cost-required",
+      "subject_ref": "security-disposal-1",
+      "fact_key": "acquisition_cost",
+      "value": {"kind": "money", "amount": "70.00", "currency": "RUB"}
+    },
+    {
+      "requirement_ref": "transaction-expense-required",
+      "subject_ref": "security-disposal-1",
+      "fact_key": "transaction_expense",
+      "value": {"kind": "money", "amount": "2.00", "currency": "RUB"}
+    }
+  ],
+  "securities_disposal": {
+    "subject_ref": "security-disposal-1",
+    "operation_properties": {
+      "operation_kind": {
+        "value": "sale",
+        "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-operation-kind", "input_channel": "resolved_operation_property"}
+      },
+      "organized_market_status": {
+        "value": "organized_market",
+        "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-organized-market-status", "input_channel": "resolved_operation_property"}
+      },
+      "iis_status": {
+        "value": "outside_iis",
+        "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-iis-status", "input_channel": "resolved_operation_property"}
+      }
+    },
+    "tax_context": {
+      "tax_period": {
+        "value": "2025",
+        "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-tax-period", "input_channel": "minimal_tax_context"}
+      },
+      "exemption_applicability": {
+        "value": "not_applicable",
+        "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-exemption", "input_channel": "minimal_tax_context"}
+      },
+      "loss_treatment": {
+        "value": "none",
+        "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-loss-treatment", "input_channel": "minimal_tax_context"}
+      }
+    },
+    "scope": {
+      "scope_completeness": {
+        "value": "complete_for_category_in_proof",
+        "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-category-scope-complete", "input_channel": "scope_binding"}
+      }
+    },
+    "expense_evidence": {
+      "acquisition_cost": {
+        "actually_incurred": {"value": true, "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-acquisition-incurred", "input_channel": "expense_eligibility_evidence"}},
+        "documented": {"value": true, "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-acquisition-documented", "input_channel": "expense_eligibility_evidence"}},
+        "related_to_operation": {"value": true, "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-acquisition-related", "input_channel": "expense_eligibility_evidence"}}
+      },
+      "transaction_expense": {
+        "actually_incurred": {"value": true, "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-expense-incurred", "input_channel": "expense_eligibility_evidence"}},
+        "documented": {"value": true, "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-expense-documented", "input_channel": "expense_eligibility_evidence"}},
+        "related_to_operation": {"value": true, "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-expense-related", "input_channel": "expense_eligibility_evidence"}}
+      }
+    }
+  },
+  "tax_period_category": {
+    "scope_ref": "g535-synthetic-category",
+    "operation_category": "organized_market_securities_outside_iis",
+    "operation_ref": "g535-synthetic-operation",
+    "completeness_provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-category-complete", "input_channel": "tax_period_scope_completeness"}
+  },
+  "income_group": {
+    "group_values": {
+      "other_group_income": {"value": {"kind": "money", "amount": "0.00", "currency": "RUB"}, "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-other-group-income", "input_channel": "income_group_tax_base"}},
+      "other_group_allowable_expenses": {"value": {"kind": "money", "amount": "0.00", "currency": "RUB"}, "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-other-group-expenses", "input_channel": "income_group_tax_base"}},
+      "non_taxable_income": {"value": {"kind": "money", "amount": "0.00", "currency": "RUB"}, "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-non-taxable-income", "input_channel": "income_group_tax_base"}},
+      "tax_deductions": {"value": {"kind": "money", "amount": "0.00", "currency": "RUB"}, "provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-tax-deductions", "input_channel": "income_group_tax_base"}}
+    },
+    "completeness_provenance": {"source_kind": "user_verified_fact", "source_ref": "g535-income-group-complete", "input_channel": "income_group_completeness"}
+  },
+  "settlement": {
+    "credits": {
+      "withheld_at_source": "0.00",
+      "material_benefit_withheld": "0.00",
+      "trade_fee_credit": "0.00",
+      "fixed_advance_credit": "0.00",
+      "foreign_tax_credit": "0.00",
+      "patent_credit": "0.00"
+    },
+    "evidence_ref_prefix": "g535-settlement",
+    "completeness_source_ref": "g535-all-income-groups-complete"
+  },
+  "filing_and_party_identity": {
+    "filing_instance": {
+      "declaration_instance_ref": "synthetic-declaration-2025-initial",
+      "correction_kind": "initial",
+      "correction_number": 0,
+      "declaration_date": "2026-08-11",
+      "tax_period": "2025",
+      "destination_tax_authority_ref": "synthetic-tax-authority",
+      "tax_authority_code": "7705"
+    },
+    "taxpayer": {
+      "taxpayer_ref": "security-disposal-1",
+      "declarant_category": "other_individual_declaring_article_228_income",
+      "last_name": "Тестов",
+      "first_name": "Тест",
+      "middle_name": "Тестович",
+      "inn": "990000000041"
+    },
+    "signer": {
+      "signer_ref": "g535-synthetic-user",
+      "signer_capacity": "taxpayer_self",
+      "representation_authority": null
+    },
+    "evidence_source_ref": "g535-filing-party-proof"
+  },
+  "taxable_income_source": {
+    "source_ref": "g535-russian-securities-source",
+    "jurisdiction_kind": "russian_source",
+    "jurisdiction_code": "RU",
+    "income_kind": "securities_disposal",
+    "source_party": {
+      "party_kind": "organization",
+      "display_name": "АО Тестовый брокер",
+      "inn": "9900000000",
+      "kpp": "990001001",
+      "oktmo": "45382000"
+    },
+    "completeness_source_ref": "g535-taxable-source-complete"
+  },
+  "budget_disposition": {
+    "source_ref": "g535-budget-disposition",
+    "budget_allocation_ref": "g535-budget-allocation",
+    "kbk": "18210102030011000110",
+    "oktmo": "45382000",
+    "simplified_procedure_returned_or_credited_amount": {"kind": "money", "amount": "0.00", "currency": "RUB"}
+  },
+  "financial_investment": {
+    "activated_obligation_refs": ["obl_securities_and_derivatives_results"],
+    "not_activated_obligation_refs": ["obl_digital_financial_asset_and_right_results", "obl_investment_partnership_results"],
+    "completeness_source_ref": "g535-financial-supplied-case-complete"
+  },
+  "critical_provenance": [
+    {"fact_key": "declaration_date", "nature": "DECLARATION / FILING CONTEXT", "case_fact_path": "filing_and_party_identity.filing_instance.declaration_date", "semantic_value_path": "filing_instance.declaration_date", "trusted_owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create", "domain_id": "filing_and_party_identity", "projection_source": "$root.domain_payloads.filing_and_party_identity.filing_instance.declaration_date"},
+    {"fact_key": "tax_authority_code", "nature": "DECLARATION / FILING CONTEXT", "case_fact_path": "filing_and_party_identity.filing_instance.tax_authority_code", "semantic_value_path": "filing_instance.tax_authority_code", "trusted_owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create", "domain_id": "filing_and_party_identity", "projection_source": "$root.domain_payloads.filing_and_party_identity.filing_instance.tax_authority_code"},
+    {"fact_key": "taxpayer_inn", "nature": "USER / CASE FACT", "case_fact_path": "filing_and_party_identity.taxpayer.inn", "semantic_value_path": "taxpayer.inn", "trusted_owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create", "domain_id": "filing_and_party_identity", "projection_source": "$root.domain_payloads.filing_and_party_identity.taxpayer.inn"},
+    {"fact_key": "taxpayer_status", "nature": "METHODOLOGY-DERIVED TAX FACT", "case_fact_path": "residency_evidence.proposal.presence_intervals", "semantic_value_path": "taxpayer.period_status", "trusted_owner": "Gate5ResidencyEvidenceRuntimeFactory.create", "domain_id": "filing_and_party_identity", "projection_source": "$root.domain_payloads.filing_and_party_identity.taxpayer.period_status"},
+    {"fact_key": "signer_capacity", "nature": "DECLARATION / FILING CONTEXT", "case_fact_path": "filing_and_party_identity.signer.signer_capacity", "semantic_value_path": "signer.signer_capacity", "trusted_owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create", "domain_id": "filing_and_party_identity", "projection_source": "$root.domain_payloads.filing_and_party_identity.signer.signer_capacity"},
+    {"fact_key": "source_party_inn", "nature": "SOURCE / FINANCIAL FACT", "case_fact_path": "taxable_income_source.source_party.inn", "semantic_value_path": "source_entries.0.source_party.inn", "trusted_owner": "Gate5DeclarationIncomeSourcesRuntimeFactory.create", "domain_id": "taxable_income_by_source", "projection_source": "$item.source_party.inn"},
+    {"fact_key": "source_party_oktmo", "nature": "EXTERNAL REFERENCE FACT", "case_fact_path": "taxable_income_source.source_party.oktmo", "semantic_value_path": "source_entries.0.source_party.oktmo", "trusted_owner": "Gate5DeclarationIncomeSourcesRuntimeFactory.create", "domain_id": "taxable_income_by_source", "projection_source": "$item.source_party.oktmo"},
+    {"fact_key": "budget_kbk", "nature": "EXTERNAL REFERENCE FACT", "case_fact_path": "budget_disposition.kbk", "semantic_value_path": "budget_allocations.0.kbk", "trusted_owner": "Gate5DeclarationBudgetOutcomeRuntimeFactory.create", "domain_id": "declaration_budget_disposition", "projection_source": "$item.kbk"},
+    {"fact_key": "budget_oktmo", "nature": "DECLARATION / FILING CONTEXT", "case_fact_path": "budget_disposition.oktmo", "semantic_value_path": "budget_allocations.0.oktmo", "trusted_owner": "Gate5DeclarationBudgetOutcomeRuntimeFactory.create", "domain_id": "declaration_budget_disposition", "projection_source": "$item.oktmo"},
+    {"fact_key": "budget_disposition", "nature": "METHODOLOGY-DERIVED TAX FACT", "case_fact_path": "budget_disposition.budget_allocation_ref", "semantic_value_path": "budget_allocations.0.amount", "trusted_owner": "Gate5DeclarationBudgetOutcomeRuntimeFactory.create", "domain_id": "declaration_budget_disposition", "projection_source": "$item.amount"}
+  ]
+}

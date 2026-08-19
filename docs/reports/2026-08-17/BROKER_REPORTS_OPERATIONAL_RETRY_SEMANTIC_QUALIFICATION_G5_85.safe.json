@@ -1,0 +1,74 @@
+{
+  "schema_version": "broker_reports_g585_semantic_stop_safe_v1",
+  "goal": "G5.85",
+  "terminal": "SYSTEMATIC_SEMANTIC_ERROR_LOCALIZED",
+  "machine_inventory": {
+    "facts_total": 1489,
+    "facts_accounted": 1489,
+    "structural_clusters_total": 51,
+    "anomaly_clusters_total": 51,
+    "negative_control_families_total": 58
+  },
+  "systematic_conflict": {
+    "conflict_kind": "DIVIDEND_INCOME_on_source_rows_explicitly_described_as_US_tax",
+    "affected_facts": 105,
+    "affected_pages": {
+      "4": 25,
+      "5": 29,
+      "6": 1,
+      "7": 23,
+      "9": 18,
+      "10": 9
+    },
+    "affected_structural_clusters_total": 6,
+    "affected_provider_chunks": {
+      "10": 25,
+      "12": 29,
+      "14": 1,
+      "16": 23,
+      "20": 18,
+      "22": 9
+    },
+    "all_amounts_bound": false,
+    "all_source_rows_have_explicit_tax_marker": true
+  },
+  "first_divergence": {
+    "annotation_index": 22,
+    "page": 4,
+    "structural_cluster_id": "sc_97649d53686922a3",
+    "provider_chunk_ordinal": 10,
+    "provider_fact_alias": "f005",
+    "provider_target_alias": "t1241",
+    "first_divergence_owner": "Gate3 pass-1 provider semantic proposal",
+    "exact_localization_passed": true
+  },
+  "development_visual_audit": {
+    "pages_inspected": [
+      4,
+      5,
+      7
+    ],
+    "verdict": "SYSTEMATIC_SOURCE_LABEL_CONFLICT_CONFIRMED",
+    "vlm_calls": 0,
+    "render_sha256": {
+      "4": "8f0b0105ad3ef390cdb564f28f496b323eef461f043e72fb484995871e1b2e9d",
+      "5": "d6efc78b53ad2397504e3f5f71418fca9502357305efa491d884f4171d67048f",
+      "7": "d7adfb68bb2f5b39605afadd000008d55dc1f56f69471431dbc76a743aea5924"
+    }
+  },
+  "decision": {
+    "section_a_operational_retry_policy": "QUALIFIED_SEPARATELY",
+    "section_b_semantic_qualification": "FAILED_SYSTEMATIC_ERROR",
+    "ordinary_replay_executed": false,
+    "gate4_rebuild_after_ordinary_replay": false,
+    "gate5_executed": false,
+    "fix_applied": false
+  },
+  "original_pdf_sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+  "inventory_sha256": "f8b3f84224cd9f124a880cb703a705704e034da7ea288708737ecbf4deb3c2e5",
+  "ordinary_batch_sha256": "336e2a5fa750ba7d03502750c639140685d7e181cee3e4b25f2d704fb5cf685a",
+  "frozen_batch_sha256": "c3b3d8eacd28e721befe88e671c57d604e59e49e37d3801b5a8ae27a8204c045",
+  "private_result_sha256": "04f411f4d3e165a32c07a7ee1c229468ce7f56364258ee84769206791e829a65",
+  "provider_calls": 0,
+  "vlm_calls": 0
+}

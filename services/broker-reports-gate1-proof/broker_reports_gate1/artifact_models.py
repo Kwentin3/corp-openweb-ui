@@ -7,9 +7,7 @@ from typing import Any, Protocol
 
 
 ARTIFACT_SCHEMA_VERSION = "broker_reports_artifact_v0"
-ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION = (
-    "broker_reports_artifact_lifecycle_result_v1"
-)
+ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION = "broker_reports_artifact_lifecycle_result_v1"
 CANONICAL_VERSION_SCHEMA_VERSION = "broker_reports_canonical_version_v1"
 CANONICAL_ACTIVATION_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_canonical_activation_receipt_v1"
@@ -25,6 +23,7 @@ class ArtifactStoreError(RuntimeError):
 
 def new_artifact_id() -> str:
     return f"art_{secrets.token_urlsafe(24)}"
+
 
 VISIBILITIES = {
     "chat_visible",
@@ -197,6 +196,10 @@ ARTIFACT_TYPES = {
     "broker_reports_financial_annotations_v1",
     "broker_reports_financial_annotations_v2",
     "broker_reports_gate5_supplemental_fact_v0",
+    "broker_reports_gate5_declaration_scope_assertion_v0",
+    "broker_reports_gate5_openwebui_case_fact_submission_v0",
+    "broker_reports_gate5_openwebui_xml_artifact_v0",
+    "broker_reports_gate5_openwebui_xml_delivery_receipt_v0",
     "debug_diagnostic_v0",
 }
 

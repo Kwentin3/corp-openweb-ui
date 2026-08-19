@@ -1,0 +1,25 @@
+{
+  "candidate_bytes_unchanged": true,
+  "candidate_observations": {
+    "compositions_total": 12,
+    "definition_id": "ru.3ndfl.2025.securities_disposal",
+    "first_blocking_gap_id": "gap.singleton_category_aggregation",
+    "gaps_total": 4,
+    "new_behavior_identity_present": true,
+    "previous_first_gap_present": false,
+    "requirements_total": 8,
+    "supported_requirements_total": 2,
+    "unsupported_requirements_total": 6
+  },
+  "closed_json_schema": "passed",
+  "deterministic_compilation": {
+    "code": "gate5_declaration_authoring_language_artifact_missing",
+    "field": "requirements[6].compositions[1]",
+    "status": "rejected"
+  },
+  "json_parse": "passed",
+  "limitation": "The unchanged candidate used project_validated_declaration_fragment_v0 with an empty artifact list inside a later unsupported projection requirement; the existing compiler rejects that composition before producing a compilation result.",
+  "manual_repairs_total": 0,
+  "schema_version": "broker_reports_gate5_declaration_authoring_g522_compilation_audit_v0",
+  "status": "deterministic_compilation_rejected"
+}

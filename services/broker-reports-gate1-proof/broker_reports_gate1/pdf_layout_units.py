@@ -15,6 +15,12 @@ from .source_provenance import NormalizedSliceProvenanceFactory
 PDF_LAYOUT_UNIT_POLICY_VERSION = "pdf_layout_unit_partition_policy_v0"
 PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION = "pdf_layout_unit_coverage_v0"
 PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION = "pdf_layout_document_coverage_v0"
+_PAGE_TEXT_LAYOUT_PARTITION_ALLOWED_REASONS = frozenset(
+    {
+        "pdf_page_projection_reconciliation_failed",
+        "pdf_unknown_font_mapping",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -22,7 +28,7 @@ class PdfLayoutUnitConfig:
     max_lines_per_cluster: int = 24
     max_words_per_cluster: int = 400
     max_characters_per_cluster: int = 6_000
-    max_words_per_table_candidate_unit: int = 1_000
+    max_words_per_table_candidate_unit: int = 5_000
     max_units_per_document: int = 5_000
 
     @property
@@ -140,12 +146,17 @@ class PdfLayoutUnitBuilder:
             for page in page_inventory
         )
         page_text_complete = all(
-            page.get("page_projection_status") == "complete"
-            for page in page_inventory
+            _page_text_supports_layout_partition(page) for page in page_inventory
+        )
+        source_bound_table_mode = bool(candidates) and all(
+            candidate.get("locator_scope_status") == "source_bound"
+            and candidate.get("model_values_used_as_source_literals") is False
+            and candidate.get("pdfplumber_settings_selected_by_model") is False
+            for candidate in candidates
         )
         units: list[dict[str, Any]] = []
         unit_reasons: list[str] = []
-        if page_layout_complete and page_text_complete:
+        if (page_layout_complete and page_text_complete) or source_bound_table_mode:
             units, unit_reasons = self._build_units(
                 normalization_run_id=normalization_run_id,
                 document_id=document_id,
@@ -157,6 +168,14 @@ class PdfLayoutUnitBuilder:
                 layout_parser_config_ref=layout_parser_config_ref,
                 pages=page_inventory,
             )
+            if source_bound_table_mode and not (
+                page_layout_complete and page_text_complete
+            ):
+                units = [
+                    unit
+                    for unit in units
+                    if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
+                ]
             reasons.extend(unit_reasons)
 
         selected_refs = [
@@ -278,7 +297,11 @@ class PdfLayoutUnitBuilder:
             vector_line_inventory=vector_lines,
             rect_inventory=rects,
             table_candidate_inventory=candidates,
-            units=units if layout_complete else [],
+            units=(
+                units
+                if layout_complete or source_bound_table_mode
+                else []
+            ),
             source_value_refs=source_value_refs,
             source_value_index=source_value_index,
             layout_projection_status=layout_status,
@@ -518,15 +541,19 @@ class PdfLayoutUnitBuilder:
                 line for line in lines if _bbox_overlap(line.get("bbox"), raw.get("bbox"))
             ]
             candidate_word_set = set(contributing_word_refs)
+            fully_owned_lines = [
+                line
+                for line in overlapping_lines
+                if set(_strings(line.get("word_refs"))) <= candidate_word_set
+            ]
             if any(
                 set(_strings(line.get("word_refs"))) - candidate_word_set
                 and set(_strings(line.get("word_refs"))) & candidate_word_set
                 for line in overlapping_lines
             ):
                 table_reasons.append(
-                    "pdf_table_candidate_cross_line_partial_rejected"
+                    "pdf_table_candidate_cross_line_partial_partitioned"
                 )
-                continue
             table_ref = "pdftablecand_" + stable_digest(
                 [
                     source_checksum_ref,
@@ -560,10 +587,10 @@ class PdfLayoutUnitBuilder:
                     str(item.get("source_value_ref") or "") for item in contributing_words
                 ],
                 "fallback_text_refs": [
-                    str(line.get("line_ref") or "") for line in overlapping_lines
+                    str(line.get("line_ref") or "") for line in fully_owned_lines
                 ],
                 "fallback_source_value_refs": [
-                    str(line.get("source_value_ref") or "") for line in overlapping_lines
+                    str(line.get("source_value_ref") or "") for line in fully_owned_lines
                 ],
                 "confidence_bucket": (
                     "high"
@@ -618,6 +645,11 @@ class PdfLayoutUnitBuilder:
                 "layout_page_width": raw_layout.get("width"),
                 "layout_page_height": raw_layout.get("height"),
                 "layout_page_rotation": raw_layout.get("rotation"),
+                "table_locator_mode": bool(raw_layout.get("table_locator_mode")),
+                "table_locator_status": raw_layout.get("table_locator_status"),
+                "table_locator_regions_total": int(
+                    raw_layout.get("table_locator_regions_total") or 0
+                ),
                 "_layout_words": words,
                 "_layout_lines": lines,
                 "_layout_candidates": candidates,
@@ -720,22 +752,27 @@ class PdfLayoutUnitBuilder:
             if len(word_refs) > self.config.max_words_per_table_candidate_unit:
                 reasons.append("pdf_table_candidate_unit_word_budget_exceeded")
                 continue
+            candidate_word_set = set(word_refs)
             candidate_lines = [
                 line
                 for line in lines
-                if set(_strings(line.get("word_refs")))
-                and set(_strings(line.get("word_refs"))) <= set(word_refs)
+                if set(_strings(line.get("word_refs"))) & candidate_word_set
             ]
             if not candidate_lines:
                 reasons.append("pdf_table_candidate_fallback_lines_missing")
                 continue
+            owned_line_refs = [
+                str(line.get("line_ref") or "")
+                for line in candidate_lines
+                if set(_strings(line.get("word_refs"))) <= candidate_word_set
+            ]
             table_units.append(
                 self._mint_unit(
                     **kwargs,
                     unit_type="pdf_table_candidate_unit",
                     selected_lines=candidate_lines,
                     owned_word_refs=word_refs,
-                    owned_line_refs=[str(line.get("line_ref") or "") for line in candidate_lines],
+                    owned_line_refs=owned_line_refs,
                     candidate=candidate,
                 )
             )
@@ -997,6 +1034,17 @@ class PdfLayoutUnitBuilder:
                 "table_reconstruction_reason_codes": copy.deepcopy(
                     candidate.get("reconstruction_reason_codes") if candidate else []
                 ),
+                "table_locator_region_ref": (
+                    candidate.get("locator_region_ref") if candidate else None
+                ),
+                "table_locator_bbox_pdf_points": copy.deepcopy(
+                    candidate.get("locator_bbox_pdf_points") if candidate else None
+                ),
+                "table_locator_scope_status": (
+                    candidate.get("locator_scope_status") if candidate else None
+                ),
+                "model_values_used_as_source_literals": False,
+                "pdfplumber_settings_selected_by_model": False,
                 "semantic_table_truth_claimed": False,
                 "ocr_vlm_used": False,
                 "page_rendering_used_for_extraction": False,
@@ -1209,6 +1257,24 @@ def _page_text_matcher(page_text: str):
         return "mismatch"
 
     return match
+
+
+def _page_text_supports_layout_partition(page: dict[str, Any]) -> bool:
+    if page.get("page_projection_status") == "complete":
+        return True
+    reasons = set(_strings(page.get("reason_codes")))
+    layout_words = _dicts(page.get("_layout_words"))
+    return bool(
+        str(page.get("text") or "").strip()
+        and reasons
+        and reasons <= _PAGE_TEXT_LAYOUT_PARTITION_ALLOWED_REASONS
+        and page.get("layout_projection_status") == "complete"
+        and layout_words
+        and all(
+            word.get("canonical_page_text_match_status") != "mismatch"
+            for word in layout_words
+        )
+    )
 
 
 def _canonical_match_text(value: str) -> str:

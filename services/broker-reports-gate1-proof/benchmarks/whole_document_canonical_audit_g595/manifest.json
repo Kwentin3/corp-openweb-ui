@@ -1,0 +1,44 @@
+{
+  "schema_version": "broker_reports_whole_document_canonical_audit_g595_manifest_v1",
+  "goal": "G5.95",
+  "frozen": true,
+  "upstream": {
+    "goal": "G5.94",
+    "manifest_schema_version": "broker_reports_pdf_ingestion_ab_g594_manifest_v1",
+    "manifest_sha256": "6b1c0b657ea356d71cf9af6a9ceb739833f8b2d82cff5a42f3d4ccc27f0d7917"
+  },
+  "selection": {
+    "criterion": "maximum_declared_page_count_then_document_id_ascending",
+    "selected_document_id": "document_04",
+    "selected_pdf_sha256": "7cfd297786cc91cbccbe0c2ae5bce905a2a11ac6b35e5b0a795cf9c6d41bd015",
+    "pages": 65,
+    "fixed_before_g595_comparative_review": true
+  },
+  "variant_a": {
+    "baseline": "frozen_g593_outputs_persisted_by_g594",
+    "parser_changes_allowed": false
+  },
+  "variant_b": {
+    "source": "g594_primary_run1_markdown_only",
+    "retry_allowed": false,
+    "best_of_n_allowed": false,
+    "prompt_or_model_changes_allowed": false
+  },
+  "adapter": {
+    "classification": "research_only_mechanical_projection",
+    "input": ["page_number", "primary_markdown_or_unavailable"],
+    "allowed_nodes": ["HEADING", "TEXT", "TABLE"],
+    "allowed_table_children": ["ROW", "CELL"],
+    "forbidden_inputs": ["pdf", "variant_a", "financial_labels", "expected_taxonomy"],
+    "ambiguous_markdown_policy": "preserve_as_text",
+    "source_coordinates_claimed": false
+  },
+  "scope": {
+    "original_pdf_is_only_referee": true,
+    "page_sampling": false,
+    "gate3_plus": false,
+    "financial_reasoning": false,
+    "hybrid_design": false,
+    "production_activation": false
+  }
+}

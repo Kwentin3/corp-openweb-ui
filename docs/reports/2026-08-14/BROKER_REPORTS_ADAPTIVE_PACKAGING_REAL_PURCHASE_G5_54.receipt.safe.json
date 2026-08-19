@@ -1,0 +1,137 @@
+{
+  "schema_version": "broker_reports_g554_adaptive_packaging_real_purchase_receipt_v1",
+  "goal": "G5.54",
+  "status": "PROVEN",
+  "terminals": [
+    "ADAPTIVE_PACKAGING_ACCOUNTING_PROVEN",
+    "SMART_CHUNK_CONTRACT_HEALTHY",
+    "REAL_PURCHASE_SOURCE_CONTEXT_LOCALIZED",
+    "ONE_REAL_PURCHASE_FACT_PROVEN",
+    "ORDINARY_GATE4_GATE5_REPLAY_PROVEN"
+  ],
+  "phase_a": {
+    "budget_chars": 60000,
+    "before": {
+      "projection_chars": 231703,
+      "structural_units": 205,
+      "target_bearing_units": 140,
+      "targets": 140,
+      "chunks": 4,
+      "chunk_kinds": {
+        "structural_blocks": 4
+      }
+    },
+    "after": {
+      "projection_chars": 444117,
+      "structural_units": 205,
+      "target_bearing_units": 140,
+      "targets": 19060,
+      "target_kinds": {
+        "node": 66,
+        "table_row": 2456,
+        "table_cell": 16538
+      },
+      "chunks": 140,
+      "chunk_kinds": {
+        "structural_blocks": 66,
+        "whole_table": 74
+      },
+      "whole_tables_under_budget": 74,
+      "whole_table_max_chars": 10340
+    },
+    "repaired_table": {
+      "matching_chunks": 1,
+      "structural_kind": "whole_table",
+      "model_view_chars": 7678,
+      "target_mappings": 289,
+      "row_split": false
+    },
+    "coverage": {
+      "lost_targets": 0,
+      "duplicated_working_targets": 0,
+      "context_only_target_aliases": 0,
+      "data_row_overlap": 0,
+      "target_order_preserved": true
+    },
+    "runtime_changed": false
+  },
+  "phase_b": {
+    "localized_exact_purchase_documents": 2,
+    "localized_role_complete_table_cell_purchases": 13,
+    "selected_context": {
+      "structural_kind": "whole_document",
+      "model_view_chars": 14088,
+      "target_mappings": 294,
+      "source_and_working_store_parity": true
+    },
+    "clean_gate3_execution": {
+      "demanded_fact_type": "SECURITY_PURCHASE",
+      "demanded_annotations": 5,
+      "role_pack_complete_annotations": 5,
+      "provider_submissions": 2,
+      "input_tokens_max": 9310,
+      "input_tokens_total": 13441,
+      "output_tokens_total": 1822,
+      "retry_count": 0,
+      "repair_count": 0,
+      "persistence": "none",
+      "store_unchanged": true,
+      "provider_receipt_sha256": "a6c847e6ad04d4a97825dbb16a13880c6c62b2b0d5bb255e0c22f0f59c3561d7",
+      "execution_helper_schema_origin": "broker_reports_g548_one_gap_receipt_v1"
+    },
+    "ordinary_gate4": {
+      "new_full_document_sidecar_persisted": true,
+      "new_sidecar_materialized_facts": 5,
+      "purchase_facts": 5,
+      "purchase_role_complete": 5,
+      "purchase_target_kind": "table_cell",
+      "case_status": "CASE_COMPLETE_FOR_CURRENT_INPUT_SET",
+      "gate3_case_status": "ready_for_gate4_handoff",
+      "case_facts": 170,
+      "case_contains_all_new_purchase_facts": true
+    },
+    "ordinary_gate5": {
+      "selected_purchase_facts_seen": 5,
+      "selected_purchase_ready": 5,
+      "assessment_status": "assessed",
+      "terminals": [
+        "SOURCE_FACT_ASSERTIONS_PRESERVED"
+      ],
+      "stored_financial_event_relations": 0,
+      "security_fact_counts": {
+        "total": 48,
+        "ready": 33,
+        "source_evidence_insufficient": 15
+      }
+    },
+    "downstream_delta": {
+      "acquisition_basis_coverage": 0,
+      "client_review_findings": 0,
+      "required_purchase_role_values_equal_previous": true,
+      "selected_document_non_purchase_fact_delta": -16,
+      "reason": "purchase_semantics_unchanged_demand_scoped_sidecar_drops_unrequested_non_purchase_facts"
+    },
+    "proof_persistence": {
+      "local_private_store_mutated": true,
+      "product_activated": false,
+      "private_downstream_result_sha256": "9141e2f7bb054813bd544a71c2a4b957734c2fff8cf5886502aef0ba8457c6e5"
+    }
+  },
+  "guardrails": {
+    "gate5_canonical_reads": 0,
+    "gate5_source_provider_calls": 0,
+    "gate4_provider_calls": 0,
+    "projection_changes": 0
+  },
+  "source_literals_committed": false,
+  "private_evidence_committed": false,
+  "code_changed": false,
+  "pre_call_tests": {
+    "passed": 31
+  },
+  "final_verification": {
+    "status": "passed",
+    "passed": 146,
+    "failed": 0
+  }
+}

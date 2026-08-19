@@ -143,15 +143,19 @@ def _chunk_rendered_units(
 ) -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
     pending_units: list[Any] = []
+    pending_target_blocks: list[str] = []
     pending_headings: tuple[str, ...] | None = None
+    pending_tail_headings: tuple[str, ...] | None = None
     pending_prefix_context: list[str] = []
     carried_context: list[str] = []
+    continuation_grid_signature: tuple[str, ...] | None = None
+    continuation_header_context: tuple[str, ...] = ()
 
     def flush_pending() -> None:
-        nonlocal pending_headings
+        nonlocal pending_headings, pending_tail_headings
         if not pending_units:
             return
-        target_content = _join_blocks([unit.content for unit in pending_units])
+        target_content = _join_blocks(pending_target_blocks)
         context_content = _join_blocks(
             [
                 *pending_prefix_context,
@@ -183,20 +187,30 @@ def _chunk_rendered_units(
         )
         chunks.append(chunk)
         pending_units.clear()
+        pending_target_blocks.clear()
         pending_prefix_context.clear()
         pending_headings = None
+        pending_tail_headings = None
 
     for unit in units:
         if not _visible_aliases(unit.content):
-            flush_pending()
             carried_context.append(unit.content)
             continue
 
         if unit.table is not None:
             flush_pending()
+            table_grid_signature = tuple(unit.table.grid_header_lines)
+            repeats_prior_header = bool(
+                not unit.table.header_present
+                and continuation_header_context
+                and table_grid_signature == continuation_grid_signature
+            )
             table_chunks = _chunk_table_unit(
                 unit=unit,
                 prefix_context=tuple(carried_context),
+                repeated_header_context=(
+                    continuation_header_context if repeats_prior_header else ()
+                ),
                 binding=binding,
                 first_ordinal=len(chunks) + 1,
                 mapping_by_alias=mapping_by_alias,
@@ -205,17 +219,57 @@ def _chunk_rendered_units(
             )
             chunks.extend(table_chunks)
             carried_context.clear()
+            if unit.table.header_present and unit.table.row_lines:
+                continuation_grid_signature = table_grid_signature
+                continuation_header_context = (
+                    _strip_aliases(unit.table.row_lines[0]),
+                )
+            elif not repeats_prior_header:
+                continuation_grid_signature = None
+                continuation_header_context = ()
             continue
 
-        if pending_units and pending_headings != unit.ancestor_headings:
+        continuation_grid_signature = None
+        continuation_header_context = ()
+
+        if pending_units and pending_tail_headings != unit.ancestor_headings:
+            interstitial = _headings_context(unit.ancestor_headings)
+            candidate_target = _join_blocks(
+                [
+                    *pending_target_blocks,
+                    *carried_context,
+                    interstitial,
+                    unit.content,
+                ]
+            )
+            candidate_context = _join_blocks(
+                [
+                    *pending_prefix_context,
+                    _headings_context(pending_headings or ()),
+                ]
+            )
+            if len(
+                _compose_model_content(
+                    context_content=candidate_context,
+                    target_content=candidate_target,
+                )
+            ) <= max_chunk_chars:
+                pending_units.append(unit)
+                pending_target_blocks.extend(carried_context)
+                carried_context.clear()
+                if interstitial:
+                    pending_target_blocks.append(interstitial)
+                pending_target_blocks.append(unit.content)
+                pending_tail_headings = unit.ancestor_headings
+                continue
             flush_pending()
         if not pending_units:
             pending_headings = unit.ancestor_headings
+            pending_tail_headings = unit.ancestor_headings
             pending_prefix_context.extend(carried_context)
             carried_context.clear()
-        candidate_units = [*pending_units, unit]
         candidate_target = _join_blocks(
-            [candidate.content for candidate in candidate_units]
+            [*pending_target_blocks, *carried_context, unit.content]
         )
         candidate_context = _join_blocks(
             [
@@ -229,9 +283,16 @@ def _chunk_rendered_units(
         )
         if len(candidate_model) <= max_chunk_chars:
             pending_units.append(unit)
+            pending_target_blocks.extend(carried_context)
+            carried_context.clear()
+            pending_target_blocks.append(unit.content)
+            pending_tail_headings = unit.ancestor_headings
             continue
         flush_pending()
         pending_headings = unit.ancestor_headings
+        pending_tail_headings = unit.ancestor_headings
+        pending_prefix_context.extend(carried_context)
+        carried_context.clear()
         single_model = _compose_model_content(
             context_content=_join_blocks(
                 [
@@ -248,6 +309,25 @@ def _chunk_rendered_units(
                 max_chunk_chars=max_chunk_chars,
             )
         pending_units.append(unit)
+        pending_target_blocks.append(unit.content)
+    if carried_context and pending_units:
+        candidate_target = _join_blocks(
+            [*pending_target_blocks, *carried_context]
+        )
+        candidate_context = _join_blocks(
+            [
+                *pending_prefix_context,
+                _headings_context(pending_headings or ()),
+            ]
+        )
+        if len(
+            _compose_model_content(
+                context_content=candidate_context,
+                target_content=candidate_target,
+            )
+        ) <= max_chunk_chars:
+            pending_target_blocks.extend(carried_context)
+            carried_context.clear()
     flush_pending()
     if carried_context:
         _append_context_only_chunks(
@@ -271,6 +351,7 @@ def _chunk_table_unit(
     *,
     unit,
     prefix_context: tuple[str, ...],
+    repeated_header_context: tuple[str, ...],
     binding: dict[str, str],
     first_ordinal: int,
     mapping_by_alias: dict[str, dict[str, Any]],
@@ -278,7 +359,11 @@ def _chunk_table_unit(
     max_chunk_chars: int,
 ) -> list[dict[str, Any]]:
     whole_context = _join_blocks(
-        [*prefix_context, _headings_context(unit.ancestor_headings)]
+        [
+            *prefix_context,
+            *repeated_header_context,
+            _headings_context(unit.ancestor_headings),
+        ]
     )
     whole_model = _compose_model_content(
         context_content=whole_context,
@@ -303,7 +388,7 @@ def _chunk_table_unit(
                 mapping_by_alias=mapping_by_alias,
                 mapping_order=mapping_order,
                 max_chunk_chars=max_chunk_chars,
-                repeated_table_header=False,
+                repeated_table_header=bool(repeated_header_context),
                 repeated_table_notes=False,
             )
         ]
@@ -336,6 +421,7 @@ def _chunk_table_unit(
                     row_start=start,
                     row_end=candidate_end,
                     prefix_context=prefix_context if start == 0 else (),
+                    repeated_header_context=repeated_header_context,
                     heading_has_target=heading_has_target,
                     notes_have_target=notes_have_target,
                 )
@@ -359,6 +445,7 @@ def _chunk_table_unit(
                 row_start=start,
                 row_end=start + 1,
                 prefix_context=prefix_context if start == 0 else (),
+                repeated_header_context=repeated_header_context,
                 heading_has_target=heading_has_target,
                 notes_have_target=notes_have_target,
             )
@@ -407,12 +494,17 @@ def _table_chunk_parts(
     row_start: int,
     row_end: int,
     prefix_context: tuple[str, ...],
+    repeated_header_context: tuple[str, ...],
     heading_has_target: bool,
     notes_have_target: bool,
 ) -> tuple[str, str, bool, bool]:
     table = unit.table
     first = row_start == 0
-    context_blocks = [*prefix_context, *unit.ancestor_headings]
+    context_blocks = [
+        *prefix_context,
+        *repeated_header_context,
+        *unit.ancestor_headings,
+    ]
     target_blocks: list[str] = []
 
     heading_text = "\n".join(table.heading_lines)
@@ -430,15 +522,15 @@ def _table_chunk_parts(
     if table.grid_header_lines:
         context_blocks.append("\n".join(table.grid_header_lines))
 
-    repeated_header = bool(table.header_present and row_start > 0)
-    if repeated_header:
+    repeated_own_header = bool(table.header_present and row_start > 0)
+    if repeated_own_header:
         context_blocks.append(_strip_aliases(table.row_lines[0]))
 
     target_blocks.append("\n".join(table.row_lines[row_start:row_end]))
     return (
         _join_blocks(context_blocks),
         _join_blocks(target_blocks),
-        repeated_header,
+        bool(repeated_header_context or repeated_own_header),
         bool(notes_text and not (first and notes_have_target)),
     )
 

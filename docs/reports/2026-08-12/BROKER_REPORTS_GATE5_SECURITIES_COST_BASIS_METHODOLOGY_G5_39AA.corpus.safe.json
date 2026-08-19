@@ -1,0 +1,310 @@
+{
+  "schema_version": "broker_reports_gate5_securities_cost_basis_methodology_corpus_v0",
+  "goal": "G5.39AA",
+  "mode": "research_only",
+  "verified_on": "2026-08-12",
+  "currency_scope": "RUB_only_for_numeric_cases",
+  "authority_refs": [
+    "RF_TAX_CODE_214_1_10",
+    "RF_TAX_CODE_214_1_12",
+    "RF_TAX_CODE_214_1_13",
+    "RF_TAX_CODE_210_5",
+    "RF_TAX_CODE_226_1_4"
+  ],
+  "cases": [
+    {
+      "case_id": "M1",
+      "title": "single acquisition and full disposal control",
+      "atoms": {
+        "acquisitions": [
+          {
+            "sequence": 1,
+            "quantity": "100",
+            "unit_purchase_price": "100.00",
+            "purchase_price_total": "10000.00"
+          }
+        ],
+        "disposal": {
+          "quantity": "100",
+          "gross_proceeds": "12000.00"
+        }
+      },
+      "tax_classification": {
+        "purchase_price": "ELIGIBLE_DIRECT_ACQUISITION_EXPENSE"
+      },
+      "tax_allocation": {
+        "rule": "FIFO",
+        "consumed_lots": [
+          {
+            "sequence": 1,
+            "quantity": "100",
+            "recognized_purchase_price": "10000.00"
+          }
+        ]
+      },
+      "tax_derived_value": {
+        "recognized_purchase_price": "10000.00",
+        "financial_result_before_other_expenses": "2000.00"
+      },
+      "result_status": "PROVEN"
+    },
+    {
+      "case_id": "M2",
+      "title": "two acquisitions and full disposal",
+      "atoms": {
+        "acquisitions": [
+          {
+            "sequence": 1,
+            "quantity": "100",
+            "unit_purchase_price": "100.00",
+            "purchase_price_total": "10000.00"
+          },
+          {
+            "sequence": 2,
+            "quantity": "100",
+            "unit_purchase_price": "150.00",
+            "purchase_price_total": "15000.00"
+          }
+        ],
+        "disposal": {
+          "quantity": "200",
+          "gross_proceeds": "32000.00"
+        }
+      },
+      "tax_classification": {
+        "purchase_price": "ELIGIBLE_DIRECT_ACQUISITION_EXPENSE"
+      },
+      "tax_allocation": {
+        "rule": "FIFO",
+        "consumed_lots": [
+          {
+            "sequence": 1,
+            "quantity": "100",
+            "recognized_purchase_price": "10000.00"
+          },
+          {
+            "sequence": 2,
+            "quantity": "100",
+            "recognized_purchase_price": "15000.00"
+          }
+        ]
+      },
+      "tax_derived_value": {
+        "recognized_purchase_price": "25000.00",
+        "financial_result_before_other_expenses": "7000.00"
+      },
+      "result_status": "PROVEN"
+    },
+    {
+      "case_id": "M3",
+      "title": "partial disposal crossing a FIFO lot boundary",
+      "atoms": {
+        "acquisitions": [
+          {
+            "sequence": 1,
+            "quantity": "100",
+            "unit_purchase_price": "100.00",
+            "purchase_price_total": "10000.00"
+          },
+          {
+            "sequence": 2,
+            "quantity": "100",
+            "unit_purchase_price": "150.00",
+            "purchase_price_total": "15000.00"
+          }
+        ],
+        "disposal": {
+          "quantity": "120",
+          "gross_proceeds": "18000.00"
+        }
+      },
+      "tax_classification": {
+        "purchase_price": "ELIGIBLE_DIRECT_ACQUISITION_EXPENSE"
+      },
+      "tax_allocation": {
+        "rule": "FIFO",
+        "consumed_lots": [
+          {
+            "sequence": 1,
+            "quantity": "100",
+            "recognized_purchase_price": "10000.00"
+          },
+          {
+            "sequence": 2,
+            "quantity": "20",
+            "recognized_purchase_price": "3000.00"
+          }
+        ],
+        "remaining_lots": [
+          {
+            "sequence": 2,
+            "quantity": "80",
+            "remaining_purchase_price": "12000.00"
+          }
+        ],
+        "single_lot_corollary": {
+          "source_quantity": "100",
+          "source_purchase_price_total": "10000.00",
+          "disposed_quantity": "40",
+          "recognized_purchase_price": "4000.00",
+          "remaining_purchase_price": "6000.00",
+          "boundary": "exact only when the amount is solely purchase price and unit arithmetic is unambiguous"
+        }
+      },
+      "tax_derived_value": {
+        "recognized_purchase_price": "13000.00",
+        "financial_result_before_other_expenses": "5000.00"
+      },
+      "result_status": "PROVEN_BOUNDED"
+    },
+    {
+      "case_id": "M4",
+      "title": "one acquisition with commission and partial disposal",
+      "atoms": {
+        "acquisitions": [
+          {
+            "sequence": 1,
+            "quantity": "100",
+            "purchase_price_total": "10000.00",
+            "acquisition_commission": "100.00"
+          }
+        ],
+        "disposal": {
+          "quantity": "40",
+          "gross_proceeds": "5000.00"
+        }
+      },
+      "tax_classification": {
+        "purchase_price": "ELIGIBLE_DIRECT_ACQUISITION_EXPENSE",
+        "acquisition_commission": "ELIGIBLE_IF_DOCUMENTED_INCURRED_AND_LINKED"
+      },
+      "tax_allocation": {
+        "recognized_purchase_price": "4000.00",
+        "acquisition_commission_for_disposed_quantity": null,
+        "blocker": "NO_CURRENT_OFFICIAL_PRESCRIPTION_FOUND_FOR_PARTIAL_TICKET_COMMISSION_ALLOCATION"
+      },
+      "tax_derived_value": null,
+      "result_status": "LEGAL_AUTHORITY_AMBIGUOUS"
+    },
+    {
+      "case_id": "M5",
+      "title": "multiple acquisitions with commissions and partial disposal",
+      "atoms": {
+        "acquisitions": [
+          {
+            "sequence": 1,
+            "quantity": "100",
+            "unit_purchase_price": "100.00",
+            "purchase_price_total": "10000.00",
+            "acquisition_commission": "100.00"
+          },
+          {
+            "sequence": 2,
+            "quantity": "100",
+            "unit_purchase_price": "150.00",
+            "purchase_price_total": "15000.00",
+            "acquisition_commission": "200.00"
+          }
+        ],
+        "disposal": {
+          "quantity": "120",
+          "gross_proceeds": "18000.00"
+        }
+      },
+      "tax_classification": {
+        "purchase_price": "ELIGIBLE_DIRECT_ACQUISITION_EXPENSE",
+        "acquisition_commissions": "ELIGIBLE_IF_DOCUMENTED_INCURRED_AND_LINKED"
+      },
+      "tax_allocation": {
+        "recognized_purchase_price": "13000.00",
+        "acquisition_commission_for_disposed_quantity": null,
+        "blocker": "NO_CURRENT_OFFICIAL_PRESCRIPTION_FOUND_FOR_FIFO_PLUS_PARTIAL_COMMISSION_ALLOCATION"
+      },
+      "tax_derived_value": null,
+      "result_status": "LEGAL_AUTHORITY_AMBIGUOUS"
+    },
+    {
+      "case_id": "M6",
+      "title": "direct sale commission",
+      "atoms": {
+        "acquisitions": [
+          {
+            "sequence": 1,
+            "quantity": "40",
+            "purchase_price_total": "4000.00"
+          }
+        ],
+        "disposal": {
+          "quantity": "40",
+          "gross_proceeds": "5000.00",
+          "sale_commission": "50.00"
+        }
+      },
+      "tax_classification": {
+        "purchase_price": "ELIGIBLE_DIRECT_ACQUISITION_EXPENSE",
+        "sale_commission": "ELIGIBLE_DIRECT_DISPOSAL_EXPENSE"
+      },
+      "tax_allocation": {
+        "recognized_purchase_price": "4000.00",
+        "recognized_sale_commission": "50.00",
+        "allocation_scope": "DISPOSAL"
+      },
+      "tax_derived_value": {
+        "allowable_expenses": "4050.00",
+        "financial_result": "950.00"
+      },
+      "result_status": "PROVEN"
+    },
+    {
+      "case_id": "M7",
+      "title": "shared documented custody fee across income types",
+      "atoms": {
+        "income_types": [
+          {
+            "income_type": "A",
+            "gross_income": "8000.00"
+          },
+          {
+            "income_type": "B",
+            "gross_income": "2000.00"
+          }
+        ],
+        "shared_fee": {
+          "expense_kind": "custody_or_depositary_service",
+          "amount": "120.00",
+          "documented": true,
+          "actually_incurred": true,
+          "direct_disposal_link": false
+        }
+      },
+      "tax_classification": {
+        "shared_fee": "ELIGIBLE_IF_CONNECTED_TO_SECURITIES_STORAGE_OR_PROFESSIONAL_SERVICE"
+      },
+      "tax_allocation": {
+        "rule": "PROPORTIONAL_TO_EACH_INCOME_TYPE_SHARE",
+        "allocations": [
+          {
+            "income_type": "A",
+            "income_share": "0.800000",
+            "allocated_expense": "96.00"
+          },
+          {
+            "income_type": "B",
+            "income_share": "0.200000",
+            "allocated_expense": "24.00"
+          }
+        ],
+        "disposal_level_allocation_required": false
+      },
+      "tax_derived_value": {
+        "allocated_expense_total": "120.00"
+      },
+      "result_status": "CATEGORY_LEVEL_EXPENSES_SUFFICIENT"
+    }
+  ],
+  "terminal": [
+    "COST_BASIS_METHOD_PROVEN_FOR_PURCHASE_PRICE",
+    "CATEGORY_LEVEL_EXPENSES_SUFFICIENT_FOR_SHARED_FEES",
+    "LEGAL_AUTHORITY_AMBIGUOUS_FOR_PARTIAL_ACQUISITION_COMMISSION"
+  ]
+}

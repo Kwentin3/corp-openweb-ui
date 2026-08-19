@@ -1,0 +1,109 @@
+{
+  "schema_version": "broker_reports_gate5_consumer_first_projection_research_receipt_v0",
+  "goal": "G5.39AG",
+  "verified_on": "2026-08-12",
+  "github_issue_update": "https://github.com/Kwentin3/corp-openweb-ui/issues/278#issuecomment-5270165084",
+  "terminal": "CONSUMER_FIRST_PROJECTION_CORE_PROVEN",
+  "profile_boundaries_unproven": [
+    "refund_available",
+    "balanced",
+    "multiple_budget_allocations",
+    "empty_budget_allocations"
+  ],
+  "consumer_contract": {
+    "projection_input_schema_version": "broker_reports_gate5_released_declaration_projection_input_v0",
+    "projection_input_status": "DECLARATION_VALUES_RELEASED",
+    "allowed_fields": [
+      "schema_version",
+      "status",
+      "value_contract",
+      "declaration_values",
+      "semantic_value_sha256",
+      "release_receipt_sha256",
+      "projection_input_sha256"
+    ],
+    "target_mechanics_schema_version": "broker_reports_gate5_ru_3ndfl_2025_target_mechanics_v0",
+    "target_mechanics_instance_fields": ["electronic_file_id"],
+    "package_fallback": false,
+    "tax_recomputation": false,
+    "audit_or_completeness_input": false
+  },
+  "accounting": {
+    "release_obligations_terminal": 25,
+    "released_value_leaves": 46,
+    "leaves_with_current_target_demand": 44,
+    "leaves_without_current_target_demand": 2,
+    "target_mapping_occurrences": 49,
+    "target_mapping_ids": 49,
+    "released_value_dependent_mapping_occurrences": 44,
+    "target_instance_mechanic_mapping_occurrences": 1,
+    "target_constant_mapping_occurrences": 4,
+    "unjustified_dependencies": 0
+  },
+  "identities": {
+    "semantic_value_sha256": "83484fd29f261888d4c1fd466672ba52ace4653a46d89ed445ac574a47258090",
+    "release_receipt_sha256": "7a4acefca04467bb19accc3b2cb1c7a8b9b8974cf9b5f4b586c7cb0d417487c4",
+    "projection_input_sha256": "dc7f413b943feae52f52d5bfd76793b354921524345c611afbdb2db06d04c616",
+    "target_mechanics_sha256": "14fc6d6d639280394f7d0783cbfcec981637b230c6ed27ed477d6cd13856c359",
+    "projection_definition_sha256": "a0cadf748bfc4bd689be586a0a9b88cf783ee3afbba200a744bb1b01d81c46f8",
+    "mapping_proof_sha256": "aacc4eef1d026d38920bd9284dff6f71de9e3ad704beb7abc466574c8a1576bc",
+    "consumer_projection_receipt_sha256": "7eacf0c61471fbeffed59410877f667d62f63c50a268da39a581d181d5ea3558",
+    "xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a",
+    "gate1_bundle_sha256": "0bdea62e971e3e39e068785fb956a1ae47882fc2d2144fd479d16c16fc9d68ed"
+  },
+  "equivalence": {
+    "semantic_valid_profile": "payable_single_allocation_supplied_case_v0",
+    "mapping_identity_order_equal": true,
+    "target_paths_equal": true,
+    "target_value_hashes_equal": true,
+    "official_xsd_valid_legacy": true,
+    "official_xsd_valid_consumer_first": true,
+    "xml_byte_equal": true,
+    "xml_bytes": 1112
+  },
+  "target_mechanics_isolation": {
+    "same_semantic_value_sha256": true,
+    "changed_mapping_ids": ["file-id"],
+    "all_other_mapping_value_hashes_equal": true,
+    "both_xsd_valid": true
+  },
+  "negative_proof": {
+    "missing_required_value": "gate5_consumer_first_released_values_invalid:gate5_declaration_value_candidate_required_value_missing",
+    "refund_profile": "gate5_consumer_first_projection_profile_unproven",
+    "balanced_profile": "gate5_consumer_first_projection_profile_unproven",
+    "multiple_budget_allocations": "gate5_consumer_first_projection_profile_unproven",
+    "empty_budget_allocations": "candidate contract requires a non-empty collection",
+    "target_emitted_on_failure": false
+  },
+  "implementation": {
+    "existing_semantic_owner_extended": true,
+    "existing_projection_runtime_extended": true,
+    "same_tree_projector": true,
+    "same_serializer": true,
+    "same_xsd_validator": true,
+    "legacy_definition_immutable": true,
+    "legacy_project_method_retained": true,
+    "new_projection_engine": false,
+    "new_registry_or_framework": false,
+    "e2e_shadow_or_product_caller": false,
+    "persistence": false
+  },
+  "replay": {
+    "focused_consumer_first": "8 passed",
+    "legacy_projection_e2e_and_bundle": "28 passed, 5 warnings",
+    "all_gate5": "407 passed",
+    "architecture_product_bundle_release": "54 passed, 6 warnings",
+    "ruff": "passed",
+    "json_and_hash_pins": "passed",
+    "git_diff_check": "passed"
+  },
+  "scope_stop": {
+    "legacy_authority": true,
+    "ah_started": false,
+    "activation": false,
+    "persistence": false,
+    "commit": false,
+    "push": false,
+    "pull_request": false
+  }
+}

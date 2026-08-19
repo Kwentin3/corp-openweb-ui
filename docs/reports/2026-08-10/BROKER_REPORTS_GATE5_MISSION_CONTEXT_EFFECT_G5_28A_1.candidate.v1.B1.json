@@ -1,0 +1,234 @@
+{
+  "schema_version": "broker_reports_declaration_obligation_grouping_candidate_v0",
+  "domains": [
+    {
+      "domain_id": "filing_identity_and_authority",
+      "semantic_meaning": "Declaration filing identity, taxpayer identity and period status, signer identity, and representation authority.",
+      "obligation_refs": [
+        "obl_filing_instance_identity",
+        "obl_taxpayer_identity_and_period_status",
+        "obl_signer_and_representation_authority"
+      ],
+      "expected_component": {
+        "family": "filing_identity_and_authority",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "declaration_budget_disposition",
+      "semantic_meaning": "Declaration-level disposition and budget allocation of the resulting tax amount.",
+      "obligation_refs": [
+        "obl_declaration_budget_disposition"
+      ],
+      "expected_component": {
+        "family": "declaration_budget_disposition",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "income_group_tax_results",
+      "semantic_meaning": "Complete, coherently paired tax-base and tax-settlement results for the declaration's applicable income groups.",
+      "obligation_refs": [
+        "obl_income_group_tax_base_results",
+        "obl_income_group_tax_settlement_results"
+      ],
+      "expected_component": {
+        "family": "income_group_tax_results",
+        "availability": "published_bounded",
+        "contract_ids": [
+          "broker_reports_gate5_income_group_tax_base_model_v0"
+        ]
+      }
+    },
+    {
+      "domain_id": "refundable_amount_disposal",
+      "semantic_meaning": "Election governing disposal of an established refundable amount and its destination.",
+      "obligation_refs": [
+        "obl_refundable_amount_disposal_election"
+      ],
+      "expected_component": {
+        "family": "refundable_amount_disposal",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "taxable_source_income",
+      "semantic_meaning": "Taxable income classified by domestic or foreign source, including source-specific tax-agent, jurisdiction and foreign-tax facts.",
+      "obligation_refs": [
+        "obl_russian_source_taxable_income",
+        "obl_foreign_source_taxable_income_and_foreign_tax"
+      ],
+      "expected_component": {
+        "family": "taxable_source_income",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "professional_activity_results",
+      "semantic_meaning": "Income, associated expenses and advances classified to entrepreneurial, advocate, notarial or other private-practice activity.",
+      "obligation_refs": [
+        "obl_professional_activity_income_expense_and_advances"
+      ],
+      "expected_component": {
+        "family": "professional_activity_results",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "professional_deduction_claims",
+      "semantic_meaning": "Professional-deduction claims for qualifying civil-law contract work, services, or author and creator remuneration.",
+      "obligation_refs": [
+        "obl_civil_contract_professional_deduction_claim",
+        "obl_author_creator_professional_deduction_claim"
+      ],
+      "expected_component": {
+        "family": "professional_deduction_claims",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "tax_exempt_income",
+      "semantic_meaning": "Legally exempt income classifications and amounts within or above their applicable exemption limits.",
+      "obligation_refs": [
+        "obl_tax_exempt_income_classification_and_limits"
+      ],
+      "expected_component": {
+        "family": "tax_exempt_income",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "standard_deduction_claims",
+      "semantic_meaning": "Standard-deduction claims and their established eligible amounts.",
+      "obligation_refs": [
+        "obl_standard_deduction_claims"
+      ],
+      "expected_component": {
+        "family": "standard_deduction_claims",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "social_deduction_claims",
+      "semantic_meaning": "Social-deduction claims, eligible expense categories and amounts, and applicable limit results.",
+      "obligation_refs": [
+        "obl_social_deduction_claims_and_limits"
+      ],
+      "expected_component": {
+        "family": "social_deduction_claims",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "investment_deduction_claims",
+      "semantic_meaning": "Investment-deduction claims, eligible categories and amounts, and applicable limit results.",
+      "obligation_refs": [
+        "obl_investment_deduction_claims_and_limits"
+      ],
+      "expected_component": {
+        "family": "investment_deduction_claims",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "long_term_savings_deduction_claims",
+      "semantic_meaning": "Long-term-savings deduction claims and their established eligible amounts.",
+      "obligation_refs": [
+        "obl_long_term_savings_deduction_claims"
+      ],
+      "expected_component": {
+        "family": "long_term_savings_deduction_claims",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "property_disposition_results",
+      "semantic_meaning": "Classified dispositions of property, vehicles or rights with object-level proceeds, basis, deduction or expense reduction, and taxable results.",
+      "obligation_refs": [
+        "obl_property_and_right_disposition_results",
+        "obl_vehicle_disposition_results"
+      ],
+      "expected_component": {
+        "family": "property_disposition_results",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "gift_income_results",
+      "semantic_meaning": "Gift income classification and its relevant taxable-result semantics.",
+      "obligation_refs": [
+        "obl_gift_income_classification"
+      ],
+      "expected_component": {
+        "family": "gift_income_results",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "property_acquisition_deduction_claims",
+      "semantic_meaning": "Deduction claims and eligible amounts for qualifying property acquisition or construction and related interest.",
+      "obligation_refs": [
+        "obl_property_acquisition_construction_deduction_claim",
+        "obl_property_interest_deduction_claim"
+      ],
+      "expected_component": {
+        "family": "property_acquisition_deduction_claims",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "securities_and_derivatives_results",
+      "semantic_meaning": "Results classified to securities and derivatives, including related loss and deduction treatment.",
+      "obligation_refs": [
+        "obl_securities_and_derivatives_results"
+      ],
+      "expected_component": {
+        "family": "securities_and_derivatives_results",
+        "availability": "published_bounded",
+        "contract_ids": [
+          "broker_reports_gate5_securities_disposal_tax_model_v0",
+          "broker_reports_gate5_securities_disposal_operation_tax_model_v0",
+          "broker_reports_gate5_tax_period_category_tax_model_v0"
+        ]
+      }
+    },
+    {
+      "domain_id": "digital_financial_asset_results",
+      "semantic_meaning": "Results classified to digital financial assets or digital rights, including related loss and deduction treatment.",
+      "obligation_refs": [
+        "obl_digital_financial_asset_and_right_results"
+      ],
+      "expected_component": {
+        "family": "digital_financial_asset_results",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    },
+    {
+      "domain_id": "investment_partnership_results",
+      "semantic_meaning": "Results classified to investment-partnership participation, including related loss and deduction treatment.",
+      "obligation_refs": [
+        "obl_investment_partnership_results"
+      ],
+      "expected_component": {
+        "family": "investment_partnership_results",
+        "availability": "missing",
+        "contract_ids": []
+      }
+    }
+  ]
+}

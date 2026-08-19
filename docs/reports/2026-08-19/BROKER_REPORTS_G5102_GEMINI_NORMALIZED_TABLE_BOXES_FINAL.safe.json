@@ -1,0 +1,110 @@
+{
+  "schema_version": "broker_reports_gemini_normalized_table_boxes_g5102_final_safe_v1",
+  "goal": "G5.102",
+  "decision": "GEMINI_NORMALIZED_BOX2D_CONTRACT_VALIDATED",
+  "remaining_blocker": "TABLE_INSTANCE_SEPARATION_INSUFFICIENT",
+  "development_terminal": "GEMINI_NORMALIZED_BOX2D_COUNT_INSUFFICIENT",
+  "scope": "bbox_and_table_count_only",
+  "contract": {
+    "field": "box_2d",
+    "order": [
+      "ymin",
+      "xmin",
+      "ymax",
+      "xmax"
+    ],
+    "coordinate_type": "integer",
+    "coordinate_minimum": 0,
+    "coordinate_maximum": 1000,
+    "relative_to": "entire_input_image",
+    "projection_to_pdf_points": "deterministic_inverse_of_verified_raster_transform"
+  },
+  "model_input": {
+    "navigation_grid": false,
+    "pdf_point_request": false,
+    "vertical_line_request": false,
+    "cell_value_request": false,
+    "full_page_png": true
+  },
+  "provider_policy": {
+    "model": "models/gemini-3.5-flash",
+    "provider_calls": 9,
+    "attempts_per_page": 1,
+    "retry": false,
+    "best_of_n": false,
+    "model_change": false,
+    "thinking_level": "minimal"
+  },
+  "development": {
+    "pages": 9,
+    "positive_pages": 4,
+    "negative_pages": 5,
+    "expected_visual_tables": 9,
+    "proposed_tables": 8,
+    "projected_boxes": 8,
+    "pages_with_exact_table_count": 8,
+    "false_boxes_on_negative_pages": 0,
+    "invalid_responses": 0,
+    "provider_non_success_terminals": 0,
+    "expressible_truth_regions": 7,
+    "exact_truth_regions": 5,
+    "truth_regions_with_full_coverage": 6,
+    "truth_region_mean_coverage_percent": 85.7,
+    "nonexpressible_embedded_truth_regions": 2,
+    "embedded_truth_regions_visually_correct": 2,
+    "table_instance_merge_failures": 1,
+    "input_tokens": 11772,
+    "output_tokens": 275,
+    "total_tokens": 12047,
+    "provider_duration_ms": 17916
+  },
+  "comparison_with_g5101": {
+    "invalid_positive_pages": {
+      "g5101": 4,
+      "g5102": 0
+    },
+    "exact_expressible_truth_regions": {
+      "g5101": 0,
+      "g5102": 5
+    },
+    "truth_regions_with_full_coverage": {
+      "g5101": 0,
+      "g5102": 6
+    },
+    "pages_with_exact_table_count": {
+      "g5101": 8,
+      "g5102": 8
+    },
+    "false_boxes_on_negative_pages": {
+      "g5101": 0,
+      "g5102": 0
+    }
+  },
+  "source_authority": {
+    "vlm_body_values_used": 0,
+    "invented_source_literals": 0,
+    "canonical_materialization_attempted": false,
+    "table_extraction_attempted": false
+  },
+  "freeze_permitted": false,
+  "unseen_holdout_executed": false,
+  "vertical_line_goal_started": false,
+  "production_activation": false,
+  "gate3_plus_changed": false,
+  "evidence": {
+    "private_execution_file_sha256": "43b2490cf498096ca4a20e8655e133406200c211d520e063abb88715a1350662",
+    "private_execution_canonical_json_sha256": "5801b1ed62afade84620fc075fb55ef18ec2b6ff23e321482b31f06e9f3b404e",
+    "development_safe_sha256": "c91d88b34c07a3d29d343f8b791d1156fe73a060ad1d271fae5cf1fc8acd5c75",
+    "projection_owner_sha256": "d76623e5dc186dc68176a72e07a06172a28866c2b302d356fc9e95d39db32083",
+    "harness_sha256": "2387378bf909635e1c1fa9714fd4112920c77d6777d2076e828be891e266e530",
+    "focused_tests_sha256": "fdd89eff27dc8ab8f957c5aef4edb7b0218562e3d07eac1f0d700ea82bead055"
+  },
+  "privacy": {
+    "customer_bytes_in_git": false,
+    "raw_provider_response_in_git": false,
+    "source_literals_in_safe_report": false,
+    "private_paths_in_safe_report": false,
+    "normalized_coordinates_in_safe_report": false,
+    "pdf_coordinates_in_safe_report": false
+  }
+}

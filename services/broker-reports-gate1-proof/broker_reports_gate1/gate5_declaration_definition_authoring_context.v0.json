@@ -1,0 +1,289 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_definition_authoring_context_v0",
+  "context_id": "ru-3ndfl-2025-securities-definition-authoring",
+  "context_version": "2026.0-proof",
+  "status": "inactive_proof",
+  "system_instructions": {
+    "task": "Research the current official 3-NDFL requirements for tax period 2025 within the securities-disposal domain. Determine which declaration fragments the published runtime can compile, and return the first official declaration requirement that it cannot compile.",
+    "rules": [
+      "Use only the supplied official evidence for declaration claims.",
+      "Use only capability IDs present as proven case-time capabilities in the supplied Runtime Capability Contract.",
+      "Treat published artifacts as data dependencies, not as executable code authored in the definition.",
+      "Return a gap instead of inventing a capability, behavior, input type, artifact, formula, research action or fallback.",
+      "Do not execute a production case and do not emit XML, PDF or tax payable.",
+      "Return exactly one object conforming to the supplied closed output schema."
+    ]
+  },
+  "research_policy": {
+    "authority_order": [
+      "official_fns_order_and_attachments",
+      "official_fns_xsd_and_directories",
+      "official_legal_publication"
+    ],
+    "allowed_authoring_tools": [
+      "official_web_search",
+      "official_attachment_download",
+      "document_text_and_schema_inspection",
+      "sha256_verification"
+    ],
+    "case_time_tools": [],
+    "evidence_rules": [
+      "Bind every declaration requirement to supplied evidence_ref values.",
+      "Do not use prior project reports as normative authority.",
+      "Do not infer an official mapping from model memory when supplied evidence is silent.",
+      "Classify evidence absence separately from runtime and artifact absence."
+    ]
+  },
+  "published_artifact_inventory": {
+    "schema_version": "broker_reports_gate5_published_artifact_inventory_v0",
+    "inventory_id": "gate5-relevant-published-tax-artifacts",
+    "inventory_version": "2026.0-proof",
+    "artifacts": [
+      {
+        "artifact_ref": {
+          "artifact_kind": "trusted_methodology",
+          "artifact_id": "ru-ndfl-securities-proof",
+          "artifact_version": "2026.0-experimental"
+        },
+        "behavior_id": "security_disposal_net_result_v0",
+        "semantic_output_contract": "broker_reports_gate5_trusted_calculation_result_v0",
+        "capability_uses": [
+          {
+            "capability_id": "execute_published_calculation_behavior_v0",
+            "role": "executable_behavior"
+          }
+        ]
+      },
+      {
+        "artifact_ref": {
+          "artifact_kind": "trusted_methodology",
+          "artifact_id": "ru-ndfl-securities-tax-model-proof",
+          "artifact_version": "2026.0-experimental"
+        },
+        "behavior_id": "securities_disposal_tax_model_v0",
+        "semantic_output_contract": "broker_reports_gate5_securities_disposal_tax_model_v0",
+        "capability_uses": []
+      },
+      {
+        "artifact_ref": {
+          "artifact_kind": "trusted_methodology",
+          "artifact_id": "ru-ndfl-securities-tax-model-proof",
+          "artifact_version": "2026.1-experimental"
+        },
+        "behavior_id": "securities_disposal_operation_tax_model_v0",
+        "semantic_output_contract": "broker_reports_gate5_securities_disposal_operation_tax_model_v0",
+        "capability_uses": [
+          {
+            "capability_id": "aggregate_complete_category_scope_v0",
+            "role": "accepted_operation_member_binding"
+          }
+        ]
+      },
+      {
+        "artifact_ref": {
+          "artifact_kind": "validated_declaration_projection",
+          "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+          "artifact_version": "2026.0-proof"
+        },
+        "behavior_id": null,
+        "semantic_output_contract": "broker_reports_gate5_declaration_projection_fragment_v0",
+        "capability_uses": [
+          {
+            "capability_id": "project_validated_declaration_fragment_v0",
+            "role": "validated_projection"
+          },
+          {
+            "capability_id": "aggregate_complete_category_scope_v0",
+            "role": "nested_validated_projection"
+          }
+        ]
+      }
+    ],
+    "published_reference_artifacts": []
+  },
+  "official_evidence": {
+    "schema_version": "broker_reports_gate5_declaration_authoring_evidence_v0",
+    "verified_on": "2026-08-10",
+    "declaration": {
+      "jurisdiction": "RU",
+      "tax_period": "2025",
+      "form": "3-NDFL",
+      "knd": "1151020",
+      "order": "FNS_ED-7-11/913@_2025-10-20",
+      "electronic_format_version": "5.20",
+      "xsd": "NO_NDFL3_1_033_00_05_20_01.xsd"
+    },
+    "sources": [
+      {
+        "source_ref": "fns_order_page",
+        "authority_kind": "tax_authority_primary",
+        "url": "https://www.nalog.gov.ru/rn77/about_fts/docs/16589324/",
+        "content_sha256": null
+      },
+      {
+        "source_ref": "fns_form_pdf",
+        "authority_kind": "tax_authority_primary",
+        "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_1.pdf",
+        "content_sha256": "d751043f63af1f0095a14228a65a3831acf47fcd82c397e2eb38b0f9f8dc9565"
+      },
+      {
+        "source_ref": "fns_filling_procedure_docx",
+        "authority_kind": "tax_authority_primary",
+        "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_2.docx",
+        "content_sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc"
+      },
+      {
+        "source_ref": "fns_electronic_format_docx",
+        "authority_kind": "tax_authority_primary",
+        "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_3.docx",
+        "content_sha256": "f5215c237a8af73dd7a251cee94a2e09aacd8540173fcde2904b4c311129e3c2"
+      },
+      {
+        "source_ref": "fns_xsd_5_20_01",
+        "authority_kind": "tax_authority_primary",
+        "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/xsd/NO_NDFL3_1_033_00_05_20_01.xsd",
+        "content_sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484"
+      }
+    ],
+    "requirements": [
+      {
+        "evidence_ref": "order_identity_and_effective_period",
+        "source_refs": [
+          "fns_order_page"
+        ],
+        "locator": "order clauses 1 and 3",
+        "claim": "The order approves the form, filling procedure and electronic format and applies to declarations for tax period 2025."
+      },
+      {
+        "evidence_ref": "appendix8_form_lines_010_050",
+        "source_refs": [
+          "fns_form_pdf"
+        ],
+        "locator": "Appendix 8, lines 010-050",
+        "claim": "The securities operation occurrence contains operation kind, aggregate income, related expenses, expenses reducing income and loss-treatment indicator."
+      },
+      {
+        "evidence_ref": "appendix8_procedure_paragraphs_97_98",
+        "source_refs": [
+          "fns_filling_procedure_docx"
+        ],
+        "locator": "procedure paragraphs 97-98",
+        "claim": "Appendix 8 covers securities and related operation families; lines 010-050 define the five aggregate meanings and line 040 contributes accepted expenses to the declaration calculation."
+      },
+      {
+        "evidence_ref": "appendix8_operation_code_01",
+        "source_refs": [
+          "fns_filling_procedure_docx"
+        ],
+        "locator": "procedure Appendix 8, code 01",
+        "claim": "Code 01 denotes organized-market securities operations outside an individual investment account."
+      },
+      {
+        "evidence_ref": "appendix8_format_table_4_46",
+        "source_refs": [
+          "fns_electronic_format_docx"
+        ],
+        "locator": "electronic format table 4.46",
+        "claim": "The electronic occurrence is ДохОперЦБ and exposes ВидОпер, ДохСовОпер, РасхРеалЦБ, РасхУмДохОпер and ПризУчетУбыт."
+      },
+      {
+        "evidence_ref": "appendix8_xsd_contract",
+        "source_refs": [
+          "fns_xsd_5_20_01"
+        ],
+        "locator": "Файл/Документ/НДФЛ3/ДохОперЦБ",
+        "claim": "The XSD permits repeated ДохОперЦБ occurrences and defines the five target attributes with required or optional use."
+      },
+      {
+        "evidence_ref": "section2_form_lines_001_060",
+        "source_refs": [
+          "fns_form_pdf"
+        ],
+        "locator": "Section 2, part 1, lines 001-060",
+        "claim": "Section 2 requires an income-group code, income totals, non-taxable income, taxable income, deductions, accepted expenses and the tax base."
+      },
+      {
+        "evidence_ref": "section2_procedure_paragraphs_37_46",
+        "source_refs": [
+          "fns_filling_procedure_docx"
+        ],
+        "locator": "procedure paragraphs 37-46",
+        "claim": "A separate Section 2 page is prepared for each income group; line 060 is derived from taxable income after deductions and accepted expenses, and Appendix 8 contributes relevant securities expenses."
+      },
+      {
+        "evidence_ref": "securities_income_group_02_type_003",
+        "source_refs": [
+          "fns_filling_procedure_docx"
+        ],
+        "locator": "procedure Appendix 4, group 02, income type 003",
+        "claim": "Resident securities and derivatives operations outside an individual investment account are assigned to income group 02 and income type 003 for the stated scope."
+      },
+      {
+        "evidence_ref": "section2_electronic_contract",
+        "source_refs": [
+          "fns_electronic_format_docx",
+          "fns_xsd_5_20_01"
+        ],
+        "locator": "electronic Section 2 НалБаза/РасчНалБаза contract",
+        "claim": "The electronic contract requires a group-bound tax-base calculation structure rather than only an Appendix 8 occurrence."
+      }
+    ]
+  },
+  "output_schema": {
+    "schema_version": "broker_reports_gate5_declaration_definition_output_schema_v0",
+    "closed": true,
+    "root_fields": [
+      "schema_version",
+      "definition_id",
+      "definition_version",
+      "status",
+      "target",
+      "scope",
+      "requirements",
+      "gaps",
+      "findings",
+      "authoring"
+    ],
+    "requirement_fields": [
+      "requirement_id",
+      "official_requirement",
+      "evidence_refs",
+      "semantic_output",
+      "declared_inputs",
+      "capability_refs",
+      "artifact_refs",
+      "preconditions",
+      "completion_criteria",
+      "status",
+      "gap_refs"
+    ],
+    "gap_fields": [
+      "gap_id",
+      "requirement_id",
+      "gap_type",
+      "required_semantic",
+      "runtime_user_pain",
+      "related_capability_refs",
+      "missing_artifact_kind",
+      "evidence_refs"
+    ],
+    "allowed_definition_statuses": [
+      "compilable",
+      "partially_compilable",
+      "not_compilable"
+    ],
+    "allowed_requirement_statuses": [
+      "compilable",
+      "not_compilable",
+      "evidence_missing"
+    ],
+    "allowed_gap_types": [
+      "missing_runtime_capability",
+      "missing_published_behavior",
+      "missing_input_type",
+      "missing_artifact",
+      "missing_evidence"
+    ],
+    "composition_rule": "Each compilable requirement names exactly one proven case-time capability. Dependencies are explicit boundary inputs; the definition is not an executable step language."
+  }
+}

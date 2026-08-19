@@ -1,0 +1,98 @@
+{
+  "schema_version": "broker_reports_g557_source_truth_role_mapping_receipt_v1",
+  "goal": "G5.57",
+  "status": "COMPLETE",
+  "source_values_in_receipt": false,
+  "visual_runtime_dependency": false,
+  "source_table": {
+    "purchase_rows": 5,
+    "canonical_purchase_rows": 5,
+    "column_shift_detected": false,
+    "financial_values_used_for_role_choice": false
+  },
+  "qualified_role_columns": {
+    "date": 4,
+    "asset": 10,
+    "quantity": 13,
+    "unit_price": 11,
+    "amount": 16,
+    "currency": 17
+  },
+  "mapping_comparison": {
+    "old_mapping": {"amount": 16, "currency": 17},
+    "g5_54_mapping": {"amount": 14, "currency": 12},
+    "verdict": "NEW_MAPPING_WRONG"
+  },
+  "owners": {
+    "amount_currency_first_wrong_owner": "Gate3RoleContextFactory",
+    "asset_instability_first_wrong_owner": "Gate3FinancialRolePackFactory",
+    "gate2_changed": false,
+    "gate5_role_or_dedup_logic_added": false
+  },
+  "published_role_pack": {
+    "semantic_version": "3.0.0",
+    "sha256": "c91884fa16152a8a81cd2e2e17775bb119ceb6ac876bc1fad5c33bd2f83d0e09"
+  },
+  "clean_replay": {
+    "provider_calls": 3,
+    "provider_batches": 2,
+    "retry_calls": 0,
+    "accepted_fact_role_replay_calls": 1,
+    "demand_scoped_batch_calls": 2,
+    "baseline_type_rediscovery_calls": 0,
+    "accepted_fact_set_unchanged": true,
+    "source_store_unchanged": true,
+    "g5_56_lineage_records_preserved": true,
+    "private_result_sha256": "bc0f5dec247cb4883ed05248a61f9b302d35bf55dc322768427382fd1c0ec324",
+    "safe_receipt_sha256": "540c1933b8bd288f5e60b8f032fea780d6583848c233b5d347dfa2537a745329"
+  },
+  "recovery": {
+    "annotations_before": 21,
+    "annotations_after": 21,
+    "purchases_after": 5,
+    "unrelated_after": 16,
+    "added_total": 0,
+    "superseded_total": 5,
+    "preserved_unrelated_total": 16,
+    "deleted_total": 0
+  },
+  "downstream": {
+    "gate4_document_facts": 21,
+    "gate4_status": "CASE_COMPLETE_FOR_CURRENT_INPUT_SET",
+    "gate4_purchase_facts": 5,
+    "gate4_purchase_role_columns_proven": true,
+    "gate4_purchase_role_pack_version": "3.0.0",
+    "gate5_security_facts": 48,
+    "gate5_terminals": ["SOURCE_FACT_ASSERTIONS_PRESERVED"],
+    "stored_financial_event_relations": 0
+  },
+  "terminals": {
+    "SOURCE_TABLE_ROLE_MAPPING_VISUALLY_QUALIFIED": true,
+    "AMOUNT_ROLE_BINDING_PROVEN": true,
+    "CURRENCY_ROLE_BINDING_PROVEN": true,
+    "ROLE_MAPPING_OWNER_DEFECT_REPAIRED": true,
+    "FIVE_PURCHASE_SOURCE_ASSERTIONS_STABLE": true,
+    "NON_DESTRUCTIVE_RECOVERY_AFTER_ROLE_FIX_PROVEN": true
+  },
+  "verification": {
+    "focused_and_cross_gate_tests_passed": 136,
+    "git_diff_check": "passed",
+    "privacy_scan": "passed",
+    "bundles_rebuilt": 3,
+    "bundle_rebuild_byte_stable": true,
+    "bundle_sha256": {
+      "gate1": "c160db34079a0ad54da5941dd62bf89c6552e46bdff274f90bbb442aea1660f6",
+      "gate2_source_fact": "9e84b10ecd75891ae285589f806819b03418553eab6da0a922b2f0bc23152d11",
+      "gate2_domain_source_fact": "d6ca421d25ac6639f7f71a2313a64995846a60d1258877c2ae4b33777efcd4bb"
+    }
+  },
+  "scope_stop": {
+    "cross_authority_merge_used": false,
+    "manual_fact_deletion_used": false,
+    "baseline_type_rediscovery_used": false,
+    "new_identity_or_semantic_framework_added": false,
+    "visual_runtime_dependency_added": false,
+    "product_activation": false,
+    "commit_push_pr": false
+  }
+}

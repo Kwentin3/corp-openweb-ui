@@ -1,0 +1,110 @@
+{
+  "schema_version": "broker_reports_g565_closeout_receipt_safe_v2",
+  "goal": "G5.65",
+  "status": "CLOSED_NEGATIVE_HOLDOUT_TERMINAL",
+  "terminal": [
+    "MINIMAL_SEMANTIC_REFINEMENT_PROVEN_ON_FROZEN_CORPUS",
+    "FROZEN_METADATA_CORPUS_SOURCE_ALIGNED",
+    "LLM_METADATA_SEMANTIC_GENERALIZATION_NOT_PROVEN",
+    "EXACT_SEMANTIC_FAILURE_CLASSES_LOCALIZED",
+    "NO_RUNTIME_HEURISTIC_FALLBACK_ADDED",
+    "FINANCIAL_GENERALIZATION_PRESERVED"
+  ],
+  "change": {
+    "metadata_contract_version": "1.0.0",
+    "field_count": 11,
+    "instruction_from": "1.0.0",
+    "instruction_to": "1.1.0",
+    "semantic_version_changes": 1,
+    "broker_specific_examples": 0,
+    "human_language_regex_growth": 0,
+    "python_semantic_branches": 0,
+    "heuristic_fallbacks": 0
+  },
+  "phase1_r1": {
+    "provider_submissions": 4,
+    "provider_status_code": 400,
+    "provider_detail": "Model not found",
+    "resolved_model_id": null,
+    "semantic_outputs": 0,
+    "preserved": true
+  },
+  "phase1_r2": {
+    "authorization": "explicit_user_request_after_live_openwebui_success",
+    "provider_submissions": 4,
+    "calls_per_document": 1,
+    "retries": 0,
+    "best_of_n": false,
+    "manual_output_repair": false,
+    "raw_facts": 24,
+    "published_facts": 24,
+    "correct": 24,
+    "missed": 0,
+    "semantic_extras": 0,
+    "ambiguous": 0,
+    "invented_literals": 0,
+    "invalid_provenance": 0,
+    "duplicates": 0,
+    "unsupported_fields": 0,
+    "validator_accepted_documents": 4,
+    "input_tokens": 89538,
+    "output_tokens": 1587,
+    "total_tokens": 105766,
+    "duration_ms": 74360
+  },
+  "holdout": {
+    "selected_before_execution": true,
+    "source_truth_frozen_before_execution": true,
+    "metadata_tuning_references_g560_g565": 0,
+    "different_broker_and_layout": true,
+    "contract_changed_after_execution": false,
+    "provider_submissions": 1,
+    "retries": 0,
+    "best_of_n": false,
+    "manual_output_repair": false,
+    "source_present_supported_facts": 5,
+    "raw_facts": 7,
+    "correct_raw_semantics": 4,
+    "missed_raw_semantics": 1,
+    "semantic_extras": 3,
+    "invented_literals": 0,
+    "unsupported_fields": 0,
+    "ambiguous_literal_bindings": 4,
+    "published_facts": 0,
+    "validator_status": "rejected",
+    "validator_error_code": "gate3_llm_metadata_literal_binding_ambiguous",
+    "failure_classes": [
+      "REPEATED_LITERAL_WITHIN_SINGLE_CONTEXT_TARGET",
+      "TRADING_CODE_MISCLASSIFIED_AS_ACCOUNT_IDENTIFIER",
+      "BROKER_ROLE_INFERRED_NOT_EXPLICIT",
+      "CONTRACT_IDENTIFIER_LABEL_OVERINCLUSION"
+    ],
+    "input_tokens": 9535,
+    "output_tokens": 578,
+    "total_tokens": 12091,
+    "duration_ms": 157125
+  },
+  "execution_totals": {
+    "provider_submissions": 9,
+    "successful_input_tokens": 99073,
+    "successful_output_tokens": 2165,
+    "successful_total_tokens": 117857,
+    "provider_reported_monetary_cost": null
+  },
+  "financial": {
+    "holdout_a_fact_count": 39,
+    "holdout_b_fact_count": 129,
+    "financial_code_changed": false
+  },
+  "verification": {
+    "focused_passed": 29,
+    "broad_passed": 123,
+    "failed": 0,
+    "architecture_guards_green": true
+  },
+  "g560_deterministic_extractor_changed": false,
+  "llm_adapter_product_activated": false,
+  "commit_or_push": false,
+  "next_goal_started": false,
+  "private_evidence_committed": false
+}

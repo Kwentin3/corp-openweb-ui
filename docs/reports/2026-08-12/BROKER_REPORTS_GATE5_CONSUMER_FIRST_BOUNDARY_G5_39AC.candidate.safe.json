@@ -1,0 +1,83 @@
+{
+  "schema_version": "broker_reports_gate5_consumer_first_candidate_safe_v0",
+  "goal": "G5.39AC",
+  "verified_on": "2026-08-12",
+  "status": "FROZEN_RESEARCH_CANDIDATE",
+  "production_dto": false,
+  "scope": "one already-complete supplied case",
+  "canonicalization": "UTF-8 JSON; sort_keys=true; separators=comma-colon; ensure_ascii=false",
+  "exact_private_instance": {
+    "persisted_to_git": false,
+    "canonical_bytes": 2507,
+    "canonical_bytes_sha256": "105e8883bc138b3a72ef0f1563b0ca32fadd72ccdc419729a535c1847db962b6"
+  },
+  "root_keys": [
+    "budget_dispositions",
+    "filing",
+    "financial_investment_results",
+    "income_group_results",
+    "russian_source_income",
+    "signer",
+    "tax_period",
+    "taxpayer"
+  ],
+  "collection_counts": {
+    "budget_dispositions": 1,
+    "income_group_results": 1,
+    "russian_source_income": 1,
+    "financial_investment_results": 1
+  },
+  "optional_fields_absent": [
+    "signer.representation_authority"
+  ],
+  "field_manifest": [
+    {"path":"tax_period","kind":"str","value_sha256":"10f785c6e4f662128181cf1aa7b39172a90d34faa840224dcb8a717019a21224"},
+    {"path":"filing.correction_number","kind":"int","value_sha256":"5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"},
+    {"path":"filing.declaration_date","kind":"str","value_sha256":"4ee14a03fd6fedc96e4eaa173fcd60f08ed18e61eb7b6e9ba37c2e3ca4c8cca7"},
+    {"path":"filing.tax_authority_code","kind":"str","value_sha256":"a1d361f95e2329cea471a6c3a2555eb3db8a8c45541d9bc9f0a247f195b6603b"},
+    {"path":"taxpayer.inn","kind":"str","value_sha256":"992f7408178363c2c932c168ca2b9408cf2e57bfeb720a680e6142714b6ad799"},
+    {"path":"taxpayer.name","kind":"object","value_sha256":"7c7712468fb72e2416e3a60da00b4972c636e283a01f0cd5b146c4b3dd1c7f44"},
+    {"path":"taxpayer.period_status","kind":"str","value_sha256":"6f1eab516670bfed67a8c2b4eba34adeafe1bc5048e88860872c7466bc503f5d"},
+    {"path":"taxpayer.declarant_category","kind":"str","value_sha256":"9484d73015d44b04732054c296ea383d44334135e7490fbc8567d64c9ace5047"},
+    {"path":"signer.identity","kind":"str","value_sha256":"9e460623768b757faa6a95431ed567e75e19a1d95c0426fd5eebd0ea9a634eee"},
+    {"path":"signer.capacity","kind":"str","value_sha256":"c68d99a9fd5daa719d9e0d778f75a77688bd5773572e8e162b1d4dbb2b5fe243"},
+    {"path":"budget_dispositions[].kind","kind":"str","value_sha256":"9dc69bb000ca71393eae873d2c8a208b144c3d8e497307b43fa19ed740f11e7c"},
+    {"path":"budget_dispositions[].kbk","kind":"str","value_sha256":"5e568a73b85afa0154544579f6b5b429023c8bd775ffb38dd510dd22da521a65"},
+    {"path":"budget_dispositions[].oktmo","kind":"str","value_sha256":"f38dd5fa1be2d55156a9f24441fb16b3b9a45962d6afd620451c15c797083431"},
+    {"path":"budget_dispositions[].amount","kind":"object","value_sha256":"9716f2cd5cd90b161b73e766c683cf0975836c9484347d91d49b00197da1c15f"},
+    {"path":"income_group_results[].income_group","kind":"str","value_sha256":"fa376cf7bdb4634391fbd524d87b493ff21ffb4969be17c6e5dfe88bb7b3896c"},
+    {"path":"income_group_results[].total_income","kind":"object","value_sha256":"d5cda7934e461d8bcd4f9001a723b7327f72336c07b146e66f355c4960f14b52"},
+    {"path":"income_group_results[].non_taxable_income","kind":"object","value_sha256":"f00c558c06a3e9c11bac9819d601a031727e2c6e9154a9283a6405f43e6b5661"},
+    {"path":"income_group_results[].taxable_income","kind":"object","value_sha256":"d5cda7934e461d8bcd4f9001a723b7327f72336c07b146e66f355c4960f14b52"},
+    {"path":"income_group_results[].tax_deductions","kind":"object","value_sha256":"f00c558c06a3e9c11bac9819d601a031727e2c6e9154a9283a6405f43e6b5661"},
+    {"path":"income_group_results[].accepted_expenses","kind":"object","value_sha256":"445354b167f077e15aad021281954bc627a68dcd72986f0dffbf274f8dbab017"},
+    {"path":"income_group_results[].tax_base","kind":"object","value_sha256":"5d67024c3fdcacd81c186057d9c9ddf46332db3269c52c81341121cdbd41df88"},
+    {"path":"income_group_results[].calculated_tax","kind":"object","value_sha256":"9716f2cd5cd90b161b73e766c683cf0975836c9484347d91d49b00197da1c15f"},
+    {"path":"income_group_results[].settlement_amounts","kind":"object","value_sha256":"f5d39e37690237ea8b860bf1556de293d87691707e24de9e4cafe8c677e00cd3"},
+    {"path":"income_group_results[].tax_payable","kind":"object","value_sha256":"9716f2cd5cd90b161b73e766c683cf0975836c9484347d91d49b00197da1c15f"},
+    {"path":"income_group_results[].tax_refundable","kind":"object","value_sha256":"f00c558c06a3e9c11bac9819d601a031727e2c6e9154a9283a6405f43e6b5661"},
+    {"path":"russian_source_income[].income_kind","kind":"str","value_sha256":"59de8eba516bc3f53dbd9cc0ad61e5e1b50d5d4d14764a467af2542b1b3e7978"},
+    {"path":"russian_source_income[].source_party","kind":"object","value_sha256":"e9070b1f336140132b58608d450e8eb33c703a4e9b53bf6b7d67b0845ca1a5b6"},
+    {"path":"russian_source_income[].gross_income","kind":"object","value_sha256":"d5cda7934e461d8bcd4f9001a723b7327f72336c07b146e66f355c4960f14b52"},
+    {"path":"russian_source_income[].withheld_tax","kind":"object","value_sha256":"f00c558c06a3e9c11bac9819d601a031727e2c6e9154a9283a6405f43e6b5661"},
+    {"path":"financial_investment_results[].operation_category","kind":"str","value_sha256":"605a6ed6cc3316238a8b70aee99a02ba121f1ee07b60cb203de9b3019a9851b1"},
+    {"path":"financial_investment_results[].category_gross_income","kind":"object","value_sha256":"d5cda7934e461d8bcd4f9001a723b7327f72336c07b146e66f355c4960f14b52"},
+    {"path":"financial_investment_results[].related_expenses","kind":"object","value_sha256":"445354b167f077e15aad021281954bc627a68dcd72986f0dffbf274f8dbab017"},
+    {"path":"financial_investment_results[].allowable_expenses","kind":"object","value_sha256":"445354b167f077e15aad021281954bc627a68dcd72986f0dffbf274f8dbab017"},
+    {"path":"financial_investment_results[].loss_treatment","kind":"str","value_sha256":"30a0924a3360be687d1df9fcbbfdff62c01bc0fd14036ab9076cf7f451568666"}
+  ],
+  "not_present": [
+    "source hashes",
+    "component snapshots or hashes",
+    "methodology or derivation traces",
+    "scope or case identity",
+    "obligation states",
+    "Projection Definition identity",
+    "XML/PDF locators",
+    "KND, format version, program version or electronic file id"
+  ],
+  "privacy": {
+    "raw_personal_or_financial_values_in_this_artifact": false,
+    "representation": "paths, types, counts and value hashes only"
+  }
+}

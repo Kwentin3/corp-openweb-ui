@@ -1,0 +1,76 @@
+{
+  "schema_version": "broker_reports_gate5_consumer_first_declaration_research_receipt_v0",
+  "goal": "G5.39AB",
+  "verified_on": "2026-08-12",
+  "mode": "research_only",
+  "terminal": [
+    "THREE_CONTRACT_BOUNDARY_PROVEN_FOR_SUPPLIED_CASE",
+    "SEMANTIC_INPUT_CAN_BE_SMALLER_THAN_RESOLVED_PACKAGE",
+    "RESOLVED_PACKAGE_IS_A_SEALED_AUDIT_ENVELOPE_NOT_A_DECLARATION_DTO"
+  ],
+  "strategic_stopper": "UNRESEARCHED_LEGAL_METHODOLOGIES_FOR_INACTIVE_DOMAINS",
+  "scope": {
+    "definition_id": "ru_3ndfl_2025_root_declaration",
+    "definition_version": "2026-08-10.1",
+    "tax_period": "2025",
+    "reviewed_obligations": 25,
+    "unique_matrix_obligations": 25,
+    "projected_obligations": 8,
+    "terminal_not_activated_obligations": 17,
+    "unaccounted_obligations": 0,
+    "supplied_case_resolved_domains": 5,
+    "supplied_case_not_activated_domains": 6,
+    "real_world_taxpayer_completeness_asserted": false
+  },
+  "official_evidence": {
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "order_page": "https://www.nalog.gov.ru/rn77/about_fts/docs/16589324/",
+    "filling_procedure_bytes_reverified": 106008,
+    "filling_procedure_sha256_reverified": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+    "trusted_hash_match": true
+  },
+  "repository_baseline": {
+    "branch": "feature/gate5-tax-period-category-aggregation",
+    "head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+    "preexisting_dirty_tree_preserved": true,
+    "files_created_by_goal": 3,
+    "code_files_changed_by_goal": 0,
+    "test_files_changed_by_goal": 0
+  },
+  "artifacts": [
+    {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_CONSUMER_FIRST_DECLARATION_G5_39AB.report.md",
+      "sha256": "f77be36168d6231405b36028f7f7d6139b841095d9400a56e08c58efa08e88a3"
+    },
+    {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_CONSUMER_FIRST_DECLARATION_G5_39AB.matrix.safe.json",
+      "sha256": "4ec2c434191dece74530ddbb0e85ddf04729cb478009138cffadf9e7a731a062"
+    }
+  ],
+  "machine_checks": {
+    "matrix_json_parse": "passed",
+    "receipt_json_parse": "passed",
+    "obligation_count": "25_of_25",
+    "obligation_ids_unique": true,
+    "current_vs_minimal_diff_rows": 28,
+    "provenance_trace_examples": 7,
+    "git_diff_check": "passed",
+    "privacy_scan_hits": 0,
+    "customer_or_private_values_in_safe_artifacts": false,
+    "runtime_or_test_execution": "not_run_research_only"
+  },
+  "github_journal": {
+    "repository": "Kwentin3/corp-openweb-ui",
+    "issue_number": 278,
+    "issue_url": "https://github.com/Kwentin3/corp-openweb-ui/issues/278"
+  },
+  "scope_stops": [
+    "no production schema or DTO",
+    "no Gate 4 or Gate 5 implementation",
+    "no tax methodology completion for inactive domains",
+    "no product activation",
+    "no commit, push or pull request",
+    "no G5.40 or dependent goal authorization"
+  ]
+}

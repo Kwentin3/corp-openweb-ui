@@ -1,0 +1,41 @@
+{
+  "schema_version": "broker_reports_gemini_normalized_table_boxes_g5102_development_safe_v1",
+  "goal": "G5.102",
+  "phase": "development",
+  "changed_contract": "gemini_box_2d_ymin_xmin_ymax_xmax_normalized_0_1000",
+  "provider_calls": 9,
+  "metrics": {
+    "pages": 9,
+    "positive_pages": 4,
+    "negative_pages": 5,
+    "expected_visual_tables": 9,
+    "proposed_tables": 8,
+    "projected_boxes": 8,
+    "pages_with_exact_table_count": 8,
+    "false_boxes_on_negative_pages": 0,
+    "invalid_responses": 0,
+    "provider_non_success_terminals": 0,
+    "expressible_truth_regions": 7,
+    "exact_truth_regions": 5,
+    "truth_regions_with_full_coverage": 6,
+    "truth_region_minimum_coverage_percent": 0.0,
+    "truth_region_mean_coverage_percent": 85.7,
+    "extraneous_parser_lines_total": 65,
+    "nonexpressible_embedded_truth_regions": 2,
+    "vlm_body_values_used": 0,
+    "invented_source_literals": 0
+  },
+  "terminals": [
+    "GEMINI_NORMALIZED_BOX2D_COUNT_INSUFFICIENT"
+  ],
+  "freeze_permitted": false,
+  "unseen_holdout_executed": false,
+  "private_canonical_json_sha256": "5801b1ed62afade84620fc075fb55ef18ec2b6ff23e321482b31f06e9f3b404e",
+  "privacy": {
+    "customer_bytes_in_git": false,
+    "raw_provider_response_in_git": false,
+    "normalized_coordinates_in_safe_report": false,
+    "pdf_coordinates_in_safe_report": false,
+    "cell_values_in_git": false
+  }
+}

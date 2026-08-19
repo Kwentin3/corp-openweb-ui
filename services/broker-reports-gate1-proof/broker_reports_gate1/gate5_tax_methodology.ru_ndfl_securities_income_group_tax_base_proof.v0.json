@@ -1,0 +1,42 @@
+{
+  "schema_version": "broker_reports_gate5_securities_income_group_tax_base_methodology_v0",
+  "methodology_id": "ru-ndfl-securities-tax-model-proof",
+  "methodology_version": "2026.2-experimental",
+  "behavior": {
+    "behavior_id": "securities_income_group_tax_base_v0",
+    "model_id": "securities-income-group-tax-base",
+    "input_contract_id": "broker_reports_gate5_income_group_tax_base_input_v0",
+    "output_contract_id": "broker_reports_gate5_income_group_tax_base_model_v0",
+    "applicability": {
+      "tax_period": "2025",
+      "taxpayer_status": "resident_individual",
+      "category": "organized_market_securities_outside_iis",
+      "currency": "RUB",
+      "income_group_semantic": "resident_securities_and_derivatives_non_iis"
+    },
+    "calculation_semantics": {
+      "total_income": "category_gross_income plus other_group_income",
+      "taxable_income": "total_income minus non_taxable_income",
+      "accepted_expenses": "category_allowable_expenses plus other_group_allowable_expenses",
+      "tax_base": "taxable_income minus tax_deductions minus accepted_expenses",
+      "reduction_guard": "tax_deductions plus accepted_expenses must not exceed taxable_income"
+    },
+    "required_evidence_refs": [
+      "fns-order-ed-7-11-913-section2-paragraphs-37-46"
+    ]
+  },
+  "legal_evidence": [
+    {
+      "evidence_ref": "fns-order-ed-7-11-913-section2-paragraphs-37-46",
+      "authority_kind": "tax_authority_primary",
+      "source_url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_2.docx",
+      "source_document_id": "FNS-Order-ED-7-11-913-2025-10-20-Appendix-2",
+      "locator": "Procedure paragraphs 37-46: one Section 2 calculation per income group; total income, non-taxable income, deductions, accepted expenses and tax base",
+      "capture_status": "downloaded_official_bytes_verified",
+      "content_bytes": 106008,
+      "content_sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+      "verified_on": "2026-08-10",
+      "effective_tax_period": "2025"
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "schema_version": "broker_reports_gate5_independent_authoring_blind_trial_record_v1",
+  "goal": "G5.20",
+  "goal_status": "PARTIALLY_PROVEN",
+  "product_status": "inactive_proof",
+  "date": "2026-08-10",
+  "technical_canary": {
+    "status": "passed",
+    "inference_calls_completed_total": 1,
+    "declaration_semantics_supplied": false,
+    "runtime_capabilities_supplied": false,
+    "response_sha256": "5fafb8b453673a2a5495cf9b5fca76df52a5caab584f27715083500cc143866b",
+    "response_utf8_bytes": 68
+  },
+  "semantic_payload": {
+    "resource": "gate5_clean_context_declaration_trial.primary.v1.payload.json",
+    "sha256": "a3ad620016c93eff08a7f79cdb24f86cdcc81b0dd16ce7a68be2660d760fac46",
+    "utf8_bytes": 27013,
+    "bias_audit_status": "passed",
+    "conversation_history": "none",
+    "semantic_input_changes_after_freeze_total": 0
+  },
+  "semantic_attempts": [
+    {
+      "trial_id": "g5.20-primary-2026-08-10-001",
+      "status": "inference_completed_response_capture_failed",
+      "provider_process_exit_code": 0,
+      "observable_response": false,
+      "candidate_selection_possible": false,
+      "failure_boundary": "outer_experiment_final_message_path_encoding"
+    },
+    {
+      "trial_id": "g5.20-primary-2026-08-10-002",
+      "status": "inference_completed_response_captured",
+      "provider_process_exit_code": 0,
+      "observable_response": true,
+      "response_sha256": "093879f7e08cbba68ce0ab0df938acf86b8a0a0708cf8c04f0a6818848d15a75",
+      "response_utf8_bytes": 20848,
+      "json_object_parse_status": "passed",
+      "json_schema_status": "passed"
+    }
+  ],
+  "invocation_profile": {
+    "provider": "openai_codex_cli",
+    "client_version": "codex-cli 0.147.0-alpha.6.5",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "provider_output_schema": null,
+    "final_message_capture": "output_last_message_file",
+    "candidate_parser": "one_utf8_json_object_no_repair_v1",
+    "conversation_mode": "ephemeral_new_session",
+    "workspace": "empty_temporary_directory",
+    "sandbox": "read-only",
+    "user_config": "ignored",
+    "exec_rules": "ignored",
+    "within_identity_retry_limit": 0,
+    "response_repair": "forbidden"
+  },
+  "semantic_provider_requests_total": 2,
+  "semantic_inference_calls_completed_total": 2,
+  "observable_model_responses_total": 1,
+  "structured_candidates_total": 1,
+  "candidate_selection_events_total": 0,
+  "within_identity_retries_total": 0,
+  "capture_recovery_attempts_total": 1,
+  "manual_candidate_repairs_total": 0,
+  "model_followups_total": 0,
+  "candidate": {
+    "artifact": "BROKER_REPORTS_GATE5_INDEPENDENT_DECLARATION_AUTHORING_G5_20.candidate.json",
+    "sha256": "093879f7e08cbba68ce0ab0df938acf86b8a0a0708cf8c04f0a6818848d15a75",
+    "utf8_bytes": 20848,
+    "declared_status": "partially_compilable",
+    "requirements_total": 10,
+    "supported_requirement_ids_total": 5,
+    "unsupported_requirement_ids_total": 5,
+    "gaps_total": 5
+  },
+  "semantic_validator": {
+    "status": "failed",
+    "code": "gate5_clean_context_candidate_case_evidence_overclaim",
+    "field": "requirements[0]"
+  },
+  "repository_audit": {
+    "valid_supported_units_total": 3,
+    "capability_bindings_passed": 5,
+    "capability_bindings_failed": 1,
+    "gap_taxonomy_passed": 4,
+    "gap_taxonomy_failed": 1,
+    "model_first_blocking_gap_id": "appendix8_expense_to_section2_gap",
+    "first_blocker_repository_truth": "supported_absence_claim",
+    "blocker_was_supplied_as_expected_answer": false
+  },
+  "verdict": "PARTIALLY_PROVEN",
+  "localized_boundary": "authoring_contract_and_context_precision",
+  "new_runtime_capabilities_total": 0,
+  "activation": false
+}

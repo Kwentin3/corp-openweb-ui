@@ -162,6 +162,81 @@ def test_two_operation_scope_aggregates_only_with_exact_completeness_and_project
     assert _gate4_facts(store, context_b) == gate4_before["b"]
 
 
+def test_single_operation_scope_uses_same_path_and_exact_completeness(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path)
+    model, _ = _operation_model(
+        store=store,
+        monkeypatch=monkeypatch,
+        ref="singleton",
+        gross="100.00",
+        acquisition="70.00",
+        fee="2.00",
+    )
+    members = [_member("operation-singleton", "case-singleton", model)]
+    scope = _scope()
+    runtime = Gate5TaxPeriodCategoryAggregationRuntimeFactory.create()
+    binding = runtime.describe_scope(scope=scope, members=members)
+
+    incomplete = runtime.run(
+        scope=scope,
+        members=members,
+        completeness_evidence=None,
+    )
+    complete = runtime.run(
+        scope=scope,
+        members=members,
+        completeness_evidence=_completeness(binding["scope_binding_sha256"]),
+    )
+
+    assert binding["members"] == [
+        {
+            "operation_ref": "operation-singleton",
+            "source_scope_ref": "case-singleton",
+            "operation_model_sha256": binding["members"][0]["operation_model_sha256"],
+        }
+    ]
+    assert incomplete["status"] == "incomplete_scope"
+    assert incomplete["known_values"]["gross_income"]["value"] == _money("100.00")
+    assert incomplete["category_tax_model"] is None
+    assert incomplete["declaration_fragment"] is None
+
+    assert complete["status"] == "complete"
+    category = complete["category_tax_model"]
+    assert category["member_operations"] == binding["members"]
+    assert category["category_gross_income"]["value"] == _money("100.00")
+    assert category["related_expenses"]["value"] == _money("72.00")
+    assert category["allowable_expenses"]["value"] == _money("72.00")
+    assert runtime.validate_category_model(tax_model=category) == category
+    assert complete["declaration_fragment"]["attributes"] == {
+        "ВидОпер": "01",
+        "ДохСовОпер": "100.00",
+        "РасхРеалЦБ": "72.00",
+        "РасхУмДохОпер": "72.00",
+        "ПризУчетУбыт": "0",
+    }
+
+    changed_identity = [_member("operation-singleton-updated", "case-singleton", model)]
+    with pytest.raises(Gate5TaxPeriodCategoryAggregationError) as exc_info:
+        runtime.run(
+            scope=scope,
+            members=changed_identity,
+            completeness_evidence=_completeness(binding["scope_binding_sha256"]),
+        )
+    assert exc_info.value.code == "gate5_tax_period_completeness_binding_mismatch"
+
+
+def test_zero_operation_scope_remains_invalid() -> None:
+    runtime = Gate5TaxPeriodCategoryAggregationRuntimeFactory.create()
+
+    with pytest.raises(Gate5TaxPeriodCategoryAggregationError) as exc_info:
+        runtime.describe_scope(scope=_scope(), members=[])
+
+    assert exc_info.value.code == "gate5_tax_period_members_invalid"
+
+
 def test_period_category_currency_loss_and_methodology_mismatch_fail_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -311,6 +386,8 @@ def test_aggregation_factory_reuses_authority_models_and_projector_only() -> Non
     assert "Gate5DeclarationProjectionRuntimeFactory.create()" in factory_source
     assert "self._authority" in runtime_source
     assert "self._projector.project(" in runtime_source
+    assert "len(members) == 1" not in module_source
+    assert "special_singleton" not in module_source
     assert "raw Gate 4" in FORBIDDEN[0]
     assert imports == {
         "__future__",

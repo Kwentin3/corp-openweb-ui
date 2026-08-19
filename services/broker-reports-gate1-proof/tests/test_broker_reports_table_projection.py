@@ -88,6 +88,70 @@ def _broker_profile_ruled_table_pdf() -> bytes:
     return _pdf_bytes([{"texts": texts, "vectors": vectors}])
 
 
+def _headerless_continuation_table_pdf() -> bytes:
+    texts = [
+        (30, 205, "2026-01-01"),
+        (150, 205, "10"),
+        (30, 175, "2026-01-02"),
+        (150, 175, "20"),
+    ]
+    vectors = [
+        f"20 {y} m 300 {y} l S" for y in (160, 190, 220)
+    ] + [
+        "20 160 m 20 220 l S",
+        "130 160 m 130 220 l S",
+        "300 160 m 300 220 l S",
+    ]
+    return _pdf_bytes([{"texts": texts, "vectors": vectors}])
+
+
+def _ragged_aligned_prose_pdf() -> bytes:
+    occupied_lanes = [
+        (0, 1),
+        (0, 1, 2),
+        (0, 1, 2, 3),
+        (0, 2),
+        (0, 2, 3),
+        (0, 1, 3),
+        (0, 3),
+        (0, 1, 2),
+        (0, 2, 3),
+    ]
+    x_positions = (25, 90, 160, 235)
+    texts = [
+        (x_positions[column], 275 - row * 25, f"fragment_{row}_{column}")
+        for row, columns in enumerate(occupied_lanes)
+        for column in columns
+    ]
+    texts.append((25, 30, "standalone_footer"))
+    return _pdf_bytes([{"texts": texts}])
+
+
+def _ruled_table_with_full_width_structural_row_pdf() -> bytes:
+    rows = [
+        (235, ((30, "Section"),)),
+        (205, ((30, "A"), (130, "B"), (230, "C"))),
+        (175, ((30, "1"), (130, "2"), (230, "3"))),
+        (145, ((30, "4"), (130, "5"), (230, "6"))),
+        (115, ((30, "7"), (130, "8"), (230, "9"))),
+    ]
+    texts = [
+        (x, y, value)
+        for y, cells in rows
+        for x, value in cells
+    ]
+    vectors = [
+        f"20 {y} m 300 {y} l S"
+        for y in (100, 130, 160, 190, 220, 250)
+    ] + [
+        "20 100 m 20 250 l S",
+        "300 100 m 300 250 l S",
+        "120 100 m 120 220 l S",
+        "220 100 m 220 220 l S",
+    ]
+    return _pdf_bytes([{"texts": texts, "vectors": vectors}])
+
+
 class BrokerReportsTableProjectionTest(unittest.TestCase):
     def test_native_projection_resolves_all_cells_with_single_index_and_row_scan(self):
         content = (
@@ -342,6 +406,9 @@ class BrokerReportsTableProjectionTest(unittest.TestCase):
         self.assertEqual(
             aligned.projections[0]["reconstruction_strategy"], "aligned_words"
         )
+        self.assertEqual(
+            aligned.projections[0]["projection_status"], "ready"
+        )
         ambiguous_build = FullSourceArtifactFactory().create().build(
             normalization_run_id="norm_ambiguous",
             document_id="doc_ambiguous",
@@ -378,6 +445,204 @@ class BrokerReportsTableProjectionTest(unittest.TestCase):
             )
         )
         self.assertTrue(repeated_projection["geometry"]["fallback_text_refs"])
+
+        continuation = self._project_pdf(_headerless_continuation_table_pdf())
+        self.assertEqual(
+            [item["row_role"] for item in continuation.projections[0]["rows"]],
+            ["data_row", "data_row"],
+        )
+        self.assertEqual(
+            continuation.projections[0]["header_model"]["header_row_refs"],
+            [],
+        )
+
+    def test_aligned_pdf_requires_stable_nonempty_column_pattern(self):
+        rejected = self._project_pdf(_ragged_aligned_prose_pdf())
+        projection = rejected.projections[0]
+
+        self.assertEqual(projection["projection_status"], "blocked")
+        self.assertEqual(
+            projection["table_candidate_status"], "rejected_to_line_cluster"
+        )
+        self.assertIn(
+            "pdf_table_aligned_text_stable_column_pattern_missing",
+            projection["reconstruction_reason_codes"],
+        )
+        self.assertEqual(projection["rows"], [])
+        self.assertEqual(projection["cells"], [])
+        self.assertTrue(projection["coverage"]["fallback_text_refs"])
+        self.assertLessEqual(
+            set(projection["coverage"]["fallback_text_refs"]),
+            set(projection["coverage"]["selected_source_refs"]),
+        )
+        self.assertEqual(projection["coverage"]["unaccounted_refs"], [])
+        self.assertEqual(projection["coverage"]["duplicate_accounted_refs"], [])
+        self.assertEqual(
+            TableProjectionValidator().validate(projection)["validator_status"],
+            "passed",
+        )
+
+    def test_pdf_geometry_preserves_full_width_structural_row(self):
+        built = FullSourceArtifactFactory().create().build(
+            normalization_run_id="norm_full_width_structural_row",
+            document_id="doc_full_width_structural_row",
+            profile_id="profile_full_width_structural_row",
+            container_format="pdf",
+            content_bytes=_ruled_table_with_full_width_structural_row_pdf(),
+            source_checksum_sha256="e" * 64,
+        )
+        candidate_unit = next(
+            unit
+            for unit in built.units
+            if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
+        )
+        self.assertEqual(len(candidate_unit["table_row_refs"]), 5)
+        self.assertEqual(len(candidate_unit["table_cell_refs"]), 13)
+
+        result = (
+            NormalizedTableProjectionFactory()
+            .create()
+            .build_for_document(
+                source_format="pdf",
+                payloads=built.payloads,
+                source_units=built.units,
+            )
+        )
+        projection = result.projections[0]
+
+        self.assertEqual(projection["projection_status"], "ready")
+        self.assertEqual(projection["table_candidate_status"], "validated_geometry")
+        self.assertEqual(projection["row_count"], 5)
+        self.assertEqual(projection["cell_count"], 13)
+        self.assertEqual(
+            [len(row["cell_refs"]) for row in projection["rows"]],
+            [1, 3, 3, 3, 3],
+        )
+        self.assertTrue(
+            all(cell["source_value_refs"] for cell in projection["cells"])
+        )
+        self.assertEqual(projection["validator_status"], "passed")
+        self.assertFalse(projection["semantic_table_truth_claimed"])
+        self.assertFalse(projection["source_facts_extracted"])
+        self.assertFalse(projection["tax_meaning_inferred"])
+
+    def test_ruled_pdf_requires_repeated_real_vector_rulings_on_candidate_page(self):
+        built = FullSourceArtifactFactory().create().build(
+            normalization_run_id="norm_repeated_real_rulings",
+            document_id="doc_repeated_real_rulings",
+            profile_id="profile_repeated_real_rulings",
+            container_format="pdf",
+            content_bytes=_ruled_table_with_full_width_structural_row_pdf(),
+            source_checksum_sha256="f" * 64,
+        )
+        candidate_unit = next(
+            unit
+            for unit in built.units
+            if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
+        )
+        candidate_ref = candidate_unit["table_candidate_ref"]
+        payload = next(
+            item
+            for item in built.payloads
+            if item.get("source_payload_ref") == candidate_unit["parent_payload_ref"]
+        )
+        projection = payload["pdf_text_layer_projection"]
+        candidate = next(
+            item
+            for item in projection["table_candidate_inventory"]
+            if item["table_candidate_ref"] == candidate_ref
+        )
+        bboxes = {
+            item["bbox_ref"]: item["bbox"]
+            for item in projection["bbox_inventory"]
+        }
+        candidate_bbox = bboxes[candidate["bbox_ref"]]
+        candidate_page_ref = candidate["page_ref"]
+
+        horizontal_lines = []
+        seen_positions = set()
+        for line in projection["vector_line_inventory"]:
+            bbox = bboxes[line["bbox_ref"]]
+            overlaps_candidate = (
+                max(bbox[0], candidate_bbox[0]) <= min(bbox[2], candidate_bbox[2])
+                and max(bbox[1], candidate_bbox[1]) <= min(bbox[3], candidate_bbox[3])
+            )
+            horizontal = abs(bbox[2] - bbox[0]) > 0.5 and abs(
+                bbox[3] - bbox[1]
+            ) <= 0.5
+            position = round((bbox[1] + bbox[3]) / 2.0, 2)
+            if (
+                line["page_ref"] == candidate_page_ref
+                and overlaps_candidate
+                and horizontal
+                and position not in seen_positions
+            ):
+                horizontal_lines.append(line)
+                seen_positions.add(position)
+            if len(horizontal_lines) == 2:
+                break
+        self.assertEqual(len(horizontal_lines), 2)
+
+        horizontal_only_payloads = copy.deepcopy(built.payloads)
+        horizontal_only_projection = next(
+            item["pdf_text_layer_projection"]
+            for item in horizontal_only_payloads
+            if item.get("source_payload_ref") == candidate_unit["parent_payload_ref"]
+        )
+        horizontal_only_projection["vector_line_inventory"] = horizontal_lines
+        accepted = NormalizedTableProjectionFactory().create().build_for_document(
+            source_format="pdf",
+            payloads=horizontal_only_payloads,
+            source_units=built.units,
+        )
+        self.assertEqual(accepted.projections[0]["projection_status"], "ready")
+
+        rectangle_only_payloads = copy.deepcopy(built.payloads)
+        rectangle_only_projection = next(
+            item["pdf_text_layer_projection"]
+            for item in rectangle_only_payloads
+            if item.get("source_payload_ref") == candidate_unit["parent_payload_ref"]
+        )
+        rectangle_only_projection["vector_line_inventory"] = []
+        rejected = NormalizedTableProjectionFactory().create().build_for_document(
+            source_format="pdf",
+            payloads=rectangle_only_payloads,
+            source_units=built.units,
+        )
+        self.assertEqual(rejected.projections[0]["projection_status"], "blocked")
+        self.assertIn(
+            "pdf_table_geometry_parallel_ruling_family_missing",
+            rejected.projections[0]["reconstruction_reason_codes"],
+        )
+        self.assertEqual(
+            rejected.projections[0]["coverage"]["duplicate_accounted_refs"], []
+        )
+        self.assertEqual(rejected.projections[0]["coverage"]["unaccounted_refs"], [])
+        self.assertEqual(
+            TableProjectionValidator().validate(rejected.projections[0])[
+                "validator_status"
+            ],
+            "passed",
+        )
+
+        wrong_page_payloads = copy.deepcopy(built.payloads)
+        wrong_page_projection = next(
+            item["pdf_text_layer_projection"]
+            for item in wrong_page_payloads
+            if item.get("source_payload_ref") == candidate_unit["parent_payload_ref"]
+        )
+        for line in wrong_page_projection["vector_line_inventory"]:
+            line["page_ref"] = "page_other"
+        wrong_page = NormalizedTableProjectionFactory().create().build_for_document(
+            source_format="pdf",
+            payloads=wrong_page_payloads,
+            source_units=built.units,
+        )
+        self.assertEqual(wrong_page.projections[0]["projection_status"], "blocked")
+        self.assertIn(
+            "pdf_table_geometry_parallel_ruling_family_missing",
+            wrong_page.projections[0]["reconstruction_reason_codes"],
+        )
 
     def test_pdf_candidate_rejection_preserves_fallback_coverage_without_fake_cells(self):
         built = FullSourceArtifactFactory().create().build(

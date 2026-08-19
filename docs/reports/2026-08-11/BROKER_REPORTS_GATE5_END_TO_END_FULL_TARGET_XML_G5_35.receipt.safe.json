@@ -1,0 +1,184 @@
+{
+  "blockers_total": 0,
+  "case_binding": {
+    "case_fact_set_id": "g535_supplied_broker_source_2025",
+    "case_fact_set_sha256": "a6edcd484daab0ab80e64b644408daa96d099f646a0fbff86df0e164b72171fc",
+    "case_fact_set_version": "2026-08-11.0-proof",
+    "real_user_fact": false,
+    "resource_sha256": "f02611964fee15986fbec157253607a46b18db3a8459f659ae8ecc16529b3148",
+    "synthetic_proof_evidence": true
+  },
+  "contains_private_values": false,
+  "contains_raw_source": false,
+  "contains_raw_xml": false,
+  "critical_provenance_audit": [
+    {
+      "component_contract_id": "broker_reports_gate5_filing_and_party_identity_component_v0",
+      "component_sha256": "eeb161d825e0acc8e07d654de57674e0b9439b069b46aeabc24902c4b06f3344",
+      "fact_key": "declaration_date",
+      "mapping_id": "document-date",
+      "origin_value_sha256": "4ee14a03fd6fedc96e4eaa173fcd60f08ed18e61eb7b6e9ba37c2e3ca4c8cca7",
+      "semantic_origin": "DECLARATION / FILING CONTEXT",
+      "trusted_owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "value_sha256": "4ee14a03fd6fedc96e4eaa173fcd60f08ed18e61eb7b6e9ba37c2e3ca4c8cca7",
+      "xml_target": "Файл/Документ/@ДатаДок"
+    },
+    {
+      "component_contract_id": "broker_reports_gate5_filing_and_party_identity_component_v0",
+      "component_sha256": "eeb161d825e0acc8e07d654de57674e0b9439b069b46aeabc24902c4b06f3344",
+      "fact_key": "tax_authority_code",
+      "mapping_id": "tax-authority-code",
+      "origin_value_sha256": "a1d361f95e2329cea471a6c3a2555eb3db8a8c45541d9bc9f0a247f195b6603b",
+      "semantic_origin": "DECLARATION / FILING CONTEXT",
+      "trusted_owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "value_sha256": "a1d361f95e2329cea471a6c3a2555eb3db8a8c45541d9bc9f0a247f195b6603b",
+      "xml_target": "Файл/Документ/@КодНО"
+    },
+    {
+      "component_contract_id": "broker_reports_gate5_filing_and_party_identity_component_v0",
+      "component_sha256": "eeb161d825e0acc8e07d654de57674e0b9439b069b46aeabc24902c4b06f3344",
+      "fact_key": "taxpayer_inn",
+      "mapping_id": "taxpayer-inn-text",
+      "origin_value_sha256": "992f7408178363c2c932c168ca2b9408cf2e57bfeb720a680e6142714b6ad799",
+      "semantic_origin": "USER / CASE FACT",
+      "trusted_owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "value_sha256": "992f7408178363c2c932c168ca2b9408cf2e57bfeb720a680e6142714b6ad799",
+      "xml_target": "Файл/Документ/СвНП/НПФЛ3/ИННФЛ/text()"
+    },
+    {
+      "component_contract_id": "broker_reports_gate5_filing_and_party_identity_component_v0",
+      "component_sha256": "eeb161d825e0acc8e07d654de57674e0b9439b069b46aeabc24902c4b06f3344",
+      "fact_key": "taxpayer_status",
+      "mapping_id": "taxpayer-status",
+      "origin_value_sha256": "6f1eab516670bfed67a8c2b4eba34adeafe1bc5048e88860872c7466bc503f5d",
+      "semantic_origin": "USER / CASE FACT",
+      "trusted_owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "value_sha256": "6f1eab516670bfed67a8c2b4eba34adeafe1bc5048e88860872c7466bc503f5d",
+      "xml_target": "Файл/Документ/СвНП/НПФЛ3/@Статус"
+    },
+    {
+      "component_contract_id": "broker_reports_gate5_filing_and_party_identity_component_v0",
+      "component_sha256": "eeb161d825e0acc8e07d654de57674e0b9439b069b46aeabc24902c4b06f3344",
+      "fact_key": "signer_capacity",
+      "mapping_id": "signer-capacity",
+      "origin_value_sha256": "c68d99a9fd5daa719d9e0d778f75a77688bd5773572e8e162b1d4dbb2b5fe243",
+      "semantic_origin": "DECLARATION / FILING CONTEXT",
+      "trusted_owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "value_sha256": "c68d99a9fd5daa719d9e0d778f75a77688bd5773572e8e162b1d4dbb2b5fe243",
+      "xml_target": "Файл/Документ/Подписант/@ПрПодп"
+    },
+    {
+      "component_contract_id": "broker_reports_gate5_taxable_income_by_source_component_v0",
+      "component_sha256": "a1c6fd3967a8660770003e59d11070741a6dcbba2957e11a5710801f490a0e19",
+      "fact_key": "source_party_inn",
+      "mapping_id": "source-organization-inn",
+      "origin_value_sha256": "d8abe57dc92fa0c3cae154ec6ac5c21d27d3525fc99e74e405eddbe3b76b91da",
+      "semantic_origin": "SOURCE / FINANCIAL FACT",
+      "trusted_owner": "Gate5DeclarationIncomeSourcesRuntimeFactory.create",
+      "value_sha256": "d8abe57dc92fa0c3cae154ec6ac5c21d27d3525fc99e74e405eddbe3b76b91da",
+      "xml_target": "Файл/Документ/НДФЛ3/ДоходИстРФ/ИстЮЛ/@ИННЮЛ"
+    },
+    {
+      "component_contract_id": "broker_reports_gate5_taxable_income_by_source_component_v0",
+      "component_sha256": "a1c6fd3967a8660770003e59d11070741a6dcbba2957e11a5710801f490a0e19",
+      "fact_key": "source_party_oktmo",
+      "mapping_id": "source-oktmo",
+      "origin_value_sha256": "f38dd5fa1be2d55156a9f24441fb16b3b9a45962d6afd620451c15c797083431",
+      "semantic_origin": "EXTERNAL REFERENCE FACT",
+      "trusted_owner": "Gate5DeclarationIncomeSourcesRuntimeFactory.create",
+      "value_sha256": "f38dd5fa1be2d55156a9f24441fb16b3b9a45962d6afd620451c15c797083431",
+      "xml_target": "Файл/Документ/НДФЛ3/ДоходИстРФ/@ОКТМО"
+    },
+    {
+      "component_contract_id": "broker_reports_gate5_declaration_budget_disposition_component_v0",
+      "component_sha256": "c77711368aa6a082df166b2e899f89bd138c6ae5bb72748fd032b42139545a95",
+      "fact_key": "budget_kbk",
+      "mapping_id": "budget-kbk",
+      "origin_value_sha256": "5e568a73b85afa0154544579f6b5b429023c8bd775ffb38dd510dd22da521a65",
+      "semantic_origin": "EXTERNAL REFERENCE FACT",
+      "trusted_owner": "Gate5DeclarationBudgetOutcomeRuntimeFactory.create",
+      "value_sha256": "5e568a73b85afa0154544579f6b5b429023c8bd775ffb38dd510dd22da521a65",
+      "xml_target": "Файл/Документ/НДФЛ3/СумНалПу/СумНалПуИскл227/@КБК"
+    },
+    {
+      "component_contract_id": "broker_reports_gate5_declaration_budget_disposition_component_v0",
+      "component_sha256": "c77711368aa6a082df166b2e899f89bd138c6ae5bb72748fd032b42139545a95",
+      "fact_key": "budget_oktmo",
+      "mapping_id": "budget-oktmo",
+      "origin_value_sha256": "f38dd5fa1be2d55156a9f24441fb16b3b9a45962d6afd620451c15c797083431",
+      "semantic_origin": "DECLARATION / FILING CONTEXT",
+      "trusted_owner": "Gate5DeclarationBudgetOutcomeRuntimeFactory.create",
+      "value_sha256": "f38dd5fa1be2d55156a9f24441fb16b3b9a45962d6afd620451c15c797083431",
+      "xml_target": "Файл/Документ/НДФЛ3/СумНалПу/СумНалПуИскл227/@ОКТМО"
+    },
+    {
+      "component_contract_id": "broker_reports_gate5_declaration_budget_disposition_component_v0",
+      "component_sha256": "c77711368aa6a082df166b2e899f89bd138c6ae5bb72748fd032b42139545a95",
+      "fact_key": "budget_disposition",
+      "mapping_id": "budget-payable",
+      "origin_value_sha256": "5d71330176d787e7bc1733bd93a03b4e293a98083c87ff877fd9386255ddbdd8",
+      "semantic_origin": "METHODOLOGY-DERIVED TAX FACT",
+      "trusted_owner": "Gate5DeclarationBudgetOutcomeRuntimeFactory.create",
+      "value_sha256": "9716f2cd5cd90b161b73e766c683cf0975836c9484347d91d49b00197da1c15f",
+      "xml_target": "Файл/Документ/НДФЛ3/СумНалПу/СумНалПуИскл227/@ПодлУпл"
+    }
+  ],
+  "determinism": {
+    "bound_input_sha256": "a6edcd484daab0ab80e64b644408daa96d099f646a0fbff86df0e164b72171fc",
+    "excluded_external_identities": [
+      "artifact_id",
+      "canonical_version_id",
+      "created_at"
+    ],
+    "semantic_result_sha256": "2cdca67c726eaebca88bb579b0921ae6ec057d0a843c3846c09ebc0592a0cd8d",
+    "xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a"
+  },
+  "gate_boundaries": {
+    "gate1": "Gate1Normalizer.normalize+persist_gate1_result",
+    "gate2": "CanonicalReaderFactory.create",
+    "gate3": "Gate3ChunkBatchLabelingFactory.create+Gate3FinancialAnnotationsPersistenceFactory.create",
+    "gate4": "Gate4FinancialCaseRuntimeFactory.create",
+    "gate5": "existing_trusted_gate5_factories",
+    "target": "Gate5FullTargetXmlProjectionRuntimeFactory.create"
+  },
+  "hash_chain": [
+    {"artifact_sha256": "6b4ff0453368df9d7ab09293b1276e49ed5f66d45cadb4bf38a3cd7407163cbb", "chain_sha256": "7b4e3d27ff72b81e2f622ae7c6d39cff1f5f84c93cfba7474c6e2b5e50721f1d", "previous_sha256": null, "stage": "original_supplied_source"},
+    {"artifact_sha256": "4d2ce6190f1e69ac7bbf87cbd21ffdf9b6bea3889809b020d4b3fddcb980621b", "chain_sha256": "5681e019dd3dfd8d88c7fe68618bcbf8d4f4fd850dfdaf8500cb5303a6d3fb6d", "previous_sha256": "7b4e3d27ff72b81e2f622ae7c6d39cff1f5f84c93cfba7474c6e2b5e50721f1d", "stage": "gate1_custody_artifact"},
+    {"artifact_sha256": "ff6e409fca5ca116247424215abdb577b7cb0cfe84239c263e9561f12b0414ed", "chain_sha256": "cebeb5bfd3777d8e4f3d70261b9c4bb113b227642db6d853a7749f2dcab502c4", "previous_sha256": "5681e019dd3dfd8d88c7fe68618bcbf8d4f4fd850dfdaf8500cb5303a6d3fb6d", "stage": "gate2_canonical_artifact"},
+    {"artifact_sha256": "be2decd44182df2621a0787bec6572c62541183442d7da7f64b094bdf051af91", "chain_sha256": "d805b402ed6254df73ceaf695731fd5b311c58208606f688ef42531d647b565a", "previous_sha256": "cebeb5bfd3777d8e4f3d70261b9c4bb113b227642db6d853a7749f2dcab502c4", "stage": "gate3_financial_annotations"},
+    {"artifact_sha256": "e8fe2c7eff4cb44b1dbab81d883c42e845dbd05817173f822d88c1466737b3a8", "chain_sha256": "14064416b51fb966074e508229195def9fba0229adf76cbe316677a052ac9045", "previous_sha256": "d805b402ed6254df73ceaf695731fd5b311c58208606f688ef42531d647b565a", "stage": "gate4_financial_case"},
+    {"artifact_sha256": "d01e76eb784531737838ebcb86ca6c940a3b988e7466f5dbd3b30d47fe213e67", "chain_sha256": "267f4e2b1ec7572221e2a1c3a1fc9adbbece759facd7b1319fa2f0543b952f3b", "previous_sha256": "14064416b51fb966074e508229195def9fba0229adf76cbe316677a052ac9045", "stage": "gate5_operation_tax_model"},
+    {"artifact_sha256": "bed749b0a6a786dc5dc3644b4d92b1be65d2759b26623e7ad88c7753709daef8", "chain_sha256": "10d9891870e835b7e6feeb16226b9f77c0d30bbdafd13277257bd08249aa19c7", "previous_sha256": "267f4e2b1ec7572221e2a1c3a1fc9adbbece759facd7b1319fa2f0543b952f3b", "stage": "gate5_category_tax_model"},
+    {"artifact_sha256": "edecff64d29915e8635777756530c5af1926926fb1ef94b850f533f3c3a123df", "chain_sha256": "02a8bb795b5d75770003b68fa015f0fb06cc4aaeb408d6d523992426fbbdb6de", "previous_sha256": "10d9891870e835b7e6feeb16226b9f77c0d30bbdafd13277257bd08249aa19c7", "stage": "gate5_income_group_tax_base"},
+    {"artifact_sha256": "6996bd619c530f6ccb31142e128afbddc167870247513b9369eaaf71c8bf427b", "chain_sha256": "4d8457e6bdbd4c14253c174cdfca427203482956750b86ace0c1537001f8b5a9", "previous_sha256": "02a8bb795b5d75770003b68fa015f0fb06cc4aaeb408d6d523992426fbbdb6de", "stage": "gate5_trusted_components"},
+    {"artifact_sha256": "8d2a4ad11c766a5d346f4840b033d08e6c854fe07e336836541f9437ea8bf19d", "chain_sha256": "fac5e6208d84cd6b1f9978a1b7115f6b484269532efb2d319cd41f6681e6cd0a", "previous_sha256": "4d8457e6bdbd4c14253c174cdfca427203482956750b86ace0c1537001f8b5a9", "stage": "full_declaration_definition"},
+    {"artifact_sha256": "cc492d61d2c7c0832263eb54d0b590099fdb51d96fde8317ccdc2910ab7f0e0f", "chain_sha256": "4799152ce85cbe74d239e16f46a9fceace7b4fda331214146c5e27e1b6d4e099", "previous_sha256": "fac5e6208d84cd6b1f9978a1b7115f6b484269532efb2d319cd41f6681e6cd0a", "stage": "declaration_scope_receipt"},
+    {"artifact_sha256": "4962fb3af2bf6a034cdba267c9fa4fd42c43dcd1d1cb0032a778570804d8c85f", "chain_sha256": "c48bbd8a7b97b6e66b981faee314448e0ad0e909064412b32592ccf33467d909", "previous_sha256": "4799152ce85cbe74d239e16f46a9fceace7b4fda331214146c5e27e1b6d4e099", "stage": "resolved_declaration_package"},
+    {"artifact_sha256": "e0344bd5038d53d39cfef729a643ec2ae6104b8c81148c2965dfc6ddfe614f1b", "chain_sha256": "96ec080b3a257dc30b56f86d5d86ab90a929d644b6c3924e01d6978cd394f1a3", "previous_sha256": "c48bbd8a7b97b6e66b981faee314448e0ad0e909064412b32592ccf33467d909", "stage": "declaration_semantic_input"},
+    {"artifact_sha256": "48109cc6b3de6fd4d242346648660d99b40863310e622ab2cec44dc641ec7b26", "chain_sha256": "45966da53f877ce5197b0dc39b9fe960a0eb1b869a41e2057c9e1fbfa6e279c5", "previous_sha256": "96ec080b3a257dc30b56f86d5d86ab90a929d644b6c3924e01d6978cd394f1a3", "stage": "projection_definition"},
+    {"artifact_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a", "chain_sha256": "44db03a1e0ca9e618522f6c4c651a89972a01ed00f625b5532b1410510b6896e", "previous_sha256": "45966da53f877ce5197b0dc39b9fe960a0eb1b869a41e2057c9e1fbfa6e279c5", "stage": "full_target_xml"},
+    {"artifact_sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484", "chain_sha256": "c5a2b6899d369fcf8d80587c8791258d2672c8bda4466165e447a93ebdf3639a", "previous_sha256": "44db03a1e0ca9e618522f6c4c651a89972a01ed00f625b5532b1410510b6896e", "stage": "official_xsd"}
+  ],
+  "hash_chain_terminal_sha256": "c5a2b6899d369fcf8d80587c8791258d2672c8bda4466165e447a93ebdf3639a",
+  "private_receipt_sha256": "7699b22d7748aa9ffb72d8a95390fb20c733ce95b64576950da0c2c5f61135db",
+  "provider_boundary": {
+    "model_id": "models/gemini-3.5-flash",
+    "proposal_validated_by_gate3": true,
+    "provider_calls": 2,
+    "provider_profile_id": "google_gemini"
+  },
+  "safe_receipt_sha256": "d804f870527fd9e26b2a64439342c7765618f5b6a4f15d7cc4f9b70cd5f8de5c",
+  "schema_version": "broker_reports_gate5_end_to_end_full_target_xml_safe_receipt_v0",
+  "status": "END_TO_END_FULL_TARGET_XML_VALID",
+  "target_result": {
+    "mapping_ids_total": 49,
+    "mapping_proof_sha256": "c8bc9f1b5d900881efe65783b708157231c14f5ebca1756aea8df74672ee3449",
+    "projection_definition_sha256": "48109cc6b3de6fd4d242346648660d99b40863310e622ab2cec44dc641ec7b26",
+    "semantic_obligations_total": 25,
+    "status": "FULL_TARGET_XML_VALID",
+    "xml_bytes": 1112,
+    "xml_sha256": "07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a",
+    "xsd_sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484",
+    "xsd_valid": true
+  }
+}

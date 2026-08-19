@@ -1,0 +1,100 @@
+{
+  "schema": "broker_reports_gate5_downstream_replay_g5_53_safe_receipt_v1",
+  "date": "2026-08-14",
+  "status": "SOURCE_EVIDENCE_INSUFFICIENT_FOR_COMPLETE_PURCHASE_FACT",
+  "terminals": {
+    "restored_gate2_structure_consumption_proven": true,
+    "restored_structure_pipeline_proven": true,
+    "one_real_purchase_role_pack_complete": false,
+    "ordinary_gate4_materialization_proven": false,
+    "deterministic_gate5_replay_from_repaired_source_proven": false,
+    "cross_gate_structural_repair_e2e_proven": false,
+    "next_blocker": "SOURCE_EVIDENCE/no_SECURITY_PURCHASE_row_in_exact_repaired_table"
+  },
+  "provider_boundary": {
+    "provider_profile": "google_gemini",
+    "approved_model": "models/gemini-3.5-flash",
+    "approved_model_published": true,
+    "provider_submissions": 2,
+    "type_pass_submissions": 1,
+    "role_pass_submissions": 1,
+    "retries": 0,
+    "repairs": 0,
+    "fallbacks": 0,
+    "best_of_n": 1
+  },
+  "structural_path": {
+    "canonical_matches_g5_52_proof": true,
+    "table_rows": 42,
+    "table_cells": 247,
+    "adaptive_mode": "structural_chunks",
+    "document_chunks": 140,
+    "selected_chunk_kind": "whole_table",
+    "selected_chunk_ordinal": 22,
+    "selected_chunk_chars": 7678,
+    "selected_chunk_targets": 289,
+    "selected_row_aliases": 1,
+    "selected_cell_aliases": 6,
+    "coverage_targets": 19060,
+    "lost_targets": 0,
+    "duplicated_targets": 0,
+    "data_row_overlap": 0
+  },
+  "source_evidence": {
+    "explicit_dividend_data_rows": 40,
+    "explicit_purchase_rows": 0,
+    "explicit_disposal_rows": 0,
+    "data_rows_with_date_literal": 40,
+    "data_rows_with_numeric_literal": 40,
+    "data_rows_with_currency_literal": 40,
+    "g5_52_literal_row_is_financial_data_row": false
+  },
+  "gate3_result": {
+    "type_validation": "validated",
+    "role_validation": "validated",
+    "security_purchase_annotations": 0,
+    "annotations_total": 40,
+    "annotations_role_complete": 40,
+    "dividend_income_complete": 20,
+    "tax_withheld_complete": 19,
+    "commission_complete": 1,
+    "annotation_targets_on_repaired_table": 40,
+    "bound_roles": 160,
+    "bound_roles_same_canonical_row": 160,
+    "validator_rejections": 0
+  },
+  "downstream": {
+    "persistence": "none",
+    "store_unchanged": true,
+    "gate4_new_facts": 0,
+    "gate5_replays": 0,
+    "coverage_delta": "unchanged",
+    "stop_reason": "no demanded purchase fact exists in the exact repaired source table"
+  },
+  "implementation": {
+    "production_runtime_files_changed": 0,
+    "evidence_script_files_changed": 1,
+    "tests_added": 1,
+    "role_completion_status": "bound",
+    "gate2_changes": 0,
+    "gate3_changes": 0,
+    "gate4_changes": 0,
+    "gate5_changes": 0,
+    "projection_changes": 0
+  },
+  "verification": {
+    "pre_call_tests_passed": 102,
+    "post_correction_tests_passed": 21,
+    "final_combined_tests_passed": 109,
+    "architecture_tests_passed": 48,
+    "ruff": "passed",
+    "private_result_sha256": "adc3ab03d59e6bb1af27fc60dd48f90d5ac084b10e9d8f3b64461fd9d5461117"
+  },
+  "privacy": {
+    "source_literals_published": 0,
+    "customer_values_published": 0,
+    "private_identifiers_published": 0,
+    "private_paths_published": 0,
+    "provider_payloads_published": 0
+  }
+}

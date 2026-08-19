@@ -1,7 +1,7 @@
 """
 title: Broker Reports Financial Labels
 author: Corp OpenWebUI
-version: 1.0.0
+version: 2.0.1
 required_open_webui_version: 0.9.6
 """
 
@@ -15,9 +15,9 @@ from typing import Any
 
 
 DICTIONARY_ID = "broker-reports-financial-labels"
-DICTIONARY_SEMANTIC_VERSION = "1.0.0"
+DICTIONARY_SEMANTIC_VERSION = "2.0.1"
 DICTIONARY_FILE_SHA256 = (
-    "182e8d7f3604ad3d06d93c4d913df17979f21aeea669123d70c10be9d9652850"
+    "30b395b13387cad5d3d51269bc3bae989bb3b524c9547053841dc5d146c569fe"
 )
 FACTORY_REQUIRED = (
     "Tools.load_financial_label_dictionary is the only managed OpenWebUI "
@@ -29,36 +29,45 @@ FORBIDDEN = (
 )
 
 _DICTIONARY_PAYLOAD_B85 = (
-    b"c-p;LUvJ~a5r4l=vG7w0NIoYAv_;+&Svd=EY{RlIDVl<yskKdnA_bE2*$56e`<l4L6**jxqD6rGDN^LEfP812XrC"
-    b"p21@bHOlk_*cOKM3=7fJ5r!IHSUoSmKd&CGAspWk6@A+Yv&%QOzSAK0F|@IG7E@x9NuZ}`0J`C(w}nIXSt?AosBT"
-    b"DIvJj=94fqiI_q)|>v3aq#X!i6m)5c5@`CtOS)a5oIAFkZ%Rp-3@I^*Wlg7rNt#R9hzY$puvsp4_51qmD;kLXm@r"
-    b"TJJ{z<!whNqy`}elTVDEodFgj@-fXvh@4$30_c@-m5vASUy~TU2GCyoPwq=LqJr9bdOUealbUJR?seYA>jm`B3N|"
-    b"Q`7RM|N)e9z%RJmeVx4?`U5#=5a8W5JFY*y6DFq1;Ez^4!ojt&r{7hdf~6K4-4&az?Wc%Fxqp!Z}T*><Jl<#M#yJ"
-    b"`|OWGtUP}@u8!ZRRkt_mTYoS%wl}LQl}1hJfMqRiVw*i$75_6ij<4fk{5l@QJ^T&gZt{$Yq08h6zAxi0!^aRam&x"
-    b"O}mz?0&Fuq{Pm+A$2h|jS2D(=QF<A}xQ@oNZ4j+4{mIo5X<M|;CW&XMtOpSzj*Vw@Dg(qVE6iBWtB6_UrvGsqk&Z"
-    b"6Lg#JdI!A8%nS^Dr%lQNxsTyo;;bX<l=(b`%jr_P0w(>(3q&<e@H(Dhq=Kn_e-qp1vUjliGBD<iN$@g9MlsAi=Y+"
-    b"^@nih=_=ouWF`My2v(<KZP}t)K-R_yyF!Mp@NPpbu_}0D|@SB2xsohRs?l|0dXoveZ<oC#lP;(fcXVyucCSPdQ(K"
-    b"l*@p7j}P+Ck{sI~_W1wx#%fRGI>U%k{>_dZV&B8w8;!l!QXB;%-Sg_9dqNA{Iq)FSBwa{EKHgRUc>Q;qyEj1Zd81"
-    b"!V~e%8vrp6M#lg%FdbfEK5z0?o9vaU*+Qc8?eK_^%Hq5L>}l!%sD|8Oao!AW4Nc~CLKtj_!7Cx3%oi!k3`XX=7Uq"
-    b"gzk|>T!8Cp|?Ezd_{M*?D|B@c2&mZk7kr^cT&<x7gvo7R`ZBl{=MW{3pc{W>B=j1++IbNoC9TJAXd^JeCZUoBn^>"
-    b"?U`c)5pqk{Xu=Xwzh24*Q)CuO-R;X!<5(XO;^LsMHU8qF-~dmwLW{Uoc?Mw5aB$LnmB(O$+>OX%?w5e1)HjvWd{4"
-    b"1W#$HXDgdCg{Eq3ASdcS$x~<O<ZZ7k7v2WWBO=o)OeTP#(1f6!Q#d2u;p1=(Q5Z+(p?LP6PDp_K=h><BF`CY-y5h"
-    b"csQW~56_%dbUjz5tfHR6EIE*Ld?poU}VVOsnhL8|!QTe~`+W2a+N1gxrN(gY_cLMS6NWC_QR%H_QW7(}jr3oG68t"
-    b"zKy>D1ri>4jjf}xC9Lh+pv-O4$qa;(Cx6Am1+!gnOCE&N1NR?AXi#oEzndJhcQgzC_wmoa`K5%a*&qj8uhT{$*pP"
-    b";s9l2za9Jh>eilhs))E`Zg`lp6(eQm3@S!-;)5y1b(#+Ra80l={3CAnoV9=C5swK#|@8bq7Zyf93@5amQdJ)fVih"
-    b"&EHjITv6is9w#5eW|lhp$jo1Kwu%&t*hjzbj7*YhRWP4vU&0qB7;(OImI7<Xn8F@f5zrJc9@~L1YSWPDybMLv5qU"
-    b"sh05odO*K0WDQ6MexS)bNsSMA^EmFTIJ7^og37;;=bdH5&#f#+R(*+%g_0%?1ku+wFgm19*ndqg4f*%#JQizH%2|"
-    b"o`lO82wU@_Madtb%dW*Y5vH;h=f6PfgObB3FdEQ>|Gm_!SgVihMp*DAWa7neRQ!6@WpJrgMwvxQ)JBsV#Yg<C#R+"
-    b"DRom0l5r8y3m$qd&d`;2=8pxzfkvUwGW|W<WoYI6Jv0qzLBfz@^G=~A^eEj8McqCY%v+{+$+L-}QmDV(AQ0&`9|?"
-    b"_-9aq6-fEp$}Ff-MjD=4$3WTrY$sa7|)Ys-eBGXOunYHM5LBS4iUq7RqyF62rTN1-bdtSY<gC=|HNiMgsaC&N*iN"
-    b"Qok060ep;SzJDVg%WaK;6Zd}c#v(OYT>{)EKVsn$Y{^4+fI?e#xTB&LzHw@Q%Li+yX*OAjp<_1$*xo;M%hHheoJO"
-    b"iQMSzTI&u!|))aYU_NH-KK9%Y<7+tdUk}uQD7)f2HhxOKGWvx-EZq*6XE0xXr6H@xO0>VfmfC{Qfi6C=E`6Km;4w"
-    b"=wAEa{n4hnKp!0LaE(5#}5+)Cz>|hu)j+5~m4@e@T6kzX?5VTnoy}$`KJ4TgYB%Ag}8BOq5UzzmojuM5w0)FJABA"
-    b"ASzDhj1xl2zUNSiEKwME9j*81p!zhAP?h`x5utg~#6+q%lXa{|ML-o!90_GHyED7YJ9hd2${|8{QhHX@-4oe1A}7"
-    b"Bie`C6@Sb<oUZzl@qV)1ijPQrBe7nb7daWOcnUaMsXbUA<bL(Xp%nm>(7x?}>xgURy)(FqUpmpP)jKc<Vi?1hX&p"
-    b"9-9JC4UFtW{A?tC&tJ1t(BG9>hh$5qm)5p{&@`jf<Eanx;pvlYaDB;TlbGgkQ~zt5V92cXZ%3xl!g3(xKfZrP<Ae"
-    b"ADVP-{j@w;h>d6NmAWn|eap=Dx@)=Z#e4Gyqfz7@i7V=^>>+_k<cROP*pC-h`jCjc$S8$QONVoZxc{nSAf0SH9{t"
-    b"qP6q7YX<sd@~6-c|Rq+1-!+P9C#&=+~n={{!Y#1{w"
+    b"c-qxk-EJGl6~6aV40zQ7q-(oy5!hFX#MlHBNf7BIMPd-E<w#m&$z^w!vedwUMZs|kCl(x}Xc53kiWa#mK+B}Hq9p"
+    b"1Sc3+`S(sR!I>~Kknr0O>9g-CN}cINzi=R4=j_={_d<pO(~*RARf_XEdk<nFNChVOmO{i@HKo*xF)Ei2@|u5LOFt"
+    b"6@8qTXn4s?pAA#9m0Ie->dH2%;j+<<B?NK7b?hw3VMkGEfI*f0@%F~I<_gnt?M_g%SD6G3R?j_Tzl~Ta;bd3xFiO"
+    b"etqs=+wt1~;h4jviTfZsXc&~8tmKe91P2bzGTp0TTej87ubX&Kt-+r&K?YT9t6&AL5gZq~2{N6$x3VOBMv>Iy1ZA"
+    b"Zzsu(r0o`jM1GuMDDW>{Wfw<+Qv9I|V!pL9LN_8IkoS8&=?uviDFpCWT{s$Eop#&6&@C*K&LwFuvP#9oq?6;I(|4"
+    b"7pzve?fJaMoQCbyd7)|T)p;Xin;a&G9=uq$oCb{6c$32i48gp*6QD}W3Igt<-T`~$z(TO4)7a!bF6eWYOcLZk#K&"
+    b"Y>>ApMcQ<7SkS3Q^3Ef*Ibtd}akt*$*-U%bCiE=m<)TAf=Br?G{z;=d&O@kKm{Pvi5r2Y=^rCpl#FsGl6bcR%hh_"
+    b"!z)QKY0@Ok~aKn5TCH*OZfu+h+o6xv$zw#iK9Hthk1kKNpg_9U~!b})6ZuxJBs_TJd7N|`~iar?f3|meG<QoyRZO"
+    b"kz~UpO=MUmDX=4^z{uU3fr;30(-M#9gZH}P$l$4pYkI)F#KTe**esZ5EtG$rd&^|estmyUJLoG_pt2Vr_nw97uC="
+    b"UyLs}X=Z^Q`Fw4mvZ>KKKOebd1&pamdIKh!L^)$M{e25ApZr;(XVtH(efxHGeRDlgqQ*`>j3vS_30(TLCv-w7te="
+    b"E3h_PUPWA~_tDxt*me+iwRXw#<f)+@E?5pd`*T)vg3xz1S}1nzA+7v4KLhTTO69fH^1||bxC6-sgoC$nCoeql28R"
+    b"AXlcKn%%@mPC;5Vvq3_|zdv#TG1mtTWQZF*-WsEQYVKB$htXJENJ4+K!-^(LBMDPIRl_MLE#p&`hMAlozLM^FP;&"
+    b"gQ%p%#Bb6)B{FAlbq3d=!8hx_dIpN1sOd8!$xF930ftf?fH;$Aa60t7J|P<|1dC{)Dr%LL*8I;j`~nMPQ92MUJ?)"
+    b"{Xb`v*A{p5H6u%@)bJxZ1b#2sl9xjwCYBPk&Qt6}8QgLOeT3T6L{cr+7e*-qS0Hbyc2cPIDIHu=FW2fe5S9<Gh`X"
+    b"B-YB012_58-+rG#h{}e@tE)8w>*!!Tk=Iw`n;w4Hf{n6GEo5tzcW*Z)WJK7XWIu-?H313x*t_w(&UxO@n!xuuszo"
+    b"Eq5}YUV)VG3TiXfe1x&@5t^VFqV;Il_#=}SQL`nDjLQM{D&x}#i7~S%?nzR7Ly>a?2<;#np`9<_jW%h}nE`~0s}I"
+    b"&zSKd7YMTUa1fdIe|U^t(`QnAL*jX_bO4Z+Y5JnqblLGamk@wcc2`sWn3ipD0drVr(z)3jV|J<=I|oIt?`l`0Ry$"
+    b"*}x$78uBD-Crg9>=%Z)|M}#nUrr)HLpOq@*J=VeuL(m;$0h1GR2oLKks2^)IJ%66r-QPzQYo$%%au!E`FGf<Pq_h"
+    b"L2}bFoJ<rFZ@p7z^<bv6;yj5X5NS+es3jhyu>KQnj(n6O|hnPD1&m&qWNb+`I&lCnQ5i`+Q@_YpL-QlVwc>&NzrY"
+    b"$JI$(Chy!sQ!IsNtH2WREDy%OJ?JR)g4G(y_L^Vb1|l6_x-em^~-u)F}yH`HNIWW%YvKoX>KCm0=<p>?CP_mP1IE"
+    b"l+KG3?b9ItEo||cdY%ClBU!9S_>bZ1VMrlc&s;i}iskAulm(@gd;cZ;8?HIVPUJ$CJP4O(MhBE}5Ej3*<jZ%D{Ss"
+    b"l4`QD=;K%ZwTWNu?6>_C$(bri|p^(?HGg(O{x{s><X_4$tFwq{2>6(%X*>rmW7FAvQY6#03bN8pj`@K%P}d&qhNO"
+    b"3M3G^a|D%B`y|~7|ZV#>cp}F@8#4!%TRg%beOR0)T;MNA*Sp6*=T-YadG`Yaj7b65P&*-6;~?b@h;O0rtv<bw)tE"
+    b"`f&g(D(!?3YnaqBq6_RF~a#mmUQ97?_Ck`dGF;&bZ>@DRL3lSS)jVn@a2Gb(?5TGE_A;#5EA1T^1*-AkTVRK~NK$"
+    b"k9aw|hipV@f(*ALPx-B*WxRW7G5NbS4E4)rrPvNM&p4Ije^SX)#UNU=^@KjYwg7(>AU4QTv{!=UctxOT~SWkYxr8"
+    b"SJoF+$_tB?5(4=C!uq`lZ2cX<50SZ#86uC=^ctgInbq`hXzdQ2qCKB>G@%JMJ(dtk!5ckL9pCJYKgUx@Gqxwz6;i"
+    b"><_&#C%E=#^93ECrzqaAx9C{N+Dr+|D;eTe3|G!+pUg6LAGLt5%I`AWp}5e@898zcIwQ{x0D`C2L>EUK~}4ebN84"
+    b"<SW-mAtqlG&9aHgi<aUwH2LDMPrYxjJm&L#4~E8;+gOyj)+p~LOSj0laP_aqp89CN*#3_3HmV9*F|dwEel|hwE~P"
+    b"E<aN1-BZwXHvaDnw-)nP7J>>JdxZWx1(>Lvh#uBtY21*c}A>R!R%Yl!NVfPaTbpK(gT!z4z%o-z(Ix<<iH`H-qR2"
+    b"O$4D>t?{`+##y$SGmKU}ZSMaGdW#f>fBFMk;?xD+y76V7-ly)+i@p8Ijqjsfbr*>dKXEuE-|xNDU=>L*2q#*}z1E"
+    b"hD&R;-h>P)oUAZL02xmyRPXfYOah6c7oXhKr=(=D;p`?^0P08;FFiW%IG3%JN>FE`oObmSfovr?jA^>H7~urnWkC"
+    b"q3;-feITv*-OOtevkZ)c2lvgtl0%bq|!=yPHSrcYZ82cXI(1IS+Wl+p{9a^s2}@my$_<(NLEB=8kpmMBGMj^R7(="
+    b"8YS4Z9%t_ctd8KWQ_$Z_8c<eafqh>Rk;NZ@<o@`5gJ5hdDE8Fwydx^(_(yH!U2r6)p2!(73T``YGt)D`L3j`Q)p*"
+    b"|e#fORWSsdcWP_segfu#h2W8XV$_hF4I)Uvq`M+@%2bl-PM5vhH6~#RrU=Fas97!}H0U-zBeGS>&xPQT)*4CEK@y"
+    b">j{JgQS-gtwOR5M7?5MtK?O`y$RM=3wGeitb3e=S<F{#7;LRYNk|2FG;qDbb!gQ?jvL&-wIYTUmQ>bbOd`$4mFJw"
+    b"N_Soe^?7>BJZo~AD?oHK&lfo})YS{0R6j0N?%yviFHPzPW!BA<$|qO2#gk3tfzI$otYmKZYCN<Ych-x(kHK*GzX-"
+    b"7N9+D!x1{<-I$yb^CP7{`*SWdI)Y+1y(?=zbXtcPsNwOhdEye57(tvz%;-au})(u))$z`Pl*Q4qhwhP_l_#FA;W3"
+    b"J9`9CZC4PA2Eig8)%!2M<+wm<DHzAaPvWP2HqaoQRNFm#{YZDCMeK<UfJeujo>4>8Zcpp{|l_Fo1+nW#ren|UDbn"
+    b"Pu{m^RO?;m6b%x+49V$*B=PV!$wnn=tBdWvYu`#4jF)w{zIVLM9A*c|6&xh9@U;7tk$%g&"
 )
 
 
@@ -94,7 +103,7 @@ def _verified_dictionary_json() -> str:
         or payload.get("semantic_version") != DICTIONARY_SEMANTIC_VERSION
         or payload.get("status") != "PUBLISHED"
         or not isinstance(payload.get("labels"), list)
-        or len(payload["labels"]) != 9
+        or len(payload["labels"]) != 12
     ):
         raise RuntimeError("financial_label_dictionary_identity_mismatch")
     return raw.decode("utf-8")

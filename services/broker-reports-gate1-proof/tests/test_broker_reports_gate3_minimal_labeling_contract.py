@@ -175,7 +175,7 @@ def _contract_examples() -> tuple[dict, dict, dict, dict]:
         },
         "instruction_identity": {
             "instruction_id": "broker-reports-bounded-semantic-labeling",
-            "semantic_version": "1.0.1",
+            "semantic_version": "1.0.2",
         },
         "model_identity": {"model_id": "model-exact-id"},
         "annotations": [
@@ -245,7 +245,7 @@ def test_gate3_response_is_sparse_and_empty_is_a_terminal_valid_shape() -> None:
         },
         "instruction_identity": {
             "instruction_id": "broker-reports-bounded-semantic-labeling",
-            "semantic_version": "1.0.1",
+            "semantic_version": "1.0.2",
         },
         "model_identity": {"model_id": "model-exact-id"},
         "annotations": [],

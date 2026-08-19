@@ -25,6 +25,7 @@ from .gate2_model_contracts import (
 from .gate2_model_requests import (
     FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE,
     GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
+    GATE3_LLM_METADATA_REQUEST_PROFILE,
     SOURCE_QUALIFICATION_REQUEST_PROFILE,
     SOURCE_REQUEST_PROFILE,
     Gate2OpenWebUIRequestBuilder,
@@ -41,12 +42,8 @@ from .gate2_provider_adapters import (
 )
 
 
-FACTORY_REQUIRED = (
-    "Gate2StructuredModelClientFactory.create is the only production Gate 2 model client entrypoint"
-)
-FORBIDDEN = (
-    "Pipes, control checks and smoke scripts must not call OpenWebUI completion functions or provider SDKs directly"
-)
+FACTORY_REQUIRED = "Gate2StructuredModelClientFactory.create is the only production Gate 2 model client entrypoint"
+FORBIDDEN = "Pipes, control checks and smoke scripts must not call OpenWebUI completion functions or provider SDKs directly"
 
 
 CompletionResolver = Callable[[str], Any]
@@ -57,6 +54,8 @@ MAX_MODEL_CONTENT_NODES = 20_000
 MAX_MODEL_CONTENT_DEPTH = 64
 MAX_MODEL_STRING_BYTES = 131_072
 _ADAPTER_EXTRACTED_OUTPUT_UNAVAILABLE = object()
+GATE3_OPERATIONAL_RETRY_POLICY_ID = "gate3_operational_no_response_v1"
+GATE3_OPERATIONAL_RETRY_LIMIT = 1
 
 
 @dataclass(frozen=True)
@@ -75,6 +74,7 @@ class Gate3BoundedLabelingModelResult:
     execution_metadata: Gate2ProviderExecutionMetadata
     prepared_request: Gate2PreparedProviderRequest = field(repr=False)
     raw_provider_response: dict[str, Any] = field(repr=False)
+    operational_retry_receipt: dict[str, Any] | None = None
 
 
 class Gate2StructuredModelClientFactory:
@@ -113,13 +113,16 @@ class Gate2StructuredModelClientFactory:
             self.config.capability_probe
             and provider_profile.gate2_status == PROVIDER_STATUS_PROBE_REQUIRED
         )
-        if provider_profile.gate2_status != PROVIDER_STATUS_APPROVED and not probe_allowed:
+        if (
+            provider_profile.gate2_status != PROVIDER_STATUS_APPROVED
+            and not probe_allowed
+        ):
             raise Gate2SourceFactRuntimeError(
                 "gate2_no_strict_structured_provider_available",
                 "Selected provider is not approved for strict Gate 2 structured output",
             )
-        default_connection_resolver = (
-            Gate2OpenWebUIProviderConnectionResolver(self.request)
+        default_connection_resolver = Gate2OpenWebUIProviderConnectionResolver(
+            self.request
         )
         provider_adapter = Gate2ProviderAdapterFactory(
             profile=provider_profile,
@@ -129,12 +132,9 @@ class Gate2StructuredModelClientFactory:
             provider_connection_resolver=(
                 self.provider_connection_resolver
                 or (
-                    default_connection_resolver
-                    .resolve_context_v2_1_budget_smoke
+                    default_connection_resolver.resolve_context_v2_1_budget_smoke
                     if self.config.request_profile
-                    == (
-                        FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE
-                    )
+                    == (FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE)
                     else default_connection_resolver.resolve
                 )
             ),
@@ -191,15 +191,11 @@ class Gate2OpenWebUIStructuredModelClient:
 
     def qualification_lifecycle_snapshot(self) -> dict[str, int]:
         return {
-            "local_invocations_total": (
-                self._qualification_local_invocations_total
-            ),
+            "local_invocations_total": (self._qualification_local_invocations_total),
             "provider_submissions_total": (
                 self._qualification_provider_submissions_total
             ),
-            "provider_responses_total": (
-                self._qualification_provider_responses_total
-            ),
+            "provider_responses_total": (self._qualification_provider_responses_total),
         }
 
     async def extract(self, *, prompt, package, model_id, response_format):
@@ -219,8 +215,7 @@ class Gate2OpenWebUIStructuredModelClient:
                 model_id=model_id,
                 provider_profile_id=self.provider_profile.profile_id,
                 operation_identity=(
-                    f"gate2-economy-operation-"
-                    f"{self._budget_operation_ordinal}"
+                    f"gate2-economy-operation-" f"{self._budget_operation_ordinal}"
                 ),
             )
             form_data = budget_authorization.prepared_form_data
@@ -260,8 +255,7 @@ class Gate2OpenWebUIStructuredModelClient:
             self.request_profile
             != FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE
             or self.budget_session is None
-            or getattr(self.provider_adapter, "capability_probe", False)
-            is not True
+            or getattr(self.provider_adapter, "capability_probe", False) is not True
         ):
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_profile_mismatch",
@@ -284,8 +278,7 @@ class Gate2OpenWebUIStructuredModelClient:
         self.provider_adapter.validate_model(effective_model_id)
         response_format = model_visible_request.get("response_format")
         prepared_request = (
-            self.provider_adapter
-            .prepare_context_v2_1_budget_smoke_form_data(
+            self.provider_adapter.prepare_context_v2_1_budget_smoke_form_data(
                 form_data=budget_authorization.prepared_form_data,
                 response_format=response_format,
             )
@@ -306,25 +299,20 @@ class Gate2OpenWebUIStructuredModelClient:
                 "gate2_model_request_plan_mismatch",
                 "Context V2.1 budget-smoke request differs from the frozen plan",
             )
-        if (
-            transport_policy
-            != CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_POLICY
-        ):
+        if transport_policy != CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_POLICY:
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_transport_plan_mismatch",
                 "Context V2.1 budget-smoke transport policy is not frozen",
                 failure_class="provider_configuration",
             )
         transport_contract = (
-            self.provider_adapter
-            .context_v2_1_budget_smoke_transport_contract(
+            self.provider_adapter.context_v2_1_budget_smoke_transport_contract(
                 transport_policy=transport_policy,
             )
         )
         if (
             not isinstance(expected_transport_contract_hash, str)
-            or transport_contract.integrity_hash
-            != expected_transport_contract_hash
+            or transport_contract.integrity_hash != expected_transport_contract_hash
         ):
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_transport_plan_mismatch",
@@ -333,16 +321,13 @@ class Gate2OpenWebUIStructuredModelClient:
             )
 
         def extract_candidate(payload: dict[str, Any]) -> Any:
-            return (
-                self.provider_adapter
-                .extract_context_v2_1_budget_smoke_prepared_content(
-                    payload,
-                    prepared_request=prepared_request,
-                    canonical_schema=canonical_schema,
-                    model_visible_request=model_visible_request,
-                    exact_model_id=effective_model_id,
-                    operation_identity=operation_identity,
-                )
+            return self.provider_adapter.extract_context_v2_1_budget_smoke_prepared_content(
+                payload,
+                prepared_request=prepared_request,
+                canonical_schema=canonical_schema,
+                model_visible_request=model_visible_request,
+                exact_model_id=effective_model_id,
+                operation_identity=operation_identity,
             )
 
         result, response_payload = await self._execute_prepared_once(
@@ -354,10 +339,7 @@ class Gate2OpenWebUIStructuredModelClient:
             content_extractor=extract_candidate,
             context_v2_1_transport_contract=transport_contract,
         )
-        if (
-            result.execution_metadata is None
-            or result.economy_budget_receipt is None
-        ):
+        if result.execution_metadata is None or result.economy_budget_receipt is None:
             failure = Gate2SourceFactRuntimeError(
                 "gate2_model_execution_evidence_missing",
                 "Context V2.1 budget-smoke execution evidence is incomplete",
@@ -372,9 +354,7 @@ class Gate2OpenWebUIStructuredModelClient:
         return Gate2ContextV21BudgetSmokeModelResult(
             adapter_extracted_output=copy.deepcopy(result.content),
             execution_metadata=result.execution_metadata,
-            economy_budget_receipt=copy.deepcopy(
-                result.economy_budget_receipt
-            ),
+            economy_budget_receipt=copy.deepcopy(result.economy_budget_receipt),
             prepared_request=copy.deepcopy(prepared_request),
             raw_provider_response=copy.deepcopy(response_payload),
             prepared_request_hash=prepared_request_hash,
@@ -432,9 +412,7 @@ class Gate2OpenWebUIStructuredModelClient:
                 and all(isinstance(item, dict) for item in provider_messages)
                 else []
             )
-        expected_parts = [
-            item["content"] for item in model_visible_request["messages"]
-        ]
+        expected_parts = [item["content"] for item in model_visible_request["messages"]]
         canonical_schema_hash = hashlib.sha256(
             json.dumps(
                 canonical_schema,
@@ -460,6 +438,150 @@ class Gate2OpenWebUIStructuredModelClient:
                 prepared_request=prepared_request,
             )
 
+        prepared_request_hash = self._prepared_request_hash(prepared_request)
+        operational_retries = 0
+        operational_failures = 0
+        provider_submissions_before = self._qualification_provider_submissions_total
+        while True:
+            try:
+                result, response_payload = await self._execute_prepared_once(
+                    user_id=user_id,
+                    effective_model_id=model_id,
+                    execution_contract=execution_contract,
+                    prepared_request=prepared_request,
+                    budget_authorization=None,
+                    content_extractor=extract_candidate,
+                    capture_private_evidence=True,
+                )
+                break
+            except Gate2SourceFactRuntimeError as exc:
+                if self._gate3_operational_retry_allowed(exc):
+                    operational_failures += 1
+                    if operational_retries < GATE3_OPERATIONAL_RETRY_LIMIT:
+                        operational_retries += 1
+                        continue
+                exc.operational_retry_receipt = self._gate3_operational_retry_receipt(
+                    prepared_request_hash=prepared_request_hash,
+                    transport_submissions=(
+                        self._qualification_provider_submissions_total
+                        - provider_submissions_before
+                    ),
+                    operational_failures=operational_failures,
+                    operational_retries=operational_retries,
+                    semantic_responses_received=0,
+                )
+                raise
+        if result.execution_metadata is None:
+            failure = Gate2SourceFactRuntimeError(
+                "gate2_model_execution_evidence_missing",
+                "Gate 3 provider execution evidence is incomplete",
+            )
+            failure.raw_provider_response = copy.deepcopy(response_payload)
+            failure.prepared_request = copy.deepcopy(prepared_request)
+            failure.operational_retry_receipt = self._gate3_operational_retry_receipt(
+                prepared_request_hash=prepared_request_hash,
+                transport_submissions=(
+                    self._qualification_provider_submissions_total
+                    - provider_submissions_before
+                ),
+                operational_failures=operational_failures,
+                operational_retries=operational_retries,
+                semantic_responses_received=0,
+            )
+            raise failure
+        return Gate3BoundedLabelingModelResult(
+            adapter_extracted_output=copy.deepcopy(result.content),
+            execution_metadata=result.execution_metadata,
+            prepared_request=copy.deepcopy(prepared_request),
+            raw_provider_response=copy.deepcopy(response_payload),
+            operational_retry_receipt=self._gate3_operational_retry_receipt(
+                prepared_request_hash=prepared_request_hash,
+                transport_submissions=(
+                    self._qualification_provider_submissions_total
+                    - provider_submissions_before
+                ),
+                operational_failures=operational_failures,
+                operational_retries=operational_retries,
+                semantic_responses_received=1,
+            ),
+        )
+
+    async def propose_gate3_metadata_once(
+        self,
+        *,
+        model_visible_request: dict[str, Any],
+        canonical_schema: dict[str, Any],
+        model_id: str,
+    ) -> Gate3BoundedLabelingModelResult:
+        if (
+            self.request_profile != GATE3_LLM_METADATA_REQUEST_PROFILE
+            or self.budget_session is not None
+            or getattr(self.provider_adapter, "capability_probe", False) is True
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_profile_mismatch",
+                "Gate 3 LLM metadata requires its one-attempt client profile",
+            )
+        self._qualification_local_invocations_total += 1
+        user_id = self._validate_request_context()
+        form_data = self.request_builder.build_from_sealed_gate3_metadata(
+            model_visible_request=model_visible_request,
+            model_id=model_id,
+        )
+        execution_contract = self.execution_contract(model_id)
+        self.provider_adapter.validate_model(model_id)
+        response_format = model_visible_request.get("response_format")
+        prepared_request = self.provider_adapter.prepare_gate3_metadata_form_data(
+            form_data=form_data,
+            response_format=response_format,
+        )
+        provider_form_data = prepared_request.form_data
+        provider_messages = provider_form_data.get("messages")
+        provider_system = provider_form_data.get("system")
+        if provider_system is None:
+            provider_parts = (
+                [item.get("content") for item in provider_messages]
+                if isinstance(provider_messages, list)
+                and all(isinstance(item, dict) for item in provider_messages)
+                else []
+            )
+        else:
+            provider_parts = (
+                [
+                    provider_system,
+                    *[item.get("content") for item in provider_messages],
+                ]
+                if isinstance(provider_system, str)
+                and isinstance(provider_messages, list)
+                and all(isinstance(item, dict) for item in provider_messages)
+                else []
+            )
+        expected_parts = [item["content"] for item in model_visible_request["messages"]]
+        canonical_schema_hash = hashlib.sha256(
+            json.dumps(
+                canonical_schema,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        if (
+            provider_parts != expected_parts
+            or "metadata" in provider_form_data
+            or prepared_request.canonical_schema_hash != canonical_schema_hash
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Gate 3 metadata provider context is not exact",
+            )
+
+        def extract_candidate(payload: dict[str, Any]) -> Any:
+            return self.provider_adapter.extract_prepared_content(
+                payload,
+                prepared_request=prepared_request,
+            )
+
         result, response_payload = await self._execute_prepared_once(
             user_id=user_id,
             effective_model_id=model_id,
@@ -472,7 +594,7 @@ class Gate2OpenWebUIStructuredModelClient:
         if result.execution_metadata is None:
             failure = Gate2SourceFactRuntimeError(
                 "gate2_model_execution_evidence_missing",
-                "Gate 3 provider execution evidence is incomplete",
+                "Gate 3 metadata provider execution evidence is incomplete",
             )
             failure.raw_provider_response = copy.deepcopy(response_payload)
             failure.prepared_request = copy.deepcopy(prepared_request)
@@ -507,9 +629,7 @@ class Gate2OpenWebUIStructuredModelClient:
         economy_budget_receipt: dict[str, Any] | None = None
         submission_recorded = False
         response_recorded = False
-        adapter_extracted_output: Any = (
-            _ADAPTER_EXTRACTED_OUTPUT_UNAVAILABLE
-        )
+        adapter_extracted_output: Any = _ADAPTER_EXTRACTED_OUTPUT_UNAVAILABLE
         context_v2_1_budget_smoke = (
             self.request_profile
             == FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_BUDGET_SMOKE_REQUEST_PROFILE
@@ -529,22 +649,14 @@ class Gate2OpenWebUIStructuredModelClient:
                         failure_class="provider_configuration",
                     )
                 self.provider_adapter.validate_context_v2_1_budget_smoke_transport_configuration(
-                    transport_policy=(
-                        context_v2_1_transport_contract.transport_policy
-                    ),
+                    transport_policy=(context_v2_1_transport_contract.transport_policy),
                 )
                 started = time.monotonic()
                 self._qualification_provider_submissions_total += 1
                 submission_recorded = True
-                response = (
-                    self.provider_adapter
-                    .invoke_context_v2_1_budget_smoke_once(
-                        form_data=form_data,
-                        transport_policy=(
-                            context_v2_1_transport_contract
-                            .transport_policy
-                        ),
-                    )
+                response = self.provider_adapter.invoke_context_v2_1_budget_smoke_once(
+                    form_data=form_data,
+                    transport_policy=(context_v2_1_transport_contract.transport_policy),
                 )
             elif not self.provider_adapter.uses_openwebui_completion:
                 self.provider_adapter.validate_transport_configuration()
@@ -582,25 +694,20 @@ class Gate2OpenWebUIStructuredModelClient:
                 self._validate_model_content_budget(response_payload)
             if context_v2_1_budget_smoke:
                 execution_metadata = (
-                    self.provider_adapter
-                    .context_v2_1_budget_smoke_execution_metadata(
+                    self.provider_adapter.context_v2_1_budget_smoke_execution_metadata(
                         payload=response_payload,
                         requested_model_id=effective_model_id,
                         duration_ms=duration_ms,
                         prepared_request=prepared_request,
-                        transport_contract=(
-                            context_v2_1_transport_contract
-                        ),
+                        transport_contract=(context_v2_1_transport_contract),
                     )
                 )
             else:
-                execution_metadata = (
-                    self.provider_adapter.execution_metadata(
-                        payload=response_payload,
-                        requested_model_id=effective_model_id,
-                        duration_ms=duration_ms,
-                        prepared_request=prepared_request,
-                    )
+                execution_metadata = self.provider_adapter.execution_metadata(
+                    payload=response_payload,
+                    requested_model_id=effective_model_id,
+                    duration_ms=duration_ms,
+                    prepared_request=prepared_request,
                 )
             self.provider_adapter.validate_execution_metadata(execution_metadata)
             if "detail" in response_payload or "error" in response_payload:
@@ -623,8 +730,7 @@ class Gate2OpenWebUIStructuredModelClient:
                     authorization=budget_authorization,
                     execution_metadata=execution_metadata,
                 )
-                if self.budget_session is not None
-                and budget_authorization is not None
+                if self.budget_session is not None and budget_authorization is not None
                 else None
             )
             content = content_extractor(response_payload)
@@ -643,18 +749,14 @@ class Gate2OpenWebUIStructuredModelClient:
                 if exc.raw_output is None and response_payload is not None:
                     exc.raw_output = copy.deepcopy(response_payload)
                 if economy_budget_receipt is not None:
-                    exc.economy_budget_receipt = copy.deepcopy(
-                        economy_budget_receipt
-                    )
+                    exc.economy_budget_receipt = copy.deepcopy(economy_budget_receipt)
                 if adapter_extracted_output is not (
                     _ADAPTER_EXTRACTED_OUTPUT_UNAVAILABLE
                 ):
                     exc.adapter_extracted_output = copy.deepcopy(
                         adapter_extracted_output
                     )
-                    exc.raw_provider_response = copy.deepcopy(
-                        response_payload
-                    )
+                    exc.raw_provider_response = copy.deepcopy(response_payload)
             if (
                 submission_recorded
                 and not response_recorded
@@ -680,26 +782,19 @@ class Gate2OpenWebUIStructuredModelClient:
                 if context_v2_1_budget_smoke and not submission_recorded:
                     exc.execution_metadata = None
                 elif context_v2_1_budget_smoke:
-                    exc.execution_metadata = (
-                        self.provider_adapter
-                        .context_v2_1_budget_smoke_execution_metadata(
-                            payload=metadata_payload,
-                            requested_model_id=effective_model_id,
-                            duration_ms=self._duration_ms(started),
-                            prepared_request=prepared_request,
-                            transport_contract=(
-                                context_v2_1_transport_contract
-                            ),
-                        )
+                    exc.execution_metadata = self.provider_adapter.context_v2_1_budget_smoke_execution_metadata(
+                        payload=metadata_payload,
+                        requested_model_id=effective_model_id,
+                        duration_ms=self._duration_ms(started),
+                        prepared_request=prepared_request,
+                        transport_contract=(context_v2_1_transport_contract),
                     )
                 else:
-                    exc.execution_metadata = (
-                        self.provider_adapter.execution_metadata(
-                            payload=metadata_payload,
-                            requested_model_id=effective_model_id,
-                            duration_ms=self._duration_ms(started),
-                            prepared_request=prepared_request,
-                        )
+                    exc.execution_metadata = self.provider_adapter.execution_metadata(
+                        payload=metadata_payload,
+                        requested_model_id=effective_model_id,
+                        duration_ms=self._duration_ms(started),
+                        prepared_request=prepared_request,
                     )
             raise
         except Exception as exc:
@@ -717,8 +812,7 @@ class Gate2OpenWebUIStructuredModelClient:
                 failure_metadata = None
             elif context_v2_1_budget_smoke:
                 failure_metadata = (
-                    self.provider_adapter
-                    .context_v2_1_budget_smoke_execution_metadata(
+                    self.provider_adapter.context_v2_1_budget_smoke_execution_metadata(
                         payload=response_payload,
                         requested_model_id=effective_model_id,
                         duration_ms=self._duration_ms(started),
@@ -753,9 +847,7 @@ class Gate2OpenWebUIStructuredModelClient:
                 failure.adapter_extracted_output = copy.deepcopy(
                     adapter_extracted_output
                 )
-                failure.raw_provider_response = copy.deepcopy(
-                    response_payload
-                )
+                failure.raw_provider_response = copy.deepcopy(response_payload)
                 if economy_budget_receipt is not None:
                     failure.economy_budget_receipt = copy.deepcopy(
                         economy_budget_receipt
@@ -769,9 +861,7 @@ class Gate2OpenWebUIStructuredModelClient:
         return (
             Gate2StructuredModelResult(
                 content=content,
-                structured_output_mode=(
-                    execution_contract.structured_output_mode
-                ),
+                structured_output_mode=(execution_contract.structured_output_mode),
                 response_format_type=execution_contract.response_format_type,
                 response_format_schema_mode=(
                     execution_contract.response_format_schema_mode
@@ -880,6 +970,36 @@ class Gate2OpenWebUIStructuredModelClient:
                 allow_nan=False,
             ).encode("utf-8")
         ).hexdigest()
+
+    @staticmethod
+    def _gate3_operational_retry_allowed(exc: Gate2SourceFactRuntimeError) -> bool:
+        """Admit one transport retry only when no semantic response exists."""
+
+        return (
+            exc.code == "gate2_model_provider_unavailable"
+            and exc.failure_class in {"provider_transport", "provider_error_response"}
+        )
+
+    @staticmethod
+    def _gate3_operational_retry_receipt(
+        *,
+        prepared_request_hash: str,
+        transport_submissions: int,
+        operational_failures: int,
+        operational_retries: int,
+        semantic_responses_received: int,
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": "gate3_operational_retry_receipt_v1",
+            "policy_id": GATE3_OPERATIONAL_RETRY_POLICY_ID,
+            "request_identity_sha256": prepared_request_hash,
+            "semantic_attempts": 1,
+            "transport_submissions": transport_submissions,
+            "transport_failures_before_semantic_response": operational_failures,
+            "operational_retries": operational_retries,
+            "semantic_responses_received": semantic_responses_received,
+            "semantic_rejections": 0,
+        }
 
     def _resolve_openwebui_completion_dependencies(self, user_id: str):
         try:
@@ -1013,7 +1133,10 @@ class Gate2OpenWebUIStructuredModelClient:
                 observed = depth
                 allowed = MAX_MODEL_CONTENT_DEPTH
                 break
-            if isinstance(value, str) and len(value.encode("utf-8")) > MAX_MODEL_STRING_BYTES:
+            if (
+                isinstance(value, str)
+                and len(value.encode("utf-8")) > MAX_MODEL_STRING_BYTES
+            ):
                 reason = "string_bytes"
                 observed = len(value.encode("utf-8"))
                 allowed = MAX_MODEL_STRING_BYTES

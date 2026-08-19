@@ -1,0 +1,306 @@
+{
+  "schema_version": "broker_reports_gate5_securities_expense_methodology_v0",
+  "goal": "G5.40B",
+  "as_of": "2026-08-12",
+  "scope": {
+    "taxpayer": "individual",
+    "jurisdiction": "RU",
+    "tax_period": "2025",
+    "instrument": "ordinary securities disposal",
+    "excluded": [
+      "partial nominal-value redemption",
+      "REPO",
+      "securities lending",
+      "derivatives",
+      "corporate actions",
+      "digital financial assets",
+      "profit tax for organizations"
+    ]
+  },
+  "declaration_consumer": {
+    "appendix8_line_030": "total related acquisition, disposal, storage and redemption expenses by operation category",
+    "appendix8_line_040": "total expenses accepted in reduction of category income",
+    "section2_line_050": "accepted expenses from Appendix 8 line 040 plus accepted current-period loss",
+    "requires_operation_graph": false,
+    "requires_category_aggregates": true
+  },
+  "authority": [
+    {
+      "authority_id": "NK_214_1_10",
+      "rank": 1,
+      "url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/",
+      "conclusion": "Eligible expenses are documented, actually incurred expenses connected with acquisition, disposal, storage or redemption; the list includes professional-participant services and exchange fees."
+    },
+    {
+      "authority_id": "NK_214_1_12",
+      "rank": 1,
+      "url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/",
+      "conclusion": "Financial result is income less corresponding expenses. Expenses not directly attributable to an operation class or income type are allocated by each income type's income share; if that income type has no income in the expense period, recognition is deferred until income exists."
+    },
+    {
+      "authority_id": "NK_214_1_13_FIFO",
+      "rank": 1,
+      "url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/",
+      "conclusion": "On disposal, expense in the form of securities acquisition cost is recognized from the earliest acquisitions under FIFO."
+    },
+    {
+      "authority_id": "NK_214_1_13_PARTIAL_REDEMPTION",
+      "rank": 1,
+      "url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/",
+      "conclusion": "The Code expressly prescribes proportional acquisition-cost recognition for partial nominal-value redemption, but does not state an equivalent rule for acquisition commission on an ordinary partial quantity disposal."
+    },
+    {
+      "authority_id": "NK_210_5",
+      "rank": 1,
+      "url": "https://nalog.garant.ru/fns/nk/6a3eaa02cea3fe2db1e9b04e275d1439/",
+      "conclusion": "Foreign-currency deductible expense is converted at the official Bank of Russia rate on the actual expense date."
+    },
+    {
+      "authority_id": "NK_226_1_4",
+      "rank": 1,
+      "url": "https://nalog.garant.ru/fns/nk/6cd8d3f6905f78365f70b64fb5f0a8a7/",
+      "conclusion": "For expenses incurred outside the tax agent, acquisition/storage expense recognition requires the taxpayer's application and documents proving transaction/title, payment and amount."
+    },
+    {
+      "authority_id": "FNS_ORDER_ED_7_11_1015_2024",
+      "rank": 2,
+      "url": "https://www.nalog.gov.ru/rn77/about_fts/docs/15504229/",
+      "attachment_url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/15504229.docx",
+      "attachment_sha256": "42d26c2106883d8da87468008af9ea6a0a44e7410b2a719183b3e520dc0a46b1",
+      "conclusion": "Broker-to-broker transfer information includes acquisition dates and acquisition/storage expenses in relation to each security; it does not prescribe a per-unit or partial-disposal commission formula."
+    },
+    {
+      "authority_id": "FNS_3NDFL_2025_PROCEDURE",
+      "rank": 2,
+      "url": "https://www.nalog.gov.ru/html/sites/www.new.nalog.ru/files/about_fts/docs/16589324_2.docx",
+      "sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+      "conclusion": "Appendix 8 consumes category totals at lines 020, 030 and 040; it does not consume trade/fee relation records."
+    },
+    {
+      "authority_id": "FNS_SECURITIES_GUIDANCE_2025",
+      "rank": 3,
+      "url": "https://www.nalog.gov.ru/rn11/news/smi/15956801/",
+      "conclusion": "Current FNS guidance confirms that securities income is reduced by acquisition, disposal, storage and redemption expenses."
+    },
+    {
+      "authority_id": "FNS_CATEGORY_GUIDANCE_2022_ARCHIVED",
+      "rank": 4,
+      "url": "https://www.nalog.gov.ru/rn78/ifns/imns78_05/info/11815510/",
+      "conclusion": "Archived FNS guidance corroborates per-operation and per-category results and explicit commission eligibility; current Code text controls."
+    }
+  ],
+  "expense_rows": [
+    {
+      "expense_type": "purchase_price",
+      "may_be_counted": "YES",
+      "when": "when securities are disposed; determined for the tax period",
+      "amount": "acquisition cost of the earliest acquisitions consumed by the disposed quantity under FIFO",
+      "level": "security plus ordered acquisition lot and consumed quantity",
+      "required_source_facts": [
+        "security identity",
+        "acquisition date/sequence",
+        "acquired quantity",
+        "purchase price",
+        "disposed quantity",
+        "document/payment evidence",
+        "currency and actual expense date if non-RUB"
+      ],
+      "required_relation": "same-security ordered acquisition facts must be consumable by FIFO; no universal event entity",
+      "authority_refs": [
+        "NK_214_1_10",
+        "NK_214_1_13_FIFO",
+        "NK_210_5"
+      ],
+      "status": "PROVEN"
+    },
+    {
+      "expense_type": "acquisition_commission_full_disposal",
+      "may_be_counted": "YES_IF_DOCUMENTED_INCURRED_AND_CONNECTED",
+      "when": "with the corresponding securities income when the associated acquired quantity is fully disposed",
+      "amount": "full documented commission associated only with the fully disposed acquisition",
+      "level": "acquisition/security; then category aggregate",
+      "required_source_facts": [
+        "commission amount and service kind",
+        "actual payment date",
+        "document reference",
+        "source-authored acquisition/security scope",
+        "proof that the associated acquired quantity is fully consumed"
+      ],
+      "required_relation": "commission to acquisition/security evidence; no commission-to-sale graph edge",
+      "authority_refs": [
+        "NK_214_1_10",
+        "NK_214_1_12",
+        "FNS_ORDER_ED_7_11_1015_2024"
+      ],
+      "status": "PROVEN_BOUNDED"
+    },
+    {
+      "expense_type": "acquisition_commission_partial_disposal",
+      "may_be_counted": "YES_IN_PRINCIPLE_AMOUNT_UNRESOLVED",
+      "when": null,
+      "amount": null,
+      "level": "at least acquisition/security; exact partial-recognition level unresolved",
+      "required_source_facts": [
+        "commission amount and service kind",
+        "actual payment date",
+        "document reference",
+        "source-authored acquisition/security scope",
+        "acquired quantity",
+        "disposed quantity",
+        "remaining quantity"
+      ],
+      "required_relation": "official sources prove an acquisition/security connection but do not prescribe commission-to-disposed-quantity allocation or a commission-to-sale edge",
+      "rejected_inferences": [
+        "recognize the full commission on the first partial sale",
+        "recognize commission times disposed quantity divided by acquired quantity",
+        "apply FIFO to commission merely because FIFO applies to acquisition cost",
+        "treat acquisition commission as a period/category expense whenever any category income exists"
+      ],
+      "authority_refs": [
+        "NK_214_1_10",
+        "NK_214_1_12",
+        "NK_214_1_13_FIFO",
+        "NK_214_1_13_PARTIAL_REDEMPTION",
+        "FNS_ORDER_ED_7_11_1015_2024"
+      ],
+      "status": "LEGAL_AUTHORITY_GAP"
+    },
+    {
+      "expense_type": "sale_commission",
+      "may_be_counted": "YES_IF_DOCUMENTED_INCURRED_AND_CONNECTED",
+      "when": "with the directly corresponding disposal income in the tax period",
+      "amount": "full documented amount attributable to that disposal",
+      "level": "disposal; then category aggregate",
+      "required_source_facts": [
+        "commission amount and service kind",
+        "actual payment date",
+        "document reference",
+        "source-authored disposal scope"
+      ],
+      "required_relation": "fee to concrete disposal when the source states it; no broader event entity",
+      "authority_refs": [
+        "NK_214_1_10",
+        "NK_214_1_12",
+        "NK_210_5"
+      ],
+      "status": "PROVEN"
+    },
+    {
+      "expense_type": "direct_exchange_or_broker_fee",
+      "may_be_counted": "YES_IF_DOCUMENTED_INCURRED_AND_CONNECTED",
+      "when": "with the directly corresponding operation or income type",
+      "amount": "full documented directly attributable amount",
+      "level": "source-authored operation or income type; then category aggregate",
+      "required_source_facts": [
+        "fee type",
+        "amount",
+        "actual payment date",
+        "document reference",
+        "direct operation or income-type scope"
+      ],
+      "required_relation": "only the narrow direct scope stated/proved by the source",
+      "authority_refs": [
+        "NK_214_1_10",
+        "NK_214_1_12",
+        "NK_210_5"
+      ],
+      "status": "PROVEN"
+    },
+    {
+      "expense_type": "custody_or_depositary_fee_direct_to_one_income_type",
+      "may_be_counted": "YES_IF_DOCUMENTED_INCURRED_AND_CONNECTED",
+      "when": "in the tax period when the corresponding income type has income; otherwise when that income is later recognized",
+      "amount": "full documented amount attributable to that income type",
+      "level": "income type/category and tax period",
+      "required_source_facts": [
+        "service kind and covered period",
+        "amount and actual payment date",
+        "document reference",
+        "security or income-type scope",
+        "presence of corresponding income"
+      ],
+      "required_relation": "service to securities/income type; no individual-disposal relation",
+      "authority_refs": [
+        "NK_214_1_10",
+        "NK_214_1_12",
+        "FNS_ORDER_ED_7_11_1015_2024"
+      ],
+      "status": "PROVEN"
+    },
+    {
+      "expense_type": "shared_fee_not_directly_attributable_to_one_income_type",
+      "may_be_counted": "YES_IF_DOCUMENTED_INCURRED_AND_CONNECTED",
+      "when": "at tax-period end or termination of the last tax-agent contract; a type with no income waits until income is recognized",
+      "amount": "documented shared amount allocated in proportion to each income type's share of income",
+      "level": "income type/category and tax period",
+      "required_source_facts": [
+        "shared fee type and amount",
+        "actual payment date",
+        "document reference",
+        "proof the fee cannot be directly attributed",
+        "complete income totals for every participating income type"
+      ],
+      "required_relation": "fee to participating income types only; no sale-level or event relation",
+      "authority_refs": [
+        "NK_214_1_10",
+        "NK_214_1_12",
+        "NK_210_5"
+      ],
+      "status": "PROVEN"
+    },
+    {
+      "expense_type": "unclassified_or_unlinked_broker_charge",
+      "may_be_counted": "NO_UNTIL_PROVEN",
+      "when": null,
+      "amount": null,
+      "level": "unresolved",
+      "required_source_facts": [
+        "service/legal nature",
+        "amount and actual payment",
+        "document reference",
+        "connection to acquisition, disposal, storage, redemption or professional service",
+        "direct or shared scope"
+      ],
+      "required_relation": "do not invent a relation; obtain source evidence or fail closed",
+      "authority_refs": [
+        "NK_214_1_10",
+        "NK_214_1_12"
+      ],
+      "status": "FAIL_CLOSED"
+    }
+  ],
+  "special_question": {
+    "question": "Must acquisition commission be allocated over a partially disposed FIFO acquisition lot?",
+    "answer": "NO_AUTHORITATIVE_YES_OR_NO_FOUND",
+    "previous_question_assessment": "The earlier declaration-level relation question was too broad: the declaration needs only aggregates and no purchase-commission-sale event. The tax-recognition amount question was not wrong and remains unresolved.",
+    "proven_boundary": [
+      "commission eligibility is proven",
+      "purchase-price FIFO is proven",
+      "acquisition/security connection is proven",
+      "ordinary partial-disposal commission formula is not proven"
+    ]
+  },
+  "bounded_official_search": {
+    "domains": [
+      "nalog.gov.ru",
+      "nalog.garant.ru/fns/nk",
+      "minfin.gov.ru",
+      "cbr.ru"
+    ],
+    "searched_concepts": [
+      "acquisition commission plus partial securities disposal",
+      "commission plus FIFO",
+      "commission allocated proportionally to disposed quantity",
+      "partial realization expense recognition",
+      "broker transfer data for acquisition expenses"
+    ],
+    "exact_prescription_found": false,
+    "non_official_secondary_material_used_as_authority": false
+  },
+  "terminal": "STRATEGIC_STOP_LEGAL_AUTHORITY_GAP",
+  "blocker": {
+    "code": "PARTIAL_ACQUISITION_COMMISSION_RECOGNITION_NOT_PRESCRIBED",
+    "needed_authority": "current official rule or binding clarification specifying the recognition timing and amount for acquisition commission when an ordinary securities acquisition is only partially disposed",
+    "implementation_authorized": false
+  }
+}

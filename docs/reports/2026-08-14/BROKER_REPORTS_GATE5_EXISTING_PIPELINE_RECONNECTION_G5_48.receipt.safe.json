@@ -1,0 +1,146 @@
+{
+  "artifacts": [
+    {
+      "bytes": 23303,
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate3_bounded_labeling.py",
+      "sha256": "0b102a41d9ec229ba06e4fa62e0ce5fda6a46f046558efad399d544b0b5d3484"
+    },
+    {
+      "bytes": 15669,
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate3_chunk_batch_labeling.py",
+      "sha256": "ee61835577e9cbf00cf4d0a942d2f227db9251d8cfb9cd6c5854c04281b26970"
+    },
+    {
+      "bytes": 5856,
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate3_evidence_demand_adapter.py",
+      "sha256": "aa6eb6f64853330a5e3ef301bb0f3fea760a819d12e96c2683db808ecf49df2a"
+    },
+    {
+      "bytes": 17071,
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate4_financial_case_materialization.py",
+      "sha256": "0af9d38306c3d73e3dcf3facabac3cc7503b35b42db6e7a71aaf87ba33e2076c"
+    },
+    {
+      "bytes": 25791,
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_evidence_demand.py",
+      "sha256": "940713d68f99564f6fb4525596aa4835a7cebea25d87980dc484e2ad91ab18e5"
+    },
+    {
+      "bytes": 15842,
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_evidence_demand_contract.py",
+      "sha256": "0d5b38cf2daa1433a4d7971650caea54bf4a7aad6cba845126aa00cdf4affcb6"
+    },
+    {
+      "bytes": 17235,
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_methodology_evidence.py",
+      "sha256": "1fe6141a3d948753e079ab6a6f130ac84caffbc0b48ebe32a3474845c5f201ed"
+    },
+    {
+      "bytes": 10343,
+      "path": "services/broker-reports-gate1-proof/scripts/live_gate5_existing_pipeline_one_gap.py",
+      "sha256": "3c4f53c4afcee2b15cefc8c152e66582f05c6c2263cee7483bc59b97487383a3"
+    },
+    {
+      "bytes": 10051,
+      "path": "services/broker-reports-gate1-proof/scripts/build_gate5_existing_pipeline_reconnection_evidence.py",
+      "sha256": "86c294796fdec91dd6d9dfad7a27923b984c90ad739fef6459ad2f5ca5d8eb4a"
+    },
+    {
+      "bytes": 7745,
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_cross_gate_contract_architecture.py",
+      "sha256": "eb2dc45b7ea673480a6467fabd173432adc0d4bce15c0174563a20d91bc688de"
+    },
+    {
+      "bytes": 5572,
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate5_evidence_demand.py",
+      "sha256": "80cb4bea0ab04f86c543bab9157c5aeb0db54affcc75538d6a79bc521212dae3"
+    },
+    {
+      "bytes": 4641,
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate5_existing_pipeline_reconnection.py",
+      "sha256": "fe522cfca2055e7b8ab8c0ee2a3c985b39dea8bf0e517f0f064715d3792045a1"
+    },
+    {
+      "bytes": 6415653,
+      "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate1_pipe_bundled.py",
+      "sha256": "0c7b85d066472ccd8e7bd32df7b543b4ab1d41e0f9cef39a5eab62b0c166b0e6"
+    },
+    {
+      "bytes": 2977,
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE5_EXISTING_PIPELINE_RECONNECTION.v1.md",
+      "sha256": "5a51fd9cc6b96fbdc023dee7afdfe26c6078004daaebd9fdac304334ddc7569d"
+    },
+    {
+      "bytes": 958,
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE5_METHODOLOGY_DRIVEN_EVIDENCE_DEMAND.v1.md",
+      "sha256": "352f916a9066e1fb9b256b5c566f66c0b9d0303fdc526c966576af87f10ceb27"
+    },
+    {
+      "bytes": 1040,
+      "path": "docs/stage2/contracts/BROKER_REPORTS_GATE5_REAL_CANONICAL_SEMANTIC_RECOVERY.v1.md",
+      "sha256": "fa1bb27f37fc4d896791ac2965f754e50329999080853a52afe9dc078b28f232"
+    },
+    {
+      "bytes": 166198,
+      "path": "docs/stage2/contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md",
+      "sha256": "9b0ffb7d0714716cbcee0ba93438e12e4f4e564d023b527725c1dfb2b010fb8c"
+    },
+    {
+      "bytes": 15061,
+      "path": "docs/stage2/contracts/BROKER_REPORTS_CROSS_GATE_DOMAIN_OWNERSHIP.v1.md",
+      "sha256": "31a2f1e880c46e969305ce2233f6d1f3422e2c609f9df9d60fc2c2f9775fd49c"
+    },
+    {
+      "bytes": 6307,
+      "path": "docs/reports/2026-08-14/BROKER_REPORTS_GATE5_EXISTING_PIPELINE_RECONNECTION_G5_48.report.md",
+      "sha256": "db90feada1a13bd4f9fb9bb4639a9b69bb254ee09c820f1e60a0aac2fd6de7b5"
+    },
+    {
+      "bytes": 850,
+      "path": "docs/reports/2026-08-14/BROKER_REPORTS_GATE5_EXISTING_PIPELINE_ONE_GAP_G5_48.receipt.safe.json",
+      "sha256": "28d34f6b94ddbb257d63cc9ac2540a5be6120edbb23e38acec62ede6b48e942a"
+    },
+    {
+      "bytes": 10640,
+      "path": "docs/reports/2026-08-14/BROKER_REPORTS_GATE5_EXISTING_PIPELINE_RECONNECTION_G5_48.reclassification.safe.json",
+      "sha256": "8c8382297d1eaece8e322863a58e32ceeaafc2710da81c7075d7bd9bc9ff1e23"
+    },
+    {
+      "bytes": 1597,
+      "path": "docs/reports/2026-08-14/BROKER_REPORTS_GATE5_EXISTING_PIPELINE_RECONNECTION_G5_48.path-diff.safe.json",
+      "sha256": "5f67c805f982f235f892e7c3b9ef0561b5b9b92f2583db6d8abd62239064438f"
+    }
+  ],
+  "canonical_mutations": 0,
+  "goal": "G5.48",
+  "ingestion_reruns": 0,
+  "private_values_committed": false,
+  "proven_terminals": [
+    "EXISTING_EXTRACTION_PIPELINE_RECONNECTED",
+    "G5_47_PARALLEL_RECOVERY_PATH_REMOVED",
+    "METHODOLOGY_DEMAND_TO_SOURCE_OWNER_BOUNDARY_PROVEN",
+    "BOUNDED_CONTEXT_EXECUTION_PROVEN",
+    "PRESERVATION_GAPS_RECLASSIFIED"
+  ],
+  "provider_calls": 2,
+  "repair_count": 0,
+  "retry_count": 0,
+  "schema_version": "broker_reports_g548_receipt_v1",
+  "status": "PARTIAL_PROOF_FAIL_CLOSED",
+  "store_unchanged": true,
+  "unproven_terminal": "BOUNDED_CONTEXT_RECOVERY_PROVEN",
+  "verification": {
+    "full_suite_collected": 3492,
+    "full_suite_status": "NOT_GREEN_BASELINE_FAILURES_AND_TIMEOUT",
+    "remaining_suite_timeout_seconds": 603,
+    "ruff_check": "passed",
+    "targeted_tests": {
+      "failed": 0,
+      "passed": 50
+    },
+    "unrelated_baseline_failures": [
+      "actual_corpus_runtime_budget_drift",
+      "pipeline_documentation_still_requires_Gate4FinancialCaseFactV1"
+    ]
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "schema_version": "broker_reports_g575_pipeline_consolidation_receipt_safe_v1",
+  "goal": "G5.75",
+  "date": "2026-08-16",
+  "status": "PARTIAL",
+  "financial_route": {
+    "status": "PRODUCT_NORMATIVE",
+    "owners": [
+      "CanonicalReaderFactory.create",
+      "Gate3StructuralChunkFactory.create",
+      "Gate3ChunkBatchLabelingFactory.create",
+      "Gate4FinancialCaseRuntimeFactory.create"
+    ]
+  },
+  "metadata_candidate": {
+    "status": "SUPPORTING_NOT_PRODUCT_ACTIVE",
+    "route": "visual region -> existing VLM -> faithful Markdown -> Gate3LlmMetadataAdapterFactory.create",
+    "region_selection": "NOT_YET_GENERAL",
+    "manual_crop_runtime_authority": false,
+    "broker_specific_rules": 0
+  },
+  "guards": {
+    "low_criticality_metadata_controls_financial_admission": false,
+    "metadata_adapter_tax_authority": false,
+    "gate4_depends_on_metadata_classifier": false,
+    "normative_runtime_research_harness_imports": 0,
+    "transcriber_metadata_roles_visible": false
+  },
+  "cold_agent": {
+    "context_fork": "none",
+    "dated_research_reports_read": false,
+    "questions_passed": 3,
+    "questions_total": 3
+  },
+  "financial_canary": {
+    "holdout_a_before": 39,
+    "holdout_a_after": 39,
+    "holdout_b_before": 129,
+    "holdout_b_after": 129,
+    "exact_frozen_equality": true,
+    "source_stores_unchanged": true
+  },
+  "visual_markdown_canary": {
+    "qualified_cases": 3,
+    "source_inputs_unchanged": true,
+    "human_audit_digest_bound": true,
+    "lost_source_text_total": 0,
+    "invented_text_total": 0,
+    "semantic_rewrites_total": 0,
+    "metadata_roles_visible_to_transcriber": false
+  },
+  "semantic_adapter_canary": {
+    "source_goal": "G5.72",
+    "technically_valid": true,
+    "provider_submissions": 3,
+    "contract_invalid": 0,
+    "retries": 0,
+    "best_of_n": false,
+    "voting": false,
+    "correct": 7,
+    "missed": 2,
+    "wrong_value_boundary": 1,
+    "authority": "BEST_EFFORT_SUPPORTING"
+  },
+  "verification": {
+    "g575_guards": "6 passed in 4.35s",
+    "source_architecture_suite": "137 passed in 73.34s",
+    "ruff": "passed"
+  },
+  "product_runtime_modules_changed": 0,
+  "product_activation": false,
+  "terminals": [
+    "SOURCE_PIPELINE_CONSOLIDATION_PARTIAL",
+    "METADATA_VISUAL_SEMANTIC_PATH_PROVEN",
+    "METADATA_REGION_SELECTION_GENERALIZATION_GAP_LOCALIZED",
+    "NO_BROKER_SPECIFIC_REGION_HACK_ADDED",
+    "FINANCIAL_GENERALIZATION_PRESERVED"
+  ],
+  "private_values_committed": false
+}

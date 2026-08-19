@@ -1,0 +1,69 @@
+{
+  "schema_version": "broker_reports_gate5_clean_context_blind_trial_record_v0",
+  "goal": "G5.19",
+  "goal_status": "NOT_PROVEN",
+  "date": "2026-08-10",
+  "primary_proof_trial_id": null,
+  "pre_inference_attempts": [
+    {
+      "trial_id": "g5.19-primary-2026-08-10-001",
+      "status": "rejected_before_inference",
+      "provider": "openai_codex_cli",
+      "client_version": "codex-cli 0.147.0-alpha.6.5",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high",
+      "conversation_history": "none",
+      "payload_utf8_bytes": 27203,
+      "payload_sha256": "ae914005980d286b531a57b4d667684b35e21751f0bd0022019e362be389e749",
+      "output_schema_sha256": "3cc133c2f3c09633fbe243acb02a971f38727a4537b25aae3272f05d89bfca0a",
+      "plan_sha256": "357afab635c1ac71e398c59e445787c305555cba5b92399a3aa42162ebbc869f",
+      "bias_audit_status": "passed",
+      "provider_error": {
+        "type": "invalid_request_error",
+        "code": "invalid_json_schema",
+        "param": "text.format.schema",
+        "safe_message": "uniqueItems is not permitted for supported_requirement_ids"
+      },
+      "response_sha256": null,
+      "response_utf8_bytes": 0
+    },
+    {
+      "trial_id": "g5.19-primary-2026-08-10-002",
+      "status": "rejected_before_inference",
+      "provider": "openai_codex_cli",
+      "client_version": "codex-cli 0.147.0-alpha.6.5",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "high",
+      "conversation_history": "none",
+      "payload_utf8_bytes": 27013,
+      "payload_sha256": "a3ad620016c93eff08a7f79cdb24f86cdcc81b0dd16ce7a68be2660d760fac46",
+      "output_schema_sha256": "34be4dde0f6286e2d2a0c21fe5ed76b160de4f49376f0c887bd5326f234d7924",
+      "plan_sha256": "0d4745535264a9a9bccf35af5e8470114dcaefd45d849797fb0dc277837506ce",
+      "bias_audit_status": "passed",
+      "provider_error": {
+        "type": "invalid_request_error",
+        "code": "invalid_json_schema",
+        "param": "text.format.schema",
+        "safe_message": "registered_behavior.schema_version const schema requires an explicit type"
+      },
+      "response_sha256": null,
+      "response_utf8_bytes": 0
+    }
+  ],
+  "provider_requests_total": 2,
+  "inference_calls_completed_total": 0,
+  "model_responses_total": 0,
+  "structured_candidates_total": 0,
+  "manual_candidate_repairs_total": 0,
+  "retries_within_trial_total": 0,
+  "semantic_validator": {
+    "status": "not_run",
+    "reason": "no_model_response"
+  },
+  "post_hoc_candidate_comparison": {
+    "status": "not_applicable",
+    "reason": "no_frozen_model_candidate"
+  },
+  "stop_reason": "A third payload/call would become iterative schema fitting and violate the bounded no-cherry-picking trial rule.",
+  "localized_boundary": "strict_output_schema_provider_profile_compatibility"
+}

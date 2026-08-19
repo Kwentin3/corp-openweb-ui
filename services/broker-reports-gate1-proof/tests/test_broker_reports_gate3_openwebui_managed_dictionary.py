@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 from pathlib import Path
 import sys
+from types import ModuleType
 
 from jsonschema import Draft202012Validator
 
@@ -21,14 +21,15 @@ from broker_reports_gate1.gate3_financial_label_dictionary import (  # noqa: E40
     GATE3_DICTIONARY_OPENWEBUI_SKILL_ID,
     GATE3_DICTIONARY_OPENWEBUI_TOOL_ID,
     GATE3_DICTIONARY_OPENWEBUI_TOOL_METHOD,
-    GATE3_DICTIONARY_V1_FILE_SHA256,
-    GATE3_DICTIONARY_V1_MODEL_VIEW_SHA256,
+    GATE3_DICTIONARY_CURRENT_VERSION,
+    GATE3_DICTIONARY_V2_0_1_FILE_SHA256,
+    GATE3_DICTIONARY_V2_0_1_MODEL_VIEW_SHA256,
     Gate3FinancialLabelDictionaryFactory,
 )
 
 
 DICTIONARY_PATH = (
-    PACKAGE_ROOT / "gate3_financial_label_dictionary.v1.json"
+    PACKAGE_ROOT / "gate3_financial_label_dictionary.v2_0_1.json"
 )
 
 
@@ -37,13 +38,9 @@ def _sha256(value: bytes) -> str:
 
 
 def _load_tool():
-    spec = importlib.util.spec_from_file_location(
-        "gate3_financial_label_dictionary_tool_test",
-        builder.GATE3_TOOL_PATH,
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    module = ModuleType("gate3_financial_label_dictionary_tool_test")
+    source = builder.GATE3_TOOL_PATH.read_text(encoding="utf-8")
+    exec(compile(source, str(builder.GATE3_TOOL_PATH), "exec"), module.__dict__)
     return module
 
 
@@ -56,9 +53,9 @@ def test_managed_binding_has_stable_ids_and_exact_dictionary_hashes() -> None:
         ),
         "dictionary_identity": {
             "dictionary_id": "broker-reports-financial-labels",
-            "semantic_version": "1.0.0",
-            "file_sha256": GATE3_DICTIONARY_V1_FILE_SHA256,
-            "model_view_sha256": GATE3_DICTIONARY_V1_MODEL_VIEW_SHA256,
+            "semantic_version": GATE3_DICTIONARY_CURRENT_VERSION,
+            "file_sha256": GATE3_DICTIONARY_V2_0_1_FILE_SHA256,
+            "model_view_sha256": GATE3_DICTIONARY_V2_0_1_MODEL_VIEW_SHA256,
         },
         "operator_surface": {
             "kind": "openwebui_skill",
@@ -111,7 +108,7 @@ def test_generated_skill_tool_and_manifest_are_exact_projections() -> None:
     skill_text = skill.decode("utf-8")
     assert skill_text.count(model_view) == 1
     assert _sha256(model_view.encode("utf-8")) == (
-        GATE3_DICTIONARY_V1_MODEL_VIEW_SHA256
+        GATE3_DICTIONARY_V2_0_1_MODEL_VIEW_SHA256
     )
 
 

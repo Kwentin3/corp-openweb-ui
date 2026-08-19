@@ -79,7 +79,7 @@ class FullSourceArtifactConfig:
     max_pdf_layout_words_per_page: int = 10_000
     max_pdf_layout_lines_per_page: int = 2_000
     max_pdf_layout_vector_objects_per_page: int = 5_000
-    max_pdf_layout_inventory_objects_per_document: int = 75_000
+    max_pdf_layout_inventory_objects_per_document: int = 400_000
     max_pdf_layout_table_candidates_per_page: int = 20
     max_pdf_layout_table_detection_words_per_page: int = 5_000
     max_pdf_layout_table_detection_vector_objects_per_page: int = 5_000
@@ -87,7 +87,7 @@ class FullSourceArtifactConfig:
     max_pdf_layout_lines_per_cluster: int = 24
     max_pdf_layout_words_per_cluster: int = 400
     max_pdf_layout_characters_per_cluster: int = 6_000
-    max_pdf_layout_words_per_table_unit: int = 1_000
+    max_pdf_layout_words_per_table_unit: int = 5_000
     max_pdf_layout_units_per_document: int = 5_000
     enable_canonical_artifact_v1_shadow: bool = False
 
@@ -251,6 +251,7 @@ class FullSourceArtifactBuilder:
         container_format: str,
         content_bytes: bytes,
         source_checksum_sha256: str,
+        pdf_table_locator_pages: list[dict[str, Any]] | None = None,
     ) -> FullSourceBuildResult:
         if not normalization_run_id or not document_id or not source_checksum_sha256:
             raise ValueError("full_source_scope_required")
@@ -261,6 +262,7 @@ class FullSourceArtifactBuilder:
                 profile_id=profile_id,
                 content_bytes=content_bytes,
                 source_checksum_sha256=source_checksum_sha256,
+                pdf_table_locator_pages=pdf_table_locator_pages,
             )
         descriptors, document_reasons = self._extract(
             container_format=container_format,
@@ -747,6 +749,7 @@ class FullSourceArtifactBuilder:
         profile_id: str,
         content_bytes: bytes,
         source_checksum_sha256: str,
+        pdf_table_locator_pages: list[dict[str, Any]] | None = None,
     ) -> FullSourceBuildResult:
         logical_identity = "pdf_text_layer_001"
         source_checksum_ref = (
@@ -831,7 +834,10 @@ class FullSourceArtifactBuilder:
                 layout_parser = self.pdf_parser_factory.create(
                     PdfParserCapabilityRequest(capability="table_candidates")
                 )
-                layout_parsed = layout_parser.parse(content_bytes)
+                layout_parsed = layout_parser.parse(
+                    content_bytes,
+                    table_locator_pages=pdf_table_locator_pages,
+                )
                 layout_parser_engine = layout_parsed.parser_engine
                 layout_parser_version = layout_parsed.parser_engine_version
                 layout_underlying_engine = layout_parsed.underlying_engine
@@ -1237,11 +1243,18 @@ class FullSourceArtifactBuilder:
             reasons.append("pdf_no_text_layer")
         reasons = sorted(set(reasons))
         if status == "complete":
-            textual_units = (
-                layout_units
-                if layout_status == "complete" and layout_units
-                else provisional_units
-            )
+            source_bound_table_units = [
+                unit
+                for unit in layout_units
+                if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
+                and unit.get("table_locator_scope_status") == "source_bound"
+            ]
+            if layout_status == "complete" and layout_units:
+                textual_units = layout_units
+            elif source_bound_table_units:
+                textual_units = [*provisional_units, *source_bound_table_units]
+            else:
+                textual_units = provisional_units
             extraction_units = [*textual_units, *visual_units]
         else:
             extraction_units = []
@@ -1262,6 +1275,14 @@ class FullSourceArtifactBuilder:
                 *(
                     ["layout_words", "layout_lines", "table_candidates"]
                     if layout_status == "complete"
+                    else []
+                ),
+                *(
+                    ["source_bound_table_candidates"]
+                    if any(
+                        unit.get("table_locator_scope_status") == "source_bound"
+                        for unit in layout_units
+                    )
                     else []
                 ),
             ],

@@ -1,0 +1,441 @@
+{
+  "schema_version": "broker_reports_gate5_minimal_consumer_first_refactor_design_v0",
+  "goal": "G5.39AD",
+  "verified_on": "2026-08-12",
+  "terminal": "MINIMAL_REFRACTOR_DESIGN_READY",
+  "mode": "refactor_design_research_only",
+  "baseline": {
+    "branch": "feature/gate5-tax-period-category-aggregation",
+    "head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "head_tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+    "current_semantic_input_schema": "broker_reports_gate5_declaration_semantic_input_v0",
+    "current_projection_id": "ru_3ndfl_2025_full_target_supplied_case",
+    "current_projection_version": "2026-08-11.0-proof",
+    "current_projection_sha256": "48109cc6b3de6fd4d242346648660d99b40863310e622ab2cec44dc641ec7b26",
+    "official_xsd_sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484"
+  },
+  "consumer_inventory": [
+    {
+      "id": "C01",
+      "owner": "Gate5FullTargetXmlProjectionRuntime.project",
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_full_target_xml_projection.py",
+      "classes": ["PROJECTOR_VALUE", "AUDIT_CONSUMER", "COMPLETENESS_CONSUMER"],
+      "uses": ["full_v0_validation", "declared_values", "source_hashes", "domain_states", "obligation_states"],
+      "disposition": "preserve_exact_legacy_entrypoint"
+    },
+    {
+      "id": "C02",
+      "owner": "gate5_full_target_xml_projection.ru_3ndfl_2025.v0.json",
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_full_target_xml_projection.ru_3ndfl_2025.v0.json",
+      "classes": ["PROJECTOR_VALUE", "PERSISTED_FORMAT_CONSUMER"],
+      "uses": ["v0_input_contract", "v0_source_paths", "target_mechanics", "official_source_bindings"],
+      "disposition": "retain_immutable_and_add_v1_only_when_paths_change"
+    },
+    {
+      "id": "C03",
+      "owner": "Gate5EndToEndFullTargetXmlRuntime",
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_end_to_end_full_target_xml.py",
+      "classes": ["AUDIT_CONSUMER"],
+      "uses": ["compile_and_project", "runtime_return", "hash_chain", "determinism_projection", "critical_provenance_audit"],
+      "disposition": "preserve_result_and_receipt_v0_through_shadow"
+    },
+    {
+      "id": "C04",
+      "owner": "Gate5OpenWebUIProductRuntime.process",
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_openwebui_product.py",
+      "classes": ["PERSISTED_FORMAT_CONSUMER"],
+      "uses": ["semantic_input_sha256_public_result", "xml_persistence_input"],
+      "disposition": "no_change_slices_1_to_4"
+    },
+    {
+      "id": "C05",
+      "owner": "broker_reports_gate5_openwebui_xml_artifact_v0",
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/gate5_openwebui_product.py",
+      "classes": ["PERSISTED_FORMAT_CONSUMER", "AUDIT_CONSUMER"],
+      "uses": ["semantic_input_sha256", "nested_e2e_receipt", "nested_projection_receipt"],
+      "disposition": "never_rewrite_or_reinterpret_as_v1"
+    },
+    {
+      "id": "C06",
+      "owner": "OpenWebUI product response clients",
+      "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate1_pipe.py",
+      "classes": ["UNKNOWN_EXTERNAL"],
+      "uses": ["product_result_v0_including_semantic_input_sha256"],
+      "disposition": "compatibility_hold_blocks_removal_not_additive_internal_view"
+    },
+    {
+      "id": "C07",
+      "owner": "broker_reports_gate1 package exports",
+      "path": "services/broker-reports-gate1-proof/broker_reports_gate1/__init__.py",
+      "classes": ["UNKNOWN_EXTERNAL"],
+      "uses": ["v0_constants", "v0_error", "v0_runtime", "v0_factory"],
+      "disposition": "preserve_existing_names_and_methods"
+    },
+    {
+      "id": "C08",
+      "owner": "Gate1 OpenWebUI generated bundle",
+      "path": "services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate1_pipe_bundled.py",
+      "classes": ["PERSISTED_FORMAT_CONSUMER"],
+      "uses": ["closed_world_executable_mirror"],
+      "disposition": "regenerate_for_each_future_bundled_source_change"
+    },
+    {
+      "id": "C09",
+      "owner": "Semantic Input focused tests",
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate5_declaration_semantic_input.py",
+      "classes": ["TEST_ONLY"],
+      "uses": ["exact_v0_schema", "hashes", "domain_rows", "leakage", "factory_route"],
+      "disposition": "retain_and_add_candidate_tests"
+    },
+    {
+      "id": "C10",
+      "owner": "Projection focused tests",
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate5_full_target_xml_projection.py",
+      "classes": ["TEST_ONLY"],
+      "uses": ["49_mappings", "25_coverage_rows", "xsd", "missing_value", "resource_pins", "bundle_hash"],
+      "disposition": "retain_as_legacy_and_add_parity_tests"
+    },
+    {
+      "id": "C11",
+      "owner": "E2E and product tests",
+      "path": "services/broker-reports-gate1-proof/tests/test_broker_reports_gate5_end_to_end_full_target_xml.py",
+      "classes": ["TEST_ONLY"],
+      "uses": ["runtime_return", "hash_chain", "tamper", "artifact_persistence", "user_isolation", "bundle_hash"],
+      "disposition": "retain_exact_default_legacy_observables"
+    },
+    {
+      "id": "C12",
+      "owner": "Coverage and architecture tests",
+      "path": "services/broker-reports-gate1-proof/tests",
+      "classes": ["TEST_ONLY"],
+      "uses": ["returned_semantics", "module_allowlist", "factory_anchors", "bundle_parity"],
+      "disposition": "avoid_new_module_in_first_slice"
+    },
+    {
+      "id": "C13",
+      "owner": "Gate5 contracts and safe historical receipts",
+      "path": "docs/stage2/contracts and docs/reports",
+      "classes": ["RESEARCH_ONLY"],
+      "uses": ["schema_documentation", "hashes", "aggregate_counts"],
+      "disposition": "preserve_as_historical_evidence"
+    }
+  ],
+  "negative_inventory": {
+    "raw_semantic_input_artifact_type_found": false,
+    "raw_semantic_input_fixture_found": false,
+    "direct_cli_consumer_found": false,
+    "direct_pdf_production_consumer_found": false,
+    "database_column_for_raw_semantic_input_found": false,
+    "external_consumers_disprovable": false,
+    "stop_interpretation": "external uncertainty forbids destructive removal but does not block the selected additive internal method"
+  },
+  "seam_candidates": [
+    {
+      "id": "S-A",
+      "design": "extend_existing_semantic_runtime_with_inactive_candidate_method",
+      "changes": ["one_existing_semantic_owner", "tests", "generated_gate1_bundle_and_hash_guards"],
+      "does_not_change": ["current_compile", "v0_schema", "projector", "e2e", "persistence", "product"],
+      "persisted_shape_change": false,
+      "public_contract_change": false,
+      "dual_run": true,
+      "rollback": "remove_unused_method",
+      "decision": "SELECTED"
+    },
+    {
+      "id": "S-B",
+      "design": "new_parallel_value_model_module_and_factory",
+      "owners_touched": "two_or_more",
+      "persisted_shape_change": false,
+      "dual_run": true,
+      "rollback": "possible_but_duplicate_owner_remains",
+      "decision": "REJECTED_PARALLEL_INFRASTRUCTURE"
+    },
+    {
+      "id": "S-C",
+      "design": "projector_internal_adapter_over_rich_v0",
+      "owners_touched": "projector",
+      "persisted_shape_change": false,
+      "dual_run": true,
+      "rollback": "easy",
+      "decision": "REJECTED_FAKE_BOUNDARY"
+    },
+    {
+      "id": "S-D",
+      "design": "replace_or_shrink_v0_in_place",
+      "owners_touched": "semantic_projector_e2e_product_persistence_external",
+      "persisted_shape_change": true,
+      "public_contract_change": true,
+      "dual_run": false,
+      "rollback": "requires_migration",
+      "decision": "REJECTED_STRATEGIC_STOP"
+    }
+  ],
+  "selected_candidate_contract": {
+    "factory_owner": "Gate5DeclarationSemanticInputRuntimeFactory.create",
+    "method": "Gate5DeclarationSemanticInputRuntime.compile_declaration_value_candidate",
+    "input": "resolved_declaration_package",
+    "must_call": "existing compile(package=...) exactly once",
+    "schema_version": "broker_reports_gate5_declaration_value_candidate_v0",
+    "status": "DECLARATION_VALUE_CANDIDATE_READY_NOT_RELEASED",
+    "value_contract": {
+      "id": "ru_3ndfl_2025_supplied_case_declaration_values",
+      "version": "2026-08-12.0-bounded"
+    },
+    "declaration_value_roots": [
+      "tax_period",
+      "filing",
+      "taxpayer",
+      "signer",
+      "budget_dispositions",
+      "income_group_results",
+      "russian_source_income",
+      "financial_investment_results"
+    ],
+    "hash_contract": "sha256(canonical_json({value_contract,declaration_values}))",
+    "released": false,
+    "projector_authority": false,
+    "persisted": false,
+    "publicly_returned": false
+  },
+  "release_contract": {
+    "owner": "existing_Gate5DeclarationSemanticInputRuntime",
+    "proposed_method": "release_projection_values",
+    "status": "DECLARATION_VALUES_RELEASED",
+    "reuses": [
+      "Gate5ResolvedDeclarationPackageRuntime.validate_package",
+      "Gate5DeclarationSemanticInputRuntime.compile",
+      "current_complete_status_and_blockers",
+      "current_25_obligation_accounting",
+      "existing_component_snapshots_and_methodology_bindings"
+    ],
+    "does_not_do": [
+      "tax_calculation",
+      "gate4_read",
+      "source_read",
+      "sql",
+      "llm_or_provider_call",
+      "xml_or_xsd",
+      "missing_data_recovery",
+      "filing_readiness"
+    ],
+    "receipt_bindings": [
+      "package_sha256",
+      "current_semantic_input_sha256",
+      "completeness_receipt_sha256",
+      "definition_sha256",
+      "25_obligation_dispositions",
+      "semantic_value_sha256",
+      "evidence_binding_manifest_sha256",
+      "release_policy_version"
+    ],
+    "projector_receives": ["declaration_values", "value_contract", "semantic_value_sha256"],
+    "projector_does_not_receive": ["package", "rich_v0", "component_snapshots", "obligation_rows", "calculation_evidence", "completeness_receipt"]
+  },
+  "parity_contract": {
+    "same_inputs": ["resolved_package", "target_context", "xsd_bytes"],
+    "required_equalities": [
+      "terminal_outcome_for_characterized_profile",
+      "mapping_id_occurrence_order",
+      "target_paths",
+      "target_value_hashes",
+      "xsd_success_when_success_expected",
+      "xml_bytes_when_target_mechanics_identical"
+    ],
+    "expected_differences": ["projection_definition_version", "projection_definition_hash", "input_contract_id"],
+    "failure_behavior": "legacy_remains_authority_candidate_discarded_no_product_or_persistence_change",
+    "missing_value_fallback": false
+  },
+  "target_mechanics": {
+    "semantic_exclusions": ["electronic_file_id", "program_version", "format_version", "knd", "period_code"],
+    "explicit_inputs": ["electronic_file_id", "budget_payable_refundable_shaping_profile"],
+    "unchanged_owners": ["tree_projector", "serializer", "xsd_validator"],
+    "unproven_profiles": ["refund", "balanced", "multiple_allocations", "empty_allocation"],
+    "activation_rule": "profile_specific_parity_or_explicit_fail_closed_terminal_required"
+  },
+  "calculation_evidence": {
+    "kind": "thin_view_over_existing_sealed_component_evidence",
+    "new_engine": false,
+    "new_store_slices_1_to_4": false,
+    "binding_fields": [
+      "declared_value_path",
+      "origin_kind",
+      "declared_value_sha256",
+      "owner_factory",
+      "source_component_contract_id",
+      "source_component_sha256",
+      "methodology_binding_sha256_or_null",
+      "replayable_input_snapshot_sha256_or_direct_evidence_sha256",
+      "dependent_calculation_receipt_refs"
+    ],
+    "derived_paths": [
+      {"path":"budget_dispositions[].kind","owner":"Gate5DeclarationBudgetOutcomeRuntimeFactory"},
+      {"path":"budget_dispositions[].amount","owner":"Gate5DeclarationBudgetOutcomeRuntimeFactory"},
+      {"path":"income_group_results[].income_group","owner":"Gate5IncomeGroupTaxBaseRuntimeFactory"},
+      {"path":"income_group_results[].total_income","owner":"Gate5IncomeGroupTaxBaseRuntimeFactory"},
+      {"path":"income_group_results[].taxable_income","owner":"Gate5IncomeGroupTaxBaseRuntimeFactory"},
+      {"path":"income_group_results[].accepted_expenses","owner":"Gate5IncomeGroupTaxBaseRuntimeFactory"},
+      {"path":"income_group_results[].tax_base","owner":"Gate5IncomeGroupTaxBaseRuntimeFactory"},
+      {"path":"income_group_results[].calculated_tax","owner":"Gate5DeclarationTaxSettlementRuntimeFactory"},
+      {"path":"income_group_results[].tax_payable","owner":"Gate5DeclarationTaxSettlementRuntimeFactory"},
+      {"path":"income_group_results[].tax_refundable","owner":"Gate5DeclarationTaxSettlementRuntimeFactory"},
+      {"path":"russian_source_income[].gross_income","owner":"Gate5IncomeGroupTaxBaseRuntimeFactory"},
+      {"path":"financial_investment_results[].operation_category","owner":"Gate5TaxPeriodCategoryAggregationRuntimeFactory"},
+      {"path":"financial_investment_results[].category_gross_income","owner":"Gate5TaxPeriodCategoryAggregationRuntimeFactory"},
+      {"path":"financial_investment_results[].related_expenses","owner":"Gate5TaxPeriodCategoryAggregationRuntimeFactory"},
+      {"path":"financial_investment_results[].allowable_expenses","owner":"Gate5TaxPeriodCategoryAggregationRuntimeFactory"},
+      {"path":"financial_investment_results[].loss_treatment","owner":"Gate5TaxPeriodCategoryAggregationRuntimeFactory"}
+    ],
+    "direct_or_reference_families": [
+      "tax_period",
+      "filing_taxpayer_signer",
+      "budget_kbk_oktmo",
+      "non_taxable_income_and_deductions",
+      "settlement_credit_facts",
+      "source_party_and_income_kind",
+      "withheld_tax"
+    ],
+    "runtime_behavior": "hash_and_accounting_only_no_calculation_replay",
+    "test_behavior": "parameterized_real_factory_replay_for_every_derived_path"
+  },
+  "test_plan": [
+    {"id":"AD-VIEW-001","behavior":"exact_bounded_eight_root_view_and_hash","location":"test_broker_reports_gate5_declaration_semantic_input.py","fixture":"complete_supplied_package","expected_terminal":"DECLARATION_VALUE_CANDIDATE_READY_NOT_RELEASED","before_slice":1},
+    {"id":"AD-VIEW-002","behavior":"audit_completeness_target_leak_rejected","location":"test_broker_reports_gate5_declaration_semantic_input.py","fixture":"forbidden_key_parameterization","expected_terminal":"gate5_declaration_value_candidate_audit_leakage","before_slice":1},
+    {"id":"AD-VIEW-003","behavior":"every_required_value_missing_fails","location":"test_broker_reports_gate5_declaration_semantic_input.py","fixture":"required_field_deletion_matrix","expected_terminal":"gate5_declaration_value_candidate_required_value_missing","before_slice":1},
+    {"id":"AD-VIEW-004","behavior":"collection_order_and_multiplicity_preserved","location":"test_broker_reports_gate5_declaration_semantic_input.py","fixture":"one_and_repeated_rows","expected_terminal":"DECLARATION_VALUE_CANDIDATE_READY_NOT_RELEASED","before_slice":1},
+    {"id":"AD-ID-001","behavior":"value_hash_stable_across_run_local_audit_refs","location":"test_broker_reports_gate5_declaration_semantic_input.py","fixture":"two_real_fresh_stores_equal_values","expected_terminal":"equal_value_hashes_audit_hashes_may_differ","before_slice":1},
+    {"id":"AD-FACTORY-001","behavior":"factory_route_and_closed_world","location":"semantic_and_bundle_tests","fixture":"outside_cwd","expected_terminal":"candidate_ready_no_forbidden_reads","before_slice":1},
+    {"id":"AD-REL-001","behavior":"25_terminal_obligations_and_evidence_release","location":"focused_release_tests","fixture":"complete_package","expected_terminal":"DECLARATION_VALUES_RELEASED","before_slice":2},
+    {"id":"AD-REL-002","behavior":"missing_duplicate_unknown_evidence_blocks","location":"focused_release_tests","fixture":"binding_mutation_matrix","expected_terminal":"exact_evidence_error_no_release","before_slice":2},
+    {"id":"AD-REL-003","behavior":"incomplete_package_reuses_current_failure","location":"focused_release_tests","fixture":"existing_incomplete_package","expected_terminal":"existing_incomplete_terminal_no_release","before_slice":2},
+    {"id":"AD-EVIDENCE-001","behavior":"every_projected_derived_path_has_one_replay_owner","location":"focused_release_tests","fixture":"derived_path_manifest","expected_terminal":"DECLARATION_VALUES_RELEASED_zero_gaps_duplicates","before_slice":2},
+    {"id":"AD-DIRECT-001","behavior":"direct_facts_have_no_fake_calculation","location":"focused_release_tests","fixture":"direct_reference_fields","expected_terminal":"direct_binding_no_calculation_object","before_slice":2},
+    {"id":"AD-PARITY-001","behavior":"49_values_paths_hashes_both_xsd_and_bytes","location":"test_broker_reports_gate5_full_target_xml_projection.py","fixture":"valid_payable_package","expected_terminal":"both_FULL_TARGET_XML_VALID_exact_parity","before_slice":3},
+    {"id":"AD-NEG-001","behavior":"missing_allowable_expenses_no_fallback","location":"test_broker_reports_gate5_full_target_xml_projection.py","fixture":"released_value_deletion","expected_terminal":"source_value_missing_no_xml","before_slice":3},
+    {"id":"AD-AUDIT-001","behavior":"audit_and_completeness_omission_after_release_inert","location":"test_broker_reports_gate5_full_target_xml_projection.py","fixture":"values_only_copy","expected_terminal":"same_target_proof_and_xml","before_slice":3},
+    {"id":"AD-ID-002","behavior":"file_id_changes_target_not_semantic_identity","location":"test_broker_reports_gate5_full_target_xml_projection.py","fixture":"same_values_two_file_ids","expected_terminal":"same_semantic_hash_only_file_id_target_differs","before_slice":3},
+    {"id":"AD-TM-001","behavior":"single_payable_allocation","location":"test_broker_reports_gate5_full_target_xml_projection.py","fixture":"valid_current_package","expected_terminal":"49_mappings_both_xsd_byte_parity","before_slice":3},
+    {"id":"AD-TM-002","behavior":"refund_characterization","location":"projection_tests","fixture":"fully_valid_refund_package","expected_terminal":"exact_parity_or_mechanics_unproven_legacy_authoritative","before_slice":3},
+    {"id":"AD-TM-003","behavior":"balanced_characterization","location":"projection_tests","fixture":"fully_valid_balanced_package","expected_terminal":"exact_parity_or_mechanics_unproven_legacy_authoritative","before_slice":3},
+    {"id":"AD-TM-004","behavior":"multiple_allocation_ordering","location":"projection_tests","fixture":"fully_valid_two_allocation_package","expected_terminal":"exact_parity_or_mechanics_unproven_legacy_authoritative","before_slice":3},
+    {"id":"AD-TM-005","behavior":"empty_allocation_cannot_silently_lose_disposition","location":"release_and_projection_tests","fixture":"fully_valid_empty_allocation_package","expected_terminal":"proven_legacy_equivalent_or_explicit_blocker_not_xsd_only","before_slice":3},
+    {"id":"AD-SHADOW-001","behavior":"parity_failure_keeps_legacy_authority","location":"test_broker_reports_gate5_end_to_end_full_target_xml.py","fixture":"explicit_candidate_mismatch","expected_terminal":"legacy_unchanged_shadow_PARITY_FAILED","before_slice":4},
+    {"id":"AD-PERSIST-001","behavior":"v0_artifact_result_receipt_readability","location":"test_broker_reports_gate5_end_to_end_full_target_xml.py","fixture":"pre_change_v0_artifact_plus_new_run","expected_terminal":"v0_resolves_and_downloads_no_rewrite","before_slice":5},
+    {"id":"AD-ROLLBACK-001","behavior":"legacy_rollback_needs_no_replay","location":"test_broker_reports_gate5_end_to_end_full_target_xml.py","fixture":"shadow_then_legacy_route","expected_terminal":"original_legacy_bytes_hash_result","before_slice":5}
+  ],
+  "legacy_mechanics_research_probe": {
+    "authority": "isolated_semantic_payload_mutation_only_not_valid_tax_or_package_evidence",
+    "results": [
+      {"profile":"current_payable_single","terminal":"FULL_TARGET_XML_VALID","xml_bytes":1112,"mapping_occurrences":49,"xml_sha256":"07d2a96d89776d71877bdd1f30ce142a4c6b6f905e09d3e8bcfe238195a8ef2a"},
+      {"profile":"balanced_empty_mutation","terminal":"FULL_TARGET_XML_VALID","xml_bytes":1015,"mapping_occurrences":45,"xml_sha256":"5e8fec36e8efedb0a59b876d6986b9c952dec3d58fa415b8fa44a2eb4bcfb880"},
+      {"profile":"refund_empty_mutation","terminal":"FULL_TARGET_XML_VALID","xml_bytes":1015,"mapping_occurrences":45,"xml_sha256":"8bf110b8952414ab53b281a5a0333ce99d95161f21ad2fb371fcd36e171ada01"},
+      {"profile":"payable_two_allocation_mutation","terminal":"FULL_TARGET_XML_VALID","xml_bytes":1199,"mapping_occurrences":53,"xml_sha256":"663a24d445dbe92d91dd70492315987def361a784fa057bf749570b5961e6fc9"}
+    ],
+    "finding": "xsd_success_is_not_semantic_or_completeness_proof_and_cannot_authorize_profile_activation"
+  },
+  "persistence_plan": {
+    "current_raw_semantic_input_standalone": false,
+    "current_indirect_bindings": ["xml_artifact_v0", "e2e_receipt_v0", "projection_receipt_v0", "product_result_v0"],
+    "slices_1_to_4_write_new_artifacts": false,
+    "bulk_migration": false,
+    "old_artifact_rewrite": false,
+    "future_rule": "new_runs_may_write_explicit_v1_only_after_separate_authorization_and_v0_reader_proof",
+    "evidence_persistence_decision": "deferred_until_determinism_retention_performance_audit_and_privacy_are_measured"
+  },
+  "rollback_plan": [
+    {"stage":"inactive_candidate_or_release","action":"stop_calling_or_remove_additive_method","data_action":"none"},
+    {"stage":"inactive_new_projector","action":"stop_calling_project_released","data_action":"none"},
+    {"stage":"shadow","action":"stop_explicit_shadow_entrypoint","data_action":"none_legacy_was_authority"},
+    {"stage":"new_internal_route","action":"select_retained_legacy_route","data_action":"none_no_tax_or_db_replay"},
+    {"stage":"future_v1_persistence","action":"stop_v1_writes_keep_v0_and_v1_readers","data_action":"no_downgrade_rewrite"}
+  ],
+  "ordered_slices": [
+    {"slice":1,"name":"inactive_value_candidate","production_behavior_change":false,"persistent_change":false,"rollback":"remove_unused_method"},
+    {"slice":2,"name":"inactive_release_and_evidence_bindings","production_behavior_change":false,"persistent_change":false,"rollback":"remove_unused_method"},
+    {"slice":3,"name":"inactive_consumer_first_projector_and_v1_definition","production_behavior_change":false,"persistent_change":false,"rollback":"stop_new_entrypoint"},
+    {"slice":4,"name":"explicit_shadow_dual_path","production_behavior_change":false,"persistent_change":false,"rollback":"stop_shadow_entrypoint"},
+    {"slice":5,"name":"move_one_fully_proven_internal_consumer","production_behavior_change":true,"persistent_change":false,"rollback":"select_legacy_route"},
+    {"slice":6,"name":"optional_versioned_persistence_and_public_move","production_behavior_change":true,"persistent_change":true,"rollback":"stop_v1_writes_keep_readers"},
+    {"slice":7,"name":"separately_authorized_legacy_deprecation","production_behavior_change":true,"persistent_change":"retention_dependent","rollback":"not_allowed_without_prior_hold_completion"}
+  ],
+  "risk_matrix": [
+    {"dimension":"semantic","failure":"declared_value_omitted_or_renamed","control":"exact_schema_deletion_matrix_44_value_mapping_accounting"},
+    {"dimension":"tax","failure":"extraction_recalculates_or_changes_tax_result","control":"copy_only_current_outputs_no_tax_changes_or_projection_rerun"},
+    {"dimension":"audit","failure":"value_hash_treated_as_package_authority","control":"distinct_audit_value_target_hashes_and_release_binding"},
+    {"dimension":"completeness","failure":"values_projected_before_25_obligations_and_evidence_close","control":"current_package_validation_plus_release_receipt"},
+    {"dimension":"xml","failure":"paths_transforms_order_or_mechanics_drift","control":"immutable_v1_definition_mapping_path_hash_xsd_byte_parity"},
+    {"dimension":"persistence","failure":"v0_artifact_unreadable_or_reinterpreted","control":"no_early_writes_explicit_v1_v0_reader_no_migration"},
+    {"dimension":"external_consumer","failure":"export_or_product_hash_client_breaks","control":"preserve_all_v0_surfaces_external_unknown_blocks_deletion"},
+    {"dimension":"product","failure":"shadow_output_published_or_persisted","control":"legacy_authority_separate_opt_in_no_shadow_in_product_receipt"},
+    {"dimension":"rollback","failure":"disable_requires_data_or_tax_replay","control":"retain_old_code_resource_reader_and_explicit_route"}
+  ],
+  "identity_plan": {
+    "audit_envelope_hash": "semantic_input_sha256",
+    "semantic_value_hash": "semantic_value_sha256",
+    "target_hashes": ["mapping_target_value_sha256", "xml_sha256"],
+    "invariant": "all_three_have_distinct_meanings_and_none_substitutes_for_release_authority"
+  },
+  "projection_definition_versioning": {
+    "source_path_change_requires_new_version_and_hash": true,
+    "retain_v0": true,
+    "dual_relationship_recorded": true,
+    "same_mechanics_for_byte_parity": ["tree", "mapping_ids", "target_paths", "transforms", "constants", "ordering", "serializer", "xsd"]
+  },
+  "deprecation_prerequisites": [
+    "external_owner_confirmation_or_compatibility_plan",
+    "v0_readability_for_full_retention",
+    "all_production_consumers_use_released_values",
+    "all_active_profiles_pass_required_parity",
+    "refund_balanced_multi_empty_have_valid_package_fixtures_and_terminals",
+    "every_projected_derived_value_has_one_replayable_binding",
+    "shadow_observation_has_no_unresolved_mismatch",
+    "product_public_versioning_and_rollback_proven",
+    "separate_destructive_goal_authorized"
+  ],
+  "do_not_touch_first_slice": [
+    "gate3_and_gate4_owners",
+    "all_tax_models_and_declaration_components",
+    "gate5_resolved_declaration_package.py",
+    "trusted_full_declaration_definition_and_resources",
+    "current_semantic_compile_validator_schema_status_exports",
+    "current_projection_definition_and_hash",
+    "tree_projector_serializer_xsd_validator_and_xsd",
+    "e2e_runtime_result_receipt_hash_chain",
+    "artifact_store_resolver_models_database_migrations_retention",
+    "openwebui_product_pipe_download_acl_user_isolation",
+    "current_artifact_result_receipt_schema_versions",
+    "unrelated_dirty_tree_files"
+  ],
+  "performance": {
+    "candidate": "O(declaration_value_leaves)",
+    "release": "O(25_obligations_plus_evidence_bindings)",
+    "projection": "O(resolved_declaration_values)",
+    "shadow": "two_projection_and_serialization_passes_only",
+    "forbidden_reruns": ["gate4", "tax_models", "package_assembly", "source_reads", "llm_provider", "sql"]
+  },
+  "recommended_first_implementation_goal": {
+    "goal": "G5.39AE",
+    "title": "Additive Inactive Declaration Value Candidate",
+    "one_slice_only": true,
+    "changes": [
+      "existing_semantic_runtime_candidate_method",
+      "candidate_validator_and_stable_hash",
+      "AD_VIEW_001_to_004_AD_ID_001_AD_FACTORY_001",
+      "regenerated_gate1_bundle_and_exact_hash_guards"
+    ],
+    "not_authorized": ["release", "projector_call", "e2e_call", "persistence", "product", "activation", "commit_push_pr_without_separate_authorization"]
+  },
+  "scope_stop": {
+    "production_code_changed_by_g5_39ad": false,
+    "production_tests_changed_by_g5_39ad": false,
+    "dto_or_schema_changed_by_g5_39ad": false,
+    "projection_definition_changed_by_g5_39ad": false,
+    "migration_or_activation": false,
+    "commit_push_pr": false,
+    "g5_40_authorized": false
+  },
+  "privacy": {
+    "raw_customer_or_private_values": false,
+    "raw_xml": false,
+    "safe_aggregate_and_contract_evidence_only": true
+  }
+}

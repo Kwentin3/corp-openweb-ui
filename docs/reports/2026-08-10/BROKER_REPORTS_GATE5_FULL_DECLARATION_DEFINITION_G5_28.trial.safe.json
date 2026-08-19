@@ -1,0 +1,68 @@
+{
+  "schema_version": "broker_reports_gate5_full_declaration_definition_trial_v0",
+  "goal": "G5.28",
+  "status": "completed",
+  "provider_inference_count": 1,
+  "pre_inference_transport_launch_failures": [
+    {
+      "ordinal": 1,
+      "cause": "outer command omitted the exec subcommand",
+      "input_accepted": false,
+      "candidate_created": false,
+      "provider_inference": false
+    },
+    {
+      "ordinal": 2,
+      "cause": "background wrapper did not bind positional arguments and never started codex",
+      "input_accepted": false,
+      "candidate_created": false,
+      "provider_inference": false
+    }
+  ],
+  "inference": {
+    "provider": "openai",
+    "client": "codex-cli 0.147.0-alpha.6.5",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "sandbox": "read-only",
+    "working_directory": "new_empty_temporary_directory",
+    "session": "ephemeral",
+    "user_config": "ignored",
+    "repository_rules": "ignored",
+    "provider_output_schema": null,
+    "history_messages": 0,
+    "retry_count": 0,
+    "follow_up_count": 0,
+    "repair_count": 0,
+    "started_at": "2026-08-10T18:32:26.496247Z",
+    "completed_at": "2026-08-10T18:34:39.790064Z",
+    "duration_seconds": 133.294,
+    "exit_code": 0,
+    "reported_tokens_used": 13605
+  },
+  "payload": {
+    "utf8_bytes": 21536,
+    "sha256": "e37001463b156034bee6c0843d30f9068b66d1dbdda96dd8265159bd81d5cf90"
+  },
+  "candidate": {
+    "resource": "gate5_full_declaration_definition_candidate.g528.json",
+    "utf8_bytes": 7472,
+    "sha256": "3a5cf39a0a70b308c72e8f8688c6785618746a4634d2c41360d6ee5f871db639",
+    "strict_json_object": true,
+    "manual_edits": 0
+  },
+  "deterministic_validation": {
+    "status": "eligible_for_review",
+    "domain_count": 12,
+    "official_surface_count": 14,
+    "unmapped_surface_count": 0,
+    "target_independence": "passed"
+  },
+  "semantic_review": {
+    "verdict": "PARTIALLY_PROVEN",
+    "publication_status": "review_rejected",
+    "finding_ids": [
+      "official_surface_07_mixed_applicability_semantics_unaccounted"
+    ]
+  }
+}

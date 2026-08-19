@@ -1,0 +1,38 @@
+{
+  "case_status": "failed",
+  "duration_ms": 29.778,
+  "engine_strings_used": 0,
+  "goal": "G5.97",
+  "implementation_sha256": "15d93ccadb8c914db505215f03eaa11635996fdf4feb3f61430d0ab23e7a305b",
+  "invented_source_literals": 0,
+  "materialized_columns": 0,
+  "materialized_rows": 0,
+  "page": 29,
+  "phase": "frozen_unseen_holdout_materialization",
+  "post_open_tuning": false,
+  "privacy": {
+    "customer_literals_in_safe_output": false,
+    "customer_paths_in_safe_output": false,
+    "private_evidence_outside_git": true,
+    "provider_payloads_in_safe_output": false,
+    "source_coordinates_in_safe_output": false
+  },
+  "provider_calls_during_materialization": 0,
+  "reason_code": "g597_breadcrumb_line_ambiguous",
+  "schema_version": "broker_reports_native_table_engine_g597_holdout_safe_v1",
+  "scope": {
+    "gate2_only": true,
+    "gate3_plus": false,
+    "maximum_holdout_provider_calls": 1,
+    "new_dependency": false,
+    "production_activation": false,
+    "production_owner_changes": false,
+    "provider_calls_for_development": 0,
+    "research_only": true
+  },
+  "source_ref_coverage_ratio": 0.0,
+  "source_value_refs": 0,
+  "source_words": 0,
+  "status": "stopped",
+  "terminal": "FROZEN_UNSEEN_HOLDOUT_FAILED"
+}

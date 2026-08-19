@@ -63,6 +63,13 @@ def test_full_document_batch_is_sequential_and_merges_in_target_order(
 
     assert result.selection_mode == "full_document"
     assert result.document_status == "complete"
+    assert result.semantic_scope == {
+        "publication_mode": "FULL",
+        "document_id": document_id,
+        "requested_financial_labels": [],
+        "requested_roles": [],
+        "selected_chunk_ordinals": list(result.selected_chunk_ordinals),
+    }
     assert len(captured) == 2 * len(chunk_set["chunks"])
     assert result.metrics["chunks_validated"] == len(chunk_set["chunks"])
     assert result.metrics["chunks_rejected"] == 0
@@ -77,6 +84,12 @@ def test_full_document_batch_is_sequential_and_merges_in_target_order(
         for annotation in result.merged_output["annotations"]
     ] == expected_targets
     assert result.metrics["input_tokens_total"] == 100 * len(captured)
+    assert result.metrics["semantic_attempts"] == len(captured)
+    assert result.metrics["transport_submissions"] == len(captured)
+    assert result.metrics["transport_failures_before_semantic_response"] == 0
+    assert result.metrics["operational_retries"] == 0
+    assert result.metrics["semantic_responses_received"] == len(captured)
+    assert result.metrics["semantic_rejections"] == 0
     schema_versions = []
     for request in captured:
         assert len(request["messages"]) == 3
@@ -92,7 +105,7 @@ def test_full_document_batch_is_sequential_and_merges_in_target_order(
     ) == len(chunk_set["chunks"])
 
 
-def test_rejected_chunk_is_visible_and_document_is_incomplete_without_retry(
+def test_rejected_chunk_is_visible_and_document_is_incomplete_without_semantic_retry(
     tmp_path: Path,
 ) -> None:
     store, context, document_id = _active_large_csv(tmp_path)
@@ -114,6 +127,8 @@ def test_rejected_chunk_is_visible_and_document_is_incomplete_without_retry(
     assert len(captured) == 2 * len(chunk_set["chunks"]) - 1
     assert result.document_status == "incomplete"
     assert result.metrics["chunks_rejected"] == 1
+    assert result.metrics["operational_retries"] == 0
+    assert result.metrics["semantic_rejections"] == 1
     assert result.metrics["chunks_validated"] == len(chunk_set["chunks"]) - 1
     rejected = [
         outcome
@@ -162,6 +177,36 @@ def test_predeclared_subset_is_never_reported_as_complete_document(
         outcome.chunk["canonical_binding"]["document_id"]
         for outcome in result.outcomes
     } == {document_id}
+
+
+def test_requested_meaning_is_machine_readable_demand_scope(
+    tmp_path: Path,
+) -> None:
+    store, context, document_id = _active_large_csv(tmp_path)
+    client, _captured = _client()
+
+    result = asyncio.run(
+        Gate3ChunkBatchLabelingFactory(
+            store=store,
+            read_enabled=True,
+            model_client=client,
+            model_id=MODEL_ID,
+        ).create(
+            document_id=document_id,
+            context=context,
+            requested_financial_labels=("DIVIDEND_INCOME",),
+        )
+    )
+
+    assert result.selection_mode == "full_document"
+    assert result.document_status == "complete"
+    assert result.semantic_scope == {
+        "publication_mode": "DEMAND_SCOPED",
+        "document_id": document_id,
+        "requested_financial_labels": ["DIVIDEND_INCOME"],
+        "requested_roles": ["amount", "asset", "currency", "date"],
+        "selected_chunk_ordinals": list(result.selected_chunk_ordinals),
+    }
 
 
 @pytest.mark.parametrize("selection", [(), (2, 1), (1, 1), (999,)])

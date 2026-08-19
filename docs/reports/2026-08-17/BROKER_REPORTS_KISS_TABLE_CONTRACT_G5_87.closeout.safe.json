@@ -1,0 +1,12 @@
+{
+  "schema_version": "broker_reports_g587_closeout_safe_v1",
+  "goal": "G5.87",
+  "status": "CLOSED_AT_GOAL_BOUNDARY",
+  "terminal": "KISS_TABLE_CONTRACT_QUALIFICATION_INCOMPLETE_LOCAL_VALIDATOR_ABORT",
+  "semantic_reliability_claim": false,
+  "holdout_generalization_claim": false,
+  "product_change": false,
+  "provider_calls_after_abort": 0,
+  "next_goal_started": false,
+  "next_allowed_goal": "authorize_one_new_clean_preregistered_run_of_the_corrected_inactive_validator"
+}

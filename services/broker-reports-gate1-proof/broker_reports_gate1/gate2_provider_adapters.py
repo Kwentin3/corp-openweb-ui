@@ -36,12 +36,8 @@ from .gate2_model_requests import (
 )
 
 
-FACTORY_REQUIRED = (
-    "Gate2ProviderAdapterFactory.create is the only production Gate 2 provider adapter entrypoint"
-)
-FORBIDDEN = (
-    "Pipes and Gate 2 business runtimes must not build vendor payloads or call provider endpoints"
-)
+FACTORY_REQUIRED = "Gate2ProviderAdapterFactory.create is the only production Gate 2 provider adapter entrypoint"
+FORBIDDEN = "Pipes and Gate 2 business runtimes must not build vendor payloads or call provider endpoints"
 MAX_NATIVE_PROVIDER_RESPONSE_BYTES = 1_048_576
 CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_POLICY = (
     "direct_exact_provider_http_via_openwebui_connection_v1"
@@ -49,9 +45,7 @@ CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_POLICY = (
 CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_CONTRACT_SCHEMA_VERSION = (
     "gate2_context_v2_1_budget_smoke_transport_contract_v1"
 )
-CONTEXT_V2_1_BUDGET_SMOKE_ACTUAL_TRANSPORT_TYPE = (
-    "direct_provider_http"
-)
+CONTEXT_V2_1_BUDGET_SMOKE_ACTUAL_TRANSPORT_TYPE = "direct_provider_http"
 CONTEXT_V2_1_LOCAL_SCHEMA_PROJECTION_POLICY_VERSION = (
     "broker_reports_gate2_context_v2_1_local_schema_projection_v1"
 )
@@ -63,9 +57,7 @@ _CONTEXT_V2_1_BUDGET_SMOKE_BASE_PATHS = {
 _CONTEXT_V2_1_BUDGET_SMOKE_CANONICAL_BASE_URLS = {
     "openai_gpt": "https://api.openai.com/v1",
     "anthropic_claude": "https://api.anthropic.com/v1",
-    "google_gemini": (
-        "https://generativelanguage.googleapis.com/v1beta/openai"
-    ),
+    "google_gemini": ("https://generativelanguage.googleapis.com/v1beta/openai"),
 }
 _PROVIDER_EMBEDDED_SCHEMA_PATHS = {
     "openai_response_format": (
@@ -118,9 +110,7 @@ class Gate2ContextV21BudgetSmokeTransportContract:
             "schema_version": self.schema_version,
             "transport_policy": self.transport_policy,
             "actual_transport_type": self.actual_transport_type,
-            "connection_configuration_source": (
-                self.connection_configuration_source
-            ),
+            "connection_configuration_source": (self.connection_configuration_source),
             "endpoint_url": self.endpoint_url,
             "http_method": self.http_method,
             "semantic_headers": dict(self.semantic_headers),
@@ -181,7 +171,9 @@ class Gate2OpenWebUIProviderConnectionResolver:
             base_url = str(raw_url or "").strip().rstrip("/")
             if not self._matches_profile(profile, base_url):
                 continue
-            entry_config = configs.get(str(index), {}) if isinstance(configs, dict) else {}
+            entry_config = (
+                configs.get(str(index), {}) if isinstance(configs, dict) else {}
+            )
             if isinstance(entry_config, dict) and entry_config.get("enable") is False:
                 continue
             api_key = str(keys[index] if index < len(keys) else "").strip()
@@ -211,33 +203,21 @@ class Gate2OpenWebUIProviderConnectionResolver:
         keys = self._config_value(config, "OPENAI_API_KEYS")
         configs = self._config_value(config, "OPENAI_API_CONFIGS")
         if not isinstance(urls, list) or not isinstance(keys, list):
-            raise self._blocked(
-                "OpenWebUI provider connection state is unavailable"
-            )
+            raise self._blocked("OpenWebUI provider connection state is unavailable")
         canonical = self.canonical_base_url(profile)
         allowed_configured_urls = {canonical, f"{canonical}/"}
         matches: list[Gate2OpenWebUIProviderConnection] = []
         for index, raw_url in enumerate(urls):
-            if (
-                not isinstance(raw_url, str)
-                or raw_url not in allowed_configured_urls
-            ):
+            if not isinstance(raw_url, str) or raw_url not in allowed_configured_urls:
                 continue
             entry_config = (
-                configs.get(str(index), {})
-                if isinstance(configs, dict)
-                else {}
+                configs.get(str(index), {}) if isinstance(configs, dict) else {}
             )
-            if (
-                isinstance(entry_config, dict)
-                and entry_config.get("enable") is False
-            ):
+            if isinstance(entry_config, dict) and entry_config.get("enable") is False:
                 continue
             api_key = str(keys[index] if index < len(keys) else "").strip()
             if not api_key:
-                raise self._blocked(
-                    "OpenWebUI provider connection has no API key"
-                )
+                raise self._blocked("OpenWebUI provider connection has no API key")
             matches.append(
                 Gate2OpenWebUIProviderConnection(
                     base_url=canonical,
@@ -313,11 +293,8 @@ class Gate2OpenWebUIProviderConnectionResolver:
         return (
             isinstance(connection, Gate2OpenWebUIProviderConnection)
             and connection.base_url
-            == _CONTEXT_V2_1_BUDGET_SMOKE_CANONICAL_BASE_URLS.get(
-                profile.profile_id
-            )
-            and Gate2OpenWebUIProviderConnectionResolver
-            ._matches_context_v2_1_budget_smoke_profile(
+            == _CONTEXT_V2_1_BUDGET_SMOKE_CANONICAL_BASE_URLS.get(profile.profile_id)
+            and Gate2OpenWebUIProviderConnectionResolver._matches_context_v2_1_budget_smoke_profile(
                 profile,
                 connection.base_url,
             )
@@ -338,8 +315,7 @@ class Gate2OpenWebUIProviderConnectionResolver:
         if (
             not isinstance(canonical, str)
             or not canonical
-            or not Gate2OpenWebUIProviderConnectionResolver
-            ._matches_context_v2_1_budget_smoke_profile(
+            or not Gate2OpenWebUIProviderConnectionResolver._matches_context_v2_1_budget_smoke_profile(
                 profile,
                 canonical,
             )
@@ -372,9 +348,7 @@ class Gate2PreparedProviderRequest:
 
     def schema_binding_is_valid(self) -> bool:
         embedded_schema: Any = self.form_data
-        schema_path = _PROVIDER_EMBEDDED_SCHEMA_PATHS.get(
-            self.provider_adapter_id
-        )
+        schema_path = _PROVIDER_EMBEDDED_SCHEMA_PATHS.get(self.provider_adapter_id)
         if not isinstance(schema_path, tuple):
             return False
         for field in schema_path:
@@ -393,18 +367,14 @@ class Gate2PreparedProviderRequest:
         self,
         canonical_schema: dict[str, Any],
     ) -> bool:
-        if (
-            not isinstance(canonical_schema, dict)
-            or self.canonical_schema_hash
-            != _schema_hash(canonical_schema)
-        ):
+        if not isinstance(
+            canonical_schema, dict
+        ) or self.canonical_schema_hash != _schema_hash(canonical_schema):
             return False
         try:
-            expected_projection_policy = (
-                _validate_semantic_enum_projection(
-                    canonical_schema=canonical_schema,
-                    provider_schema=self.provider_visible_schema,
-                )
+            expected_projection_policy = _validate_semantic_enum_projection(
+                canonical_schema=canonical_schema,
+                provider_schema=self.provider_visible_schema,
             )
         except Gate2SourceFactRuntimeError:
             return False
@@ -419,15 +389,12 @@ class Gate2PreparedProviderRequest:
         local_projection_model_id: str,
     ) -> bool:
         try:
-            authoritative_profile = gate2_provider_profile(
-                provider_profile.profile_id
-            )
+            authoritative_profile = gate2_provider_profile(provider_profile.profile_id)
         except (AttributeError, Gate2SourceFactRuntimeError):
             return False
         if (
             provider_profile != authoritative_profile
-            or self.provider_adapter_id
-            != authoritative_profile.adapter_id
+            or self.provider_adapter_id != authoritative_profile.adapter_id
             or self.projection_policy_version
             != CONTEXT_V2_1_LOCAL_SCHEMA_PROJECTION_POLICY_VERSION
             or not isinstance(model_visible_request, dict)
@@ -454,11 +421,13 @@ class Gate2PreparedProviderRequest:
                 model_visible_request=model_visible_request,
                 model_id=local_projection_model_id,
             )
-            expected = Gate2ProviderAdapterFactory(
-                profile=authoritative_profile
-            ).create().prepare_form_data(
-                form_data=form_data,
-                response_format=response_format,
+            expected = (
+                Gate2ProviderAdapterFactory(profile=authoritative_profile)
+                .create()
+                .prepare_form_data(
+                    form_data=form_data,
+                    response_format=response_format,
+                )
             )
         except Gate2SourceFactRuntimeError:
             return False
@@ -484,8 +453,7 @@ class Gate2PreparedProviderRequest:
             return False
         if (
             provider_profile != authoritative_profile
-            or self.provider_adapter_id
-            != authoritative_profile.adapter_id
+            or self.provider_adapter_id != authoritative_profile.adapter_id
             or self.projection_policy_version
             != CONTEXT_V2_1_LOCAL_SCHEMA_PROJECTION_POLICY_VERSION
             or not isinstance(model_visible_request, dict)
@@ -528,12 +496,16 @@ class Gate2PreparedProviderRequest:
                     operation_identity=operation_identity,
                 )
             )
-            expected = Gate2ProviderAdapterFactory(
-                profile=authoritative_profile,
-                capability_probe=True,
-            ).create().prepare_context_v2_1_budget_smoke_form_data(
-                form_data=authorization.prepared_form_data,
-                response_format=response_format,
+            expected = (
+                Gate2ProviderAdapterFactory(
+                    profile=authoritative_profile,
+                    capability_probe=True,
+                )
+                .create()
+                .prepare_context_v2_1_budget_smoke_form_data(
+                    form_data=authorization.prepared_form_data,
+                    response_format=response_format,
+                )
             )
         except Gate2SourceFactRuntimeError:
             return False
@@ -551,52 +523,51 @@ class Gate2ProviderAdapter(Protocol):
     profile: Gate2ProviderProfile
     uses_openwebui_completion: bool
 
-    def validate_model(self, model_id: str) -> None:
-        ...
+    def validate_model(self, model_id: str) -> None: ...
 
-    def execution_contract(self, model_id: str) -> Gate2ProviderExecutionMetadata:
-        ...
+    def execution_contract(self, model_id: str) -> Gate2ProviderExecutionMetadata: ...
 
     def validate_execution_metadata(
         self,
         metadata: Gate2ProviderExecutionMetadata,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def prepare_form_data(
         self,
         *,
         form_data: dict[str, Any],
         response_format: dict[str, Any],
-    ) -> Gate2PreparedProviderRequest:
-        ...
+    ) -> Gate2PreparedProviderRequest: ...
 
     def prepare_context_v2_1_budget_smoke_form_data(
         self,
         *,
         form_data: dict[str, Any],
         response_format: dict[str, Any],
-    ) -> Gate2PreparedProviderRequest:
-        ...
+    ) -> Gate2PreparedProviderRequest: ...
 
     def prepare_gate3_bounded_labeling_form_data(
         self,
         *,
         form_data: dict[str, Any],
         response_format: dict[str, Any],
-    ) -> Gate2PreparedProviderRequest:
-        ...
+    ) -> Gate2PreparedProviderRequest: ...
 
-    def extract_content(self, payload: dict[str, Any]) -> Any:
-        ...
+    def prepare_gate3_metadata_form_data(
+        self,
+        *,
+        form_data: dict[str, Any],
+        response_format: dict[str, Any],
+    ) -> Gate2PreparedProviderRequest: ...
+
+    def extract_content(self, payload: dict[str, Any]) -> Any: ...
 
     def extract_prepared_content(
         self,
         payload: dict[str, Any],
         *,
         prepared_request: Gate2PreparedProviderRequest,
-    ) -> Any:
-        ...
+    ) -> Any: ...
 
     def extract_context_v2_1_prepared_content(
         self,
@@ -606,8 +577,7 @@ class Gate2ProviderAdapter(Protocol):
         canonical_schema: dict[str, Any],
         model_visible_request: dict[str, Any],
         local_projection_model_id: str,
-    ) -> Any:
-        ...
+    ) -> Any: ...
 
     def extract_context_v2_1_budget_smoke_prepared_content(
         self,
@@ -618,8 +588,7 @@ class Gate2ProviderAdapter(Protocol):
         model_visible_request: dict[str, Any],
         exact_model_id: str,
         operation_identity: str,
-    ) -> Any:
-        ...
+    ) -> Any: ...
 
     def execution_metadata(
         self,
@@ -628,36 +597,30 @@ class Gate2ProviderAdapter(Protocol):
         requested_model_id: str,
         duration_ms: int | None,
         prepared_request: Gate2PreparedProviderRequest,
-    ) -> Gate2ProviderExecutionMetadata:
-        ...
+    ) -> Gate2ProviderExecutionMetadata: ...
 
-    def validate_transport_configuration(self) -> None:
-        ...
+    def validate_transport_configuration(self) -> None: ...
 
-    def invoke_native_once(self, form_data: dict[str, Any]) -> Any:
-        ...
+    def invoke_native_once(self, form_data: dict[str, Any]) -> Any: ...
 
     def validate_context_v2_1_budget_smoke_transport_configuration(
         self,
         *,
         transport_policy: str,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     def context_v2_1_budget_smoke_transport_contract(
         self,
         *,
         transport_policy: str,
-    ) -> Gate2ContextV21BudgetSmokeTransportContract:
-        ...
+    ) -> Gate2ContextV21BudgetSmokeTransportContract: ...
 
     def invoke_context_v2_1_budget_smoke_once(
         self,
         *,
         form_data: dict[str, Any],
         transport_policy: str,
-    ) -> Any:
-        ...
+    ) -> Any: ...
 
     def context_v2_1_budget_smoke_execution_metadata(
         self,
@@ -667,8 +630,7 @@ class Gate2ProviderAdapter(Protocol):
         duration_ms: int | None,
         prepared_request: Gate2PreparedProviderRequest,
         transport_contract: Gate2ContextV21BudgetSmokeTransportContract,
-    ) -> Gate2ProviderExecutionMetadata:
-        ...
+    ) -> Gate2ProviderExecutionMetadata: ...
 
 
 class Gate2ProviderAdapterFactory:
@@ -741,9 +703,7 @@ class _Gate2OpenWebUIProviderAdapter:
         *,
         transport_policy: str,
     ) -> None:
-        self._validate_context_v2_1_budget_smoke_transport_policy(
-            transport_policy
-        )
+        self._validate_context_v2_1_budget_smoke_transport_policy(transport_policy)
         self._validate_native_transport_timeout()
         self._validate_context_v2_1_budget_smoke_provider_configuration()
         if self.native_transport_resolver is None:
@@ -754,9 +714,7 @@ class _Gate2OpenWebUIProviderAdapter:
         *,
         transport_policy: str,
     ) -> Gate2ContextV21BudgetSmokeTransportContract:
-        self._validate_context_v2_1_budget_smoke_transport_policy(
-            transport_policy
-        )
+        self._validate_context_v2_1_budget_smoke_transport_policy(transport_policy)
         self._validate_native_transport_timeout()
         self._validate_context_v2_1_budget_smoke_provider_configuration()
         canonical_connection = Gate2OpenWebUIProviderConnection(
@@ -772,22 +730,16 @@ class _Gate2OpenWebUIProviderAdapter:
                 CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_CONTRACT_SCHEMA_VERSION
             ),
             transport_policy=transport_policy,
-            actual_transport_type=(
-                CONTEXT_V2_1_BUDGET_SMOKE_ACTUAL_TRANSPORT_TYPE
-            ),
+            actual_transport_type=(CONTEXT_V2_1_BUDGET_SMOKE_ACTUAL_TRANSPORT_TYPE),
             connection_configuration_source=(
                 "openwebui_admin_connection_configuration_only"
             ),
             endpoint_url=(
-                self._context_v2_1_budget_smoke_endpoint(
-                    canonical_connection
-                )
+                self._context_v2_1_budget_smoke_endpoint(canonical_connection)
             ),
             http_method="POST",
             semantic_headers=tuple(
-                sorted(
-                    self._context_v2_1_budget_smoke_semantic_headers().items()
-                )
+                sorted(self._context_v2_1_budget_smoke_semantic_headers().items())
             ),
             timeout_seconds=self.native_transport_config.timeout_seconds,
             redirect_policy="deny_all",
@@ -845,9 +797,7 @@ class _Gate2OpenWebUIProviderAdapter:
             )
             or transport_contract
             != self.context_v2_1_budget_smoke_transport_contract(
-                transport_policy=(
-                    CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_POLICY
-                )
+                transport_policy=(CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_POLICY)
             )
         ):
             raise Gate2SourceFactRuntimeError(
@@ -865,9 +815,7 @@ class _Gate2OpenWebUIProviderAdapter:
                 duration_ms=duration_ms,
                 prepared_request=prepared_request,
             ),
-            transport_type=(
-                CONTEXT_V2_1_BUDGET_SMOKE_ACTUAL_TRANSPORT_TYPE
-            ),
+            transport_type=(CONTEXT_V2_1_BUDGET_SMOKE_ACTUAL_TRANSPORT_TYPE),
         )
 
     def validate_model(self, model_id: str) -> None:
@@ -936,9 +884,7 @@ class _Gate2OpenWebUIProviderAdapter:
         self._annotate(prepared)
         result = Gate2PreparedProviderRequest(
             form_data=prepared,
-            provider_visible_schema=copy.deepcopy(
-                adapted_json_schema["schema"]
-            ),
+            provider_visible_schema=copy.deepcopy(adapted_json_schema["schema"]),
             provider_adapter_id=self.profile.adapter_id,
             canonical_schema_hash=_schema_hash(canonical_schema),
             adapted_schema_hash=_schema_hash(adapted_json_schema["schema"]),
@@ -960,12 +906,8 @@ class _Gate2OpenWebUIProviderAdapter:
         )
         provider_form_data = copy.deepcopy(prepared_request.form_data)
         provider_form_data.pop("metadata", None)
-        self._project_context_v2_1_budget_smoke_wire_form_data(
-            provider_form_data
-        )
-        self._validate_context_v2_1_budget_smoke_wire_form_data(
-            provider_form_data
-        )
+        self._project_context_v2_1_budget_smoke_wire_form_data(provider_form_data)
+        self._validate_context_v2_1_budget_smoke_wire_form_data(provider_form_data)
         result = replace(
             prepared_request,
             form_data=provider_form_data,
@@ -1033,14 +975,69 @@ class _Gate2OpenWebUIProviderAdapter:
         result.validate_schema_binding()
         return result
 
+    def prepare_gate3_metadata_form_data(
+        self,
+        *,
+        form_data: dict[str, Any],
+        response_format: dict[str, Any],
+    ) -> Gate2PreparedProviderRequest:
+        """Project a sealed three-part metadata request without extra context."""
+
+        prepared_request = self.prepare_form_data(
+            form_data=form_data,
+            response_format=response_format,
+        )
+        provider_form_data = copy.deepcopy(prepared_request.form_data)
+        provider_form_data.pop("metadata", None)
+        messages = provider_form_data.get("messages")
+        system = provider_form_data.get("system")
+        if system is None:
+            expected_keys = {"model", "messages", "stream", "response_format"}
+            roles = ["system", "user", "user"]
+            contents = (
+                [item.get("content") for item in messages]
+                if isinstance(messages, list)
+                and all(isinstance(item, dict) for item in messages)
+                else []
+            )
+        else:
+            expected_keys = {
+                "model",
+                "max_tokens",
+                "messages",
+                "output_config",
+                "system",
+            }
+            roles = ["user", "user"]
+            contents = (
+                [system, *[item.get("content") for item in messages]]
+                if isinstance(system, str)
+                and isinstance(messages, list)
+                and all(isinstance(item, dict) for item in messages)
+                else []
+            )
+        if (
+            set(provider_form_data) != expected_keys
+            or not isinstance(messages, list)
+            or [item.get("role") for item in messages if isinstance(item, dict)]
+            != roles
+            or len(contents) != 3
+            or any(not isinstance(content, str) or not content for content in contents)
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "gate2_model_request_invalid",
+                "Gate 3 metadata request contains unexpected model context",
+            )
+        result = replace(prepared_request, form_data=provider_form_data)
+        result.validate_schema_binding()
+        return result
+
     def extract_content(self, payload: dict[str, Any]) -> Any:
         choices = payload.get("choices") if isinstance(payload, dict) else None
         if isinstance(choices, list) and choices:
             first = choices[0] if isinstance(choices[0], dict) else {}
             message = (
-                first.get("message")
-                if isinstance(first.get("message"), dict)
-                else {}
+                first.get("message") if isinstance(first.get("message"), dict) else {}
             )
             content = message.get("content")
             if isinstance(content, (str, dict)):
@@ -1078,17 +1075,14 @@ class _Gate2OpenWebUIProviderAdapter:
         model_visible_request: dict[str, Any],
         local_projection_model_id: str,
     ) -> Any:
-        if (
-            not isinstance(
-                prepared_request,
-                Gate2PreparedProviderRequest,
-            )
-            or not prepared_request.context_v2_1_contract_is_bound(
-                canonical_schema=canonical_schema,
-                provider_profile=self.profile,
-                model_visible_request=model_visible_request,
-                local_projection_model_id=local_projection_model_id,
-            )
+        if not isinstance(
+            prepared_request,
+            Gate2PreparedProviderRequest,
+        ) or not prepared_request.context_v2_1_contract_is_bound(
+            canonical_schema=canonical_schema,
+            provider_profile=self.profile,
+            model_visible_request=model_visible_request,
+            local_projection_model_id=local_projection_model_id,
         ):
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_invalid",
@@ -1113,18 +1107,15 @@ class _Gate2OpenWebUIProviderAdapter:
         exact_model_id: str,
         operation_identity: str,
     ) -> Any:
-        if (
-            not isinstance(
-                prepared_request,
-                Gate2PreparedProviderRequest,
-            )
-            or not prepared_request.context_v2_1_budget_smoke_contract_is_bound(
-                canonical_schema=canonical_schema,
-                provider_profile=self.profile,
-                model_visible_request=model_visible_request,
-                exact_model_id=exact_model_id,
-                operation_identity=operation_identity,
-            )
+        if not isinstance(
+            prepared_request,
+            Gate2PreparedProviderRequest,
+        ) or not prepared_request.context_v2_1_budget_smoke_contract_is_bound(
+            canonical_schema=canonical_schema,
+            provider_profile=self.profile,
+            model_visible_request=model_visible_request,
+            exact_model_id=exact_model_id,
+            operation_identity=operation_identity,
         ):
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_invalid",
@@ -1180,9 +1171,7 @@ class _Gate2OpenWebUIProviderAdapter:
             response_format_type=self.profile.response_format_type,
             response_format_schema_mode=self.profile.response_format_schema_mode,
             transport_type=self.profile.transport_type,
-            canonical_request_schema_hash=(
-                prepared_request.canonical_schema_hash
-            ),
+            canonical_request_schema_hash=(prepared_request.canonical_schema_hash),
             adapted_request_schema_hash=prepared_request.adapted_schema_hash,
             schema_transform_count=prepared_request.schema_transform_count,
             duration_ms=duration_ms,
@@ -1211,10 +1200,7 @@ class _Gate2OpenWebUIProviderAdapter:
     def _validate_context_v2_1_budget_smoke_transport_policy(
         transport_policy: str,
     ) -> None:
-        if (
-            transport_policy
-            != CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_POLICY
-        ):
+        if transport_policy != CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_POLICY:
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_transport_policy_mismatch",
                 "Context V2.1 budget-smoke transport policy is not exact",
@@ -1249,11 +1235,7 @@ class _Gate2OpenWebUIProviderAdapter:
     def _validate_context_v2_1_budget_smoke_wire_form_data(
         form_data: dict[str, Any],
     ) -> None:
-        if (
-            not isinstance(form_data, dict)
-            or not form_data
-            or "metadata" in form_data
-        ):
+        if not isinstance(form_data, dict) or not form_data or "metadata" in form_data:
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_invalid",
                 "Context V2.1 budget-smoke wire request is not exact",
@@ -1263,9 +1245,7 @@ class _Gate2OpenWebUIProviderAdapter:
         self,
         encoded_form_data: bytes,
     ) -> dict[str, Any]:
-        connection = (
-            self._resolve_context_v2_1_budget_smoke_provider_connection()
-        )
+        connection = self._resolve_context_v2_1_budget_smoke_provider_connection()
         request = Request(
             self._context_v2_1_budget_smoke_endpoint(connection),
             data=encoded_form_data,
@@ -1282,13 +1262,8 @@ class _Gate2OpenWebUIProviderAdapter:
                 timeout=self.native_transport_config.timeout_seconds,
             ) as response:
                 status_code = self._response_status_code(response)
-                if (
-                    not isinstance(status_code, int)
-                    or not 200 <= status_code < 300
-                ):
-                    diagnostic = self._bounded_provider_body_diagnostic(
-                        response
-                    )
+                if not isinstance(status_code, int) or not 200 <= status_code < 300:
+                    diagnostic = self._bounded_provider_body_diagnostic(response)
                     raise self._provider_http_failure(
                         status_code=status_code,
                         diagnostic=diagnostic,
@@ -1477,10 +1452,7 @@ class _Gate2OpenWebUIProviderAdapter:
         status_code: int | None,
         diagnostic: dict[str, Any],
     ) -> Gate2SourceFactRuntimeError:
-        redirect = (
-            isinstance(status_code, int)
-            and 300 <= status_code < 400
-        )
+        redirect = isinstance(status_code, int) and 300 <= status_code < 400
         failure = Gate2SourceFactRuntimeError(
             (
                 "gate2_model_provider_redirect_blocked"
@@ -1583,9 +1555,7 @@ class Gate2OpenAIResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
         if prepared_request.schema_transform_count != 1:
             return prepared_request
         prepared_form_data = copy.deepcopy(prepared_request.form_data)
-        json_schema = self._strict_schema(
-            prepared_form_data["response_format"]
-        )
+        json_schema = self._strict_schema(prepared_form_data["response_format"])
         json_schema.setdefault(
             "name",
             _OPENAI_ROOT_OBJECT_ENVELOPE_KEY,
@@ -1595,19 +1565,11 @@ class Gate2OpenAIResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
             provider_visible_schema=copy.deepcopy(
                 prepared_request.provider_visible_schema
             ),
-            provider_adapter_id=(
-                prepared_request.provider_adapter_id
-            ),
-            canonical_schema_hash=(
-                prepared_request.canonical_schema_hash
-            ),
+            provider_adapter_id=(prepared_request.provider_adapter_id),
+            canonical_schema_hash=(prepared_request.canonical_schema_hash),
             adapted_schema_hash=prepared_request.adapted_schema_hash,
-            schema_transform_count=(
-                prepared_request.schema_transform_count
-            ),
-            projection_policy_version=(
-                prepared_request.projection_policy_version
-            ),
+            schema_transform_count=(prepared_request.schema_transform_count),
+            projection_policy_version=(prepared_request.projection_policy_version),
         )
         result.validate_schema_binding()
         return result
@@ -1659,18 +1621,15 @@ class Gate2OpenAIResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
         exact_model_id: str,
         operation_identity: str,
     ) -> Any:
-        if (
-            not isinstance(
-                prepared_request,
-                Gate2PreparedProviderRequest,
-            )
-            or not prepared_request.context_v2_1_budget_smoke_contract_is_bound(
-                canonical_schema=canonical_schema,
-                provider_profile=self.profile,
-                model_visible_request=model_visible_request,
-                exact_model_id=exact_model_id,
-                operation_identity=operation_identity,
-            )
+        if not isinstance(
+            prepared_request,
+            Gate2PreparedProviderRequest,
+        ) or not prepared_request.context_v2_1_budget_smoke_contract_is_bound(
+            canonical_schema=canonical_schema,
+            provider_profile=self.profile,
+            model_visible_request=model_visible_request,
+            exact_model_id=exact_model_id,
+            operation_identity=operation_identity,
         ):
             raise Gate2SourceFactRuntimeError(
                 "gate2_model_request_invalid",
@@ -1705,8 +1664,7 @@ def _openai_root_object_envelope_required(
             properties.get(_OPENAI_ROOT_OBJECT_ENVELOPE_KEY),
             dict,
         )
-        and provider_schema.get("required")
-        == [_OPENAI_ROOT_OBJECT_ENVELOPE_KEY]
+        and provider_schema.get("required") == [_OPENAI_ROOT_OBJECT_ENVELOPE_KEY]
     )
 
 
@@ -1766,11 +1724,7 @@ def _validate_context_v2_1_terminal_response(
         "openai_response_format",
         "gemini_response_format",
     }:
-        choices = (
-            payload.get("choices")
-            if isinstance(payload, dict)
-            else None
-        )
+        choices = payload.get("choices") if isinstance(payload, dict) else None
         if (
             not isinstance(choices, list)
             or len(choices) != 1
@@ -1811,17 +1765,13 @@ class Gate2GeminiResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
             response_format=response_format,
         )
         canonical_schema = self._strict_schema(response_format)["schema"]
-        provider_schema = copy.deepcopy(
-            prepared_request.provider_visible_schema
-        )
+        provider_schema = copy.deepcopy(prepared_request.provider_visible_schema)
         restored_keywords = _project_gate3_alias_description(
             canonical_schema=canonical_schema,
             provider_schema=provider_schema,
         )
         prepared_form_data = copy.deepcopy(prepared_request.form_data)
-        provider_wrapper = self._strict_schema(
-            prepared_form_data["response_format"]
-        )
+        provider_wrapper = self._strict_schema(prepared_form_data["response_format"])
         provider_wrapper["schema"] = copy.deepcopy(provider_schema)
         result = replace(
             prepared_request,
@@ -1879,7 +1829,11 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
                 )
             role = message.get("role")
             content = message.get("content")
-            if not isinstance(content, str) or role not in {"system", "user", "assistant"}:
+            if not isinstance(content, str) or role not in {
+                "system",
+                "user",
+                "assistant",
+            }:
                 raise Gate2SourceFactRuntimeError(
                     "gate2_model_request_invalid",
                     "Anthropic native transport requires text messages",
@@ -2057,9 +2011,7 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
                 request,
                 timeout=self.native_transport_config.timeout_seconds,
             ) as response:
-                body = response.read(
-                    MAX_NATIVE_PROVIDER_RESPONSE_BYTES + 1
-                )
+                body = response.read(MAX_NATIVE_PROVIDER_RESPONSE_BYTES + 1)
         except HTTPError as exc:
             body = exc.read(MAX_NATIVE_PROVIDER_RESPONSE_BYTES + 1)
             if len(body) > MAX_NATIVE_PROVIDER_RESPONSE_BYTES:
@@ -2125,9 +2077,7 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
         return {
             "content-type": "application/json",
             "x-api-key": connection.api_key,
-            "anthropic-version": (
-                self.native_transport_config.anthropic_api_version
-            ),
+            "anthropic-version": (self.native_transport_config.anthropic_api_version),
         }
 
     def _context_v2_1_budget_smoke_semantic_headers(
@@ -2136,9 +2086,7 @@ class Gate2AnthropicNativeMessagesAdapter(_Gate2OpenWebUIProviderAdapter):
         return {
             "content-type": "application/json",
             "authorization": "x-api-key",
-            "anthropic-version": (
-                self.native_transport_config.anthropic_api_version
-            ),
+            "anthropic-version": (self.native_transport_config.anthropic_api_version),
         }
 
 
@@ -2313,9 +2261,7 @@ def _project_openai_root_object_schema(schema: dict[str, Any]) -> int:
         if key not in {"$schema", "title"}
     }
     projected = {
-        key: canonical[key]
-        for key in ("$schema", "title")
-        if key in canonical
+        key: canonical[key] for key in ("$schema", "title") if key in canonical
     }
     projected.update(
         {
@@ -2333,10 +2279,7 @@ def _project_openai_root_object_schema(schema: dict[str, Any]) -> int:
 
 
 def _unwrap_openai_root_object_content(value: Any) -> Any:
-    if (
-        isinstance(value, dict)
-        and set(value) == {_OPENAI_ROOT_OBJECT_ENVELOPE_KEY}
-    ):
+    if isinstance(value, dict) and set(value) == {_OPENAI_ROOT_OBJECT_ENVELOPE_KEY}:
         return value[_OPENAI_ROOT_OBJECT_ENVELOPE_KEY]
     return value
 
@@ -2358,16 +2301,10 @@ def _project_gemini_structural_schema(
                 "gate2_provider_schema_adaptation_conflict",
                 "Gemini schema adaptation found incompatible const and enum values",
             )
-        if (
-            existing_enum is None
-            and property_name in _GEMINI_PRESERVED_ENUM_PROPERTIES
-        ):
+        if existing_enum is None and property_name in _GEMINI_PRESERVED_ENUM_PROPERTIES:
             schema["enum"] = [copy.deepcopy(constant)]
     for keyword in _GEMINI_REMOVED_SCHEMA_KEYWORDS:
-        if (
-            keyword == "enum"
-            and property_name in _GEMINI_PRESERVED_ENUM_PROPERTIES
-        ):
+        if keyword == "enum" and property_name in _GEMINI_PRESERVED_ENUM_PROPERTIES:
             continue
         if keyword in schema:
             schema.pop(keyword)
@@ -2380,9 +2317,7 @@ def _project_gemini_structural_schema(
                     transform_count += _project_gemini_structural_schema(
                         child,
                         property_name=(
-                            str(child_name)
-                            if keyword == "properties"
-                            else None
+                            str(child_name) if keyword == "properties" else None
                         ),
                     )
     for keyword in _SCHEMA_SINGLE_KEYWORDS:
@@ -2421,6 +2356,7 @@ def _project_gate3_alias_description(
     candidate_paths = (
         ("$defs", "annotation", "properties", "target_alias"),
         ("$defs", "roleBinding", "properties", "target_alias"),
+        ("$defs", "classification", "properties", "assertion_id"),
     )
     path = next(
         (
@@ -2439,14 +2375,10 @@ def _project_gate3_alias_description(
     provider_alias: Any = provider_schema
     for field in path:
         canonical_alias = (
-            canonical_alias.get(field)
-            if isinstance(canonical_alias, dict)
-            else None
+            canonical_alias.get(field) if isinstance(canonical_alias, dict) else None
         )
         provider_alias = (
-            provider_alias.get(field)
-            if isinstance(provider_alias, dict)
-            else None
+            provider_alias.get(field) if isinstance(provider_alias, dict) else None
         )
     description = (
         canonical_alias.get("description")
@@ -2471,9 +2403,7 @@ def _project_gate3_alias_description(
     return int(changed)
 
 
-def _schema_value_at_path(
-    schema: dict[str, Any], path: tuple[str, ...]
-) -> Any:
+def _schema_value_at_path(schema: dict[str, Any], path: tuple[str, ...]) -> Any:
     value: Any = schema
     for field in path:
         value = value.get(field) if isinstance(value, dict) else None
@@ -2664,7 +2594,10 @@ def provider_error_code(payload: dict[str, Any], *, source_profile: bool) -> str
             return "gate2_model_schema_required_properties_invalid"
         if "additionalproperties" in rendered or "additional_properties" in rendered:
             return "gate2_model_schema_additional_properties_invalid"
-        if "must have a 'type' key" in rendered or 'must have a \\"type\\" key' in rendered:
+        if (
+            "must have a 'type' key" in rendered
+            or 'must have a \\"type\\" key' in rendered
+        ):
             return "gate2_model_schema_type_key_missing"
         if "nullable" in rendered or "invalid nullable" in rendered:
             return "gate2_model_schema_nullable_type_invalid"
@@ -2702,12 +2635,14 @@ def provider_error_code(payload: dict[str, Any], *, source_profile: bool) -> str
     ):
         return "gate2_model_provider_rate_limited"
     if "model" in rendered and (
-        "not found" in rendered
-        or "unavailable" in rendered
-        or "404" in rendered
+        "not found" in rendered or "unavailable" in rendered or "404" in rendered
     ):
         return "gate2_model_unavailable"
-    if "unauthorized" in rendered or "authentication" in rendered or "api key" in rendered:
+    if (
+        "unauthorized" in rendered
+        or "authentication" in rendered
+        or "api key" in rendered
+    ):
         return "gate2_model_provider_auth_failed"
     if status_codes & {500, 502, 503, 504} or any(
         marker in rendered

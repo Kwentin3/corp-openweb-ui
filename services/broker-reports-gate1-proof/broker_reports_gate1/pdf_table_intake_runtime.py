@@ -14,21 +14,29 @@ from .pdf_grid_experiment_provider import (
     PdfGridProviderError,
 )
 from .pdf_hybrid_contracts import sha256_json
+from .pdf_table_locator import (
+    PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
+    PDF_TABLE_LOCATOR_OUTPUT_SCHEMA,
+    PDF_TABLE_LOCATOR_POLICY_VERSION,
+    PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
+    PDF_TABLE_LOCATOR_PROMPT,
+    PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
+    PdfTableLocatorError,
+    PdfTableLocatorProjectionConfig,
+    PdfTableLocatorProjectionFactory,
+)
 from .pdf_table_raster import (
-    CANONICAL_TABLE_REGION_POLICY_VERSION,
-    PDF_TABLE_CANDIDATE_RASTER_POLICY_VERSION,
-    PDF_TABLE_CANDIDATE_SCHEMA,
     PdfTableRasterConfig,
     PdfTableRasterError,
     PdfTableRasterFactory,
 )
 
 
-PDF_TABLE_DETECTION_REQUEST_SCHEMA = "broker_reports_pdf_table_detection_request_v3"
-PDF_TABLE_DETECTION_RESPONSE_SCHEMA = "broker_reports_pdf_table_detection_response_v2"
+PDF_TABLE_DETECTION_REQUEST_SCHEMA = "broker_reports_pdf_table_detection_request_v4"
+PDF_TABLE_DETECTION_RESPONSE_SCHEMA = PDF_TABLE_LOCATOR_RESPONSE_SCHEMA
 PDF_TABLE_DETECTION_ATTEMPT_SCHEMA = "broker_reports_pdf_table_detection_attempt_v1"
 PDF_TABLE_INTAKE_RUN_SCHEMA = "broker_reports_pdf_table_intake_run_v1"
-PDF_TABLE_INTAKE_POLICY_VERSION = "pdf_table_intake_policy_v4"
+PDF_TABLE_INTAKE_POLICY_VERSION = "pdf_table_intake_policy_v6"
 FACTORY_REQUIRED = (
     "PdfTableIntakeRuntimeFactory.create_for_openwebui is the only supported "
     "live PDF table detection and crop entrypoint"
@@ -40,8 +48,14 @@ FORBIDDEN = (
 
 
 class PdfTableIntakeError(RuntimeError):
-    def __init__(self, code: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        *,
+        private_attempt: dict[str, Any] | None = None,
+    ) -> None:
         self.code = code
+        self.private_attempt = private_attempt
         super().__init__(code)
 
 
@@ -62,6 +76,7 @@ class PdfTableIntakeResult:
     safe_summary: dict[str, Any]
     private_candidates: list[dict[str, Any]]
     private_detection_attempts: list[dict[str, Any]]
+    private_page_results: list[dict[str, Any]]
 
 
 class PdfTableIntakeRuntimeFactory:
@@ -90,7 +105,12 @@ class PdfTableIntakeRuntimeFactory:
                 vertical_padding_fraction=self.config.vertical_padding_fraction,
             )
         ).create()
-        return PdfTableIntakeRuntime(self.config, provider, raster)
+        locator = PdfTableLocatorProjectionFactory(
+            PdfTableLocatorProjectionConfig(
+                maximum_tables=self.config.maximum_candidates_per_page
+            )
+        ).create()
+        return PdfTableIntakeRuntime(self.config, provider, raster, locator)
 
     def _validate_config(self) -> None:
         if self.config.dpi != 150:
@@ -112,11 +132,12 @@ class PdfTableIntakeRuntimeFactory:
 
 class PdfTableIntakeRuntime:
     def __init__(
-        self, config: PdfTableIntakeConfig, provider: Any, raster: Any
+        self, config: PdfTableIntakeConfig, provider: Any, raster: Any, locator: Any
     ) -> None:
         self.config = config
         self.provider = provider
         self.raster = raster
+        self.locator = locator
 
     def run(self, documents: list[dict[str, Any]]) -> PdfTableIntakeResult:
         if not self.config.enabled:
@@ -127,10 +148,12 @@ class PdfTableIntakeRuntime:
                     pages_total=0,
                     candidates_total=0,
                     failed_pages=[],
+                    rejected_regions=[],
                     detector_qualification=None,
                 ),
                 private_candidates=[],
                 private_detection_attempts=[],
+                private_page_results=[],
             )
         normalized_documents = self._validate_documents(documents)
         if not normalized_documents:
@@ -141,10 +164,12 @@ class PdfTableIntakeRuntime:
                     pages_total=0,
                     candidates_total=0,
                     failed_pages=[],
+                    rejected_regions=[],
                     detector_qualification=None,
                 ),
                 private_candidates=[],
                 private_detection_attempts=[],
+                private_page_results=[],
             )
         try:
             qualification = self.provider.qualify()
@@ -157,7 +182,9 @@ class PdfTableIntakeRuntime:
 
         candidates: list[dict[str, Any]] = []
         attempts: list[dict[str, Any]] = []
+        page_results: list[dict[str, Any]] = []
         failures: list[dict[str, Any]] = []
+        rejected_regions: list[dict[str, Any]] = []
         pages_total = 0
         for document in normalized_documents:
             page_count = self._page_count(document["pdf_bytes"])
@@ -166,19 +193,36 @@ class PdfTableIntakeRuntime:
                 raise PdfTableIntakeError("pdf_table_intake_page_budget_exceeded")
             for page_number in range(1, page_count + 1):
                 try:
-                    page_candidates, attempt = self._run_page(
+                    page_result, attempt = self._run_page(
                         document=document,
                         page_number=page_number,
                         qualification=qualification,
                     )
-                    candidates.extend(page_candidates)
+                    candidates.extend(page_result["regions"])
+                    page_results.append(page_result)
                     attempts.append(attempt)
+                    rejected_total = int(attempt.get("rejected_regions_total") or 0)
+                    if rejected_total:
+                        rejected_regions.append(
+                            {
+                                "document_ref": document["document_ref"],
+                                "page_number": page_number,
+                                "rejected_regions_total": rejected_total,
+                                "reason_codes": list(
+                                    attempt.get("rejected_region_reason_codes") or []
+                                ),
+                            }
+                        )
                 except (
                     PdfTableIntakeError,
                     PdfTableRasterError,
                     PdfGridProviderError,
+                    PdfTableLocatorError,
                 ) as exc:
                     code = getattr(exc, "code", "pdf_table_intake_page_failed")
+                    private_attempt = getattr(exc, "private_attempt", None)
+                    if isinstance(private_attempt, dict):
+                        attempts.append(copy.deepcopy(private_attempt))
                     failures.append(
                         {
                             "document_ref": document["document_ref"],
@@ -186,8 +230,27 @@ class PdfTableIntakeRuntime:
                             "failure_code": str(code),
                         }
                     )
+                    page_results.append(
+                        {
+                            "schema_version": "broker_reports_pdf_table_locator_page_v1",
+                            "document_ref": document["document_ref"],
+                            "pdf_sha256": document["pdf_sha256"],
+                            "page_number": page_number,
+                            "status": "failed",
+                            "failure_code": str(code),
+                            "regions": [],
+                        }
+                    )
 
-        status = "completed" if not failures else "failed"
+        status = (
+            "failed"
+            if failures
+            else (
+                "completed_with_rejected_regions"
+                if rejected_regions
+                else "completed"
+            )
+        )
         return PdfTableIntakeResult(
             safe_summary=self._summary(
                 status=status,
@@ -195,10 +258,13 @@ class PdfTableIntakeRuntime:
                 pages_total=pages_total,
                 candidates_total=len(candidates),
                 failed_pages=failures,
+                rejected_regions=rejected_regions,
                 detector_qualification=qualification,
             ),
-            private_candidates=candidates,
+            # Legacy VLM-transcription crops are intentionally not produced.
+            private_candidates=[],
             private_detection_attempts=attempts,
+            private_page_results=page_results,
         )
 
     def _run_page(
@@ -207,7 +273,7 @@ class PdfTableIntakeRuntime:
         document: dict[str, Any],
         page_number: int,
         qualification: dict[str, Any],
-    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         page_ref = "pdfpage_" + stable_digest(
             [document["pdf_sha256"], page_number], length=24
         )
@@ -258,11 +324,41 @@ class PdfTableIntakeRuntime:
         attempt = copy.deepcopy(response.get("attempt") or {})
         if attempt.get("terminal_failure_class") is not None:
             raise PdfTableIntakeError("pdf_table_detector_terminal_failure")
-        regions = validate_table_detection_output(
-            response.get("json_output"),
-            request_id=request_id,
-            maximum_candidates=self.config.maximum_candidates_per_page,
-        )
+        try:
+            projection = self.locator.project(
+                provider_value=response.get("json_output"),
+                raster_manifest=page_raster["manifest"],
+                expected_page_bbox=page_bbox,
+            )
+        except PdfTableLocatorError as exc:
+            raise PdfTableIntakeError(
+                exc.code,
+                private_attempt={
+                    "schema_version": PDF_TABLE_DETECTION_ATTEMPT_SCHEMA,
+                    "request_id": request_id,
+                    "document_ref": document["document_ref"],
+                    "pdf_sha256": document["pdf_sha256"],
+                    "page_number": page_number,
+                    "page_ref": page_ref,
+                    "page_raster_manifest": page_raster["manifest"],
+                    "model_view_hash": sha256_json(model_view),
+                    "output_schema_hash": sha256_json(output_schema),
+                    "token_count": token_count,
+                    "provider_attempt": attempt,
+                    "provider_response_hash": response.get("response_hash"),
+                    "raw_private_response": copy.deepcopy(
+                        response.get("raw_private_response") or {}
+                    ),
+                    "rejected_json_output": copy.deepcopy(
+                        response.get("json_output")
+                    ),
+                    "validated_regions": [],
+                    "terminal_status": "rejected",
+                    "validation_error_code": exc.code,
+                    "hidden_retry": False,
+                    "provider_failover": False,
+                },
+            ) from exc
         detector_identity = {
             "provider_profile": attempt.get("provider_profile"),
             "provider_profile_revision": attempt.get("provider_profile_revision"),
@@ -273,32 +369,19 @@ class PdfTableIntakeRuntime:
             "response_hash": response.get("response_hash"),
             "qualification_response_hash": qualification.get("response_hash"),
         }
-        page_candidates = []
-        for region in regions:
-            candidate_ref = "pdftable_" + stable_digest(
-                [
-                    PDF_TABLE_CANDIDATE_SCHEMA,
-                    document["pdf_sha256"],
-                    page_number,
-                    region,
-                    self.config.horizontal_padding_fraction,
-                    self.config.vertical_padding_fraction,
-                    self.config.dpi,
-                ],
-                length=24,
-            )
-            rendered = self.raster.render_detected_region(
-                pdf_bytes=document["pdf_bytes"],
-                pdf_sha256=document["pdf_sha256"],
-                document_ref=document["document_ref"],
-                page_number=page_number,
-                candidate_ref=candidate_ref,
-                detected_bbox_normalized=region,
-                detector_contract_version=PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-                detector_identity=detector_identity,
-                dpi=self.config.dpi,
-            )
-            page_candidates.append(rendered)
+        regions = [
+            {
+                **copy.deepcopy(region),
+                "document_ref": document["document_ref"],
+                "pdf_sha256": document["pdf_sha256"],
+                "page_number": page_number,
+                "page_ref": page_ref,
+                "detector_identity": copy.deepcopy(detector_identity),
+                "detector_contract_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
+                "model_values_used_as_source_literals": False,
+            }
+            for region in projection["tables"]
+        ]
         private_attempt = {
             "schema_version": PDF_TABLE_DETECTION_ATTEMPT_SCHEMA,
             "request_id": request_id,
@@ -316,11 +399,26 @@ class PdfTableIntakeRuntime:
                 response.get("raw_private_response") or {}
             ),
             "validated_regions": copy.deepcopy(regions),
+            "rejected_regions_total": 0,
+            "rejected_region_reason_codes": [],
             "terminal_status": "validated",
             "hidden_retry": False,
             "provider_failover": False,
         }
-        return page_candidates, private_attempt
+        page_result = {
+            "schema_version": "broker_reports_pdf_table_locator_page_v1",
+            "policy_version": PDF_TABLE_LOCATOR_POLICY_VERSION,
+            "document_ref": document["document_ref"],
+            "pdf_sha256": document["pdf_sha256"],
+            "page_number": page_number,
+            "page_ref": page_ref,
+            "status": "located" if regions else "located_no_tables",
+            "page_bbox_pdf_points": list(page_bbox),
+            "regions": regions,
+            "model_values_used_as_source_literals": False,
+            "pdfplumber_settings_selected_by_model": False,
+        }
+        return page_result, private_attempt
 
     def _summary(
         self,
@@ -330,6 +428,7 @@ class PdfTableIntakeRuntime:
         pages_total: int,
         candidates_total: int,
         failed_pages: list[dict[str, Any]],
+        rejected_regions: list[dict[str, Any]],
         detector_qualification: dict[str, Any] | None,
     ) -> dict[str, Any]:
         safe_qualification = None
@@ -360,23 +459,35 @@ class PdfTableIntakeRuntime:
             "documents_total": documents_total,
             "pages_total": pages_total,
             "candidates_total": candidates_total,
+            "regions_total": candidates_total,
             "failed_pages_total": len(failed_pages),
             "failed_pages": copy.deepcopy(failed_pages),
-            "detector_contract_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-            "candidate_contract_version": PDF_TABLE_CANDIDATE_SCHEMA,
-            "raster_policy_version": PDF_TABLE_CANDIDATE_RASTER_POLICY_VERSION,
-            "canonical_table_region_policy_version": (
-                CANONICAL_TABLE_REGION_POLICY_VERSION
+            "rejected_regions_total": sum(
+                int(item.get("rejected_regions_total") or 0)
+                for item in rejected_regions
             ),
+            "rejected_regions": copy.deepcopy(rejected_regions),
+            "detector_region_completeness_status": (
+                "partial"
+                if failed_pages or rejected_regions
+                else "complete"
+            ),
+            "detector_contract_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
+            "locator_policy_version": PDF_TABLE_LOCATOR_POLICY_VERSION,
+            "locator_projection_schema": PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
+            "coordinate_contract": PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
             "detector_provider_profile": self.config.detector_provider_profile,
             "detector_model_id": self.config.detector_model_id,
             "dpi": self.config.dpi,
             "horizontal_padding_fraction": self.config.horizontal_padding_fraction,
             "vertical_padding_fraction": self.config.vertical_padding_fraction,
             "padding_basis": "legacy_configuration_retained_not_applied",
-            "crop_boundary_basis": "canonical_table_region",
+            "crop_boundary_basis": "locator_region_pdf_points",
             "detector_qualification": safe_qualification,
             "gate2_boundary_ready": status == "completed",
+            "legacy_vlm_transcription_route_active": False,
+            "model_values_used_as_source_literals": False,
+            "pdfplumber_settings_selected_by_model": False,
             "rows_columns_cells_inferred": False,
             "financial_semantics_inferred": False,
         }
@@ -386,9 +497,9 @@ class PdfTableIntakeRuntime:
                 for key in (
                     "policy_version",
                     "detector_contract_version",
-                    "candidate_contract_version",
-                    "raster_policy_version",
-                    "canonical_table_region_policy_version",
+                    "locator_policy_version",
+                    "locator_projection_schema",
+                    "coordinate_contract",
                     "detector_provider_profile",
                     "detector_model_id",
                     "dpi",
@@ -460,171 +571,9 @@ class PdfTableIntakeRuntime:
             "schema_version": PDF_TABLE_DETECTION_REQUEST_SCHEMA,
             "request_id": request_id,
             "page_number": page_number,
-            "task": "detect_table_regions_only",
-            "instructions": [
-                "Inspect the entire page image and return every complete visible table region.",
-                "A table can be ruled or borderless. Sparse but aligned content is evidence of rows or columns.",
-                "Return the OUTER boundary of the complete table, never an interior numeric or data-only rectangle.",
-                "The left boundary must include the leftmost row label or first column, and the right boundary must include the rightmost label, value, or border.",
-                "Include the complete title, all header rows, all visible data rows, totals, footnotes, currency symbols, and edge labels that visually belong to the table.",
-                "For a continued multi-page table, include the complete visible continuation from its repeated header through its last visible row or total on this page.",
-                "Do not split one physical table into arbitrary panels. Separate only side-by-side tables that have independent headings or outer borders.",
-                "A document identity header, table title strip, data-only fragment, or isolated note is not a complete table region and must not be returned by itself.",
-                "If a table border, header, row label, or row content reaches a page edge, use coordinate 0 or 1 for that edge.",
-                "Before answering, verify that no title, header, first label, last label, outer border, continuation row, or total lies outside the bbox.",
-                "Return normalized page coordinates for the complete visual table. Deterministic padding is only a safety margin and must not compensate for an incomplete boundary.",
-                "Do not read, normalize, summarize, translate, or interpret cell values.",
-                "Do not infer rows, columns, cells, financial meaning, or a canonical table.",
-                "If a table boundary cannot be located reliably, return table_presence=uncertain and no regions.",
-            ],
-            "coordinate_contract": {
-                "space": "normalized_page_top_left",
-                "representation": "named_fields_not_positional_array",
-                "fields": {
-                    "left_x": "horizontal left edge",
-                    "top_y": "vertical top edge",
-                    "right_x": "horizontal right edge",
-                    "bottom_y": "vertical bottom edge",
-                },
-                "range": [0, 1],
-            },
+            "task": PDF_TABLE_LOCATOR_PROMPT,
         }
 
 
 def table_detection_output_schema() -> dict[str, Any]:
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": [
-            "schema_version",
-            "request_id",
-            "table_presence",
-            "regions",
-        ],
-        "properties": {
-            "schema_version": {
-                "type": "string",
-                "enum": [PDF_TABLE_DETECTION_RESPONSE_SCHEMA],
-            },
-            "request_id": {"type": "string"},
-            "table_presence": {
-                "type": "string",
-                "enum": ["present", "absent", "uncertain"],
-            },
-            "regions": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["outer_bbox_normalized"],
-                    "properties": {
-                        "outer_bbox_normalized": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": [
-                                "left_x",
-                                "top_y",
-                                "right_x",
-                                "bottom_y",
-                            ],
-                            "properties": {
-                                "left_x": {
-                                    "type": "number",
-                                    "minimum": 0,
-                                    "maximum": 1,
-                                },
-                                "top_y": {"type": "number", "minimum": 0, "maximum": 1},
-                                "right_x": {
-                                    "type": "number",
-                                    "minimum": 0,
-                                    "maximum": 1,
-                                },
-                                "bottom_y": {
-                                    "type": "number",
-                                    "minimum": 0,
-                                    "maximum": 1,
-                                },
-                            },
-                        }
-                    },
-                },
-            },
-        },
-    }
-
-
-def validate_table_detection_output(
-    value: Any,
-    *,
-    request_id: str,
-    maximum_candidates: int,
-) -> list[list[float]]:
-    if not isinstance(value, dict) or set(value) != {
-        "schema_version",
-        "request_id",
-        "table_presence",
-        "regions",
-    }:
-        raise PdfTableIntakeError("pdf_table_detector_output_shape_invalid")
-    if value.get("schema_version") != PDF_TABLE_DETECTION_RESPONSE_SCHEMA:
-        raise PdfTableIntakeError("pdf_table_detector_schema_mismatch")
-    if value.get("request_id") != request_id:
-        raise PdfTableIntakeError("pdf_table_detector_request_mismatch")
-    presence = value.get("table_presence")
-    raw_regions = value.get("regions")
-    if presence not in {"present", "absent", "uncertain"} or not isinstance(
-        raw_regions, list
-    ):
-        raise PdfTableIntakeError("pdf_table_detector_presence_invalid")
-    if presence == "uncertain":
-        if raw_regions:
-            raise PdfTableIntakeError("pdf_table_detector_uncertain_regions_present")
-        raise PdfTableIntakeError("pdf_table_detector_boundary_uncertain")
-    if presence == "absent":
-        if raw_regions:
-            raise PdfTableIntakeError("pdf_table_detector_absent_regions_present")
-        return []
-    if not raw_regions or len(raw_regions) > maximum_candidates:
-        raise PdfTableIntakeError("pdf_table_detector_candidate_count_invalid")
-    regions: list[list[float]] = []
-    for region in raw_regions:
-        if not isinstance(region, dict) or set(region) != {"outer_bbox_normalized"}:
-            raise PdfTableIntakeError("pdf_table_detector_region_shape_invalid")
-        bbox = region.get("outer_bbox_normalized")
-        expected_bbox_keys = {"left_x", "top_y", "right_x", "bottom_y"}
-        if not isinstance(bbox, dict) or set(bbox) != expected_bbox_keys:
-            raise PdfTableIntakeError("pdf_table_detector_bbox_invalid")
-        ordered_bbox = [
-            bbox["left_x"],
-            bbox["top_y"],
-            bbox["right_x"],
-            bbox["bottom_y"],
-        ]
-        if not all(
-            isinstance(item, (int, float))
-            and not isinstance(item, bool)
-            and math.isfinite(float(item))
-            for item in ordered_bbox
-        ):
-            raise PdfTableIntakeError("pdf_table_detector_bbox_invalid")
-        normalized = [round(float(item), 9) for item in ordered_bbox]
-        x0, y0, x1, y1 = normalized
-        if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1):
-            raise PdfTableIntakeError("pdf_table_detector_bbox_invalid")
-        regions.append(normalized)
-    regions.sort(key=lambda item: (item[1], item[0], item[3], item[2]))
-    for index, left in enumerate(regions):
-        for right in regions[index + 1 :]:
-            if _intersection_over_union(left, right) >= 0.8:
-                raise PdfTableIntakeError("pdf_table_detector_regions_ambiguous")
-    return regions
-
-
-def _intersection_over_union(left: list[float], right: list[float]) -> float:
-    width = max(0.0, min(left[2], right[2]) - max(left[0], right[0]))
-    height = max(0.0, min(left[3], right[3]) - max(left[1], right[1]))
-    intersection = width * height
-    left_area = (left[2] - left[0]) * (left[3] - left[1])
-    right_area = (right[2] - right[0]) * (right[3] - right[1])
-    union = left_area + right_area - intersection
-    return intersection / union if union > 0 else 0.0
+    return copy.deepcopy(PDF_TABLE_LOCATOR_OUTPUT_SCHEMA)

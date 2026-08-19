@@ -29,6 +29,15 @@ from broker_reports_gate1.artifact_models import ArtifactRecord, ArtifactStoreEr
 from broker_reports_gate1.gate3_financial_annotations_persistence import (
     GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
 )
+from broker_reports_gate1.gate3_financial_label_dictionary import (
+    GATE3_DICTIONARY_CURRENT_VERSION,
+)
+from broker_reports_gate1.gate3_financial_role_pack import (
+    GATE3_ROLE_PACK_CURRENT_VERSION,
+)
+from broker_reports_gate1.gate3_role_labeling import (
+    GATE3_ROLE_LABELING_INSTRUCTION_VERSION,
+)
 from broker_reports_gate1.gate3_ndfl_case_readiness import (
     FACTORY_REQUIRED,
     FORBIDDEN,
@@ -394,6 +403,13 @@ def _save_annotations(
     )
     result = {
         "schema_version": GATE3_CHUNK_BATCH_LABELING_RESULT_SCHEMA_VERSION,
+        "semantic_scope": {
+            "publication_mode": "FULL",
+            "document_id": document_id,
+            "requested_financial_labels": [],
+            "requested_roles": [],
+            "selected_chunk_ordinals": ordinals,
+        },
         "selected_chunk_ordinals": ordinals,
         "selection_mode": "full_document",
         "document_status": "complete",
@@ -402,26 +418,36 @@ def _save_annotations(
             "chunks_validated": len(ordinals),
             "chunks_rejected": 0,
             "chunks_provider_failed": 0,
+            "chunks_with_local_failures": 0,
+            "fully_unusable_chunks": 0,
             "annotations_validated": len(annotations),
+            "facts_role_complete": 0,
+            "facts_role_incomplete": len(annotations),
+            "facts_incomplete_due_to_role_rejection": 0,
+            "facts_rejected": 0,
+            "role_bindings_rejected": 0,
+            "source_fact_completeness_status": (
+                "incomplete" if annotations else "complete"
+            ),
         },
         "merged_output": {
             "schema_version": "broker_reports_financial_annotations_v2",
             "canonical_binding": copy.deepcopy(chunk_set["canonical_binding"]),
             "dictionary_identity": {
                 "dictionary_id": "broker-reports-financial-labels",
-                "semantic_version": "1.0.0",
+                "semantic_version": GATE3_DICTIONARY_CURRENT_VERSION,
             },
             "role_pack_identity": {
                 "role_pack_id": "broker-reports-financial-roles",
-                "semantic_version": "1.0.0",
+                "semantic_version": GATE3_ROLE_PACK_CURRENT_VERSION,
             },
             "instruction_identity": {
                 "instruction_id": "broker-reports-bounded-semantic-labeling",
-                "semantic_version": "1.0.1",
+                "semantic_version": "1.0.2",
             },
             "role_instruction_identity": {
                 "instruction_id": "broker-reports-source-bound-role-labeling",
-                "semantic_version": "1.0.0",
+                "semantic_version": GATE3_ROLE_LABELING_INSTRUCTION_VERSION,
             },
             "model_identity": {"model_id": MODEL_ID},
             "annotations": annotations,

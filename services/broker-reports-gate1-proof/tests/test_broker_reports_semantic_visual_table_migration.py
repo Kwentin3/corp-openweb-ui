@@ -46,6 +46,25 @@ def test_accepted_numeric_semantic_table_reaches_gate2_without_review() -> None:
     ] == "semantic_visual_logical_table"
 
 
+def test_financial_profile_accepts_one_wide_source_row_but_still_requires_amount() -> None:
+    accepted = _runtime_result(
+        [["Trade", "2022-06-06", "Asset", "7", "5559.50", "RUB"]]
+    )
+    accepted_result = _migrate(accepted)
+    assert accepted_result.safe_summary["accepted_for_gate2_total"] == 1
+    assert accepted_result.gate2_projections[0]["row_count"] == 1
+    assert accepted_result.gate2_projections[0]["column_count"] == 6
+
+    rejected = _runtime_result(
+        [["Trade", "Date", "Asset", "Quantity", "Currency"]]
+    )
+    rejected_result = _migrate(rejected)
+    assert rejected_result.safe_summary["accepted_for_gate2_total"] == 0
+    assert rejected_result.safe_summary["dispositions"][0]["reason_codes"] == [
+        "accepted_profile_visible_amount_missing"
+    ]
+
+
 def test_prose_and_visual_uncertainty_remain_fail_closed() -> None:
     runtime = _runtime_result(
         [

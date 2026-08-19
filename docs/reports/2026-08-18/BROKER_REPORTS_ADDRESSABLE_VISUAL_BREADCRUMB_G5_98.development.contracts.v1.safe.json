@@ -1,0 +1,209 @@
+{
+  "attempts": [
+    {
+      "attempt_number": 1,
+      "duration_ms": 5818,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1403,
+        "output_tokens": 740,
+        "total_tokens": 2143
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 4301,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1403,
+        "output_tokens": 217,
+        "total_tokens": 1620
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 4697,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1403,
+        "output_tokens": 9,
+        "total_tokens": 1412
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 4349,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1413,
+        "output_tokens": 231,
+        "total_tokens": 1644
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 5777,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1413,
+        "output_tokens": 219,
+        "total_tokens": 1632
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 4120,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1413,
+        "output_tokens": 231,
+        "total_tokens": 1644
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 4438,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1413,
+        "output_tokens": 219,
+        "total_tokens": 1632
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 3883,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1413,
+        "output_tokens": 178,
+        "total_tokens": 1591
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 6558,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1421,
+        "output_tokens": 769,
+        "total_tokens": 2190
+      }
+    },
+    {
+      "attempt_number": 1,
+      "duration_ms": 6071,
+      "finish_reason": "STOP",
+      "hidden_retry": false,
+      "http_status": 200,
+      "model_requested": "models/gemini-3.5-flash",
+      "model_resolved": "models/gemini-3.5-flash",
+      "parse_result": "parsed_object",
+      "provider": "google",
+      "provider_failover": false,
+      "provider_profile": "google_gemini",
+      "terminal_failure_class": null,
+      "usage": {
+        "input_tokens": 1421,
+        "output_tokens": 280,
+        "total_tokens": 1701
+      }
+    }
+  ],
+  "goal": "G5.98",
+  "invalid_contracts": 4,
+  "phase": "development_contract_generation",
+  "privacy": {
+    "customer_literals_in_safe_output": false,
+    "customer_paths_in_safe_output": false,
+    "private_evidence_outside_git": true,
+    "provider_payloads_in_safe_output": false,
+    "source_coordinates_in_safe_output": false
+  },
+  "private_file_sha256": "4459d66f8d521e467f2667726c51177ba0251f7336e69113e40e135eaf351afc",
+  "proposed_tables": 7,
+  "provider_calls": 10,
+  "schema_version": "broker_reports_addressable_visual_breadcrumb_g598_safe_v1",
+  "valid_contracts": 6
+}

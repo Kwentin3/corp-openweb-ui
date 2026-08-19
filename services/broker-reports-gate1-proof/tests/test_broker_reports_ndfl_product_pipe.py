@@ -3,13 +3,53 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+import sys
+from types import ModuleType
 from types import SimpleNamespace
 
 import pytest
 
-from broker_reports_gate1 import ArtifactAccessContext
+from broker_reports_gate1 import (
+    ArtifactAccessContext,
+    GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
+)
 from broker_reports_gate1.gate3_ndfl_workflow import NdflWorkflowError
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
+
+
+def test_native_chat_scope_is_recovered_only_through_owner_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeChats:
+        @staticmethod
+        async def get_chat_by_id_and_user_id(chat_id: str, user_id: str):
+            assert (chat_id, user_id) == ("owned-chat", "user-a")
+            return SimpleNamespace(chat={"models": ["broker-reports-ndfl"]})
+
+    class FakeRequest:
+        async def json(self):
+            return {"metadata": {"chat_id": "owned-chat"}}
+
+    openwebui = ModuleType("open_webui")
+    models = ModuleType("open_webui.models")
+    chats = ModuleType("open_webui.models.chats")
+    chats.Chats = FakeChats
+    monkeypatch.setitem(sys.modules, "open_webui", openwebui)
+    monkeypatch.setitem(sys.modules, "open_webui.models", models)
+    monkeypatch.setitem(sys.modules, "open_webui.models.chats", chats)
+
+    metadata = asyncio.run(
+        Pipe()._server_attested_runtime_metadata(
+            request=FakeRequest(),
+            metadata={},
+            user={"id": "user-a"},
+        )
+    )
+
+    assert metadata == {
+        "chat_id": "owned-chat",
+        "model_id": "broker-reports-ndfl",
+    }
 
 
 def test_product_stage_is_disabled_by_default() -> None:
@@ -52,6 +92,38 @@ def test_product_stage_rejects_base_pipe_identity_before_provider() -> None:
     assert failure.value.code == "ndfl_workspace_model_identity_required"
 
 
+def test_human_residual_turn_reuses_one_validated_gate3_artifact() -> None:
+    context = _context("broker-reports-ndfl")
+    record = SimpleNamespace(
+        artifact_id="annotations",
+        artifact_type=GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
+        user_id=context.user_id,
+        normalization_run_id=context.normalization_run_id,
+        case_id=context.case_id,
+        chat_id=None,
+        workspace_model_id=context.workspace_model_id,
+        visibility="private_case",
+        validation_status="validated",
+        lifecycle_status="active",
+        purge_status=None,
+        expires_at=None,
+        source_file_ref={"source_deleted": False},
+        payload=None,
+        payload_ref=None,
+    )
+    store = SimpleNamespace(
+        list_by_run=lambda run_id: [record] if run_id == "run" else [],
+        get_record_unchecked=lambda artifact_id: (
+            record if artifact_id == "annotations" else None
+        ),
+    )
+
+    assert Pipe._persisted_gate3_annotations_artifact_id(
+        store=store,
+        context=context,
+    ) == "annotations"
+
+
 def test_private_audit_is_exact_external_and_non_overwriting(tmp_path: Path) -> None:
     pipe = Pipe()
     pipe.valves.ndfl_gate3_private_audit_enabled = True
@@ -87,6 +159,14 @@ def test_private_audit_is_exact_external_and_non_overwriting(tmp_path: Path) -> 
     )
     role_attempt = SimpleNamespace(
         facts=(),
+        role_context={
+            "schema_version": "broker_reports_gate3_role_context_v1",
+            "accepted_target_aliases": [],
+        },
+        role_provenance={
+            "schema_version": "broker_reports_gate3_role_provenance_v1",
+            "facts": [],
+        },
         role_pack={"roles": []},
         role_pack_markdown="exact role pack",
         instruction="exact role instruction",
@@ -142,6 +222,14 @@ def test_private_audit_is_exact_external_and_non_overwriting(tmp_path: Path) -> 
     assert exact["attempts"][0]["role_attempt"]["role_pack_markdown"] == (
         "exact role pack"
     )
+    assert exact["attempts"][0]["role_attempt"]["role_context"] == {
+        "schema_version": "broker_reports_gate3_role_context_v1",
+        "accepted_target_aliases": [],
+    }
+    assert exact["attempts"][0]["role_attempt"]["role_provenance"] == {
+        "schema_version": "broker_reports_gate3_role_provenance_v1",
+        "facts": [],
+    }
     assert exact["financial_annotations_v2"]["annotations"] == []
     with pytest.raises(NdflWorkflowError) as failure:
         pipe._write_ndfl_private_audit([execution])

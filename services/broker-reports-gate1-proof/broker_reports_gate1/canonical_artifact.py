@@ -256,11 +256,11 @@ class CanonicalNormalizer:
 
         root = builder.add_container("DOCUMENT", None, {})
         projections_by_unit: dict[str, dict[str, Any]] = {}
+        standalone_projections: list[dict[str, Any]] = []
         for projection in table_projections:
             ref = str(projection.get("source_unit_ref") or "")
             if ref:
                 projections_by_unit[ref] = projection
-        page_containers: dict[int, str] = {}
         ordered = sorted(
             source_units,
             key=lambda item: (
@@ -273,21 +273,45 @@ class CanonicalNormalizer:
                 str(item.get("unit_ref") or ""),
             ),
         )
+        source_unit_refs = {
+            str(unit.get("unit_ref") or "") for unit in ordered if unit.get("unit_ref")
+        }
+        standalone_projections = sorted(
+            [
+                projection
+                for projection in table_projections
+                if str(projection.get("source_unit_ref") or "")
+                not in source_unit_refs
+            ],
+            key=lambda item: (
+                _projection_page(item),
+                str(item.get("table_projection_id") or ""),
+            ),
+        )
+        page_locations: dict[int, dict[str, Any]] = {}
+        for unit in ordered:
+            location = _location(unit)
+            page = int(location.get("page") or location.get("page_start") or 1)
+            page_locations.setdefault(page, location)
+        for projection in standalone_projections:
+            page = _projection_page(projection)
+            page_locations.setdefault(page, _projection_location(projection))
+        page_containers: dict[int, str] = {}
+        for page in sorted(page_locations):
+            page_containers[page] = builder.add_container(
+                "PAGE", root, {"page_number": page}
+            )
+            if len(page_containers) > 1:
+                builder.add_node(
+                    page_containers[page],
+                    "PAGE_BREAK",
+                    {"boundary_ref": f"page:{page}"},
+                    page_locations[page],
+                )
         seen_tables: set[str] = set()
         for unit in ordered:
             location = _location(unit)
             page = int(location.get("page") or location.get("page_start") or 1)
-            if page not in page_containers:
-                page_containers[page] = builder.add_container(
-                    "PAGE", root, {"page_number": page}
-                )
-                if len(page_containers) > 1:
-                    builder.add_node(
-                        page_containers[page],
-                        "PAGE_BREAK",
-                        {"boundary_ref": f"page:{page}"},
-                        location,
-                    )
             container = page_containers[page]
             unit_ref = str(unit.get("unit_ref") or "")
             location = {
@@ -361,6 +385,10 @@ class CanonicalNormalizer:
                         ),
                         "parser_duplicate_text_suppressed": True,
                     },
+                    canonical_cells=_projection_canonical_cells(
+                        builder, projection, location
+                    ),
+                    canonical_cell_source_refs_resolved=True,
                     header_present=bool(
                         (projection.get("header_model") or {}).get("header_row_refs")
                     ),
@@ -413,7 +441,44 @@ class CanonicalNormalizer:
                 "pdf_source_unit_unresolved",
                 location,
             )
-        if not ordered:
+        for projection in standalone_projections:
+            if str(projection.get("projection_status") or "") != "ready":
+                continue
+            table_id = str(
+                projection.get("canonical_table_id")
+                or projection.get("table_projection_id")
+                or ""
+            )
+            if not table_id or table_id in seen_tables:
+                continue
+            seen_tables.add(table_id)
+            page = _projection_page(projection)
+            builder.add_table(
+                page_containers[page],
+                _projection_matrix(projection),
+                _projection_location(projection),
+                metadata={
+                    "source_format": "pdf",
+                    "source_unit_ref": projection.get("source_unit_ref"),
+                    "table_projection_id": projection.get("table_projection_id"),
+                    "canonical_table_id": projection.get("canonical_table_id"),
+                    "table_candidate_status": projection.get(
+                        "table_candidate_status"
+                    ),
+                    "standalone_source_bound_projection": True,
+                    "parser_duplicate_text_suppressed": False,
+                },
+                canonical_cells=_projection_canonical_cells(
+                    builder,
+                    projection,
+                    _projection_location(projection),
+                ),
+                canonical_cell_source_refs_resolved=True,
+                header_present=bool(
+                    (projection.get("header_model") or {}).get("header_row_refs")
+                ),
+            )
+        if not ordered and not standalone_projections:
             if _proved_empty_pdf(source_payloads):
                 builder.add_issue(
                     "PARTIAL",
@@ -428,6 +493,16 @@ class CanonicalNormalizer:
                     "pdf_source_units_unavailable",
                     {"source_state": "nonempty_or_unproved_pdf"},
                 )
+        container_order = {
+            str(item["container_id"]): index
+            for index, item in enumerate(builder.containers)
+        }
+        builder.nodes.sort(
+            key=lambda item: (
+                container_order.get(str(item.get("container_ref") or ""), 10**9),
+                int(item.get("order") or 0),
+            )
+        )
 
     @staticmethod
     def _adapt_html(
@@ -665,6 +740,7 @@ class _LogicalBuilder:
         *,
         metadata: dict[str, Any],
         canonical_cells: list[dict[str, Any]] | None = None,
+        canonical_cell_source_refs_resolved: bool = False,
         header_present: bool = False,
         title: Any = None,
         notes: list[Any] | None = None,
@@ -681,7 +757,11 @@ class _LogicalBuilder:
         )
         provenance_ref = self._provenance_ref(source_locator)
         cells = (
-            _normalize_canonical_cells(canonical_cells, provenance_ref)
+            _normalize_canonical_cells(
+                canonical_cells,
+                provenance_ref,
+                preserve_source_refs=canonical_cell_source_refs_resolved,
+            )
             if canonical_cells
             else _cells_from_rows(normalized_rows, provenance_ref)
         )
@@ -946,8 +1026,22 @@ def pdf_source_atom_accounting(
         for item in table_projections
         if isinstance(item, dict)
     }
-    if projection_unit_refs - set(unit_categories):
-        reason_codes.add("pdf_table_projection_source_unit_unresolved")
+    standalone_projection_refs = projection_unit_refs - set(unit_categories)
+    for projection_ref in sorted(standalone_projection_refs):
+        projection = projection_by_unit[projection_ref]
+        projection_id = str(projection.get("table_projection_id") or "")
+        atom_ref = f"projection:{projection_ref}"
+        if (
+            projection.get("projection_status") == "ready"
+            and projection_id
+            and projection_id in table_projection_ids
+            and projection_ref in provenance_unit_refs
+        ):
+            categories[atom_ref] = "PRIMARY_TABLE_NODE"
+            ready_projection_units.add(projection_ref)
+        else:
+            categories[atom_ref] = "UNRESOLVED"
+            reason_codes.add("pdf_table_projection_source_unit_unresolved")
 
     counts = {category: 0 for category in PDF_SOURCE_ATOM_CATEGORIES}
     for category in categories.values():
@@ -1442,12 +1536,16 @@ def _cells_from_rows(rows: list[list[Any]], source_ref: str) -> list[dict[str, A
 
 
 def _normalize_canonical_cells(
-    cells: list[dict[str, Any]], source_ref: str
+    cells: list[dict[str, Any]],
+    source_ref: str,
+    *,
+    preserve_source_refs: bool = False,
 ) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for cell in cells:
         item = copy.deepcopy(cell)
-        item["source_refs"] = [source_ref]
+        if not preserve_source_refs:
+            item["source_refs"] = [source_ref]
         item.setdefault("number_format_ref", None)
         result.append(item)
     return result
@@ -1467,13 +1565,128 @@ def _projection_matrix(projection: dict[str, Any]) -> list[list[Any]]:
     for cell in projection.get("cells") or []:
         if not isinstance(cell, dict):
             continue
-        row = int(cell.get("row_ordinal") or 0)
-        column = int(cell.get("column_ordinal") or 0)
+        row_value = cell.get("row_ordinal")
+        column_value = cell.get("column_ordinal")
+        if row_value is None and isinstance(cell.get("logical_row_index"), int):
+            row_value = int(cell["logical_row_index"]) + 1
+        if column_value is None and isinstance(
+            cell.get("logical_column_index"), int
+        ):
+            column_value = int(cell["logical_column_index"]) + 1
+        row = int(row_value or 0)
+        column = int(column_value or 0)
         if 1 <= row <= row_count and 1 <= column <= column_count:
             matrix[row - 1][column - 1] = values.get(
                 str(cell.get("normalized_private_value_path") or "")
             )
     return matrix
+
+
+def _projection_canonical_cells(
+    builder: "_LogicalBuilder",
+    projection: dict[str, Any],
+    source_location: dict[str, Any],
+) -> list[dict[str, Any]] | None:
+    projection_cells = [
+        cell for cell in projection.get("cells") or [] if isinstance(cell, dict)
+    ]
+    rectangular_cell_count = int(projection.get("row_count") or 0) * int(
+        projection.get("column_count") or 0
+    )
+    if len(projection_cells) >= rectangular_cell_count:
+        return None
+    values = {
+        str(item.get("value_path_ref") or ""): item.get("normalized_value")
+        for item in projection.get("private_values") or []
+        if isinstance(item, dict)
+    }
+    result: list[dict[str, Any]] = []
+    for cell in projection_cells:
+        row_value = cell.get("row_ordinal")
+        column_value = cell.get("column_ordinal")
+        if row_value is None and isinstance(cell.get("logical_row_index"), int):
+            row_value = int(cell["logical_row_index"]) + 1
+        if column_value is None and isinstance(
+            cell.get("logical_column_index"), int
+        ):
+            column_value = int(cell["logical_column_index"]) + 1
+        row = int(row_value or 0)
+        column = int(column_value or 0)
+        if row < 1 or column < 1:
+            continue
+        value = values.get(str(cell.get("normalized_private_value_path") or ""))
+        locator = {
+            "kind": "pdf_table_projection_cell",
+            "page": int(source_location.get("page") or 0),
+            "source_unit_ref": str(projection.get("source_unit_ref") or ""),
+            "table_projection_id": str(
+                projection.get("table_projection_id") or ""
+            ),
+            "cell_ref": str(cell.get("cell_ref") or ""),
+            "row": row,
+            "column": column,
+            "bbox_ref": cell.get("bbox_ref"),
+            "source_value_refs": [
+                str(item) for item in cell.get("source_value_refs") or []
+            ],
+        }
+        cell_type = (
+            "blank"
+            if value is None or value == ""
+            else "boolean"
+            if isinstance(value, bool)
+            else "number"
+            if isinstance(value, (int, float))
+            else "string"
+        )
+        row_span = max(1, int(cell.get("row_span") or 1))
+        column_span = max(1, int(cell.get("column_span") or 1))
+        result.append(
+            {
+                "row": row,
+                "column": column,
+                "value": value,
+                "raw_value": value,
+                "displayed_value": None if value is None else str(value),
+                "cell_type": cell_type,
+                "formula": None,
+                "merged_range": (
+                    f"R{row}C{column}:R{row + row_span - 1}C{column + column_span - 1}"
+                    if row_span > 1 or column_span > 1
+                    else None
+                ),
+                "source_coordinate": str(
+                    cell.get("cell_ref") or f"R{row}C{column}"
+                ),
+                "hidden": False,
+                "number_format_ref": None,
+                "source_refs": [builder._provenance_ref(locator)],
+            }
+        )
+    return result
+
+
+def _projection_page(projection: dict[str, Any]) -> int:
+    page_refs = projection.get("page_refs")
+    if not isinstance(page_refs, list) or len(page_refs) != 1:
+        raise CanonicalArtifactError("canonical_pdf_table_projection_page_invalid")
+    page_ref = str(page_refs[0] or "")
+    prefix = "page_"
+    if not page_ref.startswith(prefix) or not page_ref[len(prefix) :].isdigit():
+        raise CanonicalArtifactError("canonical_pdf_table_projection_page_invalid")
+    page = int(page_ref[len(prefix) :])
+    if page < 1:
+        raise CanonicalArtifactError("canonical_pdf_table_projection_page_invalid")
+    return page
+
+
+def _projection_location(projection: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "page": _projection_page(projection),
+        "source_unit_ref": str(projection.get("source_unit_ref") or ""),
+        "table_projection_id": str(projection.get("table_projection_id") or ""),
+        "source_kind": "source_bound_table_projection",
+    }
 
 
 def _location(value: dict[str, Any]) -> dict[str, Any]:

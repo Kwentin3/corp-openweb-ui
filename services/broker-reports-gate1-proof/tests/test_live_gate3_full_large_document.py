@@ -5,6 +5,8 @@ import inspect
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = SERVICE_ROOT / "scripts" / "live_gate3_full_large_document.py"
@@ -20,11 +22,12 @@ def _load_module():
     return module
 
 
-def test_g37a_plan_is_exactly_six_one_attempt_chunks_and_existing_owners() -> None:
+def test_g37a_frozen_runner_refuses_current_contract_drift() -> None:
     module = _load_module()
     source = SCRIPT_PATH.read_text(encoding="utf-8")
 
-    module._assert_frozen_contract()
+    with pytest.raises(SystemExit, match="frozen_g34b_module_changed"):
+        module._assert_frozen_contract()
     assert module.EXPECTED_CHUNKS == 6
     assert module.MAX_AVAILABILITY_CHECKS == 3
     assert "Gate3ChunkBatchLabelingFactory.create" in module.FACTORY_REQUIRED

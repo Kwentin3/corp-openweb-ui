@@ -1,0 +1,58 @@
+{
+  "schema_version": "broker_reports_gate5_securities_cost_basis_methodology_receipt_v0",
+  "goal": "G5.39AA",
+  "mode": "research_only",
+  "verified_on": "2026-08-12",
+  "baseline": {
+    "head": "02659a9b0bdfb2f19171d2a070a660af85119d59",
+    "tree": "0a696522eb37eca13bb9224a41f7227823c8ce8c",
+    "origin_main": "a55abe5d08a1cc2a47a679287bba0f479185595b",
+    "worktree_count": 1,
+    "preexisting_status_entries": 138,
+    "dirty_tree_preserved": true
+  },
+  "artifacts": [
+    {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_SECURITIES_COST_BASIS_METHODOLOGY_G5_39AA.report.md",
+      "sha256": "a712ef1dba54388b0dac603ff8b9a03c59a25f40b6542f0d916a2bd58701e8a4"
+    },
+    {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_SECURITIES_COST_BASIS_METHODOLOGY_G5_39AA.corpus.safe.json",
+      "sha256": "004f8313dd52ebb806f41433b31f4f27e3ef4a3e77f22f6b6066df9a62f1e58c"
+    },
+    {
+      "path": "docs/reports/2026-08-12/BROKER_REPORTS_GATE5_SECURITIES_COST_BASIS_METHODOLOGY_G5_39AA.ledger.safe.json",
+      "sha256": "53e2b585cef6cd8d1159066a70b556a18c7b4f7693b663a76e871e0dccc4cdf2"
+    }
+  ],
+  "validation": {
+    "json_documents_parsed": 2,
+    "corpus_case_ids": [
+      "M1",
+      "M2",
+      "M3",
+      "M4",
+      "M5",
+      "M6",
+      "M7"
+    ],
+    "corpus_arithmetic": "PASS",
+    "unresolved_output_repair_scan": "PASS",
+    "markdown_fences": "PASS",
+    "privacy_scan": "PASS",
+    "current_methodology_resource_sha256": "253f6f644eb88c963639833bcef8b169a51e4b8790ab2dcfa22c091b58e30bed",
+    "tests": "NOT_RUN_RESEARCH_ONLY_NO_CODE_CHANGE"
+  },
+  "github_journal": {
+    "repository": "Kwentin3/corp-openweb-ui",
+    "issue_number": 278,
+    "comment_status_at_receipt_freeze": "PENDING"
+  },
+  "terminal": [
+    "COST_BASIS_METHOD_PROVEN_FOR_PURCHASE_PRICE",
+    "CATEGORY_LEVEL_EXPENSES_SUFFICIENT_FOR_SHARED_FEES",
+    "LEGAL_AUTHORITY_AMBIGUOUS_FOR_PARTIAL_ACQUISITION_COMMISSION",
+    "STRATEGIC_STOP"
+  ],
+  "implementation_authorized": false
+}

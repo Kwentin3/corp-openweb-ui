@@ -1,0 +1,55 @@
+{
+  "schema_version": "broker_reports_g586_closeout_safe_v1",
+  "goal": "G5.86",
+  "terminal": "GATE3_SEMANTIC_ROOT_CAUSE_REQUALIFICATION_REQUIRED",
+  "subterminal": "LOCAL_ASSERTION_CONTEXT_CONTRACT_GAP_PROVEN",
+  "frozen_systematic_set": {
+    "facts": 105,
+    "pages": [4, 5, 6, 7, 9, 10],
+    "structural_classes": 6,
+    "provider_chunks": [10, 12, 14, 16, 20, 22]
+  },
+  "first_wrong_owner": "Gate3 source-local assertion packaging",
+  "exact_context": {
+    "local_literal_visible": true,
+    "output_alias_unique": true,
+    "broader_context_structurally_identifiable": true,
+    "assertion_predeclared_before_provider": false
+  },
+  "focused_replay": {
+    "clean_semantic_attempts": 6,
+    "clean_transport_submissions": 6,
+    "operational_retries": 0,
+    "semantic_retries": 0,
+    "chunks_validated": 6,
+    "wrong_rows_no_longer_dividend": 26,
+    "wrong_rows_still_dividend": 79,
+    "true_dividend_controls_preserved": 25,
+    "true_dividend_controls_total": 25,
+    "existing_tax_controls_preserved": 86,
+    "existing_tax_controls_total": 102,
+    "unknown_canonical_targets": 0,
+    "duplicate_annotation_pairs": 0
+  },
+  "candidate_instruction": {
+    "version": "1.1.0",
+    "broker_specific_literal_rule": false,
+    "qualified": false,
+    "runtime_source_restored_to_version": "1.0.2"
+  },
+  "visual": {
+    "pages_inspected": [4, 5, 6, 7, 9, 10],
+    "distinct_classes_covered": 6,
+    "vlm_calls": 0,
+    "production_dependency": false
+  },
+  "stops": {
+    "second_provider_replay": false,
+    "full_semantic_inventory_resumed": false,
+    "ordinary_gate3_replay": false,
+    "gate4_rebuild": false,
+    "gate5_executed": false
+  },
+  "next_allowed_goal": "minimal predeclared row assertion envelope using existing aliases and renderer",
+  "preserve_user_owned": true
+}

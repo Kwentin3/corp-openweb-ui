@@ -784,7 +784,10 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
             ),
             gate2_domain.index("workload_session = None"),
         )
-        self.assertIn("provider_budget=self._dual_vlm_provider_budget", gate1_pipe)
+        self.assertIn(
+            "factory.create_for_openwebui(request).run(documents)", gate1_pipe
+        )
+        self.assertIn("resume_state=WorkloadState.NORMALIZING", gate1_pipe)
         self.assertIn("provider_slot_async", gate2_source)
         self.assertIn("provider_slot_async", gate2_domain)
         self.assertGreaterEqual(

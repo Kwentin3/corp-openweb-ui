@@ -1,0 +1,95 @@
+{
+  "schema_version": "broker_reports_g570_closeout_receipt_safe_v1",
+  "goal": "G5.70",
+  "status": "CLOSED_MICROSTAND_PROVEN_RESIDUAL_SEMANTIC_ERRORS_LOCALIZED",
+  "terminal": [
+    "VLM_FIRST_METADATA_MICROSTAND_PROVEN",
+    "VISUAL_LAYOUT_METADATA_RECOVERED_WITHOUT_PARSER_RECONSTRUCTION",
+    "ONE_METADATA_CONTRACT_MULTIPLE_VISUAL_LAYOUTS_PROVEN",
+    "BROKER_SPECIFIC_RULES_ZERO",
+    "VLM_METADATA_REPEATABILITY_MEASURED",
+    "SEMANTIC_RELIABILITY=RESIDUAL_LLM_ERRORS_LOCALIZED",
+    "FINANCIAL_GENERALIZATION_PRESERVED"
+  ],
+  "reused_route": {
+    "owner": "PdfGridExperimentProviderFactory.create_for_openwebui",
+    "native_visual_input": true,
+    "strict_structured_output": true,
+    "new_provider_framework": false
+  },
+  "freeze": {
+    "contract_version": "1.0.0",
+    "allowed_fact_type_count": 11,
+    "new_metadata_fields": 0,
+    "instruction_version": "g570-vlm-first-metadata-v1",
+    "model_id": "models/gemini-3.5-flash",
+    "model_view_sha256": "5467d2697411b2d4222ff7856b8f596c2ca535ca1315a32c70e4f61528c72ec9",
+    "proposal_schema_sha256": "524e8fb2b3b55fb55af3d62fe7465f147f7ad6da18ad9c9cca5b68ecf458ac29",
+    "initial_freeze_sha256": "c87d2d93924d7a12cb29e087aef47791ef8631da96c04d9b8b76f2bbb719480f",
+    "repeatability_freeze_sha256": "d1f9fbe68ce55b53a875a7ec68d53ef96b88ed08ab45269275d43a9a28a79955",
+    "holdout_freeze_sha256": "014a5f0bbae6f3dc46822e1870a6de64dd3a3818abf12d7db55bf17efac31dac",
+    "broker_hints": 0,
+    "flattened_canonical_text": false,
+    "ocr_dump": false,
+    "parser_reconstruction": false
+  },
+  "measurement": {
+    "development_cases": 3,
+    "untouched_holdout_cases": 1,
+    "provider_submissions": 10,
+    "transport_failures": 0,
+    "contract_invalid": 0,
+    "correct": 31,
+    "missed": 0,
+    "wrong_role": 4,
+    "extra_fact": 0,
+    "wrong_value_boundary": 0,
+    "invented_value": 0,
+    "case_b_initial_exact": true,
+    "case_b_repeatability_exact": "3/3",
+    "case_f_initial_exact": false,
+    "case_f_repeatability_exact": "0/3",
+    "case_f_wrong_role_frequency": "4/4",
+    "case_c_control_exact": true,
+    "holdout_exact": true,
+    "holdout_runs": 1
+  },
+  "execution_policy": {
+    "retries": 0,
+    "provider_failover": false,
+    "best_of_n": false,
+    "voting": false,
+    "judge_model": false,
+    "result_selection": false,
+    "manual_output_repair": false,
+    "prompt_tuning_after_freeze": false,
+    "broker_specific_rules": 0,
+    "regex_growth": 0
+  },
+  "artifact_hashes": {
+    "initial_result_safe_sha256": "ec833c2c83a285b365cf1812a48ec03c91189f618320e4fed9c3f2101e9df617",
+    "repeatability_result_safe_sha256": "e8a30d3d97863331977343082b99f1caf442571c15559d6391ff5fd872cf25eb",
+    "holdout_result_safe_sha256": "004259b065278339abfad3ce55dcf0b88097cccf19bc0d0f0275cbc40204cf86",
+    "financial_result_safe_sha256": "3df33f7ad7cc63c8027cd2afa50981a03b11d231a52b40ac617e2499cfa02fd4",
+    "harness_sha256": "b30173c117b315ba7cf79e046688d57c3cb334e09e1c712d619a41b892e0652c",
+    "guard_tests_sha256": "72b75441e9c267146ea402301986dbeeaf0501433fe4c5a954b632987453578e"
+  },
+  "financial_replay": {
+    "factory_route": "Gate4FinancialCaseRuntimeFactory.create().rebuild_case",
+    "holdout_a_fact_count": 39,
+    "holdout_b_fact_count": 129,
+    "exact_frozen_equality": true,
+    "source_stores_unchanged": true
+  },
+  "verification": {
+    "focused_passed": 89,
+    "failed": 0,
+    "ruff_passed": true
+  },
+  "private_evidence_committed": false,
+  "product_activation": false,
+  "financial_source_changed": false,
+  "runtime_source_changed": false,
+  "commit_or_push": false,
+  "next_goal_started": false
+}

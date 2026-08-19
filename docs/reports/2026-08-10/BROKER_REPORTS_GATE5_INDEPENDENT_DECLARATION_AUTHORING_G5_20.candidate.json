@@ -1,0 +1,499 @@
+{
+  "schema_version": "broker_reports_gate5_clean_context_declaration_definition_v1",
+  "definition_id": "ru.3ndfl.2025.securities_disposal",
+  "definition_version": "2026.1-proof",
+  "status": "partially_compilable",
+  "target": {
+    "jurisdiction": "RU",
+    "tax_period": "2025",
+    "form": "3-NDFL",
+    "knd": "1151020",
+    "order": "FNS_ED-7-11/913@_2025-10-20",
+    "electronic_format_version": "5.20",
+    "xsd": "NO_NDFL3_1_033_00_05_20_01.xsd"
+  },
+  "scope": {
+    "domain": "Authoring semantics for a 2025 Russian 3-NDFL securities-disposal declaration.",
+    "taxpayer_profile": "Taxpayer status and residency are boundary facts; no current Financial Case or user-verified case facts were supplied.",
+    "operation_profile": "Organized-market securities disposals outside an individual investment account, including Appendix 8 operation code 01.",
+    "boundary": "Covers target identity, Appendix 8 securities occurrences and the required Section 2 linkage. It does not produce XML, PDF, tax payable, or manually repaired declaration candidates."
+  },
+  "requirements": [
+    {
+      "requirement_id": "target_order_and_period",
+      "official_requirement": "Use the form, filling procedure and electronic format approved by the stated FNS order for declarations for tax period 2025.",
+      "evidence_refs": [
+        "order_identity_and_effective_period"
+      ],
+      "semantic_outputs": [
+        "target_form_identity",
+        "target_tax_period",
+        "target_electronic_format_identity"
+      ],
+      "availability": "compilable",
+      "end_to_end_available_from_current_case_evidence": true,
+      "boundary_inputs": [],
+      "capability_bindings": [],
+      "gap_refs": []
+    },
+    {
+      "requirement_id": "appendix8_five_operation_semantics",
+      "official_requirement": "Represent an Appendix 8 securities operation occurrence with operation kind, aggregate income, related expenses, expenses reducing income and loss-treatment indicator.",
+      "evidence_refs": [
+        "appendix8_form_lines_010_050"
+      ],
+      "semantic_outputs": [
+        "operation_category",
+        "category_gross_income",
+        "related_securities_expenses",
+        "allowable_income_reducing_expenses",
+        "loss_treatment"
+      ],
+      "availability": "conditionally_compilable",
+      "end_to_end_available_from_current_case_evidence": false,
+      "boundary_inputs": [
+        {
+          "input_name": "declaration_semantics",
+          "contract_id": "broker_reports_gate5_declaration_projection_proof_input_v0",
+          "availability": "required_at_boundary",
+          "source_class": "declared_boundary_input"
+        }
+      ],
+      "capability_bindings": [
+        {
+          "capability_id": "project_validated_declaration_fragment_v0",
+          "declared_input_contracts": [
+            "broker_reports_gate5_declaration_projection_proof_input_v0"
+          ],
+          "declared_output_contract": "broker_reports_gate5_declaration_projection_fragment_v0",
+          "registered_behavior": null,
+          "artifact_refs": [
+            {
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_version": "2026.0-proof",
+              "role": "validated_projection"
+            }
+          ]
+        }
+      ],
+      "gap_refs": []
+    },
+    {
+      "requirement_id": "appendix8_expense_contribution",
+      "official_requirement": "Cover the applicable securities-operation family, assign the five Appendix 8 aggregate meanings and carry accepted line 040 expenses into the declaration calculation.",
+      "evidence_refs": [
+        "appendix8_procedure_paragraphs_97_98"
+      ],
+      "semantic_outputs": [
+        "appendix8_operation_family",
+        "accepted_expense_contribution_to_declaration_calculation"
+      ],
+      "availability": "not_compilable",
+      "end_to_end_available_from_current_case_evidence": false,
+      "boundary_inputs": [],
+      "capability_bindings": [
+        {
+          "capability_id": "project_validated_declaration_fragment_v0",
+          "declared_input_contracts": [
+            "broker_reports_gate5_declaration_projection_proof_input_v0"
+          ],
+          "declared_output_contract": "broker_reports_gate5_declaration_projection_fragment_v0",
+          "registered_behavior": null,
+          "artifact_refs": [
+            {
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_version": "2026.0-proof",
+              "role": "appendix8_only"
+            }
+          ]
+        }
+      ],
+      "gap_refs": [
+        "appendix8_expense_to_section2_gap"
+      ]
+    },
+    {
+      "requirement_id": "appendix8_operation_code_01",
+      "official_requirement": "Use operation code 01 for organized-market securities operations outside an individual investment account.",
+      "evidence_refs": [
+        "appendix8_operation_code_01"
+      ],
+      "semantic_outputs": [
+        "appendix8_operation_code_01"
+      ],
+      "availability": "conditionally_compilable",
+      "end_to_end_available_from_current_case_evidence": false,
+      "boundary_inputs": [
+        {
+          "input_name": "declaration_semantics",
+          "contract_id": "broker_reports_gate5_declaration_projection_proof_input_v0",
+          "availability": "required_at_boundary",
+          "source_class": "declared_boundary_input"
+        }
+      ],
+      "capability_bindings": [
+        {
+          "capability_id": "project_validated_declaration_fragment_v0",
+          "declared_input_contracts": [
+            "broker_reports_gate5_declaration_projection_proof_input_v0"
+          ],
+          "declared_output_contract": "broker_reports_gate5_declaration_projection_fragment_v0",
+          "registered_behavior": null,
+          "artifact_refs": [
+            {
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_version": "2026.0-proof",
+              "role": "operation_code_projection"
+            }
+          ]
+        }
+      ],
+      "gap_refs": []
+    },
+    {
+      "requirement_id": "appendix8_electronic_occurrence",
+      "official_requirement": "Project the five stable operation semantics into the electronic ДохОперЦБ occurrence fields ВидОпер, ДохСовОпер, РасхРеалЦБ, РасхУмДохОпер and ПризУчетУбыт.",
+      "evidence_refs": [
+        "appendix8_format_table_4_46"
+      ],
+      "semantic_outputs": [
+        "appendix8_declaration_shaped_occurrence"
+      ],
+      "availability": "conditionally_compilable",
+      "end_to_end_available_from_current_case_evidence": false,
+      "boundary_inputs": [
+        {
+          "input_name": "declaration_semantics",
+          "contract_id": "broker_reports_gate5_declaration_projection_proof_input_v0",
+          "availability": "required_at_boundary",
+          "source_class": "declared_boundary_input"
+        }
+      ],
+      "capability_bindings": [
+        {
+          "capability_id": "project_validated_declaration_fragment_v0",
+          "declared_input_contracts": [
+            "broker_reports_gate5_declaration_projection_proof_input_v0"
+          ],
+          "declared_output_contract": "broker_reports_gate5_declaration_projection_fragment_v0",
+          "registered_behavior": null,
+          "artifact_refs": [
+            {
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_version": "2026.0-proof",
+              "role": "validated_projection"
+            }
+          ]
+        }
+      ],
+      "gap_refs": []
+    },
+    {
+      "requirement_id": "appendix8_repeated_occurrences",
+      "official_requirement": "Support repeated ДохОперЦБ occurrences while preserving the required and optional use of the five target attributes.",
+      "evidence_refs": [
+        "appendix8_xsd_contract"
+      ],
+      "semantic_outputs": [
+        "complete_category_occurrence_set",
+        "repeated_appendix8_projection"
+      ],
+      "availability": "conditionally_compilable",
+      "end_to_end_available_from_current_case_evidence": false,
+      "boundary_inputs": [
+        {
+          "input_name": "scope",
+          "contract_id": "broker_reports_gate5_tax_period_category_scope_v0",
+          "availability": "required_at_boundary",
+          "source_class": "declared_boundary_input"
+        },
+        {
+          "input_name": "operation_members",
+          "contract_id": "broker_reports_gate5_operation_model_members_v0",
+          "availability": "required_at_boundary",
+          "source_class": "methodology_derived_result"
+        },
+        {
+          "input_name": "completeness_evidence",
+          "contract_id": "broker_reports_gate5_tax_period_completeness_evidence_v0",
+          "availability": "required_at_boundary",
+          "source_class": "user_verified_fact"
+        }
+      ],
+      "capability_bindings": [
+        {
+          "capability_id": "execute_published_typed_behavior_v1",
+          "declared_input_contracts": [
+            "broker_reports_gate5_published_behavior_ref_v1",
+            "broker_reports_gate5_securities_disposal_resolved_inputs_v0",
+            "artifact_access_context"
+          ],
+          "declared_output_contract": "broker_reports_gate5_typed_behavior_result_v1",
+          "registered_behavior": {
+            "schema_version": "broker_reports_gate5_published_behavior_ref_v1",
+            "methodology_id": "ru-ndfl-securities-tax-model-proof",
+            "methodology_version": "2026.1-experimental",
+            "behavior_id": "securities_disposal_operation_tax_model_v0",
+            "input_contract_id": "broker_reports_gate5_securities_disposal_resolved_inputs_v0",
+            "output_contract_id": "broker_reports_gate5_securities_disposal_operation_tax_model_v0"
+          },
+          "artifact_refs": [
+            {
+              "artifact_kind": "trusted_methodology",
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_version": "2026.1-experimental",
+              "role": "operation_member_producer"
+            }
+          ]
+        },
+        {
+          "capability_id": "aggregate_complete_category_scope_v0",
+          "declared_input_contracts": [
+            "broker_reports_gate5_tax_period_category_scope_v0",
+            "broker_reports_gate5_operation_model_members_v0",
+            "broker_reports_gate5_tax_period_completeness_evidence_v0"
+          ],
+          "declared_output_contract": "broker_reports_gate5_tax_period_category_aggregation_result_v0",
+          "registered_behavior": null,
+          "artifact_refs": [
+            {
+              "artifact_kind": "trusted_methodology",
+              "artifact_id": "ru-ndfl-securities-tax-model-proof",
+              "artifact_version": "2026.1-experimental",
+              "role": "accepted_operation_member"
+            },
+            {
+              "artifact_kind": "validated_declaration_projection",
+              "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+              "artifact_version": "2026.0-proof",
+              "role": "nested_projection_for_complete_scope"
+            }
+          ]
+        }
+      ],
+      "gap_refs": []
+    },
+    {
+      "requirement_id": "section2_required_semantics",
+      "official_requirement": "Produce Section 2 income-group code, income totals, non-taxable income, taxable income, deductions, accepted expenses and tax base.",
+      "evidence_refs": [
+        "section2_form_lines_001_060"
+      ],
+      "semantic_outputs": [
+        "section2_income_group",
+        "section2_income_totals",
+        "section2_non_taxable_income",
+        "section2_taxable_income",
+        "section2_deductions",
+        "section2_accepted_expenses",
+        "section2_tax_base"
+      ],
+      "availability": "not_compilable",
+      "end_to_end_available_from_current_case_evidence": false,
+      "boundary_inputs": [],
+      "capability_bindings": [],
+      "gap_refs": [
+        "section2_projection_artifact_gap"
+      ]
+    },
+    {
+      "requirement_id": "section2_group_calculation",
+      "official_requirement": "Prepare a separate Section 2 page for each income group and derive line 060 after deductions and accepted expenses, including the applicable Appendix 8 securities expenses.",
+      "evidence_refs": [
+        "section2_procedure_paragraphs_37_46"
+      ],
+      "semantic_outputs": [
+        "section2_page_per_income_group",
+        "section2_line060_calculation",
+        "appendix8_to_section2_expense_link"
+      ],
+      "availability": "not_compilable",
+      "end_to_end_available_from_current_case_evidence": false,
+      "boundary_inputs": [],
+      "capability_bindings": [],
+      "gap_refs": [
+        "section2_calculation_behavior_gap"
+      ]
+    },
+    {
+      "requirement_id": "section2_group02_type003",
+      "official_requirement": "Assign resident securities and derivatives operations outside an individual investment account to income group 02 and income type 003 for the stated scope.",
+      "evidence_refs": [
+        "securities_income_group_02_type_003"
+      ],
+      "semantic_outputs": [
+        "section2_income_group_02",
+        "section2_income_type_003"
+      ],
+      "availability": "not_compilable",
+      "end_to_end_available_from_current_case_evidence": false,
+      "boundary_inputs": [],
+      "capability_bindings": [],
+      "gap_refs": [
+        "section2_group_code_projection_gap"
+      ]
+    },
+    {
+      "requirement_id": "section2_electronic_group_contract",
+      "official_requirement": "Produce the electronic group-bound НалБаза/РасчНалБаза calculation structure in addition to the Appendix 8 occurrence.",
+      "evidence_refs": [
+        "section2_electronic_contract"
+      ],
+      "semantic_outputs": [
+        "group_bound_tax_base_calculation_structure"
+      ],
+      "availability": "not_compilable",
+      "end_to_end_available_from_current_case_evidence": false,
+      "boundary_inputs": [],
+      "capability_bindings": [],
+      "gap_refs": [
+        "section2_electronic_contract_gap"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "gap_id": "appendix8_expense_to_section2_gap",
+      "requirement_id": "appendix8_expense_contribution",
+      "gap_type": "incompatible_contract",
+      "required_semantic": "Carry accepted Appendix 8 line 040 expenses into the corresponding group-bound declaration calculation.",
+      "related_capability_ids": [
+        "project_validated_declaration_fragment_v0",
+        "aggregate_complete_category_scope_v0"
+      ],
+      "related_artifact_refs": [
+        {
+          "artifact_kind": "validated_declaration_projection",
+          "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+          "artifact_version": "2026.0-proof",
+          "role": "appendix8_only"
+        }
+      ],
+      "missing_behavior_id": null,
+      "missing_contract_id": null,
+      "missing_artifact_kind": null,
+      "evidence_refs": [
+        "appendix8_procedure_paragraphs_97_98"
+      ],
+      "explanation": "The supplied projection ends at an Appendix 8 fragment. No supplied contract connects its accepted-expense value to a Section 2 group calculation."
+    },
+    {
+      "gap_id": "section2_projection_artifact_gap",
+      "requirement_id": "section2_required_semantics",
+      "gap_type": "missing_artifact",
+      "required_semantic": "Project all required Section 2 part 1 values into a declaration-shaped Section 2 fragment.",
+      "related_capability_ids": [],
+      "related_artifact_refs": [],
+      "missing_behavior_id": null,
+      "missing_contract_id": null,
+      "missing_artifact_kind": "validated_declaration_projection",
+      "evidence_refs": [
+        "section2_form_lines_001_060"
+      ],
+      "explanation": "The inventory supplies only an Appendix 8 validated declaration projection and no published Section 2 projection artifact."
+    },
+    {
+      "gap_id": "section2_calculation_behavior_gap",
+      "requirement_id": "section2_group_calculation",
+      "gap_type": "missing_published_behavior",
+      "required_semantic": "Deterministically calculate line 060 per income group after deductions and accepted expenses and retain the Appendix 8 contribution.",
+      "related_capability_ids": [
+        "execute_published_typed_behavior_v1"
+      ],
+      "related_artifact_refs": [],
+      "missing_behavior_id": null,
+      "missing_contract_id": null,
+      "missing_artifact_kind": null,
+      "evidence_refs": [
+        "section2_procedure_paragraphs_37_46"
+      ],
+      "explanation": "Official evidence states the calculation requirement but the supplied inventory contains no registered Section 2 calculation behavior."
+    },
+    {
+      "gap_id": "section2_group_code_projection_gap",
+      "requirement_id": "section2_group02_type003",
+      "gap_type": "missing_artifact",
+      "required_semantic": "Project income group 02 and income type 003 into the applicable Section 2 declaration structure.",
+      "related_capability_ids": [
+        "project_validated_declaration_fragment_v0"
+      ],
+      "related_artifact_refs": [
+        {
+          "artifact_kind": "validated_declaration_projection",
+          "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+          "artifact_version": "2026.0-proof",
+          "role": "insufficient_appendix8_projection"
+        }
+      ],
+      "missing_behavior_id": null,
+      "missing_contract_id": null,
+      "missing_artifact_kind": "validated_declaration_projection",
+      "evidence_refs": [
+        "securities_income_group_02_type_003"
+      ],
+      "explanation": "The official code mapping is evidenced, but no supplied artifact projects that mapping into Section 2."
+    },
+    {
+      "gap_id": "section2_electronic_contract_gap",
+      "requirement_id": "section2_electronic_group_contract",
+      "gap_type": "incompatible_contract",
+      "required_semantic": "Construct the required group-bound electronic НалБаза/РасчНалБаза structure and bind it to the corresponding securities semantics.",
+      "related_capability_ids": [
+        "project_validated_declaration_fragment_v0",
+        "aggregate_complete_category_scope_v0"
+      ],
+      "related_artifact_refs": [
+        {
+          "artifact_kind": "validated_declaration_projection",
+          "artifact_id": "ru-3ndfl-2025-appendix8-securities-proof",
+          "artifact_version": "2026.0-proof",
+          "role": "appendix8_fragment_only"
+        }
+      ],
+      "missing_behavior_id": null,
+      "missing_contract_id": null,
+      "missing_artifact_kind": null,
+      "evidence_refs": [
+        "section2_electronic_contract"
+      ],
+      "explanation": "No supplied input/output contract or artifact represents the electronic group-bound Section 2 calculation structure."
+    }
+  ],
+  "findings": {
+    "supported_requirement_ids": [
+      "target_order_and_period",
+      "appendix8_five_operation_semantics",
+      "appendix8_operation_code_01",
+      "appendix8_electronic_occurrence",
+      "appendix8_repeated_occurrences"
+    ],
+    "unsupported_requirement_ids": [
+      "appendix8_expense_contribution",
+      "section2_required_semantics",
+      "section2_group_calculation",
+      "section2_group02_type003",
+      "section2_electronic_group_contract"
+    ],
+    "first_blocking_gap_id": "appendix8_expense_to_section2_gap",
+    "limitations": [
+      "No current Financial Case, same-run supplemental facts, resolved operation models or completeness evidence were supplied.",
+      "Appendix 8 projection is declaration-shaped and structurally consistent but is not guaranteed to be full XSD-validated XML.",
+      "Repeated complete-scope projection requires at least two compatible operation models and exact member-set completeness evidence.",
+      "The supplied runtime and inventory cannot author the required Section 2 structure or connect Appendix 8 accepted expenses to its tax-base calculation."
+    ]
+  },
+  "authoring": {
+    "supplied_evidence_only": true,
+    "prior_project_context_used": false,
+    "manual_candidate_repair_allowed": false,
+    "notes": [
+      "Official evidence was used only to define declaration requirements; it was not treated as executable runtime behavior.",
+      "Conditional units require their declared boundary inputs and are not end-to-end available from the supplied case evidence.",
+      "No capability, behavior, artifact, contract identity, value kind, formula or tax rule was added beyond the supplied sections."
+    ]
+  }
+}
