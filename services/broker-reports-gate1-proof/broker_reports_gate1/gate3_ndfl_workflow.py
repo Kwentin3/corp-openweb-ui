@@ -49,9 +49,15 @@ FORBIDDEN = (
 
 
 class NdflWorkflowError(RuntimeError):
-    def __init__(self, code: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        *,
+        safe_details: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(code)
         self.code = code
+        self.safe_details = copy.deepcopy(safe_details or {})
 
 
 def ndfl_product_binding_snapshot() -> dict[str, Any]:
@@ -209,7 +215,39 @@ class NdflWorkflow:
             or batch_result.selection_mode != "full_document"
             or batch_result.merged_output is None
         ):
-            raise NdflWorkflowError("ndfl_gate3_document_incomplete")
+            failed_outcomes = [
+                {
+                    "chunk_ordinal": int(outcome.chunk["ordinal"]),
+                    "terminal_status": outcome.terminal_status,
+                    "failed_phase": outcome.failed_phase,
+                    "error_code": outcome.error_code,
+                }
+                for outcome in batch_result.outcomes
+                if outcome.terminal_status not in {
+                    "validated",
+                    "validated_with_local_rejections",
+                }
+            ]
+            raise NdflWorkflowError(
+                "ndfl_gate3_document_incomplete",
+                safe_details={
+                    "document_status": batch_result.document_status,
+                    "selection_mode": batch_result.selection_mode,
+                    "chunks_total": int(
+                        batch_result.metrics.get("chunks_total") or 0
+                    ),
+                    "chunks_validated": int(
+                        batch_result.metrics.get("chunks_validated") or 0
+                    ),
+                    "chunks_rejected": int(
+                        batch_result.metrics.get("chunks_rejected") or 0
+                    ),
+                    "chunks_provider_failed": int(
+                        batch_result.metrics.get("chunks_provider_failed") or 0
+                    ),
+                    "failed_outcomes": failed_outcomes,
+                },
+            )
         if batch_result.merged_output.get("canonical_binding") != expected_binding:
             raise NdflWorkflowError(
                 "ndfl_gate3_canonical_changed_during_labeling"

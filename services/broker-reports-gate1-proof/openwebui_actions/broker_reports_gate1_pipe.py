@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
+import copy
 import hashlib
 import inspect
 import json
@@ -37,7 +38,6 @@ from broker_reports_gate1 import (
     DocumentPassportPromptConfig,
     DocumentPassportPromptResolverFactory,
     FileInput,
-    FileProcessingOutcomeFactory,
     Gate1BoundedGraphConfig,
     Gate1BoundedGraphFactory,
     Gate1Normalizer,
@@ -91,8 +91,6 @@ from broker_reports_gate1.private_intake_bytes import (
     PrivateIntakeBytesError,
     is_private_intake_source_id,
 )
-from broker_reports_gate1.safe_report import render_safe_report
-from broker_reports_gate1.validators import validate_safe_report
 from broker_reports_gate1.gate2_model_clients import (
     Gate2StructuredModelClientFactory,
 )
@@ -402,7 +400,10 @@ class Pipe:
             raise
         except Exception as exc:
             if session is not None and not session.terminal:
-                session.fail(self._workload_failure_code(exc))
+                session.fail(
+                    self._workload_failure_code(exc),
+                    safe_detail=self._workload_failure_detail(exc),
+                )
                 self.last_workload_snapshot = session.snapshot()
             raise
         finally:
@@ -2522,6 +2523,13 @@ class Pipe:
         raw = str(getattr(exc, "code", "") or exc.__class__.__name__).lower()
         normalized = re.sub(r"[^a-z0-9_.:-]+", "_", raw).strip("_")
         return (normalized or "operation_failed")[:128]
+
+    @staticmethod
+    def _workload_failure_detail(
+        exc: BaseException,
+    ) -> dict[str, Any] | None:
+        value = getattr(exc, "safe_details", None)
+        return copy.deepcopy(value) if isinstance(value, dict) and value else None
 
     async def _emit(self, emitter, description: str, *, done: bool) -> None:
         if emitter is None:

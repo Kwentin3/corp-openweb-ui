@@ -15,6 +15,7 @@ from broker_reports_gate1 import (
     ArtifactStoreFactory,
     FileInput,
     Gate1Normalizer,
+    NdflWorkflowError,
 )
 from broker_reports_gate1.workload_authority import (
     GATE1_HEAVY_CONCURRENCY,
@@ -748,6 +749,66 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
         self.assertEqual(
             dcp_record.safe_metadata["workload_job_id"],
             pipe.last_workload_job_id,
+        )
+
+    def test_production_pipe_persists_explicit_safe_failure_detail(self):
+        pipe = Gate1Pipe()
+        pipe.valves.artifact_store_path = str(self.root / "failed-artifacts.sqlite3")
+        pipe.valves.artifact_payload_root = str(self.root / "failed-payloads")
+
+        async def fail_current_pipeline(*_args, **_kwargs):
+            raise NdflWorkflowError(
+                "ndfl_gate3_document_incomplete",
+                safe_details={
+                    "chunks_total": 1,
+                    "chunks_rejected": 1,
+                    "failed_outcomes": [
+                        {
+                            "chunk_ordinal": 1,
+                            "failed_phase": "financial_labeling",
+                            "error_code": "gate3_labeling_alias_unknown",
+                        }
+                    ],
+                },
+            )
+
+        pipe._run_workload = fail_current_pipeline
+        with self.assertRaises(NdflWorkflowError):
+            asyncio.run(
+                pipe.pipe(
+                    {},
+                    __user__={"id": self.access.user_id},
+                    __metadata__={
+                        "case_id": self.access.case_id,
+                        "chat_id": self.access.chat_id,
+                        "model_id": self.access.workspace_model_id,
+                    },
+                )
+            )
+
+        self.assertEqual(pipe.last_workload_snapshot["state"], "failed")
+        self.assertEqual(
+            pipe.last_workload_snapshot["terminal_code"],
+            "ndfl_gate3_document_incomplete",
+        )
+        authority = pipe._workload_authority()
+        access = pipe._canonical_workload_access(
+            WorkloadAccessContext(
+                user_id=self.access.user_id,
+                case_id=self.access.case_id,
+                chat_id=self.access.chat_id,
+                workspace_model_id=self.access.workspace_model_id,
+            )
+        )
+        detail = authority.transitions(
+            job_id=pipe.last_workload_job_id,
+            access=access,
+        )[-1]["safe_detail"]
+        self.assertEqual(detail["chunks_total"], 1)
+        self.assertEqual(detail["chunks_rejected"], 1)
+        self.assertEqual(
+            detail["failed_outcomes"][0]["failed_phase"],
+            "financial_labeling",
         )
 
     def test_provider_calls_and_bundle_builder_are_authority_routed(self):
