@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.37.1-pdf-source-bound-table-v1
+version: 0.38.0-single-current-pipeline
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1
 """
@@ -12,11 +12,9 @@ import asyncio
 import base64
 import binascii
 import hashlib
-import io
 import inspect
 import json
 import re
-import uuid
 from contextlib import nullcontext
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
@@ -42,7 +40,6 @@ from broker_reports_gate1 import (
     FileProcessingOutcomeFactory,
     Gate1BoundedGraphConfig,
     Gate1BoundedGraphFactory,
-    Gate1ArtifactManifest,
     Gate1Normalizer,
     GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
     ManagedPrompt,
@@ -86,48 +83,13 @@ from broker_reports_gate1 import (
     PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
     PDF_TABLE_LOCATOR_POLICY_VERSION,
     PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
-    PdfDualVlmRuntimeConfig,
-    PdfDualVlmRuntimeError,
-    PdfDualVlmRuntimeFactory,
-    PDF_DUAL_VLM_OPENAI_POLICY_VERSION,
-    PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION,
-    PDF_DUAL_VLM_RUN_SCHEMA,
-    PDF_DUAL_VLM_RUNTIME_POLICY_VERSION,
-    SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID,
-    SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION,
-    SemanticVisualTableMigrationConfig,
-    SemanticVisualTableMigrationError,
-    SemanticVisualTableMigrationFactory,
 )
 from broker_reports_gate1.detectors import detect_container, extension_from_name
 from broker_reports_gate1.normalizer import NormalizationResult
-from broker_reports_gate1.pdf_hybrid_evidence import PdfHybridEvidenceConfig
-from broker_reports_gate1.pdf_hybrid_provider import (
-    PdfHybridProviderConfig,
-    PdfHybridProviderError,
-    PdfHybridProviderFactory,
-)
-from broker_reports_gate1.pdf_hybrid_shadow import (
-    PdfHybridShadowConfig,
-    PdfHybridShadowFactory,
-)
 from broker_reports_gate1.private_intake_bytes import (
     OpenWebUIPrivateIntakeBytesResolverFactory,
     PrivateIntakeBytesError,
     is_private_intake_source_id,
-)
-from broker_reports_gate1.pdf_grid_experiment_provider import (
-    PdfGridExperimentProviderFactory,
-    PdfGridProviderConfig,
-    PdfGridProviderError,
-)
-from broker_reports_gate1.pdf_structural_repair_runtime import (
-    PdfStructuralRepairRuntimeConfig,
-)
-from broker_reports_gate1.pdf_structural_repair_shadow import (
-    PdfStructuralRepairShadowConfig,
-    PdfStructuralRepairShadowError,
-    PdfStructuralRepairShadowFactory,
 )
 from broker_reports_gate1.safe_report import render_safe_report
 from broker_reports_gate1.validators import validate_safe_report
@@ -149,13 +111,16 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
     NdflWorkflowFactory,
     ndfl_product_binding_snapshot,
 )
-from broker_reports_gate1.gate5_end_to_end_full_target_xml import (
-    Gate5EndToEndFullTargetXmlRuntimeFactory,
+from broker_reports_gate1.gate5_declaration_preparation import (
+    Gate5DeclarationPreparationRuntimeFactory,
 )
-from broker_reports_gate1.gate5_openwebui_product import (
-    GATE5_OPENWEBUI_PRODUCT_STATUS,
-    Gate5OpenWebUIProductError,
-    Gate5OpenWebUIProductRuntimeFactory,
+from broker_reports_gate1.gate5_declaration_scope_resolution import (
+    GATE5_USER_INTENT_SCHEMA_VERSION,
+)
+from broker_reports_gate1.gate5_trusted_methodology import (
+    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
+    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+    GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
 )
 
 
@@ -219,7 +184,6 @@ class Pipe:
         )
         clarification_model_id: str = Field(default="")
         clarification_criticality_refinement_enabled: bool = Field(default=True)
-        broker_pdf_neutral_table_profile_v1_enabled: bool = Field(default=False)
         pdf_compact_canonical_dual_write: bool = Field(default=False)
         canonical_gate2_write_enabled: bool = Field(
             default=False,
@@ -246,11 +210,6 @@ class Pipe:
             default="/app/backend/data/broker_reports_gate1/gate3-product-proof"
         )
         ndfl_gate3_private_audit_id: str = Field(default="")
-        ndfl_full_product_enabled: bool = Field(
-            default=False,
-            description="Controlled synthetic proof-only Gate 4 -> XML continuation.",
-        )
-        ndfl_full_product_synthetic_only: bool = Field(default=True)
         pdf_table_intake_enabled: bool = Field(
             default=True,
             description=(
@@ -271,42 +230,6 @@ class Pipe:
         pdf_table_intake_vertical_padding_fraction: float = Field(
             default=0.08, ge=0, le=0.25
         )
-        pdf_dual_vlm_enabled: bool = Field(default=False)
-        pdf_dual_vlm_provider_selection_policy_version: str = Field(
-            default=PDF_DUAL_VLM_PROVIDER_SELECTION_POLICY_VERSION
-        )
-        pdf_dual_vlm_openai_invocation_policy: str = Field(default="disabled")
-        pdf_dual_vlm_gemini_model_id: str = Field(default="models/gemini-3.5-flash")
-        pdf_dual_vlm_openai_model_id: str = Field(default="gpt-5.4-mini-2026-03-17")
-        pdf_dual_vlm_timeout_seconds: int = Field(default=240, ge=1, le=600)
-        pdf_dual_vlm_maximum_output_tokens: int = Field(default=16_384, ge=1, le=32_768)
-        pdf_dual_vlm_maximum_counted_input_tokens: int = Field(
-            default=24_000, ge=1, le=128_000
-        )
-        pdf_dual_vlm_maximum_candidates: int = Field(default=16, ge=1, le=32)
-        pdf_semantic_visual_table_downstream_enabled: bool = Field(default=False)
-        pdf_semantic_visual_table_migration_policy_version: str = Field(
-            default=SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION
-        )
-        pdf_semantic_visual_table_accepted_profile_id: str = Field(
-            default=SEMANTIC_VISUAL_TABLE_ACCEPTED_PROFILE_ID
-        )
-        pdf_hybrid_shadow_enabled: bool = Field(default=False)
-        pdf_hybrid_shadow_table_allowlist: str = Field(default="")
-        pdf_hybrid_provider_profile: str = Field(default="google_gemini")
-        pdf_hybrid_model_id: str = Field(default="models/gemini-3.5-flash")
-        pdf_hybrid_max_candidates: int = Field(default=512)
-        pdf_hybrid_max_context_bytes: int = Field(default=128 * 1024)
-        pdf_hybrid_primary_dpi: int = Field(default=150)
-        pdf_hybrid_escalation_dpi: int = Field(default=200)
-        pdf_structural_repair_shadow_enabled: bool = Field(default=False)
-        pdf_vlm_guided_intake_shadow_enabled: bool = Field(default=False)
-        pdf_vlm_guided_intake_shadow_page_allowlist: str = Field(default="")
-        pdf_semantic_header_shadow_enabled: bool = Field(default=False)
-        pdf_structural_repair_shadow_table_allowlist: str = Field(default="")
-        pdf_structural_repair_provider_profile: str = Field(default="google_gemini")
-        pdf_structural_repair_model_id: str = Field(default="models/gemini-3.5-flash")
-        pdf_structural_repair_max_tables: int = Field(default=8, ge=1, le=32)
         live_smoke_trigger_phrases: str = Field(
             default="artifactstore retention smoke,gate1 artifactstore smoke"
         )
@@ -576,14 +499,6 @@ class Pipe:
         safe_metadata = __metadata__ if isinstance(__metadata__, dict) else {}
         messages_arg = __messages__ or kwargs.get("__messages__")
         files_arg = __files__ or kwargs.get("__files__")
-        latest_user_message = await self._trusted_interaction_message(
-            body=safe_body,
-            messages_arg=messages_arg,
-            request=__request__,
-            metadata=safe_metadata,
-            user=__user__,
-        )
-
         if self.valves.require_trigger_phrase and not self._has_trigger_phrase(
             safe_body, messages_arg
         ):
@@ -676,9 +591,9 @@ class Pipe:
                 "retention_policy_mode": retention_policy.mode,
                 "retention_policy_explicit": retention_policy.explicit,
                 "clarification_criticality_refinement_enabled": criticality_refinement_enabled,
-                "broker_pdf_neutral_table_profile_v1_enabled": bool(
-                    self.valves.broker_pdf_neutral_table_profile_v1_enabled
-                ),
+                # The current PDF route always promotes source-bound pdfplumber
+                # projections through the deterministic neutral-table contract.
+                "broker_pdf_neutral_table_profile_v1_enabled": True,
                 "pdf_compact_canonical_dual_write": bool(
                     self.valves.pdf_compact_canonical_dual_write
                 ),
@@ -698,28 +613,6 @@ class Pipe:
                 "pdf_table_intake_vertical_padding_fraction": (
                     self.valves.pdf_table_intake_vertical_padding_fraction
                 ),
-                "pdf_dual_vlm_enabled": bool(self.valves.pdf_dual_vlm_enabled),
-                "pdf_dual_vlm_provider_selection_policy_version": (
-                    self.valves.pdf_dual_vlm_provider_selection_policy_version
-                ),
-                "pdf_dual_vlm_openai_invocation_policy": (
-                    self.valves.pdf_dual_vlm_openai_invocation_policy
-                ),
-                "pdf_semantic_visual_table_downstream_enabled": bool(
-                    self.valves.pdf_semantic_visual_table_downstream_enabled
-                ),
-                "pdf_semantic_visual_table_migration_policy_version": (
-                    self.valves.pdf_semantic_visual_table_migration_policy_version
-                ),
-                "pdf_semantic_visual_table_accepted_profile_id": (
-                    self.valves.pdf_semantic_visual_table_accepted_profile_id
-                ),
-                "pdf_semantic_header_shadow_enabled": bool(
-                    self.valves.pdf_semantic_header_shadow_enabled
-                ),
-                "pdf_vlm_guided_intake_shadow_enabled": bool(
-                    self.valves.pdf_vlm_guided_intake_shadow_enabled
-                ),
             },
             extra_private_markers=self._private_markers(file_refs),
             pdf_table_locator_pages_by_sha256=locator_pages_by_sha256,
@@ -737,43 +630,6 @@ class Pipe:
         result.package["private_pdf_table_locator_pages"] = table_intake[
             "private_page_results"
         ]
-        dual_vlm = self._maybe_run_pdf_dual_vlm(
-            table_intake=table_intake,
-            request=__request__,
-        )
-        result.package["pdf_dual_vlm"] = dual_vlm["safe_summary"]
-        result.package["private_pdf_dual_vlm_decisions"] = dual_vlm["private_decisions"]
-        result.package["private_pdf_dual_vlm_provider_evidence"] = dual_vlm[
-            "private_provider_evidence"
-        ]
-        semantic_migration = self._maybe_migrate_pdf_semantic_tables(
-            dual_vlm=dual_vlm
-        )
-        result.package["semantic_visual_table_migration"] = semantic_migration[
-            "safe_summary"
-        ]
-        result.package["private_semantic_visual_table_envelopes"] = (
-            semantic_migration["private_envelopes"]
-        )
-        result.package["private_semantic_visual_table_projections"] = (
-            semantic_migration["gate2_projections"]
-        )
-        with self._provider_slot_if_enabled(
-            bool(self.valves.pdf_structural_repair_shadow_enabled),
-            self.valves.pdf_structural_repair_provider_profile,
-        ):
-            structural_shadow = self._maybe_run_pdf_structural_repair_shadow(
-                store=artifact_store,
-                result=result,
-                context=artifact_context,
-                retention_policy=retention_policy,
-                file_inputs=file_inputs,
-                request=__request__,
-            )
-        result = self._attach_pdf_structural_repair_shadow(
-            result=result,
-            shadow_result=structural_shadow,
-        )
         result = await self._run_provider_awaitable(
             self._maybe_run_passport_stage(
                 result=result,
@@ -798,70 +654,20 @@ class Pipe:
             enabled=bool(self.valves.clarification_enabled),
             provider_id="openwebui_completion",
         )
-        with self._provider_slot_if_enabled(
-            bool(self.valves.pdf_hybrid_shadow_enabled),
-            self.valves.pdf_hybrid_provider_profile,
-        ):
-            hybrid_shadow = self._maybe_run_pdf_hybrid_shadow(
-                store=artifact_store,
-                result=result,
-                context=artifact_context,
-                retention_policy=retention_policy,
-                file_inputs=file_inputs,
-                request=__request__,
-            )
-        self._workload_review_items = sum(
-            item.get("review_required") is True
-            for item in dual_vlm.get("private_decisions") or []
-            if isinstance(item, dict)
-        ) + int(
-            semantic_migration["safe_summary"].get(
-                "review_required_or_unsupported_total"
-            )
-            or 0
-        )
+        self._workload_review_items = 0
         self._workload_checkpoint()
-        persisted_continuation = bool(
-            self.valves.ndfl_full_product_enabled
-            and "3-НДФЛ факты:" in latest_user_message
-            and self._persisted_gate3_annotations_artifact_id(
-                store=artifact_store,
-                context=artifact_context,
-            )
+        artifact_manifest = persist_gate1_result(
+            store=artifact_store,
+            result=result,
+            context=artifact_context,
+            retention_policy=retention_policy,
+            source_file_refs=self._source_file_refs(file_refs),
         )
-        if persisted_continuation:
-            # Human-residual turns consume the immutable Gate 3 sidecar from
-            # this exact owner/case/run. Re-persisting Gate 1 would mutate an
-            # already sealed run and is not part of the continuation contract.
-            artifact_manifest = Gate1ArtifactManifest(
-                normalization_run_id=planned_run_id,
-                gate2_handoff_ref="",
-                safe_refs=[],
-                private_slice_refs=[],
-                private_source_payload_refs=[],
-                private_source_unit_refs=[],
-                pdf_table_candidate_refs=[],
-                pdf_table_detection_attempt_refs=[],
-                blocker_refs=[],
-                artifact_refs_by_type={},
-            )
-        else:
-            artifact_manifest = persist_gate1_result(
-                store=artifact_store,
-                result=result,
-                context=artifact_context,
-                retention_policy=retention_policy,
-                source_file_refs=self._source_file_refs(file_refs),
-            )
         ndfl_gate3 = await self._run_provider_awaitable(
             self._maybe_run_ndfl_gate3(
                 store=artifact_store,
                 context=artifact_context,
                 artifact_manifest=artifact_manifest,
-                file_inputs=file_inputs,
-                file_refs=file_refs,
-                latest_user_message=latest_user_message,
-                retention_policy=retention_policy,
                 user=__user__,
                 request=__request__,
                 event_emitter=__event_emitter__,
@@ -881,25 +687,12 @@ class Pipe:
         self.last_artifact_manifest = {
             **artifact_manifest.to_dict(),
             "pdf_table_intake": table_intake["safe_summary"],
-            "pdf_dual_vlm": dual_vlm["safe_summary"],
-            "semantic_visual_table_migration": semantic_migration["safe_summary"],
-            "pdf_structural_repair_shadow": structural_shadow,
-            "pdf_semantic_header_shadow": self._semantic_shadow_manifest(
-                structural_shadow
-            ),
-            "pdf_hybrid_shadow": hybrid_shadow,
             "ndfl_gate3": ndfl_gate3,
         }
 
         if not file_refs:
             await self._emit(
                 __event_emitter__, "No uploaded file refs were visible.", done=True
-            )
-        elif persisted_continuation:
-            await self._emit(
-                __event_emitter__,
-                "Persisted Gate 3 continuation completed.",
-                done=True,
             )
         else:
             await self._emit(
@@ -918,16 +711,16 @@ class Pipe:
             )
         product = ndfl_gate3.get("product")
         if isinstance(product, dict):
-            if product.get("status") == GATE5_OPENWEBUI_PRODUCT_STATUS:
+            if product.get("status") == "DECLARATION_READY":
                 chat_content = "\n".join(
                     [
                         chat_content,
                         "",
-                        "Декларация сформирована.",
-                        f"[Скачать XML]({product['download_url']})",
+                        "Расчётная часть готова. Выпуск декларации ожидает "
+                        "запечатанный семантический пакет.",
                     ]
                 )
-            elif product.get("status") == "blocked":
+            elif product.get("status") == "PREPARATION_INCOMPLETE":
                 chat_content = "\n".join(
                     [
                         chat_content,
@@ -962,10 +755,6 @@ class Pipe:
         store: Any,
         context: ArtifactAccessContext,
         artifact_manifest: Any,
-        file_inputs: list[FileInput] | None = None,
-        file_refs: list[dict[str, Any]] | None = None,
-        latest_user_message: str = "",
-        retention_policy: Any = None,
         user: Any,
         request: Any,
         event_emitter: Any,
@@ -1001,33 +790,11 @@ class Pipe:
                     store=store,
                     context=context,
                 )
-                if self.valves.ndfl_full_product_enabled
-                else None
             )
             if persisted_annotations_artifact_id is not None:
-                model_client = Gate2StructuredModelClientFactory(
-                    config=Gate2StructuredModelClientConfig(
-                        request_profile=GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
-                        provider_profile_id=NDFL_PROVIDER_PROFILE_ID,
-                        capability_probe=False,
-                        economy_budget_enforcement=False,
-                    ),
-                    user=user,
-                    request=request,
-                ).create()
-                product = await self._maybe_run_ndfl_full_product(
+                product = self._run_ndfl_current_pipeline(
                     store=store,
                     context=context,
-                    executions=[],
-                    financial_annotations_artifact_id=(
-                        persisted_annotations_artifact_id
-                    ),
-                    file_inputs=list(file_inputs or []),
-                    file_refs=list(file_refs or []),
-                    latest_user_message=latest_user_message,
-                    retention_policy=retention_policy,
-                    model_client=model_client,
-                    user=user,
                 )
                 return {
                     "schema_version": "broker_reports_ndfl_gate3_product_run_v1",
@@ -1089,16 +856,9 @@ class Pipe:
 
         audit = self._write_ndfl_private_audit(executions)
         provider_calls_total = self._ndfl_provider_calls_total(executions)
-        product = await self._maybe_run_ndfl_full_product(
+        product = self._run_ndfl_current_pipeline(
             store=store,
             context=context,
-            executions=executions,
-            file_inputs=list(file_inputs or []),
-            file_refs=list(file_refs or []),
-            latest_user_message=latest_user_message,
-            retention_policy=retention_policy,
-            model_client=model_client,
-            user=user,
         )
         return {
             "schema_version": "broker_reports_ndfl_gate3_product_run_v1",
@@ -1164,232 +924,72 @@ class Pipe:
             for execution in executions
         )
 
-    async def _maybe_run_ndfl_full_product(
+    def _run_ndfl_current_pipeline(
         self,
         *,
         store: Any,
         context: ArtifactAccessContext,
-        executions: list[Any],
-        financial_annotations_artifact_id: str | None = None,
-        file_inputs: list[FileInput],
-        file_refs: list[dict[str, Any]],
-        latest_user_message: str,
-        retention_policy: Any,
-        model_client: Any,
-        user: Any,
     ) -> dict[str, Any]:
-        if not self.valves.ndfl_full_product_enabled:
-            return {
-                "schema_version": "broker_reports_gate5_openwebui_product_result_v0",
-                "status": "disabled",
-                "xml_created": False,
-            }
-        if self.valves.ndfl_full_product_synthetic_only is not True:
-            raise Gate5OpenWebUIProductError(
-                "gate5_product_synthetic_only_boundary_required"
-            )
-        annotations_artifact_id = (
-            financial_annotations_artifact_id
-            or (
-                executions[0].gate3.annotations_artifact_id
-                if len(executions) == 1
-                else None
-            )
-        )
-        if (
-            annotations_artifact_id is None
-            or len(file_inputs) != 1
-            or len(file_refs) != 1
-        ):
-            return {
-                "schema_version": "broker_reports_gate5_openwebui_product_result_v0",
-                "status": "blocked",
-                "blocker_code": "gate5_product_one_source_required",
-                "blocker": {
-                    "stage": "supplied_source_boundary",
-                    "action": "upload_exactly_one_synthetic_broker_source",
-                },
-                "xml_created": False,
-            }
-        read_result = file_inputs[0].read_bytes()
-        if read_result.status != "available" or read_result.content_bytes is None:
-            return {
-                "schema_version": "broker_reports_gate5_openwebui_product_result_v0",
-                "status": "blocked",
-                "blocker_code": "gate5_product_source_bytes_unavailable",
-                "blocker": {
-                    "stage": "supplied_source_boundary",
-                    "action": "restore_uploaded_source_access",
-                },
-                "xml_created": False,
-            }
-        full_target_runtime = Gate5EndToEndFullTargetXmlRuntimeFactory(
+        preparation = Gate5DeclarationPreparationRuntimeFactory(
             store=store,
             read_enabled=True,
-            retention_policy=retention_policy,
-            gate3_model_client=model_client,
-            gate3_model_id=self.valves.ndfl_gate3_model_id,
-            gate3_provider_profile_id=self.valves.ndfl_gate3_provider_profile_id,
-        ).create()
-        product_runtime = Gate5OpenWebUIProductRuntimeFactory(
-            store=store,
-            retention_policy=retention_policy,
-            full_target_runtime=full_target_runtime,
-        ).create()
-        try:
-            product = product_runtime.process(
-                context=context,
-                source_file_id=str(file_refs[0].get("file_id") or ""),
-                source_filename=file_inputs[0].original_filename_private,
-                source_mime_type=file_inputs[0].mime_type,
-                source_bytes=read_result.content_bytes,
-                financial_annotations_artifact_id=(
-                    annotations_artifact_id
+        ).create().prepare(
+            source_fact_methodology_ref={
+                "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+                "methodology_id": (
+                    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID
                 ),
-                latest_user_message=latest_user_message,
-            )
-        except Gate5OpenWebUIProductError as exc:
-            return {
-                "schema_version": "broker_reports_gate5_openwebui_product_result_v0",
-                "status": "blocked",
-                "blocker_code": exc.code,
-                "blocker": {
-                    "stage": "trusted_case_fact_boundary",
-                    "action": "correct_structured_answer",
-                },
-                "xml_created": False,
-            }
-        if product.get("status") != GATE5_OPENWEBUI_PRODUCT_STATUS:
-            return product
-
-        native_file_id = await self._publish_ndfl_xml_file(
-            user=user,
-            filename=product["xml_filename"],
-            xml_bytes=product["xml_bytes"],
-            xml_sha256=product["xml_sha256"],
-        )
-        delivery = product_runtime.persist_delivery_receipt(
+                "methodology_version": (
+                    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+                ),
+            },
             context=context,
-            source_file_id=str(file_refs[0].get("file_id") or ""),
-            xml_artifact_id=product["xml_artifact_id"],
-            openwebui_file_id=native_file_id,
-            xml_sha256=product["xml_sha256"],
+            evidence_mode="REAL_EVIDENCE",
+            user_intent={
+                "schema_version": GATE5_USER_INTENT_SCHEMA_VERSION,
+                "form": "3-NDFL",
+                "tax_period": "2025",
+                "task": "prepare_tax_declaration",
+                "domains": ["broker_securities_income"],
+            },
+            user_case_facts=[],
         )
         return {
-            key: copy_value
-            for key, copy_value in {
-                **product,
-                "xml_bytes": None,
-                "fact_artifact_ids": None,
-                "openwebui_file_id": native_file_id,
-                "delivery_receipt_artifact_id": delivery.artifact_id,
-                "download_url": (
-                    f"/api/v1/files/{native_file_id}/content?attachment=true"
-                ),
-            }.items()
-            if copy_value is not None
+            "schema_version": "broker_reports_current_pipeline_result_v1",
+            "status": preparation["status"],
+            "terminal": preparation["terminals"][-1],
+            "declaration_ready": preparation["declaration_readiness"]["ready"],
+            "xml_created": False,
+            "pdf_created": False,
+            "legacy_fallback_used": False,
+            "preparation": preparation,
         }
 
     @staticmethod
-    async def _publish_ndfl_xml_file(
-        *,
-        user: Any,
-        filename: str,
-        xml_bytes: bytes,
-        xml_sha256: str,
-    ) -> str:
-        if not isinstance(user, dict) or not str(user.get("id") or "").strip():
-            raise Gate5OpenWebUIProductError(
-                "gate5_product_authenticated_user_required"
-            )
-        try:
-            from open_webui.models.files import FileForm, Files
-            from open_webui.storage.provider import Storage
-        except ImportError as exc:
-            raise Gate5OpenWebUIProductError(
-                "gate5_product_native_file_boundary_unavailable"
-            ) from exc
-        file_id = str(uuid.uuid4())
-        storage_name = f"{file_id}_{filename}"
-        contents, file_path = await asyncio.to_thread(
-            Storage.upload_file,
-            io.BytesIO(xml_bytes),
-            storage_name,
-            {
-                "OpenWebUI-User-Email": str(user.get("email") or ""),
-                "OpenWebUI-User-Id": str(user["id"]),
-                "OpenWebUI-User-Name": str(user.get("name") or ""),
-                "OpenWebUI-File-Id": file_id,
-            },
-        )
-        if hashlib.sha256(contents).hexdigest() != xml_sha256:
-            raise Gate5OpenWebUIProductError(
-                "gate5_product_native_file_hash_mismatch"
-            )
-        file_item = await Files.insert_new_file(
-            str(user["id"]),
-            FileForm(
-                id=file_id,
-                hash=xml_sha256,
-                filename=filename,
-                path=file_path,
-                data={},
-                meta={
-                    "name": filename,
-                    "content_type": "application/xml",
-                    "size": len(contents),
-                    "file_hash": xml_sha256,
-                    "data": {
-                        "synthetic_proof_evidence": True,
-                        "real_user_fact": False,
-                        "broker_reports_gate5_product": True,
-                    },
-                },
-            ),
-        )
-        if file_item is None:
-            raise Gate5OpenWebUIProductError(
-                "gate5_product_native_file_record_failed"
-            )
-        return file_id
-
-    @staticmethod
     def _ndfl_product_blocker_content(product: dict[str, Any]) -> str:
-        blocker = product.get("blocker")
-        blocker = blocker if isinstance(blocker, dict) else {}
-        missing_fact = str(product.get("missing_fact") or "").strip()
-        missing_roles = blocker.get("missing_role_names")
-        if isinstance(missing_roles, list) and missing_roles:
+        preparation = product.get("preparation")
+        preparation = preparation if isinstance(preparation, dict) else {}
+        closure = preparation.get("gap_closure")
+        closure = closure if isinstance(closure, dict) else {}
+        user_actions = closure.get("user_facing_required_actions")
+        user_actions = user_actions if isinstance(user_actions, list) else []
+        if user_actions:
+            first = user_actions[0]
+            question = str(first.get("question") or "").strip()
             return (
-                "XML не создан: в загруженном источнике отсутствуют обязательные "
-                "финансовые значения: " + ", ".join(map(str, missing_roles)) + "."
+                "Расчёт остановлен без догадок. Нужны подтверждённые данные"
+                + (": " + question if question else ".")
             )
-        if missing_fact:
-            return (
-                "XML не создан. Укажите обязательный факт `"
-                + missing_fact
-                + "` ответом `3-НДФЛ факты: {…}`."
-            )
-        missing_sections = blocker.get("missing_sections")
-        if isinstance(missing_sections, list) and missing_sections:
-            return (
-                "Для supplied case нужны структурированные факты по разделам: "
-                + ", ".join(map(str, missing_sections))
-                + ". Ответьте `3-НДФЛ факты: {…}`; значения будут проверены и "
-                "сохранены до повторного запуска. Контракт ответа распознан: "
-                + (
-                    "да"
-                    if blocker.get("answer_marker_observed") is True
-                    else "нет"
-                )
-                + f" ({int(blocker.get('interaction_chars') or 0)} символов)."
-            )
-        return (
-            "XML не создан: machine blocker `"
-            + str(product.get("blocker_code") or "unknown")
-            + "`. Исправьте структурированный ответ и повторите запуск."
+        internal_actions = closure.get("internal_owner_required_actions")
+        internal_actions = (
+            internal_actions if isinstance(internal_actions, list) else []
         )
-
+        if internal_actions:
+            return (
+                "Расчёт остановлен на точной границе методики; "
+                "дополнительный документ у пользователя не запрашивается."
+            )
+        return "Расчёт остановлен: обязательные данные пока неполны."
     def _write_ndfl_private_audit(self, executions: list[Any]) -> dict[str, Any]:
         if not self.valves.ndfl_gate3_private_audit_enabled:
             return {"enabled": False, "status": "disabled"}
@@ -1693,464 +1293,6 @@ class Pipe:
             "private_detection_attempts": [],
             "private_page_results": [],
         }
-
-    def _maybe_run_pdf_dual_vlm(
-        self,
-        *,
-        table_intake: dict[str, Any],
-        request: Any,
-    ) -> dict[str, Any]:
-        config = PdfDualVlmRuntimeConfig(
-            enabled=bool(self.valves.pdf_dual_vlm_enabled),
-            provider_selection_policy_version=(
-                self.valves.pdf_dual_vlm_provider_selection_policy_version
-            ),
-            openai_invocation_policy=(
-                self.valves.pdf_dual_vlm_openai_invocation_policy
-            ),
-            gemini_model_id=self.valves.pdf_dual_vlm_gemini_model_id,
-            openai_model_id=self.valves.pdf_dual_vlm_openai_model_id,
-            timeout_seconds=self.valves.pdf_dual_vlm_timeout_seconds,
-            maximum_output_tokens=self.valves.pdf_dual_vlm_maximum_output_tokens,
-            maximum_counted_input_tokens=(
-                self.valves.pdf_dual_vlm_maximum_counted_input_tokens
-            ),
-            maximum_candidates=self.valves.pdf_dual_vlm_maximum_candidates,
-        )
-        try:
-            factory = PdfDualVlmRuntimeFactory(config)
-            if config.enabled:
-                return self._pdf_dual_vlm_failure(
-                    config,
-                    "pdf_dual_vlm_transcription_route_retired",
-                    candidates_total=0,
-                )
-            disabled = factory.create_with_providers(
-                gemini=None,
-                openai=None,
-            ).run([])
-            return {
-                "safe_summary": disabled.safe_summary,
-                "private_decisions": [],
-                "private_provider_evidence": [],
-            }
-        except WorkloadAuthorityError:
-            raise
-        except (PdfDualVlmRuntimeError, RuntimeError, ValueError) as exc:
-            return self._pdf_dual_vlm_failure(
-                config,
-                str(getattr(exc, "code", "pdf_dual_vlm_runtime_failed")),
-                candidates_total=len(table_intake.get("private_candidates") or []),
-            )
-
-    @staticmethod
-    def _pdf_dual_vlm_failure(
-        config: PdfDualVlmRuntimeConfig,
-        failure_code: str,
-        *,
-        candidates_total: int,
-    ) -> dict[str, Any]:
-        return {
-            "safe_summary": {
-                "schema_version": PDF_DUAL_VLM_RUN_SCHEMA,
-                "policy_version": PDF_DUAL_VLM_RUNTIME_POLICY_VERSION,
-                "enabled": config.enabled,
-                "status": "failed",
-                "terminal_failure_code": failure_code,
-                "candidates_total": candidates_total,
-                "decisions_total": 0,
-                "decision_status_counts": {},
-                "provider_selection": {
-                    "policy_version": config.provider_selection_policy_version,
-                    "execution_mode": config.execution_mode,
-                    "master_provider": config.primary_provider,
-                    "master_model_id": config.gemini_model_id,
-                    "optional_provider": config.review_provider,
-                    "optional_model_id": config.openai_model_id,
-                    "default_provider_order": ["gemini"],
-                    "openai_policy_version": PDF_DUAL_VLM_OPENAI_POLICY_VERSION,
-                    "openai_invocation_policy": config.openai_invocation_policy,
-                    "mandatory_consensus": False,
-                    "hidden_retry": False,
-                    "provider_failover": False,
-                    "provider_switch": False,
-                    "provider_merge": False,
-                },
-                "provider_qualifications": None,
-                "decision_hashes": [],
-                "provider_proposal_canonical_authority": False,
-                "canonical_tables_published": 0,
-                "semantic_transcriptions_valid": 0,
-                "whole_document_provider_uploads": 0,
-                "hidden_retries": 0,
-                "provider_failovers": 0,
-                "provider_merges": 0,
-                "openai_fallbacks": 0,
-                "openai_control_calls": 0,
-                "paddle_dependency": False,
-            },
-            "private_decisions": [],
-            "private_provider_evidence": [],
-        }
-
-    def _maybe_migrate_pdf_semantic_tables(
-        self, *, dual_vlm: dict[str, Any]
-    ) -> dict[str, Any]:
-        config = SemanticVisualTableMigrationConfig(
-            enabled=bool(
-                self.valves.pdf_semantic_visual_table_downstream_enabled
-            ),
-            policy_version=(
-                self.valves.pdf_semantic_visual_table_migration_policy_version
-            ),
-            accepted_profile_id=(
-                self.valves.pdf_semantic_visual_table_accepted_profile_id
-            ),
-        )
-        try:
-            migrated = SemanticVisualTableMigrationFactory(config).create().migrate(
-                decisions=dual_vlm.get("private_decisions") or [],
-                provider_evidence=(
-                    dual_vlm.get("private_provider_evidence") or []
-                ),
-            )
-            return {
-                "safe_summary": migrated.safe_summary,
-                "private_envelopes": migrated.private_envelopes,
-                "gate2_projections": migrated.gate2_projections,
-            }
-        except SemanticVisualTableMigrationError as exc:
-            return {
-                "safe_summary": {
-                    "schema_version": (
-                        SEMANTIC_VISUAL_TABLE_MIGRATION_POLICY_VERSION
-                    ),
-                    "status": "failed",
-                    "enabled": config.enabled,
-                    "accepted_profile_id": config.accepted_profile_id,
-                    "terminal_failure_code": exc.code,
-                    "accepted_for_gate2_total": 0,
-                    "review_required_or_unsupported_total": len(
-                        dual_vlm.get("private_decisions") or []
-                    ),
-                    "legacy_artifacts_auto_migrated_total": 0,
-                    "mandatory_human_review_for_accepted_profile": False,
-                    "provider_merge_performed": False,
-                    "provider_repair_performed": False,
-                    "other_source_families_changed": False,
-                    "raw_values_present": False,
-                },
-                "private_envelopes": [],
-                "gate2_projections": [],
-            }
-
-    def _maybe_run_pdf_structural_repair_shadow(
-        self,
-        *,
-        store,
-        result: NormalizationResult,
-        context: ArtifactAccessContext,
-        retention_policy,
-        file_inputs: list[FileInput],
-        request: Any,
-    ) -> dict[str, Any]:
-        if not self.valves.pdf_structural_repair_shadow_enabled:
-            runtime = PdfStructuralRepairShadowFactory(
-                PdfStructuralRepairShadowConfig(
-                    enabled=False,
-                    vlm_guided_intake_enabled=False,
-                    semantic_header_shadow_enabled=bool(
-                        self.valves.pdf_semantic_header_shadow_enabled
-                    ),
-                )
-            ).create(provider=None)
-            return runtime.run(
-                store=store,
-                package=result.package,
-                context=context,
-                retention_policy=retention_policy,
-                pdf_bytes_by_sha256={},
-            )
-        pdf_bytes_by_sha256: dict[str, bytes] = {}
-        for file_input in file_inputs:
-            read = file_input.read_bytes()
-            if read.status != "available" or not isinstance(read.content_bytes, bytes):
-                continue
-            pdf_bytes_by_sha256[hashlib.sha256(read.content_bytes).hexdigest()] = (
-                read.content_bytes
-            )
-        provider = None
-        try:
-            provider = PdfGridExperimentProviderFactory(
-                PdfGridProviderConfig(
-                    provider_profile=self.valves.pdf_structural_repair_provider_profile,
-                    model_id=self.valves.pdf_structural_repair_model_id,
-                    maximum_counted_input_tokens=20_000,
-                )
-            ).create_for_openwebui(request)
-        except (PdfGridProviderError, RuntimeError, ValueError):
-            provider = None
-        allowlist = tuple(
-            sorted(
-                {
-                    item.strip()
-                    for item in self.valves.pdf_structural_repair_shadow_table_allowlist.split(
-                        ","
-                    )
-                    if item.strip()
-                }
-            )
-        )
-        page_allowlist = tuple(
-            sorted(
-                {
-                    item.strip()
-                    for item in self.valves.pdf_vlm_guided_intake_shadow_page_allowlist.split(
-                        ","
-                    )
-                    if item.strip()
-                }
-            )
-        )
-        try:
-            runtime = PdfStructuralRepairShadowFactory(
-                PdfStructuralRepairShadowConfig(
-                    enabled=True,
-                    vlm_guided_intake_enabled=bool(
-                        self.valves.pdf_vlm_guided_intake_shadow_enabled
-                    ),
-                    semantic_header_shadow_enabled=bool(
-                        self.valves.pdf_semantic_header_shadow_enabled
-                    ),
-                    maximum_tables=self.valves.pdf_structural_repair_max_tables,
-                    table_allowlist=allowlist,
-                    page_allowlist=page_allowlist,
-                ),
-                runtime_config=PdfStructuralRepairRuntimeConfig(
-                    provider_profile=self.valves.pdf_structural_repair_provider_profile,
-                    model_id=self.valves.pdf_structural_repair_model_id,
-                ),
-            ).create(provider=provider)
-            return runtime.run(
-                store=store,
-                package=result.package,
-                context=context,
-                retention_policy=retention_policy,
-                pdf_bytes_by_sha256=pdf_bytes_by_sha256,
-            )
-        except (PdfStructuralRepairShadowError, RuntimeError, ValueError):
-            return self._pdf_structural_repair_safe_fallback(
-                result,
-                vlm_guided_intake_enabled=bool(
-                    self.valves.pdf_vlm_guided_intake_shadow_enabled
-                ),
-                semantic_header_shadow_enabled=bool(
-                    self.valves.pdf_semantic_header_shadow_enabled
-                ),
-            )
-
-    def _attach_pdf_structural_repair_shadow(
-        self,
-        *,
-        result: NormalizationResult,
-        shadow_result: dict[str, Any],
-    ) -> NormalizationResult:
-        summary = shadow_result.get("summary")
-        safe_projection = {
-            "enabled": shadow_result.get("enabled") is True,
-            "summary_ref": shadow_result.get("summary_ref"),
-            "summary": summary if isinstance(summary, dict) else None,
-            "authority_state": "non_authoritative",
-            "production_gate2_selection_changed": False,
-        }
-        result.package["pdf_structural_repair_shadow"] = safe_projection
-        safe_report = render_safe_report(result.package)
-        validation = validate_safe_report(
-            safe_report=safe_report,
-            private_markers=result.private_markers,
-            run_id=result.package["normalization_run"]["run_id"],
-        )
-        if validation.get("status") != "passed":
-            fallback = self._pdf_structural_repair_safe_fallback(
-                result,
-                vlm_guided_intake_enabled=bool(
-                    self.valves.pdf_vlm_guided_intake_shadow_enabled
-                ),
-                semantic_header_shadow_enabled=bool(
-                    self.valves.pdf_semantic_header_shadow_enabled
-                ),
-            )
-            result.package["pdf_structural_repair_shadow"] = {
-                "enabled": True,
-                "summary_ref": None,
-                "summary": fallback["summary"],
-                "authority_state": "non_authoritative",
-                "production_gate2_selection_changed": False,
-            }
-            safe_report = render_safe_report(result.package)
-        return NormalizationResult(
-            package=result.package,
-            safe_report=safe_report,
-            private_markers=result.private_markers,
-            bounded_graph=result.bounded_graph,
-        )
-
-    @staticmethod
-    def _pdf_structural_repair_safe_fallback(
-        result: NormalizationResult,
-        *,
-        vlm_guided_intake_enabled: bool = False,
-        semantic_header_shadow_enabled: bool = False,
-    ) -> dict[str, Any]:
-        documents = [
-            item
-            for item in result.package.get("document_inventory", {}).get(
-                "documents", []
-            )
-            if isinstance(item, dict) and item.get("container_format") == "pdf"
-        ]
-        outcomes = None
-        if documents:
-            service = FileProcessingOutcomeFactory().create()
-            records = [
-                service.failed(
-                    file_ref=str(item.get("document_id")),
-                    stage="processing",
-                    reason_code="internal_processing_failed",
-                )
-                for item in documents
-            ]
-            outcomes = service.batch(records).model_context()
-        return {
-            "enabled": True,
-            "artifact_refs": [],
-            "semantic_projection_refs": [],
-            "semantic_diagnostic_refs": [],
-            "summary_ref": None,
-            "summary": {
-                "schema_version": "broker_reports_pdf_structural_repair_shadow_summary_v1",
-                "enabled": True,
-                "vlm_guided_intake_enabled": vlm_guided_intake_enabled,
-                "tables_discovered": 0,
-                "tables_selected": 0,
-                "accepted_supplied_consensus_tables": 0,
-                "accepted_physical_structure_tables": 0,
-                "continuation_groups_discovered": 0,
-                "continuation_groups_accepted": 0,
-                "continuation_groups_failed": 0,
-                "continuation_group_outcomes": [],
-                "terminal_outcomes": {"internal_failure": len(documents)},
-                "semantic_header_shadow_enabled": (semantic_header_shadow_enabled),
-                "semantic_projection_status_counts": (
-                    {"not_projected_structural_failure": len(documents)}
-                    if semantic_header_shadow_enabled and documents
-                    else {}
-                ),
-                "semantic_projection_reason_counts": (
-                    {
-                        "pdf_semantic_header_not_projected_structural_failure": (
-                            len(documents)
-                        )
-                    }
-                    if semantic_header_shadow_enabled and documents
-                    else {}
-                ),
-                "private_semantic_projections_persisted": 0,
-                "private_semantic_diagnostics_persisted": 0,
-                "file_processing_outcomes": outcomes,
-                "authority_state": "non_authoritative",
-                "production_ready": False,
-                "production_gate2_selection_changed": False,
-            },
-        }
-
-    @staticmethod
-    def _semantic_shadow_manifest(
-        structural_shadow: dict[str, Any],
-    ) -> dict[str, Any]:
-        summary = (
-            structural_shadow.get("summary")
-            if isinstance(structural_shadow.get("summary"), dict)
-            else {}
-        )
-        refs = structural_shadow.get("semantic_projection_refs")
-        return {
-            "enabled": summary.get("semantic_header_shadow_enabled") is True,
-            "artifact_refs": list(refs) if isinstance(refs, list) else [],
-            "status_counts": dict(
-                summary.get("semantic_projection_status_counts") or {}
-            ),
-            "reason_counts": dict(
-                summary.get("semantic_projection_reason_counts") or {}
-            ),
-            "private_projections_persisted": int(
-                summary.get("private_semantic_projections_persisted") or 0
-            ),
-            "private_diagnostics_persisted": int(
-                summary.get("private_semantic_diagnostics_persisted") or 0
-            ),
-            "authority_state": "non_authoritative",
-            "production_gate2_selection_changed": False,
-        }
-
-    def _maybe_run_pdf_hybrid_shadow(
-        self,
-        *,
-        store,
-        result: NormalizationResult,
-        context: ArtifactAccessContext,
-        retention_policy,
-        file_inputs: list[FileInput],
-        request: Any,
-    ) -> dict[str, Any]:
-        if not self.valves.pdf_hybrid_shadow_enabled:
-            return {"enabled": False, "artifact_refs": [], "summary": None}
-        pdf_bytes_by_sha256: dict[str, bytes] = {}
-        for file_input in file_inputs:
-            read = file_input.read_bytes()
-            if read.status != "available" or not isinstance(read.content_bytes, bytes):
-                continue
-            pdf_bytes_by_sha256[hashlib.sha256(read.content_bytes).hexdigest()] = (
-                read.content_bytes
-            )
-        provider = None
-        try:
-            provider = PdfHybridProviderFactory(
-                PdfHybridProviderConfig(
-                    provider_profile=self.valves.pdf_hybrid_provider_profile,
-                    model_id=self.valves.pdf_hybrid_model_id,
-                )
-            ).create_for_openwebui(request)
-        except (PdfHybridProviderError, RuntimeError, ValueError):
-            provider = None
-        allowlist = tuple(
-            sorted(
-                {
-                    item.strip()
-                    for item in self.valves.pdf_hybrid_shadow_table_allowlist.split(",")
-                    if item.strip()
-                }
-            )
-        )
-        runtime = PdfHybridShadowFactory(
-            PdfHybridShadowConfig(
-                enabled=True,
-                primary_dpi=self.valves.pdf_hybrid_primary_dpi,
-                escalation_dpi=self.valves.pdf_hybrid_escalation_dpi,
-                table_allowlist=allowlist,
-            ),
-            evidence_config=PdfHybridEvidenceConfig(
-                maximum_candidates=self.valves.pdf_hybrid_max_candidates,
-                maximum_candidate_json_bytes=self.valves.pdf_hybrid_max_context_bytes,
-            ),
-        ).create(provider=provider)
-        return runtime.run(
-            store=store,
-            package=result.package,
-            context=context,
-            retention_policy=retention_policy,
-            pdf_bytes_by_sha256=pdf_bytes_by_sha256,
-        )
 
     async def _maybe_run_passport_stage(
         self,
@@ -3288,16 +2430,6 @@ class Pipe:
             str(provider_id),
             resume_state=resume_state,
         )
-
-    def _dual_vlm_provider_budget(self, provider_name: str):
-        provider_ids = {"gemini": "google_gemini", "openai": "openai_gpt"}
-        try:
-            provider_id = provider_ids[provider_name]
-        except KeyError as exc:
-            raise WorkloadAuthorityError(
-                "workload_provider_mapping_missing"
-            ) from exc
-        return self._provider_slot_if_enabled(True, provider_id)
 
     async def _run_provider_awaitable(
         self,

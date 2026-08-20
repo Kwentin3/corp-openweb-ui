@@ -1,10 +1,15 @@
 # Broker Reports Gate 5 Real OpenWebUI Product Path v0
 
-Status: `CURRENT SUPPORTING DOC`
+Status: `HISTORICAL CONTROLLED-STAGING PROOF`
 
 Proof status: `PROVEN_IN_CONTROLLED_STAGING`
 
 Activation status: `INACTIVE_AFTER_PROOF`
+
+Current product authority: `NONE`. This synthetic supplied-case adapter is
+absent from the current Pipe bundle and is not a fallback. The current route is
+owned by `BROKER_REPORTS_PIPELINE_GATES.v1.md` and continues from Gate 4 through
+`Gate5DeclarationPreparationRuntimeFactory.create`.
 
 Machine terminal:
 

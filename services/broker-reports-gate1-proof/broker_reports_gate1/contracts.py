@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Iterable
+import json
+from typing import Any, Iterable
 
 
 SAFE_REPORT_SCHEMA = "broker_reports_chat_visible_normalization_report_v0"
@@ -24,6 +25,19 @@ SAFETY_FLAGS = {
     "customer_docs_loaded_to_knowledge": False,
 }
 
+
+def canonical_json_bytes(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def sha256_json(value: Any) -> str:
+    return hashlib.sha256(canonical_json_bytes(value)).hexdigest()
+
 SUPPORTED_CONTRACTS = [
     "broker_reports_gate1_supported_pilot_profile_v1",
     "broker_reports_gate1_supported_profile_assessment_v1",
@@ -38,27 +52,16 @@ SUPPORTED_CONTRACTS = [
     "private_normalized_source_unit_v0",
     "full_source_coverage_summary_v0",
     "broker_reports_normalized_table_projection_v0",
-    "broker_reports_visual_table_review_receipt_v1",
-    "broker_reports_visual_table_review_seal_v1",
-    "broker_reports_visual_region_cell_accounting_v1",
     "broker_reports_pdf_compact_canonical_document_v1",
     "broker_reports_pdf_normalization_acceptance_v1",
     "broker_reports_pdf_table_classification_v1",
-    "broker_reports_pdf_hybrid_evidence_package_v1",
-    "broker_reports_pdf_hybrid_binding_output_v1",
-    "broker_reports_pdf_provider_attempt_v1",
-    "broker_reports_pdf_table_materialization_result_v1",
-    "broker_reports_pdf_semantic_header_projection_v1",
-    "broker_reports_pdf_semantic_header_private_diagnostic_v1",
-    "broker_reports_pdf_table_validation_v1",
-    "broker_reports_pdf_hybrid_compact_ledger_v2",
-    "broker_reports_pdf_hybrid_row_window_plan_v2",
-    "broker_reports_pdf_hybrid_window_evidence_v2",
-    "broker_reports_pdf_hybrid_structural_placement_validation_v2",
-    "broker_reports_pdf_hybrid_continuation_contract_v2",
-    "broker_reports_pdf_hybrid_continuation_validation_v2",
-    "broker_reports_pdf_hybrid_repeatability_ledger_v2",
-    "broker_reports_pdf_hybrid_shadow_arbitration_v2",
+    "broker_reports_pdf_table_locator_response_v1",
+    "broker_reports_pdf_table_locator_projection_v1",
+    "broker_reports_pdf_table_crop_v1",
+    "broker_reports_pdf_table_candidate_v1",
+    "broker_reports_pdf_table_detection_request_v4",
+    "broker_reports_pdf_table_detection_attempt_v1",
+    "broker_reports_pdf_table_intake_run_v1",
     "broker_reports_table_projection_coverage_v0",
     "broker_reports_table_reconstruction_quality_v0",
     "source_unit_provenance_v0",
@@ -67,15 +70,6 @@ SUPPORTED_CONTRACTS = [
     "normalization_blockers_v0",
     "broker_reports_file_processing_outcome_v1",
     "broker_reports_file_processing_batch_v1",
-    "broker_reports_pdf_continuation_discovery_v1",
-    "broker_reports_pdf_structural_repair_continuation_result_v1",
-    "broker_reports_pdf_continuation_materialization_v1",
-    "broker_reports_pdf_vlm_guided_intake_result_v1",
-    "broker_reports_pdf_vlm_guided_candidate_intake_result_v1",
-    "broker_reports_pdf_vlm_guided_upstream_terminal_v1",
-    "broker_reports_pdf_vlm_guided_skip_terminal_v1",
-    "broker_reports_pdf_vlm_page_proposal_result_v1",
-    "broker_reports_pdf_vlm_region_binding_result_v1",
     "llm_document_package_v0",
     "llm_prompt_snapshot_v0",
     "llm_passport_raw_output_v0",

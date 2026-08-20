@@ -381,8 +381,16 @@ def _available_evidence(
     *, domain_id: str, obligation_ref: str, source: dict[str, Any]
 ) -> dict[str, Any]:
     relevant_types: set[str] = set()
-    if domain_id in {"income_group_tax_results", "taxable_income_by_source"}:
+    if domain_id == "income_group_tax_results":
         relevant_types = _TAXABLE_INCOME_TYPES
+    elif domain_id == "taxable_income_by_source":
+        relevant_types = _TAXABLE_INCOME_TYPES | {
+            "TAX_WITHHELD",
+            "TAX_WITHHELD_TOTAL",
+            "TAX_ADJUSTMENT",
+            "TAX_REFUND",
+            "TAX_REVERSAL",
+        }
     elif domain_id == "financial_investment_results":
         if obligation_ref == "obl_securities_and_derivatives_results":
             relevant_types = _SECURITY_TYPES | {

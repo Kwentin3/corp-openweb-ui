@@ -94,12 +94,14 @@ GATE5_DECLARATION_INPUT_METHODOLOGY_SCHEMA_VERSION = (
 GATE5_DECLARATION_INPUT_METHODOLOGY_ID = (
     "ru-3ndfl-2025-declaration-input-contract"
 )
-GATE5_DECLARATION_INPUT_METHODOLOGY_VERSION = "2026.0-audited"
+GATE5_DECLARATION_INPUT_METHODOLOGY_VERSION = (
+    "2026.1-broker-withholding-evidence"
+)
 GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE = (
-    "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v1.json"
+    "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v2.json"
 )
 GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE_SHA256 = (
-    "061ad89169ccbe8cdd575958e20cfc0ceee369acbcc050dd096b2c21fd0570bc"
+    "2cede17b0dbeb9e01414bd8558adf1640b3b9944d063d9857df2001e4d604add"
 )
 GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_SCHEMA_VERSION = (
     "broker_reports_gate5_deterministic_source_fact_consumption_methodology_v0"

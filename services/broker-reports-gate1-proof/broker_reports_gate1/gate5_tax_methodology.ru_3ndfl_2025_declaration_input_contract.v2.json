@@ -1,0 +1,376 @@
+{
+  "schema_version": "broker_reports_gate5_declaration_input_methodology_v1",
+  "methodology_id": "ru-3ndfl-2025-declaration-input-contract",
+  "methodology_version": "2026.1-broker-withholding-evidence",
+  "status": "PUBLISHED_AUDITED_INPUT_CONTRACT",
+  "scope": {
+    "tax_period": "2025",
+    "jurisdiction": "RU",
+    "scenario": "mandatory_common_filing_plus_observed_broker_securities_income"
+  },
+  "rules": [
+    {
+      "rule_id": "filing-context-fns-order-913-v1",
+      "when": "every 2025 3-NDFL declaration",
+      "required_inputs": [
+        "declaration_instance_and_correction",
+        "tax_period",
+        "destination_tax_authority",
+        "authenticated_taxpayer_identity"
+      ],
+      "operation": "VALIDATE",
+      "deterministic_rule": "validate the mandatory filing-instance and taxpayer fields against the 2025 declaration scope",
+      "output": "filing_and_taxpayer_identity_input",
+      "insufficient_inputs": "FAIL_CLOSED",
+      "authority_refs": ["fns-order-ed-7-11-913-2025-procedure"]
+    },
+    {
+      "rule_id": "signer-context-fns-order-913-v1",
+      "when": "every 2025 3-NDFL declaration",
+      "required_inputs": [
+        "authenticated_signer_identity",
+        "signer_capacity",
+        "representation_authority_when_representative"
+      ],
+      "operation": "VALIDATE",
+      "deterministic_rule": "validate self-signing or retain the representative authority evidence",
+      "output": "signer_and_representation_input",
+      "insufficient_inputs": "FAIL_CLOSED",
+      "authority_refs": ["fns-order-ed-7-11-913-2025-procedure"]
+    },
+    {
+      "rule_id": "budget-disposition-fns-order-913-v1",
+      "when": "a complete declaration settlement result exists",
+      "required_inputs": [
+        "complete_income_group_settlement",
+        "authenticated_payment_reduction_or_refund_intent",
+        "budget_destination_facts"
+      ],
+      "operation": "SELECT",
+      "deterministic_rule": "select only the authenticated disposition applicable to the complete settlement result",
+      "output": "declaration_budget_disposition_input",
+      "insufficient_inputs": "FAIL_CLOSED",
+      "authority_refs": ["fns-order-ed-7-11-913-2025-procedure"]
+    },
+    {
+      "rule_id": "taxpayer-residency-article-207-v1",
+      "when": "taxpayer period status is required for a 2025 declaration",
+      "required_inputs": [
+        "authenticated_presence_days_in_rf_for_12_consecutive_month_window",
+        "article_207_exception_evidence"
+      ],
+      "operation": "COMPARE",
+      "deterministic_rule": "when reviewed exception evidence is not applicable, presence_days_gte_183 means resident_individual and presence_days_lt_183 means nonresident_individual",
+      "output": "taxpayer_period_status",
+      "insufficient_inputs": "FAIL_CLOSED",
+      "authority_refs": ["nk-rf-article-207-paragraph-2"]
+    },
+    {
+      "rule_id": "dividend-source-article-208-v1",
+      "when": "DIVIDEND_INCOME is present",
+      "required_inputs": ["payer_organization_jurisdiction"],
+      "operation": "CLASSIFY",
+      "deterministic_rule": "russian_organization means russian_source; foreign_organization means foreign_source",
+      "output": "income_source_jurisdiction",
+      "insufficient_inputs": "FAIL_CLOSED",
+      "authority_refs": [
+        "nk-rf-article-208-paragraph-1-subparagraph-1",
+        "nk-rf-article-208-paragraph-3-subparagraph-1"
+      ]
+    },
+    {
+      "rule_id": "security-disposal-source-article-208-v1",
+      "when": "SECURITY_DISPOSAL is present",
+      "required_inputs": ["realization_location_jurisdiction"],
+      "operation": "CLASSIFY",
+      "deterministic_rule": "realization_in_rf means russian_source; realization_outside_rf means foreign_source; ambiguous location remains unresolved",
+      "output": "income_source_jurisdiction",
+      "insufficient_inputs": "METHODOLOGY_UNRESOLVED",
+      "authority_refs": [
+        "nk-rf-article-208-paragraph-1-subparagraph-5",
+        "nk-rf-article-208-paragraph-3-subparagraph-5",
+        "nk-rf-article-208-paragraph-4"
+      ]
+    },
+    {
+      "rule_id": "coupon-securities-income-article-214.1-v1",
+      "when": "COUPON_INCOME is present for a security",
+      "required_inputs": [
+        "coupon_security_identity",
+        "coupon_income_date",
+        "coupon_amount",
+        "coupon_currency",
+        "organized_market_status"
+      ],
+      "operation": "CLASSIFY",
+      "deterministic_rule": "interest_coupon_or_discount_received_on_a_security is included in securities-operation income subject to the article 214.1 category split",
+      "output": "securities_income_group_input",
+      "insufficient_inputs": "FAIL_CLOSED",
+      "authority_refs": ["nk-rf-article-214.1-paragraph-7"]
+    },
+    {
+      "rule_id": "dividend-income-group-articles-210-214-v1",
+      "when": "DIVIDEND_INCOME is present",
+      "required_inputs": [
+        "dividend_income_date",
+        "dividend_amount",
+        "dividend_currency",
+        "income_source_jurisdiction",
+        "payer_organization_identity"
+      ],
+      "operation": "CLASSIFY",
+      "deterministic_rule": "dividends form the separate equity-participation tax base under article 210 paragraph 6 and are calculated under article 214",
+      "output": "dividend_income_group_input",
+      "insufficient_inputs": "FAIL_CLOSED",
+      "authority_refs": [
+        "nk-rf-article-210-paragraph-6-subparagraph-3",
+        "nk-rf-article-214"
+      ]
+    },
+    {
+      "rule_id": "organized-market-classification-article-214.1-v1",
+      "when": "a securities result must be assigned to an organized or non-organized market category",
+      "required_inputs": [
+        "security_identity",
+        "disposal_date",
+        "admitted_exchange_fact",
+        "market_quotation_fact"
+      ],
+      "operation": "CLASSIFY",
+      "deterministic_rule": "apply article 214.1 paragraphs 3 and 4 criteria on the disposal date",
+      "output": "organized_market_status",
+      "insufficient_inputs": "FAIL_CLOSED",
+      "authority_refs": [
+        "nk-rf-article-214.1-paragraph-3",
+        "nk-rf-article-214.1-paragraph-4"
+      ]
+    },
+    {
+      "rule_id": "foreign-currency-conversion-article-210-v1",
+      "when": "tax-relevant income or accepted expense is denominated in non-RUB currency",
+      "required_inputs": [
+        "source_amount",
+        "source_currency",
+        "income_or_expense_date",
+        "cbr_official_rate_for_currency_and_date",
+        "cbr_rate_nominal"
+      ],
+      "operation": "LOOKUP_MULTIPLY_DIVIDE",
+      "deterministic_rule": "convert at the official CBR rate on the income receipt date or expense date",
+      "output": "rub_amount_candidate",
+      "insufficient_inputs": "METHODOLOGY_UNRESOLVED",
+      "unresolved_detail": "exact intermediate precision and rounding contract is not yet authority-reviewed",
+      "authority_refs": ["nk-rf-article-210-paragraph-5"]
+    },
+    {
+      "rule_id": "foreign-tax-credit-articles-214-232-v2",
+      "when": "foreign-source income and foreign tax are asserted",
+      "required_inputs": [
+        "resident_status",
+        "foreign_income_kind_amount_and_year",
+        "foreign_tax_amount_and_payment_date",
+        "foreign_tax_authority_or_withholding_source_document",
+        "required_translation",
+        "applicable_tax_treaty"
+      ],
+      "operation": "VERIFY_COMPARE_APPLY_RULE",
+      "deterministic_rule": "a broker statement is sufficient source evidence for the withholding amount and date it reports; foreign withholding alone is not a credit, and credit remains available only when the applicable treaty and article 232 requirements are satisfied; adjustment, refund and reversal observations remain separate until a reviewed netting rule exists",
+      "output": "foreign_tax_credit_candidate",
+      "insufficient_inputs": "METHODOLOGY_UNRESOLVED",
+      "unresolved_detail": "treaty-specific limit and applicability must be reviewed for the exact source jurisdiction",
+      "authority_refs": [
+        "nk-rf-article-214-paragraph-2",
+        "nk-rf-article-232-paragraphs-1-3"
+      ]
+    },
+    {
+      "rule_id": "partial-acquisition-commission-v1",
+      "when": "an acquisition commission covers a quantity only partly consumed by FIFO",
+      "required_inputs": [
+        "commission_source_assertion",
+        "documented_expense_status",
+        "actually_incurred_status",
+        "direct_or_shared_expense_status"
+      ],
+      "operation": "NONE",
+      "deterministic_rule": "no allocation is authorized by this contract",
+      "output": "none",
+      "insufficient_inputs": "METHODOLOGY_UNRESOLVED",
+      "unresolved_detail": "no reviewed authority proves the allocation rule for the bounded partial-acquisition case",
+      "authority_refs": [
+        "nk-rf-article-214.1-paragraph-10",
+        "nk-rf-article-214.1-paragraph-12"
+      ]
+    }
+  ],
+  "demand_bindings": [
+    {
+      "demand": "obl_filing_instance_identity",
+      "owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "rule_ids": ["filing-context-fns-order-913-v1"],
+      "external_methodology_refs": []
+    },
+    {
+      "demand": "obl_taxpayer_identity_and_period_status",
+      "owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "rule_ids": [
+        "filing-context-fns-order-913-v1",
+        "taxpayer-residency-article-207-v1"
+      ],
+      "external_methodology_refs": []
+    },
+    {
+      "demand": "obl_signer_and_representation_authority",
+      "owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
+      "rule_ids": ["signer-context-fns-order-913-v1"],
+      "external_methodology_refs": []
+    },
+    {
+      "demand": "obl_declaration_budget_disposition",
+      "owner": "Gate5DeclarationBudgetOutcomeRuntimeFactory.create",
+      "rule_ids": ["budget-disposition-fns-order-913-v1"],
+      "external_methodology_refs": []
+    },
+    {
+      "demand": "obl_russian_source_taxable_income",
+      "owner": "Gate5DeclarationIncomeSourcesRuntimeFactory.create",
+      "rule_ids": [
+        "dividend-source-article-208-v1",
+        "security-disposal-source-article-208-v1"
+      ],
+      "external_methodology_refs": []
+    },
+    {
+      "demand": "obl_foreign_source_taxable_income_and_foreign_tax",
+      "owner": "Gate5DeclarationIncomeSourcesRuntimeFactory.create",
+      "rule_ids": [
+        "dividend-source-article-208-v1",
+        "security-disposal-source-article-208-v1",
+          "foreign-tax-credit-articles-214-232-v2"
+      ],
+      "external_methodology_refs": []
+    },
+    {
+      "demand": "obl_securities_and_derivatives_results",
+      "owner": "Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create",
+      "rule_ids": [
+        "coupon-securities-income-article-214.1-v1",
+        "organized-market-classification-article-214.1-v1",
+        "foreign-currency-conversion-article-210-v1",
+        "partial-acquisition-commission-v1"
+      ],
+      "external_methodology_refs": [
+        "ru-ndfl-securities-source-fact-consumption-proof@2026.5-experimental",
+        "ru-ndfl-securities-tax-model-proof@2026.1-experimental"
+      ]
+    },
+    {
+      "demand": "obl_income_group_tax_base_results",
+      "owner": "Gate5IncomeGroupTaxBaseRuntimeFactory.create",
+      "rule_ids": [
+        "coupon-securities-income-article-214.1-v1",
+        "dividend-income-group-articles-210-214-v1",
+        "organized-market-classification-article-214.1-v1",
+        "foreign-currency-conversion-article-210-v1"
+      ],
+      "external_methodology_refs": [
+        "ru-ndfl-securities-tax-model-proof@2026.2-experimental"
+      ]
+    },
+    {
+      "demand": "obl_income_group_tax_settlement_results",
+      "owner": "Gate5DeclarationTaxSettlementRuntimeFactory.create",
+      "rule_ids": ["foreign-tax-credit-articles-214-232-v2"],
+      "external_methodology_refs": [
+        "ru-3ndfl-2025-income-group-settlement-proof@2026.4-audited"
+      ]
+    }
+  ],
+  "legal_evidence": [
+    {
+      "evidence_ref": "fns-order-ed-7-11-913-2025-procedure",
+      "source_url": "https://www.nalog.gov.ru/rn77/about_fts/docs/16589324/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-207-paragraph-2",
+      "source_url": "https://nalog.garant.ru/fns/nk/e4228a58ee428efc683b7a6fe69786e4/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-208-paragraph-1-subparagraph-1",
+      "source_url": "https://nalog.garant.ru/fns/nk/baeafce66c063554f5efd9801f2a9c23/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-208-paragraph-3-subparagraph-1",
+      "source_url": "https://nalog.garant.ru/fns/nk/baeafce66c063554f5efd9801f2a9c23/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-208-paragraph-1-subparagraph-5",
+      "source_url": "https://nalog.garant.ru/fns/nk/baeafce66c063554f5efd9801f2a9c23/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-208-paragraph-3-subparagraph-5",
+      "source_url": "https://nalog.garant.ru/fns/nk/baeafce66c063554f5efd9801f2a9c23/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-208-paragraph-4",
+      "source_url": "https://nalog.garant.ru/fns/nk/baeafce66c063554f5efd9801f2a9c23/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-210-paragraph-5",
+      "source_url": "https://nalog.garant.ru/fns/nk/6a3eaa02cea3fe2db1e9b04e275d1439/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-210-paragraph-6-subparagraph-3",
+      "source_url": "https://nalog.garant.ru/fns/nk/6a3eaa02cea3fe2db1e9b04e275d1439/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-214",
+      "source_url": "https://nalog.garant.ru/fns/nk/18504d0125d60b72a85018b2ceb24b1c/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-214-paragraph-2",
+      "source_url": "https://nalog.garant.ru/fns/nk/18504d0125d60b72a85018b2ceb24b1c/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-214.1-paragraph-3",
+      "source_url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-214.1-paragraph-4",
+      "source_url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-214.1-paragraph-7",
+      "source_url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-214.1-paragraph-10",
+      "source_url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-214.1-paragraph-12",
+      "source_url": "https://nalog.garant.ru/fns/nk/67db01bcbcd5bd5643515ba89437b4c0/",
+      "verified_on": "2026-08-14"
+    },
+    {
+      "evidence_ref": "nk-rf-article-232-paragraphs-1-3",
+      "source_url": "https://nalog.garant.ru/fns/nk/5d22100e7a48445f5abd8c902bfc7cb7/",
+      "verified_on": "2026-08-14"
+    }
+  ]
+}

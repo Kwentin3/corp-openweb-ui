@@ -509,29 +509,42 @@ def _declaration_requests(
         "obl_russian_source_taxable_income",
         "obl_foreign_source_taxable_income_and_foreign_tax",
     }
-    if active & source_demands:
+    source_rows = [
+        item
+        for item in scope_activation["active_demands"]
+        if item["demand"] in source_demands
+        and item["terminal"] == "METHODOLOGY_UNRESOLVED"
+    ]
+    if source_rows:
         requests.append(
             _request(
                 kind="REQUIRED",
                 priority="HIGH",
-                closure_type="ADDITIONAL_DOCUMENT",
+                closure_type="METHODOLOGY_RESEARCH",
                 fact_key=None,
-                demand_refs=sorted(active & source_demands),
-                evidence_refs=[],
+                demand_refs=sorted(item["demand"] for item in source_rows),
+                evidence_refs=sorted(
+                    {
+                        fact_id
+                        for item in source_rows
+                        for fact_id in item["available_evidence"]["fact_ids"]
+                    }
+                ),
                 question=(
-                    "Provide the tax-agent certificate, foreign broker tax statement, "
-                    "or other source document that states the payer, jurisdiction and "
-                    "withheld or foreign tax facts for this income."
+                    "Close the reviewed income-source and foreign-tax methodology "
+                    "for the already retained broker-reported facts."
                 ),
                 reason=(
-                    "income-source classification is a methodology decision; broker "
-                    "identity, country and a user conclusion are not authority"
+                    "income-source classification and foreign-tax credit treatment "
+                    "belong to Gate 5 methodology; a second document must not be "
+                    "requested merely to repeat broker-reported withholding"
                 ),
                 helpful_evidence=(
-                    "tax-agent certificate or foreign broker tax statement containing factual source evidence"
+                    "the retained broker income, withholding and adjustment facts, "
+                    "plus external treaty authority only where credit treatment needs it"
                 ),
                 client_benefit="supports the correct source schedule and foreign-tax treatment",
-                answer_contract={"kind": "document_submission"},
+                answer_contract={"kind": "internal_methodology_decision"},
                 subject={},
             )
         )

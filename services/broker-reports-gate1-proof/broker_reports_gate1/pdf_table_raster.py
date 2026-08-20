@@ -8,8 +8,7 @@ import statistics
 from dataclasses import dataclass
 from typing import Any
 
-from .contracts import stable_digest
-from .pdf_hybrid_contracts import sha256_json
+from .contracts import sha256_json, stable_digest
 
 
 PDF_TABLE_CROP_SCHEMA = "broker_reports_pdf_table_crop_v1"

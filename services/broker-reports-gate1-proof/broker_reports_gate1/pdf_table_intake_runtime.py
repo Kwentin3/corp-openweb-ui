@@ -7,13 +7,12 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from .contracts import stable_digest
-from .pdf_grid_experiment_provider import (
-    PdfGridExperimentProviderFactory,
-    PdfGridProviderConfig,
-    PdfGridProviderError,
+from .contracts import sha256_json, stable_digest
+from .pdf_table_locator_provider import (
+    PdfTableLocatorProviderConfig,
+    PdfTableLocatorProviderError,
+    PdfTableLocatorProviderFactory,
 )
-from .pdf_hybrid_contracts import sha256_json
 from .pdf_table_locator import (
     PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
     PDF_TABLE_LOCATOR_OUTPUT_SCHEMA,
@@ -85,8 +84,8 @@ class PdfTableIntakeRuntimeFactory:
         self._validate_config()
 
     def create_for_openwebui(self, request: Any) -> "PdfTableIntakeRuntime":
-        provider = PdfGridExperimentProviderFactory(
-            PdfGridProviderConfig(
+        provider = PdfTableLocatorProviderFactory(
+            PdfTableLocatorProviderConfig(
                 provider_profile=self.config.detector_provider_profile,
                 model_id=self.config.detector_model_id,
             )
@@ -216,7 +215,7 @@ class PdfTableIntakeRuntime:
                 except (
                     PdfTableIntakeError,
                     PdfTableRasterError,
-                    PdfGridProviderError,
+                    PdfTableLocatorProviderError,
                     PdfTableLocatorError,
                 ) as exc:
                     code = getattr(exc, "code", "pdf_table_intake_page_failed")

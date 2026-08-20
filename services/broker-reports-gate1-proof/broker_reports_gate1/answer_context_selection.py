@@ -15,13 +15,6 @@ from .artifact_models import (
 from .artifact_resolver import ArtifactResolver
 from .contracts import SOURCE_FACT_STITCH_RESULT_SCHEMA_VERSION, stable_digest
 from .gate2_domain_contracts import DOMAIN_RUN_SCHEMA_VERSION
-from .semantic_visual_table_contracts import SEMANTIC_VISUAL_TABLE_ORIGIN
-from .table_projection import TableProjectionValidator
-
-
-SEMANTIC_VISUAL_TABLE_ENVELOPE_SCHEMA_VERSION = (
-    "broker_reports_semantic_visual_table_envelope_v1"
-)
 ANSWER_CONTEXT_SCHEMA_VERSION = "broker_reports_answer_context_v1"
 ANSWER_CONTEXT_POLICY_VERSION = "broker_reports_answer_context_selection_v1"
 ANSWER_CONTEXT_RECEIPT_SCHEMA_VERSION = (
@@ -124,7 +117,7 @@ class AnswerContextSelectionService:
             "terminal_gate2_run_ref": extraction_run_ref,
             "selection_contract": {
                 "one_interpretation_bearing_representation_per_evidence_group": True,
-                "semantic_visual_table_preferred": True,
+                "validated_gate2_facts_required": True,
                 "provenance_only_content_presented_as_financial_facts": False,
                 "answer_model_deduplication_required": False,
             },
@@ -282,7 +275,6 @@ class AnswerContextSelectionService:
                 for ref, package in packages.items()
             ]
 
-        semantic_groups: dict[str, dict[str, Any]] = {}
         ordinary_groups: dict[str, dict[str, Any]] = {}
         for unit_artifact_ref, unit in selected_units:
             if not unit:
@@ -290,147 +282,44 @@ class AnswerContextSelectionService:
             representation = _object(unit.get("upstream_source_representation"))
             if (
                 representation.get("source_representation_kind")
-                == "semantic_visual_logical_table"
+                in {
+                    "semantic_visual_logical_table",
+                    "reviewed_visual_canonical_table",
+                }
             ):
-                projection_ref = str(
-                    unit.get("table_projection_artifact_ref")
-                    or unit.get("private_slice_artifact_ref")
-                    or ""
+                raise AnswerContextSelectionError(
+                    "answer_context_retired_visual_representation_forbidden"
                 )
-                if not projection_ref:
-                    raise AnswerContextSelectionError(
-                        "answer_context_semantic_projection_ref_missing"
-                    )
-                semantic_groups.setdefault(
-                    projection_ref,
-                    {"unit_refs": [], "package_refs": []},
-                )["unit_refs"].append(unit_artifact_ref)
-            else:
-                unit_id = str(unit.get("unit_id") or unit_artifact_ref)
-                ordinary_groups.setdefault(
-                    unit_id,
-                    {
-                        "unit": unit,
-                        "unit_refs": [],
-                        "package_refs": [],
-                    },
-                )["unit_refs"].append(unit_artifact_ref)
+            unit_id = str(unit.get("unit_id") or unit_artifact_ref)
+            ordinary_groups.setdefault(
+                unit_id,
+                {
+                    "unit": unit,
+                    "unit_refs": [],
+                    "package_refs": [],
+                },
+            )["unit_refs"].append(unit_artifact_ref)
 
         for package_ref, package in packages.items():
             unit = _object(package.get("source_unit"))
             representation = _object(unit.get("upstream_source_representation"))
             if (
                 representation.get("source_representation_kind")
-                == "semantic_visual_logical_table"
+                in {
+                    "semantic_visual_logical_table",
+                    "reviewed_visual_canonical_table",
+                }
             ):
-                projection_ref = str(
-                    unit.get("table_projection_artifact_ref")
-                    or unit.get("private_slice_artifact_ref")
-                    or ""
+                raise AnswerContextSelectionError(
+                    "answer_context_retired_visual_representation_forbidden"
                 )
-                if projection_ref in semantic_groups:
-                    semantic_groups[projection_ref]["package_refs"].append(package_ref)
-            else:
-                unit_id = str(unit.get("unit_id") or "")
-                if unit_id in ordinary_groups:
-                    ordinary_groups[unit_id]["package_refs"].append(package_ref)
+            unit_id = str(unit.get("unit_id") or "")
+            if unit_id in ordinary_groups:
+                ordinary_groups[unit_id]["package_refs"].append(package_ref)
 
         catalog = self.resolver.catalog_run(context)
         groups: list[dict[str, Any]] = []
         provenance_only_total = 0
-        for projection_ref, group in sorted(semantic_groups.items()):
-            projection = self._resolve_payload(projection_ref, context)
-            if projection.get("table_origin") != SEMANTIC_VISUAL_TABLE_ORIGIN:
-                raise AnswerContextSelectionError(
-                    "answer_context_semantic_projection_origin_mismatch"
-                )
-            if (
-                TableProjectionValidator().validate(projection).get("validator_status")
-                != "passed"
-            ):
-                raise AnswerContextSelectionError(
-                    "answer_context_semantic_projection_invalid"
-                )
-            document_ref = str(projection.get("source_document_ref") or "")
-            source_scope_ref = str(projection.get("source_unit_ref") or "")
-            envelope = self._semantic_envelope(
-                catalog=catalog,
-                document_ref=document_ref,
-                source_scope_ref=source_scope_ref,
-                context=context,
-            )
-            package_group_refs = sorted(set(group["package_refs"]))
-            facts_group_refs = sorted(
-                {
-                    facts_ref
-                    for package_ref in package_group_refs
-                    for facts_ref, _ in facts_by_package.get(package_ref, [])
-                }
-            )
-            source_refs = self._source_evidence_refs(
-                catalog=catalog,
-                document_ref=document_ref,
-                excluded={
-                    projection_ref,
-                    *group["unit_refs"],
-                    *package_group_refs,
-                    *facts_group_refs,
-                },
-            )
-            group_id = "evidencegroup_" + stable_digest(
-                [document_ref, source_scope_ref, projection.get("table_projection_id")],
-                length=24,
-            )
-            provenance = [
-                _provenance_representation(
-                    representation_id="provsource_"
-                    + stable_digest([group_id, source_refs], length=20),
-                    kind="retained_source_evidence",
-                    artifact_refs=source_refs,
-                    derived_from=[],
-                ),
-                _provenance_representation(
-                    representation_id="provgate2_"
-                    + stable_digest(
-                        [group_id, package_group_refs, facts_group_refs], length=20
-                    ),
-                    kind="gate2_derived_facts",
-                    artifact_refs=[*package_group_refs, *facts_group_refs],
-                    derived_from=[projection_ref],
-                ),
-            ]
-            provenance = [item for item in provenance if item["artifact_refs"]]
-            provenance_only_total += len(provenance)
-            transcription = _object(envelope.get("semantic_transcription"))
-            groups.append(
-                {
-                    "evidence_group_id": group_id,
-                    "source_scope_id": "sourcescope_"
-                    + stable_digest([document_ref, source_scope_ref], length=24),
-                    "source_document_ref": document_ref,
-                    "source_unit_ref": source_scope_ref,
-                    "source_reference": {
-                        "page_refs": _strings(projection.get("page_refs")),
-                        "section_refs": _strings(projection.get("section_refs")),
-                    },
-                    "representations": [
-                        {
-                            "representation_id": str(
-                                envelope.get("envelope_id") or projection_ref
-                            ),
-                            "representation_kind": ("semantic_visual_logical_table"),
-                            "interpretation_selection_role": ("interpretation_bearing"),
-                            "derived_from_artifact_refs": [projection_ref],
-                            "content": {
-                                "description": transcription.get("description"),
-                                "rows": copy.deepcopy(transcription.get("rows") or []),
-                            },
-                        },
-                        *provenance,
-                    ],
-                }
-            )
-
         for unit_id, group in sorted(ordinary_groups.items()):
             package_group_refs = sorted(set(group["package_refs"]))
             compact_facts: list[dict[str, Any]] = []
@@ -514,7 +403,7 @@ class AnswerContextSelectionService:
             "evidence_groups": sorted(
                 groups, key=lambda item: str(item["evidence_group_id"])
             ),
-            "semantic_groups_total": len(semantic_groups),
+            "semantic_groups_total": 0,
             "provenance_only_representations_total": provenance_only_total,
         }
 
@@ -555,27 +444,6 @@ class AnswerContextSelectionService:
         self, ref: str, context: ArtifactAccessContext
     ) -> dict[str, Any]:
         return _object(self.resolver.resolve(ref, context)["payload"])
-
-    def _semantic_envelope(
-        self,
-        *,
-        catalog: list[ArtifactRecord],
-        document_ref: str,
-        source_scope_ref: str,
-        context: ArtifactAccessContext,
-    ) -> dict[str, Any]:
-        matches = [
-            record
-            for record in catalog
-            if record.artifact_type == SEMANTIC_VISUAL_TABLE_ENVELOPE_SCHEMA_VERSION
-            and str(record.document_id or "") == document_ref
-            and str(record.safe_metadata.get("candidate_ref") or "") == source_scope_ref
-        ]
-        if len(matches) != 1:
-            raise AnswerContextSelectionError(
-                "answer_context_semantic_envelope_identity_not_unique"
-            )
-        return self._resolve_payload(matches[0].artifact_id, context)
 
     def _source_evidence_refs(
         self,
@@ -637,14 +505,16 @@ def validate_answer_context(payload: dict[str, Any]) -> None:
                 raise AnswerContextSelectionError(
                     "answer_context_provenance_content_forbidden"
                 )
-        semantic = [
-            item
+        if any(
+            item.get("representation_kind")
+            in {
+                "semantic_visual_logical_table",
+                "reviewed_visual_canonical_table",
+            }
             for item in representations
-            if item.get("representation_kind") == "semantic_visual_logical_table"
-        ]
-        if semantic and semantic != selected:
+        ):
             raise AnswerContextSelectionError(
-                "answer_context_semantic_representation_not_selected"
+                "answer_context_retired_visual_representation_forbidden"
             )
     guard = _object(payload.get("knowledge_vector_guard"))
     if any(value is not False for value in guard.values()):

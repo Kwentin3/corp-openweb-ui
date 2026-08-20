@@ -1,16 +1,14 @@
 """Machine-readable anchors for the current Broker Reports architecture.
 
-Pipeline Gates v1 is the sole current gate-placement authority.  The older
-global blueprint remains a narrow historical authority for the visual-table
-contract that predates the current Gate 1-5 numbering.  Provider output is a
-proposal at an external-variability boundary, never canonical or tax authority.
+Pipeline Gates v1 is the sole current gate-placement authority. Provider
+output only locates table regions at an external-variability boundary; it is
+never source-literal, canonical, financial, or tax authority.
 """
 
 from __future__ import annotations
 
-from .semantic_visual_table_contracts import (
-    SEMANTIC_TABLE_TRANSCRIPTION_ROOT_FIELDS,
-    SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION,
+from .pdf_table_locator import (
+    PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
 )
 
 ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v4"
@@ -138,23 +136,21 @@ COMPATIBILITY_ONLY_CROSS_DOMAIN_MODULES = {
     )
 }
 
-VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES = frozenset(
-    {"google_gemini", "openai_gpt"}
-)
+VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES = frozenset({"google_gemini"})
 VISUAL_RECOVERY_INPUT_SCOPES = frozenset({"declared_page", "table_crop"})
 WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED = False
 LOCAL_OCR_PRODUCTION_ALLOWED = False
 LOCAL_OCR_WORKER_POOL_ALLOWED = False
-PROVIDER_OUTPUT_AUTHORITY = "semantic_transcription_only"
+PROVIDER_OUTPUT_AUTHORITY = "table_region_location_only"
 CANONICAL_PROMOTION_AUTHORITY = (
-    "deterministic_validator_for_accepted_profile_else_review_or_fail_closed"
+    "deterministic_pdfplumber_source_projection_else_fail_closed"
 )
 MODEL_CANONICAL_AUTHORITY = 0
 
-VISUAL_TABLE_MODEL_FACING_CONTRACT = SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION
-VISUAL_TABLE_MODEL_RESPONSE_FIELDS = SEMANTIC_TABLE_TRANSCRIPTION_ROOT_FIELDS
+VISUAL_TABLE_MODEL_FACING_CONTRACT = PDF_TABLE_LOCATOR_RESPONSE_SCHEMA
+VISUAL_TABLE_MODEL_RESPONSE_FIELDS = frozenset({"tables"})
 VISUAL_TABLE_MASTER_PROVIDER_PROFILE = "google_gemini"
-VISUAL_TABLE_OPENAI_ROLE = "optional_control_or_explicit_fallback"
+VISUAL_TABLE_OPENAI_ROLE = "none_in_current_pipeline"
 VISUAL_TABLE_PROVIDER_CONSENSUS_REQUIRED = False
 VISUAL_TABLE_VLM_PHYSICAL_GEOMETRY_RESPONSIBILITY = 0
 VISUAL_TABLE_MODEL_SYSTEM_METADATA_FIELDS = frozenset()
@@ -175,21 +171,20 @@ GATE2_LOCAL_MAXIMUM_CONCURRENCY = 2
 WORKLOAD_PRIMARY_WALL_TIMEOUT = None
 
 COMPONENT_RUNTIME_STATUSES = {
-    # Goal 5-qualified semantic numeric-table route. Fresh code objects remain
-    # safe-off; the atomic release manifest owns the persisted default-on valve.
-    "visual_table_vlm": "maintained_qualified_default_on",
+    "visual_table_vlm": "research_only",
     "visual_neutral_tables": "maintained_qualified_default_on",
-    "visual_review_boundary": "maintained_default_off",
-    "visual_recovery_handoff": "maintained_qualified_default_on",
+    "visual_review_boundary": "research_only",
+    "visual_recovery_handoff": "research_only",
     "gate1_bounded_graph": "maintained",
     "workload_authority": "maintained",
-    # Preserved experiments and historical proof contours.
+    # One current locator transport plus isolated historical research contours.
+    "pdf_table_locator_provider": "maintained_current",
     "pdf_csv_experiment_provider": "proof_only",
-    "pdf_grid_experiment_provider": "proof_only",
-    "pdf_hybrid_provider": "proof_only",
-    "pdf_dual_vlm_fact_providers": "maintained_qualified_default_on",
-    "pdf_dual_vlm_canonical_table": "maintained_default_off",
-    "pdf_dual_vlm_runtime": "maintained_qualified_default_on",
+    "pdf_grid_experiment_provider": "compatibility_only",
+    "pdf_hybrid_provider": "research_only",
+    "pdf_dual_vlm_fact_providers": "research_only",
+    "pdf_dual_vlm_canonical_table": "research_only",
+    "pdf_dual_vlm_runtime": "research_only",
     "prove_visual_neutral_tables_actual_corpus": "offline_only",
 }
 
@@ -197,15 +192,16 @@ NON_PRODUCTION_RUNTIME_STATUSES = frozenset(
     {
         "accepted_but_not_yet_deliverable",
         "proof_only",
+        "research_only",
+        "compatibility_only",
         "offline_only",
         "unsupported_runtime",
     }
 )
 
 FACTORY_REQUIRED = (
-    "Maintained Broker Reports entrypoints must route visual recovery through "
-    "the production visual provider factory and deterministic semantic "
-    "validator/materializer; "
+    "Maintained Broker Reports entrypoints must route PDF table location through "
+    "PdfTableIntakeRuntimeFactory and deterministic pdfplumber projection; "
     "heavy Gate 1 runs must route storage through Gate1BoundedGraphFactory.create; "
     "all production workloads must route through WorkloadAuthorityFactory.create; "
     "consumer evidence demand must route through Gate3EvidenceDemandPortFactory.create"

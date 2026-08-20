@@ -17,13 +17,30 @@ GATE3_TERMINAL_PROOF = G3.C5_CLOSED
 GATE4_STATUS = CLOSED
 G4.1_CLOSED = CONTRACT_PROVEN
 G4.6_CLOSED = NO_NEW_READ_LAYER_REQUIRED
-GATE5_PRODUCT_STATUS = INACTIVE
+GATE5_PRODUCT_STATUS = CURRENT_FAIL_CLOSED
 ```
 
 This is the one short navigation authority for Broker Reports ownership and
 gate direction. Start here. Versioned contracts own exact DTO meaning; the
 [Architecture Authorities index](./BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md)
 maps maintained factories; dated reports are evidence only.
+
+The current product composition is exactly:
+
+```text
+broker_reports_gate1_pipe
+  -> PdfTableIntakeRuntimeFactory.create_for_openwebui
+  -> Gate1Normalizer / persist_gate1_result
+  -> NdflWorkflowFactory.create().run_product_path
+  -> Gate4FinancialCaseRuntimeFactory.create
+  -> Gate5DeclarationPreparationRuntimeFactory.create
+  -> sealed Declaration Semantics / Release / Projection owners only when ready
+```
+
+The retired dual-VLM, semantic-migration, structural-repair, hybrid-shadow and
+synthetic end-to-end XML runtimes are absent from the product bundle and are
+not fallbacks. A real case may terminate before release with an exact evidence
+or methodology blocker.
 
 ## Stage-aware composition law
 

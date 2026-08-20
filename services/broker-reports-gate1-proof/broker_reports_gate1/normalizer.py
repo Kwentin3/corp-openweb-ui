@@ -38,7 +38,6 @@ from .table_projection import (
     NormalizedTableProjectionConfig,
     NormalizedTableProjectionFactory,
 )
-from .customer_debt_policy import sber_broker_profile_enabled
 from .taxonomy import classify_document
 from .validators import (
     merge_validation_results,
@@ -144,7 +143,10 @@ class Gate1Normalizer:
         table_projection_builder = NormalizedTableProjectionFactory(
             NormalizedTableProjectionConfig(
                 broker_pdf_neutral_table_profile_v1_enabled=(
-                    sber_broker_profile_enabled(input_context)
+                    (input_context or {}).get(
+                        "broker_pdf_neutral_table_profile_v1_enabled"
+                    )
+                    is True
                 )
             )
         ).create()
