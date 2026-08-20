@@ -30,6 +30,9 @@ from broker_reports_gate1 import (
 )
 from broker_reports_gate1.artifact_lifecycle import lifecycle_for_visibility
 from broker_reports_gate1.artifact_models import ArtifactRecord
+from broker_reports_gate1.gate2_provider_adapters import (
+    GATE3_GEMINI_MAX_OUTPUT_TOKENS,
+)
 from broker_reports_gate1.gate3_role_labeling import FACTORY_REQUIRED, FORBIDDEN
 
 
@@ -300,6 +303,10 @@ def test_representative_facts_are_source_bound_and_mechanically_materialized(
 
     assert result.document_status == "complete"
     assert len(captured) == 2
+    assert all(
+        request["max_tokens"] == GATE3_GEMINI_MAX_OUTPUT_TOKENS
+        for request in captured
+    )
     assert [
         request["response_format"]["json_schema"]["name"] for request in captured
     ] == [

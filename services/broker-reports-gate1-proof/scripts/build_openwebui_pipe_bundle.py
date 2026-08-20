@@ -319,7 +319,7 @@ def main() -> None:
             },
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.38.3-single-current-pipeline-bundled",
+            version="0.38.4-single-current-pipeline-bundled",
             package_version="gate1_single_current_pipeline_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1",
