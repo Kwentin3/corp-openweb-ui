@@ -2,7 +2,7 @@
 
 Дата: 2026-08-20
 
-Статус: `READY_FOR_SERVER_DELIVERY_WITH_KNOWN_GATE3_LIMIT`
+Статус: `DELIVERED_WITH_KNOWN_GATE3_LIMIT`
 
 ## Что закрыто
 
@@ -96,9 +96,24 @@ submission; retry, repair, fallback, best-of-N и ручной правки не
 Машиночитаемые доказательства:
 
 - [repeatability receipt](./BROKER_REPORTS_CURRENT_GATE3_REPEATABILITY.receipt.safe.json);
-- [real-case Gate 5 receipt](./BROKER_REPORTS_GATE5_CURRENT_REAL_CASE.receipt.safe.json).
+- [real-case Gate 5 receipt](./BROKER_REPORTS_GATE5_CURRENT_REAL_CASE.receipt.safe.json);
+- [server release and replay receipt](./BROKER_REPORTS_GATE5_CURRENT_SERVER_VERIFY.receipt.safe.json).
 
 ## Поставка
 
-Git и серверная поставка фиксируются после чистого набора тестов. Этот раздел
-обновляется только фактическими hash и результатом live verifier.
+Текущий runtime-коммит
+`d650c0bc5fe43eaf134a056b1f71d08289240239` отправлен в Git и атомарно
+установлен на сервер. Серверный hash функции —
+`28e0dea857845d018a7fb72ec492a6b0bcbb9c07095a52cc3a9aad6c240dde41`.
+
+После установки независимый verifier вернул `passed`: сервис запущен без
+рестартов, staging очищен, одна текущая функция активна, две старые функции
+неактивны, rollback-артефакт создан. `legacy_table_route_available = false`.
+
+Затем уже серверный bundle повторно выполнил Gate 5 на том же замороженном
+Canonical. Хранилище до и после совпало; provider calls, retry, repair и Legacy
+fallback равны нулю. Результат и распределение 9 gaps точно совпали с локальным
+контрольным прогоном: `4 USER + 4 METHODOLOGY + 1 INTERNAL`.
+
+Проверки текущего кода: 495 целевых тестов прошли; Ruff и Git diff checks
+чистые. Приватные PDF, значения, контексты и ответы провайдера в Git не попали.
