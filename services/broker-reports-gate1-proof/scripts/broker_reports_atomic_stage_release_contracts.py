@@ -25,16 +25,11 @@ from broker_reports_gate1.pdf_table_locator import (
     PDF_TABLE_LOCATOR_PROMPT,
     PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
 )
-from broker_reports_gate1.gate2_financial_evidence_registry import (
-    Gate2FinancialEvidenceRegistryFactory,
-)
-
-
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 
-SCHEMA_VERSION = "broker_reports_atomic_stage_release_v7"
+SCHEMA_VERSION = "broker_reports_atomic_stage_release_v8"
 RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -91,7 +86,6 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
     **COMMON_WORKLOAD_VALVES,
     "canonical_gate2_write_enabled": True,
     "canonical_gate2_read_enabled": True,
-    "canonical_gate2_compare_enabled": True,
     "ndfl_gate3_enabled": True,
     "ndfl_gate3_provider_profile_id": "google_gemini",
     "ndfl_gate3_model_id": "models/gemini-3.5-flash",
@@ -106,6 +100,7 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
 }
 
 GATE1_RETIRED_VALVE_KEYS = (
+    "canonical_gate2_compare_enabled",
     "broker_pdf_neutral_table_profile_v1_enabled",
     "pdf_dual_vlm_enabled",
     "pdf_dual_vlm_provider_selection_policy_version",
@@ -416,29 +411,8 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     ) or {}
     if source_bound != source_bound_table_contract_manifest():
         raise ValueError("stage_release_manifest_source_bound_contract_invalid")
-    registry = Gate2FinancialEvidenceRegistryFactory().create()
-    financial_registry = (
-        (manifest.get("provider_policy") or {}).get(
-            "financial_evidence_registry"
-        )
-        or {}
-    )
-    if financial_registry != {
-        "registry_id": registry.registry_id,
-        "registry_version": registry.registry_version,
-        "registry_hash": registry.registry_hash,
-        "runtime_schema_version": (
-            "broker_reports_gate2_financial_evidence_production_run_v1"
-        ),
-        "context_schema_version": (
-            "broker_reports_gate2_financial_context_v1"
-        ),
-        "legacy_read_policy": "dual_read",
-        "write_policy": "new_schema_only",
-    }:
-        raise ValueError(
-            "stage_release_manifest_financial_registry_invalid"
-        )
+    if "financial_evidence_registry" in (manifest.get("provider_policy") or {}):
+        raise ValueError("stage_release_manifest_legacy_registry_present")
 
 
 def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, Any]:
@@ -452,7 +426,6 @@ def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, An
                 "model_id_prefixes": list(profile.model_id_prefixes),
             }
         )
-    registry = Gate2FinancialEvidenceRegistryFactory().create()
     return {
         "gate2_profile_contract": "gate2_provider_profile_registry_v1",
         "gate1_visual_selection_policy": PDF_TABLE_LOCATOR_POLICY_VERSION,
@@ -460,19 +433,6 @@ def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, An
             "google_gemini": "models/gemini-3.5-flash",
         },
         "source_bound_table_contract": source_bound_table_contract_manifest(),
-        "financial_evidence_registry": {
-            "registry_id": registry.registry_id,
-            "registry_version": registry.registry_version,
-            "registry_hash": registry.registry_hash,
-            "runtime_schema_version": (
-                "broker_reports_gate2_financial_evidence_production_run_v1"
-            ),
-            "context_schema_version": (
-                "broker_reports_gate2_financial_context_v1"
-            ),
-            "legacy_read_policy": "dual_read",
-            "write_policy": "new_schema_only",
-        },
         "profiles": profiles,
     }
 

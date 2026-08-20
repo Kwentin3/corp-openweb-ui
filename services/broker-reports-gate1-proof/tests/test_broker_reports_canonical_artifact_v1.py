@@ -61,6 +61,7 @@ class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
             {
                 "canonical_gate2_write_enabled": True,
                 "canonical_gate2_read_enabled": False,
+                # Historical callers cannot reactivate the retired comparison.
                 "canonical_gate2_compare_enabled": True,
                 "normalizer_version": "canonical-test-v1",
             }
@@ -80,13 +81,9 @@ class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
             canonical_ref = manifest.artifact_refs_by_type[
                 "broker_reports_canonical_artifact_v1"
             ][0]
-            self.assertEqual(
-                len(
-                    manifest.artifact_refs_by_type[
-                        "broker_reports_canonical_legacy_compare_receipt_v1"
-                    ]
-                ),
-                1,
+            self.assertNotIn(
+                "broker_reports_canonical_legacy_compare_receipt_v1",
+                manifest.artifact_refs_by_type,
             )
             artifact = CanonicalReaderFactory(
                 store=store, read_enabled=True

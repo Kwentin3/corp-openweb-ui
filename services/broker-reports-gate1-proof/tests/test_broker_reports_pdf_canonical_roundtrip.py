@@ -350,7 +350,6 @@ def test_pdf_normalize_persist_reopen_reader_and_projection(tmp_path: Path) -> N
         entrypoint="doc32_regression_test",
         input_context={
             "canonical_gate2_write_enabled": True,
-            "canonical_gate2_compare_enabled": True,
             "canonical_gate2_read_enabled": False,
             "normalizer_version": "canonical-doc32-e2e-test-v1",
         },

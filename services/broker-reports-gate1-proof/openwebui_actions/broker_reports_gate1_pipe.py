@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.38.2-single-current-pipeline
+version: 0.38.3-single-current-pipeline
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1
 """
@@ -193,10 +193,6 @@ class Pipe:
         canonical_gate2_read_enabled: bool = Field(
             default=False,
             description="Reserved for controlled Gate 2 consumer cutover; keep false in DOC26.",
-        )
-        canonical_gate2_compare_enabled: bool = Field(
-            default=True,
-            description="Compare Gate 2 canonical shadow with authoritative legacy handoff.",
         )
         ndfl_gate3_enabled: bool = Field(
             default=False,
@@ -606,9 +602,6 @@ class Pipe:
                 ),
                 "canonical_gate2_read_enabled": bool(
                     self.valves.canonical_gate2_read_enabled
-                ),
-                "canonical_gate2_compare_enabled": bool(
-                    self.valves.canonical_gate2_compare_enabled
                 ),
                 "pdf_table_intake_enabled": bool(self.valves.pdf_table_intake_enabled),
                 "pdf_table_intake_horizontal_padding_fraction": (

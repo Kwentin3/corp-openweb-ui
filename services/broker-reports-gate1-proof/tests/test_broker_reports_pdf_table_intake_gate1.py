@@ -752,7 +752,6 @@ def test_incomplete_pdf_table_normalization_cannot_publish_canonical_candidate(
         input_context={
             "canonical_gate2_write_enabled": True,
             "canonical_gate2_read_enabled": True,
-            "canonical_gate2_compare_enabled": True,
             "normalizer_version": "canonical-table-contract-test-v1",
         },
         pdf_table_locator_pages_by_sha256={

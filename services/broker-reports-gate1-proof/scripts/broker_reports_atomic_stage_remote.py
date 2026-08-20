@@ -40,7 +40,7 @@ RELEASE_QUIESCENT_WORKLOAD_STATES = {
     *TERMINAL_WORKLOAD_STATES,
     "awaiting_review",
 }
-MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v7"
+MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v8"
 
 
 class StageReleaseError(RuntimeError):

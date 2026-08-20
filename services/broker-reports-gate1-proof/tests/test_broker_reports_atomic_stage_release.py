@@ -210,7 +210,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(list(RETIRED_FUNCTION_IDS), manifest["retired_function_ids"])
         self.assertEqual(12, len(manifest["managed_prompts"]))
         self.assertEqual(
-            "broker_reports_atomic_stage_release_v7",
+            "broker_reports_atomic_stage_release_v8",
             manifest["schema_version"],
         )
         self.assertTrue(
@@ -271,17 +271,8 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             },
             source_bound["runtime_boundary"],
         )
-        financial = manifest["provider_policy"][
-            "financial_evidence_registry"
-        ]
-        self.assertEqual(
-            "broker_reports_gate2_financial_evidence_registry_v1",
-            financial["registry_version"],
-        )
-        self.assertEqual(64, len(financial["registry_hash"]))
-        self.assertEqual("dual_read", financial["legacy_read_policy"])
-        self.assertEqual(
-            "new_schema_only", financial["write_policy"]
+        self.assertNotIn(
+            "financial_evidence_registry", manifest["provider_policy"]
         )
         self.assertTrue(manifest["functions"][0]["valves"]["ndfl_gate3_enabled"])
         self.assertEqual(1, manifest["runtime"]["gate1_heavy_concurrency"])
@@ -305,12 +296,14 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             {
                 "unrelated_operator_setting": "preserved",
                 "pdf_table_intake_enabled": False,
+                "canonical_gate2_compare_enabled": True,
                 "pdf_dual_vlm_enabled": False,
             },
         )
 
         self.assertEqual("preserved", valves["unrelated_operator_setting"])
         self.assertTrue(valves["pdf_table_intake_enabled"])
+        self.assertNotIn("canonical_gate2_compare_enabled", valves)
         self.assertNotIn("pdf_dual_vlm_enabled", valves)
         self.assertNotIn("pdf_semantic_visual_table_downstream_enabled", valves)
         self.assertNotIn("pdf_hybrid_shadow_enabled", valves)

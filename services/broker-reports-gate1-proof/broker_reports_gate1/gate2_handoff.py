@@ -17,7 +17,6 @@ from .canonical_artifact import (
     CanonicalArtifactError,
     CanonicalNormalizerConfig,
     CanonicalNormalizerFactory,
-    canonical_compare_receipt,
 )
 from .canonical_store import CanonicalArtifactStoreFactory
 from .pdf_compact_canonical import (
@@ -1198,7 +1197,6 @@ def _persist_canonical_artifacts(
     input_context = _object(package.get("input_context"))
     if input_context.get("canonical_gate2_write_enabled") is not True:
         return
-    compare_enabled = input_context.get("canonical_gate2_compare_enabled") is True
     normalizer_version = str(
         input_context.get("normalizer_version")
         or _object(package.get("normalization_run")).get("normalizer_version")
@@ -1244,26 +1242,15 @@ def _persist_canonical_artifacts(
                 source_units=source_units,
                 table_projections=table_projections,
             )
-            compare = (
-                canonical_compare_receipt(
-                    artifact, legacy_source_units=source_units
-                )
-                if compare_enabled
-                else None
-            )
             persisted = canonical_store.put_candidate(
                 artifact=artifact,
                 context=context,
                 retention_policy=retention_policy,
-                compare_receipt=compare,
+                compare_receipt=None,
             )
             refs_by_type.setdefault("broker_reports_canonical_artifact_v1", []).append(
                 persisted.artifact_ref
             )
-            if persisted.compare_receipt_ref:
-                refs_by_type.setdefault(
-                    "broker_reports_canonical_legacy_compare_receipt_v1", []
-                ).append(persisted.compare_receipt_ref)
         except (CanonicalArtifactError, ArtifactStoreError, ValueError) as exc:
             code = str(getattr(exc, "code", "canonical_build_failed"))
             failure = put(
