@@ -37,6 +37,7 @@ _ACTION_IDS = (
     "PROPOSE_DICTIONARY_CHANGE",
     "PREPARE_DECLARATION",
 )
+_CANONICAL_ARTIFACT_TYPE = "broker_reports_canonical_artifact_v1"
 
 
 class Gate3NdflCaseReadinessError(RuntimeError):
@@ -62,19 +63,25 @@ class Gate3NdflCaseReadinessFactory:
                 "NDFL readiness requires authenticated private case access",
             )
         records = self._resolver.catalog_case(context)
-        document_ids = sorted(
-            {
-                record.document_id
-                for record in records
-                if isinstance(record.document_id, str) and record.document_id
-            }
-        )
         annotation_records = [
             record
             for record in records
             if record.artifact_type
             == GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE
         ]
+        document_ids = sorted(
+            {
+                record.document_id
+                for record in records
+                if record.artifact_type
+                in {
+                    _CANONICAL_ARTIFACT_TYPE,
+                    GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
+                }
+                and isinstance(record.document_id, str)
+                and record.document_id
+            }
+        )
         documents = [
             self._document_state(
                 document_id=document_id,
