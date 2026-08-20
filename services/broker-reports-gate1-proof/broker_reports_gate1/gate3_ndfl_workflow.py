@@ -216,12 +216,7 @@ class NdflWorkflow:
             or batch_result.merged_output is None
         ):
             failed_outcomes = [
-                {
-                    "chunk_ordinal": int(outcome.chunk["ordinal"]),
-                    "terminal_status": outcome.terminal_status,
-                    "failed_phase": outcome.failed_phase,
-                    "error_code": outcome.error_code,
-                }
+                _safe_failed_outcome(outcome)
                 for outcome in batch_result.outcomes
                 if outcome.terminal_status not in {
                     "validated",
@@ -365,6 +360,51 @@ class NdflWorkflow:
             gate3=gate3,
             canonical_after_gate3=canonical_after,
         )
+
+
+_SAFE_ROLE_RESPONSE_DIAGNOSTIC_KEYS = (
+    "raw_model_output_chars",
+    "raw_output_kind",
+    "raw_output_json_decodable",
+    "raw_output_top_level_contract_match",
+    "raw_output_schema_version_match",
+    "raw_output_facts_list",
+    "raw_output_facts_total",
+    "raw_output_fact_shape_contract_match",
+    "provider_finish_reason",
+    "requested_max_tokens",
+)
+
+
+def _safe_failed_outcome(outcome: Any) -> dict[str, Any]:
+    result = {
+        "chunk_ordinal": int(outcome.chunk["ordinal"]),
+        "terminal_status": outcome.terminal_status,
+        "failed_phase": outcome.failed_phase,
+        "error_code": outcome.error_code,
+    }
+    role_attempt = outcome.role_attempt
+    if role_attempt is None:
+        return result
+    metrics = role_attempt.metrics if isinstance(role_attempt.metrics, dict) else {}
+    diagnostics = {
+        key: copy.deepcopy(metrics[key])
+        for key in _SAFE_ROLE_RESPONSE_DIAGNOSTIC_KEYS
+        if key in metrics
+    }
+    metadata = role_attempt.execution_metadata
+    if metadata is not None:
+        for source, target in (
+            ("input_tokens", "provider_input_tokens"),
+            ("output_tokens", "provider_output_tokens"),
+            ("duration_ms", "provider_duration_ms"),
+        ):
+            value = getattr(metadata, source, None)
+            if isinstance(value, int) and value >= 0:
+                diagnostics[target] = value
+    if diagnostics:
+        result["role_response_diagnostics"] = diagnostics
+    return result
 
 
 __all__ = [
