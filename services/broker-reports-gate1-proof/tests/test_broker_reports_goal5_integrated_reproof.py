@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+import pytest
+
 from broker_reports_gate1 import (
     Gate2TablePackageFactory,
-    PdfVisualTableReviewFactory,
-    VisualReviewAuthorityContext,
-    validate_gate2_table_package,
     validate_reviewed_visual_projection,
 )
 from broker_reports_gate1.pdf_dual_vlm_canonical_table_contracts import (
@@ -12,7 +11,9 @@ from broker_reports_gate1.pdf_dual_vlm_canonical_table_contracts import (
     sha256_json,
 )
 from broker_reports_gate1.pdf_visual_table_review import (
+    PdfVisualTableReviewFactory,
     VISUAL_REVIEW_SUBMISSION_SCHEMA_VERSION,
+    VisualReviewAuthorityContext,
 )
 from scripts.prove_broker_reports_goal5_integrated_actual_corpus import (
     _attestations,
@@ -22,7 +23,7 @@ from scripts.prove_broker_reports_goal5_integrated_actual_corpus import (
 from tests.test_broker_reports_visual_table_review_promotion import _decision
 
 
-def test_literal_reference_review_reaches_terminal_gate2_package() -> None:
+def test_historical_literal_reference_review_cannot_enter_current_gate2() -> None:
     decision = _decision(openai_value="11")
     reference = {
         "entries": [
@@ -89,17 +90,14 @@ def test_literal_reference_review_reaches_terminal_gate2_package() -> None:
     assert validate_reviewed_visual_projection(result.canonical_projection)[
         "validator_status"
     ] == "passed"
-    package = Gate2TablePackageFactory().create().build(
-        projection=result.canonical_projection,
-        case_id="goal5-test-case",
-    )
-    assert validate_gate2_table_package(
-        package, result.canonical_projection
-    )["validator_status"] == "passed"
-    assert package["upstream_source_representation"]["reviewer_type"] == (
-        "delegated_agent_reviewed"
-    )
-    assert package["prompt_contract"]["model_call_performed"] is False
+    with pytest.raises(
+        ValueError,
+        match="gate2_pdf_canonical_boundary_unsupported",
+    ):
+        Gate2TablePackageFactory().create().build(
+            projection=result.canonical_projection,
+            case_id="goal5-test-case",
+        )
 
 
 def _entry(row: str, header: list[str], value: str) -> dict[str, object]:

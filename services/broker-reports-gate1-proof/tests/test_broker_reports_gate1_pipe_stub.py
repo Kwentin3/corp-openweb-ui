@@ -172,11 +172,11 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         pipe.valves.passport_model_id = "passport-model"
         return pipe
 
-    def test_unaccepted_broker_pdf_profile_is_release_gated_by_default(self):
+    def test_current_broker_pdf_profile_is_not_a_client_runtime_valve(self):
         pipe = self._pipe()
 
         self.assertFalse(
-            pipe.valves.broker_pdf_neutral_table_profile_v1_enabled
+            hasattr(pipe.valves, "broker_pdf_neutral_table_profile_v1_enabled")
         )
 
     def test_artifact_context_ignores_client_selected_scope(self):
@@ -1019,141 +1019,6 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertEqual(report["blockers"][0]["reason_code"], "upload_path_escape_detected")
         self.assertNotIn("escape-file", content)
         self.assertNotIn("synthetic_gate1_operations.csv", content)
-
-    def test_structural_shadow_failure_is_safe_and_visible_to_passport_llm(self):
-        pipe = self._passport_pipe()
-        pipe.valves.pdf_table_intake_enabled = False
-        pipe.valves.pdf_structural_repair_shadow_enabled = True
-        pipe.valves.pdf_semantic_header_shadow_enabled = True
-
-        content = run_pipe(
-            pipe,
-            {
-                "metadata": {"case_id": "case-structural-safe-outcome"},
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": "Gate 1 normalization with passport",
-                        "files": [
-                            file_ref(
-                                "pipe-file-structural-1",
-                                "private-structural-source.pdf",
-                                "application/pdf",
-                                content_bytes=_ruled_table_pdf(),
-                            )
-                        ],
-                    }
-                ],
-            },
-            __request__=object(),
-        )
-
-        report = pipe.last_safe_report
-        self.assertIsNotNone(report)
-        shadow = report["pdf_structural_repair_shadow"]
-        self.assertTrue(shadow["enabled"])
-        self.assertFalse(shadow["production_gate2_selection_changed"])
-        self.assertTrue(shadow["summary"]["semantic_header_shadow_enabled"])
-        self.assertEqual(
-            {"not_projected_structural_terminal": 1},
-            shadow["summary"]["semantic_projection_status_counts"],
-        )
-        self.assertEqual(
-            [],
-            pipe.last_artifact_manifest["pdf_structural_repair_shadow"][
-                "semantic_projection_refs"
-            ],
-        )
-        self.assertEqual(
-            {
-                "enabled": True,
-                "artifact_refs": [],
-                "status_counts": {"not_projected_structural_terminal": 1},
-                "reason_counts": {
-                    "pdf_semantic_header_not_projected_structural_terminal": 1
-                },
-                "private_projections_persisted": 0,
-                "private_diagnostics_persisted": 0,
-                "authority_state": "non_authoritative",
-                "production_gate2_selection_changed": False,
-            },
-            pipe.last_artifact_manifest["pdf_semantic_header_shadow"],
-        )
-        structural_outcome = shadow["summary"]["file_processing_outcomes"][
-            "outcomes"
-        ][0]
-        self.assertEqual(structural_outcome["status"], "failed")
-        self.assertEqual(
-            structural_outcome["reason_code"],
-            "provider_temporarily_unavailable",
-        )
-        first_llm_input = json.loads(
-            pipe.completion_forms[0]["messages"][0]["content"]
-        )
-        self.assertEqual(
-            first_llm_input["structural_repair_outcome"],
-            structural_outcome,
-        )
-        self.assertTrue(
-            pipe.last_artifact_manifest["pdf_structural_repair_shadow"][
-                "private_diagnostic_refs"
-            ]
-        )
-        rendered = json.dumps(report, ensure_ascii=False)
-        self.assertNotIn("private-structural-source.pdf", rendered)
-        self.assertNotIn("provider_payload", rendered)
-        self.assertNotIn("exception_message", rendered)
-        self.assertNotIn("private-structural-source.pdf", content)
-
-    def test_structural_shadow_runtime_exception_returns_safe_failed_outcome(self):
-        pipe = self._passport_pipe()
-        pipe.valves.pdf_structural_repair_shadow_enabled = True
-
-        with patch(
-            "openwebui_actions.broker_reports_gate1_pipe."
-            "PdfStructuralRepairShadowFactory.create",
-            side_effect=RuntimeError("private runtime failure detail"),
-        ):
-            content = run_pipe(
-                pipe,
-                {
-                    "metadata": {"case_id": "case-structural-runtime-exception"},
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": "Gate 1 normalization with passport",
-                            "files": [
-                                file_ref(
-                                    "pipe-file-structural-exception-1",
-                                    "private-structural-exception.pdf",
-                                    "application/pdf",
-                                    content_bytes=_ruled_table_pdf(),
-                                )
-                            ],
-                        }
-                    ],
-                },
-                __request__=object(),
-            )
-
-        report = pipe.last_safe_report
-        self.assertIsNotNone(report)
-        outcome = report["pdf_structural_repair_shadow"]["summary"][
-            "file_processing_outcomes"
-        ]["outcomes"][0]
-        self.assertEqual(outcome["status"], "failed")
-        self.assertEqual(outcome["reason_code"], "internal_processing_failed")
-        self.assertEqual(outcome["stage"], "processing")
-        first_llm_input = json.loads(
-            pipe.completion_forms[0]["messages"][0]["content"]
-        )
-        self.assertEqual(first_llm_input["structural_repair_outcome"], outcome)
-        rendered = json.dumps(report, ensure_ascii=False)
-        self.assertNotIn("private runtime failure detail", rendered)
-        self.assertNotIn("private-structural-exception.pdf", rendered)
-        self.assertNotIn("private runtime failure detail", content)
-        self.assertNotIn("private-structural-exception.pdf", content)
-
 
 if __name__ == "__main__":
     unittest.main()

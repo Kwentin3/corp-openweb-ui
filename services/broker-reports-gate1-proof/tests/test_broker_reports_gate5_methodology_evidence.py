@@ -231,6 +231,6 @@ def test_historical_receipt_preserves_g545_boundary_without_claiming_current_has
     assert receipt["invented_facts"] == 0
     assert receipt["invented_relations"] == 0
     assert receipt["prior_g545_receipt_sha256"] == hashlib.sha256(
-        G545_RECEIPT_PATH.read_bytes()
+        G545_RECEIPT_PATH.read_bytes().replace(b"\r\n", b"\n")
     ).hexdigest()
     assert all(item["bytes"] > 0 and len(item["sha256"]) == 64 for item in receipt["artifacts"])

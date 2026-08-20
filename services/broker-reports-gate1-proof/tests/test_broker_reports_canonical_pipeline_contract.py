@@ -134,7 +134,7 @@ def test_gate3_gate4_context_recovery_documentation_guard():
         "GATE2_STATUS = CLOSED",
         "GATE3_STATUS = CLOSED",
         "GATE4_STATUS = CLOSED",
-        "GATE5_PRODUCT_STATUS = INACTIVE",
+        "GATE5_PRODUCT_STATUS = CURRENT_FAIL_CLOSED",
         "### Adaptive Context Boundary",
         "### Gate 3 — Source semantic adapter",
         "### Gate 5 — Tax methodology and deterministic calculation",

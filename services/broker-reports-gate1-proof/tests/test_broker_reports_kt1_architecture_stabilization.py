@@ -764,6 +764,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_grid_experiment_provider.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate3_financial_label_dictionary_cli.py"
         ),
     }

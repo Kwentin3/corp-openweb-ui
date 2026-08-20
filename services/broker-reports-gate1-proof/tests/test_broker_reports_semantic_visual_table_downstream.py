@@ -6,11 +6,8 @@ from broker_reports_gate1 import (
     ArtifactAccessContext,
     ArtifactStoreConfig,
     ArtifactStoreFactory,
-    CanonicalReaderFactory,
     FileInput,
     Gate1Normalizer,
-    Gate2InputReadinessConfig,
-    Gate2InputReadinessFactory,
     build_retention_policy,
     persist_gate1_result,
 )
@@ -92,76 +89,18 @@ def test_semantic_projection_requires_explicit_gate2_boundary_and_preserves_sour
         allow_private=True,
         require_source_available=True,
     )
-    manifest = persist_gate1_result(
-        store=store,
-        result=normalized,
-        context=context,
-        retention_policy=build_retention_policy(mode="api_smoke"),
-    )
-    dcp_ref = manifest.artifact_refs_by_type["domain_context_packet_v0"][0]
-    canonical_ref = manifest.artifact_refs_by_type[
-        "broker_reports_canonical_artifact_v1"
-    ][0]
-    canonical = CanonicalReaderFactory(
-        store=store, read_enabled=True
-    ).create().read(canonical_ref, context)
-    semantic_table = next(
-        node
-        for node in canonical["nodes"]
-        if (node.get("content") or {}).get("metadata", {}).get(
-            "standalone_source_bound_projection"
+    try:
+        persist_gate1_result(
+            store=store,
+            result=normalized,
+            context=context,
+            retention_policy=build_retention_policy(mode="api_smoke"),
         )
-    )
-    assert semantic_table["content"]["rows"] == [
-        ["Item", "Amount"],
-        ["Cash", "1,000"],
-        ["Total", "1,000"],
-    ]
-
-    artifact_types = {record.artifact_type for record in store.list_by_run(
-        context.normalization_run_id
-    )}
-    assert "private_normalized_source_unit_v0" in artifact_types
-    assert "broker_reports_semantic_visual_table_envelope_v1" in artifact_types
-    assert "broker_reports_normalized_table_projection_v0" in artifact_types
-    assert "broker_reports_semantic_visual_table_migration_policy_v1" in artifact_types
-
-    default_readiness = Gate2InputReadinessFactory(store=store).create().audit_and_build(
-        domain_context_packet_ref=dcp_ref,
-        context=context,
-    )
-    assert default_readiness.validation["validator_status"] == "passed"
-    assert default_readiness.validation["slice_audit"][
-        "semantic_visual_projections_selected_total"
-    ] == 0
-    assert not _semantic_packages(default_readiness.packages)
-
-    enabled_readiness = Gate2InputReadinessFactory(
-        store=store,
-        config=Gate2InputReadinessConfig(
-            allow_standalone_semantic_visual_projections=True
-        ),
-    ).create().audit_and_build(
-        domain_context_packet_ref=dcp_ref,
-        context=context,
-    )
-    assert enabled_readiness.validation["validator_status"] == "passed"
-    assert enabled_readiness.validation["slice_audit"][
-        "semantic_visual_projections_selected_total"
-    ] == 1, {
-        key: enabled_readiness.validation["slice_audit"].get(key)
-        for key in (
-            "table_projections_total",
-            "table_projections_eligible_total",
-            "table_projection_full_validation_total",
-            "table_projections_unselected_total",
-            "selected_scope_counts",
-            "unselected_scope_reason_counts",
-            "standalone_semantic_visual_projections_allowed",
-        )
-    }
-    assert len(_semantic_packages(enabled_readiness.packages)) == 1
-    assert len(enabled_readiness.packages) > len(default_readiness.packages)
+    except ValueError as exc:
+        assert str(exc) == "retired_semantic_visual_product_payload_forbidden"
+    else:
+        raise AssertionError("retired semantic projection entered the product handoff")
+    assert store.list_by_run(context.normalization_run_id) == []
 
 
 def test_duplicate_semantic_projection_identity_fails_closed(tmp_path) -> None:
@@ -214,7 +153,7 @@ def test_duplicate_semantic_projection_identity_fails_closed(tmp_path) -> None:
             retention_policy=build_retention_policy(mode="api_smoke"),
         )
     except ValueError as exc:
-        assert str(exc) == "duplicate_table_projection_identity"
+        assert str(exc) == "retired_semantic_visual_product_payload_forbidden"
     else:
         raise AssertionError("duplicate semantic projection was persisted")
     assert store.list_by_run(context.normalization_run_id) == []
@@ -241,14 +180,3 @@ def _migration_for_document(*, document_ref: str, source_sha256: str):
         decisions=runtime.private_decisions,
         provider_evidence=runtime.private_provider_evidence,
     )
-
-
-def _semantic_packages(packages):
-    return [
-        package
-        for package in packages
-        if (package.get("upstream_source_representation") or {}).get(
-            "source_representation_kind"
-        )
-        == "semantic_visual_logical_table"
-    ]

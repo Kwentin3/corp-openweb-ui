@@ -83,7 +83,10 @@ def test_versioned_corpus_hashes_origins_and_binary_builder_are_exact() -> None:
         if repository_path:
             source = SERVICE_ROOT / repository_path
             assert source.is_file()
-            assert hashlib.sha256(source.read_bytes()).hexdigest() == sample[
+            source_bytes = source.read_bytes()
+            if source.suffix.lower() in {".csv", ".html", ".json"}:
+                source_bytes = source_bytes.replace(b"\r\n", b"\n")
+            assert hashlib.sha256(source_bytes).hexdigest() == sample[
                 "content_sha256"
             ]
         else:

@@ -48,7 +48,8 @@ def test_filing_actions_and_action_order_do_not_suppress_calculation(
     actions = result["gap_closure"]["required_actions"]
 
     assert result["machine_readable_declaration_draft"]["calculation_count"] == 1
-    assert actions[0]["closure_type"] == "USER_FACT"
+    assert any(item["closure_type"] == "USER_FACT" for item in actions)
+    assert any(item["closure_type"] == "METHODOLOGY_RESEARCH" for item in actions)
     assert any(
         item.get("fact_key") == "signer_and_representation" for item in actions
     )

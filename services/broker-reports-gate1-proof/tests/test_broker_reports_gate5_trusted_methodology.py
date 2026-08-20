@@ -283,9 +283,14 @@ def test_declaration_input_methodology_is_closed_versioned_and_authority_bound()
         "dividend-income-group-articles-210-214-v1",
         "organized-market-classification-article-214.1-v1",
         "foreign-currency-conversion-article-210-v1",
-        "foreign-tax-credit-articles-214-232-v1",
+        "foreign-tax-credit-articles-214-232-v2",
         "partial-acquisition-commission-v1",
     } == {item["rule_id"] for item in rules}
+    rule_ids = {item["rule_id"] for item in rules}
+    assert all(
+        set(item["rule_ids"]).issubset(rule_ids)
+        for item in methodology["demand_bindings"]
+    )
     assert all(item["required_inputs"] for item in rules)
     assert all(set(item["authority_refs"]).issubset(authority_refs) for item in rules)
     assert all(
@@ -308,7 +313,7 @@ def test_declaration_input_methodology_is_closed_versioned_and_authority_bound()
     } == {
         "security-disposal-source-article-208-v1",
         "foreign-currency-conversion-article-210-v1",
-        "foreign-tax-credit-articles-214-232-v1",
+        "foreign-tax-credit-articles-214-232-v2",
         "partial-acquisition-commission-v1",
     }
     demand_bindings = methodology["demand_bindings"]

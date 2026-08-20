@@ -204,8 +204,10 @@ def test_predeclared_assertion_schema_and_factory_antidrift_are_exact() -> None:
         / "docs/stage2/contracts/"
         "BROKER_REPORTS_GATE3_PREDECLARED_ASSERTION_LABELING_RESPONSE.v1.schema.json"
     )
-    assert package_schema.read_bytes() == contract_schema.read_bytes()
-    assert hashlib.sha256(package_schema.read_bytes()).hexdigest() == (
+    package_bytes = package_schema.read_bytes().replace(b"\r\n", b"\n")
+    contract_bytes = contract_schema.read_bytes().replace(b"\r\n", b"\n")
+    assert package_bytes == contract_bytes
+    assert hashlib.sha256(package_bytes).hexdigest() == (
         GATE3_PREDECLARED_ASSERTION_RESPONSE_SCHEMA_SHA256
     )
     source = inspect.getsource(

@@ -21,6 +21,7 @@ import live_release_broker_reports_atomic_stage as driver  # noqa: E402
 from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
     FUNCTION_CONTRACTS,
     RELEASE_QUIESCENT_WORKLOAD_STATES,
+    RETIRED_FUNCTION_IDS,
     SCHEMA_VERSION,
     build_manifest,
     merged_valves,
@@ -80,21 +81,18 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 ),
             )
 
-    def test_delivery_verifier_scopes_financial_markers_to_domain_function(self):
-        source_contract = DELIVERY_FUNCTION_CONTRACTS[1]
-        domain_contract = DELIVERY_FUNCTION_CONTRACTS[2]
-
-        self.assertNotIn(
-            "Gate2FinancialEvidenceProductionRuntimeFactory",
-            source_contract.required_markers,
+    def test_delivery_verifier_exposes_only_current_pipeline_function(self):
+        self.assertEqual(1, len(DELIVERY_FUNCTION_CONTRACTS))
+        self.assertEqual(
+            "broker_reports_gate1_pipe",
+            DELIVERY_FUNCTION_CONTRACTS[0].function_id,
         )
-        self.assertIn(
-            "Gate2FinancialEvidenceProductionRuntimeFactory",
-            domain_contract.required_markers,
-        )
-        self.assertIn(
-            "financial_evidence_enabled",
-            domain_contract.required_markers,
+        self.assertEqual(
+            {
+                "broker_reports_gate2_source_fact_pipe",
+                "broker_reports_gate2_domain_source_fact_pipe",
+            },
+            set(RETIRED_FUNCTION_IDS),
         )
 
     def test_driver_materializes_loader_from_exact_approved_git_blob(self):
@@ -208,10 +206,11 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         validate_manifest(manifest)
         remote._validate_manifest(manifest)
 
-        self.assertEqual(3, len(manifest["functions"]))
+        self.assertEqual(1, len(manifest["functions"]))
+        self.assertEqual(list(RETIRED_FUNCTION_IDS), manifest["retired_function_ids"])
         self.assertEqual(12, len(manifest["managed_prompts"]))
         self.assertEqual(
-            "broker_reports_atomic_stage_release_v6",
+            "broker_reports_atomic_stage_release_v7",
             manifest["schema_version"],
         )
         self.assertTrue(
@@ -246,29 +245,15 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             [item["function_id"] for item in manifest["functions"]],
         )
         self.assertTrue(manifest["runtime"]["vlm_default_enabled"])
-        self.assertFalse(
-            manifest["runtime"]["semantic_visual_profile_default_enabled"]
-        )
         self.assertTrue(
             manifest["runtime"][
                 "source_bound_table_normalization_default_enabled"
             ]
         )
-        self.assertFalse(
-            manifest["runtime"]["visual_auto_publication_enabled"]
+        self.assertFalse(manifest["runtime"]["legacy_table_route_available"])
+        self.assertNotIn(
+            "semantic_visual_table_contract", manifest["provider_policy"]
         )
-        semantic = manifest["provider_policy"]["semantic_visual_table_contract"]
-        self.assertFalse(semantic["active_for_new_writes"])
-        self.assertEqual(
-            "broker_reports_semantic_table_transcription_prompt_v1",
-            semantic["prompt_version"],
-        )
-        self.assertEqual(
-            "broker_reports_semantic_visual_financial_profile_v2",
-            semantic["accepted_profile_id"],
-        )
-        self.assertEqual(64, len(semantic["prompt_sha256"]))
-        self.assertEqual(64, len(semantic["canonical_schema_sha256"]))
         source_bound = manifest["provider_policy"]["source_bound_table_contract"]
         self.assertTrue(source_bound["active_for_new_writes"])
         self.assertEqual("pdfplumber", source_bound["table_structure_authority"])
@@ -284,7 +269,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 "native_openwebui_document_processing_allowed": False,
                 "whole_document_provider_upload_allowed": False,
             },
-            semantic["runtime_boundary"],
+            source_bound["runtime_boundary"],
         )
         financial = manifest["provider_policy"][
             "financial_evidence_registry"
@@ -298,21 +283,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(
             "new_schema_only", financial["write_policy"]
         )
-        domain_release = manifest["functions"][-1]
-        self.assertTrue(
-            domain_release["valves"]["financial_evidence_enabled"]
-        )
-        self.assertEqual(
-            financial["registry_version"],
-            domain_release["valves"][
-                "financial_evidence_registry_version"
-            ],
-        )
-        self.assertFalse(
-            manifest["functions"][1]["valves"][
-                "semantic_selection_enabled"
-            ]
-        )
+        self.assertTrue(manifest["functions"][0]["valves"]["ndfl_gate3_enabled"])
         self.assertEqual(1, manifest["runtime"]["gate1_heavy_concurrency"])
         self.assertEqual(2, manifest["runtime"]["gate2_local_maximum_concurrency"])
         self.assertEqual(
@@ -340,36 +311,15 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
         self.assertEqual("preserved", valves["unrelated_operator_setting"])
         self.assertTrue(valves["pdf_table_intake_enabled"])
-        self.assertFalse(valves["pdf_dual_vlm_enabled"])
-        self.assertFalse(valves["pdf_semantic_visual_table_downstream_enabled"])
-        self.assertEqual(
-            "broker_reports_semantic_visual_table_migration_policy_v1",
-            valves["pdf_semantic_visual_table_migration_policy_version"],
-        )
-        self.assertFalse(valves["pdf_hybrid_shadow_enabled"])
-        self.assertFalse(valves["pdf_structural_repair_shadow_enabled"])
+        self.assertNotIn("pdf_dual_vlm_enabled", valves)
+        self.assertNotIn("pdf_semantic_visual_table_downstream_enabled", valves)
+        self.assertNotIn("pdf_hybrid_shadow_enabled", valves)
+        self.assertNotIn("pdf_structural_repair_shadow_enabled", valves)
+        self.assertTrue(valves["canonical_gate2_write_enabled"])
+        self.assertTrue(valves["canonical_gate2_read_enabled"])
+        self.assertTrue(valves["ndfl_gate3_enabled"])
         self.assertTrue(valves_match(function_id, valves))
         self.assertEqual(64, valves["pdf_table_intake_maximum_pages"])
-        self.assertEqual(16, valves["pdf_dual_vlm_maximum_candidates"])
-
-        domain_valves = merged_valves(
-            FUNCTION_CONTRACTS[-1].function_id,
-            {"allow_standalone_semantic_visual_projections": False},
-        )
-        self.assertFalse(
-            domain_valves["allow_standalone_semantic_visual_projections"]
-        )
-        self.assertTrue(domain_valves["prefer_table_projections"])
-        self.assertTrue(domain_valves["answer_context_selection_enabled"])
-
-        source_valves = merged_valves(
-            FUNCTION_CONTRACTS[1].function_id,
-            {"semantic_selection_enabled": True},
-        )
-        self.assertFalse(source_valves["semantic_selection_enabled"])
-        self.assertTrue(
-            valves_match(FUNCTION_CONTRACTS[1].function_id, source_valves)
-        )
 
     def test_quiescence_counts_every_nonterminal_state(self):
         state_counts = {
@@ -484,8 +434,8 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
     def test_function_release_preserves_an_inactive_pipe(self):
         manifest = _manifest()
-        expected = manifest["functions"][1]
-        content = FUNCTION_CONTRACTS[1].bundle_path.read_text(encoding="utf-8")
+        expected = manifest["functions"][0]
+        content = FUNCTION_CONTRACTS[0].bundle_path.read_text(encoding="utf-8")
         result = evaluate_function_release(
             expected=expected,
             live_function={
@@ -542,7 +492,6 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         checks = evaluate_route_activation(
             expected_manifest=manifest,
             gate1_valves=FUNCTION_CONTRACTS[0].valves,
-            domain_valves=FUNCTION_CONTRACTS[2].valves,
         )
         self.assertTrue(all(checks.values()), checks)
 
@@ -551,7 +500,6 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         failed = evaluate_route_activation(
             expected_manifest=manifest,
             gate1_valves=drifted,
-            domain_valves=FUNCTION_CONTRACTS[2].valves,
         )
         self.assertFalse(failed["source_bound_table_route_default_on"])
 
@@ -613,6 +561,17 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                         index,
                     ),
                 )
+            for index, function_id in enumerate(RETIRED_FUNCTION_IDS, 100):
+                conn.execute(
+                    "INSERT INTO function VALUES (?, ?, ?, ?, 'pipe', 1, 0, ?)",
+                    (
+                        function_id,
+                        f"retired-{index}",
+                        json.dumps({"retired": index}),
+                        json.dumps({"retired": index}),
+                        index,
+                    ),
+                )
             conn.execute(
                 """
                 CREATE TABLE prompt(
@@ -643,7 +602,10 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
             conn.close()
 
     def _function_rows(self, path: Path):
-        ids = [contract.function_id for contract in FUNCTION_CONTRACTS]
+        ids = [
+            *[contract.function_id for contract in FUNCTION_CONTRACTS],
+            *RETIRED_FUNCTION_IDS,
+        ]
         return remote._function_rows(path, ids)
 
     def _prompt_rows(self, path: Path):

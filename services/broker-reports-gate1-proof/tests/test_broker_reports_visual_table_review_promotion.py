@@ -38,7 +38,7 @@ from broker_reports_gate1.visual_table_review_contracts import (
 )
 
 
-def test_accepted_without_correction_is_sealed_and_gate2_packageable() -> None:
+def test_accepted_without_correction_is_sealed_but_not_current_gate2_input() -> None:
     decision = _decision()
     result = _review(decision, _submission(decision))
 
@@ -59,28 +59,15 @@ def test_accepted_without_correction_is_sealed_and_gate2_packageable() -> None:
     assert projection is not None
     assert validate_reviewed_visual_projection(projection)["passed"] is True
 
-    package = Gate2TablePackageFactory().create().build(
-        projection=projection,
-        case_id="case-review",
-        table_projection_artifact_ref="art_reviewed_projection",
-    )
-
-    assert package["prompt_contract"]["model_call_performed"] is False
-    assert package["privacy_policy_scope"] == "gate2_package_construction_only"
-    assert package["privacy_policy"]["ocr_vlm_used"] is False
-    assert package["upstream_source_representation"] == {
-        "source_representation_kind": "reviewed_visual_canonical_table",
-        "review_receipt_id": result.review_receipt["review_receipt_id"],
-        "review_receipt_hash": result.review_receipt["receipt_hash"],
-        "review_seal_hash": result.review_seal["seal_hash"],
-        "review_decision": "accepted_without_correction",
-        "reviewer_type": "human_reviewed",
-        "source_to_table_accounting": "passed",
-        "upstream_visual_vlm_used": True,
-        "upstream_page_rendering_used": True,
-        "local_ocr_evidence_used": False,
-        "provider_consensus_canonical_authority": False,
-    }
+    with pytest.raises(
+        ValueError,
+        match="gate2_pdf_canonical_boundary_unsupported",
+    ):
+        Gate2TablePackageFactory().create().build(
+            projection=projection,
+            case_id="case-review",
+            table_projection_artifact_ref="art_reviewed_projection",
+        )
 
 
 def test_accepted_with_correction_requires_exact_diff_and_corrected_cell() -> None:
@@ -114,13 +101,14 @@ def test_accepted_with_correction_requires_exact_diff_and_corrected_cell() -> No
     assert validate_reviewed_visual_projection(result.canonical_projection)[
         "passed"
     ]
-    package = Gate2TablePackageFactory().create().build(
-        projection=result.canonical_projection,
-        case_id="case-corrected",
-    )
-    assert package["upstream_source_representation"]["review_decision"] == (
-        "accepted_with_correction"
-    )
+    with pytest.raises(
+        ValueError,
+        match="gate2_pdf_canonical_boundary_unsupported",
+    ):
+        Gate2TablePackageFactory().create().build(
+            projection=result.canonical_projection,
+            case_id="case-corrected",
+        )
 
 
 @pytest.mark.parametrize("review_decision", ["rejected", "unresolved", "unsupported"])

@@ -129,13 +129,10 @@ def test_role_context_owner_has_no_broker_or_retry_drift() -> None:
     batch_source = (
         SERVICE_ROOT / "broker_reports_gate1/gate3_chunk_batch_labeling.py"
     ).read_text(encoding="utf-8")
-    assert "private_semantic_visual_table_projections" in pipe_source
+    assert "private_semantic_visual_table_projections" not in pipe_source
     assert "role_structural_projections" not in workflow_source
     assert "structural_projections" not in batch_source
-    assert (
-        "private_semantic_visual_table_projections"
-        not in (pipe_source[pipe_source.index("async def _maybe_run_ndfl_gate3") :])
-    )
+    assert "Gate5DeclarationPreparationRuntimeFactory" in pipe_source
 
 
 def test_source_first_table_row_is_context_only_without_header_claim() -> None:

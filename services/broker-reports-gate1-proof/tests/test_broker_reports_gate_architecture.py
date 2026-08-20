@@ -216,7 +216,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertFalse(KNOWLEDGE_RAG_VECTORIZATION_ALLOWED)
         self.assertEqual(
             VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES,
-            frozenset({"google_gemini", "openai_gpt"}),
+            frozenset({"google_gemini"}),
         )
         self.assertEqual(
             VISUAL_RECOVERY_INPUT_SCOPES,
@@ -225,10 +225,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertFalse(WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED)
         self.assertFalse(LOCAL_OCR_PRODUCTION_ALLOWED)
         self.assertFalse(LOCAL_OCR_WORKER_POOL_ALLOWED)
-        self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "semantic_transcription_only")
+        self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "table_region_location_only")
         self.assertEqual(
             CANONICAL_PROMOTION_AUTHORITY,
-            "deterministic_validator_for_accepted_profile_else_review_or_fail_closed",
+            "deterministic_pdfplumber_source_projection_else_fail_closed",
         )
         self.assertEqual(MODEL_CANONICAL_AUTHORITY, 0)
         self.assertFalse(GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED)
@@ -293,16 +293,17 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
 
     def test_visual_components_are_explicitly_classified(self):
         expected = {
-            "visual_table_vlm": "maintained_qualified_default_on",
+            "visual_table_vlm": "research_only",
             "visual_neutral_tables": "maintained_qualified_default_on",
-            "visual_review_boundary": "maintained_default_off",
-            "visual_recovery_handoff": "maintained_qualified_default_on",
+            "visual_review_boundary": "research_only",
+            "visual_recovery_handoff": "research_only",
+            "pdf_table_locator_provider": "maintained_current",
             "pdf_csv_experiment_provider": "proof_only",
-            "pdf_grid_experiment_provider": "proof_only",
-            "pdf_hybrid_provider": "proof_only",
-            "pdf_dual_vlm_fact_providers": "maintained_qualified_default_on",
-            "pdf_dual_vlm_canonical_table": "maintained_default_off",
-            "pdf_dual_vlm_runtime": "maintained_qualified_default_on",
+            "pdf_grid_experiment_provider": "compatibility_only",
+            "pdf_hybrid_provider": "research_only",
+            "pdf_dual_vlm_fact_providers": "research_only",
+            "pdf_dual_vlm_canonical_table": "research_only",
+            "pdf_dual_vlm_runtime": "research_only",
             "prove_visual_neutral_tables_actual_corpus": "offline_only",
         }
         self.assertEqual(

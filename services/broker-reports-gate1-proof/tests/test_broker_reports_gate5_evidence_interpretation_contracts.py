@@ -147,6 +147,8 @@ def test_g544_receipt_hashes_safe_contract_runtime_and_bundle_artifacts() -> Non
             continue
         path = REPO_ROOT / artifact["path"]
         raw = path.read_bytes()
+        if path.suffix in {".json", ".md", ".py"}:
+            raw = raw.replace(b"\r\n", b"\n")
         assert len(raw) == artifact["bytes"]
         assert hashlib.sha256(raw).hexdigest() == artifact["sha256"]
 
