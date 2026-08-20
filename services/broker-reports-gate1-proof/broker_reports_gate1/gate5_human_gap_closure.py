@@ -13,6 +13,7 @@ from .gate5_evidence_intake import (
 from .gate5_client_evidence_review import (
     GATE5_CLIENT_EVIDENCE_REVIEW_SCHEMA_VERSION,
 )
+from .gate5_evidence_demand import GATE5_GAP_OWNER_CLASSIFICATIONS
 from .gate5_declaration_scope_resolution import (
     GATE5_DECLARATION_SCOPE_ACTIVATION_SCHEMA_VERSION,
 )
@@ -55,6 +56,14 @@ _CLOSURE_TYPES = {
     "OWNER_UNRESOLVED",
 }
 _USER_FACING_CLOSURE_TYPES = {"USER_FACT", "ADDITIONAL_DOCUMENT"}
+_GAP_OWNER_BY_CLOSURE_TYPE = {
+    "EXISTING_EVIDENCE": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+    "EXTERNAL_AUTHORITY": "EXTERNAL_AUTHORITATIVE_FACT_MISSING",
+    "USER_FACT": "USER_CASE_FACT_MISSING",
+    "ADDITIONAL_DOCUMENT": "REAL_SOURCE_EVIDENCE_MISSING",
+    "METHODOLOGY_RESEARCH": "METHODOLOGY_RULE_MISSING",
+    "OWNER_UNRESOLVED": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+}
 
 
 class Gate5HumanGapClosureError(ValueError):
@@ -595,11 +604,17 @@ def _request(
 ) -> dict[str, Any]:
     if closure_type not in _CLOSURE_TYPES:
         _fail("gate5_gap_closure_type_invalid")
+    gap_owner_classification = _GAP_OWNER_BY_CLOSURE_TYPE[closure_type]
+    if routing is not None and routing.get("gap_owner_classification") != (
+        gap_owner_classification
+    ):
+        _fail("gate5_gap_owner_classification_mismatch")
     base = {
         "schema_version": GATE5_GAP_REQUEST_SCHEMA_VERSION,
         "kind": kind,
         "priority": priority,
         "closure_type": closure_type,
+        "gap_owner_classification": gap_owner_classification,
         "fact_key": fact_key,
         "demand_refs": sorted(demand_refs),
         "evidence_refs": sorted(evidence_refs),
@@ -622,6 +637,7 @@ def _validated_routing(value: Any) -> dict[str, Any]:
         "owner",
         "closure_type",
         "user_or_additional_document_allowed",
+        "gap_owner_classification",
     }
     if (
         not isinstance(value, dict)
@@ -632,12 +648,18 @@ def _validated_routing(value: Any) -> dict[str, Any]:
             for key in ("ownership_state", "route", "owner")
         )
         or not isinstance(value.get("user_or_additional_document_allowed"), bool)
+        or value.get("gap_owner_classification")
+        not in GATE5_GAP_OWNER_CLASSIFICATIONS
     ):
         _fail("gate5_gap_owner_routing_invalid")
     if value["user_or_additional_document_allowed"] is False and value[
         "closure_type"
     ] in _USER_FACING_CLOSURE_TYPES:
         _fail("gate5_gap_internal_route_exposed_to_user")
+    if value["gap_owner_classification"] != _GAP_OWNER_BY_CLOSURE_TYPE[
+        value["closure_type"]
+    ]:
+        _fail("gate5_gap_owner_classification_mismatch")
     return copy.deepcopy(value)
 
 
@@ -646,6 +668,8 @@ def _validated_request(value: Any) -> dict[str, Any]:
         not isinstance(value, dict)
         or value.get("schema_version") != GATE5_GAP_REQUEST_SCHEMA_VERSION
         or value.get("closure_type") not in _CLOSURE_TYPES
+        or value.get("gap_owner_classification")
+        not in GATE5_GAP_OWNER_CLASSIFICATIONS
         or not isinstance(value.get("request_id"), str)
         or not isinstance(value.get("answer_contract"), dict)
     ):
@@ -727,6 +751,7 @@ def _adapter_request(item: dict[str, Any]) -> dict[str, Any]:
             "kind",
             "priority",
             "closure_type",
+            "gap_owner_classification",
             "question",
             "reason",
             "helpful_evidence",

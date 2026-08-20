@@ -39,6 +39,20 @@ def test_demand_first_case_assembly_keeps_real_gaps_exact(tmp_path: Path) -> Non
     assert assembled["metrics"]["invented_facts"] == 0
     assert assembled["metrics"]["invented_relations"] == 0
     assert assembled["metrics"]["active_demands_with_methodology_binding"] == 9
+    assert assembled["metrics"]["gap_owner_classification_counts"] == {
+        "EXTERNAL_AUTHORITATIVE_FACT_MISSING": 0,
+        "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT": 0,
+        "METHODOLOGY_RULE_MISSING": 2,
+        "REAL_SOURCE_EVIDENCE_MISSING": 3,
+        "USER_CASE_FACT_MISSING": 4,
+    }
+    active = [
+        row
+        for row in assembled["declaration_demands"]
+        if row["terminal"] != "NOT_ACTIVATED_FOR_SUPPLIED_CASE"
+    ]
+    assert len(active) == 9
+    assert all(row["gap_owner_classification"] for row in active)
     assert assembled["declaration_input_methodology_binding"][
         "methodology_id"
     ] == "ru-3ndfl-2025-declaration-input-contract"

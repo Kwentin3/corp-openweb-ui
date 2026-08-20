@@ -39,6 +39,7 @@ def test_source_absent_acquisition_gap_remains_external_evidence_demand() -> Non
         "SOURCE_ABSENT_WITHIN_SUPPLIED_EVIDENCE_HORIZON"
     )
     assert action["closure_type"] == "ADDITIONAL_DOCUMENT"
+    assert action["gap_owner_classification"] == "REAL_SOURCE_EVIDENCE_MISSING"
     assert action["answer_contract"] == {"kind": "document_submission"}
     assert action in closure["user_facing_required_actions"]
     assert action not in closure["internal_owner_required_actions"]
@@ -57,9 +58,13 @@ def test_source_has_literal_role_loss_routes_to_gate3_gate4_owner_only() -> None
             "Gate4FinancialCaseMaterializerFactory.create"
         ),
         "closure_type": "EXISTING_EVIDENCE",
+        "gap_owner_classification": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
         "user_or_additional_document_allowed": False,
     }
     assert action["closure_type"] == "EXISTING_EVIDENCE"
+    assert action["gap_owner_classification"] == (
+        "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT"
+    )
     assert action["answer_contract"]["kind"] == "owner_replay"
     assert "do not ask the user" in action["question"]
     _assert_internal_only(action, closure)
@@ -78,6 +83,9 @@ def test_source_has_literal_decimal_failure_routes_to_normalization_owner_only()
         "Gate4FinancialCaseMaterializerFactory.create"
     )
     assert action["closure_type"] == "EXISTING_EVIDENCE"
+    assert action["gap_owner_classification"] == (
+        "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT"
+    )
     assert action["answer_contract"]["kind"] == "owner_replay"
     _assert_internal_only(action, closure)
 
@@ -87,6 +95,9 @@ def test_unknown_source_blocker_fails_closed_without_defaulting_to_user() -> Non
 
     assert finding["routing"]["ownership_state"] == "OWNER_UNRESOLVED"
     assert action["closure_type"] == "OWNER_UNRESOLVED"
+    assert action["gap_owner_classification"] == (
+        "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT"
+    )
     assert action["answer_contract"] == {"kind": "owner_resolution"}
     assert "do not ask the user" in action["question"]
     _assert_internal_only(action, closure)
@@ -105,6 +116,7 @@ def test_methodology_gap_keeps_existing_methodology_owner_route() -> None:
         "Gate5TrustedMethodologyAuthorityFactory.create"
     )
     assert action["closure_type"] == "METHODOLOGY_RESEARCH"
+    assert action["gap_owner_classification"] == "METHODOLOGY_RULE_MISSING"
     assert action["answer_contract"]["kind"] == "methodology_review"
     _assert_internal_only(action, closure)
 

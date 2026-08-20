@@ -481,8 +481,10 @@ def _consumption_result(
             ),
             "commission_detail_aggregate_hybrid": "SUPPORTED_WITHOUT_RECONCILIATION",
             "withheld_tax_detail_aggregate_hybrid": "SUPPORTED_WITHOUT_RECONCILIATION",
-            "partial_acquisition_commission": "METHODOLOGY_UNRESOLVED",
-            "currency_conversion": "METHODOLOGY_UNRESOLVED",
+            "partial_acquisition_commission": "LEGAL_INTERPRETATION_REQUIRED",
+            "currency_conversion": (
+                "LEGAL_INTERPRETATION_REQUIRED_AT_DECLARATION_FIELD_BOUNDARY"
+            ),
         },
     }
 
@@ -615,7 +617,7 @@ def _methodology(value: Any, *, authority_binding: dict[str, Any]) -> dict[str, 
         or value.get("methodology_id") != authority_binding.get("methodology_id")
         or value.get("methodology_version")
         != authority_binding.get("methodology_version")
-        or value.get("status") != "PUBLISHED_PROOF_ONLY"
+        or value.get("status") != "PUBLISHED_CURRENT_AUTHORITY"
     ):
         _fail("gate5_source_fact_methodology_invalid")
     behavior = value.get("behavior")
@@ -648,7 +650,9 @@ def _methodology(value: Any, *, authority_binding: dict[str, Any]) -> dict[str, 
         "same_date_policy": (
             "fail_closed_when_unordered_same_date_facts_make_cost_attribution_material"
         ),
-        "rounding_policy": "exact_currency_minor_unit_only",
+        "rounding_policy": (
+            "exact_decimal_no_rounding_before_gate5_declaration_field_boundary"
+        ),
     }:
         _fail("gate5_source_fact_methodology_invalid")
     if behavior.get("direct_disposal_expense") != {
@@ -1230,7 +1234,7 @@ def _require_disposal_order_resolved(
     for disposal in disposals:
         key = (disposal["asset"], disposal["currency"], disposal["date"])
         groups.setdefault(key, []).append(disposal)
-    for (asset, currency, date), group in groups.items():
+    for (asset, currency, disposal_date), group in groups.items():
         if len(group) < 2:
             continue
         eligible_unit_costs = {
@@ -1238,7 +1242,7 @@ def _require_disposal_order_resolved(
             for purchase in purchases
             if purchase["asset"] == asset
             and purchase["currency"] == currency
-            and purchase["date"] <= date
+            and purchase["date"] <= disposal_date
         }
         if len(eligible_unit_costs) > 1:
             _fail("gate5_source_fact_same_date_fifo_methodology_unresolved")
@@ -1259,8 +1263,8 @@ def _require_fifo_order_resolved(
         and lot["remaining_quantity"] > 0
     ]
     remaining = quantity
-    for date in sorted({lot["date"] for lot in eligible}):
-        group = [lot for lot in eligible if lot["date"] == date]
+    for lot_date in sorted({lot["date"] for lot in eligible}):
+        group = [lot for lot in eligible if lot["date"] == lot_date]
         group_quantity = sum(
             (lot["remaining_quantity"] for lot in group),
             Decimal("0"),

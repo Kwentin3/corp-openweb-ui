@@ -264,7 +264,7 @@ def test_declaration_input_methodology_is_closed_versioned_and_authority_bound()
         item["evidence_ref"] for item in methodology["legal_evidence"]
     }
 
-    assert methodology["status"] == "PUBLISHED_AUDITED_INPUT_CONTRACT"
+    assert methodology["status"] == "PUBLISHED_CURRENT_AUTHORITY"
     assert methodology["scope"] == {
         "tax_period": "2025",
         "jurisdiction": "RU",
@@ -283,7 +283,7 @@ def test_declaration_input_methodology_is_closed_versioned_and_authority_bound()
         "dividend-income-group-articles-210-214-v1",
         "organized-market-classification-article-214.1-v1",
         "foreign-currency-conversion-article-210-v1",
-        "foreign-tax-credit-articles-214-232-v2",
+        "foreign-tax-credit-articles-214-232-v3",
         "partial-acquisition-commission-v1",
     } == {item["rule_id"] for item in rules}
     rule_ids = {item["rule_id"] for item in rules}
@@ -312,10 +312,20 @@ def test_declaration_input_methodology_is_closed_versioned_and_authority_bound()
         if item["insufficient_inputs"] == "METHODOLOGY_UNRESOLVED"
     } == {
         "security-disposal-source-article-208-v1",
+    }
+    assert {
+        item["rule_id"]
+        for item in rules
+        if item["insufficient_inputs"] == "LEGAL_INTERPRETATION_REQUIRED"
+    } == {
         "foreign-currency-conversion-article-210-v1",
-        "foreign-tax-credit-articles-214-232-v2",
         "partial-acquisition-commission-v1",
     }
+    assert next(
+        item
+        for item in rules
+        if item["rule_id"] == "foreign-tax-credit-articles-214-232-v3"
+    )["insufficient_inputs"] == "EXTERNAL_AUTHORITATIVE_FACT_MISSING"
     demand_bindings = methodology["demand_bindings"]
     assert len(demand_bindings) == 9
     assert {item["demand"] for item in demand_bindings} == {

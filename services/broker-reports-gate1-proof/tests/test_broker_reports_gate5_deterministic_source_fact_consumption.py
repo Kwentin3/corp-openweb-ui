@@ -111,7 +111,7 @@ def test_fifo_source_facts_reach_existing_declaration_model_without_event_relati
     assert [item["values"]["amount"] for item in withheld["aggregate"]] == ["7.00"]
     assert withheld["reconciliation"] == "not_performed"
     assert consumed["capability_map"]["partial_acquisition_commission"] == (
-        "METHODOLOGY_UNRESOLVED"
+        "LEGAL_INTERPRETATION_REQUIRED"
     )
 
     all_keys = _keys(consumed)

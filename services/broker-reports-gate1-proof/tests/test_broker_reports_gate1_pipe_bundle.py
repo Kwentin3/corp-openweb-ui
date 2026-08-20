@@ -136,7 +136,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             module._BUNDLED_RESOURCES,
         )
         self.assertIn(
-            "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v2.json",
+            "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v3.json",
             module._BUNDLED_RESOURCES,
         )
         self.assertIn(
@@ -160,7 +160,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             }
         )
         self.assertEqual(
-            "PUBLISHED_AUDITED_INPUT_CONTRACT",
+            "PUBLISHED_CURRENT_AUTHORITY",
             resolved["methodology"]["status"],
         )
         bundled_projection = sys.modules[

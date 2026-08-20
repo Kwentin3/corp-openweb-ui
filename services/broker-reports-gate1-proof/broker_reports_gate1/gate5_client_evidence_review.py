@@ -13,6 +13,7 @@ from .gate5_deterministic_source_fact_consumption import (
     Gate5DeterministicSourceFactConsumptionRuntime,
     Gate5DeterministicSourceFactConsumptionRuntimeFactory,
 )
+from .gate5_evidence_demand import GATE5_GAP_OWNER_CLASSIFICATIONS
 
 
 GATE5_CLIENT_EVIDENCE_REVIEW_SCHEMA_VERSION = (
@@ -177,6 +178,8 @@ def _source_blocker_finding(blocker: dict[str, Any]) -> dict[str, Any]:
         and coverage.get("coverage_status") == "GAP"
     )
     routing = _blocker_routing(blocker, is_acquisition_gap=is_acquisition_gap)
+    if routing["gap_owner_classification"] not in GATE5_GAP_OWNER_CLASSIFICATIONS:
+        _fail("gate5_client_review_gap_owner_classification_invalid")
     base = {
         "schema_version": GATE5_CLIENT_EVIDENCE_FINDING_SCHEMA_VERSION,
         "kind": "REQUIRED_BLOCKER",
@@ -197,6 +200,7 @@ def _source_blocker_finding(blocker: dict[str, Any]) -> dict[str, Any]:
         "why": str(blocker.get("why_insufficient") or blocker.get("reason_code")),
         "helpful_evidence": str(blocker.get("closing_evidence") or ""),
         "closure_type": routing["closure_type"],
+        "gap_owner_classification": routing["gap_owner_classification"],
         "routing": routing,
         "client_benefit_rationale": (
             "Closing the quantified acquisition-basis coverage gap may support "
@@ -232,6 +236,7 @@ def _blocker_routing(
                 "Gate4FinancialCaseMaterializerFactory.create"
             ),
             "closure_type": "EXISTING_EVIDENCE",
+            "gap_owner_classification": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
             "user_or_additional_document_allowed": False,
         }
     if reason == "gate5_source_fact_decimal_invalid":
@@ -240,6 +245,7 @@ def _blocker_routing(
             "route": "NORMALIZATION_OWNER_REVIEW",
             "owner": "Gate4FinancialCaseMaterializerFactory.create",
             "closure_type": "EXISTING_EVIDENCE",
+            "gap_owner_classification": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
             "user_or_additional_document_allowed": False,
         }
     if blocker.get("terminal") == "METHODOLOGY_UNRESOLVED":
@@ -248,6 +254,7 @@ def _blocker_routing(
             "route": "METHODOLOGY_RESEARCH",
             "owner": "Gate5TrustedMethodologyAuthorityFactory.create",
             "closure_type": "METHODOLOGY_RESEARCH",
+            "gap_owner_classification": "METHODOLOGY_RULE_MISSING",
             "user_or_additional_document_allowed": False,
         }
     if reason == "gate5_source_fact_currency_invalid":
@@ -256,6 +263,7 @@ def _blocker_routing(
             "route": "EXTERNAL_AUTHORITY_REVIEW",
             "owner": "authoritative_external_reference_owner",
             "closure_type": "EXTERNAL_AUTHORITY",
+            "gap_owner_classification": "EXTERNAL_AUTHORITATIVE_FACT_MISSING",
             "user_or_additional_document_allowed": False,
         }
     if is_acquisition_gap or reason == "gate5_source_fact_direct_expense_missing":
@@ -264,6 +272,7 @@ def _blocker_routing(
             "route": "EVIDENCE_HORIZON_EXTERNAL_DEMAND",
             "owner": "Gate5HumanGapClosureRuntimeFactory.create",
             "closure_type": "ADDITIONAL_DOCUMENT",
+            "gap_owner_classification": "REAL_SOURCE_EVIDENCE_MISSING",
             "user_or_additional_document_allowed": True,
         }
     return {
@@ -271,6 +280,7 @@ def _blocker_routing(
         "route": "OWNER_UNRESOLVED",
         "owner": "OWNER_UNRESOLVED",
         "closure_type": "OWNER_UNRESOLVED",
+        "gap_owner_classification": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
         "user_or_additional_document_allowed": False,
     }
 
@@ -315,6 +325,7 @@ def _withholding_advisory(source: dict[str, Any]) -> dict[str, Any] | None:
             "withheld tax, currency, period and applicable income context"
         ),
         "closure_type": "ADDITIONAL_DOCUMENT",
+        "gap_owner_classification": "REAL_SOURCE_EVIDENCE_MISSING",
         "client_benefit_rationale": (
             "Authoritative withholding evidence may support credit for tax already "
             "paid or prevent an avoidable overstatement of tax payable."
@@ -353,6 +364,7 @@ def _llm_finding(item: dict[str, Any]) -> dict[str, Any]:
         "kind": item["kind"],
         "priority": item["priority"],
         "reason_code": item["reason_code"],
+        "gap_owner_classification": item["gap_owner_classification"],
         "subject": copy.deepcopy(item["subject"]),
         "quantitative_gap": copy.deepcopy(item["quantitative_gap"]),
         "acquisition_basis_coverage": copy.deepcopy(

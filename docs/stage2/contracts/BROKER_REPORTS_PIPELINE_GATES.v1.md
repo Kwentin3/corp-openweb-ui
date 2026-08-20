@@ -4,7 +4,7 @@ Status: `CURRENT`
 
 Classification: `CURRENT AUTHORITY`
 
-Updated: 2026-08-16 (`G5.75` consolidation)
+Updated: 2026-08-20 (Gate 5 current-authority consolidation)
 
 ```text
 CURRENT_PIPELINE_AUTHORITY = ONE
@@ -94,7 +94,7 @@ otherwise use `EVIDENCE_GAP`.
 | supporting account/contract/broker/period metadata | evidence review, scope or UI only where explicitly named | supporting path | supporting consumer only | warning/review; never filter or mutate financial facts |
 | source fact exists, required role missing | Gate 3 -> Gate 4 source-fact production owners | source-fact production | one source fact | `EXISTING_EVIDENCE` upstream owner review; do not ask the user or request another document until source presence is classified |
 | source value exists, decimal normalization fails | `Gate4FinancialCaseMaterializerFactory.create` | source-fact production | one source value/fact | normalization-owner review; never ask the user to restate the value |
-| FIFO rounding rule unresolved | `Gate5TrustedMethodologyAuthorityFactory.create` | Gate 5 calculation | dependent FIFO group/calculations | official methodology research -> reviewed versioned methodology -> deterministic replay |
+| non-RUB declaration field has a sub-kopeck result | `Gate5TrustedMethodologyAuthorityFactory.create` | Gate 5 methodology | only the dependent declaration field | exact Decimal and no intermediate rounding; stop at `LEGAL_INTERPRETATION_REQUIRED` until the non-tax tie rule is officially resolved |
 | unmapped source content | no machine consumer yet | none | none | retain faithfully in Canonical/neutral Markdown; add no runtime type without a consumer |
 
 ### Consumer-first source-meaning admission
@@ -112,11 +112,42 @@ unmapped retention is insufficient. A report label such as `US Tax credit`
 proves neither a tax reversal nor credit/refund treatment. Gate 3 may preserve
 the broker-stated observation, but it must not publish a tax conclusion; Gate 4
 may normalize only an admitted source meaning; Gate 5 may derive a declaration
-consequence only from an explicit versioned methodology input. Without that
-For a tax-critical distinction, without that input contract stop at
+consequence only from an explicit versioned methodology input. For a
+tax-critical distinction, without that input contract stop at
 `METHODOLOGY_INPUT_CONTRACT_GAP_PROVEN`; do not infer a
 new source ontology from wording or proximity. G5.x reports remain evidence of
 the observed gap, never authority for admission.
+
+### Current Gate 5 authority
+
+| Meaning | Single current authority | Current decision |
+| --- | --- | --- |
+| source-fact consumption and FIFO | `ru-ndfl-securities-source-fact-consumption-proof@2026.7-current-authority` through `Gate5TrustedMethodologyAuthorityFactory.create` | exact Decimal; FIFO by acquisition date; no inferred relations; no rounding before the declaration-field boundary |
+| 2025 declaration inputs | `ru-3ndfl-2025-declaration-input-contract@2026.2-current-authority` through the same authority factory | official date/rate rules, field scale, foreign-tax evidence conditions and explicit legal stops |
+| current case assembly | `Gate5RealTaxCaseAssemblyRuntimeFactory.create` | all 25 Definition demands; each active unresolved demand has one exact gap-owner class |
+| human or document action | `Gate5HumanGapClosureRuntimeFactory.create` | only real source evidence and user/case facts may become user-facing requests |
+
+The five and only five unresolved-owner classes are
+`REAL_SOURCE_EVIDENCE_MISSING`, `USER_CASE_FACT_MISSING`,
+`EXTERNAL_AUTHORITATIVE_FACT_MISSING`, `METHODOLOGY_RULE_MISSING` and
+`INTERNAL_CONTRACT_OR_PIPELINE_DEFECT`. An internal defect is never a user
+request. Historical methodology resources are not selected by current code
+and are not fallbacks.
+
+The current legal stops are deliberately narrow:
+
+- Articles 214.1(10), 214.1(12) and 214.1(13) prove eligible documented direct
+  commissions, category-level allocation of non-direct expenses and FIFO.
+  They do not prove how one acquisition commission is allocated when only part
+  of that acquired lot is disposed: `LEGAL_INTERPRETATION_REQUIRED`.
+- Article 210(5) proves the CBR-rate date. The 2025 3-NDFL order fixes monetary
+  field scale and final whole-ruble tax rounding. It does not state the
+  sub-kopeck tie rule for a non-tax monetary field:
+  `LEGAL_INTERPRETATION_REQUIRED` at that exact output boundary.
+- Under Article 232, a broker report always proves only its literal source
+  assertion. For a foreign-tax credit it is sufficient by itself only when its
+  issuer is the income payment source and it contains the required monthly
+  income/tax details, with the required copy and notarized translation.
 
 ### Evidence horizon and calculation granularity
 

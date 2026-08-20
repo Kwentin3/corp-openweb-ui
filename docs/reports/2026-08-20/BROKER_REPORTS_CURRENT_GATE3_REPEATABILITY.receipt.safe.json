@@ -1,0 +1,98 @@
+{
+  "best_of_n_selection": false,
+  "chunks": 1,
+  "eligible_targets": 2236,
+  "exact_semantic_repeatability": false,
+  "fallback_count": 0,
+  "frozen_canonical_root_sha256": "bbf20e4ea5cd706398d459716fdab60812ef48ed6b0cd2d0264a778a77ab079d",
+  "frozen_canonical_version_sha256": "d434f232d36a276d1f0a802999b178ffe50ff0a2472773ae271311849d41b315",
+  "manual_fact_changes": 0,
+  "pass1_instruction_sha256": "c8d170721905e9cc9d35661c75f0ef3c95a97776e9ac6968f9a6bd5b2aac6a94",
+  "product_binding": {
+    "base_pipe_id": "broker_reports_gate1_pipe",
+    "dictionary_id": "broker-reports-financial-labels",
+    "dictionary_semantic_version": "2.0.0",
+    "knowledge_ids": [],
+    "prompt_id": null,
+    "provider_model_id": "models/gemini-3.5-flash",
+    "provider_profile_id": "google_gemini",
+    "role_pack_id": "broker-reports-financial-roles",
+    "role_pack_semantic_version": "3.0.0",
+    "schema_version": "broker_reports_ndfl_product_binding_v1",
+    "skill_id": "broker-reports-financial-labels",
+    "tool_id": "broker_reports_financial_label_dictionary",
+    "tool_method": "load_financial_label_dictionary",
+    "workflow_id": "broker-reports-ndfl",
+    "workspace_model_id": "broker-reports-ndfl"
+  },
+  "provider_submissions": 6,
+  "repair_count": 0,
+  "retry_count": 0,
+  "role_instruction_sha256": "e570db4464ab7d465b45db5f6a6f2b38d5ad56b5c4342febf833548356a3180f",
+  "runs": [
+    {
+      "annotations_validated": 74,
+      "chunks_provider_failed": 0,
+      "chunks_rejected": 0,
+      "chunks_validated": 1,
+      "document_status": "complete",
+      "financial_type_counts": {
+        "ACCRUED_COUPON_COMPONENT": 14,
+        "COMMISSION": 15,
+        "COMMISSION_TOTAL": 5,
+        "COUPON_INCOME": 9,
+        "SECURITY_DISPOSAL": 18,
+        "SECURITY_PURCHASE": 8,
+        "TAX_WITHHELD_TOTAL": 1,
+        "TRANSACTION_CHARGE": 4
+      },
+      "ordinal": 1,
+      "private_result_sha256": "439e9bfe2200a1a90bbc30cf9e14737aad1438ed941ce45c0bc7e7c75a7c2ba9",
+      "provider_submissions": 2,
+      "role_binding_status_counts": {"bound": 289, "missing": 31},
+      "semantic_output_sha256": "353cba18c13d511703884578b6500786718e3abd239b66c46717ec5b8e34b9dd"
+    },
+    {
+      "annotations_validated": 49,
+      "chunks_provider_failed": 0,
+      "chunks_rejected": 0,
+      "chunks_validated": 1,
+      "document_status": "complete",
+      "financial_type_counts": {
+        "ACCRUED_COUPON_COMPONENT": 6,
+        "COMMISSION_TOTAL": 2,
+        "COUPON_INCOME": 9,
+        "SECURITY_DISPOSAL": 9,
+        "SECURITY_PURCHASE": 4,
+        "TAX_WITHHELD_TOTAL": 1,
+        "TRANSACTION_CHARGE": 18
+      },
+      "ordinal": 2,
+      "private_result_sha256": "81a4d9026d1e475f71ff43884e012375abaf052883131569f2ba3300cc76ed68",
+      "provider_submissions": 2,
+      "role_binding_status_counts": {"bound": 200, "missing": 10},
+      "semantic_output_sha256": "11d8e4dd64bdaf5383065bf641abac470bb211123411aec41472908667cc55fb"
+    },
+    {
+      "annotations_validated": 83,
+      "chunks_provider_failed": 0,
+      "chunks_rejected": 0,
+      "chunks_validated": 1,
+      "document_status": "complete",
+      "financial_type_counts": {
+        "COMMISSION_TOTAL": 5,
+        "COUPON_INCOME": 9,
+        "SECURITY_DISPOSAL": 60,
+        "SECURITY_PURCHASE": 8,
+        "TAX_WITHHELD_TOTAL": 1
+      },
+      "ordinal": 3,
+      "private_result_sha256": "6b77bd76bbf406e93710232d479f996819f696fd49d8d284af2ab9c2d198bb0c",
+      "provider_submissions": 2,
+      "role_binding_status_counts": {"bound": 432, "missing": 36},
+      "semantic_output_sha256": "5e4f48865fea459726615afe7f40dc1e3556deccb7d0c0a4450da1887ae96c18"
+    }
+  ],
+  "schema_version": "broker_reports_current_gate3_repeatability_v1",
+  "status": "CURRENT_GATE3_VARIANCE_OBSERVED_ON_FROZEN_CANONICAL"
+}
