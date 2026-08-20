@@ -14,6 +14,7 @@ def test_current_pipe_continues_from_persisted_gate4_to_natural_gate5_terminal(
 ) -> None:
     store, context = source_fixtures._case(tmp_path / "current-pipeline")
     preparation_fixtures._publish_metadata(store, context)
+    source_fixtures._gate4(store).clear_case_cache(context=context)
 
     result = Pipe()._run_ndfl_current_pipeline(store=store, context=context)
 
@@ -24,6 +25,9 @@ def test_current_pipe_continues_from_persisted_gate4_to_natural_gate5_terminal(
     assert result["xml_created"] is False
     assert result["pdf_created"] is False
     assert result["legacy_fallback_used"] is False
+    assert result["gate4"]["status"] == "CASE_COMPLETE_FOR_CURRENT_INPUT_SET"
+    assert result["gate4"]["sources_total"] == 5
+    assert result["gate4"]["facts_total"] > 0
     preparation = result["preparation"]
     assert preparation["replay"]["entrypoint"] == (
         "Gate5DeclarationPreparationRuntimeFactory.create"

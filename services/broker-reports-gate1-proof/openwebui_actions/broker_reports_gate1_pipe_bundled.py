@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.38.0-single-current-pipeline-bundled
+version: 0.38.1-single-current-pipeline-bundled
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1
 """
@@ -349,6 +349,9 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
     NdflWorkflowError,
     NdflWorkflowFactory,
     ndfl_product_binding_snapshot,
+)
+from broker_reports_gate1.gate4_financial_case_cache import (
+    Gate4FinancialCaseRuntimeFactory,
 )
 from broker_reports_gate1.gate5_declaration_preparation import (
     Gate5DeclarationPreparationRuntimeFactory,
@@ -1169,6 +1172,10 @@ class Pipe:
         store: Any,
         context: ArtifactAccessContext,
     ) -> dict[str, Any]:
+        financial_case = Gate4FinancialCaseRuntimeFactory(
+            store=store,
+            read_enabled=True,
+        ).create().rebuild_case(context=context)
         preparation = Gate5DeclarationPreparationRuntimeFactory(
             store=store,
             read_enabled=True,
@@ -1201,6 +1208,12 @@ class Pipe:
             "xml_created": False,
             "pdf_created": False,
             "legacy_fallback_used": False,
+            "gate4": {
+                "status": financial_case.status,
+                "gate3_case_status": financial_case.gate3_case_status,
+                "sources_total": len(financial_case.sources),
+                "facts_total": len(financial_case.facts),
+            },
             "preparation": preparation,
         }
 
