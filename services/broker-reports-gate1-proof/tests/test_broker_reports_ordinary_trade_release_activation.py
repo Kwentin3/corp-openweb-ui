@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import copy
 import inspect
 from pathlib import Path
 
+from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     FORBIDDEN,
     ORDINARY_TRADE_PRODUCTION_ROUTE_ID,
@@ -15,6 +17,7 @@ from broker_reports_gate1.ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
 from broker_reports_gate1.ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerFactory,
     compile_schema_mapping,
 )
 
@@ -151,6 +154,56 @@ def test_missing_canonical_stops_without_old_semantic_fallback(tmp_path: Path) -
         "ordinary_trade_canonical_evidence_missing"
     )
     assert result["product"]["gate4"]["facts_total"] == 0
+
+
+def test_supported_table_survives_unknown_table_in_same_canonical(tmp_path: Path) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path)
+    mapping = OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()[0]
+    rows = (
+        tuple(item["header_literal"] for item in mapping["columns"]),
+        tuple(_literal_for_role(item["semantic_role"]) for item in mapping["columns"]),
+    )
+    document_id = "supported-with-unknown"
+    gate4_fixtures._activate_canonical(
+        store=store,
+        context=context,
+        document_id=document_id,
+        artifact_version=1,
+        expected_previous_version_id=None,
+        table_rows=rows,
+    )
+    envelope = (
+        CanonicalReaderFactory(store=store, read_enabled=True)
+        .create()
+        .read_active_envelope(document_id, context)
+    )
+    canonical = copy.deepcopy(envelope.artifact)
+    known = next(item for item in canonical["nodes"] if item["node_type"] == "TABLE")
+    unknown = copy.deepcopy(known)
+    unknown["node_id"] = "node_unknown_operation_table"
+    unknown["content"]["cells"][0]["displayed_value"] = "Unknown operation"
+    canonical["nodes"].append(unknown)
+    projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+        canonical=canonical,
+        canonical_binding={
+            "document_id": document_id,
+            "canonical_version_id": envelope.canonical_version_id,
+            "canonical_root_sha256": envelope.canonical_root_sha256,
+            "source_artifact_ref": canonical["source"]["source_artifact_ref"],
+            "source_sha256": canonical["source"]["source_sha256"],
+        },
+        mappings=[mapping],
+    )
+
+    assert sum(
+        item["disposition"] == "RUNTIME_READY"
+        for item in projection["source_observations"]
+    ) == 1
+    assert sum(
+        item["disposition"] == "RELEVANT_UNMAPPED"
+        for item in projection["source_observations"]
+    ) == 2
+    assert len(projection["runtime_records"]) == 3
 
 
 def test_charge_identity_is_bound_to_exact_commission_cell_and_trade_row(

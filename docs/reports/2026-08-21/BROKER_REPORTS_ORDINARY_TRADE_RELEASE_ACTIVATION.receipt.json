@@ -1,0 +1,56 @@
+{
+  "schema_version": "broker_reports_ordinary_trade_release_activation_receipt_v1",
+  "verdict": "ORDINARY_TRADE_CANDIDATE_RELEASE_QUALIFIED",
+  "production_activated": true,
+  "active_route": "ordinary_trade_exact_fingerprint_v1",
+  "source_revision": "e3fd71f17047f18f7dcc13c22ad0efd0b975a6ec",
+  "release_id": "broker-reports-e3fd71f17047",
+  "manifest_sha256": "fd1518df4d1afb47a523cbba4858c55bb82d21c1c1af02c87b0e768bd1a7fca9",
+  "bundle_sha256": "94a562dad4c9728c0e6dca4777070644ec1fbc4b63d1c7634ad9a7f25846e1cf",
+  "rollback_identity_sha256": "021f3170c3769ac997245cb0b084a8912d248b20bfa9d209c797aeb8a6aea0ce",
+  "production_valves": {
+    "ordinary_trade_candidate_enabled": true,
+    "ndfl_gate3_enabled": false
+  },
+  "qualification": {
+    "source_records_accounted": "899/899",
+    "runtime_values_traced": "768/768",
+    "ordinary_trade_facts": 60,
+    "transaction_charge_facts": 102,
+    "transaction_charge_source_bindings_verified": 102,
+    "transaction_charge_source_duplicates": 0,
+    "broker_or_year_special_profiles": 0,
+    "semantic_fallback_calls_total": 0,
+    "exact_system_repeatability": true
+  },
+  "production_smokes": {
+    "supported_schema_a": {
+      "runtime_ready_observations": 45,
+      "runtime_records": 128,
+      "relevant_unmapped_observations": 152,
+      "old_semantic_artifacts": 0,
+      "status": "passed"
+    },
+    "supported_schema_b": {
+      "runtime_ready_observations": 15,
+      "runtime_records": 34,
+      "relevant_unmapped_observations": 514,
+      "old_semantic_artifacts": 0,
+      "status": "passed"
+    },
+    "repo_negative": {
+      "canonical_admission_status": "blocked_before_candidate",
+      "runtime_ready_observations": 0,
+      "semantic_fallback_used": false,
+      "status": "passed_fail_closed"
+    }
+  },
+  "deployment": {
+    "atomic_release": "passed",
+    "rollback_proof": "passed",
+    "final_readback": "passed",
+    "staging_clean": true,
+    "workload_quiescent": true
+  },
+  "contains_private_payload": false
+}
