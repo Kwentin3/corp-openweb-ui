@@ -198,6 +198,15 @@ defect just fixed; four were the stale architecture assertions just fixed. The
 provider/authority hashes. They are historical evidence, are not imported by
 the active route and were not repaired or repinned in this audit.
 
+The first exact-head CI run (`32518023096`) exposed the same lifecycle defect
+before tests: current CI attempted to reconstruct a dated three-provider proof
+through the later current Gemini adapter. Rebuilding would mutate historical
+evidence; repinning would falsely make old evidence prove new code. Current CI
+therefore no longer executes the three historical re-builders or their two
+frozen builder-test modules. Their bytes remain unchanged in Git. Current
+Context V2.1 contracts, provider adapters, evidence runtimes and active product
+routes remain under executable CI checks.
+
 CI, PR/merge and live release identities are appended only after they exist;
 local success is not represented as repository or production proof.
 
