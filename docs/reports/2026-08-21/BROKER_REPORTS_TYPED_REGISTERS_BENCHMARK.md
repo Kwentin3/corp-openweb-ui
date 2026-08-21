@@ -10,6 +10,36 @@ Status: `BROKER_TYPED_PROJECTION_APPROACH_NOT_YET_PROVEN`
 
 Вариант B не дошёл до детерминированной материализации: table-schema mapping трижды нарушил закрытый контракт. Вариант C трижды вернул внутренне противоречивый withholding status и был отклонён до материализации. Поэтому объявлять deterministic-first или direct extraction победителем нельзя.
 
+## Зафиксированная граница после обсуждения
+
+Canonical уже нормализован физически: в нём есть logical tables, headers, rows, cells, порядок и provenance. Но это ещё не нормализация финансового смысла названий.
+
+Canonical остаётся неизменяемым источником правды. Исходные названия вроде `Сумма`, `Комиссия Брокера` или `НКД` нельзя заменять нормализованными именами внутри Canonical: значение такого заголовка зависит от таблицы, а ошибочная замена загрязнит source authority.
+
+Нормализация нейминга должна быть отдельным проверяемым контрактом:
+
+```text
+Canonical
+↓
+Canonical Table Schema Mapping
+↓
+Typed Broker Source Registers
+↓
+deterministic runtime
+```
+
+Минимальная запись mapping должна одновременно сохранять:
+
+- исходный header literal;
+- нормализованную column role;
+- точный Canonical `source_ref`;
+- статус `CONFIRMED`, `UNMAPPED` или `CONFLICT`;
+- identity/version схемы, на которой mapping был подтверждён.
+
+Mapping не является новым источником истины и не изменяет Canonical. Его можно отклонить или заменить целиком. Неизвестная либо изменившаяся структура должна fail closed.
+
+Ручной профиль под каждого брокера не принимается как целевая архитектура: он быстро превратится в набор исключений для брокера, версии и года отчёта. При этом автоматически подтверждённый mapping для точного schema fingerprint остаётся допустимой исследовательской гипотезой, если он не применяется к изменившейся форме документа.
+
 ## Что было заморожено
 
 - Canonical root: `bbf20e4ea5cd706398d459716fdab60812ef48ed6b0cd2d0264a778a77ab079d`.
@@ -128,6 +158,54 @@ Gate 5 пока не может работать только через пол�
 
 `TAX_WITHHELD` без отдельной суммы корректно остаётся role-incomplete и должен fail closed дальше по конвейеру. Это сохранение источника, а не дефект projection.
 
+## Следующие проверяемые гипотезы
+
+Предыдущий вариант B не доказывает, что сама идея schema mapping неверна. Он проверял слишком широкий переход: несколько видов таблиц, mapping, последующую materialization и residual extraction в одном benchmark route. Следующие проверки должны разделить эти решения.
+
+### H1 — Header-only schema mapping
+
+LLM получает одну logical table, её заголовки и минимальный structural context. Она не видит задачу извлечения строк и не создаёт financial records. Результат ограничен типом таблицы и соответствием `source header → normalized column role`.
+
+Гипотеза подтверждается только если один и тот же mapping повторяется независимо, все ссылки ведут в Canonical, неизвестные колонки остаются `UNMAPPED`, а continuation table получает ту же схему без догадки по значениям строк.
+
+### H2 — Deterministic row materialization after frozen mapping
+
+После подтверждённого mapping обычный код переносит все строки и значения. LLM больше не выбирает даты, суммы, валюты, количество или source refs.
+
+Проверяется, какая доля trade records, НКД и колонковых комиссий получается без LLM; сохраняются ли нулевые и повторяющиеся observations; остаются ли source accounting и idempotency точными.
+
+### H3 — Closed semantic residuals
+
+LLM получает только поля, где смысл действительно записан свободным текстом: например, описание cash movement или compound coupon/tax. Она выбирает закрытый набор source types и при необходимости exact literal span бумаги. Код привязывает date, amount и currency из уже mapped columns.
+
+Проверяется отдельно от H1/H2: repeatability типов, точность asset span, compound cardinality и запрет invented amount. Если residual contract нестабилен, детерминированная часть не считается неуспешной вместе с ним.
+
+### H4 — Reusable schema fingerprint, не broker profile
+
+Успешный mapping можно повторно использовать только при точном совпадении структурного fingerprint: набор и порядок headers, column count, table identity и continuation contract. Любое изменение создаёт новый `UNMAPPED` случай.
+
+Гипотеза должна сравниваться с ручными broker profiles по maintenance cost и на holdout-формах. Если для каждого отчёта всё равно требуется новая ручная настройка, подход отклоняется как казуистический.
+
+### H5 — Direct LLM extraction как frozen comparator
+
+Structural direct extraction остаётся контрольным вариантом. Его prompt не улучшается по результатам holdout. Он нужен, чтобы проверить, действительно ли разбиение H1–H3 уменьшает стоимость и нестабильность, а не только добавляет код.
+
+### Общее условие сравнения
+
+Все гипотезы должны проверяться на одинаковых Canonical source records и затем на нескольких формах реальных брокерских отчётов. Сравниваются:
+
+- exact repeatability;
+- source accounting и provenance;
+- downstream-critical field fidelity;
+- доля полностью детерминированной materialization;
+- semantic residual rate;
+- устойчивость к continuation tables и изменению формы;
+- количество специальных правил и ручных профилей;
+- provider calls, tokens и runtime complexity;
+- способность обнаружить неизвестную схему и остановиться.
+
+Ни одна гипотеза заранее не объявлена победителем. Production остаётся неизменным до отдельного доказанного terminal.
+
 ## Сравнительный verdict
 
 `BROKER_TYPED_PROJECTION_APPROACH_NOT_YET_PROVEN`
@@ -138,7 +216,7 @@ Gate 5 пока не может работать только через пол�
 
 Почему не выбран C: большой контекст не дал рабочей проекции и добавил стоимость без доказанной пользы.
 
-На этом GOAL остановлен. Результат не разрешает production activation или замену current Gate 3.
+Закрытый benchmark GOAL остановлен на этом terminal. Добавленные гипотезы описывают следующий research scope, но не разрешают production activation или замену current Gate 3.
 
 ## Evidence
 
