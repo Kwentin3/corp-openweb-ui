@@ -133,6 +133,26 @@ def test_unknown_schema_is_preserved_unmapped_without_semantic_fallback(
     }
 
 
+def test_missing_canonical_stops_without_old_semantic_fallback(tmp_path: Path) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path)
+    result = (
+        OrdinaryTradeProductionRuntimeFactory(
+            store=store,
+            read_enabled=True,
+        )
+        .create()
+        .run(canonical_artifact_refs=[], context=context)
+    )
+
+    assert result["status"] == "blocked"
+    assert result["provider_calls_total"] == 0
+    assert result["semantic_fallback_used"] is False
+    assert result["product"]["terminal"] == (
+        "ordinary_trade_canonical_evidence_missing"
+    )
+    assert result["product"]["gate4"]["facts_total"] == 0
+
+
 def test_charge_identity_is_bound_to_exact_commission_cell_and_trade_row(
     tmp_path: Path,
 ) -> None:

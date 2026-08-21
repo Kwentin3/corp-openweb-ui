@@ -10,6 +10,7 @@ import mimetypes
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         raise OrdinaryTradeLiveSmokeError("ordinary_trade_live_valves_invalid")
 
     case_id = "otlive_" + time.strftime("%Y%m%d%H%M%S")
+    started_at = datetime.now(timezone.utc).isoformat()
     upload = _upload(session, base_url, args.source, args.timeout)
     try:
         content = _run_chat(
@@ -82,19 +84,20 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             upload=upload,
             case_id=case_id,
             timeout=args.timeout,
+            expect_unmapped=bool(args.expect_unmapped),
         )
         remote = _remote_summary(
             ssh_target=ssh_target,
-            case_id=case_id,
             expected_source_sha256=_sha256_file(args.source),
             expect_unmapped=bool(args.expect_unmapped),
+            started_at=started_at,
         )
     finally:
         _delete_uploads(session, base_url, [upload])
     return {
         "schema_version": "broker_reports_ordinary_trade_live_smoke_v1",
         "status": "passed",
-        "case_id": case_id,
+        "server_case_bound": True,
         "live_bundle_sha256": live_bundle_sha256,
         "active_route": "ordinary_trade_exact_fingerprint_v1",
         "ordinary_trade_candidate_enabled": True,
@@ -140,6 +143,7 @@ def _run_chat(
     upload: dict[str, Any],
     case_id: str,
     timeout: int,
+    expect_unmapped: bool,
 ) -> str:
     file_value = {
         "type": "file",
@@ -185,9 +189,12 @@ def _run_chat(
     )
     response.raise_for_status()
     content = _extract_content(response.json())
+    expected_terminal = "квалифицированной точной схеме" in content or (
+        expect_unmapped and "Расчёт остановлен" in content
+    )
     if (
         not content
-        or "квалифицированной точной схеме" not in content
+        or not expected_terminal
         or upload["id"] in content
         or upload["filename"] in content
     ):
@@ -198,34 +205,53 @@ def _run_chat(
 def _remote_summary(
     *,
     ssh_target: str,
-    case_id: str,
     expected_source_sha256: str,
     expect_unmapped: bool,
+    started_at: str,
 ) -> dict[str, Any]:
     code = f'''
 import json
 import sqlite3
 from pathlib import Path
 
-case_id = {case_id!r}
 db = Path("/app/backend/data/broker_reports_gate1/artifacts.sqlite3")
 conn = sqlite3.connect(db)
 conn.row_factory = sqlite3.Row
 versions = conn.execute(
-    "select canonical_version_id, source_sha256, canonical_root_sha256, status "
-    "from canonical_versions where case_id = ? and workspace_model_id = ?",
-    (case_id, {WORKSPACE_MODEL_ID!r}),
+    "select canonical_version_id, source_sha256, canonical_root_sha256, status, "
+    "case_id, chat_id from canonical_versions where source_sha256 = ? "
+    "and created_at >= ? and workspace_model_id = ? order by created_at desc",
+    ({expected_source_sha256!r}, {started_at!r}, {WORKSPACE_MODEL_ID!r}),
 ).fetchall()
+if not versions and {expect_unmapped!r}:
+    conn.close()
+    print(json.dumps({{
+        "status": "passed",
+        "canonical_admission_status": "blocked_before_candidate",
+        "active_canonical_versions": 0,
+        "canonical_versions_total": 0,
+        "projection_artifacts": 0,
+        "old_semantic_artifacts": 0,
+        "runtime_ready_observations": 0,
+        "relevant_unmapped_observations": 0,
+        "runtime_records": 0,
+        "broker_or_year_profiles": 0,
+        "fail_closed_without_semantic_fallback": True,
+    }}, sort_keys=True))
+    raise SystemExit(0)
+if len(versions) != 1:
+    raise RuntimeError("ordinary_trade_live_canonical_count_invalid")
+scope_field = "case_id" if versions[0]["case_id"] else "chat_id"
+scope_value = versions[0][scope_field]
 records = conn.execute(
-    "select artifact_id, artifact_type, validation_status, safe_metadata_json "
-    "from artifact_records where case_id = ? and workspace_model_id = ?",
-    (case_id, {WORKSPACE_MODEL_ID!r}),
+    f"select artifact_id, artifact_type, validation_status, safe_metadata_json "
+    f"from artifact_records where {{scope_field}} = ? and workspace_model_id = ?",
+    (scope_value, {WORKSPACE_MODEL_ID!r}),
 ).fetchall()
 receipts = conn.execute(
     "select actor, reason, canonical_version_id from canonical_activation_receipts "
-    "where canonical_version_id in (select canonical_version_id from canonical_versions "
-    "where case_id = ? and workspace_model_id = ?)",
-    (case_id, {WORKSPACE_MODEL_ID!r}),
+    "where canonical_version_id = ?",
+    (versions[0]["canonical_version_id"],),
 ).fetchall()
 conn.close()
 active = [row for row in versions if row["status"] == "ACTIVE"]

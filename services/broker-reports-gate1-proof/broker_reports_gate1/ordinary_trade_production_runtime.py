@@ -106,9 +106,7 @@ class OrdinaryTradeProductionRuntime:
             for artifact_ref in refs
         ]
         if not refs and not self._projections.current_case(context=context):
-            raise OrdinaryTradeProductionError(
-                "ordinary_trade_production_projection_missing"
-            )
+            return _missing_canonical_result()
 
         facts = self._gate4.list_facts(context=context)
         assessment = self._gate5.assess(
@@ -316,6 +314,73 @@ def _methodology_ref() -> dict[str, str]:
         "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
         "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
         "methodology_version": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+    }
+
+
+def _missing_canonical_result() -> dict[str, Any]:
+    terminal = "ordinary_trade_canonical_evidence_missing"
+    empty_sha256 = _sha256_json([])
+    return {
+        "schema_version": ORDINARY_TRADE_PRODUCTION_RUN_SCHEMA_VERSION,
+        "enabled": True,
+        "status": "blocked",
+        "route_owner": ORDINARY_TRADE_PRODUCTION_ROUTE_ID,
+        "candidate_activated": True,
+        "documents_total": 0,
+        "provider_calls_total": 0,
+        "semantic_fallback_used": False,
+        "legacy_fallback_used": False,
+        "broker_or_year_special_profiles": 0,
+        "canonical_version_ids": [],
+        "canonical_root_sha256": [],
+        "projection_artifact_ids": [],
+        "documents": [],
+        "system_identity": {
+            "projection_sha256": [],
+            "observation_ids_sha256": empty_sha256,
+            "runtime_records_sha256": empty_sha256,
+            "gate4_facts_sha256": empty_sha256,
+            "gate4_fact_ids_sha256": empty_sha256,
+            "gate5_inputs_sha256": empty_sha256,
+        },
+        "product": {
+            "schema_version": "broker_reports_current_pipeline_result_v1",
+            "status": "PREPARATION_INCOMPLETE",
+            "terminal": terminal,
+            "declaration_ready": False,
+            "xml_created": False,
+            "pdf_created": False,
+            "legacy_fallback_used": False,
+            "semantic_fallback_used": False,
+            "route_owner": ORDINARY_TRADE_PRODUCTION_ROUTE_ID,
+            "gate4": {
+                "status": "canonical_evidence_missing",
+                "facts_total": 0,
+                "security_facts_total": 0,
+                "transaction_charge_facts_total": 0,
+            },
+            "gate5": {
+                "execution_status": "not_started_without_canonical",
+                "security_tax_input_status": "SOURCE_EVIDENCE_INSUFFICIENT",
+                "security_fact_counts": {
+                    "total": 0,
+                    "ready": 0,
+                    "source_evidence_insufficient": 0,
+                },
+                "blocker_reason_codes": [terminal],
+            },
+            "preparation": {
+                "status": "PREPARATION_INCOMPLETE",
+                "terminals": [terminal],
+                "declaration_readiness": {"ready": False},
+                "gap_closure": {
+                    "user_facing_required_actions": [],
+                    "internal_owner_required_actions": [
+                        {"reason_code": terminal}
+                    ],
+                },
+            },
+        },
     }
 
 
