@@ -21,9 +21,6 @@ from .gate5_trusted_methodology import (
 )
 from .ordinary_trade_candidate_runtime import OrdinaryTradeCandidateRuntimeFactory
 from .ordinary_trade_projection import OrdinaryTradeProjectionFactory
-from .ordinary_trade_qualified_mappings import (
-    OrdinaryTradeQualifiedMappingAuthorityFactory,
-)
 
 
 ORDINARY_TRADE_PRODUCTION_RUN_SCHEMA_VERSION = (
@@ -75,9 +72,6 @@ class OrdinaryTradeProductionRuntime:
             store=store,
             read_enabled=read_enabled,
         ).create()
-        self._mappings = (
-            OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()
-        )
         self._gate4 = Gate4OrdinaryTradeCandidateRuntimeFactory(
             store=store,
             read_enabled=read_enabled,
@@ -272,7 +266,6 @@ class OrdinaryTradeProductionRuntime:
             )
         projection_record = self._projections.compile_and_save(
             document_id=selected.document_id,
-            mappings=self._mappings,
             context=context,
         )
         projection = self._projections.read(

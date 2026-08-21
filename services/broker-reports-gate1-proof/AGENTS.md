@@ -236,9 +236,12 @@ separate bootstrap report.
   projection artifact and Canonical identity on this route; its name does not
   prove Gate 3 execution.
 - Qualified mappings may use only exact title/header/column structure and exact
-  source enum literals. Broker, year, filename, fuzzy matching, inferred table
-  continuation and runtime model calls are forbidden. Unknown/incomplete rows
-  remain `RELEVANT_UNMAPPED` and cannot reach Gate 5.
+  source enum literals. Mapping v2 must bind every emitted amount column to one
+  exact currency column. The compiler executes this binding and must not infer
+  it from adjacency, uniqueness or row values. Broker, year, filename, fuzzy
+  matching, inferred table continuation and runtime model calls are forbidden.
+  Unknown/incomplete/unbound rows remain `RELEVANT_UNMAPPED` and cannot reach
+  Gate 5.
 - Gate 5 must start from Fact v2 and must not cross back into broker source,
   CanonicalArtifact, Source Observations, model output, Gate 3 targets or
   physical SQL parsing. Read the current

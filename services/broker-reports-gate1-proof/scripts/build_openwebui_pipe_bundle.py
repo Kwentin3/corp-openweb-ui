@@ -226,8 +226,8 @@ GATE1_MODULE_ORDER = [
 ]
 GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_semantic_compiler",
-    "ordinary_trade_projection",
     "ordinary_trade_qualified_mappings",
+    "ordinary_trade_projection",
     "gate4_ordinary_trade_candidate",
     "ordinary_trade_candidate_runtime",
     "ordinary_trade_production_runtime",

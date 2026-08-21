@@ -237,10 +237,18 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "gate4_ordinary_trade_candidate",
                 "ordinary_trade_candidate_runtime",
                 "ordinary_trade_projection",
-                "ordinary_trade_qualified_mappings",
             }
             <= production_imports
         )
+        self.assertTrue(
+            {
+                "canonical_store",
+                "ordinary_trade_qualified_mappings",
+                "ordinary_trade_semantic_compiler",
+            }
+            <= _local_imports("ordinary_trade_projection")
+        )
+        self.assertNotIn("ordinary_trade_qualified_mappings", production_imports)
         self.assertEqual(
             sorted(
                 name
@@ -277,7 +285,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v4",
+            "broker_reports_architecture_policy_v5",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -294,6 +302,25 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "declaration_semantics": "target_independent_declaration_meaning",
                 "release": "evidence_completeness_and_release_decision",
                 "projection": "representation_only",
+            },
+        )
+        self.assertEqual(
+            architecture_policy.ACTIVE_PRODUCT_ROUTES,
+            {
+                "ordinary_security_trades": {
+                    "route_id": "ordinary_trade_exact_fingerprint_v1",
+                    "composition_root": "OrdinaryTradeProductionRuntimeFactory.create",
+                    "source_semantics_owner": (
+                        "OrdinaryTradeQualifiedMappingAuthorityFactory.create"
+                        "+OrdinaryTradeSemanticCompilerFactory.create"
+                    ),
+                    "mapping_contract": (
+                        "broker_reports_ordinary_trade_schema_mapping_v2"
+                    ),
+                    "normalized_fact_contract": "Gate4FinancialCaseFactV2",
+                    "gate3_runtime_status": "deployment_rollback_only",
+                    "semantic_fallback_allowed": False,
+                }
             },
         )
 

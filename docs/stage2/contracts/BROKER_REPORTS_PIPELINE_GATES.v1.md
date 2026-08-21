@@ -314,8 +314,8 @@ transcription fallback. Exact rules are in
 | Entrypoint / artifact | Status | Authority boundary |
 | --- | --- | --- |
 | `OrdinaryTradeProductionRuntimeFactory.create` | `PRODUCT/NORMATIVE` | sole active ordinary-trade composition root; exact Canonical activation through deterministic Gate 5 |
-| `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | `PRODUCT/NORMATIVE` | frozen exact schema/enum meaning only; no row values, broker/year/filename routing or fuzzy reuse |
-| `OrdinaryTradeSemanticCompilerFactory.create` | `PRODUCT/NORMATIVE` | Canonical-bound Source Observations and deterministic runtime records; unknown content remains unmapped |
+| `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | `PRODUCT/NORMATIVE` | frozen exact schema/enum meaning plus explicit amount-column to currency-column bindings; no row values, broker/year/filename routing or fuzzy reuse |
+| `OrdinaryTradeSemanticCompilerFactory.create` | `PRODUCT/NORMATIVE` | Canonical-bound Source Observations and deterministic runtime records; executes qualified bindings and never derives them from adjacency; unknown content remains unmapped |
 | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | `PRODUCT/NORMATIVE` | validates candidate projection into the existing Fact v2 boundary without SQL or Gate 3 execution |
 | `NdflWorkflowFactory.create().run_product_path` | `DEPLOYMENT ROLLBACK ONLY` | historical Gate 2 -> Gate 3 financial execution; never semantic fallback |
 | `Gate3ChunkBatchLabelingFactory.create` | `DEPLOYMENT ROLLBACK ONLY` | historical model-based financial semantic extraction |

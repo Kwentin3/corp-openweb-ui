@@ -11,7 +11,7 @@ from .pdf_table_locator import (
     PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
 )
 
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v4"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v5"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -34,6 +34,24 @@ GATE_OWNERSHIP = {
     "declaration_semantics": "target_independent_declaration_meaning",
     "release": "evidence_completeness_and_release_decision",
     "projection": "representation_only",
+}
+
+# Gate names describe stable responsibilities. This separate closed map records
+# which implementation currently performs those responsibilities for a product
+# route, so the generic Gate 3 label cannot reactivate its historical runtime.
+ACTIVE_PRODUCT_ROUTES = {
+    "ordinary_security_trades": {
+        "route_id": "ordinary_trade_exact_fingerprint_v1",
+        "composition_root": "OrdinaryTradeProductionRuntimeFactory.create",
+        "source_semantics_owner": (
+            "OrdinaryTradeQualifiedMappingAuthorityFactory.create"
+            "+OrdinaryTradeSemanticCompilerFactory.create"
+        ),
+        "mapping_contract": "broker_reports_ordinary_trade_schema_mapping_v2",
+        "normalized_fact_contract": "Gate4FinancialCaseFactV2",
+        "gate3_runtime_status": "deployment_rollback_only",
+        "semantic_fallback_allowed": False,
+    }
 }
 
 DOMAIN_BOUNDARY_SEQUENCE = (

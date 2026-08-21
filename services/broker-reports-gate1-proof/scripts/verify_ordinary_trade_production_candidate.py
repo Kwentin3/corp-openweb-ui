@@ -33,6 +33,9 @@ from broker_reports_gate1.gate5_trusted_methodology import (
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
 )
+from broker_reports_gate1.ordinary_trade_qualified_mappings import (
+    OrdinaryTradeQualifiedMappingAuthorityFactory,
+)
 from broker_reports_gate1.ordinary_trade_semantic_compiler import (
     compile_schema_mapping,
 )
@@ -154,6 +157,7 @@ def _mapping_for_case(spec: dict[str, Any]) -> dict[str, Any]:
             {"column": header["column"], "semantic_role": role}
             for header, role in zip(headers, roles, strict=True)
         ],
+        amount_currency_bindings=spec["amount_currency_bindings"],
         side_values=spec["side_values"],
         semantic_decisions=spec["semantic_decisions"],
     )
@@ -162,6 +166,10 @@ def _mapping_for_case(spec: dict[str, Any]) -> dict[str, Any]:
 def _run_case(
     spec: dict[str, Any], *, mapping: dict[str, Any]
 ) -> dict[str, Any]:
+    if mapping not in (
+        OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()
+    ):
+        raise RuntimeError("ordinary_trade_candidate_mapping_not_qualified")
     root = Path(spec["store_root"])
     store = ArtifactStoreFactory(
         ArtifactStoreConfig(
@@ -186,13 +194,13 @@ def _run_case(
         store=store, read_enabled=True
     ).create()
     first_record = projections.compile_and_save(
-        document_id=document_id, mappings=[mapping], context=context
+        document_id=document_id, context=context
     )
     first = projections.read(
         artifact_id=first_record.artifact_id, context=context
     )
     second_record = projections.compile_and_save(
-        document_id=document_id, mappings=[mapping], context=context
+        document_id=document_id, context=context
     )
     second = projections.read(
         artifact_id=second_record.artifact_id, context=context

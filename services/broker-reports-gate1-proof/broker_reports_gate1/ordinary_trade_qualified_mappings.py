@@ -1,8 +1,9 @@
 """Frozen exact-schema mappings qualified for ordinary-trade production use.
 
-The entries are selected only by their structural fingerprint.  Human-readable
-headers remain part of the frozen semantic decision evidence; broker, year and
-filename are deliberately absent from the runtime contract.
+The entries are selected only by their structural fingerprint. Human-readable
+headers and explicit amount-column to currency-column bindings remain part of
+the frozen source-semantic authority; broker, year and filename are deliberately
+absent from the runtime contract.
 """
 
 from __future__ import annotations
@@ -23,8 +24,8 @@ FORBIDDEN = (
 
 _QUALIFIED_MAPPINGS: tuple[dict[str, Any], ...] = (
     {
-        "schema_version": "broker_reports_ordinary_trade_schema_mapping_v1",
-        "mapping_id": "otmap_9e514852eecf75f399bb35a602c709fe",
+        "schema_version": "broker_reports_ordinary_trade_schema_mapping_v2",
+        "mapping_id": "otmap_605a290724c86585dc249b9d3c2a0691",
         "structural_fingerprint": (
             "6dbe853eb449c005dcadebaf73fd62277fb24a4ec4cf15147729910a6874d039"
         ),
@@ -88,6 +89,11 @@ _QUALIFIED_MAPPINGS: tuple[dict[str, Any], ...] = (
                 "semantic_role": "status",
             },
         ],
+        "amount_currency_bindings": [
+            {"amount_column": 10, "currency_column": 6},
+            {"amount_column": 12, "currency_column": 6},
+            {"amount_column": 13, "currency_column": 6},
+        ],
         "side_values": [
             {"normalized_value": "DISPOSAL", "source_literal": "Продажа"},
             {"normalized_value": "PURCHASE", "source_literal": "Покупка"},
@@ -108,8 +114,8 @@ _QUALIFIED_MAPPINGS: tuple[dict[str, Any], ...] = (
         ],
     },
     {
-        "schema_version": "broker_reports_ordinary_trade_schema_mapping_v1",
-        "mapping_id": "otmap_add25728f9093e9bd28f90e66164aefb",
+        "schema_version": "broker_reports_ordinary_trade_schema_mapping_v2",
+        "mapping_id": "otmap_82cd365ef2629fa7a551161c1aca9acd",
         "structural_fingerprint": (
             "e1c2f174b3ae84a3eb862a98c1c72e574b53962276b30fdd8082ec7402994a49"
         ),
@@ -191,6 +197,11 @@ _QUALIFIED_MAPPINGS: tuple[dict[str, Any], ...] = (
                 "semantic_role": "venue",
             },
             {"column": 19, "header_literal": "Комментарий", "semantic_role": "comment"},
+        ],
+        "amount_currency_bindings": [
+            {"amount_column": 8, "currency_column": 7},
+            {"amount_column": 10, "currency_column": 7},
+            {"amount_column": 11, "currency_column": 7},
         ],
         "side_values": [
             {"normalized_value": "DISPOSAL", "source_literal": "Продажа"},

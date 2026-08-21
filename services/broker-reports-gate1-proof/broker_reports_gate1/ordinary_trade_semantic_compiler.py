@@ -17,10 +17,10 @@ from typing import Any, Iterable, Mapping
 
 
 ORDINARY_TRADE_MAPPING_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_schema_mapping_v1"
+    "broker_reports_ordinary_trade_schema_mapping_v2"
 )
 ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_runtime_projection_v2"
+    "broker_reports_ordinary_trade_runtime_projection_v3"
 )
 SOURCE_OBSERVATION_SCHEMA_VERSION = "broker_reports_source_observation_v1"
 FACTORY_REQUIRED = (
@@ -71,6 +71,7 @@ _MAPPING_KEYS = {
     "table_type",
     "title_literal",
     "columns",
+    "amount_currency_bindings",
     "side_values",
     "semantic_decisions",
 }
@@ -206,6 +207,7 @@ def compile_schema_mapping(
     title_literal: str | None,
     headers: Iterable[Mapping[str, Any]],
     model_columns: Iterable[Mapping[str, Any]],
+    amount_currency_bindings: Iterable[Mapping[str, int]],
     side_values: Iterable[Mapping[str, str]],
     semantic_decisions: Iterable[Mapping[str, str]],
 ) -> dict[str, Any]:
@@ -245,6 +247,9 @@ def compile_schema_mapping(
     material = {
         "structural_fingerprint": fingerprint,
         "columns": columns,
+        "amount_currency_bindings": [
+            copy.deepcopy(dict(item)) for item in amount_currency_bindings
+        ],
         "side_values": [copy.deepcopy(dict(item)) for item in side_values],
         "semantic_decisions": frozen_decisions,
     }
@@ -255,6 +260,7 @@ def compile_schema_mapping(
         "table_type": _TABLE_TYPE,
         "title_literal": title_literal,
         "columns": columns,
+        "amount_currency_bindings": material["amount_currency_bindings"],
         "side_values": material["side_values"],
         "semantic_decisions": material["semantic_decisions"],
     }
@@ -403,6 +409,7 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
     )
     if value.get("structural_fingerprint") != expected_fingerprint:
         _fail("ordinary_trade_mapping_fingerprint_invalid")
+    _validated_amount_currency_bindings(value=value, columns=columns)
     side_values = value.get("side_values")
     if not isinstance(side_values, list) or not side_values:
         _fail("ordinary_trade_mapping_side_invalid")
@@ -430,7 +437,57 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
             or not all(isinstance(item.get(key), str) and item.get(key) for key in item)
         ):
             _fail("ordinary_trade_mapping_decision_invalid")
+    identity_material = {
+        "structural_fingerprint": value["structural_fingerprint"],
+        "columns": columns,
+        "amount_currency_bindings": value["amount_currency_bindings"],
+        "side_values": side_values,
+        "semantic_decisions": sorted(
+            [copy.deepcopy(dict(item)) for item in decisions],
+            key=lambda item: (
+                str(item.get("decision_kind") or ""),
+                str(item.get("decision_id") or ""),
+                str(item.get("model_id") or ""),
+                str(item.get("response_sha256") or ""),
+            ),
+        ),
+    }
+    if value["mapping_id"] != "otmap_" + _sha256_json(identity_material)[:32]:
+        _fail("ordinary_trade_mapping_identity_invalid")
     return copy.deepcopy(dict(value))
+
+
+def _validated_amount_currency_bindings(
+    *, value: Mapping[str, Any], columns: list[Mapping[str, Any]]
+) -> None:
+    bindings = value.get("amount_currency_bindings")
+    if not isinstance(bindings, list) or not bindings:
+        _fail("ordinary_trade_mapping_currency_binding_invalid")
+    roles_by_column = {
+        int(item["column"]): str(item["semantic_role"]) for item in columns
+    }
+    amount_columns = {
+        column
+        for column, role in roles_by_column.items()
+        if role in {"gross_amount", "broker_commission", "exchange_commission"}
+    }
+    bound_amount_columns: list[int] = []
+    for item in bindings:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"amount_column", "currency_column"}
+            or not isinstance(item.get("amount_column"), int)
+            or not isinstance(item.get("currency_column"), int)
+            or item["amount_column"] not in amount_columns
+            or roles_by_column.get(item["currency_column"]) != "currency"
+        ):
+            _fail("ordinary_trade_mapping_currency_binding_invalid")
+        bound_amount_columns.append(item["amount_column"])
+    if (
+        bound_amount_columns != sorted(set(bound_amount_columns))
+        or set(bound_amount_columns) != amount_columns
+    ):
+        _fail("ordinary_trade_mapping_currency_binding_invalid")
 
 
 def _table_rows(table: Mapping[str, Any]) -> dict[int, dict[int, dict[str, Any]]]:
@@ -555,9 +612,11 @@ def _mapped_observation(
     ready = all(
         _single_nonempty(by_role, role) is not None for role in _REQUIRED - {"currency"}
     )
-    ready = (
-        ready and _gross_currency_field(by_role=by_role, mapping=mapping) is not None
-    )
+    gross = _single_nonempty(by_role, "gross_amount")
+    ready = ready and gross is not None
+    ready = ready and _currency_field_for_amount(
+        amount=gross, by_role=by_role, mapping=mapping
+    ) is not None
     side = _single_nonempty(by_role, "side")
     ready = ready and side is not None and side["literal"] in side_literals
     if ready:
@@ -688,7 +747,10 @@ def _runtime_records(
     normalized_side = sides.get(side_field["literal"])
     if normalized_side not in {"PURCHASE", "DISPOSAL"}:
         _fail("ordinary_trade_side_unmapped")
-    currency = _gross_currency_field(by_role=by_role, mapping=mapping)
+    gross_amount = _required_field(by_role, "gross_amount")
+    currency = _currency_field_for_amount(
+        amount=gross_amount, by_role=by_role, mapping=mapping
+    )
     if currency is None:
         _fail("ordinary_trade_runtime_currency_ambiguous")
     common = [
@@ -705,7 +767,7 @@ def _runtime_records(
             "unit_price", _required_field(by_role, "unit_price"), numeric_convention
         ),
         _runtime_role(
-            "amount", _required_field(by_role, "gross_amount"), numeric_convention
+            "amount", gross_amount, numeric_convention
         ),
         _runtime_role("currency", currency, numeric_convention),
     ]
@@ -727,6 +789,11 @@ def _runtime_records(
     ]:
         if not commission["literal"] or _is_zero(commission["literal"]):
             continue
+        commission_currency = _currency_field_for_amount(
+            amount=commission, by_role=by_role, mapping=mapping
+        )
+        if commission_currency is None:
+            _fail("ordinary_trade_runtime_currency_binding_missing")
         records.append(
             _runtime_record(
                 observation=observation,
@@ -743,7 +810,9 @@ def _runtime_records(
                         numeric_convention,
                     ),
                     _runtime_role("amount", commission, numeric_convention),
-                    _runtime_role("currency", currency, numeric_convention),
+                    _runtime_role(
+                        "currency", commission_currency, numeric_convention
+                    ),
                 ],
                 claim_refs=[commission["source_ref"]],
             )
@@ -939,22 +1008,26 @@ def _required_field(
     return value
 
 
-def _gross_currency_field(
+def _currency_field_for_amount(
     *,
+    amount: dict[str, Any],
     by_role: dict[str, list[dict[str, Any]]],
     mapping: dict[str, Any],
 ) -> dict[str, Any] | None:
-    currencies = [item for item in by_role.get("currency", []) if item["literal"]]
-    if len(currencies) == 1:
-        return currencies[0]
-    gross = _single_nonempty(by_role, "gross_amount")
-    if gross is None:
+    amount_column = amount["canonical_cell"]["column"]
+    bindings = [
+        item
+        for item in mapping["amount_currency_bindings"]
+        if item["amount_column"] == amount_column
+    ]
+    if len(bindings) != 1:
         return None
-    gross_column = gross["canonical_cell"]["column"]
+    currency_column = bindings[0]["currency_column"]
     candidates = [
         item
-        for item in currencies
-        if abs(item["canonical_cell"]["column"] - gross_column) == 1
+        for item in by_role.get("currency", [])
+        if item["literal"]
+        and item["canonical_cell"]["column"] == currency_column
     ]
     return candidates[0] if len(candidates) == 1 else None
 
@@ -965,7 +1038,12 @@ def _row_values_runtime_valid(
     mapping: dict[str, Any],
     numeric_convention: str | None,
 ) -> bool:
-    currency = _gross_currency_field(by_role=by_role, mapping=mapping)
+    gross = _single_nonempty(by_role, "gross_amount")
+    if gross is None:
+        return False
+    currency = _currency_field_for_amount(
+        amount=gross, by_role=by_role, mapping=mapping
+    )
     if currency is None:
         return False
     bindings = (

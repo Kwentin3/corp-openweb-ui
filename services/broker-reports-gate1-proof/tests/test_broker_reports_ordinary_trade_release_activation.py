@@ -283,6 +283,7 @@ def test_semantic_decision_execution_order_does_not_change_mapping_identity() ->
             {"column": item["column"], "semantic_role": item["semantic_role"]}
             for item in mapping["columns"]
         ],
+        "amount_currency_bindings": mapping["amount_currency_bindings"],
         "side_values": mapping["side_values"],
     }
     reordered = compile_schema_mapping(

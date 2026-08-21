@@ -357,8 +357,8 @@ def test_gate3_product_closeout_is_ndfl_scoped_with_one_sidecar_type() -> None:
     assert "Strict alias output status: `G3.4D_ACTIVE_IN_NDFL`" in contract
     assert "Persistence implementation status: `G3.5_ACTIVE_IN_NDFL`" in contract
     assert "Terminal proof status: `G3.C5_CLOSED`" in contract
-    assert "ACTIVE_IN_NDFL" in pipeline
-    assert "G3.C5_CLOSED" in pipeline
+    assert "GATE3_PRODUCT_STATUS = RETAINED_DEPLOYMENT_ROLLBACK_ONLY" in pipeline
+    assert "GATE3_EXECUTION_IN_ACTIVE_ORDINARY_TRADE_ROUTE = DISABLED" in pipeline
     assert "Gate3FinancialAnnotationsPersistenceFactory.create" in handoff
     assert "broker-reports-financial-labels" in handoff
     assert "broker_reports_financial_label_dictionary" in handoff

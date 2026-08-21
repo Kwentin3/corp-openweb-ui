@@ -23,7 +23,7 @@ REPO_ROOT = SERVICE_ROOT.parents[1]
 BUNDLE_PATH = SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate1_pipe_bundled.py"
 FUNCTION_ID = "broker_reports_gate1_pipe"
 WORKSPACE_MODEL_ID = "broker-reports-ndfl"
-PROJECTION_TYPE = "broker_reports_ordinary_trade_runtime_projection_v2"
+PROJECTION_TYPE = "broker_reports_ordinary_trade_runtime_projection_v3"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 

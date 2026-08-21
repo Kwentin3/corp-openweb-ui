@@ -11,8 +11,8 @@ historical Gate 3 model runtime. Its one-way ownership is:
 
 | Domain | Sole owner | Input | Output | Must not own |
 | --- | --- | --- | --- | --- |
-| qualified schema/enum meaning | `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | immutable package registry | exact mapping v1 | row values, broker profiles, fuzzy routing, tax |
-| source observation/runtime compilation | `OrdinaryTradeSemanticCompilerFactory.create` | active Canonical + exact mappings | Source Observations + deterministic runtime records | tax, relations, inferred continuation, Canonical repair |
+| qualified schema/enum/amount-currency meaning | `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | immutable package registry | exact mapping v2 with explicit amount-column to currency-column pairs | row values, broker profiles, fuzzy routing, proximity binding, tax |
+| source observation/runtime compilation | `OrdinaryTradeSemanticCompilerFactory.create` | active Canonical + exact mappings | Source Observations + deterministic runtime records | tax, relations, adjacency binding, inferred continuation, Canonical repair |
 | current projection | `OrdinaryTradeProjectionFactory.create` | validated compiler output + trusted case context | one immutable current projection per active Canonical | meaning, latest-wins, stale reuse |
 | Fact v2 admission | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | current ordinary projection | exact `Gate4FinancialCaseFactV2` list | Canonical read, classification, SQL, tax |
 | deterministic tax consumption | unchanged Gate 5 deterministic source-fact runtime | Fact v2 + trusted methodology/context | assessment, calculations or typed blocker | Source Observation/Canonical/model reads or source-semantic repair |

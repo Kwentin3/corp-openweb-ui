@@ -41,9 +41,9 @@ PDF
 | --- | --- | --- | --- | --- | --- |
 | Source intake and normalization | source bytes, table location, deterministic pdfplumber structure/literals and provenance | authenticated upload and table-location response | persisted Gate 1 artifacts and validated Canonical candidate | financial labels, row values from the model, tax meaning | Canonical lifecycle |
 | Canonical lifecycle | immutable document/page/table/row/cell representation, exact source refs, activation and current-version selection | validated normalized source plus trusted `ArtifactAccessContext` | active `CanonicalArtifactV1` via `CanonicalReaderFactory.create` | source mutation, financial naming, consumer-specific repair | ordinary-trade projection |
-| Qualified mapping authority | meaning of one exact table schema and literal side enum; immutable decision evidence | package-owned mapping registry | `broker_reports_ordinary_trade_schema_mapping_v1` through `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | row/value authorship, broker/year/filename profile keys, fuzzy matching, runtime model call | semantic compiler |
-| Ordinary-trade semantic compiler | exact schema match, source-observation disposition, deterministic date/decimal transforms and runtime-record lineage | active Canonical plus qualified mappings | `broker_reports_ordinary_trade_runtime_projection_v2`: Source Observations and runtime records | tax, relations, inferred continuation, value deduplication, Canonical mutation | projection store and Gate 4 adapter |
-| Projection store/current view | immutable projection persistence and exact active-Canonical selection | validated projection plus private case context | one current projection per document through `OrdinaryTradeProjectionFactory.create` | overwrite, stale/latest-wins selection, new meaning | Gate 4 ordinary adapter |
+| Qualified mapping authority | meaning of one exact table schema, literal side enum and explicit amount-column to currency-column bindings; immutable decision evidence | package-owned mapping registry | `broker_reports_ordinary_trade_schema_mapping_v2` through `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | row/value authorship, broker/year/filename profile keys, fuzzy matching, runtime model call | semantic compiler through the projection owner only |
+| Ordinary-trade semantic compiler | exact schema match, source-observation disposition, execution of qualified amount/currency bindings, deterministic date/decimal transforms and runtime-record lineage | active Canonical plus qualified mappings | `broker_reports_ordinary_trade_runtime_projection_v3`: Source Observations and runtime records | tax, proximity/adjacency binding, relations, inferred continuation, value deduplication, Canonical mutation | projection store and Gate 4 adapter |
+| Projection store/current view | immutable projection persistence, exact active-Canonical selection and mandatory composition of the qualified mapping authority with the compiler | active Canonical plus private case context | one current projection per document through `OrdinaryTradeProjectionFactory.create` | caller-supplied mappings, overwrite, stale/latest-wins selection, new meaning | Gate 4 ordinary adapter |
 | Gate 4 ordinary adapter | admission into the existing Fact v2 shape and deterministic fact identity | current validated ordinary projection | `Gate4FinancialCaseFactV2` through `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | Canonical reads, model calls, classification, tax, SQL cache | deterministic Gate 5 |
 | Gate 5 deterministic consumer | reviewed methodology, evidence sufficiency, FIFO/calculation and explicit blockers | Fact v2 only plus trusted context and methodology ref | deterministic source-fact assessment/consumption | PDF/Canonical/model output reads, source-semantic repair, default zero, hidden relations | later declaration domains only when complete |
 | Product composition | route selection, exact Canonical activation, orchestration, system identity and terminal result | release valves, Canonical refs and trusted context | `broker_reports_ordinary_trade_production_run_v1` through `OrdinaryTradeProductionRuntimeFactory.create` | semantic/legacy fallback, direct provider call, broker profile routing | OpenWebUI pipe/product response |
@@ -72,6 +72,8 @@ PDF
 - only exact qualified `SECURITY_TRADES` table schemas and exact side literals;
 - ordinary purchase/disposal rows with the required source fields;
 - non-zero broker/exchange commissions as separate `TRANSACTION_CHARGE` facts;
+- every emitted gross amount or charge uses the currency column explicitly bound
+  to its amount column by mapping v2; column adjacency has no authority;
 - supported and unknown tables in one Canonical: supported non-empty data rows
   after the exact header continue and every non-empty unknown-table row remains
   `RELEVANT_UNMAPPED`; titles/headers remain in Canonical and mapping evidence.
@@ -99,14 +101,15 @@ fallback.
 - `ordinary_trade_candidate_runtime.py`, the pipe method
   `_maybe_run_ndfl_gate3` and the response key `ndfl_gate3` retain pre-activation
   names. Their names are compatibility debt, not runtime ownership.
-- `architecture_policy.py` retains the generic Gate 1-to-Projection
-  responsibility vocabulary. It does not define which source-semantic producer
-  is activated for a release; Pipeline Gates does.
+- `architecture_policy.GATE_OWNERSHIP` retains generic gate responsibilities;
+  its separate closed `ACTIVE_PRODUCT_ROUTES` map identifies the active ordinary
+  source-semantic factories and marks Gate 3 runtime as rollback-only.
 
 ### Forbidden cross-domain dependencies
 
 - normalization/Canonical must not assign financial or tax meaning;
-- the mapping/compiler must not infer tax, relations or missing source values;
+- the mapping/compiler must not infer tax, relations, missing source values or
+  amount/currency binding from proximity or column adjacency;
 - Gate 4 must not repair source semantics or calculate tax;
 - Gate 5 must not read PDF, Canonical, Source Observations or model output;
 - Projection must not calculate or decide release;

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import replace
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from .artifact_lifecycle import lifecycle_for_visibility
 from .artifact_models import ArtifactAccessContext, ArtifactRecord, ArtifactStoreError
@@ -14,6 +14,9 @@ from .ordinary_trade_semantic_compiler import (
     ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION,
     OrdinaryTradeSemanticCompilerFactory,
     validate_ordinary_trade_projection,
+)
+from .ordinary_trade_qualified_mappings import (
+    OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
 
 
@@ -26,7 +29,8 @@ FACTORY_REQUIRED = (
 )
 FORBIDDEN = (
     "projection overwrite, caller-supplied tenant identity, stale Canonical reuse, "
-    "latest-wins ambiguity or persistence outside ArtifactStore"
+    "latest-wins ambiguity, caller-supplied mappings or persistence outside "
+    "ArtifactStore"
 )
 
 
@@ -56,12 +60,14 @@ class OrdinaryTradeProjectionRuntime:
         ).create()
         self._resolver = ArtifactResolver(store)
         self._compiler = OrdinaryTradeSemanticCompilerFactory.create()
+        self._mappings = (
+            OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()
+        )
 
     def compile_and_save(
         self,
         *,
         document_id: str,
-        mappings: Iterable[Mapping[str, Any]],
         context: ArtifactAccessContext,
     ) -> ArtifactRecord:
         _private_case(context)
@@ -77,7 +83,7 @@ class OrdinaryTradeProjectionRuntime:
         projection = self._compiler.compile(
             canonical=envelope.artifact,
             canonical_binding=binding,
-            mappings=mappings,
+            mappings=self._mappings,
         )
         active = self._store.get_active_canonical_version(
             context=context, document_id=document_id
