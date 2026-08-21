@@ -20,7 +20,7 @@ ORDINARY_TRADE_MAPPING_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_schema_mapping_v1"
 )
 ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_runtime_projection_v1"
+    "broker_reports_ordinary_trade_runtime_projection_v2"
 )
 SOURCE_OBSERVATION_SCHEMA_VERSION = "broker_reports_source_observation_v1"
 FACTORY_REQUIRED = (
@@ -81,15 +81,9 @@ _PLAIN_DECIMAL = re.compile(r"^-?(?:0|[1-9][0-9]*)(?:[.,][0-9]+)?$")
 _SPACE_DECIMAL = re.compile(
     r"^-?(?:[1-9][0-9]{0,2})(?:[ \u00a0\u202f][0-9]{3})+(?:[.,][0-9]+)?$"
 )
-_COMMA_GROUPED_DOT = re.compile(
-    r"^-?(?:[1-9][0-9]{0,2})(?:,[0-9]{3})+\.[0-9]+$"
-)
-_DOT_GROUPED_COMMA = re.compile(
-    r"^-?(?:[1-9][0-9]{0,2})(?:\.[0-9]{3})+,[0-9]+$"
-)
-_COMMA_GROUPED_INTEGER = re.compile(
-    r"^-?(?:[1-9][0-9]{0,2})(?:,[0-9]{3})+$"
-)
+_COMMA_GROUPED_DOT = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:,[0-9]{3})+\.[0-9]+$")
+_DOT_GROUPED_COMMA = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:\.[0-9]{3})+,[0-9]+$")
+_COMMA_GROUPED_INTEGER = re.compile(r"^-?(?:[1-9][0-9]{0,2})(?:,[0-9]{3})+$")
 
 
 class OrdinaryTradeSemanticCompilerError(RuntimeError):
@@ -122,9 +116,7 @@ class OrdinaryTradeSemanticCompiler:
 
         observations: list[dict[str, Any]] = []
         runtime_records: list[dict[str, Any]] = []
-        mapping_matches: dict[str, int] = {
-            item["mapping_id"]: 0 for item in accepted
-        }
+        mapping_matches: dict[str, int] = {item["mapping_id"]: 0 for item in accepted}
         table_nodes = [
             item
             for item in canonical.get("nodes", [])
@@ -147,9 +139,7 @@ class OrdinaryTradeSemanticCompiler:
                 continue
             mapping, header_row = matches[0]
             mapping_matches[mapping["mapping_id"]] += 1
-            numeric_convention = _table_numeric_convention(
-                rows=rows, mapping=mapping
-            )
+            numeric_convention = _table_numeric_convention(rows=rows, mapping=mapping)
             for row_number in sorted(row for row in rows if row > header_row):
                 cells = rows[row_number]
                 if not any(_literal(cell) for cell in cells.values()):
@@ -196,10 +186,12 @@ class OrdinaryTradeSemanticCompiler:
                     "decisions": copy.deepcopy(item["semantic_decisions"]),
                 }
                 for item in accepted
+                if mapping_matches[item["mapping_id"]] > 0
             ],
             "mapping_matches": [
                 {"mapping_id": key, "matched_tables": value}
                 for key, value in sorted(mapping_matches.items())
+                if value > 0
             ],
             "source_observations": observations,
             "runtime_records": runtime_records,
@@ -241,13 +233,20 @@ def compile_schema_mapping(
         title_literal=title_literal,
         columns=columns,
     )
+    frozen_decisions = sorted(
+        [copy.deepcopy(dict(item)) for item in semantic_decisions],
+        key=lambda item: (
+            str(item.get("decision_kind") or ""),
+            str(item.get("decision_id") or ""),
+            str(item.get("model_id") or ""),
+            str(item.get("response_sha256") or ""),
+        ),
+    )
     material = {
         "structural_fingerprint": fingerprint,
         "columns": columns,
         "side_values": [copy.deepcopy(dict(item)) for item in side_values],
-        "semantic_decisions": [
-            copy.deepcopy(dict(item)) for item in semantic_decisions
-        ],
+        "semantic_decisions": frozen_decisions,
     }
     mapping = {
         "schema_version": ORDINARY_TRADE_MAPPING_SCHEMA_VERSION,
@@ -278,8 +277,7 @@ def structural_fingerprint(
 def validate_ordinary_trade_projection(value: Any) -> None:
     if (
         not isinstance(value, dict)
-        or value.get("schema_version")
-        != ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION
+        or value.get("schema_version") != ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION
         or set(value)
         != {
             "schema_version",
@@ -334,9 +332,7 @@ def normalize_runtime_value(
             return result, "ISO_OR_ISO_TIME_TO_ISO_DATE"
         _fail("ordinary_trade_runtime_date_invalid")
     if role in {"quantity", "unit_price", "amount"}:
-        normalized = _decimal_literal(
-            value, numeric_convention=numeric_convention
-        )
+        normalized = _decimal_literal(value, numeric_convention=numeric_convention)
         try:
             Decimal(normalized)
         except InvalidOperation:
@@ -444,7 +440,12 @@ def _table_rows(table: Mapping[str, Any]) -> dict[int, dict[int, dict[str, Any]]
             _fail("ordinary_trade_canonical_table_invalid")
         row = cell.get("row")
         column = cell.get("column")
-        if not isinstance(row, int) or not isinstance(column, int) or row < 1 or column < 1:
+        if (
+            not isinstance(row, int)
+            or not isinstance(column, int)
+            or row < 1
+            or column < 1
+        ):
             _fail("ordinary_trade_canonical_table_invalid")
         if column in rows.setdefault(row, {}):
             _fail("ordinary_trade_canonical_cell_duplicate")
@@ -464,7 +465,10 @@ def _matching_mappings(
             row_number
             for row_number, cells in rows.items()
             if set(cells) == set(expected)
-            and all(_literal(cells[column]) == literal for column, literal in expected.items())
+            and all(
+                _literal(cells[column]) == literal
+                for column, literal in expected.items()
+            )
         ]
         title = mapping["title_literal"]
         if title is not None:
@@ -549,12 +553,11 @@ def _mapped_observation(
         for item in mapping["side_values"]
     }
     ready = all(
-        _single_nonempty(by_role, role) is not None
-        for role in _REQUIRED - {"currency"}
+        _single_nonempty(by_role, role) is not None for role in _REQUIRED - {"currency"}
     )
-    ready = ready and _gross_currency_field(
-        by_role=by_role, mapping=mapping
-    ) is not None
+    ready = (
+        ready and _gross_currency_field(by_role=by_role, mapping=mapping) is not None
+    )
     side = _single_nonempty(by_role, "side")
     ready = ready and side is not None and side["literal"] in side_literals
     if ready:
@@ -648,14 +651,17 @@ def _observation(
     numeric_convention: str | None,
 ) -> dict[str, Any]:
     node_id = str(table["node_id"])
-    observation_id = "bso_" + _sha256_json(
-        {
-            "canonical_root_sha256": binding["canonical_root_sha256"],
-            "node_id": node_id,
-            "row": row,
-            "source_refs": [item["source_ref"] for item in fields],
-        }
-    )[:32]
+    observation_id = (
+        "bso_"
+        + _sha256_json(
+            {
+                "canonical_root_sha256": binding["canonical_root_sha256"],
+                "node_id": node_id,
+                "row": row,
+                "source_refs": [item["source_ref"] for item in fields],
+            }
+        )[:32]
+    )
     return {
         "schema_version": SOURCE_OBSERVATION_SCHEMA_VERSION,
         "observation_id": observation_id,
@@ -686,11 +692,21 @@ def _runtime_records(
     if currency is None:
         _fail("ordinary_trade_runtime_currency_ambiguous")
     common = [
-        _runtime_role("date", _required_field(by_role, "trade_date"), numeric_convention),
-        _runtime_role("asset", _required_field(by_role, "asset_name"), numeric_convention),
-        _runtime_role("quantity", _required_field(by_role, "quantity"), numeric_convention),
-        _runtime_role("unit_price", _required_field(by_role, "unit_price"), numeric_convention),
-        _runtime_role("amount", _required_field(by_role, "gross_amount"), numeric_convention),
+        _runtime_role(
+            "date", _required_field(by_role, "trade_date"), numeric_convention
+        ),
+        _runtime_role(
+            "asset", _required_field(by_role, "asset_name"), numeric_convention
+        ),
+        _runtime_role(
+            "quantity", _required_field(by_role, "quantity"), numeric_convention
+        ),
+        _runtime_role(
+            "unit_price", _required_field(by_role, "unit_price"), numeric_convention
+        ),
+        _runtime_role(
+            "amount", _required_field(by_role, "gross_amount"), numeric_convention
+        ),
         _runtime_role("currency", currency, numeric_convention),
     ]
     records = [
@@ -716,8 +732,16 @@ def _runtime_records(
                 observation=observation,
                 record_type="TRANSACTION_CHARGE",
                 roles=[
-                    _runtime_role("date", _required_field(by_role, "trade_date"), numeric_convention),
-                    _runtime_role("asset", _required_field(by_role, "asset_name"), numeric_convention),
+                    _runtime_role(
+                        "date",
+                        _required_field(by_role, "trade_date"),
+                        numeric_convention,
+                    ),
+                    _runtime_role(
+                        "asset",
+                        _required_field(by_role, "asset_name"),
+                        numeric_convention,
+                    ),
                     _runtime_role("amount", commission, numeric_convention),
                     _runtime_role("currency", currency, numeric_convention),
                 ],
@@ -756,13 +780,16 @@ def _runtime_record(
     roles: list[dict[str, Any]],
     claim_refs: list[str],
 ) -> dict[str, Any]:
-    record_id = "bstr_" + _sha256_json(
-        {
-            "observation_id": observation["observation_id"],
-            "record_type": record_type,
-            "source_refs": [item["source_binding"]["source_ref"] for item in roles],
-        }
-    )[:32]
+    record_id = (
+        "bstr_"
+        + _sha256_json(
+            {
+                "observation_id": observation["observation_id"],
+                "record_type": record_type,
+                "source_refs": [item["source_binding"]["source_ref"] for item in roles],
+            }
+        )[:32]
+    )
     return {
         "runtime_record_id": record_id,
         "source_observation_id": observation["observation_id"],
@@ -790,13 +817,29 @@ def _validate_projection_lineage(
     for observation in observations:
         if observation.get("disposition") not in _DISPOSITIONS:
             _fail("ordinary_trade_observation_invalid")
+    records_by_observation: dict[str, list[dict[str, Any]]] = {}
+    charge_amount_refs: list[str] = []
     for record in runtime_records:
         observation = observations_by_id.get(record.get("source_observation_id"))
         if observation is None or observation.get("disposition") != "RUNTIME_READY":
             _fail("ordinary_trade_runtime_observation_invalid")
-        literals = {
-            item["source_ref"]: item for item in observation.get("fields", [])
-        }
+        observation_id = observation["observation_id"]
+        records_by_observation.setdefault(observation_id, []).append(record)
+        if record.get("annotation_target") != {
+            "kind": "table_row",
+            "node_id": observation.get("table_node_id"),
+            "row": observation.get("row"),
+        }:
+            _fail("ordinary_trade_runtime_target_invalid")
+        literals = {item["source_ref"]: item for item in observation.get("fields", [])}
+        claim_refs = record.get("claim_refs")
+        if (
+            not isinstance(claim_refs, list)
+            or not claim_refs
+            or len(claim_refs) != len(set(claim_refs))
+            or any(item not in literals for item in claim_refs)
+        ):
+            _fail("ordinary_trade_runtime_claim_lineage_invalid")
         for role in record.get("roles", []):
             source = role.get("source_binding") or {}
             field = literals.get(source.get("source_ref"))
@@ -811,8 +854,38 @@ def _validate_projection_lineage(
                 str(field.get("literal")),
                 numeric_convention=observation.get("numeric_convention"),
             )
-            if role.get("value") != expected or source.get("deterministic_transform") != transform:
+            if (
+                role.get("value") != expected
+                or source.get("deterministic_transform") != transform
+            ):
                 _fail("ordinary_trade_runtime_value_not_deterministic")
+        if record.get("record_type") == "TRANSACTION_CHARGE":
+            amount_roles = [
+                item for item in record.get("roles", []) if item.get("role") == "amount"
+            ]
+            if len(amount_roles) != 1 or claim_refs != [
+                amount_roles[0]["source_binding"]["source_ref"]
+            ]:
+                _fail("ordinary_trade_charge_binding_invalid")
+            charge_amount_refs.append(claim_refs[0])
+        elif record.get("record_type") not in {
+            "SECURITY_PURCHASE",
+            "SECURITY_DISPOSAL",
+        }:
+            _fail("ordinary_trade_runtime_record_type_invalid")
+    if len(charge_amount_refs) != len(set(charge_amount_refs)):
+        _fail("ordinary_trade_charge_source_duplicate")
+    for observation in observations:
+        if observation.get("disposition") != "RUNTIME_READY":
+            continue
+        records = records_by_observation.get(observation["observation_id"], [])
+        security_records = [
+            item
+            for item in records
+            if item.get("record_type") in {"SECURITY_PURCHASE", "SECURITY_DISPOSAL"}
+        ]
+        if len(security_records) != 1:
+            _fail("ordinary_trade_security_record_cardinality_invalid")
 
 
 def _validate_projection_against_canonical(
@@ -917,9 +990,7 @@ def _row_values_runtime_valid(
     return True
 
 
-def _decimal_literal(
-    value: str, *, numeric_convention: str | None = None
-) -> str:
+def _decimal_literal(value: str, *, numeric_convention: str | None = None) -> str:
     if (
         numeric_convention == "COMMA_GROUPED_DOT_DECIMAL"
         and _COMMA_GROUPED_INTEGER.fullmatch(value) is not None
@@ -954,9 +1025,7 @@ def _sha256_json(value: Any) -> str:
             allow_nan=False,
         ).encode("utf-8")
     except (TypeError, ValueError) as exc:
-        raise OrdinaryTradeSemanticCompilerError(
-            "ordinary_trade_json_invalid"
-        ) from exc
+        raise OrdinaryTradeSemanticCompilerError("ordinary_trade_json_invalid") from exc
     return hashlib.sha256(encoded).hexdigest()
 
 

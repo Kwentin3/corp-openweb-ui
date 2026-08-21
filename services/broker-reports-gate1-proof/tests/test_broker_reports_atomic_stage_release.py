@@ -274,7 +274,12 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertNotIn(
             "financial_evidence_registry", manifest["provider_policy"]
         )
-        self.assertTrue(manifest["functions"][0]["valves"]["ndfl_gate3_enabled"])
+        self.assertFalse(manifest["functions"][0]["valves"]["ndfl_gate3_enabled"])
+        self.assertTrue(
+            manifest["functions"][0]["valves"][
+                "ordinary_trade_candidate_enabled"
+            ]
+        )
         self.assertEqual(1, manifest["runtime"]["gate1_heavy_concurrency"])
         self.assertEqual(2, manifest["runtime"]["gate2_local_maximum_concurrency"])
         self.assertEqual(
@@ -310,7 +315,8 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertNotIn("pdf_structural_repair_shadow_enabled", valves)
         self.assertTrue(valves["canonical_gate2_write_enabled"])
         self.assertTrue(valves["canonical_gate2_read_enabled"])
-        self.assertTrue(valves["ndfl_gate3_enabled"])
+        self.assertFalse(valves["ndfl_gate3_enabled"])
+        self.assertTrue(valves["ordinary_trade_candidate_enabled"])
         self.assertTrue(valves_match(function_id, valves))
         self.assertEqual(64, valves["pdf_table_intake_maximum_pages"])
 

@@ -212,9 +212,7 @@ GATE1_GATE5_MODULES = [
     "gate5_human_gap_closure",
     "gate5_declaration_preparation",
 ]
-_GATE1_NDFL_GATE3_INSERT_AT = GATE1_MODULE_ORDER.index(
-    "gate3_context_manifest"
-) + 1
+_GATE1_NDFL_GATE3_INSERT_AT = GATE1_MODULE_ORDER.index("gate3_context_manifest") + 1
 GATE1_MODULE_ORDER = [
     *GATE1_MODULE_ORDER[:_GATE1_NDFL_GATE3_INSERT_AT],
     *GATE1_NDFL_GATE3_MODULES,
@@ -225,6 +223,22 @@ GATE1_MODULE_ORDER = [
     *GATE1_MODULE_ORDER[:_GATE1_GATE5_INSERT_AT],
     *GATE1_GATE5_MODULES,
     *GATE1_MODULE_ORDER[_GATE1_GATE5_INSERT_AT:],
+]
+GATE1_ORDINARY_TRADE_MODULES = [
+    "ordinary_trade_semantic_compiler",
+    "ordinary_trade_projection",
+    "ordinary_trade_qualified_mappings",
+    "gate4_ordinary_trade_candidate",
+    "ordinary_trade_candidate_runtime",
+    "ordinary_trade_production_runtime",
+]
+_GATE1_ORDINARY_TRADE_INSERT_AT = (
+    GATE1_MODULE_ORDER.index("gate5_declaration_preparation") + 1
+)
+GATE1_MODULE_ORDER = [
+    *GATE1_MODULE_ORDER[:_GATE1_ORDINARY_TRADE_INSERT_AT],
+    *GATE1_ORDINARY_TRADE_MODULES,
+    *GATE1_MODULE_ORDER[_GATE1_ORDINARY_TRADE_INSERT_AT:],
 ]
 GATE2_ONLY_MODULES = ["gate2_chat_dcp_resolution"]
 GATE2_MODULE_ORDER = [
@@ -252,9 +266,7 @@ GATE2_FINANCIAL_MODULES = [
     "gate2_financial_evidence_compatibility",
     "gate2_financial_evidence_production_runtime",
 ]
-_GATE2_FINANCIAL_INSERT_AT = GATE2_MODULE_ORDER.index(
-    "gate2_model_clients"
-) + 1
+_GATE2_FINANCIAL_INSERT_AT = GATE2_MODULE_ORDER.index("gate2_model_clients") + 1
 GATE2_DOMAIN_MODULE_ORDER = [
     *GATE2_MODULE_ORDER[:_GATE2_FINANCIAL_INSERT_AT],
     *GATE2_FINANCIAL_MODULES,
@@ -270,9 +282,9 @@ GATE2_SUCCESSOR_MODULES = [
     "gate2_successor_artifacts_v2",
     "gate2_successor_compatibility",
 ]
-_GATE2_SUCCESSOR_INSERT_AT = GATE2_DOMAIN_MODULE_ORDER.index(
-    "gate2_source_unit_segmentation"
-) + 1
+_GATE2_SUCCESSOR_INSERT_AT = (
+    GATE2_DOMAIN_MODULE_ORDER.index("gate2_source_unit_segmentation") + 1
+)
 GATE2_DOMAIN_MODULE_ORDER = [
     *GATE2_DOMAIN_MODULE_ORDER[:_GATE2_SUCCESSOR_INSERT_AT],
     *GATE2_SUCCESSOR_MODULES,
@@ -295,6 +307,7 @@ def main() -> None:
             | set(GATE1_PDF_TABLE_MODULES)
             | set(GATE1_NDFL_GATE3_MODULES)
             | set(GATE1_GATE5_MODULES)
+            | set(GATE1_ORDINARY_TRADE_MODULES)
             | set(GATE2_ONLY_MODULES)
             | set(GATE2_FINANCIAL_MODULES)
             | set(GATE2_SUCCESSOR_MODULES)
@@ -302,9 +315,7 @@ def main() -> None:
     }
     if target in {"all", "gate1"}:
         pipe_source = _strip_openwebui_metadata(PIPE_SOURCE.read_text(encoding="utf-8"))
-        gate1_modules = {
-            name: modules[name] for name in GATE1_MODULE_ORDER
-        }
+        gate1_modules = {name: modules[name] for name in GATE1_MODULE_ORDER}
         gate1_modules["__init__"] = _project_package_init(
             gate1_modules["__init__"],
             included_modules=set(gate1_modules),
@@ -319,8 +330,8 @@ def main() -> None:
             },
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.38.5-single-current-pipeline-bundled",
-            package_version="gate1_single_current_pipeline_v1",
+            version="0.39.0-ordinary-trade-production-bundled",
+            package_version="gate1_ordinary_trade_production_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1",
         )
@@ -462,12 +473,8 @@ def assert_gate2_bundle_contract(
         "bundled_modules": "_BUNDLED_MODULES",
         "model_contracts_module": '"gate2_model_contracts"',
         "model_requests_module": '"gate2_model_requests"',
-        "economy_provider_selection_module": (
-            '"gate2_economy_provider_selection"'
-        ),
-        "economy_workload_policy_module": (
-            '"gate2_economy_workload_policy"'
-        ),
+        "economy_provider_selection_module": ('"gate2_economy_provider_selection"'),
+        "economy_workload_policy_module": ('"gate2_economy_workload_policy"'),
         "provider_adapters_module": '"gate2_provider_adapters"',
         "model_clients_module": '"gate2_model_clients"',
         "csv_profile_module": '"csv_profile"',
@@ -501,15 +508,11 @@ def assert_gate2_bundle_contract(
             "Gate2StructuredModelClientFactory.create is the only production "
             "Gate 2 model client entrypoint"
         ),
-        "economy_provider_selection_factory": (
-            "Gate2EconomyProviderSelectionFactory("
-        ),
+        "economy_provider_selection_factory": ("Gate2EconomyProviderSelectionFactory("),
         "economy_provider_selection_factory_anchor": (
             "Gate2EconomyProviderSelectionFactory.create is the only production"
         ),
-        "economy_workload_policy_factory": (
-            "Gate2EconomyWorkloadPolicyFactory("
-        ),
+        "economy_workload_policy_factory": ("Gate2EconomyWorkloadPolicyFactory("),
         "economy_workload_policy_factory_anchor": (
             "Gate2EconomyWorkloadPolicyFactory.create is the only code-owned"
         ),
@@ -523,9 +526,7 @@ def assert_gate2_bundle_contract(
                 "deterministic_financial_scopes_module": (
                     '"gate2_deterministic_financial_scopes"'
                 ),
-                "financial_successor_module": (
-                    '"gate2_financial_evidence_successor"'
-                ),
+                "financial_successor_module": ('"gate2_financial_evidence_successor"'),
                 "financial_semantic_model_assets_module": (
                     '"gate2_financial_semantic_model_assets"'
                 ),
@@ -538,9 +539,7 @@ def assert_gate2_bundle_contract(
                 "financial_semantic_contract_factory_anchor": (
                     "Gate2FinancialSemanticContractFactory.create is the only"
                 ),
-                "financial_domain_catalog_module": (
-                    '"gate2_financial_domain_catalog"'
-                ),
+                "financial_domain_catalog_module": ('"gate2_financial_domain_catalog"'),
                 "financial_domain_projection_module": (
                     '"gate2_financial_domain_projection"'
                 ),
@@ -550,15 +549,12 @@ def assert_gate2_bundle_contract(
                 "financial_domain_catalog_factory_anchor": (
                     "Gate2FinancialDomainCatalogFactory.create is the only"
                 ),
-                "financial_domain_query_module": (
-                    '"gate2_financial_domain_query"'
-                ),
+                "financial_domain_query_module": ('"gate2_financial_domain_query"'),
                 "financial_domain_query_factory_anchor": (
                     "Gate2FinancialDomainQueryFactory.create is the only"
                 ),
                 "financial_successor_factory_anchor": (
-                    "Gate2FinancialEvidenceSuccessorRunnerFactory.create is "
-                    "the only"
+                    "Gate2FinancialEvidenceSuccessorRunnerFactory.create is the only"
                 ),
             }
         )

@@ -11,7 +11,11 @@ from .gate4_financial_case_materialization import (
     gate4_financial_case_fact_id,
 )
 from .ordinary_trade_projection import OrdinaryTradeProjectionFactory
-from .gate3_role_labeling import FINANCIAL_ANNOTATIONS_V2_SCHEMA_VERSION
+
+
+_FACT_V2_HISTORICAL_ANNOTATION_SCHEMA_DISCRIMINATOR = (
+    "broker_reports_financial_annotations_v2"
+)
 
 
 FACTORY_REQUIRED = (
@@ -106,7 +110,7 @@ class Gate4OrdinaryTradeCandidateRuntime:
                     "gate3_binding": {
                         "financial_annotations_artifact_id": record.artifact_id,
                         "financial_annotations_schema_version": (
-                            FINANCIAL_ANNOTATIONS_V2_SCHEMA_VERSION
+                            _FACT_V2_HISTORICAL_ANNOTATION_SCHEMA_DISCRIMINATOR
                         ),
                         "annotation_index": annotation_index,
                         "canonical_binding": copy.deepcopy(canonical_binding),
@@ -187,7 +191,7 @@ def _validate_compatibility_fact(fact: dict[str, Any]) -> None:
         or fact.get("fact_id") != gate4_financial_case_fact_id(fact)
         or not isinstance(binding, dict)
         or binding.get("financial_annotations_schema_version")
-        != FINANCIAL_ANNOTATIONS_V2_SCHEMA_VERSION
+        != _FACT_V2_HISTORICAL_ANNOTATION_SCHEMA_DISCRIMINATOR
         or not isinstance(semantic, dict)
         or set(semantic) != {"dictionary", "role_pack"}
         or not isinstance(roles, list)

@@ -25,6 +25,7 @@ from broker_reports_gate1.pdf_table_locator import (
     PDF_TABLE_LOCATOR_PROMPT,
     PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
 )
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
@@ -34,10 +35,7 @@ RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
-PINNED_IMAGE = (
-    "corp-openwebui/openwebui:"
-    "v0.9.6-native-web-stt-broker-intake-v2-8e6a71f"
-)
+PINNED_IMAGE = "corp-openwebui/openwebui:v0.9.6-native-web-stt-broker-intake-v2-8e6a71f"
 PINNED_IMAGE_ID = (
     "sha256:c862956b5a88f490de3a13829cb4176ce9a2e3fb3621ebf0198b059be65f8e83"
 )
@@ -47,9 +45,7 @@ REQUIRED_FITZ_VERSION = "1.26.5"
 
 ACTION_ID = "broker_reports_private_intake_action"
 ACTION_PATH = (
-    SERVICE_ROOT
-    / "openwebui_actions"
-    / "broker_reports_private_intake_action.py"
+    SERVICE_ROOT / "openwebui_actions" / "broker_reports_private_intake_action.py"
 )
 LOADER_PATH = ROOT / "deploy" / "openwebui-static" / "loader.js"
 
@@ -86,7 +82,8 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
     **COMMON_WORKLOAD_VALVES,
     "canonical_gate2_write_enabled": True,
     "canonical_gate2_read_enabled": True,
-    "ndfl_gate3_enabled": True,
+    "ndfl_gate3_enabled": False,
+    "ordinary_trade_candidate_enabled": True,
     "ndfl_gate3_provider_profile_id": "google_gemini",
     "ndfl_gate3_model_id": "models/gemini-3.5-flash",
     "pdf_table_intake_enabled": True,
@@ -144,9 +141,7 @@ FUNCTION_CONTRACTS = (
     FunctionReleaseContract(
         function_id="broker_reports_gate1_pipe",
         bundle_path=(
-            SERVICE_ROOT
-            / "openwebui_actions"
-            / "broker_reports_gate1_pipe_bundled.py"
+            SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate1_pipe_bundled.py"
         ),
         valves=GATE1_RELEASE_VALVES,
         required_markers=(
@@ -158,6 +153,8 @@ FUNCTION_CONTRACTS = (
             "broker_reports_fns_2ndfl_source_facts_v1",
             "Gate5DeclarationPreparationRuntimeFactory",
             "broker_reports_current_pipeline_result_v1",
+            "OrdinaryTradeProductionRuntimeFactory",
+            "ordinary_trade_exact_fingerprint_v1",
             "legacy_fallback_used",
         ),
         retired_valve_keys=GATE1_RETIRED_VALVE_KEYS,
@@ -264,7 +261,9 @@ def build_manifest(
     functions = []
     for contract in FUNCTION_CONTRACTS:
         content = normalized_text(contract.bundle_path)
-        missing = [marker for marker in contract.required_markers if marker not in content]
+        missing = [
+            marker for marker in contract.required_markers if marker not in content
+        ]
         if missing:
             raise ValueError(
                 "stage_release_bundle_required_markers_missing:"
@@ -362,9 +361,8 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         raise ValueError("stage_release_manifest_activation_policy_invalid")
     for item, contract in zip(manifest.get("functions", []), FUNCTION_CONTRACTS):
         retired = item.get("retired_valve_keys")
-        if (
-            retired != list(contract.retired_valve_keys)
-            or set(retired or []) & set((item.get("valves") or {}).keys())
+        if retired != list(contract.retired_valve_keys) or set(retired or []) & set(
+            (item.get("valves") or {}).keys()
         ):
             raise ValueError("stage_release_manifest_retired_valves_invalid")
     prompts = manifest.get("managed_prompts") or []
@@ -392,9 +390,8 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     }:
         raise ValueError("stage_release_manifest_image_invalid")
     loader = manifest.get("loader") or {}
-    if (
-        loader.get("file_name") != LOADER_PATH.name
-        or not SHA256_RE.fullmatch(str(loader.get("content_sha256") or ""))
+    if loader.get("file_name") != LOADER_PATH.name or not SHA256_RE.fullmatch(
+        str(loader.get("content_sha256") or "")
     ):
         raise ValueError("stage_release_manifest_loader_invalid")
     runtime = manifest.get("runtime") or {}

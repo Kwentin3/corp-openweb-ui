@@ -91,7 +91,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_single_current_pipeline_v1",
+            "gate1_ordinary_trade_production_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("gate3_ndfl_workflow", module._BUNDLED_MODULES)
@@ -99,6 +99,8 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("gate4_financial_case_cache", module._BUNDLED_MODULES)
         self.assertIn("gate5_real_tax_case_assembly", module._BUNDLED_MODULES)
         self.assertIn("gate5_declaration_scope_resolution", module._BUNDLED_MODULES)
+        self.assertIn("ordinary_trade_production_runtime", module._BUNDLED_MODULES)
+        self.assertIn("ordinary_trade_qualified_mappings", module._BUNDLED_MODULES)
         self.assertLess(
             module._BUNDLED_MODULE_ORDER.index("gate5_real_tax_case_assembly"),
             module._BUNDLED_MODULE_ORDER.index("gate5_declaration_scope_resolution"),

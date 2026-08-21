@@ -221,7 +221,8 @@ def evaluate_route_activation(
             and all(key not in gate1_valves for key in gate1_retired)
             and gate1_valves.get("canonical_gate2_write_enabled") is True
             and gate1_valves.get("canonical_gate2_read_enabled") is True
-            and gate1_valves.get("ndfl_gate3_enabled") is True
+            and gate1_valves.get("ordinary_trade_candidate_enabled") is True
+            and gate1_valves.get("ndfl_gate3_enabled") is False
         ),
         "source_bound_contract_identity_exact": (
             source_bound.get("active_for_new_writes") is True

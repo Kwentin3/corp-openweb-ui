@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.38.5-single-current-pipeline
+version: 0.39.0-ordinary-trade-production
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1
 """
@@ -86,6 +86,9 @@ from broker_reports_gate1 import (
 )
 from broker_reports_gate1.detectors import detect_container, extension_from_name
 from broker_reports_gate1.normalizer import NormalizationResult
+from broker_reports_gate1.ordinary_trade_production_runtime import (
+    OrdinaryTradeProductionRuntimeFactory,
+)
 from broker_reports_gate1.private_intake_bytes import (
     OpenWebUIPrivateIntakeBytesResolverFactory,
     PrivateIntakeBytesError,
@@ -126,9 +129,7 @@ from broker_reports_gate1.gate5_trusted_methodology import (
 
 
 _GATE1_WORKLOAD_SCOPE_MODEL_ID = "broker_reports_gate1_pipe"
-_GATE1_IDEMPOTENCY_POLICY_VERSION = (
-    "broker_reports_gate1_native_request_idempotency_v1"
-)
+_GATE1_IDEMPOTENCY_POLICY_VERSION = "broker_reports_gate1_native_request_idempotency_v1"
 _GATE2_USABLE_HANDOFF_STATUSES = frozenset(
     {"ready_with_safe_refs", "ready_with_reduced_subset"}
 )
@@ -158,9 +159,7 @@ class Pipe:
         workload_store_path: str = Field(default="")
         workload_temp_root: str = Field(default="")
         workload_lease_seconds: float = Field(default=90.0, ge=5.0, le=600.0)
-        workload_poll_interval_seconds: float = Field(
-            default=0.2, ge=0.05, le=5.0
-        )
+        workload_poll_interval_seconds: float = Field(default=0.2, ge=0.05, le=5.0)
         workload_provider_budgets_json: str = Field(
             default=(
                 '{"google_gemini":1,"openai_gpt":2,"anthropic_claude":1,'
@@ -198,9 +197,14 @@ class Pipe:
             default=False,
             description="Run Gate 3 only for the stable NDFL Workspace Model ID.",
         )
-        ndfl_gate3_provider_profile_id: str = Field(
-            default=NDFL_PROVIDER_PROFILE_ID
+        ordinary_trade_candidate_enabled: bool = Field(
+            default=False,
+            description=(
+                "Use the exact-qualified ordinary-trade compiler before Gate 5; "
+                "unknown schemas remain unmapped without semantic fallback."
+            ),
         )
+        ndfl_gate3_provider_profile_id: str = Field(default=NDFL_PROVIDER_PROFILE_ID)
         ndfl_gate3_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
         ndfl_gate3_private_audit_enabled: bool = Field(default=False)
         ndfl_gate3_private_audit_root: str = Field(
@@ -256,9 +260,7 @@ class Pipe:
         messages_arg = __messages__ or kwargs.get("__messages__")
         metadata = await self._server_attested_runtime_metadata(
             request=__request__,
-            metadata=(
-                __metadata__ if isinstance(__metadata__, dict) else {}
-            ),
+            metadata=(__metadata__ if isinstance(__metadata__, dict) else {}),
             user=__user__,
         )
         interaction_message = await self._trusted_interaction_message(
@@ -316,9 +318,7 @@ class Pipe:
                 access=access,
                 idempotency_key=idempotency_key,
                 safe_metadata={
-                    "idempotency_policy_version": (
-                        _GATE1_IDEMPOTENCY_POLICY_VERSION
-                    ),
+                    "idempotency_policy_version": (_GATE1_IDEMPOTENCY_POLICY_VERSION),
                     "idempotency_key_present": idempotency_key is not None,
                     "source_refs_total": len(file_refs),
                 },
@@ -434,9 +434,7 @@ class Pipe:
             return None
         material = json.dumps(
             {
-                "policy_version": (
-                    _GATE1_IDEMPOTENCY_POLICY_VERSION
-                ),
+                "policy_version": (_GATE1_IDEMPOTENCY_POLICY_VERSION),
                 "user_id": access.user_id,
                 "case_id": access.case_id,
                 "chat_id": access.chat_id,
@@ -471,8 +469,7 @@ class Pipe:
             )
         if state == "failed":
             return (
-                "Broker Reports processing failed. "
-                "No completed result was published."
+                "Broker Reports processing failed. No completed result was published."
             )
         if state == "cancelled":
             return (
@@ -669,14 +666,15 @@ class Pipe:
                 request=__request__,
                 event_emitter=__event_emitter__,
             ),
-            enabled=bool(self.valves.ndfl_gate3_enabled),
+            enabled=(
+                bool(self.valves.ndfl_gate3_enabled)
+                and not bool(self.valves.ordinary_trade_candidate_enabled)
+            ),
             provider_id=self.valves.ndfl_gate3_provider_profile_id,
         )
         self._finalize_workload_publication(
             gate2_handoff_status=str(
-                result.package.get("normalization_run", {}).get(
-                    "gate2_handoff_status"
-                )
+                result.package.get("normalization_run", {}).get("gate2_handoff_status")
                 or ""
             )
         )
@@ -699,11 +697,22 @@ class Pipe:
             )
         chat_content = render_chat_content(result.safe_report)
         if ndfl_gate3.get("status") == "completed":
+            semantic_status = (
+                "Обычные сделки с ценными бумагами обработаны по "
+                "квалифицированной точной схеме; неизвестные строки сохранены "
+                "без догадок."
+                if ndfl_gate3.get("route_owner")
+                == "ordinary_trade_exact_fingerprint_v1"
+                else (
+                    "Gate 3: финансовые типы и их роли сохранены для "
+                    "текущей версии документа."
+                )
+            )
             chat_content = "\n".join(
                 [
                     chat_content,
                     "",
-                    "Gate 3: финансовые типы и их роли сохранены для текущей версии документа.",
+                    semantic_status,
                 ]
             )
         product = ndfl_gate3.get("product")
@@ -756,7 +765,8 @@ class Pipe:
         request: Any,
         event_emitter: Any,
     ) -> dict[str, Any]:
-        if not self.valves.ndfl_gate3_enabled:
+        candidate_enabled = bool(self.valves.ordinary_trade_candidate_enabled)
+        if not candidate_enabled and not self.valves.ndfl_gate3_enabled:
             return {
                 "schema_version": "broker_reports_ndfl_gate3_product_run_v1",
                 "enabled": False,
@@ -770,17 +780,36 @@ class Pipe:
             or not self.valves.canonical_gate2_read_enabled
         ):
             raise NdflWorkflowError("ndfl_gate2_canonical_lifecycle_disabled")
-        if self.valves.ndfl_gate3_provider_profile_id != NDFL_PROVIDER_PROFILE_ID:
-            raise NdflWorkflowError("ndfl_provider_profile_binding_mismatch")
-        if self.valves.ndfl_gate3_model_id != NDFL_PROVIDER_MODEL_ID:
-            raise NdflWorkflowError("ndfl_provider_model_binding_mismatch")
-
         refs_by_type = getattr(artifact_manifest, "artifact_refs_by_type", None)
         canonical_refs = (
             list(refs_by_type.get("broker_reports_canonical_artifact_v1") or [])
             if isinstance(refs_by_type, dict)
             else []
         )
+        if len(canonical_refs) != len(set(canonical_refs)):
+            raise NdflWorkflowError("ndfl_gate2_canonical_artifact_duplicate")
+        if candidate_enabled:
+            await self._emit(
+                event_emitter,
+                "Compiling exact-qualified ordinary trades and running Gate 5...",
+                done=False,
+            )
+            return (
+                OrdinaryTradeProductionRuntimeFactory(
+                    store=store,
+                    read_enabled=True,
+                )
+                .create()
+                .run(
+                    canonical_artifact_refs=canonical_refs,
+                    context=context,
+                )
+            )
+        if self.valves.ndfl_gate3_provider_profile_id != NDFL_PROVIDER_PROFILE_ID:
+            raise NdflWorkflowError("ndfl_provider_profile_binding_mismatch")
+        if self.valves.ndfl_gate3_model_id != NDFL_PROVIDER_MODEL_ID:
+            raise NdflWorkflowError("ndfl_provider_model_binding_mismatch")
+
         if not canonical_refs:
             persisted_annotations_artifact_id = (
                 self._persisted_gate3_annotations_artifact_id(
@@ -804,9 +833,7 @@ class Pipe:
                     "provider_calls_total": 0,
                     "canonical_version_ids": [],
                     "canonical_root_sha256": [],
-                    "annotations_artifact_ids": [
-                        persisted_annotations_artifact_id
-                    ],
+                    "annotations_artifact_ids": [persisted_annotations_artifact_id],
                     "gate2_mutation": "none",
                     "persisted_gate3_continuation": True,
                     "private_audit": {
@@ -816,9 +843,6 @@ class Pipe:
                     "product": product,
                 }
             raise NdflWorkflowError("ndfl_gate2_canonical_artifact_missing")
-        if len(canonical_refs) != len(set(canonical_refs)):
-            raise NdflWorkflowError("ndfl_gate2_canonical_artifact_duplicate")
-
         await self._emit(
             event_emitter,
             "NDFL is activating exact Gate 2 versions and running Gate 3...",
@@ -875,8 +899,7 @@ class Pipe:
                 for execution in executions
             ],
             "annotations_artifact_ids": [
-                execution.gate3.annotations_artifact_id
-                for execution in executions
+                execution.gate3.annotations_artifact_id for execution in executions
             ],
             "gate2_mutation": "none",
             "private_audit": audit,
@@ -893,15 +916,12 @@ class Pipe:
         candidates = [
             record
             for record in resolver.catalog_run(context)
-            if record.artifact_type
-            == GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE
+            if record.artifact_type == GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE
         ]
         if not candidates:
             return None
         if len(candidates) != 1:
-            raise NdflWorkflowError(
-                "ndfl_gate3_financial_annotations_ambiguous"
-            )
+            raise NdflWorkflowError("ndfl_gate3_financial_annotations_ambiguous")
         resolver.resolve_record(candidates[0].artifact_id, context)
         return candidates[0].artifact_id
 
@@ -927,33 +947,39 @@ class Pipe:
         store: Any,
         context: ArtifactAccessContext,
     ) -> dict[str, Any]:
-        financial_case = Gate4FinancialCaseRuntimeFactory(
-            store=store,
-            read_enabled=True,
-        ).create().rebuild_case(context=context)
-        preparation = Gate5DeclarationPreparationRuntimeFactory(
-            store=store,
-            read_enabled=True,
-        ).create().prepare(
-            source_fact_methodology_ref={
-                "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
-                "methodology_id": (
-                    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID
-                ),
-                "methodology_version": (
-                    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
-                ),
-            },
-            context=context,
-            evidence_mode="REAL_EVIDENCE",
-            user_intent={
-                "schema_version": GATE5_USER_INTENT_SCHEMA_VERSION,
-                "form": "3-NDFL",
-                "tax_period": "2025",
-                "task": "prepare_tax_declaration",
-                "domains": ["broker_securities_income"],
-            },
-            user_case_facts=[],
+        financial_case = (
+            Gate4FinancialCaseRuntimeFactory(
+                store=store,
+                read_enabled=True,
+            )
+            .create()
+            .rebuild_case(context=context)
+        )
+        preparation = (
+            Gate5DeclarationPreparationRuntimeFactory(
+                store=store,
+                read_enabled=True,
+            )
+            .create()
+            .prepare(
+                source_fact_methodology_ref={
+                    "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+                    "methodology_id": (GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID),
+                    "methodology_version": (
+                        GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION
+                    ),
+                },
+                context=context,
+                evidence_mode="REAL_EVIDENCE",
+                user_intent={
+                    "schema_version": GATE5_USER_INTENT_SCHEMA_VERSION,
+                    "form": "3-NDFL",
+                    "tax_period": "2025",
+                    "task": "prepare_tax_declaration",
+                    "domains": ["broker_securities_income"],
+                },
+                user_case_facts=[],
+            )
         )
         return {
             "schema_version": "broker_reports_current_pipeline_result_v1",
@@ -983,9 +1009,8 @@ class Pipe:
         if user_actions:
             first = user_actions[0]
             question = str(first.get("question") or "").strip()
-            return (
-                "Расчёт остановлен без догадок. Нужны подтверждённые данные"
-                + (": " + question if question else ".")
+            return "Расчёт остановлен без догадок. Нужны подтверждённые данные" + (
+                ": " + question if question else "."
             )
         internal_actions = closure.get("internal_owner_required_actions")
         internal_actions = (
@@ -997,6 +1022,7 @@ class Pipe:
                 "дополнительный документ у пользователя не запрашивается."
             )
         return "Расчёт остановлен: обязательные данные пока неполны."
+
     def _write_ndfl_private_audit(self, executions: list[Any]) -> dict[str, Any]:
         if not self.valves.ndfl_gate3_private_audit_enabled:
             return {"enabled": False, "status": "disabled"}
@@ -1095,9 +1121,7 @@ class Pipe:
                 "attempts": attempts,
                 "merged_output": execution.gate3.batch_result.merged_output,
                 "financial_annotations_v2": execution.gate3.annotations_payload,
-                "annotations_artifact_id": (
-                    execution.gate3.annotations_artifact_id
-                ),
+                "annotations_artifact_id": (execution.gate3.annotations_artifact_id),
                 "canonical_after_gate3": self._ndfl_envelope_audit(
                     execution.canonical_after_gate3
                 ),
@@ -2406,9 +2430,7 @@ class Pipe:
                     self.valves.workload_provider_budgets_json
                 ),
                 lease_seconds=float(self.valves.workload_lease_seconds),
-                poll_interval_seconds=float(
-                    self.valves.workload_poll_interval_seconds
-                ),
+                poll_interval_seconds=float(self.valves.workload_poll_interval_seconds),
             )
         ).create()
 
@@ -2928,10 +2950,11 @@ class Pipe:
             messages_arg,
         ):
             for item in self._message_iter(source):
-                if (
-                    not isinstance(item, dict)
-                    or item.get("role") in {"assistant", "system", "tool"}
-                ):
+                if not isinstance(item, dict) or item.get("role") in {
+                    "assistant",
+                    "system",
+                    "tool",
+                }:
                     continue
                 content_value = item.get("content")
                 text = self._message_text(
@@ -2984,9 +3007,7 @@ class Pipe:
             return value
         if isinstance(value, list):
             return "\n".join(
-                part
-                for item in value
-                if (part := cls._message_text(item))
+                part for item in value if (part := cls._message_text(item))
             )
         if isinstance(value, dict):
             for key in ("text", "input_text", "content", "value"):
@@ -3051,10 +3072,7 @@ class Pipe:
         result["chat_id"] = chat_id
         chat_payload = chat.chat if isinstance(chat.chat, dict) else {}
         models = chat_payload.get("models")
-        if (
-            isinstance(models, list)
-            and NDFL_WORKSPACE_MODEL_STABLE_ID in models
-        ):
+        if isinstance(models, list) and NDFL_WORKSPACE_MODEL_STABLE_ID in models:
             result["model_id"] = NDFL_WORKSPACE_MODEL_STABLE_ID
         return result
 
@@ -3103,9 +3121,7 @@ class Pipe:
             else {}
         )
         candidates = []
-        for message_id, message in (
-            history.items() if isinstance(history, dict) else ()
-        ):
+        for message_id, message in history.items() if isinstance(history, dict) else ():
             if not isinstance(message, dict) or message.get("role") != "user":
                 continue
             text = self._message_text(message.get("content"))
@@ -3113,11 +3129,7 @@ class Pipe:
                 continue
             candidates.append(
                 (
-                    float(
-                        message.get("timestamp")
-                        or message.get("created_at")
-                        or 0
-                    ),
+                    float(message.get("timestamp") or message.get("created_at") or 0),
                     str(message_id),
                     text,
                 )
