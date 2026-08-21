@@ -1,0 +1,99 @@
+{
+  "schema_version": "broker_reports_ordinary_trade_candidate_receipt_v1",
+  "verdict": "ORDINARY_TRADE_SEMANTIC_COMPILER_PRODUCTION_CANDIDATE_READY",
+  "production_activated": false,
+  "legacy_fallback_used": false,
+  "broker_or_year_special_profiles": 0,
+  "candidate_route": [
+    "verified_source_pdf",
+    "active_immutable_canonical",
+    "exact_fingerprint_schema_mapping",
+    "source_observations",
+    "deterministic_runtime_records",
+    "existing_gate4_fact_v2_shape",
+    "unchanged_gate5_deterministic_consumer"
+  ],
+  "metrics": {
+    "source_records_accounted": {
+      "numerator": 899,
+      "denominator": 899,
+      "percent": 100.0
+    },
+    "emitted_runtime_values_traced": {
+      "numerator": 768,
+      "denominator": 768,
+      "percent": 100.0
+    },
+    "gate5_required_facts_supplied": {
+      "numerator": 60,
+      "denominator": 60,
+      "percent": 100.0
+    },
+    "broker_or_year_special_profiles": 0,
+    "exact_repeatability": true
+  },
+  "cases": [
+    {
+      "alias": "sber_2024",
+      "expected_supported": true,
+      "full_canonical_tables_seen": 14,
+      "source_pdf_sha256_matches_canonical": true,
+      "source_records_accounted": 197,
+      "runtime_ready_source_records": 45,
+      "relevant_unmapped_source_records": 152,
+      "runtime_records": 128,
+      "runtime_values_traced": 602,
+      "required_gate5_facts": 45,
+      "supplied_gate5_facts": 45,
+      "gate5_security_facts_ready": 45,
+      "gate5_document_status": "SOURCE_EVIDENCE_INSUFFICIENT",
+      "gate5_blocker_reason_codes": [
+        "gate5_source_fact_acquisition_quantity_insufficient"
+      ],
+      "exact_projection_repeatability": true,
+      "exact_gate4_fact_repeatability": true,
+      "passed": true
+    },
+    {
+      "alias": "vtb_2024",
+      "expected_supported": true,
+      "full_canonical_tables_seen": 24,
+      "source_pdf_sha256_matches_canonical": true,
+      "source_records_accounted": 529,
+      "runtime_ready_source_records": 15,
+      "relevant_unmapped_source_records": 514,
+      "runtime_records": 34,
+      "runtime_values_traced": 166,
+      "required_gate5_facts": 15,
+      "supplied_gate5_facts": 15,
+      "gate5_security_facts_ready": 15,
+      "gate5_document_status": "SOURCE_EVIDENCE_INSUFFICIENT",
+      "gate5_blocker_reason_codes": [
+        "gate5_source_fact_acquisition_quantity_insufficient"
+      ],
+      "exact_projection_repeatability": true,
+      "exact_gate4_fact_repeatability": true,
+      "passed": true
+    },
+    {
+      "alias": "bks_2025_repo",
+      "expected_supported": false,
+      "full_canonical_tables_seen": 10,
+      "source_pdf_sha256_matches_canonical": true,
+      "source_records_accounted": 173,
+      "runtime_ready_source_records": 0,
+      "relevant_unmapped_source_records": 173,
+      "runtime_records": 0,
+      "runtime_values_traced": 0,
+      "required_gate5_facts": 0,
+      "supplied_gate5_facts": 0,
+      "gate5_security_facts_ready": 0,
+      "gate5_document_status": "NOT_ACTIVATED_FOR_SUPPORTED_SCOPE",
+      "gate5_blocker_reason_codes": [],
+      "exact_projection_repeatability": true,
+      "exact_gate4_fact_repeatability": true,
+      "passed": true
+    }
+  ],
+  "private_evidence_outside_repository": true
+}
