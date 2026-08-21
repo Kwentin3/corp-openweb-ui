@@ -24,9 +24,12 @@ G572_SCRIPT = SCRIPTS / "live_g572_visual_markdown_microstand.py"
 def test_one_financial_runtime_path_and_one_inactive_metadata_candidate() -> None:
     authority = AUTHORITY.read_text(encoding="utf-8")
 
-    assert "FINANCIAL — PRODUCT/NORMATIVE" in authority
+    assert "ORDINARY SECURITY TRADES — ACTIVE PRODUCT/NORMATIVE" in authority
+    assert "OrdinaryTradeProductionRuntimeFactory.create" in authority
+    assert "OrdinaryTradeQualifiedMappingAuthorityFactory.create" in authority
     assert "Gate3ChunkBatchLabelingFactory.create" in authority
     assert "Gate4FinancialCaseRuntimeFactory.create" in authority
+    assert "HISTORICAL GATE 3 ROUTE — DEPLOYMENT ROLLBACK ONLY" in authority
     assert "VISUAL METADATA — SINGLE SUPPORTING CANDIDATE, NOT PRODUCT-ACTIVE" in (
         authority
     )
@@ -127,7 +130,12 @@ def test_existing_region_owner_is_table_only_not_a_hidden_metadata_selector() ->
 def test_cold_agent_navigation_answers_are_unambiguous() -> None:
     authority = AUTHORITY.read_text(encoding="utf-8")
 
-    assert "Canonical -> Gate 3 -> Gate 4" in authority
+    assert (
+        "Canonical -> exact qualified mapping -> Source Observation/runtime record "
+        "-> Gate 4 Fact v2 adapter"
+        in authority
+    )
+    assert "Current Gate 3 is not executed" in authority
     assert (
         "visual region -> existing VLM -> faithful Markdown -> metadata adapter"
         in authority

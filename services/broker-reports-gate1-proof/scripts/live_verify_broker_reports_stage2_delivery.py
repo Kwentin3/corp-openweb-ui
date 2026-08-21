@@ -28,6 +28,10 @@ import live_update_function_and_passport_prompt as gate1_update  # noqa: E402
 import live_update_gate2_domain_function_and_prompts as domain_update  # noqa: E402
 import live_update_gate2_function_and_prompt as source_update  # noqa: E402
 from broker_reports_gate1 import GATE2_PROVIDER_PROFILES  # noqa: E402
+from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
+    GATE1_RETIRED_VALVE_KEYS,
+    RETIRED_FUNCTION_IDS,
+)
 from live_no_rag_source_intake_smoke import (  # noqa: E402
     _base_url,
     _default_ssh_target,
@@ -53,54 +57,16 @@ FUNCTION_CONTRACTS = (
             "Gate2StructuredModelClientFactory",
             "Gate2ProviderAdapterFactory",
             "gate2_provider_execution_metadata_v1",
-            "PdfGridExperimentProviderFactory",
+            "PdfTableLocatorProviderFactory",
             "PdfTableIntakeRuntimeFactory",
             "PdfTableLocatorProjectionFactory",
             "broker_reports_pdf_table_locator_response_v1",
             "broker_reports_pdf_table_locator_projection_v1",
             "vlm_located_pdfplumber_source_bound",
             "pdf_table_normalization_incomplete",
-            "PdfContinuationDiscoveryFactory",
-            "PdfStructuralRowWindowFactory",
-            "PdfStructuralRepairRuntimeFactory",
-            "PdfStructuralRepairShadowFactory",
-            "pdf_structural_row_window_policy_v1",
-            "pdf_structural_repair_runtime_policy_v1",
-            "broker_reports_pdf_structural_repair_continuation_result_v1",
-            "broker_reports_pdf_continuation_materialization_v1",
-            "run_continuation_group",
-            "run_windowed_target",
-        ),
-    ),
-    FunctionContract(
-        function_id=source_update.FUNCTION_ID,
-        bundle_path=source_update.BUNDLE_PATH,
-        required_markers=(
-            "Gate2SourceFactRuntimeFactory",
-            "Gate2StructuredModelClientFactory",
-            "Gate2OpenWebUIStructuredModelClient",
-            "Gate2ProviderAdapterFactory",
-            "gate2_provider_execution_metadata_v1",
-            "allow_standalone_semantic_visual_projections",
-            "AnswerContextSelectionFactory",
-            "broker_reports_answer_context_selection_receipt_v1",
-        ),
-    ),
-    FunctionContract(
-        function_id=domain_update.FUNCTION_ID,
-        bundle_path=domain_update.BUNDLE_PATH,
-        required_markers=(
-            "Gate2DomainSourceFactRuntimeFactory",
-            "Gate2CandidateBindingRuntimeFactory",
-            "Gate2StructuredModelClientFactory",
-            "Gate2ProviderAdapterFactory",
-            "gate2_provider_execution_metadata_v1",
-            "AnswerContextSelectionFactory",
-            "broker_reports_answer_context_selection_receipt_v1",
-            "Gate2FinancialEvidenceProductionRuntimeFactory",
-            "broker_reports_gate2_financial_evidence_registry_v1",
-            "broker_reports_gate2_financial_context_v1",
-            "financial_evidence_enabled",
+            "Gate2TablePackageFactory",
+            "Gate5DeclarationPreparationRuntimeFactory",
+            "broker_reports_current_pipeline_result_v1",
         ),
     ),
 )
@@ -155,6 +121,16 @@ def main() -> int:
         )
         for contract in function_contracts
     ]
+    retired_function_checks = [
+        {
+            "function_id": function_id,
+            "inactive": (
+                (value := _get_live_function(session, base_url, function_id)) is None
+                or value.get("is_active") in (False, 0, None)
+            ),
+        }
+        for function_id in RETIRED_FUNCTION_IDS
+    ]
     gate1_valves = _get_live_function_valves(
         session,
         base_url,
@@ -184,6 +160,9 @@ def main() -> int:
     }
     checks = {
         "all_function_bundles_match": all(item["passed"] for item in function_checks),
+        "retired_functions_inactive": all(
+            item["inactive"] for item in retired_function_checks
+        ),
         "all_managed_prompts_match": all(item["passed"] for item in prompt_checks),
         "provider_profiles_complete": provider_profile_ids
         == [
@@ -222,32 +201,14 @@ def main() -> int:
             "zai_glm": ["glm-"],
         },
         "repository_factory_boundary_passed": all(repository_boundary.values()),
-        "gate1_structural_shadow_disabled_after_canary": gate1_operational_state[
-            "structural_shadow_disabled"
+        "gate1_retired_table_valves_absent": gate1_operational_state[
+            "retired_table_valves_absent"
         ],
-        "gate1_guided_intake_shadow_disabled_after_canary": (
-            gate1_operational_state["guided_intake_shadow_disabled"]
-        ),
-        "gate1_guided_page_allowlist_empty_after_canary": (
-            gate1_operational_state["guided_page_allowlist_empty"]
-        ),
-        "gate1_semantic_header_shadow_disabled_after_canary": (
-            gate1_operational_state["semantic_header_shadow_disabled"]
-        ),
         "gate1_structural_runtime_dependency_ready": gate1_operational_state[
             "fitz_version_match"
         ],
         "gate1_pdf_table_intake_default_on": gate1_operational_state[
             "table_intake_enabled"
-        ],
-        "gate1_pdf_dual_vlm_default_off": gate1_operational_state[
-            "dual_vlm_disabled"
-        ],
-        "gate1_semantic_downstream_default_off": gate1_operational_state[
-            "semantic_downstream_disabled"
-        ],
-        "gate1_semantic_migration_identity_exact": gate1_operational_state[
-            "semantic_migration_identity_exact"
         ],
         "gate1_pdf_table_intake_provider_configured": gate1_operational_state[
             "table_intake_provider_configured"
@@ -271,6 +232,7 @@ def main() -> int:
         "scope": args.scope,
         "checks": checks,
         "functions": function_checks,
+        "retired_functions": retired_function_checks,
         "managed_prompts": prompt_checks,
         "managed_prompts_total": len(prompt_checks),
         "provider_profiles": provider_profile_ids,
@@ -403,25 +365,7 @@ def evaluate_gate1_operational_state(
     valves: dict[str, Any],
     fitz_version: str,
 ) -> dict[str, Any]:
-    shadow_value = valves.get("pdf_structural_repair_shadow_enabled", False)
-    guided_value = valves.get(
-        "pdf_vlm_guided_intake_shadow_enabled", False
-    )
-    page_allowlist = valves.get(
-        "pdf_vlm_guided_intake_shadow_page_allowlist", ""
-    )
-    semantic_value = valves.get("pdf_semantic_header_shadow_enabled", False)
     table_intake_enabled = valves.get("pdf_table_intake_enabled", False)
-    dual_vlm_enabled = valves.get("pdf_dual_vlm_enabled", False)
-    semantic_downstream_enabled = valves.get(
-        "pdf_semantic_visual_table_downstream_enabled", False
-    )
-    semantic_migration_policy = valves.get(
-        "pdf_semantic_visual_table_migration_policy_version"
-    )
-    semantic_profile = valves.get(
-        "pdf_semantic_visual_table_accepted_profile_id"
-    )
     table_intake_provider = valves.get("pdf_table_intake_provider_profile")
     table_intake_model = valves.get("pdf_table_intake_model_id")
     table_intake_dpi = valves.get("pdf_table_intake_dpi")
@@ -436,20 +380,10 @@ def evaluate_gate1_operational_state(
         "pdf_table_intake_maximum_candidates_per_page"
     )
     return {
-        "structural_shadow_disabled": shadow_value is False,
-        "guided_intake_shadow_disabled": guided_value is False,
-        "guided_page_allowlist_empty": isinstance(page_allowlist, str)
-        and not page_allowlist.strip(),
-        "semantic_header_shadow_disabled": semantic_value is False,
-        "table_intake_enabled": table_intake_enabled is True,
-        "dual_vlm_disabled": dual_vlm_enabled is False,
-        "semantic_downstream_disabled": semantic_downstream_enabled is False,
-        "semantic_migration_identity_exact": (
-            semantic_migration_policy
-            == "broker_reports_semantic_visual_table_migration_policy_v1"
-            and semantic_profile
-            == "broker_reports_semantic_visual_financial_profile_v2"
+        "retired_table_valves_absent": all(
+            key not in valves for key in GATE1_RETIRED_VALVE_KEYS
         ),
+        "table_intake_enabled": table_intake_enabled is True,
         "table_intake_provider_configured": table_intake_provider
         == "google_gemini",
         "table_intake_model_configured": table_intake_model

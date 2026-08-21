@@ -104,11 +104,10 @@ def _desired_product_valves(
     *,
     audit_id: str,
 ) -> dict[str, Any]:
-    return {
+    desired = {
         **current,
         "canonical_gate2_write_enabled": True,
         "canonical_gate2_read_enabled": True,
-        "canonical_gate2_compare_enabled": True,
         "ndfl_gate3_enabled": True,
         "ndfl_gate3_provider_profile_id": NDFL_PROVIDER_PROFILE_ID,
         "ndfl_gate3_model_id": NDFL_PROVIDER_MODEL_ID,
@@ -118,27 +117,29 @@ def _desired_product_valves(
         ),
         "ndfl_gate3_private_audit_id": audit_id,
     }
+    desired.pop("canonical_gate2_compare_enabled", None)
+    return desired
 
 
 def _final_product_valves(current: dict[str, Any]) -> dict[str, Any]:
-    return {
+    desired = {
         **current,
         "canonical_gate2_write_enabled": True,
         "canonical_gate2_read_enabled": True,
-        "canonical_gate2_compare_enabled": True,
         "ndfl_gate3_enabled": True,
         "ndfl_gate3_provider_profile_id": NDFL_PROVIDER_PROFILE_ID,
         "ndfl_gate3_model_id": NDFL_PROVIDER_MODEL_ID,
         "ndfl_gate3_private_audit_enabled": False,
         "ndfl_gate3_private_audit_id": "",
     }
+    desired.pop("canonical_gate2_compare_enabled", None)
+    return desired
 
 
 def _assert_valves(actual: dict[str, Any], expected: dict[str, Any]) -> None:
     required = {
         "canonical_gate2_write_enabled",
         "canonical_gate2_read_enabled",
-        "canonical_gate2_compare_enabled",
         "ndfl_gate3_enabled",
         "ndfl_gate3_provider_profile_id",
         "ndfl_gate3_model_id",

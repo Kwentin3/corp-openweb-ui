@@ -444,7 +444,35 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     allowed_standalone_contract_authorities = {
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate4_ordinary_trade_candidate.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_semantic_compiler.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_projection.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_candidate_runtime.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_qualified_mappings.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_production_runtime.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "pdf_table_locator.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_table_locator_provider.py"
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
@@ -570,10 +598,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate5_declaration_projection.py"
         ),
-            (
-                "services/broker-reports-gate1-proof/broker_reports_gate1/"
-                "gate5_securities_disposal_tax_model.py"
-            ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_securities_disposal_tax_model.py"
+        ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate5_tax_period_category_aggregation.py"
@@ -761,6 +789,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "visual_pdfplumber_table_plan.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_grid_experiment_provider.py"
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"

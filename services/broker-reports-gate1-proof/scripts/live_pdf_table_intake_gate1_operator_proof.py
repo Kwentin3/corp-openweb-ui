@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove source-bound PDF table normalization through live OpenWebUI."""
+"""Prove the single current Broker Reports pipeline through live OpenWebUI."""
 
 from __future__ import annotations
 
@@ -120,7 +120,7 @@ def main() -> int:
             uploads=uploads,
         )
         summary = {
-            "schema_version": "broker_reports_pdf_table_intake_gate1_operator_proof_v2",
+            "schema_version": "broker_reports_pdf_table_intake_gate1_operator_proof_v3",
             "status": "passed" if all(checks.values()) else "failed",
             "repository_revision": revision,
             "case_id": case_id,
@@ -256,16 +256,16 @@ def _run_chat(
                     "ttl_seconds": 24 * 60 * 60,
                 },
                 "customer_docs_loaded_to_knowledge": False,
-                "source_fact_extraction": False,
                 "ocr_vlm": False,
             },
             "messages": [
                 {
                     "role": "user",
                     "content": (
-                        "Gate 1 normalization. Run the supported PDF table "
-                        "detection and crop path. Do not use Knowledge/RAG, "
-                        "infer table cells, interpret financial values, or run Gate 2."
+                        "This is a broker report that may contain several independent "
+                        "tables. Run the single current Broker Reports pipeline. "
+                        "Keep table boundaries and source values separate; do not use "
+                        "Knowledge/RAG or legacy recovery routes."
                     ),
                     "files": files,
                 }
@@ -306,7 +306,7 @@ def _create_native_chat(
         "parentId": None,
         "childrenIds": [assistant_message_id],
         "role": "user",
-        "content": "Run the supported source-bound PDF table normalization path.",
+        "content": "Run the single current Broker Reports pipeline for this PDF.",
         "files": files,
     }
     assistant_message = {
@@ -318,7 +318,7 @@ def _create_native_chat(
         "model": workspace_model_id,
     }
     chat = {
-        "title": "Synthetic source-bound PDF table smoke",
+        "title": "Current Broker Reports pipeline proof",
         "models": [workspace_model_id],
         "params": {},
         "history": {
@@ -543,10 +543,10 @@ def _projection_is_source_bound(item: dict[str, Any]) -> bool:
         item.get("validation_status") == "validated"
         and item.get("lifecycle_status") == "private_ready"
         and metadata.get("table_origin")
-        == "vlm_located_pdfplumber_source_bound"
+        == "deterministic_neutral_canonical_table"
         and metadata.get("projection_status") == "ready"
         and metadata.get("table_candidate_status")
-        == "validated_source_bound_geometry"
+        == "canonical_table_accepted"
         and metadata.get("coverage_status") == "complete"
         and metadata.get("reconstruction_quality") in {"low", "medium", "high"}
         and int(metadata.get("row_count") or 0) > 0

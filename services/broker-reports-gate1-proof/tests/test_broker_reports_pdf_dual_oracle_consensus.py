@@ -207,15 +207,18 @@ class PdfDualOracleContractTests(unittest.TestCase):
                 shared_column_count=12,
             )
 
-    def test_runtime_modules_are_routed_but_replay_stays_out_of_production_bundle(self) -> None:
+    def test_research_modules_stay_out_of_production_bundle(self) -> None:
         service_root = Path(__file__).resolve().parents[1]
         bundle_builder = (
             service_root / "scripts" / "build_openwebui_pipe_bundle.py"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("pdf_dual_oracle_contracts", bundle_builder)
-        self.assertIn("pdf_dual_oracle_consensus", bundle_builder)
-        self.assertNotIn("pdf_dual_oracle_replay", bundle_builder)
+        for module_name in (
+            "pdf_dual_oracle_contracts",
+            "pdf_dual_oracle_consensus",
+            "pdf_dual_oracle_replay",
+        ):
+            self.assertNotIn(module_name, bundle_builder)
 
 
 class PdfDualOracleConsensusTests(unittest.TestCase):

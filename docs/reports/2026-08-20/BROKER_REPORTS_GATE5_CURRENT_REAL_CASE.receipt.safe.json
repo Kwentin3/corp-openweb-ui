@@ -1,0 +1,70 @@
+{
+  "active_demands": [
+    {
+      "demand": "obl_declaration_budget_disposition",
+      "gap_owner_classification": "USER_CASE_FACT_MISSING",
+      "terminal": "MISSING_EVIDENCE"
+    },
+    {
+      "demand": "obl_filing_instance_identity",
+      "gap_owner_classification": "USER_CASE_FACT_MISSING",
+      "terminal": "MISSING_EVIDENCE"
+    },
+    {
+      "demand": "obl_foreign_source_taxable_income_and_foreign_tax",
+      "gap_owner_classification": "METHODOLOGY_RULE_MISSING",
+      "terminal": "METHODOLOGY_UNRESOLVED"
+    },
+    {
+      "demand": "obl_income_group_tax_base_results",
+      "gap_owner_classification": "METHODOLOGY_RULE_MISSING",
+      "terminal": "METHODOLOGY_UNRESOLVED"
+    },
+    {
+      "demand": "obl_income_group_tax_settlement_results",
+      "gap_owner_classification": "METHODOLOGY_RULE_MISSING",
+      "terminal": "METHODOLOGY_UNRESOLVED"
+    },
+    {
+      "demand": "obl_russian_source_taxable_income",
+      "gap_owner_classification": "METHODOLOGY_RULE_MISSING",
+      "terminal": "METHODOLOGY_UNRESOLVED"
+    },
+    {
+      "demand": "obl_securities_and_derivatives_results",
+      "gap_owner_classification": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+      "terminal": "SOURCE_EVIDENCE_INSUFFICIENT"
+    },
+    {
+      "demand": "obl_signer_and_representation_authority",
+      "gap_owner_classification": "USER_CASE_FACT_MISSING",
+      "terminal": "MISSING_EVIDENCE"
+    },
+    {
+      "demand": "obl_taxpayer_identity_and_period_status",
+      "gap_owner_classification": "USER_CASE_FACT_MISSING",
+      "terminal": "MISSING_EVIDENCE"
+    }
+  ],
+  "advisory_actions": 1,
+  "classification_counts": {
+    "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT": 1,
+    "METHODOLOGY_RULE_MISSING": 4,
+    "USER_CASE_FACT_MISSING": 4
+  },
+  "internal_required": 2,
+  "legacy_fallback_used": false,
+  "provider_calls": 0,
+  "required_actions": 10,
+  "status": "PREPARATION_INCOMPLETE",
+  "terminals": [
+    "EVIDENCE_INTAKE_CONTRACT_PROVEN",
+    "CLIENT_EVIDENCE_REVIEW_PROVEN",
+    "DECLARATION_SCOPE_ACTIVATION_PROVEN",
+    "HUMAN_GAP_CLOSURE_LOOP_PROVEN",
+    "RESIDENCY_EVIDENCE_BOUNDARY_PROVEN",
+    "DECLARATION_PREPARATION_WORKFLOW_PROVEN",
+    "REAL_EVIDENCE_GAPS_REMAIN"
+  ],
+  "user_required": 8
+}

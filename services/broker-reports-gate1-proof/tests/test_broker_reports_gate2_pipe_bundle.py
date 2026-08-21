@@ -279,7 +279,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         ):
             self.assertIn(module_name, source)
         self.assertIn("prefer_table_projections", source)
-        self.assertIn("allow_standalone_semantic_visual_projections", source)
+        self.assertNotIn("allow_standalone_semantic_visual_projections", source)
         self.assertIn(
             "Gate2FinancialEvidenceProductionRuntimeFactory", source
         )
@@ -301,7 +301,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
         self.assertTrue(pipe.valves.segmentation_enabled)
         self.assertFalse(pipe.valves.prefer_table_projections)
         self.assertFalse(
-            pipe.valves.allow_standalone_semantic_visual_projections
+            hasattr(pipe.valves, "allow_standalone_semantic_visual_projections")
         )
         self.assertFalse(pipe.valves.candidate_binding_enabled)
         self.assertTrue(pipe.valves.answer_context_selection_enabled)
@@ -381,7 +381,7 @@ class BrokerReportsGate2PipeBundleTest(unittest.TestCase):
 
         module = load_domain_bundle_module()
         order = module._BUNDLED_MODULE_ORDER
-        self.assertIn("visual_table_review_contracts", order)
+        self.assertNotIn("visual_table_review_contracts", order)
         self.assertNotIn("pdf_structural_repair_runtime", order)
         self.assertNotIn("pdf_structural_row_windows", order)
         self.assertNotIn("pdf_structural_repair_shadow", order)

@@ -822,7 +822,7 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(result.execution_metadata.provider_id, "google")
         self.assertEqual(result.execution_metadata.provider_profile_id, "google_gemini")
         self.assertEqual(result.execution_metadata.adapter_id, "gemini_response_format")
-        self.assertEqual(result.execution_metadata.adapter_version, "1.6.0")
+        self.assertEqual(result.execution_metadata.adapter_version, "1.7.0")
         self.assertEqual(result.execution_metadata.schema_transform_count, 4)
         self.assertEqual(
             len(result.execution_metadata.canonical_request_schema_hash),

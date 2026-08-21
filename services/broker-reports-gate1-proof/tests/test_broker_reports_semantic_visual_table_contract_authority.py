@@ -78,17 +78,17 @@ def test_boundary_parse_is_strict_and_performs_no_repair() -> None:
 
 def test_architecture_policy_makes_semantic_boundary_authoritative() -> None:
     assert architecture_policy.ARCHITECTURE_POLICY_VERSION == (
-        "broker_reports_architecture_policy_v4"
+        "broker_reports_architecture_policy_v5"
     )
     assert architecture_policy.VISUAL_TABLE_MODEL_FACING_CONTRACT == (
-        contracts.SEMANTIC_TABLE_TRANSCRIPTION_SCHEMA_VERSION
+        architecture_policy.PDF_TABLE_LOCATOR_RESPONSE_SCHEMA
     )
     assert architecture_policy.VISUAL_TABLE_MODEL_RESPONSE_FIELDS == frozenset(
-        {"description", "rows"}
+        {"tables"}
     )
     assert architecture_policy.VISUAL_TABLE_MASTER_PROVIDER_PROFILE == "google_gemini"
     assert architecture_policy.VISUAL_TABLE_OPENAI_ROLE == (
-        "optional_control_or_explicit_fallback"
+        "none_in_current_pipeline"
     )
     assert architecture_policy.VISUAL_TABLE_PROVIDER_CONSENSUS_REQUIRED is False
     assert architecture_policy.VISUAL_TABLE_VLM_PHYSICAL_GEOMETRY_RESPONSIBILITY == 0
@@ -99,9 +99,12 @@ def test_architecture_policy_makes_semantic_boundary_authoritative() -> None:
         "deterministic_application_code"
     )
     assert architecture_policy.VISUAL_TABLE_FINANCIAL_INTERPRETATION_OWNER == "gate3"
-    assert "production visual provider factory" in architecture_policy.FACTORY_REQUIRED
-    assert "deterministic semantic validator/materializer" in (
+    assert "PdfTableIntakeRuntimeFactory" in architecture_policy.FACTORY_REQUIRED
+    assert "deterministic pdfplumber projection" in (
         architecture_policy.FACTORY_REQUIRED
+    )
+    assert architecture_policy.COMPONENT_RUNTIME_STATUSES["visual_table_vlm"] == (
+        "research_only"
     )
     for marker in (
         "model-generated physical table geometry",

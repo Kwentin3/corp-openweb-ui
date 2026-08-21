@@ -49,9 +49,15 @@ FORBIDDEN = (
 
 
 class NdflWorkflowError(RuntimeError):
-    def __init__(self, code: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        *,
+        safe_details: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(code)
         self.code = code
+        self.safe_details = copy.deepcopy(safe_details or {})
 
 
 def ndfl_product_binding_snapshot() -> dict[str, Any]:
@@ -209,7 +215,34 @@ class NdflWorkflow:
             or batch_result.selection_mode != "full_document"
             or batch_result.merged_output is None
         ):
-            raise NdflWorkflowError("ndfl_gate3_document_incomplete")
+            failed_outcomes = [
+                _safe_failed_outcome(outcome)
+                for outcome in batch_result.outcomes
+                if outcome.terminal_status not in {
+                    "validated",
+                    "validated_with_local_rejections",
+                }
+            ]
+            raise NdflWorkflowError(
+                "ndfl_gate3_document_incomplete",
+                safe_details={
+                    "document_status": batch_result.document_status,
+                    "selection_mode": batch_result.selection_mode,
+                    "chunks_total": int(
+                        batch_result.metrics.get("chunks_total") or 0
+                    ),
+                    "chunks_validated": int(
+                        batch_result.metrics.get("chunks_validated") or 0
+                    ),
+                    "chunks_rejected": int(
+                        batch_result.metrics.get("chunks_rejected") or 0
+                    ),
+                    "chunks_provider_failed": int(
+                        batch_result.metrics.get("chunks_provider_failed") or 0
+                    ),
+                    "failed_outcomes": failed_outcomes,
+                },
+            )
         if batch_result.merged_output.get("canonical_binding") != expected_binding:
             raise NdflWorkflowError(
                 "ndfl_gate3_canonical_changed_during_labeling"
@@ -327,6 +360,51 @@ class NdflWorkflow:
             gate3=gate3,
             canonical_after_gate3=canonical_after,
         )
+
+
+_SAFE_ROLE_RESPONSE_DIAGNOSTIC_KEYS = (
+    "raw_model_output_chars",
+    "raw_output_kind",
+    "raw_output_json_decodable",
+    "raw_output_top_level_contract_match",
+    "raw_output_schema_version_match",
+    "raw_output_facts_list",
+    "raw_output_facts_total",
+    "raw_output_fact_shape_contract_match",
+    "provider_finish_reason",
+    "requested_max_tokens",
+)
+
+
+def _safe_failed_outcome(outcome: Any) -> dict[str, Any]:
+    result = {
+        "chunk_ordinal": int(outcome.chunk["ordinal"]),
+        "terminal_status": outcome.terminal_status,
+        "failed_phase": outcome.failed_phase,
+        "error_code": outcome.error_code,
+    }
+    role_attempt = outcome.role_attempt
+    if role_attempt is None:
+        return result
+    metrics = role_attempt.metrics if isinstance(role_attempt.metrics, dict) else {}
+    diagnostics = {
+        key: copy.deepcopy(metrics[key])
+        for key in _SAFE_ROLE_RESPONSE_DIAGNOSTIC_KEYS
+        if key in metrics
+    }
+    metadata = role_attempt.execution_metadata
+    if metadata is not None:
+        for source, target in (
+            ("input_tokens", "provider_input_tokens"),
+            ("output_tokens", "provider_output_tokens"),
+            ("duration_ms", "provider_duration_ms"),
+        ):
+            value = getattr(metadata, source, None)
+            if isinstance(value, int) and value >= 0:
+                diagnostics[target] = value
+    if diagnostics:
+        result["role_response_diagnostics"] = diagnostics
+    return result
 
 
 __all__ = [

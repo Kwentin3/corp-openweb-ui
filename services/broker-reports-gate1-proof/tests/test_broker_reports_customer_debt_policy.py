@@ -61,18 +61,23 @@ class BrokerReportsCustomerDebtPolicyTest(unittest.TestCase):
                 )
             )
 
-    def test_normalizer_denies_client_shaped_enablement_before_processing(self) -> None:
-        with self.assertRaisesRegex(
-            CustomerDebtPolicyError,
-            "sber_broker_profile_proof_scope_denied",
-        ):
-            Gate1Normalizer().normalize(
-                [],
-                input_context={
-                    SBER_BROKER_PROFILE_VALVE: True,
-                    "proof_scope": "ordinary_runtime_request",
-                },
-            )
+    def test_research_policy_is_not_a_current_normalizer_runtime_gate(self) -> None:
+        result = Gate1Normalizer().normalize(
+            [],
+            input_context={
+                SBER_BROKER_PROFILE_VALVE: True,
+                "proof_scope": "ordinary_runtime_request",
+            },
+        )
+
+        self.assertEqual(
+            "failed_safe",
+            result.package["normalization_run"]["run_status"],
+        )
+        self.assertEqual(
+            "no_files",
+            result.package["normalization_blockers"][0]["code"],
+        )
 
 
 if __name__ == "__main__":

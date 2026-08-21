@@ -45,6 +45,14 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "broker_reports_gate1"
 REPOSITORY_ROOT = ROOT.parents[1]
 ARCHITECTURE_DOCUMENT = REPOSITORY_ROOT / ARCHITECTURE_AUTHORITY
+IMPLEMENTATION_AUTHORITY_DOCUMENT = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "stage2"
+    / "contracts"
+    / "BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md"
+)
+SERVICE_GUIDANCE = ROOT / "AGENTS.md"
 GOAL12_CONTRACT = (
     REPOSITORY_ROOT
     / "docs"
@@ -188,10 +196,96 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             [],
         )
 
+    def test_active_ordinary_trade_route_has_one_documented_factory_chain(self):
+        pipeline = ARCHITECTURE_DOCUMENT.read_text(encoding="utf-8")
+        owners = IMPLEMENTATION_AUTHORITY_DOCUMENT.read_text(encoding="utf-8")
+        guidance = SERVICE_GUIDANCE.read_text(encoding="utf-8")
+        pipe = (
+            OPENWEBUI_ACTIONS / "broker_reports_gate1_pipe.py"
+        ).read_text(encoding="utf-8")
+
+        required_pipeline = {
+            "ACTIVE_ORDINARY_TRADE_ROUTE = ordinary_trade_exact_fingerprint_v1",
+            "GATE3_EXECUTION_IN_ACTIVE_ORDINARY_TRADE_ROUTE = DISABLED",
+            "LEGACY_SEMANTIC_FALLBACK = FORBIDDEN",
+            "GATE3_BINDING_FIELD = COMPATIBILITY_FIELD_ONLY",
+            "OrdinaryTradeProductionRuntimeFactory.create",
+            "Gate4OrdinaryTradeCandidateRuntimeFactory.create",
+        }
+        self.assertEqual(
+            sorted(marker for marker in required_pipeline if marker not in pipeline),
+            [],
+        )
+        for marker in (
+            "## Active ordinary-trade architecture",
+            "### Active authorities",
+            "### Historical / evidence only",
+            "### Supported boundaries",
+            "### Unsupported boundaries",
+            "### Known compatibility debt",
+            "### Forbidden cross-domain dependencies",
+        ):
+            self.assertIn(marker, owners)
+        self.assertIn("Current Gate 3 type/role", guidance)
+        self.assertIn("model passes", guidance)
+        self.assertIn("never a semantic fallback", guidance)
+
+        production_imports = _local_imports("ordinary_trade_production_runtime")
+        self.assertTrue(
+            {
+                "canonical_store",
+                "gate4_ordinary_trade_candidate",
+                "ordinary_trade_candidate_runtime",
+                "ordinary_trade_projection",
+            }
+            <= production_imports
+        )
+        self.assertTrue(
+            {
+                "canonical_store",
+                "ordinary_trade_qualified_mappings",
+                "ordinary_trade_semantic_compiler",
+            }
+            <= _local_imports("ordinary_trade_projection")
+        )
+        self.assertNotIn("ordinary_trade_qualified_mappings", production_imports)
+        self.assertEqual(
+            sorted(
+                name
+                for name in production_imports
+                if name.startswith("gate3_")
+                or name == "gate4_financial_case_cache"
+            ),
+            [],
+        )
+        self.assertNotIn(
+            "canonical_store", _local_imports("gate4_ordinary_trade_candidate")
+        )
+        direct_gate5_composers = {
+            path.stem
+            for path in PACKAGE.glob("*.py")
+            if "Gate5DeterministicSourceFactConsumptionRuntime"
+            in _call_names(ast.parse(path.read_text(encoding="utf-8")))
+        }
+        self.assertEqual(
+            direct_gate5_composers,
+            {
+                "gate5_deterministic_source_fact_consumption",
+                "ordinary_trade_candidate_runtime",
+            },
+        )
+        self.assertLess(
+            pipe.index("if candidate_enabled:"),
+            pipe.index("Gate2StructuredModelClientFactory("),
+        )
+        self.assertIn(
+            "and not bool(self.valves.ordinary_trade_candidate_enabled)", pipe
+        )
+
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v4",
+            "broker_reports_architecture_policy_v5",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -210,13 +304,32 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "projection": "representation_only",
             },
         )
+        self.assertEqual(
+            architecture_policy.ACTIVE_PRODUCT_ROUTES,
+            {
+                "ordinary_security_trades": {
+                    "route_id": "ordinary_trade_exact_fingerprint_v1",
+                    "composition_root": "OrdinaryTradeProductionRuntimeFactory.create",
+                    "source_semantics_owner": (
+                        "OrdinaryTradeQualifiedMappingAuthorityFactory.create"
+                        "+OrdinaryTradeSemanticCompilerFactory.create"
+                    ),
+                    "mapping_contract": (
+                        "broker_reports_ordinary_trade_schema_mapping_v2"
+                    ),
+                    "normalized_fact_contract": "Gate4FinancialCaseFactV2",
+                    "gate3_runtime_status": "deployment_rollback_only",
+                    "semantic_fallback_allowed": False,
+                }
+            },
+        )
 
     def test_machine_readable_policy_is_fail_closed(self):
         self.assertFalse(NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED)
         self.assertFalse(KNOWLEDGE_RAG_VECTORIZATION_ALLOWED)
         self.assertEqual(
             VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES,
-            frozenset({"google_gemini", "openai_gpt"}),
+            frozenset({"google_gemini"}),
         )
         self.assertEqual(
             VISUAL_RECOVERY_INPUT_SCOPES,
@@ -225,10 +338,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertFalse(WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED)
         self.assertFalse(LOCAL_OCR_PRODUCTION_ALLOWED)
         self.assertFalse(LOCAL_OCR_WORKER_POOL_ALLOWED)
-        self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "semantic_transcription_only")
+        self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "table_region_location_only")
         self.assertEqual(
             CANONICAL_PROMOTION_AUTHORITY,
-            "deterministic_validator_for_accepted_profile_else_review_or_fail_closed",
+            "deterministic_pdfplumber_source_projection_else_fail_closed",
         )
         self.assertEqual(MODEL_CANONICAL_AUTHORITY, 0)
         self.assertFalse(GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED)
@@ -293,16 +406,17 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
 
     def test_visual_components_are_explicitly_classified(self):
         expected = {
-            "visual_table_vlm": "maintained_qualified_default_on",
+            "visual_table_vlm": "research_only",
             "visual_neutral_tables": "maintained_qualified_default_on",
-            "visual_review_boundary": "maintained_default_off",
-            "visual_recovery_handoff": "maintained_qualified_default_on",
+            "visual_review_boundary": "research_only",
+            "visual_recovery_handoff": "research_only",
+            "pdf_table_locator_provider": "maintained_current",
             "pdf_csv_experiment_provider": "proof_only",
-            "pdf_grid_experiment_provider": "proof_only",
-            "pdf_hybrid_provider": "proof_only",
-            "pdf_dual_vlm_fact_providers": "maintained_qualified_default_on",
-            "pdf_dual_vlm_canonical_table": "maintained_default_off",
-            "pdf_dual_vlm_runtime": "maintained_qualified_default_on",
+            "pdf_grid_experiment_provider": "compatibility_only",
+            "pdf_hybrid_provider": "research_only",
+            "pdf_dual_vlm_fact_providers": "research_only",
+            "pdf_dual_vlm_canonical_table": "research_only",
+            "pdf_dual_vlm_runtime": "research_only",
             "prove_visual_neutral_tables_actual_corpus": "offline_only",
         }
         self.assertEqual(

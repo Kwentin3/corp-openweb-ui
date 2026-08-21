@@ -91,7 +91,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         )
         module = load_bundle_module()
         self.assertEqual(
-            "gate1_pdf_source_bound_table_v1",
+            "gate1_ordinary_trade_production_v1",
             module._BUNDLED_PACKAGE_VERSION,
         )
         self.assertIn("gate3_ndfl_workflow", module._BUNDLED_MODULES)
@@ -99,6 +99,8 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("gate4_financial_case_cache", module._BUNDLED_MODULES)
         self.assertIn("gate5_real_tax_case_assembly", module._BUNDLED_MODULES)
         self.assertIn("gate5_declaration_scope_resolution", module._BUNDLED_MODULES)
+        self.assertIn("ordinary_trade_production_runtime", module._BUNDLED_MODULES)
+        self.assertIn("ordinary_trade_qualified_mappings", module._BUNDLED_MODULES)
         self.assertLess(
             module._BUNDLED_MODULE_ORDER.index("gate5_real_tax_case_assembly"),
             module._BUNDLED_MODULE_ORDER.index("gate5_declaration_scope_resolution"),
@@ -136,7 +138,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             module._BUNDLED_RESOURCES,
         )
         self.assertIn(
-            "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v1.json",
+            "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v3.json",
             module._BUNDLED_RESOURCES,
         )
         self.assertIn(
@@ -160,7 +162,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             }
         )
         self.assertEqual(
-            "PUBLISHED_AUDITED_INPUT_CONTRACT",
+            "PUBLISHED_CURRENT_AUTHORITY",
             resolved["methodology"]["status"],
         )
         bundled_projection = sys.modules[
@@ -186,79 +188,58 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("pdf_compact_canonical", module._BUNDLED_MODULES)
         self.assertIn("pdf_compact_gate2_adapter", module._BUNDLED_MODULES)
         self.assertIn("pdf_normalization_acceptance", module._BUNDLED_MODULES)
-        self.assertIn("visual_table_review_contracts", module._BUNDLED_MODULES)
-        self.assertIn("pdf_visual_table_review", module._BUNDLED_MODULES)
-        self.assertIn("pdf_hybrid_budget", module._BUNDLED_MODULES)
-        self.assertIn("pdf_table_intake_contracts", module._BUNDLED_MODULES)
-        self.assertIn("pdf_hybrid_compaction", module._BUNDLED_MODULES)
-        self.assertIn("pdf_hybrid_windows", module._BUNDLED_MODULES)
-        self.assertIn("pdf_hybrid_structure", module._BUNDLED_MODULES)
-        self.assertIn("pdf_hybrid_reliability", module._BUNDLED_MODULES)
-        self.assertIn("pdf_hybrid_reliability_shadow", module._BUNDLED_MODULES)
-        self.assertIn("pdf_dual_oracle_contracts", module._BUNDLED_MODULES)
-        self.assertIn("pdf_parser_geometry", module._BUNDLED_MODULES)
-        self.assertIn("pdf_structural_row_windows", module._BUNDLED_MODULES)
-        self.assertIn("pdf_visual_topology", module._BUNDLED_MODULES)
-        self.assertIn("pdf_topology_assembly", module._BUNDLED_MODULES)
-        self.assertIn("pdf_vlm_product_routing", module._BUNDLED_MODULES)
-        self.assertIn("pdf_vlm_region_binding", module._BUNDLED_MODULES)
-        self.assertIn("pdf_dual_oracle_consensus", module._BUNDLED_MODULES)
-        self.assertIn("pdf_grid_experiment_provider", module._BUNDLED_MODULES)
+        self.assertNotIn("visual_table_review_contracts", module._BUNDLED_MODULES)
+        self.assertIn("pdf_table_locator_provider", module._BUNDLED_MODULES)
         self.assertIn("pdf_table_intake_runtime", module._BUNDLED_MODULES)
-        self.assertIn("pdf_dual_vlm_canonical_table_contracts", module._BUNDLED_MODULES)
-        self.assertIn("pdf_dual_vlm_fact_providers", module._BUNDLED_MODULES)
-        self.assertIn("pdf_dual_vlm_runtime", module._BUNDLED_MODULES)
-        self.assertIn("semantic_visual_table_materialization", module._BUNDLED_MODULES)
-        self.assertIn("semantic_visual_table_migration", module._BUNDLED_MODULES)
-        self.assertIn("pdf_continuation_discovery", module._BUNDLED_MODULES)
-        self.assertIn("pdf_structural_repair_runtime", module._BUNDLED_MODULES)
-        self.assertIn("pdf_semantic_header_contracts", module._BUNDLED_MODULES)
-        self.assertIn("pdf_semantic_header_projection", module._BUNDLED_MODULES)
-        self.assertIn("pdf_structural_repair_shadow", module._BUNDLED_MODULES)
+        self.assertIn("gate3_metadata_source_facts", module._BUNDLED_MODULES)
+        self.assertIn("gate5_evidence_intake", module._BUNDLED_MODULES)
+        self.assertIn("gate5_client_evidence_review", module._BUNDLED_MODULES)
+        self.assertIn("gate5_human_gap_closure", module._BUNDLED_MODULES)
+        self.assertIn("gate5_declaration_preparation", module._BUNDLED_MODULES)
+        retired_product_modules = {
+            "pdf_visual_table_review",
+            "pdf_hybrid_budget",
+            "pdf_hybrid_compaction",
+            "pdf_hybrid_windows",
+            "pdf_hybrid_structure",
+            "pdf_hybrid_reliability",
+            "pdf_hybrid_reliability_shadow",
+            "pdf_dual_oracle_contracts",
+            "pdf_dual_oracle_consensus",
+            "pdf_parser_geometry",
+            "pdf_structural_row_windows",
+            "pdf_visual_topology",
+            "pdf_topology_assembly",
+            "pdf_vlm_product_routing",
+            "pdf_vlm_region_binding",
+            "pdf_grid_experiment_provider",
+            "pdf_dual_vlm_canonical_table_contracts",
+            "pdf_dual_vlm_fact_providers",
+            "pdf_dual_vlm_runtime",
+            "semantic_visual_table_materialization",
+            "semantic_visual_table_migration",
+            "pdf_continuation_discovery",
+            "pdf_structural_repair_runtime",
+            "pdf_semantic_header_contracts",
+            "pdf_semantic_header_projection",
+            "pdf_structural_repair_shadow",
+            "pdf_hybrid_shadow",
+            "gate5_end_to_end_full_target_xml",
+            "gate5_openwebui_product",
+        }
+        self.assertFalse(retired_product_modules & set(module._BUNDLED_MODULES))
         bundled_order = module._BUNDLED_MODULE_ORDER
         self.assertLess(
-            bundled_order.index("workload_authority"),
-            bundled_order.index("normalizer"),
+            bundled_order.index("pdf_table_locator_provider"),
+            bundled_order.index("pdf_table_intake_runtime"),
         )
         self.assertLess(
-            bundled_order.index("pdf_table_intake_contracts"),
-            bundled_order.index("pdf_structural_repair_shadow"),
+            bundled_order.index("gate3_metadata_source_facts"),
+            bundled_order.index("gate5_evidence_intake"),
         )
         self.assertLess(
-            bundled_order.index("pdf_semantic_header_contracts"),
-            bundled_order.index("pdf_semantic_header_projection"),
-        )
-        self.assertLess(
-            bundled_order.index("pdf_semantic_header_projection"),
-            bundled_order.index("pdf_structural_repair_shadow"),
-        )
-        self.assertLess(
-            bundled_order.index("pdf_structural_row_windows"),
-            bundled_order.index("pdf_structural_repair_runtime"),
-        )
-        self.assertLess(
-            bundled_order.index("pdf_topology_assembly"),
-            bundled_order.index("pdf_vlm_region_binding"),
-        )
-        self.assertLess(
-            bundled_order.index("pdf_grid_experiment_provider"),
-            bundled_order.index("pdf_dual_vlm_fact_providers"),
-        )
-        self.assertLess(
-            bundled_order.index("pdf_dual_vlm_canonical_table_contracts"),
-            bundled_order.index("pdf_dual_vlm_runtime"),
-        )
-        self.assertLess(
-            bundled_order.index("pdf_dual_vlm_fact_providers"),
-            bundled_order.index("pdf_dual_vlm_runtime"),
-        )
-        self.assertLess(
-            bundled_order.index("semantic_visual_table_materialization"),
-            bundled_order.index("semantic_visual_table_migration"),
-        )
-        self.assertLess(
-            bundled_order.index("pdf_vlm_product_routing"),
-            bundled_order.index("pdf_structural_repair_shadow"),
+            bundled_order.index("gate5_evidence_intake"),
+            bundled_order.index("gate5_declaration_preparation"),
         )
         self.assertIn("source_provenance", module._BUNDLED_MODULES)
         self.assertIn("document_memory", module._BUNDLED_MODULES)
@@ -281,10 +262,10 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertTrue(hasattr(bundled_package, "WorkloadAuthorityFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfTextLayerParserFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfTableIntakeRuntimeFactory"))
-        self.assertTrue(hasattr(bundled_package, "PdfDualVlmRuntimeFactory"))
-        self.assertTrue(hasattr(bundled_package, "SemanticVisualTableMigrationFactory"))
+        self.assertFalse(hasattr(bundled_package, "PdfDualVlmRuntimeFactory"))
+        self.assertFalse(hasattr(bundled_package, "SemanticVisualTableMigrationFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfLayoutUnitBuilder"))
-        self.assertTrue(hasattr(bundled_package, "PdfStructuralRowWindowFactory"))
+        self.assertFalse(hasattr(bundled_package, "PdfStructuralRowWindowFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfCompactCanonicalFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfNormalizationAcceptanceFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfCompactGate2AdapterFactory"))
@@ -384,27 +365,16 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         pipe.valves.artifact_payload_root = str(root / "compact-payloads")
         self.assertFalse(pipe.valves.pdf_compact_canonical_dual_write)
         self.assertTrue(pipe.valves.pdf_table_intake_enabled)
-        self.assertFalse(pipe.valves.pdf_dual_vlm_enabled)
-        self.assertFalse(pipe.valves.pdf_semantic_visual_table_downstream_enabled)
-        self.assertEqual(
-            "pdf_semantic_vlm_provider_selection_v1",
-            pipe.valves.pdf_dual_vlm_provider_selection_policy_version,
-        )
-        self.assertEqual(
-            "models/gemini-3.5-flash",
-            pipe.valves.pdf_dual_vlm_gemini_model_id,
-        )
-        self.assertEqual(
-            "gpt-5.4-mini-2026-03-17",
-            pipe.valves.pdf_dual_vlm_openai_model_id,
+        self.assertFalse(hasattr(pipe.valves, "pdf_dual_vlm_enabled"))
+        self.assertFalse(
+            hasattr(pipe.valves, "pdf_semantic_visual_table_downstream_enabled")
         )
         self.assertEqual(0.08, pipe.valves.pdf_table_intake_horizontal_padding_fraction)
         self.assertEqual(0.08, pipe.valves.pdf_table_intake_vertical_padding_fraction)
-        self.assertFalse(pipe.valves.pdf_hybrid_shadow_enabled)
-        self.assertFalse(pipe.valves.pdf_structural_repair_shadow_enabled)
-        self.assertFalse(pipe.valves.pdf_vlm_guided_intake_shadow_enabled)
-        self.assertEqual("", pipe.valves.pdf_vlm_guided_intake_shadow_page_allowlist)
-        self.assertFalse(pipe.valves.pdf_semantic_header_shadow_enabled)
+        self.assertFalse(hasattr(pipe.valves, "pdf_hybrid_shadow_enabled"))
+        self.assertFalse(hasattr(pipe.valves, "pdf_structural_repair_shadow_enabled"))
+        self.assertFalse(hasattr(pipe.valves, "pdf_vlm_guided_intake_shadow_enabled"))
+        self.assertFalse(hasattr(pipe.valves, "pdf_semantic_header_shadow_enabled"))
         pipe.valves.pdf_compact_canonical_dual_write = True
 
         content = run_pipe(
@@ -431,31 +401,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             len(refs["broker_reports_pdf_compact_canonical_document_v1"]), 1
         )
         self.assertEqual(len(refs["broker_reports_pdf_normalization_acceptance_v1"]), 1)
-        self.assertEqual(
-            pipe.last_artifact_manifest["pdf_hybrid_shadow"],
-            {"enabled": False, "artifact_refs": [], "summary": None},
-        )
-        self.assertFalse(
-            pipe.last_artifact_manifest["pdf_structural_repair_shadow"]["enabled"]
-        )
-        self.assertFalse(
-            pipe.last_artifact_manifest["pdf_structural_repair_shadow"]["summary"][
-                "vlm_guided_intake_enabled"
-            ]
-        )
-        self.assertEqual(
-            {
-                "enabled": False,
-                "artifact_refs": [],
-                "status_counts": {},
-                "reason_counts": {},
-                "private_projections_persisted": 0,
-                "private_diagnostics_persisted": 0,
-                "authority_state": "non_authoritative",
-                "production_gate2_selection_changed": False,
-            },
-            pipe.last_artifact_manifest["pdf_semantic_header_shadow"],
-        )
+        self.assertNotIn("pdf_hybrid_shadow", pipe.last_artifact_manifest)
+        self.assertNotIn("pdf_structural_repair_shadow", pipe.last_artifact_manifest)
+        self.assertNotIn("pdf_semantic_header_shadow", pipe.last_artifact_manifest)
         self.assertFalse(any("pdf_hybrid" in artifact_type for artifact_type in refs))
         self.assertNotIn("Synthetic Table", content)
 

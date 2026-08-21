@@ -16,10 +16,6 @@ from .broker_pdf_neutral_tables import (
 )
 from .contracts import stable_digest
 from .source_provenance import resolve_source_values, validate_source_value_refs
-from .semantic_visual_table_contracts import SEMANTIC_LOGICAL_TABLE_PROFILE_ID
-from .semantic_visual_table_projection_contracts import (
-    validate_semantic_visual_table_projection,
-)
 
 
 FACTORY_REQUIRED = (
@@ -855,14 +851,29 @@ class TableProjectionValidator:
                     errors.append(
                         _error("canonical_neutral_table_integrity_mismatch", projection_id)
                     )
-            elif canonical_profile_id == SEMANTIC_LOGICAL_TABLE_PROFILE_ID:
-                semantic_validation = validate_semantic_visual_table_projection(
-                    projection
-                )
-                errors.extend(
-                    _error(code, projection_id)
-                    for code in semantic_validation["reason_codes"]
-                )
+            elif canonical_profile_id == "semantic_visual_logical_table_v1":
+                # Historical research artifacts remain reproducible from the
+                # source tree, but the product bundle intentionally omits this
+                # validator and therefore rejects the profile fail-closed.
+                try:
+                    from .semantic_visual_table_projection_contracts import (
+                        validate_semantic_visual_table_projection,
+                    )
+                except ImportError:
+                    errors.append(
+                        _error(
+                            "table_projection_canonical_profile_unsupported",
+                            projection_id,
+                        )
+                    )
+                else:
+                    semantic_validation = validate_semantic_visual_table_projection(
+                        projection
+                    )
+                    errors.extend(
+                        _error(code, projection_id)
+                        for code in semantic_validation["reason_codes"]
+                    )
             elif canonical_profile_id:
                 errors.append(
                     _error("table_projection_canonical_profile_unsupported", projection_id)

@@ -98,7 +98,6 @@ class Pipe:
         default_source_unit_limit: int = Field(default=1)
         segmentation_enabled: bool = Field(default=True)
         prefer_table_projections: bool = Field(default=False)
-        allow_standalone_semantic_visual_projections: bool = Field(default=False)
         candidate_binding_enabled: bool = Field(default=False)
         gate3_context_manifest_enabled: bool = Field(default=False)
         answer_context_selection_enabled: bool = Field(default=True)
@@ -351,14 +350,6 @@ class Pipe:
                     prefer_table_projections=self._config_bool(
                         config.get("prefer_table_projections"),
                         default=self.valves.prefer_table_projections,
-                    ),
-                    allow_standalone_semantic_visual_projections=self._config_bool(
-                        config.get(
-                            "allow_standalone_semantic_visual_projections"
-                        ),
-                        default=(
-                            self.valves.allow_standalone_semantic_visual_projections
-                        ),
                     ),
                     candidate_binding_enabled=self._config_bool(
                         config.get("candidate_binding_enabled"),

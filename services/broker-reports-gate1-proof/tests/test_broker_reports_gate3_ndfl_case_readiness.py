@@ -141,6 +141,30 @@ def test_partial_case_and_gate2_ready_gate3_missing_are_explicit(
     assert _action(state, "PREPARE_DECLARATION")["allowed"] is False
 
 
+def test_source_only_technical_record_does_not_expand_document_scope(
+    tmp_path: Path,
+) -> None:
+    store, context = _store_and_context(tmp_path)
+    _publish_canonical(store, context, "ready-document", revision=1)
+    _save_annotations(store, context, "ready-document")
+    _put_source(store, context, "technical-source-record", revision=1)
+
+    state = Gate3NdflCaseReadinessFactory(
+        store=store, read_enabled=True
+    ).create(context=context)
+
+    assert state["case_status"] == "ready_for_gate4_handoff"
+    assert state["summary"] == {
+        "documents_total": 1,
+        "gate2_ready_documents": 1,
+        "gate3_ready_documents": 1,
+        "gate4_handoff_ready": True,
+    }
+    assert [item["document_id"] for item in state["documents"]] == [
+        "ready-document"
+    ]
+
+
 def test_noncanonical_document_and_incomplete_sidecar_fail_closed(
     tmp_path: Path,
 ) -> None:

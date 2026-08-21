@@ -4,20 +4,13 @@ import copy
 from dataclasses import dataclass
 from typing import Any
 
+from .broker_pdf_neutral_tables import PROFILE_ID as BROKER_PDF_NEUTRAL_PROFILE_ID
+
 from .contracts import stable_digest
 from .gate1_public_contracts import (
-    REVIEWED_VISUAL_TABLE_ORIGIN,
     TableProjectionValidator,
-    validate_reviewed_visual_projection,
 )
 from .gate2_source_fact_contracts import PACKAGE_SCHEMA_VERSION
-from .semantic_visual_table_contracts import (
-    SEMANTIC_LOGICAL_TABLE_PROFILE_ID,
-    SEMANTIC_VISUAL_TABLE_ORIGIN,
-)
-from .semantic_visual_table_projection_contracts import (
-    validate_semantic_visual_table_projection,
-)
 
 
 FACTORY_REQUIRED = (
@@ -76,29 +69,12 @@ class Gate2TablePackageBuilder:
             != "passed"
         ):
             raise ValueError("gate2_pdf_canonical_table_not_validated")
-        reviewed_visual = (
+        if (
             projection.get("source_format") == "pdf"
-            and projection.get("table_origin") == REVIEWED_VISUAL_TABLE_ORIGIN
-        )
-        semantic_visual = (
-            projection.get("source_format") == "pdf"
-            and projection.get("table_origin") == SEMANTIC_VISUAL_TABLE_ORIGIN
             and projection.get("canonical_profile_id")
-            == SEMANTIC_LOGICAL_TABLE_PROFILE_ID
-        )
-        if projection.get("source_format") == "pdf":
-            if reviewed_visual:
-                visual_validation = validate_reviewed_visual_projection(projection)
-                if visual_validation["validator_status"] != "passed":
-                    raise ValueError("gate2_reviewed_visual_projection_invalid")
-            elif semantic_visual:
-                semantic_validation = validate_semantic_visual_table_projection(
-                    projection
-                )
-                if semantic_validation["validator_status"] != "passed":
-                    raise ValueError("gate2_semantic_visual_projection_invalid")
-            elif not projection.get("canonical_profile_id"):
-                raise ValueError("gate2_pdf_canonical_boundary_unsupported")
+            != BROKER_PDF_NEUTRAL_PROFILE_ID
+        ):
+            raise ValueError("gate2_pdf_canonical_boundary_unsupported")
         coverage = _object(projection.get("coverage"))
         if (
             coverage.get("coverage_status") != "complete"
@@ -354,33 +330,14 @@ def validate_gate2_table_package(
         != "passed"
     ):
         errors.append(_error("gate2_pdf_canonical_table_not_validated", package_id))
-    reviewed_visual = (
+    if (
         projection.get("source_format") == "pdf"
-        and projection.get("table_origin") == REVIEWED_VISUAL_TABLE_ORIGIN
-    )
-    semantic_visual = (
-        projection.get("source_format") == "pdf"
-        and projection.get("table_origin") == SEMANTIC_VISUAL_TABLE_ORIGIN
         and projection.get("canonical_profile_id")
-        == SEMANTIC_LOGICAL_TABLE_PROFILE_ID
-    )
-    if projection.get("source_format") == "pdf":
-        if reviewed_visual:
-            visual_validation = validate_reviewed_visual_projection(projection)
-            if visual_validation["validator_status"] != "passed":
-                errors.append(
-                    _error("gate2_reviewed_visual_projection_invalid", package_id)
-                )
-        elif semantic_visual:
-            semantic_validation = validate_semantic_visual_table_projection(projection)
-            if semantic_validation["validator_status"] != "passed":
-                errors.append(
-                    _error("gate2_semantic_visual_projection_invalid", package_id)
-                )
-        elif not projection.get("canonical_profile_id"):
-            errors.append(
-                _error("gate2_pdf_canonical_boundary_unsupported", package_id)
-            )
+        != BROKER_PDF_NEUTRAL_PROFILE_ID
+    ):
+        errors.append(
+            _error("gate2_pdf_canonical_boundary_unsupported", package_id)
+        )
     if (
         projection_coverage.get("coverage_status") != "complete"
         or _strings(projection_coverage.get("duplicate_accounted_refs"))
@@ -441,49 +398,7 @@ def validate_gate2_table_package(
     return result
 
 
-def _reviewed_visual_handoff(projection: dict[str, Any]) -> dict[str, Any]:
-    review = _object(projection.get("visual_review"))
-    receipt = _object(review.get("receipt"))
-    seal = _object(review.get("seal"))
-    return {
-        "source_representation_kind": "reviewed_visual_canonical_table",
-        "review_receipt_id": receipt.get("review_receipt_id"),
-        "review_receipt_hash": receipt.get("receipt_hash"),
-        "review_seal_hash": seal.get("seal_hash"),
-        "review_decision": receipt.get("decision"),
-        "reviewer_type": _object(receipt.get("reviewer")).get("reviewer_type"),
-        "source_to_table_accounting": "passed",
-        "upstream_visual_vlm_used": True,
-        "upstream_page_rendering_used": True,
-        "local_ocr_evidence_used": False,
-        "provider_consensus_canonical_authority": False,
-    }
-
-
-def _semantic_visual_handoff(projection: dict[str, Any]) -> dict[str, Any]:
-    semantic = _object(projection.get("semantic_visual_table"))
-    return {
-        "source_representation_kind": "semantic_visual_logical_table",
-        "semantic_origin": SEMANTIC_VISUAL_TABLE_ORIGIN,
-        "semantic_profile_id": SEMANTIC_LOGICAL_TABLE_PROFILE_ID,
-        "semantic_envelope_id": semantic.get("envelope_id"),
-        "semantic_envelope_hash": semantic.get("envelope_hash"),
-        "provider": semantic.get("provider"),
-        "model_id": semantic.get("model_id"),
-        "semantic_response_contract_passed": True,
-        "physical_geometry_claimed": False,
-        "upstream_visual_vlm_used": True,
-        "upstream_page_rendering_used": True,
-        "local_ocr_evidence_used": False,
-        "provider_consensus_required": False,
-    }
-
-
 def _visual_handoff(projection: dict[str, Any]) -> dict[str, Any] | None:
-    if projection.get("table_origin") == REVIEWED_VISUAL_TABLE_ORIGIN:
-        return _reviewed_visual_handoff(projection)
-    if projection.get("table_origin") == SEMANTIC_VISUAL_TABLE_ORIGIN:
-        return _semantic_visual_handoff(projection)
     return None
 
 

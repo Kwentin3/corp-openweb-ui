@@ -124,6 +124,102 @@ def test_workflow_runs_existing_gate3_and_persists_exact_sidecar(
     assert active_after == active_before
 
 
+def test_incomplete_document_reports_safe_failed_phase_without_persistence(
+    tmp_path: Path,
+) -> None:
+    store, context = _store_and_context(tmp_path)
+    document_id = "incomplete-workflow-document"
+    _publish_canonical(
+        store,
+        context,
+        document_id=document_id,
+        revision=1,
+        activate=True,
+    )
+    client, calls = _client(context, pass1_unknown_alias=True)
+    workflow = NdflWorkflowFactory(
+        store=store,
+        read_enabled=True,
+        model_client=client,
+        model_id=MODEL_ID,
+        provider_profile_id=PROVIDER_PROFILE_ID,
+    ).create()
+
+    with pytest.raises(NdflWorkflowError) as failure:
+        asyncio.run(workflow.run_gate3(document_id=document_id, context=context))
+
+    assert failure.value.code == "ndfl_gate3_document_incomplete"
+    assert failure.value.safe_details == {
+        "document_status": "incomplete",
+        "selection_mode": "full_document",
+        "chunks_total": 1,
+        "chunks_validated": 0,
+        "chunks_rejected": 1,
+        "chunks_provider_failed": 0,
+        "failed_outcomes": [
+            {
+                "chunk_ordinal": 1,
+                "terminal_status": "rejected",
+                "failed_phase": "financial_labeling",
+                "error_code": "gate3_labeling_alias_unknown",
+            }
+        ],
+    }
+    assert len(calls) == 1
+    assert not any(
+        record.artifact_type == GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE
+        for record in store.list_by_case_context(context)
+    )
+
+
+def test_incomplete_role_response_reports_only_safe_shape_diagnostics(
+    tmp_path: Path,
+) -> None:
+    store, context = _store_and_context(tmp_path)
+    document_id = "incomplete-role-workflow-document"
+    _publish_canonical(
+        store,
+        context,
+        document_id=document_id,
+        revision=1,
+        activate=True,
+    )
+    client, calls = _client(context, role_top_level_invalid=True)
+    workflow = NdflWorkflowFactory(
+        store=store,
+        read_enabled=True,
+        model_client=client,
+        model_id=MODEL_ID,
+        provider_profile_id=PROVIDER_PROFILE_ID,
+    ).create()
+
+    with pytest.raises(NdflWorkflowError) as failure:
+        asyncio.run(workflow.run_gate3(document_id=document_id, context=context))
+
+    outcome = failure.value.safe_details["failed_outcomes"][0]
+    diagnostics = outcome["role_response_diagnostics"]
+    assert outcome["failed_phase"] == "role_labeling"
+    assert outcome["error_code"] == "gate3_role_response_contract_invalid"
+    assert diagnostics == {
+        "raw_model_output_chars": len(
+            json.dumps({"unexpected": []}, ensure_ascii=False)
+        ),
+        "raw_output_kind": "string",
+        "raw_output_json_decodable": True,
+        "raw_output_top_level_contract_match": False,
+        "raw_output_schema_version_match": False,
+        "raw_output_facts_list": False,
+        "raw_output_facts_total": None,
+        "raw_output_fact_shape_contract_match": False,
+        "provider_finish_reason": "stop",
+        "requested_max_tokens": 65_536,
+        "provider_input_tokens": 100,
+        "provider_output_tokens": 20,
+        "provider_duration_ms": diagnostics["provider_duration_ms"],
+    }
+    assert len(calls) == 2
+
+
 def test_product_path_activates_exact_candidate_then_preserves_gate2(
     tmp_path: Path,
 ) -> None:
@@ -438,6 +534,8 @@ def _client(
     context: ArtifactAccessContext,
     *,
     before_response=None,
+    pass1_unknown_alias: bool = False,
+    role_top_level_invalid: bool = False,
 ):
     captured: list[dict] = []
 
@@ -453,7 +551,9 @@ def _client(
                 "schema_version": name,
                 "annotations": [
                     {
-                        "target_alias": alias.group(1),
+                        "target_alias": (
+                            "t999999" if pass1_unknown_alias else alias.group(1)
+                        ),
                         "financial_label": "DIVIDEND_INCOME",
                     }
                 ],
@@ -478,6 +578,8 @@ def _client(
                     }
                 ],
             }
+            if role_top_level_invalid:
+                response = {"unexpected": []}
         return {
             "id": f"ndfl-response-{len(captured)}",
             "model": MODEL_ID,

@@ -8,6 +8,26 @@
 Статус: навигационный индекс. Не является разрешением на implementation,
 runtime changes, provider setup или использование customer data.
 
+## Broker Reports active ordinary-trade route
+
+Read in this order:
+
+1. [Pipeline Gates v1 — sole current route/status authority](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md)
+2. [Architecture Authorities — active producer/consumer map](contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md)
+3. [Source-Fact Domain Boundaries v1](contracts/BROKER_REPORTS_SOURCE_FACT_DOMAIN_BOUNDARIES.v1.md)
+4. [Gate 4 Financial Case Fact v2](contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.md)
+5. [Gate 4 to Gate 5 handoff](contracts/BROKER_REPORTS_GATE4_HANDOFF.v1.md)
+
+The active route is `Canonical -> exact qualified mapping -> Source
+Observations -> deterministic runtime records -> Fact v2 -> deterministic Gate
+5`. Current Gate 3 is not executed and is not a fallback. Read Gate 3 contracts
+only for the retained deployment-rollback path or an explicit Gate 3 audit.
+
+The dated
+[ordinary-trade activation report](../reports/2026-08-21/BROKER_REPORTS_ORDINARY_TRADE_RELEASE_ACTIVATION.report.md)
+is release evidence only. It cannot redefine the route or authorize a new
+mapping/domain.
+
 ## Gate 2 managed semantic decision context
 
 Current canonical route:

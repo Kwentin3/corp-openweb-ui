@@ -6,7 +6,6 @@ import pytest
 
 from broker_reports_gate1.gate2_table_packages import (
     Gate2TablePackageFactory,
-    validate_gate2_table_package,
 )
 from broker_reports_gate1.semantic_visual_table_migration import (
     GOAL5_QUALIFICATION_GATE_HASH,
@@ -20,7 +19,7 @@ from tests.test_broker_reports_semantic_visual_table_materialization import (
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 
 
-def test_accepted_numeric_semantic_table_reaches_gate2_without_review() -> None:
+def test_historical_numeric_semantic_table_cannot_enter_current_gate2() -> None:
     runtime = _runtime_result(
         [["Item", "Amount"], ["Cash", "$ 1,000"], ["Total", "1,000"]]
     )
@@ -35,15 +34,13 @@ def test_accepted_numeric_semantic_table_reaches_gate2_without_review() -> None:
     )
     assert len(result.private_envelopes) == 1
     assert len(result.gate2_projections) == 1
-    package = Gate2TablePackageFactory().create().build(
-        projection=result.gate2_projections[0], case_id="semantic-migration"
-    )
-    assert validate_gate2_table_package(
-        package, result.gate2_projections[0]
-    )["passed"] is True
-    assert package["upstream_source_representation"][
-        "source_representation_kind"
-    ] == "semantic_visual_logical_table"
+    with pytest.raises(
+        ValueError,
+        match="gate2_pdf_canonical_boundary_unsupported",
+    ):
+        Gate2TablePackageFactory().create().build(
+            projection=result.gate2_projections[0], case_id="semantic-migration"
+        )
 
 
 def test_financial_profile_accepts_one_wide_source_row_but_still_requires_amount() -> None:
@@ -161,26 +158,14 @@ def test_disabled_boundary_changes_no_source_family() -> None:
     assert result.gate2_projections == []
 
 
-def test_gate1_action_routes_decisions_through_migration_factory() -> None:
-    runtime = _runtime_result(
-        [["Item", "Amount"], ["Cash", "1,000"], ["Total", "1,000"]]
-    )
-    dual_vlm = {
-        "private_decisions": runtime.private_decisions,
-        "private_provider_evidence": runtime.private_provider_evidence,
-    }
+def test_gate1_action_has_no_semantic_migration_runtime_route() -> None:
     pipe = Pipe()
 
-    disabled = pipe._maybe_migrate_pdf_semantic_tables(dual_vlm=dual_vlm)
-    assert disabled["safe_summary"]["status"] == "disabled"
-    assert disabled["private_envelopes"] == []
-    assert disabled["gate2_projections"] == []
-
-    pipe.valves.pdf_semantic_visual_table_downstream_enabled = True
-    enabled = pipe._maybe_migrate_pdf_semantic_tables(dual_vlm=dual_vlm)
-    assert enabled["safe_summary"]["accepted_for_gate2_total"] == 1
-    assert len(enabled["private_envelopes"]) == 1
-    assert len(enabled["gate2_projections"]) == 1
+    assert not hasattr(pipe, "_maybe_migrate_pdf_semantic_tables")
+    assert not hasattr(
+        pipe.valves,
+        "pdf_semantic_visual_table_downstream_enabled",
+    )
 
 
 def _migrate(runtime):

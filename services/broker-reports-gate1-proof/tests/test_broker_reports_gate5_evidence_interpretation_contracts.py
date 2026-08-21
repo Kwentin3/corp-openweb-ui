@@ -142,11 +142,20 @@ def test_g544_receipt_hashes_safe_contract_runtime_and_bundle_artifacts() -> Non
     assert receipt["verification"]["real_corpus_store_unchanged"] is True
     assert receipt["verification"]["provider_calls"] == 0
     for artifact in receipt["artifacts"]:
-        if artifact["path"].endswith("broker_reports_gate1_pipe_bundled.py"):
-            # Historical generated projection; G5.45 owns the current bundle hash.
+        if artifact["path"].endswith(
+            (
+                "broker_reports_gate1_pipe_bundled.py",
+                "gate5_deterministic_source_fact_consumption.py",
+            )
+        ):
+            # Historical projections. Later current-authority Goals own the
+            # maintained runtime and generated bundle hashes without rewriting
+            # the immutable G5.44 receipt.
             continue
         path = REPO_ROOT / artifact["path"]
         raw = path.read_bytes()
+        if path.suffix in {".json", ".md", ".py"}:
+            raw = raw.replace(b"\r\n", b"\n")
         assert len(raw) == artifact["bytes"]
         assert hashlib.sha256(raw).hexdigest() == artifact["sha256"]
 

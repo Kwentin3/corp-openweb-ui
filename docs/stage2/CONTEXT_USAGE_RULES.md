@@ -26,21 +26,29 @@ runtime changes.
 7. Если нужен customer data, provider account, `.env`, runtime proof or config
    change, остановись до отдельного approval.
 
-### Broker Reports / NDFL / Gate 4 and Gate 5 override
+### Broker Reports / ordinary trades / Gate 4 and Gate 5 override
 
 For Broker Reports gate status, the generic Stage 2 hierarchy does not make an
 older blueprint, report or research file current. Read in this order:
 
 1. `contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md` — the sole current pipeline
    authority;
-2. `contracts/BROKER_REPORTS_GATE4_HANDOFF.v1.md` — the short current Gate 5
-   entry boundary;
-3. Gate 4 Financial Case Fact v1, Case Assembly v1 and SQL Materialization v1
-   for exact fact, case, read/rebuild and stale semantics;
-4. `BROKER_REPORTS_GATE3_HANDOFF.v1.md` and direct upstream contracts only when
-   a Gate 3 invariant must be audited;
-5. the architecture-authorities map when implementation ownership matters;
+2. `contracts/BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md` — the current
+   producer/consumer map for the active ordinary-trade route;
+3. Gate 4 Financial Case Fact v2 and
+   `contracts/BROKER_REPORTS_GATE4_HANDOFF.v1.md` for the exact fact boundary
+   and the two explicit producers;
+4. `BROKER_REPORTS_GATE3_HANDOFF.v1.md`, Case Assembly v1 and SQL
+   Materialization v1 only when the historical deployment-rollback route or a
+   Gate 3 invariant must be audited;
+5. Source-Fact Domain Boundaries v1 when source semantics, normalization or
+   tax-methodology ownership matters;
 6. terminal evidence only when auditing the accepted result.
+
+The active ordinary-trade route does not execute Gate 3, read
+`FinancialAnnotationsV2` or use the Gate 3-backed SQL runtime. The Fact v2 field
+name `gate3_binding` is compatibility syntax. Do not infer activation from a
+module/field name or dated release report.
 
 Do not start from `BROKER_REPORTS_GATE_ARCHITECTURE.md`, the old 3NDFL
 blueprint, old Domain Map, dated reports or research unless the task is to

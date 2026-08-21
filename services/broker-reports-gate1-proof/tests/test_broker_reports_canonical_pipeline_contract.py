@@ -134,7 +134,7 @@ def test_gate3_gate4_context_recovery_documentation_guard():
         "GATE2_STATUS = CLOSED",
         "GATE3_STATUS = CLOSED",
         "GATE4_STATUS = CLOSED",
-        "GATE5_PRODUCT_STATUS = INACTIVE",
+        "GATE5_PRODUCT_STATUS = CURRENT_FAIL_CLOSED",
         "### Adaptive Context Boundary",
         "### Gate 3 — Source semantic adapter",
         "### Gate 5 — Tax methodology and deterministic calculation",
@@ -194,7 +194,12 @@ def test_gate3_gate4_context_recovery_documentation_guard():
         < authority_link
     )
     assert "Do not start from the superseded global gate architecture" in context_index
-    assert "Broker Reports / NDFL / Gate 4 and Gate 5 override" in context_rules
+    assert (
+        "Broker Reports / ordinary trades / Gate 4 and Gate 5 override"
+        in context_rules
+    )
+    assert "Current Gate 3 is not executed and is not a fallback" in context_index
+    assert "Gate 4 Financial Case Fact v2" in context_rules
 
     superseded_or_historical = [
         STAGE2 / "blueprints" / "BROKER_REPORTS_GATE_ARCHITECTURE.md",

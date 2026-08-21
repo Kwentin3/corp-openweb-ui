@@ -57,29 +57,26 @@ GATE1_RESOURCE_NAMES = (
     "gate5_full_target_xml_projection.ru_3ndfl_2025.v0.json",
     "gate5_full_target_xml_schema.NO_NDFL3_1_033_00_05_20_01.xsd.b64",
     "gate5_openwebui_product_definition.v0.json",
-    "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v1.json",
+    "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v3.json",
     "gate5_tax_methodology.ru_3ndfl_2025_income_group_settlement.v0.json",
     "gate5_tax_methodology.ru_3ndfl_2025_income_group_settlement.v1.json",
     "gate5_tax_methodology.ru_ndfl_securities_income_group_tax_base_proof.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_operation_tax_model_proof.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_proof.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v0.json",
-    "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v1.json",
+    "gate5_tax_methodology.ru_ndfl_securities_real_source_fact_contract.v2.json",
     "gate5_tax_methodology.ru_ndfl_securities_source_fact_consumption_proof.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_tax_model_proof.v0.json",
 )
 
 MODULE_ORDER = [
-    "semantic_visual_table_contracts",
-    "semantic_visual_table_validator",
-    "semantic_visual_table_projection_contracts",
+    "contracts",
+    "pdf_table_locator",
     "architecture_policy",
     "workload_authority",
-    "contracts",
     "source_provenance",
     "broker_pdf_neutral_tables",
     "table_projection",
-    "visual_table_review_contracts",
     "blockers",
     "file_processing_outcomes",
     "inputs",
@@ -151,58 +148,22 @@ MODULE_ORDER = [
     "compact_report",
     "safe_report",
     "document_passport",
-    "customer_debt_policy",
     "normalizer",
     "__init__",
 ]
 
-GATE1_HYBRID_MODULES = [
+GATE1_PDF_TABLE_MODULES = [
     "private_intake_bytes",
-    "pdf_hybrid_contracts",
-    "pdf_table_intake_contracts",
-    "pdf_table_classification",
     "pdf_table_raster",
-    "pdf_hybrid_evidence",
-    "pdf_hybrid_budget",
-    "pdf_hybrid_compaction",
-    "pdf_hybrid_windows",
-    "pdf_hybrid_provider",
-    "pdf_hybrid_structure",
-    "pdf_dual_oracle_contracts",
-    "pdf_dual_oracle_consensus",
-    "pdf_hybrid_materialization",
-    "pdf_table_validation",
-    "pdf_hybrid_reliability",
-    "pdf_parser_geometry",
-    "pdf_structural_row_windows",
-    "pdf_visual_topology",
-    "pdf_topology_assembly",
-    "pdf_vlm_product_routing",
-    "pdf_vlm_region_binding",
-    "pdf_grid_experiment_provider",
-    "pdf_table_locator",
+    "pdf_table_locator_provider",
     "pdf_table_intake_runtime",
-    "pdf_dual_vlm_canonical_table_contracts",
-    "pdf_dual_vlm_legacy_decision_contracts",
-    "pdf_dual_vlm_fact_providers",
-    "pdf_dual_vlm_runtime",
-    "semantic_visual_table_materialization",
-    "semantic_visual_table_migration",
-    "pdf_visual_table_review",
-    "pdf_continuation_discovery",
-    "pdf_structural_repair_runtime",
-    "pdf_semantic_header_contracts",
-    "pdf_semantic_header_projection",
-    "pdf_structural_repair_shadow",
-    "pdf_hybrid_shadow",
-    "pdf_hybrid_reliability_shadow",
 ]
 
-_GATE1_HYBRID_INSERT_AT = MODULE_ORDER.index("gate2_provider_adapters") + 1
+_GATE1_PDF_TABLE_INSERT_AT = MODULE_ORDER.index("gate2_provider_adapters") + 1
 GATE1_MODULE_ORDER = [
-    *MODULE_ORDER[:_GATE1_HYBRID_INSERT_AT],
-    *GATE1_HYBRID_MODULES,
-    *MODULE_ORDER[_GATE1_HYBRID_INSERT_AT:],
+    *MODULE_ORDER[:_GATE1_PDF_TABLE_INSERT_AT],
+    *GATE1_PDF_TABLE_MODULES,
+    *MODULE_ORDER[_GATE1_PDF_TABLE_INSERT_AT:],
 ]
 GATE1_NDFL_GATE3_MODULES = [
     "gate3_financial_label_dictionary",
@@ -215,6 +176,7 @@ GATE1_NDFL_GATE3_MODULES = [
     "gate3_chunk_batch_labeling",
     "gate3_financial_annotations_persistence",
     "gate3_ndfl_case_readiness",
+    "gate3_metadata_source_facts",
     "gate4_financial_case_materialization",
     "gate4_financial_case_cache",
     "gate3_ndfl_workflow",
@@ -245,12 +207,12 @@ GATE1_GATE5_MODULES = [
     "gate5_resolved_declaration_package",
     "gate5_declaration_semantic_input",
     "gate5_full_target_xml_projection",
-    "gate5_end_to_end_full_target_xml",
-    "gate5_openwebui_product",
+    "gate5_evidence_intake",
+    "gate5_client_evidence_review",
+    "gate5_human_gap_closure",
+    "gate5_declaration_preparation",
 ]
-_GATE1_NDFL_GATE3_INSERT_AT = GATE1_MODULE_ORDER.index(
-    "gate3_context_manifest"
-) + 1
+_GATE1_NDFL_GATE3_INSERT_AT = GATE1_MODULE_ORDER.index("gate3_context_manifest") + 1
 GATE1_MODULE_ORDER = [
     *GATE1_MODULE_ORDER[:_GATE1_NDFL_GATE3_INSERT_AT],
     *GATE1_NDFL_GATE3_MODULES,
@@ -261,6 +223,22 @@ GATE1_MODULE_ORDER = [
     *GATE1_MODULE_ORDER[:_GATE1_GATE5_INSERT_AT],
     *GATE1_GATE5_MODULES,
     *GATE1_MODULE_ORDER[_GATE1_GATE5_INSERT_AT:],
+]
+GATE1_ORDINARY_TRADE_MODULES = [
+    "ordinary_trade_semantic_compiler",
+    "ordinary_trade_qualified_mappings",
+    "ordinary_trade_projection",
+    "gate4_ordinary_trade_candidate",
+    "ordinary_trade_candidate_runtime",
+    "ordinary_trade_production_runtime",
+]
+_GATE1_ORDINARY_TRADE_INSERT_AT = (
+    GATE1_MODULE_ORDER.index("gate5_declaration_preparation") + 1
+)
+GATE1_MODULE_ORDER = [
+    *GATE1_MODULE_ORDER[:_GATE1_ORDINARY_TRADE_INSERT_AT],
+    *GATE1_ORDINARY_TRADE_MODULES,
+    *GATE1_MODULE_ORDER[_GATE1_ORDINARY_TRADE_INSERT_AT:],
 ]
 GATE2_ONLY_MODULES = ["gate2_chat_dcp_resolution"]
 GATE2_MODULE_ORDER = [
@@ -288,9 +266,7 @@ GATE2_FINANCIAL_MODULES = [
     "gate2_financial_evidence_compatibility",
     "gate2_financial_evidence_production_runtime",
 ]
-_GATE2_FINANCIAL_INSERT_AT = GATE2_MODULE_ORDER.index(
-    "gate2_model_clients"
-) + 1
+_GATE2_FINANCIAL_INSERT_AT = GATE2_MODULE_ORDER.index("gate2_model_clients") + 1
 GATE2_DOMAIN_MODULE_ORDER = [
     *GATE2_MODULE_ORDER[:_GATE2_FINANCIAL_INSERT_AT],
     *GATE2_FINANCIAL_MODULES,
@@ -306,9 +282,9 @@ GATE2_SUCCESSOR_MODULES = [
     "gate2_successor_artifacts_v2",
     "gate2_successor_compatibility",
 ]
-_GATE2_SUCCESSOR_INSERT_AT = GATE2_DOMAIN_MODULE_ORDER.index(
-    "gate2_source_unit_segmentation"
-) + 1
+_GATE2_SUCCESSOR_INSERT_AT = (
+    GATE2_DOMAIN_MODULE_ORDER.index("gate2_source_unit_segmentation") + 1
+)
 GATE2_DOMAIN_MODULE_ORDER = [
     *GATE2_DOMAIN_MODULE_ORDER[:_GATE2_SUCCESSOR_INSERT_AT],
     *GATE2_SUCCESSOR_MODULES,
@@ -328,9 +304,10 @@ def main() -> None:
         name: (PACKAGE_ROOT / f"{name}.py").read_text(encoding="utf-8")
         for name in sorted(
             set(MODULE_ORDER)
-            | set(GATE1_HYBRID_MODULES)
+            | set(GATE1_PDF_TABLE_MODULES)
             | set(GATE1_NDFL_GATE3_MODULES)
             | set(GATE1_GATE5_MODULES)
+            | set(GATE1_ORDINARY_TRADE_MODULES)
             | set(GATE2_ONLY_MODULES)
             | set(GATE2_FINANCIAL_MODULES)
             | set(GATE2_SUCCESSOR_MODULES)
@@ -338,9 +315,7 @@ def main() -> None:
     }
     if target in {"all", "gate1"}:
         pipe_source = _strip_openwebui_metadata(PIPE_SOURCE.read_text(encoding="utf-8"))
-        gate1_modules = {
-            name: modules[name] for name in GATE1_MODULE_ORDER
-        }
+        gate1_modules = {name: modules[name] for name in GATE1_MODULE_ORDER}
         gate1_modules["__init__"] = _project_package_init(
             gate1_modules["__init__"],
             included_modules=set(gate1_modules),
@@ -355,8 +330,8 @@ def main() -> None:
             },
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
-            version="0.37.1-pdf-source-bound-table-v1-bundled",
-            package_version="gate1_pdf_source_bound_table_v1",
+            version="0.39.0-ordinary-trade-production-bundled",
+            package_version="gate1_ordinary_trade_production_v1",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1",
         )
@@ -398,8 +373,8 @@ def main() -> None:
             resources={},
             pipe_source=gate2_domain_pipe_source,
             title="Broker Reports Gate 2 Domain Source Fact Extraction",
-            version="0.12.0-answer-context-v1-bundled",
-            package_version="gate2_domain_semantic_visual_v1",
+            version="0.13.0-single-current-pipeline-bundled",
+            package_version="gate2_domain_single_current_pipeline_v1",
             source_label="openwebui_actions/broker_reports_gate2_domain_source_fact_pipe.py",
             requirements="pydantic",
         )
@@ -498,12 +473,8 @@ def assert_gate2_bundle_contract(
         "bundled_modules": "_BUNDLED_MODULES",
         "model_contracts_module": '"gate2_model_contracts"',
         "model_requests_module": '"gate2_model_requests"',
-        "economy_provider_selection_module": (
-            '"gate2_economy_provider_selection"'
-        ),
-        "economy_workload_policy_module": (
-            '"gate2_economy_workload_policy"'
-        ),
+        "economy_provider_selection_module": ('"gate2_economy_provider_selection"'),
+        "economy_workload_policy_module": ('"gate2_economy_workload_policy"'),
         "provider_adapters_module": '"gate2_provider_adapters"',
         "model_clients_module": '"gate2_model_clients"',
         "csv_profile_module": '"csv_profile"',
@@ -537,15 +508,11 @@ def assert_gate2_bundle_contract(
             "Gate2StructuredModelClientFactory.create is the only production "
             "Gate 2 model client entrypoint"
         ),
-        "economy_provider_selection_factory": (
-            "Gate2EconomyProviderSelectionFactory("
-        ),
+        "economy_provider_selection_factory": ("Gate2EconomyProviderSelectionFactory("),
         "economy_provider_selection_factory_anchor": (
             "Gate2EconomyProviderSelectionFactory.create is the only production"
         ),
-        "economy_workload_policy_factory": (
-            "Gate2EconomyWorkloadPolicyFactory("
-        ),
+        "economy_workload_policy_factory": ("Gate2EconomyWorkloadPolicyFactory("),
         "economy_workload_policy_factory_anchor": (
             "Gate2EconomyWorkloadPolicyFactory.create is the only code-owned"
         ),
@@ -559,9 +526,7 @@ def assert_gate2_bundle_contract(
                 "deterministic_financial_scopes_module": (
                     '"gate2_deterministic_financial_scopes"'
                 ),
-                "financial_successor_module": (
-                    '"gate2_financial_evidence_successor"'
-                ),
+                "financial_successor_module": ('"gate2_financial_evidence_successor"'),
                 "financial_semantic_model_assets_module": (
                     '"gate2_financial_semantic_model_assets"'
                 ),
@@ -574,9 +539,7 @@ def assert_gate2_bundle_contract(
                 "financial_semantic_contract_factory_anchor": (
                     "Gate2FinancialSemanticContractFactory.create is the only"
                 ),
-                "financial_domain_catalog_module": (
-                    '"gate2_financial_domain_catalog"'
-                ),
+                "financial_domain_catalog_module": ('"gate2_financial_domain_catalog"'),
                 "financial_domain_projection_module": (
                     '"gate2_financial_domain_projection"'
                 ),
@@ -586,15 +549,12 @@ def assert_gate2_bundle_contract(
                 "financial_domain_catalog_factory_anchor": (
                     "Gate2FinancialDomainCatalogFactory.create is the only"
                 ),
-                "financial_domain_query_module": (
-                    '"gate2_financial_domain_query"'
-                ),
+                "financial_domain_query_module": ('"gate2_financial_domain_query"'),
                 "financial_domain_query_factory_anchor": (
                     "Gate2FinancialDomainQueryFactory.create is the only"
                 ),
                 "financial_successor_factory_anchor": (
-                    "Gate2FinancialEvidenceSuccessorRunnerFactory.create is "
-                    "the only"
+                    "Gate2FinancialEvidenceSuccessorRunnerFactory.create is the only"
                 ),
             }
         )

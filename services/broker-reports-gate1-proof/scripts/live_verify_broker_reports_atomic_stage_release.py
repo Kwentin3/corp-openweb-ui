@@ -74,6 +74,7 @@ def evaluate_function_release(
     )
     content = str(live.get("content") or "")
     expected_valves = dict(expected.get("valves") or {})
+    retired_valves = set(expected.get("retired_valve_keys") or [])
     projected_valves = {
         key: valves.get(key) for key in sorted(expected_valves)
     }
@@ -108,6 +109,7 @@ def evaluate_function_release(
         "release_bundle_hash_match": release_meta.get("bundle_sha256")
         == expected.get("content_sha256"),
         "valves_match": projected_valves == expected_valves,
+        "retired_valves_absent": all(key not in valves for key in retired_valves),
     }
     return {
         "function_id": expected.get("function_id"),
@@ -115,7 +117,7 @@ def evaluate_function_release(
         "checks": checks,
         "repository_content_sha256": expected.get("content_sha256"),
         "live_content_sha256": _sha256_text(content) if content else None,
-        "valves": projected_valves,
+        "valves": valves,
         "expected_active": expected_active,
     }
 
@@ -160,6 +162,7 @@ def evaluate_remote_runtime(
         str(item["function_id"])
         for item in expected_manifest.get("functions", [])
     }
+    retired_function_ids = set(expected_manifest.get("retired_function_ids") or [])
     checks = {
         "image_identity_exact": all(
             image.get(key) == expected_image.get(key)
@@ -190,7 +193,9 @@ def evaluate_remote_runtime(
             or runtime.get("rollback_loader_hash_exact") is True
         ),
         "rollback_activation_snapshot_exact": (
-            set(previous_function_activation) == expected_function_ids
+            expected_function_ids <= set(previous_function_activation)
+            and set(previous_function_activation)
+            <= expected_function_ids | retired_function_ids
             and all(
                 isinstance(value, bool)
                 for value in previous_function_activation.values()
@@ -204,34 +209,29 @@ def evaluate_route_activation(
     *,
     expected_manifest: Mapping[str, Any],
     gate1_valves: Mapping[str, Any],
-    domain_valves: Mapping[str, Any],
 ) -> dict[str, bool]:
     runtime = dict(expected_manifest.get("runtime") or {})
     provider_policy = dict(expected_manifest.get("provider_policy") or {})
     source_bound = dict(provider_policy.get("source_bound_table_contract") or {})
-    semantic = dict(provider_policy.get("semantic_visual_table_contract") or {})
+    functions = list(expected_manifest.get("functions") or [])
+    gate1_retired = set((functions[0] if functions else {}).get("retired_valve_keys") or [])
     return {
         "source_bound_table_route_default_on": (
             gate1_valves.get("pdf_table_intake_enabled") is True
-            and gate1_valves.get("pdf_dual_vlm_enabled") is False
-            and gate1_valves.get(
-                "pdf_semantic_visual_table_downstream_enabled"
-            )
-            is False
-            and domain_valves.get(
-                "allow_standalone_semantic_visual_projections"
-            )
-            is False
+            and all(key not in gate1_valves for key in gate1_retired)
+            and gate1_valves.get("canonical_gate2_write_enabled") is True
+            and gate1_valves.get("canonical_gate2_read_enabled") is True
+            and gate1_valves.get("ordinary_trade_candidate_enabled") is True
+            and gate1_valves.get("ndfl_gate3_enabled") is False
         ),
         "source_bound_contract_identity_exact": (
             source_bound.get("active_for_new_writes") is True
             and source_bound.get("table_structure_authority") == "pdfplumber"
             and source_bound.get("source_literal_authority") == "original_pdf"
             and source_bound.get("model_values_used_as_source_literals") is False
-            and semantic.get("active_for_new_writes") is False
             and runtime.get("source_bound_table_normalization_default_enabled")
             is True
-            and runtime.get("semantic_visual_profile_default_enabled") is False
+            and runtime.get("legacy_table_route_available") is False
         ),
         "vlm_bounded_input_configured": (
             gate1_valves.get("pdf_table_intake_maximum_pages") == 64
@@ -465,6 +465,16 @@ def main() -> int:
                 expected_active=previous_function_activation.get(function_id),
             )
         )
+    retired_function_checks = [
+        {
+            "function_id": function_id,
+            "inactive": (
+                (value := _get_live_function(session, base_url, function_id)) is None
+                or value.get("is_active") in (False, 0, None)
+            ),
+        }
+        for function_id in manifest.get("retired_function_ids") or []
+    ]
     action_check = evaluate_action_release(
         expected=manifest["action"],
         live=_get_live_function(session, base_url, ACTION_ID),
@@ -497,12 +507,15 @@ def main() -> int:
         }
         for item in function_checks
     ]
-    semantic_boundary = manifest["provider_policy"][
-        "semantic_visual_table_contract"
+    runtime_boundary = manifest["provider_policy"][
+        "source_bound_table_contract"
     ]["runtime_boundary"]
     release_checks = {
         "all_function_bundles_exact": all(
             item["passed"] for item in function_checks
+        ),
+        "retired_functions_inactive": all(
+            item["inactive"] for item in retired_function_checks
         ),
         "private_intake_action_exact": action_check["passed"],
         "all_managed_prompts_exact": all(item["passed"] for item in prompt_checks),
@@ -511,13 +524,13 @@ def main() -> int:
         "no_paddle_or_local_ocr_dependency": factory_checks[
             "production_python_has_no_paddle_or_local_ocr_import"
         ]
-        and semantic_boundary["local_ocr_production_allowed"] is False
-        and semantic_boundary["local_ocr_worker_pool_allowed"] is False,
-        "knowledge_rag_vectorization_forbidden": semantic_boundary[
+        and runtime_boundary["local_ocr_production_allowed"] is False
+        and runtime_boundary["local_ocr_worker_pool_allowed"] is False,
+        "knowledge_rag_vectorization_forbidden": runtime_boundary[
             "knowledge_rag_vectorization_allowed"
         ]
         is False
-        and semantic_boundary[
+        and runtime_boundary[
             "native_openwebui_document_processing_allowed"
         ]
         is False,
@@ -527,12 +540,10 @@ def main() -> int:
         **evaluate_route_activation(
             expected_manifest=manifest,
             gate1_valves=function_checks[0]["valves"],
-            domain_valves=function_checks[2]["valves"],
         ),
-        "legacy_visual_auto_publication_disabled": manifest["runtime"][
-            "visual_auto_publication_enabled"
-        ]
-        is False,
+        "legacy_table_route_unavailable": manifest["runtime"][
+            "legacy_table_route_available"
+        ] is False,
     }
     output = {
         "status": "passed" if all(release_checks.values()) else "failed",
@@ -542,6 +553,7 @@ def main() -> int:
         "manifest_sha256": manifest["manifest_sha256"],
         "checks": release_checks,
         "functions": function_checks,
+        "retired_functions": retired_function_checks,
         "action": action_check,
         "managed_prompts": prompt_checks,
         "runtime_checks": runtime_checks,

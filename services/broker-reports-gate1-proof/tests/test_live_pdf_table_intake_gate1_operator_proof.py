@@ -88,6 +88,10 @@ def test_operator_uses_server_attested_chat_context_and_terminal_response():
         native_chat["assistant_message_id"]
     )
     assert completion["stream"] is False
+    prompt = completion["messages"][0]["content"]
+    assert "single current Broker Reports pipeline" in prompt
+    assert "do not use Knowledge/RAG or legacy recovery routes" in prompt
+    assert "or run Gate 2" not in prompt
 
 
 def test_operator_deletes_the_exact_temporary_chat():
@@ -122,7 +126,7 @@ def test_operator_keeps_gate1_evidence_readable_when_downstream_chat_is_empty():
     assert content == ""
 
 
-def test_operator_accepts_source_bound_units_and_parser_owned_projections():
+def test_operator_accepts_current_neutral_canonical_projections():
     remote_evidence = _passing_remote_evidence()
 
     checks = _evaluate(
@@ -244,9 +248,9 @@ def _projection(source_unit_ref: str, *, rows: int, cells: int):
         "lifecycle_status": "private_ready",
         "safe_metadata": {
             "source_unit_ref": source_unit_ref,
-            "table_origin": "vlm_located_pdfplumber_source_bound",
+            "table_origin": "deterministic_neutral_canonical_table",
             "projection_status": "ready",
-            "table_candidate_status": "validated_source_bound_geometry",
+            "table_candidate_status": "canonical_table_accepted",
             "coverage_status": "complete",
             "reconstruction_quality": "high",
             "row_count": rows,

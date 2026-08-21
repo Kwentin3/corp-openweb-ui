@@ -62,7 +62,7 @@ def test_goal12_replay_pins_history_without_mutating_runtime_profile() -> None:
         "google_gemini"
     )
 
-    assert current.adapter_version == "1.6.0"
+    assert current.adapter_version == "1.7.0"
     assert historical.adapter_version == "1.5.0"
     assert historical.profile_id == current.profile_id
     assert gate2_provider_profile("google_gemini") is current

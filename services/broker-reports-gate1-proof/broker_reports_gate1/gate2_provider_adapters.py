@@ -39,6 +39,7 @@ from .gate2_model_requests import (
 FACTORY_REQUIRED = "Gate2ProviderAdapterFactory.create is the only production Gate 2 provider adapter entrypoint"
 FORBIDDEN = "Pipes and Gate 2 business runtimes must not build vendor payloads or call provider endpoints"
 MAX_NATIVE_PROVIDER_RESPONSE_BYTES = 1_048_576
+GATE3_GEMINI_MAX_OUTPUT_TOKENS = 65_536
 CONTEXT_V2_1_BUDGET_SMOKE_TRANSPORT_POLICY = (
     "direct_exact_provider_http_via_openwebui_connection_v1"
 )
@@ -1773,6 +1774,7 @@ class Gate2GeminiResponseFormatAdapter(_Gate2OpenWebUIProviderAdapter):
         prepared_form_data = copy.deepcopy(prepared_request.form_data)
         provider_wrapper = self._strict_schema(prepared_form_data["response_format"])
         provider_wrapper["schema"] = copy.deepcopy(provider_schema)
+        prepared_form_data["max_tokens"] = GATE3_GEMINI_MAX_OUTPUT_TOKENS
         result = replace(
             prepared_request,
             form_data=prepared_form_data,

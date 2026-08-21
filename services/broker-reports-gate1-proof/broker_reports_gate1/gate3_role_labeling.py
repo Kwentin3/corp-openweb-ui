@@ -348,6 +348,7 @@ class Gate3RoleLabelingFactory:
                     facts=facts,
                     role_pack_markdown=role_pack_markdown,
                     final_provider_request=None,
+                    raw_provider_response=None,
                     raw_model_output=None,
                     validated_output=validated_output,
                     role_pack=role_pack,
@@ -431,6 +432,7 @@ class Gate3RoleLabelingFactory:
                 facts=facts,
                 role_pack_markdown=role_pack_markdown,
                 final_provider_request=final_provider_request,
+                raw_provider_response=model_result.raw_provider_response,
                 raw_model_output=raw_model_output,
                 validated_output=validated_output,
                 role_pack=role_pack,
@@ -1246,6 +1248,7 @@ def _metrics(
     facts: list[dict[str, Any]],
     role_pack_markdown: str,
     final_provider_request: dict[str, Any] | None,
+    raw_provider_response: dict[str, Any] | None,
     raw_model_output: Any,
     validated_output: dict[str, Any] | None,
     role_pack: dict[str, Any],
@@ -1307,6 +1310,11 @@ def _metrics(
         "provider_called": provider_called,
         "final_model_input_chars": len(request_json),
         "raw_model_output_chars": len(raw_json),
+        **_safe_raw_response_diagnostics(
+            final_provider_request=final_provider_request,
+            raw_provider_response=raw_provider_response,
+            raw_model_output=raw_model_output,
+        ),
         "annotations_validated": (
             len(validated_output["annotations"]) if validated_output is not None else 0
         ),
@@ -1314,6 +1322,75 @@ def _metrics(
         "facts_role_incomplete": facts_role_incomplete,
         "facts_incomplete_due_to_role_rejection": len(rejected_fact_aliases),
         "role_bindings_rejected": len(rejected_role_bindings),
+    }
+
+
+def _safe_raw_response_diagnostics(
+    *,
+    final_provider_request: dict[str, Any] | None,
+    raw_provider_response: dict[str, Any] | None,
+    raw_model_output: Any,
+) -> dict[str, Any]:
+    if raw_model_output is None:
+        output_kind = "none"
+        decoded = None
+        json_decodable = False
+    elif isinstance(raw_model_output, dict):
+        output_kind = "object"
+        decoded = raw_model_output
+        json_decodable = True
+    elif isinstance(raw_model_output, str):
+        output_kind = "string"
+        try:
+            decoded = json.loads(raw_model_output)
+            json_decodable = True
+        except (ValueError, json.JSONDecodeError):
+            decoded = None
+            json_decodable = False
+    else:
+        output_kind = "other"
+        decoded = None
+        json_decodable = False
+
+    facts = decoded.get("facts") if isinstance(decoded, dict) else None
+    facts_list = isinstance(facts, list)
+    fact_shape_match = facts_list and all(
+        isinstance(fact, dict)
+        and set(fact) == {"fact_alias", "financial_label", "roles"}
+        and isinstance(fact.get("roles"), list)
+        for fact in facts
+    )
+    finish_reason = "unknown"
+    if isinstance(raw_provider_response, dict):
+        choices = raw_provider_response.get("choices")
+        if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+            candidate = choices[0].get("finish_reason")
+            if candidate in {"stop", "length", "content_filter", "tool_calls"}:
+                finish_reason = candidate
+            elif candidate is not None:
+                finish_reason = "other"
+    requested_max_tokens = (
+        final_provider_request.get("max_tokens")
+        if isinstance(final_provider_request, dict)
+        and isinstance(final_provider_request.get("max_tokens"), int)
+        else None
+    )
+    return {
+        "raw_output_kind": output_kind,
+        "raw_output_json_decodable": json_decodable,
+        "raw_output_top_level_contract_match": (
+            isinstance(decoded, dict) and set(decoded) == {"schema_version", "facts"}
+        ),
+        "raw_output_schema_version_match": (
+            isinstance(decoded, dict)
+            and decoded.get("schema_version")
+            == GATE3_ROLE_LABELING_RESPONSE_SCHEMA_VERSION
+        ),
+        "raw_output_facts_list": facts_list,
+        "raw_output_facts_total": len(facts) if facts_list else None,
+        "raw_output_fact_shape_contract_match": fact_shape_match,
+        "provider_finish_reason": finish_reason,
+        "requested_max_tokens": requested_max_tokens,
     }
 
 

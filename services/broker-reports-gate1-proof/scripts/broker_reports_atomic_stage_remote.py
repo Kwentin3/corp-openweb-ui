@@ -40,7 +40,7 @@ RELEASE_QUIESCENT_WORKLOAD_STATES = {
     *TERMINAL_WORKLOAD_STATES,
     "awaiting_review",
 }
-MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v6"
+MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v8"
 
 
 class StageReleaseError(RuntimeError):
@@ -143,6 +143,24 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> None:
         for item in functions
     ):
         raise StageReleaseError("stage_release_activation_policy_invalid")
+    current_ids = [str(item.get("function_id") or "") for item in functions]
+    retired_ids = manifest.get("retired_function_ids")
+    if (
+        not isinstance(retired_ids, list)
+        or any(not isinstance(item, str) or not item for item in retired_ids)
+        or len(retired_ids) != len(set(retired_ids))
+        or set(current_ids) & set(retired_ids)
+    ):
+        raise StageReleaseError("stage_release_retired_function_set_invalid")
+    for item in functions:
+        retired = item.get("retired_valve_keys")
+        if (
+            not isinstance(retired, list)
+            or any(not isinstance(key, str) or not key for key in retired)
+            or len(retired) != len(set(retired))
+            or set(retired) & set(_json_object(item.get("valves")))
+        ):
+            raise StageReleaseError("stage_release_retired_valves_invalid")
 
 
 def _validate_payload(staging_dir: Path, manifest: Mapping[str, Any]) -> None:
@@ -225,6 +243,25 @@ def _function_rows(db_path: Path, function_ids: list[str]) -> dict[str, dict[str
     if set(result) != set(function_ids):
         raise StageReleaseError("stage_release_function_set_missing")
     return result
+
+
+def _optional_function_rows(
+    db_path: Path, function_ids: list[str]
+) -> dict[str, dict[str, Any]]:
+    if not function_ids:
+        return {}
+    placeholders = ",".join("?" for _ in function_ids)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT id, content, meta, valves, type, is_active, is_global, updated_at "
+            f"FROM function WHERE id IN ({placeholders}) ORDER BY id",
+            tuple(function_ids),
+        ).fetchall()
+    finally:
+        conn.close()
+    return {str(row["id"]): dict(row) for row in rows}
 
 
 def _prompt_rows(db_path: Path, prompt_ids: list[str]) -> dict[str, dict[str, Any]]:
@@ -479,8 +516,20 @@ def _live_state(
 ) -> dict[str, Any]:
     function_ids = [str(item["function_id"]) for item in manifest["functions"]]
     rows = _function_rows(db_path, function_ids)
+    retired_ids = [str(item) for item in manifest.get("retired_function_ids") or []]
+    retired_rows = _optional_function_rows(db_path, retired_ids)
     return {
         "functions": _safe_function_state(rows, manifest),
+        "retired_functions": [
+            {
+                "function_id": function_id,
+                "present": function_id in retired_rows,
+                "active": (
+                    retired_rows.get(function_id, {}).get("is_active") in (1, True)
+                ),
+            }
+            for function_id in retired_ids
+        ],
         "action": _action_state(db_path, manifest),
         "managed_prompts": _prompt_states(db_path, manifest),
         "image": _image_state(),
@@ -599,6 +648,14 @@ def _assert_candidate(
             raise StageReleaseError(
                 "stage_release_candidate_function_mismatch:" + function_id
             )
+    retired = {
+        str(item.get("function_id")): item
+        for item in state.get("retired_functions") or []
+    }
+    if set(retired) != set(manifest.get("retired_function_ids") or []) or any(
+        item.get("active") is not False for item in retired.values()
+    ):
+        raise StageReleaseError("stage_release_retired_function_active")
     _assert_prompt_contracts(state, manifest)
 
 
@@ -793,8 +850,13 @@ def _desired_rows(
             "manifest_sha256": manifest["manifest_sha256"],
             "bundle_sha256": contract["content_sha256"],
         }
+        retired_valves = set(contract.get("retired_valve_keys") or [])
         valves = {
-            **_json_object(current.get("valves")),
+            **{
+                key: value
+                for key, value in _json_object(current.get("valves")).items()
+                if key not in retired_valves
+            },
             **_json_object(contract.get("valves")),
         }
         result[function_id] = {
@@ -805,6 +867,20 @@ def _desired_rows(
             "is_active": current.get("is_active"),
             "is_global": 0,
             "updated_at": now,
+        }
+    for function_id in manifest.get("retired_function_ids") or []:
+        current = current_rows.get(str(function_id))
+        if current is None:
+            continue
+        already_retired = current.get("is_active") in (0, False, None)
+        result[str(function_id)] = {
+            "content": current.get("content"),
+            "meta": current.get("meta"),
+            "valves": current.get("valves"),
+            "type": current.get("type"),
+            "is_active": 0,
+            "is_global": current.get("is_global"),
+            "updated_at": current.get("updated_at") if already_retired else now,
         }
     return result
 
@@ -1106,8 +1182,15 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
     data_root = _volume_mount()
     db_path = _webui_db(data_root)
     function_ids = [str(item["function_id"]) for item in manifest["functions"]]
+    retired_function_ids = [
+        str(item) for item in manifest.get("retired_function_ids") or []
+    ]
     prompt_ids = [str(item["prompt_id"]) for item in manifest["managed_prompts"]]
-    current_function_rows = _function_rows(db_path, function_ids)
+    current_function_rows = {
+        **_function_rows(db_path, function_ids),
+        **_optional_function_rows(db_path, retired_function_ids),
+    }
+    managed_function_ids = list(current_function_rows)
     current_prompt_rows = _prompt_rows(db_path, prompt_ids)
     candidate_loader_path = staging_dir / str(manifest["loader"]["file_name"])
     candidate_loader_bytes = candidate_loader_path.read_bytes()
@@ -1127,7 +1210,9 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         for item in before["functions"]
     ):
         raise StageReleaseError("stage_release_existing_function_state_invalid")
-    activation_before = _function_activation_state(current_function_rows)
+    activation_before = _function_activation_state(
+        {key: current_function_rows[key] for key in function_ids}
+    )
     desired_rows = _desired_rows(
         staging_dir=staging_dir,
         manifest=manifest,
@@ -1151,7 +1236,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
                 == current_function_rows[function_id].get("is_active")
             ),
         }
-        for function_id in function_ids
+        for function_id in managed_function_ids
     }
     prompt_plan = {
         prompt_id: {
@@ -1262,7 +1347,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             _start_container()
             _wait_healthy()
             health_checks += 1
-            restored_rows = _function_rows(db_path, function_ids)
+            restored_rows = _function_rows(db_path, managed_function_ids)
             restored_prompt_rows = _prompt_rows(db_path, prompt_ids)
             if (
                 _snapshot_function_rows(restored_rows) != rollback_rows
@@ -1346,6 +1431,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         "managed_prompt_plan": prompt_plan,
         "loader_plan": loader_plan,
         "functions": candidate["functions"],
+        "retired_functions": candidate["retired_functions"],
         "action": candidate["action"],
         "image": candidate["image"],
         "loader": candidate["loader"],

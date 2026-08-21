@@ -92,6 +92,16 @@ def test_product_stage_rejects_base_pipe_identity_before_provider() -> None:
     assert failure.value.code == "ndfl_workspace_model_identity_required"
 
 
+def test_workload_failure_detail_exposes_only_explicit_safe_details() -> None:
+    failure = NdflWorkflowError(
+        "ndfl_gate3_document_incomplete",
+        safe_details={"chunks_rejected": 1},
+    )
+
+    assert Pipe._workload_failure_detail(failure) == {"chunks_rejected": 1}
+    assert Pipe._workload_failure_detail(RuntimeError("private payload")) is None
+
+
 def test_human_residual_turn_reuses_one_validated_gate3_artifact() -> None:
     context = _context("broker-reports-ndfl")
     record = SimpleNamespace(

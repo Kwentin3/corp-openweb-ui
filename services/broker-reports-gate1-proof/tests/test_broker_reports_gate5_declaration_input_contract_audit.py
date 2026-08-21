@@ -129,7 +129,7 @@ def test_g543_methodology_resource_and_all_active_demand_bindings_are_pinned() -
     }
 
 
-def test_g590_current_foreign_tax_consumer_has_no_adjustment_or_netting_rule() -> None:
+def test_current_foreign_tax_consumer_requires_article_232_document_role() -> None:
     methodology = Gate5TrustedMethodologyAuthorityFactory.create().resolve(
         {
             "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
@@ -140,7 +140,7 @@ def test_g590_current_foreign_tax_consumer_has_no_adjustment_or_netting_rule() -
     rule = next(
         row
         for row in methodology["rules"]
-        if row["rule_id"] == "foreign-tax-credit-articles-214-232-v1"
+        if row["rule_id"] == "foreign-tax-credit-articles-214-232-v3"
     )
 
     assert rule["required_inputs"] == [
@@ -148,15 +148,16 @@ def test_g590_current_foreign_tax_consumer_has_no_adjustment_or_netting_rule() -
         "foreign_income_kind_amount_and_year",
         "foreign_tax_amount_and_payment_date",
         "foreign_tax_authority_or_withholding_source_document",
+        "withholding_document_issuer_role_and_monthly_income_tax_details",
         "required_translation",
         "applicable_tax_treaty",
     ]
-    assert rule["insufficient_inputs"] == "METHODOLOGY_UNRESOLVED"
+    assert rule["insufficient_inputs"] == "EXTERNAL_AUTHORITATIVE_FACT_MISSING"
+    assert "issuer is the income payment source" in rule["deterministic_rule"]
     assert "foreign withholding alone is not a credit" in rule["deterministic_rule"]
     serialized = json.dumps(rule, sort_keys=True)
-    assert "adjustment" not in serialized
-    assert "reversal" not in serialized
-    assert "netting" not in serialized
+    assert "adjustment, refund and reversal observations remain separate" in serialized
+    assert "reviewed netting rule" in serialized
 
 
 def test_g543_contract_report_and_authority_routing_preserve_the_scope_stop() -> None:
@@ -226,6 +227,8 @@ def test_g543_receipt_hashes_only_safe_artifacts_and_preserves_scope_stop() -> N
             continue
         path = REPO_ROOT / artifact["path"]
         content = path.read_bytes()
+        if path.suffix in {".json", ".md", ".py"}:
+            content = content.replace(b"\r\n", b"\n")
         assert len(content) == artifact["bytes"]
         assert hashlib.sha256(content).hexdigest() == artifact["sha256"]
 

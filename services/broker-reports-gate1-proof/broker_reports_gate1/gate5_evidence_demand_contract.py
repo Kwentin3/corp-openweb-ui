@@ -294,7 +294,7 @@ def _fact_contracts() -> list[dict[str, Any]]:
     pending_source_contracts = {
         "foreign_income_kind_amount_and_year": "foreign income kind, amount and year evidence",
         "foreign_tax_amount_and_payment_date": "foreign tax amount and payment date evidence",
-        "foreign_tax_authority_or_withholding_source_document": "foreign tax authority or withholding document evidence",
+        "foreign_tax_authority_or_withholding_source_document": "foreign tax authority evidence or the broker statement that reports the withholding",
         "required_translation": "translation evidence for a foreign tax document",
     }
     for input_id, meaning in pending_source_contracts.items():

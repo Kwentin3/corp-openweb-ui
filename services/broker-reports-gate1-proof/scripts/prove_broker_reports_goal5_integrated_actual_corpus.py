@@ -27,14 +27,9 @@ from broker_reports_gate1 import (  # noqa: E402
     ArtifactStoreConfig,
     ArtifactStoreFactory,
     Gate2TablePackageFactory,
-    PdfVisualTableReviewFactory,
-    VisualReviewAuthorityContext,
     build_retention_policy,
     validate_gate2_table_package,
-    validate_pdf_dual_vlm_decision,
     validate_reviewed_visual_projection,
-    validate_visual_review_receipt,
-    validate_visual_review_seal,
 )
 from broker_reports_gate1.artifact_models import ArtifactRecord  # noqa: E402
 from broker_reports_gate1.artifact_store import new_artifact_id  # noqa: E402
@@ -45,8 +40,17 @@ from broker_reports_gate1.pdf_dual_vlm_canonical_table_contracts import (  # noq
     validate_table_output,
 )
 from broker_reports_gate1.pdf_visual_table_review import (  # noqa: E402
+    PdfVisualTableReviewFactory,
     VISUAL_REGION_ACCOUNTING_SUBMISSION_SCHEMA_VERSION,
     VISUAL_REVIEW_SUBMISSION_SCHEMA_VERSION,
+    VisualReviewAuthorityContext,
+)
+from broker_reports_gate1.pdf_dual_vlm_runtime import (  # noqa: E402
+    validate_pdf_dual_vlm_decision,
+)
+from broker_reports_gate1.visual_table_review_contracts import (  # noqa: E402
+    validate_visual_review_receipt,
+    validate_visual_review_seal,
 )
 
 

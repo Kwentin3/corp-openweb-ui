@@ -28,6 +28,9 @@ from broker_reports_gate1 import (
 from broker_reports_gate1.artifact_lifecycle import lifecycle_for_visibility
 from broker_reports_gate1.artifact_models import ARTIFACT_TYPES, ArtifactRecord
 from broker_reports_gate1.gate2_model_contracts import Gate2SourceFactRuntimeError
+from broker_reports_gate1.gate2_provider_adapters import (
+    GATE3_GEMINI_MAX_OUTPUT_TOKENS,
+)
 from broker_reports_gate1.gate3_bounded_labeling import (
     FACTORY_REQUIRED,
     FORBIDDEN,
@@ -75,6 +78,7 @@ def test_operational_no_response_retry_reuses_exact_request_and_stops_on_respons
     assert attempt.validation_status == "validated"
     assert len(captured) == 2
     assert captured[0] == captured[1] == attempt.final_provider_request
+    assert captured[0]["max_tokens"] == GATE3_GEMINI_MAX_OUTPUT_TOKENS
     receipt = attempt.operational_retry_receipt
     assert receipt is not None
     assert receipt["semantic_attempts"] == 1
@@ -231,7 +235,14 @@ def test_bounded_labeling_uses_exact_three_part_context_and_restores_alias(
     }
     assert len(captured) == 1
     final_request = captured[0]
-    assert set(final_request) == {"model", "messages", "stream", "response_format"}
+    assert set(final_request) == {
+        "max_tokens",
+        "model",
+        "messages",
+        "stream",
+        "response_format",
+    }
+    assert final_request["max_tokens"] == GATE3_GEMINI_MAX_OUTPUT_TOKENS
     assert [item["role"] for item in final_request["messages"]] == [
         "system",
         "user",
@@ -327,6 +338,7 @@ def test_completion_mutation_cannot_change_sealed_provider_audit(
 
     assert len(captured) == 1
     assert captured[0]["model"] == MODEL_ID
+    assert captured[0]["max_tokens"] == GATE3_GEMINI_MAX_OUTPUT_TOKENS
     assert attempt.final_provider_request == captured[0]
     assert attempt.validation_status == "validated"
 

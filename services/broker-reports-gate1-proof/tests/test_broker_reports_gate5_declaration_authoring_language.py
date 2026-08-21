@@ -310,7 +310,7 @@ def test_g522_compiler_accepts_the_new_exact_typed_behavior_composition() -> Non
 
 def test_g522_unchanged_replay_candidate_removes_old_gap_and_exposes_next_gap() -> None:
     language = Gate5DeclarationAuthoringLanguageV2Factory.create_g522_replay()
-    raw = G522_CANDIDATE.read_bytes()
+    raw = G522_CANDIDATE.read_bytes().replace(b"\r\n", b"\n")
     candidate = language.parse_candidate_response(raw)
 
     assert hashlib.sha256(raw).hexdigest() == (
@@ -331,7 +331,7 @@ def test_g522_unchanged_replay_candidate_removes_old_gap_and_exposes_next_gap() 
 
 def test_g523_history_free_candidate_compiles_and_discovers_projection_gap() -> None:
     language = Gate5DeclarationAuthoringLanguageV2Factory.create_g523_replay()
-    raw = G523_CANDIDATE.read_bytes()
+    raw = G523_CANDIDATE.read_bytes().replace(b"\r\n", b"\n")
     candidate = language.parse_candidate_response(raw)
 
     assert hashlib.sha256(raw).hexdigest() == (

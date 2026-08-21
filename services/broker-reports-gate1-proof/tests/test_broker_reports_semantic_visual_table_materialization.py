@@ -135,28 +135,21 @@ def test_raw_and_parsed_provider_evidence_remain_private_and_hash_bound() -> Non
     )
 
 
-def test_semantic_projection_passes_existing_gate2_package_boundary() -> None:
+def test_semantic_projection_is_rejected_by_current_gate2_boundary() -> None:
     runtime = _runtime_result([["Item", "Value"], ["Cash", "1,000"]])
 
     projection = _materialize(runtime).gate2_projection
 
     assert TableProjectionValidator().validate(projection)["passed"] is True
     assert validate_semantic_visual_table_projection(projection)["passed"] is True
-    package = Gate2TablePackageFactory().create().build(
-        projection=projection,
-        case_id="case-semantic-materialization",
-    )
-    upstream = package["upstream_source_representation"]
-    assert upstream["source_representation_kind"] == (
-        "semantic_visual_logical_table"
-    )
-    assert upstream["semantic_response_contract_passed"] is True
-    assert upstream["physical_geometry_claimed"] is False
-    assert upstream["provider_consensus_required"] is False
-    assert package["source_unit"]["normalized_source_projection"]["cells"] == [
-        ["Item", "Value"],
-        ["Cash", "1,000"],
-    ]
+    with pytest.raises(
+        ValueError,
+        match="gate2_pdf_canonical_boundary_unsupported",
+    ):
+        Gate2TablePackageFactory().create().build(
+            projection=projection,
+            case_id="case-semantic-materialization",
+        )
 
 
 def test_materializer_fails_closed_on_missing_or_tampered_evidence() -> None:

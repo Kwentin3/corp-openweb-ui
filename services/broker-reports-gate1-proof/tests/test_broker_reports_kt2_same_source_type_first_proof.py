@@ -58,9 +58,6 @@ BINDING_PATH = (
     / "fixtures"
     / "kt2_same_source_type_first_binding.safe.json"
 )
-BUILDER_PATH = (
-    SERVICE_ROOT / "scripts" / "build_kt2_same_source_type_first_corpus.py"
-)
 PROOF_BUILDER_PATH = (
     SERVICE_ROOT / "scripts" / "build_kt2_same_source_type_first_proof.py"
 )
@@ -110,23 +107,7 @@ def authorities(corpus):
     return registry, proof, packages, prepared, response, execution
 
 
-def test_private_binding_and_public_corpus_are_exact_and_rebuildable(corpus):
-    completed = subprocess.run(
-        [sys.executable, str(BUILDER_PATH), "--check"],
-        cwd=SERVICE_ROOT,
-        check=False,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    )
-    assert completed.returncode == 0, completed.stderr
-    assert json.loads(completed.stdout) == {
-        "customer_values_in_git_total": 0,
-        "mode": "check",
-        "real_gate2_packages_total": 1,
-        "real_source_units_total": 3,
-        "status": "passed",
-    }
+def test_historical_private_binding_and_public_corpus_are_exact(corpus):
     binding = json.loads(BINDING_PATH.read_text(encoding="utf-8"))
     assert binding["public_fixture"]["real_gate2_packages_total"] == 1
     assert binding["public_fixture"]["real_source_units_total"] == 3

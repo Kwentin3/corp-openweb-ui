@@ -135,9 +135,10 @@ def test_review_scope_and_questions_are_exact_minimal_and_separated(
         for item in closure["required_actions"]
         if "obl_foreign_source_taxable_income_and_foreign_tax" in item["demand_refs"]
     )
-    assert source_jurisdiction["closure_type"] == "ADDITIONAL_DOCUMENT"
+    assert source_jurisdiction["closure_type"] == "METHODOLOGY_RESEARCH"
     assert source_jurisdiction["fact_key"] is None
-    assert "methodology decision" in source_jurisdiction["reason"]
+    assert "belong to Gate 5 methodology" in source_jurisdiction["reason"]
+    assert source_jurisdiction not in closure["user_facing_required_actions"]
     assert not any(
         item.get("fact_key") == "income_source_classification"
         for item in closure["required_actions"]
@@ -152,6 +153,34 @@ def test_review_scope_and_questions_are_exact_minimal_and_separated(
     assert closure["residency_classification"]["status"] == ("INSUFFICIENT_EVIDENCE")
     assert result["metrics"]["invented_source_facts"] == 0
     assert result["metrics"]["invented_relations"] == 0
+
+
+def test_broker_reported_withholding_does_not_trigger_a_duplicate_document_request(
+    tmp_path: Path,
+) -> None:
+    store, context = source_fixtures._case(tmp_path / "withholding")
+    _publish_metadata(store, context)
+
+    result = _prepare(store, context, evidence_mode="REAL_EVIDENCE")
+    closure = result["gap_closure"]
+    foreign_requests = [
+        item
+        for item in closure["required_actions"]
+        if "obl_foreign_source_taxable_income_and_foreign_tax"
+        in item["demand_refs"]
+    ]
+
+    assert foreign_requests
+    assert {item["closure_type"] for item in foreign_requests} == {
+        "METHODOLOGY_RESEARCH"
+    }
+    assert all(item["evidence_refs"] for item in foreign_requests)
+    assert not any(
+        item["closure_type"] == "ADDITIONAL_DOCUMENT"
+        and "obl_foreign_source_taxable_income_and_foreign_tax"
+        in item["demand_refs"]
+        for item in closure["user_facing_required_actions"]
+    )
 
 
 def test_new_document_and_typed_answer_trigger_deterministic_replay(

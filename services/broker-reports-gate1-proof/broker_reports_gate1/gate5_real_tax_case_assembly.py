@@ -15,6 +15,7 @@ from .gate5_full_declaration_definition import (
     Gate5TrustedFullDeclarationDefinitionAuthority,
     Gate5TrustedFullDeclarationDefinitionAuthorityFactory,
 )
+from .gate5_evidence_demand import GATE5_GAP_OWNER_CLASSIFICATIONS
 from .gate5_trusted_methodology import (
     GATE5_DECLARATION_INPUT_METHODOLOGY_ID,
     GATE5_DECLARATION_INPUT_METHODOLOGY_VERSION,
@@ -193,6 +194,13 @@ class Gate5RealTaxCaseAssemblyRuntime:
             terminal: sum(item["terminal"] == terminal for item in rows)
             for terminal in sorted(_TERMINALS)
         }
+        gap_owner_classification_counts = {
+            classification: sum(
+                item.get("gap_owner_classification") == classification
+                for item in rows
+            )
+            for classification in sorted(GATE5_GAP_OWNER_CLASSIFICATIONS)
+        }
         blockers = [
             copy.deepcopy(item["blocker"])
             for item in rows
@@ -241,6 +249,9 @@ class Gate5RealTaxCaseAssemblyRuntime:
             "metrics": {
                 "declaration_demands_total": len(rows),
                 **terminal_counts,
+                "gap_owner_classification_counts": (
+                    gap_owner_classification_counts
+                ),
                 "source_documents": len(source["source_document_ids"]),
                 "source_facts": source["facts_total"],
                 "fifo_calculations": len(source["fifo_calculations"]),
@@ -357,6 +368,11 @@ def _demand_row(
             publication=publication,
         )
     )
+    gap_owner_classification = _gap_owner_classification(
+        domain_id=domain["domain_id"],
+        terminal=terminal,
+        source=source,
+    )
     return {
         "schema_version": GATE5_DECLARATION_DEMAND_ROW_SCHEMA_VERSION,
         "demand": obligation["obligation_id"],
@@ -372,6 +388,7 @@ def _demand_row(
         "required_evidence": obligation["semantic_requirement"],
         "available_evidence": available,
         "terminal": terminal,
+        "gap_owner_classification": gap_owner_classification,
         "blocker": blocker,
         "evidence_chain_complete": terminal == "RESOLVED",
     }
@@ -381,8 +398,16 @@ def _available_evidence(
     *, domain_id: str, obligation_ref: str, source: dict[str, Any]
 ) -> dict[str, Any]:
     relevant_types: set[str] = set()
-    if domain_id in {"income_group_tax_results", "taxable_income_by_source"}:
+    if domain_id == "income_group_tax_results":
         relevant_types = _TAXABLE_INCOME_TYPES
+    elif domain_id == "taxable_income_by_source":
+        relevant_types = _TAXABLE_INCOME_TYPES | {
+            "TAX_WITHHELD",
+            "TAX_WITHHELD_TOTAL",
+            "TAX_ADJUSTMENT",
+            "TAX_REFUND",
+            "TAX_REVERSAL",
+        }
     elif domain_id == "financial_investment_results":
         if obligation_ref == "obl_securities_and_derivatives_results":
             relevant_types = _SECURITY_TYPES | {
@@ -424,6 +449,11 @@ def _demand_blocker(
         terminal=terminal,
         source=source,
     )
+    gap_owner_classification = _gap_owner_classification(
+        domain_id=domain_id,
+        terminal=terminal,
+        source=source,
+    )
     return {
         "declaration_demand": obligation["obligation_id"],
         "methodology": {
@@ -449,9 +479,41 @@ def _demand_blocker(
             ),
         },
         "terminal": terminal,
+        "gap_owner_classification": gap_owner_classification,
         "why_supplied_evidence_is_insufficient": reason,
         "evidence_that_could_close": closing,
     }
+
+
+def _gap_owner_classification(
+    *, domain_id: str, terminal: str, source: dict[str, Any]
+) -> str | None:
+    if terminal in {"AVAILABLE", "RESOLVED", "NOT_ACTIVATED_FOR_SUPPLIED_CASE"}:
+        return None
+    if domain_id in _MANDATORY_MISSING_DOMAINS:
+        return "USER_CASE_FACT_MISSING"
+    if terminal == "METHODOLOGY_UNRESOLVED":
+        return "METHODOLOGY_RULE_MISSING"
+    if domain_id == "financial_investment_results":
+        reasons = {item.get("reason_code") for item in source.get("blockers", [])}
+        blocker_terminals = {
+            item.get("terminal") for item in source.get("blockers", [])
+        }
+        if reasons & {
+            "gate5_source_fact_required_role_missing",
+            "gate5_source_fact_decimal_invalid",
+        }:
+            return "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT"
+        if "METHODOLOGY_UNRESOLVED" in blocker_terminals:
+            return "METHODOLOGY_RULE_MISSING"
+        if "gate5_source_fact_currency_invalid" in reasons:
+            return "EXTERNAL_AUTHORITATIVE_FACT_MISSING"
+        if reasons:
+            return "REAL_SOURCE_EVIDENCE_MISSING"
+        return "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT"
+    if terminal in {"MISSING_EVIDENCE", "SOURCE_EVIDENCE_INSUFFICIENT"}:
+        return "REAL_SOURCE_EVIDENCE_MISSING"
+    return "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT"
 
 
 def _blocker_explanation(

@@ -13,6 +13,7 @@ from .gate5_evidence_intake import (
 from .gate5_client_evidence_review import (
     GATE5_CLIENT_EVIDENCE_REVIEW_SCHEMA_VERSION,
 )
+from .gate5_evidence_demand import GATE5_GAP_OWNER_CLASSIFICATIONS
 from .gate5_declaration_scope_resolution import (
     GATE5_DECLARATION_SCOPE_ACTIVATION_SCHEMA_VERSION,
 )
@@ -55,6 +56,14 @@ _CLOSURE_TYPES = {
     "OWNER_UNRESOLVED",
 }
 _USER_FACING_CLOSURE_TYPES = {"USER_FACT", "ADDITIONAL_DOCUMENT"}
+_GAP_OWNER_BY_CLOSURE_TYPE = {
+    "EXISTING_EVIDENCE": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+    "EXTERNAL_AUTHORITY": "EXTERNAL_AUTHORITATIVE_FACT_MISSING",
+    "USER_FACT": "USER_CASE_FACT_MISSING",
+    "ADDITIONAL_DOCUMENT": "REAL_SOURCE_EVIDENCE_MISSING",
+    "METHODOLOGY_RESEARCH": "METHODOLOGY_RULE_MISSING",
+    "OWNER_UNRESOLVED": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+}
 
 
 class Gate5HumanGapClosureError(ValueError):
@@ -509,29 +518,42 @@ def _declaration_requests(
         "obl_russian_source_taxable_income",
         "obl_foreign_source_taxable_income_and_foreign_tax",
     }
-    if active & source_demands:
+    source_rows = [
+        item
+        for item in scope_activation["active_demands"]
+        if item["demand"] in source_demands
+        and item["terminal"] == "METHODOLOGY_UNRESOLVED"
+    ]
+    if source_rows:
         requests.append(
             _request(
                 kind="REQUIRED",
                 priority="HIGH",
-                closure_type="ADDITIONAL_DOCUMENT",
+                closure_type="METHODOLOGY_RESEARCH",
                 fact_key=None,
-                demand_refs=sorted(active & source_demands),
-                evidence_refs=[],
+                demand_refs=sorted(item["demand"] for item in source_rows),
+                evidence_refs=sorted(
+                    {
+                        fact_id
+                        for item in source_rows
+                        for fact_id in item["available_evidence"]["fact_ids"]
+                    }
+                ),
                 question=(
-                    "Provide the tax-agent certificate, foreign broker tax statement, "
-                    "or other source document that states the payer, jurisdiction and "
-                    "withheld or foreign tax facts for this income."
+                    "Close the reviewed income-source and foreign-tax methodology "
+                    "for the already retained broker-reported facts."
                 ),
                 reason=(
-                    "income-source classification is a methodology decision; broker "
-                    "identity, country and a user conclusion are not authority"
+                    "income-source classification and foreign-tax credit treatment "
+                    "belong to Gate 5 methodology; a second document must not be "
+                    "requested merely to repeat broker-reported withholding"
                 ),
                 helpful_evidence=(
-                    "tax-agent certificate or foreign broker tax statement containing factual source evidence"
+                    "the retained broker income, withholding and adjustment facts, "
+                    "plus external treaty authority only where credit treatment needs it"
                 ),
                 client_benefit="supports the correct source schedule and foreign-tax treatment",
-                answer_contract={"kind": "document_submission"},
+                answer_contract={"kind": "internal_methodology_decision"},
                 subject={},
             )
         )
@@ -582,11 +604,17 @@ def _request(
 ) -> dict[str, Any]:
     if closure_type not in _CLOSURE_TYPES:
         _fail("gate5_gap_closure_type_invalid")
+    gap_owner_classification = _GAP_OWNER_BY_CLOSURE_TYPE[closure_type]
+    if routing is not None and routing.get("gap_owner_classification") != (
+        gap_owner_classification
+    ):
+        _fail("gate5_gap_owner_classification_mismatch")
     base = {
         "schema_version": GATE5_GAP_REQUEST_SCHEMA_VERSION,
         "kind": kind,
         "priority": priority,
         "closure_type": closure_type,
+        "gap_owner_classification": gap_owner_classification,
         "fact_key": fact_key,
         "demand_refs": sorted(demand_refs),
         "evidence_refs": sorted(evidence_refs),
@@ -609,6 +637,7 @@ def _validated_routing(value: Any) -> dict[str, Any]:
         "owner",
         "closure_type",
         "user_or_additional_document_allowed",
+        "gap_owner_classification",
     }
     if (
         not isinstance(value, dict)
@@ -619,12 +648,18 @@ def _validated_routing(value: Any) -> dict[str, Any]:
             for key in ("ownership_state", "route", "owner")
         )
         or not isinstance(value.get("user_or_additional_document_allowed"), bool)
+        or value.get("gap_owner_classification")
+        not in GATE5_GAP_OWNER_CLASSIFICATIONS
     ):
         _fail("gate5_gap_owner_routing_invalid")
     if value["user_or_additional_document_allowed"] is False and value[
         "closure_type"
     ] in _USER_FACING_CLOSURE_TYPES:
         _fail("gate5_gap_internal_route_exposed_to_user")
+    if value["gap_owner_classification"] != _GAP_OWNER_BY_CLOSURE_TYPE[
+        value["closure_type"]
+    ]:
+        _fail("gate5_gap_owner_classification_mismatch")
     return copy.deepcopy(value)
 
 
@@ -633,6 +668,8 @@ def _validated_request(value: Any) -> dict[str, Any]:
         not isinstance(value, dict)
         or value.get("schema_version") != GATE5_GAP_REQUEST_SCHEMA_VERSION
         or value.get("closure_type") not in _CLOSURE_TYPES
+        or value.get("gap_owner_classification")
+        not in GATE5_GAP_OWNER_CLASSIFICATIONS
         or not isinstance(value.get("request_id"), str)
         or not isinstance(value.get("answer_contract"), dict)
     ):
@@ -714,6 +751,7 @@ def _adapter_request(item: dict[str, Any]) -> dict[str, Any]:
             "kind",
             "priority",
             "closure_type",
+            "gap_owner_classification",
             "question",
             "reason",
             "helpful_evidence",
