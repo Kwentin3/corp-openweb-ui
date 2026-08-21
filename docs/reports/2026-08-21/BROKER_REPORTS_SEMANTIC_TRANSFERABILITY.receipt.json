@@ -1,0 +1,94 @@
+{
+  "schema_version": "broker_semantic_transferability_safe_receipt_v0",
+  "date": "2026-08-21",
+  "verdict": "BROKER_SOURCE_DIALECT_NEEDS_RETHINKING",
+  "scope": {
+    "research_only": true,
+    "production_changed": false,
+    "legacy_fallback_used": false,
+    "development_root_excluded": "bbf20e4ea5cd706398d459716fdab60812ef48ed6b0cd2d0264a778a77ab079d",
+    "holdout_profile": "same_broker_changed_period_plus_cross_broker"
+  },
+  "canonical": {
+    "documents": 3,
+    "pages": 38,
+    "locator_calls": 38,
+    "tables": 48,
+    "structural_chunks": 76,
+    "eligible_targets": 14270,
+    "lost_targets": 0,
+    "duplicated_working_targets": 0,
+    "source_values_from_model": false
+  },
+  "semantic_execution": {
+    "planned_calls": 9,
+    "provider_calls": 9,
+    "runs": 3,
+    "retry": false,
+    "repair": false,
+    "best_of_n": false,
+    "h3": {
+      "validated_runs": 0,
+      "rejected_runs": 3,
+      "terminal_error": "header_role_duplicate",
+      "stored_raw_runs": 2,
+      "stored_raw_table_type_decisions_correct": 4,
+      "stored_raw_table_type_decisions_total": 4,
+      "stored_raw_mapping_differences": 1,
+      "raw_evidence_missing_for_first_rejected_call": true,
+      "first_call_repeated": false
+    },
+    "h6": {
+      "exact_runs": 3,
+      "total_runs": 3
+    },
+    "h8": {
+      "repeatable_runs": 3,
+      "total_runs": 3,
+      "correct_decisions_per_run": 1,
+      "total_decisions_per_run": 3,
+      "relevant_but_misclassified_not_relevant_per_run": 2
+    },
+    "selected_source_records": 24,
+    "source_accounted_records_per_run": 24,
+    "typed_records_per_run": 0,
+    "final_projection_unique_hashes": 1,
+    "final_projection_sha256": "3941902868aa8501b701c1ea5aedf3105316135e9ac0f14282b81bf8020aabb3"
+  },
+  "reuse": {
+    "exact_copy_reuses": true,
+    "reordered_header_rejected": true,
+    "cross_year_exact_repo_fingerprint_reuses": true,
+    "approximate_reuse_allowed": false,
+    "broker_profile_created": false
+  },
+  "semantic_surface": {
+    "selected_trade_rows_deterministic_after_valid_schema": 15,
+    "cross_broker_cash_rows": 122,
+    "cross_broker_unique_operation_literals": 8,
+    "recommended_decision_unit": "new_literal_per_exact_schema_fingerprint"
+  },
+  "duplicates": {
+    "identical_row_value_groups": 133,
+    "source_observations_in_identical_groups": 266,
+    "technical_target_duplicates": 0,
+    "value_based_deduplication_allowed": false,
+    "source_identity_preserved": true
+  },
+  "privacy": {
+    "raw_customer_documents_in_git": false,
+    "raw_canonical_in_git": false,
+    "raw_model_responses_in_git": false,
+    "private_values_in_safe_report": false,
+    "private_evidence_outside_repository": true
+  },
+  "required_boundary_changes": [
+    "logical_table_lineage_link_sidecar",
+    "repeatable_semantic_role_with_source_qualifier",
+    "source_section_observation_kind",
+    "explicit_source_event_key",
+    "relevant_unknown_must_be_unmapped",
+    "unique_operation_literal_mapping"
+  ],
+  "report": "docs/reports/2026-08-21/BROKER_REPORTS_SEMANTIC_TRANSFERABILITY.md"
+}
