@@ -210,6 +210,17 @@ routes remain under executable CI checks.
 CI, PR/merge and live release identities are appended only after they exist;
 local success is not represented as repository or production proof.
 
+Repository delivery evidence established during the audit:
+
+- PR: `#289`;
+- first fully green exact code/CI-policy head:
+  `d26505d743a0b8674dbfed40ee6cee3f77a3f5be`;
+- GitHub Actions run: `32518644796`;
+- job: `broker-reports-ci`, terminal `success`, duration `6m56s`.
+
+The final report-only head is checked again before merge. Merge and production
+release identities are not claimed in this report until separately verified.
+
 ## Final architectural answer
 
 The pipeline shape was right, but one old class of mistake survived inside the
