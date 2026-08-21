@@ -1,0 +1,118 @@
+{
+  "amortization_evidence": {
+    "decision_equivalent_percent": 6.56,
+    "mixed_cash_rows": 122,
+    "status": "PROMISING_NOT_RUNTIME_QUALIFIED",
+    "unique_operation_literals": 8
+  },
+  "candidate_comparison": [
+    {
+      "candidate": "flat_unique_role_dialect",
+      "reason": "cannot_represent_repeated_source_roles",
+      "verdict": "REJECTED"
+    },
+    {
+      "candidate": "generic_eav_without_runtime_binding",
+      "reason": "source_faithful_but_not_gate5_sufficient",
+      "verdict": "REJECTED"
+    },
+    {
+      "candidate": "global_event_ontology",
+      "reason": "unbounded_vocabulary_and_profile_growth",
+      "verdict": "REJECTED"
+    },
+    {
+      "candidate": "source_observation_plus_schema_local_fields_plus_runtime_binding",
+      "reason": "preserves_source_and_keeps_gate5_adapter_deterministic",
+      "verdict": "SELECTED_WITH_BOUNDARIES"
+    }
+  ],
+  "development": {
+    "projection_sha256": "5833c0754276be23b1db40f775ef7b5c486e83174fa64c5f51aaafc41b8379e4",
+    "required_facts": 20,
+    "runs": 3,
+    "runtime_values": 75,
+    "runtime_values_traced": 75,
+    "source_records": 12,
+    "source_records_accounted": 12,
+    "supplied_facts": 20
+  },
+  "explicit_boundaries": [
+    "multi_page_continuation_requires_explicit_structural_lineage_link",
+    "runtime_binding_requires_unambiguous_field_relation_or_fails_closed",
+    "repo_and_unknown_operation_meanings_remain_relevant_unmapped",
+    "mixed_operation_literal_reuse_is_not_yet_end_to_end_gate5_qualified",
+    "holdout_primary_fact_score_covers_ordinary_security_trades_only"
+  ],
+  "holdout": {
+    "projection_sha256": "a34c48682a08ecd6f03a2b02debb28e7e0644aa386a9ce03d9c6126e66fdf7ac",
+    "repeated_role_counts": {
+      "g001": {
+        "broker_commission": 2,
+        "currency": 2,
+        "settlement_date": 2,
+        "unmapped": 3
+      },
+      "g002": {
+        "unmapped": 17
+      }
+    },
+    "required_primary_facts": 15,
+    "runtime_facts": 34,
+    "runtime_values": 166,
+    "runtime_values_traced": 166,
+    "selected_h3_run": 2,
+    "selection_policy": "chronological_first_persisted_contract_valid",
+    "source_records": 24,
+    "source_records_accounted": 24,
+    "supplied_primary_facts": 15,
+    "unmapped_records": 9
+  },
+  "legacy_fallback_used": false,
+  "metrics": {
+    "gate5_required_facts_supplied_within_qualified_boundary": {
+      "denominator": 35,
+      "numerator": 35,
+      "percent": 100.0
+    },
+    "new_special_rules_or_profiles": 0,
+    "runtime_values_deterministic": {
+      "denominator": 241,
+      "numerator": 241,
+      "percent": 100.0
+    },
+    "source_records_accounted": {
+      "denominator": 36,
+      "numerator": 36,
+      "percent": 100.0
+    },
+    "source_records_requiring_row_level_llm": {
+      "denominator": 36,
+      "numerator": 12,
+      "percent": 33.33,
+      "scope_note": "saved_selected_rows; schema decisions are amortized per exact fingerprint"
+    }
+  },
+  "new_broker_or_year_profiles": 0,
+  "privacy": {
+    "private_projection_outside_repository": true,
+    "raw_canonical_in_git": false,
+    "raw_customer_documents_in_git": false,
+    "raw_model_responses_in_git": false
+  },
+  "production_changed": false,
+  "provider_calls_in_replay": 0,
+  "report": "docs/reports/2026-08-21/BROKER_REPORTS_TRANSFERABLE_SEMANTIC_LAYER.md",
+  "schema_version": "broker_transferable_semantic_layer_qualification_v1",
+  "selected_contract": {
+    "canonical_mutated": false,
+    "consumer_binding_owner": "broker_runtime_binding_v1",
+    "qualifier_kind": "source_header_ref_and_literal",
+    "repeated_roles_allowed": true,
+    "schema_field_owner": "broker_source_field_contract_v1",
+    "source_owner": "broker_source_observation_v1",
+    "unknown_terminal": "RELEVANT_UNMAPPED",
+    "value_based_deduplication": false
+  },
+  "verdict": "TRANSFERABLE_WITH_EXPLICIT_BOUNDARIES"
+}
