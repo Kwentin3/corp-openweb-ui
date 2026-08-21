@@ -4,7 +4,7 @@ Status: `CURRENT`
 
 Classification: `CURRENT AUTHORITY`
 
-Updated: 2026-08-20 (Gate 5 current-authority consolidation)
+Updated: 2026-08-21 (ordinary-trade production-route conformance)
 
 ```text
 CURRENT_PIPELINE_AUTHORITY = ONE
@@ -12,12 +12,16 @@ CanonicalArtifactV1 = OUTPUT OF GATE 2
 GATE1_STATUS = CLOSED
 GATE2_STATUS = CLOSED
 GATE3_STATUS = CLOSED
-GATE3_PRODUCT_STATUS = ACTIVE_IN_NDFL
+GATE3_PRODUCT_STATUS = RETAINED_DEPLOYMENT_ROLLBACK_ONLY
 GATE3_TERMINAL_PROOF = G3.C5_CLOSED
 GATE4_STATUS = CLOSED
 G4.1_CLOSED = CONTRACT_PROVEN
 G4.6_CLOSED = NO_NEW_READ_LAYER_REQUIRED
 GATE5_PRODUCT_STATUS = CURRENT_FAIL_CLOSED
+ACTIVE_ORDINARY_TRADE_ROUTE = ordinary_trade_exact_fingerprint_v1
+GATE3_EXECUTION_IN_ACTIVE_ORDINARY_TRADE_ROUTE = DISABLED
+LEGACY_SEMANTIC_FALLBACK = FORBIDDEN
+GATE3_BINDING_FIELD = COMPATIBILITY_FIELD_ONLY
 ```
 
 This is the one short navigation authority for Broker Reports ownership and
@@ -25,17 +29,28 @@ gate direction. Start here. Versioned contracts own exact DTO meaning; the
 [Architecture Authorities index](./BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md)
 maps maintained factories; dated reports are evidence only.
 
-The current product composition is exactly:
+The current ordinary-security-trade product composition is exactly:
 
 ```text
 broker_reports_gate1_pipe
   -> PdfTableIntakeRuntimeFactory.create_for_openwebui
   -> Gate1Normalizer / persist_gate1_result
-  -> NdflWorkflowFactory.create().run_product_path
-  -> Gate4FinancialCaseRuntimeFactory.create
-  -> Gate5DeclarationPreparationRuntimeFactory.create
-  -> sealed Declaration Semantics / Release / Projection owners only when ready
+  -> immutable active CanonicalArtifactV1
+  -> OrdinaryTradeProductionRuntimeFactory.create
+  -> OrdinaryTradeQualifiedMappingAuthorityFactory.create
+  -> OrdinaryTradeSemanticCompilerFactory.create
+  -> immutable Source Observations + deterministic runtime records
+  -> Gate4OrdinaryTradeCandidateRuntimeFactory.create
+  -> Gate4FinancialCaseFactV2 compatibility port
+  -> unchanged deterministic Gate 5 source-fact consumer
 ```
+
+`NdflWorkflowFactory.create().run_product_path`, `FinancialAnnotationsV2`, the
+Gate 3 type/role model passes and `Gate4FinancialCaseRuntimeFactory.create`
+remain readable deployment-rollback compatibility. They are not called when
+`ordinary_trade_candidate_enabled=true`; production release additionally pins
+`ndfl_gate3_enabled=false`. They are not a fallback for an unknown schema,
+missing Canonical, incomplete row or downstream evidence blocker.
 
 The retired dual-VLM, semantic-migration, structural-repair, hybrid-shadow and
 synthetic end-to-end XML runtimes are absent from the product bundle and are
@@ -45,9 +60,13 @@ or methodology blocker.
 ## Stage-aware composition law
 
 **Source world.** Gate 1 owns source identity and custody. Gate 2 produces a
-faithful Canonical and may change form, not meaning. Adaptive Context and Gate
-3 recover source-semantic financial meaning. Gate 4 publishes only proven,
-normalized source facts. Visual metadata follows the separate supporting route
+faithful Canonical and may change form, not meaning. In the active ordinary-
+trade route, one frozen exact-schema mapping authority and one deterministic
+compiler assign only qualified source meaning and preserve every literal and
+cell reference. The historical Gate 3 model path performs the analogous source-
+semantic responsibility only when explicitly selected as deployment rollback.
+Gate 4 publishes only contract-valid normalized source facts. Visual metadata
+follows the separate supporting route
 `visual region -> VLM -> faithful neutral Markdown -> best-effort metadata`.
 Metadata is never financial or tax authority and cannot admit, reject, group or
 delete financial facts. Source content without a named consumer remains in the
@@ -205,6 +224,28 @@ is needed to answer these questions.
 
 ## Pipeline map
 
+Gate numbers describe responsibility boundaries, not a mandatory sequence of
+module names. The active ordinary-trade route satisfies the source-semantic
+responsibility without executing the historically named Gate 3 runtime:
+
+```text
+ACTIVE ORDINARY SECURITY TRADES
+
+PDF -> normalization -> immutable Canonical
+    -> exact qualified mapping
+    -> Source Observations
+    -> deterministic runtime records
+    -> Gate 4 Fact v2 compatibility adapter
+    -> deterministic Gate 5
+
+UNKNOWN / INCOMPLETE
+
+Canonical row -> RELEVANT_UNMAPPED -> STOP
+missing Canonical -> ordinary_trade_canonical_evidence_missing -> STOP
+```
+
+The broader responsibility vocabulary remains:
+
 ```text
 SOURCE DOCUMENT
   -> Gate 1: source custody / identity
@@ -225,8 +266,15 @@ SOURCE DOCUMENT
 ### Source-route quick map
 
 ```text
-FINANCIAL — PRODUCT/NORMATIVE
-PDF -> Gate 1 -> CanonicalArtifactV1 -> Adaptive Context
+ORDINARY SECURITY TRADES — ACTIVE PRODUCT/NORMATIVE
+PDF -> Gate 1 -> CanonicalArtifactV1
+    -> OrdinaryTradeProductionRuntimeFactory.create
+    -> exact qualified Source Observations / runtime records
+    -> Gate4OrdinaryTradeCandidateRuntimeFactory.create
+    -> deterministic Gate 5
+
+HISTORICAL GATE 3 ROUTE — DEPLOYMENT ROLLBACK ONLY
+CanonicalArtifactV1 -> Adaptive Context
     -> Gate3ChunkBatchLabelingFactory.create
     -> Gate4FinancialCaseRuntimeFactory.create
     -> Gate 5
@@ -265,9 +313,13 @@ transcription fallback. Exact rules are in
 
 | Entrypoint / artifact | Status | Authority boundary |
 | --- | --- | --- |
-| `NdflWorkflowFactory.create().run_product_path` | `PRODUCT/NORMATIVE` | Gate 2 -> Gate 3 financial execution |
-| `Gate3ChunkBatchLabelingFactory.create` | `PRODUCT/NORMATIVE` | financial semantic extraction |
-| `Gate4FinancialCaseRuntimeFactory.create` | `PRODUCT/NORMATIVE` | normalized financial facts and case reads |
+| `OrdinaryTradeProductionRuntimeFactory.create` | `PRODUCT/NORMATIVE` | sole active ordinary-trade composition root; exact Canonical activation through deterministic Gate 5 |
+| `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | `PRODUCT/NORMATIVE` | frozen exact schema/enum meaning only; no row values, broker/year/filename routing or fuzzy reuse |
+| `OrdinaryTradeSemanticCompilerFactory.create` | `PRODUCT/NORMATIVE` | Canonical-bound Source Observations and deterministic runtime records; unknown content remains unmapped |
+| `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | `PRODUCT/NORMATIVE` | validates candidate projection into the existing Fact v2 boundary without SQL or Gate 3 execution |
+| `NdflWorkflowFactory.create().run_product_path` | `DEPLOYMENT ROLLBACK ONLY` | historical Gate 2 -> Gate 3 financial execution; never semantic fallback |
+| `Gate3ChunkBatchLabelingFactory.create` | `DEPLOYMENT ROLLBACK ONLY` | historical model-based financial semantic extraction |
+| `Gate4FinancialCaseRuntimeFactory.create` | `DEPLOYMENT ROLLBACK ONLY FOR ORDINARY TRADE` | historical Gate 3-backed normalized facts and case reads |
 | `PdfTableIntakeRuntimeFactory.create_for_openwebui` | `PRODUCT/NORMATIVE` | one full-page call; table boxes only; no source literals or structure |
 | `PdfTableLocatorProjectionFactory.create` | `PRODUCT/NORMATIVE` | the only native `box_2d` to PDF-point projection owner |
 | `PdfDualVlmRuntimeFactory.create_for_openwebui` | `HISTORICAL/INACTIVE` | old value-transcription route; no new writes or fallback |
@@ -287,7 +339,7 @@ Executable laws:
 
 Cold-agent navigation answers are intentionally literal:
 
-- Financial fact from broker PDF: `Canonical -> Gate 3 -> Gate 4`.
+- Ordinary security-trade fact from broker PDF: `Canonical -> exact qualified mapping -> Source Observation/runtime record -> Gate 4 Fact v2 adapter`. Current Gate 3 is not executed.
 - Visual document header: `visual region -> existing VLM -> faithful Markdown -> metadata adapter`; if a general region is unavailable, stop rather than add a broker rule.
 - Metadata account mismatch: `NO`; retain financial facts and record supporting evidence/review uncertainty.
 
@@ -360,7 +412,10 @@ read valve remains disabled.
   role or relation meaning.
 - **OUTPUT:** one whole context or ordered bounded structural contexts.
 - **PUBLIC PORT:** `Gate3StructuralChunkFactory.create`.
-- **PREVIOUS / NEXT:** Gate 2 -> Gate 3.
+- **ACTIVE STATUS:** not traversed by the active exact-qualified ordinary-trade
+  route; retained for the historical Gate 3 rollback path and other explicitly
+  contracted consumers.
+- **PREVIOUS / NEXT:** Gate 2 -> Gate 3 on that compatibility path.
 - **FAILURE MODE:** fail closed when sufficient structure cannot fit; do not
   fragment more than necessary or merge more than allowed.
 
@@ -378,6 +433,10 @@ read valve remains disabled.
   claim, and demand-scoped recovery cannot delete unrelated validated facts.
 - **PUBLIC PORT:** `Gate3ChunkBatchLabelingFactory.create`; consumer demand
   enters only through `Gate3EvidenceDemandPortFactory.create`.
+- **ACTIVE STATUS:** not executed by `ordinary_trade_exact_fingerprint_v1`.
+  The active route fulfills the source-semantic responsibility through the
+  qualified mapping and deterministic compiler above; this is not a second
+  model path or fallback.
 - **NORMATIVE CONTRACT:**
   [Gate 3 Minimal Labeling v1](./BROKER_REPORTS_GATE3_MINIMAL_LABELING.v1.md).
 - **PREVIOUS / NEXT:** Adaptive Context -> Gate 4.
@@ -387,15 +446,19 @@ read valve remains disabled.
 ### Gate 4 — Normalized source facts
 
 - **PURPOSE:** publish the strict standardized facts that source evidence proves.
-- **INPUT:** validated Gate 3 semantics and exact Canonical bindings.
+- **INPUT:** either validated historical Gate 3 semantics with exact Canonical
+  bindings, or validated ordinary-trade runtime records with exact Source
+  Observation and Canonical-cell lineage.
 - **OWNS / MAY ASSERT:** typed independent `normalized_source_fact`
   observations, roles, provenance and technical completeness state.
 - **MUST NOT ASSERT:** tax meaning, relations, reconciliation or calculation;
   no document-semantic LLM authority.
 - **OUTPUT:** `Gate4FinancialCaseFactV2` and immutable case views.
-- **PUBLIC PORT:** `Gate4FinancialCaseRuntimeFactory.create`; SQL is an internal,
-  rebuildable non-authority.
-- **PREVIOUS / NEXT:** Gate 3 -> Gate 5.
+- **PUBLIC PORT:** `Gate4OrdinaryTradeCandidateRuntimeFactory.create` on the
+  active ordinary route; `Gate4FinancialCaseRuntimeFactory.create` on the
+  historical rollback route. Both expose Fact v2; SQL exists only on the
+  historical route and remains an internal, rebuildable non-authority.
+- **PREVIOUS / NEXT:** qualified source-semantic producer -> Gate 5.
 - **FAILURE MODE:** missing/stale/role-incomplete facts remain explicit.
 
 ### Gate 5 — Tax methodology and deterministic calculation
@@ -411,9 +474,13 @@ read valve remains disabled.
   facts from text.
 - **OUTPUT:** methodology-bound deterministic Tax Models/results and Evidence
   Demand requests.
-- **PUBLIC PORT:** Gate 5 factories consume Gate 4 only through
-  `Gate4FinancialCaseRuntimeFactory.create`; missing source evidence is emitted
-  by `Gate5EvidenceDemandRuntimeFactory.create` and routed to the Gate 3 port.
+- **PUBLIC PORT:** the active ordinary-trade composition injects only
+  `Gate4OrdinaryTradeCandidateRuntimeFactory.create` into the unchanged
+  deterministic source-fact consumer. The historical route consumes
+  `Gate4FinancialCaseRuntimeFactory.create`. Gate 5 receives Fact v2 in both
+  cases and must not inspect which upstream producer supplied it. Historical
+  Evidence Demand routing through the Gate 3 port is not active on the ordinary
+  route.
 - **PREVIOUS / NEXT:** Gate 4 + typed side facts/methodology -> Declaration
   Semantics.
 - **FAILURE MODE:** fail closed when methodology inputs or evidence are missing.

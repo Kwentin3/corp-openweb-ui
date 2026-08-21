@@ -221,27 +221,29 @@ separate bootstrap report.
   creates complete code-owned options.
 - Canonical validation and materialization follow
   [Generic Materialization](../../docs/stage2/contracts/BROKER_REPORTS_GATE2_GENERIC_FINANCIAL_MATERIALIZATION.v1.md).
-- Current Gate 3 is closed financial type and source-bound role labeling over
-  an exact active `CanonicalArtifactV1`, with one immutable
-  `FinancialAnnotationsV2` sidecar. V1 remains historical label-only evidence.
-  Gate 3 is active only in stable workflow `broker-reports-ndfl`;
-  historical `Gate2*` financial-semantic modules retain compatibility names.
-  [Gate 4 Financial Case Fact v1](../../docs/stage2/contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v1.md)
-  remains the current fact boundary. G4.2/G4.3 are implemented only through
-  `Gate4FinancialCaseMaterializerFactory.create` and the composed
-  `Gate4FinancialCaseRuntimeFactory.create`: trusted OpenWebUI case scope,
-  exact current Gate 3 identity and the existing ArtifactStore SQLite/lifecycle
-  are reused. Whole-case completeness is derived, and the SQL tables remain a
-  deletable projection rather than meaning authority. Duplicate-looking facts
-  retain distinct identities and provenance; no deduplication or reconciliation
-  is performed. Historical Financial Domain code is not current Gate 4
-  authority. G4.4 proved `NO_RELATION_LAYER_NEEDED_YET`; G4.5 is
-  `NOT_APPLICABLE_WITHOUT_NEW_EVIDENCE`; G4.6 retained the existing runtime as
-  the official read boundary. G4.7 closed Gate 4 without new runtime
-  architecture. Gate 5 design must start from the short
+- The active ordinary-security-trade route is
+  `CanonicalArtifactV1 -> exact qualified mapping -> Source Observations ->`
+  `deterministic runtime records -> Gate4FinancialCaseFactV2 -> deterministic`
+  `Gate 5`. Enter only through
+  `OrdinaryTradeProductionRuntimeFactory.create`. Current Gate 3 type/role
+  model passes, `FinancialAnnotationsV2` reads and
+  `Gate4FinancialCaseRuntimeFactory.create` are disabled for this route and are
+  retained only as an explicit deployment rollback, never a semantic fallback.
+- The current fact boundary is
+  [Gate 4 Financial Case Fact v2](../../docs/stage2/contracts/BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.md).
+  `Gate4OrdinaryTradeCandidateRuntimeFactory.create` is the active ordinary-
+  trade producer. The historical field `gate3_binding` binds the ordinary
+  projection artifact and Canonical identity on this route; its name does not
+  prove Gate 3 execution.
+- Qualified mappings may use only exact title/header/column structure and exact
+  source enum literals. Broker, year, filename, fuzzy matching, inferred table
+  continuation and runtime model calls are forbidden. Unknown/incomplete rows
+  remain `RELEVANT_UNMAPPED` and cannot reach Gate 5.
+- Gate 5 must start from Fact v2 and must not cross back into broker source,
+  CanonicalArtifact, Source Observations, model output, Gate 3 targets or
+  physical SQL parsing. Read the current
   [Gate 4 handoff](../../docs/stage2/contracts/BROKER_REPORTS_GATE4_HANDOFF.v1.md)
-  and must not cross back into broker, CanonicalArtifact, Gate 3 target or
-  physical SQL parsing.
+  before changing the boundary.
 
 ## Change and proof
 

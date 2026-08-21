@@ -2,6 +2,26 @@
 
 Status: `CURRENT SUPPORTING CONTRACT`
 
+Updated: 2026-08-21 (ordinary-trade production-route conformance)
+
+## Active ordinary-trade route override
+
+For `ordinary_trade_exact_fingerprint_v1`, the source-semantic step is not the
+historical Gate 3 model runtime. Its one-way ownership is:
+
+| Domain | Sole owner | Input | Output | Must not own |
+| --- | --- | --- | --- | --- |
+| qualified schema/enum meaning | `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | immutable package registry | exact mapping v1 | row values, broker profiles, fuzzy routing, tax |
+| source observation/runtime compilation | `OrdinaryTradeSemanticCompilerFactory.create` | active Canonical + exact mappings | Source Observations + deterministic runtime records | tax, relations, inferred continuation, Canonical repair |
+| current projection | `OrdinaryTradeProjectionFactory.create` | validated compiler output + trusted case context | one immutable current projection per active Canonical | meaning, latest-wins, stale reuse |
+| Fact v2 admission | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | current ordinary projection | exact `Gate4FinancialCaseFactV2` list | Canonical read, classification, SQL, tax |
+| deterministic tax consumption | unchanged Gate 5 deterministic source-fact runtime | Fact v2 + trusted methodology/context | assessment, calculations or typed blocker | Source Observation/Canonical/model reads or source-semantic repair |
+
+The Gate 3/Gate 4 SQL rows below remain the exact deployment-rollback path for
+ordinary trades and may remain active for separately contracted scopes. They
+are not a fallback. `gate3_binding` in Fact v2 is a historical compatibility
+field; on the active route it binds the ordinary projection artifact.
+
 Goal: `G5.42`
 
 Date: 2026-08-13
@@ -60,7 +80,7 @@ methodology is published through its existing trusted authority path.
 | Gate 1 authenticated intake and custody | existing intake factories, `ArtifactStoreFactory` and `ArtifactResolver` | authenticated upload and access context | private source artifacts, format/routing evidence | canonical meaning, financial labels, tax facts |
 | Gate 1 external document variability | production visual-provider factories and the Document Passport boundary | bounded page/crop/document projections | provider proposals plus terminal execution evidence | canonical promotion, calculations, hidden retries |
 | Gate 2 canonical preservation | `FullSourceArtifactFactory`, `CanonicalNormalizerFactory.create`, `CanonicalArtifactStoreFactory.create`, `CanonicalReaderFactory.create` | Gate 1 source artifacts | immutable `CanonicalArtifactV1`, completeness/provenance evidence | financial or tax interpretation |
-| Gate 3 financial label meaning | published Financial Label Dictionary and Role Pack through the maintained Gate 3 factories | exact canonical projections | separately persisted, canonical-bound financial annotations | canonical mutation, tax methodology, calculation |
+| Gate 3 financial label meaning (rollback/other explicit scopes) | published Financial Label Dictionary and Role Pack through the maintained Gate 3 factories | exact canonical projections | separately persisted, canonical-bound financial annotations | canonical mutation, tax methodology, calculation or fallback into active ordinary trade |
 | Gate 3 metadata source facts | `Gate3MetadataSourceFactRuntimeFactory.create` | active canonical artifacts through `CanonicalReaderFactory.create` | explicitly labelled party, broker, account, period and identifier observations with provenance | Gate 4 reads, unlabelled role inference, income-source or residency meaning |
 | Gate 4 normalized financial source facts | Gate 4 materialization factories | validated Gate 3 annotations and canonical bindings | independent atomic or aggregate `normalized_source_fact` observations | tax facts, event relations, reconciliation |
 | Gate 4 case query | `Gate4FinancialCaseRuntimeFactory.create` | Gate 4 facts through the owned cache/repository boundary | immutable supplied-case fact views and counts | direct source/provider reads, tax decisions |
@@ -105,7 +125,8 @@ the preceding owner.
 | `gate5_single_input_human_loop.py` | inactive bounded one-question factual money interaction | question text or one factual money proposal | strict answer/value validation and supplemental-fact owner | natural-language human interaction only |
 | Gate 5 authoring trials | frozen evidence; no live case-time call in current source | reviewed candidate payload | trusted repository publication and hash-pinned authority | historical definition/language research, not runtime tax authority |
 
-There are no document-semantic structured-model calls in Gate 4 or deterministic Gate 5
+There are no case-time source-semantic model calls anywhere in the active
+ordinary-trade route. There are no document-semantic structured-model calls in Gate 4 or deterministic Gate 5
 calculation, declaration scope/preparation, semantic-input or projection code.
 The exact gate-file call-site inventory is frozen by
 `test_broker_reports_cross_gate_contract_architecture.py`.

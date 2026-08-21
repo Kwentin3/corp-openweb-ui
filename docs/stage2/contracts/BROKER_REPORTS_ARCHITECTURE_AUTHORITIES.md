@@ -19,8 +19,103 @@ This index cannot promote a consumer-local requirement into a global blocker.
 Every blocking claim must resolve through Pipeline Gates to a named consumer,
 earliest required stage and minimal dependent unit.
 
-Start at [Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md). For Gate 5
-context, read the short
+## Active ordinary-trade architecture
+
+This is the implementation-owner map for the currently activated
+`ordinary_trade_exact_fingerprint_v1` route. It is subordinate to Pipeline
+Gates for numbering, but it is the current answer to **WHO PRODUCES / WHO
+CONSUMES** for ordinary security trades.
+
+```text
+PDF
+-> source-bound normalization
+-> immutable CanonicalArtifactV1
+-> frozen exact schema/enum mapping
+-> Source Observations
+-> deterministic runtime records
+-> Gate4FinancialCaseFactV2 compatibility port
+-> deterministic Gate 5 source-fact consumption
+```
+
+| Domain | Owns | Input contract | Output contract | Forbidden | Consumer |
+| --- | --- | --- | --- | --- | --- |
+| Source intake and normalization | source bytes, table location, deterministic pdfplumber structure/literals and provenance | authenticated upload and table-location response | persisted Gate 1 artifacts and validated Canonical candidate | financial labels, row values from the model, tax meaning | Canonical lifecycle |
+| Canonical lifecycle | immutable document/page/table/row/cell representation, exact source refs, activation and current-version selection | validated normalized source plus trusted `ArtifactAccessContext` | active `CanonicalArtifactV1` via `CanonicalReaderFactory.create` | source mutation, financial naming, consumer-specific repair | ordinary-trade projection |
+| Qualified mapping authority | meaning of one exact table schema and literal side enum; immutable decision evidence | package-owned mapping registry | `broker_reports_ordinary_trade_schema_mapping_v1` through `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | row/value authorship, broker/year/filename profile keys, fuzzy matching, runtime model call | semantic compiler |
+| Ordinary-trade semantic compiler | exact schema match, source-observation disposition, deterministic date/decimal transforms and runtime-record lineage | active Canonical plus qualified mappings | `broker_reports_ordinary_trade_runtime_projection_v2`: Source Observations and runtime records | tax, relations, inferred continuation, value deduplication, Canonical mutation | projection store and Gate 4 adapter |
+| Projection store/current view | immutable projection persistence and exact active-Canonical selection | validated projection plus private case context | one current projection per document through `OrdinaryTradeProjectionFactory.create` | overwrite, stale/latest-wins selection, new meaning | Gate 4 ordinary adapter |
+| Gate 4 ordinary adapter | admission into the existing Fact v2 shape and deterministic fact identity | current validated ordinary projection | `Gate4FinancialCaseFactV2` through `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | Canonical reads, model calls, classification, tax, SQL cache | deterministic Gate 5 |
+| Gate 5 deterministic consumer | reviewed methodology, evidence sufficiency, FIFO/calculation and explicit blockers | Fact v2 only plus trusted context and methodology ref | deterministic source-fact assessment/consumption | PDF/Canonical/model output reads, source-semantic repair, default zero, hidden relations | later declaration domains only when complete |
+| Product composition | route selection, exact Canonical activation, orchestration, system identity and terminal result | release valves, Canonical refs and trusted context | `broker_reports_ordinary_trade_production_run_v1` through `OrdinaryTradeProductionRuntimeFactory.create` | semantic/legacy fallback, direct provider call, broker profile routing | OpenWebUI pipe/product response |
+
+### Active authorities
+
+- Pipeline status and route direction: Pipeline Gates v1.
+- Canonical meaning: Canonical Artifact v1 and Canonical Reader v1.
+- Qualified schema/enum mapping: `ordinary_trade_qualified_mappings.py`.
+- Source Observation/runtime projection: `ordinary_trade_semantic_compiler.py`.
+- Fact boundary: Gate 4 Financial Case Fact v2.
+- Tax-methodology behavior: the existing trusted Gate 5 methodology authority.
+
+### Historical / evidence only
+
+- `FinancialAnnotationsV2`, Gate 3 type/role passes and the Gate 3-backed SQL
+  case runtime are retained deployment-rollback compatibility for this scope.
+  They are not read or called by the active ordinary route.
+- Dated reports/receipts prove only their exact revision and run. They cannot
+  activate a module, redefine a contract or override this map.
+- The release report is evidence that the current route was deployed; it is
+  not the specification of the route.
+
+### Supported boundaries
+
+- only exact qualified `SECURITY_TRADES` table schemas and exact side literals;
+- ordinary purchase/disposal rows with the required source fields;
+- non-zero broker/exchange commissions as separate `TRANSACTION_CHARGE` facts;
+- supported and unknown tables in one Canonical: supported non-empty data rows
+  after the exact header continue and every non-empty unknown-table row remains
+  `RELEVANT_UNMAPPED`; titles/headers remain in Canonical and mapping evidence.
+
+### Unsupported boundaries
+
+- unknown or changed schema, ambiguous/repeated qualified table instance,
+  unknown side, incomplete/invalid row and inferred table continuation;
+- coupons, withheld tax and any financial class not explicitly admitted by an
+  exact qualified mapping;
+- REPO documents for which Gate 1 does not produce an active Canonical;
+- cross-table/mixed-journal structural lineage and financial-event relations;
+- declaration release when Gate 5 evidence or methodology is insufficient.
+
+Unsupported content is retained as Canonical/`RELEVANT_UNMAPPED` or stops with
+a typed blocker. It never enters Gate 5 and never invokes Gate 3 or legacy as a
+fallback.
+
+### Known compatibility debt
+
+- Fact v2 still names its upstream provenance envelope `gate3_binding` and
+  requires the historical `broker_reports_financial_annotations_v2`
+  discriminator. On the active route the field binds the ordinary projection
+  artifact and Canonical identity; it does **not** prove Gate 3 execution.
+- `ordinary_trade_candidate_runtime.py`, the pipe method
+  `_maybe_run_ndfl_gate3` and the response key `ndfl_gate3` retain pre-activation
+  names. Their names are compatibility debt, not runtime ownership.
+- `architecture_policy.py` retains the generic Gate 1-to-Projection
+  responsibility vocabulary. It does not define which source-semantic producer
+  is activated for a release; Pipeline Gates does.
+
+### Forbidden cross-domain dependencies
+
+- normalization/Canonical must not assign financial or tax meaning;
+- the mapping/compiler must not infer tax, relations or missing source values;
+- Gate 4 must not repair source semantics or calculate tax;
+- Gate 5 must not read PDF, Canonical, Source Observations or model output;
+- Projection must not calculate or decide release;
+- no source layer may use broker/year/filename routing or silently fall back to
+  the historical Gate 3 path.
+
+Start at [Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md). For the
+active ordinary-trade path, read the map above and the exact Fact v2 contract.
+For historical Gate 5 context, read the short
 [Gate 4 -> Gate 5 handoff](./BROKER_REPORTS_GATE4_HANDOFF.v1.md), then the
 [Gate 5 Methodology Selection v0](./BROKER_REPORTS_GATE5_METHODOLOGY_SELECTION.v0.md)
 when working on the inactive G5.2 proof seam or the
@@ -134,7 +229,8 @@ authorities.
 | Classification | Documents or family | Rule |
 | --- | --- | --- |
 | `CURRENT AUTHORITY` | [Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md) | the one current Gate 1-through-Projection navigation, ownership and status map |
-| `CURRENT SUPPORTING DOC` | this map, [Source-Fact Domain Boundaries v1](./BROKER_REPORTS_SOURCE_FACT_DOMAIN_BOUNDARIES.v1.md), [Gate 4 -> Gate 5 Handoff v1](./BROKER_REPORTS_GATE4_HANDOFF.v1.md), [Gate 4 Financial Case Fact v2](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.md), Gate 4 SQL/assembly contracts, Gate 3 handoff/current versioned authorities, and current Gate 5 methodology/declaration contracts listed in the ownership tables below | explain direct boundaries or own exact DTO/factory meaning; cannot renumber gates |
+| `CURRENT SUPPORTING DOC` | this map, [Source-Fact Domain Boundaries v1](./BROKER_REPORTS_SOURCE_FACT_DOMAIN_BOUNDARIES.v1.md), [Gate 4 -> Gate 5 Handoff v1](./BROKER_REPORTS_GATE4_HANDOFF.v1.md), [Gate 4 Financial Case Fact v2](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.md), and current Gate 5 methodology/declaration contracts listed below | explain direct boundaries or own exact DTO/factory meaning; cannot renumber gates |
+| `DEPLOYMENT ROLLBACK COMPATIBILITY` | Gate 3 handoff/contracts, `FinancialAnnotationsV2`, Gate 3-backed Gate 4 SQL/assembly contracts | exact historical path only; not active ordinary-trade authority and never fallback |
 | `CURRENT SUPPORTING DOC` | [Gate 5 Supplied-case Completeness v1](./BROKER_REPORTS_GATE5_SUPPLIED_CASE_COMPLETENESS.v1.md) | owns the corrected inactive G5.32 scope and sealed supplied-case completeness boundary |
 | `CURRENT SUPPORTING DOC` | [Gate 5 Declaration Semantic Input v0](./BROKER_REPORTS_GATE5_DECLARATION_SEMANTIC_INPUT.v0.md) | owns the inactive G5.33 target-independent semantic consumer boundary and H2 verdict |
 | `CURRENT SUPPORTING DOC` | [Gate 5 Full-target XML Projection v0](./BROKER_REPORTS_GATE5_FULL_TARGET_XML_PROJECTION.v0.md) | owns the inactive G5.34 definition-driven full-target XML, mapping-proof, XSD-conformance and terminal-receipt boundary |
@@ -154,7 +250,7 @@ authorities.
 | `EVIDENCE` | dated reports/receipts, including corrected G3.7C and G3.C5 product-path proof | prove one revision and scope; never a current contract |
 | `HISTORICAL` | dated research, proof plans, old current-state snapshots and evidence indexes | retained for audit or investigation only |
 | `SUPERSEDED` | `BROKER_REPORTS_GATE_ARCHITECTURE.md`, `BROKER_REPORTS_3NDFL.blueprint.md`, the pre-Gate-3 Domain Map, Contract Flow Mapping and Data Contract Family | old gate meaning is preserved but cannot override Pipeline Gates v1 |
-| `STALE / CONFLICTING` | any unqualified claim that current Gate 3 is unresolved, Gate 4 is not closed, or G4.5 remains mandatory work | must be treated as historical text and routed to Pipeline Gates v1 before use |
+| `STALE / CONFLICTING` | any unqualified claim that the active ordinary-trade route executes Gate 3, reads `FinancialAnnotationsV2`, requires old Gate 4 SQL, or may use legacy/semantic fallback | must be treated as historical text and routed to Pipeline Gates v1 before use |
 
 ### G5.50 contradiction classification
 
@@ -175,6 +271,11 @@ architecture authority merely because they contain the same terms. Dated Gate
 G3.7 `NOT_READY` conclusion is superseded by corrected G3.7C evidence.
 
 ## Minimal domain responsibility map
+
+For ordinary security trades, the active rows are the active architecture table
+above. Gate 3 and Gate 3-backed Gate 4 rows below describe retained deployment-
+rollback compatibility or exact historical proof surfaces; their word
+`current` is scoped to those versioned contracts, not to release activation.
 
 | Domain | Owns | Does not own | Public entrypoint | Normative contracts | Allowed consumers | Forbidden duplicate |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -212,11 +313,11 @@ G3.7 `NOT_READY` conclusion is superseded by corrected G3.7C evidence.
 | Gate 5 Single-Input Human Loop | turn exactly one current G5.5 missing money requirement into a strict structured question/proposal, validate it deterministically, then delegate persistence and recheck to unchanged G5.3/G5.5 owners | scope/fact binding by the model, free-form output acceptance, multi-input interview, workflow state, tax calculation, Tax Case/Model, provider stack or product activation | [`Gate5SingleInputHumanLoopRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_single_input_human_loop.py), using the existing `Gate2StructuredModelClientFactory.create` path and composing G5.3/G5.5 factories | [Gate 5 Single-Input Human Loop v0](./BROKER_REPORTS_GATE5_SINGLE_INPUT_HUMAN_LOOP.v0.md) | inactive G5.6 representative acquisition-cost proof only | model-visible trusted identities/artifact refs/full case, direct provider/store/Gate 4 access, retry/fallback/repair, new DB/registry/workflow/Tax Case or generic interview engine |
 | Gate 5 Methodology-Selected Calculation | validate one experimental methodology projection, resolve its source-tagged inputs only through G5.5, dispatch one known behavior and return a hash/rule/provenance-bound deterministic result | methodology lifecycle/publication, tax-context selection, executable formulas, rates, payable tax, Tax Case, generic rule engine or product activation | [`Gate5MethodologyCalculationRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_methodology_calculation.py), composing only `Gate5SupplementalFactDiscoveryRuntimeFactory.create` | [Gate 5 Methodology Calculation v0](./BROKER_REPORTS_GATE5_METHODOLOGY_CALCULATION.v0.md) | inactive G5.7 representative disposal net-result proof only | implicit scenario selection, unknown-behavior fallback, direct Gate 4/store/SQL/provider reads, LLM arithmetic, executable methodology, DSL/plugin/registry/DB/workflow/Tax Case |
 | Gate 5 Trusted Methodology Authority | bind each closed published methodology identity/version to one exact repository package resource/hash/schema and resolve it without caller content; current authorities are `ru-3ndfl-2025-declaration-input-contract@2026.2-current-authority` and `ru-ndfl-securities-source-fact-consumption-proof@2026.7-current-authority`; older resources are historical references, never current selection or fallback | methodology CRUD/approval/lifecycle, effective-date/residency/tax-period selection, calculation behavior, case state, mutable OpenWebUI authoring or product activation | [`Gate5TrustedMethodologyAuthorityFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_trusted_methodology.py) and composed [`Gate5TrustedMethodologyCalculationRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_trusted_methodology.py) | [Gate 5 Trusted Methodology Authority v0](./BROKER_REPORTS_GATE5_TRUSTED_METHODOLOGY_AUTHORITY.v0.md); behavior remains owned by the consuming G5.7, G5.13/G5.14 or G5.22 boundary | inactive G5.8 replay plus additive immutable G5.13/G5.14/G5.22 Tax Model versions only | caller-supplied methodology/hash/path, mutable same-version content, implicit default, direct Gate 4/supplemental/store/SQL/OpenWebUI/provider reads, new registry/DB/workflow/platform |
-| Gate 5 Deterministic Source-Fact Consumption | consume complete normalized purchase/disposal facts, apply bounded date-ordered FIFO without stored event identity, select exact-target disposal charges, and preserve detail/aggregate assertions independently | source parsing, currency inference/conversion, partial acquisition commission, reconciliation, relation persistence, tax completeness or activation | [`Gate5DeterministicSourceFactConsumptionRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_deterministic_source_fact_consumption.py), composing the official Gate 4 runtime and trusted methodology authority; the existing Tax Model accepts only its validated result | [Gate 5 Deterministic Source-Fact Consumption v0](./BROKER_REPORTS_GATE5_DETERMINISTIC_SOURCE_FACT_CONSUMPTION.v0.md) and [Source-Fact Domain Boundaries v1](./BROKER_REPORTS_SOURCE_FACT_DOMAIN_BOUNDARIES.v1.md) | inactive G5.40D deterministic proof and existing declaration Tax Model path only | direct source/Canonical/Gate 3/SQL/provider reads, inferred currency/event/relation, aggregate allocation, reconciliation, second Tax Model/calculator/store or product activation |
+| Gate 5 Deterministic Source-Fact Consumption | consume complete normalized purchase/disposal facts, apply bounded date-ordered FIFO without stored event identity, select exact-target disposal charges, and preserve detail/aggregate assertions independently | source parsing, currency inference/conversion, partial acquisition commission, reconciliation, relation persistence, tax completeness or activation | [`Gate5DeterministicSourceFactConsumptionRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_deterministic_source_fact_consumption.py) composes the historical Gate 4 runtime; active ordinary composition injects `Gate4OrdinaryTradeCandidateRuntimeFactory.create` into the same validated runtime through `OrdinaryTradeCandidateRuntimeFactory.create`; both use the trusted methodology authority | [Gate 5 Deterministic Source-Fact Consumption v0](./BROKER_REPORTS_GATE5_DETERMINISTIC_SOURCE_FACT_CONSUMPTION.v0.md) and [Source-Fact Domain Boundaries v1](./BROKER_REPORTS_SOURCE_FACT_DOMAIN_BOUNDARIES.v1.md) | active ordinary-trade source-fact assessment/consumption plus historical deterministic proof/Tax Model consumers | direct source/Canonical/Gate 3/Source Observation/SQL/provider reads, inferred currency/event/relation, aggregate allocation, reconciliation or second methodology/calculator/store |
 | Gate 5 Real Tax Case Assembly | enumerate reviewed declaration demands, retain explicit A-E knowledge origins, attach only available normalized facts and deterministic calculations, and emit exact supplied-case blockers | source extraction, user/filer evidence acquisition, global reconciliation, event identity, taxpayer completeness, declaration release/XML or product activation | [`Gate5RealTaxCaseAssemblyRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_real_tax_case_assembly.py), composing the deterministic source-fact consumer and existing declaration Definition/obligation-package factories | [Gate 5 Real Tax Case Assembly v0](./BROKER_REPORTS_GATE5_REAL_TAX_CASE_ASSEMBLY.v0.md), Deterministic Source-Fact Consumption v0 and Full Declaration Definition v1 | inactive G5.40F real-evidence assembly and exact-gap proof only | direct upstream/storage/provider reads, synthetic supplement in real mode, handwritten replacement obligation package, reconciliation, graph/relation persistence, new TaxCase database/workflow or activation |
 | Gate 3 Metadata Source Adapter | retain exact explicitly labelled non-tax client/broker/account/period/tax-identifier observations from active canonical artifacts | Gate 4 reads, tax-case assembly, unlabelled entity-role inference, income-source/residency meaning or persistence | [`Gate3MetadataSourceFactRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate3_metadata_source_facts.py), composing only `ArtifactResolver.catalog_case` and `CanonicalReaderFactory.create` | [Gate 5 Declaration Preparation v0](./BROKER_REPORTS_GATE5_DECLARATION_PREPARATION.v0.md) and [Source-Fact Domain Boundaries v1](./BROKER_REPORTS_SOURCE_FACT_DOMAIN_BOUNDARIES.v1.md) | Gate 5 evidence intake only | Gate 4 aggregation, generic metadata ontology, unlabeled broker/party guesses or tax meaning |
 | Gate 5 Declaration Scope | resolve final supplied-case scope and activate the minimal intent/evidence demand subset as one decision domain over the trusted Full Definition | obligation/domain inventory, legal methodology, user dialog, projection or missing-as-not-applicable | [`Gate5DeclarationScopeResolutionRuntimeFactory.create` and `Gate5DeclarationScopeActivationRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_declaration_scope_resolution.py) | [Cross-Gate Domain Ownership v1](./BROKER_REPORTS_CROSS_GATE_DOMAIN_OWNERSHIP.v1.md), Full Declaration Definition v1 and Supplied-case Completeness v1 | declaration preparation and sealed-package composition only | a second scope module, copied domain catalog, universal questionnaire or taxpayer-completeness claim |
-| Gate 5 Declaration Preparation | combine strict metadata and Gate 4 evidence contracts, review evidence coverage, consume the single scope owner, produce exact human/document actions, replay deterministically and expose readiness/proven target-independent values | source parsing, LLM tax decisions, raw-transaction dialog, universal questionnaire, new tax/projection/workflow/persistence owner, taxpayer completeness or XML/PDF release while blocked | [`Gate5EvidenceIntakeRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_evidence_intake.py) and [`Gate5DeclarationPreparationRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_declaration_preparation.py), composed by the stable [`broker_reports_gate1_pipe`](../../../services/broker-reports-gate1-proof/openwebui_actions/broker_reports_gate1_pipe.py) after `NdflWorkflowFactory.create().run_product_path` | [Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md), [Gate 5 Declaration Preparation v0](./BROKER_REPORTS_GATE5_DECLARATION_PREPARATION.v0.md), [Cross-Gate Domain Ownership v1](./BROKER_REPORTS_CROSS_GATE_DOMAIN_OWNERSHIP.v1.md) | current fail-closed Gate 4 -> Gate 5 product continuation; release/projection remain conditional on a sealed complete semantic input | direct SQL/source/provider reads, inferred source/residency/basis, stale LLM authority, manual target construction, reconciliation, transaction graph, generic engine, new TaxCase DB or synthetic product fallback |
+| Gate 5 Declaration Preparation | combine strict metadata and Gate 4 evidence contracts, review evidence coverage, consume the single scope owner, produce exact human/document actions, replay deterministically and expose readiness/proven target-independent values | source parsing, LLM tax decisions, raw-transaction dialog, universal questionnaire, new tax/projection/workflow/persistence owner, taxpayer completeness or XML/PDF release while blocked | [`Gate5EvidenceIntakeRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_evidence_intake.py) and [`Gate5DeclarationPreparationRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_declaration_preparation.py); the stable Pipe composes them only on the historical Gate 3 route | [Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md), [Gate 5 Declaration Preparation v0](./BROKER_REPORTS_GATE5_DECLARATION_PREPARATION.v0.md), [Cross-Gate Domain Ownership v1](./BROKER_REPORTS_CROSS_GATE_DOMAIN_OWNERSHIP.v1.md) | retained fail-closed Gate 4 -> Gate 5 compatibility continuation; not the active ordinary-trade composition | direct SQL/source/provider reads, inferred source/residency/basis, stale LLM authority, manual target construction, reconciliation, transaction graph, generic engine, new TaxCase DB or synthetic product fallback |
 | Gate 5 Declaration Model Assembly | audit the supported official consumer backward, release the exact minimal declaration-value set, project it without interpretation, and emit a value-by-value target-to-fact trace for one controlled profile | product activation, real-case completeness, legacy authority replacement, foreign/treaty completeness, new tax engine or projection framework | [`Gate5EndToEndFullTargetXmlRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_end_to_end_full_target_xml.py) through its opt-in audit receipt, composing existing methodology, package, semantic-release and consumer projection factories | [Gate 5 Declaration Model Assembly v1](./BROKER_REPORTS_GATE5_DECLARATION_MODEL_ASSEMBLY.v1.md), Declaration Semantic Input v0, Full-target XML Projection v0 and Evidence Interpretation Contracts v1 | inactive G5.45 controlled proof and safe audit evidence only | raw semantic bypass, projector calculation/default/inference, duplicate meaning owner, audit metadata as target input, real-case XML release or activation |
 | Gate 5 External Evidence Routing | prove one declaration-required tax reference input is absent from Financial Case meaning, project a minimal research request and accept only an exact request/entity/effective/source-bound structured proposal over supplied authoritative bytes | web/browser/provider orchestration, semantic legal re-research, persistence, Tax Context/Model, methodology application, human fallback, generic source/reference platform or product activation | [`Gate5ExternalEvidenceRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_external_evidence.py), composing only `Gate4FinancialCaseRuntimeFactory.create` for the read-only source audit | [Gate 5 External Evidence Routing v0](./BROKER_REPORTS_GATE5_EXTERNAL_EVIDENCE_ROUTING.v0.md) | inactive G5.11 representative 2025 group-02 rate-schedule proof only | document-semantic expansion, model-memory/snippet authority, direct broker/canonical/Gate 3/SQL reads, Supplemental Fact reuse, evidence-to-tax conclusion shortcut, new DB/registry/cache/workflow or generic research agent |
 | Gate 5 Declaration Projection | resolve one exact published projection definition, consume values/traces validated by Declaration Semantics and mechanically emit a bounded declaration-shaped fragment with source/rule/evidence/target provenance | Tax Model/Methodology meaning, calculation, official-source research at case time, full XML/PDF, persistence, managed publication, generic form/XSD engine, GUI or product activation | current [`Gate5DeclarationProjectionRuntimeV1Factory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate5_declaration_projection.py), delegating semantic-input validation to `DeclarationSemanticsIncomeGroupRuntimeFactory.create`; historical v0 factory remains exact | [Gate 5 Declaration Projection v1](./BROKER_REPORTS_GATE5_DECLARATION_PROJECTION.v1.md), historical [v0](./BROKER_REPORTS_GATE5_DECLARATION_PROJECTION.v0.md), G5.22 Tax Model contract and SHA-pinned official evidence packs | inactive G5.24 proof: Appendix 8 remains executable and real G5.22 semantics project to one two-node Section 2 fragment | Tax Model imports, caller evidence/schema/path/code, calculation in PROJECT, dynamic import/registry, condition/expression/loop DSL, LLM/XSD/network/DB/Gate 4 use, best effort, full declaration or generic mapping framework |
@@ -235,13 +336,13 @@ These domains are code responsibilities, not new product gates or packages.
 One domain may coordinate several distinct operation authorities listed below;
 that does not permit a second owner for any operation.
 
-Rows using historical `Gate2*` financial-semantic class/module names below are
-legacy code-identity maps, not current gate-number definitions. Under Pipeline
-Gates v1, product/task-specific LLM-friendly projection, sparse financial-type
-labeling and source-bound role labeling belong to the current Gate 3 contour.
-The current batch performs one type proposal and, when facts exist, one role
-proposal per chunk. G3.C5 activates these owners only inside the stable NDFL
-product route. DOC33's neutral reader-only renderer remains completeness proof
+Rows using historical `Gate2*` or Gate 3 financial-semantic class/module names
+below are legacy code-identity maps, not current release activation. Under
+Pipeline Gates v1, LLM-friendly projection, sparse financial-type labeling and
+source-bound role labeling belong to the retained Gate 3 responsibility
+contour. They run only when that deployment-rollback path is explicitly
+selected; `ordinary_trade_exact_fingerprint_v1` does not call them. DOC33's
+neutral reader-only renderer remains completeness proof
 tooling, not a product or persisted stage output.
 DOC27 likewise creates no Gate 3 projection and switches no background or
 primary product consumer.

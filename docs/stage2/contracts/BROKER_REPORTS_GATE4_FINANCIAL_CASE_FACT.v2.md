@@ -6,22 +6,36 @@ Goal: `G5.40C`
 
 Date: 2026-08-12
 
+Updated: 2026-08-21 (ordinary-trade producer compatibility)
+
 ## Purpose
 
 `Gate4FinancialCaseFactV2` is one deterministic normalized source fact in one
 trusted case/chat scope:
 
 ```text
-current validated FinancialAnnotationsV2
-+ exact active CanonicalArtifactV1
+historical rollback producer:
+  current validated FinancialAnnotationsV2
+  + exact active CanonicalArtifactV1
+
+active ordinary-trade producer:
+  validated ordinary-trade runtime projection
+  + exact Source Observation / Canonical-cell lineage
+
 + trusted ArtifactAccessContext
 -> deterministic Gate4FinancialCaseFactV2
 ```
 
 The normative shape is
 [`BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.schema.json`](./BROKER_REPORTS_GATE4_FINANCIAL_CASE_FACT.v2.schema.json).
-Materialization remains owned only by
-[`Gate4FinancialCaseMaterializerFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate4_financial_case_materialization.py).
+The schema identity and `fact_id` algorithm remain owned by
+[`gate4_financial_case_materialization.py`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate4_financial_case_materialization.py).
+The historical Gate 3-backed producer is
+`Gate4FinancialCaseMaterializerFactory.create`. The active ordinary-trade
+producer is the narrow compatibility adapter
+[`Gate4OrdinaryTradeCandidateRuntimeFactory.create`](../../../services/broker-reports-gate1-proof/broker_reports_gate1/gate4_ordinary_trade_candidate.py).
+The adapter may only validate and project already compiled runtime records into
+this exact shape; it is not a second fact schema or meaning authority.
 
 ## V2 additions
 
@@ -34,9 +48,19 @@ semantic_binding:
   role_pack: authority_id + semantic_version
 ```
 
-The binding is copied from the immutable current sidecar and participates in
-`fact_id`. Gate 4 can therefore expose exactly which versioned meaning produced
-the fact instead of stripping that information at its public boundary.
+The binding is copied from the immutable current upstream projection and
+participates in `fact_id`. On the historical path that projection is a
+`FinancialAnnotationsV2` sidecar. On the active ordinary-trade path it is the
+immutable `broker_reports_ordinary_trade_runtime_projection_v2` artifact with
+exact Canonical lineage and mapping authority identity.
+
+`gate3_binding` and its
+`broker_reports_financial_annotations_v2` discriminator are retained field
+names required by the published v2 schema. They are compatibility syntax, not
+evidence that current Gate 3 executed. Their ordinary-route
+`financial_annotations_artifact_id` value is the ordinary projection artifact
+ID. Consumers must treat the envelope as upstream provenance and must not infer
+the producer from its historical name.
 
 ## Allowed normalization
 
@@ -62,8 +86,10 @@ tax conclusion or relation authority. The current default Role Pack remains
 ## Atomic source-evidence admission
 
 Each materialized `Gate4FinancialCaseFactV2` represents exactly one
-unambiguously addressable source assertion inherited from its validated Gate 3
-annotation target. A broad presence observation over a target containing
+unambiguously addressable source assertion inherited from its validated
+upstream target. For the active ordinary route, one runtime record must bind
+one `RUNTIME_READY` Source Observation and exact Canonical row/cells. A broad
+presence observation over a target containing
 multiple indistinguishable occurrences is not an atomic financial fact and is
 not materializable. It may remain upstream as a discovery or recovery signal
 only when a named upstream consumer exists.
@@ -72,8 +98,8 @@ Atomicity and role completeness are independent. An exact source row with
 missing amount or currency remains a legitimate `role_incomplete` fact; a
 coarse multi-operation target does not become a fact merely because a
 financial type is present somewhere inside it. Gate 4 does not inspect the PDF
-or choose a narrower row: Gate 3 validation and exact Canonical targeting must
-establish this boundary before materialization.
+or choose a narrower row: the selected source-semantic producer and exact
+Canonical targeting must establish this boundary before Fact v2 admission.
 
 The deterministic minimum guard uses existing Canonical structure rather than
 a new ontology. Exact `table_row`, `table_cell` and `list_item` targets remain
@@ -89,7 +115,7 @@ interpretation. Gate 4 never reparses the PDF or splits the region.
 
 The materializer and SQL cache must not:
 
-- choose or repair a label or role;
+- choose or repair a label, mapping or role;
 - materialize a non-atomic presence observation as one transaction fact;
 - parse broker-specific formats;
 - calculate, aggregate or reconcile detail and totals;
@@ -104,7 +130,7 @@ not a meaning authority and cannot add columns or queries that imply relations.
 ## Identity and compatibility
 
 `fact_id` is the first 32 lowercase hex characters of a canonical SHA-256 over
-the v2 schema identity, trusted case binding, exact Gate 3 annotation binding,
+the v2 schema identity, trusted case binding, exact upstream compatibility binding,
 semantic kind/binding, annotation target identity and financial type. The same
 inputs rebuild the same ID; changing semantic authority changes the ID.
 

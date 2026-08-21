@@ -45,6 +45,14 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "broker_reports_gate1"
 REPOSITORY_ROOT = ROOT.parents[1]
 ARCHITECTURE_DOCUMENT = REPOSITORY_ROOT / ARCHITECTURE_AUTHORITY
+IMPLEMENTATION_AUTHORITY_DOCUMENT = (
+    REPOSITORY_ROOT
+    / "docs"
+    / "stage2"
+    / "contracts"
+    / "BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md"
+)
+SERVICE_GUIDANCE = ROOT / "AGENTS.md"
 GOAL12_CONTRACT = (
     REPOSITORY_ROOT
     / "docs"
@@ -186,6 +194,84 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertEqual(
             sorted(marker for marker in required if marker not in authority),
             [],
+        )
+
+    def test_active_ordinary_trade_route_has_one_documented_factory_chain(self):
+        pipeline = ARCHITECTURE_DOCUMENT.read_text(encoding="utf-8")
+        owners = IMPLEMENTATION_AUTHORITY_DOCUMENT.read_text(encoding="utf-8")
+        guidance = SERVICE_GUIDANCE.read_text(encoding="utf-8")
+        pipe = (
+            OPENWEBUI_ACTIONS / "broker_reports_gate1_pipe.py"
+        ).read_text(encoding="utf-8")
+
+        required_pipeline = {
+            "ACTIVE_ORDINARY_TRADE_ROUTE = ordinary_trade_exact_fingerprint_v1",
+            "GATE3_EXECUTION_IN_ACTIVE_ORDINARY_TRADE_ROUTE = DISABLED",
+            "LEGACY_SEMANTIC_FALLBACK = FORBIDDEN",
+            "GATE3_BINDING_FIELD = COMPATIBILITY_FIELD_ONLY",
+            "OrdinaryTradeProductionRuntimeFactory.create",
+            "Gate4OrdinaryTradeCandidateRuntimeFactory.create",
+        }
+        self.assertEqual(
+            sorted(marker for marker in required_pipeline if marker not in pipeline),
+            [],
+        )
+        for marker in (
+            "## Active ordinary-trade architecture",
+            "### Active authorities",
+            "### Historical / evidence only",
+            "### Supported boundaries",
+            "### Unsupported boundaries",
+            "### Known compatibility debt",
+            "### Forbidden cross-domain dependencies",
+        ):
+            self.assertIn(marker, owners)
+        self.assertIn("Current Gate 3 type/role", guidance)
+        self.assertIn("model passes", guidance)
+        self.assertIn("never a semantic fallback", guidance)
+
+        production_imports = _local_imports("ordinary_trade_production_runtime")
+        self.assertTrue(
+            {
+                "canonical_store",
+                "gate4_ordinary_trade_candidate",
+                "ordinary_trade_candidate_runtime",
+                "ordinary_trade_projection",
+                "ordinary_trade_qualified_mappings",
+            }
+            <= production_imports
+        )
+        self.assertEqual(
+            sorted(
+                name
+                for name in production_imports
+                if name.startswith("gate3_")
+                or name == "gate4_financial_case_cache"
+            ),
+            [],
+        )
+        self.assertNotIn(
+            "canonical_store", _local_imports("gate4_ordinary_trade_candidate")
+        )
+        direct_gate5_composers = {
+            path.stem
+            for path in PACKAGE.glob("*.py")
+            if "Gate5DeterministicSourceFactConsumptionRuntime"
+            in _call_names(ast.parse(path.read_text(encoding="utf-8")))
+        }
+        self.assertEqual(
+            direct_gate5_composers,
+            {
+                "gate5_deterministic_source_fact_consumption",
+                "ordinary_trade_candidate_runtime",
+            },
+        )
+        self.assertLess(
+            pipe.index("if candidate_enabled:"),
+            pipe.index("Gate2StructuredModelClientFactory("),
+        )
+        self.assertIn(
+            "and not bool(self.valves.ordinary_trade_candidate_enabled)", pipe
         )
 
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):

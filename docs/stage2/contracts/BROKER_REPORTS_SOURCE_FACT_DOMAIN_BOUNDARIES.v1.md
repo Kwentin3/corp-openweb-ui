@@ -6,7 +6,7 @@ Goal: `G5.40C`; clarified by `G5.40D`
 
 Date: 2026-08-12
 
-Updated: 2026-08-13
+Updated: 2026-08-21 (active ordinary-trade source-semantic producer)
 
 ## Governing rule
 
@@ -20,8 +20,8 @@ Every value crossing this boundary belongs to exactly one class:
 | Class | Meaning | Earliest owner |
 | --- | --- | --- |
 | source structure | page, region, row, cell, order and exact locator retained from input | Canonical Artifact |
-| source fact | a financial observation directly asserted by one exact source target | Gate 3 dictionary and Role Pack |
-| source-authored context | a relation or aggregate scope explicitly represented by the same source target | Gate 3 label plus canonical target |
+| source fact | a financial observation directly asserted by one exact source target | active ordinary route: qualified mapping + compiler; rollback route: Gate 3 dictionary and Role Pack |
+| source-authored context | a relation or aggregate scope explicitly represented by the same source target | selected source-semantic producer plus canonical target |
 | normalized source fact | deterministic typed representation of a source literal without new meaning | Gate 4 Fact |
 | methodology-derived value | calculation, eligibility, allocation, reconciliation or declaration meaning | Gate 5 published methodology |
 | unsupported inference | meaning not proved by source structure or an authorized methodology input | no producer; fail closed |
@@ -30,13 +30,16 @@ Every value crossing this boundary belongs to exactly one class:
 
 | Domain | Receives | May assert or normalize | Must preserve | Must not infer | Produces | Consumer | Failure behavior |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Canonical Artifact | uploaded source bytes and format-specific extraction | structural nodes, tables, rows, cells, literals and provenance | exact source accounting and target identity | financial meaning, event identity, aggregation or tax meaning | immutable `CanonicalArtifactV1` | Gate 3 | incomplete/invalid canonical fails activation |
-| Gate 3 labeling | exact, atomically addressable canonical targets plus current dictionary/Role Pack | one sparse source fact label; literal role bindings; only source-authored context present in the exact target | canonical target, literals, missing roles and semantic authority identity | converting a coarse presence observation into one transaction; reconciliation, calculation, hidden relations, FIFO, commission allocation or aggregate decomposition | immutable `FinancialAnnotationsV2` | Gate 4 | reject a non-atomic proposal, reject the proposal otherwise, or retain explicit `missing` |
-| Gate 4 materialization | current atomic sidecar, exact active canonical and trusted case context | typed date/decimal representation under the exact source semantic authority | one addressable source assertion, source literal, target, sidecar/canonical binding and dictionary/Role Pack versions | materializing a broad presence claim; label/role choice, detail-total reconciliation, economic relations, methodology or tax meaning | `Gate4FinancialCaseFactV2` and rebuildable SQL projection | Gate 5 | reject stale/misbound/non-atomic input; keep atomically targeted role-incomplete facts visible |
+| Canonical Artifact | uploaded source bytes and format-specific extraction | structural nodes, tables, rows, cells, literals and provenance | exact source accounting and target identity | financial meaning, event identity, aggregation or tax meaning | immutable `CanonicalArtifactV1` | selected source-semantic producer | incomplete/invalid canonical fails activation |
+| Ordinary-trade qualified source semantics | exact active Canonical plus immutable exact schema/enum mappings | table-schema meaning, row disposition, source-bound roles and deterministic syntax-only date/decimal transforms | every non-empty data row after a matched header, every non-empty unknown-table row, exact literals/cell/provenance refs, mapping authority identity and unmapped disposition; titles/headers remain in Canonical/mapping evidence | broker/year/filename profile routing, fuzzy match, table continuation, relations, reconciliation, tax or missing values | immutable Source Observations and deterministic runtime records | Gate 4 ordinary adapter | unknown/incomplete remains `RELEVANT_UNMAPPED`; ambiguous input fails closed; no fallback |
+| Gate 3 labeling (deployment rollback only for ordinary trade) | exact, atomically addressable canonical targets plus current dictionary/Role Pack | one sparse source fact label; literal role bindings; only source-authored context present in the exact target | canonical target, literals, missing roles and semantic authority identity | converting a coarse presence observation into one transaction; reconciliation, calculation, hidden relations, FIFO, commission allocation or aggregate decomposition | immutable `FinancialAnnotationsV2` | historical Gate 4 materializer | reject a non-atomic proposal, reject the proposal otherwise, or retain explicit `missing` |
+| Gate 4 Fact v2 admission | current validated ordinary projection or historical atomic sidecar, exact Canonical lineage and trusted case context | exact Fact v2 representation under the selected source-semantic authority | one addressable source assertion, source literal, target, upstream/canonical binding and semantic authority versions | materializing unmapped/coarse input; label/mapping/role choice, detail-total reconciliation, economic relations, methodology or tax meaning | `Gate4FinancialCaseFactV2`; SQL exists only on the historical route | Gate 5 | reject stale/misbound/non-atomic input; unmapped ordinary observations produce no fact |
 | Gate 5 methodology | current Gate 4 facts plus explicit same-run user/methodology inputs | calculations and declaration semantics allowed by one published typed methodology | all source and user provenance; exact completeness boundary | missing acquisition roles/quantity, expense evidence, scope completeness or tax facts | typed Tax Models, declaration semantics and XML projections | declaration consumer | missing methodology input returns a typed blocker and no downstream artifact |
 
-The LLM boundary ends when the strict `FinancialAnnotationsV2` proposal has
-passed deterministic validation. Gate 4, SQL materialization, Gate 5
+On the historical rollback route, the LLM boundary ends when the strict
+`FinancialAnnotationsV2` proposal has passed deterministic validation. The
+active ordinary route has no case-time source-semantic LLM call: its mapping is
+frozen evidence and all row/value processing is deterministic. Gate 4, Gate 5
 calculation and declaration projection are ordinary deterministic code.
 
 `ONE G4 FINANCIAL FACT -> ONE UNAMBIGUOUSLY ADDRESSABLE SOURCE ASSERTION`.
@@ -52,7 +55,7 @@ two commission details of `10` and `15` and a source-authored commission total
 of `30` remain three facts. The same rule applies to withheld-tax detail and
 total observations.
 
-Gates 3 and 4 must not:
+The selected source-semantic producer and Gate 4 must not:
 
 - calculate a total from detail facts;
 - compare, reconcile or repair a source total;
@@ -85,8 +88,10 @@ that relation owner. When those values are absent, the consumer fails closed at
 - Dictionary `2.0.0` and Role Pack `3.0.0` are the current source-fact
   authorities. Role Pack `3.0.0` narrows `asset` to a source-authored code or
   other unambiguous identifier without changing financial-label meaning.
-- Gate 4 Fact v2 carries `semantic_kind=normalized_source_fact` and the exact
-  dictionary/Role Pack identities used upstream.
+- Gate 4 Fact v2 carries `semantic_kind=normalized_source_fact` and exact
+  upstream semantic authority identities. The field name `gate3_binding` is a
+  compatibility envelope: on the active ordinary route it binds the ordinary
+  projection artifact, not a Gate 3 execution.
 - A version upgrade creates a new immutable package resource and hash pin. It
   never rewrites a historical identity.
 
