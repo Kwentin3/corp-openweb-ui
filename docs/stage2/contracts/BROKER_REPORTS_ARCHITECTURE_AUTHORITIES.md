@@ -19,6 +19,14 @@ This index cannot promote a consumer-local requirement into a global blocker.
 Every blocking claim must resolve through Pipeline Gates to a named consumer,
 earliest required stage and minimal dependent unit.
 
+`ARCHITECTURE_POLICY_VERSION` is the semantic snapshot identity of the
+machine-readable policy, not only the shape of its Python dictionaries. It must
+change when an active route, owner, contract, allowed behavior or forbidden
+behavior changes. Comments, formatting and behavior-preserving refactors do
+not require a bump. Therefore the same version must not name two different
+architectural routes across commits; consumers may compare it for exact policy
+meaning, while reading the named fields for the policy data itself.
+
 ## Active ordinary-trade architecture
 
 This is the implementation-owner map for the currently activated
@@ -41,7 +49,7 @@ PDF
 | --- | --- | --- | --- | --- | --- |
 | Source intake and normalization | source bytes, table location, deterministic pdfplumber structure/literals and provenance | authenticated upload and table-location response | persisted Gate 1 artifacts and validated Canonical candidate | financial labels, row values from the model, tax meaning | Canonical lifecycle |
 | Canonical lifecycle | immutable document/page/table/row/cell representation, exact source refs, activation and current-version selection | validated normalized source plus trusted `ArtifactAccessContext` | active `CanonicalArtifactV1` via `CanonicalReaderFactory.create` | source mutation, financial naming, consumer-specific repair | ordinary-trade projection |
-| Qualified mapping authority | meaning of one exact table schema, literal side enum and explicit amount-column to currency-column bindings; immutable qualification receipt for every binding | package-owned mapping and receipt registry | `broker_reports_ordinary_trade_schema_mapping_v3` through `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | row/value authorship, broker/year/filename profile keys, fuzzy matching, runtime model call, unqualified relation admission | semantic compiler through the projection owner only |
+| Qualified mapping authority | meaning of one exact table schema, literal side enum and amount-column to currency-column bindings; qualification receipt v2 distinguishes direct wording from reviewed schema interpretation | package-owned mapping and receipt registry | mapping v3 plus `broker_reports_ordinary_trade_mapping_qualification_v2` through `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | row/value authorship, broker/year/filename profile keys, fuzzy matching, runtime model call, unqualified or unauditable relation admission | semantic compiler through the projection owner only |
 | Ordinary-trade semantic compiler | exact schema match, source-observation disposition, execution of qualified amount/currency bindings, deterministic date/decimal transforms and runtime-record lineage | active Canonical plus qualified mappings | `broker_reports_ordinary_trade_runtime_projection_v4`: Source Observations, qualified authority lineage and runtime records | tax, proximity/adjacency binding, relations, inferred continuation, value deduplication, Canonical mutation | projection store and Gate 4 adapter |
 | Projection store/current view | immutable projection persistence, exact active-Canonical selection and mandatory composition of the qualified mapping authority with the compiler | active Canonical plus private case context | one current projection per document through `OrdinaryTradeProjectionFactory.create` | caller-supplied mappings, overwrite, stale/latest-wins selection, new meaning | Gate 4 ordinary adapter |
 | Gate 4 ordinary adapter | admission into the existing Fact v2 shape and deterministic fact identity | current validated ordinary projection | `Gate4FinancialCaseFactV2` through `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | Canonical reads, model calls, classification, tax, SQL cache | deterministic Gate 5 |
@@ -75,7 +83,7 @@ PDF
 - ordinary purchase/disposal rows with the required source fields;
 - non-zero broker/exchange commissions as separate `TRANSACTION_CHARGE` facts;
 - every emitted gross amount or charge uses the currency column explicitly bound
-  to its amount column by mapping v3 and covered by qualification receipt v1;
+  to its amount column by mapping v3 and covered by qualification receipt v2;
   column adjacency has no authority;
 - supported and unknown tables in one Canonical: supported non-empty data rows
   after the exact header continue and every non-empty unknown-table row remains
