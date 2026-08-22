@@ -4,7 +4,7 @@ Status: `CURRENT`
 
 Classification: `CURRENT AUTHORITY`
 
-Updated: 2026-08-21 (ordinary-trade production-route conformance)
+Updated: 2026-08-22 (qualified semantic authority receipt)
 
 ```text
 CURRENT_PIPELINE_AUTHORITY = ONE
@@ -61,9 +61,9 @@ or methodology blocker.
 
 **Source world.** Gate 1 owns source identity and custody. Gate 2 produces a
 faithful Canonical and may change form, not meaning. In the active ordinary-
-trade route, one frozen exact-schema mapping authority and one deterministic
-compiler assign only qualified source meaning and preserve every literal and
-cell reference. The historical Gate 3 model path performs the analogous source-
+trade route, one frozen exact-schema mapping plus its qualification receipt and
+one deterministic compiler assign only qualified source meaning and preserve
+every literal and cell reference. The historical Gate 3 model path performs the analogous source-
 semantic responsibility only when explicitly selected as deployment rollback.
 Gate 4 publishes only contract-valid normalized source facts. Visual metadata
 follows the separate supporting route
@@ -232,7 +232,7 @@ responsibility without executing the historically named Gate 3 runtime:
 ACTIVE ORDINARY SECURITY TRADES
 
 PDF -> normalization -> immutable Canonical
-    -> exact qualified mapping
+    -> exact mapping + matching qualification receipt
     -> Source Observations
     -> deterministic runtime records
     -> Gate 4 Fact v2 compatibility adapter

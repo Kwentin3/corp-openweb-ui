@@ -4,6 +4,8 @@ import copy
 import inspect
 from pathlib import Path
 
+import pytest
+
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     FORBIDDEN,
@@ -15,6 +17,7 @@ from broker_reports_gate1.ordinary_trade_projection import (
 )
 from broker_reports_gate1.ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
+    validate_qualified_mapping,
 )
 from broker_reports_gate1.ordinary_trade_semantic_compiler import (
     OrdinaryTradeSemanticCompilerFactory,
@@ -271,7 +274,7 @@ def test_charge_identity_is_bound_to_exact_commission_cell_and_trade_row(
         assert charge["annotation_target"] == trade["annotation_target"]
 
 
-def test_semantic_decision_execution_order_does_not_change_mapping_identity() -> None:
+def test_qualification_reference_is_part_of_mapping_identity() -> None:
     mapping = OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()[0]
     kwargs = {
         "title_literal": mapping["title_literal"],
@@ -285,12 +288,13 @@ def test_semantic_decision_execution_order_does_not_change_mapping_identity() ->
         ],
         "amount_currency_bindings": mapping["amount_currency_bindings"],
         "side_values": mapping["side_values"],
+        "qualification_ref": mapping["qualification_ref"],
     }
-    reordered = compile_schema_mapping(
-        **kwargs,
-        semantic_decisions=list(reversed(mapping["semantic_decisions"])),
-    )
-    assert reordered == mapping
+    rebuilt = compile_schema_mapping(**kwargs)
+    assert rebuilt == mapping
+    changed_ref = copy.deepcopy(kwargs)
+    changed_ref["qualification_ref"]["receipt_sha256"] = "0" * 64
+    assert compile_schema_mapping(**changed_ref)["mapping_id"] != mapping["mapping_id"]
 
 
 def test_production_factory_is_the_only_candidate_route_and_has_no_old_owner() -> None:
@@ -314,6 +318,56 @@ def test_qualified_mapping_authority_is_immutable_and_has_no_profile_keys() -> N
     assert all(
         not {"broker", "broker_id", "year", "filename", "profile"} & set(item)
         for item in second
+    )
+
+
+def test_changed_relation_is_rejected_without_matching_qualification() -> None:
+    authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
+    mapping = authority.list_mappings()[1]
+    receipt = authority.list_qualification_receipts()[1]
+    changed = compile_schema_mapping(
+        title_literal=mapping["title_literal"],
+        headers=[
+            {"column": item["column"], "literal": item["header_literal"]}
+            for item in mapping["columns"]
+        ],
+        model_columns=[
+            {"column": item["column"], "semantic_role": item["semantic_role"]}
+            for item in mapping["columns"]
+        ],
+        amount_currency_bindings=[
+            {"amount_column": 8, "currency_column": 5},
+            {"amount_column": 10, "currency_column": 7},
+            {"amount_column": 11, "currency_column": 7},
+        ],
+        side_values=mapping["side_values"],
+        qualification_ref=mapping["qualification_ref"],
+    )
+
+    with pytest.raises(RuntimeError) as rejected:
+        validate_qualified_mapping(mapping=changed, receipt=receipt)
+
+    assert rejected.value.args == (
+        "ordinary_trade_mapping_qualification_scope_invalid",
+    )
+
+
+def test_receipts_cover_only_named_consumer_relations_and_are_immutable() -> None:
+    authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
+    first = authority.list_qualification_receipts()
+    second = authority.list_qualification_receipts()
+    first[0]["relation_claims"][0]["currency_column"] = 999
+
+    assert second == authority.list_qualification_receipts()
+    assert all(
+        claim["consumer_contract"] == "Gate4FinancialCaseFactV2.amount_currency"
+        for receipt in second
+        for claim in receipt["relation_claims"]
+    )
+    assert all(
+        "unit_price" not in claim
+        for receipt in second
+        for claim in receipt["relation_claims"]
     )
 
 

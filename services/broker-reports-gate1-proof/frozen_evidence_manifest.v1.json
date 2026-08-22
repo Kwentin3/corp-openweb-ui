@@ -1,0 +1,15 @@
+{
+  "schema_version": "broker_reports_frozen_evidence_manifest_v1",
+  "files": [
+    {"path": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.transparent.json", "sha256": "e604d521feb90155ca7c25a025d5027017a4eb94095212d9fe65c7697a9c5b5a"},
+    {"path": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.receipt.safe.json", "sha256": "2010805d34b3484270a7c4dd7c6dcb14b770ed8c0b15e31898bffcadc0f8c95b"},
+    {"path": "docs/reports/2026-07-29/BROKER_REPORTS_GATE2_CONTEXT_V2_1_THREE_PROVIDER_LOCAL_PROOF_GOAL11.report.md", "sha256": "741a8a79f74badc04fea23197e39de24d007128a448b05e2dc74fa592f09fd3b"},
+    {"path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.report.md", "sha256": "eedd5b04ef79830b8fee0906629fbd202a10f914a29e9cad07b4da98d3ebbd27"},
+    {"path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.transparent.json", "sha256": "d66ed03007b586bb861fb76e48297949e8e294b00142cf7bcc80dc95db9b7ed9"},
+    {"path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_SEMANTIC_DECISION_ARCHITECTURE_AUDIT_GOAL15.receipt.safe.json", "sha256": "57c7d1c1b6ce7206fe9eb4d61a5505bc782c1f365c4e26db7743553b2d9c6288"},
+    {"path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED.v1.md", "sha256": "dc4715e34c02f0668affe934e41a9b6046eb37aab279be583fc2bef5042aa394"},
+    {"path": "docs/stage2/contracts/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED.v1.json", "sha256": "6c26a0eedd2be8e547e4c56a7e8a238b661d8d484674008adaf121c4df7520e3"},
+    {"path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED_CONTRACT_GOAL16.report.md", "sha256": "254dc888403cf75ea37b437093fea7bddcc35256c86b9a4dd4397395de4e6d3f"},
+    {"path": "docs/reports/2026-07-30/BROKER_REPORTS_GATE2_TYPE_FIRST_FAIL_CLOSED_CONTRACT_GOAL16.receipt.safe.json", "sha256": "a97ece1063f9c2f6fe1578e6333b7bf3880ed046e7af02a3b0ea31aa26bd0bca"}
+  ]
+}

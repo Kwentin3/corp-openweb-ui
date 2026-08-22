@@ -198,6 +198,7 @@ ARTIFACT_TYPES = {
     "broker_reports_ordinary_trade_runtime_projection_v1",
     "broker_reports_ordinary_trade_runtime_projection_v2",
     "broker_reports_ordinary_trade_runtime_projection_v3",
+    "broker_reports_ordinary_trade_runtime_projection_v4",
     "broker_reports_gate5_supplemental_fact_v0",
     "broker_reports_gate5_declaration_scope_assertion_v0",
     "broker_reports_gate5_openwebui_case_fact_submission_v0",

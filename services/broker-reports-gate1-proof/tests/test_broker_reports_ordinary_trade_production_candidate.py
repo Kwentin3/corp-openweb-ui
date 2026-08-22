@@ -200,7 +200,7 @@ def test_equal_source_values_remain_distinct_observations(tmp_path: Path) -> Non
     assert ready[1]["fields"] != ready[2]["fields"]
 
 
-def test_historical_v2_projection_is_not_current_after_v3_migration(
+def test_historical_v3_projection_is_not_current_after_v4_migration(
     tmp_path: Path,
 ) -> None:
     store, context, document_id, _mapping = _case(tmp_path)
@@ -214,7 +214,7 @@ def test_historical_v2_projection_is_not_current_after_v3_migration(
         replace(
             current,
             artifact_id="art_otproj_historical_v2",
-            artifact_type="broker_reports_ordinary_trade_runtime_projection_v2",
+            artifact_type="broker_reports_ordinary_trade_runtime_projection_v3",
         )
     )
 
@@ -332,14 +332,10 @@ def test_amount_currency_binding_is_explicit_and_not_column_proximity(
             {"source_literal": "Buy", "normalized_value": "PURCHASE"},
             {"source_literal": "Sell", "normalized_value": "DISPOSAL"},
         ],
-        semantic_decisions=[
-            {
-                "decision_id": "decision-schema-two-currencies",
-                "decision_kind": "SCHEMA_MAPPING",
-                "model_id": "model-test",
-                "response_sha256": "c" * 64,
-            }
-        ],
+        qualification_ref={
+            "qualification_id": "otqual_test_two_currencies",
+            "receipt_sha256": "c" * 64,
+        },
     )
     store, context = gate4_fixtures._store_context(tmp_path)
     document_id = "ordinary-trade-explicit-currency-binding"
@@ -395,7 +391,7 @@ def test_mapping_contract_rejects_profile_keys_and_header_reorder() -> None:
             ),
             amount_currency_bindings=mapping["amount_currency_bindings"],
             side_values=mapping["side_values"],
-            semantic_decisions=mapping["semantic_decisions"],
+            qualification_ref=mapping["qualification_ref"],
         )
     assert reordered.value.code == "ordinary_trade_mapping_header_order"
 
@@ -497,7 +493,7 @@ def _mapping_from_headers(headers: tuple[str, ...]) -> dict:
             _QUALIFIED_MAPPING["amount_currency_bindings"]
         ),
         side_values=copy.deepcopy(_QUALIFIED_MAPPING["side_values"]),
-        semantic_decisions=copy.deepcopy(_QUALIFIED_MAPPING["semantic_decisions"]),
+        qualification_ref=copy.deepcopy(_QUALIFIED_MAPPING["qualification_ref"]),
     )
 
 

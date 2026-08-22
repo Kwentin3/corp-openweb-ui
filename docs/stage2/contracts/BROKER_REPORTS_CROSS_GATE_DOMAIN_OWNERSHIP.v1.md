@@ -11,7 +11,7 @@ historical Gate 3 model runtime. Its one-way ownership is:
 
 | Domain | Sole owner | Input | Output | Must not own |
 | --- | --- | --- | --- | --- |
-| qualified schema/enum/amount-currency meaning | `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | immutable package registry | exact mapping v2 with explicit amount-column to currency-column pairs | row values, broker profiles, fuzzy routing, proximity binding, tax |
+| qualified schema/enum/amount-currency meaning | `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | immutable package mapping and receipt registry | exact mapping v3 with receipt-covered amount-column to currency-column pairs | row values, broker profiles, fuzzy routing, unqualified or proximity binding, tax |
 | source observation/runtime compilation | `OrdinaryTradeSemanticCompilerFactory.create` | active Canonical + exact mappings | Source Observations + deterministic runtime records | tax, relations, adjacency binding, inferred continuation, Canonical repair |
 | current projection | `OrdinaryTradeProjectionFactory.create` | validated compiler output + trusted case context | one immutable current projection per active Canonical | meaning, latest-wins, stale reuse |
 | Fact v2 admission | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | current ordinary projection | exact `Gate4FinancialCaseFactV2` list | Canonical read, classification, SQL, tax |
