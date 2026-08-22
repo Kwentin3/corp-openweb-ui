@@ -97,6 +97,19 @@ consumption payload, and returns the exact validated consumption result beside
 the existing operation Tax Model. It remains inactive/shadow and introduces no
 new Tax Model behavior or calculation owner.
 
+The Issue #293 bridge accepts a member `source_scope_ref` only when it equals
+the exact `scope_id` of the returned `case_binding` with `scope_kind=case`.
+It also requires the category `taxpayer_scope_ref` to equal the operation Tax
+Model `operation_scope.subject_ref`. These are composition admission checks,
+not new source or taxpayer inference rules; a mismatch returns a typed blocker
+before category aggregation.
+
+The source-fact owner exposes the exact IDs of detail commission facts sharing
+the already-owned source transaction row with a consumed acquisition. The
+bridge emits `partial_acquisition_commission_allocation` only when this set is
+non-empty and the existing capability remains `LEGAL_INTERPRETATION_REQUIRED`.
+Disposal-only commission evidence therefore cannot create that demand.
+
 The factory composes existing owners rather than bypassing them:
 
 - `Gate5TrustedMethodologyAuthorityFactory.create` resolves exact

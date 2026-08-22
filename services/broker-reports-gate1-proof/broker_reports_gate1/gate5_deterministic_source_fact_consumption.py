@@ -497,6 +497,85 @@ def gate5_source_fact_tax_model_inputs(
 ) -> dict[str, dict[str, Any]]:
     """Validate one consumption result and expose its three Tax Model inputs."""
 
+    consumed = _validated_consumption_result(value, context=context)
+    selected = _selected_consumption_security(
+        consumed,
+        disposal_fact_id=disposal_fact_id,
+    )
+    expense = selected.get("direct_transaction_expense")
+    if (
+        not isinstance(expense, dict)
+        or expense.get("status") != "available"
+        or expense.get("source_context") != "SAME_SOURCE_TRANSACTION_ROW"
+        or expense.get("source_semantic") != "TRANSACTION_CHARGE_EVIDENCE"
+        or expense.get("tax_deductibility_status") != "NOT_EVALUATED"
+    ):
+        _fail("gate5_source_fact_direct_expense_missing", disposal_fact_id)
+    return {
+        "gross_income": _tax_model_input(
+            selected.get("gross_income"), expected_name="gross_income"
+        ),
+        "acquisition_cost": _tax_model_input(
+            selected.get("recognized_acquisition_cost"),
+            expected_name="acquisition_cost",
+        ),
+        "transaction_expense": _tax_model_input(
+            expense,
+            expected_name="transaction_expense",
+        ),
+    }
+
+
+def gate5_source_fact_acquisition_commission_fact_ids(
+    value: Any,
+    *,
+    context: ArtifactAccessContext,
+) -> list[str]:
+    """Return detail commission facts bound to a consumed acquisition row."""
+
+    consumed = _validated_consumption_result(value, context=context)
+    acquisition_sources = []
+    for security in consumed["securities"]:
+        if not isinstance(security, dict):
+            _fail("gate5_source_fact_consumption_result_invalid")
+        acquisition = security.get("recognized_acquisition_cost")
+        sources = acquisition.get("sources") if isinstance(acquisition, dict) else None
+        if not isinstance(sources, list) or not sources:
+            _fail("gate5_source_fact_consumption_result_invalid")
+        acquisition_sources.extend(sources)
+    assertions = consumed.get("assertions")
+    commissions = (
+        assertions.get("commissions") if isinstance(assertions, dict) else None
+    )
+    details = commissions.get("detail") if isinstance(commissions, dict) else None
+    if not isinstance(details, list):
+        _fail("gate5_source_fact_consumption_result_invalid")
+    fact_ids = set()
+    for detail in details:
+        source = detail.get("source") if isinstance(detail, dict) else None
+        fact_id = detail.get("fact_id") if isinstance(detail, dict) else None
+        if (
+            not isinstance(detail, dict)
+            or detail.get("financial_type") not in _COMMISSION_DETAIL_TYPES
+            or not isinstance(fact_id, str)
+            or _IDENTIFIER.fullmatch(fact_id) is None
+            or not _source_row_evidence(source)
+        ):
+            _fail("gate5_source_fact_consumption_result_invalid")
+        if any(
+            _source_row_evidence(acquisition_source)
+            and _same_source_transaction_row(source, acquisition_source)
+            for acquisition_source in acquisition_sources
+        ):
+            fact_ids.add(fact_id)
+    return sorted(fact_ids)
+
+
+def _validated_consumption_result(
+    value: Any,
+    *,
+    context: ArtifactAccessContext,
+) -> dict[str, Any]:
     expected_terminals = [
         GATE5_DETERMINISTIC_SOURCE_FACT_CONSUMPTION_TERMINAL,
         GATE5_FIFO_WITHOUT_STORED_EVENT_TERMINAL,
@@ -521,7 +600,6 @@ def gate5_source_fact_tax_model_inputs(
         or value.get("terminals") != expected_terminals
         or value.get("case_binding") != _case_binding(context)
         or not isinstance(value.get("securities"), list)
-        or not isinstance(disposal_fact_id, str)
     ):
         _fail("gate5_source_fact_consumption_result_invalid")
     binding = value.get("methodology_binding")
@@ -533,6 +611,16 @@ def gate5_source_fact_tax_model_inputs(
         or binding.get("behavior_id") != _BEHAVIOR_ID
     ):
         _fail("gate5_source_fact_consumption_result_invalid")
+    return value
+
+
+def _selected_consumption_security(
+    value: dict[str, Any],
+    *,
+    disposal_fact_id: str,
+) -> dict[str, Any]:
+    if not isinstance(disposal_fact_id, str):
+        _fail("gate5_source_fact_consumption_result_invalid")
     matches = [
         item
         for item in value["securities"]
@@ -540,29 +628,7 @@ def gate5_source_fact_tax_model_inputs(
     ]
     if len(matches) != 1:
         _fail("gate5_source_fact_disposal_selection_invalid")
-    selected = matches[0]
-    expense = selected.get("direct_transaction_expense")
-    if (
-        not isinstance(expense, dict)
-        or expense.get("status") != "available"
-        or expense.get("source_context") != "SAME_SOURCE_TRANSACTION_ROW"
-        or expense.get("source_semantic") != "TRANSACTION_CHARGE_EVIDENCE"
-        or expense.get("tax_deductibility_status") != "NOT_EVALUATED"
-    ):
-        _fail("gate5_source_fact_direct_expense_missing", disposal_fact_id)
-    return {
-        "gross_income": _tax_model_input(
-            selected.get("gross_income"), expected_name="gross_income"
-        ),
-        "acquisition_cost": _tax_model_input(
-            selected.get("recognized_acquisition_cost"),
-            expected_name="acquisition_cost",
-        ),
-        "transaction_expense": _tax_model_input(
-            expense,
-            expected_name="transaction_expense",
-        ),
-    }
+    return matches[0]
 
 
 def _tax_model_input(value: Any, *, expected_name: str) -> dict[str, Any]:
@@ -1583,6 +1649,21 @@ def _same_source_transaction_row(left: dict[str, Any], right: dict[str, Any]) ->
     )
 
 
+def _source_row_evidence(value: Any) -> bool:
+    if not isinstance(value, dict):
+        return False
+    binding = value.get("gate3_binding")
+    target = value.get("annotation_target")
+    return (
+        isinstance(binding, dict)
+        and isinstance(binding.get("canonical_binding"), dict)
+        and isinstance(target, dict)
+        and target.get("kind") in {"table_row", "table_cell"}
+        and isinstance(target.get("node_id"), str)
+        and isinstance(target.get("row"), int)
+    )
+
+
 def _case_binding(context: Any) -> dict[str, str]:
     if not isinstance(context, ArtifactAccessContext):
         _fail("gate5_source_fact_trusted_context_required")
@@ -1647,5 +1728,6 @@ __all__ = [
     "Gate5DeterministicSourceFactConsumptionError",
     "Gate5DeterministicSourceFactConsumptionRuntime",
     "Gate5DeterministicSourceFactConsumptionRuntimeFactory",
+    "gate5_source_fact_acquisition_commission_fact_ids",
     "gate5_source_fact_tax_model_inputs",
 ]

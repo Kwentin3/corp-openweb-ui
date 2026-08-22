@@ -17,6 +17,9 @@ from broker_reports_gate1.gate4_ordinary_trade_candidate import (
 from broker_reports_gate1.gate5_declaration_projection import (
     Gate5DeclarationProjectionRuntime,
 )
+from broker_reports_gate1.gate5_deterministic_source_fact_consumption import (
+    gate5_source_fact_acquisition_commission_fact_ids,
+)
 from broker_reports_gate1.gate5_tax_period_category_aggregation import (
     GATE5_TAX_PERIOD_CATEGORY_SCOPE_SCHEMA_VERSION,
     GATE5_TAX_PERIOD_COMPLETENESS_EVIDENCE_SCHEMA_VERSION,
@@ -31,6 +34,9 @@ from broker_reports_gate1.gate5_trusted_methodology import (
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
+)
+from broker_reports_gate1.ordinary_trade_candidate_runtime import (
+    OrdinaryTradeCandidateRuntimeFactory,
 )
 from broker_reports_gate1.ordinary_trade_tax_model_bridge import (
     ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN,
@@ -212,6 +218,14 @@ def test_current_fact_v2_reaches_operation_and_category_models_deterministically
 
     category_result = first["category_result"]
     assert category_result["status"] == "complete"
+    assert (
+        category_result["scope_binding"]["members"][0]["source_scope_ref"]
+        == consumed["case_binding"]["scope_id"]
+    )
+    assert (
+        category_result["scope_binding"]["scope"]["taxpayer_scope_ref"]
+        == (operation["operation_scope"]["subject_ref"])
+    )
     assert set(category_result) == {
         "schema_version",
         "status",
@@ -376,6 +390,128 @@ def test_misbound_disposal_fact_identity_stops_as_pipeline_defect(
     assert result["category_result"] is None
 
 
+def test_foreign_case_scope_cannot_become_a_category_member(tmp_path: Path) -> None:
+    store, context, facts = _case(tmp_path / "foreign-case")
+
+    result = _run(
+        _runtime(store),
+        context=context,
+        disposal_fact_id=_fact_id(facts, "SECURITY_DISPOSAL"),
+        resolved_inputs=_resolved_inputs(),
+        completeness_evidence=None,
+        source_scope_ref="foreign-case",
+    )
+
+    assert result["terminal"] == BOUNDED_TAX_MODEL_BRIDGE_BLOCKERS_PROVEN
+    assert result["blockers"] == [
+        {
+            "schema_version": "broker_reports_tax_model_bridge_blocker_v0",
+            "reason_code": (
+                "gate5_tax_model_bridge_source_scope_case_binding_mismatch"
+            ),
+            "required_input": "source_scope_ref",
+            "gap_owner_classification": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+            "owner": "OrdinaryTradeTaxModelBridgeRuntime",
+            "blocking_scope": "bridge_identity_binding",
+        }
+    ]
+    assert result["operation_result"]["status"] == "modeled"
+    assert result["category_result"] is None
+
+
+def test_foreign_taxpayer_scope_cannot_aggregate_the_operation(tmp_path: Path) -> None:
+    store, context, facts = _case(tmp_path / "foreign-taxpayer")
+    category_scope = _category_scope()
+    category_scope["taxpayer_scope_ref"] = "foreign-taxpayer"
+
+    result = _run(
+        _runtime(store),
+        context=context,
+        disposal_fact_id=_fact_id(facts, "SECURITY_DISPOSAL"),
+        resolved_inputs=_resolved_inputs(),
+        completeness_evidence=None,
+        category_scope=category_scope,
+    )
+
+    assert result["terminal"] == BOUNDED_TAX_MODEL_BRIDGE_BLOCKERS_PROVEN
+    assert result["blockers"] == [
+        {
+            "schema_version": "broker_reports_tax_model_bridge_blocker_v0",
+            "reason_code": ("gate5_tax_model_bridge_taxpayer_subject_binding_mismatch"),
+            "required_input": "category_scope.taxpayer_scope_ref",
+            "gap_owner_classification": "USER_CASE_FACT_MISSING",
+            "owner": "OrdinaryTradeTaxModelBridgeRuntime",
+            "blocking_scope": "bridge_identity_binding",
+        }
+    ]
+    assert result["operation_result"]["status"] == "modeled"
+    assert result["category_result"] is None
+
+
+@pytest.mark.parametrize(
+    (
+        "purchase_charges",
+        "disposal_charges",
+        "acquisition_charge_facts",
+        "operation_available",
+        "legal_demand",
+    ),
+    [
+        (False, False, 0, False, False),
+        (True, False, 2, False, False),
+        (False, True, 0, True, False),
+        (True, True, 2, True, True),
+    ],
+)
+def test_partial_acquisition_commission_demand_uses_exact_four_case_matrix(
+    tmp_path: Path,
+    purchase_charges: bool,
+    disposal_charges: bool,
+    acquisition_charge_facts: int,
+    operation_available: bool,
+    legal_demand: bool,
+) -> None:
+    rows = (
+        _HEADERS,
+        _row(side="Покупка", charges=purchase_charges),
+        _row(side="Продажа", charges=disposal_charges),
+    )
+    store, context, facts = _case(
+        tmp_path / f"commissions-{purchase_charges}-{disposal_charges}",
+        rows=rows,
+    )
+    consumed = (
+        OrdinaryTradeCandidateRuntimeFactory(store=store, read_enabled=True)
+        .create()
+        .run(methodology_ref=_source_methodology_ref(), context=context)
+    )
+    exact_acquisition_fact_ids = gate5_source_fact_acquisition_commission_fact_ids(
+        consumed,
+        context=context,
+    )
+    result = _run(
+        _runtime(store),
+        context=context,
+        disposal_fact_id=_fact_id(facts, "SECURITY_DISPOSAL"),
+        resolved_inputs=_resolved_inputs(),
+        completeness_evidence=None,
+    )
+
+    assert len(exact_acquisition_fact_ids) == acquisition_charge_facts
+    assert (result["operation_result"] is not None) is operation_available
+    assert (
+        any(
+            item["required_input"] == "partial_acquisition_commission_allocation"
+            for item in result["demands"]
+        )
+        is legal_demand
+    )
+    if not disposal_charges:
+        assert result["blockers"][0]["reason_code"] == (
+            "gate5_source_fact_direct_expense_missing"
+        )
+
+
 def test_current_methodology_does_not_require_income_source_or_source_party() -> None:
     resolved = Gate5TrustedMethodologyAuthorityFactory.create().resolve(
         _operation_methodology_ref()
@@ -437,7 +573,7 @@ _HEADERS = tuple(
 )
 
 
-def _row(*, side: str) -> tuple[str, ...]:
+def _row(*, side: str, charges: bool = True) -> tuple[str, ...]:
     purchase = side == "Покупка"
     values = {
         "trade_date": "10.01.2025 10:00:00" if purchase else "11.02.2025 10:00:00",
@@ -451,8 +587,8 @@ def _row(*, side: str) -> tuple[str, ...]:
         "unit_price": "10.00" if purchase else "15.00",
         "gross_amount": "100.00" if purchase else "60.00",
         "accrued_interest": "0",
-        "broker_commission": "0.50" if purchase else "1.00",
-        "exchange_commission": "0.25" if purchase else "2.00",
+        "broker_commission": ("0.50" if purchase else "1.00") if charges else "",
+        "exchange_commission": ("0.25" if purchase else "2.00") if charges else "",
         "trade_id": "trade-purchase" if purchase else "trade-disposal",
         "comment": "",
         "status": "Исполнена",
@@ -497,6 +633,8 @@ def _run(
     disposal_fact_id: str,
     resolved_inputs: dict,
     completeness_evidence: dict | None,
+    source_scope_ref: str | None = None,
+    category_scope: dict | None = None,
 ):
     return runtime.run(
         operation_methodology_ref=_operation_methodology_ref(),
@@ -504,8 +642,12 @@ def _run(
         resolved_inputs=resolved_inputs,
         disposal_fact_id=disposal_fact_id,
         operation_ref="operation-control-2025",
-        source_scope_ref=context.case_id,
-        category_scope=_category_scope(),
+        source_scope_ref=(
+            context.case_id if source_scope_ref is None else source_scope_ref
+        ),
+        category_scope=(
+            _category_scope() if category_scope is None else category_scope
+        ),
         completeness_evidence=completeness_evidence,
         context=context,
     )
@@ -539,7 +681,7 @@ def _category_scope() -> dict[str, str]:
     return {
         "schema_version": GATE5_TAX_PERIOD_CATEGORY_SCOPE_SCHEMA_VERSION,
         "scope_ref": "control-2025-organized-securities",
-        "taxpayer_scope_ref": "synthetic-taxpayer-control",
+        "taxpayer_scope_ref": "security-disposal-1",
         "tax_period": "2025",
         "operation_category": "organized_market_securities_outside_iis",
     }

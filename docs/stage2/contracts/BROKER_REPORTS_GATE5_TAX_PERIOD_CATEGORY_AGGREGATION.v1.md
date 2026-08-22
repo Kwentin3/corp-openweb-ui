@@ -39,6 +39,14 @@ at the Category Tax Model. The existing `run(...)` delegates to this core and
 retains its prior declaration-projection behavior. The new inactive bridge
 uses only `run_tax_model`; no declaration semantics or projection is created.
 
+For that bridge composition, `source_scope_ref` is admitted only when it equals
+the current consumer result's exact case `scope_id`, and
+`taxpayer_scope_ref` must equal the member operation Tax Model
+`operation_scope.subject_ref`. The bridge performs these checks before calling
+this owner. The generic historical aggregation contract continues to treat its
+opaque identities as caller-supplied proof references; Issue #293 does not
+silently redefine or migrate its existing callers.
+
 ## Cardinality decision
 
 The valid member cardinality is:

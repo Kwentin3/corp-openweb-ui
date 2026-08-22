@@ -8,6 +8,7 @@ from typing import Any
 from .artifact_models import ArtifactAccessContext, ArtifactStorePort, RetentionPolicy
 from .gate5_deterministic_source_fact_consumption import (
     Gate5DeterministicSourceFactConsumptionError,
+    gate5_source_fact_acquisition_commission_fact_ids,
 )
 from .gate5_securities_disposal_tax_model import (
     Gate5SecuritiesDisposalTaxModelError,
@@ -123,12 +124,48 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                     context=context,
                 )
             )
+            case_binding = operation_result["source_fact_consumption"]["case_binding"]
+            if case_binding != {
+                "scope_kind": "case",
+                "scope_id": source_scope_ref,
+            }:
+                return _blocked(
+                    reason_code=(
+                        "gate5_tax_model_bridge_source_scope_case_binding_mismatch"
+                    ),
+                    field="source_scope_ref",
+                    owner_classification="INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+                    owner="OrdinaryTradeTaxModelBridgeRuntime",
+                    operation_result=operation_result,
+                    category_result=category_result,
+                    context=context,
+                )
+            subject_ref = operation_result["tax_model"]["operation_scope"][
+                "subject_ref"
+            ]
+            taxpayer_scope_ref = (
+                category_scope.get("taxpayer_scope_ref")
+                if isinstance(category_scope, dict)
+                else None
+            )
+            if taxpayer_scope_ref != subject_ref:
+                return _blocked(
+                    reason_code=(
+                        "gate5_tax_model_bridge_taxpayer_subject_binding_mismatch"
+                    ),
+                    field="category_scope.taxpayer_scope_ref",
+                    owner_classification="USER_CASE_FACT_MISSING",
+                    owner="OrdinaryTradeTaxModelBridgeRuntime",
+                    operation_result=operation_result,
+                    category_result=category_result,
+                    context=context,
+                )
             category_result = self._category_aggregation.run_tax_model(
                 scope=category_scope,
                 members=[
                     {
                         "operation_ref": operation_ref,
-                        "source_scope_ref": source_scope_ref,
+                        "source_scope_ref": case_binding["scope_id"],
                         "tax_model": operation_result["tax_model"],
                     }
                 ],
@@ -142,6 +179,7 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 owner="Gate5DeterministicSourceFactConsumptionRuntime",
                 operation_result=operation_result,
                 category_result=category_result,
+                context=context,
             )
         except Gate5SecuritiesDisposalTaxModelError as exc:
             return _blocked(
@@ -151,6 +189,7 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 owner="Gate5SecuritiesDisposalTaxModelRuntime",
                 operation_result=operation_result,
                 category_result=category_result,
+                context=context,
             )
         except Gate5TaxPeriodCategoryAggregationError as exc:
             return _blocked(
@@ -160,6 +199,7 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 owner="Gate5TaxPeriodCategoryAggregationRuntime",
                 operation_result=operation_result,
                 category_result=category_result,
+                context=context,
             )
 
         if category_result["status"] != "complete":
@@ -170,13 +210,14 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 owner="Gate5TaxPeriodCategoryAggregationRuntime",
                 operation_result=operation_result,
                 category_result=category_result,
+                context=context,
             )
 
         return _result(
             status="proven",
             terminal=ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN,
             blockers=[],
-            demands=_expense_demands(operation_result),
+            demands=_expense_demands(operation_result, context=context),
             operation_result=operation_result,
             category_result=category_result,
         )
@@ -190,6 +231,7 @@ def _blocked(
     owner: str,
     operation_result: dict[str, Any] | None,
     category_result: dict[str, Any] | None,
+    context: ArtifactAccessContext,
 ) -> dict[str, Any]:
     required_input = field or reason_code
     blocker = {
@@ -200,7 +242,11 @@ def _blocked(
         "owner": owner,
         "blocking_scope": _blocking_scope(owner),
     }
-    demands = [] if operation_result is None else _expense_demands(operation_result)
+    demands = (
+        []
+        if operation_result is None
+        else _expense_demands(operation_result, context=context)
+    )
     return _result(
         status="blocked",
         terminal=BOUNDED_TAX_MODEL_BRIDGE_BLOCKERS_PROVEN,
@@ -248,7 +294,11 @@ def _result(
     }
 
 
-def _expense_demands(operation_result: dict[str, Any]) -> list[dict[str, Any]]:
+def _expense_demands(
+    operation_result: dict[str, Any],
+    *,
+    context: ArtifactAccessContext,
+) -> list[dict[str, Any]]:
     demands = []
     tax_model = operation_result["tax_model"]
     decisions = tax_model.get("allowable_expenses", {}).get("decisions", [])
@@ -266,11 +316,12 @@ def _expense_demands(operation_result: dict[str, Any]) -> list[dict[str, Any]]:
             )
     source = operation_result["source_fact_consumption"]
     capability_map = source.get("capability_map", {})
-    commission_detail = (
-        source.get("assertions", {}).get("commissions", {}).get("detail", [])
+    acquisition_commission_fact_ids = gate5_source_fact_acquisition_commission_fact_ids(
+        source,
+        context=context,
     )
     if (
-        commission_detail
+        acquisition_commission_fact_ids
         and capability_map.get("partial_acquisition_commission")
         == "LEGAL_INTERPRETATION_REQUIRED"
     ):
@@ -342,6 +393,8 @@ def _blocking_scope(owner: str) -> str:
         return "current_fact_v2_consumption"
     if owner == "Gate5SecuritiesDisposalTaxModelRuntime":
         return "single_disposal_operation_tax_model"
+    if owner == "OrdinaryTradeTaxModelBridgeRuntime":
+        return "bridge_identity_binding"
     return "taxpayer_category_period_scope"
 
 
