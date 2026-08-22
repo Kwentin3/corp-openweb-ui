@@ -176,7 +176,7 @@ class OrdinaryTradeTaxModelBridgeRuntime:
             status="proven",
             terminal=ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN,
             blockers=[],
-            demands=_expense_demands(operation_result["tax_model"]),
+            demands=_expense_demands(operation_result),
             operation_result=operation_result,
             category_result=category_result,
         )
@@ -200,11 +200,7 @@ def _blocked(
         "owner": owner,
         "blocking_scope": _blocking_scope(owner),
     }
-    demands = (
-        []
-        if operation_result is None
-        else _expense_demands(operation_result["tax_model"])
-    )
+    demands = [] if operation_result is None else _expense_demands(operation_result)
     return _result(
         status="blocked",
         terminal=BOUNDED_TAX_MODEL_BRIDGE_BLOCKERS_PROVEN,
@@ -252,8 +248,9 @@ def _result(
     }
 
 
-def _expense_demands(tax_model: dict[str, Any]) -> list[dict[str, Any]]:
+def _expense_demands(operation_result: dict[str, Any]) -> list[dict[str, Any]]:
     demands = []
+    tax_model = operation_result["tax_model"]
     decisions = tax_model.get("allowable_expenses", {}).get("decisions", [])
     for decision in decisions:
         for flag in decision.get("failed_prerequisites", []):
@@ -267,6 +264,26 @@ def _expense_demands(tax_model: dict[str, Any]) -> list[dict[str, Any]]:
                     "category_model_blocked": False,
                 }
             )
+    source = operation_result["source_fact_consumption"]
+    capability_map = source.get("capability_map", {})
+    commission_detail = (
+        source.get("assertions", {}).get("commissions", {}).get("detail", [])
+    )
+    if (
+        commission_detail
+        and capability_map.get("partial_acquisition_commission")
+        == "LEGAL_INTERPRETATION_REQUIRED"
+    ):
+        demands.append(
+            {
+                "schema_version": "broker_reports_tax_model_bridge_demand_v0",
+                "required_input": "partial_acquisition_commission_allocation",
+                "gap_owner_classification": "LEGAL_INTERPRETATION_REQUIRED",
+                "owner": "Gate5DeterministicSourceFactConsumptionRuntime",
+                "blocking_scope": "expense_allowability_only",
+                "category_model_blocked": False,
+            }
+        )
     return demands
 
 

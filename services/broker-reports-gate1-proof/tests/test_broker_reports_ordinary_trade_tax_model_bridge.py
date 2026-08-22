@@ -150,7 +150,19 @@ def test_current_fact_v2_reaches_operation_and_category_models_deterministically
     assert consumed["securities"][0]["direct_transaction_expense"]["value"] == (
         _money("3.00")
     )
-    assert len(consumed["assertions"]["commissions"]["detail"]) == 4
+    commission_detail = consumed["assertions"]["commissions"]["detail"]
+    assert {item["fact_id"] for item in commission_detail} == {
+        item["fact_id"] for item in charge_facts
+    }
+    assert sorted(item["values"]["amount"] for item in commission_detail) == [
+        "0.25",
+        "0.50",
+        "1.00",
+        "2.00",
+    ]
+    assert consumed["capability_map"]["partial_acquisition_commission"] == (
+        "LEGAL_INTERPRETATION_REQUIRED"
+    )
 
     operation = first["operation_result"]["tax_model"]
     sources = {
@@ -187,7 +199,15 @@ def test_current_fact_v2_reaches_operation_and_category_models_deterministically
             "owner": "Gate5SecuritiesDisposalTaxModelRuntime",
             "blocking_scope": "expense_allowability_only",
             "category_model_blocked": False,
-        }
+        },
+        {
+            "schema_version": "broker_reports_tax_model_bridge_demand_v0",
+            "required_input": "partial_acquisition_commission_allocation",
+            "gap_owner_classification": "LEGAL_INTERPRETATION_REQUIRED",
+            "owner": "Gate5DeterministicSourceFactConsumptionRuntime",
+            "blocking_scope": "expense_allowability_only",
+            "category_model_blocked": False,
+        },
     ]
 
     category_result = first["category_result"]
