@@ -31,11 +31,32 @@ FORBIDDEN = (
 )
 
 
-QUALIFICATION_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_mapping_qualification_v1"
-)
+QUALIFICATION_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_qualification_v2"
 _CONSUMER_CONTRACT = "Gate4FinancialCaseFactV2.amount_currency"
-_RELATION_BASES = {"EXPLICIT_DENOMINATION_HEADER", "QUALIFIED_SCHEMA_SCOPE"}
+_RELATION_BASES = {
+    "EXPLICIT_DENOMINATION_HEADER",
+    "REVIEWED_SCHEMA_SCOPE",
+}
+_REVIEW_DECISION = "ADMITTED_AS_REVIEWED_SCHEMA_INTERPRETATION"
+_REVIEWED_EVIDENCE = "EXACT_TITLE_AND_COMPLETE_ORDERED_HEADER_SET"
+_EXCLUDED_REVIEW_BASES = [
+    "COLUMN_PROXIMITY",
+    "ROW_VALUE_EQUALITY",
+    "CROSS_TABLE_RECONCILIATION",
+    "DOWNSTREAM_RESULT",
+    "BROKER_OR_FILENAME_IDENTITY",
+]
+
+
+def _review_record(*, review_id: str, question: str, rationale: str) -> dict[str, Any]:
+    return {
+        "review_id": review_id,
+        "reviewed_evidence": _REVIEWED_EVIDENCE,
+        "question": question,
+        "decision": _REVIEW_DECISION,
+        "rationale": rationale,
+        "excluded_bases": copy.deepcopy(_EXCLUDED_REVIEW_BASES),
+    }
 
 
 _MAPPING_SPECS: tuple[dict[str, Any], ...] = (
@@ -234,26 +255,65 @@ _RELATION_CLAIMS: tuple[tuple[dict[str, Any], ...], ...] = (
         {
             "amount_column": 10,
             "currency_column": 6,
-            "evidence_basis": "QUALIFIED_SCHEMA_SCOPE",
+            "evidence_basis": "REVIEWED_SCHEMA_SCOPE",
             "amount_header_literal": "Сумма",
             "currency_header_literal": "Валюта",
             "consumer_contract": _CONSUMER_CONTRACT,
+            "review_record": _review_record(
+                review_id="sber_trade_sum_currency_review_v1",
+                question=(
+                    "Does the exact trade-table schema assign the unqualified "
+                    "currency column 6 to amount column 10?"
+                ),
+                rationale=(
+                    "The complete ordered schema exposes one unqualified currency "
+                    "field and no competing denomination field. Column 10 is the "
+                    "row's monetary sum. The relation is admitted as a reviewed "
+                    "schema convention, not as direct denomination wording."
+                ),
+            ),
         },
         {
             "amount_column": 12,
             "currency_column": 6,
-            "evidence_basis": "QUALIFIED_SCHEMA_SCOPE",
+            "evidence_basis": "REVIEWED_SCHEMA_SCOPE",
             "amount_header_literal": "Комиссия Брокера",
             "currency_header_literal": "Валюта",
             "consumer_contract": _CONSUMER_CONTRACT,
+            "review_record": _review_record(
+                review_id="sber_broker_commission_currency_review_v1",
+                question=(
+                    "Does the exact trade-table schema assign the unqualified "
+                    "currency column 6 to broker-commission column 12?"
+                ),
+                rationale=(
+                    "The complete ordered schema exposes one unqualified currency "
+                    "field for the trade row and no separate commission currency. "
+                    "The relation is admitted as a reviewed schema convention, "
+                    "not from position or repeated RUB values."
+                ),
+            ),
         },
         {
             "amount_column": 13,
             "currency_column": 6,
-            "evidence_basis": "QUALIFIED_SCHEMA_SCOPE",
+            "evidence_basis": "REVIEWED_SCHEMA_SCOPE",
             "amount_header_literal": "Комиссия Биржи",
             "currency_header_literal": "Валюта",
             "consumer_contract": _CONSUMER_CONTRACT,
+            "review_record": _review_record(
+                review_id="sber_exchange_commission_currency_review_v1",
+                question=(
+                    "Does the exact trade-table schema assign the unqualified "
+                    "currency column 6 to exchange-commission column 13?"
+                ),
+                rationale=(
+                    "The complete ordered schema exposes one unqualified currency "
+                    "field for the trade row and no separate commission currency. "
+                    "The relation is admitted as a reviewed schema convention, "
+                    "not from position or repeated RUB values."
+                ),
+            ),
         },
     ),
     (
@@ -270,18 +330,47 @@ _RELATION_CLAIMS: tuple[tuple[dict[str, Any], ...], ...] = (
         {
             "amount_column": 10,
             "currency_column": 7,
-            "evidence_basis": "QUALIFIED_SCHEMA_SCOPE",
+            "evidence_basis": "REVIEWED_SCHEMA_SCOPE",
             "amount_header_literal": "Комиссия Банка за расчет по сделке",
             "currency_header_literal": "Валюта расчетов",
             "consumer_contract": _CONSUMER_CONTRACT,
+            "review_record": _review_record(
+                review_id="vtb_settlement_commission_currency_review_v1",
+                question=(
+                    "Does the exact trade-table schema assign settlement-currency "
+                    "column 7 to bank settlement-commission column 10?"
+                ),
+                rationale=(
+                    "The complete schema explicitly limits column 5 to price or "
+                    "nominal currency and separately names column 7 as settlement "
+                    "currency. Column 10 is a settlement charge and exposes no "
+                    "independent denomination. The relation is a reviewed schema "
+                    "interpretation, not direct wording in the commission header."
+                ),
+            ),
         },
         {
             "amount_column": 11,
             "currency_column": 7,
-            "evidence_basis": "QUALIFIED_SCHEMA_SCOPE",
+            "evidence_basis": "REVIEWED_SCHEMA_SCOPE",
             "amount_header_literal": "Комиссия Банка за заключение сделки",
             "currency_header_literal": "Валюта расчетов",
             "consumer_contract": _CONSUMER_CONTRACT,
+            "review_record": _review_record(
+                review_id="vtb_trade_commission_currency_review_v1",
+                question=(
+                    "Does the exact trade-table schema assign settlement-currency "
+                    "column 7 to bank trade-commission column 11?"
+                ),
+                rationale=(
+                    "The complete schema explicitly limits column 5 to price or "
+                    "nominal currency and separately names column 7 as settlement "
+                    "currency. The bank commission is a monetary charge in that "
+                    "settlement schema and exposes no independent denomination. "
+                    "The relation is a reviewed interpretation, not direct header "
+                    "wording."
+                ),
+            ),
         },
     ),
 )
@@ -301,9 +390,7 @@ def _sha256_json(value: Any) -> str:
 def _semantic_scope(spec: dict[str, Any]) -> dict[str, Any]:
     return {
         "columns": copy.deepcopy(spec["columns"]),
-        "amount_currency_bindings": copy.deepcopy(
-            spec["amount_currency_bindings"]
-        ),
+        "amount_currency_bindings": copy.deepcopy(spec["amount_currency_bindings"]),
         "side_values": copy.deepcopy(spec["side_values"]),
     }
 
@@ -331,6 +418,7 @@ def _freeze_receipt(
         "semantic_scope_sha256": _sha256_json(_semantic_scope(spec)),
         "relation_claims": copy.deepcopy(list(relation_claims)),
         "supporting_decisions": copy.deepcopy(spec["supporting_decisions"]),
+        "supporting_decision_scope": ["columns", "side_values"],
         "consumer_contracts": [_CONSUMER_CONTRACT],
     }
     qualification_id = "otqual_" + _sha256_json(material)[:32]
@@ -376,6 +464,7 @@ def _validate_qualification(
         "semantic_scope_sha256",
         "relation_claims",
         "supporting_decisions",
+        "supporting_decision_scope",
         "consumer_contracts",
         "qualification_id",
         "receipt_sha256",
@@ -384,8 +473,8 @@ def _validate_qualification(
         set(receipt) != expected_keys
         or receipt.get("schema_version") != QUALIFICATION_SCHEMA_VERSION
         or receipt.get("status") != "QUALIFIED"
-        or receipt.get("structural_fingerprint")
-        != mapping["structural_fingerprint"]
+        or receipt.get("structural_fingerprint") != mapping["structural_fingerprint"]
+        or receipt.get("supporting_decision_scope") != ["columns", "side_values"]
         or receipt.get("consumer_contracts") != [_CONSUMER_CONTRACT]
     ):
         raise RuntimeError("ordinary_trade_mapping_qualification_invalid")
@@ -435,8 +524,7 @@ def _validate_qualification(
                 isinstance(decision.get(key), str) and decision.get(key)
                 for key in decision
             )
-            or re.fullmatch(r"[0-9a-f]{64}", decision["response_sha256"])
-            is None
+            or re.fullmatch(r"[0-9a-f]{64}", decision["response_sha256"]) is None
         ):
             raise RuntimeError("ordinary_trade_mapping_supporting_decision_invalid")
     headers = {item["column"]: item["header_literal"] for item in mapping["columns"]}
@@ -444,19 +532,25 @@ def _validate_qualification(
     if not isinstance(claims, list):
         raise RuntimeError("ordinary_trade_mapping_relation_claim_invalid")
     claimed_bindings: list[dict[str, int]] = []
+    review_ids: set[str] = set()
     for claim in claims:
+        evidence_basis = (
+            claim.get("evidence_basis") if isinstance(claim, dict) else None
+        )
+        claim_keys = {
+            "amount_column",
+            "currency_column",
+            "evidence_basis",
+            "amount_header_literal",
+            "currency_header_literal",
+            "consumer_contract",
+        }
+        if evidence_basis == "REVIEWED_SCHEMA_SCOPE":
+            claim_keys.add("review_record")
         if (
             not isinstance(claim, dict)
-            or set(claim)
-            != {
-                "amount_column",
-                "currency_column",
-                "evidence_basis",
-                "amount_header_literal",
-                "currency_header_literal",
-                "consumer_contract",
-            }
-            or claim.get("evidence_basis") not in _RELATION_BASES
+            or set(claim) != claim_keys
+            or evidence_basis not in _RELATION_BASES
             or claim.get("consumer_contract") != _CONSUMER_CONTRACT
             or headers.get(claim.get("amount_column"))
             != claim.get("amount_header_literal")
@@ -464,6 +558,32 @@ def _validate_qualification(
             != claim.get("currency_header_literal")
         ):
             raise RuntimeError("ordinary_trade_mapping_relation_claim_invalid")
+        if evidence_basis == "REVIEWED_SCHEMA_SCOPE":
+            review = claim.get("review_record")
+            if (
+                not isinstance(review, dict)
+                or set(review)
+                != {
+                    "review_id",
+                    "reviewed_evidence",
+                    "question",
+                    "decision",
+                    "rationale",
+                    "excluded_bases",
+                }
+                or not isinstance(review.get("review_id"), str)
+                or not review["review_id"]
+                or review["review_id"] in review_ids
+                or review.get("reviewed_evidence") != _REVIEWED_EVIDENCE
+                or review.get("decision") != _REVIEW_DECISION
+                or not isinstance(review.get("question"), str)
+                or not review["question"].strip()
+                or not isinstance(review.get("rationale"), str)
+                or not review["rationale"].strip()
+                or review.get("excluded_bases") != _EXCLUDED_REVIEW_BASES
+            ):
+                raise RuntimeError("ordinary_trade_mapping_relation_review_invalid")
+            review_ids.add(review["review_id"])
         claimed_bindings.append(
             {
                 "amount_column": claim["amount_column"],

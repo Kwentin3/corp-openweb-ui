@@ -14,8 +14,9 @@ The executable mapping and its qualification receipt are separate obligations:
 
 - mapping v3 says what exact headers, roles, literal enums and
   `amount_column -> currency_column` pairs to execute;
-- qualification receipt v1 says why those pairs were admitted, pins the exact
-  fingerprint and semantic scope, and names the consuming Fact v2 contract.
+- qualification receipt v2 distinguishes direct source wording from a reviewed
+  source-schema interpretation, pins the exact fingerprint and semantic scope,
+  and names the consuming Fact v2 contract.
 
 Production admission requires both objects and exact identity/hash agreement.
 A structurally valid mapping without its matching receipt is only a candidate,
@@ -35,6 +36,33 @@ A source-schema relation may be admitted only when all are true:
 A successful test, expected Gate 5 result, column proximity, repeated row
 values, another table, reconciliation or broker identity is not evidence of
 source meaning.
+
+## Epistemic meaning
+
+The receipt is an authorization and audit record. It does not turn a reviewed
+interpretation into direct source wording and must not be described as doing
+so.
+
+`EXPLICIT_DENOMINATION_HEADER` means the exact admitted amount header itself
+names its denomination. `REVIEWED_SCHEMA_SCOPE` means the relation is not
+directly worded and is admitted only after review of the exact title plus the
+complete ordered header set. Every such claim contains a unique review record
+with the precise question, decision, rationale and the evidence classes that
+were explicitly excluded. The receipt hash seals that record together with the
+relation and exact evidence surface.
+
+The receipt's historical model `supporting_decisions` are explicitly scoped to
+column-role and side-enum decisions. They are not evidence for any
+`amount -> currency` relation.
+
+The historical `QUALIFIED_SCHEMA_SCOPE` marker is insufficient for new or
+current admission: it recorded that a decision existed but not what was
+reviewed or why the decision was accepted. Qualification receipt v2 rejects it.
+
+This distinction lets a later reviewer independently read the same source
+surface and challenge the rationale. A receipt proves that this exact reviewed
+decision was frozen and admitted; only an explicit header claim is direct
+source-text proof.
 
 `unit_price -> currency` is deliberately absent: no current consumer requires
 that relation. A future consumer requires a new versioned claim and receipt;

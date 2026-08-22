@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import inspect
+import json
 from pathlib import Path
 
 import pytest
@@ -16,6 +18,7 @@ from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
 )
 from broker_reports_gate1.ordinary_trade_qualified_mappings import (
+    QUALIFICATION_SCHEMA_VERSION,
     OrdinaryTradeQualifiedMappingAuthorityFactory,
     validate_qualified_mapping,
 )
@@ -369,6 +372,113 @@ def test_receipts_cover_only_named_consumer_relations_and_are_immutable() -> Non
         for receipt in second
         for claim in receipt["relation_claims"]
     )
+
+
+def test_reviewed_relations_expose_question_rationale_and_limits() -> None:
+    receipts = (
+        OrdinaryTradeQualifiedMappingAuthorityFactory.create()
+        .list_qualification_receipts()
+    )
+    claims = [claim for receipt in receipts for claim in receipt["relation_claims"]]
+    reviewed = [
+        claim
+        for claim in claims
+        if claim["evidence_basis"] == "REVIEWED_SCHEMA_SCOPE"
+    ]
+    explicit = [
+        claim
+        for claim in claims
+        if claim["evidence_basis"] == "EXPLICIT_DENOMINATION_HEADER"
+    ]
+
+    assert {receipt["schema_version"] for receipt in receipts} == {
+        QUALIFICATION_SCHEMA_VERSION
+    }
+    assert QUALIFICATION_SCHEMA_VERSION == (
+        "broker_reports_ordinary_trade_mapping_qualification_v2"
+    )
+    assert len(reviewed) == 5
+    assert len(explicit) == 1
+    assert all("review_record" not in claim for claim in explicit)
+    assert all(
+        receipt["supporting_decision_scope"] == ["columns", "side_values"]
+        for receipt in receipts
+    )
+    assert len(
+        {claim["review_record"]["review_id"] for claim in reviewed}
+    ) == len(reviewed)
+    for claim in reviewed:
+        review = claim["review_record"]
+        assert review["reviewed_evidence"] == (
+            "EXACT_TITLE_AND_COMPLETE_ORDERED_HEADER_SET"
+        )
+        assert review["decision"] == (
+            "ADMITTED_AS_REVIEWED_SCHEMA_INTERPRETATION"
+        )
+        assert review["question"].strip()
+        assert review["rationale"].strip()
+        assert review["excluded_bases"] == [
+            "COLUMN_PROXIMITY",
+            "ROW_VALUE_EQUALITY",
+            "CROSS_TABLE_RECONCILIATION",
+            "DOWNSTREAM_RESULT",
+            "BROKER_OR_FILENAME_IDENTITY",
+        ]
+
+
+def test_historical_scope_marker_cannot_be_resealed_as_authority() -> None:
+    authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
+    mapping = authority.list_mappings()[0]
+    receipt = authority.list_qualification_receipts()[0]
+    claim = receipt["relation_claims"][0]
+    claim["evidence_basis"] = "QUALIFIED_SCHEMA_SCOPE"
+    claim.pop("review_record")
+    receipt = _reseal_qualification_receipt(receipt)
+    changed = compile_schema_mapping(
+        title_literal=mapping["title_literal"],
+        headers=[
+            {"column": item["column"], "literal": item["header_literal"]}
+            for item in mapping["columns"]
+        ],
+        model_columns=[
+            {"column": item["column"], "semantic_role": item["semantic_role"]}
+            for item in mapping["columns"]
+        ],
+        amount_currency_bindings=mapping["amount_currency_bindings"],
+        side_values=mapping["side_values"],
+        qualification_ref={
+            "qualification_id": receipt["qualification_id"],
+            "receipt_sha256": receipt["receipt_sha256"],
+        },
+    )
+
+    with pytest.raises(RuntimeError) as rejected:
+        validate_qualified_mapping(mapping=changed, receipt=receipt)
+
+    assert rejected.value.args == (
+        "ordinary_trade_mapping_relation_claim_invalid",
+    )
+
+
+def _reseal_qualification_receipt(receipt: dict[str, object]) -> dict[str, object]:
+    material = copy.deepcopy(receipt)
+    material.pop("receipt_sha256")
+    material.pop("qualification_id")
+    qualification_id = "otqual_" + _sha256_json(material)[:32]
+    resealed = {**material, "qualification_id": qualification_id}
+    resealed["receipt_sha256"] = _sha256_json(resealed)
+    return resealed
+
+
+def _sha256_json(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _literal_for_role(role: str) -> str:
