@@ -47,7 +47,7 @@ ACTIVE_PRODUCT_ROUTES = {
             "OrdinaryTradeQualifiedMappingAuthorityFactory.create"
             "+OrdinaryTradeSemanticCompilerFactory.create"
         ),
-        "mapping_contract": "broker_reports_ordinary_trade_schema_mapping_v2",
+        "mapping_contract": "broker_reports_ordinary_trade_schema_mapping_v3",
         "normalized_fact_contract": "Gate4FinancialCaseFactV2",
         "gate3_runtime_status": "deployment_rollback_only",
         "semantic_fallback_allowed": False,

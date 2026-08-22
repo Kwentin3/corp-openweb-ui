@@ -36,9 +36,6 @@ from broker_reports_gate1.ordinary_trade_projection import (
 from broker_reports_gate1.ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
-from broker_reports_gate1.ordinary_trade_semantic_compiler import (
-    compile_schema_mapping,
-)
 
 
 VERDICT = "ORDINARY_TRADE_SEMANTIC_COMPILER_PRODUCTION_CANDIDATE_READY"
@@ -150,17 +147,25 @@ def _mapping_for_case(spec: dict[str, Any]) -> dict[str, Any]:
         if len(titles) != 1:
             raise RuntimeError("ordinary_trade_candidate_title_ambiguous")
         title_literal = titles[0]
-    return compile_schema_mapping(
-        title_literal=title_literal,
-        headers=headers,
-        model_columns=[
-            {"column": header["column"], "semantic_role": role}
-            for header, role in zip(headers, roles, strict=True)
-        ],
-        amount_currency_bindings=spec["amount_currency_bindings"],
-        side_values=spec["side_values"],
-        semantic_decisions=spec["semantic_decisions"],
-    )
+    expected_columns = [
+        {
+            "column": header["column"],
+            "header_literal": header["literal"],
+            "semantic_role": role,
+        }
+        for header, role in zip(headers, roles, strict=True)
+    ]
+    matches = [
+        mapping
+        for mapping in OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()
+        if mapping["title_literal"] == title_literal
+        and mapping["columns"] == expected_columns
+        and mapping["amount_currency_bindings"] == spec["amount_currency_bindings"]
+        and mapping["side_values"] == spec["side_values"]
+    ]
+    if len(matches) != 1:
+        raise RuntimeError("ordinary_trade_candidate_mapping_not_qualified")
+    return matches[0]
 
 
 def _run_case(
@@ -314,7 +319,7 @@ def _run_case(
         "gate5_blocker_reason_codes": sorted(
             {item["reason_code"] for item in available["blockers"]}
         ),
-        "semantic_model_decisions_per_schema": len(mapping["semantic_decisions"]),
+        "qualified_semantic_authorities_per_schema": 1,
         "document_financial_values_authored_by_model": 0,
         "broker_or_year_special_profiles": 0,
         "exact_projection_repeatability": repeatable,

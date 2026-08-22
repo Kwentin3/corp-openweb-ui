@@ -17,10 +17,10 @@ from typing import Any, Iterable, Mapping
 
 
 ORDINARY_TRADE_MAPPING_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_schema_mapping_v2"
+    "broker_reports_ordinary_trade_schema_mapping_v3"
 )
 ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_runtime_projection_v3"
+    "broker_reports_ordinary_trade_runtime_projection_v4"
 )
 SOURCE_OBSERVATION_SCHEMA_VERSION = "broker_reports_source_observation_v1"
 FACTORY_REQUIRED = (
@@ -73,7 +73,7 @@ _MAPPING_KEYS = {
     "columns",
     "amount_currency_bindings",
     "side_values",
-    "semantic_decisions",
+    "qualification_ref",
 }
 _FORBIDDEN_PROFILE_KEYS = {"broker", "broker_id", "year", "filename", "profile"}
 _DMY_PREFIX = re.compile(r"^([0-9]{2})\.([0-9]{2})\.([0-9]{4})(?:\s|$)")
@@ -180,11 +180,11 @@ class OrdinaryTradeSemanticCompiler:
                 "unknown_schema_terminal": "RELEVANT_UNMAPPED",
                 "structural_lineage_inferred": False,
             },
-            "semantic_decisions": [
+            "qualified_semantic_authorities": [
                 {
                     "mapping_id": item["mapping_id"],
                     "structural_fingerprint": item["structural_fingerprint"],
-                    "decisions": copy.deepcopy(item["semantic_decisions"]),
+                    "qualification_ref": copy.deepcopy(item["qualification_ref"]),
                 }
                 for item in accepted
                 if mapping_matches[item["mapping_id"]] > 0
@@ -209,9 +209,9 @@ def compile_schema_mapping(
     model_columns: Iterable[Mapping[str, Any]],
     amount_currency_bindings: Iterable[Mapping[str, int]],
     side_values: Iterable[Mapping[str, str]],
-    semantic_decisions: Iterable[Mapping[str, str]],
+    qualification_ref: Mapping[str, str],
 ) -> dict[str, Any]:
-    """Freeze validated model decisions without accepting any row values."""
+    """Freeze a validated mapping candidate without accepting row values."""
 
     header_items = [
         {"column": int(item["column"]), "literal": str(item["literal"])}
@@ -235,15 +235,7 @@ def compile_schema_mapping(
         title_literal=title_literal,
         columns=columns,
     )
-    frozen_decisions = sorted(
-        [copy.deepcopy(dict(item)) for item in semantic_decisions],
-        key=lambda item: (
-            str(item.get("decision_kind") or ""),
-            str(item.get("decision_id") or ""),
-            str(item.get("model_id") or ""),
-            str(item.get("response_sha256") or ""),
-        ),
-    )
+    frozen_qualification_ref = copy.deepcopy(dict(qualification_ref))
     material = {
         "structural_fingerprint": fingerprint,
         "columns": columns,
@@ -251,7 +243,7 @@ def compile_schema_mapping(
             copy.deepcopy(dict(item)) for item in amount_currency_bindings
         ],
         "side_values": [copy.deepcopy(dict(item)) for item in side_values],
-        "semantic_decisions": frozen_decisions,
+        "qualification_ref": frozen_qualification_ref,
     }
     mapping = {
         "schema_version": ORDINARY_TRADE_MAPPING_SCHEMA_VERSION,
@@ -262,7 +254,7 @@ def compile_schema_mapping(
         "columns": columns,
         "amount_currency_bindings": material["amount_currency_bindings"],
         "side_values": material["side_values"],
-        "semantic_decisions": material["semantic_decisions"],
+        "qualification_ref": material["qualification_ref"],
     }
     return _validated_mapping(mapping)
 
@@ -289,7 +281,7 @@ def validate_ordinary_trade_projection(value: Any) -> None:
             "schema_version",
             "canonical_binding",
             "compiler_contract",
-            "semantic_decisions",
+            "qualified_semantic_authorities",
             "mapping_matches",
             "source_observations",
             "runtime_records",
@@ -425,36 +417,33 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
         ):
             _fail("ordinary_trade_mapping_side_invalid")
         sides[item["source_literal"]] = item["normalized_value"]
-    decisions = value.get("semantic_decisions")
-    if not isinstance(decisions, list) or not decisions:
-        _fail("ordinary_trade_mapping_decision_invalid")
-    for item in decisions:
-        if (
-            not isinstance(item, dict)
-            or set(item)
-            != {"decision_id", "decision_kind", "model_id", "response_sha256"}
-            or item.get("decision_kind") not in {"SCHEMA_MAPPING", "SIDE_ENUM"}
-            or not all(isinstance(item.get(key), str) and item.get(key) for key in item)
-        ):
-            _fail("ordinary_trade_mapping_decision_invalid")
+    qualification_ref = value.get("qualification_ref")
+    if (
+        not isinstance(qualification_ref, dict)
+        or set(qualification_ref) != {"qualification_id", "receipt_sha256"}
+        or not isinstance(qualification_ref.get("qualification_id"), str)
+        or not qualification_ref["qualification_id"].startswith("otqual_")
+        or not isinstance(qualification_ref.get("receipt_sha256"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", qualification_ref["receipt_sha256"])
+        is None
+    ):
+        _fail("ordinary_trade_mapping_qualification_ref_invalid")
     identity_material = {
         "structural_fingerprint": value["structural_fingerprint"],
         "columns": columns,
         "amount_currency_bindings": value["amount_currency_bindings"],
         "side_values": side_values,
-        "semantic_decisions": sorted(
-            [copy.deepcopy(dict(item)) for item in decisions],
-            key=lambda item: (
-                str(item.get("decision_kind") or ""),
-                str(item.get("decision_id") or ""),
-                str(item.get("model_id") or ""),
-                str(item.get("response_sha256") or ""),
-            ),
-        ),
+        "qualification_ref": copy.deepcopy(qualification_ref),
     }
     if value["mapping_id"] != "otmap_" + _sha256_json(identity_material)[:32]:
         _fail("ordinary_trade_mapping_identity_invalid")
     return copy.deepcopy(dict(value))
+
+
+def validate_schema_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate a mapping candidate without granting production qualification."""
+
+    return _validated_mapping(value)
 
 
 def _validated_amount_currency_bindings(
@@ -1122,5 +1111,6 @@ __all__ = [
     "compile_schema_mapping",
     "normalize_runtime_value",
     "structural_fingerprint",
+    "validate_schema_mapping",
     "validate_ordinary_trade_projection",
 ]

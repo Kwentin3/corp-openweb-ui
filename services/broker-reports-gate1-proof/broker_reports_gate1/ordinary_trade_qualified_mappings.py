@@ -9,7 +9,16 @@ absent from the runtime contract.
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
+import re
 from typing import Any
+
+from .ordinary_trade_semantic_compiler import (
+    compile_schema_mapping,
+    structural_fingerprint,
+    validate_schema_mapping,
+)
 
 
 FACTORY_REQUIRED = (
@@ -22,14 +31,15 @@ FORBIDDEN = (
 )
 
 
-_QUALIFIED_MAPPINGS: tuple[dict[str, Any], ...] = (
+QUALIFICATION_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_mapping_qualification_v1"
+)
+_CONSUMER_CONTRACT = "Gate4FinancialCaseFactV2.amount_currency"
+_RELATION_BASES = {"EXPLICIT_DENOMINATION_HEADER", "QUALIFIED_SCHEMA_SCOPE"}
+
+
+_MAPPING_SPECS: tuple[dict[str, Any], ...] = (
     {
-        "schema_version": "broker_reports_ordinary_trade_schema_mapping_v2",
-        "mapping_id": "otmap_605a290724c86585dc249b9d3c2a0691",
-        "structural_fingerprint": (
-            "6dbe853eb449c005dcadebaf73fd62277fb24a4ec4cf15147729910a6874d039"
-        ),
-        "table_type": "SECURITY_TRADES",
         "title_literal": None,
         "columns": [
             {
@@ -98,7 +108,7 @@ _QUALIFIED_MAPPINGS: tuple[dict[str, Any], ...] = (
             {"normalized_value": "DISPOSAL", "source_literal": "Продажа"},
             {"normalized_value": "PURCHASE", "source_literal": "Покупка"},
         ],
-        "semantic_decisions": [
+        "supporting_decisions": [
             {
                 "decision_id": "sber-2024-schema-decision",
                 "decision_kind": "SCHEMA_MAPPING",
@@ -114,12 +124,6 @@ _QUALIFIED_MAPPINGS: tuple[dict[str, Any], ...] = (
         ],
     },
     {
-        "schema_version": "broker_reports_ordinary_trade_schema_mapping_v2",
-        "mapping_id": "otmap_82cd365ef2629fa7a551161c1aca9acd",
-        "structural_fingerprint": (
-            "e1c2f174b3ae84a3eb862a98c1c72e574b53962276b30fdd8082ec7402994a49"
-        ),
-        "table_type": "SECURITY_TRADES",
         "title_literal": "Заключенные в отчетном периоде сделки с ценными бумагами",
         "columns": [
             {
@@ -207,7 +211,7 @@ _QUALIFIED_MAPPINGS: tuple[dict[str, Any], ...] = (
             {"normalized_value": "DISPOSAL", "source_literal": "Продажа"},
             {"normalized_value": "PURCHASE", "source_literal": "Покупка"},
         ],
-        "semantic_decisions": [
+        "supporting_decisions": [
             {
                 "decision_id": "vtb-2024-schema-decision",
                 "decision_kind": "SCHEMA_MAPPING",
@@ -225,6 +229,267 @@ _QUALIFIED_MAPPINGS: tuple[dict[str, Any], ...] = (
 )
 
 
+_RELATION_CLAIMS: tuple[tuple[dict[str, Any], ...], ...] = (
+    (
+        {
+            "amount_column": 10,
+            "currency_column": 6,
+            "evidence_basis": "QUALIFIED_SCHEMA_SCOPE",
+            "amount_header_literal": "Сумма",
+            "currency_header_literal": "Валюта",
+            "consumer_contract": _CONSUMER_CONTRACT,
+        },
+        {
+            "amount_column": 12,
+            "currency_column": 6,
+            "evidence_basis": "QUALIFIED_SCHEMA_SCOPE",
+            "amount_header_literal": "Комиссия Брокера",
+            "currency_header_literal": "Валюта",
+            "consumer_contract": _CONSUMER_CONTRACT,
+        },
+        {
+            "amount_column": 13,
+            "currency_column": 6,
+            "evidence_basis": "QUALIFIED_SCHEMA_SCOPE",
+            "amount_header_literal": "Комиссия Биржи",
+            "currency_header_literal": "Валюта",
+            "consumer_contract": _CONSUMER_CONTRACT,
+        },
+    ),
+    (
+        {
+            "amount_column": 8,
+            "currency_column": 7,
+            "evidence_basis": "EXPLICIT_DENOMINATION_HEADER",
+            "amount_header_literal": (
+                "Сумма сделки в валюте расчетов (с учетом НКД для облигаций)"
+            ),
+            "currency_header_literal": "Валюта расчетов",
+            "consumer_contract": _CONSUMER_CONTRACT,
+        },
+        {
+            "amount_column": 10,
+            "currency_column": 7,
+            "evidence_basis": "QUALIFIED_SCHEMA_SCOPE",
+            "amount_header_literal": "Комиссия Банка за расчет по сделке",
+            "currency_header_literal": "Валюта расчетов",
+            "consumer_contract": _CONSUMER_CONTRACT,
+        },
+        {
+            "amount_column": 11,
+            "currency_column": 7,
+            "evidence_basis": "QUALIFIED_SCHEMA_SCOPE",
+            "amount_header_literal": "Комиссия Банка за заключение сделки",
+            "currency_header_literal": "Валюта расчетов",
+            "consumer_contract": _CONSUMER_CONTRACT,
+        },
+    ),
+)
+
+
+def _sha256_json(value: Any) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _semantic_scope(spec: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "columns": copy.deepcopy(spec["columns"]),
+        "amount_currency_bindings": copy.deepcopy(
+            spec["amount_currency_bindings"]
+        ),
+        "side_values": copy.deepcopy(spec["side_values"]),
+    }
+
+
+def _freeze_receipt(
+    *, spec: dict[str, Any], relation_claims: tuple[dict[str, Any], ...]
+) -> dict[str, Any]:
+    fingerprint = structural_fingerprint(
+        title_literal=spec["title_literal"], columns=spec["columns"]
+    )
+    material = {
+        "schema_version": QUALIFICATION_SCHEMA_VERSION,
+        "status": "QUALIFIED",
+        "structural_fingerprint": fingerprint,
+        "evidence_surface": {
+            "title_literal": spec["title_literal"],
+            "headers": [
+                {
+                    "column": item["column"],
+                    "literal": item["header_literal"],
+                }
+                for item in spec["columns"]
+            ],
+        },
+        "semantic_scope_sha256": _sha256_json(_semantic_scope(spec)),
+        "relation_claims": copy.deepcopy(list(relation_claims)),
+        "supporting_decisions": copy.deepcopy(spec["supporting_decisions"]),
+        "consumer_contracts": [_CONSUMER_CONTRACT],
+    }
+    qualification_id = "otqual_" + _sha256_json(material)[:32]
+    receipt = {**material, "qualification_id": qualification_id}
+    receipt["receipt_sha256"] = _sha256_json(receipt)
+    return receipt
+
+
+def _compile_qualified_entry(
+    *, spec: dict[str, Any], relation_claims: tuple[dict[str, Any], ...]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    receipt = _freeze_receipt(spec=spec, relation_claims=relation_claims)
+    mapping = compile_schema_mapping(
+        title_literal=spec["title_literal"],
+        headers=[
+            {"column": item["column"], "literal": item["header_literal"]}
+            for item in spec["columns"]
+        ],
+        model_columns=[
+            {"column": item["column"], "semantic_role": item["semantic_role"]}
+            for item in spec["columns"]
+        ],
+        amount_currency_bindings=spec["amount_currency_bindings"],
+        side_values=spec["side_values"],
+        qualification_ref={
+            "qualification_id": receipt["qualification_id"],
+            "receipt_sha256": receipt["receipt_sha256"],
+        },
+    )
+    _validate_qualification(mapping=mapping, receipt=receipt)
+    return mapping, receipt
+
+
+def _validate_qualification(
+    *, mapping: dict[str, Any], receipt: dict[str, Any]
+) -> None:
+    validate_schema_mapping(mapping)
+    expected_keys = {
+        "schema_version",
+        "status",
+        "structural_fingerprint",
+        "evidence_surface",
+        "semantic_scope_sha256",
+        "relation_claims",
+        "supporting_decisions",
+        "consumer_contracts",
+        "qualification_id",
+        "receipt_sha256",
+    }
+    if (
+        set(receipt) != expected_keys
+        or receipt.get("schema_version") != QUALIFICATION_SCHEMA_VERSION
+        or receipt.get("status") != "QUALIFIED"
+        or receipt.get("structural_fingerprint")
+        != mapping["structural_fingerprint"]
+        or receipt.get("consumer_contracts") != [_CONSUMER_CONTRACT]
+    ):
+        raise RuntimeError("ordinary_trade_mapping_qualification_invalid")
+    frozen = copy.deepcopy(receipt)
+    receipt_sha256 = frozen.pop("receipt_sha256", None)
+    if (
+        not isinstance(receipt_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", receipt_sha256) is None
+        or receipt_sha256 != _sha256_json(frozen)
+        or mapping["qualification_ref"]
+        != {
+            "qualification_id": receipt["qualification_id"],
+            "receipt_sha256": receipt_sha256,
+        }
+    ):
+        raise RuntimeError("ordinary_trade_mapping_qualification_hash_invalid")
+    id_material = copy.deepcopy(frozen)
+    qualification_id = id_material.pop("qualification_id", None)
+    if qualification_id != "otqual_" + _sha256_json(id_material)[:32]:
+        raise RuntimeError("ordinary_trade_mapping_qualification_identity_invalid")
+    evidence_surface = receipt.get("evidence_surface")
+    if evidence_surface != {
+        "title_literal": mapping["title_literal"],
+        "headers": [
+            {"column": item["column"], "literal": item["header_literal"]}
+            for item in mapping["columns"]
+        ],
+    }:
+        raise RuntimeError("ordinary_trade_mapping_qualification_surface_invalid")
+    scope = {
+        "columns": mapping["columns"],
+        "amount_currency_bindings": mapping["amount_currency_bindings"],
+        "side_values": mapping["side_values"],
+    }
+    if receipt.get("semantic_scope_sha256") != _sha256_json(scope):
+        raise RuntimeError("ordinary_trade_mapping_qualification_scope_invalid")
+    decisions = receipt.get("supporting_decisions")
+    if not isinstance(decisions, list) or not decisions:
+        raise RuntimeError("ordinary_trade_mapping_supporting_decision_invalid")
+    for decision in decisions:
+        if (
+            not isinstance(decision, dict)
+            or set(decision)
+            != {"decision_id", "decision_kind", "model_id", "response_sha256"}
+            or decision.get("decision_kind") not in {"SCHEMA_MAPPING", "SIDE_ENUM"}
+            or not all(
+                isinstance(decision.get(key), str) and decision.get(key)
+                for key in decision
+            )
+            or re.fullmatch(r"[0-9a-f]{64}", decision["response_sha256"])
+            is None
+        ):
+            raise RuntimeError("ordinary_trade_mapping_supporting_decision_invalid")
+    headers = {item["column"]: item["header_literal"] for item in mapping["columns"]}
+    claims = receipt.get("relation_claims")
+    if not isinstance(claims, list):
+        raise RuntimeError("ordinary_trade_mapping_relation_claim_invalid")
+    claimed_bindings: list[dict[str, int]] = []
+    for claim in claims:
+        if (
+            not isinstance(claim, dict)
+            or set(claim)
+            != {
+                "amount_column",
+                "currency_column",
+                "evidence_basis",
+                "amount_header_literal",
+                "currency_header_literal",
+                "consumer_contract",
+            }
+            or claim.get("evidence_basis") not in _RELATION_BASES
+            or claim.get("consumer_contract") != _CONSUMER_CONTRACT
+            or headers.get(claim.get("amount_column"))
+            != claim.get("amount_header_literal")
+            or headers.get(claim.get("currency_column"))
+            != claim.get("currency_header_literal")
+        ):
+            raise RuntimeError("ordinary_trade_mapping_relation_claim_invalid")
+        claimed_bindings.append(
+            {
+                "amount_column": claim["amount_column"],
+                "currency_column": claim["currency_column"],
+            }
+        )
+    if claimed_bindings != mapping["amount_currency_bindings"]:
+        raise RuntimeError("ordinary_trade_mapping_relation_coverage_invalid")
+
+
+def validate_qualified_mapping(
+    *, mapping: dict[str, Any], receipt: dict[str, Any]
+) -> None:
+    """Verify that executable source semantics have a matching frozen receipt."""
+
+    _validate_qualification(mapping=mapping, receipt=receipt)
+
+
+_QUALIFIED_ENTRIES = tuple(
+    _compile_qualified_entry(spec=spec, relation_claims=claims)
+    for spec, claims in zip(_MAPPING_SPECS, _RELATION_CLAIMS, strict=True)
+)
+_QUALIFIED_MAPPINGS = tuple(item[0] for item in _QUALIFIED_ENTRIES)
+_QUALIFICATION_RECEIPTS = tuple(item[1] for item in _QUALIFIED_ENTRIES)
+
+
 class OrdinaryTradeQualifiedMappingAuthorityFactory:
     @staticmethod
     def create() -> "OrdinaryTradeQualifiedMappingAuthority":
@@ -233,12 +498,21 @@ class OrdinaryTradeQualifiedMappingAuthorityFactory:
 
 class OrdinaryTradeQualifiedMappingAuthority:
     def list_mappings(self) -> list[dict[str, Any]]:
+        for mapping, receipt in _QUALIFIED_ENTRIES:
+            _validate_qualification(mapping=mapping, receipt=receipt)
         return copy.deepcopy(list(_QUALIFIED_MAPPINGS))
+
+    def list_qualification_receipts(self) -> list[dict[str, Any]]:
+        for mapping, receipt in _QUALIFIED_ENTRIES:
+            _validate_qualification(mapping=mapping, receipt=receipt)
+        return copy.deepcopy(list(_QUALIFICATION_RECEIPTS))
 
 
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "QUALIFICATION_SCHEMA_VERSION",
     "OrdinaryTradeQualifiedMappingAuthority",
     "OrdinaryTradeQualifiedMappingAuthorityFactory",
+    "validate_qualified_mapping",
 ]
