@@ -10,7 +10,8 @@ Product status: `INACTIVE PROOF`
 
 Date: 2026-08-09
 
-Updated: 2026-08-13 (`G5.40D` additive source-fact seam)
+Updated: 2026-08-22 (`G5.40D` source-fact seam; Issue #293 inactive
+current-Fact-v2 operation composition)
 
 ## Purpose
 
@@ -79,6 +80,22 @@ The method invokes the deterministic source-fact consumer composed by the
 factory. It accepts no caller-supplied consumption payload. Its money inputs
 are complete current Gate 4 facts selected under the G5.40D proof-only
 methodology; the Tax Model and declaration result contracts remain unchanged.
+
+Issue #293 adds one narrower additive factory seam on the same owner:
+
+```python
+factory.create_current_source_fact_operation(
+    source_fact_consumption=OrdinaryTradeCandidateRuntimeFactory(...).create(),
+)
+runtime.run_operation_from_current_source_facts(...)
+```
+
+The specialized runtime composes only the trusted methodology authority and
+the supplied factory-built Fact v2 consumer. It does not construct
+Supplemental Fact discovery or declaration projection, accepts no caller-built
+consumption payload, and returns the exact validated consumption result beside
+the existing operation Tax Model. It remains inactive/shadow and introduces no
+new Tax Model behavior or calculation owner.
 
 The factory composes existing owners rather than bypassing them:
 
@@ -310,3 +327,7 @@ G5.14 contract.
 The additive G5.40D seam adds no second Tax Model or source reader. Its bounded
 FIFO, source-granularity and unresolved-methodology rules are owned by
 [Deterministic Source-Fact Consumption v0](./BROKER_REPORTS_GATE5_DETERMINISTIC_SOURCE_FACT_CONSUMPTION.v0.md).
+
+The Issue #293 seam adds composition only. The existing operation behavior,
+methodology hashes, Fact v2 validator and category owner remain the sole
+authorities for their meanings.

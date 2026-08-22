@@ -10,6 +10,8 @@ Product status: `INACTIVE PROOF`
 
 Date: 2026-08-10
 
+Updated: 2026-08-22 (Issue #293 Tax-Model-only composition seam)
+
 ## Purpose
 
 This contract corrects one cardinality error in the existing G5.14 boundary:
@@ -30,6 +32,12 @@ Gate5TaxPeriodCategoryAggregationRuntimeFactory.create()
 
 No singleton-specific capability, behavior, branch, Tax Model, service or DSL
 exists.
+
+Issue #293 adds `runtime.run_tax_model(...)` on that same owner. It validates
+and aggregates through the unchanged scope/member/completeness core but stops
+at the Category Tax Model. The existing `run(...)` delegates to this core and
+retains its prior declaration-projection behavior. The new inactive bridge
+uses only `run_tax_model`; no declaration semantics or projection is created.
 
 ## Cardinality decision
 
@@ -116,3 +124,7 @@ v2](./BROKER_REPORTS_GATE5_RUNTIME_CAPABILITY_CONTRACT.v2.md).
 This contract does not implement Section 2 projection, group classification,
 rate, tax, electronic XML, case discovery, new input kinds or a new runtime
 capability.
+
+The Issue #293 composition is inactive/shadow. It does not activate the
+ordinary product route, promote synthetic completeness evidence, or create a
+second aggregation authority.
