@@ -43,7 +43,10 @@ def verify(manifest_path: Path = DEFAULT_MANIFEST) -> None:
             raise RuntimeError("frozen_evidence_path_outside_repository") from exc
         if not path.is_file():
             raise RuntimeError(f"frozen_evidence_missing:{item['path']}")
-        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        # Git may materialize text files with CRLF on Windows. The repository
+        # authority is the LF-normalized blob content checked by Linux CI.
+        canonical_bytes = path.read_bytes().replace(b"\r\n", b"\n")
+        actual = hashlib.sha256(canonical_bytes).hexdigest()
         if actual != item["sha256"]:
             raise RuntimeError(f"frozen_evidence_drift:{item['path']}")
 
