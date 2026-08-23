@@ -224,7 +224,16 @@ def test_current_fact_v2_reaches_operation_and_category_models_deterministically
     )
     assert (
         category_result["scope_binding"]["scope"]["taxpayer_scope_ref"]
-        == (operation["operation_scope"]["subject_ref"])
+        == first["taxpayer_binding"]["taxpayer_scope_ref"]
+    )
+    assert first["taxpayer_binding"] == _taxpayer_binding()
+    assert (
+        first["taxpayer_binding"]["operation_subject_ref"]
+        == operation["operation_scope"]["subject_ref"]
+    )
+    assert (
+        first["taxpayer_binding"]["taxpayer_scope_ref"]
+        != operation["operation_scope"]["subject_ref"]
     )
     assert set(category_result) == {
         "schema_version",
@@ -437,13 +446,77 @@ def test_foreign_taxpayer_scope_cannot_aggregate_the_operation(tmp_path: Path) -
     assert result["blockers"] == [
         {
             "schema_version": "broker_reports_tax_model_bridge_blocker_v0",
-            "reason_code": ("gate5_tax_model_bridge_taxpayer_subject_binding_mismatch"),
+            "reason_code": "gate5_tax_model_bridge_taxpayer_scope_binding_mismatch",
             "required_input": "category_scope.taxpayer_scope_ref",
             "gap_owner_classification": "USER_CASE_FACT_MISSING",
             "owner": "OrdinaryTradeTaxModelBridgeRuntime",
             "blocking_scope": "bridge_identity_binding",
         }
     ]
+    assert result["operation_result"]["status"] == "modeled"
+    assert result["category_result"] is None
+
+
+def test_missing_taxpayer_binding_stops_as_user_case_fact_missing(
+    tmp_path: Path,
+) -> None:
+    store, context, facts = _case(tmp_path / "missing-taxpayer-binding")
+
+    result = _run(
+        _runtime(store),
+        context=context,
+        disposal_fact_id=_fact_id(facts, "SECURITY_DISPOSAL"),
+        resolved_inputs=_resolved_inputs(),
+        completeness_evidence=None,
+        taxpayer_binding=None,
+    )
+
+    assert result["blockers"] == [
+        {
+            "schema_version": "broker_reports_tax_model_bridge_blocker_v0",
+            "reason_code": "gate5_tax_model_bridge_taxpayer_binding_missing",
+            "required_input": "taxpayer_binding",
+            "gap_owner_classification": "USER_CASE_FACT_MISSING",
+            "owner": "OrdinaryTradeTaxModelBridgeRuntime",
+            "blocking_scope": "bridge_identity_binding",
+        }
+    ]
+    assert result["taxpayer_binding"] is None
+    assert result["operation_result"]["status"] == "modeled"
+    assert result["category_result"] is None
+
+
+def test_misbound_operation_subject_in_taxpayer_binding_fails_closed(
+    tmp_path: Path,
+) -> None:
+    store, context, facts = _case(tmp_path / "misbound-operation-subject")
+
+    result = _run(
+        _runtime(store),
+        context=context,
+        disposal_fact_id=_fact_id(facts, "SECURITY_DISPOSAL"),
+        resolved_inputs=_resolved_inputs(),
+        completeness_evidence=None,
+        taxpayer_binding=_taxpayer_binding(
+            operation_subject_ref="foreign-security-disposal"
+        ),
+    )
+
+    assert result["blockers"] == [
+        {
+            "schema_version": "broker_reports_tax_model_bridge_blocker_v0",
+            "reason_code": (
+                "gate5_tax_model_bridge_operation_subject_binding_mismatch"
+            ),
+            "required_input": "taxpayer_binding.operation_subject_ref",
+            "gap_owner_classification": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+            "owner": "OrdinaryTradeTaxModelBridgeRuntime",
+            "blocking_scope": "bridge_identity_binding",
+        }
+    ]
+    assert result["taxpayer_binding"] == _taxpayer_binding(
+        operation_subject_ref="foreign-security-disposal"
+    )
     assert result["operation_result"]["status"] == "modeled"
     assert result["category_result"] is None
 
@@ -487,6 +560,7 @@ def test_partial_acquisition_commission_demand_uses_exact_four_case_matrix(
     )
     exact_acquisition_fact_ids = gate5_source_fact_acquisition_commission_fact_ids(
         consumed,
+        disposal_fact_id=_fact_id(facts, "SECURITY_DISPOSAL"),
         context=context,
     )
     result = _run(
@@ -510,6 +584,86 @@ def test_partial_acquisition_commission_demand_uses_exact_four_case_matrix(
         assert result["blockers"][0]["reason_code"] == (
             "gate5_source_fact_direct_expense_missing"
         )
+
+
+def test_acquisition_commission_demand_is_bound_to_selected_disposal(
+    tmp_path: Path,
+) -> None:
+    rows = (
+        _HEADERS,
+        _with_roles(
+            _row(side=_PURCHASE_SIDE, charges=False),
+            asset_name="ACME-A",
+            security_code="RU000000000A",
+            trade_id="trade-purchase-a",
+        ),
+        _with_roles(
+            _row(side=_DISPOSAL_SIDE),
+            asset_name="ACME-A",
+            security_code="RU000000000A",
+            trade_id="trade-disposal-a",
+        ),
+        _with_roles(
+            _row(side=_PURCHASE_SIDE),
+            trade_date="12.01.2025 10:00:00",
+            settlement_date="15.01.2025",
+            asset_name="ACME-B",
+            security_code="RU000000000B",
+            trade_id="trade-purchase-b",
+        ),
+        _with_roles(
+            _row(side=_DISPOSAL_SIDE),
+            trade_date="12.02.2025 10:00:00",
+            settlement_date="14.02.2025",
+            asset_name="ACME-B",
+            security_code="RU000000000B",
+            trade_id="trade-disposal-b",
+        ),
+    )
+    store, context, facts = _case(tmp_path / "multi-operation", rows=rows)
+    disposal_a = _fact_id_for_asset(facts, "SECURITY_DISPOSAL", "ACME-A")
+    disposal_b = _fact_id_for_asset(facts, "SECURITY_DISPOSAL", "ACME-B")
+    consumed = (
+        OrdinaryTradeCandidateRuntimeFactory(store=store, read_enabled=True)
+        .create()
+        .run(methodology_ref=_source_methodology_ref(), context=context)
+    )
+
+    acquisition_a = gate5_source_fact_acquisition_commission_fact_ids(
+        consumed,
+        disposal_fact_id=disposal_a,
+        context=context,
+    )
+    acquisition_b = gate5_source_fact_acquisition_commission_fact_ids(
+        consumed,
+        disposal_fact_id=disposal_b,
+        context=context,
+    )
+    result_a = _run(
+        _runtime(store),
+        context=context,
+        disposal_fact_id=disposal_a,
+        resolved_inputs=_resolved_inputs(),
+        completeness_evidence=None,
+    )
+    result_b = _run(
+        _runtime(store),
+        context=context,
+        disposal_fact_id=disposal_b,
+        resolved_inputs=_resolved_inputs(),
+        completeness_evidence=None,
+    )
+
+    assert acquisition_a == []
+    assert len(acquisition_b) == 2
+    assert not any(
+        item["required_input"] == "partial_acquisition_commission_allocation"
+        for item in result_a["demands"]
+    )
+    assert any(
+        item["required_input"] == "partial_acquisition_commission_allocation"
+        for item in result_b["demands"]
+    )
 
 
 def test_current_methodology_does_not_require_income_source_or_source_party() -> None:
@@ -571,6 +725,9 @@ def test_bridge_factory_traps_historical_and_declaration_fallbacks(
 _HEADERS = tuple(
     item["header_literal"] for item in ordinary_fixtures._QUALIFIED_MAPPING["columns"]
 )
+_PURCHASE_SIDE = ordinary_fixtures._ROWS[1][ordinary_fixtures._ROLES.index("side")]
+_DISPOSAL_SIDE = ordinary_fixtures._ROWS[2][ordinary_fixtures._ROLES.index("side")]
+_DEFAULT_TAXPAYER_BINDING = object()
 
 
 def _row(*, side: str, charges: bool = True) -> tuple[str, ...]:
@@ -594,6 +751,13 @@ def _row(*, side: str, charges: bool = True) -> tuple[str, ...]:
         "status": "Исполнена",
     }
     return tuple(values[role] for role in ordinary_fixtures._ROLES)
+
+
+def _with_roles(row: tuple[str, ...], **updates: str) -> tuple[str, ...]:
+    values = list(row)
+    for role, value in updates.items():
+        values[ordinary_fixtures._ROLES.index(role)] = value
+    return tuple(values)
 
 
 def _case(tmp_path: Path, *, rows: tuple | None = None):
@@ -635,6 +799,7 @@ def _run(
     completeness_evidence: dict | None,
     source_scope_ref: str | None = None,
     category_scope: dict | None = None,
+    taxpayer_binding: dict | None | object = _DEFAULT_TAXPAYER_BINDING,
 ):
     return runtime.run(
         operation_methodology_ref=_operation_methodology_ref(),
@@ -647,6 +812,11 @@ def _run(
         ),
         category_scope=(
             _category_scope() if category_scope is None else category_scope
+        ),
+        taxpayer_binding=(
+            _taxpayer_binding()
+            if taxpayer_binding is _DEFAULT_TAXPAYER_BINDING
+            else taxpayer_binding
         ),
         completeness_evidence=completeness_evidence,
         context=context,
@@ -681,9 +851,26 @@ def _category_scope() -> dict[str, str]:
     return {
         "schema_version": GATE5_TAX_PERIOD_CATEGORY_SCOPE_SCHEMA_VERSION,
         "scope_ref": "control-2025-organized-securities",
-        "taxpayer_scope_ref": "security-disposal-1",
+        "taxpayer_scope_ref": "synthetic-taxpayer-control",
         "tax_period": "2025",
         "operation_category": "organized_market_securities_outside_iis",
+    }
+
+
+def _taxpayer_binding(
+    *,
+    operation_subject_ref: str = "security-disposal-1",
+    taxpayer_scope_ref: str = "synthetic-taxpayer-control",
+) -> dict:
+    return {
+        "schema_version": "broker_reports_ordinary_trade_taxpayer_binding_v0",
+        "operation_subject_ref": operation_subject_ref,
+        "taxpayer_scope_ref": taxpayer_scope_ref,
+        "provenance": {
+            "source_kind": "user_verified_fact",
+            "source_ref": "synthetic-user-operation-taxpayer-binding-2025",
+            "input_channel": "operation_taxpayer_binding",
+        },
     }
 
 
@@ -704,6 +891,17 @@ def _completeness(scope_binding_sha256: str) -> dict:
 def _fact_id(facts: list[dict], financial_type: str) -> str:
     return next(
         item["fact_id"] for item in facts if item["financial_type"] == financial_type
+    )
+
+
+def _fact_id_for_asset(
+    facts: list[dict], financial_type: str, asset_name: str
+) -> str:
+    return next(
+        item["fact_id"]
+        for item in facts
+        if item["financial_type"] == financial_type
+        and _role_value(item, "asset") == asset_name
     )
 
 

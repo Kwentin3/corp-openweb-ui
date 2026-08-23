@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from typing import Any
 
 from .artifact_models import ArtifactAccessContext, ArtifactStorePort, RetentionPolicy
@@ -25,6 +26,9 @@ from .ordinary_trade_candidate_runtime import OrdinaryTradeCandidateRuntimeFacto
 
 ORDINARY_TRADE_TAX_MODEL_BRIDGE_RESULT_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_tax_model_bridge_result_v0"
+)
+ORDINARY_TRADE_TAXPAYER_BINDING_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_taxpayer_binding_v0"
 )
 ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN = (
     "ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN"
@@ -53,6 +57,7 @@ _INPUT_OWNER = {
     "exemption_applicability": "USER_CASE_FACT_MISSING",
     "loss_treatment": "METHODOLOGY_RULE_MISSING",
 }
+_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 
 
 class OrdinaryTradeTaxModelBridgeRuntimeFactory:
@@ -109,11 +114,13 @@ class OrdinaryTradeTaxModelBridgeRuntime:
         operation_ref: str,
         source_scope_ref: str,
         category_scope: dict[str, Any],
+        taxpayer_binding: dict[str, Any] | None,
         completeness_evidence: dict[str, Any] | None,
         context: ArtifactAccessContext,
     ) -> dict[str, Any]:
         operation_result: dict[str, Any] | None = None
         category_result: dict[str, Any] | None = None
+        validated_taxpayer_binding: dict[str, Any] | None = None
         try:
             operation_result = (
                 self._operation_tax_model.run_operation_from_current_source_facts(
@@ -138,26 +145,74 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                     owner="OrdinaryTradeTaxModelBridgeRuntime",
                     operation_result=operation_result,
                     category_result=category_result,
+                    taxpayer_binding=validated_taxpayer_binding,
+                    disposal_fact_id=disposal_fact_id,
+                    context=context,
+                )
+            if taxpayer_binding is None:
+                return _blocked(
+                    reason_code="gate5_tax_model_bridge_taxpayer_binding_missing",
+                    field="taxpayer_binding",
+                    owner_classification="USER_CASE_FACT_MISSING",
+                    owner="OrdinaryTradeTaxModelBridgeRuntime",
+                    operation_result=operation_result,
+                    category_result=category_result,
+                    taxpayer_binding=validated_taxpayer_binding,
+                    disposal_fact_id=disposal_fact_id,
+                    context=context,
+                )
+            validated_taxpayer_binding = _validated_taxpayer_binding(
+                taxpayer_binding
+            )
+            if validated_taxpayer_binding is None:
+                return _blocked(
+                    reason_code="gate5_tax_model_bridge_taxpayer_binding_invalid",
+                    field="taxpayer_binding",
+                    owner_classification="INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+                    owner="OrdinaryTradeTaxModelBridgeRuntime",
+                    operation_result=operation_result,
+                    category_result=category_result,
+                    taxpayer_binding=validated_taxpayer_binding,
+                    disposal_fact_id=disposal_fact_id,
                     context=context,
                 )
             subject_ref = operation_result["tax_model"]["operation_scope"][
                 "subject_ref"
             ]
+            if validated_taxpayer_binding["operation_subject_ref"] != subject_ref:
+                return _blocked(
+                    reason_code=(
+                        "gate5_tax_model_bridge_operation_subject_binding_mismatch"
+                    ),
+                    field="taxpayer_binding.operation_subject_ref",
+                    owner_classification="INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+                    owner="OrdinaryTradeTaxModelBridgeRuntime",
+                    operation_result=operation_result,
+                    category_result=category_result,
+                    taxpayer_binding=validated_taxpayer_binding,
+                    disposal_fact_id=disposal_fact_id,
+                    context=context,
+                )
             taxpayer_scope_ref = (
                 category_scope.get("taxpayer_scope_ref")
                 if isinstance(category_scope, dict)
                 else None
             )
-            if taxpayer_scope_ref != subject_ref:
+            if (
+                taxpayer_scope_ref
+                != validated_taxpayer_binding["taxpayer_scope_ref"]
+            ):
                 return _blocked(
                     reason_code=(
-                        "gate5_tax_model_bridge_taxpayer_subject_binding_mismatch"
+                        "gate5_tax_model_bridge_taxpayer_scope_binding_mismatch"
                     ),
                     field="category_scope.taxpayer_scope_ref",
                     owner_classification="USER_CASE_FACT_MISSING",
                     owner="OrdinaryTradeTaxModelBridgeRuntime",
                     operation_result=operation_result,
                     category_result=category_result,
+                    taxpayer_binding=validated_taxpayer_binding,
+                    disposal_fact_id=disposal_fact_id,
                     context=context,
                 )
             category_result = self._category_aggregation.run_tax_model(
@@ -179,6 +234,8 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 owner="Gate5DeterministicSourceFactConsumptionRuntime",
                 operation_result=operation_result,
                 category_result=category_result,
+                taxpayer_binding=validated_taxpayer_binding,
+                disposal_fact_id=disposal_fact_id,
                 context=context,
             )
         except Gate5SecuritiesDisposalTaxModelError as exc:
@@ -189,6 +246,8 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 owner="Gate5SecuritiesDisposalTaxModelRuntime",
                 operation_result=operation_result,
                 category_result=category_result,
+                taxpayer_binding=validated_taxpayer_binding,
+                disposal_fact_id=disposal_fact_id,
                 context=context,
             )
         except Gate5TaxPeriodCategoryAggregationError as exc:
@@ -199,6 +258,8 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 owner="Gate5TaxPeriodCategoryAggregationRuntime",
                 operation_result=operation_result,
                 category_result=category_result,
+                taxpayer_binding=validated_taxpayer_binding,
+                disposal_fact_id=disposal_fact_id,
                 context=context,
             )
 
@@ -210,6 +271,8 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 owner="Gate5TaxPeriodCategoryAggregationRuntime",
                 operation_result=operation_result,
                 category_result=category_result,
+                taxpayer_binding=validated_taxpayer_binding,
+                disposal_fact_id=disposal_fact_id,
                 context=context,
             )
 
@@ -217,9 +280,14 @@ class OrdinaryTradeTaxModelBridgeRuntime:
             status="proven",
             terminal=ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN,
             blockers=[],
-            demands=_expense_demands(operation_result, context=context),
+            demands=_expense_demands(
+                operation_result,
+                disposal_fact_id=disposal_fact_id,
+                context=context,
+            ),
             operation_result=operation_result,
             category_result=category_result,
+            taxpayer_binding=validated_taxpayer_binding,
         )
 
 
@@ -231,6 +299,8 @@ def _blocked(
     owner: str,
     operation_result: dict[str, Any] | None,
     category_result: dict[str, Any] | None,
+    taxpayer_binding: dict[str, Any] | None,
+    disposal_fact_id: str,
     context: ArtifactAccessContext,
 ) -> dict[str, Any]:
     required_input = field or reason_code
@@ -245,7 +315,11 @@ def _blocked(
     demands = (
         []
         if operation_result is None
-        else _expense_demands(operation_result, context=context)
+        else _expense_demands(
+            operation_result,
+            disposal_fact_id=disposal_fact_id,
+            context=context,
+        )
     )
     return _result(
         status="blocked",
@@ -254,6 +328,7 @@ def _blocked(
         demands=demands,
         operation_result=operation_result,
         category_result=category_result,
+        taxpayer_binding=taxpayer_binding,
     )
 
 
@@ -265,6 +340,7 @@ def _result(
     demands: list[dict[str, Any]],
     operation_result: dict[str, Any] | None,
     category_result: dict[str, Any] | None,
+    taxpayer_binding: dict[str, Any] | None,
 ) -> dict[str, Any]:
     return {
         "schema_version": ORDINARY_TRADE_TAX_MODEL_BRIDGE_RESULT_SCHEMA_VERSION,
@@ -278,6 +354,7 @@ def _result(
         ],
         "operation_result": copy.deepcopy(operation_result),
         "category_result": copy.deepcopy(category_result),
+        "taxpayer_binding": copy.deepcopy(taxpayer_binding),
         "blockers": copy.deepcopy(blockers),
         "demands": copy.deepcopy(demands),
         "execution_constraints": {
@@ -297,6 +374,7 @@ def _result(
 def _expense_demands(
     operation_result: dict[str, Any],
     *,
+    disposal_fact_id: str,
     context: ArtifactAccessContext,
 ) -> list[dict[str, Any]]:
     demands = []
@@ -318,6 +396,7 @@ def _expense_demands(
     capability_map = source.get("capability_map", {})
     acquisition_commission_fact_ids = gate5_source_fact_acquisition_commission_fact_ids(
         source,
+        disposal_fact_id=disposal_fact_id,
         context=context,
     )
     if (
@@ -336,6 +415,35 @@ def _expense_demands(
             }
         )
     return demands
+
+
+def _validated_taxpayer_binding(value: Any) -> dict[str, Any] | None:
+    provenance = value.get("provenance") if isinstance(value, dict) else None
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema_version",
+            "operation_subject_ref",
+            "taxpayer_scope_ref",
+            "provenance",
+        }
+        or value.get("schema_version")
+        != ORDINARY_TRADE_TAXPAYER_BINDING_SCHEMA_VERSION
+        or not _identifier(value.get("operation_subject_ref"))
+        or not _identifier(value.get("taxpayer_scope_ref"))
+        or not isinstance(provenance, dict)
+        or set(provenance) != {"source_kind", "source_ref", "input_channel"}
+        or provenance.get("source_kind") != "user_verified_fact"
+        or not _identifier(provenance.get("source_ref"))
+        or provenance.get("input_channel") != "operation_taxpayer_binding"
+    ):
+        return None
+    return copy.deepcopy(value)
+
+
+def _identifier(value: Any) -> bool:
+    return isinstance(value, str) and _IDENTIFIER.fullmatch(value) is not None
 
 
 def _source_fact_owner(code: str) -> str:
@@ -404,6 +512,7 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "ORDINARY_TRADE_TAX_MODEL_BRIDGE_RESULT_SCHEMA_VERSION",
+    "ORDINARY_TRADE_TAXPAYER_BINDING_SCHEMA_VERSION",
     "OrdinaryTradeTaxModelBridgeRuntime",
     "OrdinaryTradeTaxModelBridgeRuntimeFactory",
 ]

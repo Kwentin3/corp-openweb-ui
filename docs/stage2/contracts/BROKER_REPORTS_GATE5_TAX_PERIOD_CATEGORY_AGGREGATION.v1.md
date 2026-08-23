@@ -10,7 +10,7 @@ Product status: `INACTIVE PROOF`
 
 Date: 2026-08-10
 
-Updated: 2026-08-22 (Issue #293 Tax-Model-only composition seam)
+Updated: 2026-08-23 (Issue #293 Tax-Model-only composition and binding seam)
 
 ## Purpose
 
@@ -40,12 +40,18 @@ retains its prior declaration-projection behavior. The new inactive bridge
 uses only `run_tax_model`; no declaration semantics or projection is created.
 
 For that bridge composition, `source_scope_ref` is admitted only when it equals
-the current consumer result's exact case `scope_id`, and
-`taxpayer_scope_ref` must equal the member operation Tax Model
-`operation_scope.subject_ref`. The bridge performs these checks before calling
-this owner. The generic historical aggregation contract continues to treat its
-opaque identities as caller-supplied proof references; Issue #293 does not
-silently redefine or migrate its existing callers.
+the current consumer result's exact case `scope_id`. The category
+`taxpayer_scope_ref` is admitted through the separate
+`broker_reports_ordinary_trade_taxpayer_binding_v0` user-verified binding: its
+`operation_subject_ref` must match the member operation Tax Model subject, and
+its `taxpayer_scope_ref` must match the category scope. The operation subject
+identifies a `SECURITY_DISPOSAL`, not the taxpayer, so the two binding values
+are deliberately not required to be equal. Missing binding is a
+`USER_CASE_FACT_MISSING` blocker; malformed, substituted or operation-misbound
+binding fails closed before calling this owner. The generic historical
+aggregation contract continues to treat its opaque identities as
+caller-supplied proof references; Issue #293 does not silently redefine or
+migrate its existing callers.
 
 ## Cardinality decision
 

@@ -529,20 +529,22 @@ def gate5_source_fact_tax_model_inputs(
 def gate5_source_fact_acquisition_commission_fact_ids(
     value: Any,
     *,
+    disposal_fact_id: str,
     context: ArtifactAccessContext,
 ) -> list[str]:
-    """Return detail commission facts bound to a consumed acquisition row."""
+    """Return acquisition commission facts for one selected disposal only."""
 
     consumed = _validated_consumption_result(value, context=context)
-    acquisition_sources = []
-    for security in consumed["securities"]:
-        if not isinstance(security, dict):
-            _fail("gate5_source_fact_consumption_result_invalid")
-        acquisition = security.get("recognized_acquisition_cost")
-        sources = acquisition.get("sources") if isinstance(acquisition, dict) else None
-        if not isinstance(sources, list) or not sources:
-            _fail("gate5_source_fact_consumption_result_invalid")
-        acquisition_sources.extend(sources)
+    selected = _selected_consumption_security(
+        consumed,
+        disposal_fact_id=disposal_fact_id,
+    )
+    acquisition = selected.get("recognized_acquisition_cost")
+    acquisition_sources = (
+        acquisition.get("sources") if isinstance(acquisition, dict) else None
+    )
+    if not isinstance(acquisition_sources, list) or not acquisition_sources:
+        _fail("gate5_source_fact_consumption_result_invalid")
     assertions = consumed.get("assertions")
     commissions = (
         assertions.get("commissions") if isinstance(assertions, dict) else None

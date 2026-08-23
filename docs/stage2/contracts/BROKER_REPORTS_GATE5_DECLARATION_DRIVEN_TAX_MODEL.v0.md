@@ -10,8 +10,8 @@ Product status: `INACTIVE PROOF`
 
 Date: 2026-08-09
 
-Updated: 2026-08-22 (`G5.40D` source-fact seam; Issue #293 inactive
-current-Fact-v2 operation composition)
+Updated: 2026-08-23 (`G5.40D` source-fact seam; Issue #293 inactive
+current-Fact-v2 operation composition and exact identity binding)
 
 ## Purpose
 
@@ -99,16 +99,39 @@ new Tax Model behavior or calculation owner.
 
 The Issue #293 bridge accepts a member `source_scope_ref` only when it equals
 the exact `scope_id` of the returned `case_binding` with `scope_kind=case`.
-It also requires the category `taxpayer_scope_ref` to equal the operation Tax
-Model `operation_scope.subject_ref`. These are composition admission checks,
-not new source or taxpayer inference rules; a mismatch returns a typed blocker
-before category aggregation.
+Operation subject and taxpayer scope are separate identities. The operation
+Tax Model `operation_scope.subject_ref` identifies the modeled
+`SECURITY_DISPOSAL`; it is not a taxpayer identity. The inactive bridge admits
+category aggregation only through this exact proof-local input:
+
+```json
+{
+  "schema_version": "broker_reports_ordinary_trade_taxpayer_binding_v0",
+  "operation_subject_ref": "security-disposal-1",
+  "taxpayer_scope_ref": "synthetic-taxpayer-control",
+  "provenance": {
+    "source_kind": "user_verified_fact",
+    "source_ref": "synthetic-user-operation-taxpayer-binding-2025",
+    "input_channel": "operation_taxpayer_binding"
+  }
+}
+```
+
+The bridge independently requires `operation_subject_ref` to equal the Tax
+Model operation subject and `taxpayer_scope_ref` to equal the category scope.
+It never requires those two values to equal each other. Missing binding is
+`USER_CASE_FACT_MISSING`; invalid provenance, malformed identity or a misbound
+operation subject fails closed as `INTERNAL_CONTRACT_OR_PIPELINE_DEFECT`.
+This is a composition admission check, not a second taxpayer authority.
 
 The source-fact owner exposes the exact IDs of detail commission facts sharing
-the already-owned source transaction row with a consumed acquisition. The
-bridge emits `partial_acquisition_commission_allocation` only when this set is
-non-empty and the existing capability remains `LEGAL_INTERPRETATION_REQUIRED`.
-Disposal-only commission evidence therefore cannot create that demand.
+the already-owned source transaction row with the recognized acquisition cost
+of the exact security selected by `disposal_fact_id`. The bridge emits
+`partial_acquisition_commission_allocation` only when this operation-local set
+is non-empty and the existing capability remains
+`LEGAL_INTERPRETATION_REQUIRED`. Disposal-only commission evidence and an
+acquisition commission belonging to another disposal therefore cannot create
+that demand.
 
 The factory composes existing owners rather than bypassing them:
 
