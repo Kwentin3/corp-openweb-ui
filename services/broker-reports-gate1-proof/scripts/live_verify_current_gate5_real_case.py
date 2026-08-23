@@ -52,6 +52,10 @@ def sha256_file(path):
     return digest.hexdigest()
 
 
+def _trusted_taxpayer_scope_ref_required():
+    raise SystemExit("trusted_taxpayer_scope_binding_unavailable")
+
+
 with sqlite3.connect(DATA_ROOT / "webui.db") as connection:
     row = connection.execute(
         'SELECT content, meta FROM "function" WHERE id = ?',
@@ -75,9 +79,6 @@ from broker_reports_gate1 import (
 )
 from broker_reports_gate1.gate5_declaration_preparation import (
     Gate5DeclarationPreparationRuntimeFactory,
-)
-from broker_reports_gate1.gate5_human_gap_closure import (
-    gate5_case_taxpayer_scope_ref,
 )
 from broker_reports_gate1.gate5_declaration_scope_resolution import (
     GATE5_USER_INTENT_SCHEMA_VERSION,
@@ -139,7 +140,7 @@ result = Gate5DeclarationPreparationRuntimeFactory(
         "task": "prepare_tax_declaration",
         "domains": ["broker_securities_income"],
     },
-    taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+    taxpayer_scope_ref=_trusted_taxpayer_scope_ref_required(),
     user_case_facts=[],
 )
 

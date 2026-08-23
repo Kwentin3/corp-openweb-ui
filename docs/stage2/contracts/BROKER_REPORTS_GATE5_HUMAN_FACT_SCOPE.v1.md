@@ -1,97 +1,92 @@
 # Broker Reports Gate 5 Human Fact Scope v1
 
-Status: `CURRENT SUPPORTING CONTRACT`
+Status: `CURRENT SUPPORTING CONTRACT; INACTIVE, TAXPAYER BINDING BLOCKED`
 
-Issue: `#299`
+Issues: `#299`, review follow-up `#301`
 
 Date: 2026-08-23
 
 ## Boundary and owner
 
-`Gate5HumanGapClosureRuntimeFactory.create` remains the sole owner of Human
-Adapter request meaning, authenticated-answer normalization and typed
-user/case fact publication. The v1 boundary is:
+`Gate5HumanGapClosureRuntimeFactory.create` is the single owner of Human
+request meaning, authenticated-answer normalization, typed fact publication,
+current-request publication, conflict detection and fact validation:
 
 ```text
-ArtifactAccessContext + bounded taxpayer slot + tax period
--> owner-built request
--> owner-published private request artifact
+authenticated context + externally supplied taxpayer scope + tax period
+-> owner request content + owner current-publication chain
 -> authenticated answer
--> owner-published private typed fact
--> owner validation under the consuming context/scope
+-> owner-published typed fact
+-> exact owner validation
 ```
 
-The implementation reuses the existing `ArtifactStorePort` and
-`ArtifactResolver`; it introduces no identity authority, registry, workflow,
-receipt engine or persistence platform. `ArtifactResolver.resolve_case` is the
-minimal public access seam used for an immutable same-case artifact across
-normalization runs.
+The implementation reuses `ArtifactStorePort` and `ArtifactResolver`. It adds
+no registry, workflow/event engine, identity authority, receipt engine or
+provider/LLM path.
 
-## Identities and scope
+## Scope and the unresolved taxpayer binding
 
-The immutable semantic fact scope contains exactly:
+The immutable fact scope contains authenticated user, case, independent
+`taxpayer_scope_ref`, four-digit tax period and a canonical scope hash. Run ID
+is deliberately excluded so a valid fact can replay in a later run. Workspace
+ID remains an ArtifactStore ACL boundary, not fact meaning.
 
-- `authenticated_user_ref` from trusted `ArtifactAccessContext.user_id`;
-- `case_id` from trusted `ArtifactAccessContext.case_id`;
-- independent opaque `taxpayer_scope_ref`;
-- four-digit `tax_period`;
-- canonical `scope_binding_sha256`.
+The Human owner validates mechanical equality of the supplied taxpayer scope
+across request, fact and consumer. Two distinct synthetic taxpayer refs in the
+same user/case remain independently representable and cross-use fails closed.
+This does **not** prove where either ref came from.
 
-`gate5_case_taxpayer_scope_ref` owns the bounded one-taxpayer case slot used by
-the existing preparation composition when no prior taxpayer ref exists. The
-slot is derived from the case identity under the Human owner and differs from
-the authenticated user, raw case ID and any operation subject. It is a stable
-scope handle only; it does not assert a person's identity, representation,
-residency or tax status. The authenticated answer supplies or confirms the
-allowed factual/elective meaning for that slot.
+Repository investigation found no pre-existing owner-produced authenticated
+case-to-taxpayer binding and no trusted exactly-one-taxpayer-per-case invariant.
+The historical operation/category binding is caller-supplied
+`user_verified_fact` for one operation subject; it does not authenticate the
+taxpayer to the user/case and cannot be promoted into that missing relation.
 
-The public boundary still receives `taxpayer_scope_ref` so composition must
-show the binding it intends to consume, but the Human owner recomputes the only
-valid bounded slot from the trusted case context and rejects any unequal value.
-The caller therefore cannot mint an authoritative taxpayer scope string.
+The former `gate5_case_taxpayer_scope_ref` case hash is removed. Hashing a case
+ID only obfuscated the case and silently invented a one-taxpayer invariant.
+The current product composition now fails closed with
+`ndfl_trusted_taxpayer_scope_binding_required` instead of manufacturing a
+scope. Positive tests use explicit synthetic refs and prove mechanics only.
 
-`normalization_run_id` is deliberately excluded from immutable fact scope. A
-valid fact may replay in a later run for the same user, case, taxpayer and tax
-period. `workspace_model_id` is also excluded from semantic scope, but remains
-an ArtifactStore access-control boundary: cross-workspace reads fail closed.
+Smallest missing upstream contract: an owner-produced, owner-verifiable
+authenticated taxpayer-case binding containing at least authenticated user,
+case, independent taxpayer scope and explicit origin/provenance, with cardinality
+able to represent more than one taxpayer per case. Authentication/case identity
+must own it; the Human Adapter must only consume it.
 
-## Request origin and staleness
+Issue-level terminal: `HUMAN_FACT_TAXPAYER_SCOPE_BLOCKER_PROVEN`.
 
-`broker_reports_gate5_gap_request_v1` includes the exact scope binding, stable
-`request_id`, full canonical `request_sha256` and deterministic private
-`request_ref`. Only `publish_requests` may publish requests; it rebuilds them
-from the Human owner's actual intake, scope activation, client review, known
-facts and residency classification. It never accepts a caller-authored request
-for publication.
+## Current request publication
 
-`normalize_answer` resolves the exact stored request through the existing
-artifact owner and rejects a missing, changed, foreign or superseded request.
-A later owner-published request for the same semantic key and scope makes the
-older request stale. The answer cannot select or replace `fact_key`; that key
-comes only from the stored request.
+Request content remains content-addressed. A separate immutable
+`broker_reports_gate5_gap_request_publication_v1` records, for one semantic
+request lane:
 
-## Typed fact publication and validation
+- exact request content binding;
+- exact Human scope, fact key and closure type;
+- predecessor publication ref;
+- canonical publication hash/ref.
 
-`broker_reports_gate5_user_case_fact_v1` contains:
+The owner accepts exactly one complete root-to-tip chain. Missing predecessors,
+branches, multiple roots/tips or cycles fail closed. `A -> A` reuses the current
+publication; `A -> B -> A` creates three publications and makes the final A
+current even though request content A is reused. Selection uses neither record
+timestamps, insertion/list order nor artifact-ref lexical order. Old requests
+and facts bind the old publication ref and become stale.
 
-- deterministic `user_case_fact_ref` and `fact_sha256`;
-- the closed current `fact_key` and normalized value;
-- the exact immutable scope binding;
-- exact request artifact/id/hash binding;
-- authenticated-user provenance with both calculation and document-source
-  authority false.
+## Unambiguous facts
 
-The fact is accepted only when the Human owner can resolve an exact matching
-private fact artifact and its exact request artifact, both under the consuming
-context, and both scope bindings equal the requested taxpayer and tax period.
-Caller-recomputed hashes prove only bytes: they cannot create matching owner
-artifacts. Missing fields, foreign scope, payload/store disagreement, schema
-downgrade and any duplicate semantic key fail closed. Duplicate equal facts
-and conflicting facts are both rejected; there is no last-write-wins rule.
+Each fact binds the exact request content and exact request publication. Before
+acceptance, the Human owner scans all genuine owner-visible facts for the same
+scope, semantic key and request publication. More than one distinct fact hash
+is an unresolved conflict, so A alone, B alone, both orders and caller omission
+all fail closed. Repeating the same byte-equal answer reuses one artifact and
+does not create a false conflict. No timestamp or caller list order chooses a
+winner.
 
-## Fact classes and authority ceiling
+## Authority ceiling
 
-V1 scopes all five existing Human Adapter fact keys:
+The closed Human fact keys remain:
 
 ```text
 taxpayer_identity_confirmed
@@ -101,35 +96,22 @@ budget_disposition
 residency_evidence
 ```
 
-This issue adds no structured identity, filing, signer, settlement or
-completeness variants because no newly activated typed consumer is authorized.
-It first closes the common publication boundary for the existing facts.
+`filing_instance_identity` is now only the closed election
+`INITIAL | CORRECTION`. Destination/inspection is a separate required
+`EXTERNAL_AUTHORITY` gap. Free text cannot smuggle inspection, KBK, OKTMO,
+residency/tax status, source classification, deductibility or settlement into
+the filing fact. Declaration Preparation consumes only readiness and does not
+reinterpret the election as destination or target data.
 
-A Human answer may provide a raw circumstance or explicit election. It cannot
-publish residency/tax status, source classification, deductibility,
-settlement, KBK, OKTMO, destination authority, external reference or broker
-source fact. Residency answers remain raw interval evidence interpreted only
-by `Gate5ResidencyEvidenceRuntimeFactory.create`. Additional documents return
-`NORMALIZATION_REQUIRED`; external-authority and methodology requests cannot
-be normalized into Human facts. Runtime provider/LLM calls are zero.
+Residency remains raw interval evidence interpreted by
+`Gate5ResidencyEvidenceRuntimeFactory.create`. Additional documents return
+`NORMALIZATION_REQUIRED`; external/methodology actions cannot become Human
+facts. Runtime provider/LLM calls remain zero.
 
 ## Compatibility and activation
 
-`broker_reports_gate5_user_case_fact_v0` is historical-readable evidence only.
-It lacks user, case, taxpayer, tax-period and stored-request proof and is
-therefore explicitly rejected by the v1 publication/validation route. No
-silent migration or reinterpretation exists.
-
-`Gate5DeclarationPreparationRuntimeFactory.create` accepts only v1 facts on its
-updated `broker_reports_gate5_declaration_preparation_v1` boundary and requires
-an explicit taxpayer scope ref. This closes preparation replay only; it does
-not activate Declaration Scope/Package, XML, filing or submission.
-
-## Required fail-closed proof
-
-Executable tests use real owner-published request/fact artifacts for synthetic
-personas A and B and prove deterministic same-scope acceptance, independent
-foreign user/case/workspace/taxpayer/period rejection, allowed cross-run replay,
-stale and changed request rejection, resealed A/B mix rejection, duplicate and
-conflict rejection, v0 downgrade rejection, document/external routing and zero
-provider imports/calls.
+`broker_reports_gate5_user_case_fact_v0` is historical-readable only and is
+rejected on this v1 boundary. There is no silent migration. Declaration/XML,
+filing and submission are not activated. Until the missing taxpayer binding is
+owned upstream, this contract is an inactive synthetic proof and PR #300 must
+not be merged.

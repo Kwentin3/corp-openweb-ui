@@ -36,10 +36,16 @@ from .gate5_residency_evidence import (
 
 GATE5_HUMAN_GAP_CLOSURE_SCHEMA_VERSION = "broker_reports_gate5_human_gap_closure_v1"
 GATE5_GAP_REQUEST_SCHEMA_VERSION = "broker_reports_gate5_gap_request_v1"
+GATE5_GAP_REQUEST_PUBLICATION_SCHEMA_VERSION = (
+    "broker_reports_gate5_gap_request_publication_v1"
+)
 GATE5_USER_CASE_FACT_SCHEMA_VERSION = "broker_reports_gate5_user_case_fact_v1"
 GATE5_LEGACY_USER_CASE_FACT_SCHEMA_VERSION = "broker_reports_gate5_user_case_fact_v0"
 GATE5_HUMAN_FACT_SCOPE_SCHEMA_VERSION = "broker_reports_gate5_human_fact_scope_v1"
 GATE5_GAP_REQUEST_ARTIFACT_TYPE = GATE5_GAP_REQUEST_SCHEMA_VERSION
+GATE5_GAP_REQUEST_PUBLICATION_ARTIFACT_TYPE = (
+    GATE5_GAP_REQUEST_PUBLICATION_SCHEMA_VERSION
+)
 GATE5_USER_CASE_FACT_ARTIFACT_TYPE = GATE5_USER_CASE_FACT_SCHEMA_VERSION
 GATE5_HUMAN_GAP_CLOSURE_TERMINAL = "HUMAN_GAP_CLOSURE_LOOP_PROVEN"
 
@@ -78,7 +84,17 @@ _SCOPE_KEYS = frozenset(
         "scope_binding_sha256",
     }
 )
-_REQUEST_BINDING_KEYS = frozenset({"request_ref", "request_id", "request_sha256"})
+_REQUEST_CONTENT_BINDING_KEYS = frozenset(
+    {"request_ref", "request_id", "request_sha256"}
+)
+_REQUEST_BINDING_KEYS = frozenset(
+    {
+        "request_ref",
+        "request_id",
+        "request_sha256",
+        "request_publication_ref",
+    }
+)
 _REQUEST_KEYS = frozenset(
     {
         "schema_version",
@@ -99,6 +115,19 @@ _REQUEST_KEYS = frozenset(
         "request_id",
         "request_sha256",
         "request_ref",
+    }
+)
+_REQUEST_PUBLICATION_KEYS = frozenset(
+    {
+        "schema_version",
+        "request_publication_ref",
+        "request_lane_sha256",
+        "scope_binding",
+        "fact_key",
+        "closure_type",
+        "request_binding",
+        "predecessor_publication_ref",
+        "publication_sha256",
     }
 )
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
@@ -305,18 +334,43 @@ class Gate5HumanGapClosureRuntime:
         self._publication_dependencies()
         result = self.plan(**plan_inputs)
         context = plan_inputs.get("context")
-        published_refs = []
+        published: dict[str, dict[str, Any]] = {}
         for request in [
             *result["required_actions"],
             *result["advisory_actions"],
             *result["deferred_actions"],
         ]:
-            self._persist_request(request=request, context=context)
-            published_refs.append(request["request_ref"])
+            published[request["request_ref"]] = self._persist_request(
+                request=request,
+                context=context,
+            )
+        for key in (
+            "required_actions",
+            "advisory_actions",
+            "deferred_actions",
+            "user_facing_required_actions",
+            "internal_owner_required_actions",
+            "user_facing_advisory_actions",
+            "internal_owner_advisory_actions",
+        ):
+            result[key] = [published[item["request_ref"]] for item in result[key]]
+        for key in ("required_actions", "advisory_actions"):
+            result["llm_adapter_input"][key] = [
+                {
+                    **item,
+                    "request_publication_ref": published[item["request_ref"]][
+                        "request_publication_ref"
+                    ],
+                }
+                for item in result["llm_adapter_input"][key]
+            ]
         return {
             **result,
             "request_publication": "OWNER_PUBLISHED",
-            "published_request_refs": sorted(published_refs),
+            "published_request_refs": sorted(published),
+            "published_request_publication_refs": sorted(
+                item["request_publication_ref"] for item in published.values()
+            ),
         }
 
     def normalize_answer(
@@ -380,6 +434,9 @@ class Gate5HumanGapClosureRuntime:
                 "request_ref": validated["request_ref"],
                 "request_id": validated["request_id"],
                 "request_sha256": validated["request_sha256"],
+                "request_publication_ref": validated[
+                    "request_publication_ref"
+                ],
             },
             "provenance": {
                 "source_kind": "authenticated_user_case_fact",
@@ -400,12 +457,24 @@ class Gate5HumanGapClosureRuntime:
             {"kind": "user_case_fact", "fact_sha256": fact["fact_sha256"]}
         )
         self._persist_fact(fact=fact, context=context)
-        persisted = self.validate_user_case_facts(
-            [fact],
-            context=context,
-            taxpayer_scope_ref=validated["scope_binding"]["taxpayer_scope_ref"],
-            tax_period=validated["scope_binding"]["tax_period"],
-        )[0]
+        try:
+            persisted = self.validate_user_case_facts(
+                [fact],
+                context=context,
+                taxpayer_scope_ref=validated["scope_binding"][
+                    "taxpayer_scope_ref"
+                ],
+                tax_period=validated["scope_binding"]["tax_period"],
+            )[0]
+        except Gate5HumanGapClosureError as exc:
+            if exc.code != "gate5_user_case_fact_conflict":
+                raise
+            return {
+                "status": "USER_CASE_FACT_CONFLICT",
+                "request_id": validated["request_id"],
+                "typed_user_case_fact": copy.deepcopy(fact),
+                "route": "owner_conflict_resolution_required",
+            }
         return {
             "status": "TYPED_USER_CASE_FACT_READY",
             "request_id": validated["request_id"],
@@ -466,6 +535,10 @@ class Gate5HumanGapClosureRuntime:
             ):
                 _fail("gate5_user_case_fact_request_binding_invalid")
             self._reject_stale_request(request=request, context=context)
+            self._reject_owner_visible_fact_conflict(
+                fact=validated,
+                context=context,
+            )
             result.append(validated)
         return sorted(result, key=lambda item: item["fact_key"])
 
@@ -479,7 +552,7 @@ class Gate5HumanGapClosureRuntime:
 
     def _persist_request(
         self, *, request: dict[str, Any], context: ArtifactAccessContext
-    ) -> None:
+    ) -> dict[str, Any]:
         validated = _validated_request(request)
         if validated["scope_binding"] != _human_fact_scope(
             context=context,
@@ -493,6 +566,58 @@ class Gate5HumanGapClosureRuntime:
             payload=validated,
             context=context,
         )
+        publication = self._publish_current_request(
+            request=validated,
+            context=context,
+        )
+        return {
+            **validated,
+            "request_publication_ref": publication["request_publication_ref"],
+        }
+
+    def _publish_current_request(
+        self, *, request: dict[str, Any], context: ArtifactAccessContext
+    ) -> dict[str, Any]:
+        lane_sha256 = _request_lane_sha256(request)
+        current = self._current_request_publication(
+            request_lane_sha256=lane_sha256,
+            context=context,
+        )
+        request_binding = _request_content_binding(request)
+        if current is not None and current["request_binding"] == request_binding:
+            return current
+        base = {
+            "schema_version": GATE5_GAP_REQUEST_PUBLICATION_SCHEMA_VERSION,
+            "request_lane_sha256": lane_sha256,
+            "scope_binding": copy.deepcopy(request["scope_binding"]),
+            "fact_key": request.get("fact_key"),
+            "closure_type": request["closure_type"],
+            "request_binding": request_binding,
+            "predecessor_publication_ref": (
+                None if current is None else current["request_publication_ref"]
+            ),
+        }
+        publication_sha256 = _sha256(base)
+        with_hash = {**base, "publication_sha256": publication_sha256}
+        publication = {
+            **with_hash,
+            "request_publication_ref": _artifact_ref(
+                {"kind": "gap_request_publication", "publication": with_hash}
+            ),
+        }
+        self._put_or_reuse(
+            artifact_ref=publication["request_publication_ref"],
+            artifact_type=GATE5_GAP_REQUEST_PUBLICATION_ARTIFACT_TYPE,
+            payload=publication,
+            context=context,
+        )
+        resolved_current = self._current_request_publication(
+            request_lane_sha256=lane_sha256,
+            context=context,
+        )
+        if resolved_current != publication:
+            _fail("gate5_gap_request_publication_conflict")
+        return publication
 
     def _persist_fact(
         self, *, fact: dict[str, Any], context: ArtifactAccessContext
@@ -565,11 +690,16 @@ class Gate5HumanGapClosureRuntime:
         self, *, request: dict[str, Any], context: ArtifactAccessContext
     ) -> dict[str, Any]:
         validated = _validated_request(request)
+        if not _artifact_ref_valid(validated.get("request_publication_ref")):
+            _fail("gate5_gap_request_publication_required")
         resolved = self._resolve_request_binding(
             binding={
                 "request_ref": validated["request_ref"],
                 "request_id": validated["request_id"],
                 "request_sha256": validated["request_sha256"],
+                "request_publication_ref": validated[
+                    "request_publication_ref"
+                ],
             },
             context=context,
         )
@@ -590,37 +720,140 @@ class Gate5HumanGapClosureRuntime:
             raise Gate5HumanGapClosureError(
                 "gate5_gap_request_owner_binding_invalid"
             ) from exc
-        request = _validated_request(resolved["payload"])
+        request_content = _validated_request(resolved["payload"])
         if (
             resolved["record"].artifact_type != GATE5_GAP_REQUEST_ARTIFACT_TYPE
-            or request["request_ref"] != binding.get("request_ref")
-            or request["request_id"] != binding.get("request_id")
-            or request["request_sha256"] != binding.get("request_sha256")
+            or request_content["request_ref"] != binding.get("request_ref")
+            or request_content["request_id"] != binding.get("request_id")
+            or request_content["request_sha256"] != binding.get("request_sha256")
         ):
             _fail("gate5_gap_request_owner_binding_invalid")
-        return request
+        try:
+            publication_record = self._resolver.resolve_case(
+                binding.get("request_publication_ref"), context
+            )
+        except ArtifactStoreError as exc:
+            raise Gate5HumanGapClosureError(
+                "gate5_gap_request_publication_invalid"
+            ) from exc
+        publication = _validated_request_publication(
+            publication_record["payload"]
+        )
+        if (
+            publication_record["record"].artifact_type
+            != GATE5_GAP_REQUEST_PUBLICATION_ARTIFACT_TYPE
+            or publication["request_publication_ref"]
+            != binding.get("request_publication_ref")
+            or publication["request_binding"]
+            != _request_content_binding(request_content)
+            or publication["request_lane_sha256"]
+            != _request_lane_sha256(request_content)
+        ):
+            _fail("gate5_gap_request_publication_invalid")
+        return {
+            **request_content,
+            "request_publication_ref": publication[
+                "request_publication_ref"
+            ],
+        }
 
     def _reject_stale_request(
         self, *, request: dict[str, Any], context: ArtifactAccessContext
     ) -> None:
-        assert self._resolver is not None
-        candidates: list[tuple[str, str, dict[str, Any]]] = []
-        for record in self._resolver.catalog_case(context):
-            if record.artifact_type != GATE5_GAP_REQUEST_ARTIFACT_TYPE:
-                continue
-            resolved = self._resolver.resolve_case(record.artifact_id, context)
-            candidate = _validated_request(resolved["payload"])
-            if (
-                candidate["scope_binding"] == request["scope_binding"]
-                and candidate.get("fact_key") == request.get("fact_key")
-                and candidate.get("closure_type") == request.get("closure_type")
-            ):
-                candidates.append((record.created_at, record.artifact_id, candidate))
+        current = self._current_request_publication(
+            request_lane_sha256=_request_lane_sha256(request),
+            context=context,
+        )
         if (
-            candidates
-            and max(candidates, key=lambda item: (item[0], item[1]))[2] != request
+            current is None
+            or current["request_publication_ref"]
+            != request.get("request_publication_ref")
         ):
             _fail("gate5_gap_request_stale")
+
+    def _current_request_publication(
+        self,
+        *,
+        request_lane_sha256: str,
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any] | None:
+        assert self._resolver is not None
+        publications: dict[str, dict[str, Any]] = {}
+        for record in self._resolver.catalog_case(context):
+            if record.artifact_type != GATE5_GAP_REQUEST_PUBLICATION_ARTIFACT_TYPE:
+                continue
+            resolved = self._resolver.resolve_case(record.artifact_id, context)
+            publication = _validated_request_publication(resolved["payload"])
+            if publication["request_lane_sha256"] != request_lane_sha256:
+                continue
+            request_record = self._resolver.resolve_case(
+                publication["request_binding"]["request_ref"], context
+            )
+            request = _validated_request(request_record["payload"])
+            if (
+                request_record["record"].artifact_type
+                != GATE5_GAP_REQUEST_ARTIFACT_TYPE
+                or publication["request_binding"]
+                != _request_content_binding(request)
+                or publication["request_lane_sha256"]
+                != _request_lane_sha256(request)
+                or publication["scope_binding"] != request["scope_binding"]
+                or publication["fact_key"] != request.get("fact_key")
+                or publication["closure_type"] != request["closure_type"]
+            ):
+                _fail("gate5_gap_request_publication_invalid")
+            publications[publication["request_publication_ref"]] = publication
+        if not publications:
+            return None
+        children: dict[str, list[str]] = {
+            publication_ref: [] for publication_ref in publications
+        }
+        roots = []
+        for publication_ref, publication in publications.items():
+            predecessor = publication["predecessor_publication_ref"]
+            if predecessor is None:
+                roots.append(publication_ref)
+                continue
+            if predecessor not in publications:
+                _fail("gate5_gap_request_publication_conflict")
+            children[predecessor].append(publication_ref)
+        tips = [ref for ref, successors in children.items() if not successors]
+        if (
+            len(roots) != 1
+            or len(tips) != 1
+            or any(len(successors) > 1 for successors in children.values())
+        ):
+            _fail("gate5_gap_request_publication_conflict")
+        visited = set()
+        cursor = roots[0]
+        while cursor not in visited:
+            visited.add(cursor)
+            successors = children[cursor]
+            if not successors:
+                break
+            cursor = successors[0]
+        if len(visited) != len(publications) or cursor != tips[0]:
+            _fail("gate5_gap_request_publication_conflict")
+        return publications[tips[0]]
+
+    def _reject_owner_visible_fact_conflict(
+        self, *, fact: dict[str, Any], context: ArtifactAccessContext
+    ) -> None:
+        assert self._resolver is not None
+        versions = set()
+        for record in self._resolver.catalog_case(context):
+            if record.artifact_type != GATE5_USER_CASE_FACT_ARTIFACT_TYPE:
+                continue
+            resolved = self._resolver.resolve_case(record.artifact_id, context)
+            candidate = _validated_user_fact_shape(resolved["payload"])
+            if (
+                candidate["scope_binding"] == fact["scope_binding"]
+                and candidate["fact_key"] == fact["fact_key"]
+                and candidate["request_binding"] == fact["request_binding"]
+            ):
+                versions.add(candidate["fact_sha256"])
+        if len(versions) > 1:
+            _fail("gate5_user_case_fact_conflict")
 
 
 def _source_requests(
@@ -838,14 +1071,47 @@ def _declaration_requests(
                     demand_refs=["obl_filing_instance_identity"],
                     evidence_refs=[],
                     question=(
-                        "State the filing instance: initial or correction, and the "
-                        "destination tax authority for the 2025 declaration."
+                        "Choose whether the 2025 declaration is an initial filing "
+                        "or a correction."
                     ),
-                    reason="filing instance and destination are absent from broker evidence",
-                    helpful_evidence="authenticated filing instruction",
+                    reason="filing instance election is absent from broker evidence",
+                    helpful_evidence="authenticated initial-or-correction election",
                     client_benefit="prevents projection to the wrong filing instance",
-                    answer_contract={"kind": "text"},
+                    answer_contract={
+                        "kind": "code",
+                        "allowed": ["INITIAL", "CORRECTION"],
+                    },
                     subject={},
+                    scope_binding=scope_binding,
+                )
+            )
+        if "obl_filing_instance_identity" in active:
+            requests.append(
+                _request(
+                    kind="REQUIRED",
+                    priority="HIGH",
+                    closure_type="EXTERNAL_AUTHORITY",
+                    fact_key=None,
+                    demand_refs=["obl_filing_instance_identity"],
+                    evidence_refs=[],
+                    question=(
+                        "Resolve the declaration destination/inspection through "
+                        "the existing External Authority owner; do not ask the "
+                        "user to supply an authority code as a Human fact."
+                    ),
+                    reason=(
+                        "destination tax authority is not a Human factual/elective "
+                        "authority"
+                    ),
+                    helpful_evidence=(
+                        "an owner-validated destination/inspection authority binding"
+                    ),
+                    client_benefit="prevents filing to an unverified destination",
+                    answer_contract={
+                        "kind": "external_authority_review",
+                        "owner": "authoritative_external_reference_owner",
+                    },
+                    subject={"tax_period": scope_binding["tax_period"]},
                     scope_binding=scope_binding,
                 )
             )
@@ -1037,9 +1303,17 @@ def _validated_routing(value: Any) -> dict[str, Any]:
 
 
 def _validated_request(value: Any) -> dict[str, Any]:
+    keys = frozenset(value) if isinstance(value, dict) else frozenset()
+    content_keys = keys - {"request_publication_ref"}
     if (
         not isinstance(value, dict)
-        or frozenset(value) not in {_REQUEST_KEYS, _REQUEST_KEYS | {"routing"}}
+        or content_keys not in {_REQUEST_KEYS, _REQUEST_KEYS | {"routing"}}
+        or keys - content_keys
+        not in {frozenset(), frozenset({"request_publication_ref"})}
+        or (
+            "request_publication_ref" in value
+            and not _artifact_ref_valid(value.get("request_publication_ref"))
+        )
         or value.get("schema_version") != GATE5_GAP_REQUEST_SCHEMA_VERSION
         or value.get("closure_type") not in _CLOSURE_TYPES
         or value.get("gap_owner_classification") not in GATE5_GAP_OWNER_CLASSIFICATIONS
@@ -1050,8 +1324,15 @@ def _validated_request(value: Any) -> dict[str, Any]:
     ):
         _fail("gate5_gap_request_invalid")
     _validated_human_fact_scope(value.get("scope_binding"))
+    content = {
+        key: copy.deepcopy(item)
+        for key, item in value.items()
+        if key != "request_publication_ref"
+    }
     with_identity = {
-        key: copy.deepcopy(item) for key, item in value.items() if key != "request_ref"
+        key: copy.deepcopy(item)
+        for key, item in content.items()
+        if key != "request_ref"
     }
     base = {
         key: copy.deepcopy(item)
@@ -1066,10 +1347,76 @@ def _validated_request(value: Any) -> dict[str, Any]:
         != _artifact_ref({"kind": "gap_request", "request": with_identity})
     ):
         _fail("gate5_gap_request_invalid")
-    if "routing" in value:
-        routing = _validated_routing(value["routing"])
-        if value["closure_type"] != routing["closure_type"]:
+    if "routing" in content:
+        routing = _validated_routing(content["routing"])
+        if content["closure_type"] != routing["closure_type"]:
             _fail("gate5_gap_owner_routing_invalid")
+    return copy.deepcopy(value)
+
+
+def _request_content_binding(request: dict[str, Any]) -> dict[str, str]:
+    validated = _validated_request(request)
+    return {
+        key: validated[key] for key in sorted(_REQUEST_CONTENT_BINDING_KEYS)
+    }
+
+
+def _request_lane_sha256(request: dict[str, Any]) -> str:
+    validated = _validated_request(request)
+    return _sha256(
+        {
+            "scope_binding_sha256": validated["scope_binding"][
+                "scope_binding_sha256"
+            ],
+            "kind": validated["kind"],
+            "closure_type": validated["closure_type"],
+            "fact_key": validated.get("fact_key"),
+            "demand_refs": copy.deepcopy(validated["demand_refs"]),
+            "subject": copy.deepcopy(validated["subject"]),
+        }
+    )
+
+
+def _validated_request_publication(value: Any) -> dict[str, Any]:
+    if (
+        not isinstance(value, dict)
+        or set(value) != _REQUEST_PUBLICATION_KEYS
+        or value.get("schema_version")
+        != GATE5_GAP_REQUEST_PUBLICATION_SCHEMA_VERSION
+        or not _artifact_ref_valid(value.get("request_publication_ref"))
+        or not isinstance(value.get("request_lane_sha256"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", value["request_lane_sha256"]) is None
+        or value.get("fact_key") not in _KNOWN_FACT_KEYS | {None}
+        or value.get("closure_type") not in _CLOSURE_TYPES
+        or not isinstance(value.get("request_binding"), dict)
+        or set(value["request_binding"]) != _REQUEST_CONTENT_BINDING_KEYS
+        or not all(
+            isinstance(value["request_binding"].get(key), str)
+            for key in _REQUEST_CONTENT_BINDING_KEYS
+        )
+        or not _artifact_ref_valid(value["request_binding"].get("request_ref"))
+        or (
+            value.get("predecessor_publication_ref") is not None
+            and not _artifact_ref_valid(value["predecessor_publication_ref"])
+        )
+    ):
+        _fail("gate5_gap_request_publication_invalid")
+    _validated_human_fact_scope(value.get("scope_binding"))
+    base = {
+        key: copy.deepcopy(item)
+        for key, item in value.items()
+        if key not in {"request_publication_ref", "publication_sha256"}
+    }
+    publication_sha256 = _sha256(base)
+    with_hash = {**base, "publication_sha256": publication_sha256}
+    if (
+        value.get("publication_sha256") != publication_sha256
+        or value["request_publication_ref"]
+        != _artifact_ref(
+            {"kind": "gap_request_publication", "publication": with_hash}
+        )
+    ):
+        _fail("gate5_gap_request_publication_invalid")
     return copy.deepcopy(value)
 
 
@@ -1099,6 +1446,7 @@ def _validated_user_fact_shape(item: Any) -> dict[str, Any]:
     binding = item["request_binding"]
     if (
         not _artifact_ref_valid(binding.get("request_ref"))
+        or not _artifact_ref_valid(binding.get("request_publication_ref"))
         or not isinstance(binding.get("request_id"), str)
         or not isinstance(binding.get("request_sha256"), str)
     ):
@@ -1194,8 +1542,6 @@ def _human_fact_scope(
         )
     ):
         _fail("gate5_human_fact_scope_invalid")
-    if taxpayer_scope_ref != gate5_case_taxpayer_scope_ref(context):
-        _fail("gate5_human_fact_scope_invalid")
     base = {
         "schema_version": GATE5_HUMAN_FACT_SCOPE_SCHEMA_VERSION,
         "authenticated_user_ref": context.user_id,
@@ -1204,34 +1550,6 @@ def _human_fact_scope(
         "tax_period": tax_period,
     }
     return {**base, "scope_binding_sha256": _sha256(base)}
-
-
-def gate5_case_taxpayer_scope_ref(context: ArtifactAccessContext) -> str:
-    """Return the Human owner's opaque taxpayer slot for one bounded case."""
-
-    if (
-        not isinstance(context, ArtifactAccessContext)
-        or not context.allow_private
-        or not _identifier(context.user_id)
-        or not _identifier(context.normalization_run_id)
-        or not _identifier(context.case_id)
-        or (
-            context.workspace_model_id is not None
-            and not _identifier(context.workspace_model_id)
-        )
-    ):
-        _fail("gate5_human_fact_scope_invalid")
-    return (
-        "taxpayer_case_"
-        + _sha256(
-            {
-                "owner": "Gate5HumanGapClosureRuntimeFactory.create",
-                "case_id": context.case_id,
-            }
-        )[:32]
-    )
-
-
 def _validated_human_fact_scope(value: Any) -> dict[str, Any]:
     if (
         not isinstance(value, dict)
@@ -1300,5 +1618,4 @@ __all__ = [
     "Gate5HumanGapClosureError",
     "Gate5HumanGapClosureRuntime",
     "Gate5HumanGapClosureRuntimeFactory",
-    "gate5_case_taxpayer_scope_ref",
 ]

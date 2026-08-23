@@ -18,7 +18,6 @@ from broker_reports_gate1.gate5_declaration_scope_resolution import (
 )
 from broker_reports_gate1.gate5_human_gap_closure import (
     Gate5HumanGapClosureRuntimeFactory,
-    gate5_case_taxpayer_scope_ref,
 )
 from broker_reports_gate1.gate5_residency_evidence import (
     GATE5_RESIDENCY_EVIDENCE_PROPOSAL_SCHEMA_VERSION,
@@ -329,6 +328,53 @@ def test_new_document_and_typed_answer_trigger_deterministic_replay(
     )
 
 
+def test_preparation_consumes_closed_filing_election_without_reinterpreting_it(
+    tmp_path: Path,
+) -> None:
+    store, context = source_fixtures._case(tmp_path / "closed-filing-election")
+    _publish_metadata(store, context)
+    preparation = Gate5DeclarationPreparationRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+    before = preparation.prepare(
+        **_prepare_args(context, "SYNTHETIC_CONTROL", [])
+    )
+    human = Gate5HumanGapClosureRuntimeFactory.create(
+        store=store,
+        retention_policy=build_retention_policy(mode="synthetic_dev"),
+    )
+    published = _publish_requests(human, before, context, [])
+    filing_request = next(
+        item
+        for item in published["required_actions"]
+        if item.get("fact_key") == "filing_instance_identity"
+    )
+    filing_fact = human.normalize_answer(
+        request=filing_request,
+        answer={"kind": "code", "value": "INITIAL"},
+        context=context,
+    )["typed_user_case_fact"]
+
+    after = preparation.replay(
+        **_prepare_args(context, "SYNTHETIC_CONTROL", [filing_fact])
+    )
+    filing_readiness = next(
+        item
+        for item in after["machine_readable_declaration_draft"][
+            "active_demand_readiness"
+        ]
+        if item["demand"] == "obl_filing_instance_identity"
+    )
+    assert filing_readiness["readiness"] == "USER_FACT_AVAILABLE"
+    assert "INITIAL" not in repr(after["machine_readable_declaration_draft"])
+    assert any(
+        item["closure_type"] == "EXTERNAL_AUTHORITY"
+        and item["demand_refs"] == ["obl_filing_instance_identity"]
+        for item in after["gap_closure"]["internal_owner_required_actions"]
+    )
+
+
 def test_factories_and_non_goals_remain_explicit() -> None:
     assert "Gate3MetadataSourceFactRuntimeFactory.create" in INTAKE_FACTORY_REQUIRED[0]
     assert "tax classification" in INTAKE_FORBIDDEN[0]
@@ -435,7 +481,7 @@ def _prepare_args(context, evidence_mode: str, user_case_facts: list[dict]):
             "task": "prepare_tax_declaration",
             "domains": ["broker_securities_income"],
         },
-        "taxpayer_scope_ref": gate5_case_taxpayer_scope_ref(context),
+        "taxpayer_scope_ref": "synthetic-taxpayer",
         "user_case_facts": user_case_facts,
     }
 
@@ -448,6 +494,6 @@ def _publish_requests(human, prepared, context, user_case_facts: list[dict]):
         user_case_facts=user_case_facts,
         residency_classification=prepared["residency_classification"],
         context=context,
-        taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+        taxpayer_scope_ref="synthetic-taxpayer",
         tax_period="2025",
     )

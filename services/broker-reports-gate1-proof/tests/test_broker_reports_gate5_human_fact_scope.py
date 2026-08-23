@@ -29,7 +29,6 @@ from broker_reports_gate1.gate5_human_gap_closure import (
     GATE5_USER_CASE_FACT_SCHEMA_VERSION,
     Gate5HumanGapClosureError,
     Gate5HumanGapClosureRuntimeFactory,
-    gate5_case_taxpayer_scope_ref,
 )
 from broker_reports_gate1.gate5_residency_evidence import (
     GATE5_RESIDENCY_EVIDENCE_PROPOSAL_SCHEMA_VERSION,
@@ -39,6 +38,10 @@ from broker_reports_gate1 import gate5_human_gap_closure as human_module
 
 import test_broker_reports_gate4_sql_materialization as gate4_fixtures
 import test_g578_source_has_it_owner_routing as routing_fixtures
+
+
+SYNTHETIC_TAXPAYER_A = "synthetic-taxpayer-a"
+SYNTHETIC_TAXPAYER_B = "synthetic-taxpayer-b"
 
 
 def test_all_current_human_fact_kinds_are_owner_published_and_deterministic(
@@ -68,14 +71,7 @@ def test_all_current_human_fact_kinds_are_owner_published_and_deterministic(
         == GATE5_HUMAN_FACT_SCOPE_SCHEMA_VERSION
         for item in user_requests.values()
     )
-    derived_taxpayer = gate5_case_taxpayer_scope_ref(context)
-    assert derived_taxpayer not in {context.user_id, context.case_id}
-    assert (
-        gate5_case_taxpayer_scope_ref(
-            replace(context, normalization_run_id="another-run")
-        )
-        == derived_taxpayer
-    )
+    assert SYNTHETIC_TAXPAYER_A not in {context.user_id, context.case_id}
     facts = []
     for fact_key, request in sorted(user_requests.items()):
         first = runtime.normalize_answer(
@@ -95,13 +91,16 @@ def test_all_current_human_fact_kinds_are_owner_published_and_deterministic(
             "request_ref": request["request_ref"],
             "request_id": request["request_id"],
             "request_sha256": request["request_sha256"],
+            "request_publication_ref": request[
+                "request_publication_ref"
+            ],
         }
         facts.append(first)
 
     assert runtime.validate_user_case_facts(
         facts,
         context=context,
-        taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+        taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
         tax_period="2025",
     ) == sorted(facts, key=lambda item: item["fact_key"])
     assert published["metrics"]["provider_calls"] == 0
@@ -111,9 +110,9 @@ def test_all_current_human_fact_kinds_are_owner_published_and_deterministic(
     ("mutation", "expected_code"),
     [
         ("foreign_user", "gate5_user_case_fact_owner_binding_invalid"),
-        ("foreign_case", "gate5_human_fact_scope_invalid"),
+        ("foreign_case", "gate5_user_case_fact_owner_binding_invalid"),
         ("foreign_workspace", "gate5_user_case_fact_owner_binding_invalid"),
-        ("foreign_taxpayer", "gate5_human_fact_scope_invalid"),
+        ("foreign_taxpayer", "gate5_user_case_fact_owner_binding_invalid"),
         ("foreign_period", "gate5_user_case_fact_owner_binding_invalid"),
     ],
 )
@@ -123,7 +122,7 @@ def test_foreign_identity_dimensions_fail_closed(
     runtime, context = _runtime(tmp_path)
     fact = _taxpayer_fact(runtime, context)
     replay_context = context
-    taxpayer = gate5_case_taxpayer_scope_ref(context)
+    taxpayer = SYNTHETIC_TAXPAYER_A
     period = "2025"
     if mutation == "foreign_user":
         replay_context = replace(context, user_id="synthetic-user-b")
@@ -132,9 +131,7 @@ def test_foreign_identity_dimensions_fail_closed(
     elif mutation == "foreign_workspace":
         replay_context = replace(context, workspace_model_id="synthetic-workspace-b")
     elif mutation == "foreign_taxpayer":
-        taxpayer = gate5_case_taxpayer_scope_ref(
-            replace(context, case_id="synthetic-case-b")
-        )
+        taxpayer = SYNTHETIC_TAXPAYER_B
     else:
         period = "2024"
 
@@ -156,11 +153,49 @@ def test_fact_replays_across_run_but_not_across_semantic_scope(tmp_path: Path) -
     assert runtime.validate_user_case_facts(
         [fact],
         context=later_run,
-        taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(later_run),
+        taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
         tax_period="2025",
     ) == [fact]
     assert "normalization_run_id" not in fact["scope_binding"]
     assert "workspace_model_id" not in fact["scope_binding"]
+
+
+def test_two_synthetic_taxpayer_scopes_in_one_case_remain_distinct(
+    tmp_path: Path,
+) -> None:
+    runtime, context = _runtime(tmp_path)
+    plan_a = runtime.publish_requests(
+        **_plan_inputs(context, taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A)
+    )
+    plan_b = runtime.publish_requests(
+        **_plan_inputs(context, taxpayer_scope_ref=SYNTHETIC_TAXPAYER_B)
+    )
+    fact_a = runtime.normalize_answer(
+        request=_request(plan_a, "taxpayer_identity_confirmed"),
+        answer={"kind": "confirmation", "value": True},
+        context=context,
+    )["typed_user_case_fact"]
+    fact_b = runtime.normalize_answer(
+        request=_request(plan_b, "taxpayer_identity_confirmed"),
+        answer={"kind": "confirmation", "value": True},
+        context=context,
+    )["typed_user_case_fact"]
+
+    assert fact_a["scope_binding"]["taxpayer_scope_ref"] == SYNTHETIC_TAXPAYER_A
+    assert fact_b["scope_binding"]["taxpayer_scope_ref"] == SYNTHETIC_TAXPAYER_B
+    assert fact_a["user_case_fact_ref"] != fact_b["user_case_fact_ref"]
+    for fact, foreign_taxpayer in (
+        (fact_a, SYNTHETIC_TAXPAYER_B),
+        (fact_b, SYNTHETIC_TAXPAYER_A),
+    ):
+        with pytest.raises(Gate5HumanGapClosureError) as foreign:
+            runtime.validate_user_case_facts(
+                [fact],
+                context=context,
+                taxpayer_scope_ref=foreign_taxpayer,
+                tax_period="2025",
+            )
+        assert foreign.value.code == "gate5_user_case_fact_owner_binding_invalid"
 
 
 def test_resealed_foreign_fact_and_request_mix_is_rejected(tmp_path: Path) -> None:
@@ -181,6 +216,9 @@ def test_resealed_foreign_fact_and_request_mix_is_rejected(tmp_path: Path) -> No
         "request_ref": request_b["request_ref"],
         "request_id": request_b["request_id"],
         "request_sha256": request_b["request_sha256"],
+        "request_publication_ref": request_b[
+            "request_publication_ref"
+        ],
     }
     _reseal_fact(hybrid)
 
@@ -188,7 +226,7 @@ def test_resealed_foreign_fact_and_request_mix_is_rejected(tmp_path: Path) -> No
         runtime.validate_user_case_facts(
             [hybrid],
             context=context_b,
-            taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context_b),
+            taxpayer_scope_ref=SYNTHETIC_TAXPAYER_B,
             tax_period="2025",
         )
     assert error.value.code == "gate5_user_case_fact_owner_binding_invalid"
@@ -222,7 +260,13 @@ def test_changed_and_stale_requests_fail_before_fact_publication(
         {"fact_type": "PARTY_NAME", "fact_id": "synthetic-party-fact"}
     ]
     latest = runtime.publish_requests(**inputs)
-    assert _request(latest, "taxpayer_identity_confirmed") != old_request
+    changed_request = _request(latest, "taxpayer_identity_confirmed")
+    assert changed_request != old_request
+    changed_fact = runtime.normalize_answer(
+        request=changed_request,
+        answer={"kind": "confirmation", "value": True},
+        context=context,
+    )["typed_user_case_fact"]
     with pytest.raises(Gate5HumanGapClosureError) as stale_error:
         runtime.normalize_answer(
             request=old_request,
@@ -234,10 +278,52 @@ def test_changed_and_stale_requests_fail_before_fact_publication(
         runtime.validate_user_case_facts(
             [old_fact],
             context=context,
-            taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+            taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
             tax_period="2025",
         )
     assert stale_fact_error.value.code == "gate5_gap_request_stale"
+
+    restored = runtime.publish_requests(**_plan_inputs(context))
+    restored_request = _request(restored, "taxpayer_identity_confirmed")
+    assert restored_request["request_ref"] == old_request["request_ref"]
+    assert (
+        restored_request["request_publication_ref"]
+        != old_request["request_publication_ref"]
+    )
+    restored_fact = runtime.normalize_answer(
+        request=restored_request,
+        answer={"kind": "confirmation", "value": True},
+        context=context,
+    )["typed_user_case_fact"]
+    assert restored_fact["request_binding"]["request_publication_ref"] == (
+        restored_request["request_publication_ref"]
+    )
+    with pytest.raises(Gate5HumanGapClosureError) as changed_stale:
+        runtime.normalize_answer(
+            request=changed_request,
+            answer={"kind": "confirmation", "value": True},
+            context=context,
+        )
+    assert changed_stale.value.code == "gate5_gap_request_stale"
+    for stale_fact in (old_fact, changed_fact):
+        with pytest.raises(Gate5HumanGapClosureError) as stale_after_restore:
+            runtime.validate_user_case_facts(
+                [stale_fact],
+                context=context,
+                taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
+                tax_period="2025",
+            )
+        assert stale_after_restore.value.code == "gate5_gap_request_stale"
+
+    repeated = runtime.publish_requests(**_plan_inputs(context))
+    assert _request(repeated, "taxpayer_identity_confirmed") == restored_request
+    later_run = replace(context, normalization_run_id="synthetic-run-later")
+    cross_run = runtime.publish_requests(**_plan_inputs(later_run))
+    assert _request(cross_run, "taxpayer_identity_confirmed") == restored_request
+    current_selector = inspect.getsource(runtime._current_request_publication)
+    assert "created_at" not in current_selector
+    assert "sorted(" not in current_selector
+    assert "max(" not in current_selector
 
 
 def test_duplicate_conflict_missing_binding_and_v0_downgrade_fail_closed(
@@ -251,21 +337,41 @@ def test_duplicate_conflict_missing_binding_and_v0_downgrade_fail_closed(
         answer={"kind": "confirmation", "value": True},
         context=context,
     )["typed_user_case_fact"]
-    no = runtime.normalize_answer(
+    conflict = runtime.normalize_answer(
         request=request,
         answer={"kind": "confirmation", "value": False},
         context=context,
-    )["typed_user_case_fact"]
+    )
+    assert conflict["status"] == "USER_CASE_FACT_CONFLICT"
+    no = conflict["typed_user_case_fact"]
 
-    for facts in ([yes, no], [yes, yes]):
+    for facts in ([yes], [no], [yes, no], [no, yes]):
         with pytest.raises(Gate5HumanGapClosureError) as duplicate:
             runtime.validate_user_case_facts(
                 facts,
                 context=context,
-                taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+                taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
                 tax_period="2025",
             )
-        assert duplicate.value.code == "gate5_user_case_fact_duplicate"
+        assert duplicate.value.code == "gate5_user_case_fact_conflict"
+
+    later_run = replace(context, normalization_run_id="synthetic-run-later")
+    for fact in (yes, no):
+        with pytest.raises(Gate5HumanGapClosureError) as later_conflict:
+            runtime.validate_user_case_facts(
+                [fact],
+                context=later_run,
+                taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
+                tax_period="2025",
+            )
+        assert later_conflict.value.code == "gate5_user_case_fact_conflict"
+
+    repeated = runtime.normalize_answer(
+        request=request,
+        answer={"kind": "confirmation", "value": False},
+        context=context,
+    )
+    assert repeated == conflict
 
     missing = copy.deepcopy(yes)
     del missing["scope_binding"]
@@ -280,7 +386,7 @@ def test_duplicate_conflict_missing_binding_and_v0_downgrade_fail_closed(
             runtime.validate_user_case_facts(
                 [invalid],
                 context=context,
-                taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+                taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
                 tax_period="2025",
             )
         assert invalid_error.value.code == "gate5_user_case_facts_invalid"
@@ -354,6 +460,79 @@ def test_human_cannot_replace_fact_key_or_supply_tax_or_source_authority(
             context=context,
         )
     assert external.value.code == "gate5_gap_answer_not_user_fact"
+
+
+@pytest.mark.parametrize(
+    ("kind", "value", "expected_code"),
+    [
+        ("code", "INITIAL, ИФНС 2367", "gate5_gap_answer_value_invalid"),
+        ("text", "INITIAL", "gate5_gap_answer_kind_invalid"),
+        ("code", "KBK 18210102010011000110", "gate5_gap_answer_value_invalid"),
+        ("code", "OKTMO 45382000", "gate5_gap_answer_value_invalid"),
+        ("code", "resident_individual", "gate5_gap_answer_value_invalid"),
+        ("code", "RUSSIAN_SOURCE", "gate5_gap_answer_value_invalid"),
+        ("code", "DEDUCTIBLE", "gate5_gap_answer_value_invalid"),
+        ("code", "SETTLED", "gate5_gap_answer_value_invalid"),
+    ],
+)
+def test_filing_election_closed_code_rejects_authority_smuggling(
+    tmp_path: Path,
+    kind: str,
+    value: str,
+    expected_code: str,
+) -> None:
+    runtime, context = _runtime(tmp_path)
+    published = runtime.publish_requests(**_plan_inputs(context))
+    filing_request = _request(published, "filing_instance_identity")
+    assert filing_request["answer_contract"] == {
+        "kind": "code",
+        "allowed": ["INITIAL", "CORRECTION"],
+    }
+    assert "destination" not in filing_request["question"].lower()
+
+    with pytest.raises(Gate5HumanGapClosureError) as rejected:
+        runtime.normalize_answer(
+            request=filing_request,
+            answer={"kind": kind, "value": value},
+            context=context,
+        )
+    assert rejected.value.code == expected_code
+
+    destination_request = next(
+        item
+        for item in published["internal_owner_required_actions"]
+        if item["closure_type"] == "EXTERNAL_AUTHORITY"
+        and item["demand_refs"] == ["obl_filing_instance_identity"]
+    )
+    with pytest.raises(Gate5HumanGapClosureError) as external:
+        runtime.normalize_answer(
+            request=destination_request,
+            answer={"kind": "code", "value": "2367"},
+            context=context,
+        )
+    assert external.value.code == "gate5_gap_answer_not_user_fact"
+
+
+@pytest.mark.parametrize("election", ["INITIAL", "CORRECTION"])
+def test_closed_filing_elections_are_accepted(
+    tmp_path: Path,
+    election: str,
+) -> None:
+    runtime, context = _runtime(tmp_path)
+    filing_request = _request(
+        runtime.publish_requests(**_plan_inputs(context)),
+        "filing_instance_identity",
+    )
+    result = runtime.normalize_answer(
+        request=filing_request,
+        answer={"kind": "code", "value": election},
+        context=context,
+    )
+    assert result["status"] == "TYPED_USER_CASE_FACT_READY"
+    assert result["typed_user_case_fact"]["value"] == {
+        "kind": "code",
+        "value": election,
+    }
 
 
 def test_human_boundary_has_no_provider_or_neighbor_implementation_path() -> None:
@@ -430,7 +609,7 @@ def _plan_inputs(
         ),
         "context": context,
         "taxpayer_scope_ref": (
-            taxpayer_scope_ref or gate5_case_taxpayer_scope_ref(context)
+            taxpayer_scope_ref or SYNTHETIC_TAXPAYER_A
         ),
         "tax_period": "2025",
     }
@@ -457,7 +636,7 @@ def _answer(fact_key: str) -> dict:
     if fact_key == "taxpayer_identity_confirmed":
         return {"kind": "confirmation", "value": True}
     if fact_key == "filing_instance_identity":
-        return {"kind": "text", "value": "INITIAL"}
+        return {"kind": "code", "value": "INITIAL"}
     if fact_key == "signer_and_representation":
         return {"kind": "code", "value": "SELF"}
     if fact_key == "budget_disposition":
@@ -492,7 +671,13 @@ def _reseal_request(request: dict) -> None:
     base = {
         key: copy.deepcopy(value)
         for key, value in request.items()
-        if key not in {"request_ref", "request_id", "request_sha256"}
+        if key
+        not in {
+            "request_ref",
+            "request_id",
+            "request_sha256",
+            "request_publication_ref",
+        }
     }
     request_sha256 = _sha(base)
     request["request_id"] = "g5request_" + request_sha256[:32]
@@ -500,7 +685,7 @@ def _reseal_request(request: dict) -> None:
     with_identity = {
         key: copy.deepcopy(value)
         for key, value in request.items()
-        if key != "request_ref"
+        if key not in {"request_ref", "request_publication_ref"}
     }
     request["request_ref"] = (
         "art_" + _sha({"kind": "gap_request", "request": with_identity})[:32]

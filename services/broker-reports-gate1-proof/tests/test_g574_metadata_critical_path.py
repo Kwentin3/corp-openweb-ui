@@ -20,9 +20,6 @@ from broker_reports_gate1.gate5_declaration_scope_resolution import (
 from broker_reports_gate1.gate5_evidence_intake import (
     FACTORY_REQUIRED as INTAKE_FACTORY_REQUIRED,
 )
-from broker_reports_gate1.gate5_human_gap_closure import (
-    gate5_case_taxpayer_scope_ref,
-)
 
 import test_broker_reports_gate5_deterministic_source_fact_consumption as source_fixtures
 
@@ -159,7 +156,7 @@ def _run_scenario(root: Path, overrides: dict[str, str | None]) -> dict:
                 "task": "prepare_tax_declaration",
                 "domains": ["broker_securities_income"],
             },
-            taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+            taxpayer_scope_ref="synthetic-taxpayer",
             user_case_facts=[],
         )
     )

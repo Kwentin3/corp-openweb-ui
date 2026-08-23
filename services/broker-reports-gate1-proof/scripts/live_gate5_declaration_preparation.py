@@ -27,9 +27,6 @@ from broker_reports_gate1 import (  # noqa: E402
 from broker_reports_gate1.gate5_declaration_preparation import (  # noqa: E402
     Gate5DeclarationPreparationRuntimeFactory,
 )
-from broker_reports_gate1.gate5_human_gap_closure import (  # noqa: E402
-    gate5_case_taxpayer_scope_ref,
-)
 from broker_reports_gate1.gate5_declaration_scope_resolution import (  # noqa: E402
     GATE5_USER_INTENT_SCHEMA_VERSION,
 )
@@ -57,6 +54,10 @@ BASE_CONTEXT = {
     "normalization_run_id": "normrun_25c3b0606ce86852",
     "allow_private": True,
 }
+
+
+def _trusted_taxpayer_scope_ref_required() -> str:
+    raise SystemExit("trusted_taxpayer_scope_binding_unavailable")
 
 
 def main() -> int:
@@ -158,7 +159,7 @@ def main() -> int:
                 "task": "prepare_tax_declaration",
                 "domains": ["broker_securities_income"],
             },
-            taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+            taxpayer_scope_ref=_trusted_taxpayer_scope_ref_required(),
             user_case_facts=[],
         )
     )

@@ -18,7 +18,6 @@ from broker_reports_gate1.gate5_evidence_intake import (
 )
 from broker_reports_gate1.gate5_human_gap_closure import (
     Gate5HumanGapClosureRuntimeFactory,
-    gate5_case_taxpayer_scope_ref,
 )
 from broker_reports_gate1.gate5_residency_evidence import (
     Gate5ResidencyEvidenceRuntimeFactory,
@@ -174,7 +173,7 @@ def _route(
             Gate5ResidencyEvidenceRuntimeFactory.create().classify(evidence=None)
         ),
         context=context,
-        taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+        taxpayer_scope_ref="synthetic-taxpayer",
         tax_period="2025",
     )
     return review["required_blockers"][0], closure["required_actions"][0], closure
