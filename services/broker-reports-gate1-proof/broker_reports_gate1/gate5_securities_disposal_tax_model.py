@@ -50,6 +50,9 @@ GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION = (
 GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_RESULT_SCHEMA_VERSION = (
     "broker_reports_gate5_securities_disposal_operation_tax_model_result_v0"
 )
+GATE5_SECURITIES_DISPOSAL_CURRENT_SOURCE_FACT_OPERATION_RESULT_SCHEMA_VERSION = (
+    "broker_reports_gate5_current_source_fact_operation_tax_model_result_v0"
+)
 
 FACTORY_REQUIRED = (
     "Gate5SecuritiesDisposalTaxModelRuntimeFactory.create",
@@ -58,6 +61,8 @@ FACTORY_REQUIRED = (
     "Gate5DeclarationProjectionRuntimeFactory.create owns declaration representation",
     "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create owns the "
     "normalized-source-fact result consumed by run_from_current_source_facts",
+    "Gate5SecuritiesDisposalTaxModelRuntimeFactory."
+    "create_current_source_fact_operation owns inactive Fact v2 consumer injection",
 )
 FORBIDDEN = (
     "direct Gate 4, Supplemental Fact, ArtifactStore, SQL, source or provider reads",
@@ -153,15 +158,29 @@ class Gate5SecuritiesDisposalTaxModelRuntimeFactory:
             projector=Gate5DeclarationProjectionRuntimeFactory.create(),
         )
 
+    def create_current_source_fact_operation(
+        self,
+        *,
+        source_fact_consumption: Gate5DeterministicSourceFactConsumptionRuntime,
+    ) -> "Gate5SecuritiesDisposalTaxModelRuntime":
+        """Compose the existing owner with one factory-built Fact v2 consumer."""
+
+        return Gate5SecuritiesDisposalTaxModelRuntime(
+            authority=Gate5TrustedMethodologyAuthorityFactory.create(),
+            discovery=None,
+            source_fact_consumption=source_fact_consumption,
+            projector=None,
+        )
+
 
 class Gate5SecuritiesDisposalTaxModelRuntime:
     def __init__(
         self,
         *,
         authority: Gate5TrustedMethodologyAuthority,
-        discovery: Gate5SupplementalFactDiscoveryRuntime,
+        discovery: Gate5SupplementalFactDiscoveryRuntime | None,
         source_fact_consumption: Gate5DeterministicSourceFactConsumptionRuntime,
-        projector: Gate5DeclarationProjectionRuntime,
+        projector: Gate5DeclarationProjectionRuntime | None,
     ) -> None:
         self._authority = authority
         self._discovery = discovery
@@ -194,7 +213,9 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
             "status": "projected",
             "tax_model": tax_model,
             "declaration_semantics": semantics,
-            "declaration_fragment": self._projector.project(proof_input=semantics),
+            "declaration_fragment": self._require_projector().project(
+                proof_input=semantics
+            ),
         }
 
     def run_operation(
@@ -237,19 +258,15 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
     ) -> dict[str, Any]:
         """Build the existing category model from a validated source-fact result."""
 
-        inputs, resolved, _, behavior, applicability = self._prepare_contract(
-            methodology_ref=methodology_ref,
-            resolved_inputs=resolved_inputs,
-            expected_behavior_id=GATE5_SECURITIES_DISPOSAL_TAX_MODEL_BEHAVIOR_ID,
-        )
-        consumed = self._source_fact_consumption.run(
-            methodology_ref=source_fact_methodology_ref,
-            context=context,
-        )
-        money_inputs = gate5_source_fact_tax_model_inputs(
-            consumed,
-            disposal_fact_id=disposal_fact_id,
-            context=context,
+        inputs, resolved, behavior, applicability, money_inputs, _ = (
+            self._prepare_from_current_source_facts(
+                methodology_ref=methodology_ref,
+                source_fact_methodology_ref=source_fact_methodology_ref,
+                resolved_inputs=resolved_inputs,
+                disposal_fact_id=disposal_fact_id,
+                context=context,
+                expected_behavior_id=GATE5_SECURITIES_DISPOSAL_TAX_MODEL_BEHAVIOR_ID,
+            )
         )
         tax_model = _tax_model(
             authority_binding=resolved["authority_binding"],
@@ -264,8 +281,81 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
             "status": "projected",
             "tax_model": tax_model,
             "declaration_semantics": semantics,
-            "declaration_fragment": self._projector.project(proof_input=semantics),
+            "declaration_fragment": self._require_projector().project(
+                proof_input=semantics
+            ),
         }
+
+    def run_operation_from_current_source_facts(
+        self,
+        *,
+        methodology_ref: dict[str, Any],
+        source_fact_methodology_ref: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        disposal_fact_id: str,
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any]:
+        """Build one operation model from the factory-owned current Fact v2 port."""
+
+        inputs, resolved, behavior, applicability, money_inputs, consumed = (
+            self._prepare_from_current_source_facts(
+                methodology_ref=methodology_ref,
+                source_fact_methodology_ref=source_fact_methodology_ref,
+                resolved_inputs=resolved_inputs,
+                disposal_fact_id=disposal_fact_id,
+                context=context,
+                expected_behavior_id=(
+                    GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_BEHAVIOR_ID
+                ),
+            )
+        )
+        return {
+            "schema_version": (
+                GATE5_SECURITIES_DISPOSAL_CURRENT_SOURCE_FACT_OPERATION_RESULT_SCHEMA_VERSION
+            ),
+            "status": "modeled",
+            "source_fact_consumption": consumed,
+            "tax_model": _operation_tax_model(
+                authority_binding=resolved["authority_binding"],
+                behavior=behavior,
+                inputs=inputs,
+                applicability=applicability,
+                money_inputs=money_inputs,
+            ),
+        }
+
+    def _prepare_from_current_source_facts(
+        self,
+        *,
+        methodology_ref: dict[str, Any],
+        source_fact_methodology_ref: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        disposal_fact_id: str,
+        context: ArtifactAccessContext,
+        expected_behavior_id: str,
+    ) -> tuple[
+        dict[str, Any],
+        dict[str, Any],
+        dict[str, Any],
+        dict[str, dict[str, Any]],
+        dict[str, dict[str, Any]],
+        dict[str, Any],
+    ]:
+        inputs, resolved, _, behavior, applicability = self._prepare_contract(
+            methodology_ref=methodology_ref,
+            resolved_inputs=resolved_inputs,
+            expected_behavior_id=expected_behavior_id,
+        )
+        consumed = self._source_fact_consumption.run(
+            methodology_ref=source_fact_methodology_ref,
+            context=context,
+        )
+        money_inputs = gate5_source_fact_tax_model_inputs(
+            consumed,
+            disposal_fact_id=disposal_fact_id,
+            context=context,
+        )
+        return inputs, resolved, behavior, applicability, money_inputs, consumed
 
     def _prepare(
         self,
@@ -288,7 +378,7 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
             expected_behavior_id=expected_behavior_id,
             )
         )
-        checked = self._discovery.check(
+        checked = self._require_discovery().check(
             methodology={
                 "schema_version": GATE5_COMBINED_REQUIREMENTS_SCHEMA_VERSION,
                 "requirements": copy.deepcopy(methodology["requirements"]),
@@ -302,6 +392,16 @@ class Gate5SecuritiesDisposalTaxModelRuntime:
         }
         money_inputs = _money_inputs(behavior["input_bindings"], requirements)
         return inputs, resolved, behavior, applicability, money_inputs
+
+    def _require_discovery(self) -> Gate5SupplementalFactDiscoveryRuntime:
+        if self._discovery is None:
+            _fail("gate5_tax_model_discovery_not_composed")
+        return self._discovery
+
+    def _require_projector(self) -> Gate5DeclarationProjectionRuntime:
+        if self._projector is None:
+            _fail("gate5_tax_model_projector_not_composed")
+        return self._projector
 
     def _prepare_contract(
         self,
@@ -894,6 +994,7 @@ def _fail(code: str, field: str = "") -> None:
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "GATE5_SECURITIES_DISPOSAL_CURRENT_SOURCE_FACT_OPERATION_RESULT_SCHEMA_VERSION",
     "GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_BEHAVIOR_ID",
     "GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_RESULT_SCHEMA_VERSION",
     "GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION",

@@ -10,7 +10,8 @@ Product status: `INACTIVE PROOF`
 
 Date: 2026-08-09
 
-Updated: 2026-08-13 (`G5.40D` additive source-fact seam)
+Updated: 2026-08-23 (`G5.40D` source-fact seam; Issue #293 inactive
+current-Fact-v2 operation composition and exact identity binding)
 
 ## Purpose
 
@@ -79,6 +80,58 @@ The method invokes the deterministic source-fact consumer composed by the
 factory. It accepts no caller-supplied consumption payload. Its money inputs
 are complete current Gate 4 facts selected under the G5.40D proof-only
 methodology; the Tax Model and declaration result contracts remain unchanged.
+
+Issue #293 adds one narrower additive factory seam on the same owner:
+
+```python
+factory.create_current_source_fact_operation(
+    source_fact_consumption=OrdinaryTradeCandidateRuntimeFactory(...).create(),
+)
+runtime.run_operation_from_current_source_facts(...)
+```
+
+The specialized runtime composes only the trusted methodology authority and
+the supplied factory-built Fact v2 consumer. It does not construct
+Supplemental Fact discovery or declaration projection, accepts no caller-built
+consumption payload, and returns the exact validated consumption result beside
+the existing operation Tax Model. It remains inactive/shadow and introduces no
+new Tax Model behavior or calculation owner.
+
+The Issue #293 bridge accepts a member `source_scope_ref` only when it equals
+the exact `scope_id` of the returned `case_binding` with `scope_kind=case`.
+Operation subject and taxpayer scope are separate identities. The operation
+Tax Model `operation_scope.subject_ref` identifies the modeled
+`SECURITY_DISPOSAL`; it is not a taxpayer identity. The inactive bridge admits
+category aggregation only through this exact proof-local input:
+
+```json
+{
+  "schema_version": "broker_reports_ordinary_trade_taxpayer_binding_v0",
+  "operation_subject_ref": "security-disposal-1",
+  "taxpayer_scope_ref": "synthetic-taxpayer-control",
+  "provenance": {
+    "source_kind": "user_verified_fact",
+    "source_ref": "synthetic-user-operation-taxpayer-binding-2025",
+    "input_channel": "operation_taxpayer_binding"
+  }
+}
+```
+
+The bridge independently requires `operation_subject_ref` to equal the Tax
+Model operation subject and `taxpayer_scope_ref` to equal the category scope.
+It never requires those two values to equal each other. Missing binding is
+`USER_CASE_FACT_MISSING`; invalid provenance, malformed identity or a misbound
+operation subject fails closed as `INTERNAL_CONTRACT_OR_PIPELINE_DEFECT`.
+This is a composition admission check, not a second taxpayer authority.
+
+The source-fact owner exposes the exact IDs of detail commission facts sharing
+the already-owned source transaction row with the recognized acquisition cost
+of the exact security selected by `disposal_fact_id`. The bridge emits
+`partial_acquisition_commission_allocation` only when this operation-local set
+is non-empty and the existing capability remains
+`LEGAL_INTERPRETATION_REQUIRED`. Disposal-only commission evidence and an
+acquisition commission belonging to another disposal therefore cannot create
+that demand.
 
 The factory composes existing owners rather than bypassing them:
 
@@ -310,3 +363,7 @@ G5.14 contract.
 The additive G5.40D seam adds no second Tax Model or source reader. Its bounded
 FIFO, source-granularity and unresolved-methodology rules are owned by
 [Deterministic Source-Fact Consumption v0](./BROKER_REPORTS_GATE5_DETERMINISTIC_SOURCE_FACT_CONSUMPTION.v0.md).
+
+The Issue #293 seam adds composition only. The existing operation behavior,
+methodology hashes, Fact v2 validator and category owner remain the sole
+authorities for their meanings.

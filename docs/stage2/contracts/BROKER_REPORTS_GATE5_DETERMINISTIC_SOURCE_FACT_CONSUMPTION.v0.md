@@ -89,6 +89,13 @@ Partial acquisition commission and currency conversion are
 `METHODOLOGY_UNRESOLVED`. This contract does not assert that relation evidence
 is necessary for either future method.
 
+The additive Issue #293 inspection helper is operation-local. It requires one
+exact `disposal_fact_id`, selects that consumption security through the same
+validated disposal-selection owner, and examines only the selected security's
+`recognized_acquisition_cost.sources`. Commission details from any other
+consumed security cannot satisfy the helper or create an acquisition-allocation
+demand for the selected disposal.
+
 ## Required-input classification
 
 Evidence matrices for this boundary may use only:

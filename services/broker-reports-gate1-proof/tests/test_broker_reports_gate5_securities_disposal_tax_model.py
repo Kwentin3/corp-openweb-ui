@@ -398,8 +398,8 @@ def test_factory_composes_existing_owners_without_form_or_storage_logic() -> Non
     )
     assert "Gate5DeclarationProjectionRuntimeFactory.create()" in factory_source
     assert "self._authority.resolve(methodology_ref)" in runtime_source
-    assert "self._discovery.check(" in runtime_source
-    assert "self._projector.project(" in runtime_source
+    assert "self._require_discovery().check(" in runtime_source
+    assert "self._require_projector().project(" in runtime_source
     assert "direct Gate 4" in FORBIDDEN[0]
     assert imports == {
         "__future__",

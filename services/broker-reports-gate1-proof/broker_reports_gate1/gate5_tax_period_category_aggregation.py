@@ -41,6 +41,9 @@ GATE5_TAX_PERIOD_CATEGORY_TAX_MODEL_SCHEMA_VERSION = (
 GATE5_TAX_PERIOD_CATEGORY_AGGREGATION_RESULT_SCHEMA_VERSION = (
     "broker_reports_gate5_tax_period_category_aggregation_result_v0"
 )
+GATE5_TAX_PERIOD_CATEGORY_TAX_MODEL_RESULT_SCHEMA_VERSION = (
+    "broker_reports_gate5_tax_period_category_tax_model_result_v0"
+)
 GATE5_TAX_PERIOD_CATEGORY_OPERATION_MEMBER_CONTRACT = (
     GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION
 )
@@ -156,6 +159,38 @@ class Gate5TaxPeriodCategoryAggregationRuntime:
         members: list[dict[str, Any]],
         completeness_evidence: dict[str, Any] | None,
     ) -> dict[str, Any]:
+        model_result = self.run_tax_model(
+            scope=scope,
+            members=members,
+            completeness_evidence=completeness_evidence,
+        )
+        base = {
+            **copy.deepcopy(model_result),
+            "schema_version": GATE5_TAX_PERIOD_CATEGORY_AGGREGATION_RESULT_SCHEMA_VERSION,
+        }
+        if model_result["status"] == "incomplete_scope":
+            return {
+                **base,
+                "declaration_semantics": None,
+                "declaration_fragment": None,
+            }
+        category_model = model_result["category_tax_model"]
+        semantics = _declaration_semantics(category_model)
+        return {
+            **base,
+            "declaration_semantics": semantics,
+            "declaration_fragment": self._projector.project(proof_input=semantics),
+        }
+
+    def run_tax_model(
+        self,
+        *,
+        scope: dict[str, Any],
+        members: list[dict[str, Any]],
+        completeness_evidence: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Aggregate through G5.14 without crossing into declaration projection."""
+
         validated_scope = _scope(scope)
         validated_members = _members(
             members,
@@ -169,9 +204,7 @@ class Gate5TaxPeriodCategoryAggregationRuntime:
             scope_binding_sha256=binding["scope_binding_sha256"],
         )
         base = {
-            "schema_version": (
-                GATE5_TAX_PERIOD_CATEGORY_AGGREGATION_RESULT_SCHEMA_VERSION
-            ),
+            "schema_version": GATE5_TAX_PERIOD_CATEGORY_TAX_MODEL_RESULT_SCHEMA_VERSION,
             "scope_binding": binding,
             "known_values": known_values,
         }
@@ -184,24 +217,18 @@ class Gate5TaxPeriodCategoryAggregationRuntime:
                     "reason": "completeness_evidence_absent",
                 },
                 "category_tax_model": None,
-                "declaration_semantics": None,
-                "declaration_fragment": None,
             }
-        category_model = _category_tax_model(
-            scope=validated_scope,
-            scope_binding=binding,
-            completeness_evidence=evidence,
-            members=validated_members,
-            known_values=known_values,
-        )
-        semantics = _declaration_semantics(category_model)
         return {
             **base,
             "status": "complete",
             "completeness": copy.deepcopy(evidence),
-            "category_tax_model": category_model,
-            "declaration_semantics": semantics,
-            "declaration_fragment": self._projector.project(proof_input=semantics),
+            "category_tax_model": _category_tax_model(
+                scope=validated_scope,
+                scope_binding=binding,
+                completeness_evidence=evidence,
+                members=validated_members,
+                known_values=known_values,
+            ),
         }
 
 
@@ -945,6 +972,7 @@ __all__ = [
     "GATE5_TAX_PERIOD_CATEGORY_SCOPE_BINDING_SCHEMA_VERSION",
     "GATE5_TAX_PERIOD_CATEGORY_SCOPE_SCHEMA_VERSION",
     "GATE5_TAX_PERIOD_CATEGORY_TAX_MODEL_SCHEMA_VERSION",
+    "GATE5_TAX_PERIOD_CATEGORY_TAX_MODEL_RESULT_SCHEMA_VERSION",
     "GATE5_TAX_PERIOD_COMPLETENESS_EVIDENCE_SCHEMA_VERSION",
     "Gate5TaxPeriodCategoryAggregationError",
     "Gate5TaxPeriodCategoryAggregationRuntime",
