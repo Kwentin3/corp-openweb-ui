@@ -72,6 +72,8 @@ def test_all_current_human_fact_kinds_are_owner_published_and_deterministic(
         "signer_and_representation",
         "budget_disposition",
         "residency_evidence",
+        "declaration_date",
+        "ordinary_trade_declaration_zero_scope_confirmed",
     }
     assert all(
         item["schema_version"] == GATE5_GAP_REQUEST_SCHEMA_VERSION
@@ -107,6 +109,11 @@ def test_all_current_human_fact_kinds_are_owner_published_and_deterministic(
 
     assert runtime.validate_user_case_facts(
         facts,
+        context=context,
+        taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
+        tax_period="2025",
+    ) == sorted(facts, key=lambda item: item["fact_key"])
+    assert runtime.current_user_case_facts(
         context=context,
         taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
         tax_period="2025",
@@ -925,6 +932,10 @@ def _answer(fact_key: str) -> dict:
         return {"kind": "code", "value": "SELF"}
     if fact_key == "budget_disposition":
         return {"kind": "code", "value": "PAYMENT"}
+    if fact_key == "declaration_date":
+        return {"kind": "text", "value": "2026-08-23"}
+    if fact_key == "ordinary_trade_declaration_zero_scope_confirmed":
+        return {"kind": "confirmation", "value": True}
     return {
         "kind": "residency_evidence",
         "value": {

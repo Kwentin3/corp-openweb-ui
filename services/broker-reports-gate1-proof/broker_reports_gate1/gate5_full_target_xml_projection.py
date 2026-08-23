@@ -6,7 +6,7 @@ import base64
 import binascii
 import copy
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
 from importlib import resources
 import json
@@ -433,6 +433,23 @@ class Gate5FullTargetXmlProjectionRuntime:
         }
         return {"xml_tree": tree, "xml_bytes": xml_bytes, "receipt": receipt}
 
+    def validate_supported_profile_semantics(
+        self, *, xml_bytes: bytes
+    ) -> dict[str, Any]:
+        """Independently reconcile numeric fields from serialized MVP XML."""
+
+        definition = self._consumer_definition_authority.resolve()
+        conformance = self._validator.validate(
+            xml_bytes=xml_bytes,
+            definition=definition,
+        )
+        proof = _supported_profile_xml_semantics(xml_bytes)
+        return {
+            **proof,
+            "xsd_valid": conformance["xsd_valid"],
+            "proof_sha256": _canonical_sha256(proof),
+        }
+
 
 class Gate5FullTargetXmlTreeProjector:
     def project(
@@ -591,6 +608,120 @@ class Gate5FullTargetXmlConformanceValidator:
             "xml_well_formed": True,
             "xsd_valid": True,
         }
+
+
+def _supported_profile_xml_semantics(xml_bytes: bytes) -> dict[str, Any]:
+    parser = etree.XMLParser(resolve_entities=False, no_network=True)
+    try:
+        root = etree.fromstring(xml_bytes, parser)
+    except (TypeError, etree.XMLSyntaxError) as exc:
+        raise Gate5FullTargetXmlProjectionError(
+            "gate5_full_target_xml_semantics_invalid", "xml"
+        ) from exc
+
+    def one(path: str) -> etree._Element:
+        values = root.findall(path)
+        if len(values) != 1:
+            _fail("gate5_full_target_xml_semantics_invalid", path)
+        return values[0]
+
+    def money(node: etree._Element, attribute: str) -> Decimal:
+        literal = node.get(attribute)
+        try:
+            value = Decimal(str(literal))
+        except (InvalidOperation, TypeError):
+            _fail(
+                "gate5_full_target_xml_semantics_invalid",
+                f"{node.tag}@{attribute}",
+            )
+        if value < 0:
+            _fail(
+                "gate5_full_target_xml_semantics_invalid",
+                f"{node.tag}@{attribute}",
+            )
+        return value
+
+    base = one(".//РасчНалБаза")
+    settlement = one(".//РасчНалПУ")
+    operation = one(".//ДохОперЦБ")
+    source = one(".//ДоходИстРФ")
+    budget = one(".//СумНалПуИскл227")
+    income_group = one(".//НалБаза")
+    if income_group.get("ГрупДоход") != "02" or source.get("ВидДоход") != "003":
+        _fail("gate5_full_target_xml_semantics_invalid", "supported_profile")
+
+    total_income = money(base, "СумДох")
+    non_taxable = money(base, "СумДохНеНал")
+    taxable_income = money(base, "СумДохНал")
+    deductions = money(base, "СумНалВыч")
+    expenses = money(base, "СумРасх")
+    tax_base = money(base, "НалБаза")
+    operation_income = money(operation, "ДохСовОпер")
+    operation_expenses = money(operation, "РасхРеалЦБ")
+    operation_allowable = money(operation, "РасхУмДохОпер")
+    source_income = money(source, "Доход")
+    calculated_tax = money(settlement, "Исчисл")
+    credit_attributes = (
+        "Удерж",
+        "СумУдержМат",
+        "ТСУплПерЗач",
+        "СумФиксАван",
+        "УплИнПодлЗач",
+        "УплПатентЗач",
+    )
+    credits = sum((money(settlement, item) for item in credit_attributes), Decimal(0))
+    payable = money(settlement, "ПодлУпл")
+    refundable = money(settlement, "ПодлВозв")
+    simplified = money(settlement, "СумВозвУпр")
+    source_withheld = money(source, "НалУдерж")
+    budget_payable = money(budget, "ПодлУпл")
+    budget_refundable = money(budget, "ПодлВозв")
+
+    expected_taxable = total_income - non_taxable
+    expected_base = max(expected_taxable - deductions - expenses, Decimal(0))
+    expected_tax = (expected_base * Decimal("0.13")).quantize(
+        Decimal("1"), rounding=ROUND_HALF_UP
+    )
+    expected_payable = max(expected_tax - credits, Decimal(0))
+    expected_refundable = max(credits - expected_tax, Decimal(0))
+    checks = {
+        "taxable_income": taxable_income == expected_taxable,
+        "tax_base": tax_base == expected_base,
+        "operation_income": operation_income == total_income,
+        "operation_expenses": (
+            operation_expenses == expenses == operation_allowable
+        ),
+        "source_income": source_income == total_income,
+        "calculated_tax": calculated_tax == expected_tax,
+        "source_withheld": source_withheld == money(settlement, "Удерж"),
+        "settlement_payable": payable == expected_payable,
+        "settlement_refundable": refundable == expected_refundable,
+        "budget_payable": budget_payable == payable,
+        "budget_refundable": budget_refundable == refundable,
+        "simplified_return_or_credit": simplified == Decimal(0),
+    }
+    failed = [key for key, valid in checks.items() if not valid]
+    if failed:
+        _fail(
+            "gate5_full_target_xml_semantics_invalid",
+            ",".join(sorted(failed)),
+        )
+    return {
+        "schema_version": "broker_reports_gate5_supported_xml_semantics_v1",
+        "status": "passed",
+        "profile": "ordinary_trade_resident_2025_rate_13",
+        "checks": sorted(checks),
+        "values": {
+            "gross_income": format(total_income, "f"),
+            "accepted_expenses": format(expenses, "f"),
+            "tax_base": format(tax_base, "f"),
+            "calculated_tax": format(calculated_tax, "f"),
+            "tax_payable": format(payable, "f"),
+            "tax_refundable": format(refundable, "f"),
+            "source_income": format(source_income, "f"),
+            "budget_payable": format(budget_payable, "f"),
+        },
+    }
 
 
 def _validate_definition(value: Any) -> None:

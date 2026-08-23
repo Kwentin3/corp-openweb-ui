@@ -25,6 +25,11 @@ from .authenticated_case_taxpayer_binding import (
 )
 from .gate4_ordinary_trade_candidate import Gate4OrdinaryTradeCandidateRuntimeFactory
 from .gate5_full_target_xml_projection import Gate5FullTargetXmlProjectionRuntimeFactory
+from .gate5_full_target_xml_projection import Gate5FullTargetXmlProjectionError
+from .gate5_human_gap_closure import (
+    Gate5HumanGapClosureError,
+    Gate5HumanGapClosureRuntimeFactory,
+)
 from .gate5_declaration_right_side_assembly import (
     Gate5DeclarationRightSideAssemblyRuntimeFactory,
 )
@@ -49,9 +54,6 @@ ORDINARY_TRADE_DECLARATION_MVP_RECEIPT_SCHEMA_VERSION = (
 ORDINARY_TRADE_DECLARATION_XML_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_declaration_xml_v1"
 )
-AUTHENTICATED_DECLARATION_FACTS_SCHEMA_VERSION = (
-    "broker_reports_authenticated_declaration_facts_v1"
-)
 DECLARATION_EXTERNAL_AUTHORITY_SCHEMA_VERSION = (
     "broker_reports_declaration_external_authority_v1"
 )
@@ -74,15 +76,6 @@ _INN10 = re.compile(r"^[0-9]{10}$")
 _CODE4 = re.compile(r"^[0-9]{4}$")
 _KBK = re.compile(r"^[0-9]{20}$")
 _OKTMO = re.compile(r"^[0-9]{8}(?:[0-9]{3})?$")
-_USER_KEYS = frozenset(
-    {
-        "schema_version", "assertion_id", "authenticated_user_id", "case_id",
-        "taxpayer_scope_ref", "tax_period", "residency_evidence",
-        "filing_instance", "declarant_category", "signer_capacity",
-        "representation_authority", "income_scope", "credits",
-        "simplified_returned_or_credited_amount", "origin",
-    }
-)
 _CREDIT_KEYS = frozenset(
     {
         "withheld_at_source", "material_benefit_withheld", "trade_fee_credit",
@@ -104,10 +97,6 @@ class OrdinaryTradeDeclarationMvpError(ValueError):
         super().__init__(code)
 
 
-class AuthenticatedDeclarationFactsProvider(Protocol):
-    def current_facts(self, *, context: ArtifactAccessContext) -> dict[str, Any]: ...
-
-
 class DeclarationExternalAuthorityProvider(Protocol):
     def current_facts(self, *, context: ArtifactAccessContext) -> dict[str, Any]: ...
 
@@ -120,7 +109,6 @@ class OrdinaryTradeDeclarationMvpRuntime:
         read_enabled: bool,
         retention_policy: RetentionPolicy,
         identity_provider: AuthenticatedTaxpayerIdentityProvider,
-        user_facts_provider: AuthenticatedDeclarationFactsProvider,
         external_authority_provider: DeclarationExternalAuthorityProvider,
     ) -> None:
         self._store = store
@@ -130,7 +118,10 @@ class OrdinaryTradeDeclarationMvpRuntime:
             retention_policy=retention_policy,
             identity_provider=identity_provider,
         ).create()
-        self._user_facts_provider = user_facts_provider
+        self._human_facts = Gate5HumanGapClosureRuntimeFactory.create(
+            store=store,
+            retention_policy=retention_policy,
+        )
         self._external_authority_provider = external_authority_provider
         self._facts = Gate4OrdinaryTradeCandidateRuntimeFactory(
             store=store, read_enabled=read_enabled
@@ -145,26 +136,38 @@ class OrdinaryTradeDeclarationMvpRuntime:
             read_enabled=read_enabled,
             retention_policy=retention_policy,
         ).create()
+        self._projector = Gate5FullTargetXmlProjectionRuntimeFactory.create()
 
-    def run(self, *, context: ArtifactAccessContext) -> dict[str, Any]:
+    def run(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        canonical_coverage: dict[str, Any],
+    ) -> dict[str, Any]:
         binding = _single(self._identity.publish_current(context=context), "taxpayer")
-        user = _validated_user_facts(
-            self._user_facts_provider.current_facts(context=context),
+        coverage = _validated_canonical_coverage(
+            canonical_coverage,
             context=context,
-            taxpayer_scope_ref=binding["scope"]["taxpayer_scope_ref"],
+        )
+        taxpayer_ref = binding["scope"]["taxpayer_scope_ref"]
+        try:
+            owner_facts = self._human_facts.current_user_case_facts(
+                context=context,
+                taxpayer_scope_ref=taxpayer_ref,
+                tax_period="2025",
+            )
+        except Gate5HumanGapClosureError as exc:
+            raise OrdinaryTradeDeclarationMvpError(exc.code) from exc
+        user = _declaration_user_inputs_from_owner_facts(
+            owner_facts,
+            context=context,
+            taxpayer_scope_ref=taxpayer_ref,
         )
         external = _validated_external_facts(
             self._external_authority_provider.current_facts(context=context),
             context=context,
         )
-        user_artifact_ref = "mvp_user_facts_" + _sha(user)[:32]
         external_artifact_ref = "mvp_external_facts_" + _sha(external)[:32]
-        self._persist(
-            artifact_ref=user_artifact_ref,
-            artifact_type=AUTHENTICATED_DECLARATION_FACTS_SCHEMA_VERSION,
-            payload=user,
-            context=context,
-        )
         self._persist(
             artifact_ref=external_artifact_ref,
             artifact_type=DECLARATION_EXTERNAL_AUTHORITY_SCHEMA_VERSION,
@@ -178,7 +181,6 @@ class OrdinaryTradeDeclarationMvpRuntime:
         )
         _validate_supported_fact_set(facts=facts, disposal=disposal)
         subject_ref = "security-disposal-1"
-        taxpayer_ref = binding["scope"]["taxpayer_scope_ref"]
         compatibility_binding = {
             "schema_version": "broker_reports_ordinary_trade_taxpayer_binding_v0",
             "operation_subject_ref": subject_ref,
@@ -208,6 +210,7 @@ class OrdinaryTradeDeclarationMvpRuntime:
             user=user,
             external=external,
             facts=facts,
+            canonical_coverage=coverage,
         )
         residency = Gate5DeclarationRightSideAssemblyRuntimeFactory.create().residency_classification(
             right_side
@@ -237,8 +240,8 @@ class OrdinaryTradeDeclarationMvpRuntime:
             "coverage_kind": "all_operations_in_taxpayer_category_period_scope",
             "scope_binding_sha256": scope_hash,
             "provenance": {
-                "source_kind": "current_fact_v2",
-                "source_ref": "current-case-fact-set-" + _sha(facts)[:24],
+                "source_kind": "current_canonical_coverage",
+                "source_ref": coverage["coverage_ref"],
                 "input_channel": "tax_period_scope_completeness",
             },
         }
@@ -260,17 +263,24 @@ class OrdinaryTradeDeclarationMvpRuntime:
                 "reason_code", "ordinary_trade_declaration_mvp_blocked"
             )
             raise OrdinaryTradeDeclarationMvpError(str(blocker))
-        projection = Gate5FullTargetXmlProjectionRuntimeFactory.create().project_released(
+        projection = self._projector.project_released(
             released_values=assembly["owner_artifacts"]["projection_input"],
             target_mechanics=assembly["owner_artifacts"]["target_mechanics"],
         )
         xml_bytes = projection["xml_bytes"]
+        semantic_reconciliation = self._projector.validate_supported_profile_semantics(
+            xml_bytes=xml_bytes
+        )
         bindings = {
             "taxpayer_binding_ref": binding["binding_ref"],
-            "user_facts_artifact_ref": user_artifact_ref,
-            "user_facts_sha256": _sha(user),
+            "user_case_fact_refs": sorted(
+                item["user_case_fact_ref"] for item in owner_facts
+            ),
+            "user_case_facts_sha256": _sha(owner_facts),
             "external_authority_artifact_ref": external_artifact_ref,
             "external_authority_sha256": _sha(external),
+            "canonical_coverage_ref": coverage["coverage_ref"],
+            "canonical_coverage_sha256": coverage["coverage_sha256"],
             "fact_set_sha256": _sha(facts),
             "assembly_receipt_sha256": assembly["receipt_sha256"],
             "projection_receipt_sha256": projection["receipt"]["receipt_sha256"],
@@ -290,6 +300,7 @@ class OrdinaryTradeDeclarationMvpRuntime:
                 projection["receipt"]["conformance_proof"]
             ),
             "semantic_accounting": copy.deepcopy(assembly["target_accounting"]),
+            "semantic_reconciliation": semantic_reconciliation,
             "provider_calls_total": 0,
         }
         receipt = {**receipt_base, "receipt_sha256": _sha(receipt_base)}
@@ -321,13 +332,25 @@ class OrdinaryTradeDeclarationMvpRuntime:
         }
 
     def validate_current(
-        self, *, result: dict[str, Any], context: ArtifactAccessContext
+        self,
+        *,
+        result: dict[str, Any],
+        context: ArtifactAccessContext,
+        canonical_coverage: dict[str, Any],
     ) -> dict[str, Any]:
         """Replay every live owner; external hashes cannot select an old lane."""
 
         if not isinstance(result, dict):
             _fail("ordinary_trade_declaration_mvp_result_invalid")
-        current = self.run(context=context)
+        try:
+            self._projector.validate_supported_profile_semantics(
+                xml_bytes=result.get("xml_bytes")
+            )
+        except Gate5FullTargetXmlProjectionError as exc:
+            raise OrdinaryTradeDeclarationMvpError(
+                "ordinary_trade_declaration_xml_semantics_invalid"
+            ) from exc
+        current = self.run(context=context, canonical_coverage=canonical_coverage)
         if result != current:
             _fail("ordinary_trade_declaration_mvp_stale_or_misbound")
         return copy.deepcopy(current)
@@ -433,7 +456,9 @@ def _resolved_inputs(
             "loss_treatment": tagged(
                 user["income_scope"]["loss_treatment"],
                 "authenticated_user_case_fact",
-                user["assertion_id"],
+                user["human_fact_refs_by_key"][
+                    "ordinary_trade_declaration_zero_scope_confirmed"
+                ],
                 "minimal_tax_context",
             ),
         },
@@ -447,15 +472,19 @@ def _resolved_inputs(
 
 def _right_side(
     *, context: ArtifactAccessContext, binding: dict[str, Any], user: dict[str, Any],
-    external: dict[str, Any], facts: tuple[dict[str, Any], ...]
+    external: dict[str, Any], facts: tuple[dict[str, Any], ...],
+    canonical_coverage: dict[str, Any]
 ) -> dict[str, Any]:
     taxpayer_ref = binding["scope"]["taxpayer_scope_ref"]
     user_ref = user["assertion_id"]
+    user_refs = user["human_fact_refs_by_key"]
     external_ref = external["publication_id"]
     current_ref = "current-fact-set-" + _sha(facts)[:24]
     user_provenance = {
         "source_kind": "authenticated_user_case_fact",
-        "source_ref": user_ref,
+        "source_ref": user_refs[
+            "ordinary_trade_declaration_zero_scope_confirmed"
+        ],
         "input_channel": "placeholder",
         "real_user_fact": True,
     }
@@ -471,7 +500,9 @@ def _right_side(
             "value": {"kind": "money", "amount": zeros[key], "currency": "RUB"},
             "provenance": {
                 "source_kind": "user_verified_fact",
-                "source_ref": user_ref + "-" + key,
+                "source_ref": user_refs[
+                    "ordinary_trade_declaration_zero_scope_confirmed"
+                ],
                 "input_channel": "income_group_tax_base",
             },
         }
@@ -482,7 +513,7 @@ def _right_side(
             "tax_period": "2025",
         },
         "residency_evidence": {
-            "source_ref": user_ref,
+            "source_ref": user_refs["residency_evidence"],
             **copy.deepcopy(user["residency_evidence"]),
         },
         "income_group": {
@@ -497,14 +528,18 @@ def _right_side(
             },
             "completeness_provenance": {
                 "source_kind": "user_verified_fact",
-                "source_ref": user_ref + "-income-scope",
+                "source_ref": user_refs[
+                    "ordinary_trade_declaration_zero_scope_confirmed"
+                ],
                 "input_channel": "income_group_completeness",
             },
         },
         "settlement": {
             "credits": copy.deepcopy(user["credits"]),
             "evidence_ref_prefix": user_ref,
-            "completeness_source_ref": user_ref + "-settlement-complete",
+            "completeness_source_ref": user_refs[
+                "ordinary_trade_declaration_zero_scope_confirmed"
+            ],
             "provenance": user_provenance,
             "completeness_provenance": user_provenance,
         },
@@ -527,7 +562,7 @@ def _right_side(
                     user["representation_authority"]
                 ),
             },
-            "evidence_source_ref": user_ref,
+            "evidence_source_ref": user_refs["filing_instance_identity"],
             "evidence": {
                 "schema_version": "broker_reports_gate5_owner_case_evidence_v1",
                 "status": "owner_verified_evidence",
@@ -559,10 +594,10 @@ def _right_side(
                 "obl_digital_financial_asset_and_right_results",
                 "obl_investment_partnership_results",
             ],
-            "completeness_source_ref": current_ref,
+            "completeness_source_ref": canonical_coverage["coverage_ref"],
             "completeness_provenance": {
-                "source_kind": "current_fact_v2",
-                "source_ref": current_ref,
+                "source_kind": "current_canonical_coverage",
+                "source_ref": canonical_coverage["coverage_ref"],
                 "input_channel": "placeholder",
                 "real_user_fact": False,
             },
@@ -570,58 +605,154 @@ def _right_side(
     }
 
 
-def _validated_user_facts(
-    value: Any, *, context: ArtifactAccessContext, taxpayer_scope_ref: str
+def _validated_canonical_coverage(
+    value: Any, *, context: ArtifactAccessContext
 ) -> dict[str, Any]:
     try:
+        base = {
+            key: copy.deepcopy(item)
+            for key, item in value.items()
+            if key not in {"coverage_ref", "coverage_sha256"}
+        }
+        digest = _sha(base)
         valid = (
             isinstance(value, dict)
-            and set(value) == _USER_KEYS
-            and value["schema_version"] == AUTHENTICATED_DECLARATION_FACTS_SCHEMA_VERSION
-            and _identifier(value["assertion_id"])
-            and value["authenticated_user_id"] == context.user_id
+            and set(value)
+            == {
+                "schema_version",
+                "case_id",
+                "status",
+                "projections",
+                "runtime_ready_observations",
+                "relevant_unmapped_observations",
+                "coverage_ref",
+                "coverage_sha256",
+            }
+            and value["schema_version"]
+            == "broker_reports_ordinary_trade_current_case_coverage_v1"
             and value["case_id"] == context.case_id
-            and value["taxpayer_scope_ref"] == taxpayer_scope_ref
-            and value["tax_period"] == "2025"
-            and value["origin"] == {
-                "kind": "authenticated_user_fact_provider",
-                "provider_id": value["origin"]["provider_id"],
-            }
-            and _identifier(value["origin"]["provider_id"])
-            and isinstance(value["residency_evidence"]["human_answer"], str)
-            and set(value["residency_evidence"]) == {"human_answer", "proposal"}
-            and isinstance(value["residency_evidence"]["proposal"], dict)
-            and set(value["filing_instance"])
-            == {
-                "declaration_instance_ref", "correction_kind",
-                "correction_number", "declaration_date",
-            }
-            and _identifier(value["filing_instance"]["declaration_instance_ref"])
-            and value["filing_instance"]["correction_kind"] in {"initial", "correction"}
-            and isinstance(value["filing_instance"]["correction_number"], int)
-            and _DATE.fullmatch(value["filing_instance"]["declaration_date"]) is not None
-            and all(_MONEY.fullmatch(value["income_scope"][key]) for key in (
-                "other_group_income", "other_group_allowable_expenses",
-                "non_taxable_income", "tax_deductions"
-            ))
-            and value["income_scope"]["loss_treatment"] == "none"
-            and set(value["income_scope"])
-            == {
-                "other_group_income", "other_group_allowable_expenses",
-                "non_taxable_income", "tax_deductions", "loss_treatment",
-            }
-            and set(value["credits"]) == _CREDIT_KEYS
-            and all(_MONEY.fullmatch(amount) for amount in value["credits"].values())
-            and value["signer_capacity"] == "taxpayer_self"
-            and value["representation_authority"] is None
-            and _MONEY.fullmatch(value["simplified_returned_or_credited_amount"])
-            is not None
+            and value["status"] == "complete"
+            and isinstance(value["projections"], list)
+            and bool(value["projections"])
+            and value["runtime_ready_observations"] > 0
+            and value["relevant_unmapped_observations"] == 0
+            and all(
+                set(item)
+                == {
+                    "projection_artifact_id",
+                    "document_id",
+                    "canonical_version_id",
+                    "canonical_root_sha256",
+                    "projection_sha256",
+                    "runtime_ready_observations",
+                    "relevant_unmapped_observations",
+                }
+                and item["relevant_unmapped_observations"] == 0
+                for item in value["projections"]
+            )
+            and value["coverage_sha256"] == digest
+            and value["coverage_ref"]
+            == "ordinary_trade_coverage_" + digest[:32]
         )
-    except (KeyError, TypeError):
+    except (AttributeError, KeyError, TypeError):
         valid = False
     if not valid:
-        _fail("ordinary_trade_declaration_authenticated_facts_invalid")
+        _fail("ordinary_trade_declaration_canonical_coverage_invalid")
     return copy.deepcopy(value)
+
+
+def _declaration_user_inputs_from_owner_facts(
+    value: Any, *, context: ArtifactAccessContext, taxpayer_scope_ref: str
+) -> dict[str, Any]:
+    facts = value if isinstance(value, list) else []
+    by_key = {
+        item.get("fact_key"): item
+        for item in facts
+        if isinstance(item, dict) and isinstance(item.get("fact_key"), str)
+    }
+    required = {
+        "taxpayer_identity_confirmed",
+        "residency_evidence",
+        "filing_instance_identity",
+        "declaration_date",
+        "signer_and_representation",
+        "budget_disposition",
+        "ordinary_trade_declaration_zero_scope_confirmed",
+    }
+    if set(by_key) != required:
+        _fail("ordinary_trade_declaration_human_facts_missing")
+
+    def owned(fact_key: str, kind: str) -> Any:
+        fact = by_key[fact_key]
+        try:
+            valid = (
+                fact["scope_binding"]["authenticated_user_ref"] == context.user_id
+                and fact["scope_binding"]["case_id"] == context.case_id
+                and fact["scope_binding"]["taxpayer_scope_ref"]
+                == taxpayer_scope_ref
+                and fact["scope_binding"]["tax_period"] == "2025"
+                and fact["value"]["kind"] == kind
+                and fact["provenance"]["source_kind"]
+                == "authenticated_user_case_fact"
+                and _identifier(fact["user_case_fact_ref"])
+            )
+        except (KeyError, TypeError):
+            valid = False
+        if not valid:
+            _fail("ordinary_trade_declaration_human_fact_invalid")
+        return copy.deepcopy(fact["value"]["value"])
+
+    if owned("taxpayer_identity_confirmed", "confirmation") is not True:
+        _fail("ordinary_trade_declaration_human_fact_invalid")
+    zero_scope = owned(
+        "ordinary_trade_declaration_zero_scope_confirmed", "confirmation"
+    )
+    if zero_scope is not True:
+        _fail("ordinary_trade_declaration_human_fact_invalid")
+    filing = owned("filing_instance_identity", "code")
+    signer = owned("signer_and_representation", "code")
+    budget = owned("budget_disposition", "code")
+    declaration_date = owned("declaration_date", "text")
+    residency = owned("residency_evidence", "residency_evidence")
+    if (
+        filing not in {"INITIAL", "CORRECTION"}
+        or signer != "SELF"
+        or budget not in {"PAYMENT", "ADDITIONAL_PAYMENT"}
+        or not isinstance(declaration_date, str)
+        or _DATE.fullmatch(declaration_date) is None
+        or not isinstance(residency, dict)
+    ):
+        _fail("ordinary_trade_declaration_human_fact_invalid")
+    assertion_id = "human-facts-" + _sha(facts)[:32]
+    zeros = {
+        "other_group_income": "0.00",
+        "other_group_allowable_expenses": "0.00",
+        "non_taxable_income": "0.00",
+        "tax_deductions": "0.00",
+        "loss_treatment": "none",
+    }
+    return {
+        "assertion_id": assertion_id,
+        "residency_evidence": {"normalized_evidence": residency},
+        "filing_instance": {
+            "declaration_instance_ref": "mvp-declaration-2025-" + filing.lower(),
+            "correction_kind": filing.lower(),
+            "correction_number": 0 if filing == "INITIAL" else 1,
+            "declaration_date": declaration_date,
+        },
+        "declarant_category": "other_individual_declaring_article_228_income",
+        "signer_capacity": "taxpayer_self",
+        "representation_authority": None,
+        "income_scope": zeros,
+        "credits": {key: "0.00" for key in _CREDIT_KEYS},
+        "simplified_returned_or_credited_amount": "0.00",
+        "human_fact_refs_by_key": {
+            key: by_key[key]["user_case_fact_ref"] for key in sorted(by_key)
+        },
+        "human_fact_refs": sorted(
+            item["user_case_fact_ref"] for item in facts
+        ),
+    }
 
 
 def _validated_external_facts(
@@ -722,12 +853,10 @@ def _fail(code: str) -> None:
 
 
 __all__ = [
-    "AUTHENTICATED_DECLARATION_FACTS_SCHEMA_VERSION",
     "DECLARATION_EXTERNAL_AUTHORITY_SCHEMA_VERSION",
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "ORDINARY_TRADE_DECLARATION_MVP_TERMINAL",
-    "AuthenticatedDeclarationFactsProvider",
     "DeclarationExternalAuthorityProvider",
     "OrdinaryTradeDeclarationMvpError",
     "OrdinaryTradeDeclarationMvpRuntime",

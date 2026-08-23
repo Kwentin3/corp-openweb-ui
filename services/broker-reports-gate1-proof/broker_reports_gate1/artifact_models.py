@@ -204,7 +204,6 @@ ARTIFACT_TYPES = {
     "broker_reports_gate5_gap_request_publication_v1",
     "broker_reports_gate5_user_case_fact_v1",
     "broker_reports_authenticated_case_taxpayer_binding_v1",
-    "broker_reports_authenticated_declaration_facts_v1",
     "broker_reports_declaration_external_authority_v1",
     "broker_reports_ordinary_trade_declaration_mvp_receipt_v1",
     "broker_reports_ordinary_trade_declaration_xml_v1",

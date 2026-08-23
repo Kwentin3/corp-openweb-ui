@@ -75,11 +75,19 @@ class Gate5DeclarationRightSideAssemblyRuntime:
         facts = _required(inputs, "residency_evidence")
         runtime = Gate5ResidencyEvidenceRuntimeFactory.create()
         try:
-            evidence = runtime.normalize_human_answer(
-                human_answer=_required(facts, "human_answer"),
-                proposal=copy.deepcopy(_required(facts, "proposal")),
-                source_ref=_required(facts, "source_ref"),
-            )
+            if "normalized_evidence" in facts:
+                if set(facts) != {"source_ref", "normalized_evidence"}:
+                    _fail(
+                        "gate5_declaration_right_side_residency_evidence_invalid",
+                        "residency_evidence",
+                    )
+                evidence = copy.deepcopy(facts["normalized_evidence"])
+            else:
+                evidence = runtime.normalize_human_answer(
+                    human_answer=_required(facts, "human_answer"),
+                    proposal=copy.deepcopy(_required(facts, "proposal")),
+                    source_ref=_required(facts, "source_ref"),
+                )
             classification = runtime.classify(evidence=evidence)
         except Gate5ResidencyEvidenceError as exc:
             raise Gate5DeclarationRightSideAssemblyError(

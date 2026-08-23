@@ -38,10 +38,26 @@
     "sql_reads": 0,
     "second_assembler": false
   },
+  "review_follow_up": {
+    "canonical_completeness_owner": "OrdinaryTradeProjectionRuntime.current_case_coverage",
+    "relevant_unmapped_terminal": "ordinary_trade_declaration_canonical_relevant_unmapped",
+    "human_fact_owner": "Gate5HumanGapClosureRuntime current request-bound facts",
+    "parallel_declaration_facts_provider_removed": true,
+    "serialized_xml_semantics": [
+      "gross_and_taxable_income",
+      "expenses_and_tax_base",
+      "calculated_tax_and_credits",
+      "payable_and_refundable",
+      "source_income_and_withholding",
+      "budget_totals"
+    ],
+    "same_case_successor": "same store/case/document; Canonical v1 60.00 to active Canonical v2 64.00 across normalization runs"
+  },
   "local_test_receipt": {
-    "targeted_owner_and_mvp_suites": "174 passed",
-    "architecture_bundle_and_human_fact_regressions": "83 passed",
-    "mvp_fixture_suite": "13 passed",
+    "active_owner_and_mvp_suites": "152 passed",
+    "architecture_and_bundle_regressions": "88 passed",
+    "cross_domain_follow_up_suites": "67 passed",
+    "mvp_fixture_suite": "19 passed",
     "repository_focused_ci_suite": "708 passed",
     "historical_g535_baseline": "6 failed, 3 errors: gate5_e2e_gate2_canonical_missing",
     "ruff": "passed",

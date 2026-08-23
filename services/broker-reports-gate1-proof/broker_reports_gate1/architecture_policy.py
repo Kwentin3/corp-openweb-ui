@@ -14,7 +14,7 @@ from .pdf_table_locator import (
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v7"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v8"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -55,6 +55,10 @@ ACTIVE_PRODUCT_ROUTES = {
             "broker_reports_ordinary_trade_mapping_qualification_v2"
         ),
         "normalized_fact_contract": "Gate4FinancialCaseFactV2",
+        "canonical_completeness_owner": (
+            "OrdinaryTradeProjectionRuntime.current_case_coverage"
+        ),
+        "human_fact_owner": "Gate5HumanGapClosureRuntime",
         "declaration_contract": (
             "BROKER_REPORTS_ORDINARY_TRADE_DECLARATION_MVP.v1"
         ),

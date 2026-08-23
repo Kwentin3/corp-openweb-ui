@@ -8,10 +8,14 @@ Exact base `main`: `d88684d78655180658a51ba0e3c341be020077cb`
 
 The existing ordinary-trade production root now has one optional, fail-closed
 declaration composition. With all current owners configured it reads persisted
-Canonical-derived Fact v2, selects the only supported disposal itself, reuses
+Canonical projections, rejects any `RELEVANT_UNMAPPED` observation before
+claiming operation completeness, reads human meanings only as current
+request-bound facts from `Gate5HumanGapClosureRuntime`, selects the only
+supported disposal itself, reuses
 the existing Operation/Category/Tax Base/right-side/Scope/Package/release/XML
-owners, validates against the official XSD, and persists private XML plus a
-lineage receipt. Without the complete owner set the production root stops on
+owners, validates against the official XSD, independently reconciles numbers
+from the serialized XML, and persists private XML plus a lineage receipt.
+Without the complete external owner set the production root stops on
 the exact `ordinary_trade_declaration_authority_owners_required` blocker and
 does not create XML.
 
@@ -51,9 +55,9 @@ rule was inferred in this issue.
 | period/form | 2025 / KND 1151020 / format 5.20 | any other period/form |
 | taxpayer | authenticated individual resident, self-signer | missing/foreign taxpayer, representative |
 | operation | one purchase + one disposal, organized market, outside IIS | multiple disposals, IIS, derivatives, dividends, coupons |
-| amounts | RUB, positive result, complete current Fact v2 roles | FX, malformed/missing roles, loss carry-forward |
+| amounts/completeness | RUB, positive result, complete current Canonical observation set and Fact v2 roles | any `RELEVANT_UNMAPPED`, FX, malformed/missing roles, loss carry-forward |
 | commission | disposal-local charges, each consumed once | acquisition commission remains `LEGAL_INTERPRETATION_REQUIRED` |
-| filing scope | explicit authenticated zero/choice facts | omitted facts or caller defaults |
+| filing scope | seven current request-bound Human Facts including explicit bounded zero-scope confirmation | omitted, stale, conflicting or foreign facts; raw provider dictionaries; caller defaults |
 | authority | current inspection/source/budget/applicability publication | missing, stale, foreign or malformed publication |
 | output | private deterministic XML + receipt, XSD and semantic validation | partial XML or FNS transport |
 
@@ -61,17 +65,18 @@ rule was inferred in this issue.
 
 | Stage | Single owner and retained binding |
 | --- | --- |
-| Canonical -> Fact v2 | current ordinary projection and Gate 4 Fact owner; no PDF reread |
+| Canonical completeness -> Fact v2 | current ordinary projection owner emits one hash-bound coverage view over every current projection; any relevant unmapped observation blocks before Fact completeness/XML |
 | case -> taxpayer | authenticated provider adapter; persisted binding is current across execution runs but exact for user/case/taxpayer |
 | Fact -> Operation | deterministic source consumer retains disposal/acquisition/commission fact IDs |
 | Operation -> Category | Category member binds exact operation model SHA-256 and separate taxpayer scope |
 | Category -> Tax Base | Tax Base retains exact Category input binding |
 | Tax Base/right facts -> Scope/Package | existing component owners plus Scope and Package snapshots |
 | Package -> release -> projection | semantic and projection owners replay exact predecessor artifacts |
-| projection -> persisted XML | production adapter persists only owner-produced bytes and receipt |
+| projection -> persisted XML | XML owner reads back serialized bytes and independently checks income, expenses, base, tax, credits, payable/refund, source and budget equality before the adapter persists them |
 
-The new adapter owns only call order, validation of the two injected provider
-contracts, active persistence and technical accounting. It does not repeat the
+The adapter owns only call order, validation of identity/external contracts,
+selection of current Human Facts through their existing owner, active
+persistence and technical accounting. It does not repeat the
 six right-side assembly functions or any tax/XML calculation.
 
 ## Visual and semantic comparison
@@ -87,15 +92,19 @@ The representative path was inspected side by side:
 The checked-in review XML is
 `BROKER_REPORTS_ISSUE_302_MVP_DECLARATION.safe.xml`. It is a UTF-8 visual copy
 of the byte-stable `windows-1251` wire artifact. Both represent the same XML
-tree; the review copy independently passes the pinned official XSD and explicit
-gross/expense/base reconciliation assertions.
+tree; the review copy independently passes the pinned official XSD and the same
+serialized-byte reconciliation for gross, expenses, taxable income, base,
+13% rounded tax, all credits, payable/refund, source income/withholding and
+budget totals.
 
 ## Adversarial matrix
 
 | Experiment using genuine owner outputs | Result |
 | --- | --- |
 | identical current owners, repeat execution | identical wire XML bytes/SHA-256 |
-| disposal proceeds `60 -> 64` through Canonical owner | Fact-set and XML hashes change; old output is not current |
+| same case/store/document, Canonical v1 `60` -> active Canonical v2 `64` in the next normalization run | Fact-set and XML hashes change; old output is not current under the successor run |
+| complete purchase/disposal plus a genuine incomplete extra disposal row | projection retains `RELEVANT_UNMAPPED`; terminal is `ordinary_trade_declaration_canonical_relevant_unmapped`; no XML |
+| production configured without request-bound Human Facts | `ordinary_trade_declaration_human_facts_missing`; no raw dictionary fallback exists |
 | case A facts + case B taxpayer/user/external owner | context/binding rejection before XML |
 | authenticated user or external owner publishes successor | old result rejected by `validate_current_declaration` |
 | live B receipt with genuine XML A and recalculated outer receipt hash | `ordinary_trade_declaration_mvp_stale_or_misbound` |
@@ -104,7 +113,7 @@ gross/expense/base reconciliation assertions.
 | caller tries to provide disposal/taxpayer/methodology/Package | no such production parameters exist |
 | acquisition commission | existing legal blocker survives and prevents release |
 | XSD-valid fixture with semantic totals | independent reconciliation passes |
-| XSD-valid but semantically inconsistent XML | existing semantic owner/receipt validation rejects it |
+| XSD-valid mutations of base, calculated tax, payable, source income or budget payable | independent serialized-XML reconciliation rejects each before current-owner replay |
 | Human Adapter attempts source, taxpayer, external or legal closure | outside accepted provider contracts; rejected |
 
 Existing Issue #295 cross-run tests continue to prove every adjacency through
@@ -119,9 +128,10 @@ persisted Canonical projections into current Fact v2 and all downstream owners
 consume those typed artifacts. Adding SQL would create no required consumer
 contract for this vertical slice.
 
-Calculation and declaration assembly make zero model/LLM calls. The injected
-identity/user/external providers supply current owner facts only; they do not
-calculate tax or assemble declaration fields.
+Calculation and declaration assembly make zero model/LLM calls. Injected
+identity/external providers supply only their owned meanings. Human meanings
+come exclusively from current request-bound artifacts selected and validated
+by `Gate5HumanGapClosureRuntime`; no second declaration-facts provider remains.
 
 Submission to FNS, real identities, additional income families, foreign
 currency, multiple operations, IIS, losses and partial acquisition commission
@@ -129,12 +139,12 @@ remain explicitly outside this MVP and fail closed.
 
 ## Verification
 
-- `174 passed`: authenticated binding, MVP, active composition, bridge,
-  Operation, Category, official projection and ordinary production owners;
-- `83 passed`: Human Fact Scope, architecture, bundle parity and cross-gate
-  regressions;
-- `13 passed`: MVP artifact, production-root, identity/authority, successor,
-  cross-run hybrid, XSD and semantic fixture checks;
+- `152 passed`: active ordinary-trade owners plus the expanded MVP suite;
+- `67 passed`: Human Fact, right-side, Category/Tax Base and XML owner
+  follow-up suites;
+- `88 passed`: architecture and generated bundle regressions;
+- `19 passed`: MVP subset including Canonical incompleteness, request-bound
+  Human Facts, same-case successor, hybrid and independent XML mutations;
 - `708 passed`: exact local reproduction of the repository focused CI suite;
 - Ruff, Python compilation and `git diff --check`: passed.
 

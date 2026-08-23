@@ -6,9 +6,10 @@ Status: active, deliberately bounded production path.
 
 `OrdinaryTradeProductionRuntimeFactory.create` is the only activation and
 composition root. It may construct `OrdinaryTradeDeclarationMvpRuntime` only
-when all three current owners are injected: authenticated case/taxpayer
-identity, authenticated user declaration facts, and external-authority case
-facts. A partial owner set is invalid. Without the owner set, the established
+when both external owners are injected: authenticated case/taxpayer identity
+and external-authority case facts. Request-bound human declaration facts are
+read only through the existing `Gate5HumanGapClosureRuntime` backed by the same
+ArtifactStore. A partial external owner set is invalid. Without the owner set, the established
 source-fact-only production behavior remains unchanged and fail-closed.
 
 The adapter coordinates existing owners; it does not calculate tax or assemble
@@ -21,13 +22,14 @@ their existing owners.
 | Meaning | Owner | Consumer proof |
 | --- | --- | --- |
 | authenticated user/case/taxpayer | injected identity provider -> `AuthenticatedCaseTaxpayerBindingRuntimeFactory.create` | persisted current binding; taxpayer ref is not the operation subject |
-| current broker facts | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | exact case-bound Fact v2 set and disposal fact ID |
-| human declaration choices/facts | injected `AuthenticatedDeclarationFactsProvider` | exact user, case, taxpayer and 2025 binding |
+| current Canonical operation coverage | `OrdinaryTradeProjectionRuntime.current_case_coverage` | every current projection and its `RUNTIME_READY` / `RELEVANT_UNMAPPED` counts are hash-bound; any relevant unmapped observation blocks XML |
+| current broker facts | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | exact case-bound Fact v2 set and disposal fact ID, consumed only after Canonical coverage passes |
+| human declaration choices/facts | `Gate5HumanGapClosureRuntime` | current request-bound facts with exact user, case, taxpayer, period and publication-lane binding; stale/conflicting facts are rejected by that owner |
 | inspection, budget, source party and applicability | injected `DeclarationExternalAuthorityProvider` | exact case/period publication binding |
 | legal/methodology version | `Gate5TrustedMethodologyAuthorityFactory.create` | repository resource identity and SHA-256 |
 | Fact -> Operation -> Category -> Tax Base | existing source, Tax Model and aggregation owners | owner-produced hashes and input/member bindings |
 | Scope -> Package -> release -> projection | existing declaration owners | owner replay plus exact adjacency validation |
-| XML/XSD | `Gate5FullTargetXmlProjectionRuntimeFactory.create` | deterministic bytes and official XSD conformance receipt |
+| XML/XSD | `Gate5FullTargetXmlProjectionRuntimeFactory.create` | deterministic bytes, official XSD conformance, and independent arithmetic read back from serialized XML |
 | active persistence | `OrdinaryTradeDeclarationMvpRuntime` through the existing ArtifactStore | private XML and MVP receipt artifacts |
 
 Caller supplies only `ArtifactAccessContext` and canonical artifact refs to the
@@ -43,8 +45,11 @@ methodology version, Scope, Package, released values, projection, or receipt.
   Fact v2 and consumed exactly once;
 - no acquisition commission, derivatives, dividends, coupons, IIS, carried
   loss, foreign currency/source/tax, representative filing, or FNS transport;
-- explicit current user facts for filing choice, residency evidence, absence of
-  other values in this income group, credits, and refund/credit amount;
+- seven current request-bound Human Facts: taxpayer confirmation, residency
+  evidence, filing instance, declaration date, self-signer choice, payment
+  disposition, and one explicit bounded zero-scope confirmation covering other
+  selected-group income, non-taxable income, deductions, loss claim, credits,
+  withholding and simplified return/credit;
 - explicit current external-authority facts for inspection, source party,
   organized-market/IIS/exemption applicability, KBK and OKTMO.
 
@@ -58,13 +63,18 @@ The wire XML is stored as Base64 inside private
 `broker_reports_ordinary_trade_declaration_xml_v1`; its SHA-256 is over the
 original official `windows-1251` bytes. The paired
 `broker_reports_ordinary_trade_declaration_mvp_receipt_v1` binds taxpayer,
-current Fact v2 set, current user/external outputs, active assembly receipt,
-projection receipt, XML bytes, XSD status and semantic accounting.
+current Canonical coverage, current Fact v2 set, all seven exact Human Fact
+artifact refs, current external output, active assembly receipt, projection
+receipt, XML bytes, XSD status, semantic accounting and serialized-XML
+arithmetic reconciliation.
 
-`validate_current_declaration` replays all current owners. Recalculating caller
-hashes cannot make an old or mixed result current. A provider successor, Fact
-successor, foreign case/taxpayer, different run output, or projection mutation
-is rejected.
+`validate_current_declaration` first parses the supplied XML and independently
+recomputes income, expenses, base, 13% whole-ruble tax, credits, payable,
+refund, source and budget equality from those bytes. It then replays all
+current owners. Recalculating caller hashes cannot make an arithmetically
+inconsistent, old or mixed result current. A Human Fact publication successor,
+Canonical/Fact successor, foreign case/taxpayer, different run output, or
+projection mutation is rejected.
 
 ## Prohibitions
 

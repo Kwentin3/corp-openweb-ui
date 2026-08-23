@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 from dataclasses import replace
 from typing import Any
 
@@ -22,6 +24,9 @@ from .ordinary_trade_qualified_mappings import (
 
 ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE = (
     ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION
+)
+ORDINARY_TRADE_CURRENT_CASE_COVERAGE_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_current_case_coverage_v1"
 )
 FACTORY_REQUIRED = (
     "OrdinaryTradeProjectionFactory.create is the only production-candidate "
@@ -197,6 +202,68 @@ class OrdinaryTradeProjectionRuntime:
             )
         return sorted(current, key=lambda item: str(item[0].document_id))
 
+    def current_case_coverage(
+        self, *, context: ArtifactAccessContext
+    ) -> dict[str, Any]:
+        """Describe complete current Canonical coverage; callers cannot select rows."""
+
+        projections = self.current_case(context=context)
+        rows = [
+            {
+                "projection_artifact_id": record.artifact_id,
+                "document_id": record.document_id,
+                "canonical_version_id": payload["canonical_binding"][
+                    "canonical_version_id"
+                ],
+                "canonical_root_sha256": payload["canonical_binding"][
+                    "canonical_root_sha256"
+                ],
+                "projection_sha256": payload["projection_sha256"],
+                "runtime_ready_observations": sum(
+                    item["disposition"] == "RUNTIME_READY"
+                    for item in payload["source_observations"]
+                ),
+                "relevant_unmapped_observations": sum(
+                    item["disposition"] == "RELEVANT_UNMAPPED"
+                    for item in payload["source_observations"]
+                ),
+            }
+            for record, payload in projections
+        ]
+        base = {
+            "schema_version": ORDINARY_TRADE_CURRENT_CASE_COVERAGE_SCHEMA_VERSION,
+            "case_id": context.case_id,
+            "status": (
+                "complete"
+                if rows
+                and not any(
+                    row["relevant_unmapped_observations"] for row in rows
+                )
+                else "relevant_unmapped"
+            ),
+            "projections": rows,
+            "runtime_ready_observations": sum(
+                row["runtime_ready_observations"] for row in rows
+            ),
+            "relevant_unmapped_observations": sum(
+                row["relevant_unmapped_observations"] for row in rows
+            ),
+        }
+        coverage_sha256 = hashlib.sha256(
+            json.dumps(
+                base,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        return {
+            **base,
+            "coverage_ref": "ordinary_trade_coverage_" + coverage_sha256[:32],
+            "coverage_sha256": coverage_sha256,
+        }
+
 
 def _private_case(context: ArtifactAccessContext) -> None:
     if (
@@ -213,6 +280,7 @@ def _private_case(context: ArtifactAccessContext) -> None:
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "ORDINARY_TRADE_CURRENT_CASE_COVERAGE_SCHEMA_VERSION",
     "ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE",
     "OrdinaryTradeProjectionError",
     "OrdinaryTradeProjectionFactory",

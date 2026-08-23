@@ -499,7 +499,11 @@ def _completeness_evidence(
         or not isinstance(provenance, dict)
         or set(provenance) != {"source_kind", "source_ref", "input_channel"}
         or provenance.get("source_kind")
-        not in {"user_verified_fact", "current_fact_v2"}
+        not in {
+            "user_verified_fact",
+            "current_fact_v2",
+            "current_canonical_coverage",
+        }
         or not _identifier(provenance.get("source_ref"))
         or provenance.get("input_channel") != "tax_period_scope_completeness"
     ):
