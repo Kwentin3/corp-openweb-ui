@@ -29,6 +29,45 @@ source/user/reference facts
 The proof fixture is explicitly `CONTROL_EVIDENCE`; it is never a real
 taxpayer declaration.
 
+## Active Category composition addendum
+
+Issue #295 adds the inactive
+`ActiveCategoryDeclarationAssemblyRuntimeFactory.create` coordinator. It
+starts from the Issue #293 factory route, not from a prebuilt operation or
+Category Tax Model, and then delegates right-side assembly to the shared
+`Gate5DeclarationRightSideAssemblyRuntimeFactory.create` owner before calling
+the existing Full Definition, Scope, Package, release and consumer-first
+projection owners. Historical G5.35 uses this same right-side owner. Direct
+`income_group.taxpayer_status` and `taxpayer.period_status` are rejected;
+residency evidence is the sole source of that classification.
+
+The active composition injects its ordinary Gate 4 boundary into Scope and
+injects Scope into Package. The reusable Scope and Package modules have no
+ordinary-trade bridge or Gate 4 ordinary imports, so left/right coupling stays
+at the composition boundary and the normal bundle order is preserved.
+
+The allowed terminals are:
+
+```text
+ACTIVE_CATEGORY_TO_DECLARATION_ASSEMBLY_PROVEN
+BOUNDED_DECLARATION_ASSEMBLY_BLOCKERS_PROVEN
+```
+
+Any bridge blocker or demand is retained before release. In particular,
+`partial_acquisition_commission_allocation` remains
+`LEGAL_INTERPRETATION_REQUIRED` and produces neither released values nor an
+XML receipt. The clean control uses no acquisition commission, keeps the
+operation subject distinct from the taxpayer scope, emits 44 released leaves
+and 49 target occurrences, and remains synthetic, unpersisted,
+non-downloadable and shadow-only.
+
+The audit visual is reconstructed from the exact current Fact v2 roles and
+their source literals/targets. Caller-supplied raw display data is forbidden.
+Receipt validation replays the Fact, Scope, Package, release and projection
+owners and requires the exact stage set, 44 released leaves, 49 known-owner
+target occurrences and successful official-XSD validation; recalculating only
+the outer hash chain cannot make a mutated owner artifact valid.
+
 ## Consumer-first inventory
 
 The controlled target emits 49 value occurrences. Exactly 44 consume the 44

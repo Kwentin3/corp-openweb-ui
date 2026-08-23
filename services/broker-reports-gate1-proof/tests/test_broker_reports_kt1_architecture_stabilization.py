@@ -444,6 +444,14 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     allowed_standalone_contract_authorities = {
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "active_category_declaration_assembly.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "gate5_declaration_right_side_assembly.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gate4_ordinary_trade_candidate.py"
         ),
         (

@@ -34,24 +34,19 @@ from .gate4_financial_case_cache import (
 )
 from .gate5_declaration_budget_outcome import (
     GATE5_DECLARATION_BUDGET_DISPOSITION_COMPONENT_SCHEMA_VERSION,
-    GATE5_DECLARATION_BUDGET_DISPOSITION_INPUT_SCHEMA_VERSION,
-    Gate5DeclarationBudgetOutcomeRuntimeFactory,
 )
 from .gate5_declaration_filing_context import (
     GATE5_FILING_AND_PARTY_IDENTITY_COMPONENT_SCHEMA_VERSION,
-    GATE5_FILING_AND_PARTY_IDENTITY_INPUT_SCHEMA_VERSION,
-    Gate5FilingAndPartyIdentityRuntimeFactory,
 )
 from .gate5_declaration_financial_investment_results import (
-    GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPLETENESS_SCHEMA_VERSION,
     GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPONENT_SCHEMA_VERSION,
-    GATE5_FINANCIAL_INVESTMENT_RESULTS_INPUT_SCHEMA_VERSION,
-    Gate5DeclarationFinancialInvestmentResultsRuntimeFactory,
 )
 from .gate5_declaration_income_sources import (
     GATE5_TAXABLE_INCOME_SOURCE_COMPONENT_SCHEMA_VERSION,
-    GATE5_TAXABLE_INCOME_SOURCE_INPUT_SCHEMA_VERSION,
-    Gate5DeclarationIncomeSourcesRuntimeFactory,
+)
+from .gate5_declaration_right_side_assembly import (
+    Gate5DeclarationRightSideAssemblyError,
+    Gate5DeclarationRightSideAssemblyRuntimeFactory,
 )
 from .gate5_declaration_scope_resolution import (
     GATE5_DECLARATION_SCOPE_COMPONENT_EVIDENCE_SCHEMA_VERSION,
@@ -64,8 +59,6 @@ from .gate5_declaration_semantic_input import (
 )
 from .gate5_declaration_tax_settlement import (
     GATE5_INCOME_GROUP_TAX_RESULTS_COMPONENT_SCHEMA_VERSION,
-    GATE5_INCOME_GROUP_TAX_RESULTS_INPUT_SCHEMA_VERSION,
-    Gate5DeclarationTaxSettlementRuntimeFactory,
 )
 from .gate5_full_declaration_definition import (
     Gate5TrustedFullDeclarationDefinitionAuthorityFactory,
@@ -80,19 +73,10 @@ from .gate5_full_target_xml_projection import (
     Gate5FullTargetXmlProjectionDefinitionAuthorityFactory,
     Gate5FullTargetXmlProjectionRuntimeFactory,
 )
-from .gate5_income_group_tax_base import (
-    GATE5_INCOME_GROUP_TAX_BASE_COMPLETENESS_SCHEMA_VERSION,
-    GATE5_INCOME_GROUP_TAX_BASE_INPUT_SCHEMA_VERSION,
-    Gate5IncomeGroupTaxBaseRuntimeFactory,
-)
 from .gate5_resolved_declaration_package import (
     Gate5ResolvedDeclarationPackageRuntimeFactory,
 )
-from .gate5_residency_evidence import (
-    Gate5ResidencyEvidenceError,
-    Gate5ResidencyEvidenceRuntimeFactory,
-    gate5_residency_methodology_input,
-)
+from .gate5_residency_evidence import gate5_residency_methodology_input
 from .gate5_securities_disposal_tax_model import (
     GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION,
     GATE5_SECURITIES_DISPOSAL_RESOLVED_INPUTS_SCHEMA_VERSION,
@@ -109,11 +93,8 @@ from .gate5_tax_period_category_aggregation import (
     Gate5TaxPeriodCategoryAggregationRuntimeFactory,
 )
 from .gate5_trusted_methodology import (
-    GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_ID,
-    GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_VERSION,
     GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION,
     GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
-    GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_VERSION,
     GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
 )
 from .inputs import FileInput
@@ -138,9 +119,7 @@ GATE5_DECLARATION_MODEL_AUDIT_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_gate5_declaration_model_assembly_audit_receipt_v0"
 )
 GATE5_DECLARATION_MODEL_AUDIT_STATUS = "DECLARATION_MODEL_ASSEMBLY_PROVEN"
-GATE5_END_TO_END_SUPPLIED_CASE_RESOURCE = (
-    "gate5_end_to_end_supplied_case.proof.v0.json"
-)
+GATE5_END_TO_END_SUPPLIED_CASE_RESOURCE = "gate5_end_to_end_supplied_case.proof.v0.json"
 GATE5_END_TO_END_SUPPLIED_CASE_SHA256 = (
     "84c248c6437924493609b343d8ec619cd08242c9ed8ac13023b817749d0c2a94"
 )
@@ -399,14 +378,18 @@ class Gate5EndToEndFullTargetXmlRuntime:
                 blocker={"upstream_code": error_code},
             )
         gate3_document_result = _gate3_document_result(gate3_result)
-        gate3_record = Gate3FinancialAnnotationsPersistenceFactory(
-            store=self._store,
-            read_enabled=True,
-        ).create().save(
-            document_id=canonical.document_id,
-            context=context,
-            validated_document_result=gate3_document_result,
-            provider_profile_id=self._gate3_provider_profile_id,
+        gate3_record = (
+            Gate3FinancialAnnotationsPersistenceFactory(
+                store=self._store,
+                read_enabled=True,
+            )
+            .create()
+            .save(
+                document_id=canonical.document_id,
+                context=context,
+                validated_document_result=gate3_document_result,
+                provider_profile_id=self._gate3_provider_profile_id,
+            )
         )
 
         return self.continue_from_validated_gate3(
@@ -464,10 +447,14 @@ class Gate5EndToEndFullTargetXmlRuntime:
             or not canonical_version.manifest_ref
         ):
             _fail("gate5_e2e_gate3_canonical_binding_mismatch")
-        canonical = CanonicalReaderFactory(
-            store=self._store,
-            read_enabled=True,
-        ).create().read_envelope(canonical_version.manifest_ref, context)
+        canonical = (
+            CanonicalReaderFactory(
+                store=self._store,
+                read_enabled=True,
+            )
+            .create()
+            .read_envelope(canonical_version.manifest_ref, context)
+        )
 
         gate4_runtime = Gate4FinancialCaseRuntimeFactory(
             store=self._store,
@@ -490,12 +477,24 @@ class Gate5EndToEndFullTargetXmlRuntime:
                 context=context,
             )
 
-        residency_classification = self._residency_classification(value)
-        operation, category, tax_base = self._tax_models(
+        right_side = Gate5DeclarationRightSideAssemblyRuntimeFactory.create()
+        try:
+            residency_classification = right_side.residency_classification(value)
+        except Gate5DeclarationRightSideAssemblyError as exc:
+            _fail(exc.code, exc.field)
+        operation, category = self._tax_models(
             proof_input=value,
             context=context,
             residency_classification=residency_classification,
         )
+        try:
+            tax_base = right_side.income_group_tax_base(
+                category=category,
+                residency=residency_classification,
+                inputs=value,
+            )
+        except Gate5DeclarationRightSideAssemblyError as exc:
+            _fail(exc.code, exc.field)
         definition_ref = (
             Gate5TrustedFullDeclarationDefinitionAuthorityFactory.create().publication()
         )
@@ -518,13 +517,15 @@ class Gate5EndToEndFullTargetXmlRuntime:
             context=context,
         )
         scope_binding = provisional_scope["scope_binding"]
-        settlement = self._settlement_component(
-            value,
+        settlement = _right_side_result(
+            right_side.settlement_component,
+            inputs=value,
             scope_binding=scope_binding,
             tax_base=tax_base,
         )
-        income_source = self._income_source_component(
-            value,
+        income_source = _right_side_result(
+            right_side.income_source_component,
+            inputs=value,
             scope_binding=scope_binding,
             settlement=settlement,
         )
@@ -543,19 +544,22 @@ class Gate5EndToEndFullTargetXmlRuntime:
         )
         scope_binding = scope_receipt["scope_binding"]
 
-        filing = self._filing_component(
-            value,
+        filing = _right_side_result(
+            right_side.filing_component,
+            inputs=value,
             scope_binding=scope_binding,
-            residency_classification=residency_classification,
+            residency=residency_classification,
         )
-        budget = self._budget_component(
-            value,
+        budget = _right_side_result(
+            right_side.budget_component,
+            inputs=value,
             scope_binding=scope_binding,
             filing=filing,
             settlement=settlement,
         )
-        financial = self._financial_component(
-            value,
+        financial = _right_side_result(
+            right_side.financial_component,
+            inputs=value,
             scope_binding=scope_binding,
             category=category,
         )
@@ -582,15 +586,19 @@ class Gate5EndToEndFullTargetXmlRuntime:
                 financial,
             ),
         ]
-        package = Gate5ResolvedDeclarationPackageRuntimeFactory(
-            store=self._store,
-            read_enabled=True,
-            retention_policy=self._retention_policy,
-        ).create().assemble(
-            definition_ref=definition_ref,
-            scope_receipt=scope_receipt,
-            typed_component_snapshots=components,
-            context=context,
+        package = (
+            Gate5ResolvedDeclarationPackageRuntimeFactory(
+                store=self._store,
+                read_enabled=True,
+                retention_policy=self._retention_policy,
+            )
+            .create()
+            .assemble(
+                definition_ref=definition_ref,
+                scope_receipt=scope_receipt,
+                typed_component_snapshots=components,
+                context=context,
+            )
         )
         semantic_input = Gate5DeclarationSemanticInputRuntimeFactory.create().compile(
             package=package
@@ -669,17 +677,18 @@ class Gate5EndToEndFullTargetXmlRuntime:
             released=released,
         )
         target_mechanics = _shadow_target_mechanics(proof_input)
-        projected = Gate5FullTargetXmlProjectionRuntimeFactory.create().project_released(
-            released_values=projection_input,
-            target_mechanics=target_mechanics,
+        projected = (
+            Gate5FullTargetXmlProjectionRuntimeFactory.create().project_released(
+                released_values=projection_input,
+                target_mechanics=target_mechanics,
+            )
         )
         if projected["receipt"]["status"] != GATE5_CONSUMER_FIRST_XML_STATUS:
             _fail("gate5_e2e_declaration_model_consumer_target_invalid")
         if projected["xml_bytes"] != legacy_projected["xml_bytes"]:
             _fail("gate5_e2e_declaration_model_target_parity_failed")
         definition = (
-            Gate5ConsumerFirstXmlProjectionDefinitionAuthorityFactory.create()
-            .resolve()
+            Gate5ConsumerFirstXmlProjectionDefinitionAuthorityFactory.create().resolve()
         )
         trace = _declaration_value_traceability_audit(
             proof_input=proof_input,
@@ -700,9 +709,7 @@ class Gate5EndToEndFullTargetXmlRuntime:
             income_source_component["snapshot"]["obligation_resolutions"]
         )
         receipt_base = {
-            "schema_version": (
-                GATE5_DECLARATION_MODEL_AUDIT_RECEIPT_SCHEMA_VERSION
-            ),
+            "schema_version": (GATE5_DECLARATION_MODEL_AUDIT_RECEIPT_SCHEMA_VERSION),
             "status": GATE5_DECLARATION_MODEL_AUDIT_STATUS,
             "blockers": [],
             "terminals": [
@@ -731,27 +738,19 @@ class Gate5EndToEndFullTargetXmlRuntime:
             },
             "consumer_inventory": {
                 "emitted_value_count": len(trace),
-                "released_semantic_value_count": accounting[
-                    "declared_value_count"
-                ],
+                "released_semantic_value_count": accounting["declared_value_count"],
                 "released_semantic_values_consumed": sum(
                     item["semantic_value_path"] is not None for item in trace
                 ),
                 "official_constant_count": sum(
-                    item["origin_kind"] == "OFFICIAL_TARGET_CONSTANT"
-                    for item in trace
+                    item["origin_kind"] == "OFFICIAL_TARGET_CONSTANT" for item in trace
                 ),
                 "target_mechanics_count": sum(
-                    item["origin_kind"] == "FILING_TARGET_MECHANICS"
-                    for item in trace
+                    item["origin_kind"] == "FILING_TARGET_MECHANICS" for item in trace
                 ),
                 "unconsumed_released_semantic_value_count": 0,
-                "unknown_origin_count": sum(
-                    item["origin_count"] < 1 for item in trace
-                ),
-                "unowned_value_count": sum(
-                    not item["owner_factory"] for item in trace
-                ),
+                "unknown_origin_count": sum(item["origin_count"] < 1 for item in trace),
+                "unowned_value_count": sum(not item["owner_factory"] for item in trace),
             },
             "projection_boundary": {
                 "allowed_operations": [
@@ -779,9 +778,7 @@ class Gate5EndToEndFullTargetXmlRuntime:
             "audit_envelope": {
                 "is_projection_input": False,
                 "target_depends_on_audit_metadata": False,
-                "release_receipt_sha256": released["release_receipt"][
-                    "receipt_sha256"
-                ],
+                "release_receipt_sha256": released["release_receipt"]["receipt_sha256"],
                 "evidence_binding_manifest_sha256": accounting[
                     "evidence_binding_manifest_sha256"
                 ],
@@ -809,9 +806,9 @@ class Gate5EndToEndFullTargetXmlRuntime:
         legacy_projected: dict[str, Any],
     ) -> dict[str, Any]:
         package_sha256 = package["package_sha256"]
-        legacy_package_sha256 = legacy_projected["receipt"][
-            "semantic_input_binding"
-        ]["package_sha256"]
+        legacy_package_sha256 = legacy_projected["receipt"]["semantic_input_binding"][
+            "package_sha256"
+        ]
         package_binding = {
             "resolved_package_sha256": package_sha256,
             "legacy_package_sha256": legacy_package_sha256,
@@ -905,12 +902,12 @@ class Gate5EndToEndFullTargetXmlRuntime:
                     "shadow_mapping_occurrences_total": len(shadow_mappings),
                     "legacy_mapping_projection_sha256": _sha256(legacy_mappings),
                     "shadow_mapping_projection_sha256": _sha256(shadow_mappings),
-                    "legacy_xml_sha256": legacy_projected["receipt"][
-                        "xml_binding"
-                    ]["xml_sha256"],
-                    "shadow_xml_sha256": shadow_projected["receipt"][
-                        "xml_binding"
-                    ]["xml_sha256"],
+                    "legacy_xml_sha256": legacy_projected["receipt"]["xml_binding"][
+                        "xml_sha256"
+                    ],
+                    "shadow_xml_sha256": shadow_projected["receipt"]["xml_binding"][
+                        "xml_sha256"
+                    ],
                 },
                 "parity": parity,
                 "safety": safety,
@@ -950,12 +947,11 @@ class Gate5EndToEndFullTargetXmlRuntime:
         proof_input: dict[str, Any],
         context: ArtifactAccessContext,
         residency_classification: dict[str, Any],
-    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         try:
             supplemental = proof_input["supplemental_money"]
             resolved_inputs = copy.deepcopy(proof_input["securities_disposal"])
             category_facts = proof_input["tax_period_category"]
-            income_facts = proof_input["income_group"]
         except KeyError as exc:
             _missing_case_fact(exc)
         tax_context = resolved_inputs.get("tax_context")
@@ -1015,9 +1011,7 @@ class Gate5EndToEndFullTargetXmlRuntime:
             "scope_ref": _required(category_facts, "scope_ref"),
             "taxpayer_scope_ref": binding["taxpayer_scope_ref"],
             "tax_period": binding["tax_period"],
-            "operation_category": _required(
-                category_facts, "operation_category"
-            ),
+            "operation_category": _required(category_facts, "operation_category"),
         }
         members = [
             {
@@ -1044,48 +1038,7 @@ class Gate5EndToEndFullTargetXmlRuntime:
             },
         )["category_tax_model"]
 
-        base_runtime = Gate5IncomeGroupTaxBaseRuntimeFactory.create()
-        if "taxpayer_status" in income_facts:
-            _fail("gate5_e2e_direct_taxpayer_status_forbidden", "taxpayer_status")
-        taxpayer_status = gate5_residency_methodology_input(
-            residency_classification,
-            input_channel="taxpayer_status",
-        )
-        group_values = copy.deepcopy(_required(income_facts, "group_values"))
-        input_binding = base_runtime.describe_input(
-            category_tax_model=category,
-            taxpayer_status=taxpayer_status,
-            group_values=group_values,
-        )
-        tax_base = base_runtime.run(
-            methodology_ref={
-                "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
-                "methodology_id": GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
-                "methodology_version": (
-                    GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_VERSION
-                ),
-            },
-            behavior_input={
-                "schema_version": GATE5_INCOME_GROUP_TAX_BASE_INPUT_SCHEMA_VERSION,
-                "category_tax_model": copy.deepcopy(category),
-                "taxpayer_status": taxpayer_status,
-                "group_values": group_values,
-                "completeness_evidence": {
-                    "schema_version": (
-                        GATE5_INCOME_GROUP_TAX_BASE_COMPLETENESS_SCHEMA_VERSION
-                    ),
-                    "status": "asserted_complete",
-                    "coverage_kind": (
-                        "all_income_and_reductions_in_stable_income_group"
-                    ),
-                    "input_binding_sha256": input_binding["input_binding_sha256"],
-                    "provenance": copy.deepcopy(
-                        _required(income_facts, "completeness_provenance")
-                    ),
-                },
-            },
-        )
-        return operation, category, tax_base
+        return operation, category
 
     @staticmethod
     def _exact_supplemental_fact_exists(
@@ -1109,309 +1062,6 @@ class Gate5EndToEndFullTargetXmlRuntime:
                 return True
         return False
 
-    @staticmethod
-    def _settlement_component(
-        proof_input: dict[str, Any],
-        *,
-        scope_binding: dict[str, Any],
-        tax_base: dict[str, Any],
-    ) -> dict[str, Any]:
-        try:
-            facts = proof_input["settlement"]
-            credits = facts["credits"]
-            prefix = facts["evidence_ref_prefix"]
-            completeness_ref = facts["completeness_source_ref"]
-        except KeyError as exc:
-            _missing_case_fact(exc)
-        model_hash = _sha256(tax_base)
-        settlement = {"income_group_model_sha256": model_hash}
-        for name in (
-            "withheld_at_source",
-            "material_benefit_withheld",
-            "trade_fee_credit",
-            "fixed_advance_credit",
-            "foreign_tax_credit",
-            "patent_credit",
-        ):
-            amount = _required(credits, name)
-            settlement[name] = {
-                "value": {"kind": "money", "amount": amount, "currency": "RUB"},
-                "provenance": _synthetic_provenance(
-                    f"{prefix}-{name}", "income_group_tax_settlement"
-                ),
-            }
-        return Gate5DeclarationTaxSettlementRuntimeFactory.create().create_component(
-            component_input={
-                "schema_version": GATE5_INCOME_GROUP_TAX_RESULTS_INPUT_SCHEMA_VERSION,
-                "methodology_ref": {
-                    "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
-                    "methodology_id": GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_ID,
-                    "methodology_version": (
-                        GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_VERSION
-                    ),
-                },
-                "scope_binding": copy.deepcopy(scope_binding),
-                "income_group_tax_base_models": [copy.deepcopy(tax_base)],
-                "settlement_facts": [settlement],
-                "completeness_evidence": {
-                    "schema_version": (
-                        "broker_reports_gate5_income_group_results_completeness_v0"
-                    ),
-                    "status": "asserted_complete",
-                    "coverage_kind": (
-                        "all_applicable_income_groups_for_declaration_scope"
-                    ),
-                    "scope_binding_sha256": scope_binding["scope_binding_sha256"],
-                    "income_group_model_sha256s": [model_hash],
-                    "provenance": _synthetic_provenance(
-                        completeness_ref,
-                        "income_group_results_completeness",
-                    ),
-                },
-            }
-        )
-
-    @staticmethod
-    def _filing_component(
-        proof_input: dict[str, Any],
-        *,
-        scope_binding: dict[str, Any],
-        residency_classification: dict[str, Any],
-    ) -> dict[str, Any]:
-        try:
-            facts = proof_input["filing_and_party_identity"]
-            filing = facts["filing_instance"]
-            taxpayer = copy.deepcopy(facts["taxpayer"])
-            signer = facts["signer"]
-            evidence_ref = facts["evidence_source_ref"]
-        except KeyError as exc:
-            _missing_case_fact(exc)
-        if "period_status" in taxpayer:
-            _fail(
-                "gate5_e2e_direct_taxpayer_status_forbidden",
-                "taxpayer.period_status",
-            )
-        taxpayer["period_status"] = gate5_residency_methodology_input(
-            residency_classification,
-            input_channel="taxpayer_status",
-        )["value"]
-        for container, names in (
-            (
-                filing,
-                (
-                    "declaration_instance_ref",
-                    "declaration_date",
-                    "tax_period",
-                    "tax_authority_code",
-                ),
-            ),
-            (taxpayer, ("taxpayer_ref", "period_status", "inn")),
-            (signer, ("signer_ref", "signer_capacity")),
-        ):
-            for name in names:
-                _required(container, name)
-        return Gate5FilingAndPartyIdentityRuntimeFactory.create().create_component(
-            component_input={
-                "schema_version": GATE5_FILING_AND_PARTY_IDENTITY_INPUT_SCHEMA_VERSION,
-                "scope_binding": copy.deepcopy(scope_binding),
-                "filing_instance": copy.deepcopy(filing),
-                "taxpayer": copy.deepcopy(taxpayer),
-                "signer": copy.deepcopy(signer),
-                "evidence": {
-                    "schema_version": (
-                        "broker_reports_gate5_synthetic_case_evidence_v0"
-                    ),
-                    "status": "synthetic_proof_evidence",
-                    "source_ref": evidence_ref,
-                    "case_id": scope_binding["case_id"],
-                    "tax_period": scope_binding["tax_period"],
-                    "input_channel": "filing_and_party_identity",
-                    "real_user_fact": False,
-                },
-            }
-        )
-
-    @staticmethod
-    def _residency_classification(proof_input: dict[str, Any]) -> dict[str, Any]:
-        facts = proof_input.get("residency_evidence")
-        if not isinstance(facts, dict):
-            _missing_residency_evidence("residency_evidence_missing")
-        try:
-            human_answer = _required(facts, "human_answer")
-            proposal = copy.deepcopy(_required(facts, "proposal"))
-            source_ref = _required(facts, "source_ref")
-            runtime = Gate5ResidencyEvidenceRuntimeFactory.create()
-            evidence = runtime.normalize_human_answer(
-                human_answer=human_answer,
-                proposal=proposal,
-                source_ref=source_ref,
-            )
-            classification = runtime.classify(evidence=evidence)
-        except Gate5ResidencyEvidenceError as exc:
-            _missing_residency_evidence(exc.code)
-        if classification["status"] not in {"RESIDENT", "NON_RESIDENT"}:
-            _missing_residency_evidence(classification["reason"])
-        return classification
-
-    @staticmethod
-    def _income_source_component(
-        proof_input: dict[str, Any],
-        *,
-        scope_binding: dict[str, Any],
-        settlement: dict[str, Any],
-    ) -> dict[str, Any]:
-        try:
-            facts = proof_input["taxable_income_source"]
-            source_ref = facts["source_ref"]
-            result = settlement["group_results"][0]
-            model = result["tax_base_model"]
-        except (KeyError, IndexError) as exc:
-            _missing_case_fact(exc)
-        provenance = _synthetic_provenance(
-            source_ref,
-            "taxable_income_source",
-        )
-        return Gate5DeclarationIncomeSourcesRuntimeFactory.create().create_component(
-            component_input={
-                "schema_version": GATE5_TAXABLE_INCOME_SOURCE_INPUT_SCHEMA_VERSION,
-                "scope_binding": copy.deepcopy(scope_binding),
-                "income_group_results_component": copy.deepcopy(settlement),
-                "source_entries": [
-                    {
-                        "source_ref": source_ref,
-                        "income_group_semantic": result["income_group_semantic"],
-                        "jurisdiction_kind": _required(
-                            facts, "jurisdiction_kind"
-                        ),
-                        "jurisdiction_code": _required(
-                            facts, "jurisdiction_code"
-                        ),
-                        "income_kind": _required(facts, "income_kind"),
-                        "source_party": copy.deepcopy(
-                            _required(facts, "source_party")
-                        ),
-                        "gross_income": copy.deepcopy(
-                            model["total_income"]["value"]
-                        ),
-                        "taxable_income": copy.deepcopy(
-                            model["taxable_income"]["value"]
-                        ),
-                        "tax_agent": {
-                            "status": "absent",
-                            "withheld_tax": copy.deepcopy(
-                                result["settlement_facts"][
-                                    "withheld_at_source"
-                                ]["value"]
-                            ),
-                        },
-                        "foreign_tax": None,
-                        "provenance": provenance,
-                    }
-                ],
-                "completeness_evidence": {
-                    "schema_version": (
-                        "broker_reports_gate5_taxable_income_source_completeness_v0"
-                    ),
-                    "status": "asserted_complete",
-                    "coverage_kind": (
-                        "all_taxable_income_sources_for_declaration_scope"
-                    ),
-                    "scope_binding_sha256": scope_binding["scope_binding_sha256"],
-                    "income_group_results_component_id": settlement["component_id"],
-                    "source_refs": [source_ref],
-                    "provenance": _synthetic_provenance(
-                        _required(facts, "completeness_source_ref"),
-                        "taxable_income_source_completeness",
-                    ),
-                },
-            }
-        )
-
-    @staticmethod
-    def _budget_component(
-        proof_input: dict[str, Any],
-        *,
-        scope_binding: dict[str, Any],
-        filing: dict[str, Any],
-        settlement: dict[str, Any],
-    ) -> dict[str, Any]:
-        try:
-            facts = proof_input["budget_disposition"]
-            allocation = {
-                key: facts[key]
-                for key in (
-                    "source_ref",
-                    "budget_allocation_ref",
-                    "kbk",
-                    "oktmo",
-                    "simplified_procedure_returned_or_credited_amount",
-                )
-            }
-        except KeyError as exc:
-            _missing_case_fact(exc)
-        return Gate5DeclarationBudgetOutcomeRuntimeFactory.create().create_component(
-            component_input={
-                "schema_version": (
-                    GATE5_DECLARATION_BUDGET_DISPOSITION_INPUT_SCHEMA_VERSION
-                ),
-                "scope_binding": copy.deepcopy(scope_binding),
-                "filing_component": copy.deepcopy(filing),
-                "income_group_results_component": copy.deepcopy(settlement),
-                "allocation_evidence": {
-                    "schema_version": (
-                        "broker_reports_gate5_synthetic_case_evidence_v0"
-                    ),
-                    "status": "synthetic_proof_evidence",
-                    **copy.deepcopy(allocation),
-                    "case_id": scope_binding["case_id"],
-                    "tax_period": scope_binding["tax_period"],
-                    "input_channel": "declaration_budget_disposition",
-                    "real_user_fact": False,
-                },
-            }
-        )
-
-    @staticmethod
-    def _financial_component(
-        proof_input: dict[str, Any],
-        *,
-        scope_binding: dict[str, Any],
-        category: dict[str, Any],
-    ) -> dict[str, Any]:
-        facts = proof_input.get("financial_investment")
-        if not isinstance(facts, dict):
-            _fail("gate5_e2e_case_fact_missing", "financial_investment")
-        category_hash = _sha256(category)
-        return Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create().create_component(
-            component_input={
-                "schema_version": GATE5_FINANCIAL_INVESTMENT_RESULTS_INPUT_SCHEMA_VERSION,
-                "scope_binding": copy.deepcopy(scope_binding),
-                "category_tax_models": [copy.deepcopy(category)],
-                "completeness_evidence": {
-                    "schema_version": (
-                        GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPLETENESS_SCHEMA_VERSION
-                    ),
-                    "status": "asserted_complete_for_supplied_case",
-                    "coverage_kind": (
-                        "all_financial_investment_evidence_supplied_to_case"
-                    ),
-                    "scope_binding_sha256": scope_binding["scope_binding_sha256"],
-                    "category_model_sha256s": [category_hash],
-                    "activated_obligation_refs": copy.deepcopy(
-                        _required(facts, "activated_obligation_refs")
-                    ),
-                    "not_activated_obligation_refs": copy.deepcopy(
-                        _required(facts, "not_activated_obligation_refs")
-                    ),
-                    "real_world_taxpayer_absence_asserted": False,
-                    "provenance": _synthetic_provenance(
-                        _required(facts, "completeness_source_ref"),
-                        "financial_investment_supplied_case_completeness",
-                    ),
-                },
-            }
-        )
-
     def _raise_missing_source(
         self,
         *,
@@ -1422,8 +1072,7 @@ class Gate5EndToEndFullTargetXmlRuntime:
         missing_roles = sorted(
             item["role"]
             for item in fact["roles"]
-            if item.get("status") == "missing"
-            and item.get("requirement") == "required"
+            if item.get("status") == "missing" and item.get("requirement") == "required"
         )
         indication = {
             "schema_version": (
@@ -1439,17 +1088,21 @@ class Gate5EndToEndFullTargetXmlRuntime:
         definition_ref = (
             Gate5TrustedFullDeclarationDefinitionAuthorityFactory.create().publication()
         )
-        receipt = Gate5DeclarationScopeResolutionRuntimeFactory(
-            store=self._store,
-            read_enabled=True,
-            retention_policy=self._retention_policy,
-        ).create().resolve(
-            definition_ref=definition_ref,
-            scope=_scope(proof_input),
-            typed_component_evidence=[],
-            assertion_refs=[],
-            missing_source_indications=[indication],
-            context=context,
+        receipt = (
+            Gate5DeclarationScopeResolutionRuntimeFactory(
+                store=self._store,
+                read_enabled=True,
+                retention_policy=self._retention_policy,
+            )
+            .create()
+            .resolve(
+                definition_ref=definition_ref,
+                scope=_scope(proof_input),
+                typed_component_evidence=[],
+                assertion_refs=[],
+                missing_source_indications=[indication],
+                context=context,
+            )
         )
         request = next(
             (
@@ -1574,15 +1227,11 @@ class Gate5EndToEndFullTargetXmlRuntime:
             "hash_chain": chain,
             "hash_chain_terminal_sha256": chain[-1]["chain_sha256"],
             "trusted_tax_component_hashes": {
-                "residency_classification_sha256": _sha256(
-                    residency_classification
-                ),
+                "residency_classification_sha256": _sha256(residency_classification),
                 "operation_tax_model_sha256": _sha256(operation),
                 "category_tax_model_sha256": _sha256(category),
                 "income_group_tax_base_sha256": _sha256(tax_base),
-                "component_sha256s": [
-                    item["component_sha256"] for item in components
-                ],
+                "component_sha256s": [item["component_sha256"] for item in components],
             },
             "determinism": {
                 "bound_input_sha256": _sha256(proof_input),
@@ -1647,8 +1296,7 @@ class Gate5EndToEndFullTargetXmlRuntime:
 def _validate_proof_input(value: Any) -> dict[str, Any]:
     if (
         not isinstance(value, dict)
-        or frozenset(value)
-        not in {_ROOT_KEYS, _ROOT_KEYS - {"residency_evidence"}}
+        or frozenset(value) not in {_ROOT_KEYS, _ROOT_KEYS - {"residency_evidence"}}
         or value.get("schema_version") != GATE5_END_TO_END_SUPPLIED_CASE_SCHEMA_VERSION
         or not _nonempty(value.get("case_fact_set_id"))
         or not _nonempty(value.get("case_fact_set_version"))
@@ -1828,12 +1476,8 @@ def _critical_provenance_audit(
                     "source_component_contract_id": component[
                         "source_component_contract_id"
                     ],
-                    "source_component_sha256": component[
-                        "source_component_sha256"
-                    ],
-                    "semantic_payload_sha256": component[
-                        "semantic_payload_sha256"
-                    ],
+                    "source_component_sha256": component["source_component_sha256"],
+                    "semantic_payload_sha256": component["semantic_payload_sha256"],
                 },
                 "semantic_input_source": binding["projection_source"],
                 "projection_mapping": matches[0],
@@ -1909,15 +1553,12 @@ def _declaration_value_traceability_audit(
                     ]
                 ),
             }
-        elif isinstance(source, str) and source.startswith(
-            "$root.declaration_values"
-        ):
+        elif isinstance(source, str) and source.startswith("$root.declaration_values"):
             semantic_path = "$" + source[len("$root.declaration_values") :]
             binding = bindings.get(semantic_path)
             if (
                 binding is None
-                or binding["declared_value_sha256"]
-                != occurrence["source_value_sha256"]
+                or binding["declared_value_sha256"] != occurrence["source_value_sha256"]
             ):
                 _fail(
                     "gate5_e2e_declaration_trace_semantic_binding_missing",
@@ -1987,10 +1628,9 @@ def _declaration_value_traceability_audit(
                 "methodology_or_direct_binding_known": True,
             }
         )
-    if (
-        len(consumed_semantic_paths) != len(set(consumed_semantic_paths))
-        or set(consumed_semantic_paths) != set(bindings)
-    ):
+    if len(consumed_semantic_paths) != len(set(consumed_semantic_paths)) or set(
+        consumed_semantic_paths
+    ) != set(bindings):
         _fail("gate5_e2e_declaration_trace_semantic_accounting_invalid")
     return rows
 
@@ -2067,6 +1707,16 @@ def _path(value: dict[str, Any], path: str) -> Any:
     return current
 
 
+def _right_side_result(
+    call: Callable[..., dict[str, Any]],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    try:
+        return call(**kwargs)
+    except Gate5DeclarationRightSideAssemblyError as exc:
+        _fail(exc.code, exc.field)
+
+
 def _required(value: Mapping[str, Any], key: str) -> Any:
     try:
         result = value[key]
@@ -2107,9 +1757,9 @@ def _missing_residency_evidence(reason: str) -> None:
 
 
 def _shadow_target_mechanics(proof_input: dict[str, Any]) -> dict[str, Any]:
-    electronic_file_id = proof_input["filing_and_party_identity"][
-        "filing_instance"
-    ]["declaration_instance_ref"]
+    electronic_file_id = proof_input["filing_and_party_identity"]["filing_instance"][
+        "declaration_instance_ref"
+    ]
     base = {
         "schema_version": GATE5_TARGET_MECHANICS_SCHEMA_VERSION,
         "status": GATE5_TARGET_MECHANICS_STATUS,

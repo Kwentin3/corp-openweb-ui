@@ -10,6 +10,7 @@ from typing import Any
 
 from .artifact_models import ArtifactAccessContext, ArtifactStorePort, RetentionPolicy
 from .gate5_declaration_scope_resolution import (
+    GATE5_CURRENT_FACT_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION,
     GATE5_DECLARATION_SCOPE_COMPONENT_EVIDENCE_SCHEMA_VERSION,
     GATE5_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION,
     GATE5_DECLARATION_SCOPE_SEMANTICS,
@@ -74,6 +75,7 @@ from .gate5_securities_disposal_tax_model import (
 from .gate5_tax_period_category_aggregation import (
     Gate5TaxPeriodCategoryAggregationRuntime,
     Gate5TaxPeriodCategoryAggregationRuntimeFactory,
+    validate_operation_taxpayer_scope_binding,
 )
 
 
@@ -100,6 +102,8 @@ FACTORY_REQUIRED = (
     "Gate5DeclarationBudgetOutcomeRuntimeFactory.create validates the exact self-bound budget snapshot",
     "Gate5DeclarationIncomeSourcesRuntimeFactory.create validates the exact self-bound taxable-source snapshot",
     "Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create validates the exact supplied-case financial snapshot",
+    "Gate5ResolvedDeclarationPackageRuntimeFactory.create_current_source_fact_package "
+    "accepts the current Fact v2 scope owner from the composition boundary",
 )
 FORBIDDEN = (
     "copied Declaration domain or expected-component lists",
@@ -241,6 +245,17 @@ class Gate5ResolvedDeclarationPackageRuntimeFactory:
                 retention_policy=self._retention_policy,
             ).create()
         )
+        return self._create_with_scope(
+            scope_runtime=scope_runtime,
+            validation_only=validation_only,
+        )
+
+    def _create_with_scope(
+        self,
+        *,
+        scope_runtime: Gate5DeclarationScopeResolutionRuntime | None,
+        validation_only: bool,
+    ) -> "Gate5ResolvedDeclarationPackageRuntime":
         return Gate5ResolvedDeclarationPackageRuntime(
             definition_authority=(
                 None
@@ -278,6 +293,24 @@ class Gate5ResolvedDeclarationPackageRuntimeFactory:
                 if validation_only
                 else Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create()
             ),
+        )
+
+    def create_current_source_fact_package(
+        self,
+        *,
+        scope_runtime: Gate5DeclarationScopeResolutionRuntime,
+    ) -> "Gate5ResolvedDeclarationPackageRuntime":
+        """Accept the source-bound Scope runtime from the composition boundary."""
+
+        if self._store is None:
+            _fail("gate5_resolved_package_assembly_store_required")
+        if not isinstance(self._retention_policy, RetentionPolicy):
+            _fail("gate5_resolved_package_retention_policy_required")
+        if not isinstance(scope_runtime, Gate5DeclarationScopeResolutionRuntime):
+            _fail("gate5_resolved_package_scope_runtime_required")
+        return self._create_with_scope(
+            scope_runtime=scope_runtime,
+            validation_only=False,
         )
 
     @classmethod
@@ -504,6 +537,7 @@ class Gate5ResolvedDeclarationPackageRuntime:
                 contract_id=item["component_contract_id"],
                 payload=item["payload"],
                 scope_binding=scope_receipt["scope_binding"],
+                taxpayer_binding=scope_receipt.get("taxpayer_binding"),
             )
             if binding is None:
                 if validated["root_coverage"] != "exact_root_domain":
@@ -752,6 +786,7 @@ class Gate5ResolvedDeclarationPackageRuntime:
         contract_id: str,
         payload: dict[str, Any],
         scope_binding: dict[str, Any],
+        taxpayer_binding: dict[str, Any] | None,
     ) -> dict[str, Any]:
         if (
             self._component_runtime is None
@@ -770,10 +805,24 @@ class Gate5ResolvedDeclarationPackageRuntime:
                 validated = self._component_runtime.validate_operation_member(
                     tax_model=payload
                 )
+                validated_taxpayer_binding = (
+                    self._component_runtime.validate_operation_taxpayer_scope_binding(
+                        binding=taxpayer_binding
+                    )
+                )
                 operation_scope = validated["operation_scope"]
+                current_identity = operation_scope.get("subject_ref") == (
+                    validated_taxpayer_binding or {}
+                ).get("operation_subject_ref") and scope_binding[
+                    "taxpayer_scope_ref"
+                ] == (validated_taxpayer_binding or {}).get("taxpayer_scope_ref")
+                historical_identity = (
+                    taxpayer_binding is None
+                    and operation_scope.get("subject_ref")
+                    == scope_binding["taxpayer_scope_ref"]
+                )
                 if (
-                    operation_scope.get("subject_ref")
-                    != scope_binding["taxpayer_scope_ref"]
+                    not (current_identity or historical_identity)
                     or operation_scope.get("tax_period", {}).get("value")
                     != scope_binding["tax_period"]
                 ):
@@ -965,7 +1014,11 @@ def _sealed_scope_receipt(
 ) -> dict[str, Any]:
     if (
         not isinstance(value, dict)
-        or value.get("schema_version") != GATE5_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION
+        or value.get("schema_version")
+        not in {
+            GATE5_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION,
+            GATE5_CURRENT_FACT_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION,
+        }
         or value.get("definition_binding") != publication
         or value.get("scope_semantics") != GATE5_DECLARATION_SCOPE_SEMANTICS
         or not _sha256(value.get("receipt_sha256"))
@@ -985,6 +1038,17 @@ def _sealed_scope_receipt(
     }
     if value["scope_binding"]["scope_binding_sha256"] != _canonical_sha256(scope_base):
         _fail("gate5_resolved_package_scope_binding_hash_mismatch")
+    if (
+        value["schema_version"]
+        == GATE5_CURRENT_FACT_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION
+    ):
+        taxpayer_binding = validate_operation_taxpayer_scope_binding(
+            value.get("taxpayer_binding")
+        )
+        if taxpayer_binding is None or taxpayer_binding["taxpayer_scope_ref"] != value[
+            "scope_binding"
+        ].get("taxpayer_scope_ref"):
+            _fail("gate5_resolved_package_scope_identity_binding_invalid")
     domains = value.get("domains")
     expected_ids = [item["domain_id"] for item in definition["domains"]]
     if (
