@@ -135,6 +135,7 @@ remain explicitly outside this MVP and fail closed.
   regressions;
 - `13 passed`: MVP artifact, production-root, identity/authority, successor,
   cross-run hybrid, XSD and semantic fixture checks;
+- `708 passed`: exact local reproduction of the repository focused CI suite;
 - Ruff, Python compilation and `git diff --check`: passed.
 
 The historical G5.35 end-to-end route remains outside this activation and

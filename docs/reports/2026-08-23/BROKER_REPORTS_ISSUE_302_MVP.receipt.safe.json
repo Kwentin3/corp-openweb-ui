@@ -42,6 +42,7 @@
     "targeted_owner_and_mvp_suites": "174 passed",
     "architecture_bundle_and_human_fact_regressions": "83 passed",
     "mvp_fixture_suite": "13 passed",
+    "repository_focused_ci_suite": "708 passed",
     "historical_g535_baseline": "6 failed, 3 errors: gate5_e2e_gate2_canonical_missing",
     "ruff": "passed",
     "diff_check": "passed"
