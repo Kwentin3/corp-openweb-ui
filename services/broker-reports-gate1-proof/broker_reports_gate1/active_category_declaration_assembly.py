@@ -134,15 +134,18 @@ FACTORY_REQUIRED = (
     "ActiveCategoryDeclarationAssemblyRuntimeFactory.create composes existing owners",
     "Gate4OrdinaryTradeCandidateRuntimeFactory.create is injected into Scope here",
     "OrdinaryTradeTaxModelBridgeRuntimeFactory.create owns Fact v2 to Category",
+    "Gate5TaxPeriodCategoryAggregationRuntimeFactory.create owns Operation to Category member binding",
+    "Gate5IncomeGroupTaxBaseRuntimeFactory.create owns Category to Tax Base input binding",
     "Gate5DeclarationRightSideAssemblyRuntimeFactory.create owns the unchanged G5.35 right side",
     "Gate5DeclarationScopeResolutionRuntimeFactory.create_current_source_fact_scope owns scope",
-    "Gate5ResolvedDeclarationPackageRuntimeFactory.create_current_source_fact_package owns package",
+    "Gate5ResolvedDeclarationPackageRuntimeFactory.create_current_source_fact_package owns Scope and component snapshots in Package",
     "Gate5DeclarationSemanticInputRuntimeFactory.create owns release",
     "Gate5FullTargetXmlProjectionRuntimeFactory.create owns target and XSD",
 )
 FORBIDDEN = (
     "prebuilt operation/category model, package, semantic input or released values",
     "Gate 3, historical SQL Gate 4, Canonical or Source Observation downstream reads",
+    "mix-and-match between valid owner artifacts from unrelated execution runs",
     "tax calculation, completeness policy, projector defaults, provider or LLM calls",
     "production activation, persistence or downloadable declaration",
 )
@@ -395,6 +398,13 @@ class ActiveCategoryDeclarationAssemblyRuntime:
         ):
             _fail("gate5_active_assembly_identity_or_scope_binding_invalid")
         package = self._package.validate_package(package=artifacts["package"])
+        _validate_execution_adjacency(
+            operation=operation,
+            category=category,
+            tax_base=tax_base,
+            scope_receipt=scope_receipt,
+            package=package,
+        )
         semantic = Gate5DeclarationSemanticInputRuntimeFactory.create()
         released = semantic.validate_released_declaration_values(
             package=package,
@@ -680,6 +690,88 @@ def _component_evidence(contract_id: str, payload: dict[str, Any]) -> dict[str, 
         "component_sha256": _sha(payload),
         "payload": copy.deepcopy(payload),
     }
+
+
+def _validate_execution_adjacency(
+    *,
+    operation: dict[str, Any],
+    category: dict[str, Any],
+    tax_base: dict[str, Any],
+    scope_receipt: dict[str, Any],
+    package: dict[str, Any],
+) -> None:
+    members = category["member_operations"]
+    if (
+        len(members) != 1
+        or members[0]["operation_model_sha256"] != _sha(operation)
+        or members[0]["source_scope_ref"] != scope_receipt["scope_binding"]["case_id"]
+    ):
+        _fail(
+            "gate5_active_assembly_cross_run_adjacency_invalid",
+            "operation_to_category",
+        )
+    if tax_base["calculation_scope"]["input_binding"][
+        "category_tax_model_sha256"
+    ] != _sha(category):
+        _fail(
+            "gate5_active_assembly_cross_run_adjacency_invalid",
+            "category_to_income_group_tax_base",
+        )
+    if package["scope_receipt_snapshot"] != scope_receipt:
+        _fail(
+            "gate5_active_assembly_cross_run_adjacency_invalid",
+            "scope_to_package",
+        )
+
+    operation_snapshot = _package_component_snapshot(
+        package,
+        GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION,
+    )
+    settlement_snapshot = _package_component_snapshot(
+        package,
+        GATE5_INCOME_GROUP_TAX_RESULTS_COMPONENT_SCHEMA_VERSION,
+    )
+    financial_snapshot = _package_component_snapshot(
+        package,
+        GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPONENT_SCHEMA_VERSION,
+    )
+    if operation_snapshot != operation:
+        _fail(
+            "gate5_active_assembly_cross_run_adjacency_invalid",
+            "operation_to_package",
+        )
+    group_results = settlement_snapshot["group_results"]
+    if (
+        len(group_results) != 1
+        or group_results[0]["tax_base_model"] != tax_base
+        or group_results[0]["tax_base_model_sha256"] != _sha(tax_base)
+    ):
+        _fail(
+            "gate5_active_assembly_cross_run_adjacency_invalid",
+            "income_group_tax_base_to_package",
+        )
+    if financial_snapshot["category_tax_models"] != [category]:
+        _fail(
+            "gate5_active_assembly_cross_run_adjacency_invalid",
+            "category_to_package",
+        )
+
+
+def _package_component_snapshot(
+    package: dict[str, Any],
+    contract_id: str,
+) -> dict[str, Any]:
+    matches = [
+        item["snapshot"]
+        for item in package["component_snapshots"]
+        if item["component_contract_id"] == contract_id
+    ]
+    if len(matches) != 1:
+        _fail(
+            "gate5_active_assembly_cross_run_adjacency_invalid",
+            f"package_component:{contract_id}",
+        )
+    return matches[0]
 
 
 def _visual_accounting(

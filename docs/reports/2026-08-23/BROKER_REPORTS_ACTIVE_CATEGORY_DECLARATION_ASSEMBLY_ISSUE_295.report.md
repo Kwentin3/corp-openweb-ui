@@ -91,9 +91,39 @@ receipt are both absent.
 | target receipt/XSD or 44/49 accounting changed, outer hashes recalculated | projection owner replay or exact accounting fails closed |
 | missing/extra/reordered receipt stage | exact stage-set validation fails closed |
 | caller raw visual table | coordinator rejects an untrusted parallel source picture |
+| valid Category from another execution | exact Category member operation hash rejects the join |
+| valid Tax Base from another execution | Tax Base owner input binding rejects the Category join |
+| valid Package/release/projection tail from another execution | Package-owned Scope and component snapshots reject the join |
 
 All material stops are machine-readable and produce no complete release or
 XML receipt.
+
+## Cross-run mix-and-match experiment
+
+Two complete owner-produced executions used the same taxpayer and right-side
+context. Run A used disposal proceeds `60.00`; run B used `64.00`. Each hybrid
+was evaluated under runtime/store B after recalculating all available stage
+hashes, release/target/visual accounting, hash chain and outer receipt hash.
+
+| Hybrid using artifacts from A | Before correction | After correction | Deciding owner/seam |
+| --- | --- | --- | --- |
+| Operation only | rejected before receipt replay: A disposal Fact ID is absent from live Fact v2 B | rejected | Gate 4/Scope live Fact binding plus Operation source refs |
+| Category only | **accepted** | rejected: `operation_to_category` | Category member operation SHA-256 |
+| Tax Base only | **accepted** | rejected: `category_to_income_group_tax_base` | Tax Base input binding |
+| Package + release + projection tail | **accepted** | rejected: `scope_to_package` | Package Scope receipt snapshot; component snapshots also bind Operation, Category and Tax Base |
+| released-value + projection tail | rejected: `gate5_declaration_release_candidate_mismatch` | rejected | semantic release owner binds Package |
+| projection tail | rejected: `gate5_active_assembly_projection_input_invalid` | rejected | semantic preparation plus projection owner replay |
+| all downstream artifacts | rejected before receipt replay: A disposal Fact ID is absent from live Fact v2 B | rejected | live source binding |
+
+The defect was not invalid owner output. It was missing adjacency comparison
+between valid owner outputs. Stage hashes proved only the integrity of isolated
+bytes, so a newly resealed receipt could omit provenance of the join.
+
+The minimal correction adds no new artifact type or authority. The composition
+validator now compares only fields already produced by existing owners:
+Category member hashes, Tax Base input binding, Package Scope snapshot and
+Package component snapshots. Package-to-release and release-to-projection
+replay remain unchanged.
 
 ## Source delta
 
@@ -116,10 +146,11 @@ All other target occurrence hashes remain identical.
 
 ## Local verification after independent review
 
-- `32 passed`: active composition, source-bound delta, direct-status rejection,
-  exact-stage validation and self-consistent artifact-mutation attacks;
-- `73 passed`: Scope, Package, income-group, category and Issue #293 bridge
-  owner suites;
+- `38 passed`: active composition, source-bound delta, direct-status rejection,
+  exact-stage validation, self-consistent artifact mutation and cross-run
+  mix-and-match attacks;
+- `124 passed`: combined active composition, Issue #293 bridge, Category,
+  Tax Base, Scope, Package, semantic release and projection owner suites;
 - `21 passed`: bundle execution/parity and architecture stabilization;
 - Ruff, Python compilation and `git diff --check`: passed.
 
@@ -155,6 +186,16 @@ as a green result.
     partial acquisition commission, unpersisted, non-downloadable and inactive.
 11. Scope and Package remain ordinary-domain agnostic: Gate 4 ordinary is
     constructed only by the #295 composition and passed through injection.
+12. Old downstream cannot survive the `60.00 -> 64.00` Fact change: the live
+    disposal Fact ID/hash no longer matches Operation A source refs.
+13. Scope B cannot be joined to Package A: Package owns and retains the exact
+    Scope receipt snapshot, which the composition compares byte-for-byte.
+14. Stage hashes prove integrity of individual artifacts, not their common
+    execution origin; explicit adjacency comparisons are therefore required.
+15. Link owners remain local: Gate 4/Scope for live facts, Category aggregation
+    for member Operation, Tax Base for Category input, Package for Scope and
+    component snapshots, semantic release for Package, and projection replay
+    for released values.
 
 ## KISS and stop
 
@@ -162,3 +203,129 @@ No Definition, Package, semantic-input, projection, taxonomy, DB, graph,
 workflow, rules engine, LLM adapter or product route was added. The next
 smallest step, if separately authorized, is review/qualification of the
 inactive composition; activation and legal-gap resolution remain out of scope.
+
+## Universal skill used for the audit
+
+The instruction-only user skill remains outside this repository at
+`$HOME/.agents/skills/domain-boundary-change/SKILL.md`.
+Its SHA-256 is
+`25c3ee26a6c238b682298f3d6462fcf6b40ae39bddf359d8f26870187a35b497`.
+The complete text used for this audit is reproduced below for independent
+review; the repository does not import or install it.
+
+<details>
+<summary>Complete domain-boundary-change SKILL.md</summary>
+
+````markdown
+---
+name: domain-boundary-change
+description: Review or implement changes that connect domains, add bridges/adapters/coordinators/assemblers/composition roots, expose hidden logic, change contract seams, connect an existing path to a new source, or create provenance/completeness/receipt/mutation proofs. Use for cross-domain architecture work; do not use for isolated local fixes that leave boundaries unchanged.
+---
+
+# Domain Boundary Change
+
+Keep one owner per meaning and localize cross-domain coupling at an explicit
+composition boundary. Prefer the smallest change that preserves existing
+contracts; do not introduce a generic engine, registry, graph, DSL, or
+framework merely to make the design look uniform.
+
+## Before implementation
+
+Write a compact map for every meaning or transformation crossing the seam:
+
+```text
+meaning or transformation
+-> existing owner
+-> public contract
+-> consumer
+```
+
+Search for existing behavior, not only matching class names. Inspect schemas
+and fields, constants and terminals, emitted structures, tests, behavioral
+expectations, and similar private helpers.
+
+Classify each proposed block as exactly one of:
+
+- owner of meaning;
+- representation-only adapter;
+- call-order coordinator;
+- duplicate owner of existing meaning.
+
+If required logic exists behind a private seam, do not copy it silently.
+Choose and justify the narrowest viable action:
+
+1. reuse an existing public seam;
+2. expose a minimal public seam;
+3. extract one narrow owner and move both old and new paths to it;
+4. stop with an explicit architectural blocker.
+
+## Boundary rules
+
+A coordinator may order calls, pass typed results between owners, collect a
+technical execution receipt, and stop on a blocker or demand.
+
+A coordinator must not repeat business calculations, rebuild semantic inputs
+already assembled elsewhere, own mapping/completeness/classification/
+provenance, invent defaults, silently repair contradictions, or overwrite an
+input without an explicit derivation contract. If it does, it is becoming a
+second assembler or meaning owner.
+
+Domain implementations must not import a neighboring domain's implementation.
+Let implementations meet in a composition root and pass typed boundary
+contracts across the seam. An import of a shared neutral contract is not an
+implementation dependency.
+
+Do not require refactoring for aesthetic purity. A temporary MVP seam can be
+acceptable when it is explicit, isolated, tested at the real boundary, does
+not create competing meaning, and records the residual risk and removal
+condition. When tradeoffs are ambiguous, state them instead of imposing one
+architecture style.
+
+## Evidence integrity
+
+Keep these distinctions explicit:
+
+- data versus a description or display of data;
+- a source binding versus caller-supplied illustration;
+- a checksum versus proof of origin;
+- a self-consistent receipt versus a receipt bound to owner-validated
+  artifacts.
+
+Source/provenance accounting must be derived from the real source owner or
+verified against it. Never allow a caller-provided source picture to enter an
+evidence receipt unchecked.
+
+Mutation tests must alter the real artifact at the contract seam: for example,
+a package, released value set, typed binding, source fact, or projected
+artifact. Recomputing surrounding receipt hashes must not make the mutation
+valid unless the responsible owner independently accepts the changed artifact.
+Changing one hash string without changing the artifact is only a checksum test,
+not an integrity proof.
+
+Test the contract between domains, including foreign identity/scope, missing
+binding, misbinding, stale owner output, and valid minimal representation-only
+adaptation where relevant. Do not treat tests of the new wrapper alone or a
+green CI result as proof that ownership remains correct.
+
+## Completion audit
+
+Before declaring completion, compare the new code again with all relevant
+existing paths and answer:
+
+1. What existing logic might have been copied?
+2. Is there a second owner of any meaning?
+3. Does one domain import another domain's implementation?
+4. What remains in the coordinator besides call ordering and technical
+   accounting?
+5. Which inputs are silently added, repaired, or overwritten?
+6. Can a caller lie through provenance or receipt fields?
+7. Do mutation tests change real artifacts at their owner seams?
+8. Can recalculated hashes make a forged artifact appear valid?
+9. Do tests prove the cross-domain contract rather than only the wrapper?
+10. What is the smallest design that retains one owner and a strict boundary?
+
+If a material violation remains, do not report the work complete. Either fix
+it within scope or report the precise blocker, tradeoff, and residual risk.
+````
+
+</details>

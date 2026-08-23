@@ -111,6 +111,26 @@ current Fact v2 inputs, reruns the Scope, Package, release and projection
 owners, requires the exact stage set, and verifies 44 released leaves, 49
 known-owner target occurrences and `xsd_valid=true`.
 
+Individually valid artifacts are not interchangeable between executions. The
+composition additionally checks the owner-produced adjacency fields:
+
+```text
+live Fact v2 IDs/hashes -> Operation normalized-source-fact refs
+Operation SHA-256       -> Category member operation binding
+Category SHA-256        -> income-group Tax Base input binding
+Scope receipt           -> Package scope receipt snapshot
+Operation               -> Package operation component snapshot
+Category                -> Package financial component snapshot
+Tax Base                -> Package settlement component snapshot
+Package                 -> released-value source binding
+released values         -> regenerated projection input and target receipt
+```
+
+These comparisons establish execution adjacency; stage hashes alone establish
+only byte integrity. A receipt assembled from valid outputs of two executions
+must fail even when every outer hash, accounting block, hash chain and receipt
+hash has been recalculated.
+
 The executable proof rejects:
 
 1. material acquisition commission;
@@ -129,6 +149,8 @@ The executable proof rejects:
 13. missing, extra or reordered receipt stage;
 14. caller-supplied raw visual control;
 15. direct `income_group.taxpayer_status` or `taxpayer.period_status`.
+16. cross-run Category, Tax Base or Package/release/projection tail assembled
+    from a different otherwise-valid execution.
 
 Every material negative is machine-readable, identifies one primary owner and
 returns no complete release/XML.

@@ -513,6 +513,119 @@ def test_self_consistent_receipt_with_inexact_stage_set_fails_closed(
     assert exc.value.code == "gate5_active_assembly_receipt_chain_invalid"
 
 
+@pytest.mark.parametrize(
+    ("artifact_keys", "expected_field"),
+    [
+        (("category_tax_model",), "operation_to_category"),
+        (("income_group_tax_base",), "category_to_income_group_tax_base"),
+        (
+            (
+                "package",
+                "released_values",
+                "projection_input",
+                "target_mechanics",
+                "target_receipt",
+            ),
+            "scope_to_package",
+        ),
+    ],
+)
+def test_valid_owner_outputs_from_two_runs_cannot_cross_adjacency_seams(
+    tmp_path: Path,
+    artifact_keys: tuple[str, ...],
+    expected_field: str,
+) -> None:
+    _runtime_a, _context_a, _facts_a, run_a = _completed_run(
+        tmp_path / f"a-{expected_field}",
+        proceeds="60.00",
+    )
+    runtime_b, context_b, facts_b, run_b = _completed_run(
+        tmp_path / f"b-{expected_field}",
+        proceeds="64.00",
+    )
+    hybrid = _mix_owner_artifacts(
+        run_b=run_b,
+        run_a=run_a,
+        artifact_keys=artifact_keys,
+        source_facts_b=facts_b,
+    )
+
+    with pytest.raises(ActiveCategoryDeclarationAssemblyError) as exc:
+        runtime_b.validate_receipt(hybrid, context=context_b)
+
+    assert exc.value.code == "gate5_active_assembly_cross_run_adjacency_invalid"
+    assert exc.value.field == expected_field
+
+
+def test_live_fact_b_rejects_owner_valid_operation_a_before_receipt_reseal(
+    tmp_path: Path,
+) -> None:
+    _runtime_a, _context_a, _facts_a, run_a = _completed_run(
+        tmp_path / "fact-operation-a",
+        proceeds="60.00",
+    )
+    _runtime_b, _context_b, facts_b, run_b = _completed_run(
+        tmp_path / "fact-operation-b",
+        proceeds="64.00",
+    )
+
+    with pytest.raises(ActiveCategoryDeclarationAssemblyError) as exc:
+        _mix_owner_artifacts(
+            run_b=run_b,
+            run_a=run_a,
+            artifact_keys=("operation_tax_model",),
+            source_facts_b=facts_b,
+        )
+
+    assert exc.value.code == "gate5_active_assembly_source_fact_missing"
+
+
+@pytest.mark.parametrize(
+    ("artifact_keys", "expected_code"),
+    [
+        (
+            (
+                "released_values",
+                "projection_input",
+                "target_mechanics",
+                "target_receipt",
+            ),
+            "gate5_declaration_release_candidate_mismatch",
+        ),
+        (
+            ("projection_input", "target_mechanics", "target_receipt"),
+            "gate5_active_assembly_projection_input_invalid",
+        ),
+    ],
+)
+def test_existing_release_and_projection_owners_reject_cross_run_tails(
+    tmp_path: Path,
+    artifact_keys: tuple[str, ...],
+    expected_code: str,
+) -> None:
+    _runtime_a, _context_a, _facts_a, run_a = _completed_run(
+        tmp_path / f"tail-a-{expected_code}",
+        proceeds="60.00",
+    )
+    runtime_b, context_b, facts_b, run_b = _completed_run(
+        tmp_path / f"tail-b-{expected_code}",
+        proceeds="64.00",
+    )
+    hybrid = _mix_owner_artifacts(
+        run_b=run_b,
+        run_a=run_a,
+        artifact_keys=artifact_keys,
+        source_facts_b=facts_b,
+    )
+
+    with pytest.raises(
+        (ActiveCategoryDeclarationAssemblyError, Gate5DeclarationSemanticInputError)
+    ) as exc:
+        runtime_b.validate_receipt(hybrid, context=context_b)
+
+    assert exc.value.code == expected_code
+
+
 def test_historical_gate3_sql_and_legacy_projection_fallbacks_are_trapped(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -534,7 +647,15 @@ def test_historical_gate3_sql_and_legacy_projection_fallbacks_are_trapped(
     )
     assert result["terminal"] == ACTIVE_CATEGORY_TO_DECLARATION_ASSEMBLY_PROVEN
     assert "existing owners" in FACTORY_REQUIRED[0]
+    assert any(
+        "Operation to Category member binding" in item for item in FACTORY_REQUIRED
+    )
+    assert any(
+        "Category to Tax Base input binding" in item for item in FACTORY_REQUIRED
+    )
+    assert any("Scope and component snapshots" in item for item in FACTORY_REQUIRED)
     assert "historical SQL Gate 4" in FORBIDDEN[1]
+    assert any("mix-and-match" in item for item in FORBIDDEN)
     source = inspect.getsource(assembly_module)
     for forbidden_name in (
         "Gate3",
@@ -666,6 +787,69 @@ def _reseal_outer_receipt(receipt: dict) -> None:
     receipt["receipt_sha256"] = _sha(
         {key: value for key, value in receipt.items() if key != "receipt_sha256"}
     )
+
+
+def _completed_run(root: Path, *, proceeds: str):
+    store, context, facts = _case(root, proceeds=proceeds)
+    runtime = _runtime(store)
+    receipt = runtime.run(
+        **_bridge_inputs(context, facts, store),
+        right_side_inputs=_right_side(context.user_id),
+        context=context,
+    )
+    return runtime, context, facts, receipt
+
+
+def _mix_owner_artifacts(
+    *,
+    run_b: dict,
+    run_a: dict,
+    artifact_keys: tuple[str, ...],
+    source_facts_b: list[dict],
+) -> dict:
+    hybrid = copy.deepcopy(run_b)
+    for key in artifact_keys:
+        hybrid["owner_artifacts"][key] = copy.deepcopy(run_a["owner_artifacts"][key])
+    artifacts = hybrid["owner_artifacts"]
+    operation = artifacts["operation_tax_model"]
+    category = artifacts["category_tax_model"]
+    tax_base = artifacts["income_group_tax_base"]
+    scope_receipt = artifacts["scope_receipt"]
+    package = artifacts["package"]
+    released = artifacts["released_values"]
+    target_receipt = artifacts["target_receipt"]
+    hybrid["fact_v2_binding"] = copy.deepcopy(scope_receipt["gate4_binding"])
+    hybrid["stage_hashes"] = assembly_module._stage_hashes(
+        operation=operation,
+        category=category,
+        tax_base=tax_base,
+        scope_receipt=scope_receipt,
+        package=package,
+        released=released,
+        projection_receipt=target_receipt,
+    )
+    hybrid["category_to_income_group_binding"] = copy.deepcopy(
+        tax_base["calculation_scope"]["input_binding"]
+    )
+    release_accounting = released["release_receipt"]["evidence_accounting"]
+    hybrid["release_accounting"] = copy.deepcopy(release_accounting)
+    hybrid["target_accounting"] = assembly_module._target_accounting(
+        mappings=target_receipt["semantic_mapping_proof"]["mappings"],
+        release_bindings=release_accounting["bindings"],
+        xsd_conformance=target_receipt["conformance_proof"],
+    )
+    hybrid["visual_accounting"] = assembly_module._visual_accounting(
+        bridge_operation=operation,
+        category=category,
+        tax_base=tax_base,
+        package=package,
+        released=released,
+        projection={"receipt": target_receipt},
+        source_facts=tuple(source_facts_b),
+        gate4_binding=scope_receipt["gate4_binding"],
+    )
+    _reseal_outer_receipt(hybrid)
+    return hybrid
 
 
 def _sha(value) -> str:
