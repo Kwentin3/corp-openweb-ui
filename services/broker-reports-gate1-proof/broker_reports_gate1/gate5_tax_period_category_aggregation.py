@@ -47,6 +47,9 @@ GATE5_TAX_PERIOD_CATEGORY_TAX_MODEL_RESULT_SCHEMA_VERSION = (
 GATE5_TAX_PERIOD_CATEGORY_OPERATION_MEMBER_CONTRACT = (
     GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION
 )
+GATE5_OPERATION_TAXPAYER_SCOPE_BINDING_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_taxpayer_binding_v0"
+)
 
 FACTORY_REQUIRED = (
     "Gate5TaxPeriodCategoryAggregationRuntimeFactory.create",
@@ -137,6 +140,13 @@ class Gate5TaxPeriodCategoryAggregationRuntime:
     def validate_category_model(self, *, tax_model: dict[str, Any]) -> dict[str, Any]:
         """Validate one complete category result for a downstream tax behavior."""
         return _validated_category_tax_model(tax_model, authority=self._authority)
+
+    def validate_operation_taxpayer_scope_binding(
+        self, *, binding: Any
+    ) -> dict[str, Any] | None:
+        """Validate the explicit subject-to-taxpayer identity seam."""
+
+        return validate_operation_taxpayer_scope_binding(binding)
 
     def describe_scope(
         self,
@@ -329,13 +339,11 @@ def _operation_model(
     ):
         _fail("gate5_tax_period_operation_model_invalid")
     residency = _tagged(operation_scope.get("residency"), "minimal_tax_context")
-    if (
-        residency["provenance"].get("source_kind")
-        != "methodology_derived_result"
-        or not residency["provenance"].get("source_ref", "").startswith(
-            "residency-classification:"
-        )
-    ):
+    if residency["provenance"].get(
+        "source_kind"
+    ) != "methodology_derived_result" or not residency["provenance"].get(
+        "source_ref", ""
+    ).startswith("residency-classification:"):
         _fail("gate5_tax_period_residency_classification_required")
     _tagged(operation_scope.get("exemption_applicability"), "minimal_tax_context")
     _tagged(operation.get("kind"), "resolved_operation_property")
@@ -906,6 +914,35 @@ def _declaration_semantics(model: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_operation_taxpayer_scope_binding(
+    value: Any,
+) -> dict[str, Any] | None:
+    """Validate a provenance-bound operation subject to taxpayer-scope join."""
+
+    provenance = value.get("provenance") if isinstance(value, dict) else None
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema_version",
+            "operation_subject_ref",
+            "taxpayer_scope_ref",
+            "provenance",
+        }
+        or value.get("schema_version")
+        != GATE5_OPERATION_TAXPAYER_SCOPE_BINDING_SCHEMA_VERSION
+        or not _identifier(value.get("operation_subject_ref"))
+        or not _identifier(value.get("taxpayer_scope_ref"))
+        or not isinstance(provenance, dict)
+        or set(provenance) != {"source_kind", "source_ref", "input_channel"}
+        or provenance.get("source_kind") != "user_verified_fact"
+        or not _identifier(provenance.get("source_ref"))
+        or provenance.get("input_channel") != "operation_taxpayer_binding"
+    ):
+        return None
+    return copy.deepcopy(value)
+
+
 def _tagged(value: Any, channel: str) -> dict[str, Any]:
     provenance = value.get("provenance") if isinstance(value, dict) else None
     if (
@@ -968,6 +1005,7 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "GATE5_TAX_PERIOD_CATEGORY_AGGREGATION_RESULT_SCHEMA_VERSION",
+    "GATE5_OPERATION_TAXPAYER_SCOPE_BINDING_SCHEMA_VERSION",
     "GATE5_TAX_PERIOD_CATEGORY_OPERATION_MEMBER_CONTRACT",
     "GATE5_TAX_PERIOD_CATEGORY_SCOPE_BINDING_SCHEMA_VERSION",
     "GATE5_TAX_PERIOD_CATEGORY_SCOPE_SCHEMA_VERSION",
@@ -977,4 +1015,5 @@ __all__ = [
     "Gate5TaxPeriodCategoryAggregationError",
     "Gate5TaxPeriodCategoryAggregationRuntime",
     "Gate5TaxPeriodCategoryAggregationRuntimeFactory",
+    "validate_operation_taxpayer_scope_binding",
 ]

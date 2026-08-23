@@ -22,8 +22,7 @@ The exact route is:
 
 ```text
 OrdinaryTradeTaxModelBridgeRuntimeFactory.create
--> Gate5IncomeGroupTaxBaseRuntimeFactory.create
--> existing settlement and declaration component factories
+-> Gate5DeclarationRightSideAssemblyRuntimeFactory.create
 -> Gate5DeclarationScopeResolutionRuntimeFactory.create_current_source_fact_scope
 -> Gate5ResolvedDeclarationPackageRuntimeFactory.create_current_source_fact_package
 -> Gate5DeclarationSemanticInputRuntimeFactory.create release
@@ -34,6 +33,20 @@ OrdinaryTradeTaxModelBridgeRuntimeFactory.create
 The coordinator accepts source-fact route inputs and explicit synthetic
 right-side facts. It does not accept a prebuilt operation/category Tax Model,
 Scope receipt, Package, semantic input or released value set.
+
+`Gate5DeclarationRightSideAssemblyRuntimeFactory.create` is the single owner
+of the right-side assembly sequence shared by historical G5.35 and this
+composition. It delegates tax-base, settlement, income-source, filing, budget
+and financial component meaning to their existing factories. Direct
+`income_group.taxpayer_status` and `taxpayer.period_status` inputs are
+forbidden; taxpayer status is produced only by the residency-evidence owner.
+
+The ordinary Fact v2 marriage is localized here. This composition constructs
+and injects the ordinary Gate 4 runtime into Scope, then injects Scope into
+Package. The reusable Scope and Package modules import neither
+`ordinary_trade_tax_model_bridge` nor
+`Gate4OrdinaryTradeCandidateRuntimeFactory`; the bundle therefore keeps its
+normal right-domain ordering.
 
 ## Identity and source binding
 
@@ -85,12 +98,18 @@ gap_owner_classification  LEGAL_INTERPRETATION_REQUIRED
 No proportional formula, first-disposal allocation or silent exclusion is
 authorized.
 
-## Completeness and mutation binding
+## Completeness and artifact-backed mutation binding
 
 Category completeness binds the exact member/category scope. Income-group
 completeness binds the exact Category Tax Model plus taxpayer/group context.
 Scope, component set, Package, released semantics, projection receipt and XML
-are independently hashed and joined by a deterministic receipt chain.
+are independently hashed and joined by a deterministic receipt chain. The
+receipt also embeds the owner-produced operation, Category, income-group,
+Scope, Package, released-value and projection artifacts needed for replay.
+Validation does not trust a self-consistent outer hash chain: it reopens the
+current Fact v2 inputs, reruns the Scope, Package, release and projection
+owners, requires the exact stage set, and verifies 44 released leaves, 49
+known-owner target occurrences and `xsd_valid=true`.
 
 The executable proof rejects:
 
@@ -105,14 +124,24 @@ The executable proof rejects:
 9. changed Category Tax Model with old downstream completeness;
 10. direct Category Tax Model to semantic/XML bypass;
 11. historical G5.35 Gate 3 or SQL-backed Gate 4 fallback;
-12. changed category, package, release or receipt-chain binding.
+12. changed category, Package, released artifact or target receipt even after
+    recalculating the outer hash chain;
+13. missing, extra or reordered receipt stage;
+14. caller-supplied raw visual control;
+15. direct `income_group.taxpayer_status` or `taxpayer.period_status`.
 
 Every material negative is machine-readable, identifies one primary owner and
 returns no complete release/XML.
 
-## Source delta and consumer accounting
+## Source-bound Fact delta and consumer accounting
 
-Changing only one disposal-proceeds cell from the bounded control changes the
+The visual control is derived from the current Fact v2 owner, not copied from
+caller input. Every row carries the exact fact ID/hash, role, normalized value,
+source literal and source target; those hashes must equal the Scope binding.
+There is no caller-owned `raw_control` field.
+
+Changing only one disposal-proceeds source literal from `60.00` to `64.00`
+changes the live Fact v2 value and the
 operation, Category, income-group, Package, release and XML hashes. Under the
 existing G5.45 profile, the exact changed mapping IDs are:
 

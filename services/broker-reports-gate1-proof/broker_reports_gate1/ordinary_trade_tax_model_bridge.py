@@ -17,9 +17,11 @@ from .gate5_securities_disposal_tax_model import (
     Gate5SecuritiesDisposalTaxModelRuntimeFactory,
 )
 from .gate5_tax_period_category_aggregation import (
+    GATE5_OPERATION_TAXPAYER_SCOPE_BINDING_SCHEMA_VERSION,
     Gate5TaxPeriodCategoryAggregationError,
     Gate5TaxPeriodCategoryAggregationRuntime,
     Gate5TaxPeriodCategoryAggregationRuntimeFactory,
+    validate_operation_taxpayer_scope_binding,
 )
 from .ordinary_trade_candidate_runtime import OrdinaryTradeCandidateRuntimeFactory
 
@@ -28,7 +30,7 @@ ORDINARY_TRADE_TAX_MODEL_BRIDGE_RESULT_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_tax_model_bridge_result_v0"
 )
 ORDINARY_TRADE_TAXPAYER_BINDING_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_taxpayer_binding_v0"
+    GATE5_OPERATION_TAXPAYER_SCOPE_BINDING_SCHEMA_VERSION
 )
 ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN = (
     "ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN"
@@ -417,28 +419,9 @@ def _expense_demands(
 def validate_ordinary_trade_taxpayer_binding(
     value: Any,
 ) -> dict[str, Any] | None:
-    """Validate the bridge-owned operation-to-taxpayer identity binding."""
-    provenance = value.get("provenance") if isinstance(value, dict) else None
-    if (
-        not isinstance(value, dict)
-        or set(value)
-        != {
-            "schema_version",
-            "operation_subject_ref",
-            "taxpayer_scope_ref",
-            "provenance",
-        }
-        or value.get("schema_version") != ORDINARY_TRADE_TAXPAYER_BINDING_SCHEMA_VERSION
-        or not _identifier(value.get("operation_subject_ref"))
-        or not _identifier(value.get("taxpayer_scope_ref"))
-        or not isinstance(provenance, dict)
-        or set(provenance) != {"source_kind", "source_ref", "input_channel"}
-        or provenance.get("source_kind") != "user_verified_fact"
-        or not _identifier(provenance.get("source_ref"))
-        or provenance.get("input_channel") != "operation_taxpayer_binding"
-    ):
-        return None
-    return copy.deepcopy(value)
+    """Compatibility alias for the Category owner's identity contract."""
+
+    return validate_operation_taxpayer_scope_binding(value)
 
 
 def _identifier(value: Any) -> bool:

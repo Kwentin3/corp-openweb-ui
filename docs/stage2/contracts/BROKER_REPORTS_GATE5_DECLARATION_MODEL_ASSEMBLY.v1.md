@@ -34,11 +34,17 @@ taxpayer declaration.
 Issue #295 adds the inactive
 `ActiveCategoryDeclarationAssemblyRuntimeFactory.create` coordinator. It
 starts from the Issue #293 factory route, not from a prebuilt operation or
-Category Tax Model, and then delegates to the existing income-group,
-settlement/component, Full Definition, Scope, Package, release and
-consumer-first projection owners. Scope and Package use their additive
-current-Fact entrypoints; historical Gate 3 and SQL-backed Gate 4 are trapped,
-not fallbacks.
+Category Tax Model, and then delegates right-side assembly to the shared
+`Gate5DeclarationRightSideAssemblyRuntimeFactory.create` owner before calling
+the existing Full Definition, Scope, Package, release and consumer-first
+projection owners. Historical G5.35 uses this same right-side owner. Direct
+`income_group.taxpayer_status` and `taxpayer.period_status` are rejected;
+residency evidence is the sole source of that classification.
+
+The active composition injects its ordinary Gate 4 boundary into Scope and
+injects Scope into Package. The reusable Scope and Package modules have no
+ordinary-trade bridge or Gate 4 ordinary imports, so left/right coupling stays
+at the composition boundary and the normal bundle order is preserved.
 
 The allowed terminals are:
 
@@ -54,6 +60,13 @@ XML receipt. The clean control uses no acquisition commission, keeps the
 operation subject distinct from the taxpayer scope, emits 44 released leaves
 and 49 target occurrences, and remains synthetic, unpersisted,
 non-downloadable and shadow-only.
+
+The audit visual is reconstructed from the exact current Fact v2 roles and
+their source literals/targets. Caller-supplied raw display data is forbidden.
+Receipt validation replays the Fact, Scope, Package, release and projection
+owners and requires the exact stage set, 44 released leaves, 49 known-owner
+target occurrences and successful official-XSD validation; recalculating only
+the outer hash chain cannot make a mutated owner artifact valid.
 
 ## Consumer-first inventory
 

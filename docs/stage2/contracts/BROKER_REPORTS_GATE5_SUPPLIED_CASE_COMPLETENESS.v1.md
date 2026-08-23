@@ -29,9 +29,11 @@ binds the current financial facts through
 `Gate4FinancialCaseRuntimeFactory.create`.
 
 Issue #295 adds no scope authority. The same factory's additive
-`create_current_source_fact_scope` entrypoint replaces only the source reader
-with `Gate4OrdinaryTradeCandidateRuntimeFactory.create` for the inactive
-ordinary-trade proof. Its receipt retains the bridge-owned typed binding
+`create_current_source_fact_scope` entrypoint accepts an injected validated
+source boundary for the inactive ordinary-trade proof. The Issue #295
+composition constructs the Gate 4 ordinary runtime; the universal Scope module
+does not import it or the ordinary Tax Model bridge. Its receipt retains the
+category-owner typed binding
 between the modeled `operation_subject_ref` and the independent
 `taxpayer_scope_ref`; neither value may be inferred from or equated to the
 other. The additive path records `gate3_case_status=not_executed` and cannot
@@ -104,9 +106,11 @@ DECLARATION_INCOMPLETE_FOR_SUPPLIED_CASE
 ```
 
 The same factory's additive `create_current_source_fact_package` entrypoint
-injects the current-Fact scope runtime and validates the retained typed
-operation/taxpayer binding. Historical `create` behavior and validation-only
-sealed-package validation remain compatible.
+accepts the current-Fact Scope runtime injected by the Issue #295 composition
+and validates the retained typed operation/taxpayer binding through the
+category owner. The universal Package module imports neither ordinary bridge
+nor ordinary Gate 4. Historical `create` behavior and validation-only sealed-
+package validation remain compatible.
 
 The completeness receipt contains:
 

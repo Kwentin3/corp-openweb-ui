@@ -8,26 +8,25 @@ import json
 from typing import Any
 
 from .artifact_models import ArtifactAccessContext, ArtifactStorePort, RetentionPolicy
+from .gate4_ordinary_trade_candidate import (
+    Gate4OrdinaryTradeCandidateRuntime,
+    Gate4OrdinaryTradeCandidateRuntimeFactory,
+)
 from .gate5_declaration_budget_outcome import (
     GATE5_DECLARATION_BUDGET_DISPOSITION_COMPONENT_SCHEMA_VERSION,
-    GATE5_DECLARATION_BUDGET_DISPOSITION_INPUT_SCHEMA_VERSION,
-    Gate5DeclarationBudgetOutcomeRuntimeFactory,
 )
 from .gate5_declaration_filing_context import (
     GATE5_FILING_AND_PARTY_IDENTITY_COMPONENT_SCHEMA_VERSION,
-    GATE5_FILING_AND_PARTY_IDENTITY_INPUT_SCHEMA_VERSION,
-    Gate5FilingAndPartyIdentityRuntimeFactory,
 )
 from .gate5_declaration_financial_investment_results import (
-    GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPLETENESS_SCHEMA_VERSION,
     GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPONENT_SCHEMA_VERSION,
-    GATE5_FINANCIAL_INVESTMENT_RESULTS_INPUT_SCHEMA_VERSION,
-    Gate5DeclarationFinancialInvestmentResultsRuntimeFactory,
 )
 from .gate5_declaration_income_sources import (
     GATE5_TAXABLE_INCOME_SOURCE_COMPONENT_SCHEMA_VERSION,
-    GATE5_TAXABLE_INCOME_SOURCE_INPUT_SCHEMA_VERSION,
-    Gate5DeclarationIncomeSourcesRuntimeFactory,
+)
+from .gate5_declaration_right_side_assembly import (
+    Gate5DeclarationRightSideAssemblyRuntime,
+    Gate5DeclarationRightSideAssemblyRuntimeFactory,
 )
 from .gate5_declaration_scope_resolution import (
     GATE5_DECLARATION_SCOPE_COMPONENT_EVIDENCE_SCHEMA_VERSION,
@@ -39,8 +38,6 @@ from .gate5_declaration_semantic_input import (
 )
 from .gate5_declaration_tax_settlement import (
     GATE5_INCOME_GROUP_TAX_RESULTS_COMPONENT_SCHEMA_VERSION,
-    GATE5_INCOME_GROUP_TAX_RESULTS_INPUT_SCHEMA_VERSION,
-    Gate5DeclarationTaxSettlementRuntimeFactory,
 )
 from .gate5_full_declaration_definition import (
     Gate5TrustedFullDeclarationDefinitionAuthorityFactory,
@@ -51,24 +48,18 @@ from .gate5_full_target_xml_projection import (
     GATE5_TARGET_MECHANICS_STATUS,
     Gate5FullTargetXmlProjectionRuntimeFactory,
 )
-from .gate5_income_group_tax_base import (
-    GATE5_INCOME_GROUP_TAX_BASE_COMPLETENESS_SCHEMA_VERSION,
-    GATE5_INCOME_GROUP_TAX_BASE_INPUT_SCHEMA_VERSION,
-    Gate5IncomeGroupTaxBaseRuntimeFactory,
-)
-from .gate5_residency_evidence import (
-    Gate5ResidencyEvidenceRuntimeFactory,
-    gate5_residency_methodology_input,
-)
+from .gate5_income_group_tax_base import Gate5IncomeGroupTaxBaseRuntimeFactory
+from .gate5_residency_evidence import gate5_residency_methodology_input
 from .gate5_resolved_declaration_package import (
     Gate5ResolvedDeclarationPackageRuntimeFactory,
 )
 from .gate5_securities_disposal_tax_model import (
     GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION,
 )
+from .gate5_tax_period_category_aggregation import (
+    Gate5TaxPeriodCategoryAggregationRuntimeFactory,
+)
 from .gate5_trusted_methodology import (
-    GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_ID,
-    GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_VERSION,
     GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
     GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_VERSION,
     GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
@@ -89,11 +80,61 @@ ACTIVE_CATEGORY_TO_DECLARATION_ASSEMBLY_PROVEN = (
 BOUNDED_DECLARATION_ASSEMBLY_BLOCKERS_PROVEN = (
     "BOUNDED_DECLARATION_ASSEMBLY_BLOCKERS_PROVEN"
 )
+_CURRENT_FACT_BOUNDARY = "Gate4OrdinaryTradeCandidateRuntimeFactory.create"
+_STAGE_NAMES = (
+    "operation_tax_model_sha256",
+    "category_tax_model_sha256",
+    "income_group_tax_base_sha256",
+    "scope_receipt_sha256",
+    "component_set_sha256",
+    "package_sha256",
+    "semantic_value_sha256",
+    "release_receipt_sha256",
+    "projection_receipt_sha256",
+    "xml_sha256",
+)
+_OWNER_ARTIFACT_KEYS = frozenset(
+    {
+        "operation_tax_model",
+        "category_tax_model",
+        "income_group_tax_base",
+        "scope_receipt",
+        "package",
+        "released_values",
+        "projection_input",
+        "target_mechanics",
+        "target_receipt",
+    }
+)
+_EXPECTED_RELEASED_VALUES = 44
+_EXPECTED_TARGET_OCCURRENCES = 49
+_SUCCESS_RECEIPT_KEYS = frozenset(
+    {
+        "schema_version",
+        "status",
+        "terminal",
+        "blockers",
+        "demands",
+        "route",
+        "identity_binding",
+        "fact_v2_binding",
+        "owner_artifacts",
+        "stage_hashes",
+        "category_to_income_group_binding",
+        "hash_chain",
+        "release_accounting",
+        "target_accounting",
+        "visual_accounting",
+        "execution_constraints",
+        "receipt_sha256",
+    }
+)
 
 FACTORY_REQUIRED = (
     "ActiveCategoryDeclarationAssemblyRuntimeFactory.create composes existing owners",
+    "Gate4OrdinaryTradeCandidateRuntimeFactory.create is injected into Scope here",
     "OrdinaryTradeTaxModelBridgeRuntimeFactory.create owns Fact v2 to Category",
-    "Gate5IncomeGroupTaxBaseRuntimeFactory.create owns income-group tax base",
+    "Gate5DeclarationRightSideAssemblyRuntimeFactory.create owns the unchanged G5.35 right side",
     "Gate5DeclarationScopeResolutionRuntimeFactory.create_current_source_fact_scope owns scope",
     "Gate5ResolvedDeclarationPackageRuntimeFactory.create_current_source_fact_package owns package",
     "Gate5DeclarationSemanticInputRuntimeFactory.create owns release",
@@ -129,30 +170,48 @@ class ActiveCategoryDeclarationAssemblyRuntimeFactory:
     def create(self) -> "ActiveCategoryDeclarationAssemblyRuntime":
         if not isinstance(self._retention_policy, RetentionPolicy):
             _fail("gate5_active_assembly_retention_policy_required")
+        gate4_runtime = Gate4OrdinaryTradeCandidateRuntimeFactory(
+            store=self._store,
+            read_enabled=self._read_enabled,
+        ).create()
+        scope_runtime = Gate5DeclarationScopeResolutionRuntimeFactory(
+            store=self._store,
+            read_enabled=self._read_enabled,
+            retention_policy=self._retention_policy,
+        ).create_current_source_fact_scope(
+            gate4_runtime=gate4_runtime,
+            source_boundary=_CURRENT_FACT_BOUNDARY,
+        )
         return ActiveCategoryDeclarationAssemblyRuntime(
             bridge=OrdinaryTradeTaxModelBridgeRuntimeFactory(
                 store=self._store,
                 read_enabled=self._read_enabled,
                 retention_policy=self._retention_policy,
             ).create(),
-            scope=Gate5DeclarationScopeResolutionRuntimeFactory(
-                store=self._store,
-                read_enabled=self._read_enabled,
-                retention_policy=self._retention_policy,
-            ).create_current_source_fact_scope(),
+            source_facts=gate4_runtime,
+            right_side=Gate5DeclarationRightSideAssemblyRuntimeFactory.create(),
+            scope=scope_runtime,
             package=Gate5ResolvedDeclarationPackageRuntimeFactory(
                 store=self._store,
                 read_enabled=self._read_enabled,
                 retention_policy=self._retention_policy,
-            ).create_current_source_fact_package(),
+            ).create_current_source_fact_package(scope_runtime=scope_runtime),
         )
 
 
 class ActiveCategoryDeclarationAssemblyRuntime:
     def __init__(
-        self, *, bridge: OrdinaryTradeTaxModelBridgeRuntime, scope: Any, package: Any
+        self,
+        *,
+        bridge: OrdinaryTradeTaxModelBridgeRuntime,
+        source_facts: Gate4OrdinaryTradeCandidateRuntime,
+        right_side: Gate5DeclarationRightSideAssemblyRuntime,
+        scope: Any,
+        package: Any,
     ) -> None:
         self._bridge = bridge
+        self._source_facts = source_facts
+        self._right_side = right_side
         self._scope = scope
         self._package = package
 
@@ -172,7 +231,12 @@ class ActiveCategoryDeclarationAssemblyRuntime:
         context: ArtifactAccessContext,
     ) -> dict[str, Any]:
         try:
-            residency = _residency(right_side_inputs)
+            if "raw_ordinary_trade_table" in right_side_inputs:
+                _fail(
+                    "gate5_active_assembly_raw_control_forbidden",
+                    "raw_ordinary_trade_table",
+                )
+            residency = self._right_side.residency_classification(right_side_inputs)
         except Exception as exc:
             code = str(
                 getattr(exc, "code", "gate5_active_assembly_residency_evidence_missing")
@@ -261,28 +325,135 @@ class ActiveCategoryDeclarationAssemblyRuntime:
                     "schema_version": "broker_reports_active_assembly_blocker_v0",
                     "reason_code": code,
                     "required_input": field or code,
-                    "gap_owner_classification": _gap_class(code),
-                    "owner": _owner(code),
-                    "blocking_scope": _stage(code),
+                    "gap_owner_classification": _gap_class(code, field),
+                    "owner": _owner(code, field),
+                    "blocking_scope": _stage(code, field),
                 },
-                last_stage=_stage(code),
+                last_stage=_stage(code, field),
             )
         return result
 
-    def validate_receipt(self, receipt: dict[str, Any]) -> dict[str, Any]:
-        """Fail closed on any changed stage binding or receipt-chain row."""
+    def validate_receipt(
+        self,
+        receipt: dict[str, Any],
+        *,
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any]:
+        """Replay every sealed artifact through its canonical owner."""
 
+        if not isinstance(receipt, dict):
+            _fail("gate5_active_assembly_receipt_chain_invalid")
+        artifacts = receipt.get("owner_artifacts")
         if (
-            not isinstance(receipt, dict)
+            set(receipt) != _SUCCESS_RECEIPT_KEYS
             or receipt.get("schema_version")
             != ACTIVE_CATEGORY_DECLARATION_ASSEMBLY_SCHEMA_VERSION
+            or receipt.get("status") != "proven"
             or receipt.get("terminal") != ACTIVE_CATEGORY_TO_DECLARATION_ASSEMBLY_PROVEN
+            or receipt.get("blockers") != []
+            or receipt.get("demands") != []
             or receipt.get("route") != _route()
             or receipt.get("execution_constraints") != _constraints()
+            or not isinstance(artifacts, dict)
+            or set(artifacts) != _OWNER_ARTIFACT_KEYS
             or not isinstance(receipt.get("stage_hashes"), dict)
+            or tuple(receipt["stage_hashes"]) != _STAGE_NAMES
             or receipt.get("hash_chain") != _hash_chain(receipt["stage_hashes"])
         ):
             _fail("gate5_active_assembly_receipt_chain_invalid")
+
+        category_runtime = Gate5TaxPeriodCategoryAggregationRuntimeFactory.create()
+        operation = category_runtime.validate_operation_member(
+            tax_model=artifacts["operation_tax_model"]
+        )
+        category = category_runtime.validate_category_model(
+            tax_model=artifacts["category_tax_model"]
+        )
+        identity = category_runtime.validate_operation_taxpayer_scope_binding(
+            binding=receipt.get("identity_binding")
+        )
+        tax_base = Gate5IncomeGroupTaxBaseRuntimeFactory.create().validate_model(
+            methodology_ref=_income_group_methodology_ref(),
+            tax_base_model=artifacts["income_group_tax_base"],
+        )
+        scope_receipt = self._scope.validate_receipt(
+            receipt=artifacts["scope_receipt"],
+            context=context,
+        )
+        if (
+            identity is None
+            or identity != scope_receipt.get("taxpayer_binding")
+            or identity["operation_subject_ref"]
+            != operation["operation_scope"]["subject_ref"]
+            or identity["taxpayer_scope_ref"]
+            != category["calculation_scope"]["taxpayer_scope_ref"]
+            or identity["taxpayer_scope_ref"]
+            != scope_receipt["scope_binding"]["taxpayer_scope_ref"]
+            or receipt.get("fact_v2_binding") != scope_receipt["gate4_binding"]
+            or receipt.get("category_to_income_group_binding")
+            != tax_base["calculation_scope"]["input_binding"]
+        ):
+            _fail("gate5_active_assembly_identity_or_scope_binding_invalid")
+        package = self._package.validate_package(package=artifacts["package"])
+        semantic = Gate5DeclarationSemanticInputRuntimeFactory.create()
+        released = semantic.validate_released_declaration_values(
+            package=package,
+            released=artifacts["released_values"],
+        )
+        projection_input = semantic.prepare_released_projection_input(
+            package=package,
+            released=released,
+        )
+        if artifacts["projection_input"] != projection_input:
+            _fail("gate5_active_assembly_projection_input_invalid")
+        replayed = Gate5FullTargetXmlProjectionRuntimeFactory.create().project_released(
+            released_values=projection_input,
+            target_mechanics=artifacts["target_mechanics"],
+        )
+        if replayed["receipt"] != artifacts["target_receipt"]:
+            _fail("gate5_active_assembly_target_receipt_invalid")
+        expected_stage_hashes = _stage_hashes(
+            operation=operation,
+            category=category,
+            tax_base=tax_base,
+            scope_receipt=scope_receipt,
+            package=package,
+            released=released,
+            projection_receipt=replayed["receipt"],
+        )
+        if receipt["stage_hashes"] != expected_stage_hashes:
+            _fail("gate5_active_assembly_owner_artifact_binding_invalid")
+
+        expected_release = released["release_receipt"]["evidence_accounting"]
+        expected_target = _target_accounting(
+            mappings=replayed["receipt"]["semantic_mapping_proof"]["mappings"],
+            release_bindings=expected_release["bindings"],
+            xsd_conformance=replayed["receipt"]["conformance_proof"],
+        )
+        if (
+            expected_release["declared_value_count"] != _EXPECTED_RELEASED_VALUES
+            or expected_target["mapping_occurrences_total"]
+            != _EXPECTED_TARGET_OCCURRENCES
+            or expected_target["known_owner_occurrences"]
+            != _EXPECTED_TARGET_OCCURRENCES
+            or expected_target["xsd_conformance"].get("xsd_valid") is not True
+            or receipt.get("release_accounting") != expected_release
+            or receipt.get("target_accounting") != expected_target
+        ):
+            _fail("gate5_active_assembly_receipt_accounting_invalid")
+        source_facts = tuple(self._source_facts.list_facts(context=context))
+        expected_visual = _visual_accounting(
+            bridge_operation=operation,
+            category=category,
+            tax_base=tax_base,
+            package=package,
+            released=released,
+            projection=replayed,
+            source_facts=source_facts,
+            gate4_binding=scope_receipt["gate4_binding"],
+        )
+        if receipt.get("visual_accounting") != expected_visual:
+            _fail("gate5_active_assembly_visual_accounting_invalid")
         base = {
             key: copy.deepcopy(value)
             for key, value in receipt.items()
@@ -303,7 +474,11 @@ class ActiveCategoryDeclarationAssemblyRuntime:
     ) -> dict[str, Any]:
         operation = bridge["operation_result"]["tax_model"]
         category = bridge["category_result"]["category_tax_model"]
-        tax_base = _tax_base(category, residency, right_side_inputs)
+        tax_base = self._right_side.income_group_tax_base(
+            category=category,
+            residency=residency,
+            inputs=right_side_inputs,
+        )
         definition = (
             Gate5TrustedFullDeclarationDefinitionAuthorityFactory.create().publication()
         )
@@ -321,8 +496,16 @@ class ActiveCategoryDeclarationAssemblyRuntime:
             context=context,
         )
         scope_binding = provisional_scope["scope_binding"]
-        settlement = _settlement(right_side_inputs, scope_binding, tax_base)
-        income_source = _income_source(right_side_inputs, scope_binding, settlement)
+        settlement = self._right_side.settlement_component(
+            inputs=right_side_inputs,
+            scope_binding=scope_binding,
+            tax_base=tax_base,
+        )
+        income_source = self._right_side.income_source_component(
+            inputs=right_side_inputs,
+            scope_binding=scope_binding,
+            settlement=settlement,
+        )
         scope_receipt = self._scope.resolve(
             definition_ref=definition,
             scope=scope_input,
@@ -338,9 +521,22 @@ class ActiveCategoryDeclarationAssemblyRuntime:
             context=context,
         )
         scope_binding = scope_receipt["scope_binding"]
-        filing = _filing(right_side_inputs, scope_binding, residency)
-        budget = _budget(right_side_inputs, scope_binding, filing, settlement)
-        financial = _financial(right_side_inputs, scope_binding, category)
+        filing = self._right_side.filing_component(
+            inputs=right_side_inputs,
+            scope_binding=scope_binding,
+            residency=residency,
+        )
+        budget = self._right_side.budget_component(
+            inputs=right_side_inputs,
+            scope_binding=scope_binding,
+            filing=filing,
+            settlement=settlement,
+        )
+        financial = self._right_side.financial_component(
+            inputs=right_side_inputs,
+            scope_binding=scope_binding,
+            category=category,
+        )
         components = [
             operation_evidence,
             _component_evidence(
@@ -391,19 +587,26 @@ class ActiveCategoryDeclarationAssemblyRuntime:
             _fail("gate5_active_assembly_projection_nondeterministic")
         release_receipt = released["release_receipt"]
         mappings = first["receipt"]["semantic_mapping_proof"]["mappings"]
-        stage_hashes = {
-            "operation_tax_model_sha256": _sha(operation),
-            "category_tax_model_sha256": _sha(category),
-            "income_group_tax_base_sha256": _sha(tax_base),
-            "scope_receipt_sha256": scope_receipt["receipt_sha256"],
-            "component_set_sha256": package["completeness_receipt"][
-                "component_set_sha256"
-            ],
-            "package_sha256": package["package_sha256"],
-            "semantic_value_sha256": released["semantic_value_sha256"],
-            "release_receipt_sha256": release_receipt["receipt_sha256"],
-            "projection_receipt_sha256": first["receipt"]["receipt_sha256"],
-            "xml_sha256": first["receipt"]["xml_binding"]["xml_sha256"],
+        stage_hashes = _stage_hashes(
+            operation=operation,
+            category=category,
+            tax_base=tax_base,
+            scope_receipt=scope_receipt,
+            package=package,
+            released=released,
+            projection_receipt=first["receipt"],
+        )
+        source_facts = tuple(self._source_facts.list_facts(context=context))
+        owner_artifacts = {
+            "operation_tax_model": copy.deepcopy(operation),
+            "category_tax_model": copy.deepcopy(category),
+            "income_group_tax_base": copy.deepcopy(tax_base),
+            "scope_receipt": copy.deepcopy(scope_receipt),
+            "package": copy.deepcopy(package),
+            "released_values": copy.deepcopy(released),
+            "projection_input": copy.deepcopy(projection_input),
+            "target_mechanics": copy.deepcopy(mechanics),
+            "target_receipt": copy.deepcopy(first["receipt"]),
         }
         receipt_base = {
             "schema_version": ACTIVE_CATEGORY_DECLARATION_ASSEMBLY_SCHEMA_VERSION,
@@ -414,6 +617,7 @@ class ActiveCategoryDeclarationAssemblyRuntime:
             "route": _route(),
             "identity_binding": copy.deepcopy(taxpayer_binding),
             "fact_v2_binding": copy.deepcopy(scope_receipt["gate4_binding"]),
+            "owner_artifacts": owner_artifacts,
             "stage_hashes": stage_hashes,
             "category_to_income_group_binding": copy.deepcopy(
                 tax_base["calculation_scope"]["input_binding"]
@@ -426,304 +630,19 @@ class ActiveCategoryDeclarationAssemblyRuntime:
                 xsd_conformance=first["receipt"]["conformance_proof"],
             ),
             "visual_accounting": _visual_accounting(
-                bridge=bridge,
+                bridge_operation=operation,
+                category=category,
                 tax_base=tax_base,
                 package=package,
                 released=released,
                 projection=first,
-                right_side_inputs=right_side_inputs,
+                source_facts=source_facts,
+                gate4_binding=scope_receipt["gate4_binding"],
             ),
             "execution_constraints": _constraints(),
         }
         receipt = {**receipt_base, "receipt_sha256": _sha(receipt_base)}
-        return self.validate_receipt(receipt)
-
-
-def _tax_base(
-    category: dict[str, Any], residency: dict[str, Any], inputs: dict[str, Any]
-) -> dict[str, Any]:
-    facts = _required(inputs, "income_group", "Gate5IncomeGroupTaxBaseRuntime")
-    group_values = copy.deepcopy(
-        _required(facts, "group_values", "Gate5IncomeGroupTaxBaseRuntime")
-    )
-    taxpayer_status = gate5_residency_methodology_input(
-        residency, input_channel="taxpayer_status"
-    )
-    runtime = Gate5IncomeGroupTaxBaseRuntimeFactory.create()
-    binding = runtime.describe_input(
-        category_tax_model=category,
-        taxpayer_status=taxpayer_status,
-        group_values=group_values,
-    )
-    provenance = _required(
-        facts, "completeness_provenance", "Gate5IncomeGroupTaxBaseRuntime"
-    )
-    evidence = {
-        "schema_version": GATE5_INCOME_GROUP_TAX_BASE_COMPLETENESS_SCHEMA_VERSION,
-        "status": "asserted_complete",
-        "coverage_kind": "all_income_and_reductions_in_stable_income_group",
-        "input_binding_sha256": binding["input_binding_sha256"],
-        "provenance": copy.deepcopy(provenance),
-    }
-    supplied_hash = facts.get("completeness_input_binding_sha256")
-    if supplied_hash is not None:
-        evidence["input_binding_sha256"] = supplied_hash
-    return runtime.run(
-        methodology_ref={
-            "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
-            "methodology_id": GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
-            "methodology_version": GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_VERSION,
-        },
-        behavior_input={
-            "schema_version": GATE5_INCOME_GROUP_TAX_BASE_INPUT_SCHEMA_VERSION,
-            "category_tax_model": copy.deepcopy(category),
-            "taxpayer_status": taxpayer_status,
-            "group_values": group_values,
-            "completeness_evidence": evidence,
-        },
-    )
-
-
-def _residency(inputs: dict[str, Any]) -> dict[str, Any]:
-    facts = _required(inputs, "residency_evidence", "Gate5ResidencyEvidenceRuntime")
-    runtime = Gate5ResidencyEvidenceRuntimeFactory.create()
-    evidence = runtime.normalize_human_answer(
-        human_answer=_required(facts, "human_answer", "Gate5ResidencyEvidenceRuntime"),
-        proposal=copy.deepcopy(
-            _required(facts, "proposal", "Gate5ResidencyEvidenceRuntime")
-        ),
-        source_ref=_required(facts, "source_ref", "Gate5ResidencyEvidenceRuntime"),
-    )
-    classification = runtime.classify(evidence=evidence)
-    if classification["status"] not in {"RESIDENT", "NON_RESIDENT"}:
-        _fail("gate5_active_assembly_residency_evidence_missing", "residency_evidence")
-    return classification
-
-
-def _settlement(
-    inputs: dict[str, Any], scope: dict[str, Any], tax_base: dict[str, Any]
-) -> dict[str, Any]:
-    facts = _required(inputs, "settlement", "Gate5DeclarationTaxSettlementRuntime")
-    credits = _required(facts, "credits", "Gate5DeclarationTaxSettlementRuntime")
-    model_hash = _sha(tax_base)
-    values = {"income_group_model_sha256": model_hash}
-    for name in (
-        "withheld_at_source",
-        "material_benefit_withheld",
-        "trade_fee_credit",
-        "fixed_advance_credit",
-        "foreign_tax_credit",
-        "patent_credit",
-    ):
-        values[name] = {
-            "value": _money(
-                _required(credits, name, "Gate5DeclarationTaxSettlementRuntime")
-            ),
-            "provenance": _synthetic(
-                f"{facts['evidence_ref_prefix']}-{name}", "income_group_tax_settlement"
-            ),
-        }
-    return Gate5DeclarationTaxSettlementRuntimeFactory.create().create_component(
-        component_input={
-            "schema_version": GATE5_INCOME_GROUP_TAX_RESULTS_INPUT_SCHEMA_VERSION,
-            "methodology_ref": {
-                "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
-                "methodology_id": GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_ID,
-                "methodology_version": GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_VERSION,
-            },
-            "scope_binding": copy.deepcopy(scope),
-            "income_group_tax_base_models": [copy.deepcopy(tax_base)],
-            "settlement_facts": [values],
-            "completeness_evidence": {
-                "schema_version": "broker_reports_gate5_income_group_results_completeness_v0",
-                "status": "asserted_complete",
-                "coverage_kind": "all_applicable_income_groups_for_declaration_scope",
-                "scope_binding_sha256": scope["scope_binding_sha256"],
-                "income_group_model_sha256s": [model_hash],
-                "provenance": _synthetic(
-                    facts["completeness_source_ref"],
-                    "income_group_results_completeness",
-                ),
-            },
-        }
-    )
-
-
-def _income_source(
-    inputs: dict[str, Any], scope: dict[str, Any], settlement: dict[str, Any]
-) -> dict[str, Any]:
-    facts = _required(
-        inputs, "taxable_income_source", "Gate5DeclarationIncomeSourcesRuntime"
-    )
-    result = settlement["group_results"][0]
-    model = result["tax_base_model"]
-    source_ref = _required(facts, "source_ref", "Gate5DeclarationIncomeSourcesRuntime")
-    return Gate5DeclarationIncomeSourcesRuntimeFactory.create().create_component(
-        component_input={
-            "schema_version": GATE5_TAXABLE_INCOME_SOURCE_INPUT_SCHEMA_VERSION,
-            "scope_binding": copy.deepcopy(scope),
-            "income_group_results_component": copy.deepcopy(settlement),
-            "source_entries": [
-                {
-                    "source_ref": source_ref,
-                    "income_group_semantic": result["income_group_semantic"],
-                    "jurisdiction_kind": _required(
-                        facts,
-                        "jurisdiction_kind",
-                        "Gate5DeclarationIncomeSourcesRuntime",
-                    ),
-                    "jurisdiction_code": _required(
-                        facts,
-                        "jurisdiction_code",
-                        "Gate5DeclarationIncomeSourcesRuntime",
-                    ),
-                    "income_kind": _required(
-                        facts, "income_kind", "Gate5DeclarationIncomeSourcesRuntime"
-                    ),
-                    "source_party": copy.deepcopy(
-                        _required(
-                            facts,
-                            "source_party",
-                            "Gate5DeclarationIncomeSourcesRuntime",
-                        )
-                    ),
-                    "gross_income": copy.deepcopy(model["total_income"]["value"]),
-                    "taxable_income": copy.deepcopy(model["taxable_income"]["value"]),
-                    "tax_agent": {
-                        "status": "absent",
-                        "withheld_tax": copy.deepcopy(
-                            result["settlement_facts"]["withheld_at_source"]["value"]
-                        ),
-                    },
-                    "foreign_tax": None,
-                    "provenance": _synthetic(source_ref, "taxable_income_source"),
-                }
-            ],
-            "completeness_evidence": {
-                "schema_version": "broker_reports_gate5_taxable_income_source_completeness_v0",
-                "status": "asserted_complete",
-                "coverage_kind": "all_taxable_income_sources_for_declaration_scope",
-                "scope_binding_sha256": scope["scope_binding_sha256"],
-                "income_group_results_component_id": settlement["component_id"],
-                "source_refs": [source_ref],
-                "provenance": _synthetic(
-                    facts["completeness_source_ref"],
-                    "taxable_income_source_completeness",
-                ),
-            },
-        }
-    )
-
-
-def _filing(
-    inputs: dict[str, Any], scope: dict[str, Any], residency: dict[str, Any]
-) -> dict[str, Any]:
-    facts = _required(
-        inputs, "filing_and_party_identity", "Gate5FilingAndPartyIdentityRuntime"
-    )
-    filing = copy.deepcopy(
-        _required(facts, "filing_instance", "Gate5FilingAndPartyIdentityRuntime")
-    )
-    taxpayer = copy.deepcopy(
-        _required(facts, "taxpayer", "Gate5FilingAndPartyIdentityRuntime")
-    )
-    signer = copy.deepcopy(
-        _required(facts, "signer", "Gate5FilingAndPartyIdentityRuntime")
-    )
-    taxpayer["period_status"] = gate5_residency_methodology_input(
-        residency, input_channel="taxpayer_status"
-    )["value"]
-    return Gate5FilingAndPartyIdentityRuntimeFactory.create().create_component(
-        component_input={
-            "schema_version": GATE5_FILING_AND_PARTY_IDENTITY_INPUT_SCHEMA_VERSION,
-            "scope_binding": copy.deepcopy(scope),
-            "filing_instance": filing,
-            "taxpayer": taxpayer,
-            "signer": signer,
-            "evidence": {
-                "schema_version": "broker_reports_gate5_synthetic_case_evidence_v0",
-                "status": "synthetic_proof_evidence",
-                "source_ref": facts["evidence_source_ref"],
-                "case_id": scope["case_id"],
-                "tax_period": scope["tax_period"],
-                "input_channel": "filing_and_party_identity",
-                "real_user_fact": False,
-            },
-        }
-    )
-
-
-def _budget(
-    inputs: dict[str, Any],
-    scope: dict[str, Any],
-    filing: dict[str, Any],
-    settlement: dict[str, Any],
-) -> dict[str, Any]:
-    facts = _required(
-        inputs, "budget_disposition", "Gate5DeclarationBudgetOutcomeRuntime"
-    )
-    allocation = {
-        key: _required(facts, key, "Gate5DeclarationBudgetOutcomeRuntime")
-        for key in (
-            "source_ref",
-            "budget_allocation_ref",
-            "kbk",
-            "oktmo",
-            "simplified_procedure_returned_or_credited_amount",
-        )
-    }
-    return Gate5DeclarationBudgetOutcomeRuntimeFactory.create().create_component(
-        component_input={
-            "schema_version": GATE5_DECLARATION_BUDGET_DISPOSITION_INPUT_SCHEMA_VERSION,
-            "scope_binding": copy.deepcopy(scope),
-            "filing_component": copy.deepcopy(filing),
-            "income_group_results_component": copy.deepcopy(settlement),
-            "allocation_evidence": {
-                "schema_version": "broker_reports_gate5_synthetic_case_evidence_v0",
-                "status": "synthetic_proof_evidence",
-                **copy.deepcopy(allocation),
-                "case_id": scope["case_id"],
-                "tax_period": scope["tax_period"],
-                "input_channel": "declaration_budget_disposition",
-                "real_user_fact": False,
-            },
-        }
-    )
-
-
-def _financial(
-    inputs: dict[str, Any], scope: dict[str, Any], category: dict[str, Any]
-) -> dict[str, Any]:
-    facts = _required(
-        inputs,
-        "financial_investment",
-        "Gate5DeclarationFinancialInvestmentResultsRuntime",
-    )
-    return Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create().create_component(
-        component_input={
-            "schema_version": GATE5_FINANCIAL_INVESTMENT_RESULTS_INPUT_SCHEMA_VERSION,
-            "scope_binding": copy.deepcopy(scope),
-            "category_tax_models": [copy.deepcopy(category)],
-            "completeness_evidence": {
-                "schema_version": GATE5_FINANCIAL_INVESTMENT_RESULTS_COMPLETENESS_SCHEMA_VERSION,
-                "status": "asserted_complete_for_supplied_case",
-                "coverage_kind": "all_financial_investment_evidence_supplied_to_case",
-                "scope_binding_sha256": scope["scope_binding_sha256"],
-                "category_model_sha256s": [_sha(category)],
-                "activated_obligation_refs": copy.deepcopy(
-                    facts["activated_obligation_refs"]
-                ),
-                "not_activated_obligation_refs": copy.deepcopy(
-                    facts["not_activated_obligation_refs"]
-                ),
-                "real_world_taxpayer_absence_asserted": False,
-                "provenance": _synthetic(
-                    facts["completeness_source_ref"],
-                    "financial_investment_supplied_case_completeness",
-                ),
-            },
-        }
-    )
+        return self.validate_receipt(receipt, context=context)
 
 
 def _scope_input(inputs: dict[str, Any]) -> dict[str, Any]:
@@ -765,25 +684,30 @@ def _component_evidence(contract_id: str, payload: dict[str, Any]) -> dict[str, 
 
 def _visual_accounting(
     *,
-    bridge: dict[str, Any],
+    bridge_operation: dict[str, Any],
+    category: dict[str, Any],
     tax_base: dict[str, Any],
     package: dict[str, Any],
     released: dict[str, Any],
     projection: dict[str, Any],
-    right_side_inputs: dict[str, Any],
+    source_facts: tuple[dict[str, Any], ...],
+    gate4_binding: dict[str, Any],
 ) -> dict[str, Any]:
-    consumption = bridge["operation_result"]["source_fact_consumption"]
-    security = consumption["securities"][0]
-    operation = bridge["operation_result"]["tax_model"]
-    category = bridge["category_result"]["category_tax_model"]
+    fact_ids = sorted(_fact_ids(bridge_operation))
     return {
-        "raw_control": copy.deepcopy(right_side_inputs.get("raw_ordinary_trade_table")),
-        "fact_v2_ids": sorted(_fact_ids(operation)),
-        "fifo": copy.deepcopy(security["recognized_acquisition_cost"]),
+        "source_bound_fact_v2": _source_fact_view(
+            source_facts=source_facts,
+            gate4_binding=gate4_binding,
+            selected_fact_ids=fact_ids,
+        ),
+        "fact_v2_ids": fact_ids,
+        "recognized_expense_components": copy.deepcopy(
+            bridge_operation["related_expenses"]["components"]
+        ),
         "operation_values": {
-            "gross_income": copy.deepcopy(operation["gross_income"]),
-            "related_expenses": copy.deepcopy(operation["related_expenses"]),
-            "allowable_expenses": copy.deepcopy(operation["allowable_expenses"]),
+            "gross_income": copy.deepcopy(bridge_operation["gross_income"]),
+            "related_expenses": copy.deepcopy(bridge_operation["related_expenses"]),
+            "allowable_expenses": copy.deepcopy(bridge_operation["allowable_expenses"]),
         },
         "category_values": {
             key: copy.deepcopy(category[key])
@@ -808,6 +732,46 @@ def _visual_accounting(
         ],
         "xsd_valid": projection["receipt"]["conformance_proof"]["xsd_valid"],
     }
+
+
+def _source_fact_view(
+    *,
+    source_facts: tuple[dict[str, Any], ...],
+    gate4_binding: dict[str, Any],
+    selected_fact_ids: list[str],
+) -> list[dict[str, Any]]:
+    binding_hashes = {
+        item["fact_id"]: item["fact_sha256"] for item in gate4_binding["facts"]
+    }
+    facts = {item["fact_id"]: item for item in source_facts}
+    if set(binding_hashes) != set(facts) or any(
+        _sha(fact) != binding_hashes[fact_id] for fact_id, fact in facts.items()
+    ):
+        _fail("gate5_active_assembly_source_fact_binding_invalid")
+    rows = []
+    for fact_id in selected_fact_ids:
+        fact = facts.get(fact_id)
+        if fact is None:
+            _fail("gate5_active_assembly_source_fact_missing", fact_id)
+        rows.append(
+            {
+                "fact_id": fact_id,
+                "fact_sha256": binding_hashes[fact_id],
+                "financial_type": fact["financial_type"],
+                "roles": [
+                    {
+                        "role": role["role"],
+                        "normalized_value": role["value"],
+                        "source_literal": role["source_binding"]["source_literal"],
+                        "source_target": copy.deepcopy(
+                            role["source_binding"]["target"]
+                        ),
+                    }
+                    for role in fact["roles"]
+                ],
+            }
+        )
+    return rows
 
 
 def _target_accounting(
@@ -928,6 +892,40 @@ def _fact_ids(value: Any) -> set[str]:
     return set()
 
 
+def _income_group_methodology_ref() -> dict[str, str]:
+    return {
+        "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+        "methodology_id": GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
+        "methodology_version": (
+            GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_VERSION
+        ),
+    }
+
+
+def _stage_hashes(
+    *,
+    operation: dict[str, Any],
+    category: dict[str, Any],
+    tax_base: dict[str, Any],
+    scope_receipt: dict[str, Any],
+    package: dict[str, Any],
+    released: dict[str, Any],
+    projection_receipt: dict[str, Any],
+) -> dict[str, str]:
+    return {
+        "operation_tax_model_sha256": _sha(operation),
+        "category_tax_model_sha256": _sha(category),
+        "income_group_tax_base_sha256": _sha(tax_base),
+        "scope_receipt_sha256": scope_receipt["receipt_sha256"],
+        "component_set_sha256": package["completeness_receipt"]["component_set_sha256"],
+        "package_sha256": package["package_sha256"],
+        "semantic_value_sha256": released["semantic_value_sha256"],
+        "release_receipt_sha256": released["release_receipt"]["receipt_sha256"],
+        "projection_receipt_sha256": projection_receipt["receipt_sha256"],
+        "xml_sha256": projection_receipt["xml_binding"]["xml_sha256"],
+    }
+
+
 def _hash_chain(stage_hashes: dict[str, str]) -> list[dict[str, str | None]]:
     rows: list[dict[str, str | None]] = []
     previous = None
@@ -945,9 +943,9 @@ def _hash_chain(stage_hashes: dict[str, str]) -> list[dict[str, str | None]]:
 
 def _route() -> list[str]:
     return [
+        "Gate4OrdinaryTradeCandidateRuntimeFactory.create",
         "OrdinaryTradeTaxModelBridgeRuntimeFactory.create",
-        "Gate5IncomeGroupTaxBaseRuntimeFactory.create",
-        "Gate5DeclarationTaxSettlementRuntimeFactory.create",
+        "Gate5DeclarationRightSideAssemblyRuntimeFactory.create",
         "Gate5DeclarationScopeResolutionRuntimeFactory.create_current_source_fact_scope",
         "Gate5ResolvedDeclarationPackageRuntimeFactory.create_current_source_fact_package",
         "Gate5DeclarationSemanticInputRuntimeFactory.create.release_declaration_value_candidate",
@@ -978,10 +976,17 @@ def _required(value: Any, key: str, owner: str) -> Any:
     return value[key]
 
 
-def _gap_class(code: str) -> str:
+def _gap_class(code: str, field: str = "") -> str:
+    if field == "source_party":
+        return "SOURCE_EVIDENCE_INSUFFICIENT"
     if "income_sources" in code or "income_source" in code:
         return "SOURCE_EVIDENCE_INSUFFICIENT"
-    if "residency" in code or "filing" in code or "input_missing" in code:
+    if (
+        "residency" in code
+        or "filing" in code
+        or "input_missing" in code
+        or "fact_missing" in code
+    ):
         return "USER_CASE_FACT_MISSING"
     if "source" in code:
         return "SOURCE_EVIDENCE_INSUFFICIENT"
@@ -990,7 +995,9 @@ def _gap_class(code: str) -> str:
     return "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT"
 
 
-def _owner(code: str) -> str:
+def _owner(code: str, field: str = "") -> str:
+    if "right_side" in code or "direct_taxpayer_status" in code:
+        return "Gate5DeclarationRightSideAssemblyRuntime"
     owners = (
         ("income_group", "Gate5IncomeGroupTaxBaseRuntime"),
         ("residency", "Gate5ResidencyEvidenceRuntime"),
@@ -1009,24 +1016,11 @@ def _owner(code: str) -> str:
     )
 
 
-def _stage(code: str) -> str:
+def _stage(code: str, field: str = "") -> str:
     return (
-        _owner(code).removeprefix("Gate5").removesuffix("Runtime")
+        _owner(code, field).removeprefix("Gate5").removesuffix("Runtime")
         or "declaration_assembly"
     )
-
-
-def _synthetic(source_ref: str, input_channel: str) -> dict[str, Any]:
-    return {
-        "source_kind": "synthetic_proof_evidence",
-        "source_ref": source_ref,
-        "input_channel": input_channel,
-        "real_user_fact": False,
-    }
-
-
-def _money(amount: str) -> dict[str, str]:
-    return {"kind": "money", "amount": amount, "currency": "RUB"}
 
 
 def _sha(value: Any) -> str:

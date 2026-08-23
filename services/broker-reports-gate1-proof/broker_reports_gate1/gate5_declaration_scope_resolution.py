@@ -17,12 +17,6 @@ from .artifact_models import (
 )
 from .artifact_resolver import ArtifactResolver
 from .gate4_financial_case_cache import Gate4FinancialCaseRuntimeFactory
-from .gate4_ordinary_trade_candidate import (
-    Gate4OrdinaryTradeCandidateRuntimeFactory,
-)
-from .ordinary_trade_tax_model_bridge import (
-    validate_ordinary_trade_taxpayer_binding,
-)
 from .gate5_full_declaration_definition import (
     GATE5_FULL_DECLARATION_DEFINITION_PUBLICATION_SCHEMA_VERSION,
     Gate5TrustedFullDeclarationDefinitionAuthority,
@@ -98,8 +92,7 @@ FACTORY_REQUIRED = (
     "Gate5DeclarationScopeActivationRuntimeFactory.create owns supplied-case "
     "intent/evidence activation in this same scope domain",
     "Gate5DeclarationScopeResolutionRuntimeFactory.create_current_source_fact_scope "
-    "is the additive active Fact v2 reader",
-    "Gate4OrdinaryTradeCandidateRuntimeFactory.create owns every current Fact v2 read",
+    "accepts an injected Fact v2 runtime at the composition boundary",
 )
 FORBIDDEN = (
     "handwritten Declaration domain or applicability-policy list",
@@ -310,21 +303,25 @@ class Gate5DeclarationScopeResolutionRuntimeFactory:
                 read_enabled=self._read_enabled,
             ).create(),
             current_source_fact=False,
+            current_source_boundary=None,
         )
 
     def create_current_source_fact_scope(
         self,
+        *,
+        gate4_runtime: Any,
+        source_boundary: str,
     ) -> "Gate5DeclarationScopeResolutionRuntime":
-        """Create the additive active-Fact-v2 reader; historical create stays exact."""
+        """Accept a source runtime injected by a composition boundary."""
 
         if not isinstance(self._retention_policy, RetentionPolicy):
             _fail("gate5_declaration_scope_retention_policy_required")
+        if gate4_runtime is None or not _identifier(source_boundary):
+            _fail("gate5_declaration_scope_source_boundary_invalid")
         return self._create_with_gate4(
-            gate4_runtime=Gate4OrdinaryTradeCandidateRuntimeFactory(
-                store=self._store,
-                read_enabled=self._read_enabled,
-            ).create(),
+            gate4_runtime=gate4_runtime,
             current_source_fact=True,
+            current_source_boundary=source_boundary,
         )
 
     def _create_with_gate4(
@@ -332,6 +329,7 @@ class Gate5DeclarationScopeResolutionRuntimeFactory:
         *,
         gate4_runtime: Any,
         current_source_fact: bool,
+        current_source_boundary: str | None,
     ) -> "Gate5DeclarationScopeResolutionRuntime":
         return Gate5DeclarationScopeResolutionRuntime(
             store=self._store,
@@ -346,6 +344,7 @@ class Gate5DeclarationScopeResolutionRuntimeFactory:
             ),
             income_sources_runtime=Gate5DeclarationIncomeSourcesRuntimeFactory.create(),
             current_source_fact=current_source_fact,
+            current_source_boundary=current_source_boundary,
         )
 
 
@@ -361,6 +360,7 @@ class Gate5DeclarationScopeResolutionRuntime:
         component_runtime: Gate5TaxPeriodCategoryAggregationRuntime,
         income_sources_runtime: Gate5DeclarationIncomeSourcesRuntime,
         current_source_fact: bool = False,
+        current_source_boundary: str | None = None,
     ) -> None:
         self._store = store
         self._retention_policy = retention_policy
@@ -370,6 +370,7 @@ class Gate5DeclarationScopeResolutionRuntime:
         self._component_runtime = component_runtime
         self._income_sources_runtime = income_sources_runtime
         self._current_source_fact = current_source_fact
+        self._current_source_boundary = current_source_boundary
 
     def resolve(
         self,
@@ -399,15 +400,20 @@ class Gate5DeclarationScopeResolutionRuntime:
         )
         if self._current_source_fact:
             gate4_facts = tuple(self._gate4_runtime.list_facts(context=context))
-            gate4_binding = _current_fact_binding(gate4_facts)
+            gate4_binding = _current_fact_binding(
+                gate4_facts,
+                boundary=self._current_source_boundary,
+            )
         else:
             financial_case = self._gate4_runtime.read_case(context=context)
             gate4_facts = tuple(financial_case.facts)
             gate4_binding = _gate4_binding(financial_case)
         validated_taxpayer_binding = None
         if self._current_source_fact:
-            validated_taxpayer_binding = validate_ordinary_trade_taxpayer_binding(
-                taxpayer_binding
+            validated_taxpayer_binding = (
+                self._component_runtime.validate_operation_taxpayer_scope_binding(
+                    binding=taxpayer_binding
+                )
             )
             if validated_taxpayer_binding is None:
                 _fail("gate5_declaration_scope_taxpayer_binding_invalid")
@@ -710,10 +716,18 @@ class Gate5DeclarationScopeResolutionRuntime:
         )
         if self._current_source_fact:
             gate4_facts = tuple(self._gate4_runtime.list_facts(context=context))
-            _validated_current_fact_binding(receipt.get("gate4_binding"))
-            current_gate4_binding = _current_fact_binding(gate4_facts)
-            taxpayer_binding = validate_ordinary_trade_taxpayer_binding(
-                receipt.get("taxpayer_binding")
+            _validated_current_fact_binding(
+                receipt.get("gate4_binding"),
+                boundary=self._current_source_boundary,
+            )
+            current_gate4_binding = _current_fact_binding(
+                gate4_facts,
+                boundary=self._current_source_boundary,
+            )
+            taxpayer_binding = (
+                self._component_runtime.validate_operation_taxpayer_scope_binding(
+                    binding=receipt.get("taxpayer_binding")
+                )
             )
             if (
                 taxpayer_binding is None
@@ -1301,7 +1315,11 @@ def _validated_gate4_binding(value: Any) -> None:
 
 def _current_fact_binding(
     facts: tuple[dict[str, Any], ...],
+    *,
+    boundary: str | None,
 ) -> dict[str, Any]:
+    if not _identifier(boundary):
+        _fail("gate5_declaration_scope_source_boundary_invalid")
     sources_by_id: dict[str, dict[str, Any]] = {}
     fact_rows = []
     for fact in facts:
@@ -1324,7 +1342,7 @@ def _current_fact_binding(
             }
         )
     base = {
-        "boundary": "Gate4OrdinaryTradeCandidateRuntimeFactory.create",
+        "boundary": boundary,
         "status": "current_fact_v2_available",
         "gate3_case_status": "not_executed",
         "sources": sorted(sources_by_id.values(), key=lambda item: item["document_id"]),
@@ -1333,11 +1351,11 @@ def _current_fact_binding(
     return {**base, "binding_sha256": _canonical_sha256(base)}
 
 
-def _validated_current_fact_binding(value: Any) -> None:
+def _validated_current_fact_binding(value: Any, *, boundary: str | None) -> None:
     if (
         not isinstance(value, dict)
         or set(value) != _GATE4_BINDING_KEYS
-        or value.get("boundary") != "Gate4OrdinaryTradeCandidateRuntimeFactory.create"
+        or value.get("boundary") != boundary
         or value.get("status") != "current_fact_v2_available"
         or value.get("gate3_case_status") != "not_executed"
         or not isinstance(value.get("sources"), list)

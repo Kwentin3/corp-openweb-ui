@@ -75,9 +75,7 @@ from .gate5_securities_disposal_tax_model import (
 from .gate5_tax_period_category_aggregation import (
     Gate5TaxPeriodCategoryAggregationRuntime,
     Gate5TaxPeriodCategoryAggregationRuntimeFactory,
-)
-from .ordinary_trade_tax_model_bridge import (
-    validate_ordinary_trade_taxpayer_binding,
+    validate_operation_taxpayer_scope_binding,
 )
 
 
@@ -105,7 +103,7 @@ FACTORY_REQUIRED = (
     "Gate5DeclarationIncomeSourcesRuntimeFactory.create validates the exact self-bound taxable-source snapshot",
     "Gate5DeclarationFinancialInvestmentResultsRuntimeFactory.create validates the exact supplied-case financial snapshot",
     "Gate5ResolvedDeclarationPackageRuntimeFactory.create_current_source_fact_package "
-    "injects the existing current Fact v2 scope owner",
+    "accepts the current Fact v2 scope owner from the composition boundary",
 )
 FORBIDDEN = (
     "copied Declaration domain or expected-component lists",
@@ -299,19 +297,19 @@ class Gate5ResolvedDeclarationPackageRuntimeFactory:
 
     def create_current_source_fact_package(
         self,
+        *,
+        scope_runtime: Gate5DeclarationScopeResolutionRuntime,
     ) -> "Gate5ResolvedDeclarationPackageRuntime":
-        """Assemble through the active Fact-v2 scope reader without SQL fallback."""
+        """Accept the source-bound Scope runtime from the composition boundary."""
 
         if self._store is None:
             _fail("gate5_resolved_package_assembly_store_required")
         if not isinstance(self._retention_policy, RetentionPolicy):
             _fail("gate5_resolved_package_retention_policy_required")
+        if not isinstance(scope_runtime, Gate5DeclarationScopeResolutionRuntime):
+            _fail("gate5_resolved_package_scope_runtime_required")
         return self._create_with_scope(
-            scope_runtime=Gate5DeclarationScopeResolutionRuntimeFactory(
-                store=self._store,
-                read_enabled=self._read_enabled,
-                retention_policy=self._retention_policy,
-            ).create_current_source_fact_scope(),
+            scope_runtime=scope_runtime,
             validation_only=False,
         )
 
@@ -807,12 +805,17 @@ class Gate5ResolvedDeclarationPackageRuntime:
                 validated = self._component_runtime.validate_operation_member(
                     tax_model=payload
                 )
+                validated_taxpayer_binding = (
+                    self._component_runtime.validate_operation_taxpayer_scope_binding(
+                        binding=taxpayer_binding
+                    )
+                )
                 operation_scope = validated["operation_scope"]
                 current_identity = operation_scope.get("subject_ref") == (
-                    taxpayer_binding or {}
+                    validated_taxpayer_binding or {}
                 ).get("operation_subject_ref") and scope_binding[
                     "taxpayer_scope_ref"
-                ] == (taxpayer_binding or {}).get("taxpayer_scope_ref")
+                ] == (validated_taxpayer_binding or {}).get("taxpayer_scope_ref")
                 historical_identity = (
                     taxpayer_binding is None
                     and operation_scope.get("subject_ref")
@@ -1039,7 +1042,7 @@ def _sealed_scope_receipt(
         value["schema_version"]
         == GATE5_CURRENT_FACT_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION
     ):
-        taxpayer_binding = validate_ordinary_trade_taxpayer_binding(
+        taxpayer_binding = validate_operation_taxpayer_scope_binding(
             value.get("taxpayer_binding")
         )
         if taxpayer_binding is None or taxpayer_binding["taxpayer_scope_ref"] != value[

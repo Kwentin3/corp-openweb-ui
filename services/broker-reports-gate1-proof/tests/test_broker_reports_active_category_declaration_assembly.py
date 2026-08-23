@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import inspect
+import json
 from pathlib import Path
 
 import pytest
@@ -30,11 +32,16 @@ from broker_reports_gate1.gate5_declaration_semantic_input import (
     Gate5DeclarationSemanticInputError,
     Gate5DeclarationSemanticInputRuntimeFactory,
 )
+from broker_reports_gate1.gate5_resolved_declaration_package import (
+    Gate5ResolvedDeclarationPackageError,
+)
 from broker_reports_gate1.gate5_residency_evidence import (
     Gate5ResidencyEvidenceRuntimeFactory,
     gate5_residency_methodology_input,
 )
 from broker_reports_gate1 import active_category_declaration_assembly as assembly_module
+from broker_reports_gate1 import gate5_declaration_scope_resolution as scope_module
+from broker_reports_gate1 import gate5_resolved_declaration_package as package_module
 
 import test_broker_reports_ordinary_trade_tax_model_bridge as bridge_fixtures
 
@@ -236,6 +243,69 @@ def test_right_side_completeness_and_component_negatives_fail_closed(
     assert result["released_values"] is result["target_receipt"] is None
 
 
+@pytest.mark.parametrize(
+    ("mutation", "field"),
+    [
+        ("direct_income_group_status", "taxpayer_status"),
+        ("direct_filing_period_status", "taxpayer.period_status"),
+    ],
+)
+def test_right_side_rejects_caller_supplied_taxpayer_status(
+    tmp_path: Path,
+    mutation: str,
+    field: str,
+) -> None:
+    store, context, facts = _case(tmp_path / mutation, proceeds="60.00")
+    right = _right_side(context.user_id)
+    if mutation == "direct_income_group_status":
+        right["income_group"]["taxpayer_status"] = {
+            "value": "nonresident_individual",
+            "provenance": {
+                "source_kind": "user_verified_fact",
+                "source_ref": "forbidden-direct-status",
+                "input_channel": "taxpayer_status",
+            },
+        }
+    else:
+        right["filing_and_party_identity"]["taxpayer"]["period_status"] = (
+            "nonresident_individual"
+        )
+
+    result = _runtime(store).run(
+        **_bridge_inputs(context, facts, store),
+        right_side_inputs=right,
+        context=context,
+    )
+
+    assert result["terminal"] == BOUNDED_DECLARATION_ASSEMBLY_BLOCKERS_PROVEN
+    assert result["blockers"][0]["reason_code"] == (
+        "gate5_e2e_direct_taxpayer_status_forbidden"
+    )
+    assert result["blockers"][0]["required_input"] == field
+    assert result["blockers"][0]["owner"] == (
+        "Gate5DeclarationRightSideAssemblyRuntime"
+    )
+    assert result["released_values"] is result["target_receipt"] is None
+
+
+def test_caller_supplied_raw_visual_control_is_rejected(tmp_path: Path) -> None:
+    store, context, facts = _case(tmp_path / "forbidden-raw", proceeds="60.00")
+    right = _right_side(context.user_id)
+    right["raw_ordinary_trade_table"] = {"disposal": {"gross_amount": "1.00"}}
+
+    result = _runtime(store).run(
+        **_bridge_inputs(context, facts, store),
+        right_side_inputs=right,
+        context=context,
+    )
+
+    assert result["terminal"] == BOUNDED_DECLARATION_ASSEMBLY_BLOCKERS_PROVEN
+    assert result["blockers"][0]["reason_code"] == (
+        "gate5_active_assembly_raw_control_forbidden"
+    )
+    assert result["released_values"] is result["target_receipt"] is None
+
+
 def test_one_disposal_proceeds_cell_changes_only_bounded_g545_mapping_ids(
     tmp_path: Path,
 ) -> None:
@@ -276,6 +346,18 @@ def test_one_disposal_proceeds_cell_changes_only_bounded_g545_mapping_ids(
     assert (
         baseline["stage_hashes"]["xml_sha256"] != changed["stage_hashes"]["xml_sha256"]
     )
+    disposal_rows = [
+        row
+        for row in changed["visual_accounting"]["source_bound_fact_v2"]
+        if row["financial_type"] == "SECURITY_DISPOSAL"
+    ]
+    gross_literals = {
+        role["source_literal"]
+        for row in disposal_rows
+        for role in row["roles"]
+        if role["role"] == "amount"
+    }
+    assert gross_literals == {"64.00"}
 
 
 def test_changed_category_cannot_reuse_sealed_income_group_completeness(
@@ -351,11 +433,84 @@ def test_category_package_release_and_receipt_chain_mutations_fail_closed(
         changed[target[0]][target[1]][target[2]] = "0" * 64
 
     with pytest.raises(ActiveCategoryDeclarationAssemblyError) as exc:
-        runtime.validate_receipt(changed)
+        runtime.validate_receipt(changed, context=context)
     assert exc.value.code in {
         "gate5_active_assembly_receipt_chain_invalid",
         "gate5_active_assembly_receipt_hash_mismatch",
+        "gate5_active_assembly_owner_artifact_binding_invalid",
     }
+
+
+@pytest.mark.parametrize(
+    "artifact",
+    ["package", "released_values", "target_receipt", "release_count", "target_count"],
+)
+def test_self_consistent_outer_receipt_cannot_hide_owner_artifact_mutation(
+    tmp_path: Path,
+    artifact: str,
+) -> None:
+    store, context, facts = _case(tmp_path / artifact, proceeds="60.00")
+    runtime = _runtime(store)
+    changed = runtime.run(
+        **_bridge_inputs(context, facts, store),
+        right_side_inputs=_right_side(context.user_id),
+        context=context,
+    )
+    changed = copy.deepcopy(changed)
+    if artifact == "package":
+        package = changed["owner_artifacts"]["package"]
+        package["status"] = "DECLARATION_INCOMPLETE_FOR_SUPPLIED_CASE"
+        package["package_sha256"] = _sha(
+            {key: value for key, value in package.items() if key != "package_sha256"}
+        )
+        changed["stage_hashes"]["package_sha256"] = package["package_sha256"]
+    elif artifact == "released_values":
+        changed["owner_artifacts"]["released_values"]["declaration_values"]["taxpayer"][
+            "inn"
+        ] = "999999999999"
+    elif artifact == "target_receipt":
+        target = changed["owner_artifacts"]["target_receipt"]
+        target["conformance_proof"]["xsd_valid"] = False
+        target["receipt_sha256"] = _sha(
+            {key: value for key, value in target.items() if key != "receipt_sha256"}
+        )
+        changed["stage_hashes"]["projection_receipt_sha256"] = target["receipt_sha256"]
+    elif artifact == "release_count":
+        changed["release_accounting"]["declared_value_count"] = 43
+    else:
+        changed["target_accounting"]["mapping_occurrences_total"] = 48
+    _reseal_outer_receipt(changed)
+
+    with pytest.raises(
+        (
+            ActiveCategoryDeclarationAssemblyError,
+            Gate5ResolvedDeclarationPackageError,
+            Gate5DeclarationSemanticInputError,
+        )
+    ) as exc:
+        runtime.validate_receipt(changed, context=context)
+    assert getattr(exc.value, "code", "") != (
+        "gate5_active_assembly_receipt_hash_mismatch"
+    )
+
+
+def test_self_consistent_receipt_with_inexact_stage_set_fails_closed(
+    tmp_path: Path,
+) -> None:
+    store, context, facts = _case(tmp_path / "stage-set", proceeds="60.00")
+    runtime = _runtime(store)
+    changed = runtime.run(
+        **_bridge_inputs(context, facts, store),
+        right_side_inputs=_right_side(context.user_id),
+        context=context,
+    )
+    changed = copy.deepcopy(changed)
+    changed["stage_hashes"]["invented_stage_sha256"] = "0" * 64
+    _reseal_outer_receipt(changed)
+
+    with pytest.raises(ActiveCategoryDeclarationAssemblyError) as exc:
+        runtime.validate_receipt(changed, context=context)
+    assert exc.value.code == "gate5_active_assembly_receipt_chain_invalid"
 
 
 def test_historical_gate3_sql_and_legacy_projection_fallbacks_are_trapped(
@@ -390,6 +545,27 @@ def test_historical_gate3_sql_and_legacy_projection_fallbacks_are_trapped(
         "Gate5DeclarationProjectionRuntime",
     ):
         assert forbidden_name not in source
+    for right_domain in (scope_module, package_module):
+        right_source = inspect.getsource(right_domain)
+        assert "ordinary_trade_tax_model_bridge" not in right_source
+        assert "gate4_ordinary_trade_candidate" not in right_source
+    assert "Gate4OrdinaryTradeCandidateRuntimeFactory" in source
+    assert "OrdinaryTradeTaxModelBridgeRuntimeFactory" in source
+    g535_source = inspect.getsource(
+        __import__(
+            "broker_reports_gate1.gate5_end_to_end_full_target_xml",
+            fromlist=["*"],
+        )
+    )
+    assert "Gate5DeclarationRightSideAssemblyRuntimeFactory.create" in g535_source
+    for duplicate in (
+        "def _settlement_component(",
+        "def _income_source_component(",
+        "def _filing_component(",
+        "def _budget_component(",
+        "def _financial_component(",
+    ):
+        assert duplicate not in g535_source
 
 
 def _case(root: Path, *, proceeds: str, purchase_charges: bool = False):
@@ -482,12 +658,22 @@ def _right_side(user_id: str = "g4-runtime-user") -> dict:
         "synthetic-taxpayer-control"
     )
     result["filing_and_party_identity"]["signer"]["signer_ref"] = user_id
-    result["raw_ordinary_trade_table"] = {
-        "purchase": {"quantity": "10", "gross_amount": "100.00", "charges": []},
-        "disposal": {
-            "quantity": "4",
-            "gross_amount": "60.00",
-            "charges": ["1.00", "2.00"],
-        },
-    }
     return result
+
+
+def _reseal_outer_receipt(receipt: dict) -> None:
+    receipt["hash_chain"] = assembly_module._hash_chain(receipt["stage_hashes"])
+    receipt["receipt_sha256"] = _sha(
+        {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    )
+
+
+def _sha(value) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()

@@ -10,29 +10,41 @@ product-readiness proof.
 
 ## Research result
 
-The historical G5.35 tail could not be reused: it enters through Gate 3 and
-`Gate4FinancialCaseRuntimeFactory.create`, and its Scope/Package checks equated
-the SECURITY_DISPOSAL subject with taxpayer scope. Reusing it would have
-violated the current Fact v2 boundary and Issue #293 identity contract.
+The historical G5.35 left side cannot replace the current Fact v2 path: it
+enters through Gate 3 and `Gate4FinancialCaseRuntimeFactory.create`. Its
+right-side assembly sequence, however, was genuine shared behavior. It has
+therefore been extracted into
+`Gate5DeclarationRightSideAssemblyRuntimeFactory.create` and is now used by
+both G5.35 and Issue #295. Direct `income_group.taxpayer_status` and
+`taxpayer.period_status` are rejected on both routes; the residency owner is
+the only source of this classification.
 
 The retained change is smaller than a new declaration framework:
 
-- one coordinator that calls only existing owners;
+- one thin coordinator that orders existing owners;
+- one shared right-side assembly owner extracted from G5.35, delegating all
+  component meaning to the established factories;
 - one additive current-Fact entrypoint on the existing Scope factory;
 - one additive current-Fact entrypoint on the existing Package factory;
-- reuse of the Issue #293 typed taxpayer-binding validator;
+- one category-owner typed operation/taxpayer-binding validator, with the
+  Issue #293 bridge retaining a compatibility entrypoint;
 - historical factory behavior remains covered and unchanged.
 
 Rejected approaches were direct Category-to-semantic projection, a copied
-right-side assembler, calling private G5.35 helpers, reconnecting historical
-Gate 3/SQL Gate 4, and resolving partial acquisition commission by formula.
+right-side assembler, reconnecting historical Gate 3/SQL Gate 4, and resolving
+partial acquisition commission by formula.
+
+The ordinary-domain marriage is localized in the Issue #295 composition. It
+constructs Gate 4 ordinary there, injects it into Scope, then injects Scope into
+Package. Universal Scope and Package import neither the ordinary bridge nor
+`Gate4OrdinaryTradeCandidateRuntimeFactory`; the bundle keeps its established
+right-domain order.
 
 ## Clean visual and semantic accounting
 
 | Stage | Exact controlled accounting |
 | --- | --- |
-| raw ordinary table | purchase `10 @ 10.00 = 100.00 RUB`, no purchase charge; disposal `4 @ 15.00 = 60.00 RUB`; disposal charges `1.00 + 2.00 RUB` |
-| current Fact v2 | one purchase, one disposal and two disposal-local transaction-charge facts; exact case binding retained |
+| source-bound Fact v2 visual | one purchase, one disposal and two disposal-local transaction-charge facts; every row is rebuilt from the live Fact v2 role and includes its exact fact ID/hash, normalized value, source literal and source target |
 | FIFO/source fact | consumed quantity `4`; recognized acquisition cost `40.00 RUB`; disposal proceeds `60.00 RUB`; direct disposal charge `3.00 RUB`; acquisition-commission fact IDs empty |
 | operation Tax Model | related expenses `43.00 RUB`; allowable expenses `43.00 RUB`; no demand |
 | Category Tax Model | gross `60.00 RUB`; related/allowable `43.00 RUB`; complete exact taxpayer/category/period binding |
@@ -42,21 +54,8 @@ Gate 3/SQL Gate 4, and resolving partial acquisition commission by formula.
 | consumer target | `49` occurrences, `49` with known evidence/authority refs; identical XML bytes on repeat |
 | official XSD | `NO_NDFL3_1_033_00_05_20_01.xsd`, SHA-256 `083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484`, `xsd_valid=true` |
 
-Representative exact synthetic receipt:
-
-```text
-operation_tax_model  22eb0946f140ad45276c1a3ee649f703725d85bf2a5805d91fb96e298a734241
-category_tax_model   e6cde089eed8e901c05faac84128f3a09a886750f518cbaeae81053270fca2f8
-income_group         82a4249ae279fb805e30757eb33adf1927c548b34fcb5316194d9ed46c58810f
-scope_receipt        9c4630511c1e0f4820f86ae47e5f23e3767ac04cb11c79afad7f1e54b2031b17
-component_set        90b92e1f3414ba4530a67fa1f7cc9411502a9a0c8d77e78420a0c6316b184c6c
-package              171224c94fc071bf3f9ef06cbcbe07aaec4fda412f3940e708a1c7c50c2911e6
-semantic_value       7bf0bad3ffda1e0b9d8a53616da572fd2b18b4e379af5981c46eeef42b9156f8
-release_receipt      b54a5fbe58229427a00aca19bbbe7e70ab83674d52ea2d3d98fa85015f563c4f
-projection_receipt   9dab67907ac5757f635a29e856b54c2b5ab81344705a782b4812eceb2aaa19c7
-xml                   5acf1501d4b0948521f30c9a63091cb65bf5a632fea14036dea519a3c3bcac7a
-assembly_receipt     33be68d8afe73695dcf71e25d5809e867633cff5191af4d1e001ed16b517ef25
-```
+The safe receipt embeds the owner-produced artifacts needed for independent
+replay. Exact hashes are run outputs, not hard-coded report claims.
 
 ## Material control
 
@@ -82,19 +81,24 @@ receipt are both absent.
 | absent/stale income-group completeness | income-group owner; missing or exact binding failure |
 | missing organized-market status | operation Tax Model; `EXTERNAL_AUTHORITATIVE_FACT_MISSING` |
 | missing residency or filing identity | residency/filing owner; `USER_CASE_FACT_MISSING` |
+| direct income-group or filing taxpayer status | shared right-side owner rejects caller classification |
 | missing source party | income-source owner; `SOURCE_EVIDENCE_INSUFFICIENT` |
 | missing settlement or budget input | settlement/budget owner; typed missing input |
 | changed Category with old group completeness | income-group owner rejects the stale binding |
 | direct Category to semantic/XML bypass | semantic owner rejects non-Package input |
 | historical G5.35/Gate 3/SQL fallback | monkeypatched traps remain uncalled on positive route |
-| changed Category/Package/released/receipt-chain hash | coordinator receipt validator fails closed |
+| Package or released artifact changed, outer hashes recalculated | Package/release owner replay fails closed |
+| target receipt/XSD or 44/49 accounting changed, outer hashes recalculated | projection owner replay or exact accounting fails closed |
+| missing/extra/reordered receipt stage | exact stage-set validation fails closed |
+| caller raw visual table | coordinator rejects an untrusted parallel source picture |
 
 All material stops are machine-readable and produce no complete release or
 XML receipt.
 
 ## Source delta
 
-Changing only disposal proceeds from `60.00` to `64.00 RUB` changes exactly
+Changing only the disposal-proceeds source literal from `60.00` to
+`64.00 RUB` changes the live Fact v2 visual row to `64.00` and changes exactly
 these G5.45 target mapping IDs:
 
 ```text
@@ -110,6 +114,21 @@ securities-gross-income
 
 All other target occurrence hashes remain identical.
 
+## Local verification after independent review
+
+- `32 passed`: active composition, source-bound delta, direct-status rejection,
+  exact-stage validation and self-consistent artifact-mutation attacks;
+- `73 passed`: Scope, Package, income-group, category and Issue #293 bridge
+  owner suites;
+- `21 passed`: bundle execution/parity and architecture stabilization;
+- Ruff, Python compilation and `git diff --check`: passed.
+
+The historical G5.35 file has one independent architecture/static test passing
+locally. Its six source-execution tests still stop on this Windows checkout at
+the pre-existing `gate5_e2e_gate2_canonical_missing`, before the shared
+right-side owner is reached; this is reported separately and is not presented
+as a green result.
+
 ## Uncomfortable questions
 
 1. No demand disappears: the material commission demand is byte-for-byte
@@ -118,18 +137,24 @@ All other target occurrence hashes remain identical.
    stop; the material control proves it.
 3. No synthetic input becomes real evidence or a hidden zero. Every zero is an
    explicit source-tagged right-side fact and `real_user_fact=false`.
-4. The coordinator copies no calculation or completeness meaning; each stage
-   is produced and validated by its existing factory.
+4. The coordinator copies no calculation or completeness meaning. G5.35 and
+   #295 share one right-side assembly owner, which delegates to the existing
+   calculation/component factories.
 5. Taxpayer identity remains independent from the modeled disposal in the
    bridge, Scope receipt and Package validation.
 6. One proceeds-cell change produces only the eight justified mapping deltas.
-7. Old category/group and receipt-chain evidence fails after mutation.
+7. Old category/group evidence fails after mutation. A Package, released
+   artifact, target receipt, XSD flag or 44/49 count also fails after an
+   attacker recalculates every outer receipt hash, because validation replays
+   the producing owners and exact stage inventory.
 8. Projection remains representation-only; all 49 occurrences carry existing
    mapping evidence and XSD validation is separate.
 9. The official XSD result is reached with Gate 3, historical SQL Gate 4 and
    prebuilt Tax Models all absent; executable traps enforce this.
 10. The proof remains synthetic, one-profile, RUB-only, legally unresolved for
     partial acquisition commission, unpersisted, non-downloadable and inactive.
+11. Scope and Package remain ordinary-domain agnostic: Gate 4 ordinary is
+    constructed only by the #295 composition and passed through injection.
 
 ## KISS and stop
 
