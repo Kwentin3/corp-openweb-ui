@@ -2,44 +2,28 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from broker_reports_gate1.contracts import SUPPORTED_CONTRACTS
+from broker_reports_gate1.gate3_ndfl_workflow import NdflWorkflowError
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 
 import test_broker_reports_gate5_declaration_preparation as preparation_fixtures
 import test_broker_reports_gate5_deterministic_source_fact_consumption as source_fixtures
 
 
-def test_current_pipe_continues_from_persisted_gate4_to_natural_gate5_terminal(
+def test_current_pipe_fails_closed_without_trusted_taxpayer_scope_binding(
     tmp_path: Path,
 ) -> None:
     store, context = source_fixtures._case(tmp_path / "current-pipeline")
     preparation_fixtures._publish_metadata(store, context)
     source_fixtures._gate4(store).clear_case_cache(context=context)
 
-    result = Pipe()._run_ndfl_current_pipeline(store=store, context=context)
+    with pytest.raises(NdflWorkflowError) as missing_binding:
+        Pipe()._run_ndfl_current_pipeline(store=store, context=context)
 
-    assert result["schema_version"] == "broker_reports_current_pipeline_result_v1"
-    assert result["status"] == "PREPARATION_INCOMPLETE"
-    assert result["terminal"] == "REAL_EVIDENCE_GAPS_REMAIN"
-    assert result["declaration_ready"] is False
-    assert result["xml_created"] is False
-    assert result["pdf_created"] is False
-    assert result["legacy_fallback_used"] is False
-    assert result["gate4"]["status"] == "CASE_COMPLETE_FOR_CURRENT_INPUT_SET"
-    assert result["gate4"]["sources_total"] == 5
-    assert result["gate4"]["facts_total"] > 0
-    preparation = result["preparation"]
-    assert preparation["replay"]["entrypoint"] == (
-        "Gate5DeclarationPreparationRuntimeFactory.create"
-    )
-    assert preparation["metrics"]["source_facts_lost"] == 0
-    assert preparation["metrics"]["invented_source_facts"] == 0
-    assert preparation["metrics"]["calculated_values_without_methodology"] == 0
-    assert not any(
-        action["closure_type"] == "ADDITIONAL_DOCUMENT"
-        and "obl_foreign_source_taxable_income_and_foreign_tax"
-        in action["demand_refs"]
-        for action in preparation["gap_closure"]["user_facing_required_actions"]
+    assert missing_binding.value.args == (
+        "ndfl_trusted_taxpayer_scope_binding_required",
     )
 
 

@@ -1,6 +1,18 @@
 # Broker Reports Gate 5 Declaration Preparation v0
 
-Status: `CURRENT SUPPORTING CONTRACT`
+Status: `HISTORICAL SUPPORTING CONTRACT`
+
+Publication and replay of Human Adapter facts are superseded by
+[Gate 5 Human Fact Scope v1](./BROKER_REPORTS_GATE5_HUMAN_FACT_SCOPE.v1.md).
+`broker_reports_gate5_user_case_fact_v0` is historical-readable only and is
+rejected by the v1 preparation boundary; it is not silently migrated.
+
+Issue #301 found no trusted authenticated case-to-taxpayer binding owner.
+Therefore the current product composition fails closed with
+`ndfl_trusted_taxpayer_scope_binding_required`; synthetic preparation tests use
+explicit fixture refs only. Preparation does not derive, hash or authenticate a
+taxpayer scope and cannot activate this route until the missing upstream owner
+contract exists.
 
 Program: `G5.41`, additive `G5.78` owner-aware source-gap routing
 

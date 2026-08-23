@@ -52,6 +52,10 @@ def sha256_file(path):
     return digest.hexdigest()
 
 
+def _trusted_taxpayer_scope_ref_required():
+    raise SystemExit("trusted_taxpayer_scope_binding_unavailable")
+
+
 with sqlite3.connect(DATA_ROOT / "webui.db") as connection:
     row = connection.execute(
         'SELECT content, meta FROM "function" WHERE id = ?',
@@ -136,6 +140,7 @@ result = Gate5DeclarationPreparationRuntimeFactory(
         "task": "prepare_tax_declaration",
         "domains": ["broker_securities_income"],
     },
+    taxpayer_scope_ref=_trusted_taxpayer_scope_ref_required(),
     user_case_facts=[],
 )
 
@@ -195,9 +200,7 @@ def main() -> int:
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--env-file", default=str(REPO_ROOT / ".env"))
     parser.add_argument("--ssh-target", default="")
-    parser.add_argument(
-        "--canonical-root-sha256", default=FROZEN_CANONICAL_ROOT_SHA256
-    )
+    parser.add_argument("--canonical-root-sha256", default=FROZEN_CANONICAL_ROOT_SHA256)
     args = parser.parse_args()
 
     env = _read_env(Path(args.env_file))

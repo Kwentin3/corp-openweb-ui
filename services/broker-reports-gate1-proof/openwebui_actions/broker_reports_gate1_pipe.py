@@ -136,6 +136,10 @@ _GATE2_USABLE_HANDOFF_STATUSES = frozenset(
 _COMPLETED_WITH_REVIEW_ADVISORY = "completed_with_review_advisory"
 
 
+def _trusted_taxpayer_scope_ref_required() -> str:
+    raise NdflWorkflowError("ndfl_trusted_taxpayer_scope_binding_required")
+
+
 class Pipe:
     """OpenWebUI adapter: file refs -> backend Gate 1 normalizer -> safe report."""
 
@@ -947,6 +951,7 @@ class Pipe:
         store: Any,
         context: ArtifactAccessContext,
     ) -> dict[str, Any]:
+        taxpayer_scope_ref = _trusted_taxpayer_scope_ref_required()
         financial_case = (
             Gate4FinancialCaseRuntimeFactory(
                 store=store,
@@ -978,6 +983,7 @@ class Pipe:
                     "task": "prepare_tax_declaration",
                     "domains": ["broker_securities_income"],
                 },
+                taxpayer_scope_ref=taxpayer_scope_ref,
                 user_case_facts=[],
             )
         )

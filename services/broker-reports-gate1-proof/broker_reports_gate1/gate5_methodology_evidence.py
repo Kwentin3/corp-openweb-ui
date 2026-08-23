@@ -107,6 +107,7 @@ class Gate5MethodologyEvidenceRuntime:
         context: ArtifactAccessContext,
         evidence_mode: str,
         user_intent: dict[str, Any],
+        taxpayer_scope_ref: str,
         user_case_facts: list[dict[str, Any]],
         external_reference_facts: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
@@ -115,6 +116,7 @@ class Gate5MethodologyEvidenceRuntime:
             context=context,
             evidence_mode=evidence_mode,
             user_intent=user_intent,
+            taxpayer_scope_ref=taxpayer_scope_ref,
             user_case_facts=user_case_facts,
         )
         methodology = self._methodology_authority.resolve(

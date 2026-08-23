@@ -59,16 +59,16 @@ def test_low_criticality_metadata_cannot_drop_or_change_financial_results(
     baseline = results["correct"]
 
     for scenario, result in results.items():
-        assert result["financial_fingerprint"] == baseline["financial_fingerprint"], (
-            scenario
-        )
-        assert result["financial_facts_total"] == baseline["financial_facts_total"], (
-            scenario
-        )
+        assert (
+            result["financial_fingerprint"] == baseline["financial_fingerprint"]
+        ), scenario
+        assert (
+            result["financial_facts_total"] == baseline["financial_facts_total"]
+        ), scenario
         assert result["source_facts_total"] == baseline["source_facts_total"], scenario
-        assert result["calculation_count"] == baseline["calculation_count"] == 1, (
-            scenario
-        )
+        assert (
+            result["calculation_count"] == baseline["calculation_count"] == 1
+        ), scenario
         assert result["active_demands"] == baseline["active_demands"], scenario
         assert result["tax_period"] == baseline["tax_period"] == "2025", scenario
         assert result["preparation_status"] == baseline["preparation_status"], scenario
@@ -156,6 +156,7 @@ def _run_scenario(root: Path, overrides: dict[str, str | None]) -> dict:
                 "task": "prepare_tax_declaration",
                 "domains": ["broker_securities_income"],
             },
+            taxpayer_scope_ref="synthetic-taxpayer",
             user_case_facts=[],
         )
     )

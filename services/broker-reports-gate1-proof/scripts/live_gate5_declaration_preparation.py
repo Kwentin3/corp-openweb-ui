@@ -56,6 +56,10 @@ BASE_CONTEXT = {
 }
 
 
+def _trusted_taxpayer_scope_ref_required() -> str:
+    raise SystemExit("trusted_taxpayer_scope_binding_unavailable")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -137,21 +141,27 @@ def main() -> int:
             payload_root=store_root / "payloads",
         )
     ).create()
-    result = Gate5DeclarationPreparationRuntimeFactory(
-        store=store,
-        read_enabled=True,
-    ).create().prepare(
-        source_fact_methodology_ref=_source_methodology_ref(),
-        context=ArtifactAccessContext(**BASE_CONTEXT),
-        evidence_mode="REAL_EVIDENCE",
-        user_intent={
-            "schema_version": GATE5_USER_INTENT_SCHEMA_VERSION,
-            "form": "3-NDFL",
-            "tax_period": "2025",
-            "task": "prepare_tax_declaration",
-            "domains": ["broker_securities_income"],
-        },
-        user_case_facts=[],
+    context = ArtifactAccessContext(**BASE_CONTEXT)
+    result = (
+        Gate5DeclarationPreparationRuntimeFactory(
+            store=store,
+            read_enabled=True,
+        )
+        .create()
+        .prepare(
+            source_fact_methodology_ref=_source_methodology_ref(),
+            context=context,
+            evidence_mode="REAL_EVIDENCE",
+            user_intent={
+                "schema_version": GATE5_USER_INTENT_SCHEMA_VERSION,
+                "form": "3-NDFL",
+                "tax_period": "2025",
+                "task": "prepare_tax_declaration",
+                "domains": ["broker_securities_income"],
+            },
+            taxpayer_scope_ref=_trusted_taxpayer_scope_ref_required(),
+            user_case_facts=[],
+        )
     )
     store_after = _store_snapshot(store_root)
     if store_before != store_after:

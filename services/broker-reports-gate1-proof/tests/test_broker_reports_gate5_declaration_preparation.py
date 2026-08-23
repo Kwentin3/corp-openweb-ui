@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from broker_reports_gate1 import build_retention_policy
 from broker_reports_gate1.gate5_evidence_intake import (
     FACTORY_REQUIRED as INTAKE_FACTORY_REQUIRED,
     FORBIDDEN as INTAKE_FORBIDDEN,
@@ -166,8 +167,7 @@ def test_broker_reported_withholding_does_not_trigger_a_duplicate_document_reque
     foreign_requests = [
         item
         for item in closure["required_actions"]
-        if "obl_foreign_source_taxable_income_and_foreign_tax"
-        in item["demand_refs"]
+        if "obl_foreign_source_taxable_income_and_foreign_tax" in item["demand_refs"]
     ]
 
     assert foreign_requests
@@ -177,8 +177,7 @@ def test_broker_reported_withholding_does_not_trigger_a_duplicate_document_reque
     assert all(item["evidence_refs"] for item in foreign_requests)
     assert not any(
         item["closure_type"] == "ADDITIONAL_DOCUMENT"
-        and "obl_foreign_source_taxable_income_and_foreign_tax"
-        in item["demand_refs"]
+        and "obl_foreign_source_taxable_income_and_foreign_tax" in item["demand_refs"]
         for item in closure["user_facing_required_actions"]
     )
 
@@ -196,15 +195,21 @@ def test_new_document_and_typed_answer_trigger_deterministic_replay(
         read_enabled=True,
     ).create()
     before = runtime.prepare(**_prepare_args(context, "SYNTHETIC_CONTROL", []))
+    human = Gate5HumanGapClosureRuntimeFactory.create(
+        store=store,
+        retention_policy=build_retention_policy(mode="synthetic_dev"),
+    )
+    published_before = _publish_requests(human, before, context, [])
     document_request = next(
         item
-        for item in before["gap_closure"]["required_actions"]
+        for item in published_before["required_actions"]
         if item["closure_type"] == "ADDITIONAL_DOCUMENT"
         and item["subject"].get("asset") == "ACME"
     )
-    routed = Gate5HumanGapClosureRuntimeFactory.create().normalize_answer(
+    routed = human.normalize_answer(
         request=document_request,
         answer={"kind": "document_submission", "value": True},
+        context=context,
     )
     assert routed == {
         "status": "NORMALIZATION_REQUIRED",
@@ -237,14 +242,16 @@ def test_new_document_and_typed_answer_trigger_deterministic_replay(
         for item in after_document["gap_closure"]["required_actions"]
     )
 
+    published_after_document = _publish_requests(human, after_document, context, [])
     taxpayer_request = next(
         item
-        for item in after_document["gap_closure"]["required_actions"]
+        for item in published_after_document["required_actions"]
         if item["fact_key"] == "taxpayer_identity_confirmed"
     )
-    normalized = Gate5HumanGapClosureRuntimeFactory.create().normalize_answer(
+    normalized = human.normalize_answer(
         request=taxpayer_request,
         answer={"kind": "confirmation", "value": True},
+        context=context,
     )
     user_fact = normalized["typed_user_case_fact"]
     after_answer = runtime.replay(
@@ -261,12 +268,15 @@ def test_new_document_and_typed_answer_trigger_deterministic_replay(
         "Gate5FullTargetXmlProjectionRuntimeFactory.create"
     )
 
+    published_after_answer = _publish_requests(
+        human, after_answer, context, [user_fact]
+    )
     residency_request = next(
         item
-        for item in after_answer["gap_closure"]["required_actions"]
+        for item in published_after_answer["required_actions"]
         if item.get("fact_key") == "residency_evidence"
     )
-    residency = Gate5HumanGapClosureRuntimeFactory.create().normalize_answer(
+    residency = human.normalize_answer(
         request=residency_request,
         answer={
             "kind": "residency_evidence",
@@ -294,6 +304,7 @@ def test_new_document_and_typed_answer_trigger_deterministic_replay(
                 },
             },
         },
+        context=context,
     )["typed_user_case_fact"]
     after_residency = runtime.replay(
         **_prepare_args(
@@ -314,6 +325,53 @@ def test_new_document_and_typed_answer_trigger_deterministic_replay(
     assert not any(
         item.get("fact_key") == "residency_evidence"
         for item in after_residency["gap_closure"]["required_actions"]
+    )
+
+
+def test_preparation_consumes_closed_filing_election_without_reinterpreting_it(
+    tmp_path: Path,
+) -> None:
+    store, context = source_fixtures._case(tmp_path / "closed-filing-election")
+    _publish_metadata(store, context)
+    preparation = Gate5DeclarationPreparationRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+    before = preparation.prepare(
+        **_prepare_args(context, "SYNTHETIC_CONTROL", [])
+    )
+    human = Gate5HumanGapClosureRuntimeFactory.create(
+        store=store,
+        retention_policy=build_retention_policy(mode="synthetic_dev"),
+    )
+    published = _publish_requests(human, before, context, [])
+    filing_request = next(
+        item
+        for item in published["required_actions"]
+        if item.get("fact_key") == "filing_instance_identity"
+    )
+    filing_fact = human.normalize_answer(
+        request=filing_request,
+        answer={"kind": "code", "value": "INITIAL"},
+        context=context,
+    )["typed_user_case_fact"]
+
+    after = preparation.replay(
+        **_prepare_args(context, "SYNTHETIC_CONTROL", [filing_fact])
+    )
+    filing_readiness = next(
+        item
+        for item in after["machine_readable_declaration_draft"][
+            "active_demand_readiness"
+        ]
+        if item["demand"] == "obl_filing_instance_identity"
+    )
+    assert filing_readiness["readiness"] == "USER_FACT_AVAILABLE"
+    assert "INITIAL" not in repr(after["machine_readable_declaration_draft"])
+    assert any(
+        item["closure_type"] == "EXTERNAL_AUTHORITY"
+        and item["demand_refs"] == ["obl_filing_instance_identity"]
+        for item in after["gap_closure"]["internal_owner_required_actions"]
     )
 
 
@@ -423,5 +481,19 @@ def _prepare_args(context, evidence_mode: str, user_case_facts: list[dict]):
             "task": "prepare_tax_declaration",
             "domains": ["broker_securities_income"],
         },
+        "taxpayer_scope_ref": "synthetic-taxpayer",
         "user_case_facts": user_case_facts,
     }
+
+
+def _publish_requests(human, prepared, context, user_case_facts: list[dict]):
+    return human.publish_requests(
+        intake=prepared["intake"],
+        scope_activation=prepared["scope_activation"],
+        client_review=prepared["client_review"],
+        user_case_facts=user_case_facts,
+        residency_classification=prepared["residency_classification"],
+        context=context,
+        taxpayer_scope_ref="synthetic-taxpayer",
+        tax_period="2025",
+    )
