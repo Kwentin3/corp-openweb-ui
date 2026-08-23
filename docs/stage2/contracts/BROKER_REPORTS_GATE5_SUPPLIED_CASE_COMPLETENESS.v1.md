@@ -28,6 +28,15 @@ owner. It derives every domain and policy from the trusted Definition and
 binds the current financial facts through
 `Gate4FinancialCaseRuntimeFactory.create`.
 
+Issue #295 adds no scope authority. The same factory's additive
+`create_current_source_fact_scope` entrypoint replaces only the source reader
+with `Gate4OrdinaryTradeCandidateRuntimeFactory.create` for the inactive
+ordinary-trade proof. Its receipt retains the bridge-owned typed binding
+between the modeled `operation_subject_ref` and the independent
+`taxpayer_scope_ref`; neither value may be inferred from or equated to the
+other. The additive path records `gate3_case_status=not_executed` and cannot
+fall back to the historical reader.
+
 For every conditional domain, exactly one of these cases applies:
 
 | Supplied-case evidence | Scope state | Effect |
@@ -93,6 +102,11 @@ package owner. It adds the terminal package state
 DECLARATION_COMPLETE_FOR_SUPPLIED_CASE
 DECLARATION_INCOMPLETE_FOR_SUPPLIED_CASE
 ```
+
+The same factory's additive `create_current_source_fact_package` entrypoint
+injects the current-Fact scope runtime and validates the retained typed
+operation/taxpayer binding. Historical `create` behavior and validation-only
+sealed-package validation remain compatible.
 
 The completeness receipt contains:
 

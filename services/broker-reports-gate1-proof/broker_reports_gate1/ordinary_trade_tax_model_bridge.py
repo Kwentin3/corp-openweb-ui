@@ -161,7 +161,7 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                     disposal_fact_id=disposal_fact_id,
                     context=context,
                 )
-            validated_taxpayer_binding = _validated_taxpayer_binding(
+            validated_taxpayer_binding = validate_ordinary_trade_taxpayer_binding(
                 taxpayer_binding
             )
             if validated_taxpayer_binding is None:
@@ -198,10 +198,7 @@ class OrdinaryTradeTaxModelBridgeRuntime:
                 if isinstance(category_scope, dict)
                 else None
             )
-            if (
-                taxpayer_scope_ref
-                != validated_taxpayer_binding["taxpayer_scope_ref"]
-            ):
+            if taxpayer_scope_ref != validated_taxpayer_binding["taxpayer_scope_ref"]:
                 return _blocked(
                     reason_code=(
                         "gate5_tax_model_bridge_taxpayer_scope_binding_mismatch"
@@ -417,7 +414,10 @@ def _expense_demands(
     return demands
 
 
-def _validated_taxpayer_binding(value: Any) -> dict[str, Any] | None:
+def validate_ordinary_trade_taxpayer_binding(
+    value: Any,
+) -> dict[str, Any] | None:
+    """Validate the bridge-owned operation-to-taxpayer identity binding."""
     provenance = value.get("provenance") if isinstance(value, dict) else None
     if (
         not isinstance(value, dict)
@@ -428,8 +428,7 @@ def _validated_taxpayer_binding(value: Any) -> dict[str, Any] | None:
             "taxpayer_scope_ref",
             "provenance",
         }
-        or value.get("schema_version")
-        != ORDINARY_TRADE_TAXPAYER_BINDING_SCHEMA_VERSION
+        or value.get("schema_version") != ORDINARY_TRADE_TAXPAYER_BINDING_SCHEMA_VERSION
         or not _identifier(value.get("operation_subject_ref"))
         or not _identifier(value.get("taxpayer_scope_ref"))
         or not isinstance(provenance, dict)
@@ -515,4 +514,5 @@ __all__ = [
     "ORDINARY_TRADE_TAXPAYER_BINDING_SCHEMA_VERSION",
     "OrdinaryTradeTaxModelBridgeRuntime",
     "OrdinaryTradeTaxModelBridgeRuntimeFactory",
+    "validate_ordinary_trade_taxpayer_binding",
 ]

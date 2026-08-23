@@ -190,5 +190,6 @@ jobs:
           tests/test_broker_reports_ordinary_trade_release_activation.py
           tests/test_broker_reports_gate5_deterministic_source_fact_consumption.py
           tests/test_broker_reports_ordinary_trade_tax_model_bridge.py
+          tests/test_broker_reports_active_category_declaration_assembly.py
           tests/test_verify_frozen_evidence_manifest.py
           --tb=short

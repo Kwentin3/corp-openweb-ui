@@ -29,6 +29,32 @@ source/user/reference facts
 The proof fixture is explicitly `CONTROL_EVIDENCE`; it is never a real
 taxpayer declaration.
 
+## Active Category composition addendum
+
+Issue #295 adds the inactive
+`ActiveCategoryDeclarationAssemblyRuntimeFactory.create` coordinator. It
+starts from the Issue #293 factory route, not from a prebuilt operation or
+Category Tax Model, and then delegates to the existing income-group,
+settlement/component, Full Definition, Scope, Package, release and
+consumer-first projection owners. Scope and Package use their additive
+current-Fact entrypoints; historical Gate 3 and SQL-backed Gate 4 are trapped,
+not fallbacks.
+
+The allowed terminals are:
+
+```text
+ACTIVE_CATEGORY_TO_DECLARATION_ASSEMBLY_PROVEN
+BOUNDED_DECLARATION_ASSEMBLY_BLOCKERS_PROVEN
+```
+
+Any bridge blocker or demand is retained before release. In particular,
+`partial_acquisition_commission_allocation` remains
+`LEGAL_INTERPRETATION_REQUIRED` and produces neither released values nor an
+XML receipt. The clean control uses no acquisition commission, keeps the
+operation subject distinct from the taxpayer scope, emits 44 released leaves
+and 49 target occurrences, and remains synthetic, unpersisted,
+non-downloadable and shadow-only.
+
 ## Consumer-first inventory
 
 The controlled target emits 49 value occurrences. Exactly 44 consume the 44

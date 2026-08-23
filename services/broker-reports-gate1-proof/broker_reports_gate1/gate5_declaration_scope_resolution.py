@@ -17,6 +17,12 @@ from .artifact_models import (
 )
 from .artifact_resolver import ArtifactResolver
 from .gate4_financial_case_cache import Gate4FinancialCaseRuntimeFactory
+from .gate4_ordinary_trade_candidate import (
+    Gate4OrdinaryTradeCandidateRuntimeFactory,
+)
+from .ordinary_trade_tax_model_bridge import (
+    validate_ordinary_trade_taxpayer_binding,
+)
 from .gate5_full_declaration_definition import (
     GATE5_FULL_DECLARATION_DEFINITION_PUBLICATION_SCHEMA_VERSION,
     Gate5TrustedFullDeclarationDefinitionAuthority,
@@ -50,6 +56,9 @@ GATE5_DECLARATION_SCOPE_COMPONENT_EVIDENCE_SCHEMA_VERSION = (
 GATE5_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_gate5_declaration_scope_resolution_receipt_v1"
 )
+GATE5_CURRENT_FACT_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_gate5_current_fact_declaration_scope_resolution_receipt_v0"
+)
 GATE5_DECLARATION_SCOPE_MISSING_SOURCE_INDICATION_SCHEMA_VERSION = (
     "broker_reports_gate5_supplied_case_missing_source_indication_v1"
 )
@@ -77,9 +86,7 @@ GATE5_DECLARATION_SCOPE_ACTIVATION_SCHEMA_VERSION = (
     "broker_reports_gate5_declaration_scope_activation_v0"
 )
 GATE5_USER_INTENT_SCHEMA_VERSION = "broker_reports_gate5_user_intent_v0"
-GATE5_DECLARATION_SCOPE_ACTIVATION_TERMINAL = (
-    "DECLARATION_SCOPE_ACTIVATION_PROVEN"
-)
+GATE5_DECLARATION_SCOPE_ACTIVATION_TERMINAL = "DECLARATION_SCOPE_ACTIVATION_PROVEN"
 
 FACTORY_REQUIRED = (
     "Gate5DeclarationScopeResolutionRuntimeFactory.create",
@@ -90,6 +97,9 @@ FACTORY_REQUIRED = (
     "ArtifactResolver.resolve enforces assertion access and lifecycle",
     "Gate5DeclarationScopeActivationRuntimeFactory.create owns supplied-case "
     "intent/evidence activation in this same scope domain",
+    "Gate5DeclarationScopeResolutionRuntimeFactory.create_current_source_fact_scope "
+    "is the additive active Fact v2 reader",
+    "Gate4OrdinaryTradeCandidateRuntimeFactory.create owns every current Fact v2 read",
 )
 FORBIDDEN = (
     "handwritten Declaration domain or applicability-policy list",
@@ -243,6 +253,7 @@ _RECEIPT_KEYS = frozenset(
         "receipt_sha256",
     }
 )
+_CURRENT_FACT_RECEIPT_KEYS = frozenset({*_RECEIPT_KEYS, "taxpayer_binding"})
 _GATE4_BINDING_KEYS = frozenset(
     {
         "boundary",
@@ -293,6 +304,35 @@ class Gate5DeclarationScopeResolutionRuntimeFactory:
     def create(self) -> "Gate5DeclarationScopeResolutionRuntime":
         if not isinstance(self._retention_policy, RetentionPolicy):
             _fail("gate5_declaration_scope_retention_policy_required")
+        return self._create_with_gate4(
+            gate4_runtime=Gate4FinancialCaseRuntimeFactory(
+                store=self._store,
+                read_enabled=self._read_enabled,
+            ).create(),
+            current_source_fact=False,
+        )
+
+    def create_current_source_fact_scope(
+        self,
+    ) -> "Gate5DeclarationScopeResolutionRuntime":
+        """Create the additive active-Fact-v2 reader; historical create stays exact."""
+
+        if not isinstance(self._retention_policy, RetentionPolicy):
+            _fail("gate5_declaration_scope_retention_policy_required")
+        return self._create_with_gate4(
+            gate4_runtime=Gate4OrdinaryTradeCandidateRuntimeFactory(
+                store=self._store,
+                read_enabled=self._read_enabled,
+            ).create(),
+            current_source_fact=True,
+        )
+
+    def _create_with_gate4(
+        self,
+        *,
+        gate4_runtime: Any,
+        current_source_fact: bool,
+    ) -> "Gate5DeclarationScopeResolutionRuntime":
         return Gate5DeclarationScopeResolutionRuntime(
             store=self._store,
             retention_policy=self._retention_policy,
@@ -300,14 +340,12 @@ class Gate5DeclarationScopeResolutionRuntimeFactory:
             definition_authority=(
                 Gate5TrustedFullDeclarationDefinitionAuthorityFactory.create()
             ),
-            gate4_runtime=Gate4FinancialCaseRuntimeFactory(
-                store=self._store,
-                read_enabled=self._read_enabled,
-            ).create(),
+            gate4_runtime=gate4_runtime,
             component_runtime=(
                 Gate5TaxPeriodCategoryAggregationRuntimeFactory.create()
             ),
             income_sources_runtime=Gate5DeclarationIncomeSourcesRuntimeFactory.create(),
+            current_source_fact=current_source_fact,
         )
 
 
@@ -322,6 +360,7 @@ class Gate5DeclarationScopeResolutionRuntime:
         gate4_runtime: Any,
         component_runtime: Gate5TaxPeriodCategoryAggregationRuntime,
         income_sources_runtime: Gate5DeclarationIncomeSourcesRuntime,
+        current_source_fact: bool = False,
     ) -> None:
         self._store = store
         self._retention_policy = retention_policy
@@ -330,6 +369,7 @@ class Gate5DeclarationScopeResolutionRuntime:
         self._gate4_runtime = gate4_runtime
         self._component_runtime = component_runtime
         self._income_sources_runtime = income_sources_runtime
+        self._current_source_fact = current_source_fact
 
     def resolve(
         self,
@@ -340,6 +380,7 @@ class Gate5DeclarationScopeResolutionRuntime:
         assertion_refs: list[str],
         context: ArtifactAccessContext,
         missing_source_indications: list[dict[str, Any]] | None = None,
+        taxpayer_binding: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         publication = _definition_binding(definition_ref)
         contract = self._definition_authority.resolve_for_scope(
@@ -356,14 +397,32 @@ class Gate5DeclarationScopeResolutionRuntime:
             context=context,
             definition_tax_period=definition["declaration_identity"]["tax_period"],
         )
-        financial_case = self._gate4_runtime.read_case(context=context)
-        gate4_binding = _gate4_binding(financial_case)
+        if self._current_source_fact:
+            gate4_facts = tuple(self._gate4_runtime.list_facts(context=context))
+            gate4_binding = _current_fact_binding(gate4_facts)
+        else:
+            financial_case = self._gate4_runtime.read_case(context=context)
+            gate4_facts = tuple(financial_case.facts)
+            gate4_binding = _gate4_binding(financial_case)
+        validated_taxpayer_binding = None
+        if self._current_source_fact:
+            validated_taxpayer_binding = validate_ordinary_trade_taxpayer_binding(
+                taxpayer_binding
+            )
+            if validated_taxpayer_binding is None:
+                _fail("gate5_declaration_scope_taxpayer_binding_invalid")
+            if (
+                validated_taxpayer_binding["taxpayer_scope_ref"]
+                != scope_binding["taxpayer_scope_ref"]
+            ):
+                _fail("gate5_declaration_scope_taxpayer_binding_mismatch")
         component_bindings = self._component_bindings(
             typed_component_evidence,
             definition=definition,
             policies=policies,
             scope=scope_binding,
-            gate4_facts=financial_case.facts,
+            gate4_facts=gate4_facts,
+            taxpayer_binding=validated_taxpayer_binding,
         )
         assertion_bindings = self._assertion_bindings(
             assertion_refs,
@@ -378,7 +437,7 @@ class Gate5DeclarationScopeResolutionRuntime:
                 missing_source_indications or [],
                 definition=definition,
                 scope=scope_binding,
-                gate4_facts=financial_case.facts,
+                gate4_facts=gate4_facts,
             )
         )
         evidence_by_domain: dict[str, list[dict[str, str]]] = {}
@@ -462,7 +521,11 @@ class Gate5DeclarationScopeResolutionRuntime:
             )
         )
         base = {
-            "schema_version": GATE5_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION,
+            "schema_version": (
+                GATE5_CURRENT_FACT_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION
+                if self._current_source_fact
+                else GATE5_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION
+            ),
             "status": (
                 "SCOPE_RESOLVED_FOR_SUPPLIED_CASE"
                 if not unresolved and not conflicts
@@ -482,6 +545,8 @@ class Gate5DeclarationScopeResolutionRuntime:
                 definition=definition,
             ),
         }
+        if self._current_source_fact:
+            base["taxpayer_binding"] = copy.deepcopy(validated_taxpayer_binding)
         receipt = {**base, "receipt_sha256": _canonical_sha256(base)}
         self.validate_receipt(receipt=receipt, context=context)
         return receipt
@@ -509,11 +574,19 @@ class Gate5DeclarationScopeResolutionRuntime:
             )
             policies = _policy_rows(contract["applicability_audit"], definition)
             domain = next(
-                (item for item in definition["domains"] if item["domain_id"] == domain_id),
+                (
+                    item
+                    for item in definition["domains"]
+                    if item["domain_id"] == domain_id
+                ),
                 None,
             )
             row = next(
-                (item for item in validated_receipt["domains"] if item["domain_id"] == domain_id),
+                (
+                    item
+                    for item in validated_receipt["domains"]
+                    if item["domain_id"] == domain_id
+                ),
                 None,
             )
             if (
@@ -606,7 +679,19 @@ class Gate5DeclarationScopeResolutionRuntime:
         receipt: dict[str, Any],
         context: ArtifactAccessContext,
     ) -> dict[str, Any]:
-        if not isinstance(receipt, dict) or set(receipt) != _RECEIPT_KEYS:
+        expected_keys = (
+            _CURRENT_FACT_RECEIPT_KEYS if self._current_source_fact else _RECEIPT_KEYS
+        )
+        expected_schema = (
+            GATE5_CURRENT_FACT_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION
+            if self._current_source_fact
+            else GATE5_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION
+        )
+        if (
+            not isinstance(receipt, dict)
+            or set(receipt) != expected_keys
+            or receipt.get("schema_version") != expected_schema
+        ):
             _fail("gate5_declaration_scope_receipt_invalid")
         publication = _definition_binding(receipt.get("definition_binding"))
         contract = self._definition_authority.resolve_for_scope(
@@ -623,9 +708,23 @@ class Gate5DeclarationScopeResolutionRuntime:
             context=context,
             definition_tax_period=definition["declaration_identity"]["tax_period"],
         )
-        _validated_gate4_binding(receipt.get("gate4_binding"))
-        current_financial_case = self._gate4_runtime.read_case(context=context)
-        current_gate4_binding = _gate4_binding(current_financial_case)
+        if self._current_source_fact:
+            gate4_facts = tuple(self._gate4_runtime.list_facts(context=context))
+            _validated_current_fact_binding(receipt.get("gate4_binding"))
+            current_gate4_binding = _current_fact_binding(gate4_facts)
+            taxpayer_binding = validate_ordinary_trade_taxpayer_binding(
+                receipt.get("taxpayer_binding")
+            )
+            if (
+                taxpayer_binding is None
+                or taxpayer_binding["taxpayer_scope_ref"] != scope["taxpayer_scope_ref"]
+            ):
+                _fail("gate5_declaration_scope_taxpayer_binding_invalid")
+        else:
+            _validated_gate4_binding(receipt.get("gate4_binding"))
+            financial_case = self._gate4_runtime.read_case(context=context)
+            gate4_facts = tuple(financial_case.facts)
+            current_gate4_binding = _gate4_binding(financial_case)
         if receipt.get("gate4_binding") != current_gate4_binding:
             _fail("gate5_declaration_scope_gate4_binding_stale")
         if receipt.get("scope_semantics") != GATE5_DECLARATION_SCOPE_SEMANTICS:
@@ -634,7 +733,7 @@ class Gate5DeclarationScopeResolutionRuntime:
             receipt.get("missing_source_requests"),
             scope=scope,
             gate4_binding=current_gate4_binding,
-            gate4_facts=current_financial_case.facts,
+            gate4_facts=gate4_facts,
             definition=definition,
         )
         rows = _validated_domain_rows(
@@ -703,6 +802,7 @@ class Gate5DeclarationScopeResolutionRuntime:
         policies: dict[str, dict[str, Any]],
         scope: dict[str, Any],
         gate4_facts: tuple[dict[str, Any], ...],
+        taxpayer_binding: dict[str, Any] | None,
     ) -> list[dict[str, str]]:
         if not isinstance(value, list):
             _fail("gate5_declaration_scope_component_evidence_invalid")
@@ -712,12 +812,11 @@ class Gate5DeclarationScopeResolutionRuntime:
                 if contract_id in contract_domains:
                     _fail("gate5_declaration_scope_component_authority_ambiguous")
                 contract_domains[contract_id] = domain["domain_id"]
-            if (
-                domain["expected_component"]["family"]
-                == GATE5_TAXABLE_INCOME_SOURCE_COMPONENT_FAMILY
-                and domain["obligation_refs"]
-                == list(GATE5_TAXABLE_INCOME_SOURCE_OBLIGATION_REFS)
-            ):
+            if domain["expected_component"][
+                "family"
+            ] == GATE5_TAXABLE_INCOME_SOURCE_COMPONENT_FAMILY and domain[
+                "obligation_refs"
+            ] == list(GATE5_TAXABLE_INCOME_SOURCE_OBLIGATION_REFS):
                 contract_domains[
                     GATE5_TAXABLE_INCOME_SOURCE_COMPONENT_SCHEMA_VERSION
                 ] = domain["domain_id"]
@@ -757,8 +856,7 @@ class Gate5DeclarationScopeResolutionRuntime:
                         tax_model=item["payload"]
                     )
                 elif (
-                    contract_id
-                    == GATE5_TAXABLE_INCOME_SOURCE_COMPONENT_SCHEMA_VERSION
+                    contract_id == GATE5_TAXABLE_INCOME_SOURCE_COMPONENT_SCHEMA_VERSION
                 ):
                     payload = self._income_sources_runtime.validate_component(
                         component=item["payload"],
@@ -775,13 +873,30 @@ class Gate5DeclarationScopeResolutionRuntime:
                 raise Gate5DeclarationScopeResolutionError(
                     "gate5_declaration_scope_component_validation_failed"
                 ) from exc
-            if contract_id == GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION and (
-                payload["operation_scope"]["subject_ref"] != scope["taxpayer_scope_ref"]
-                or payload["operation_scope"]["tax_period"].get("value")
-                != scope["tax_period"]
+            if (
+                contract_id
+                == GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION
             ):
-                _fail("gate5_declaration_scope_component_scope_mismatch")
-            if contract_id == GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION:
+                subject_ref = payload["operation_scope"]["subject_ref"]
+                if self._current_source_fact:
+                    if (
+                        taxpayer_binding is None
+                        or subject_ref != taxpayer_binding["operation_subject_ref"]
+                        or scope["taxpayer_scope_ref"]
+                        != taxpayer_binding["taxpayer_scope_ref"]
+                    ):
+                        _fail("gate5_declaration_scope_component_identity_mismatch")
+                elif subject_ref != scope["taxpayer_scope_ref"]:
+                    _fail("gate5_declaration_scope_component_scope_mismatch")
+                if (
+                    payload["operation_scope"]["tax_period"].get("value")
+                    != scope["tax_period"]
+                ):
+                    _fail("gate5_declaration_scope_component_scope_mismatch")
+            if (
+                contract_id
+                == GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION
+            ):
                 _validate_current_financial_sources(payload, gate4_facts=gate4_facts)
             result.append(
                 {
@@ -828,8 +943,7 @@ class Gate5DeclarationScopeResolutionRuntime:
                 or not _sha256(item.get("source_fact_sha256"))
                 or not isinstance(item.get("missing_role_names"), list)
                 or not item["missing_role_names"]
-                or item["missing_role_names"]
-                != sorted(set(item["missing_role_names"]))
+                or item["missing_role_names"] != sorted(set(item["missing_role_names"]))
                 or any(not _identifier(name) for name in item["missing_role_names"])
             ):
                 _fail(
@@ -1183,6 +1297,56 @@ def _validated_gate4_binding(value: Any) -> None:
         or not isinstance(value.get("facts"), list)
     ):
         _fail("gate5_declaration_scope_gate4_binding_invalid")
+
+
+def _current_fact_binding(
+    facts: tuple[dict[str, Any], ...],
+) -> dict[str, Any]:
+    sources_by_id: dict[str, dict[str, Any]] = {}
+    fact_rows = []
+    for fact in facts:
+        gate3_binding = fact.get("gate3_binding", {})
+        artifact_id = gate3_binding.get("financial_annotations_artifact_id")
+        canonical = gate3_binding.get("canonical_binding")
+        if not isinstance(artifact_id, str) or not isinstance(canonical, dict):
+            _fail("gate5_declaration_scope_current_fact_binding_invalid")
+        sources_by_id[artifact_id] = {
+            "document_id": canonical.get("document_id"),
+            "status": "current_fact_v2_source",
+            "canonical_version_id": canonical.get("canonical_version_id"),
+            "financial_annotations_artifact_id": artifact_id,
+        }
+        fact_rows.append(
+            {
+                "fact_id": fact.get("fact_id"),
+                "financial_type": fact.get("financial_type"),
+                "fact_sha256": _canonical_sha256(fact),
+            }
+        )
+    base = {
+        "boundary": "Gate4OrdinaryTradeCandidateRuntimeFactory.create",
+        "status": "current_fact_v2_available",
+        "gate3_case_status": "not_executed",
+        "sources": sorted(sources_by_id.values(), key=lambda item: item["document_id"]),
+        "facts": sorted(fact_rows, key=lambda item: item["fact_id"]),
+    }
+    return {**base, "binding_sha256": _canonical_sha256(base)}
+
+
+def _validated_current_fact_binding(value: Any) -> None:
+    if (
+        not isinstance(value, dict)
+        or set(value) != _GATE4_BINDING_KEYS
+        or value.get("boundary") != "Gate4OrdinaryTradeCandidateRuntimeFactory.create"
+        or value.get("status") != "current_fact_v2_available"
+        or value.get("gate3_case_status") != "not_executed"
+        or not isinstance(value.get("sources"), list)
+        or not isinstance(value.get("facts"), list)
+    ):
+        _fail("gate5_declaration_scope_current_fact_binding_invalid")
+    base = {key: copy.deepcopy(value[key]) for key in value if key != "binding_sha256"}
+    if value.get("binding_sha256") != _canonical_sha256(base):
+        _fail("gate5_declaration_scope_current_fact_binding_invalid")
     base = {key: copy.deepcopy(value[key]) for key in value if key != "binding_sha256"}
     if value.get("binding_sha256") != _canonical_sha256(base):
         _fail("gate5_declaration_scope_gate4_binding_invalid")
@@ -1212,7 +1376,9 @@ def _validated_missing_source_requests(
         base = (
             {}
             if not isinstance(item, dict)
-            else {key: copy.deepcopy(item[key]) for key in item if key != "request_sha256"}
+            else {
+                key: copy.deepcopy(item[key]) for key in item if key != "request_sha256"
+            }
         )
         fact = facts.get(item.get("source_fact_id")) if isinstance(item, dict) else None
         full_fact = (
@@ -1261,8 +1427,7 @@ def _validated_missing_source_requests(
             or item["missing_role_names"] != sorted(set(item["missing_role_names"]))
             or any(not _identifier(name) for name in item["missing_role_names"])
             or item["missing_role_names"] != missing_roles
-            or item.get("reason")
-            != "observed_financial_fact_missing_required_values"
+            or item.get("reason") != "observed_financial_fact_missing_required_values"
             or item.get("action") != "provide_missing_source_or_values"
             or item.get("indication_sha256") != _canonical_sha256(indication)
             or item.get("request_sha256") != _canonical_sha256(base)
@@ -1300,6 +1465,22 @@ def _validate_current_financial_sources(
     if not sources:
         _fail("gate5_declaration_scope_component_financial_source_missing")
     for source in sources:
+        if source.get("source_kind") == "normalized_source_fact":
+            fact = current.get(source.get("fact_id"))
+            expected = (
+                None
+                if fact is None
+                else {
+                    "source_kind": "normalized_source_fact",
+                    "fact_id": fact["fact_id"],
+                    "financial_type": fact["financial_type"],
+                    "gate3_binding": fact["gate3_binding"],
+                    "annotation_target": fact["annotation_target"],
+                }
+            )
+            if source != expected:
+                _fail("gate5_declaration_scope_component_financial_source_stale")
+            continue
         matches = source.get("matches")
         if not isinstance(matches, list) or not matches:
             _fail("gate5_declaration_scope_component_financial_source_stale")
@@ -1327,7 +1508,10 @@ def _validate_current_financial_sources(
 def _nested_financial_sources(value: Any) -> list[dict[str, Any]]:
     result = []
     if isinstance(value, dict):
-        if value.get("source_kind") == "financial_case":
+        if value.get("source_kind") in {
+            "financial_case",
+            "normalized_source_fact",
+        }:
             result.append(value)
         for nested in value.values():
             result.extend(_nested_financial_sources(nested))
@@ -1441,8 +1625,7 @@ def _validated_domain_rows(
             if (
                 not isinstance(binding, dict)
                 or set(binding) != _EVIDENCE_BINDING_KEYS
-                or binding.get("polarity")
-                not in {"positive", "negative", "blocking"}
+                or binding.get("polarity") not in {"positive", "negative", "blocking"}
                 or not _sha256(binding.get("evidence_sha256"))
                 or not isinstance(binding.get("evidence_ref"), str)
                 or (
@@ -1450,10 +1633,7 @@ def _validated_domain_rows(
                     and binding.get("authority_class")
                     not in policy["allowed_authority_classes"]
                 )
-                or (
-                    binding.get("polarity") == "blocking"
-                    and not blocking
-                )
+                or (binding.get("polarity") == "blocking" and not blocking)
             ):
                 _fail("gate5_declaration_scope_policy_evidence_incompatible")
             polarities.add(binding["polarity"])
@@ -1691,8 +1871,7 @@ class Gate5DeclarationScopeActivationRuntime:
                 "mode": policies[domain["domain_id"]]["mode"],
                 "activation_reasons": sorted(activated_domains[domain["domain_id"]]),
                 "active_demand_count": sum(
-                    row["domain_id"] == domain["domain_id"]
-                    for row in active_demands
+                    row["domain_id"] == domain["domain_id"] for row in active_demands
                 ),
             }
             for domain in definition["domains"]
@@ -1743,13 +1922,10 @@ def _validated_activation_intent(value: Any) -> dict[str, Any]:
     return copy.deepcopy(value)
 
 
-def _validated_activation_case(
-    value: Any, *, evidence_mode: str
-) -> dict[str, Any]:
+def _validated_activation_case(value: Any, *, evidence_mode: str) -> dict[str, Any]:
     if (
         not isinstance(value, dict)
-        or value.get("schema_version")
-        != GATE5_REAL_TAX_CASE_ASSEMBLY_SCHEMA_VERSION
+        or value.get("schema_version") != GATE5_REAL_TAX_CASE_ASSEMBLY_SCHEMA_VERSION
         or value.get("evidence_mode") != evidence_mode
         or len(value.get("declaration_demands") or []) != 25
     ):
@@ -1769,6 +1945,7 @@ __all__ = [
     "GATE5_DECLARATION_SCOPE_ACTIVATION_SCHEMA_VERSION",
     "GATE5_DECLARATION_SCOPE_ACTIVATION_TERMINAL",
     "GATE5_DECLARATION_SCOPE_COMPONENT_EVIDENCE_SCHEMA_VERSION",
+    "GATE5_CURRENT_FACT_DECLARATION_SCOPE_RECEIPT_SCHEMA_VERSION",
     "GATE5_DECLARATION_SCOPE_HUMAN_ANSWER_SCHEMA_VERSION",
     "GATE5_DECLARATION_SCOPE_HUMAN_REQUEST_SCHEMA_VERSION",
     "GATE5_DECLARATION_SCOPE_MISSING_SOURCE_INDICATION_SCHEMA_VERSION",
