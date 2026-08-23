@@ -231,9 +231,10 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "gate4_ordinary_trade_candidate",
     "ordinary_trade_candidate_runtime",
     "ordinary_trade_production_runtime",
+    "ordinary_trade_tax_model_bridge",
 ]
 _GATE1_ORDINARY_TRADE_INSERT_AT = (
-    GATE1_MODULE_ORDER.index("gate5_declaration_preparation") + 1
+    GATE1_MODULE_ORDER.index("gate5_declaration_scope_resolution")
 )
 GATE1_MODULE_ORDER = [
     *GATE1_MODULE_ORDER[:_GATE1_ORDINARY_TRADE_INSERT_AT],
