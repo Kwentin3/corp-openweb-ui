@@ -366,7 +366,7 @@ def test_new_behavior_executes_from_a_closed_package_copy(tmp_path: Path) -> Non
     )
     script = """
 from broker_reports_gate1 import Gate5PublishedTypedBehaviorRegistryFactory
-r=Gate5PublishedTypedBehaviorRegistryFactory.create().describe({'schema_version':'broker_reports_gate5_published_behavior_ref_v1','methodology_id':'ru-ndfl-securities-tax-model-proof','methodology_version':'2026.2-experimental','behavior_id':'securities_income_group_tax_base_v0'})
+r=Gate5PublishedTypedBehaviorRegistryFactory.create().describe({'schema_version':'broker_reports_gate5_published_behavior_ref_v1','methodology_id':'ru-ndfl-securities-tax-model-proof','methodology_version':'2026.3-audited','behavior_id':'securities_income_group_tax_base_v0'})
 print(r['input_contract_id'])
 print(r['output_contract_id'])
 """
@@ -410,7 +410,7 @@ def test_income_group_methodology_hash_drift_fails_in_package_copy(
     )
     script = """
 from broker_reports_gate1 import Gate5TrustedMethodologyAuthorityFactory
-Gate5TrustedMethodologyAuthorityFactory.create().resolve({'schema_version':'broker_reports_gate5_trusted_methodology_ref_v0','methodology_id':'ru-ndfl-securities-tax-model-proof','methodology_version':'2026.2-experimental'})
+Gate5TrustedMethodologyAuthorityFactory.create().resolve({'schema_version':'broker_reports_gate5_trusted_methodology_ref_v0','methodology_id':'ru-ndfl-securities-tax-model-proof','methodology_version':'2026.3-audited'})
 """
     environment = os.environ.copy()
     environment["PYTHONDONTWRITEBYTECODE"] = "1"

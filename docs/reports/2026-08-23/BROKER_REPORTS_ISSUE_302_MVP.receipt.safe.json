@@ -1,0 +1,49 @@
+{
+  "schema_version": "broker_reports_issue_302_mvp_evidence_receipt_v1",
+  "status": "verified_local",
+  "exact_base_sha": "d88684d78655180658a51ba0e3c341be020077cb",
+  "supported_case": "one resident self-signed 2025 RUB ordinary organized-market security disposal outside IIS",
+  "official_inputs": {
+    "order_page": "https://www.nalog.gov.ru/rn77/about_fts/docs/16589324/",
+    "form_pdf_sha256": "d751043f63af1f0095a14228a65a3831acf47fcd82c397e2eb38b0f9f8dc9565",
+    "procedure_docx_sha256": "7bc11cad8d0465c03c834c50c7832fb2edc7291d9b4b161ef5b2c6cabdcb0fdc",
+    "format_docx_sha256": "f5215c237a8af73dd7a251cee94a2e09aacd8540173fcde2904b4c311129e3c2",
+    "xsd_sha256": "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484"
+  },
+  "methodology_resource_sha256": {
+    "declaration_input": "a3e4e610ef4ea36086dc49b47a988babc769dcf3fbd482ce35aec236f7a9189d",
+    "source_fact_consumption": "8fcf311f6205eaf714279fec3e651d4518ea0c2a08e87a7be389484564b5ade0",
+    "operation_tax_model": "d2070ad33a74d6ca9de0a8abebcb4ab96045bff5127845d38fd08d1fc4393199",
+    "income_group_tax_base": "feffc538795825e346f92082d26d4de56d83ec51437bb9fa0037c60f5bd72116",
+    "income_group_settlement": "69931290db849acea3512395a0bb954ace53de8b0956694090c8983d346e5816"
+  },
+  "review_fixture": {
+    "path": "docs/reports/2026-08-23/BROKER_REPORTS_ISSUE_302_MVP_DECLARATION.safe.xml",
+    "sha256": "b57ad7753ba3c1cc77b88197037eb23e63cb95e4be9109e31d690ae72870343d",
+    "encoding": "UTF-8 review copy of the deterministic windows-1251 wire XML",
+    "xsd_valid": true,
+    "semantic_totals": {
+      "gross_income": "60.00",
+      "recognized_acquisition_cost": "40.00",
+      "disposal_commission": "3.00",
+      "accepted_expenses": "43.00",
+      "tax_base": "17.00",
+      "calculated_tax": "2"
+    }
+  },
+  "runtime_constraints": {
+    "provider_or_llm_calculation_calls": 0,
+    "pdf_rereads": 0,
+    "gate3_calls": 0,
+    "sql_reads": 0,
+    "second_assembler": false
+  },
+  "local_test_receipt": {
+    "targeted_owner_and_mvp_suites": "174 passed",
+    "architecture_bundle_and_human_fact_regressions": "83 passed",
+    "mvp_fixture_suite": "13 passed",
+    "historical_g535_baseline": "6 failed, 3 errors: gate5_e2e_gate2_canonical_missing",
+    "ruff": "passed",
+    "diff_check": "passed"
+  }
+}

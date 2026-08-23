@@ -92,6 +92,8 @@ _SECTIONS = {
 }
 _EXPENSE_FLAGS = {"actually_incurred", "documented", "related_to_operation"}
 _SOURCE_KINDS = {
+    "authenticated_user_case_fact",
+    "current_fact_v2",
     "external_authoritative_evidence",
     "methodology_derived_result",
     "proof_assumption",

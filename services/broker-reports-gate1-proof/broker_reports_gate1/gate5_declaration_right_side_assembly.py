@@ -162,7 +162,9 @@ class Gate5DeclarationRightSideAssemblyRuntime:
         ):
             values[name] = {
                 "value": _money(_required(credits, name)),
-                "provenance": _synthetic(
+                "provenance": _owned_or_synthetic_provenance(
+                    facts,
+                    "provenance",
                     f"{_required(facts, 'evidence_ref_prefix')}-{name}",
                     "income_group_tax_settlement",
                 ),
@@ -190,7 +192,9 @@ class Gate5DeclarationRightSideAssemblyRuntime:
                     ),
                     "scope_binding_sha256": scope_binding["scope_binding_sha256"],
                     "income_group_model_sha256s": [model_hash],
-                    "provenance": _synthetic(
+                    "provenance": _owned_or_synthetic_provenance(
+                        facts,
+                        "completeness_provenance",
                         _required(facts, "completeness_source_ref"),
                         "income_group_results_completeness",
                     ),
@@ -241,7 +245,9 @@ class Gate5DeclarationRightSideAssemblyRuntime:
                             ),
                         },
                         "foreign_tax": None,
-                        "provenance": _synthetic(
+                        "provenance": _owned_or_synthetic_provenance(
+                            facts,
+                            "provenance",
                             source_ref,
                             "taxable_income_source",
                         ),
@@ -258,7 +264,9 @@ class Gate5DeclarationRightSideAssemblyRuntime:
                     "scope_binding_sha256": scope_binding["scope_binding_sha256"],
                     "income_group_results_component_id": settlement["component_id"],
                     "source_refs": [source_ref],
-                    "provenance": _synthetic(
+                    "provenance": _owned_or_synthetic_provenance(
+                        facts,
+                        "completeness_provenance",
                         _required(facts, "completeness_source_ref"),
                         "taxable_income_source_completeness",
                     ),
@@ -293,15 +301,13 @@ class Gate5DeclarationRightSideAssemblyRuntime:
                 "filing_instance": filing,
                 "taxpayer": taxpayer,
                 "signer": signer,
-                "evidence": {
-                    "schema_version": "broker_reports_gate5_synthetic_case_evidence_v0",
-                    "status": "synthetic_proof_evidence",
-                    "source_ref": _required(facts, "evidence_source_ref"),
-                    "case_id": scope_binding["case_id"],
-                    "tax_period": scope_binding["tax_period"],
-                    "input_channel": "filing_and_party_identity",
-                    "real_user_fact": False,
-                },
+                "evidence": _owned_or_synthetic_case_evidence(
+                    facts,
+                    source_ref=_required(facts, "evidence_source_ref"),
+                    case_id=scope_binding["case_id"],
+                    tax_period=scope_binding["tax_period"],
+                    input_channel="filing_and_party_identity",
+                ),
             }
         )
 
@@ -331,13 +337,14 @@ class Gate5DeclarationRightSideAssemblyRuntime:
                 "filing_component": copy.deepcopy(filing),
                 "income_group_results_component": copy.deepcopy(settlement),
                 "allocation_evidence": {
-                    "schema_version": "broker_reports_gate5_synthetic_case_evidence_v0",
-                    "status": "synthetic_proof_evidence",
+                    **_owned_or_synthetic_case_evidence(
+                        facts,
+                        source_ref=allocation["source_ref"],
+                        case_id=scope_binding["case_id"],
+                        tax_period=scope_binding["tax_period"],
+                        input_channel="declaration_budget_disposition",
+                    ),
                     **copy.deepcopy(allocation),
-                    "case_id": scope_binding["case_id"],
-                    "tax_period": scope_binding["tax_period"],
-                    "input_channel": "declaration_budget_disposition",
-                    "real_user_fact": False,
                 },
             }
         )
@@ -374,7 +381,9 @@ class Gate5DeclarationRightSideAssemblyRuntime:
                         _required(facts, "not_activated_obligation_refs")
                     ),
                     "real_world_taxpayer_absence_asserted": False,
-                    "provenance": _synthetic(
+                    "provenance": _owned_or_synthetic_provenance(
+                        facts,
+                        "completeness_provenance",
                         _required(facts, "completeness_source_ref"),
                         "financial_investment_supplied_case_completeness",
                     ),
@@ -396,6 +405,48 @@ def _synthetic(source_ref: str, input_channel: str) -> dict[str, Any]:
         "input_channel": input_channel,
         "real_user_fact": False,
     }
+
+
+def _owned_or_synthetic_provenance(
+    facts: dict[str, Any], key: str, source_ref: str, input_channel: str
+) -> dict[str, Any]:
+    supplied = facts.get(key)
+    if supplied is None:
+        return _synthetic(source_ref, input_channel)
+    if not isinstance(supplied, dict):
+        _fail("gate5_declaration_right_side_owner_provenance_invalid", key)
+    result = copy.deepcopy(supplied)
+    result["input_channel"] = input_channel
+    return result
+
+
+def _owned_or_synthetic_case_evidence(
+    facts: dict[str, Any], *, source_ref: str, case_id: str, tax_period: str,
+    input_channel: str
+) -> dict[str, Any]:
+    supplied = facts.get("evidence")
+    if supplied is None:
+        return {
+            "schema_version": "broker_reports_gate5_synthetic_case_evidence_v0",
+            "status": "synthetic_proof_evidence",
+            "source_ref": source_ref,
+            "case_id": case_id,
+            "tax_period": tax_period,
+            "input_channel": input_channel,
+            "real_user_fact": False,
+        }
+    if not isinstance(supplied, dict):
+        _fail("gate5_declaration_right_side_owner_evidence_invalid", input_channel)
+    result = copy.deepcopy(supplied)
+    result.update(
+        {
+            "source_ref": source_ref,
+            "case_id": case_id,
+            "tax_period": tax_period,
+            "input_channel": input_channel,
+        }
+    )
+    return result
 
 
 def _money(amount: str) -> dict[str, str]:

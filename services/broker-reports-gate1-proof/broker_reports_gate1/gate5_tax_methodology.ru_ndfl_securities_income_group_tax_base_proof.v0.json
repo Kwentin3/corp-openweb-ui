@@ -1,7 +1,7 @@
 {
   "schema_version": "broker_reports_gate5_securities_income_group_tax_base_methodology_v0",
   "methodology_id": "ru-ndfl-securities-tax-model-proof",
-  "methodology_version": "2026.2-experimental",
+  "methodology_version": "2026.3-audited",
   "behavior": {
     "behavior_id": "securities_income_group_tax_base_v0",
     "model_id": "securities-income-group-tax-base",

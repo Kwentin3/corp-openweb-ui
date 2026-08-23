@@ -450,10 +450,12 @@ def _tagged_tax_money(value: Any, field: str) -> dict[str, Any]:
         or Decimal(money["amount"]) != Decimal(money["amount"]).to_integral_value()
         or not isinstance(provenance, dict)
         or set(provenance) != _PROVENANCE_KEYS
-        or provenance.get("source_kind") != "synthetic_proof_evidence"
+        or provenance.get("source_kind")
+        not in {"synthetic_proof_evidence", "authenticated_user_case_fact"}
         or not _identifier(provenance.get("source_ref"))
         or provenance.get("input_channel") != "income_group_tax_settlement"
-        or provenance.get("real_user_fact") is not False
+        or provenance.get("real_user_fact")
+        is not (provenance.get("source_kind") == "authenticated_user_case_fact")
     ):
         _fail("gate5_income_group_results_settlement_fact_invalid", field)
     return copy.deepcopy(value)
@@ -481,10 +483,12 @@ def _completeness(
     if (
         not isinstance(provenance, dict)
         or set(provenance) != _PROVENANCE_KEYS
-        or provenance.get("source_kind") != "synthetic_proof_evidence"
+        or provenance.get("source_kind")
+        not in {"synthetic_proof_evidence", "authenticated_user_case_fact"}
         or not _identifier(provenance.get("source_ref"))
         or provenance.get("input_channel") != "income_group_results_completeness"
-        or provenance.get("real_user_fact") is not False
+        or provenance.get("real_user_fact")
+        is not (provenance.get("source_kind") == "authenticated_user_case_fact")
     ):
         _fail("gate5_income_group_results_completeness_invalid")
 

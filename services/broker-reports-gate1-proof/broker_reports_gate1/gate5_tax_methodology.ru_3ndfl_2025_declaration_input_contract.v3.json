@@ -266,7 +266,7 @@
       ],
       "external_methodology_refs": [
         "ru-ndfl-securities-source-fact-consumption-proof@2026.7-current-authority",
-        "ru-ndfl-securities-tax-model-proof@2026.1-experimental"
+        "ru-ndfl-securities-tax-model-proof@2026.2-audited"
       ]
     },
     {
@@ -279,7 +279,7 @@
         "foreign-currency-conversion-article-210-v1"
       ],
       "external_methodology_refs": [
-        "ru-ndfl-securities-tax-model-proof@2026.2-experimental"
+        "ru-ndfl-securities-tax-model-proof@2026.3-audited"
       ]
     },
     {

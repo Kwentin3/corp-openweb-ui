@@ -233,14 +233,27 @@ def _validated_input(value: Any) -> dict[str, Any]:
     if (
         not isinstance(evidence, dict)
         or set(evidence) != _EVIDENCE_KEYS
-        or evidence.get("schema_version")
-        != "broker_reports_gate5_synthetic_case_evidence_v0"
-        or evidence.get("status") != "synthetic_proof_evidence"
+        or (
+            evidence.get("schema_version"),
+            evidence.get("status"),
+            evidence.get("real_user_fact"),
+        )
+        not in {
+            (
+                "broker_reports_gate5_synthetic_case_evidence_v0",
+                "synthetic_proof_evidence",
+                False,
+            ),
+            (
+                "broker_reports_gate5_owner_case_evidence_v1",
+                "owner_verified_evidence",
+                True,
+            ),
+        }
         or not _identifier(evidence.get("source_ref"))
         or evidence.get("case_id") != scope["case_id"]
         or evidence.get("tax_period") != scope["tax_period"]
         or evidence.get("input_channel") != "filing_and_party_identity"
-        or evidence.get("real_user_fact") is not False
     ):
         _fail("gate5_filing_party_evidence_invalid")
     return copy.deepcopy(value)
