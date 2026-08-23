@@ -43,6 +43,21 @@ class ArtifactResolver:
         result.payload_ref = None
         return result
 
+    def resolve_case(
+        self, artifact_id: str, context: ArtifactAccessContext
+    ) -> dict[str, Any]:
+        """Resolve an immutable case artifact across runs in the same ACL scope."""
+
+        record = self.store.get_record_unchecked(artifact_id)
+        if record is None:
+            raise ArtifactStoreError("artifact_not_found", "Artifact ref was not found")
+        self._validate_case_scope(record, context)
+        self._validate_lifecycle(record, context)
+        return {
+            "record": record,
+            "payload": self.store.read_payload(record),
+        }
+
     def catalog_run(self, context: ArtifactAccessContext) -> list[ArtifactRecord]:
         """Return same-scope record metadata; payload access still requires resolve()."""
 
@@ -89,6 +104,12 @@ class ArtifactResolver:
 
     def _validate(self, record: ArtifactRecord, context: ArtifactAccessContext) -> None:
         self._validate_scope(record, context)
+        self._validate_lifecycle(record, context)
+
+    @staticmethod
+    def _validate_lifecycle(
+        record: ArtifactRecord, context: ArtifactAccessContext
+    ) -> None:
         if record.visibility in PRIVATE_VISIBILITIES and not context.allow_private:
             raise ArtifactStoreError("artifact_access_denied", "Private artifact access was not requested")
         if record.lifecycle_status == "privacy_failed" or record.validation_status == "privacy_failed":
@@ -120,6 +141,38 @@ class ArtifactResolver:
             source_ref = record.source_file_ref or {}
             if source_ref.get("source_deleted") is True:
                 raise ArtifactStoreError("source_file_unavailable", "Source file was deleted")
+
+    @staticmethod
+    def _validate_case_scope(
+        record: ArtifactRecord, context: ArtifactAccessContext
+    ) -> None:
+        if not isinstance(context, ArtifactAccessContext) or not context.case_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified", "Artifact case context is required"
+            )
+        if record.user_id != context.user_id:
+            raise ArtifactStoreError(
+                "artifact_access_denied", "Artifact user context mismatch"
+            )
+        if not record.case_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified", "Artifact has no case scope"
+            )
+        if record.case_id != context.case_id:
+            raise ArtifactStoreError(
+                "artifact_access_denied", "Artifact case context mismatch"
+            )
+        if record.workspace_model_id:
+            if not context.workspace_model_id:
+                raise ArtifactStoreError(
+                    "artifact_scope_unverified",
+                    "Artifact workspace context is missing",
+                )
+            if record.workspace_model_id != context.workspace_model_id:
+                raise ArtifactStoreError(
+                    "artifact_access_denied",
+                    "Artifact workspace context mismatch",
+                )
 
     def _validate_scope(
         self, record: ArtifactRecord, context: ArtifactAccessContext

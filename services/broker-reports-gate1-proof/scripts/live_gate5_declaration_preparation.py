@@ -27,6 +27,9 @@ from broker_reports_gate1 import (  # noqa: E402
 from broker_reports_gate1.gate5_declaration_preparation import (  # noqa: E402
     Gate5DeclarationPreparationRuntimeFactory,
 )
+from broker_reports_gate1.gate5_human_gap_closure import (  # noqa: E402
+    gate5_case_taxpayer_scope_ref,
+)
 from broker_reports_gate1.gate5_declaration_scope_resolution import (  # noqa: E402
     GATE5_USER_INTENT_SCHEMA_VERSION,
 )
@@ -137,21 +140,27 @@ def main() -> int:
             payload_root=store_root / "payloads",
         )
     ).create()
-    result = Gate5DeclarationPreparationRuntimeFactory(
-        store=store,
-        read_enabled=True,
-    ).create().prepare(
-        source_fact_methodology_ref=_source_methodology_ref(),
-        context=ArtifactAccessContext(**BASE_CONTEXT),
-        evidence_mode="REAL_EVIDENCE",
-        user_intent={
-            "schema_version": GATE5_USER_INTENT_SCHEMA_VERSION,
-            "form": "3-NDFL",
-            "tax_period": "2025",
-            "task": "prepare_tax_declaration",
-            "domains": ["broker_securities_income"],
-        },
-        user_case_facts=[],
+    context = ArtifactAccessContext(**BASE_CONTEXT)
+    result = (
+        Gate5DeclarationPreparationRuntimeFactory(
+            store=store,
+            read_enabled=True,
+        )
+        .create()
+        .prepare(
+            source_fact_methodology_ref=_source_methodology_ref(),
+            context=context,
+            evidence_mode="REAL_EVIDENCE",
+            user_intent={
+                "schema_version": GATE5_USER_INTENT_SCHEMA_VERSION,
+                "form": "3-NDFL",
+                "tax_period": "2025",
+                "task": "prepare_tax_declaration",
+                "domains": ["broker_securities_income"],
+            },
+            taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+            user_case_facts=[],
+        )
     )
     store_after = _store_snapshot(store_root)
     if store_before != store_after:

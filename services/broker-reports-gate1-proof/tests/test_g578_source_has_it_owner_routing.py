@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from broker_reports_gate1.artifact_models import ArtifactAccessContext
 from broker_reports_gate1.gate5_client_evidence_review import (
     Gate5ClientEvidenceReviewRuntime,
 )
@@ -17,6 +18,7 @@ from broker_reports_gate1.gate5_evidence_intake import (
 )
 from broker_reports_gate1.gate5_human_gap_closure import (
     Gate5HumanGapClosureRuntimeFactory,
+    gate5_case_taxpayer_scope_ref,
 )
 from broker_reports_gate1.gate5_residency_evidence import (
     Gate5ResidencyEvidenceRuntimeFactory,
@@ -70,10 +72,10 @@ def test_source_has_literal_role_loss_routes_to_gate3_gate4_owner_only() -> None
     _assert_internal_only(action, closure)
 
 
-def test_source_has_literal_decimal_failure_routes_to_normalization_owner_only() -> None:
-    finding, action, closure = _route(
-        _blocker("gate5_source_fact_decimal_invalid")
-    )
+def test_source_has_literal_decimal_failure_routes_to_normalization_owner_only() -> (
+    None
+):
+    finding, action, closure = _route(_blocker("gate5_source_fact_decimal_invalid"))
 
     assert finding["routing"]["ownership_state"] == (
         "SOURCE_HAS_IT_NORMALIZATION_FAILED"
@@ -138,9 +140,7 @@ def test_normative_contract_exposes_owner_routes_without_new_router() -> None:
     assert "OWNER_UNRESOLVED" in preparation
 
 
-def _assert_internal_only(
-    action: dict[str, Any], closure: dict[str, Any]
-) -> None:
+def _assert_internal_only(action: dict[str, Any], closure: dict[str, Any]) -> None:
     assert action in closure["internal_owner_required_actions"]
     assert action not in closure["user_facing_required_actions"]
     assert action not in closure["llm_adapter_input"]["required_actions"]
@@ -152,6 +152,12 @@ def _route(
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     review = Gate5ClientEvidenceReviewRuntime(source_runtime=None).review(
         source_assembly=_source_assembly(blocker)
+    )
+    context = ArtifactAccessContext(
+        user_id="synthetic-user",
+        normalization_run_id="synthetic-run",
+        case_id="synthetic-case",
+        allow_private=True,
     )
     closure = Gate5HumanGapClosureRuntimeFactory.create().plan(
         intake={
@@ -167,6 +173,9 @@ def _route(
         residency_classification=(
             Gate5ResidencyEvidenceRuntimeFactory.create().classify(evidence=None)
         ),
+        context=context,
+        taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
+        tax_period="2025",
     )
     return review["required_blockers"][0], closure["required_actions"][0], closure
 

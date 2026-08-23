@@ -76,6 +76,9 @@ from broker_reports_gate1 import (
 from broker_reports_gate1.gate5_declaration_preparation import (
     Gate5DeclarationPreparationRuntimeFactory,
 )
+from broker_reports_gate1.gate5_human_gap_closure import (
+    gate5_case_taxpayer_scope_ref,
+)
 from broker_reports_gate1.gate5_declaration_scope_resolution import (
     GATE5_USER_INTENT_SCHEMA_VERSION,
 )
@@ -136,6 +139,7 @@ result = Gate5DeclarationPreparationRuntimeFactory(
         "task": "prepare_tax_declaration",
         "domains": ["broker_securities_income"],
     },
+    taxpayer_scope_ref=gate5_case_taxpayer_scope_ref(context),
     user_case_facts=[],
 )
 
@@ -195,9 +199,7 @@ def main() -> int:
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--env-file", default=str(REPO_ROOT / ".env"))
     parser.add_argument("--ssh-target", default="")
-    parser.add_argument(
-        "--canonical-root-sha256", default=FROZEN_CANONICAL_ROOT_SHA256
-    )
+    parser.add_argument("--canonical-root-sha256", default=FROZEN_CANONICAL_ROOT_SHA256)
     args = parser.parse_args()
 
     env = _read_env(Path(args.env_file))

@@ -37,14 +37,12 @@ from .gate5_residency_evidence import (
 
 
 GATE5_DECLARATION_PREPARATION_SCHEMA_VERSION = (
-    "broker_reports_gate5_declaration_preparation_v0"
+    "broker_reports_gate5_declaration_preparation_v1"
 )
 GATE5_DECLARATION_DRAFT_SCHEMA_VERSION = (
     "broker_reports_gate5_machine_readable_declaration_draft_v0"
 )
-GATE5_DECLARATION_PREPARATION_TERMINAL = (
-    "DECLARATION_PREPARATION_WORKFLOW_PROVEN"
-)
+GATE5_DECLARATION_PREPARATION_TERMINAL = "DECLARATION_PREPARATION_WORKFLOW_PROVEN"
 GATE5_REAL_EVIDENCE_GAPS_TERMINAL = "REAL_EVIDENCE_GAPS_REMAIN"
 GATE5_REAL_DECLARATION_CASE_TERMINAL = "REAL_DECLARATION_CASE_PROVEN"
 
@@ -93,7 +91,7 @@ class Gate5DeclarationPreparationRuntimeFactory:
                 store=self._store,
                 read_enabled=self._read_enabled,
             ).create(),
-            gap_closure=Gate5HumanGapClosureRuntimeFactory.create(),
+            gap_closure=Gate5HumanGapClosureRuntimeFactory.create(store=self._store),
             residency=Gate5ResidencyEvidenceRuntimeFactory.create(),
             target_definition=(
                 Gate5FullTargetXmlProjectionDefinitionAuthorityFactory.create()
@@ -128,6 +126,7 @@ class Gate5DeclarationPreparationRuntime:
         context: ArtifactAccessContext,
         evidence_mode: str,
         user_intent: dict[str, Any],
+        taxpayer_scope_ref: str,
         user_case_facts: list[dict[str, Any]],
     ) -> dict[str, Any]:
         intake = self._intake.collect(context=context)
@@ -145,7 +144,10 @@ class Gate5DeclarationPreparationRuntime:
             case_assembly=case,
         )
         validated_user_facts = self._gap_closure.validate_user_case_facts(
-            user_case_facts
+            user_case_facts,
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=user_intent.get("tax_period"),
         )
         residency_classification = self._residency.classify(
             evidence=_residency_evidence(validated_user_facts)
@@ -156,6 +158,9 @@ class Gate5DeclarationPreparationRuntime:
             client_review=review,
             user_case_facts=validated_user_facts,
             residency_classification=residency_classification,
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=user_intent.get("tax_period"),
         )
         draft = _machine_readable_draft(
             case=case,
@@ -236,7 +241,9 @@ class Gate5DeclarationPreparationRuntime:
                 "semantic_owner": "Gate5DeclarationSemanticInputRuntimeFactory.create",
                 "projection_owner": "Gate5FullTargetXmlProjectionRuntimeFactory.create",
                 "projection_definition_id": target_definition["projection_id"],
-                "projection_definition_version": target_definition["projection_version"],
+                "projection_definition_version": target_definition[
+                    "projection_version"
+                ],
                 "xml_emitted": False,
                 "pdf_emitted": False,
                 "manual_target_construction": False,
@@ -346,9 +353,8 @@ def _residency_evidence(value: list[dict[str, Any]]) -> dict[str, Any] | None:
     if not matches:
         return None
     wrapped = matches[0]["value"]
-    if (
-        wrapped.get("kind") != "residency_evidence"
-        or not isinstance(wrapped.get("value"), dict)
+    if wrapped.get("kind") != "residency_evidence" or not isinstance(
+        wrapped.get("value"), dict
     ):
         raise Gate5DeclarationPreparationError(
             "gate5_preparation_residency_evidence_invalid"
