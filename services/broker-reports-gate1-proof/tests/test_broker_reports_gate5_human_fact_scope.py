@@ -49,6 +49,14 @@ def test_all_current_human_fact_kinds_are_owner_published_and_deterministic(
 ) -> None:
     runtime, context = _runtime(tmp_path)
     published = runtime.publish_requests(**_plan_inputs(context))
+    all_requests = [
+        *published["required_actions"],
+        *published["advisory_actions"],
+        *published["deferred_actions"],
+    ]
+    assert len({item["semantic_request_key"] for item in all_requests}) == len(
+        all_requests
+    )
 
     user_requests = {
         item["fact_key"]: item
@@ -255,6 +263,17 @@ def test_changed_and_stale_requests_fail_before_fact_publication(
         )
     assert changed_error.value.code == "gate5_gap_request_owner_binding_invalid"
 
+    caller_lane = copy.deepcopy(old_request)
+    caller_lane["semantic_request_key"] = "human_fact:caller_selected_lane"
+    _reseal_request(caller_lane)
+    with pytest.raises(Gate5HumanGapClosureError) as caller_lane_error:
+        runtime.normalize_answer(
+            request=caller_lane,
+            answer={"kind": "confirmation", "value": True},
+            context=context,
+        )
+    assert caller_lane_error.value.code == "gate5_gap_request_owner_binding_invalid"
+
     inputs = _plan_inputs(context)
     inputs["intake"]["metadata_facts"] = [
         {"fact_type": "PARTY_NAME", "fact_id": "synthetic-party-fact"}
@@ -262,6 +281,9 @@ def test_changed_and_stale_requests_fail_before_fact_publication(
     latest = runtime.publish_requests(**inputs)
     changed_request = _request(latest, "taxpayer_identity_confirmed")
     assert changed_request != old_request
+    assert changed_request["semantic_request_key"] == old_request[
+        "semantic_request_key"
+    ]
     changed_fact = runtime.normalize_answer(
         request=changed_request,
         answer={"kind": "confirmation", "value": True},
@@ -324,6 +346,203 @@ def test_changed_and_stale_requests_fail_before_fact_publication(
     assert "created_at" not in current_selector
     assert "sorted(" not in current_selector
     assert "max(" not in current_selector
+
+
+def test_budget_state_transitions_share_one_lane_and_stale_old_artifacts(
+    tmp_path: Path,
+) -> None:
+    runtime, context = _runtime(tmp_path)
+    blocked_review = Gate5ClientEvidenceReviewRuntime(source_runtime=None).review(
+        source_assembly=routing_fixtures._source_assembly(
+            routing_fixtures._blocker(
+                "gate5_source_fact_direct_expense_missing"
+            )
+        )
+    )
+
+    deferred_plan = runtime.publish_requests(
+        **_plan_inputs(context, client_review=blocked_review)
+    )
+    deferred = _request(deferred_plan, "budget_disposition")
+    deferred_fact = runtime.normalize_answer(
+        request=deferred,
+        answer={"kind": "code", "value": "PAYMENT"},
+        context=context,
+    )["typed_user_case_fact"]
+    assert deferred["kind"] == "DEFERRED"
+    assert deferred["semantic_request_key"] == "human_fact:budget_disposition"
+
+    required_plan = runtime.publish_requests(**_plan_inputs(context))
+    required = _request(required_plan, "budget_disposition")
+    assert required["kind"] == "REQUIRED"
+    assert required["semantic_request_key"] == deferred["semantic_request_key"]
+    assert required["request_publication_ref"] != deferred[
+        "request_publication_ref"
+    ]
+    _assert_answer_error(
+        runtime,
+        request=deferred,
+        context=context,
+        answer={"kind": "code", "value": "PAYMENT"},
+        expected="gate5_gap_request_stale",
+    )
+    _assert_fact_stale(runtime, deferred_fact, context=context)
+    required_fact = runtime.normalize_answer(
+        request=required,
+        answer={"kind": "code", "value": "REFUND"},
+        context=context,
+    )["typed_user_case_fact"]
+
+    later_run = replace(context, normalization_run_id="synthetic-run-later")
+    deferred_again_plan = runtime.publish_requests(
+        **_plan_inputs(later_run, client_review=blocked_review)
+    )
+    deferred_again = _request(deferred_again_plan, "budget_disposition")
+    assert deferred_again["kind"] == "DEFERRED"
+    assert deferred_again["request_ref"] == deferred["request_ref"]
+    assert deferred_again["semantic_request_key"] == required[
+        "semantic_request_key"
+    ]
+    assert deferred_again["request_publication_ref"] not in {
+        deferred["request_publication_ref"],
+        required["request_publication_ref"],
+    }
+    _assert_answer_error(
+        runtime,
+        request=required,
+        context=later_run,
+        answer={"kind": "code", "value": "REFUND"},
+        expected="gate5_gap_request_stale",
+    )
+    _assert_fact_stale(runtime, required_fact, context=later_run)
+    result = runtime.normalize_answer(
+        request=deferred_again,
+        answer={"kind": "code", "value": "REDUCTION"},
+        context=later_run,
+    )
+    assert result["status"] == "TYPED_USER_CASE_FACT_READY"
+
+
+def test_concurrent_internal_requests_keep_distinct_owner_semantics(
+    tmp_path: Path,
+) -> None:
+    runtime, context = _runtime(tmp_path)
+    role_blocker = routing_fixtures._blocker(
+        "gate5_source_fact_required_role_missing"
+    )
+    decimal_blocker = routing_fixtures._blocker(
+        "gate5_source_fact_decimal_invalid"
+    )
+    first_plan = runtime.publish_requests(
+        **_plan_inputs(
+            context,
+            client_review=_review_for_blockers(role_blocker, decimal_blocker),
+        )
+    )
+    first = _internal_requests_by_route(first_plan)
+    assert set(first) == {
+        "UPSTREAM_SOURCE_FACT_PRODUCTION_REVIEW",
+        "NORMALIZATION_OWNER_REVIEW",
+    }
+    assert first["UPSTREAM_SOURCE_FACT_PRODUCTION_REVIEW"][
+        "semantic_request_key"
+    ] != first["NORMALIZATION_OWNER_REVIEW"]["semantic_request_key"]
+    assert first["UPSTREAM_SOURCE_FACT_PRODUCTION_REVIEW"][
+        "request_publication_ref"
+    ] != first["NORMALIZATION_OWNER_REVIEW"]["request_publication_ref"]
+    _assert_all_internal_requests_current(runtime, first_plan, context=context)
+
+    changed_role = copy.deepcopy(role_blocker)
+    changed_role["fact_id"] = "g4fact_control_changed"
+    changed_role["evidence_searched"] = {
+        "document_id": "document-control-changed",
+        "source_fact_id": "g4fact_control_changed",
+    }
+    changed_role["why_insufficient"] = "changed owner display explanation"
+    changed_role["closing_evidence"] = "changed exact owner evidence state"
+    second_plan = runtime.publish_requests(
+        **_plan_inputs(
+            context,
+            client_review=_review_for_blockers(changed_role, decimal_blocker),
+        )
+    )
+    second = _internal_requests_by_route(second_plan)
+    old_role = first["UPSTREAM_SOURCE_FACT_PRODUCTION_REVIEW"]
+    new_role = second["UPSTREAM_SOURCE_FACT_PRODUCTION_REVIEW"]
+    old_decimal = first["NORMALIZATION_OWNER_REVIEW"]
+    new_decimal = second["NORMALIZATION_OWNER_REVIEW"]
+    assert new_role["request_ref"] != old_role["request_ref"]
+    assert new_role["semantic_request_key"] == old_role["semantic_request_key"]
+    assert new_role["request_publication_ref"] != old_role[
+        "request_publication_ref"
+    ]
+    assert new_decimal == old_decimal
+    _assert_answer_error(
+        runtime,
+        request=old_role,
+        context=context,
+        answer={"kind": "code", "value": "owner-review"},
+        expected="gate5_gap_request_stale",
+    )
+    _assert_all_internal_requests_current(runtime, second_plan, context=context)
+
+
+def test_additional_document_evidence_change_supersedes_same_lane(
+    tmp_path: Path,
+) -> None:
+    runtime, context = _runtime(tmp_path)
+    first_blocker = routing_fixtures._blocker(
+        "gate5_source_fact_direct_expense_missing"
+    )
+    first_plan = runtime.publish_requests(
+        **_plan_inputs(
+            context,
+            client_review=_review_for_blockers(first_blocker),
+        )
+    )
+    old_request = next(
+        item
+        for item in first_plan["required_actions"]
+        if item["closure_type"] == "ADDITIONAL_DOCUMENT"
+    )
+
+    changed_blocker = copy.deepcopy(first_blocker)
+    changed_blocker["fact_id"] = "g4fact_changed"
+    changed_blocker["evidence_searched"] = {
+        "document_id": "document-changed",
+        "source_fact_id": "g4fact_changed",
+    }
+    changed_blocker["why_insufficient"] = "changed evidence-state explanation"
+    changed_blocker["closing_evidence"] = "changed exact missing document"
+    second_plan = runtime.publish_requests(
+        **_plan_inputs(
+            context,
+            client_review=_review_for_blockers(changed_blocker),
+        )
+    )
+    new_request = next(
+        item
+        for item in second_plan["required_actions"]
+        if item["closure_type"] == "ADDITIONAL_DOCUMENT"
+    )
+    assert new_request["semantic_request_key"] == old_request[
+        "semantic_request_key"
+    ]
+    assert new_request["request_publication_ref"] != old_request[
+        "request_publication_ref"
+    ]
+    _assert_answer_error(
+        runtime,
+        request=old_request,
+        context=context,
+        answer={"kind": "document_submission", "value": True},
+        expected="gate5_gap_request_stale",
+    )
+    assert runtime.normalize_answer(
+        request=new_request,
+        answer={"kind": "document_submission", "value": True},
+        context=context,
+    )["status"] == "NORMALIZATION_REQUIRED"
 
 
 def test_duplicate_conflict_missing_binding_and_v0_downgrade_fail_closed(
@@ -558,6 +777,16 @@ def test_human_boundary_has_no_provider_or_neighbor_implementation_path() -> Non
         "active_category_declaration_assembly",
     ):
         assert not any(forbidden in item for item in imported)
+    lane_source = inspect.getsource(human_module._request_lane_sha256)
+    assert "semantic_request_key" in lane_source
+    for mutable_field in (
+        'validated["kind"]',
+        'validated["closure_type"]',
+        'validated["fact_key"]',
+        'validated["demand_refs"]',
+        'validated["subject"]',
+    ):
+        assert mutable_field not in lane_source
 
 
 def _runtime(tmp_path: Path):
@@ -575,6 +804,61 @@ def _runtime(tmp_path: Path):
     )
     assert base.allow_private is True
     return runtime, context
+
+
+def _review_for_blockers(*blockers: dict) -> dict:
+    source = routing_fixtures._source_assembly(copy.deepcopy(blockers[0]))
+    source["blockers"] = [copy.deepcopy(item) for item in blockers]
+    return Gate5ClientEvidenceReviewRuntime(source_runtime=None).review(
+        source_assembly=source
+    )
+
+
+def _internal_requests_by_route(plan: dict) -> dict[str, dict]:
+    return {
+        item["routing"]["route"]: item
+        for item in plan["internal_owner_required_actions"]
+        if "routing" in item
+    }
+
+
+def _assert_all_internal_requests_current(runtime, plan: dict, *, context) -> None:
+    for request in plan["internal_owner_required_actions"]:
+        with pytest.raises(Gate5HumanGapClosureError) as current:
+            runtime.normalize_answer(
+                request=request,
+                answer={"kind": "code", "value": "owner-review"},
+                context=context,
+            )
+        assert current.value.code == "gate5_gap_answer_not_user_fact"
+
+
+def _assert_answer_error(
+    runtime,
+    *,
+    request: dict,
+    context,
+    answer: dict,
+    expected: str,
+) -> None:
+    with pytest.raises(Gate5HumanGapClosureError) as error:
+        runtime.normalize_answer(
+            request=request,
+            answer=answer,
+            context=context,
+        )
+    assert error.value.code == expected
+
+
+def _assert_fact_stale(runtime, fact: dict, *, context) -> None:
+    with pytest.raises(Gate5HumanGapClosureError) as stale:
+        runtime.validate_user_case_facts(
+            [fact],
+            context=context,
+            taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
+            tax_period="2025",
+        )
+    assert stale.value.code == "gate5_gap_request_stale"
 
 
 def _plan_inputs(

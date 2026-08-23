@@ -112,6 +112,7 @@ _REQUEST_KEYS = frozenset(
         "client_benefit",
         "answer_contract",
         "scope_binding",
+        "semantic_request_key",
         "request_id",
         "request_sha256",
         "request_ref",
@@ -122,6 +123,7 @@ _REQUEST_PUBLICATION_KEYS = frozenset(
         "schema_version",
         "request_publication_ref",
         "request_lane_sha256",
+        "semantic_request_key",
         "scope_binding",
         "fact_key",
         "closure_type",
@@ -344,6 +346,8 @@ class Gate5HumanGapClosureRuntime:
                 request=request,
                 context=context,
             )
+        for request in published.values():
+            self._reject_stale_request(request=request, context=context)
         for key in (
             "required_actions",
             "advisory_actions",
@@ -589,6 +593,7 @@ class Gate5HumanGapClosureRuntime:
         base = {
             "schema_version": GATE5_GAP_REQUEST_PUBLICATION_SCHEMA_VERSION,
             "request_lane_sha256": lane_sha256,
+            "semantic_request_key": request["semantic_request_key"],
             "scope_binding": copy.deepcopy(request["scope_binding"]),
             "fact_key": request.get("fact_key"),
             "closure_type": request["closure_type"],
@@ -746,6 +751,8 @@ class Gate5HumanGapClosureRuntime:
             != binding.get("request_publication_ref")
             or publication["request_binding"]
             != _request_content_binding(request_content)
+            or publication["semantic_request_key"]
+            != request_content["semantic_request_key"]
             or publication["request_lane_sha256"]
             != _request_lane_sha256(request_content)
         ):
@@ -795,6 +802,8 @@ class Gate5HumanGapClosureRuntime:
                 != GATE5_GAP_REQUEST_ARTIFACT_TYPE
                 or publication["request_binding"]
                 != _request_content_binding(request)
+                or publication["semantic_request_key"]
+                != request["semantic_request_key"]
                 or publication["request_lane_sha256"]
                 != _request_lane_sha256(request)
                 or publication["scope_binding"] != request["scope_binding"]
@@ -956,6 +965,7 @@ def _source_requests(
                 subject=subject,
                 routing=routing,
                 scope_binding=scope_binding,
+                semantic_request_key=_source_gap_semantic_request_key(first),
             )
         )
     for finding in review["advisory_findings"]:
@@ -978,9 +988,29 @@ def _source_requests(
                 answer_contract={"kind": "document_submission"},
                 subject=finding["subject"],
                 scope_binding=scope_binding,
+                semantic_request_key="source_advisory:withholding_evidence",
             )
         )
     return requests
+
+
+def _source_gap_semantic_request_key(finding: dict[str, Any]) -> str:
+    """Preserve the source-review owner's grouping identity across request state."""
+
+    subject = finding.get("subject")
+    if (
+        not isinstance(finding.get("reason_code"), str)
+        or not finding["reason_code"]
+        or not isinstance(subject, dict)
+    ):
+        _fail("gate5_gap_semantic_request_key_invalid")
+    return "source_gap:" + _sha256(
+        {
+            "reason_code": finding["reason_code"],
+            "asset": subject.get("asset"),
+            "currency": subject.get("currency"),
+        }
+    )[:32]
 
 
 def _declaration_requests(
@@ -1027,6 +1057,7 @@ def _declaration_requests(
                     answer_contract={"kind": "confirmation"},
                     subject={},
                     scope_binding=scope_binding,
+                    semantic_request_key="human_fact:taxpayer_identity_confirmed",
                 )
             )
         if residency_classification["status"] == "INSUFFICIENT_EVIDENCE":
@@ -1059,6 +1090,7 @@ def _declaration_requests(
                     },
                     subject={"tax_period": "2025"},
                     scope_binding=scope_binding,
+                    semantic_request_key="human_fact:residency_evidence",
                 )
             )
         if "filing_instance_identity" not in facts_by_key:
@@ -1083,6 +1115,7 @@ def _declaration_requests(
                     },
                     subject={},
                     scope_binding=scope_binding,
+                    semantic_request_key="human_fact:filing_instance_identity",
                 )
             )
         if "obl_filing_instance_identity" in active:
@@ -1113,6 +1146,7 @@ def _declaration_requests(
                     },
                     subject={"tax_period": scope_binding["tax_period"]},
                     scope_binding=scope_binding,
+                    semantic_request_key="external_authority:filing_destination",
                 )
             )
         if "signer_and_representation" not in facts_by_key:
@@ -1137,6 +1171,7 @@ def _declaration_requests(
                     },
                     subject={},
                     scope_binding=scope_binding,
+                    semantic_request_key="human_fact:signer_and_representation",
                 )
             )
     source_demands = {
@@ -1181,6 +1216,7 @@ def _declaration_requests(
                 answer_contract={"kind": "internal_methodology_decision"},
                 subject={},
                 scope_binding=scope_binding,
+                semantic_request_key="methodology:income_source_and_foreign_tax",
             )
         )
     if "obl_declaration_budget_disposition" in active and (
@@ -1208,6 +1244,7 @@ def _declaration_requests(
                 },
                 subject={},
                 scope_binding=scope_binding,
+                semantic_request_key="human_fact:budget_disposition",
             )
         )
     return requests
@@ -1228,6 +1265,7 @@ def _request(
     answer_contract: dict[str, Any],
     subject: dict[str, Any],
     scope_binding: dict[str, Any],
+    semantic_request_key: str,
     routing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if closure_type not in _CLOSURE_TYPES:
@@ -1237,6 +1275,8 @@ def _request(
         gap_owner_classification
     ):
         _fail("gate5_gap_owner_classification_mismatch")
+    if not _identifier(semantic_request_key):
+        _fail("gate5_gap_semantic_request_key_invalid")
     base = {
         "schema_version": GATE5_GAP_REQUEST_SCHEMA_VERSION,
         "kind": kind,
@@ -1253,6 +1293,7 @@ def _request(
         "client_benefit": client_benefit,
         "answer_contract": copy.deepcopy(answer_contract),
         "scope_binding": _validated_human_fact_scope(scope_binding),
+        "semantic_request_key": semantic_request_key,
     }
     if routing is not None:
         base["routing"] = _validated_routing(routing)
@@ -1321,6 +1362,7 @@ def _validated_request(value: Any) -> dict[str, Any]:
         or not isinstance(value.get("request_sha256"), str)
         or not _artifact_ref_valid(value.get("request_ref"))
         or not isinstance(value.get("answer_contract"), dict)
+        or not _identifier(value.get("semantic_request_key"))
     ):
         _fail("gate5_gap_request_invalid")
     _validated_human_fact_scope(value.get("scope_binding"))
@@ -1368,11 +1410,7 @@ def _request_lane_sha256(request: dict[str, Any]) -> str:
             "scope_binding_sha256": validated["scope_binding"][
                 "scope_binding_sha256"
             ],
-            "kind": validated["kind"],
-            "closure_type": validated["closure_type"],
-            "fact_key": validated.get("fact_key"),
-            "demand_refs": copy.deepcopy(validated["demand_refs"]),
-            "subject": copy.deepcopy(validated["subject"]),
+            "semantic_request_key": validated["semantic_request_key"],
         }
     )
 
@@ -1386,6 +1424,7 @@ def _validated_request_publication(value: Any) -> dict[str, Any]:
         or not _artifact_ref_valid(value.get("request_publication_ref"))
         or not isinstance(value.get("request_lane_sha256"), str)
         or re.fullmatch(r"[0-9a-f]{64}", value["request_lane_sha256"]) is None
+        or not _identifier(value.get("semantic_request_key"))
         or value.get("fact_key") not in _KNOWN_FACT_KEYS | {None}
         or value.get("closure_type") not in _CLOSURE_TYPES
         or not isinstance(value.get("request_binding"), dict)

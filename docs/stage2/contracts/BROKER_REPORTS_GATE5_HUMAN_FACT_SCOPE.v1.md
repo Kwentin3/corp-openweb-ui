@@ -62,10 +62,31 @@ Request content remains content-addressed. A separate immutable
 `broker_reports_gate5_gap_request_publication_v1` records, for one semantic
 request lane:
 
+- the owner's stable `semantic_request_key`;
 - exact request content binding;
 - exact Human scope, fact key and closure type;
 - predecessor publication ref;
 - canonical publication hash/ref.
+
+The lane identity is exactly
+`sha256({scope_binding_sha256, semantic_request_key})`. The semantic key is
+minted by the Human owner, never supplied by the answer caller. Its closed
+families are:
+
+- `human_fact:<fact_key>` for USER_FACT;
+- `source_gap:<sha256(reason_code, asset, currency)>` for source gaps, preserving
+  the source-review owner's pre-request grouping identity;
+- fixed owner keys for withholding advisory, filing destination and the
+  income-source methodology decision.
+
+`kind`, priority, question/reason text, evidence state, routing, closure type,
+demand refs and display subject are request state, not lane identity. Therefore
+`DEFERRED <-> REQUIRED` and display/evidence changes supersede the same lane,
+while two simultaneous source meanings remain independent even when
+`fact_key=None`. Timestamps, list/insertion order and artifact-ref sorting are
+excluded. Before returning a plan, `publish_requests` proves that every
+returned request is still the current tip; a within-plan collision fails
+closed instead of returning an already-stale request.
 
 The owner accepts exactly one complete root-to-tip chain. Missing predecessors,
 branches, multiple roots/tips or cycles fail closed. `A -> A` reuses the current

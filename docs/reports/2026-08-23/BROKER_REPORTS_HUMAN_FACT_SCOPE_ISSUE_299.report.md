@@ -15,6 +15,7 @@ PR #300 remains open and Issue #299 must remain open for re-review.
 - PR #298 was merged normally.
 - Issue #299 starting `main`: `89260b9b26c0b82400428380cd855b5ea16894fd`.
 - PR #300 independently reviewed head: `6f7bb87f7fda16ca800bcc956c422da5638689fb`.
+- Remaining-lane review baseline: `5ecbccca17a5ffa5badc4ed812db3595d0bf85bb`.
 
 ## #301 baseline experiments
 
@@ -47,6 +48,17 @@ No workflow/event engine, registry, generic identity/evidence framework,
 receipt engine, semantic text filter, LLM/provider path or second authority was
 added.
 
+The remaining review found that the predecessor chain was correct only after a
+lane had been selected: mutable `kind` split `DEFERRED <-> REQUIRED`, while two
+different `fact_key=None` source gaps could collide. The corrected lane is
+exactly `sha256({scope_binding_sha256, semantic_request_key})`. Human owns the
+key: `human_fact:<fact_key>` for USER_FACT, a hash of the source owner's stable
+`reason_code + asset + currency` grouping for source gaps, and closed fixed
+keys for the three other request families. Request state, wording, evidence,
+routing, order and timestamps cannot choose or fork identity. `publish_requests`
+also verifies every request after publishing the complete plan, so it never
+returns an already-stale member.
+
 ## Corrected adversarial matrix
 
 | Experiment | Corrected result |
@@ -59,6 +71,10 @@ added.
 | A -> B -> A | final A accepted; B stale |
 | old fact from first A or B after final A | `gate5_gap_request_stale` |
 | same semantic publication in later run | accepted/reused |
+| budget `DEFERRED -> REQUIRED` | one lane; old deferred request and fact stale; required current |
+| budget `REQUIRED -> DEFERRED` in another run | one lane; old required request and fact stale; deferred current |
+| two concurrent owner-distinct `fact_key=None` gaps | two lanes; both requests returned current |
+| wording/evidence change for one source gap | same lane; old publication stale; other gap remains current |
 | foreign user/case/workspace/period | rejected by owner/store binding |
 | two synthetic taxpayer refs in one user/case | independently represented; cross-use rejected |
 | filing `INITIAL` / `CORRECTION` | accepted closed code |
