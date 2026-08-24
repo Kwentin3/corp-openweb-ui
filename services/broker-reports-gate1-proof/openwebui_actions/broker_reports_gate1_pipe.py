@@ -101,6 +101,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
     declaration_change_intent,
     declaration_request_help,
+    declaration_request_question,
 )
 from broker_reports_gate1.private_intake_bytes import (
     OpenWebUIPrivateIntakeBytesResolverFactory,
@@ -1115,13 +1116,14 @@ class Pipe:
                 formatted = {}
         if formatted:
             extracted = (
-                "Из отчёта: доход {total_income} ₽; принятые расходы "
-                "{accepted_expenses} ₽."
-            ).format_map(formatted)
+                "Из отчёта: распознаны операции и связанные исходные суммы и "
+                "расходы; неразобранные релевантные строки блокируют выпуск."
+            )
             calculated = (
-                "Рассчитано Tax Model и независимо сверено с XML: налоговая база "
-                "{tax_base} ₽; исчисленный налог {calculated_tax} ₽; к уплате "
-                "{tax_payable} ₽."
+                "Рассчитано Tax Model и независимо сверено с XML: доход "
+                "{total_income} ₽; принятые расходы {accepted_expenses} ₽; "
+                "налоговая база {tax_base} ₽; исчисленный налог "
+                "{calculated_tax} ₽; к уплате {tax_payable} ₽."
             ).format_map(formatted)
         else:
             extracted = (
@@ -1669,7 +1671,7 @@ class Pipe:
             raise NdflWorkflowError(
                 "ordinary_trade_declaration_interaction_request_invalid"
             )
-        question = str(request_action.get("question") or "").strip()
+        question = declaration_request_question(request_action)
         help_text = declaration_request_help(request_action)
         candidate_note = ""
         candidate = answer_contract.get("candidate")
@@ -1711,7 +1713,7 @@ class Pipe:
         user_actions = user_actions if isinstance(user_actions, list) else []
         if user_actions:
             first = user_actions[0]
-            question = str(first.get("question") or "").strip()
+            question = declaration_request_question(first)
             candidate = (
                 first.get("answer_contract", {}).get("candidate")
                 if isinstance(first.get("answer_contract"), dict)

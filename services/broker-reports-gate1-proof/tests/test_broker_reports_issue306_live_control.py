@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -10,6 +11,9 @@ from types import SimpleNamespace
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = SERVICE_ROOT / "scripts/live_gate5_openwebui_product_path_control.py"
 BROWSER_GOAL_PATH = SERVICE_ROOT / "scripts/live_issue306_openwebui_browser_goal.js"
+RECEIPT_BUILDER_PATH = (
+    SERVICE_ROOT / "scripts/build_issue306_safe_interaction_receipt.py"
+)
 
 
 def _load_control_module():
@@ -18,6 +22,14 @@ def _load_control_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _receipt_sha256(value: dict) -> str:
+    base = {key: item for key, item in value.items() if key != "receipt_sha256"}
+    encoded = json.dumps(
+        base, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) -> None:
@@ -123,11 +135,16 @@ def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) 
         (output_dir / "control-prepared.safe.json").read_text(encoding="utf-8")
     )
     assert private_state["deployed_bundle_sha256"] == "deployed-sha"
+    assert private_state["control_prepared_receipt_sha256"] == safe_state[
+        "receipt_sha256"
+    ]
     assert safe_state["status"] == "prepared"
     assert safe_state["temporary_users"] == 2
     assert safe_state["legacy_function_inactive"] is True
     assert private_state["original_legacy_function_active"] is True
     assert legacy["is_active"] is False
+    assert safe_state["receipt_sha256"] == _receipt_sha256(safe_state)
+    assert safe_state["predecessor_control_prepared_receipt_sha256"] is None
 
 
 def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> None:
@@ -145,6 +162,50 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "ISSUE306_SOURCE_SMOKE_ONLY" in source
     assert "representative_source_blocked_before_declaration" in source
     assert "hidden_architecture_leaked_into_chat" in source
+    assert "broker_reports_issue306_browser_run_receipt_v2" in source
+    assert "installed_bundle_not_current_tested_bytes" in source
+    assert "unanswered_tab_closed_and_second_case_admitted" in source
+    assert "final_summary_verified" in source
+    assert "answer = 'INITIAL'" not in source
+    assert "answer = 'SELF'" not in source
+    assert "answer = 'PAYMENT'" not in source
+    assert "answer = 'individual_not_ip_not_private_practice'" not in source
+    assert "childProcess.execFileSync" in source
+    assert "page.close()" in source
+
+
+def test_issue306_receipt_builder_uses_owner_xml_and_rejects_tampering(
+    tmp_path: Path,
+) -> None:
+    spec = importlib.util.spec_from_file_location(
+        "issue306_receipt_builder", RECEIPT_BUILDER_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    receipt = {
+        "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
+        "run_id": "run-a",
+        "events": [],
+    }
+    receipt["receipt_sha256"] = builder._sha_json(receipt)
+    path = tmp_path / "receipt.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+
+    assert builder._read_receipt(path)["run_id"] == "run-a"
+    receipt["run_id"] = "run-b"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    try:
+        builder._read_receipt(path)
+    except builder.Issue306ReceiptError as exc:
+        assert str(exc) == "issue306_receipt_hash_invalid"
+    else:
+        raise AssertionError("tampered receipt must fail closed")
+
+    source = RECEIPT_BUILDER_PATH.read_text(encoding="utf-8")
+    assert "Gate5FullTargetXmlProjectionRuntimeFactory" in source
+    assert "issue306_visible_xml_values_mismatch" in source
+    assert "issue306_clean_run_xml_bytes_differ" in source
 
 
 def test_issue306_supported_source_has_owner_visible_direct_expense() -> None:

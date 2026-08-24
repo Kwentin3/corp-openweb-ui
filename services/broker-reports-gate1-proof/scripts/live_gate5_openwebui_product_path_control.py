@@ -320,12 +320,17 @@ def _write_private_state(path: Path, value: dict[str, Any]) -> None:
 
 def _safe_result(state: dict[str, Any], *, status: str) -> dict[str, Any]:
     applied_valves = state.get("applied_valves") or {}
-    return {
+    base = {
         "schema_version": "broker_reports_gate5_openwebui_control_v0",
         "status": status,
         "function_id": FUNCTION_ID,
         "workspace_model_id": MODEL_ID,
         "deployed_bundle_sha256": state.get("deployed_bundle_sha256"),
+        "predecessor_control_prepared_receipt_sha256": (
+            state.get("control_prepared_receipt_sha256")
+            if status == "restored"
+            else None
+        ),
         "temporary_users": len(state.get("users") or []),
         "user_a_model_visible": state.get("user_a_model_visible"),
         "user_b_model_hidden": state.get("user_b_model_hidden"),
@@ -343,6 +348,10 @@ def _safe_result(state: dict[str, Any], *, status: str) -> dict[str, Any]:
         ),
         "state_restored": status == "restored",
     }
+    encoded = json.dumps(
+        base, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    ).encode("utf-8")
+    return {**base, "receipt_sha256": hashlib.sha256(encoded).hexdigest()}
 
 
 def _proof_valves(
@@ -465,8 +474,9 @@ def _prepare(args: argparse.Namespace) -> int:
             "user_a_model_visible": user_a_visible,
             "user_b_model_hidden": not user_b_visible,
         }
-        _write_private_state(state_path, state)
         safe = _safe_result(state, status="prepared")
+        state["control_prepared_receipt_sha256"] = safe["receipt_sha256"]
+        _write_private_state(state_path, state)
         safe_path.write_text(
             json.dumps(safe, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",

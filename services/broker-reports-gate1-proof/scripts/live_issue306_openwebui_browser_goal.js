@@ -7,6 +7,7 @@
  */
 
 const crypto = require('crypto');
+const childProcess = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -15,6 +16,66 @@ const { chromium } = require(playwrightModule);
 
 const MODAL_TITLE = 'Данные для 3-НДФЛ';
 const CONTINUE = 'Продолжить';
+
+function sha256Bytes(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function canonicalSha256(value) {
+  function canonical(item) {
+    if (Array.isArray(item)) return item.map(canonical);
+    if (item !== null && typeof item === 'object') {
+      return Object.fromEntries(
+        Object.keys(item).sort().map((key) => [key, canonical(item[key])]),
+      );
+    }
+    return item;
+  }
+  return sha256Bytes(JSON.stringify(canonical(value)));
+}
+
+function receipt(value) {
+  return { ...value, receipt_sha256: canonicalSha256(value) };
+}
+
+function loadProofBinding(statePath, control) {
+  const repoRoot = path.resolve(__dirname, '../../..');
+  const dirty = childProcess.execFileSync(
+    'git', ['status', '--porcelain', '--untracked-files=no'],
+    { cwd: repoRoot, encoding: 'utf8' },
+  ).trim();
+  if (dirty) throw new Error('tested_tracked_tree_not_clean');
+  const testedCommit = childProcess.execFileSync(
+    'git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' },
+  ).trim();
+  if (!/^[0-9a-f]{40}$/.test(testedCommit)) throw new Error('tested_commit_invalid');
+  const bundlePath = path.resolve(
+    __dirname, '../openwebui_actions/broker_reports_gate1_pipe_bundled.py',
+  );
+  const bundleSha256 = sha256Bytes(fs.readFileSync(bundlePath));
+  if (bundleSha256 !== control.deployed_bundle_sha256) {
+    throw new Error('installed_bundle_not_current_tested_bytes');
+  }
+  const preparedPath = path.join(path.dirname(statePath), 'control-prepared.safe.json');
+  const prepared = JSON.parse(fs.readFileSync(preparedPath, 'utf8'));
+  const preparedBase = { ...prepared };
+  delete preparedBase.receipt_sha256;
+  if (prepared.receipt_sha256 !== canonicalSha256(preparedBase)) {
+    throw new Error('control_prepared_receipt_invalid');
+  }
+  if (prepared.status !== 'prepared' || prepared.deployed_bundle_sha256 !== bundleSha256) {
+    throw new Error('control_prepared_not_bound_to_bundle');
+  }
+  return {
+    tested_commit: testedCommit,
+    generated_bundle_sha256: bundleSha256,
+    browser_driver_sha256: sha256Bytes(fs.readFileSync(__filename)),
+    control_script_sha256: sha256Bytes(fs.readFileSync(path.resolve(
+      __dirname, 'live_gate5_openwebui_product_path_control.py',
+    ))),
+    control_prepared_receipt_sha256: prepared.receipt_sha256,
+  };
+}
 
 function requireMatch(text, regex, code) {
   const match = text.match(regex);
@@ -99,8 +160,20 @@ async function waitForQuestion(page) {
   const body = await page.locator('body').innerText();
   const marker = body.lastIndexOf(MODAL_TITLE);
   const question = marker >= 0 ? body.slice(marker) : body;
-  const forbidden = ['fact_key', 'ArtifactStore', 'request_publication_ref'];
-  if (forbidden.some((token) => question.includes(token))) {
+  const forbidden = [
+    /fact_key/i,
+    /ArtifactStore/i,
+    /request_publication_ref/i,
+    /\bINITIAL\b/,
+    /\bCORRECTION\b/,
+    /\bSELF\b/,
+    /\bREPRESENTATIVE\b/,
+    /\bPAYMENT\b/,
+    /individual_not_ip_not_private_practice/i,
+    /Choose initial filing/i,
+    /State whether the taxpayer/i,
+  ];
+  if (forbidden.some((pattern) => pattern.test(question))) {
     throw new Error('hidden_architecture_leaked_into_question');
   }
   return question;
@@ -108,16 +181,16 @@ async function waitForQuestion(page) {
 
 function classifyQuestion(question) {
   const rules = [
-    ['residency', /presence and absence intervals|physically present/i],
-    ['capacity', /ordinary individual|entrepreneur|private-practice/i],
-    ['zero_scope', /no other income|no non-taxable income/i],
-    ['identity', /taxpayer INN and name|taxpayer identity/i],
-    ['filing', /initial filing or correction/i],
-    ['date', /declaration date|signing date/i],
-    ['destination', /destination inspection code/i],
-    ['signer', /signs personally|through a representative/i],
-    ['budget', /payment, additional payment, reduction or refund/i],
-    ['oktmo', /OKTMO/i],
+    ['residency', /периоды присутствия и отсутствия в России/i],
+    ['capacity', /ваш статус за 2025 год/i],
+    ['zero_scope', /нет других доходов той же категории/i],
+    ['identity', /ИНН и ФИО/i],
+    ['filing', /вид декларации за 2025 год/i],
+    ['date', /дату подписания декларации/i],
+    ['destination', /код налоговой инспекции/i],
+    ['signer', /кто подписывает декларацию/i],
+    ['budget', /итог декларации для бюджета/i],
+    ['oktmo', /код ОКТМО/i],
   ];
   const found = rules.find(([, regex]) => regex.test(question));
   if (!found) throw new Error('visible_question_not_understood');
@@ -170,7 +243,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     if (kind === 'residency') {
       answer = `Присутствие: ${truth.present}; отсутствие: ${truth.absent}; причины: нет`;
     } else if (kind === 'capacity') {
-      answer = 'individual_not_ip_not_private_practice';
+      answer = 'Обычное физическое лицо — не ИП и не лицо частной практики';
     } else if (kind === 'zero_scope') {
       answer = true;
     } else if (kind === 'identity' && !state.invalidInn) {
@@ -183,7 +256,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     } else if (kind === 'identity') {
       answer = `Изменить: ${truth.inn}; ${truth.lastName}; ${truth.firstName}; ${truth.middleName}`;
     } else if (kind === 'filing') {
-      answer = 'INITIAL';
+      answer = 'Первичная декларация';
     } else if (kind === 'date' && !state.invalidDate) {
       answer = '2025-99-99';
       state.invalidDate = true;
@@ -194,9 +267,9 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     } else if (kind === 'destination') {
       answer = truth.destination;
     } else if (kind === 'signer') {
-      answer = 'SELF';
+      answer = 'Подписываю лично';
     } else if (kind === 'budget') {
-      answer = 'PAYMENT';
+      answer = 'Налог к уплате';
     } else if (kind === 'oktmo') {
       answer = truth.oktmo;
     }
@@ -240,7 +313,33 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
   if (!correctedBody.includes('3-НДФЛ XML подготовлен и проверен по XSD.')) {
     throw new Error('corrected_xml_not_ready');
   }
+  const requiredSummarySections = [
+    'Из отчёта:',
+    'Рассчитано Tax Model и независимо сверено с XML:',
+    'Подтверждено вами:',
+    'Перед подачей:',
+  ];
+  if (requiredSummarySections.some((marker) => !correctedBody.includes(marker))) {
+    throw new Error('final_user_summary_sections_missing');
+  }
+  const visibleMatch = correctedBody.match(
+    /Рассчитано Tax Model[^:]*:\s*доход\s+([0-9.]+)\s*₽;\s*принятые расходы\s+([0-9.]+)\s*₽;\s*налоговая база\s+([0-9.]+)\s*₽;\s*исчисленный налог\s+([0-9.]+)\s*₽;\s*к уплате\s+([0-9.]+)\s*₽/i,
+  );
+  if (!visibleMatch) throw new Error('visible_calculation_values_missing');
+  const visibleValues = {
+    total_income: visibleMatch[1],
+    accepted_expenses: visibleMatch[2],
+    tax_base: visibleMatch[3],
+    calculated_tax: visibleMatch[4],
+    tax_payable: visibleMatch[5],
+  };
   trace.push({ mode: 'user', event: 'accepted_value_corrected', field: 'declaration_date' });
+  trace.push({
+    mode: 'user',
+    event: 'final_summary_verified',
+    required_sections_visible: true,
+    visible_values: visibleValues,
+  });
 
   const links = downloadLinks(page);
   await links.last().waitFor({ state: 'visible', timeout: 60000 });
@@ -259,9 +358,58 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     mode: 'user',
     event: 'private_xml_downloaded',
     bytes: xmlBytes.length,
-    sha256: crypto.createHash('sha256').update(xmlBytes).digest('hex'),
+    sha256: sha256Bytes(xmlBytes),
+    private_download_url_sha256: sha256Bytes(href),
+    chat_url_sha256: sha256Bytes(page.url()),
   });
-  return { href, xmlPath, correctedBody };
+  return { href, xmlPath, correctedBody, visibleValues };
+}
+
+async function startUnansweredCase({ context, baseUrl, source, screenshotPath }) {
+  const page = await context.newPage();
+  await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.locator('#chat-input').waitFor({ state: 'visible', timeout: 60000 });
+  await selectNdfl(page);
+  await page.locator('input[type=file]').first().setInputFiles(source);
+  await page.getByText(path.basename(source), { exact: false }).waitFor({
+    state: 'visible',
+    timeout: 60000,
+  });
+  await page.waitForTimeout(7000);
+  const started = Date.now();
+  await sendMessage(page, 'Подготовь 3-НДФЛ по загруженному брокерскому отчёту.');
+  await waitForQuestion(page);
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+  return { page, elapsedMs: Date.now() - started };
+}
+
+async function proveCloseTabDoesNotHoldAdmission({ context, baseUrl, source, outputDir, trace }) {
+  const first = await startUnansweredCase({
+    context,
+    baseUrl,
+    source,
+    screenshotPath: path.join(outputDir, 'close-tab-first-question.png'),
+  });
+  await first.page.close();
+  const second = await startUnansweredCase({
+    context,
+    baseUrl,
+    source,
+    screenshotPath: path.join(outputDir, 'close-tab-second-question.png'),
+  });
+  if (second.elapsedMs >= 30000) {
+    throw new Error('second_case_admission_not_prompt_after_close');
+  }
+  await second.page.close();
+  trace.push({
+    mode: 'user',
+    event: 'unanswered_tab_closed_and_second_case_admitted',
+    first_question_visible: true,
+    first_tab_closed_without_answer: true,
+    second_case_question_visible: true,
+    first_elapsed_ms: first.elapsedMs,
+    second_elapsed_ms: second.elapsedMs,
+  });
 }
 
 async function retryAndResume(page, context, chatUrl, expectedHref, trace) {
@@ -380,6 +528,9 @@ async function runRepresentativeSourceSmoke({ browser, control, source, outputDi
     throw new Error('bounded_control_users_required');
   }
   const truth = readTruth(truthPath);
+  const startedAt = new Date().toISOString();
+  const runId = crypto.randomUUID();
+  const proofBinding = loadProofBinding(path.resolve(statePath), control);
   const source = path.resolve(sourcePath);
   const outputDir = path.resolve(outputPath);
   fs.mkdirSync(outputDir, { recursive: true });
@@ -394,12 +545,30 @@ async function runRepresentativeSourceSmoke({ browser, control, source, outputDi
     });
     await browser.close();
     const safePath = path.join(outputDir, 'interaction.safe.json');
-    fs.writeFileSync(safePath, JSON.stringify(safe, null, 2) + '\n', 'utf8');
+    const boundSafe = receipt({
+      ...safe,
+      schema_version: 'broker_reports_issue306_browser_run_receipt_v2',
+      run_id: runId,
+      run_kind: 'representative_source',
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+      proof_binding: proofBinding,
+    });
+    fs.writeFileSync(safePath, JSON.stringify(boundSafe, null, 2) + '\n', 'utf8');
     process.stdout.write(JSON.stringify({ status: 'blocked_as_expected', safe_trace_path: safePath }));
     return;
   }
   const context = await browser.newContext({ acceptDownloads: true });
   const page = await login(context, control.base_url, control.users[0]);
+  if (process.env.ISSUE306_CLOSE_TAB_PROOF === '1') {
+    await proveCloseTabDoesNotHoldAdmission({
+      context,
+      baseUrl: control.base_url,
+      source,
+      outputDir,
+      trace,
+    });
+  }
   const result = await runUserLoop({ page, source, truth, outputDir, trace });
   const chatUrl = page.url();
   await retryAndResume(page, context, chatUrl, result.href, trace);
@@ -415,14 +584,20 @@ async function runRepresentativeSourceSmoke({ browser, control, source, outputDi
   await context.close();
   await browser.close();
 
-  const safe = {
-    schema_version: 'broker_reports_issue306_safe_interaction_trace_v1',
+  const safe = receipt({
+    schema_version: 'broker_reports_issue306_browser_run_receipt_v2',
+    run_id: runId,
+    run_kind: 'clean_room',
+    started_at: startedAt,
+    finished_at: new Date().toISOString(),
+    proof_binding: proofBinding,
     source_kind: 'synthetic_supported_fixture',
     browser_ui_only: true,
     hidden_refs_observed: false,
     document_contents_recorded: false,
+    developer_intervention_during_user_run: false,
     events: trace,
-  };
+  });
   fs.writeFileSync(
     path.join(outputDir, 'interaction.safe.json'),
     JSON.stringify(safe, null, 2) + '\n',

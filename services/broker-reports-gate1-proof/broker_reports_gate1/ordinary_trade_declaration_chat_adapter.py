@@ -37,6 +37,77 @@ _CHANGE_INTENTS = {
     "изменить дату": "declaration_date",
     "изменить инн": "taxpayer_identity",
 }
+
+# Representation-only labels for the bounded declaration product.  Canonical
+# values still come exclusively from the current owner's answer_contract; this
+# table can only translate a visible label to a value already allowed there.
+_REQUEST_PRESENTATION = {
+    "taxpayer_identity": {
+        "question": (
+            "Подтвердите найденные в текущем документе ИНН и ФИО, "
+            "исправьте их или заполните позднее."
+        ),
+    },
+    "taxpayer_capacity": {
+        "question": "Укажите ваш статус за 2025 год.",
+        "code_labels": {
+            "individual_not_ip_not_private_practice": (
+                "Обычное физическое лицо — не ИП и не лицо частной практики"
+            ),
+            "individual_entrepreneur": "Индивидуальный предприниматель",
+            "private_practice_professional": "Лицо частной практики",
+        },
+    },
+    "residency_evidence": {
+        "question": (
+            "Укажите все периоды присутствия и отсутствия в России за 2025 год; "
+            "нужны даты, а не готовый вывод о налоговом резидентстве."
+        ),
+    },
+    "ordinary_trade_declaration_zero_scope_confirmed": {
+        "question": (
+            "Подтвердите, что для этой декларации нет других доходов той же "
+            "категории, вычетов, переносимых убытков, зачётов и удержанного налога."
+        ),
+    },
+    "filing_instance_identity": {
+        "question": "Выберите вид декларации за 2025 год.",
+        "code_labels": {
+            "INITIAL": "Первичная декларация",
+            "CORRECTION": "Корректирующая декларация",
+        },
+    },
+    "declaration_date": {
+        "question": "Укажите дату подписания декларации.",
+    },
+    "filing_destination_code": {
+        "question": (
+            "Введите четырёхзначный код налоговой инспекции, в которую будет "
+            "подана декларация, либо заполните его позднее."
+        ),
+    },
+    "signer_and_representation": {
+        "question": "Укажите, кто подписывает декларацию.",
+        "code_labels": {
+            "SELF": "Подписываю лично",
+            "REPRESENTATIVE": "Подписывает представитель",
+        },
+    },
+    "budget_disposition": {
+        "question": "Выберите итог декларации для бюджета.",
+        "code_labels": {
+            "PAYMENT": "Налог к уплате",
+            "ADDITIONAL_PAYMENT": "Налог к доплате",
+            "REDUCTION": "Налог к уменьшению",
+            "REFUND": "Налог к возврату",
+        },
+    },
+    "budget_oktmo": {
+        "question": (
+            "Введите точный код ОКТМО из 8 или 11 цифр либо заполните его позднее."
+        ),
+    },
+}
 _IDENTITY = re.compile(
     r"^изменить:\s*([0-9]{12})\s*;\s*([^;]{1,80})\s*;\s*"
     r"([^;]{1,80})\s*;\s*([^;]{0,80})$",
@@ -104,8 +175,17 @@ def adapt_current_declaration_request(
         return _result("NO_ANSWER")
     if text.casefold() in _PROMPT_ONLY:
         return _result("NO_ANSWER")
+    if not _presentation_contract_valid(request):
+        return _result(
+            "OWNER_REQUEST_INVALID",
+            reason_code="declaration_chat_presentation_contract_invalid",
+        )
     contract = request["answer_contract"]
-    answer = _answer(contract=contract, text=text)
+    answer = _answer(
+        contract=contract,
+        fact_key=str(request.get("fact_key") or ""),
+        text=text,
+    )
     if answer is None:
         return {
             **_result("ANSWER_REJECTED", reason_code="declaration_chat_answer_invalid"),
@@ -116,6 +196,17 @@ def adapt_current_declaration_request(
         "request_publication_ref": request["request_publication_ref"],
         "answer": answer,
     }
+
+
+def declaration_request_question(request: dict[str, Any]) -> str:
+    """Render the current owner request without exposing owner vocabulary."""
+
+    presentation = _request_presentation(request)
+    if presentation is not None:
+        if not _presentation_contract_valid(request):
+            return "Ответ на этот запрос временно недоступен."
+        return str(presentation["question"])
+    return str(request.get("question") or "").strip()
 
 
 def declaration_request_help(request: dict[str, Any]) -> str:
@@ -136,6 +227,14 @@ def declaration_request_help(request: dict[str, Any]) -> str:
         )
     allowed = contract.get("allowed")
     if isinstance(allowed, list) and allowed:
+        presentation = _request_presentation(request)
+        labels = presentation.get("code_labels") if presentation else None
+        if isinstance(labels, dict) and set(allowed) == set(labels):
+            return "Допустимые ответы: " + "; ".join(
+                str(labels[value]) for value in allowed
+            ) + "."
+        if isinstance(labels, dict):
+            return "Ответ на этот запрос временно недоступен."
         return "Допустимые значения: " + ", ".join(map(str, allowed)) + "."
     if request.get("fact_key") == "declaration_date":
         return "Введите календарную дату в формате ГГГГ-ММ-ДД."
@@ -144,7 +243,9 @@ def declaration_request_help(request: dict[str, Any]) -> str:
     return "Введите точное значение."
 
 
-def _answer(*, contract: dict[str, Any], text: str) -> dict[str, Any] | None:
+def _answer(
+    *, contract: dict[str, Any], fact_key: str, text: str
+) -> dict[str, Any] | None:
     kind = contract.get("kind")
     lowered = text.casefold()
     if kind == "identity_choice":
@@ -189,6 +290,15 @@ def _answer(*, contract: dict[str, Any], text: str) -> dict[str, Any] | None:
     if kind == "code":
         allowed = contract.get("allowed")
         value = text.strip()
+        presentation = _REQUEST_PRESENTATION.get(fact_key)
+        labels = presentation.get("code_labels") if presentation else None
+        if isinstance(labels, dict):
+            if not isinstance(allowed, list) or set(allowed) != set(labels):
+                return None
+            by_label = {
+                str(label).casefold(): canonical for canonical, label in labels.items()
+            }
+            value = str(by_label.get(value.casefold()) or "")
         if isinstance(allowed, list) and value not in allowed:
             return None
         return {"kind": kind, "value": value}
@@ -216,6 +326,31 @@ def _identity_answer(match: re.Match[str] | None) -> dict[str, Any] | None:
     }
 
 
+def _request_presentation(request: dict[str, Any]) -> dict[str, Any] | None:
+    if request.get("closure_type") != "USER_FACT":
+        return None
+    fact_key = request.get("fact_key")
+    presentation = _REQUEST_PRESENTATION.get(fact_key)
+    return presentation if isinstance(presentation, dict) else None
+
+
+def _presentation_contract_valid(request: dict[str, Any]) -> bool:
+    presentation = _request_presentation(request)
+    if presentation is None:
+        return True
+    labels = presentation.get("code_labels")
+    if labels is None:
+        return True
+    contract = request.get("answer_contract")
+    allowed = contract.get("allowed") if isinstance(contract, dict) else None
+    return (
+        isinstance(labels, dict)
+        and isinstance(allowed, list)
+        and len(allowed) == len(set(allowed))
+        and set(allowed) == set(labels)
+    )
+
+
 def _result(status: str, *, reason_code: str | None = None) -> dict[str, Any]:
     result = {
         "schema_version": ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION,
@@ -237,4 +372,5 @@ __all__ = [
     "adapt_current_declaration_request",
     "declaration_change_intent",
     "declaration_request_help",
+    "declaration_request_question",
 ]

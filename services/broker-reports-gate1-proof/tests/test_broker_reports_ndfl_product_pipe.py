@@ -21,6 +21,11 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
     NDFL_WORKSPACE_MODEL_STABLE_ID,
     NdflWorkflowError,
 )
+from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
+    adapt_current_declaration_request,
+    declaration_request_help,
+    declaration_request_question,
+)
 from openwebui_actions import broker_reports_gate1_pipe as product_pipe
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 from broker_reports_gate1.artifact_retention import build_retention_policy
@@ -173,11 +178,41 @@ def test_maintained_stage_binds_event_response_to_current_owner_actions(
     assert result["provider_calls_total"] == 0
     result["product"]["private_download"] = {"url": "/private-owner-file"}
     chat = pipe._standalone_ndfl_chat_content(result)
-    assert "Из отчёта: доход 60.00 ₽; принятые расходы 43.00 ₽" in chat
-    assert "налоговая база 17.00 ₽; исчисленный налог 2 ₽" in chat
+    assert "Из отчёта: распознаны операции и связанные исходные суммы" in chat
+    assert "Из отчёта: доход" not in chat
+    assert "Tax Model и независимо сверено с XML: доход 60.00 ₽" in chat
+    assert "принятые расходы 43.00 ₽; налоговая база 17.00 ₽" in chat
+    assert "исчисленный налог 2 ₽" in chat
     assert "Подтверждено вами" in chat
     assert "Перед подачей" in chat
     assert "в ФНС он не отправлялся" in chat
+
+
+def test_ready_summary_never_promotes_unreconciled_xml_values() -> None:
+    declaration = {
+        "semantic_reconciliation": {
+            "status": "failed",
+            "representation_proof": {
+                "status": "extracted",
+                "values": {
+                    "income_group": {
+                        "total_income": "999999.00",
+                        "accepted_expenses": "888888.00",
+                        "tax_base": "111111.00",
+                        "calculated_tax": "14444",
+                        "tax_payable": "14444",
+                    }
+                },
+            },
+        }
+    }
+
+    summary = Pipe._ndfl_ready_user_summary(declaration)
+
+    assert "999999" not in summary
+    assert "888888" not in summary
+    assert "Из отчёта: распознанные операции" in summary
+    assert "Рассчитано Tax Model" in summary
 
 
 def test_human_fact_wait_releases_source_workload_lease_first(
@@ -230,6 +265,65 @@ def test_human_fact_wait_releases_source_workload_lease_first(
 
     assert result["declaration_chat_receipt"]["status"] == "ANSWER_ACCEPTED"
     assert result["provider_calls_total"] == 0
+
+
+def test_current_owner_code_request_uses_only_human_readable_presentation() -> None:
+    request = {
+        "request_publication_ref": "gap-request-publication-current",
+        "closure_type": "USER_FACT",
+        "fact_key": "filing_instance_identity",
+        "question": "Choose initial filing or correction for the 2025 declaration.",
+        "answer_contract": {
+            "kind": "code",
+            "allowed": ["INITIAL", "CORRECTION"],
+        },
+    }
+
+    assert declaration_request_question(request) == (
+        "Выберите вид декларации за 2025 год."
+    )
+    help_text = declaration_request_help(request)
+    assert help_text == (
+        "Допустимые ответы: Первичная декларация; Корректирующая декларация."
+    )
+    assert "INITIAL" not in help_text
+    assert adapt_current_declaration_request(
+        message="Первичная декларация", current_requests=[request]
+    ) == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "ANSWER_READY",
+        "request_publication_ref": "gap-request-publication-current",
+        "answer": {"kind": "code", "value": "INITIAL"},
+    }
+    assert adapt_current_declaration_request(
+        message="INITIAL", current_requests=[request]
+    )["status"] == "ANSWER_REJECTED"
+
+
+def test_new_owner_code_without_exact_label_coverage_fails_closed() -> None:
+    request = {
+        "request_publication_ref": "gap-request-publication-current",
+        "closure_type": "USER_FACT",
+        "fact_key": "filing_instance_identity",
+        "question": "owner question must not leak",
+        "answer_contract": {
+            "kind": "code",
+            "allowed": ["INITIAL", "CORRECTION", "NEW_OWNER_CODE"],
+        },
+    }
+
+    assert declaration_request_question(request) == (
+        "Ответ на этот запрос временно недоступен."
+    )
+    assert "NEW_OWNER_CODE" not in declaration_request_help(request)
+    result = adapt_current_declaration_request(
+        message="Первичная декларация", current_requests=[request]
+    )
+    assert result == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "OWNER_REQUEST_INVALID",
+        "reason_code": "declaration_chat_presentation_contract_invalid",
+    }
 
 
 def test_direct_ndfl_source_blocker_hides_internal_owner_diagnostics() -> None:
@@ -595,6 +689,15 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
         assert "fact_key" not in serialized_events
         assert "500100732259" not in serialized_events
         assert "••••" in serialized_events
+        for hidden_owner_vocabulary in (
+            "Choose initial filing",
+            "State whether the taxpayer",
+            "individual_not_ip_not_private_practice",
+            "INITIAL",
+            "SELF",
+            "PAYMENT",
+        ):
+            assert hidden_owner_vocabulary not in serialized_events
 
         change_content = public_turn("Изменить дату")
         changing = pipe.last_artifact_manifest["ndfl_gate3"]
@@ -884,17 +987,19 @@ def test_private_xml_record_failure_removes_partial_storage_file(
 def _product_chat_answer(fact_key: str) -> str:
     return {
         "taxpayer_identity": "Подтверждаю",
-        "taxpayer_capacity": "individual_not_ip_not_private_practice",
+        "taxpayer_capacity": (
+            "Обычное физическое лицо — не ИП и не лицо частной практики"
+        ),
         "residency_evidence": (
             "Присутствие: 2025-01-01..2025-07-02; "
             "отсутствие: 2025-07-03..2025-12-31; причины: нет"
         ),
         "ordinary_trade_declaration_zero_scope_confirmed": "Да",
-        "filing_instance_identity": "INITIAL",
+        "filing_instance_identity": "Первичная декларация",
         "declaration_date": "2026-08-24",
         "filing_destination_code": "7705",
-        "signer_and_representation": "SELF",
-        "budget_disposition": "PAYMENT",
+        "signer_and_representation": "Подписываю лично",
+        "budget_disposition": "Налог к уплате",
         "budget_oktmo": "45382000",
     }[fact_key]
 
