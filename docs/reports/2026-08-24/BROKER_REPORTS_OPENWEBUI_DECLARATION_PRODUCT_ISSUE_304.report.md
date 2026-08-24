@@ -33,7 +33,7 @@ to FNS, or claim legal truth for user-attested values.
 | current source assertions and identity candidate | existing `Gate3MetadataSourceFactRuntime` | only exact labelled facts from Canonical versions named by current whole-case coverage; no LLM execution |
 | applicability, Russian-source classification, declarant category and Article 228 KBK | existing hash-pinned `Gate5TrustedMethodologyAuthority` | current source facts and user capacity are inputs; user answers cannot manufacture outputs |
 | calculation, Scope/Package/release/XML | existing Tax Model, assembler, semantic and projection owners | the assembler exposes a narrow pre-Package preview for `DRAFT_READY`; full path is unchanged |
-| private downloadable XML | OpenWebUI `Storage` plus `Files` | deterministic user+case+receipt+XML file identity, existing record/byte verification, one upload/record, partial-failure cleanup |
+| private downloadable XML | OpenWebUI `Storage` plus `Files` | deterministic user+case+receipt+XML Files identity, unique physical attempt path, existing record/byte verification, sequential reuse and ownership-safe failure/race cleanup |
 
 The composition adapter is local to the product boundary. Universal Scope,
 Package, release and projection modules do not import the ordinary-trade
@@ -97,6 +97,7 @@ them.
 | second disposal | exact one-disposal binding blocker; no operation can silently disappear |
 | XSD-valid numeric XML mutations | independent serialized-value reconciliation rejects base, tax, payable/refund, source and budget mismatches |
 | repeated final answer, refresh and unchanged full run | byte-stable XML/artifact identities and the same OpenWebUI file ID; exactly one Storage upload/File record; zero LLM/provider calls |
+| two simultaneous identical final publications with owner-realistic duplicate insert `None` | both return the same file ID; one Files row and one byte-equal physical XML survive; the losing unique upload attempt alone is deleted; a later reuse succeeds |
 | Files record failure after Storage upload | typed failure and the partial stored object is deleted |
 
 The safe representative sequence is retained beside this report in

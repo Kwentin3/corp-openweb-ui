@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import threading
 from types import ModuleType
 from types import SimpleNamespace
 
@@ -496,6 +497,103 @@ def test_xml_delivery_uses_authenticated_openwebui_private_file_owner(
     assert captured["form"].id == file_id
     assert captured["form"].meta["data"]["private_user_artifact"] is True
     assert captured["form"].meta["data"]["receipt_sha256"] == "a" * 64
+
+
+def test_concurrent_identical_xml_delivery_keeps_one_valid_owner_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    rows = {}
+    calls = {"upload": 0, "insert": 0, "delete": 0}
+    counter_lock = threading.Lock()
+    upload_barrier = threading.Barrier(2)
+    xml_bytes = b"<root/>"
+
+    class FileForm:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    class Files:
+        @staticmethod
+        async def get_file_by_id(file_id):
+            return rows.get(file_id)
+
+        @staticmethod
+        async def insert_new_file(user_id, form):
+            calls["insert"] += 1
+            if form.id in rows:
+                return None
+            row = SimpleNamespace(**form.__dict__, user_id=user_id)
+            rows[form.id] = row
+            return row
+
+    class Storage:
+        @staticmethod
+        def upload_file(stream, name, _headers):
+            contents = stream.read()
+            path = tmp_path / name
+            path.write_bytes(contents)
+            with counter_lock:
+                calls["upload"] += 1
+            upload_barrier.wait()
+            return contents, str(path)
+
+        @staticmethod
+        def get_file(path):
+            return path
+
+        @staticmethod
+        def delete_file(path):
+            with counter_lock:
+                calls["delete"] += 1
+            Path(path).unlink(missing_ok=True)
+
+    openwebui = ModuleType("open_webui")
+    models = ModuleType("open_webui.models")
+    files = ModuleType("open_webui.models.files")
+    storage = ModuleType("open_webui.storage")
+    provider = ModuleType("open_webui.storage.provider")
+    files.FileForm = FileForm
+    files.Files = Files
+    provider.Storage = Storage
+    monkeypatch.setitem(sys.modules, "open_webui", openwebui)
+    monkeypatch.setitem(sys.modules, "open_webui.models", models)
+    monkeypatch.setitem(sys.modules, "open_webui.models.files", files)
+    monkeypatch.setitem(sys.modules, "open_webui.storage", storage)
+    monkeypatch.setitem(sys.modules, "open_webui.storage.provider", provider)
+    context = ArtifactAccessContext(
+        user_id="user-a",
+        normalization_run_id="run-a",
+        case_id="case-a",
+        workspace_model_id="broker-reports-ndfl",
+        allow_private=True,
+    )
+    kwargs = {
+        "user": {"id": "user-a", "email": "", "name": ""},
+        "context": context,
+        "filename": "3-ndfl-2025.xml",
+        "xml_bytes": xml_bytes,
+        "xml_sha256": __import__("hashlib").sha256(xml_bytes).hexdigest(),
+        "receipt_sha256": "c" * 64,
+    }
+
+    async def publish_twice():
+        return await asyncio.gather(
+            Pipe._publish_ndfl_xml_file(**kwargs),
+            Pipe._publish_ndfl_xml_file(**kwargs),
+            return_exceptions=True,
+        )
+
+    results = asyncio.run(publish_twice())
+
+    assert all(isinstance(item, str) for item in results), results
+    assert results[0] == results[1]
+    assert len(rows) == 1
+    assert Path(next(iter(rows.values())).path).read_bytes() == xml_bytes
+    assert len(list(tmp_path.glob("*"))) == 1
+    assert calls == {"upload": 2, "insert": 2, "delete": 1}
+    assert asyncio.run(Pipe._publish_ndfl_xml_file(**kwargs)) == results[0]
+    assert calls == {"upload": 2, "insert": 2, "delete": 1}
 
 
 def test_private_xml_record_failure_removes_partial_storage_file(

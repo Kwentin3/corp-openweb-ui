@@ -37,7 +37,7 @@ their existing owners.
 | XML/XSD representation | `Gate5FullTargetXmlProjectionRuntimeFactory.create` | deterministic bytes, official XSD conformance, and representation-only extraction of serialized literals; no rate or tax formula |
 | released semantics -> serialized XML values | `Gate5DeclarationSemanticInputRuntimeFactory.create` | exact equality between extracted numeric fields and owner-produced released values |
 | active persistence | `OrdinaryTradeDeclarationMvpRuntime` through the existing ArtifactStore | private XML and MVP receipt artifacts |
-| downloadable file delivery | native OpenWebUI `Storage` plus `Files` | deterministic private file identity binds authenticated user, case hash, current receipt and XML hashes; exact existing bytes/record are verified and reused, while a partial failed publication is removed |
+| downloadable file delivery | native OpenWebUI `Storage` plus `Files` | deterministic private Files identity binds authenticated user, case hash, current receipt and XML hashes; each physical upload attempt has a distinct path, exact existing bytes/record are verified and reused, and only an unowned losing/failed attempt is removed |
 
 Caller supplies only `ArtifactAccessContext` and canonical artifact refs to the
 production root. Caller cannot supply a taxpayer ref, disposal fact ID,
@@ -86,9 +86,14 @@ original official `windows-1251` bytes. The maintained OpenWebUI composition
 also publishes those exact bytes through the authenticated private File owner.
 The file ID is deterministic for authenticated user, case scope, receipt hash
 and XML hash. Before reuse, Files metadata, owner, stored-byte hash and binding
-metadata are checked. The same current output therefore performs one upload
-and one record insertion; a different corrected receipt/XML gets a different
-file. Storage bytes are deleted if record creation fails.
+metadata are checked. A sequential retry therefore performs no second upload
+or record insertion. Concurrent identical calls may both upload because native
+Files/Storage do not expose a shared atomic create-if-absent operation; their
+physical attempt paths are distinct, the losing insert revalidates the winning
+owner record and deletes only its own attempt, and both callers return the one
+valid deterministic file ID. A different corrected receipt/XML gets a
+different file. Storage bytes are deleted after a failed insert only when no
+valid owner record claims that exact attempt.
 The paired
 `broker_reports_ordinary_trade_declaration_mvp_receipt_v1` binds taxpayer,
 current Canonical coverage, current Fact v2 set, all ten exact Human Fact

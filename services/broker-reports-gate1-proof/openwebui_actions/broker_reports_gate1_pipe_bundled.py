@@ -1621,7 +1621,7 @@ class Pipe:
             "receipt_sha256": receipt_sha256,
         }
 
-        async def existing_valid() -> bool:
+        async def existing_valid() -> str | None:
             getter = getattr(Files, "get_file_by_id", None)
             if not callable(getter):
                 raise NdflWorkflowError(
@@ -1629,22 +1629,23 @@ class Pipe:
                 )
             row = await getter(file_id)
             if row is None:
-                return False
+                return None
             meta = getattr(row, "meta", None)
             meta = meta if isinstance(meta, dict) else {}
             data = meta.get("data") if isinstance(meta.get("data"), dict) else {}
+            row_path = str(getattr(row, "path", "") or "")
             if (
                 str(getattr(row, "user_id", "") or "") != context.user_id
                 or str(getattr(row, "hash", "") or "") != xml_sha256
                 or data != expected_data
-                or not str(getattr(row, "path", "") or "")
+                or not row_path
             ):
                 raise NdflWorkflowError(
                     "ordinary_trade_declaration_private_file_reuse_binding_invalid"
                 )
             try:
                 resolved_path = await asyncio.to_thread(
-                    Storage.get_file, str(row.path)
+                    Storage.get_file, row_path
                 )
                 stored_bytes = await asyncio.to_thread(
                     Path(str(resolved_path)).read_bytes
@@ -1657,14 +1658,15 @@ class Pipe:
                 raise NdflWorkflowError(
                     "ordinary_trade_declaration_private_file_reuse_hash_mismatch"
                 )
-            return True
+            return row_path
 
-        if await existing_valid():
+        if await existing_valid() is not None:
             return file_id
+        upload_attempt_id = uuid.uuid4().hex
         contents, file_path = await asyncio.to_thread(
             Storage.upload_file,
             io.BytesIO(xml_bytes),
-            f"{file_id}_{filename}",
+            f"{file_id}_{upload_attempt_id}_{filename}",
             {
                 "OpenWebUI-User-Email": str(user.get("email") or ""),
                 "OpenWebUI-User-Id": str(user["id"]),
@@ -1694,13 +1696,27 @@ class Pipe:
                 ),
             )
         except Exception as exc:
-            if await existing_valid():
+            winner_path = await existing_valid()
+            if winner_path is not None:
+                if winner_path != str(file_path):
+                    await Pipe._delete_partial_ndfl_file(
+                        Storage=Storage,
+                        file_path=file_path,
+                    )
                 return file_id
             await Pipe._delete_partial_ndfl_file(Storage=Storage, file_path=file_path)
             raise NdflWorkflowError(
                 "ordinary_trade_declaration_private_file_record_failed"
             ) from exc
         if file_item is None:
+            winner_path = await existing_valid()
+            if winner_path is not None:
+                if winner_path != str(file_path):
+                    await Pipe._delete_partial_ndfl_file(
+                        Storage=Storage,
+                        file_path=file_path,
+                    )
+                return file_id
             await Pipe._delete_partial_ndfl_file(Storage=Storage, file_path=file_path)
             raise NdflWorkflowError("ordinary_trade_declaration_private_file_record_failed")
         return file_id

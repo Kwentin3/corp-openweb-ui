@@ -1,5 +1,5 @@
 {
-  "schema_version": "broker_reports_issue_304_safe_interaction_trace_v2",
+  "schema_version": "broker_reports_issue_304_safe_interaction_trace_v3",
   "case_kind": "synthetic_private_case",
   "base_sha": "6366c02619b4bfcab63399b18cf6c9ad5464a758",
   "private_values_retained": false,
@@ -65,6 +65,16 @@
       "step": "partial_private_delivery_failure",
       "result": "TYPED_FAILURE",
       "partial_storage_object_retained": false
+    },
+    {
+      "step": "concurrent_identical_private_delivery",
+      "callers_total": 2,
+      "logical_file_ids_distinct": 1,
+      "physical_upload_attempts_total": 2,
+      "file_records_total": 1,
+      "losing_attempts_removed_total": 1,
+      "winning_storage_object_available": true,
+      "subsequent_reuse_succeeded": true
     }
   ],
   "authority_summary": {
