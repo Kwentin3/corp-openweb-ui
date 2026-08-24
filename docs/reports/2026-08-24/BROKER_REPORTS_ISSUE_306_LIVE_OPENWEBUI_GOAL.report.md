@@ -10,12 +10,12 @@ Dependency: PR #305 merged unchanged from approved head
 Branch: `agent/issue-306-live-openwebui-goal`
 
 Final generated bundle SHA-256:
-`0eb6cad18963dff003e7d0fd92eefbf90537a0717f32b169cbbab9ea2cd6542a`
+`c7251c3d88b57f7b7bdc0acc8f02667c68601ca1444de0ec937004827a064dad`
 
-Live-tested code head: `f9c3a4ce1fa08fb905f0c96f8a2b89217440458b`
+Live-tested code head: `dd419f7d2f46a775c7f5e7c3e737b9b8d8bb4a8a`
 
 Mechanically verified safe receipt:
-`c67b11bd69f192abf25fb73e8e74b17887c5db8a4c41be338c887696490326ad`
+`e6dad321e039e6963965e15c2c4046e15673f18c3c4ed446a0e45120159fd674`
 
 ## Verdict
 
@@ -89,7 +89,7 @@ The final note explicitly distinguishes:
 - User B could not see the NDFL model, could not download the guessed private
   file URL, and could not see user A's chat result.
 - Closing a tab on an unanswered Human Fact question did not retain the source
-  workload lease: a second independent case reached its question in `5044 ms`
+  workload lease: a second independent case reached its question in `4034 ms`
   without answering the first; the proof fails at `30000 ms`.
 - Persisted queued callers now hold renewable leases; cancellation is persisted
   and expired orphan waiters recover fail-closed after restart.
@@ -169,6 +169,21 @@ arbitrary production broker PDFs are supported.
     question nor code is rendered or accepted. The generated bundle was rebuilt
     and both browser runs plus the representative-source run were repeated on
     `f9c3a4ce1fa08fb905f0c96f8a2b89217440458b`.
+17. Delegated exact-head review at
+    `584994f9d3834534e435712e833be4c4270b7c97` found that the representative
+    source receipt named the public sample but did not bind the exact bytes
+    selected in the browser file input. The browser driver now loads the
+    existing owner corpus record, hashes the same in-memory upload buffer, and
+    records its sample id, source URL, SHA-256 and byte size. The receipt builder
+    requires all four values and adversarial mutations of source kind, hash or
+    size fail closed.
+18. The same review found that a known Human Fact `fact_key` with a different
+    owner `answer_contract.kind` could still be presented and answered. The
+    bounded presentation map now declares the exact owner answer kind for every
+    supported key and rejects a mismatch as typed `OWNER_REQUEST_INVALID`.
+    Negative regressions cover both identity-choice-as-code and filing-code-as-
+    text misbindings. Both clean browser runs and the representative-source run
+    were repeated on `dd419f7d2f46a775c7f5e7c3e737b9b8d8bb4a8a`.
 
 No new questionnaire engine, owner, registry, Tax Model, Scope/Package/XML
 meaning, LLM authority, or artifact mutation path was added.
@@ -187,13 +202,16 @@ meaning, LLM authority, or artifact mutation path was added.
 - raw machine answers and unknown owner codes fail closed;
 - an unknown Human Fact request family cannot expose or accept raw owner
   vocabulary;
+- a known Human Fact key with a foreign answer-contract kind fails closed;
+- the representative-source receipt binds the exact browser-uploaded bytes to
+  the existing public corpus owner and rejects source-kind/hash/size mutations;
 - committed receipt hashes and current code manifest are revalidated in CI;
 - two independent control ids and prepared-to-cleanup chains are required;
 - public representative source must block without XML;
 - existing Human Fact currentness, correction, conflict and fail-closed rules
   remain covered by their owner suites.
 
-Final active-route command: `236 passed` across production candidate/release,
+Final active-route command: `239 passed` across production candidate/release,
 deterministic consumption, declaration preparation, Human Facts, Tax Model,
 Category/declaration assembly, XML projection, declaration MVP, installed
 Pipe, workload authority, workspace model, the committed Issue #306 trace and
