@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any, Iterable
 
-from .artifact_models import ArtifactAccessContext, ArtifactStorePort
+from .artifact_models import ArtifactAccessContext, ArtifactStorePort, RetentionPolicy
 from .canonical_store import CanonicalReaderFactory
 from .gate4_ordinary_trade_candidate import (
     Gate4OrdinaryTradeCandidateRuntimeFactory,
@@ -21,6 +21,10 @@ from .gate5_trusted_methodology import (
 )
 from .ordinary_trade_candidate_runtime import OrdinaryTradeCandidateRuntimeFactory
 from .ordinary_trade_projection import OrdinaryTradeProjectionFactory
+from .ordinary_trade_declaration_mvp import (
+    OrdinaryTradeDeclarationMvpError,
+    OrdinaryTradeDeclarationMvpRuntime,
+)
 
 
 ORDINARY_TRADE_PRODUCTION_RUN_SCHEMA_VERSION = (
@@ -50,19 +54,52 @@ class OrdinaryTradeProductionRuntimeFactory:
         *,
         store: ArtifactStorePort,
         read_enabled: bool,
+        retention_policy: RetentionPolicy | None = None,
+        identity_provider: Any | None = None,
+        external_authority_provider: Any | None = None,
     ) -> None:
         self._store = store
         self._read_enabled = read_enabled
+        self._retention_policy = retention_policy
+        self._identity_provider = identity_provider
+        self._external_authority_provider = external_authority_provider
 
     def create(self) -> "OrdinaryTradeProductionRuntime":
+        declaration_inputs = (
+            self._retention_policy,
+            self._identity_provider,
+            self._external_authority_provider,
+        )
+        if any(item is not None for item in declaration_inputs) and not all(
+            item is not None for item in declaration_inputs
+        ):
+            raise OrdinaryTradeProductionError(
+                "ordinary_trade_declaration_owner_set_incomplete"
+            )
+        declaration = None
+        if all(item is not None for item in declaration_inputs):
+            declaration = OrdinaryTradeDeclarationMvpRuntime(
+                store=self._store,
+                read_enabled=self._read_enabled,
+                retention_policy=self._retention_policy,
+                identity_provider=self._identity_provider,
+                external_authority_provider=self._external_authority_provider,
+            )
         return OrdinaryTradeProductionRuntime(
             store=self._store,
             read_enabled=self._read_enabled,
+            declaration=declaration,
         )
 
 
 class OrdinaryTradeProductionRuntime:
-    def __init__(self, *, store: ArtifactStorePort, read_enabled: bool) -> None:
+    def __init__(
+        self,
+        *,
+        store: ArtifactStorePort,
+        read_enabled: bool,
+        declaration: OrdinaryTradeDeclarationMvpRuntime | None = None,
+    ) -> None:
         self._store = store
         self._reader = CanonicalReaderFactory(
             store=store,
@@ -80,6 +117,7 @@ class OrdinaryTradeProductionRuntime:
             store=store,
             read_enabled=read_enabled,
         ).create()
+        self._declaration = declaration
 
     def run(
         self,
@@ -102,6 +140,8 @@ class OrdinaryTradeProductionRuntime:
         if not refs and not self._projections.current_case(context=context):
             return _missing_canonical_result()
 
+        projections = self._projections.current_case(context=context)
+        canonical_coverage = self._projections.current_case_coverage(context=context)
         facts = self._gate4.list_facts(context=context)
         assessment = self._gate5.assess(
             methodology_ref=_methodology_ref(),
@@ -113,15 +153,23 @@ class OrdinaryTradeProductionRuntime:
         )
         execution_status = "completed"
         terminal = "gate5_source_facts_consumed"
-        try:
-            consumed = self._gate5.run(
-                methodology_ref=_methodology_ref(),
-                context=context,
-            )
-            terminal = str((consumed.get("terminals") or [terminal])[-1])
-        except Gate5DeterministicSourceFactConsumptionError as exc:
+        if canonical_coverage["status"] != "complete":
             execution_status = "source_evidence_insufficient"
-            terminal = exc.code
+            terminal = (
+                "ordinary_trade_declaration_canonical_projection_missing"
+                if canonical_coverage["status"] == "missing_projection"
+                else "ordinary_trade_declaration_canonical_relevant_unmapped"
+            )
+        else:
+            try:
+                consumed = self._gate5.run(
+                    methodology_ref=_methodology_ref(),
+                    context=context,
+                )
+                terminal = str((consumed.get("terminals") or [terminal])[-1])
+            except Gate5DeterministicSourceFactConsumptionError as exc:
+                execution_status = "source_evidence_insufficient"
+                terminal = exc.code
 
         facts_sha256 = _sha256_json(facts)
         fact_types = [str(item.get("financial_type") or "") for item in facts]
@@ -130,12 +178,30 @@ class OrdinaryTradeProductionRuntime:
             if execution_status == "source_evidence_insufficient"
             else "SOURCE_FACTS_CONSUMED"
         )
+        declaration = None
+        if execution_status == "completed":
+            if self._declaration is None:
+                execution_status = "declaration_blocked"
+                product_status = "PREPARATION_INCOMPLETE"
+                terminal = "ordinary_trade_declaration_authority_owners_required"
+            else:
+                try:
+                    declaration = self._declaration.run(
+                        context=context,
+                        canonical_coverage=canonical_coverage,
+                    )
+                    product_status = "DECLARATION_XML_READY"
+                    terminal = declaration["terminal"]
+                except OrdinaryTradeDeclarationMvpError as exc:
+                    execution_status = "declaration_blocked"
+                    product_status = "PREPARATION_INCOMPLETE"
+                    terminal = exc.code
         product = {
             "schema_version": "broker_reports_current_pipeline_result_v1",
             "status": product_status,
             "terminal": terminal,
-            "declaration_ready": False,
-            "xml_created": False,
+            "declaration_ready": declaration is not None,
+            "xml_created": declaration is not None,
             "pdf_created": False,
             "legacy_fallback_used": False,
             "semantic_fallback_used": False,
@@ -156,20 +222,33 @@ class OrdinaryTradeProductionRuntime:
                 "security_tax_input_status": assessment["security_tax_input_status"],
                 "security_fact_counts": assessment["security_fact_counts"],
                 "blocker_reason_codes": sorted(
-                    {str(item["reason_code"]) for item in available["blockers"]}
+                    {
+                        str(item["reason_code"])
+                        for item in available["blockers"]
+                    }
+                    | (
+                        {terminal}
+                        if terminal
+                        in {
+                            "ordinary_trade_declaration_canonical_projection_missing",
+                            "ordinary_trade_declaration_canonical_relevant_unmapped",
+                        }
+                        else set()
+                    )
                 ),
             },
             "preparation": {
                 "status": product_status,
                 "terminals": [terminal],
-                "declaration_readiness": {"ready": False},
+                "declaration_readiness": {"ready": declaration is not None},
                 "gap_closure": {
                     "user_facing_required_actions": [],
-                    "internal_owner_required_actions": [{"reason_code": terminal}],
+                    "internal_owner_required_actions": (
+                        [] if declaration is not None else [{"reason_code": terminal}]
+                    ),
                 },
             },
         }
-        projections = self._projections.current_case(context=context)
         return {
             "schema_version": ORDINARY_TRADE_PRODUCTION_RUN_SCHEMA_VERSION,
             "enabled": True,
@@ -217,9 +296,28 @@ class OrdinaryTradeProductionRuntime:
                     [item["fact_id"] for item in facts]
                 ),
                 "gate5_inputs_sha256": facts_sha256,
+                "canonical_coverage_sha256": canonical_coverage[
+                    "coverage_sha256"
+                ],
             },
             "product": product,
+            "declaration": declaration,
         }
+
+    def validate_current_declaration(
+        self, *, result: dict[str, Any], context: ArtifactAccessContext
+    ) -> dict[str, Any]:
+        if self._declaration is None:
+            raise OrdinaryTradeProductionError(
+                "ordinary_trade_declaration_runtime_not_configured"
+            )
+        return self._declaration.validate_current(
+            result=result,
+            context=context,
+            canonical_coverage=self._projections.current_case_coverage(
+                context=context
+            ),
+        )
 
     def _activate_compile_and_verify(
         self,

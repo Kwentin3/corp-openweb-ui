@@ -57,7 +57,7 @@
   "evidence_binding": {
     "declaration_demand_map_goal": "G5.44",
     "operation_tax_model_methodology_id": "ru-ndfl-securities-tax-model-proof",
-    "operation_tax_model_methodology_version": "2026.1-experimental",
+    "operation_tax_model_methodology_version": "2026.2-audited",
     "evidence_refs": ["federal-law-281-fz-article-2", "rf-tax-code-214.1-10"]
   }
 }

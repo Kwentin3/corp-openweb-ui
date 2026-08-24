@@ -263,9 +263,23 @@ class Gate5DeclarationBudgetOutcomeRuntime:
         if (
             not isinstance(evidence, dict)
             or set(evidence) != _EVIDENCE_KEYS
-            or evidence.get("schema_version")
-            != "broker_reports_gate5_synthetic_case_evidence_v0"
-            or evidence.get("status") != "synthetic_proof_evidence"
+            or (
+                evidence.get("schema_version"),
+                evidence.get("status"),
+                evidence.get("real_user_fact"),
+            )
+            not in {
+                (
+                    "broker_reports_gate5_synthetic_case_evidence_v0",
+                    "synthetic_proof_evidence",
+                    False,
+                ),
+                (
+                    "broker_reports_gate5_owner_case_evidence_v1",
+                    "owner_verified_evidence",
+                    False,
+                ),
+            }
             or not _identifier(evidence.get("source_ref"))
             or not _identifier(evidence.get("budget_allocation_ref"))
             or _KBK.fullmatch(evidence.get("kbk", "")) is None
@@ -276,7 +290,6 @@ class Gate5DeclarationBudgetOutcomeRuntime:
             or evidence.get("case_id") != scope["case_id"]
             or evidence.get("tax_period") != scope["tax_period"]
             or evidence.get("input_channel") != "declaration_budget_disposition"
-            or evidence.get("real_user_fact") is not False
         ):
             _fail("gate5_budget_disposition_evidence_invalid")
         return {

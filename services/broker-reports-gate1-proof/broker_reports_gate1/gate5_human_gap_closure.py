@@ -140,6 +140,8 @@ _KNOWN_FACT_KEYS = {
     "signer_and_representation",
     "budget_disposition",
     "residency_evidence",
+    "declaration_date",
+    "ordinary_trade_declaration_zero_scope_confirmed",
 }
 _CLOSURE_TYPES = {
     "EXISTING_EVIDENCE",
@@ -545,6 +547,49 @@ class Gate5HumanGapClosureRuntime:
             )
             result.append(validated)
         return sorted(result, key=lambda item: item["fact_key"])
+
+    def current_user_case_facts(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        taxpayer_scope_ref: str,
+        tax_period: str,
+    ) -> list[dict[str, Any]]:
+        """Return only current request-bound facts from this owner's catalog."""
+
+        self._publication_dependencies()
+        scope = _human_fact_scope(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=tax_period,
+        )
+        current: list[dict[str, Any]] = []
+        assert self._resolver is not None
+        for record in self._resolver.catalog_case(context):
+            if record.artifact_type != GATE5_USER_CASE_FACT_ARTIFACT_TYPE:
+                continue
+            resolved = self._resolver.resolve_case(record.artifact_id, context)
+            fact = _validated_user_fact_shape(resolved["payload"])
+            if fact["scope_binding"] != scope:
+                continue
+            try:
+                self._reject_stale_request(
+                    request=self._resolve_request_binding(
+                        binding=fact["request_binding"], context=context
+                    ),
+                    context=context,
+                )
+            except Gate5HumanGapClosureError as exc:
+                if exc.code == "gate5_gap_request_stale":
+                    continue
+                raise
+            current.append(fact)
+        return self.validate_user_case_facts(
+            current,
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=tax_period,
+        )
 
     def _publication_dependencies(self) -> None:
         if (
@@ -1116,6 +1161,59 @@ def _declaration_requests(
                     subject={},
                     scope_binding=scope_binding,
                     semantic_request_key="human_fact:filing_instance_identity",
+                )
+            )
+        if "declaration_date" not in facts_by_key:
+            requests.append(
+                _request(
+                    kind="REQUIRED",
+                    priority="HIGH",
+                    closure_type="USER_FACT",
+                    fact_key="declaration_date",
+                    demand_refs=["obl_filing_instance_identity"],
+                    evidence_refs=[],
+                    question=(
+                        "Provide the declaration signing date in YYYY-MM-DD format."
+                    ),
+                    reason="declaration date is absent from broker evidence",
+                    helpful_evidence="authenticated declaration signing date",
+                    client_benefit="prevents an invented declaration date",
+                    answer_contract={"kind": "text"},
+                    subject={},
+                    scope_binding=scope_binding,
+                    semantic_request_key="human_fact:declaration_date",
+                )
+            )
+        if "ordinary_trade_declaration_zero_scope_confirmed" not in facts_by_key:
+            requests.append(
+                _request(
+                    kind="REQUIRED",
+                    priority="HIGH",
+                    closure_type="USER_FACT",
+                    fact_key="ordinary_trade_declaration_zero_scope_confirmed",
+                    demand_refs=[
+                        "obl_income_group_tax_base_results",
+                        "obl_income_group_tax_settlement_results",
+                    ],
+                    evidence_refs=[],
+                    question=(
+                        "Confirm for this bounded ordinary-trade declaration that "
+                        "there is no other income in the selected group, no non-taxable "
+                        "income, deductions, loss claim, tax credits, withheld tax, or "
+                        "simplified-procedure return/credit to declare."
+                    ),
+                    reason=(
+                        "zero-valued declaration scope cannot be inferred from broker "
+                        "operations"
+                    ),
+                    helpful_evidence="authenticated closed zero-scope confirmation",
+                    client_benefit="prevents omitted income, deductions, losses or credits",
+                    answer_contract={"kind": "confirmation"},
+                    subject={"profile": "ordinary_trade_declaration_mvp_2025"},
+                    scope_binding=scope_binding,
+                    semantic_request_key=(
+                        "human_fact:ordinary_trade_declaration_zero_scope_confirmed"
+                    ),
                 )
             )
         if "obl_filing_instance_identity" in active:

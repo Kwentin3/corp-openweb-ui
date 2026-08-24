@@ -122,7 +122,19 @@ def test_g543_methodology_resource_and_all_active_demand_bindings_are_pinned() -
     assert hashlib.sha256(resource_bytes).hexdigest() == (
         GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE_SHA256
     )
-    assert len(methodology["rules"]) == 12
+    assert len(methodology["rules"]) == 13
+    category_rule = next(
+        row
+        for row in methodology["rules"]
+        if row["rule_id"] == "declarant-category-fns-order-913-v1"
+    )
+    assert category_rule["operation"] == "CLASSIFY"
+    assert category_rule["output"] == (
+        "other_individual_declaring_article_228_income"
+    )
+    assert category_rule["insufficient_inputs"] == (
+        "EXTERNAL_AUTHORITATIVE_FACT_MISSING"
+    )
     assert len(methodology["demand_bindings"]) == 9
     assert {row["demand"] for row in methodology["demand_bindings"]} == {
         row["declaration_demand"] for row in _load_json(AUDIT_PATH)["methodology_map"]

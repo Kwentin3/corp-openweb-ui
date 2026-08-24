@@ -201,6 +201,7 @@ GATE1_GATE5_MODULES = [
     "gate5_declaration_budget_outcome",
     "gate5_declaration_financial_investment_results",
     "gate5_declaration_income_sources",
+    "gate5_declaration_right_side_assembly",
     "gate5_full_declaration_definition",
     "gate5_real_tax_case_assembly",
     "gate5_declaration_scope_resolution",
@@ -230,6 +231,10 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_projection",
     "gate4_ordinary_trade_candidate",
     "ordinary_trade_candidate_runtime",
+    "authenticated_case_taxpayer_binding",
+    "ordinary_trade_tax_model_bridge",
+    "active_category_declaration_assembly",
+    "ordinary_trade_declaration_mvp",
     "ordinary_trade_production_runtime",
 ]
 _GATE1_ORDINARY_TRADE_INSERT_AT = (

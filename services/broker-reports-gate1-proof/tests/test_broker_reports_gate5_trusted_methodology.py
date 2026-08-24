@@ -270,10 +270,11 @@ def test_declaration_input_methodology_is_closed_versioned_and_authority_bound()
         "jurisdiction": "RU",
         "scenario": "mandatory_common_filing_plus_observed_broker_securities_income",
     }
-    assert len(rules) == 12
+    assert len(rules) == 13
     assert len({item["rule_id"] for item in rules}) == len(rules)
     assert {
         "filing-context-fns-order-913-v1",
+        "declarant-category-fns-order-913-v1",
         "signer-context-fns-order-913-v1",
         "budget-disposition-fns-order-913-v1",
         "taxpayer-residency-article-207-v1",

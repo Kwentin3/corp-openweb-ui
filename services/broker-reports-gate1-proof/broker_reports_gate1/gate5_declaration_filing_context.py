@@ -11,7 +11,7 @@ from typing import Any
 
 
 GATE5_FILING_AND_PARTY_IDENTITY_INPUT_SCHEMA_VERSION = (
-    "broker_reports_gate5_filing_and_party_identity_input_v0"
+    "broker_reports_gate5_filing_and_party_identity_input_v1"
 )
 GATE5_FILING_AND_PARTY_IDENTITY_COMPONENT_SCHEMA_VERSION = (
     "broker_reports_gate5_filing_and_party_identity_component_v0"
@@ -44,6 +44,16 @@ _INPUT_KEYS = frozenset(
         "taxpayer",
         "signer",
         "evidence",
+    }
+)
+_FIELD_PROVENANCE_KEYS = frozenset(
+    {
+        "filing_instance",
+        "destination_tax_authority",
+        "taxpayer_identity",
+        "taxpayer_period_status",
+        "declarant_category",
+        "signer",
     }
 )
 _COMPONENT_KEYS = frozenset(
@@ -168,7 +178,7 @@ class Gate5FilingAndPartyIdentityRuntime:
 def _validated_input(value: Any) -> dict[str, Any]:
     if (
         not isinstance(value, dict)
-        or set(value) != _INPUT_KEYS
+        or set(value) not in {_INPUT_KEYS, _INPUT_KEYS | {"field_provenance"}}
         or value.get("schema_version")
         != GATE5_FILING_AND_PARTY_IDENTITY_INPUT_SCHEMA_VERSION
     ):
@@ -180,6 +190,22 @@ def _validated_input(value: Any) -> dict[str, Any]:
     evidence = value.get("evidence")
     if not isinstance(filing, dict) or set(filing) != _FILING_KEYS:
         _fail("gate5_filing_party_filing_instance_invalid")
+    if "field_provenance" in value:
+        field_provenance = value["field_provenance"]
+        if (
+            not isinstance(field_provenance, dict)
+            or set(field_provenance) != _FIELD_PROVENANCE_KEYS
+            or any(
+                not isinstance(item, dict)
+                or set(item) != {"source_kind", "source_refs"}
+                or not _identifier(item.get("source_kind"))
+                or not isinstance(item.get("source_refs"), list)
+                or not item["source_refs"]
+                or not all(_identifier(ref) for ref in item["source_refs"])
+                for item in field_provenance.values()
+            )
+        ):
+            _fail("gate5_filing_party_field_provenance_invalid")
     if (
         not _identifier(filing.get("declaration_instance_ref"))
         or filing.get("correction_kind") not in {"initial", "correction"}
@@ -233,14 +259,32 @@ def _validated_input(value: Any) -> dict[str, Any]:
     if (
         not isinstance(evidence, dict)
         or set(evidence) != _EVIDENCE_KEYS
-        or evidence.get("schema_version")
-        != "broker_reports_gate5_synthetic_case_evidence_v0"
-        or evidence.get("status") != "synthetic_proof_evidence"
+        or (
+            evidence.get("schema_version"),
+            evidence.get("status"),
+            evidence.get("real_user_fact"),
+        )
+        not in {
+            (
+                "broker_reports_gate5_synthetic_case_evidence_v0",
+                "synthetic_proof_evidence",
+                False,
+            ),
+            (
+                "broker_reports_gate5_owner_case_evidence_v1",
+                "owner_verified_evidence",
+                True,
+            ),
+            (
+                "broker_reports_gate5_owner_composed_evidence_v1",
+                "owner_composed_evidence",
+                False,
+            ),
+        }
         or not _identifier(evidence.get("source_ref"))
         or evidence.get("case_id") != scope["case_id"]
         or evidence.get("tax_period") != scope["tax_period"]
         or evidence.get("input_channel") != "filing_and_party_identity"
-        or evidence.get("real_user_fact") is not False
     ):
         _fail("gate5_filing_party_evidence_invalid")
     return copy.deepcopy(value)

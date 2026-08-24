@@ -142,7 +142,7 @@ the observed gap, never authority for admission.
 | Meaning | Single current authority | Current decision |
 | --- | --- | --- |
 | source-fact consumption and FIFO | `ru-ndfl-securities-source-fact-consumption-proof@2026.7-current-authority` through `Gate5TrustedMethodologyAuthorityFactory.create` | exact Decimal; FIFO by acquisition date; no inferred relations; no rounding before the declaration-field boundary |
-| 2025 declaration inputs | `ru-3ndfl-2025-declaration-input-contract@2026.2-current-authority` through the same authority factory | official date/rate rules, field scale, foreign-tax evidence conditions and explicit legal stops |
+| 2025 declaration inputs | `ru-3ndfl-2025-declaration-input-contract@2026.3-current-authority` through the same authority factory | official date/rate rules, field scale, declarant-category classification, foreign-tax evidence conditions and explicit legal stops |
 | current case assembly | `Gate5RealTaxCaseAssemblyRuntimeFactory.create` | all 25 Definition demands; each active unresolved demand has one exact gap-owner class |
 | human or document action | `Gate5HumanGapClosureRuntimeFactory.create` | only real source evidence and user/case facts may become user-facing requests |
 

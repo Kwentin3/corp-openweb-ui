@@ -10,7 +10,7 @@
 `Gate5TrustedMethodologyAuthorityFactory.create` — и две явно текущие версии:
 
 - `ru-ndfl-securities-source-fact-consumption-proof@2026.7-current-authority`;
-- `ru-3ndfl-2025-declaration-input-contract@2026.2-current-authority`.
+- `ru-3ndfl-2025-declaration-input-contract@2026.3-current-authority`.
 
 Исторические ресурсы остаются только для проверки старых доказательств. Они не
 выбираются текущим кодом и не являются fallback. Legacy-маршрута обработки нет.

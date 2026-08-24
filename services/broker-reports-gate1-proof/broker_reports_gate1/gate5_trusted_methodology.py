@@ -48,22 +48,22 @@ GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_RESOURCE_SHA256 = (
 GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_SCHEMA_VERSION = (
     "broker_reports_gate5_securities_disposal_operation_tax_model_methodology_v0"
 )
-GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION = "2026.1-experimental"
+GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION = "2026.2-audited"
 GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_RESOURCE = (
     "gate5_tax_methodology.ru_ndfl_securities_operation_tax_model_proof.v0.json"
 )
 GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_RESOURCE_SHA256 = (
-    "253f6f644eb88c963639833bcef8b169a51e4b8790ab2dcfa22c091b58e30bed"
+    "d2070ad33a74d6ca9de0a8abebcb4ab96045bff5127845d38fd08d1fc4393199"
 )
 GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_SCHEMA_VERSION = (
     "broker_reports_gate5_securities_income_group_tax_base_methodology_v0"
 )
-GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_VERSION = "2026.2-experimental"
+GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_VERSION = "2026.3-audited"
 GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_RESOURCE = (
     "gate5_tax_methodology.ru_ndfl_securities_income_group_tax_base_proof.v0.json"
 )
 GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_RESOURCE_SHA256 = (
-    "56bcc7554c69757623a67497aa728cefc662e8c08a5795dfcb5562da1559bb80"
+    "feffc538795825e346f92082d26d4de56d83ec51437bb9fa0037c60f5bd72116"
 )
 GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_SCHEMA_VERSION = (
     "broker_reports_gate5_income_group_tax_settlement_methodology_v1"
@@ -95,13 +95,13 @@ GATE5_DECLARATION_INPUT_METHODOLOGY_ID = (
     "ru-3ndfl-2025-declaration-input-contract"
 )
 GATE5_DECLARATION_INPUT_METHODOLOGY_VERSION = (
-    "2026.2-current-authority"
+    "2026.3-current-authority"
 )
 GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE = (
     "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v3.json"
 )
 GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE_SHA256 = (
-    "f6c07f0627c10e3a543f3f2df19e54bfb5cf50a7301f03d208ac60d34692982c"
+    "2d75ec75cdc6b3a0ab20cae697abfe6ad06d2b2d398140c9a171bf617ebdbbf6"
 )
 GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_SCHEMA_VERSION = (
     "broker_reports_gate5_deterministic_source_fact_consumption_methodology_v0"
@@ -117,7 +117,7 @@ GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE = (
     "ru_ndfl_securities_real_source_fact_contract.v2.json"
 )
 GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_RESOURCE_SHA256 = (
-    "328c23f0e90ed308319719fa305d2d87442447b4495508b7e5ece527627a97eb"
+    "8fcf311f6205eaf714279fec3e651d4518ea0c2a08e87a7be389484564b5ade0"
 )
 _GATE5_SOURCE_FACT_CONSUMPTION_SUPERSEDED_VERSION = "2026.5-experimental"
 _GATE5_SOURCE_FACT_CONSUMPTION_SUPERSEDED_RESOURCE = (
@@ -324,6 +324,39 @@ class Gate5TrustedMethodologyAuthority:
                 "projection_sha256": projection_sha256,
             },
             "methodology": copy.deepcopy(methodology),
+        }
+
+    def classify_declarant_category(
+        self,
+        *,
+        methodology_ref: dict[str, Any],
+        taxpayer_capacity: str,
+        tax_period: str,
+    ) -> dict[str, Any]:
+        """Apply the one published bounded declarant-category classification."""
+
+        resolved = self.resolve(methodology_ref)
+        rules = {
+            item.get("rule_id"): item
+            for item in resolved["methodology"].get("rules", [])
+            if isinstance(item, dict)
+        }
+        rule = rules.get("declarant-category-fns-order-913-v1")
+        if (
+            tax_period != "2025"
+            or taxpayer_capacity != "individual_not_ip_not_private_practice"
+            or not isinstance(rule, dict)
+            or rule.get("operation") != "CLASSIFY"
+            or rule.get("output")
+            != "other_individual_declaring_article_228_income"
+        ):
+            raise Gate5TrustedMethodologyError(
+                "gate5_declarant_category_methodology_unresolved"
+            )
+        return {
+            "declarant_category": rule["output"],
+            "rule_id": rule["rule_id"],
+            "authority_binding": copy.deepcopy(resolved["authority_binding"]),
         }
 
 

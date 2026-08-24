@@ -433,6 +433,23 @@ class Gate5FullTargetXmlProjectionRuntime:
         }
         return {"xml_tree": tree, "xml_bytes": xml_bytes, "receipt": receipt}
 
+    def extract_supported_profile_values(
+        self, *, xml_bytes: bytes
+    ) -> dict[str, Any]:
+        """Validate representation and extract literals without deriving tax meaning."""
+
+        definition = self._consumer_definition_authority.resolve()
+        conformance = self._validator.validate(
+            xml_bytes=xml_bytes,
+            definition=definition,
+        )
+        proof = _supported_profile_xml_values(xml_bytes)
+        return {
+            **proof,
+            "xsd_valid": conformance["xsd_valid"],
+            "proof_sha256": _canonical_sha256(proof),
+        }
+
 
 class Gate5FullTargetXmlTreeProjector:
     def project(
@@ -591,6 +608,113 @@ class Gate5FullTargetXmlConformanceValidator:
             "xml_well_formed": True,
             "xsd_valid": True,
         }
+
+
+def _supported_profile_xml_values(xml_bytes: bytes) -> dict[str, Any]:
+    parser = etree.XMLParser(resolve_entities=False, no_network=True)
+    try:
+        root = etree.fromstring(xml_bytes, parser)
+    except (TypeError, etree.XMLSyntaxError) as exc:
+        raise Gate5FullTargetXmlProjectionError(
+            "gate5_full_target_xml_semantics_invalid", "xml"
+        ) from exc
+
+    def one(path: str) -> etree._Element:
+        values = root.findall(path)
+        if len(values) != 1:
+            _fail("gate5_full_target_xml_semantics_invalid", path)
+        return values[0]
+
+    def money(node: etree._Element, attribute: str) -> Decimal:
+        literal = node.get(attribute)
+        try:
+            value = Decimal(str(literal))
+        except (InvalidOperation, TypeError):
+            _fail(
+                "gate5_full_target_xml_semantics_invalid",
+                f"{node.tag}@{attribute}",
+            )
+        if not value.is_finite() or value < 0:
+            _fail(
+                "gate5_full_target_xml_semantics_invalid",
+                f"{node.tag}@{attribute}",
+            )
+        return value
+
+    base = one(".//РасчНалБаза")
+    settlement = one(".//РасчНалПУ")
+    operation = one(".//ДохОперЦБ")
+    source = one(".//ДоходИстРФ")
+    budget = one(".//СумНалПуИскл227")
+    income_group = one(".//НалБаза")
+    if income_group.get("ГрупДоход") != "02" or source.get("ВидДоход") != "003":
+        _fail("gate5_full_target_xml_semantics_invalid", "supported_profile")
+
+    total_income = money(base, "СумДох")
+    non_taxable = money(base, "СумДохНеНал")
+    taxable_income = money(base, "СумДохНал")
+    deductions = money(base, "СумНалВыч")
+    expenses = money(base, "СумРасх")
+    tax_base = money(base, "НалБаза")
+    operation_income = money(operation, "ДохСовОпер")
+    operation_expenses = money(operation, "РасхРеалЦБ")
+    operation_allowable = money(operation, "РасхУмДохОпер")
+    source_income = money(source, "Доход")
+    calculated_tax = money(settlement, "Исчисл")
+    credit_attributes = {
+        "withheld_at_source": "Удерж",
+        "material_benefit_withheld": "СумУдержМат",
+        "trade_fee_credit": "ТСУплПерЗач",
+        "fixed_advance_credit": "СумФиксАван",
+        "foreign_tax_credit": "УплИнПодлЗач",
+        "patent_credit": "УплПатентЗач",
+    }
+    payable = money(settlement, "ПодлУпл")
+    refundable = money(settlement, "ПодлВозв")
+    simplified = money(settlement, "СумВозвУпр")
+    source_withheld = money(source, "НалУдерж")
+    budget_payable = money(budget, "ПодлУпл")
+    budget_refundable = money(budget, "ПодлВозв")
+
+    def literal(value: Decimal) -> str:
+        return format(value, "f")
+
+    return {
+        "schema_version": "broker_reports_gate5_serialized_xml_values_v1",
+        "status": "extracted",
+        "profile": "ordinary_trade_2025_supported_representation",
+        "values": {
+            "income_group": {
+                "total_income": literal(total_income),
+                "non_taxable_income": literal(non_taxable),
+                "taxable_income": literal(taxable_income),
+                "tax_deductions": literal(deductions),
+                "accepted_expenses": literal(expenses),
+                "tax_base": literal(tax_base),
+                "calculated_tax": literal(calculated_tax),
+                "settlement_amounts": {
+                    key: literal(money(settlement, attribute))
+                    for key, attribute in credit_attributes.items()
+                },
+                "tax_payable": literal(payable),
+                "tax_refundable": literal(refundable),
+                "simplified_procedure_returned_or_credited": literal(simplified),
+            },
+            "financial_investment": {
+                "category_gross_income": literal(operation_income),
+                "related_expenses": literal(operation_expenses),
+                "allowable_expenses": literal(operation_allowable),
+            },
+            "russian_source": {
+                "gross_income": literal(source_income),
+                "withheld_tax": literal(source_withheld),
+            },
+            "budget": {
+                "payable": literal(budget_payable),
+                "refundable": literal(budget_refundable),
+            },
+        },
+    }
 
 
 def _validate_definition(value: Any) -> None:
