@@ -10,12 +10,12 @@ Dependency: PR #305 merged unchanged from approved head
 Branch: `agent/issue-306-live-openwebui-goal`
 
 Final generated bundle SHA-256:
-`560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d`
+`0eb6cad18963dff003e7d0fd92eefbf90537a0717f32b169cbbab9ea2cd6542a`
 
-Live-tested code head: `4aa92c6589c3310cf4fe4106126ee0bd8836fb6c`
+Live-tested code head: `f9c3a4ce1fa08fb905f0c96f8a2b89217440458b`
 
 Mechanically verified safe receipt:
-`2f37aea3b4a15e82bcdfebde78f79aed8fb6099b9d38ce9858998927ea45f5f8`
+`c67b11bd69f192abf25fb73e8e74b17887c5db8a4c41be338c887696490326ad`
 
 ## Verdict
 
@@ -89,7 +89,7 @@ The final note explicitly distinguishes:
 - User B could not see the NDFL model, could not download the guessed private
   file URL, and could not see user A's chat result.
 - Closing a tab on an unanswered Human Fact question did not retain the source
-  workload lease: a second independent case reached its question in `7596 ms`
+  workload lease: a second independent case reached its question in `5044 ms`
   without answering the first; the proof fails at `30000 ms`.
 - Persisted queued callers now hold renewable leases; cancellation is persisted
   and expired orphan waiters recover fail-closed after restart.
@@ -101,6 +101,10 @@ the same browser file-input path. The current Canonical/source route did not
 produce the owner facts required by the supported declaration profile. The UI
 therefore stopped before declaration, created no XML/download, and displayed a
 plain-language source blocker. No labels, facts or artifacts were injected.
+The public source was the four-page sample linked by T-Bank at
+`https://cdn.tbank.ru/static/documents/7b9ccdee-5a02-4ed6-9499-c76082cd8d30.pdf`;
+the downloaded proof input was `639417` bytes with SHA-256
+`25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67`.
 
 This is an honest current MVP source-extraction limit. The synthetic source
 proves the supported vertical product route; it is not presented as proof that
@@ -155,6 +159,16 @@ arbitrary production broker PDFs are supported.
     receipts. The control owner now issues a random technical `control_run_id`;
     the final proof requires two different ids and two prepared-to-restored
     chains. The earlier A run was discarded and both runs were repeated.
+16. Delegated exact-head review at
+    `3300bfa17f13633f4b5df3a7cb9e4acac6f68421` found that an entirely unknown
+    Human Fact `fact_key` still fell back to raw owner question/allowed values.
+    The representation adapter now treats every unrecognized USER_FACT
+    presentation as unavailable and returns the typed
+    `OWNER_REQUEST_INVALID` result before answer adaptation. An adversarial
+    `future_owner_fact` / `RAW_UNKNOWN` regression proves that neither raw
+    question nor code is rendered or accepted. The generated bundle was rebuilt
+    and both browser runs plus the representative-source run were repeated on
+    `f9c3a4ce1fa08fb905f0c96f8a2b89217440458b`.
 
 No new questionnaire engine, owner, registry, Tax Model, Scope/Package/XML
 meaning, LLM authority, or artifact mutation path was added.
@@ -171,13 +185,15 @@ meaning, LLM authority, or artifact mutation path was added.
 - direct source blocker and progress do not expose internal identifiers;
 - browser driver statically forbids app API bypass;
 - raw machine answers and unknown owner codes fail closed;
+- an unknown Human Fact request family cannot expose or accept raw owner
+  vocabulary;
 - committed receipt hashes and current code manifest are revalidated in CI;
 - two independent control ids and prepared-to-cleanup chains are required;
 - public representative source must block without XML;
 - existing Human Fact currentness, correction, conflict and fail-closed rules
   remain covered by their owner suites.
 
-Final active-route command: `235 passed` across production candidate/release,
+Final active-route command: `236 passed` across production candidate/release,
 deterministic consumption, declaration preparation, Human Facts, Tax Model,
 Category/declaration assembly, XML projection, declaration MVP, installed
 Pipe, workload authority, workspace model, the committed Issue #306 trace and

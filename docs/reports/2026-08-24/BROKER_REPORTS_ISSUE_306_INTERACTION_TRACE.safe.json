@@ -10,16 +10,16 @@
     "pii_recorded": false,
     "secrets_recorded": false
   },
-  "receipt_sha256": "2f37aea3b4a15e82bcdfebde78f79aed8fb6099b9d38ce9858998927ea45f5f8",
+  "receipt_sha256": "c67b11bd69f192abf25fb73e8e74b17887c5db8a4c41be338c887696490326ad",
   "schema_version": "broker_reports_issue306_safe_interaction_proof_v2",
   "tested_code_manifest": {
     "browser_driver_sha256": "d503d27e4b72d0c2199a3cfcf0f044a13bc01a2ce68948775561f29aba75de0a",
     "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
-    "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
+    "generated_bundle_sha256": "0eb6cad18963dff003e7d0fd92eefbf90537a0717f32b169cbbab9ea2cd6542a",
     "receipt_builder_sha256": "89976dcd479f0f6f05d8bfbe7820cb41be1f0fa864fbce19102b21900826b024"
   },
   "tested_commits": [
-    "4aa92c6589c3310cf4fe4106126ee0bd8836fb6c"
+    "f9c3a4ce1fa08fb905f0c96f8a2b89217440458b"
   ],
   "user_mode": {
     "clean_room_runs": [
@@ -30,20 +30,12 @@
         "events": [
           {
             "event": "unanswered_tab_closed_and_second_case_admitted",
-            "first_elapsed_ms": 10638,
+            "first_elapsed_ms": 5612,
             "first_question_visible": true,
             "first_tab_closed_without_answer": true,
             "mode": "user",
             "second_case_question_visible": true,
-            "second_elapsed_ms": 7596
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "zero_scope"
+            "second_elapsed_ms": 5044
           },
           {
             "accepted": true,
@@ -67,39 +59,7 @@
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
-            "question_family": "budget"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "signer"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "destination"
-          },
-          {
-            "accepted": false,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": true,
-            "mode": "user",
-            "question_family": "date"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "date"
+            "question_family": "zero_scope"
           },
           {
             "accepted": false,
@@ -131,7 +91,7 @@
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
-            "question_family": "filing"
+            "question_family": "destination"
           },
           {
             "accepted": true,
@@ -140,6 +100,46 @@
             "intentionally_invalid": false,
             "mode": "user",
             "question_family": "oktmo"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "budget"
+          },
+          {
+            "accepted": false,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": true,
+            "mode": "user",
+            "question_family": "date"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "date"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "filing"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "signer"
           },
           {
             "event": "accepted_value_corrected",
@@ -160,10 +160,10 @@
           },
           {
             "bytes": 1102,
-            "chat_url_sha256": "fc6f3d35f3c07a8966693c7bf0e9765ab67af2a4d1722aa12b9f3483e41f380b",
+            "chat_url_sha256": "409ed0b69c68513a0d91bc22e4e7630b626e9deb9ae33da53c303b89ea7500e2",
             "event": "private_xml_downloaded",
             "mode": "user",
-            "private_download_url_sha256": "2690047b9735377de44666c593ed25cdee495588c63241cc7308c1d30ec5e1e1",
+            "private_download_url_sha256": "21d01d0c8a3366fbf391171f856a4786fd4b2a1a088fb09b7778262a2fcd9ffc",
             "sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5"
           },
           {
@@ -180,21 +180,21 @@
             "private_file_denied": true
           }
         ],
-        "finished_at": "2026-08-24T19:27:40.014Z",
+        "finished_at": "2026-08-24T20:39:53.594Z",
         "hidden_refs_observed": false,
         "proof_binding": {
           "browser_driver_sha256": "d503d27e4b72d0c2199a3cfcf0f044a13bc01a2ce68948775561f29aba75de0a",
-          "control_prepared_receipt_sha256": "adaea47181f562207a5f36c902dae65baca2604af624e1e0fa664ea1edc8b96c",
+          "control_prepared_receipt_sha256": "ee537ad604635822656f7b8bf32ef565f49d61ce1766bb6ce4508fc9e4971557",
           "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
-          "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
-          "tested_commit": "4aa92c6589c3310cf4fe4106126ee0bd8836fb6c"
+          "generated_bundle_sha256": "0eb6cad18963dff003e7d0fd92eefbf90537a0717f32b169cbbab9ea2cd6542a",
+          "tested_commit": "f9c3a4ce1fa08fb905f0c96f8a2b89217440458b"
         },
-        "receipt_sha256": "b4f8f7fa8575a50d58ccfda5754171537210fe49ec2f9dceb1b12e81d72bdb92",
-        "run_id": "28247550-d93e-47fa-aa9b-b920d44ed38c",
+        "receipt_sha256": "399b31d73089537a5a7353c839408beb78ba3a72db67afbdb2e63ca267f56736",
+        "run_id": "41ae77a2-2748-4d76-b641-4c9f797c2ca8",
         "run_kind": "clean_room",
         "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
         "source_kind": "synthetic_supported_fixture",
-        "started_at": "2026-08-24T19:24:17.483Z"
+        "started_at": "2026-08-24T20:34:52.372Z"
       },
       {
         "browser_ui_only": true,
@@ -215,14 +215,6 @@
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
-            "question_family": "residency"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
             "question_family": "capacity"
           },
           {
@@ -231,15 +223,7 @@
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
-            "question_family": "budget"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "filing"
+            "question_family": "residency"
           },
           {
             "accepted": false,
@@ -266,6 +250,38 @@
             "question_family": "identity"
           },
           {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "signer"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "oktmo"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "filing"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "destination"
+          },
+          {
             "accepted": false,
             "deferred": false,
             "event": "question_answered",
@@ -287,23 +303,7 @@
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
-            "question_family": "oktmo"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "destination"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "signer"
+            "question_family": "budget"
           },
           {
             "event": "accepted_value_corrected",
@@ -324,10 +324,10 @@
           },
           {
             "bytes": 1102,
-            "chat_url_sha256": "ca95098b715de1aff2935dd92233f838c3074ebc74c9e8bd4d0b0517a2121252",
+            "chat_url_sha256": "106b68f72d2097617b6705b9ffd8b1b5714d6254e9fbd92f01a80095295967bd",
             "event": "private_xml_downloaded",
             "mode": "user",
-            "private_download_url_sha256": "8b7ca4ad94e584b2a3bf2d28df018d7151d629ab850feb043c6ea59ea95517be",
+            "private_download_url_sha256": "a91a40c710b0d7a6849abd0499d72fbe1bec9783ad6361e981580665d9cc56df",
             "sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5"
           },
           {
@@ -344,21 +344,21 @@
             "private_file_denied": true
           }
         ],
-        "finished_at": "2026-08-24T19:32:25.481Z",
+        "finished_at": "2026-08-24T20:48:20.599Z",
         "hidden_refs_observed": false,
         "proof_binding": {
           "browser_driver_sha256": "d503d27e4b72d0c2199a3cfcf0f044a13bc01a2ce68948775561f29aba75de0a",
-          "control_prepared_receipt_sha256": "5e8915ed8785de9061e07ed71073abe6e386b0e8cfb753c834e228fb9186eeb3",
+          "control_prepared_receipt_sha256": "4609a7f0f762400112c88b4ebb6209778ca945cdd63e2996c507e64535d6cd8b",
           "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
-          "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
-          "tested_commit": "4aa92c6589c3310cf4fe4106126ee0bd8836fb6c"
+          "generated_bundle_sha256": "0eb6cad18963dff003e7d0fd92eefbf90537a0717f32b169cbbab9ea2cd6542a",
+          "tested_commit": "f9c3a4ce1fa08fb905f0c96f8a2b89217440458b"
         },
-        "receipt_sha256": "dfd01df20191e4591a32dbeec485ec8165ae31b57ea96f573c4f51858627efe0",
-        "run_id": "6eae7a89-ecef-4dcb-a735-ed2502b9157b",
+        "receipt_sha256": "33935899cd77593614ca40eb55930ef07b89a0b254cdb58550da22432cb04bdd",
+        "run_id": "fad5dbd0-cbca-4287-a8a4-a449fdb9e4a7",
         "run_kind": "clean_room",
         "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
         "source_kind": "synthetic_supported_fixture",
-        "started_at": "2026-08-24T19:29:45.426Z"
+        "started_at": "2026-08-24T20:43:35.601Z"
       }
     ],
     "representative_source_run": {
@@ -373,34 +373,34 @@
           "xml_created": false
         }
       ],
-      "finished_at": "2026-08-24T19:28:27.315Z",
+      "finished_at": "2026-08-24T20:41:58.731Z",
       "hidden_refs_observed": false,
       "proof_binding": {
         "browser_driver_sha256": "d503d27e4b72d0c2199a3cfcf0f044a13bc01a2ce68948775561f29aba75de0a",
-        "control_prepared_receipt_sha256": "adaea47181f562207a5f36c902dae65baca2604af624e1e0fa664ea1edc8b96c",
+        "control_prepared_receipt_sha256": "ee537ad604635822656f7b8bf32ef565f49d61ce1766bb6ce4508fc9e4971557",
         "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
-        "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
-        "tested_commit": "4aa92c6589c3310cf4fe4106126ee0bd8836fb6c"
+        "generated_bundle_sha256": "0eb6cad18963dff003e7d0fd92eefbf90537a0717f32b169cbbab9ea2cd6542a",
+        "tested_commit": "f9c3a4ce1fa08fb905f0c96f8a2b89217440458b"
       },
-      "receipt_sha256": "ac97ba4591c3fde2d2cd4d36f4f93f01f1033d4d6fafb27aa39050643f3ea3ea",
-      "run_id": "7bbb2127-bcb3-4757-a5ba-c0844781e13a",
+      "receipt_sha256": "988e20a3dd4870ab9f8e618d69f31938d144854e3c5fcf869436aa3cd0895971",
+      "run_id": "807bae19-3868-470b-88bd-1606862f1163",
       "run_kind": "representative_source",
       "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
       "source_kind": "public_representative_broker_report",
-      "started_at": "2026-08-24T19:27:47.053Z"
+      "started_at": "2026-08-24T20:41:16.490Z"
     }
   },
   "verification_mode": {
     "control_restored_receipts": [
       {
-        "control_run_id": "cf9576e9bf9567ce6397d3c4f8bf26f7",
-        "deployed_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
+        "control_run_id": "1a2a7259432ee62255d85665bea6936b",
+        "deployed_bundle_sha256": "0eb6cad18963dff003e7d0fd92eefbf90537a0717f32b169cbbab9ea2cd6542a",
         "function_id": "broker_reports_ndfl",
         "legacy_function_inactive": false,
         "model_public_grant_added": false,
-        "predecessor_control_prepared_receipt_sha256": "adaea47181f562207a5f36c902dae65baca2604af624e1e0fa664ea1edc8b96c",
+        "predecessor_control_prepared_receipt_sha256": "ee537ad604635822656f7b8bf32ef565f49d61ce1766bb6ce4508fc9e4971557",
         "proof_valves_enabled": false,
-        "receipt_sha256": "4edb16d891948bd6fe0382d90997d0c40e1bf397fa7a167cdb7f77974a106cc4",
+        "receipt_sha256": "3eb4c8e2cf55e1964bc93002efca38b0bf9166617bbd4e5b5ba545d85f03aef9",
         "release_valves_exact": false,
         "schema_version": "broker_reports_gate5_openwebui_control_v0",
         "state_restored": true,
@@ -411,14 +411,14 @@
         "workspace_model_id": "broker_reports_ndfl"
       },
       {
-        "control_run_id": "42b9ba8dc42398edd0b3a514ea97a06e",
-        "deployed_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
+        "control_run_id": "2493e0fcab98fcec6686b4ae6852c851",
+        "deployed_bundle_sha256": "0eb6cad18963dff003e7d0fd92eefbf90537a0717f32b169cbbab9ea2cd6542a",
         "function_id": "broker_reports_ndfl",
         "legacy_function_inactive": false,
         "model_public_grant_added": false,
-        "predecessor_control_prepared_receipt_sha256": "5e8915ed8785de9061e07ed71073abe6e386b0e8cfb753c834e228fb9186eeb3",
+        "predecessor_control_prepared_receipt_sha256": "4609a7f0f762400112c88b4ebb6209778ca945cdd63e2996c507e64535d6cd8b",
         "proof_valves_enabled": false,
-        "receipt_sha256": "5fd0ad09e024ebe15279f15b54ad18af9163f42ddada20c68f7f843b8ac97306",
+        "receipt_sha256": "cc190ed88528c230d11fd5458b2f035b1a9ee237f6f322c75dc5bbce985c287b",
         "release_valves_exact": false,
         "schema_version": "broker_reports_gate5_openwebui_control_v0",
         "state_restored": true,
