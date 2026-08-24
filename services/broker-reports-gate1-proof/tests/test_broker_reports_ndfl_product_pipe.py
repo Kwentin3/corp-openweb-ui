@@ -326,6 +326,30 @@ def test_new_owner_code_without_exact_label_coverage_fails_closed() -> None:
     }
 
 
+def test_unknown_owner_fact_key_fails_closed_without_raw_vocabulary() -> None:
+    request = {
+        "request_publication_ref": "gap-request-publication-current",
+        "closure_type": "USER_FACT",
+        "fact_key": "future_owner_fact",
+        "question": "RAW OWNER QUESTION",
+        "answer_contract": {"kind": "code", "allowed": ["RAW_UNKNOWN"]},
+    }
+
+    question = declaration_request_question(request)
+    help_text = declaration_request_help(request)
+    assert question == "Ответ на этот запрос временно недоступен."
+    assert help_text == "Ответ на этот запрос временно недоступен."
+    assert "RAW OWNER QUESTION" not in question
+    assert "RAW_UNKNOWN" not in help_text
+    assert adapt_current_declaration_request(
+        message="RAW_UNKNOWN", current_requests=[request]
+    ) == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "OWNER_REQUEST_INVALID",
+        "reason_code": "declaration_chat_presentation_contract_invalid",
+    }
+
+
 def test_direct_ndfl_source_blocker_hides_internal_owner_diagnostics() -> None:
     content = Pipe._ndfl_source_user_content(None)
 

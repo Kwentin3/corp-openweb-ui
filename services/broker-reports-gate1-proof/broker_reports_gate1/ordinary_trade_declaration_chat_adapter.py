@@ -37,6 +37,7 @@ _CHANGE_INTENTS = {
     "изменить дату": "declaration_date",
     "изменить инн": "taxpayer_identity",
 }
+_UNAVAILABLE_REQUEST = "Ответ на этот запрос временно недоступен."
 
 # Representation-only labels for the bounded declaration product.  Canonical
 # values still come exclusively from the current owner's answer_contract; this
@@ -201,15 +202,15 @@ def adapt_current_declaration_request(
 def declaration_request_question(request: dict[str, Any]) -> str:
     """Render the current owner request without exposing owner vocabulary."""
 
+    if not _presentation_contract_valid(request):
+        return _UNAVAILABLE_REQUEST
     presentation = _request_presentation(request)
-    if presentation is not None:
-        if not _presentation_contract_valid(request):
-            return "Ответ на этот запрос временно недоступен."
-        return str(presentation["question"])
-    return str(request.get("question") or "").strip()
+    return str(presentation["question"])
 
 
 def declaration_request_help(request: dict[str, Any]) -> str:
+    if not _presentation_contract_valid(request):
+        return _UNAVAILABLE_REQUEST
     contract = request.get("answer_contract")
     contract = contract if isinstance(contract, dict) else {}
     kind = contract.get("kind")
@@ -233,9 +234,7 @@ def declaration_request_help(request: dict[str, Any]) -> str:
             return "Допустимые ответы: " + "; ".join(
                 str(labels[value]) for value in allowed
             ) + "."
-        if isinstance(labels, dict):
-            return "Ответ на этот запрос временно недоступен."
-        return "Допустимые значения: " + ", ".join(map(str, allowed)) + "."
+        return _UNAVAILABLE_REQUEST
     if request.get("fact_key") == "declaration_date":
         return "Введите календарную дату в формате ГГГГ-ММ-ДД."
     if contract.get("pattern"):
@@ -337,7 +336,7 @@ def _request_presentation(request: dict[str, Any]) -> dict[str, Any] | None:
 def _presentation_contract_valid(request: dict[str, Any]) -> bool:
     presentation = _request_presentation(request)
     if presentation is None:
-        return True
+        return False
     labels = presentation.get("code_labels")
     if labels is None:
         return True
