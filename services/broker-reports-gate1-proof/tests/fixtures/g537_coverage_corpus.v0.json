@@ -55,6 +55,7 @@
       "tax_period": "2022",
       "privacy_status": "official_public_sample_raw_bytes_private_local_only",
       "content_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+      "size_bytes": 639417,
       "expected_known_economic_events": ["SECURITY_PURCHASE"],
       "evidence_origin": {
         "kind": "official_public_broker_sample",

@@ -74,7 +74,7 @@ def _event(receipt: dict[str, Any], event_code: str) -> list[dict[str, Any]]:
     return [item for item in events if isinstance(item, dict) and item.get("event") == event_code]
 
 
-def _public_source_owner_record() -> dict[str, str]:
+def _public_source_owner_record() -> dict[str, Any]:
     corpus = json.loads(PUBLIC_SOURCE_CORPUS_PATH.read_text(encoding="utf-8"))
     samples = corpus.get("samples") if isinstance(corpus, dict) else None
     matches = [
@@ -87,6 +87,7 @@ def _public_source_owner_record() -> dict[str, str]:
     item = matches[0]
     origin = item.get("evidence_origin")
     sha256 = item.get("content_sha256")
+    size_bytes = item.get("size_bytes")
     if (
         item.get("source_or_broker") != "T-Bank"
         or item.get("document_format") != "pdf"
@@ -94,11 +95,14 @@ def _public_source_owner_record() -> dict[str, str]:
         or origin.get("kind") != "official_public_broker_sample"
         or not isinstance(origin.get("source_url"), str)
         or re.fullmatch(r"[0-9a-f]{64}", str(sha256)) is None
+        or not isinstance(size_bytes, int)
+        or size_bytes <= 0
     ):
         raise Issue306ReceiptError("issue306_public_source_owner_contract_invalid")
     return {
         "sample_id": PUBLIC_SOURCE_SAMPLE_ID,
         "content_sha256": str(sha256),
+        "size_bytes": size_bytes,
         "source_url": str(origin["source_url"]),
     }
 
@@ -195,9 +199,8 @@ def _validate_source_run(receipt: dict[str, Any]) -> None:
         or set(artifact) != {"sample_id", "content_sha256", "size_bytes", "source_url"}
         or artifact.get("sample_id") != expected["sample_id"]
         or artifact.get("content_sha256") != expected["content_sha256"]
+        or artifact.get("size_bytes") != expected["size_bytes"]
         or artifact.get("source_url") != expected["source_url"]
-        or not isinstance(artifact.get("size_bytes"), int)
-        or artifact["size_bytes"] <= 0
     ):
         raise Issue306ReceiptError("issue306_source_artifact_binding_invalid")
     events = _event(receipt, "representative_source_blocked_before_declaration")

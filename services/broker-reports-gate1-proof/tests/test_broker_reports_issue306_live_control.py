@@ -250,10 +250,7 @@ def test_issue306_source_receipt_requires_owner_pinned_bytes() -> None:
     receipt = {
         "run_kind": "representative_source",
         "source_kind": "public_representative_broker_report",
-        "source_artifact": {
-            **owner,
-            "size_bytes": 639417,
-        },
+        "source_artifact": dict(owner),
         "events": [
             {
                 "event": "representative_source_blocked_before_declaration",
@@ -268,6 +265,7 @@ def test_issue306_source_receipt_requires_owner_pinned_bytes() -> None:
         {"source_kind": "arbitrary_unbound_file"},
         {"source_artifact": {**receipt["source_artifact"], "content_sha256": "0" * 64}},
         {"source_artifact": {**receipt["source_artifact"], "size_bytes": 0}},
+        {"source_artifact": {**receipt["source_artifact"], "size_bytes": 639418}},
     ):
         candidate = {**receipt, **mutation}
         try:
@@ -285,6 +283,7 @@ def test_issue306_source_receipt_requires_owner_pinned_bytes() -> None:
     ]
     assert len(owner_rows) == 1
     assert owner["content_sha256"] == owner_rows[0]["content_sha256"]
+    assert owner["size_bytes"] == owner_rows[0]["size_bytes"] == 639417
 
 
 def test_issue306_supported_source_has_owner_visible_direct_expense() -> None:
