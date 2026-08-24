@@ -1,89 +1,468 @@
 {
-  "schema_version": "broker_reports_issue306_safe_interaction_trace_v1",
-  "privacy": {
-    "pii_recorded": false,
-    "secrets_recorded": false,
-    "hidden_refs_recorded": false,
-    "document_contents_recorded": false
+  "developer_mode": {
+    "diagnostic_intervention_during_clean_runs": false,
+    "new_tax_source_or_identity_authority_added": false
   },
+  "exact_base_sha": "db199ce082a5b40cade538e46f674c83a14b4d43",
+  "privacy": {
+    "document_contents_recorded": false,
+    "hidden_refs_recorded": false,
+    "pii_recorded": false,
+    "secrets_recorded": false
+  },
+  "receipt_sha256": "8277ff74d5b23de3c7174d791bc0179ad6fabfd357dff21d9197df1d0b3fd94c",
+  "schema_version": "broker_reports_issue306_safe_interaction_proof_v2",
+  "tested_code_manifest": {
+    "browser_driver_sha256": "5210091eaa817ae34f2314c9d0e03fcfef44fc3399d243f18ab272a3e3cbd713",
+    "control_script_sha256": "2b176086ee283d8f954c4321831301728e9aa64f027fa92604942db158632b81",
+    "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
+    "receipt_builder_sha256": "7a057b0af1d55dfd90bb9af922dbf28d684be19a2c4141f5b11aabe44ebe6c66"
+  },
+  "tested_commits": [
+    "dca244c3c46b3b4c14d0678cd28f92b0cf7b80b0"
+  ],
   "user_mode": {
-    "entrypoint": "maintained generated broker_reports_ndfl Function in isolated OpenWebUI",
-    "browser_ui_only": true,
-    "final_bundle_sha256": "2edb8c455127cb48418d48ddd997ed019f32601774370dd69dae1bb1844e663f",
-    "clean_runs": [
+    "clean_room_runs": [
       {
-        "run": "A",
-        "new_users_and_case": true,
-        "invalid_checksum_inn_rejected": true,
-        "invalid_calendar_date_rejected": true,
-        "deferred_fill_only_observed": true,
-        "draft_without_xml_observed": true,
-        "accepted_value_corrected": true,
-        "private_xml_downloaded": true,
-        "reload_resumed": true,
-        "concurrent_retry_one_logical_link": true,
-        "second_user_denied": true,
-        "final_note_visible": true,
-        "xml_bytes": 1102,
-        "xml_sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5",
-        "xsd_valid": true
+        "browser_ui_only": true,
+        "developer_intervention_during_user_run": false,
+        "document_contents_recorded": false,
+        "events": [
+          {
+            "event": "unanswered_tab_closed_and_second_case_admitted",
+            "first_elapsed_ms": 8128,
+            "first_question_visible": true,
+            "first_tab_closed_without_answer": true,
+            "mode": "user",
+            "second_case_question_visible": true,
+            "second_elapsed_ms": 8096
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "residency"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "zero_scope"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "capacity"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "destination"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "filing"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "budget"
+          },
+          {
+            "accepted": false,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": true,
+            "mode": "user",
+            "question_family": "identity"
+          },
+          {
+            "accepted": true,
+            "deferred": true,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "identity"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "identity"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "signer"
+          },
+          {
+            "accepted": false,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": true,
+            "mode": "user",
+            "question_family": "date"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "date"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "oktmo"
+          },
+          {
+            "event": "accepted_value_corrected",
+            "field": "declaration_date",
+            "mode": "user"
+          },
+          {
+            "event": "final_summary_verified",
+            "mode": "user",
+            "required_sections_visible": true,
+            "visible_values": {
+              "accepted_expenses": "61.00",
+              "calculated_tax": "5",
+              "tax_base": "39.00",
+              "tax_payable": "5",
+              "total_income": "100.00"
+            }
+          },
+          {
+            "bytes": 1102,
+            "chat_url_sha256": "15eae5229eaf455e843446980b5b38a35eeb3e0cafeb71f64cc61a16919944a7",
+            "event": "private_xml_downloaded",
+            "mode": "user",
+            "private_download_url_sha256": "52dd13246091e06b7be4c9db878ddff6ba7a90a60f399474334e9992c207b6b8",
+            "sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5"
+          },
+          {
+            "event": "resume_and_concurrent_retry",
+            "logical_download_links_stable": true,
+            "mode": "user",
+            "reload_resumed": true
+          },
+          {
+            "case_denied": true,
+            "event": "second_user_denied",
+            "mode": "user",
+            "model_hidden": true,
+            "private_file_denied": true
+          }
+        ],
+        "finished_at": "2026-08-24T18:45:22.334Z",
+        "hidden_refs_observed": false,
+        "proof_binding": {
+          "browser_driver_sha256": "5210091eaa817ae34f2314c9d0e03fcfef44fc3399d243f18ab272a3e3cbd713",
+          "control_prepared_receipt_sha256": "78d18f9f95e472d19c666d6bec06cc41a16e21923ff358b253f7fd1785acd2b3",
+          "control_script_sha256": "2b176086ee283d8f954c4321831301728e9aa64f027fa92604942db158632b81",
+          "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
+          "tested_commit": "dca244c3c46b3b4c14d0678cd28f92b0cf7b80b0"
+        },
+        "receipt_sha256": "679efd7de970b574e79e1165ec20fcb9e038d11e63f66b7061e3de8b24fcb17f",
+        "run_id": "9a7b101c-7849-4e7e-a2ec-283994b41c07",
+        "run_kind": "clean_room",
+        "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
+        "source_kind": "synthetic_supported_fixture",
+        "started_at": "2026-08-24T18:41:58.983Z"
       },
       {
-        "run": "B",
-        "new_users_and_case": true,
-        "diagnostic_intervention": false,
-        "invalid_checksum_inn_rejected": true,
-        "invalid_calendar_date_rejected": true,
-        "deferred_fill_only_observed": true,
-        "draft_without_xml_observed": true,
-        "accepted_value_corrected": true,
-        "private_xml_downloaded": true,
-        "reload_resumed": true,
-        "concurrent_retry_one_logical_link": true,
-        "second_user_denied": true,
-        "final_note_visible": true,
-        "xml_bytes": 1102,
-        "xml_sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5",
-        "xsd_valid": true
+        "browser_ui_only": true,
+        "developer_intervention_during_user_run": false,
+        "document_contents_recorded": false,
+        "events": [
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "residency"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "capacity"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "zero_scope"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "budget"
+          },
+          {
+            "accepted": false,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": true,
+            "mode": "user",
+            "question_family": "date"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "date"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "signer"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "oktmo"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "destination"
+          },
+          {
+            "accepted": false,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": true,
+            "mode": "user",
+            "question_family": "identity"
+          },
+          {
+            "accepted": true,
+            "deferred": true,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "identity"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "identity"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "filing"
+          },
+          {
+            "event": "accepted_value_corrected",
+            "field": "declaration_date",
+            "mode": "user"
+          },
+          {
+            "event": "final_summary_verified",
+            "mode": "user",
+            "required_sections_visible": true,
+            "visible_values": {
+              "accepted_expenses": "61.00",
+              "calculated_tax": "5",
+              "tax_base": "39.00",
+              "tax_payable": "5",
+              "total_income": "100.00"
+            }
+          },
+          {
+            "bytes": 1102,
+            "chat_url_sha256": "442809bd62237054bdc1dc219d42358e926d85dae0e713423a863bd21b4632d6",
+            "event": "private_xml_downloaded",
+            "mode": "user",
+            "private_download_url_sha256": "bbef186d84677c9de7d131ab954928dd8bff40cd86451bd822a897770f99af77",
+            "sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5"
+          },
+          {
+            "event": "resume_and_concurrent_retry",
+            "logical_download_links_stable": true,
+            "mode": "user",
+            "reload_resumed": true
+          },
+          {
+            "case_denied": true,
+            "event": "second_user_denied",
+            "mode": "user",
+            "model_hidden": true,
+            "private_file_denied": true
+          }
+        ],
+        "finished_at": "2026-08-24T18:50:19.063Z",
+        "hidden_refs_observed": false,
+        "proof_binding": {
+          "browser_driver_sha256": "5210091eaa817ae34f2314c9d0e03fcfef44fc3399d243f18ab272a3e3cbd713",
+          "control_prepared_receipt_sha256": "fa712e80e56a2a3583bde4fc6578b32d00efb8a8b42836149d841ed5508e1f22",
+          "control_script_sha256": "2b176086ee283d8f954c4321831301728e9aa64f027fa92604942db158632b81",
+          "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
+          "tested_commit": "dca244c3c46b3b4c14d0678cd28f92b0cf7b80b0"
+        },
+        "receipt_sha256": "f6873cbee72f29e257dd402aab0c2383c0ae6dcb17966b940e219bc4b8e799ec",
+        "run_id": "7a0cf2bb-0722-459e-9875-7134ab93fd01",
+        "run_kind": "clean_room",
+        "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
+        "source_kind": "synthetic_supported_fixture",
+        "started_at": "2026-08-24T18:47:39.507Z"
+      }
+    ],
+    "representative_source_run": {
+      "browser_ui_only": true,
+      "document_contents_recorded": false,
+      "events": [
+        {
+          "event": "representative_source_blocked_before_declaration",
+          "mode": "user",
+          "private_download_created": false,
+          "typed_blocker_visible": true,
+          "xml_created": false
+        }
+      ],
+      "finished_at": "2026-08-24T18:46:13.203Z",
+      "hidden_refs_observed": false,
+      "proof_binding": {
+        "browser_driver_sha256": "5210091eaa817ae34f2314c9d0e03fcfef44fc3399d243f18ab272a3e3cbd713",
+        "control_prepared_receipt_sha256": "78d18f9f95e472d19c666d6bec06cc41a16e21923ff358b253f7fd1785acd2b3",
+        "control_script_sha256": "2b176086ee283d8f954c4321831301728e9aa64f027fa92604942db158632b81",
+        "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
+        "tested_commit": "dca244c3c46b3b4c14d0678cd28f92b0cf7b80b0"
+      },
+      "receipt_sha256": "9c52dd6b08737b493385c96283069dbdd56111187f58293b88bbba764b3c7dee",
+      "run_id": "5dd9c559-b644-4a85-be9a-cf4377baf275",
+      "run_kind": "representative_source",
+      "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
+      "source_kind": "public_representative_broker_report",
+      "started_at": "2026-08-24T18:45:31.397Z"
+    }
+  },
+  "verification_mode": {
+    "control_restored_receipts": [
+      {
+        "control_run_id": "edb04d4c2a07f60dd456889144aa0c01",
+        "deployed_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
+        "function_id": "broker_reports_ndfl",
+        "legacy_function_inactive": false,
+        "model_public_grant_added": false,
+        "predecessor_control_prepared_receipt_sha256": "78d18f9f95e472d19c666d6bec06cc41a16e21923ff358b253f7fd1785acd2b3",
+        "proof_valves_enabled": false,
+        "receipt_sha256": "b861e7b9ad723b883c250d17aaa04d8b723d50a8482344e7a0d37147035a60d3",
+        "release_valves_exact": false,
+        "schema_version": "broker_reports_gate5_openwebui_control_v0",
+        "state_restored": true,
+        "status": "restored",
+        "temporary_users": 2,
+        "user_a_model_visible": true,
+        "user_b_model_hidden": true,
+        "workspace_model_id": "broker_reports_ndfl"
+      },
+      {
+        "control_run_id": "9a48410e9a60035c5a06f6c5b335640f",
+        "deployed_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
+        "function_id": "broker_reports_ndfl",
+        "legacy_function_inactive": false,
+        "model_public_grant_added": false,
+        "predecessor_control_prepared_receipt_sha256": "fa712e80e56a2a3583bde4fc6578b32d00efb8a8b42836149d841ed5508e1f22",
+        "proof_valves_enabled": false,
+        "receipt_sha256": "82ed31013b3794deda2dabe24ffdbc8993a6fe8ba2b0e3d8492edfb80b90b841",
+        "release_valves_exact": false,
+        "schema_version": "broker_reports_gate5_openwebui_control_v0",
+        "state_restored": true,
+        "status": "restored",
+        "temporary_users": 2,
+        "user_a_model_visible": true,
+        "user_b_model_hidden": true,
+        "workspace_model_id": "broker_reports_ndfl"
       }
     ],
     "downloaded_xml_byte_equal_between_runs": true,
-    "visible_and_xml_values_match": true,
-    "representative_source": {
-      "kind": "permitted public broker report sample",
-      "uploaded_through_browser": true,
-      "supported_owner_facts_produced": false,
-      "typed_blocker_visible": true,
-      "xml_created": false,
-      "private_download_created": false,
-      "internal_refs_visible": false,
-      "post_result_test_container_oom_at_1200_mib": true,
-      "container_restarted_and_control_restored": true
-    },
-    "close_tab": {
-      "first_human_request_visible": true,
-      "first_tab_closed_without_answer": true,
-      "second_case_admitted_without_first_answer": true,
-      "second_human_request_visible": true
-    }
-  },
-  "developer_mode": {
-    "started_only_after_black_box_failure": true,
-    "provider_or_llm_calls_for_tax_identity_or_source_truth": 0,
-    "defects_fixed": [
-      "direct workspace model was not the installed execution entrypoint",
-      "typed source blocker crashed on absent user_actions",
-      "human think time retained the source workload lease",
-      "abandoned queued caller could survive restart",
-      "legacy active Function duplicated memory-heavy runtime loading",
-      "supported source fixture omitted a required direct disposal expense",
-      "message-derived run identity created more than one logical XML file",
-      "final user note omitted extracted calculated supplied and filing-check sections",
-      "source blocker exposed internal owner diagnostics",
-      "workload progress exposed the internal job identity"
-    ],
-    "proof_defects_fixed": [
-      "concurrent oracle compared virtualized historical branch links instead of current corrected result"
+    "owner_xml_verification": [
+      {
+        "placeholders_total": 0,
+        "projection_owner_proof_sha256": "401bbdf3002f25f1f30e9bd78b755046e528db2a9072bcf075c16a50530cbdca",
+        "projection_owner_schema_version": "broker_reports_gate5_serialized_xml_values_v1",
+        "values": {
+          "accepted_expenses": "61.00",
+          "calculated_tax": "5",
+          "tax_base": "39.00",
+          "tax_payable": "5",
+          "total_income": "100.00"
+        },
+        "visible_values_match": true,
+        "xml_sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5",
+        "xml_size_bytes": 1102,
+        "xsd_valid": true
+      },
+      {
+        "placeholders_total": 0,
+        "projection_owner_proof_sha256": "401bbdf3002f25f1f30e9bd78b755046e528db2a9072bcf075c16a50530cbdca",
+        "projection_owner_schema_version": "broker_reports_gate5_serialized_xml_values_v1",
+        "values": {
+          "accepted_expenses": "61.00",
+          "calculated_tax": "5",
+          "tax_base": "39.00",
+          "tax_payable": "5",
+          "total_income": "100.00"
+        },
+        "visible_values_match": true,
+        "xml_sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5",
+        "xml_size_bytes": 1102,
+        "xsd_valid": true
+      }
     ]
   }
 }

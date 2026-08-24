@@ -10,7 +10,12 @@ Dependency: PR #305 merged unchanged from approved head
 Branch: `agent/issue-306-live-openwebui-goal`
 
 Final generated bundle SHA-256:
-`2edb8c455127cb48418d48ddd997ed019f32601774370dd69dae1bb1844e663f`
+`560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d`
+
+Live-tested code head: `dca244c3c46b3b4c14d0678cd28f92b0cf7b80b0`
+
+Mechanically verified safe receipt:
+`8277ff74d5b23de3c7174d791bc0179ad6fabfd357dff21d9197df1d0b3fd94c`
 
 ## Verdict
 
@@ -39,6 +44,9 @@ import/submission claim is made.
   a new user/case.
 - Runtime LLM/provider calls for source, identity, tax or authority decisions:
   zero.
+- The two proof windows carry different control-owner-issued run ids; each
+  browser receipt binds its exact prepared receipt and each cleanup receipt
+  binds that prepared predecessor.
 
 ## Final clean evidence
 
@@ -81,8 +89,8 @@ The final note explicitly distinguishes:
 - User B could not see the NDFL model, could not download the guessed private
   file URL, and could not see user A's chat result.
 - Closing a tab on an unanswered Human Fact question did not retain the source
-  workload lease: a second independent case reached its question in about
-  eight seconds without answering the first.
+  workload lease: a second independent case reached its question in `8096 ms`
+  without answering the first; the proof fails at `30000 ms`.
 - Persisted queued callers now hold renewable leases; cancellation is persisted
   and expired orphan waiters recover fail-closed after restart.
 
@@ -93,13 +101,6 @@ the same browser file-input path. The current Canonical/source route did not
 produce the owner facts required by the supported declaration profile. The UI
 therefore stopped before declaration, created no XML/download, and displayed a
 plain-language source blocker. No labels, facts or artifacts were injected.
-
-After the blocker had been captured, OpenWebUI's own background embedding of
-the representative PDF exceeded the deliberately small 1200 MiB test-container
-limit and the container was OOM-killed. The container was restarted, the
-bounded control cleanup completed, and clean run B then passed. This is an
-explicit staging-capacity limit; it is not presented as a successful
-long-running representative-PDF workload.
 
 This is an honest current MVP source-extraction limit. The synthetic source
 proves the supported vertical product route; it is not presented as proof that
@@ -139,6 +140,21 @@ arbitrary production broker PDFs are supported.
     pre-correction and corrected owner receipts/files and no third artifact.
     The proof now binds both concurrent replies and post-reload current state to
     the corrected link explicitly.
+12. The final note called `accepted_expenses` an extracted report value even
+    though it is a Tax Model result. All five numeric outputs now stay in the
+    Tax Model plus independent XML-reconciliation section; the source section
+    contains no calculated number.
+13. Human questions exposed owner-internal English codes. The Human Adapter now
+    maps only the exact current owner `answer_contract.allowed` set to bounded
+    Russian labels; raw codes and an unknown future code fail closed.
+14. The first committed interaction trace summarized hand-checked booleans. A
+    narrow builder now validates two genuine browser receipts, downloaded XML
+    bytes through the existing XML owner, current bundle/driver/control bytes,
+    cleanup predecessors and the aggregate receipt hash.
+15. Retest showed that two different controls could produce byte-equal safe
+    receipts. The control owner now issues a random technical `control_run_id`;
+    the final proof requires two different ids and two prepared-to-restored
+    chains. The earlier A run was discarded and both runs were repeated.
 
 No new questionnaire engine, owner, registry, Tax Model, Scope/Package/XML
 meaning, LLM authority, or artifact mutation path was added.
@@ -154,28 +170,34 @@ meaning, LLM authority, or artifact mutation path was added.
 - live queued waiter renews until admitted;
 - direct source blocker and progress do not expose internal identifiers;
 - browser driver statically forbids app API bypass;
+- raw machine answers and unknown owner codes fail closed;
+- committed receipt hashes and current code manifest are revalidated in CI;
+- two independent control ids and prepared-to-cleanup chains are required;
 - public representative source must block without XML;
 - existing Human Fact currentness, correction, conflict and fail-closed rules
   remain covered by their owner suites.
 
-Local focused receipt: `90 passed` across the Issue #306 control, installed
-product Pipe/bundle, workspace model, workload authority, declaration MVP and
-ordinary-trade production-candidate suites. The generated bundle rebuilt
-byte-equal at the SHA recorded above; JavaScript syntax, Python compilation,
-JSON parsing and `git diff --check` passed.
+Final active-route command: `235 passed` across production candidate/release,
+deterministic consumption, declaration preparation, Human Facts, Tax Model,
+Category/declaration assembly, XML projection, declaration MVP, installed
+Pipe, workload authority, workspace model, the committed Issue #306 trace and
+frozen evidence. The generated bundle rebuilt byte-equal at the SHA recorded
+above; JavaScript syntax, Python compilation, lint, JSON parsing and
+`git diff --check` passed.
 
 After the first exact-head CI exposed one stale Gate 3 workflow fixture still
 using the domain workflow id as its OpenWebUI workspace id, that fixture was
 bound to `NDFL_WORKSPACE_MODEL_STABLE_ID`. The exact CI Gate 2 architecture
 command then passed locally: `292 passed`.
 
-An attempted broad local suite exposed the existing architecture assertion
+An earlier broad local suite exposed the existing architecture assertion
 `test_projection_decimal_use_is_representation_validation_only`: its expected
 function set already differs from the untouched
 `gate5_full_target_xml_projection.py` on the merged base. Neither that module
 nor the guard test is changed by this branch, so this report does not turn the
-broad attempt into a green claim. Required exact-head CI is the publication
-gate and is reported on the PR/Issue receipt.
+broad attempt into a green claim. Required final exact-head CI remains the
+publication gate and is reported on the PR/Issue receipt rather than guessed
+in this report.
 
 ## Self-review answers
 

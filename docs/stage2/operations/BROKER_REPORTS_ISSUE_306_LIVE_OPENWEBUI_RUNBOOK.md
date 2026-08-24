@@ -47,6 +47,7 @@ The safe receipt must report:
 - `legacy_function_inactive=true`;
 - `release_valves_exact=true`;
 - a valid `receipt_sha256`;
+- an owner-issued 32-hex `control_run_id`;
 - two temporary users, with the model visible only to user A.
 
 ## Browser-only supported-profile proof
@@ -75,7 +76,8 @@ browser-driver bytes, control receipt, and clean tested commit; do not edit it.
 After the representative-source smoke below and cleanup of control A, prepare
 a fresh `control-review-b`, remove `ISSUE306_CLOSE_TAB_PROOF`, and repeat into
 `blackbox-review-b`. There must be no diagnostic intervention between prepare
-and either clean run.
+and either clean run. The two controls must have different `control_run_id`
+values and different prepared receipt hashes.
 
 ## Representative public source smoke
 

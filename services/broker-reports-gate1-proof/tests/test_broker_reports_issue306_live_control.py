@@ -9,10 +9,18 @@ from types import SimpleNamespace
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = SERVICE_ROOT.parents[1]
 SCRIPT_PATH = SERVICE_ROOT / "scripts/live_gate5_openwebui_product_path_control.py"
 BROWSER_GOAL_PATH = SERVICE_ROOT / "scripts/live_issue306_openwebui_browser_goal.js"
 RECEIPT_BUILDER_PATH = (
     SERVICE_ROOT / "scripts/build_issue306_safe_interaction_receipt.py"
+)
+COMMITTED_TRACE_PATH = (
+    REPO_ROOT
+    / "docs/reports/2026-08-24/BROKER_REPORTS_ISSUE_306_INTERACTION_TRACE.safe.json"
+)
+BUNDLE_PATH = (
+    SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
 )
 
 
@@ -224,3 +232,53 @@ def test_issue306_supported_source_has_owner_visible_direct_expense() -> None:
     disposal = next(row for row in rows if row["Вид"] == "Продажа")
     assert disposal["Комиссия Брокера"] == "1.00"
     assert disposal["Комиссия Биржи"] == "0.00"
+
+
+def test_committed_issue306_trace_is_bound_to_current_proof_code() -> None:
+    trace = json.loads(COMMITTED_TRACE_PATH.read_text(encoding="utf-8"))
+    assert trace["schema_version"] == "broker_reports_issue306_safe_interaction_proof_v2"
+    assert trace["receipt_sha256"] == _receipt_sha256(trace)
+
+    manifest = trace["tested_code_manifest"]
+    current_paths = {
+        "generated_bundle_sha256": BUNDLE_PATH,
+        "browser_driver_sha256": BROWSER_GOAL_PATH,
+        "control_script_sha256": SCRIPT_PATH,
+        "receipt_builder_sha256": RECEIPT_BUILDER_PATH,
+    }
+    for key, path in current_paths.items():
+        assert manifest[key] == hashlib.sha256(path.read_bytes()).hexdigest()
+
+    clean_runs = trace["user_mode"]["clean_room_runs"]
+    assert len(clean_runs) == 2
+    assert len({item["run_id"] for item in clean_runs}) == 2
+    for item in clean_runs:
+        assert item["receipt_sha256"] == _receipt_sha256(item)
+        assert item["proof_binding"]["generated_bundle_sha256"] == manifest[
+            "generated_bundle_sha256"
+        ]
+    source = trace["user_mode"]["representative_source_run"]
+    assert source["receipt_sha256"] == _receipt_sha256(source)
+    assert source["run_kind"] == "representative_source"
+
+    restored = trace["verification_mode"]["control_restored_receipts"]
+    assert len(restored) == 2
+    assert len({item["control_run_id"] for item in restored}) == 2
+    for item in restored:
+        assert item["status"] == "restored"
+        assert item["state_restored"] is True
+        assert item["receipt_sha256"] == _receipt_sha256(item)
+    close_events = [
+        event
+        for item in clean_runs
+        for event in item["events"]
+        if event.get("event") == "unanswered_tab_closed_and_second_case_admitted"
+    ]
+    assert close_events
+    assert max(int(event["second_elapsed_ms"]) for event in close_events) < 30000
+
+    owner_checks = trace["verification_mode"]["owner_xml_verification"]
+    assert len(owner_checks) == 2
+    assert all(item["xsd_valid"] is True for item in owner_checks)
+    assert all(item["visible_values_match"] is True for item in owner_checks)
+    assert trace["verification_mode"]["downloaded_xml_byte_equal_between_runs"] is True
