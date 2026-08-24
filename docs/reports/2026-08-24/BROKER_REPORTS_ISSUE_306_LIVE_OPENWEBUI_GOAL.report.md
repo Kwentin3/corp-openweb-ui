@@ -185,6 +185,12 @@ frozen evidence. The generated bundle rebuilt byte-equal at the SHA recorded
 above; JavaScript syntax, Python compilation, lint, JSON parsing and
 `git diff --check` passed.
 
+The first final-head Linux CI run correctly rejected a Windows mixed-EOL
+working-tree hash that could not be reconstructed from the clean checkout.
+The proof now binds browser-driver, control and receipt-builder source to their
+exact clean tested Git blobs; the deployed generated bundle remains byte-exact.
+Both browser runs are repeated after this proof-boundary correction.
+
 After the first exact-head CI exposed one stale Gate 3 workflow fixture still
 using the domain workflow id as its OpenWebUI workspace id, that fixture was
 bound to `NDFL_WORKSPACE_MODEL_STABLE_ID`. The exact CI Gate 2 architecture

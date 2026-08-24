@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
 
@@ -38,6 +39,15 @@ def _receipt_sha256(value: dict) -> str:
         base, ensure_ascii=False, separators=(",", ":"), sort_keys=True
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _git_blob_sha256(path: Path) -> str:
+    relative = path.resolve().relative_to(REPO_ROOT).as_posix()
+    blob = subprocess.check_output(
+        ["git", "show", f"HEAD:{relative}"],
+        cwd=REPO_ROOT,
+    )
+    return hashlib.sha256(blob).hexdigest()
 
 
 def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) -> None:
@@ -186,6 +196,8 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "answer = 'PAYMENT'" not in source
     assert "answer = 'individual_not_ip_not_private_practice'" not in source
     assert "childProcess.execFileSync" in source
+    assert "gitBlobSha256" in source
+    assert "['show', `${testedCommit}:${relative}`]" in source
     assert "page.close()" in source
 
 
@@ -240,14 +252,16 @@ def test_committed_issue306_trace_is_bound_to_current_proof_code() -> None:
     assert trace["receipt_sha256"] == _receipt_sha256(trace)
 
     manifest = trace["tested_code_manifest"]
-    current_paths = {
-        "generated_bundle_sha256": BUNDLE_PATH,
+    assert manifest["generated_bundle_sha256"] == hashlib.sha256(
+        BUNDLE_PATH.read_bytes()
+    ).hexdigest()
+    proof_text_paths = {
         "browser_driver_sha256": BROWSER_GOAL_PATH,
         "control_script_sha256": SCRIPT_PATH,
         "receipt_builder_sha256": RECEIPT_BUILDER_PATH,
     }
-    for key, path in current_paths.items():
-        assert manifest[key] == hashlib.sha256(path.read_bytes()).hexdigest()
+    for key, path in proof_text_paths.items():
+        assert manifest[key] == _git_blob_sha256(path)
 
     clean_runs = trace["user_mode"]["clean_room_runs"]
     assert len(clean_runs) == 2

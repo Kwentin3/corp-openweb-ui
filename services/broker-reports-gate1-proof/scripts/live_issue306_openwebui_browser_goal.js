@@ -38,6 +38,16 @@ function receipt(value) {
   return { ...value, receipt_sha256: canonicalSha256(value) };
 }
 
+function gitBlobSha256(repoRoot, testedCommit, filePath) {
+  const relative = path.relative(repoRoot, filePath).split(path.sep).join('/');
+  if (!relative || relative.startsWith('../')) throw new Error('proof_file_outside_repo');
+  const blob = childProcess.execFileSync(
+    'git', ['show', `${testedCommit}:${relative}`],
+    { cwd: repoRoot, encoding: null, maxBuffer: 16 * 1024 * 1024 },
+  );
+  return sha256Bytes(blob);
+}
+
 function loadProofBinding(statePath, control) {
   const repoRoot = path.resolve(__dirname, '../../..');
   const dirty = childProcess.execFileSync(
@@ -69,10 +79,12 @@ function loadProofBinding(statePath, control) {
   return {
     tested_commit: testedCommit,
     generated_bundle_sha256: bundleSha256,
-    browser_driver_sha256: sha256Bytes(fs.readFileSync(__filename)),
-    control_script_sha256: sha256Bytes(fs.readFileSync(path.resolve(
-      __dirname, 'live_gate5_openwebui_product_path_control.py',
-    ))),
+    browser_driver_sha256: gitBlobSha256(repoRoot, testedCommit, __filename),
+    control_script_sha256: gitBlobSha256(
+      repoRoot,
+      testedCommit,
+      path.resolve(__dirname, 'live_gate5_openwebui_product_path_control.py'),
+    ),
     control_prepared_receipt_sha256: prepared.receipt_sha256,
   };
 }

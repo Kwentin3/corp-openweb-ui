@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 from typing import Any
 
@@ -40,6 +41,15 @@ def _sha_json(value: Any) -> str:
         value, ensure_ascii=False, separators=(",", ":"), sort_keys=True
     ).encode("utf-8")
     return _sha_bytes(encoded)
+
+
+def _git_blob_sha256(path: Path) -> str:
+    relative = path.resolve().relative_to(REPO_ROOT).as_posix()
+    blob = subprocess.check_output(
+        ["git", "show", f"HEAD:{relative}"],
+        cwd=REPO_ROOT,
+    )
+    return _sha_bytes(blob)
 
 
 def _read_receipt(path: Path, *, schema: str | None = None) -> dict[str, Any]:
@@ -216,8 +226,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     ]
     expected = {
         "generated_bundle_sha256": _sha_bytes(BUNDLE_PATH.read_bytes()),
-        "browser_driver_sha256": _sha_bytes(BROWSER_DRIVER_PATH.read_bytes()),
-        "control_script_sha256": _sha_bytes(CONTROL_PATH.read_bytes()),
+        "browser_driver_sha256": _git_blob_sha256(BROWSER_DRIVER_PATH),
+        "control_script_sha256": _git_blob_sha256(CONTROL_PATH),
     }
     for item in [*clean, source]:
         _validate_binding(item, expected=expected)
@@ -280,7 +290,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             "generated_bundle_sha256": expected["generated_bundle_sha256"],
             "browser_driver_sha256": expected["browser_driver_sha256"],
             "control_script_sha256": expected["control_script_sha256"],
-            "receipt_builder_sha256": _sha_bytes(SCRIPT_PATH.read_bytes()),
+            "receipt_builder_sha256": _git_blob_sha256(SCRIPT_PATH),
         },
         "user_mode": {
             "clean_room_runs": clean,
