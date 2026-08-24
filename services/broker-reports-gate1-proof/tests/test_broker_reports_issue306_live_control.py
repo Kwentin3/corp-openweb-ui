@@ -23,6 +23,7 @@ COMMITTED_TRACE_PATH = (
 BUNDLE_PATH = (
     SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
 )
+PUBLIC_SOURCE_CORPUS_PATH = SERVICE_ROOT / "tests/fixtures/g537_coverage_corpus.v0.json"
 
 
 def _load_control_module():
@@ -199,6 +200,9 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "gitBlobSha256" in source
     assert "['show', `${testedCommit}:${relative}`]" in source
     assert "page.close()" in source
+    assert "loadPublicRepresentativeSource" in source
+    assert "public_source_bytes_not_owner_pinned" in source
+    assert "source_artifact: sourceArtifact.receipt" in source
 
 
 def test_issue306_receipt_builder_uses_owner_xml_and_rejects_tampering(
@@ -233,6 +237,54 @@ def test_issue306_receipt_builder_uses_owner_xml_and_rejects_tampering(
     assert "Gate5FullTargetXmlProjectionRuntimeFactory" in source
     assert "issue306_visible_xml_values_mismatch" in source
     assert "issue306_clean_run_xml_bytes_differ" in source
+
+
+def test_issue306_source_receipt_requires_owner_pinned_bytes() -> None:
+    spec = importlib.util.spec_from_file_location(
+        "issue306_receipt_builder_source", RECEIPT_BUILDER_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    owner = builder._public_source_owner_record()
+    receipt = {
+        "run_kind": "representative_source",
+        "source_kind": "public_representative_broker_report",
+        "source_artifact": {
+            **owner,
+            "size_bytes": 639417,
+        },
+        "events": [
+            {
+                "event": "representative_source_blocked_before_declaration",
+                "xml_created": False,
+                "private_download_created": False,
+                "typed_blocker_visible": True,
+            }
+        ],
+    }
+    builder._validate_source_run(receipt)
+    for mutation in (
+        {"source_kind": "arbitrary_unbound_file"},
+        {"source_artifact": {**receipt["source_artifact"], "content_sha256": "0" * 64}},
+        {"source_artifact": {**receipt["source_artifact"], "size_bytes": 0}},
+    ):
+        candidate = {**receipt, **mutation}
+        try:
+            builder._validate_source_run(candidate)
+        except builder.Issue306ReceiptError:
+            pass
+        else:
+            raise AssertionError("unbound representative source must fail closed")
+
+    corpus = json.loads(PUBLIC_SOURCE_CORPUS_PATH.read_text(encoding="utf-8"))
+    owner_rows = [
+        item
+        for item in corpus["samples"]
+        if item.get("sample_id") == "g537_tbank_public_pdf_purchase"
+    ]
+    assert len(owner_rows) == 1
+    assert owner["content_sha256"] == owner_rows[0]["content_sha256"]
 
 
 def test_issue306_supported_source_has_owner_visible_direct_expense() -> None:
@@ -274,6 +326,18 @@ def test_committed_issue306_trace_is_bound_to_current_proof_code() -> None:
     source = trace["user_mode"]["representative_source_run"]
     assert source["receipt_sha256"] == _receipt_sha256(source)
     assert source["run_kind"] == "representative_source"
+    source_owner = json.loads(PUBLIC_SOURCE_CORPUS_PATH.read_text(encoding="utf-8"))
+    source_owner = next(
+        item
+        for item in source_owner["samples"]
+        if item.get("sample_id") == "g537_tbank_public_pdf_purchase"
+    )
+    assert source["source_artifact"] == {
+        "sample_id": source_owner["sample_id"],
+        "content_sha256": source_owner["content_sha256"],
+        "size_bytes": 639417,
+        "source_url": source_owner["evidence_origin"]["source_url"],
+    }
 
     restored = trace["verification_mode"]["control_restored_receipts"]
     assert len(restored) == 2

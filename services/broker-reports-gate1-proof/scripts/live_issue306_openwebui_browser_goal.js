@@ -16,6 +16,7 @@ const { chromium } = require(playwrightModule);
 
 const MODAL_TITLE = 'Данные для 3-НДФЛ';
 const CONTINUE = 'Продолжить';
+const PUBLIC_SOURCE_SAMPLE_ID = 'g537_tbank_public_pdf_purchase';
 
 function sha256Bytes(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
@@ -86,6 +87,45 @@ function loadProofBinding(statePath, control) {
       path.resolve(__dirname, 'live_gate5_openwebui_product_path_control.py'),
     ),
     control_prepared_receipt_sha256: prepared.receipt_sha256,
+  };
+}
+
+function loadPublicRepresentativeSource(sourcePath) {
+  const corpusPath = path.resolve(
+    __dirname, '../tests/fixtures/g537_coverage_corpus.v0.json',
+  );
+  const corpus = JSON.parse(fs.readFileSync(corpusPath, 'utf8'));
+  const samples = Array.isArray(corpus.samples) ? corpus.samples : [];
+  const matches = samples.filter((item) => item.sample_id === PUBLIC_SOURCE_SAMPLE_ID);
+  if (matches.length !== 1) throw new Error('public_source_owner_record_invalid');
+  const owner = matches[0];
+  const origin = owner.evidence_origin;
+  if (
+    owner.source_or_broker !== 'T-Bank'
+    || owner.document_format !== 'pdf'
+    || !origin
+    || origin.kind !== 'official_public_broker_sample'
+    || typeof origin.source_url !== 'string'
+  ) {
+    throw new Error('public_source_owner_contract_invalid');
+  }
+  const bytes = fs.readFileSync(sourcePath);
+  const contentSha256 = sha256Bytes(bytes);
+  if (contentSha256 !== owner.content_sha256) {
+    throw new Error('public_source_bytes_not_owner_pinned');
+  }
+  return {
+    upload: {
+      name: path.basename(sourcePath),
+      mimeType: 'application/pdf',
+      buffer: bytes,
+    },
+    receipt: {
+      sample_id: PUBLIC_SOURCE_SAMPLE_ID,
+      content_sha256: contentSha256,
+      size_bytes: bytes.length,
+      source_url: origin.source_url,
+    },
   };
 }
 
@@ -494,8 +534,9 @@ async function proveSecondUserDenied(browser, baseUrl, user, fileHref, chatUrl, 
 async function runRepresentativeSourceSmoke({ browser, control, source, outputDir }) {
   const context = await browser.newContext();
   const page = await login(context, control.base_url, control.users[0]);
+  const sourceArtifact = loadPublicRepresentativeSource(source);
   await selectNdfl(page);
-  await page.locator('input[type=file]').first().setInputFiles(source);
+  await page.locator('input[type=file]').first().setInputFiles(sourceArtifact.upload);
   await page.getByText(path.basename(source), { exact: false }).waitFor({
     state: 'visible',
     timeout: 60000,
@@ -517,6 +558,7 @@ async function runRepresentativeSourceSmoke({ browser, control, source, outputDi
   return {
     schema_version: 'broker_reports_issue306_safe_interaction_trace_v1',
     source_kind: 'public_representative_broker_report',
+    source_artifact: sourceArtifact.receipt,
     browser_ui_only: true,
     hidden_refs_observed: false,
     document_contents_recorded: false,

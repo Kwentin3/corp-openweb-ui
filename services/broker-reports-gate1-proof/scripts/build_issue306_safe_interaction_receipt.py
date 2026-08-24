@@ -20,6 +20,8 @@ REPO_ROOT = SERVICE_ROOT.parents[1]
 BUNDLE_PATH = SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
 BROWSER_DRIVER_PATH = SCRIPT_PATH.parent / "live_issue306_openwebui_browser_goal.js"
 CONTROL_PATH = SCRIPT_PATH.parent / "live_gate5_openwebui_product_path_control.py"
+PUBLIC_SOURCE_CORPUS_PATH = SERVICE_ROOT / "tests/fixtures/g537_coverage_corpus.v0.json"
+PUBLIC_SOURCE_SAMPLE_ID = "g537_tbank_public_pdf_purchase"
 
 sys.path.insert(0, str(SERVICE_ROOT))
 
@@ -70,6 +72,35 @@ def _event(receipt: dict[str, Any], event_code: str) -> list[dict[str, Any]]:
     if not isinstance(events, list):
         raise Issue306ReceiptError("issue306_browser_events_invalid")
     return [item for item in events if isinstance(item, dict) and item.get("event") == event_code]
+
+
+def _public_source_owner_record() -> dict[str, str]:
+    corpus = json.loads(PUBLIC_SOURCE_CORPUS_PATH.read_text(encoding="utf-8"))
+    samples = corpus.get("samples") if isinstance(corpus, dict) else None
+    matches = [
+        item
+        for item in samples if isinstance(item, dict)
+        and item.get("sample_id") == PUBLIC_SOURCE_SAMPLE_ID
+    ] if isinstance(samples, list) else []
+    if len(matches) != 1:
+        raise Issue306ReceiptError("issue306_public_source_owner_record_invalid")
+    item = matches[0]
+    origin = item.get("evidence_origin")
+    sha256 = item.get("content_sha256")
+    if (
+        item.get("source_or_broker") != "T-Bank"
+        or item.get("document_format") != "pdf"
+        or not isinstance(origin, dict)
+        or origin.get("kind") != "official_public_broker_sample"
+        or not isinstance(origin.get("source_url"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", str(sha256)) is None
+    ):
+        raise Issue306ReceiptError("issue306_public_source_owner_contract_invalid")
+    return {
+        "sample_id": PUBLIC_SOURCE_SAMPLE_ID,
+        "content_sha256": str(sha256),
+        "source_url": str(origin["source_url"]),
+    }
 
 
 def _validate_clean_run(receipt: dict[str, Any]) -> dict[str, str]:
@@ -152,8 +183,23 @@ def _validate_clean_run(receipt: dict[str, Any]) -> dict[str, str]:
 
 
 def _validate_source_run(receipt: dict[str, Any]) -> None:
-    if receipt.get("run_kind") != "representative_source":
+    if (
+        receipt.get("run_kind") != "representative_source"
+        or receipt.get("source_kind") != "public_representative_broker_report"
+    ):
         raise Issue306ReceiptError("issue306_source_run_kind_invalid")
+    artifact = receipt.get("source_artifact")
+    expected = _public_source_owner_record()
+    if (
+        not isinstance(artifact, dict)
+        or set(artifact) != {"sample_id", "content_sha256", "size_bytes", "source_url"}
+        or artifact.get("sample_id") != expected["sample_id"]
+        or artifact.get("content_sha256") != expected["content_sha256"]
+        or artifact.get("source_url") != expected["source_url"]
+        or not isinstance(artifact.get("size_bytes"), int)
+        or artifact["size_bytes"] <= 0
+    ):
+        raise Issue306ReceiptError("issue306_source_artifact_binding_invalid")
     events = _event(receipt, "representative_source_blocked_before_declaration")
     if (
         len(events) != 1

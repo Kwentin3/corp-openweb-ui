@@ -44,12 +44,14 @@ _UNAVAILABLE_REQUEST = "Ответ на этот запрос временно �
 # table can only translate a visible label to a value already allowed there.
 _REQUEST_PRESENTATION = {
     "taxpayer_identity": {
+        "answer_kind": "identity_choice",
         "question": (
             "Подтвердите найденные в текущем документе ИНН и ФИО, "
             "исправьте их или заполните позднее."
         ),
     },
     "taxpayer_capacity": {
+        "answer_kind": "code",
         "question": "Укажите ваш статус за 2025 год.",
         "code_labels": {
             "individual_not_ip_not_private_practice": (
@@ -60,18 +62,21 @@ _REQUEST_PRESENTATION = {
         },
     },
     "residency_evidence": {
+        "answer_kind": "residency_evidence",
         "question": (
             "Укажите все периоды присутствия и отсутствия в России за 2025 год; "
             "нужны даты, а не готовый вывод о налоговом резидентстве."
         ),
     },
     "ordinary_trade_declaration_zero_scope_confirmed": {
+        "answer_kind": "confirmation",
         "question": (
             "Подтвердите, что для этой декларации нет других доходов той же "
             "категории, вычетов, переносимых убытков, зачётов и удержанного налога."
         ),
     },
     "filing_instance_identity": {
+        "answer_kind": "code",
         "question": "Выберите вид декларации за 2025 год.",
         "code_labels": {
             "INITIAL": "Первичная декларация",
@@ -79,15 +84,18 @@ _REQUEST_PRESENTATION = {
         },
     },
     "declaration_date": {
+        "answer_kind": "text",
         "question": "Укажите дату подписания декларации.",
     },
     "filing_destination_code": {
+        "answer_kind": "code",
         "question": (
             "Введите четырёхзначный код налоговой инспекции, в которую будет "
             "подана декларация, либо заполните его позднее."
         ),
     },
     "signer_and_representation": {
+        "answer_kind": "code",
         "question": "Укажите, кто подписывает декларацию.",
         "code_labels": {
             "SELF": "Подписываю лично",
@@ -95,6 +103,7 @@ _REQUEST_PRESENTATION = {
         },
     },
     "budget_disposition": {
+        "answer_kind": "code",
         "question": "Выберите итог декларации для бюджета.",
         "code_labels": {
             "PAYMENT": "Налог к уплате",
@@ -104,6 +113,7 @@ _REQUEST_PRESENTATION = {
         },
     },
     "budget_oktmo": {
+        "answer_kind": "code",
         "question": (
             "Введите точный код ОКТМО из 8 или 11 цифр либо заполните его позднее."
         ),
@@ -337,11 +347,16 @@ def _presentation_contract_valid(request: dict[str, Any]) -> bool:
     presentation = _request_presentation(request)
     if presentation is None:
         return False
+    contract = request.get("answer_contract")
+    if (
+        not isinstance(contract, dict)
+        or contract.get("kind") != presentation.get("answer_kind")
+    ):
+        return False
     labels = presentation.get("code_labels")
     if labels is None:
         return True
-    contract = request.get("answer_contract")
-    allowed = contract.get("allowed") if isinstance(contract, dict) else None
+    allowed = contract.get("allowed")
     return (
         isinstance(labels, dict)
         and isinstance(allowed, list)
