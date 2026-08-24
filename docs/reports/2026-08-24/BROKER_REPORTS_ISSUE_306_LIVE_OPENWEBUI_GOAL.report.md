@@ -15,7 +15,7 @@ Final generated bundle SHA-256:
 Live-tested code head: `dd419f7d2f46a775c7f5e7c3e737b9b8d8bb4a8a`
 
 Mechanically verified safe receipt:
-`e6dad321e039e6963965e15c2c4046e15673f18c3c4ed446a0e45120159fd674`
+`7ba919492b1e49177268310bdfdfff6c6ceed89fbc24d32c75f219485008ef12`
 
 ## Verdict
 
@@ -184,6 +184,13 @@ arbitrary production broker PDFs are supported.
     Negative regressions cover both identity-choice-as-code and filing-code-as-
     text misbindings. Both clean browser runs and the representative-source run
     were repeated on `dd419f7d2f46a775c7f5e7c3e737b9b8d8bb4a8a`.
+19. Review of the regenerated proof found that the builder rejected a zero
+    source size but accepted a different positive size alongside the correct
+    hash. The existing public corpus owner now pins `size_bytes: 639417` next
+    to its content hash. The browser receipt already records the length of the
+    same buffer it hashes and uploads; the builder now requires that recorded
+    length to equal the owner value exactly. An adversarial `639417 -> 639418`
+    regression fails closed. No second source record or validator was added.
 
 No new questionnaire engine, owner, registry, Tax Model, Scope/Package/XML
 meaning, LLM authority, or artifact mutation path was added.

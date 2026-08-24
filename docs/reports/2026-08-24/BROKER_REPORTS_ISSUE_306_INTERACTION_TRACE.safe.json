@@ -10,13 +10,13 @@
     "pii_recorded": false,
     "secrets_recorded": false
   },
-  "receipt_sha256": "e6dad321e039e6963965e15c2c4046e15673f18c3c4ed446a0e45120159fd674",
+  "receipt_sha256": "7ba919492b1e49177268310bdfdfff6c6ceed89fbc24d32c75f219485008ef12",
   "schema_version": "broker_reports_issue306_safe_interaction_proof_v2",
   "tested_code_manifest": {
     "browser_driver_sha256": "000b8412b689a61700b7c6a9dce8e92f57d8987835ba957c54c723a86620d4ff",
     "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
     "generated_bundle_sha256": "c7251c3d88b57f7b7bdc0acc8f02667c68601ca1444de0ec937004827a064dad",
-    "receipt_builder_sha256": "5bc8cce596c6dd810e0f03aa8a7b0a5ca0198685b88d9fc5f954220df4842374"
+    "receipt_builder_sha256": "b5a8bdaf39549b34cc80a4900c5d501b84f7a48dda986258600c0a4468a480ef"
   },
   "tested_commits": [
     "dd419f7d2f46a775c7f5e7c3e737b9b8d8bb4a8a"
