@@ -178,6 +178,130 @@ def test_user_attested_candidate_defer_draft_and_same_case_xml_resume(
         )
     ready = runtime.run(canonical_artifact_refs=[], context=context)
     assert ready["product"]["status"] == "DECLARATION_XML_READY"
+
+
+def test_invalid_calendar_date_and_inn_checksum_are_rejected_before_fact(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+    )
+    first = runtime.run(canonical_artifact_refs=[], context=context)
+    by_key = {
+        item["fact_key"]: item
+        for item in first["product"]["preparation"]["user_actions"]
+    }
+    with pytest.raises(Exception) as invalid_inn:
+        runtime.normalize_declaration_action(
+            request_publication_ref=by_key["taxpayer_identity"][
+                "request_publication_ref"
+            ],
+            answer={
+                "kind": "identity_choice",
+                "value": {
+                    "choice": "CHANGE",
+                    "identity": {
+                        "inn": "123456789012",
+                        "last_name": "Иванов",
+                        "first_name": "Иван",
+                        "middle_name": "Иванович",
+                        "source_fact_refs": [],
+                    },
+                },
+            },
+            context=context,
+        )
+    assert getattr(invalid_inn.value, "code", "") == (
+        "gate5_gap_taxpayer_inn_checksum_invalid"
+    )
+    with pytest.raises(Exception) as invalid_date:
+        runtime.normalize_declaration_action(
+            request_publication_ref=by_key["declaration_date"][
+                "request_publication_ref"
+            ],
+            answer={"kind": "text", "value": "2025-99-99"},
+            context=context,
+        )
+    assert getattr(invalid_date.value, "code", "") == (
+        "gate5_gap_declaration_date_invalid"
+    )
+    current = runtime.run(canonical_artifact_refs=[], context=context)
+    current_keys = {
+        item["fact_key"]
+        for item in current["product"]["preparation"]["user_actions"]
+    }
+    assert {"taxpayer_identity", "declaration_date"} <= current_keys
+
+
+def test_owner_published_fill_fact_successor_allows_safe_correction(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers = _case(tmp_path, proceeds="60.00")
+    ready = runtime.run(canonical_artifact_refs=[], context=context)
+    assert ready["product"]["status"] == "DECLARATION_XML_READY"
+
+    successor = runtime.publish_declaration_change_action(
+        fact_key="declaration_date",
+        context=context,
+    )
+    pending = runtime.run(canonical_artifact_refs=[], context=context)
+    assert pending["product"]["status"] == "DRAFT_READY"
+    assert pending["product"]["xml_created"] is False
+    assert [
+        item["fact_key"]
+        for item in pending["product"]["preparation"]["user_actions"]
+    ] == ["declaration_date"]
+
+    with pytest.raises(Exception) as invalid:
+        runtime.normalize_declaration_action(
+            request_publication_ref=successor["request_publication_ref"],
+            answer={"kind": "text", "value": "2025-99-99"},
+            context=context,
+        )
+    assert getattr(invalid.value, "code", "") == "gate5_gap_declaration_date_invalid"
+    still_pending = runtime.run(canonical_artifact_refs=[], context=context)
+    assert still_pending["product"]["status"] == "DRAFT_READY"
+    accepted = runtime.normalize_declaration_action(
+        request_publication_ref=successor["request_publication_ref"],
+        answer={"kind": "text", "value": "2026-08-24"},
+        context=context,
+    )
+    assert accepted["status"] == "TYPED_USER_CASE_FACT_READY"
+    corrected = runtime.run(canonical_artifact_refs=[], context=context)
+    assert corrected["product"]["status"] == "DECLARATION_XML_READY"
+    identity_successor = runtime.publish_declaration_change_action(
+        fact_key="taxpayer_identity",
+        context=context,
+    )
+    identity_pending = runtime.run(canonical_artifact_refs=[], context=context)
+    assert identity_pending["product"]["status"] == "DRAFT_READY"
+    assert identity_pending["product"]["preparation"]["checklist_fact_keys"] == [
+        "taxpayer_identity"
+    ]
+    runtime.normalize_declaration_action(
+        request_publication_ref=identity_successor["request_publication_ref"],
+        answer={
+            "kind": "identity_choice",
+            "value": {
+                "choice": "CHANGE",
+                "identity": {
+                    "inn": "500100732322",
+                    "last_name": "Иванов",
+                    "first_name": "Иван",
+                    "middle_name": "Иванович",
+                    "source_fact_refs": [],
+                },
+            },
+        },
+        context=context,
+    )
+    identity_corrected = runtime.run(canonical_artifact_refs=[], context=context)
+    assert identity_corrected["product"]["status"] == "DECLARATION_XML_READY"
+    assert identity_corrected["declaration"]["xml_sha256"] != corrected[
+        "declaration"
+    ]["xml_sha256"]
     assert ready["product"]["xml_created"] is True
     assert ready["declaration"]["provider_calls_total"] == 0
     assert b"TBD" not in ready["declaration"]["xml_bytes"]
@@ -225,7 +349,7 @@ def test_identity_candidate_successor_stales_old_confirmation_and_cross_scope(
     )
     context_b = replace(context_a, normalization_run_id="g4-runtime-run-2")
     changed_lines = tuple(
-        "ИНН налогоплательщика: 500100732260"
+        "ИНН налогоплательщика: 500100732322"
         if line.startswith("ИНН налогоплательщика:")
         else line
         for line in _METADATA_LINES

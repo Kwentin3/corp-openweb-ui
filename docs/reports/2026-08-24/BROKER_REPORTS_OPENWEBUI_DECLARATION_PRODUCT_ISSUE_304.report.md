@@ -14,6 +14,11 @@ XML, and reach `DECLARATION_XML_READY` after all current required facts exist.
 The final XML is stored through the authenticated private OpenWebUI File owner
 and is returned as a download URL, never pasted into chat.
 
+The public bundled path now asks one current question through OpenWebUI's
+native `__event_call__`. The current Human publication stays in the server call
+stack, so the browser sees no request ref or fact key and ordinary chat text
+cannot select an old or foreign request.
+
 This is a preparation assistant. It does not authenticate the taxpayer, submit
 to FNS, or claim legal truth for user-attested values.
 
@@ -24,10 +29,11 @@ to FNS, or claim legal truth for user-attested values.
 | authenticated user/case and private access | OpenWebUI server context plus `ArtifactStore` ACL | unchanged across upload, action, resume and output |
 | taxpayer workflow slot | local product composition | opaque user+case+period slot; not INN, operation subject or authenticated identity; caller cannot supply it |
 | INN/FIO, capacity, residency evidence, filing choices and fill values | existing `Gate5HumanGapClosureRuntime` | exact current request publication -> normalized answer -> `USER_ATTESTED_CASE_FACT` |
+| browser question/answer representation | maintained bundled Pipe plus local declaration chat adapter | owner request -> safe question/masked candidate -> native `__event_call__` response; no persistence, currentness or semantic authority |
 | current source assertions and identity candidate | existing `Gate3MetadataSourceFactRuntime` | only exact labelled facts from Canonical versions named by current whole-case coverage; no LLM execution |
 | applicability, Russian-source classification, declarant category and Article 228 KBK | existing hash-pinned `Gate5TrustedMethodologyAuthority` | current source facts and user capacity are inputs; user answers cannot manufacture outputs |
 | calculation, Scope/Package/release/XML | existing Tax Model, assembler, semantic and projection owners | the assembler exposes a narrow pre-Package preview for `DRAFT_READY`; full path is unchanged |
-| private downloadable XML | OpenWebUI `Storage` plus `Files` | authenticated user header, byte hash check and private file record |
+| private downloadable XML | OpenWebUI `Storage` plus `Files` | deterministic user+case+receipt+XML file identity, existing record/byte verification, one upload/record, partial-failure cleanup |
 
 The composition adapter is local to the product boundary. Universal Scope,
 Package, release and projection modules do not import the ordinary-trade
@@ -75,6 +81,8 @@ them.
 | Genuine owner-produced experiment | Result |
 | --- | --- |
 | initial maintained Pipe run with no Human Facts | ten current actions, `INPUT_REQUIRED`, no XML, zero provider calls |
+| actual regenerated bundle loaded, then public `Pipe.pipe` called with realistic OpenWebUI payload and `__event_call__` double | visible current question; all answers traverse the Human owner; same case reaches `DRAFT_READY` then private `DECLARATION_XML_READY` without source reread |
+| old plain chat answer presented without the current interactive call | no fact is created; the same owner publication remains current |
 | Canonical synthetic INN/FIO candidate | masked in chat; `CONFIRM`, `CHANGE` or `DEFER` only through the current identity publication |
 | `DEFER` identity, then publish three critical facts | `DRAFT_READY`; calculated 60/43/17/2 preview; identity remains in checklist; no XML |
 | fill all remaining current actions in the same case | `DECLARATION_XML_READY`; XSD and released-semantic reconciliation pass; no placeholders |
@@ -82,21 +90,27 @@ them.
 | old publication answer after successor | `gate5_gap_request_stale` |
 | same publication under another user/case/workspace/taxpayer slot/period | existing Human owner rejects the foreign binding |
 | duplicate current confirmation/click | one byte-identical fact artifact; no conflict or duplicate |
+| invalid `2025-99-99` and 12-digit INN with wrong control digits | rejected before persistence; the current action remains usable and a later valid response proceeds |
+| explicit date or INN change after XML | Human owner publishes an immutable same-lane successor; old fact/output become stale, corrected value produces a new current result |
 | missing admitted-exchange source assertion | `REAL_SOURCE_EVIDENCE_MISSING`; Human action cannot close it; no XML |
 | missing whole Canonical projection or `RELEVANT_UNMAPPED` row | existing completeness blocker before declaration |
 | second disposal | exact one-disposal binding blocker; no operation can silently disappear |
 | XSD-valid numeric XML mutations | independent serialized-value reconciliation rejects base, tax, payable/refund, source and budget mismatches |
-| repeated unchanged full run | byte-stable XML/artifact identities; zero LLM/provider calls |
+| repeated final answer, refresh and unchanged full run | byte-stable XML/artifact identities and the same OpenWebUI file ID; exactly one Storage upload/File record; zero LLM/provider calls |
+| Files record failure after Storage upload | typed failure and the partial stored object is deleted |
 
 The safe representative sequence is retained beside this report in
 `BROKER_REPORTS_ISSUE_304_INTERACTION_TRACE.safe.json`.
 
 ## Product boundary and limitations
 
-The maintained Pipe plus regenerated closed-world bundle is the highest tested
-entrypoint. The structured declaration action body is exercised through that
-Pipe; no deployed OpenWebUI environment or browser-authenticated live case was
-available, so this report does not claim a live deployment smoke.
+The actual regenerated closed-world module loaded from
+`broker_reports_gate1_pipe_bundled.py` and its public `Pipe.pipe` method are the
+highest tested entrypoint. The test uses realistic OpenWebUI payloads, native
+interactive-event and Files/Storage boundary doubles, and genuine artifacts
+from the existing owners. No deployed OpenWebUI environment or
+browser-authenticated live case was available, so this report does not claim a
+live deployment smoke.
 
 Only synthetic Canonical labels prove the new identity/source assertions.
 There is no claim that every real broker report contains those labels. Their
@@ -108,17 +122,13 @@ or broader tax coverage.
 
 ## Verification
 
-The final exact-head CI receipt is recorded in the Issue/PR after publication
-so it cannot point to a predecessor commit. Local receipts before publication:
-
-- `181 passed`: the exact required active ordinary-trade workflow command,
-  including declaration/XSD, Human publication/conflicts, maintained Pipe and
-  frozen-evidence verification;
-- `39 passed`: architecture/bundle parity plus trusted methodology;
-- `10 passed`: trusted methodology and repository privacy guard;
-- repeat bundle generation was byte-equal;
-- Python compile, required Ruff correctness checks and `git diff --check`
-  passed.
+The final exact-head CI receipt and exact local counts are recorded in the
+Issue/PR only after publication so neither can point to a predecessor commit.
+The verification set includes the active ordinary-trade workflow,
+Human-publication/currentness/correction, public bundled chat traversal,
+idempotent private delivery and cleanup, architecture/bundle parity, pinned
+methodology, privacy guards, repeat byte-equal bundle generation, Python
+compile, Ruff and `git diff --check`.
 
 The pre-existing cross-gate Decimal-placement assertion is reported separately
 if the unchanged `gate5_full_target_xml_projection.py` baseline remains red.

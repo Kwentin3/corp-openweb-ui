@@ -1,5 +1,5 @@
 {
-  "schema_version": "broker_reports_issue_304_safe_interaction_trace_v1",
+  "schema_version": "broker_reports_issue_304_safe_interaction_trace_v2",
   "case_kind": "synthetic_private_case",
   "base_sha": "6366c02619b4bfcab63399b18cf6c9ad5464a758",
   "private_values_retained": false,
@@ -10,14 +10,18 @@
       "state": "INPUT_REQUIRED",
       "current_actions_total": 10,
       "xml_created": false,
-      "provider_calls_total": 0
+      "provider_calls_total": 0,
+      "entrypoint_executed": "public_bundled_Pipe.pipe",
+      "interaction_transport": "native_openwebui_event_call_double"
     },
     {
       "step": "identity_candidate",
       "candidate_inn": "5001****2259",
       "choices": ["CONFIRM", "CHANGE", "DEFER"],
       "owner": "Gate5HumanGapClosureRuntime",
-      "current_publication_bound": true
+      "current_publication_bound": true,
+      "publication_ref_visible_to_browser": false,
+      "fact_key_selectable_by_browser": false
     },
     {
       "step": "defer_identity_and_fill_critical_facts",
@@ -38,7 +42,10 @@
       "released_semantics_reconciled": true,
       "wire_placeholders_present": false,
       "provider_calls_total": 0,
-      "delivery": "authenticated_private_openwebui_file"
+      "delivery": "authenticated_private_openwebui_file",
+      "unchanged_retry_file_id_reused": true,
+      "storage_uploads_total": 1,
+      "file_records_total": 1
     },
     {
       "step": "current_identity_candidate_successor",
@@ -46,6 +53,18 @@
       "old_xml_current": false,
       "new_current_action": "taxpayer_identity",
       "cross_user_or_case_replay": "REJECTED"
+    },
+    {
+      "step": "invalid_then_corrected_fill_values",
+      "invalid_calendar_date_persisted": false,
+      "invalid_inn_checksum_persisted": false,
+      "current_action_remained_repairable": true,
+      "correction_path": "owner_produced_same_lane_successor"
+    },
+    {
+      "step": "partial_private_delivery_failure",
+      "result": "TYPED_FAILURE",
+      "partial_storage_object_retained": false
     }
   ],
   "authority_summary": {

@@ -43,6 +43,13 @@ provenance `USER_ATTESTED_CASE_FACT`. A Canonical INN/FIO assertion is a private
 candidate and has no identity authority until the user chooses confirm or
 change on the current owner publication. `DEFER` creates no fact.
 
+For the Issue #304 product route, the bundled Pipe obtains that publication
+from the Human owner and keeps its `request_publication_ref` inside one server
+call. The native OpenWebUI `__event_call__` carries only the displayed question,
+safe answer help and a masked candidate to the browser. Its response is adapted
+to the already selected current publication; ordinary chat text cannot supply
+or select a publication ref, fact key, taxpayer scope or hidden action.
+
 The former `gate5_case_taxpayer_scope_ref` case hash is removed. Hashing a case
 ID only obfuscated the case and silently invented a one-taxpayer invariant.
 The former case-hash helper and the authenticated-identity-provider surrogate
@@ -97,6 +104,12 @@ all fail closed. Repeating the same byte-equal answer reuses one artifact and
 does not create a false conflict. No timestamp or caller list order chooses a
 winner.
 
+An explicit product change command for `taxpayer_identity` or
+`declaration_date` asks this same owner to publish a successor in the existing
+semantic lane. The successor answer contract binds the exact fact being
+replaced. The old request and old fact become stale; the correction does not
+overwrite either artifact and cannot bypass cross-scope validation.
+
 ## Authority ceiling
 
 The closed Human fact keys include the historical preparation keys plus the
@@ -124,6 +137,11 @@ Free text cannot smuggle
 residency/tax status, source classification, deductibility or settlement into
 the filing fact. Declaration Preparation consumes only readiness and does not
 reinterpret the election as destination or target data.
+
+The Human owner validates a declaration date as a real ISO calendar date and
+validates both control digits of a 12-digit INN before persistence. A malformed
+value creates no fact and leaves the current action repairable. XML/XSD shape
+validation is not used as a substitute for these Human-fact checks.
 
 Residency remains raw interval evidence interpreted by
 `Gate5ResidencyEvidenceRuntimeFactory.create`. Additional documents return

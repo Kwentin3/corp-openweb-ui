@@ -428,6 +428,22 @@ class OrdinaryTradeDeclarationMvpRuntime:
             context=context,
         )
 
+    def publish_change_action(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        canonical_coverage: dict[str, Any],
+        fact_key: str,
+    ) -> dict[str, Any]:
+        return self._case_inputs.publish_change_action(
+            context=context,
+            canonical_coverage=_validated_canonical_coverage(
+                canonical_coverage,
+                context=context,
+            ),
+            fact_key=fact_key,
+        )
+
     def _calculate_preview(
         self,
         *,

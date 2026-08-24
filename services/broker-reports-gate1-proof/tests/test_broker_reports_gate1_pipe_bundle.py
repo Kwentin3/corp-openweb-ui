@@ -195,6 +195,9 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("gate5_evidence_intake", module._BUNDLED_MODULES)
         self.assertIn("gate5_client_evidence_review", module._BUNDLED_MODULES)
         self.assertIn("gate5_human_gap_closure", module._BUNDLED_MODULES)
+        self.assertIn(
+            "ordinary_trade_declaration_chat_adapter", module._BUNDLED_MODULES
+        )
         self.assertIn("gate5_declaration_preparation", module._BUNDLED_MODULES)
         retired_product_modules = {
             "pdf_visual_table_review",

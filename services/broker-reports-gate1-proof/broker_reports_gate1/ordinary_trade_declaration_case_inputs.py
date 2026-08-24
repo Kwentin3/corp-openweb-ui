@@ -163,6 +163,32 @@ class OrdinaryTradeDeclarationCaseInputsRuntime:
             context=context,
         )
 
+    def publish_change_action(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        canonical_coverage: dict[str, Any],
+        fact_key: str,
+    ) -> dict[str, Any]:
+        """Ask the Human owner to mint a successor for a bounded fact change."""
+
+        metadata = self._metadata.collect_current(
+            context=context,
+            canonical_coverage=canonical_coverage,
+        )
+        identity_candidates = [
+            item
+            for item in metadata["metadata_facts"]
+            if item.get("fact_type") in {"TAXPAYER_TAX_IDENTIFIER", "PARTY_NAME"}
+        ]
+        return self._human.publish_ordinary_trade_declaration_change_request(
+            context=context,
+            taxpayer_scope_ref=primary_taxpayer_scope_ref(context=context),
+            tax_period="2025",
+            fact_key=fact_key,
+            identity_candidates=identity_candidates,
+        )
+
 
 def primary_taxpayer_scope_ref(*, context: ArtifactAccessContext) -> str:
     """Mint a private workflow slot; this value is explicitly not identity."""

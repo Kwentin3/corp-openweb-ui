@@ -337,6 +337,24 @@ class OrdinaryTradeProductionRuntime:
             context=context,
         )
 
+    def publish_declaration_change_action(
+        self,
+        *,
+        fact_key: str,
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any]:
+        if self._declaration is None:
+            raise OrdinaryTradeProductionError(
+                "ordinary_trade_declaration_runtime_not_configured"
+            )
+        return self._declaration.publish_change_action(
+            context=context,
+            canonical_coverage=self._projections.current_case_coverage(
+                context=context
+            ),
+            fact_key=fact_key,
+        )
+
     def _activate_compile_and_verify(
         self,
         *,

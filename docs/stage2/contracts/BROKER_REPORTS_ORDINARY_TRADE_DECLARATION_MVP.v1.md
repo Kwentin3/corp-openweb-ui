@@ -28,6 +28,7 @@ their existing owners.
 | current Canonical document scope and operation coverage | active Canonical pointers plus `OrdinaryTradeProjectionRuntime.current_case_coverage` | every active Canonical manifest must have exactly one current projection bound to the same document/version/root; a missing whole projection or any `RELEVANT_UNMAPPED` observation blocks XML |
 | current broker facts | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | exact case-bound Fact v2 set and disposal fact ID, consumed only after Canonical coverage passes |
 | human declaration choices/facts | `Gate5HumanGapClosureRuntime` | current request-bound facts with exact user, case, taxpayer, period and publication-lane binding; stale/conflicting facts are rejected by that owner |
+| public chat interaction | maintained bundled `Pipe.pipe` plus the representation-only declaration chat adapter | native OpenWebUI `__event_call__` binds one browser response to the current owner request inside the same server call; no request ref, fact key or hidden action is caller-selectable |
 | capacity, inspection code, signer, filing instance/date and OKTMO | `Gate5HumanGapClosureRuntime` | current user-attested facts; missing fill-only values permit draft but never XML |
 | source party and exact applicability assertions | existing `Gate3MetadataSourceFactRuntime` source owner | exact labels from Canonical versions named by current coverage; ambiguity or absence is a source blocker; no LLM or financial Gate 3 execution |
 | legal/methodology version, applicability, KBK and declarant category | `Gate5TrustedMethodologyAuthorityFactory.create` | repository resource identity/SHA-256 and exact pinned rules |
@@ -36,6 +37,7 @@ their existing owners.
 | XML/XSD representation | `Gate5FullTargetXmlProjectionRuntimeFactory.create` | deterministic bytes, official XSD conformance, and representation-only extraction of serialized literals; no rate or tax formula |
 | released semantics -> serialized XML values | `Gate5DeclarationSemanticInputRuntimeFactory.create` | exact equality between extracted numeric fields and owner-produced released values |
 | active persistence | `OrdinaryTradeDeclarationMvpRuntime` through the existing ArtifactStore | private XML and MVP receipt artifacts |
+| downloadable file delivery | native OpenWebUI `Storage` plus `Files` | deterministic private file identity binds authenticated user, case hash, current receipt and XML hashes; exact existing bytes/record are verified and reused, while a partial failed publication is removed |
 
 Caller supplies only `ArtifactAccessContext` and canonical artifact refs to the
 production root. Caller cannot supply a taxpayer ref, disposal fact ID,
@@ -70,12 +72,23 @@ Anything outside this matrix stops with a typed blocker. Missing or malformed
 identity/user/source/methodology owner output never produces XML. Partial acquisition
 commission remains `LEGAL_INTERPRETATION_REQUIRED`.
 
+Before a Human fact is persisted, `declaration_date` must be a real calendar
+date and a 12-digit taxpayer INN must pass both control-digit checks. An invalid
+answer leaves the current request active. Explicit date/INN correction is an
+immutable successor publication in the existing Human semantic lane; it is not
+an overwrite or a second fact owner.
+
 ## Persistence and replay
 
 The wire XML is stored as Base64 inside private
 `broker_reports_ordinary_trade_declaration_xml_v1`; its SHA-256 is over the
 original official `windows-1251` bytes. The maintained OpenWebUI composition
 also publishes those exact bytes through the authenticated private File owner.
+The file ID is deterministic for authenticated user, case scope, receipt hash
+and XML hash. Before reuse, Files metadata, owner, stored-byte hash and binding
+metadata are checked. The same current output therefore performs one upload
+and one record insertion; a different corrected receipt/XML gets a different
+file. Storage bytes are deleted if record creation fails.
 The paired
 `broker_reports_ordinary_trade_declaration_mvp_receipt_v1` binds taxpayer,
 current Canonical coverage, current Fact v2 set, all ten exact Human Fact
