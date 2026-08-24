@@ -369,7 +369,11 @@ def _provenance(value: Any, input_channel: str) -> dict[str, Any]:
         not isinstance(value, dict)
         or set(value) != _PROVENANCE_KEYS
         or value.get("source_kind")
-        not in {"synthetic_proof_evidence", "external_authoritative_evidence"}
+        not in {
+            "synthetic_proof_evidence",
+            "external_authoritative_evidence",
+            "current_canonical_source_fact",
+        }
         or not _identifier(value.get("source_ref"))
         or value.get("input_channel") != input_channel
         or value.get("real_user_fact") is not False

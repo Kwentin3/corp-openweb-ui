@@ -14,8 +14,10 @@ import binascii
 import copy
 import hashlib
 import inspect
+import io
 import json
 import re
+import uuid
 from contextlib import nullcontext
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
@@ -669,6 +671,10 @@ class Pipe:
                 user=__user__,
                 request=__request__,
                 event_emitter=__event_emitter__,
+                retention_policy=retention_policy,
+                declaration_action=safe_body.get(
+                    "broker_reports_declaration_action"
+                ),
             ),
             enabled=(
                 bool(self.valves.ndfl_gate3_enabled)
@@ -676,6 +682,24 @@ class Pipe:
             ),
             provider_id=self.valves.ndfl_gate3_provider_profile_id,
         )
+        product_result = ndfl_gate3.get("product")
+        declaration_result = ndfl_gate3.get("declaration")
+        if (
+            isinstance(product_result, dict)
+            and product_result.get("status") == "DECLARATION_XML_READY"
+            and isinstance(declaration_result, dict)
+        ):
+            file_id = await self._publish_ndfl_xml_file(
+                user=__user__,
+                filename="3-ndfl-2025.xml",
+                xml_bytes=declaration_result["xml_bytes"],
+                xml_sha256=declaration_result["xml_sha256"],
+            )
+            product_result["private_download"] = {
+                "file_id": file_id,
+                "url": f"/api/v1/files/{file_id}/content?attachment=true",
+                "content_type": "application/xml",
+            }
         self._finalize_workload_publication(
             gate2_handoff_status=str(
                 result.package.get("normalization_run", {}).get("gate2_handoff_status")
@@ -730,12 +754,40 @@ class Pipe:
                         "запечатанный семантический пакет.",
                     ]
                 )
-            elif product.get("status") == "PREPARATION_INCOMPLETE":
+            elif product.get("status") in {
+                "PREPARATION_INCOMPLETE",
+                "INPUT_REQUIRED",
+            }:
                 chat_content = "\n".join(
                     [
                         chat_content,
                         "",
                         self._ndfl_product_blocker_content(product),
+                    ]
+                )
+            elif product.get("status") == "DRAFT_READY":
+                checklist = product.get("preparation", {}).get(
+                    "checklist_fact_keys", []
+                )
+                chat_content = "\n".join(
+                    [
+                        chat_content,
+                        "",
+                        "Расчётный черновик готов. XML не создан. Осталось: "
+                        + ", ".join(map(str, checklist))
+                        + ".",
+                    ]
+                )
+            elif product.get("status") == "DECLARATION_XML_READY":
+                download = product.get("private_download") or {}
+                chat_content = "\n".join(
+                    [
+                        chat_content,
+                        "",
+                        "3-НДФЛ XML подготовлен и проверен по XSD. "
+                        f"[Скачать XML]({download.get('url')}). Перед самостоятельной "
+                        "подачей проверьте пользовательские реквизиты; операции и суммы "
+                        "взяты из источника, налоговые классификации — из pinned-методики.",
                     ]
                 )
         if self._live_smoke_requested(safe_body, messages_arg):
@@ -768,6 +820,8 @@ class Pipe:
         user: Any,
         request: Any,
         event_emitter: Any,
+        retention_policy: Any | None = None,
+        declaration_action: Any | None = None,
     ) -> dict[str, Any]:
         candidate_enabled = bool(self.valves.ordinary_trade_candidate_enabled)
         if not candidate_enabled and not self.valves.ndfl_gate3_enabled:
@@ -798,17 +852,42 @@ class Pipe:
                 "Compiling exact-qualified ordinary trades and running Gate 5...",
                 done=False,
             )
-            return (
-                OrdinaryTradeProductionRuntimeFactory(
-                    store=store,
-                    read_enabled=True,
-                )
-                .create()
-                .run(
-                    canonical_artifact_refs=canonical_refs,
+            runtime = OrdinaryTradeProductionRuntimeFactory(
+                store=store,
+                read_enabled=True,
+                retention_policy=retention_policy,
+            ).create()
+            action_receipt = None
+            if declaration_action is not None:
+                if (
+                    not isinstance(declaration_action, dict)
+                    or set(declaration_action)
+                    != {"request_publication_ref", "answer"}
+                    or not isinstance(declaration_action.get("answer"), dict)
+                ):
+                    raise NdflWorkflowError(
+                        "ordinary_trade_declaration_action_invalid"
+                    )
+                action_receipt = runtime.normalize_declaration_action(
+                    request_publication_ref=declaration_action[
+                        "request_publication_ref"
+                    ],
+                    answer=declaration_action["answer"],
                     context=context,
                 )
+            result = runtime.run(
+                canonical_artifact_refs=canonical_refs,
+                context=context,
             )
+            if action_receipt is not None:
+                result["declaration_action_receipt"] = {
+                    "status": action_receipt["status"],
+                    "request_id": action_receipt["request_id"],
+                    "fact_created": (
+                        action_receipt["typed_user_case_fact"] is not None
+                    ),
+                }
+            return result
         if self.valves.ndfl_gate3_provider_profile_id != NDFL_PROVIDER_PROFILE_ID:
             raise NdflWorkflowError("ndfl_provider_profile_binding_mismatch")
         if self.valves.ndfl_gate3_model_id != NDFL_PROVIDER_MODEL_ID:
@@ -1005,6 +1084,67 @@ class Pipe:
         }
 
     @staticmethod
+    async def _publish_ndfl_xml_file(
+        *,
+        user: Any,
+        filename: str,
+        xml_bytes: bytes,
+        xml_sha256: str,
+    ) -> str:
+        if not isinstance(user, dict) or not str(user.get("id") or "").strip():
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_authenticated_user_required"
+            )
+        try:
+            from open_webui.models.files import FileForm, Files
+            from open_webui.storage.provider import Storage
+        except ImportError as exc:
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_private_file_boundary_unavailable"
+            ) from exc
+        file_id = str(uuid.uuid4())
+        contents, file_path = await asyncio.to_thread(
+            Storage.upload_file,
+            io.BytesIO(xml_bytes),
+            f"{file_id}_{filename}",
+            {
+                "OpenWebUI-User-Email": str(user.get("email") or ""),
+                "OpenWebUI-User-Id": str(user["id"]),
+                "OpenWebUI-User-Name": str(user.get("name") or ""),
+                "OpenWebUI-File-Id": file_id,
+            },
+        )
+        if hashlib.sha256(contents).hexdigest() != xml_sha256:
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_private_file_hash_mismatch"
+            )
+        file_item = await Files.insert_new_file(
+            str(user["id"]),
+            FileForm(
+                id=file_id,
+                hash=xml_sha256,
+                filename=filename,
+                path=file_path,
+                data={},
+                meta={
+                    "name": filename,
+                    "content_type": "application/xml",
+                    "size": len(contents),
+                    "file_hash": xml_sha256,
+                    "data": {
+                        "broker_reports_declaration_product": True,
+                        "private_user_artifact": True,
+                    },
+                },
+            ),
+        )
+        if file_item is None:
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_private_file_record_failed"
+            )
+        return file_id
+
+    @staticmethod
     def _ndfl_product_blocker_content(product: dict[str, Any]) -> str:
         preparation = product.get("preparation")
         preparation = preparation if isinstance(preparation, dict) else {}
@@ -1015,8 +1155,23 @@ class Pipe:
         if user_actions:
             first = user_actions[0]
             question = str(first.get("question") or "").strip()
-            return "Расчёт остановлен без догадок. Нужны подтверждённые данные" + (
-                ": " + question if question else "."
+            candidate = (
+                first.get("answer_contract", {}).get("candidate")
+                if isinstance(first.get("answer_contract"), dict)
+                else None
+            )
+            candidate_note = ""
+            if isinstance(candidate, dict):
+                inn = str(candidate.get("inn") or "")
+                if re.fullmatch(r"[0-9]{12}", inn):
+                    candidate_note = (
+                        f" Найден кандидат ИНН {inn[:4]}••••{inn[-4:]}; "
+                        "подтвердите, измените или заполните позднее."
+                    )
+            return (
+                "Расчёт остановлен без догадок. Нужны подтверждённые данные"
+                + (": " + question if question else ".")
+                + candidate_note
             )
         internal_actions = closure.get("internal_owner_required_actions")
         internal_actions = (

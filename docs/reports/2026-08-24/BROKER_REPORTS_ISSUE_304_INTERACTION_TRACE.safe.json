@@ -1,0 +1,56 @@
+{
+  "schema_version": "broker_reports_issue_304_safe_interaction_trace_v1",
+  "case_kind": "synthetic_private_case",
+  "base_sha": "6366c02619b4bfcab63399b18cf6c9ad5464a758",
+  "private_values_retained": false,
+  "steps": [
+    {
+      "step": "upload_or_resume",
+      "entrypoint": "maintained_bundled_pipe",
+      "state": "INPUT_REQUIRED",
+      "current_actions_total": 10,
+      "xml_created": false,
+      "provider_calls_total": 0
+    },
+    {
+      "step": "identity_candidate",
+      "candidate_inn": "5001****2259",
+      "choices": ["CONFIRM", "CHANGE", "DEFER"],
+      "owner": "Gate5HumanGapClosureRuntime",
+      "current_publication_bound": true
+    },
+    {
+      "step": "defer_identity_and_fill_critical_facts",
+      "state": "DRAFT_READY",
+      "preview": {
+        "income": "60.00",
+        "expenses": "43.00",
+        "tax_base": "17.00",
+        "calculated_tax": "2"
+      },
+      "remaining_checklist_total": 7,
+      "xml_created": false
+    },
+    {
+      "step": "fill_current_checklist",
+      "state": "DECLARATION_XML_READY",
+      "xsd_valid": true,
+      "released_semantics_reconciled": true,
+      "wire_placeholders_present": false,
+      "provider_calls_total": 0,
+      "delivery": "authenticated_private_openwebui_file"
+    },
+    {
+      "step": "current_identity_candidate_successor",
+      "old_confirmation": "STALE_REJECTED",
+      "old_xml_current": false,
+      "new_current_action": "taxpayer_identity",
+      "cross_user_or_case_replay": "REJECTED"
+    }
+  ],
+  "authority_summary": {
+    "source_owned": ["operations", "amounts", "broker_party", "applicability_assertions"],
+    "methodology_derived": ["applicability", "income_source_jurisdiction", "declarant_category", "kbk", "tax_calculation"],
+    "user_attested": ["taxpayer_identity", "capacity", "residency_evidence", "filing_and_budget_fill_values"]
+  }
+}

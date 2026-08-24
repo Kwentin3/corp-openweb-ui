@@ -103,6 +103,19 @@ GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE = (
 GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE_SHA256 = (
     "2d75ec75cdc6b3a0ab20cae697abfe6ad06d2b2d398140c9a171bf617ebdbbf6"
 )
+GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_SCHEMA_VERSION = (
+    "broker_reports_gate5_ordinary_trade_declaration_product_methodology_v1"
+)
+GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_ID = (
+    "ru-ordinary-trade-declaration-product"
+)
+GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_VERSION = "2025.1"
+GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE = (
+    "gate5_tax_methodology.ru_ordinary_trade_declaration_product.v1.json"
+)
+GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE_SHA256 = (
+    "ca38485830352e6de49765c3ea20e38082dc3d3a7bf82bbe210477512bb7fae7"
+)
 GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_SCHEMA_VERSION = (
     "broker_reports_gate5_deterministic_source_fact_consumption_methodology_v0"
 )
@@ -237,6 +250,16 @@ _PUBLISHED_METHODOLOGIES = {
         schema_version=GATE5_DECLARATION_INPUT_METHODOLOGY_SCHEMA_VERSION,
     ),
     (
+        GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_ID,
+        GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_VERSION,
+    ): _PublishedMethodologyResource(
+        resource_name=GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE,
+        resource_sha256=(
+            GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE_SHA256
+        ),
+        schema_version=GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_SCHEMA_VERSION,
+    ),
+    (
         GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
         _GATE5_SOURCE_FACT_CONSUMPTION_EARLY_SUPERSEDED_VERSION,
     ): _PublishedMethodologyResource(
@@ -359,6 +382,79 @@ class Gate5TrustedMethodologyAuthority:
             "authority_binding": copy.deepcopy(resolved["authority_binding"]),
         }
 
+    def resolve_ordinary_trade_declaration_product(
+        self,
+        *,
+        source_assertions: dict[str, str],
+        tax_period: str,
+    ) -> dict[str, Any]:
+        """Map exact Canonical assertions through the pinned product rules."""
+
+        expected = {
+            "admitted_exchange_fact": "ADMITTED",
+            "market_quotation_fact": "AVAILABLE",
+            "iis_status_assertion": "OUTSIDE_IIS",
+            "exemption_source_assertion": "NONE",
+            "payer_organization_jurisdiction": "RU",
+            "realization_location_jurisdiction": "RU",
+        }
+        if tax_period != "2025" or source_assertions != expected:
+            raise Gate5TrustedMethodologyError(
+                "gate5_ordinary_trade_product_source_evidence_unresolved"
+            )
+        resolved = self.resolve(
+            {
+                "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+                "methodology_id": GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_ID,
+                "methodology_version": (
+                    GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_VERSION
+                ),
+            }
+        )
+        rules = {
+            item.get("rule_id"): item
+            for item in resolved["methodology"].get("rules", [])
+            if isinstance(item, dict)
+        }
+        applicability = rules.get("ordinary-trade-operation-applicability-v1")
+        source = rules.get("ordinary-trade-income-source-v1")
+        kbk = rules.get("ordinary-trade-article-228-payment-kbk-v1")
+        if (
+            not isinstance(applicability, dict)
+            or applicability.get("required_source_assertions")
+            != {key: expected[key] for key in (
+                "admitted_exchange_fact",
+                "market_quotation_fact",
+                "iis_status_assertion",
+                "exemption_source_assertion",
+            )}
+            or applicability.get("output")
+            != {
+                "organized_market_status": "organized_market",
+                "iis_status": "outside_iis",
+                "exemption_applicability": "not_applicable",
+            }
+            or not isinstance(source, dict)
+            or source.get("required_source_assertions")
+            != {key: expected[key] for key in (
+                "payer_organization_jurisdiction",
+                "realization_location_jurisdiction",
+            )}
+            or source.get("output") != "russian_source"
+            or not isinstance(kbk, dict)
+            or kbk.get("output") != "18210102030011000110"
+        ):
+            raise Gate5TrustedMethodologyError(
+                "gate5_ordinary_trade_product_methodology_invalid"
+            )
+        return {
+            "operation_applicability": copy.deepcopy(applicability["output"]),
+            "income_source_jurisdiction": source["output"],
+            "kbk": kbk["output"],
+            "rule_ids": sorted(rules),
+            "authority_binding": copy.deepcopy(resolved["authority_binding"]),
+        }
+
 
 class Gate5TrustedMethodologyCalculationRuntimeFactory:
     def __init__(
@@ -461,6 +557,11 @@ __all__ = [
     "GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_RESOURCE_SHA256",
     "GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_SCHEMA_VERSION",
     "GATE5_INCOME_GROUP_TAX_SETTLEMENT_METHODOLOGY_VERSION",
+    "GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_ID",
+    "GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE",
+    "GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE_SHA256",
+    "GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_SCHEMA_VERSION",
+    "GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_VERSION",
     "GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_RESOURCE",
     "GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_RESOURCE_SHA256",
     "GATE5_SECURITIES_INCOME_GROUP_TAX_BASE_METHODOLOGY_SCHEMA_VERSION",

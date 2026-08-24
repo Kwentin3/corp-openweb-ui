@@ -15,6 +15,8 @@ from broker_reports_gate1 import (
 )
 from broker_reports_gate1.gate3_ndfl_workflow import NdflWorkflowError
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
+from broker_reports_gate1.artifact_retention import build_retention_policy
+import test_broker_reports_ordinary_trade_declaration_mvp as declaration_fixtures
 
 
 def test_native_chat_scope_is_recovered_only_through_owner_lookup(
@@ -90,6 +92,105 @@ def test_product_stage_rejects_base_pipe_identity_before_provider() -> None:
         )
 
     assert failure.value.code == "ndfl_workspace_model_identity_required"
+
+
+def test_maintained_pipe_resumes_owner_published_actions_to_xml(
+    tmp_path: Path,
+) -> None:
+    _runtime, context, _providers, store = declaration_fixtures._case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        include_store=True,
+    )
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    kwargs = {
+        "store": store,
+        "context": context,
+        "artifact_manifest": SimpleNamespace(artifact_refs_by_type={}),
+        "user": {"id": context.user_id},
+        "request": object(),
+        "event_emitter": None,
+        "retention_policy": build_retention_policy(mode="synthetic_dev"),
+    }
+
+    first = asyncio.run(pipe._maybe_run_ndfl_gate3(**kwargs))
+    actions = first["product"]["preparation"]["user_actions"]
+    assert first["product"]["status"] == "INPUT_REQUIRED"
+    assert first["provider_calls_total"] == 0
+    for request in actions:
+        result = asyncio.run(
+            pipe._maybe_run_ndfl_gate3(
+                **kwargs,
+                declaration_action={
+                    "request_publication_ref": request[
+                        "request_publication_ref"
+                    ],
+                    "answer": declaration_fixtures._product_answer(
+                        request["fact_key"]
+                    ),
+                },
+            )
+        )
+    assert result["product"]["status"] == "DECLARATION_XML_READY"
+    assert result["product"]["xml_created"] is True
+    assert result["declaration_action_receipt"]["fact_created"] is True
+    assert result["provider_calls_total"] == 0
+
+
+def test_xml_delivery_uses_authenticated_openwebui_private_file_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured = {}
+    xml_bytes = b"<root/>"
+
+    class FileForm:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    class Files:
+        @staticmethod
+        async def insert_new_file(user_id, form):
+            captured["user_id"] = user_id
+            captured["form"] = form
+            return object()
+
+    class Storage:
+        @staticmethod
+        def upload_file(stream, name, headers):
+            captured["headers"] = headers
+            return stream.read(), "/private/" + name
+
+    openwebui = ModuleType("open_webui")
+    models = ModuleType("open_webui.models")
+    files = ModuleType("open_webui.models.files")
+    storage = ModuleType("open_webui.storage")
+    provider = ModuleType("open_webui.storage.provider")
+    files.FileForm = FileForm
+    files.Files = Files
+    provider.Storage = Storage
+    monkeypatch.setitem(sys.modules, "open_webui", openwebui)
+    monkeypatch.setitem(sys.modules, "open_webui.models", models)
+    monkeypatch.setitem(sys.modules, "open_webui.models.files", files)
+    monkeypatch.setitem(sys.modules, "open_webui.storage", storage)
+    monkeypatch.setitem(sys.modules, "open_webui.storage.provider", provider)
+
+    file_id = asyncio.run(
+        Pipe._publish_ndfl_xml_file(
+            user={"id": "user-a", "email": "", "name": ""},
+            filename="3-ndfl-2025.xml",
+            xml_bytes=xml_bytes,
+            xml_sha256=__import__("hashlib").sha256(xml_bytes).hexdigest(),
+        )
+    )
+
+    assert captured["user_id"] == "user-a"
+    assert captured["headers"]["OpenWebUI-User-Id"] == "user-a"
+    assert captured["form"].id == file_id
+    assert captured["form"].meta["data"]["private_user_artifact"] is True
 
 
 def test_workload_failure_detail_exposes_only_explicit_safe_details() -> None:

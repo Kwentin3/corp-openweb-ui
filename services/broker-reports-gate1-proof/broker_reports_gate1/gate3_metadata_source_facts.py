@@ -1,4 +1,4 @@
-"""Strict metadata source facts from explicitly labelled canonical text."""
+"""Strict metadata source facts from explicitly labelled Canonical text."""
 
 from __future__ import annotations
 
@@ -36,6 +36,15 @@ GATE3_MINIMAL_METADATA_FACT_TYPES = (
     "BROKER_LEGAL_NAME",
     "ACCOUNT_IDENTIFIER",
     "ACCOUNT_CONTRACT_IDENTIFIER",
+    "BROKER_TAX_IDENTIFIER",
+    "BROKER_KPP",
+    "BROKER_OKTMO",
+    "PAYER_ORGANIZATION_JURISDICTION",
+    "REALIZATION_LOCATION_JURISDICTION",
+    "ADMITTED_EXCHANGE_FACT",
+    "MARKET_QUOTATION_FACT",
+    "IIS_STATUS_ASSERTION",
+    "EXEMPTION_SOURCE_ASSERTION",
 )
 
 GATE3_MINIMAL_METADATA_SOURCE_EXAMPLE_STATUS = {
@@ -50,6 +59,15 @@ GATE3_MINIMAL_METADATA_SOURCE_EXAMPLE_STATUS = {
     "BROKER_LEGAL_NAME": "REAL_SOURCE_EXAMPLE",
     "ACCOUNT_IDENTIFIER": "REAL_SOURCE_EXAMPLE",
     "ACCOUNT_CONTRACT_IDENTIFIER": "REAL_SOURCE_EXAMPLE",
+    "BROKER_TAX_IDENTIFIER": "NO_REAL_SOURCE_EXAMPLE",
+    "BROKER_KPP": "NO_REAL_SOURCE_EXAMPLE",
+    "BROKER_OKTMO": "NO_REAL_SOURCE_EXAMPLE",
+    "PAYER_ORGANIZATION_JURISDICTION": "NO_REAL_SOURCE_EXAMPLE",
+    "REALIZATION_LOCATION_JURISDICTION": "NO_REAL_SOURCE_EXAMPLE",
+    "ADMITTED_EXCHANGE_FACT": "NO_REAL_SOURCE_EXAMPLE",
+    "MARKET_QUOTATION_FACT": "NO_REAL_SOURCE_EXAMPLE",
+    "IIS_STATUS_ASSERTION": "NO_REAL_SOURCE_EXAMPLE",
+    "EXEMPTION_SOURCE_ASSERTION": "NO_REAL_SOURCE_EXAMPLE",
 }
 
 FACTORY_REQUIRED = (
@@ -67,12 +85,94 @@ _METADATA_CATEGORIES = (
     "DOCUMENT_IDENTITY",
     "ISSUER_IDENTITY",
     "ACCOUNT_IDENTITY",
+    "DECLARATION_SOURCE_ASSERTION",
 )
 _DATE_VALUE = r"(?:\d{2}[./-]\d{2}[./-]\d{4}|\d{4}-\d{2}-\d{2})"
 _DATE = rf"(?P<start>{_DATE_VALUE})"
 _DATE_END = rf"(?P<end>{_DATE_VALUE})"
 _OPTIONAL_TIME = r"(?:\s+\d{2}:\d{2}:\d{2})?"
 _PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
+    (
+        "TAXPAYER_TAX_IDENTIFIER",
+        "PERSON_IDENTITY",
+        re.compile(
+            r"(?im)^\s*(?:инн\s+(?:налогоплательщика|клиента)|taxpayer\s+inn)"
+            r"\s*[:#-]\s*(?P<value>[0-9]{12})\s*$"
+        ),
+    ),
+    (
+        "BROKER_TAX_IDENTIFIER",
+        "ISSUER_IDENTITY",
+        re.compile(
+            r"(?im)^\s*(?:инн\s+(?:брокера|источника\s+дохода)|broker\s+inn)"
+            r"\s*[:#-]\s*(?P<value>[0-9]{10})\s*$"
+        ),
+    ),
+    (
+        "BROKER_KPP",
+        "ISSUER_IDENTITY",
+        re.compile(
+            r"(?im)^\s*(?:кпп\s+(?:брокера|источника\s+дохода)|broker\s+kpp)"
+            r"\s*[:#-]\s*(?P<value>[0-9]{9})\s*$"
+        ),
+    ),
+    (
+        "BROKER_OKTMO",
+        "ISSUER_IDENTITY",
+        re.compile(
+            r"(?im)^\s*(?:октмо\s+(?:брокера|источника\s+дохода)|broker\s+oktmo)"
+            r"\s*[:#-]\s*(?P<value>[0-9]{8}(?:[0-9]{3})?)\s*$"
+        ),
+    ),
+    (
+        "PAYER_ORGANIZATION_JURISDICTION",
+        "DECLARATION_SOURCE_ASSERTION",
+        re.compile(
+            r"(?im)^\s*(?:юрисдикция\s+(?:брокера|источника\s+дохода)|"
+            r"payer\s+organization\s+jurisdiction)\s*[:#-]\s*"
+            r"(?P<value>RU|РФ)\s*$"
+        ),
+    ),
+    (
+        "REALIZATION_LOCATION_JURISDICTION",
+        "DECLARATION_SOURCE_ASSERTION",
+        re.compile(
+            r"(?im)^\s*(?:место\s+реализации|realization\s+location)\s*[:#-]\s*"
+            r"(?P<value>RU|РФ)\s*$"
+        ),
+    ),
+    (
+        "ADMITTED_EXCHANGE_FACT",
+        "DECLARATION_SOURCE_ASSERTION",
+        re.compile(
+            r"(?im)^\s*(?:допуск\s+к\s+торгам|admitted\s+exchange\s+fact)"
+            r"\s*[:#-]\s*(?P<value>ADMITTED|ДОПУЩЕНА)\s*$"
+        ),
+    ),
+    (
+        "MARKET_QUOTATION_FACT",
+        "DECLARATION_SOURCE_ASSERTION",
+        re.compile(
+            r"(?im)^\s*(?:рыночная\s+котировка|market\s+quotation\s+fact)"
+            r"\s*[:#-]\s*(?P<value>AVAILABLE|ИМЕЕТСЯ)\s*$"
+        ),
+    ),
+    (
+        "IIS_STATUS_ASSERTION",
+        "DECLARATION_SOURCE_ASSERTION",
+        re.compile(
+            r"(?im)^\s*(?:режим\s+сч[её]та|account\s+regime)\s*[:#-]\s*"
+            r"(?P<value>OUTSIDE_IIS|ВНЕ\s+ИИС)\s*$"
+        ),
+    ),
+    (
+        "EXEMPTION_SOURCE_ASSERTION",
+        "DECLARATION_SOURCE_ASSERTION",
+        re.compile(
+            r"(?im)^\s*(?:заявленное\s+освобождение|source\s+exemption\s+claim)"
+            r"\s*[:#-]\s*(?P<value>NONE|НЕТ)\s*$"
+        ),
+    ),
     (
         "BROKER_LEGAL_NAME",
         "ISSUER_IDENTITY",
@@ -235,6 +335,104 @@ class Gate3MetadataSourceFactRuntime:
                 "invented_source_facts": 0,
                 "unsupported_entity_role_inferences": 0,
             },
+            "tax_meaning_assigned": False,
+            "persistence": "none_new",
+        }
+
+    def collect_current(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        canonical_coverage: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Read only Canonical versions named by current case coverage."""
+
+        scope = (
+            canonical_coverage.get("document_scope")
+            if isinstance(canonical_coverage, dict)
+            else None
+        )
+        if (
+            canonical_coverage.get("case_id") != context.case_id
+            or canonical_coverage.get("status")
+            not in {"complete", "relevant_unmapped", "missing_projection"}
+            or not isinstance(scope, list)
+            or not scope
+        ):
+            raise Gate3MetadataSourceFactError(
+                "case_metadata_current_coverage_invalid"
+            )
+        facts: list[dict[str, Any]] = []
+        documents: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for item in scope:
+            if (
+                not isinstance(item, dict)
+                or set(item)
+                != {
+                    "document_id",
+                    "canonical_version_id",
+                    "canonical_root_sha256",
+                    "manifest_ref",
+                }
+                or item["manifest_ref"] in seen
+            ):
+                raise Gate3MetadataSourceFactError(
+                    "case_metadata_current_coverage_invalid"
+                )
+            seen.add(item["manifest_ref"])
+            try:
+                resolved = self._resolver.resolve_case(
+                    item["manifest_ref"], context
+                )
+            except Exception as exc:
+                raise Gate3MetadataSourceFactError(
+                    "case_metadata_current_canonical_unavailable"
+                ) from exc
+            record = resolved["record"]
+            if (
+                record.artifact_type != "broker_reports_canonical_artifact_v1"
+                or record.document_id != item["document_id"]
+            ):
+                raise Gate3MetadataSourceFactError(
+                    "case_metadata_current_canonical_misbound"
+                )
+            document_context = replace(
+                context,
+                normalization_run_id=record.normalization_run_id,
+            )
+            artifact = self._canonical_reader.read(
+                record.artifact_id, document_context
+            )
+            if (
+                artifact.get("artifact_id") != item["canonical_version_id"]
+                or artifact.get("canonical_root_hash")
+                != item["canonical_root_sha256"]
+            ):
+                raise Gate3MetadataSourceFactError(
+                    "case_metadata_current_canonical_misbound"
+                )
+            document_facts = _metadata_facts(
+                artifact=artifact,
+                document_id=item["document_id"],
+                canonical_version_id=item["canonical_version_id"],
+            )
+            facts.extend(document_facts)
+            documents.append(
+                {
+                    "document_id": item["document_id"],
+                    "canonical_version_id": item["canonical_version_id"],
+                    "metadata_facts": len(document_facts),
+                }
+            )
+        facts = _deduplicated_facts(facts)
+        return {
+            "schema_version": GATE3_METADATA_SOURCE_FACT_COLLECTION_SCHEMA_VERSION,
+            "status": "current_case_metadata_source_facts_available",
+            "terminals": [GATE3_METADATA_SOURCE_FACT_TERMINAL],
+            "coverage_ref": canonical_coverage.get("coverage_ref"),
+            "documents": documents,
+            "metadata_facts": facts,
             "tax_meaning_assigned": False,
             "persistence": "none_new",
         }

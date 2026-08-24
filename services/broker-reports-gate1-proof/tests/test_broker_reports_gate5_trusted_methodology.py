@@ -34,6 +34,8 @@ from broker_reports_gate1 import gate5_trusted_methodology as trusted_module
 from broker_reports_gate1.gate5_trusted_methodology import (
     FACTORY_REQUIRED,
     FORBIDDEN,
+    GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE,
+    GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE_SHA256,
 )
 import test_broker_reports_gate5_methodology_calculation as calculation_fixtures
 
@@ -347,6 +349,47 @@ def test_declaration_input_methodology_is_closed_versioned_and_authority_bound()
     )
     assert resolved["authority_binding"]["resource_sha256"] == (
         trusted_module.GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE_SHA256
+    )
+
+
+def test_ordinary_trade_product_methodology_requires_exact_source_assertions() -> None:
+    authority = Gate5TrustedMethodologyAuthorityFactory.create()
+    assertions = {
+        "admitted_exchange_fact": "ADMITTED",
+        "market_quotation_fact": "AVAILABLE",
+        "iis_status_assertion": "OUTSIDE_IIS",
+        "exemption_source_assertion": "NONE",
+        "payer_organization_jurisdiction": "RU",
+        "realization_location_jurisdiction": "RU",
+    }
+
+    resolved = authority.resolve_ordinary_trade_declaration_product(
+        source_assertions=assertions,
+        tax_period="2025",
+    )
+
+    assert resolved["operation_applicability"] == {
+        "organized_market_status": "organized_market",
+        "iis_status": "outside_iis",
+        "exemption_applicability": "not_applicable",
+    }
+    assert resolved["income_source_jurisdiction"] == "russian_source"
+    assert resolved["kbk"] == "18210102030011000110"
+    assert resolved["authority_binding"]["resource_sha256"] == (
+        GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE_SHA256
+    )
+    resource = PACKAGE_ROOT / GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE
+    assert hashlib.sha256(resource.read_bytes()).hexdigest() == (
+        GATE5_ORDINARY_TRADE_PRODUCT_METHODOLOGY_RESOURCE_SHA256
+    )
+
+    with pytest.raises(Gate5TrustedMethodologyError) as rejected:
+        authority.resolve_ordinary_trade_declaration_product(
+            source_assertions={**assertions, "iis_status_assertion": "IIS"},
+            tax_period="2025",
+        )
+    assert rejected.value.code == (
+        "gate5_ordinary_trade_product_source_evidence_unresolved"
     )
 
 

@@ -451,11 +451,18 @@ def _tagged_tax_money(value: Any, field: str) -> dict[str, Any]:
         or not isinstance(provenance, dict)
         or set(provenance) != _PROVENANCE_KEYS
         or provenance.get("source_kind")
-        not in {"synthetic_proof_evidence", "authenticated_user_case_fact"}
+        not in {
+            "synthetic_proof_evidence",
+            "authenticated_user_case_fact",
+            "USER_ATTESTED_CASE_FACT",
+        }
         or not _identifier(provenance.get("source_ref"))
         or provenance.get("input_channel") != "income_group_tax_settlement"
         or provenance.get("real_user_fact")
-        is not (provenance.get("source_kind") == "authenticated_user_case_fact")
+        is not (
+            provenance.get("source_kind")
+            in {"authenticated_user_case_fact", "USER_ATTESTED_CASE_FACT"}
+        )
     ):
         _fail("gate5_income_group_results_settlement_fact_invalid", field)
     return copy.deepcopy(value)
@@ -484,11 +491,18 @@ def _completeness(
         not isinstance(provenance, dict)
         or set(provenance) != _PROVENANCE_KEYS
         or provenance.get("source_kind")
-        not in {"synthetic_proof_evidence", "authenticated_user_case_fact"}
+        not in {
+            "synthetic_proof_evidence",
+            "authenticated_user_case_fact",
+            "USER_ATTESTED_CASE_FACT",
+        }
         or not _identifier(provenance.get("source_ref"))
         or provenance.get("input_channel") != "income_group_results_completeness"
         or provenance.get("real_user_fact")
-        is not (provenance.get("source_kind") == "authenticated_user_case_fact")
+        is not (
+            provenance.get("source_kind")
+            in {"authenticated_user_case_fact", "USER_ATTESTED_CASE_FACT"}
+        )
     ):
         _fail("gate5_income_group_results_completeness_invalid")
 

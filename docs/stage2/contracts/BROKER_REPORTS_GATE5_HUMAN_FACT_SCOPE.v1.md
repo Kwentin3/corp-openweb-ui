@@ -1,10 +1,10 @@
 # Broker Reports Gate 5 Human Fact Scope v1
 
-Status: `CURRENT SUPPORTING CONTRACT; INACTIVE, TAXPAYER BINDING BLOCKED`
+Status: `CURRENT; ACTIVE FOR THE BOUNDED ISSUE #304 PRODUCT ROUTE`
 
-Issues: `#299`, review follow-up `#301`
+Issues: `#299`, review follow-up `#301`, product activation `#304`
 
-Date: 2026-08-23
+Date: 2026-08-24
 
 ## Boundary and owner
 
@@ -24,37 +24,29 @@ The implementation reuses `ArtifactStorePort` and `ArtifactResolver`. It adds
 no registry, workflow/event engine, identity authority, receipt engine or
 provider/LLM path.
 
-## Scope and the unresolved taxpayer binding
+## Scope and the product taxpayer slot
 
 The immutable fact scope contains authenticated user, case, independent
 `taxpayer_scope_ref`, four-digit tax period and a canonical scope hash. Run ID
 is deliberately excluded so a valid fact can replay in a later run. Workspace
 ID remains an ArtifactStore ACL boundary, not fact meaning.
 
-The Human owner validates mechanical equality of the supplied taxpayer scope
-across request, fact and consumer. Two distinct synthetic taxpayer refs in the
-same user/case remain independently representable and cross-use fails closed.
-This does **not** prove where either ref came from.
+The Human owner validates mechanical equality of the taxpayer scope across
+request, fact and consumer. The Issue #304 composition mints exactly one opaque
+`primary_user_attested_taxpayer` slot from authenticated user, case and period.
+The caller cannot choose it. It is workflow scope only: it is not an INN,
+taxpayer identity, operation subject or claim that the portal authenticated a
+taxpayer.
 
-Repository investigation found no pre-existing owner-produced authenticated
-case-to-taxpayer binding and no trusted exactly-one-taxpayer-per-case invariant.
-The historical operation/category binding is caller-supplied
-`user_verified_fact` for one operation subject; it does not authenticate the
-taxpayer to the user/case and cannot be promoted into that missing relation.
+Actual identity exists only as the current `taxpayer_identity` Human fact with
+provenance `USER_ATTESTED_CASE_FACT`. A Canonical INN/FIO assertion is a private
+candidate and has no identity authority until the user chooses confirm or
+change on the current owner publication. `DEFER` creates no fact.
 
 The former `gate5_case_taxpayer_scope_ref` case hash is removed. Hashing a case
 ID only obfuscated the case and silently invented a one-taxpayer invariant.
-The current product composition now fails closed with
-`ndfl_trusted_taxpayer_scope_binding_required` instead of manufacturing a
-scope. Positive tests use explicit synthetic refs and prove mechanics only.
-
-Smallest missing upstream contract: an owner-produced, owner-verifiable
-authenticated taxpayer-case binding containing at least authenticated user,
-case, independent taxpayer scope and explicit origin/provenance, with cardinality
-able to represent more than one taxpayer per case. Authentication/case identity
-must own it; the Human Adapter must only consume it.
-
-Issue-level terminal: `HUMAN_FACT_TAXPAYER_SCOPE_BLOCKER_PROVEN`.
+The former case-hash helper and the authenticated-identity-provider surrogate
+remain forbidden. Cross-user/case/workspace/period/slot use fails closed.
 
 ## Current request publication
 
@@ -107,19 +99,28 @@ winner.
 
 ## Authority ceiling
 
-The closed Human fact keys remain:
+The closed Human fact keys include the historical preparation keys plus the
+bounded product keys:
 
 ```text
 taxpayer_identity_confirmed
+taxpayer_identity
+taxpayer_capacity
 filing_instance_identity
+filing_destination_code
 signer_and_representation
 budget_disposition
+budget_oktmo
 residency_evidence
+declaration_date
+ordinary_trade_declaration_zero_scope_confirmed
 ```
 
-`filing_instance_identity` is now only the closed election
-`INITIAL | CORRECTION`. Destination/inspection is a separate required
-`EXTERNAL_AUTHORITY` gap. Free text cannot smuggle inspection, KBK, OKTMO,
+`filing_instance_identity` remains only the closed election
+`INITIAL | CORRECTION`. The Issue #304 route may collect the exact inspection
+code and OKTMO as explicit user-attested fill values. KBK, source
+applicability, deductibility and legal classification are never Human facts.
+Free text cannot smuggle
 residency/tax status, source classification, deductibility or settlement into
 the filing fact. Declaration Preparation consumes only readiness and does not
 reinterpret the election as destination or target data.
@@ -132,7 +133,6 @@ facts. Runtime provider/LLM calls remain zero.
 ## Compatibility and activation
 
 `broker_reports_gate5_user_case_fact_v0` is historical-readable only and is
-rejected on this v1 boundary. There is no silent migration. Declaration/XML,
-filing and submission are not activated. Until the missing taxpayer binding is
-owned upstream, this contract is an inactive synthetic proof and PR #300 must
-not be merged.
+rejected on this v1 boundary. There is no silent migration. Issue #304 activates
+only interactive preparation and private XML download for the exact bounded
+scenario; it does not activate FNS filing/submission or identity authentication.

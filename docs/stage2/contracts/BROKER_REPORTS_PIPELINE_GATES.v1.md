@@ -313,7 +313,7 @@ transcription fallback. Exact rules are in
 
 | Entrypoint / artifact | Status | Authority boundary |
 | --- | --- | --- |
-| `OrdinaryTradeProductionRuntimeFactory.create` | `PRODUCT/NORMATIVE` | sole active ordinary-trade composition root; exact Canonical activation through deterministic Gate 5 |
+| `OrdinaryTradeProductionRuntimeFactory.create` | `PRODUCT/NORMATIVE` | sole active ordinary-trade and bounded declaration-product composition root; current Canonical/source owner + current Human Facts + pinned methodology -> `INPUT_REQUIRED | DRAFT_READY | DECLARATION_XML_READY`; deterministic Gate 5 and private XML delivery, zero FNS transport |
 | `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | `PRODUCT/NORMATIVE` | frozen exact schema/enum meaning plus explicit amount-column to currency-column bindings; no row values, broker/year/filename routing or fuzzy reuse |
 | `OrdinaryTradeSemanticCompilerFactory.create` | `PRODUCT/NORMATIVE` | Canonical-bound Source Observations and deterministic runtime records; executes qualified bindings and never derives them from adjacency; unknown content remains unmapped |
 | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | `PRODUCT/NORMATIVE` | validates candidate projection into the existing Fact v2 boundary without SQL or Gate 3 execution |

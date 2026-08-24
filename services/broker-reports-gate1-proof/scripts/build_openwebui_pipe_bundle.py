@@ -60,6 +60,7 @@ GATE1_RESOURCE_NAMES = (
     "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v3.json",
     "gate5_tax_methodology.ru_3ndfl_2025_income_group_settlement.v0.json",
     "gate5_tax_methodology.ru_3ndfl_2025_income_group_settlement.v1.json",
+    "gate5_tax_methodology.ru_ordinary_trade_declaration_product.v1.json",
     "gate5_tax_methodology.ru_ndfl_securities_income_group_tax_base_proof.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_operation_tax_model_proof.v0.json",
     "gate5_tax_methodology.ru_ndfl_securities_proof.v0.json",
@@ -234,6 +235,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "authenticated_case_taxpayer_binding",
     "ordinary_trade_tax_model_bridge",
     "active_category_declaration_assembly",
+    "ordinary_trade_declaration_case_inputs",
     "ordinary_trade_declaration_mvp",
     "ordinary_trade_production_runtime",
 ]
