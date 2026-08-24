@@ -43,6 +43,7 @@ def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) 
         "ndfl_gate3_private_audit_id",
     }
     captured: dict[str, object] = {}
+    monkeypatch.setattr(control.secrets, "token_hex", lambda _size: "a" * 32)
 
     monkeypatch.setattr(control, "_read_env", lambda _path: {})
     monkeypatch.setattr(control, "_admin_session", lambda _env, _url: object())
@@ -139,12 +140,18 @@ def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) 
         "receipt_sha256"
     ]
     assert safe_state["status"] == "prepared"
+    assert safe_state["control_run_id"] == "a" * 32
+    assert private_state["control_run_id"] == safe_state["control_run_id"]
     assert safe_state["temporary_users"] == 2
     assert safe_state["legacy_function_inactive"] is True
     assert private_state["original_legacy_function_active"] is True
     assert legacy["is_active"] is False
     assert safe_state["receipt_sha256"] == _receipt_sha256(safe_state)
     assert safe_state["predecessor_control_prepared_receipt_sha256"] is None
+
+    second_state = dict(private_state, control_run_id="b" * 32)
+    second_safe = control._safe_result(second_state, status="prepared")
+    assert second_safe["receipt_sha256"] != safe_state["receipt_sha256"]
 
 
 def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> None:

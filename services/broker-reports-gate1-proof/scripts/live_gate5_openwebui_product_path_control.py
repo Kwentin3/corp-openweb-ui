@@ -325,6 +325,7 @@ def _safe_result(state: dict[str, Any], *, status: str) -> dict[str, Any]:
         "status": status,
         "function_id": FUNCTION_ID,
         "workspace_model_id": MODEL_ID,
+        "control_run_id": state.get("control_run_id"),
         "deployed_bundle_sha256": state.get("deployed_bundle_sha256"),
         "predecessor_control_prepared_receipt_sha256": (
             state.get("control_prepared_receipt_sha256")
@@ -457,6 +458,7 @@ def _prepare(args: argparse.Namespace) -> int:
 
         state = {
             "schema_version": "broker_reports_gate5_openwebui_control_private_v0",
+            "control_run_id": secrets.token_hex(16),
             "base_url": base_url,
             "original_model_access_grants": before_grants,
             "original_function_global": bool(before_function.get("is_global")),

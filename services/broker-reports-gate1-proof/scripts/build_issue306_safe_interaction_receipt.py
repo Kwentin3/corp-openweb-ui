@@ -251,6 +251,12 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             raise Issue306ReceiptError("issue306_control_not_restored")
         if item.get("deployed_bundle_sha256") != expected["generated_bundle_sha256"]:
             raise Issue306ReceiptError("issue306_restored_control_bundle_mismatch")
+    control_run_ids = {str(item.get("control_run_id")) for item in restored}
+    if (
+        len(control_run_ids) != 2
+        or any(re.fullmatch(r"[0-9a-f]{32}", value) is None for value in control_run_ids)
+    ):
+        raise Issue306ReceiptError("issue306_control_runs_not_independent")
     prepared_receipts = {
         str(item.get("predecessor_control_prepared_receipt_sha256"))
         for item in restored
