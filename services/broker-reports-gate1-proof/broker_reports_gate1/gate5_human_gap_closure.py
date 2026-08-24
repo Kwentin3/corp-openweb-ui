@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import re
+from datetime import date
 from typing import Any
 
 from .artifact_models import (
@@ -136,9 +137,13 @@ _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _ARTIFACT_REF = re.compile(r"^art_[A-Fa-f0-9]{32}$")
 _KNOWN_FACT_KEYS = {
     "taxpayer_identity_confirmed",
+    "taxpayer_identity",
+    "taxpayer_capacity",
     "filing_instance_identity",
+    "filing_destination_code",
     "signer_and_representation",
     "budget_disposition",
+    "budget_oktmo",
     "residency_evidence",
     "declaration_date",
     "ordinary_trade_declaration_zero_scope_confirmed",
@@ -379,6 +384,118 @@ class Gate5HumanGapClosureRuntime:
             ),
         }
 
+    def publish_ordinary_trade_declaration_requests(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        taxpayer_scope_ref: str,
+        tax_period: str,
+        identity_candidates: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Publish the bounded product's user questions through this owner."""
+
+        self._publication_dependencies()
+        facts = self.current_user_case_facts(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=tax_period,
+        )
+        facts_by_key = {item["fact_key"]: item for item in facts}
+        request_facts_by_key = dict(facts_by_key)
+        # The current Canonical identity candidate is request content. Re-publish
+        # this one lane even after confirmation so a candidate successor makes
+        # the old fact stale. If the candidate is unchanged, content addressing
+        # reuses the publication and the current fact suppresses the question.
+        request_facts_by_key.pop("taxpayer_identity", None)
+        requests = _ordinary_trade_product_requests(
+            facts_by_key=request_facts_by_key,
+            identity_candidates=identity_candidates,
+            scope_binding=_human_fact_scope(
+                context=context,
+                taxpayer_scope_ref=taxpayer_scope_ref,
+                tax_period=tax_period,
+            ),
+        )
+        published = []
+        for item in requests:
+            current_change = self._current_product_change_request(
+                request=item,
+                context=context,
+            )
+            published.append(
+                current_change
+                if current_change is not None
+                else self._persist_request(request=item, context=context)
+            )
+        for request in published:
+            self._reject_stale_request(request=request, context=context)
+        current_facts = self.current_user_case_facts(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=tax_period,
+        )
+        current_fact_keys = {item["fact_key"] for item in current_facts}
+        published = [
+            item for item in published if item["fact_key"] not in current_fact_keys
+        ]
+        return {
+            "schema_version": "broker_reports_ordinary_trade_user_actions_v1",
+            "status": "OWNER_PUBLISHED",
+            "scope_binding": _human_fact_scope(
+                context=context,
+                taxpayer_scope_ref=taxpayer_scope_ref,
+                tax_period=tax_period,
+            ),
+            "actions": published,
+            "current_user_case_facts": current_facts,
+            "provider_calls_total": 0,
+        }
+
+    def publish_ordinary_trade_declaration_change_request(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        taxpayer_scope_ref: str,
+        tax_period: str,
+        fact_key: str,
+        identity_candidates: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Publish an owner-bound successor before changing one current fact."""
+
+        self._publication_dependencies()
+        facts = self.current_user_case_facts(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=tax_period,
+        )
+        facts_by_key = {item["fact_key"]: item for item in facts}
+        current_fact = facts_by_key.get(fact_key)
+        if current_fact is None:
+            _fail("gate5_user_case_fact_change_target_missing")
+        request_facts_by_key = dict(facts_by_key)
+        request_facts_by_key.pop(fact_key)
+        requests = _ordinary_trade_product_requests(
+            facts_by_key=request_facts_by_key,
+            identity_candidates=identity_candidates,
+            scope_binding=_human_fact_scope(
+                context=context,
+                taxpayer_scope_ref=taxpayer_scope_ref,
+                tax_period=tax_period,
+            ),
+            change_fact={
+                "fact_key": fact_key,
+                "user_case_fact_ref": current_fact["user_case_fact_ref"],
+            },
+        )
+        request = next(
+            (item for item in requests if item.get("fact_key") == fact_key), None
+        )
+        if request is None:
+            _fail("gate5_user_case_fact_change_target_invalid")
+        published = self._persist_request(request=request, context=context)
+        self._reject_stale_request(request=published, context=context)
+        return published
+
     def normalize_answer(
         self,
         *,
@@ -409,6 +526,18 @@ class Gate5HumanGapClosureRuntime:
         if answer.get("kind") != expected["kind"]:
             _fail("gate5_gap_answer_kind_invalid")
         value = copy.deepcopy(answer["value"])
+        if expected["kind"] == "identity_choice":
+            value = _normalized_identity_choice(
+                value=value,
+                candidate=expected.get("candidate"),
+            )
+            if value is None:
+                return {
+                    "status": "USER_CASE_FACT_DEFERRED",
+                    "request_id": validated["request_id"],
+                    "typed_user_case_fact": None,
+                    "route": "deterministic case replay",
+                }
         if expected["kind"] == "residency_evidence":
             if not isinstance(value, dict) or set(value) != {
                 "human_answer",
@@ -430,6 +559,16 @@ class Gate5HumanGapClosureRuntime:
             _fail("gate5_gap_answer_value_invalid")
         if expected.get("allowed") and value not in expected["allowed"]:
             _fail("gate5_gap_answer_value_invalid")
+        if expected.get("pattern") and (
+            not isinstance(value, str)
+            or re.fullmatch(expected["pattern"], value) is None
+        ):
+            _fail("gate5_gap_answer_value_invalid")
+        if validated["fact_key"] == "declaration_date":
+            try:
+                date.fromisoformat(value)
+            except (TypeError, ValueError):
+                _fail("gate5_gap_declaration_date_invalid")
         fact = {
             "schema_version": GATE5_USER_CASE_FACT_SCHEMA_VERSION,
             "user_case_fact_ref": "",
@@ -445,7 +584,7 @@ class Gate5HumanGapClosureRuntime:
                 ],
             },
             "provenance": {
-                "source_kind": "authenticated_user_case_fact",
+                "source_kind": "USER_ATTESTED_CASE_FACT",
                 "provided_by": "authenticated_user",
                 "input_channel": "gate5_human_gap_closure_v1",
                 "calculation_authority": False,
@@ -487,6 +626,46 @@ class Gate5HumanGapClosureRuntime:
             "typed_user_case_fact": persisted,
             "route": "deterministic case replay",
         }
+
+    def normalize_published_answer(
+        self,
+        *,
+        request_publication_ref: str,
+        answer: dict[str, Any],
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any]:
+        """Resolve the private request by its owner publication before answering."""
+
+        self._publication_dependencies()
+        if not _artifact_ref_valid(request_publication_ref):
+            _fail("gate5_gap_request_publication_invalid")
+        assert self._resolver is not None
+        try:
+            resolved = self._resolver.resolve_case(
+                request_publication_ref, context
+            )
+        except ArtifactStoreError as exc:
+            raise Gate5HumanGapClosureError(
+                "gate5_gap_request_publication_invalid"
+            ) from exc
+        publication = _validated_request_publication(resolved["payload"])
+        if (
+            resolved["record"].artifact_type
+            != GATE5_GAP_REQUEST_PUBLICATION_ARTIFACT_TYPE
+        ):
+            _fail("gate5_gap_request_publication_invalid")
+        request = self._resolve_request_binding(
+            binding={
+                **publication["request_binding"],
+                "request_publication_ref": request_publication_ref,
+            },
+            context=context,
+        )
+        return self.normalize_answer(
+            request=request,
+            answer=answer,
+            context=context,
+        )
 
     def validate_user_case_facts(
         self,
@@ -598,6 +777,41 @@ class Gate5HumanGapClosureRuntime:
             or not isinstance(self._retention_policy, RetentionPolicy)
         ):
             _fail("gate5_human_fact_publication_dependencies_required")
+
+    def _current_product_change_request(
+        self,
+        *,
+        request: dict[str, Any],
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any] | None:
+        current = self._current_request_publication(
+            request_lane_sha256=_request_lane_sha256(request),
+            context=context,
+        )
+        if current is None:
+            return None
+        binding = {
+            **current["request_binding"],
+            "request_publication_ref": current["request_publication_ref"],
+        }
+        owner_request = self._resolve_request_binding(
+            binding=binding,
+            context=context,
+        )
+        contract = owner_request.get("answer_contract")
+        contract = contract if isinstance(contract, dict) else {}
+        if (
+            owner_request.get("fact_key") != request.get("fact_key")
+            or owner_request.get("semantic_request_key")
+            != request.get("semantic_request_key")
+            or owner_request.get("scope_binding") != request.get("scope_binding")
+            or not _artifact_ref_valid(contract.get("change_of_user_case_fact_ref"))
+        ):
+            return None
+        return {
+            **owner_request,
+            "request_publication_ref": current["request_publication_ref"],
+        }
 
     def _persist_request(
         self, *, request: dict[str, Any], context: ArtifactAccessContext
@@ -908,6 +1122,284 @@ class Gate5HumanGapClosureRuntime:
                 versions.add(candidate["fact_sha256"])
         if len(versions) > 1:
             _fail("gate5_user_case_fact_conflict")
+
+
+def _ordinary_trade_product_requests(
+    *,
+    facts_by_key: dict[str, dict[str, Any]],
+    identity_candidates: list[dict[str, Any]],
+    scope_binding: dict[str, Any],
+    change_fact: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    candidate = _identity_candidate_from_metadata(identity_candidates)
+    definitions = (
+        (
+            "taxpayer_identity",
+            "Confirm the taxpayer INN and name found in the current document, "
+            "replace them, or fill them later.",
+            "taxpayer identity is required only for official XML fields",
+            {
+                "kind": "identity_choice",
+                "candidate": candidate,
+                "required_for": "DECLARATION_XML_READY",
+            },
+            ["obl_taxpayer_identity_and_period_status"],
+        ),
+        (
+            "taxpayer_capacity",
+            "State whether the taxpayer is an ordinary individual, an individual "
+            "entrepreneur, or a private-practice professional for 2025.",
+            "taxpayer capacity changes the supported declaration scope",
+            {
+                "kind": "code",
+                "allowed": [
+                    "individual_not_ip_not_private_practice",
+                    "individual_entrepreneur",
+                    "private_practice_professional",
+                ],
+                "required_for": "DRAFT_READY",
+            },
+            ["obl_taxpayer_identity_and_period_status"],
+        ),
+        (
+            "residency_evidence",
+            "Provide complete 2025 presence and absence intervals for the "
+            "published residency methodology; do not provide only a tax conclusion.",
+            "residency evidence is required before calculation",
+            {
+                "kind": "residency_evidence",
+                "proposal_schema_version": (
+                    GATE5_RESIDENCY_EVIDENCE_PROPOSAL_SCHEMA_VERSION
+                ),
+                "required_for": "DRAFT_READY",
+            },
+            ["obl_taxpayer_identity_and_period_status"],
+        ),
+        (
+            "ordinary_trade_declaration_zero_scope_confirmed",
+            "Confirm that this bounded declaration has no other income in the "
+            "selected group, deductions, loss claims, credits or withheld tax.",
+            "the calculation scope cannot be inferred from one broker operation",
+            {
+                "kind": "confirmation",
+                "required_for": "DRAFT_READY",
+            },
+            [
+                "obl_income_group_tax_base_results",
+                "obl_income_group_tax_settlement_results",
+            ],
+        ),
+        (
+            "filing_instance_identity",
+            "Choose initial filing or correction for the 2025 declaration.",
+            "filing instance is required for official XML",
+            {
+                "kind": "code",
+                "allowed": ["INITIAL", "CORRECTION"],
+                "required_for": "DECLARATION_XML_READY",
+            },
+            ["obl_filing_instance_identity"],
+        ),
+        (
+            "declaration_date",
+            "Provide the declaration date in YYYY-MM-DD format.",
+            "the declaration date must not be invented",
+            {
+                "kind": "text",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                "required_for": "DECLARATION_XML_READY",
+            },
+            ["obl_filing_instance_identity"],
+        ),
+        (
+            "filing_destination_code",
+            "Provide the exact four-digit destination inspection code, or fill it later.",
+            "the destination code must be user supplied or owner derived, never guessed",
+            {
+                "kind": "code",
+                "pattern": "^[0-9]{4}$",
+                "required_for": "DECLARATION_XML_READY",
+            },
+            ["obl_filing_instance_identity"],
+        ),
+        (
+            "signer_and_representation",
+            "State whether the taxpayer signs personally or through a representative.",
+            "signer capacity is required for official XML",
+            {
+                "kind": "code",
+                "allowed": ["SELF", "REPRESENTATIVE"],
+                "required_for": "DECLARATION_XML_READY",
+            },
+            ["obl_signer_and_representation_authority"],
+        ),
+        (
+            "budget_disposition",
+            "Choose payment, additional payment, reduction or refund disposition.",
+            "budget disposition is required for official XML",
+            {
+                "kind": "code",
+                "allowed": [
+                    "PAYMENT",
+                    "ADDITIONAL_PAYMENT",
+                    "REDUCTION",
+                    "REFUND",
+                ],
+                "required_for": "DECLARATION_XML_READY",
+            },
+            ["obl_declaration_budget_disposition"],
+        ),
+        (
+            "budget_oktmo",
+            "Provide the exact 8- or 11-digit OKTMO for the budget result, or fill it later.",
+            "OKTMO must be exact and must not be guessed",
+            {
+                "kind": "code",
+                "pattern": "^[0-9]{8}(?:[0-9]{3})?$",
+                "required_for": "DECLARATION_XML_READY",
+            },
+            ["obl_declaration_budget_disposition"],
+        ),
+    )
+    requests: list[dict[str, Any]] = []
+    for fact_key, question, reason, answer_contract, demand_refs in definitions:
+        if fact_key in facts_by_key:
+            continue
+        effective_answer_contract = copy.deepcopy(answer_contract)
+        if change_fact is not None and change_fact.get("fact_key") == fact_key:
+            effective_answer_contract["change_of_user_case_fact_ref"] = change_fact[
+                "user_case_fact_ref"
+            ]
+        requests.append(
+            _request(
+                kind="REQUIRED",
+                priority=(
+                    "HIGH"
+                    if effective_answer_contract["required_for"] == "DRAFT_READY"
+                    else "LOW"
+                ),
+                closure_type="USER_FACT",
+                fact_key=fact_key,
+                demand_refs=demand_refs,
+                evidence_refs=(
+                    list(candidate.get("source_fact_refs", []))
+                    if fact_key == "taxpayer_identity" and candidate
+                    else []
+                ),
+                question=question,
+                reason=reason,
+                helpful_evidence="current authenticated user answer",
+                client_benefit="keeps declaration values explicit and reviewable",
+                answer_contract=effective_answer_contract,
+                subject={"profile": "ordinary_trade_declaration_mvp_2025"},
+                scope_binding=scope_binding,
+                semantic_request_key="human_fact:" + fact_key,
+            )
+        )
+    return _deduplicated_requests(requests)
+
+
+def _identity_candidate_from_metadata(
+    facts: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    by_type: dict[str, list[dict[str, Any]]] = {}
+    for item in facts:
+        if isinstance(item, dict):
+            by_type.setdefault(str(item.get("fact_type") or ""), []).append(item)
+    inns = by_type.get("TAXPAYER_TAX_IDENTIFIER", [])
+    names = by_type.get("PARTY_NAME", [])
+    if len(inns) != 1 or len(names) != 1:
+        return None
+    try:
+        name_parts = names[0]["value"]["normalized"].split()
+        if len(name_parts) not in {2, 3}:
+            return None
+        candidate = {
+            "inn": inns[0]["value"]["normalized"],
+            "last_name": name_parts[0],
+            "first_name": name_parts[1],
+            "middle_name": name_parts[2] if len(name_parts) == 3 else "",
+            "source_fact_refs": sorted([inns[0]["fact_id"], names[0]["fact_id"]]),
+        }
+    except (KeyError, TypeError):
+        return None
+    return candidate if _valid_identity(candidate, source_refs_required=True) else None
+
+
+def _normalized_identity_choice(
+    *, value: Any, candidate: Any
+) -> dict[str, Any] | None:
+    if not isinstance(value, dict) or set(value) != {"choice", "identity"}:
+        _fail("gate5_gap_answer_value_invalid")
+    choice = value.get("choice")
+    if choice == "DEFER" and value.get("identity") is None:
+        return None
+    if choice == "CONFIRM" and value.get("identity") is None:
+        if not _valid_identity(candidate, source_refs_required=True):
+            _fail("gate5_gap_identity_candidate_missing")
+        return copy.deepcopy(candidate)
+    if choice == "CHANGE" and _valid_identity(
+        value.get("identity"), source_refs_required=False
+    ):
+        return {
+            "inn": value["identity"]["inn"],
+            "last_name": value["identity"]["last_name"],
+            "first_name": value["identity"]["first_name"],
+            "middle_name": value["identity"]["middle_name"],
+            "source_fact_refs": [],
+        }
+    changed = value.get("identity") if choice == "CHANGE" else None
+    if (
+        isinstance(changed, dict)
+        and re.fullmatch(r"[0-9]{12}", str(changed.get("inn") or ""))
+        and not _inn12_checksum_valid(changed["inn"])
+    ):
+        _fail("gate5_gap_taxpayer_inn_checksum_invalid")
+    _fail("gate5_gap_answer_value_invalid")
+
+
+def _valid_identity(value: Any, *, source_refs_required: bool) -> bool:
+    if not isinstance(value, dict) or set(value) != {
+        "inn",
+        "last_name",
+        "first_name",
+        "middle_name",
+        "source_fact_refs",
+    }:
+        return False
+    inn = value.get("inn")
+    refs = value.get("source_fact_refs")
+    return bool(
+        isinstance(inn, str)
+        and re.fullmatch(r"[0-9]{12}", inn)
+        and _inn12_checksum_valid(inn)
+        and all(
+            isinstance(value.get(key), str)
+            and (value[key].strip() or key == "middle_name")
+            and len(value[key]) <= 80
+            for key in ("last_name", "first_name", "middle_name")
+        )
+        and isinstance(refs, list)
+        and all(_identifier(item) for item in refs)
+        and (bool(refs) if source_refs_required else not refs)
+    )
+
+
+def _inn12_checksum_valid(value: str) -> bool:
+    if re.fullmatch(r"[0-9]{12}", value) is None:
+        return False
+    digits = [int(item) for item in value]
+    check_11 = sum(
+        weight * digit
+        for weight, digit in zip((7, 2, 4, 10, 3, 5, 9, 4, 6, 8), digits[:10])
+    )
+    check_12 = sum(
+        weight * digit
+        for weight, digit in zip(
+            (3, 7, 2, 4, 10, 3, 5, 9, 4, 6, 8), digits[:11]
+        )
+    )
+    return check_11 % 11 % 10 == digits[10] and check_12 % 11 % 10 == digits[11]
 
 
 def _source_requests(
@@ -1571,7 +2063,7 @@ def _validated_user_fact_shape(item: Any) -> dict[str, Any]:
         or not isinstance(item.get("provenance"), dict)
         or item["provenance"]
         != {
-            "source_kind": "authenticated_user_case_fact",
+            "source_kind": "USER_ATTESTED_CASE_FACT",
             "provided_by": "authenticated_user",
             "input_channel": "gate5_human_gap_closure_v1",
             "calculation_authority": False,

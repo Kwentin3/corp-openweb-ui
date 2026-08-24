@@ -123,10 +123,16 @@ def test_declaration_scope_resolution_and_activation_have_one_module_owner() -> 
 def test_user_case_facts_cannot_be_tax_conclusions() -> None:
     assert _KNOWN_FACT_KEYS == {
         "taxpayer_identity_confirmed",
+        "taxpayer_identity",
+        "taxpayer_capacity",
         "filing_instance_identity",
+        "filing_destination_code",
         "signer_and_representation",
         "budget_disposition",
+        "budget_oktmo",
         "residency_evidence",
+        "declaration_date",
+        "ordinary_trade_declaration_zero_scope_confirmed",
     }
     forbidden_conclusions = {
         "income_source_classification",

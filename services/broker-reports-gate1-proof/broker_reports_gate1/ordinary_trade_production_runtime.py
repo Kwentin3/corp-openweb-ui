@@ -55,35 +55,18 @@ class OrdinaryTradeProductionRuntimeFactory:
         store: ArtifactStorePort,
         read_enabled: bool,
         retention_policy: RetentionPolicy | None = None,
-        identity_provider: Any | None = None,
-        external_authority_provider: Any | None = None,
     ) -> None:
         self._store = store
         self._read_enabled = read_enabled
         self._retention_policy = retention_policy
-        self._identity_provider = identity_provider
-        self._external_authority_provider = external_authority_provider
 
     def create(self) -> "OrdinaryTradeProductionRuntime":
-        declaration_inputs = (
-            self._retention_policy,
-            self._identity_provider,
-            self._external_authority_provider,
-        )
-        if any(item is not None for item in declaration_inputs) and not all(
-            item is not None for item in declaration_inputs
-        ):
-            raise OrdinaryTradeProductionError(
-                "ordinary_trade_declaration_owner_set_incomplete"
-            )
         declaration = None
-        if all(item is not None for item in declaration_inputs):
+        if self._retention_policy is not None:
             declaration = OrdinaryTradeDeclarationMvpRuntime(
                 store=self._store,
                 read_enabled=self._read_enabled,
                 retention_policy=self._retention_policy,
-                identity_provider=self._identity_provider,
-                external_authority_provider=self._external_authority_provider,
             )
         return OrdinaryTradeProductionRuntime(
             store=self._store,
@@ -179,6 +162,7 @@ class OrdinaryTradeProductionRuntime:
             else "SOURCE_FACTS_CONSUMED"
         )
         declaration = None
+        preparation = None
         if execution_status == "completed":
             if self._declaration is None:
                 execution_status = "declaration_blocked"
@@ -186,12 +170,13 @@ class OrdinaryTradeProductionRuntime:
                 terminal = "ordinary_trade_declaration_authority_owners_required"
             else:
                 try:
-                    declaration = self._declaration.run(
+                    preparation = self._declaration.prepare(
                         context=context,
                         canonical_coverage=canonical_coverage,
                     )
-                    product_status = "DECLARATION_XML_READY"
-                    terminal = declaration["terminal"]
+                    product_status = preparation["status"]
+                    terminal = preparation["terminal"]
+                    declaration = preparation.get("declaration")
                 except OrdinaryTradeDeclarationMvpError as exc:
                     execution_status = "declaration_blocked"
                     product_status = "PREPARATION_INCOMPLETE"
@@ -237,17 +222,33 @@ class OrdinaryTradeProductionRuntime:
                     )
                 ),
             },
-            "preparation": {
-                "status": product_status,
-                "terminals": [terminal],
-                "declaration_readiness": {"ready": declaration is not None},
-                "gap_closure": {
-                    "user_facing_required_actions": [],
-                    "internal_owner_required_actions": (
-                        [] if declaration is not None else [{"reason_code": terminal}]
-                    ),
-                },
-            },
+            "preparation": (
+                {
+                    **preparation,
+                    "terminals": [preparation["terminal"]],
+                    "declaration_readiness": {
+                        "ready": preparation["declaration_ready"]
+                    },
+                    "gap_closure": {
+                        "user_facing_required_actions": preparation["user_actions"],
+                        "internal_owner_required_actions": preparation[
+                            "internal_blockers"
+                        ],
+                    },
+                }
+                if preparation is not None
+                else {
+                    "status": product_status,
+                    "terminals": [terminal],
+                    "declaration_readiness": {"ready": False},
+                    "gap_closure": {
+                        "user_facing_required_actions": [],
+                        "internal_owner_required_actions": [
+                            {"reason_code": terminal}
+                        ],
+                    },
+                }
+            ),
         }
         return {
             "schema_version": ORDINARY_TRADE_PRODUCTION_RUN_SCHEMA_VERSION,
@@ -317,6 +318,41 @@ class OrdinaryTradeProductionRuntime:
             canonical_coverage=self._projections.current_case_coverage(
                 context=context
             ),
+        )
+
+    def normalize_declaration_action(
+        self,
+        *,
+        request_publication_ref: str,
+        answer: dict[str, Any],
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any]:
+        if self._declaration is None:
+            raise OrdinaryTradeProductionError(
+                "ordinary_trade_declaration_runtime_not_configured"
+            )
+        return self._declaration.normalize_action(
+            request_publication_ref=request_publication_ref,
+            answer=answer,
+            context=context,
+        )
+
+    def publish_declaration_change_action(
+        self,
+        *,
+        fact_key: str,
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any]:
+        if self._declaration is None:
+            raise OrdinaryTradeProductionError(
+                "ordinary_trade_declaration_runtime_not_configured"
+            )
+        return self._declaration.publish_change_action(
+            context=context,
+            canonical_coverage=self._projections.current_case_coverage(
+                context=context
+            ),
+            fact_key=fact_key,
         )
 
     def _activate_compile_and_verify(

@@ -1,0 +1,49 @@
+{
+  "schema_version": "broker_reports_gate5_ordinary_trade_declaration_product_methodology_v1",
+  "methodology_id": "ru-ordinary-trade-declaration-product",
+  "methodology_version": "2025.1",
+  "tax_period": "2025",
+  "supported_profile": "one ordinary organized-market security disposal outside IIS",
+  "rules": [
+    {
+      "rule_id": "ordinary-trade-operation-applicability-v1",
+      "required_source_assertions": {
+        "admitted_exchange_fact": "ADMITTED",
+        "market_quotation_fact": "AVAILABLE",
+        "iis_status_assertion": "OUTSIDE_IIS",
+        "exemption_source_assertion": "NONE"
+      },
+      "output": {
+        "organized_market_status": "organized_market",
+        "iis_status": "outside_iis",
+        "exemption_applicability": "not_applicable"
+      },
+      "insufficient_inputs": "REAL_SOURCE_EVIDENCE_MISSING",
+      "authority_refs": [
+        "nk-rf-article-214.1-paragraphs-3-4",
+        "current-canonical-explicit-source-assertions"
+      ]
+    },
+    {
+      "rule_id": "ordinary-trade-income-source-v1",
+      "required_source_assertions": {
+        "payer_organization_jurisdiction": "RU",
+        "realization_location_jurisdiction": "RU"
+      },
+      "output": "russian_source",
+      "insufficient_inputs": "REAL_SOURCE_EVIDENCE_MISSING",
+      "authority_refs": [
+        "nk-rf-article-208-paragraph-1-subparagraph-5"
+      ]
+    },
+    {
+      "rule_id": "ordinary-trade-article-228-payment-kbk-v1",
+      "when": "2025 resident individual Article 228 securities-disposal declaration with payment disposition",
+      "output": "18210102030011000110",
+      "insufficient_inputs": "METHODOLOGY_UNRESOLVED",
+      "authority_refs": [
+        "https://www.nalog.gov.ru/rn77/taxation/kbk/fl/ndfl/"
+      ]
+    }
+  ]
+}

@@ -336,6 +336,106 @@ class ActiveCategoryDeclarationAssemblyRuntime:
             )
         return result
 
+    def preview(
+        self,
+        *,
+        operation_methodology_ref: dict[str, Any],
+        source_fact_methodology_ref: dict[str, Any],
+        resolved_inputs: dict[str, Any],
+        disposal_fact_id: str,
+        operation_ref: str,
+        source_scope_ref: str,
+        category_scope: dict[str, Any],
+        taxpayer_binding: dict[str, Any] | None,
+        category_completeness_evidence: dict[str, Any] | None,
+        right_side_inputs: dict[str, Any],
+        context: ArtifactAccessContext,
+    ) -> dict[str, Any]:
+        """Stop at owner-produced settlement; never build Package, release or XML."""
+
+        try:
+            residency = self._right_side.residency_classification(right_side_inputs)
+            bound = copy.deepcopy(resolved_inputs)
+            bound["tax_context"]["residency"] = gate5_residency_methodology_input(
+                residency,
+                input_channel="minimal_tax_context",
+            )
+            bridge = self._bridge.run(
+                operation_methodology_ref=operation_methodology_ref,
+                source_fact_methodology_ref=source_fact_methodology_ref,
+                resolved_inputs=bound,
+                disposal_fact_id=disposal_fact_id,
+                operation_ref=operation_ref,
+                source_scope_ref=source_scope_ref,
+                category_scope=category_scope,
+                taxpayer_binding=taxpayer_binding,
+                completeness_evidence=category_completeness_evidence,
+                context=context,
+            )
+            if (
+                bridge["terminal"] != ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN
+                or bridge["blockers"]
+                or bridge["demands"]
+            ):
+                reason = (
+                    bridge["blockers"][0].get("reason_code")
+                    if bridge["blockers"]
+                    else bridge["demands"][0].get("required_input")
+                )
+                return {
+                    "schema_version": "broker_reports_active_category_declaration_preview_v1",
+                    "status": "blocked",
+                    "reason_code": reason,
+                    "xml_created": False,
+                }
+            category = bridge["category_result"]["category_tax_model"]
+            tax_base = self._right_side.income_group_tax_base(
+                category=category,
+                residency=residency,
+                inputs=right_side_inputs,
+            )
+            definition = (
+                Gate5TrustedFullDeclarationDefinitionAuthorityFactory.create().publication()
+            )
+            scope_receipt = self._scope.resolve(
+                definition_ref=definition,
+                scope=_scope_input(right_side_inputs),
+                typed_component_evidence=[
+                    _component_evidence(
+                        GATE5_SECURITIES_DISPOSAL_OPERATION_TAX_MODEL_SCHEMA_VERSION,
+                        bridge["operation_result"]["tax_model"],
+                    )
+                ],
+                assertion_refs=[],
+                taxpayer_binding=taxpayer_binding,
+                context=context,
+            )
+            settlement = self._right_side.settlement_component(
+                inputs=right_side_inputs,
+                scope_binding=scope_receipt["scope_binding"],
+                tax_base=tax_base,
+            )
+        except Exception as exc:
+            return {
+                "schema_version": "broker_reports_active_category_declaration_preview_v1",
+                "status": "blocked",
+                "reason_code": str(
+                    getattr(exc, "code", "gate5_active_preview_internal_failure")
+                ),
+                "xml_created": False,
+            }
+        preview = {
+            "schema_version": "broker_reports_active_category_declaration_preview_v1",
+            "status": "calculated",
+            "taxpayer_scope_ref": taxpayer_binding["taxpayer_scope_ref"],
+            "operation_subject_ref": taxpayer_binding["operation_subject_ref"],
+            "category_tax_model": category,
+            "income_group_tax_base": tax_base,
+            "tax_settlement": settlement,
+            "xml_created": False,
+        }
+        return {**preview, "preview_sha256": _sha(preview)}
+
     def validate_receipt(
         self,
         receipt: dict[str, Any],

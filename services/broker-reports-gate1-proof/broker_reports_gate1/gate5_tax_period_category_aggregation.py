@@ -102,6 +102,7 @@ _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _TAGGED_SOURCE_KINDS = {
     "authenticated_identity_provider",
     "authenticated_user_case_fact",
+    "USER_ATTESTED_CASE_FACT",
     "current_fact_v2",
     "external_authoritative_evidence",
     "methodology_derived_result",
@@ -944,7 +945,12 @@ def validate_operation_taxpayer_scope_binding(
         or not isinstance(provenance, dict)
         or set(provenance) != {"source_kind", "source_ref", "input_channel"}
         or provenance.get("source_kind")
-        not in {"user_verified_fact", "authenticated_identity_provider"}
+        not in {
+            "user_verified_fact",
+            "authenticated_identity_provider",
+            "owner_minted_user_attested_taxpayer_slot",
+            "USER_ATTESTED_CASE_FACT",
+        }
         or not _identifier(provenance.get("source_ref"))
         or provenance.get("input_channel") != "operation_taxpayer_binding"
     ):

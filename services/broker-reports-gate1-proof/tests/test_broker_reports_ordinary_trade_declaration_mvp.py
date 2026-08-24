@@ -14,9 +14,6 @@ from pathlib import Path
 import pytest
 
 from broker_reports_gate1.artifact_retention import build_retention_policy
-from broker_reports_gate1.authenticated_case_taxpayer_binding import (
-    AUTHENTICATED_CASE_TAXPAYER_ASSERTION_SCHEMA_VERSION,
-)
 from broker_reports_gate1.gate5_human_gap_closure import (
     Gate5HumanGapClosureRuntimeFactory,
 )
@@ -28,32 +25,38 @@ from broker_reports_gate1.gate5_declaration_semantic_input import (
     Gate5DeclarationSemanticInputRuntimeFactory,
 )
 from broker_reports_gate1.ordinary_trade_declaration_mvp import (
-    DECLARATION_EXTERNAL_AUTHORITY_SCHEMA_VERSION,
     ORDINARY_TRADE_DECLARATION_MVP_TERMINAL,
     OrdinaryTradeDeclarationMvpError,
 )
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
+from broker_reports_gate1.ordinary_trade_declaration_case_inputs import (
+    OrdinaryTradeDeclarationCaseInputsRuntimeFactory,
+    primary_taxpayer_scope_ref,
+)
+from broker_reports_gate1.ordinary_trade_projection import (
+    OrdinaryTradeProjectionFactory,
+)
 
 import test_broker_reports_active_category_declaration_assembly as assembly_fixtures
 import test_broker_reports_gate5_human_fact_scope as human_fixtures
 
 
-class IdentityProvider:
-    def __init__(self, value: dict) -> None:
-        self.value = value
-
-    def current_assertions(self, *, context):
-        return (copy.deepcopy(self.value),)
-
-
-class ExternalFactsProvider:
-    def __init__(self, value: dict) -> None:
-        self.value = value
-
-    def current_facts(self, *, context):
-        return copy.deepcopy(self.value)
+_METADATA_LINES = (
+    "ФИО: Иванов Иван Иванович",
+    "ИНН налогоплательщика: 500100732259",
+    "Брокер: АО Тестовый брокер",
+    "ИНН брокера: 7707083893",
+    "КПП брокера: 773601001",
+    "ОКТМО брокера: 45382000",
+    "Юрисдикция брокера: RU",
+    "Место реализации: RU",
+    "Допуск к торгам: ADMITTED",
+    "Рыночная котировка: AVAILABLE",
+    "Режим счета: OUTSIDE_IIS",
+    "Заявленное освобождение: NONE",
+)
 
 
 def test_persisted_canonical_facts_reach_byte_stable_official_xsd_xml(
@@ -69,10 +72,10 @@ def test_persisted_canonical_facts_reach_byte_stable_official_xsd_xml(
     assert first["xml_sha256"] == second["xml_sha256"]
     assert first["xsd_conformance"]["xsd_valid"] is True
     assert first["provider_calls_total"] == 0
-    assert first["taxpayer_scope_ref"] == "taxpayer-authenticated-1"
+    assert first["taxpayer_scope_ref"].startswith("taxpayer_slot_")
     assert first["taxpayer_scope_ref"] != "security-disposal-1"
     assert first["semantic_accounting"]["mapping_occurrences_total"] == 49
-    assert len(first["authority_bindings"]["user_case_fact_refs"]) == 7
+    assert len(first["authority_bindings"]["user_case_fact_refs"]) == 10
     assert "user_facts_artifact_ref" not in first["authority_bindings"]
     assert first["authority_bindings"]["canonical_coverage_ref"].startswith(
         "ordinary_trade_coverage_"
@@ -107,17 +110,365 @@ def test_persisted_canonical_facts_reach_byte_stable_official_xsd_xml(
     )
 
 
+def test_user_attested_candidate_defer_draft_and_same_case_xml_resume(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+    )
+    first = runtime.run(canonical_artifact_refs=[], context=context)
+    actions = first["product"]["preparation"]["user_actions"]
+    by_key = {item["fact_key"]: item for item in actions}
+    candidate = by_key["taxpayer_identity"]["answer_contract"]["candidate"]
+
+    assert first["product"]["status"] == "INPUT_REQUIRED"
+    assert candidate["inn"] == "500100732259"
+    assert candidate["source_fact_refs"]
+    deferred = runtime.normalize_declaration_action(
+        request_publication_ref=by_key["taxpayer_identity"][
+            "request_publication_ref"
+        ],
+        answer={
+            "kind": "identity_choice",
+            "value": {"choice": "DEFER", "identity": None},
+        },
+        context=context,
+    )
+    assert deferred["status"] == "USER_CASE_FACT_DEFERRED"
+    assert deferred["typed_user_case_fact"] is None
+
+    for key in (
+        "taxpayer_capacity",
+        "residency_evidence",
+        "ordinary_trade_declaration_zero_scope_confirmed",
+    ):
+        runtime.normalize_declaration_action(
+            request_publication_ref=by_key[key]["request_publication_ref"],
+            answer=_product_answer(key),
+            context=context,
+        )
+    draft = runtime.run(canonical_artifact_refs=[], context=context)
+    assert draft["product"]["status"] == "DRAFT_READY"
+    assert draft["product"]["xml_created"] is False
+    assert draft["declaration"] is None
+    assert draft["product"]["preparation"]["calculation_preview"][
+        "status"
+    ] == "calculated"
+    assert "taxpayer_identity" in draft["product"]["preparation"][
+        "checklist_fact_keys"
+    ]
+
+    for key, request in by_key.items():
+        if key in {
+            "taxpayer_capacity",
+            "residency_evidence",
+            "ordinary_trade_declaration_zero_scope_confirmed",
+        }:
+            continue
+        result = runtime.normalize_declaration_action(
+            request_publication_ref=request["request_publication_ref"],
+            answer=_product_answer(key),
+            context=context,
+        )
+        assert result["status"] == "TYPED_USER_CASE_FACT_READY"
+        assert result["typed_user_case_fact"]["provenance"]["source_kind"] == (
+            "USER_ATTESTED_CASE_FACT"
+        )
+    ready = runtime.run(canonical_artifact_refs=[], context=context)
+    assert ready["product"]["status"] == "DECLARATION_XML_READY"
+
+
+def test_invalid_calendar_date_and_inn_checksum_are_rejected_before_fact(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+    )
+    first = runtime.run(canonical_artifact_refs=[], context=context)
+    by_key = {
+        item["fact_key"]: item
+        for item in first["product"]["preparation"]["user_actions"]
+    }
+    with pytest.raises(Exception) as invalid_inn:
+        runtime.normalize_declaration_action(
+            request_publication_ref=by_key["taxpayer_identity"][
+                "request_publication_ref"
+            ],
+            answer={
+                "kind": "identity_choice",
+                "value": {
+                    "choice": "CHANGE",
+                    "identity": {
+                        "inn": "123456789012",
+                        "last_name": "Иванов",
+                        "first_name": "Иван",
+                        "middle_name": "Иванович",
+                        "source_fact_refs": [],
+                    },
+                },
+            },
+            context=context,
+        )
+    assert getattr(invalid_inn.value, "code", "") == (
+        "gate5_gap_taxpayer_inn_checksum_invalid"
+    )
+    with pytest.raises(Exception) as invalid_date:
+        runtime.normalize_declaration_action(
+            request_publication_ref=by_key["declaration_date"][
+                "request_publication_ref"
+            ],
+            answer={"kind": "text", "value": "2025-99-99"},
+            context=context,
+        )
+    assert getattr(invalid_date.value, "code", "") == (
+        "gate5_gap_declaration_date_invalid"
+    )
+    current = runtime.run(canonical_artifact_refs=[], context=context)
+    current_keys = {
+        item["fact_key"]
+        for item in current["product"]["preparation"]["user_actions"]
+    }
+    assert {"taxpayer_identity", "declaration_date"} <= current_keys
+
+
+def test_owner_published_fill_fact_successor_allows_safe_correction(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers = _case(tmp_path, proceeds="60.00")
+    ready = runtime.run(canonical_artifact_refs=[], context=context)
+    assert ready["product"]["status"] == "DECLARATION_XML_READY"
+
+    successor = runtime.publish_declaration_change_action(
+        fact_key="declaration_date",
+        context=context,
+    )
+    pending = runtime.run(canonical_artifact_refs=[], context=context)
+    assert pending["product"]["status"] == "DRAFT_READY"
+    assert pending["product"]["xml_created"] is False
+    assert [
+        item["fact_key"]
+        for item in pending["product"]["preparation"]["user_actions"]
+    ] == ["declaration_date"]
+
+    with pytest.raises(Exception) as invalid:
+        runtime.normalize_declaration_action(
+            request_publication_ref=successor["request_publication_ref"],
+            answer={"kind": "text", "value": "2025-99-99"},
+            context=context,
+        )
+    assert getattr(invalid.value, "code", "") == "gate5_gap_declaration_date_invalid"
+    still_pending = runtime.run(canonical_artifact_refs=[], context=context)
+    assert still_pending["product"]["status"] == "DRAFT_READY"
+    accepted = runtime.normalize_declaration_action(
+        request_publication_ref=successor["request_publication_ref"],
+        answer={"kind": "text", "value": "2026-08-24"},
+        context=context,
+    )
+    assert accepted["status"] == "TYPED_USER_CASE_FACT_READY"
+    corrected = runtime.run(canonical_artifact_refs=[], context=context)
+    assert corrected["product"]["status"] == "DECLARATION_XML_READY"
+    identity_successor = runtime.publish_declaration_change_action(
+        fact_key="taxpayer_identity",
+        context=context,
+    )
+    identity_pending = runtime.run(canonical_artifact_refs=[], context=context)
+    assert identity_pending["product"]["status"] == "DRAFT_READY"
+    assert identity_pending["product"]["preparation"]["checklist_fact_keys"] == [
+        "taxpayer_identity"
+    ]
+    runtime.normalize_declaration_action(
+        request_publication_ref=identity_successor["request_publication_ref"],
+        answer={
+            "kind": "identity_choice",
+            "value": {
+                "choice": "CHANGE",
+                "identity": {
+                    "inn": "500100732322",
+                    "last_name": "Иванов",
+                    "first_name": "Иван",
+                    "middle_name": "Иванович",
+                    "source_fact_refs": [],
+                },
+            },
+        },
+        context=context,
+    )
+    identity_corrected = runtime.run(canonical_artifact_refs=[], context=context)
+    assert identity_corrected["product"]["status"] == "DECLARATION_XML_READY"
+    assert identity_corrected["declaration"]["xml_sha256"] != corrected[
+        "declaration"
+    ]["xml_sha256"]
+    assert ready["product"]["xml_created"] is True
+    assert ready["declaration"]["provider_calls_total"] == 0
+    assert b"TBD" not in ready["declaration"]["xml_bytes"]
+    assert b"000000000000" not in ready["declaration"]["xml_bytes"]
+
+
+def test_identity_candidate_successor_stales_old_confirmation_and_cross_scope(
+    tmp_path: Path,
+) -> None:
+    runtime, context_a, _providers, store = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        include_store=True,
+    )
+    first = runtime.run(canonical_artifact_refs=[], context=context_a)
+    old = next(
+        item
+        for item in first["product"]["preparation"]["user_actions"]
+        if item["fact_key"] == "taxpayer_identity"
+    )
+    for request in first["product"]["preparation"]["user_actions"]:
+        accepted = runtime.normalize_declaration_action(
+            request_publication_ref=request["request_publication_ref"],
+            answer=_product_answer(request["fact_key"]),
+            context=context_a,
+        )
+        assert accepted["status"] == "TYPED_USER_CASE_FACT_READY"
+    ready = runtime.run(canonical_artifact_refs=[], context=context_a)
+    assert ready["product"]["status"] == "DECLARATION_XML_READY"
+    assert ready["product"]["xml_created"] is True
+    with pytest.raises(Exception) as foreign:
+        runtime.normalize_declaration_action(
+            request_publication_ref=old["request_publication_ref"],
+            answer=_product_answer("taxpayer_identity"),
+            context=replace(context_a, user_id="foreign-user"),
+        )
+    assert getattr(foreign.value, "code", "") == (
+        "gate5_gap_request_publication_invalid"
+    )
+
+    active = store.get_active_canonical_version(
+        context=context_a,
+        document_id="ordinary-trade-declaration-metadata",
+    )
+    context_b = replace(context_a, normalization_run_id="g4-runtime-run-2")
+    changed_lines = tuple(
+        "ИНН налогоплательщика: 500100732322"
+        if line.startswith("ИНН налогоплательщика:")
+        else line
+        for line in _METADATA_LINES
+    )
+    assembly_fixtures.bridge_fixtures.ordinary_fixtures.gate4_fixtures._activate_canonical(
+        store=store,
+        context=context_b,
+        document_id="ordinary-trade-declaration-metadata",
+        artifact_version=2,
+        expected_previous_version_id=active.canonical_version_id,
+        source_rows=changed_lines,
+    )
+    current = store.get_active_canonical_version(
+        context=context_b,
+        document_id="ordinary-trade-declaration-metadata",
+    )
+    successor = runtime.run(
+        canonical_artifact_refs=[str(current.manifest_ref)],
+        context=context_b,
+    )
+    assert successor["product"]["status"] == "DRAFT_READY"
+    assert successor["product"]["xml_created"] is False
+    assert successor["declaration"] is None
+    new = next(
+        item
+        for item in successor["product"]["preparation"]["user_actions"]
+        if item["fact_key"] == "taxpayer_identity"
+    )
+    assert new["request_publication_ref"] != old["request_publication_ref"]
+    with pytest.raises(Exception) as stale:
+        runtime.normalize_declaration_action(
+            request_publication_ref=old["request_publication_ref"],
+            answer=_product_answer("taxpayer_identity"),
+            context=context_b,
+        )
+    assert getattr(stale.value, "code", "") == "gate5_gap_request_stale"
+    accepted = runtime.normalize_declaration_action(
+        request_publication_ref=new["request_publication_ref"],
+        answer=_product_answer("taxpayer_identity"),
+        context=context_b,
+    )
+    assert accepted["status"] == "TYPED_USER_CASE_FACT_READY"
+    current = runtime.run(canonical_artifact_refs=[], context=context_b)
+    assert current["product"]["status"] == "DECLARATION_XML_READY"
+    assert current["declaration"]["xml_sha256"] != ready["declaration"]["xml_sha256"]
+
+
+def test_human_actions_cannot_close_missing_source_or_methodology_fact(
+    tmp_path: Path,
+) -> None:
+    lines = tuple(
+        line for line in _METADATA_LINES if not line.startswith("Допуск к торгам:")
+    )
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        metadata_lines=lines,
+    )
+
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+
+    assert result["product"]["status"] == "PREPARATION_INCOMPLETE"
+    blockers = result["product"]["preparation"]["internal_blockers"]
+    assert any(
+        item.get("required_source_fact_type") == "ADMITTED_EXCHANGE_FACT"
+        and item["gap_owner_classification"] == "REAL_SOURCE_EVIDENCE_MISSING"
+        for item in blockers
+    )
+    assert all(
+        item["closure_type"] == "USER_FACT"
+        for item in result["product"]["preparation"]["user_actions"]
+    )
+    assert all(
+        item["fact_key"] != "admitted_exchange_fact"
+        for item in result["product"]["preparation"]["user_actions"]
+    )
+
+
+def test_duplicate_confirmation_is_idempotent_without_duplicate_fact(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers, store = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        include_store=True,
+    )
+    first = runtime.run(canonical_artifact_refs=[], context=context)
+    request = next(
+        item
+        for item in first["product"]["preparation"]["user_actions"]
+        if item["fact_key"] == "taxpayer_identity"
+    )
+    kwargs = {
+        "request_publication_ref": request["request_publication_ref"],
+        "answer": _product_answer("taxpayer_identity"),
+        "context": context,
+    }
+
+    accepted_a = runtime.normalize_declaration_action(**kwargs)
+    accepted_b = runtime.normalize_declaration_action(**kwargs)
+
+    assert accepted_a["typed_user_case_fact"] == accepted_b["typed_user_case_fact"]
+    identity_ref = accepted_a["typed_user_case_fact"]["user_case_fact_ref"]
+    assert sum(
+        record.artifact_id == identity_ref
+        for record in store.list_by_case(context.case_id)
+    ) == 1
+
+
 def test_only_production_factory_activates_the_mvp_adapter(tmp_path: Path) -> None:
     _runtime, context, providers, store = _case(
         tmp_path, proceeds="60.00", include_store=True
     )
-    identity, external, _human = providers
     production = OrdinaryTradeProductionRuntimeFactory(
         store=store,
         read_enabled=True,
         retention_policy=build_retention_policy(mode="synthetic_dev"),
-        identity_provider=identity,
-        external_authority_provider=external,
     ).create()
 
     result = production.run(canonical_artifact_refs=[], context=context)
@@ -236,35 +587,25 @@ def test_xsd_valid_numeric_xml_mutations_fail_independent_reconciliation(
     assert invalid.value.code == "ordinary_trade_declaration_xml_semantics_invalid"
 
 
-@pytest.mark.parametrize(
-    ("mutation", "code"),
-    [
-        ("foreign_taxpayer", "authenticated_taxpayer_binding_context_mismatch"),
-        ("foreign_external", "ordinary_trade_declaration_external_authority_invalid"),
-        ("missing_inspection", "ordinary_trade_declaration_external_authority_invalid"),
-        ("unsupported_iis", "ordinary_trade_declaration_external_authority_invalid"),
-        ("cross_period", "ordinary_trade_declaration_external_authority_invalid"),
-    ],
-)
-def test_identity_authority_and_unsupported_inputs_fail_closed(
-    tmp_path: Path, mutation: str, code: str
-) -> None:
-    runtime, context, providers = _case(tmp_path, proceeds="60.00")
-    identity, external, _human = providers
-    if mutation == "foreign_taxpayer":
-        identity.value["case_id"] = "foreign-case"
-    elif mutation == "foreign_external":
-        external.value["case_id"] = "foreign-case"
-    elif mutation == "missing_inspection":
-        external.value["filing_destination"]["code"] = ""
-    elif mutation == "unsupported_iis":
-        external.value["operation_applicability"]["iis_status"] = "inside_iis"
-    elif mutation == "cross_period":
-        external.value["tax_period"] = "2024"
+def test_taxpayer_slot_is_scope_not_identity(tmp_path: Path) -> None:
+    runtime, context, _providers = _case(tmp_path, proceeds="60.00")
+    result = _run(runtime, context)
 
-    with pytest.raises(Exception) as error:
-        _run(runtime, context)
-    assert getattr(error.value, "code", str(error.value)) == code
+    assert result["taxpayer_scope_ref"] == primary_taxpayer_scope_ref(
+        context=context
+    )
+    assert result["taxpayer_scope_ref"] != "500100732259"
+    assert result["taxpayer_scope_ref"] != "security-disposal-1"
+    filing = next(
+        item
+        for item in result["assembly_receipt"]["owner_artifacts"]["package"][
+            "component_snapshots"
+        ]
+        if item["domain_id"] == "filing_and_party_identity"
+    )
+    assert filing["snapshot"]["input_snapshot"]["field_provenance"][
+        "taxpayer_identity"
+    ]["source_kind"] == "USER_ATTESTED_CASE_FACT"
 
 
 def test_multiple_disposals_are_not_silently_duplicated_or_dropped(
@@ -313,7 +654,7 @@ def test_whole_active_canonical_document_without_projection_blocks_before_xml(
         canonical_artifact_refs=[second.artifact_ref],
         context=context,
     )
-    assert complete["documents_total"] == 2
+    assert complete["documents_total"] == 3
     assert complete["product"]["gate4"]["security_facts_total"] == 4
     assert complete["declaration"] is None
     assert complete["product"]["xml_created"] is False
@@ -354,8 +695,9 @@ def test_missing_request_bound_human_facts_cannot_be_replaced_by_provider_dict(
     result = runtime.run(canonical_artifact_refs=[], context=context)
 
     assert result["declaration"] is None
+    assert result["product"]["status"] == "INPUT_REQUIRED"
     assert result["product"]["terminal"] == (
-        "ordinary_trade_declaration_human_facts_missing"
+        "ordinary_trade_declaration_user_input_required"
     )
     assert result["product"]["xml_created"] is False
 
@@ -370,8 +712,9 @@ def test_correction_without_owner_produced_number_is_typed_blocked(
     )
     _publish_human_facts(
         providers[2],
+        store=runtime._store,
         context=context,
-        taxpayer_scope_ref="taxpayer-authenticated-1",
+        taxpayer_scope_ref=primary_taxpayer_scope_ref(context=context),
         answer_overrides={
             "filing_instance_identity": {"kind": "code", "value": "CORRECTION"}
         },
@@ -388,14 +731,30 @@ def test_correction_without_owner_produced_number_is_typed_blocked(
 def test_unsupported_authoritative_taxpayer_capacity_is_methodology_blocked(
     tmp_path: Path,
 ) -> None:
-    runtime, context, providers = _case(tmp_path, proceeds="60.00")
-    providers[1].value["taxpayer_capacity"]["kind"] = "individual_entrepreneur"
+    runtime, context, providers, store = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        include_store=True,
+    )
+    _publish_human_facts(
+        providers[2],
+        store=store,
+        context=context,
+        taxpayer_scope_ref=primary_taxpayer_scope_ref(context=context),
+        answer_overrides={
+            "taxpayer_capacity": {
+                "kind": "code",
+                "value": "individual_entrepreneur",
+            }
+        },
+    )
 
     result = runtime.run(canonical_artifact_refs=[], context=context)
     assert result["declaration"] is None
     assert result["product"]["xml_created"] is False
     assert result["product"]["terminal"] == (
-        "gate5_declarant_category_methodology_unresolved"
+        "ordinary_trade_declaration_scenario_unsupported"
     )
 
 
@@ -424,8 +783,9 @@ def test_same_case_canonical_fact_successor_60_to_64_invalidates_old_output(
     context_b = replace(context_a, normalization_run_id="g4-runtime-run-2")
     _publish_human_facts(
         _providers[2],
+        store=store,
         context=context_b,
-        taxpayer_scope_ref="taxpayer-authenticated-1",
+        taxpayer_scope_ref=primary_taxpayer_scope_ref(context=context_b),
     )
     disposal_64 = assembly_fixtures._with_amount(
         bridge._row(side=bridge._DISPOSAL_SIDE, charges=True), "64.00"
@@ -512,6 +872,7 @@ def _case(
     duplicate_disposal: bool = False,
     extra_incomplete_operation: bool = False,
     publish_human_facts: bool = True,
+    metadata_lines: tuple[str, ...] = _METADATA_LINES,
 ):
     if duplicate_disposal or extra_incomplete_operation:
         bridge = assembly_fixtures.bridge_fixtures
@@ -533,9 +894,21 @@ def _case(
         )
     else:
         store, context, _facts = assembly_fixtures._case(root, proceeds=proceeds)
-    identity = IdentityProvider(_identity(context))
-    external = ExternalFactsProvider(_external(context))
     retention = build_retention_policy(mode="synthetic_dev")
+    assembly_fixtures.bridge_fixtures.ordinary_fixtures.gate4_fixtures._activate_canonical(
+        store=store,
+        context=context,
+        document_id="ordinary-trade-declaration-metadata",
+        artifact_version=1,
+        expected_previous_version_id=None,
+        source_rows=metadata_lines,
+    )
+    OrdinaryTradeProjectionFactory(
+        store=store, read_enabled=True
+    ).create().compile_and_save(
+        document_id="ordinary-trade-declaration-metadata",
+        context=context,
+    )
     human = Gate5HumanGapClosureRuntimeFactory.create(
         store=store,
         retention_policy=retention,
@@ -543,44 +916,46 @@ def _case(
     if publish_human_facts:
         _publish_human_facts(
             human,
+            store=store,
             context=context,
-            taxpayer_scope_ref="taxpayer-authenticated-1",
+            taxpayer_scope_ref=primary_taxpayer_scope_ref(context=context),
         )
     runtime = OrdinaryTradeProductionRuntimeFactory(
         store=store,
         read_enabled=True,
         retention_policy=retention,
-        identity_provider=identity,
-        external_authority_provider=external,
     ).create()
-    result = (runtime, context, (identity, external, human))
+    result = (runtime, context, (None, None, human))
     return (*result, store) if include_store else result
 
 
 def _publish_human_facts(
     human,
     *,
+    store,
     context,
     taxpayer_scope_ref: str,
     answer_overrides: dict[str, dict] | None = None,
 ) -> None:
-    published = human.publish_requests(
-        **human_fixtures._plan_inputs(
-            context,
-            taxpayer_scope_ref=taxpayer_scope_ref,
-        )
+    retention = build_retention_policy(mode="synthetic_dev")
+    coverage = OrdinaryTradeProjectionFactory(
+        store=store, read_enabled=True
+    ).create().current_case_coverage(context=context)
+    owner = OrdinaryTradeDeclarationCaseInputsRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        retention_policy=retention,
+    ).create()
+    published = owner.current(
+        context=context,
+        canonical_coverage=coverage,
     )
-    requests = [
-        *published["required_actions"],
-        *published["deferred_actions"],
-    ]
+    requests = published["human_fact_publication"]["actions"]
     for request in requests:
-        if request["closure_type"] != "USER_FACT":
-            continue
         result = human.normalize_answer(
             request=request,
             answer=(answer_overrides or {}).get(
-                request["fact_key"], human_fixtures._answer(request["fact_key"])
+                request["fact_key"], _product_answer(request["fact_key"])
             ),
             context=context,
         )
@@ -594,63 +969,19 @@ def _run(runtime, context) -> dict:
     return result["declaration"]
 
 
-def _identity(context) -> dict:
-    return {
-        "schema_version": AUTHENTICATED_CASE_TAXPAYER_ASSERTION_SCHEMA_VERSION,
-        "assertion_id": "authenticated-taxpayer-assertion-1",
-        "authenticated_user_id": context.user_id,
-        "case_id": context.case_id,
-        "taxpayer_scope_ref": "taxpayer-authenticated-1",
-        "taxpayer": {
-            "inn": "500100732259",
-            "last_name": "Иванов",
-            "first_name": "Иван",
-            "middle_name": "Иванович",
-        },
-        "origin": {
-            "kind": "authenticated_identity_provider",
-            "provider_id": "openwebui-authenticated-case-owner",
-        },
-    }
-
-
-def _external(context) -> dict:
-    return {
-        "schema_version": DECLARATION_EXTERNAL_AUTHORITY_SCHEMA_VERSION,
-        "publication_id": "official-case-authority-2025-1",
-        "case_id": context.case_id,
-        "tax_period": "2025",
-        "operation_applicability": {
-            "organized_market_status": "organized_market",
-            "iis_status": "outside_iis",
-            "exemption_applicability": "not_applicable",
-        },
-        "taxpayer_capacity": {
-            "kind": "individual_not_ip_not_private_practice",
-            "source_ref": "official-taxpayer-capacity-2025-1",
-        },
-        "filing_destination": {"ref": "inspection-7705", "code": "7705"},
-        "income_source": {
-            "source_ref": "broker-source-1",
-            "jurisdiction_kind": "russian_source",
-            "jurisdiction_code": "RU",
-            "income_kind": "securities_disposal",
-            "source_party": {
-                "party_kind": "organization",
-                "display_name": "АО Тестовый брокер",
-                "inn": "7707083893",
-                "kpp": "773601001",
-                "oktmo": "45382000",
-            },
-        },
-        "budget": {
-            "source_ref": "fns-budget-2025-1",
-            "budget_allocation_ref": "budget-allocation-2025-1",
-            "kbk": "18210102030011000110",
-            "oktmo": "45382000",
-        },
-        "origin": {
-            "kind": "external_authority_provider",
-            "provider_id": "fns-case-reference-owner",
-        },
-    }
+def _product_answer(fact_key: str) -> dict:
+    if fact_key == "taxpayer_identity":
+        return {
+            "kind": "identity_choice",
+            "value": {"choice": "CONFIRM", "identity": None},
+        }
+    if fact_key == "taxpayer_capacity":
+        return {
+            "kind": "code",
+            "value": "individual_not_ip_not_private_practice",
+        }
+    if fact_key == "filing_destination_code":
+        return {"kind": "code", "value": "7705"}
+    if fact_key == "budget_oktmo":
+        return {"kind": "code", "value": "45382000"}
+    return human_fixtures._answer(fact_key)
