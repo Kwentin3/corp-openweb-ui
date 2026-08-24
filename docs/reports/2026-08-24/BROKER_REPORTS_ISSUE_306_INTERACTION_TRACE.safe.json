@@ -1,0 +1,89 @@
+{
+  "schema_version": "broker_reports_issue306_safe_interaction_trace_v1",
+  "privacy": {
+    "pii_recorded": false,
+    "secrets_recorded": false,
+    "hidden_refs_recorded": false,
+    "document_contents_recorded": false
+  },
+  "user_mode": {
+    "entrypoint": "maintained generated broker_reports_ndfl Function in isolated OpenWebUI",
+    "browser_ui_only": true,
+    "final_bundle_sha256": "2edb8c455127cb48418d48ddd997ed019f32601774370dd69dae1bb1844e663f",
+    "clean_runs": [
+      {
+        "run": "A",
+        "new_users_and_case": true,
+        "invalid_checksum_inn_rejected": true,
+        "invalid_calendar_date_rejected": true,
+        "deferred_fill_only_observed": true,
+        "draft_without_xml_observed": true,
+        "accepted_value_corrected": true,
+        "private_xml_downloaded": true,
+        "reload_resumed": true,
+        "concurrent_retry_one_logical_link": true,
+        "second_user_denied": true,
+        "final_note_visible": true,
+        "xml_bytes": 1102,
+        "xml_sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5",
+        "xsd_valid": true
+      },
+      {
+        "run": "B",
+        "new_users_and_case": true,
+        "diagnostic_intervention": false,
+        "invalid_checksum_inn_rejected": true,
+        "invalid_calendar_date_rejected": true,
+        "deferred_fill_only_observed": true,
+        "draft_without_xml_observed": true,
+        "accepted_value_corrected": true,
+        "private_xml_downloaded": true,
+        "reload_resumed": true,
+        "concurrent_retry_one_logical_link": true,
+        "second_user_denied": true,
+        "final_note_visible": true,
+        "xml_bytes": 1102,
+        "xml_sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5",
+        "xsd_valid": true
+      }
+    ],
+    "downloaded_xml_byte_equal_between_runs": true,
+    "visible_and_xml_values_match": true,
+    "representative_source": {
+      "kind": "permitted public broker report sample",
+      "uploaded_through_browser": true,
+      "supported_owner_facts_produced": false,
+      "typed_blocker_visible": true,
+      "xml_created": false,
+      "private_download_created": false,
+      "internal_refs_visible": false,
+      "post_result_test_container_oom_at_1200_mib": true,
+      "container_restarted_and_control_restored": true
+    },
+    "close_tab": {
+      "first_human_request_visible": true,
+      "first_tab_closed_without_answer": true,
+      "second_case_admitted_without_first_answer": true,
+      "second_human_request_visible": true
+    }
+  },
+  "developer_mode": {
+    "started_only_after_black_box_failure": true,
+    "provider_or_llm_calls_for_tax_identity_or_source_truth": 0,
+    "defects_fixed": [
+      "direct workspace model was not the installed execution entrypoint",
+      "typed source blocker crashed on absent user_actions",
+      "human think time retained the source workload lease",
+      "abandoned queued caller could survive restart",
+      "legacy active Function duplicated memory-heavy runtime loading",
+      "supported source fixture omitted a required direct disposal expense",
+      "message-derived run identity created more than one logical XML file",
+      "final user note omitted extracted calculated supplied and filing-check sections",
+      "source blocker exposed internal owner diagnostics",
+      "workload progress exposed the internal job identity"
+    ],
+    "proof_defects_fixed": [
+      "concurrent oracle compared virtualized historical branch links instead of current corrected result"
+    ]
+  }
+}

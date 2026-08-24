@@ -18,12 +18,18 @@ import requests
 SCRIPT_DIR = Path(__file__).resolve().parent
 SERVICE_ROOT = SCRIPT_DIR.parent
 REPO_ROOT = SERVICE_ROOT.parents[1]
-FUNCTION_ID = "broker_reports_gate1_pipe"
-MODEL_ID = "broker-reports-ndfl"
+FUNCTION_ID = "broker_reports_ndfl"
+MODEL_ID = FUNCTION_ID
+LEGACY_FUNCTION_ID = "broker_reports_gate1_pipe"
 BUNDLE_PATH = SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
 
 sys.path.insert(0, str(SCRIPT_DIR))
+sys.path.insert(0, str(SERVICE_ROOT))
 
+from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
+    GATE1_RELEASE_VALVES,
+    GATE1_RETIRED_VALVE_KEYS,
+)
 from live_no_rag_source_intake_smoke import (  # noqa: E402
     _base_url,
     _read_env,
@@ -76,6 +82,38 @@ def _get_function(session: requests.Session, base_url: str) -> dict[str, Any]:
     )
     if not isinstance(value, dict) or value.get("id") != FUNCTION_ID:
         raise G536ControlError("function_readback_invalid")
+    return value
+
+
+def _get_legacy_function(
+    session: requests.Session,
+    base_url: str,
+) -> dict[str, Any] | None:
+    value = _request_json(
+        session,
+        "GET",
+        _url(base_url, f"/api/v1/functions/id/{LEGACY_FUNCTION_ID}"),
+        allow_missing=True,
+    )
+    if value is None:
+        return None
+    if not isinstance(value, dict) or value.get("id") != LEGACY_FUNCTION_ID:
+        raise G536ControlError("legacy_function_readback_invalid")
+    return value
+
+
+def _toggle_function_active(
+    session: requests.Session,
+    base_url: str,
+    function_id: str,
+) -> dict[str, Any]:
+    value = _request_json(
+        session,
+        "POST",
+        _url(base_url, f"/api/v1/functions/id/{function_id}/toggle"),
+    )
+    if not isinstance(value, dict) or value.get("id") != function_id:
+        raise G536ControlError("function_active_toggle_invalid")
     return value
 
 
@@ -281,6 +319,7 @@ def _write_private_state(path: Path, value: dict[str, Any]) -> None:
 
 
 def _safe_result(state: dict[str, Any], *, status: str) -> dict[str, Any]:
+    applied_valves = state.get("applied_valves") or {}
     return {
         "schema_version": "broker_reports_gate5_openwebui_control_v0",
         "status": status,
@@ -292,7 +331,35 @@ def _safe_result(state: dict[str, Any], *, status: str) -> dict[str, Any]:
         "user_b_model_hidden": state.get("user_b_model_hidden"),
         "model_public_grant_added": False,
         "proof_valves_enabled": status == "prepared",
+        "release_valves_exact": bool(
+            status == "prepared"
+            and all(
+                applied_valves.get(key) == expected
+                for key, expected in GATE1_RELEASE_VALVES.items()
+            )
+        ),
+        "legacy_function_inactive": bool(
+            status == "prepared" and state.get("legacy_function_inactive") is True
+        ),
         "state_restored": status == "restored",
+    }
+
+
+def _proof_valves(
+    before_valves: dict[str, Any],
+    *,
+    audit_id: str,
+) -> dict[str, Any]:
+    current = {
+        key: value
+        for key, value in before_valves.items()
+        if key not in GATE1_RETIRED_VALVE_KEYS
+    }
+    return {
+        **current,
+        **GATE1_RELEASE_VALVES,
+        "ndfl_gate3_private_audit_enabled": bool(audit_id),
+        "ndfl_gate3_private_audit_id": audit_id or "",
     }
 
 
@@ -306,6 +373,7 @@ def _prepare(args: argparse.Namespace) -> int:
     session = _admin_session(env, base_url)
 
     before_function = _get_function(session, base_url)
+    before_legacy_function = _get_legacy_function(session, base_url)
     before_valves = _get_valves(session, base_url)
     before_model = _get_model(session, base_url)
     before_grants = _grant_payload(before_model)
@@ -313,7 +381,26 @@ def _prepare(args: argparse.Namespace) -> int:
     grants_changed = False
     global_changed = False
     valves_changed = False
+    legacy_function_changed = False
     try:
+        live_legacy_function = before_legacy_function
+        if bool(
+            isinstance(live_legacy_function, dict)
+            and live_legacy_function.get("is_active") is not False
+        ):
+            live_legacy_function = _toggle_function_active(
+                session,
+                base_url,
+                LEGACY_FUNCTION_ID,
+            )
+            legacy_function_changed = True
+        legacy_function_inactive = bool(
+            live_legacy_function is None
+            or live_legacy_function.get("is_active") is False
+        )
+        if not legacy_function_inactive:
+            raise G536ControlError("legacy_function_active_in_proof_window")
+
         previous_bundle_sha256, deployed_bundle_sha256 = _deploy_bundle(
             session, base_url, before_function
         )
@@ -341,17 +428,10 @@ def _prepare(args: argparse.Namespace) -> int:
         if not bool(live_function.get("is_global")):
             raise G536ControlError("function_not_global_in_proof_window")
 
-        proof_valves = {
-            **before_valves,
-            "ndfl_full_product_enabled": True,
-            "ndfl_full_product_synthetic_only": True,
-            "ndfl_gate3_private_audit_enabled": bool(args.audit_id),
-            "ndfl_gate3_private_audit_id": args.audit_id or "",
-            "pdf_dual_vlm_maximum_candidates": 16,
-            "pdf_semantic_visual_table_accepted_profile_id": (
-                "broker_reports_semantic_visual_financial_profile_v2"
-            ),
-        }
+        proof_valves = _proof_valves(
+            before_valves,
+            audit_id=args.audit_id,
+        )
         updated_valves = _update_valves(session, base_url, proof_valves)
         valves_changed = True
         if updated_valves != proof_valves:
@@ -371,7 +451,14 @@ def _prepare(args: argparse.Namespace) -> int:
             "base_url": base_url,
             "original_model_access_grants": before_grants,
             "original_function_global": bool(before_function.get("is_global")),
+            "original_legacy_function_active": (
+                None
+                if before_legacy_function is None
+                else before_legacy_function.get("is_active") is not False
+            ),
+            "legacy_function_inactive": legacy_function_inactive,
             "original_valves": before_valves,
+            "applied_valves": proof_valves,
             "previous_bundle_sha256": previous_bundle_sha256,
             "deployed_bundle_sha256": deployed_bundle_sha256,
             "users": users,
@@ -406,6 +493,17 @@ def _prepare(args: argparse.Namespace) -> int:
                 _update_model_grants(session, base_url, before_grants)
             except Exception as exc:
                 rollback_errors.append(f"grants:{type(exc).__name__}")
+        if legacy_function_changed:
+            try:
+                legacy = _get_legacy_function(session, base_url)
+                if legacy is not None and legacy.get("is_active") is False:
+                    _toggle_function_active(
+                        session,
+                        base_url,
+                        LEGACY_FUNCTION_ID,
+                    )
+            except Exception as exc:
+                rollback_errors.append(f"legacy_function:{type(exc).__name__}")
         for user in reversed(users):
             try:
                 _delete_user(session, base_url, user["id"])
@@ -499,6 +597,21 @@ def _cleanup(args: argparse.Namespace) -> int:
             raise G536ControlError("workspace_model_grants_restore_mismatch")
     except Exception as exc:
         errors.append(f"grants:{type(exc).__name__}")
+    try:
+        original_legacy_active = state.get("original_legacy_function_active")
+        legacy = _get_legacy_function(session, base_url)
+        if legacy is not None and isinstance(original_legacy_active, bool):
+            live_legacy_active = legacy.get("is_active") is not False
+            if live_legacy_active != original_legacy_active:
+                legacy = _toggle_function_active(
+                    session,
+                    base_url,
+                    LEGACY_FUNCTION_ID,
+                )
+            if (legacy.get("is_active") is not False) != original_legacy_active:
+                raise G536ControlError("legacy_function_active_restore_mismatch")
+    except Exception as exc:
+        errors.append(f"legacy_function:{type(exc).__name__}")
     for user in reversed(list(state.get("users") or [])):
         try:
             _delete_user(session, base_url, str(user["id"]))

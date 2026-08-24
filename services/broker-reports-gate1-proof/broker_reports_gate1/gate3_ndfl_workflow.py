@@ -24,8 +24,8 @@ from .gate3_financial_role_pack import (
 from .gate3_role_labeling import Gate3RoleLabelingError
 NDFL_WORKFLOW_STABLE_ID = "broker-reports-ndfl"
 NDFL_WORKFLOW_DISPLAY_NAME = "NDFL"
-NDFL_WORKSPACE_MODEL_STABLE_ID = NDFL_WORKFLOW_STABLE_ID
-NDFL_OPENWEBUI_BASE_PIPE_ID = "broker_reports_gate1_pipe"
+NDFL_WORKSPACE_MODEL_STABLE_ID = "broker_reports_ndfl"
+NDFL_OPENWEBUI_BASE_PIPE_ID = NDFL_WORKSPACE_MODEL_STABLE_ID
 NDFL_PROVIDER_PROFILE_ID = "google_gemini"
 NDFL_PROVIDER_MODEL_ID = "models/gemini-3.5-flash"
 NDFL_PRODUCT_BINDING_SCHEMA_VERSION = "broker_reports_ndfl_product_binding_v1"

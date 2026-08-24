@@ -320,6 +320,7 @@ class WorkloadAuthority:
         idempotency = _optional_idempotency_key(idempotency_key)
         job_id = "brjob_" + secrets.token_hex(16)
         temp_dir = self.config.temp_root / job_id
+        queue_lease_expires_epoch = time.time() + self.config.lease_seconds
         now_iso = _utc_now_iso()
         temp_created = False
         try:
@@ -351,10 +352,11 @@ class WorkloadAuthority:
                         job_id, job_kind, resource_class,
                         user_id, case_id, chat_id, workspace_model_id,
                         state, progress_sequence, cancel_requested,
+                        lease_expires_epoch,
                         retry_of_job_id, idempotency_key,
                         safe_metadata_json, temp_dir,
                         cleanup_status, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, 0, ?, ?, ?, ?,
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', 0, 0, ?, ?, ?, ?, ?,
                               'pending', ?, ?)
                     """,
                     (
@@ -365,6 +367,7 @@ class WorkloadAuthority:
                         access.case_id,
                         access.chat_id,
                         access.workspace_model_id,
+                        queue_lease_expires_epoch,
                         retry_of,
                         idempotency,
                         _canonical_json(metadata),
@@ -498,24 +501,33 @@ class WorkloadAuthority:
         """Wait on persisted capacity without imposing a fixed job wall timeout."""
 
         last_position: int | None = None
-        while True:
-            session = self.try_admit(
+        try:
+            while True:
+                self._renew_queue_waiter(job_id=job_id, access=access)
+                session = self.try_admit(
+                    job_id=job_id,
+                    access=access,
+                    worker_id=worker_id,
+                )
+                if session is not None:
+                    return session
+                snapshot = self.snapshot(job_id=job_id, access=access)
+                if snapshot["state"] == WorkloadState.CANCELLED.value:
+                    raise WorkloadCancelledError()
+                position = snapshot["queue_position"]
+                if on_wait is not None and position != last_position:
+                    result = on_wait(snapshot)
+                    if hasattr(result, "__await__"):
+                        await result
+                last_position = position
+                await asyncio.sleep(self.config.poll_interval_seconds)
+        except asyncio.CancelledError:
+            self.request_cancel(
                 job_id=job_id,
                 access=access,
-                worker_id=worker_id,
+                reason_code="caller_wait_cancelled",
             )
-            if session is not None:
-                return session
-            snapshot = self.snapshot(job_id=job_id, access=access)
-            if snapshot["state"] == WorkloadState.CANCELLED.value:
-                raise WorkloadCancelledError()
-            position = snapshot["queue_position"]
-            if on_wait is not None and position != last_position:
-                result = on_wait(snapshot)
-                if hasattr(result, "__await__"):
-                    await result
-            last_position = position
-            await asyncio.sleep(self.config.poll_interval_seconds)
+            raise
 
     def snapshot(
         self,
@@ -730,30 +742,41 @@ class WorkloadAuthority:
             rows = conn.execute(
                 """
                 SELECT * FROM workload_jobs
-                WHERE state IN (
-                    'source_intake', 'normalizing', 'building_document_memory',
-                    'validating', 'preparing_gate2', 'awaiting_provider'
+                WHERE (
+                    state IN (
+                        'source_intake', 'normalizing', 'building_document_memory',
+                        'validating', 'preparing_gate2', 'awaiting_provider'
+                    )
+                    AND lease_token IS NOT NULL
+                    AND lease_expires_epoch <= ?
+                ) OR (
+                    state = 'queued'
+                    AND (lease_expires_epoch IS NULL OR lease_expires_epoch <= ?)
                 )
-                  AND lease_token IS NOT NULL
-                  AND lease_expires_epoch <= ?
                 ORDER BY sequence
                 """,
-                (now_epoch,),
+                (now_epoch, now_epoch),
             ).fetchall()
             for row in rows:
+                queued_orphan = row["state"] == WorkloadState.QUEUED.value
+                terminal_code = (
+                    "queue_waiter_lease_expired"
+                    if queued_orphan
+                    else "worker_lease_expired"
+                )
                 sequence = int(row["progress_sequence"]) + 1
                 conn.execute(
                     """
                     UPDATE workload_jobs
                     SET state = 'failed', progress_sequence = ?,
-                        terminal_code = 'worker_lease_expired', terminal_at = ?,
+                        terminal_code = ?, terminal_at = ?,
                         worker_id = NULL, lease_token = NULL,
                         lease_expires_epoch = NULL, provider_id = NULL,
                         provider_lease_token = NULL, cleanup_status = 'pending',
                         updated_at = ?
                     WHERE job_id = ?
                     """,
-                    (sequence, now_iso, now_iso, row["job_id"]),
+                    (sequence, terminal_code, now_iso, now_iso, row["job_id"]),
                 )
                 conn.execute(
                     "DELETE FROM workload_provider_waiters WHERE job_id = ?",
@@ -765,13 +788,42 @@ class WorkloadAuthority:
                     sequence=sequence,
                     from_state=WorkloadState(str(row["state"])),
                     to_state=WorkloadState.FAILED,
-                    event_code="worker_lease_expired",
-                    safe_detail={"false_completion_prevented": True},
+                    event_code=terminal_code,
+                    safe_detail={
+                        "false_completion_prevented": True,
+                        "orphan_queue_prevented": queued_orphan,
+                    },
                 )
                 cleanup.append((str(row["job_id"]), Path(str(row["temp_dir"]))))
         for job_id, temp_dir in cleanup:
             self._finalize_cleanup(job_id, temp_dir)
         return [job_id for job_id, _ in cleanup]
+
+    def _renew_queue_waiter(
+        self,
+        *,
+        job_id: str,
+        access: WorkloadAccessContext,
+    ) -> None:
+        now_epoch = time.time()
+        now_iso = _utc_now_iso()
+        with self._connect(immediate=True) as conn:
+            row = self._authorized_row(conn, job_id, access)
+            if row["state"] in _TERMINAL_STATES:
+                raise WorkloadAuthorityError("workload_job_already_terminal")
+            if row["state"] != WorkloadState.QUEUED.value:
+                return
+            expires = row["lease_expires_epoch"]
+            if expires is None or float(expires) <= now_epoch:
+                return
+            conn.execute(
+                """
+                UPDATE workload_jobs
+                SET lease_expires_epoch = ?, updated_at = ?
+                WHERE job_id = ? AND state = 'queued'
+                """,
+                (now_epoch + self.config.lease_seconds, now_iso, job_id),
+            )
 
     def _transition(
         self,

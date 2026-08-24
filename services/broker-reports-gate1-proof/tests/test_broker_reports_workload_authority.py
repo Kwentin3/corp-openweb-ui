@@ -441,6 +441,101 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
             )
         )
 
+    def test_expired_queued_caller_fails_and_cannot_block_fifo_after_restart(self):
+        config = self._config(
+            lease_seconds=0.25,
+            heartbeat_interval_seconds=0.05,
+            poll_interval_seconds=0.01,
+        )
+        authority = WorkloadAuthorityFactory(config).create()
+        orphan = self._submit(authority, WorkloadKind.GATE1)
+        time.sleep(0.32)
+
+        recovered = WorkloadAuthorityFactory(config).create()
+        orphan_snapshot = recovered.snapshot(
+            job_id=orphan.job_id,
+            access=self.access,
+        )
+        self.assertEqual(orphan_snapshot["state"], "failed")
+        self.assertEqual(
+            orphan_snapshot["terminal_code"],
+            "queue_waiter_lease_expired",
+        )
+        self.assertEqual(orphan_snapshot["cleanup_status"], "cleaned")
+
+        successor = self._submit(recovered, WorkloadKind.GATE1)
+        successor_session = recovered.try_admit(
+            job_id=successor.job_id,
+            access=self.access,
+        )
+        self.assertIsNotNone(successor_session)
+        successor_session.cancel("test_cleanup")
+
+    def test_cancelled_admission_wait_cancels_its_persisted_queue_entry(self):
+        authority = self._authority()
+        holder_ticket = self._submit(authority, WorkloadKind.GATE1)
+        holder = authority.try_admit(
+            job_id=holder_ticket.job_id,
+            access=self.access,
+        )
+        queued = self._submit(authority, WorkloadKind.GATE1)
+
+        async def scenario():
+            task = asyncio.create_task(
+                authority.wait_for_admission(
+                    job_id=queued.job_id,
+                    access=self.access,
+                )
+            )
+            await asyncio.sleep(0.05)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        asyncio.run(scenario())
+        snapshot = authority.snapshot(job_id=queued.job_id, access=self.access)
+        self.assertEqual(snapshot["state"], "cancelled")
+        self.assertEqual(snapshot["terminal_code"], "caller_wait_cancelled")
+        holder.cancel("test_cleanup")
+
+    def test_live_admission_wait_renews_queue_lease_until_fifo_capacity_opens(self):
+        config = self._config(
+            lease_seconds=0.25,
+            heartbeat_interval_seconds=0.05,
+            poll_interval_seconds=0.01,
+        )
+        authority = WorkloadAuthorityFactory(config).create()
+        holder_ticket = self._submit(authority, WorkloadKind.GATE1)
+        holder = authority.try_admit(
+            job_id=holder_ticket.job_id,
+            access=self.access,
+        )
+        queued = self._submit(authority, WorkloadKind.GATE1)
+
+        async def scenario():
+            with holder.keepalive():
+                waiter = asyncio.create_task(
+                    authority.wait_for_admission(
+                        job_id=queued.job_id,
+                        access=self.access,
+                    )
+                )
+                await asyncio.sleep(0.35)
+                self.assertEqual(
+                    authority.snapshot(job_id=queued.job_id, access=self.access)[
+                        "state"
+                    ],
+                    "queued",
+                )
+                holder.transition(WorkloadState.NORMALIZING)
+                holder.transition(WorkloadState.BUILDING_DOCUMENT_MEMORY)
+                holder.transition(WorkloadState.VALIDATING)
+                holder.complete()
+                admitted = await asyncio.wait_for(waiter, timeout=1.0)
+                admitted.cancel("test_cleanup")
+
+        asyncio.run(scenario())
+
     def test_running_cancellation_is_cooperative_terminal_and_retry_safe(self):
         authority = self._authority()
         ticket = self._submit(authority, WorkloadKind.GATE1)

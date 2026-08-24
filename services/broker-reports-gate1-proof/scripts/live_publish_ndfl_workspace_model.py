@@ -34,25 +34,32 @@ from live_no_rag_source_intake_smoke import (  # noqa: E402
 
 
 LEGACY_WORKSPACE_MODEL_ID = "test"
+LEGACY_NDFL_MODEL_ID = "broker-reports-ndfl"
+FUNCTION_ID = NDFL_WORKSPACE_MODEL_STABLE_ID
+LEGACY_OPENWEBUI_BASE_PIPE_ID = "broker_reports_gate1_pipe"
 LEGACY_PIPE_IDS = (
+    LEGACY_OPENWEBUI_BASE_PIPE_ID,
     "broker_reports_gate2_source_fact_pipe",
     "broker_reports_gate2_domain_source_fact_pipe",
 )
-TECHNICAL_PIPE_IDS = (NDFL_OPENWEBUI_BASE_PIPE_ID, *LEGACY_PIPE_IDS)
+TECHNICAL_PIPE_IDS = LEGACY_PIPE_IDS
 PRODUCT_ROUTE_IDS = (
     NDFL_WORKSPACE_MODEL_STABLE_ID,
+    LEGACY_NDFL_MODEL_ID,
     LEGACY_WORKSPACE_MODEL_ID,
     *TECHNICAL_PIPE_IDS,
 )
 HIDDEN_ROUTE_SCHEMA_VERSION = "broker_reports_hidden_technical_route_v1"
 
 FACTORY_REQUIRED = (
-    "NDFL Workspace publication must bind the existing Gate 1 Pipe and "
-    "NdflWorkflow stable IDs; OpenWebUI model APIs are addressed by ID only"
+    "NDFL Workspace publication must bind the maintained generated Function "
+    "and NdflWorkflow stable IDs directly; OpenWebUI model APIs are addressed "
+    "by ID only"
 )
 FORBIDDEN = (
-    "The publisher must not resolve behavior by display name, create another "
-    "Pipe, attach Knowledge/RAG, call a provider or delete historical models"
+    "The publisher must not wrap a technical Pipe as base_model_id, resolve "
+    "behavior by display name, create another Function, attach Knowledge/RAG, "
+    "call a provider or delete historical models"
 )
 
 
@@ -154,7 +161,7 @@ def desired_ndfl_model(
     capabilities_source = previous if previous is not None else legacy
     return {
         "id": NDFL_WORKSPACE_MODEL_STABLE_ID,
-        "base_model_id": NDFL_OPENWEBUI_BASE_PIPE_ID,
+        "base_model_id": None,
         "name": NDFL_WORKFLOW_DISPLAY_NAME,
         "meta": {
             "profile_image_url": "/static/favicon.png",
@@ -185,7 +192,7 @@ def desired_hidden_pipe_model(
     *,
     previous: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    runtime_base_required = pipe_id == NDFL_OPENWEBUI_BASE_PIPE_ID
+    runtime_base_required = False
     return {
         "id": pipe_id,
         "base_model_id": None,
@@ -242,6 +249,20 @@ def _is_managed_ndfl(record: dict[str, Any]) -> bool:
         and isinstance(binding, dict)
         and binding.get("workspace_model_id")
         == NDFL_WORKSPACE_MODEL_STABLE_ID
+    )
+
+
+def _is_managed_legacy_ndfl(record: dict[str, Any]) -> bool:
+    meta = record.get("meta")
+    binding = (
+        meta.get("broker_reports_product_binding")
+        if isinstance(meta, dict)
+        else None
+    )
+    return bool(
+        record.get("id") == LEGACY_NDFL_MODEL_ID
+        and isinstance(binding, dict)
+        and binding.get("workspace_model_id") == LEGACY_NDFL_MODEL_ID
     )
 
 
@@ -341,10 +362,8 @@ def evaluate_ndfl_model(record: dict[str, Any] | None) -> dict[str, Any]:
             record
             and record.get("id") == NDFL_WORKSPACE_MODEL_STABLE_ID
         ),
-        "base_pipe_id_match": bool(
-            record
-            and record.get("base_model_id") == NDFL_OPENWEBUI_BASE_PIPE_ID
-        ),
+        "base_pipe_id_match": bool(record and record.get("base_model_id") is None),
+        "direct_function_id_match": FUNCTION_ID == NDFL_WORKSPACE_MODEL_STABLE_ID,
         "active": bool(record and record.get("is_active") is True),
         "stable_binding_exact": binding == ndfl_product_binding_snapshot(),
         "knowledge_empty": bool(
@@ -372,7 +391,7 @@ def evaluate_hidden_pipe_model(
     record: dict[str, Any] | None,
     pipe_id: str,
 ) -> dict[str, Any]:
-    expected_active = pipe_id == NDFL_OPENWEBUI_BASE_PIPE_ID
+    expected_active = False
     return {
         "present": record is not None,
         "stable_id_match": bool(record and record.get("id") == pipe_id),
@@ -405,26 +424,17 @@ def evaluate_visible_routes(
         for item in visible_models
         if item.get("id") in PRODUCT_ROUTE_IDS
     }
-    competing_ids = visible_ids - {
-        NDFL_WORKSPACE_MODEL_STABLE_ID,
-        NDFL_OPENWEBUI_BASE_PIPE_ID,
-    }
+    competing_ids = visible_ids - {NDFL_WORKSPACE_MODEL_STABLE_ID}
     return {
         "visible_product_route_ids": sorted(
             visible_ids & {NDFL_WORKSPACE_MODEL_STABLE_ID}
         ),
-        "visible_internal_runtime_base_ids": sorted(
-            visible_ids & {NDFL_OPENWEBUI_BASE_PIPE_ID}
-        ),
+        "visible_internal_runtime_base_ids": [],
         "user_facing_ndfl_models": int(
             NDFL_WORKSPACE_MODEL_STABLE_ID in visible_ids
         ),
         "legacy_or_competing_routes_visible": sorted(competing_ids),
-        "passed": visible_ids
-        == {
-            NDFL_WORKSPACE_MODEL_STABLE_ID,
-            NDFL_OPENWEBUI_BASE_PIPE_ID,
-        },
+        "passed": visible_ids == {NDFL_WORKSPACE_MODEL_STABLE_ID},
     }
 
 
@@ -448,6 +458,7 @@ def main() -> int:
 
     tracked_ids = (
         NDFL_WORKSPACE_MODEL_STABLE_ID,
+        LEGACY_NDFL_MODEL_ID,
         LEGACY_WORKSPACE_MODEL_ID,
         *TECHNICAL_PIPE_IDS,
     )
@@ -460,6 +471,11 @@ def main() -> int:
         and not _is_managed_ndfl(previous[NDFL_WORKSPACE_MODEL_STABLE_ID])
     ):
         raise NdflWorkspacePublishError("ndfl_workspace_model_id_collision")
+    if (
+        previous[LEGACY_NDFL_MODEL_ID] is not None
+        and not _is_managed_legacy_ndfl(previous[LEGACY_NDFL_MODEL_ID])
+    ):
+        raise NdflWorkspacePublishError("legacy_ndfl_workspace_model_id_collision")
     for pipe_id in TECHNICAL_PIPE_IDS:
         if previous[pipe_id] is not None and not (
             _is_managed_hidden_route(previous[pipe_id], pipe_id)
@@ -468,10 +484,13 @@ def main() -> int:
             raise NdflWorkspacePublishError(
                 f"technical_route_override_id_collision:{pipe_id}"
             )
-    legacy = previous[LEGACY_WORKSPACE_MODEL_ID]
-    if legacy is not None and (
-        legacy.get("base_model_id") != NDFL_OPENWEBUI_BASE_PIPE_ID
-        or legacy.get("id") != LEGACY_WORKSPACE_MODEL_ID
+    legacy_workspace = previous[LEGACY_WORKSPACE_MODEL_ID]
+    legacy_ndfl = previous[LEGACY_NDFL_MODEL_ID]
+    legacy = legacy_ndfl or legacy_workspace
+    if legacy_workspace is not None and (
+        legacy_workspace.get("base_model_id")
+        not in {NDFL_OPENWEBUI_BASE_PIPE_ID, LEGACY_OPENWEBUI_BASE_PIPE_ID}
+        or legacy_workspace.get("id") != LEGACY_WORKSPACE_MODEL_ID
     ):
         raise NdflWorkspacePublishError("legacy_workspace_model_identity_changed")
 
@@ -488,9 +507,14 @@ def main() -> int:
             for pipe_id in TECHNICAL_PIPE_IDS
         },
     }
-    if legacy is not None:
+    if legacy_ndfl is not None:
+        desired[LEGACY_NDFL_MODEL_ID] = _model_form(
+            legacy_ndfl,
+            is_active=False,
+        )
+    if legacy_workspace is not None:
         desired[LEGACY_WORKSPACE_MODEL_ID] = _model_form(
-            legacy,
+            legacy_workspace,
             is_active=False,
         )
 
@@ -500,6 +524,7 @@ def main() -> int:
         try:
             for stable_id in (
                 NDFL_WORKSPACE_MODEL_STABLE_ID,
+                LEGACY_NDFL_MODEL_ID,
                 *TECHNICAL_PIPE_IDS,
                 LEGACY_WORKSPACE_MODEL_ID,
             ):
@@ -549,7 +574,11 @@ def main() -> int:
         pipe_id: evaluate_hidden_pipe_model(current[pipe_id], pipe_id)
         for pipe_id in TECHNICAL_PIPE_IDS
     }
-    legacy_inactive = bool(
+    legacy_ndfl_inactive = bool(
+        current[LEGACY_NDFL_MODEL_ID] is None
+        or current[LEGACY_NDFL_MODEL_ID].get("is_active") is False
+    )
+    legacy_workspace_inactive = bool(
         current[LEGACY_WORKSPACE_MODEL_ID] is None
         or current[LEGACY_WORKSPACE_MODEL_ID].get("is_active") is False
     )
@@ -562,7 +591,8 @@ def main() -> int:
         and ndfl_check["display_name_match"]
         and ndfl_check["managed_tags_match"]
         and hidden_pass
-        and legacy_inactive
+        and legacy_ndfl_inactive
+        and legacy_workspace_inactive
         and visible_check["passed"]
     )
     result = {
@@ -575,7 +605,8 @@ def main() -> int:
         "checks": {
             "ndfl_workspace_model": ndfl_check,
             "hidden_technical_routes": hidden_checks,
-            "legacy_workspace_model_inactive": legacy_inactive,
+            "legacy_ndfl_model_inactive": legacy_ndfl_inactive,
+            "legacy_workspace_model_inactive": legacy_workspace_inactive,
             "visible_routes": visible_check,
             "behavioral_display_name_lookups": 0,
             "rename_safety": "covered_by_integration_test",

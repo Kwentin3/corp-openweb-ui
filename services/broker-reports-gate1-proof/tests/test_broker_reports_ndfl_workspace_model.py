@@ -60,7 +60,7 @@ def test_product_binding_snapshot_uses_only_stable_machine_ids() -> None:
     }
 
 
-def test_ndfl_workspace_model_reuses_existing_pipe_without_knowledge_or_tools() -> None:
+def test_ndfl_workspace_model_is_the_direct_pipe_without_knowledge_or_tools() -> None:
     desired = publisher.desired_ndfl_model(
         previous=None,
         legacy=_legacy_model(),
@@ -69,10 +69,26 @@ def test_ndfl_workspace_model_reuses_existing_pipe_without_knowledge_or_tools() 
     assert check["routing_passed"] is True
     assert check["display_name_match"] is True
     assert check["managed_tags_match"] is True
-    assert desired["base_model_id"] == NDFL_OPENWEBUI_BASE_PIPE_ID
+    assert desired["base_model_id"] is None
     assert desired["meta"]["knowledge"] == []
     assert desired["meta"]["toolIds"] == []
     assert desired["meta"]["skillIds"] == []
+
+
+def test_ndfl_product_is_a_single_direct_pipe_identity_without_base_acl_chain() -> None:
+    desired = publisher.desired_ndfl_model(
+        previous=None,
+        legacy=_legacy_model(),
+    )
+
+    assert publisher.FUNCTION_ID == NDFL_WORKSPACE_MODEL_STABLE_ID
+    assert NDFL_OPENWEBUI_BASE_PIPE_ID == NDFL_WORKSPACE_MODEL_STABLE_ID
+    assert desired["id"] == NDFL_WORKSPACE_MODEL_STABLE_ID
+    assert desired["base_model_id"] is None
+    assert publisher._is_managed_ndfl(desired) is True
+    assert publisher.evaluate_visible_routes(
+        [{"id": NDFL_WORKSPACE_MODEL_STABLE_ID}]
+    )["passed"] is True
 
 
 def test_display_name_rename_does_not_change_behavioral_binding() -> None:
@@ -121,22 +137,27 @@ def test_technical_pipe_overrides_keep_only_required_runtime_base_active() -> No
     )
 
 
-def test_visible_route_acceptance_requires_ndfl_and_its_internal_base() -> None:
+def test_visible_route_acceptance_requires_only_the_direct_ndfl_pipe() -> None:
     assert publisher.evaluate_visible_routes(
         [
             {"id": NDFL_WORKSPACE_MODEL_STABLE_ID},
-            {"id": NDFL_OPENWEBUI_BASE_PIPE_ID},
             {"id": "unrelated-model"},
         ]
     ) == {
         "visible_product_route_ids": [NDFL_WORKSPACE_MODEL_STABLE_ID],
-        "visible_internal_runtime_base_ids": [NDFL_OPENWEBUI_BASE_PIPE_ID],
+        "visible_internal_runtime_base_ids": [],
         "user_facing_ndfl_models": 1,
         "legacy_or_competing_routes_visible": [],
         "passed": True,
     }
     assert publisher.evaluate_visible_routes(
         [{"id": NDFL_WORKSPACE_MODEL_STABLE_ID}]
+    )["passed"] is True
+    assert publisher.evaluate_visible_routes(
+        [
+            {"id": NDFL_WORKSPACE_MODEL_STABLE_ID},
+            {"id": publisher.LEGACY_OPENWEBUI_BASE_PIPE_ID},
+        ]
     )["passed"] is False
 
 
