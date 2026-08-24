@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import inspect
 import json
 import base64
 from dataclasses import replace
@@ -21,6 +22,10 @@ from broker_reports_gate1.gate5_human_gap_closure import (
 )
 from broker_reports_gate1.gate5_full_target_xml_projection import (
     Gate5FullTargetXmlProjectionRuntimeFactory,
+)
+import broker_reports_gate1.gate5_full_target_xml_projection as xml_projection_module
+from broker_reports_gate1.gate5_declaration_semantic_input import (
+    Gate5DeclarationSemanticInputRuntimeFactory,
 )
 from broker_reports_gate1.ordinary_trade_declaration_mvp import (
     DECLARATION_EXTERNAL_AUTHORITY_SCHEMA_VERSION,
@@ -73,6 +78,19 @@ def test_persisted_canonical_facts_reach_byte_stable_official_xsd_xml(
         "ordinary_trade_coverage_"
     )
     assert first["semantic_reconciliation"]["status"] == "passed"
+    filing_component = next(
+        item
+        for item in first["assembly_receipt"]["owner_artifacts"]["package"][
+            "component_snapshots"
+        ]
+        if item["domain_id"] == "filing_and_party_identity"
+    )
+    filing_input = filing_component["snapshot"]["input_snapshot"]
+    provenance = filing_input["field_provenance"]
+    assert provenance["declarant_category"]["source_kind"] == (
+        "methodology_derived_result"
+    )
+    assert filing_input["evidence"]["real_user_fact"] is False
     assert first["receipt_artifact_ref"].startswith("mvp_receipt_")
     assert first["xml_artifact_ref"].startswith("mvp_xml_")
     assert b"NO_NDFL3_1_033_00_05_20_01" not in first["xml_bytes"]
@@ -134,7 +152,9 @@ def test_production_without_declaration_owners_names_exact_blocker(tmp_path: Pat
     assert result["product"]["xml_created"] is False
 
 
-def test_review_fixture_is_official_xsd_valid_and_semantically_reconciled() -> None:
+def test_review_fixture_is_official_xsd_valid_and_semantically_reconciled(
+    tmp_path: Path,
+) -> None:
     fixture = (
         Path(__file__).resolve().parents[3]
         / "docs"
@@ -155,21 +175,23 @@ def test_review_fixture_is_official_xsd_valid_and_semantically_reconciled() -> N
     assert calculation.get("СумДох") == securities.get("ДохСовОпер") == "60.00"
     assert calculation.get("СумРасх") == securities.get("РасхРеалЦБ") == "43.00"
     assert calculation.get("НалБаза") == "17.00"
-    semantic = (
+    extracted = (
         Gate5FullTargetXmlProjectionRuntimeFactory.create()
-        .validate_supported_profile_semantics(xml_bytes=fixture.read_bytes())
+        .extract_supported_profile_values(xml_bytes=fixture.read_bytes())
     )
+    runtime, context, _providers = _case(tmp_path, proceeds="60.00")
+    owner_result = _run(runtime, context)
+    semantic = Gate5DeclarationSemanticInputRuntimeFactory.create().reconcile_serialized_projection_values(
+        projection_input=owner_result["assembly_receipt"]["owner_artifacts"][
+            "projection_input"
+        ],
+        serialized_values=extracted["values"],
+    )
+    assert extracted["status"] == "extracted"
     assert semantic["status"] == "passed"
-    assert semantic["values"] == {
-        "gross_income": "60.00",
-        "accepted_expenses": "43.00",
-        "tax_base": "17.00",
-        "calculated_tax": "2",
-        "tax_payable": "2",
-        "tax_refundable": "0",
-        "source_income": "60.00",
-        "budget_payable": "2",
-    }
+    assert semantic["comparison_owner"] == (
+        "Gate5DeclarationSemanticInputRuntimeFactory.create"
+    )
 
 
 @pytest.mark.parametrize(
@@ -178,7 +200,9 @@ def test_review_fixture_is_official_xsd_valid_and_semantically_reconciled() -> N
         (".//РасчНалБаза", "НалБаза", "18.00"),
         (".//РасчНалПУ", "Исчисл", "3"),
         (".//РасчНалПУ", "ПодлУпл", "3"),
+        (".//РасчНалПУ", "ПодлВозв", "1"),
         (".//СумНалПуИскл227", "ПодлУпл", "3"),
+        (".//СумНалПуИскл227", "ПодлВозв", "1"),
         (".//ДоходИстРФ", "Доход", "61.00"),
     ],
 )
@@ -256,6 +280,48 @@ def test_multiple_disposals_are_not_silently_duplicated_or_dropped(
     assert blocked.value.code == "ordinary_trade_declaration_disposal_binding_required"
 
 
+def test_whole_active_canonical_document_without_projection_blocks_before_xml(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers, store = _case(
+        tmp_path, proceeds="60.00", include_store=True
+    )
+    bridge = assembly_fixtures.bridge_fixtures
+    second = bridge.ordinary_fixtures.gate4_fixtures._activate_canonical(
+        store=store,
+        context=context,
+        document_id="g4-runtime-second-document",
+        artifact_version=1,
+        expected_previous_version_id=None,
+        table_rows=(
+            bridge._HEADERS,
+            bridge._row(side=bridge._PURCHASE_SIDE, charges=False),
+            assembly_fixtures._with_amount(
+                bridge._row(side=bridge._DISPOSAL_SIDE, charges=True), "64.00"
+            ),
+        ),
+    )
+
+    missing = runtime.run(canonical_artifact_refs=[], context=context)
+    assert missing["declaration"] is None
+    assert missing["product"]["xml_created"] is False
+    assert missing["product"]["terminal"] == (
+        "ordinary_trade_declaration_canonical_projection_missing"
+    )
+
+    complete = runtime.run(
+        canonical_artifact_refs=[second.artifact_ref],
+        context=context,
+    )
+    assert complete["documents_total"] == 2
+    assert complete["product"]["gate4"]["security_facts_total"] == 4
+    assert complete["declaration"] is None
+    assert complete["product"]["xml_created"] is False
+    assert complete["product"]["terminal"] == (
+        "ordinary_trade_declaration_disposal_binding_required"
+    )
+
+
 def test_relevant_unmapped_incomplete_operation_blocks_before_xml(
     tmp_path: Path,
 ) -> None:
@@ -292,6 +358,52 @@ def test_missing_request_bound_human_facts_cannot_be_replaced_by_provider_dict(
         "ordinary_trade_declaration_human_facts_missing"
     )
     assert result["product"]["xml_created"] is False
+
+
+def test_correction_without_owner_produced_number_is_typed_blocked(
+    tmp_path: Path,
+) -> None:
+    runtime, context, providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+    )
+    _publish_human_facts(
+        providers[2],
+        context=context,
+        taxpayer_scope_ref="taxpayer-authenticated-1",
+        answer_overrides={
+            "filing_instance_identity": {"kind": "code", "value": "CORRECTION"}
+        },
+    )
+
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+    assert result["declaration"] is None
+    assert result["product"]["xml_created"] is False
+    assert result["product"]["terminal"] == (
+        "ordinary_trade_declaration_correction_number_required"
+    )
+
+
+def test_unsupported_authoritative_taxpayer_capacity_is_methodology_blocked(
+    tmp_path: Path,
+) -> None:
+    runtime, context, providers = _case(tmp_path, proceeds="60.00")
+    providers[1].value["taxpayer_capacity"]["kind"] = "individual_entrepreneur"
+
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+    assert result["declaration"] is None
+    assert result["product"]["xml_created"] is False
+    assert result["product"]["terminal"] == (
+        "gate5_declarant_category_methodology_unresolved"
+    )
+
+
+def test_xml_projection_extracts_representation_without_tax_formula() -> None:
+    source = inspect.getsource(xml_projection_module._supported_profile_xml_values)
+    assert "0.13" not in source
+    assert "ROUND_HALF_UP" not in source
+    assert "expected_tax" not in source
 
 
 def test_same_case_canonical_fact_successor_60_to_64_invalidates_old_output(
@@ -389,7 +501,7 @@ def test_cross_run_genuine_xml_hybrid_remains_rejected(tmp_path: Path) -> None:
     ).hexdigest()
     with pytest.raises(OrdinaryTradeDeclarationMvpError) as mixed:
         runtime_b.validate_current_declaration(result=hybrid, context=context_b)
-    assert mixed.value.code == "ordinary_trade_declaration_mvp_stale_or_misbound"
+    assert mixed.value.code == "ordinary_trade_declaration_xml_semantics_invalid"
 
 
 def _case(
@@ -445,7 +557,13 @@ def _case(
     return (*result, store) if include_store else result
 
 
-def _publish_human_facts(human, *, context, taxpayer_scope_ref: str) -> None:
+def _publish_human_facts(
+    human,
+    *,
+    context,
+    taxpayer_scope_ref: str,
+    answer_overrides: dict[str, dict] | None = None,
+) -> None:
     published = human.publish_requests(
         **human_fixtures._plan_inputs(
             context,
@@ -461,7 +579,9 @@ def _publish_human_facts(human, *, context, taxpayer_scope_ref: str) -> None:
             continue
         result = human.normalize_answer(
             request=request,
-            answer=human_fixtures._answer(request["fact_key"]),
+            answer=(answer_overrides or {}).get(
+                request["fact_key"], human_fixtures._answer(request["fact_key"])
+            ),
             context=context,
         )
         assert result["status"] == "TYPED_USER_CASE_FACT_READY"
@@ -504,6 +624,10 @@ def _external(context) -> dict:
             "organized_market_status": "organized_market",
             "iis_status": "outside_iis",
             "exemption_applicability": "not_applicable",
+        },
+        "taxpayer_capacity": {
+            "kind": "individual_not_ip_not_private_practice",
+            "source_ref": "official-taxpayer-capacity-2025-1",
         },
         "filing_destination": {"ref": "inspection-7705", "code": "7705"},
         "income_source": {

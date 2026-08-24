@@ -1,7 +1,7 @@
 {
   "schema_version": "broker_reports_gate5_declaration_input_methodology_v1",
   "methodology_id": "ru-3ndfl-2025-declaration-input-contract",
-  "methodology_version": "2026.2-current-authority",
+  "methodology_version": "2026.3-current-authority",
   "status": "PUBLISHED_CURRENT_AUTHORITY",
   "scope": {
     "tax_period": "2025",
@@ -22,6 +22,19 @@
       "deterministic_rule": "validate the mandatory filing-instance and taxpayer fields against the 2025 declaration scope",
       "output": "filing_and_taxpayer_identity_input",
       "insufficient_inputs": "FAIL_CLOSED",
+      "authority_refs": ["fns-order-ed-7-11-913-2025-procedure"]
+    },
+    {
+      "rule_id": "declarant-category-fns-order-913-v1",
+      "when": "a 2025 3-NDFL declaration is filed by an individual who is not an individual entrepreneur or private-practice professional",
+      "required_inputs": [
+        "external_authoritative_taxpayer_capacity",
+        "tax_period"
+      ],
+      "operation": "CLASSIFY",
+      "deterministic_rule": "individual_not_ip_not_private_practice for tax period 2025 maps to the other individual declarant category",
+      "output": "other_individual_declaring_article_228_income",
+      "insufficient_inputs": "EXTERNAL_AUTHORITATIVE_FACT_MISSING",
       "authority_refs": ["fns-order-ed-7-11-913-2025-procedure"]
     },
     {
@@ -212,7 +225,10 @@
     {
       "demand": "obl_filing_instance_identity",
       "owner": "Gate5FilingAndPartyIdentityRuntimeFactory.create",
-      "rule_ids": ["filing-context-fns-order-913-v1"],
+      "rule_ids": [
+        "filing-context-fns-order-913-v1",
+        "declarant-category-fns-order-913-v1"
+      ],
       "external_methodology_refs": []
     },
     {

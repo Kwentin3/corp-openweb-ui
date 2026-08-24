@@ -302,21 +302,26 @@ class Gate5DeclarationRightSideAssemblyRuntime:
             residency,
             input_channel="taxpayer_status",
         )["value"]
+        component_input = {
+            "schema_version": GATE5_FILING_AND_PARTY_IDENTITY_INPUT_SCHEMA_VERSION,
+            "scope_binding": copy.deepcopy(scope_binding),
+            "filing_instance": filing,
+            "taxpayer": taxpayer,
+            "signer": signer,
+            "evidence": _owned_or_synthetic_case_evidence(
+                facts,
+                source_ref=_required(facts, "evidence_source_ref"),
+                case_id=scope_binding["case_id"],
+                tax_period=scope_binding["tax_period"],
+                input_channel="filing_and_party_identity",
+            ),
+        }
+        if "field_provenance" in facts:
+            component_input["field_provenance"] = copy.deepcopy(
+                facts["field_provenance"]
+            )
         return Gate5FilingAndPartyIdentityRuntimeFactory.create().create_component(
-            component_input={
-                "schema_version": GATE5_FILING_AND_PARTY_IDENTITY_INPUT_SCHEMA_VERSION,
-                "scope_binding": copy.deepcopy(scope_binding),
-                "filing_instance": filing,
-                "taxpayer": taxpayer,
-                "signer": signer,
-                "evidence": _owned_or_synthetic_case_evidence(
-                    facts,
-                    source_ref=_required(facts, "evidence_source_ref"),
-                    case_id=scope_binding["case_id"],
-                    tax_period=scope_binding["tax_period"],
-                    input_channel="filing_and_party_identity",
-                ),
-            }
+            component_input=component_input
         )
 
     def budget_component(

@@ -155,7 +155,11 @@ class OrdinaryTradeProductionRuntime:
         terminal = "gate5_source_facts_consumed"
         if canonical_coverage["status"] != "complete":
             execution_status = "source_evidence_insufficient"
-            terminal = "ordinary_trade_declaration_canonical_relevant_unmapped"
+            terminal = (
+                "ordinary_trade_declaration_canonical_projection_missing"
+                if canonical_coverage["status"] == "missing_projection"
+                else "ordinary_trade_declaration_canonical_relevant_unmapped"
+            )
         else:
             try:
                 consumed = self._gate5.run(
@@ -225,7 +229,10 @@ class OrdinaryTradeProductionRuntime:
                     | (
                         {terminal}
                         if terminal
-                        == "ordinary_trade_declaration_canonical_relevant_unmapped"
+                        in {
+                            "ordinary_trade_declaration_canonical_projection_missing",
+                            "ordinary_trade_declaration_canonical_relevant_unmapped",
+                        }
                         else set()
                     )
                 ),

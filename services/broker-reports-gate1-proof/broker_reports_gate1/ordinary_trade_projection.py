@@ -26,7 +26,7 @@ ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE = (
     ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION
 )
 ORDINARY_TRADE_CURRENT_CASE_COVERAGE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_current_case_coverage_v1"
+    "broker_reports_ordinary_trade_current_case_coverage_v2"
 )
 FACTORY_REQUIRED = (
     "OrdinaryTradeProjectionFactory.create is the only production-candidate "
@@ -208,6 +208,31 @@ class OrdinaryTradeProjectionRuntime:
         """Describe complete current Canonical coverage; callers cannot select rows."""
 
         projections = self.current_case(context=context)
+        document_scope = []
+        for record in self._resolver.catalog_case(context):
+            if (
+                record.artifact_type != "broker_reports_canonical_artifact_v1"
+                or not record.document_id
+            ):
+                continue
+            try:
+                active = self._store.get_active_canonical_version(
+                    context=context,
+                    document_id=record.document_id,
+                )
+            except ArtifactStoreError:
+                continue
+            if active.manifest_ref != record.artifact_id:
+                continue
+            document_scope.append(
+                {
+                    "document_id": active.document_id,
+                    "canonical_version_id": active.canonical_version_id,
+                    "canonical_root_sha256": active.canonical_root_sha256,
+                    "manifest_ref": active.manifest_ref,
+                }
+            )
+        document_scope.sort(key=lambda item: item["document_id"])
         rows = [
             {
                 "projection_artifact_id": record.artifact_id,
@@ -230,18 +255,44 @@ class OrdinaryTradeProjectionRuntime:
             }
             for record, payload in projections
         ]
+        projected_bindings = {
+            (
+                row["document_id"],
+                row["canonical_version_id"],
+                row["canonical_root_sha256"],
+            )
+            for row in rows
+        }
+        scoped_bindings = {
+            (
+                row["document_id"],
+                row["canonical_version_id"],
+                row["canonical_root_sha256"],
+            )
+            for row in document_scope
+        }
+        missing_projection_documents = sorted(
+            item[0] for item in scoped_bindings - projected_bindings
+        )
+        unexpected_projection_documents = sorted(
+            item[0] for item in projected_bindings - scoped_bindings
+        )
+        if missing_projection_documents or unexpected_projection_documents:
+            status = "missing_projection"
+        elif rows and not any(
+            row["relevant_unmapped_observations"] for row in rows
+        ):
+            status = "complete"
+        else:
+            status = "relevant_unmapped"
         base = {
             "schema_version": ORDINARY_TRADE_CURRENT_CASE_COVERAGE_SCHEMA_VERSION,
             "case_id": context.case_id,
-            "status": (
-                "complete"
-                if rows
-                and not any(
-                    row["relevant_unmapped_observations"] for row in rows
-                )
-                else "relevant_unmapped"
-            ),
+            "status": status,
+            "document_scope": document_scope,
             "projections": rows,
+            "missing_projection_documents": missing_projection_documents,
+            "unexpected_projection_documents": unexpected_projection_documents,
             "runtime_ready_observations": sum(
                 row["runtime_ready_observations"] for row in rows
             ),

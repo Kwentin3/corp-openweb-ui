@@ -95,13 +95,13 @@ GATE5_DECLARATION_INPUT_METHODOLOGY_ID = (
     "ru-3ndfl-2025-declaration-input-contract"
 )
 GATE5_DECLARATION_INPUT_METHODOLOGY_VERSION = (
-    "2026.2-current-authority"
+    "2026.3-current-authority"
 )
 GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE = (
     "gate5_tax_methodology.ru_3ndfl_2025_declaration_input_contract.v3.json"
 )
 GATE5_DECLARATION_INPUT_METHODOLOGY_RESOURCE_SHA256 = (
-    "a3e4e610ef4ea36086dc49b47a988babc769dcf3fbd482ce35aec236f7a9189d"
+    "2d75ec75cdc6b3a0ab20cae697abfe6ad06d2b2d398140c9a171bf617ebdbbf6"
 )
 GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_SCHEMA_VERSION = (
     "broker_reports_gate5_deterministic_source_fact_consumption_methodology_v0"
@@ -324,6 +324,39 @@ class Gate5TrustedMethodologyAuthority:
                 "projection_sha256": projection_sha256,
             },
             "methodology": copy.deepcopy(methodology),
+        }
+
+    def classify_declarant_category(
+        self,
+        *,
+        methodology_ref: dict[str, Any],
+        taxpayer_capacity: str,
+        tax_period: str,
+    ) -> dict[str, Any]:
+        """Apply the one published bounded declarant-category classification."""
+
+        resolved = self.resolve(methodology_ref)
+        rules = {
+            item.get("rule_id"): item
+            for item in resolved["methodology"].get("rules", [])
+            if isinstance(item, dict)
+        }
+        rule = rules.get("declarant-category-fns-order-913-v1")
+        if (
+            tax_period != "2025"
+            or taxpayer_capacity != "individual_not_ip_not_private_practice"
+            or not isinstance(rule, dict)
+            or rule.get("operation") != "CLASSIFY"
+            or rule.get("output")
+            != "other_individual_declaring_article_228_income"
+        ):
+            raise Gate5TrustedMethodologyError(
+                "gate5_declarant_category_methodology_unresolved"
+            )
+        return {
+            "declarant_category": rule["output"],
+            "rule_id": rule["rule_id"],
+            "authority_binding": copy.deepcopy(resolved["authority_binding"]),
         }
 
 

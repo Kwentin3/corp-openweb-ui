@@ -6,7 +6,7 @@ import base64
 import binascii
 import copy
 from datetime import date
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation
 import hashlib
 from importlib import resources
 import json
@@ -433,17 +433,17 @@ class Gate5FullTargetXmlProjectionRuntime:
         }
         return {"xml_tree": tree, "xml_bytes": xml_bytes, "receipt": receipt}
 
-    def validate_supported_profile_semantics(
+    def extract_supported_profile_values(
         self, *, xml_bytes: bytes
     ) -> dict[str, Any]:
-        """Independently reconcile numeric fields from serialized MVP XML."""
+        """Validate representation and extract literals without deriving tax meaning."""
 
         definition = self._consumer_definition_authority.resolve()
         conformance = self._validator.validate(
             xml_bytes=xml_bytes,
             definition=definition,
         )
-        proof = _supported_profile_xml_semantics(xml_bytes)
+        proof = _supported_profile_xml_values(xml_bytes)
         return {
             **proof,
             "xsd_valid": conformance["xsd_valid"],
@@ -610,7 +610,7 @@ class Gate5FullTargetXmlConformanceValidator:
         }
 
 
-def _supported_profile_xml_semantics(xml_bytes: bytes) -> dict[str, Any]:
+def _supported_profile_xml_values(xml_bytes: bytes) -> dict[str, Any]:
     parser = etree.XMLParser(resolve_entities=False, no_network=True)
     try:
         root = etree.fromstring(xml_bytes, parser)
@@ -634,7 +634,7 @@ def _supported_profile_xml_semantics(xml_bytes: bytes) -> dict[str, Any]:
                 "gate5_full_target_xml_semantics_invalid",
                 f"{node.tag}@{attribute}",
             )
-        if value < 0:
+        if not value.is_finite() or value < 0:
             _fail(
                 "gate5_full_target_xml_semantics_invalid",
                 f"{node.tag}@{attribute}",
@@ -661,15 +661,14 @@ def _supported_profile_xml_semantics(xml_bytes: bytes) -> dict[str, Any]:
     operation_allowable = money(operation, "РасхУмДохОпер")
     source_income = money(source, "Доход")
     calculated_tax = money(settlement, "Исчисл")
-    credit_attributes = (
-        "Удерж",
-        "СумУдержМат",
-        "ТСУплПерЗач",
-        "СумФиксАван",
-        "УплИнПодлЗач",
-        "УплПатентЗач",
-    )
-    credits = sum((money(settlement, item) for item in credit_attributes), Decimal(0))
+    credit_attributes = {
+        "withheld_at_source": "Удерж",
+        "material_benefit_withheld": "СумУдержМат",
+        "trade_fee_credit": "ТСУплПерЗач",
+        "fixed_advance_credit": "СумФиксАван",
+        "foreign_tax_credit": "УплИнПодлЗач",
+        "patent_credit": "УплПатентЗач",
+    }
     payable = money(settlement, "ПодлУпл")
     refundable = money(settlement, "ПодлВозв")
     simplified = money(settlement, "СумВозвУпр")
@@ -677,49 +676,43 @@ def _supported_profile_xml_semantics(xml_bytes: bytes) -> dict[str, Any]:
     budget_payable = money(budget, "ПодлУпл")
     budget_refundable = money(budget, "ПодлВозв")
 
-    expected_taxable = total_income - non_taxable
-    expected_base = max(expected_taxable - deductions - expenses, Decimal(0))
-    expected_tax = (expected_base * Decimal("0.13")).quantize(
-        Decimal("1"), rounding=ROUND_HALF_UP
-    )
-    expected_payable = max(expected_tax - credits, Decimal(0))
-    expected_refundable = max(credits - expected_tax, Decimal(0))
-    checks = {
-        "taxable_income": taxable_income == expected_taxable,
-        "tax_base": tax_base == expected_base,
-        "operation_income": operation_income == total_income,
-        "operation_expenses": (
-            operation_expenses == expenses == operation_allowable
-        ),
-        "source_income": source_income == total_income,
-        "calculated_tax": calculated_tax == expected_tax,
-        "source_withheld": source_withheld == money(settlement, "Удерж"),
-        "settlement_payable": payable == expected_payable,
-        "settlement_refundable": refundable == expected_refundable,
-        "budget_payable": budget_payable == payable,
-        "budget_refundable": budget_refundable == refundable,
-        "simplified_return_or_credit": simplified == Decimal(0),
-    }
-    failed = [key for key, valid in checks.items() if not valid]
-    if failed:
-        _fail(
-            "gate5_full_target_xml_semantics_invalid",
-            ",".join(sorted(failed)),
-        )
+    def literal(value: Decimal) -> str:
+        return format(value, "f")
+
     return {
-        "schema_version": "broker_reports_gate5_supported_xml_semantics_v1",
-        "status": "passed",
-        "profile": "ordinary_trade_resident_2025_rate_13",
-        "checks": sorted(checks),
+        "schema_version": "broker_reports_gate5_serialized_xml_values_v1",
+        "status": "extracted",
+        "profile": "ordinary_trade_2025_supported_representation",
         "values": {
-            "gross_income": format(total_income, "f"),
-            "accepted_expenses": format(expenses, "f"),
-            "tax_base": format(tax_base, "f"),
-            "calculated_tax": format(calculated_tax, "f"),
-            "tax_payable": format(payable, "f"),
-            "tax_refundable": format(refundable, "f"),
-            "source_income": format(source_income, "f"),
-            "budget_payable": format(budget_payable, "f"),
+            "income_group": {
+                "total_income": literal(total_income),
+                "non_taxable_income": literal(non_taxable),
+                "taxable_income": literal(taxable_income),
+                "tax_deductions": literal(deductions),
+                "accepted_expenses": literal(expenses),
+                "tax_base": literal(tax_base),
+                "calculated_tax": literal(calculated_tax),
+                "settlement_amounts": {
+                    key: literal(money(settlement, attribute))
+                    for key, attribute in credit_attributes.items()
+                },
+                "tax_payable": literal(payable),
+                "tax_refundable": literal(refundable),
+                "simplified_procedure_returned_or_credited": literal(simplified),
+            },
+            "financial_investment": {
+                "category_gross_income": literal(operation_income),
+                "related_expenses": literal(operation_expenses),
+                "allowable_expenses": literal(operation_allowable),
+            },
+            "russian_source": {
+                "gross_income": literal(source_income),
+                "withheld_tax": literal(source_withheld),
+            },
+            "budget": {
+                "payable": literal(budget_payable),
+                "refundable": literal(budget_refundable),
+            },
         },
     }
 

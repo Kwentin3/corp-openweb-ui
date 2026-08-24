@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import re
@@ -464,6 +465,30 @@ class Gate5DeclarationSemanticInputRuntime:
         projection_input: dict[str, Any],
     ) -> dict[str, Any]:
         return _validated_released_projection_input(projection_input)
+
+    def reconcile_serialized_projection_values(
+        self,
+        *,
+        projection_input: dict[str, Any],
+        serialized_values: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Bind representation-extracted literals to owner-released semantics."""
+
+        checked = _validated_released_projection_input(projection_input)
+        expected = _serialized_value_view(checked["declaration_values"])
+        supplied = _validated_serialized_value_view(serialized_values)
+        if supplied != expected:
+            _fail("gate5_declaration_serialized_values_mismatch")
+        base = {
+            "schema_version": "broker_reports_gate5_serialized_value_reconciliation_v1",
+            "status": "passed",
+            "comparison_owner": (
+                "Gate5DeclarationSemanticInputRuntimeFactory.create"
+            ),
+            "projection_input_sha256": checked["projection_input_sha256"],
+            "values": supplied,
+        }
+        return {**base, "proof_sha256": _canonical_sha256(base)}
 
 
 def _semantic_input_from_sealed_package(sealed: dict[str, Any]) -> dict[str, Any]:
@@ -1026,6 +1051,142 @@ def _validated_released_declaration_values(value: Any) -> dict[str, Any]:
     ] != _canonical_sha256(released_base):
         _fail("gate5_declaration_release_hash_mismatch")
     return copy.deepcopy(released)
+
+
+def _serialized_value_view(values: dict[str, Any]) -> dict[str, Any]:
+    income = values["income_group_results"]
+    source = values["russian_source_income"]
+    financial = values["financial_investment_results"]
+    budget = values["budget_dispositions"]
+    if not all(len(rows) == 1 for rows in (income, source, financial, budget)):
+        _fail("gate5_declaration_serialized_profile_unsupported")
+    group = income[0]
+
+    def amount(value: Any) -> str:
+        try:
+            return _normalized_nonnegative_decimal(value["amount"])
+        except (InvalidOperation, KeyError, TypeError):
+            _fail("gate5_declaration_serialized_values_invalid")
+
+    return {
+        "income_group": {
+            key: amount(group[key])
+            for key in (
+                "total_income",
+                "non_taxable_income",
+                "taxable_income",
+                "tax_deductions",
+                "accepted_expenses",
+                "tax_base",
+                "calculated_tax",
+            )
+        }
+        | {
+            "settlement_amounts": {
+                key: amount(group["settlement_amounts"][key])
+                for key in (
+                    "withheld_at_source",
+                    "material_benefit_withheld",
+                    "trade_fee_credit",
+                    "fixed_advance_credit",
+                    "foreign_tax_credit",
+                    "patent_credit",
+                )
+            },
+            "tax_payable": amount(group["tax_payable"]),
+            "tax_refundable": amount(group["tax_refundable"]),
+            "simplified_procedure_returned_or_credited": amount(
+                group["settlement_amounts"][
+                    "simplified_procedure_returned_or_credited"
+                ]
+            ),
+        },
+        "financial_investment": {
+            "category_gross_income": amount(financial[0]["category_gross_income"]),
+            "related_expenses": amount(financial[0]["related_expenses"]),
+            "allowable_expenses": amount(financial[0]["allowable_expenses"]),
+        },
+        "russian_source": {
+            "gross_income": amount(source[0]["gross_income"]),
+            "withheld_tax": amount(source[0]["withheld_tax"]),
+        },
+        "budget": {
+            "payable": amount(budget[0]["payable"]),
+            "refundable": amount(budget[0]["refundable"]),
+        },
+    }
+
+
+def _validated_serialized_value_view(value: Any) -> dict[str, Any]:
+    expected_keys = {
+        "income_group": {
+            "total_income",
+            "non_taxable_income",
+            "taxable_income",
+            "tax_deductions",
+            "accepted_expenses",
+            "tax_base",
+            "calculated_tax",
+            "settlement_amounts",
+            "tax_payable",
+            "tax_refundable",
+            "simplified_procedure_returned_or_credited",
+        },
+        "financial_investment": {
+            "category_gross_income", "related_expenses", "allowable_expenses"
+        },
+        "russian_source": {"gross_income", "withheld_tax"},
+        "budget": {"payable", "refundable"},
+    }
+    credit_keys = {
+        "withheld_at_source",
+        "material_benefit_withheld",
+        "trade_fee_credit",
+        "fixed_advance_credit",
+        "foreign_tax_credit",
+        "patent_credit",
+    }
+    try:
+        valid = (
+            isinstance(value, dict)
+            and set(value) == set(expected_keys)
+            and all(
+                isinstance(value[key], dict)
+                and set(value[key]) == keys
+                for key, keys in expected_keys.items()
+            )
+            and isinstance(value["income_group"]["settlement_amounts"], dict)
+            and set(value["income_group"]["settlement_amounts"]) == credit_keys
+        )
+    except (KeyError, TypeError):
+        valid = False
+    if not valid:
+        _fail("gate5_declaration_serialized_values_invalid")
+    normalized = copy.deepcopy(value)
+    for section, fields in expected_keys.items():
+        for field in fields - {"settlement_amounts"}:
+            normalized[section][field] = _normalized_nonnegative_decimal(
+                value[section][field]
+            )
+    normalized["income_group"]["settlement_amounts"] = {
+        key: _normalized_nonnegative_decimal(
+            value["income_group"]["settlement_amounts"][key]
+        )
+        for key in sorted(credit_keys)
+    }
+    return normalized
+
+
+def _normalized_nonnegative_decimal(value: Any) -> str:
+    if not isinstance(value, str):
+        _fail("gate5_declaration_serialized_values_invalid")
+    try:
+        parsed = Decimal(value)
+    except (InvalidOperation, TypeError):
+        _fail("gate5_declaration_serialized_values_invalid")
+    if not parsed.is_finite() or parsed < 0:
+        _fail("gate5_declaration_serialized_values_invalid")
+    return format(parsed.normalize(), "f")
 
 
 def _released_projection_input(released: dict[str, Any]) -> dict[str, Any]:

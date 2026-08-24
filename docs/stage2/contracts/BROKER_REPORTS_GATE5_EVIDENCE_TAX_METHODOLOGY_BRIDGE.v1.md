@@ -18,7 +18,7 @@ The immutable methodology authority is
 input contract is:
 
 ```text
-ru-3ndfl-2025-declaration-input-contract@2026.2-current-authority
+ru-3ndfl-2025-declaration-input-contract@2026.3-current-authority
 ```
 
 The corrected income-group settlement resource is:

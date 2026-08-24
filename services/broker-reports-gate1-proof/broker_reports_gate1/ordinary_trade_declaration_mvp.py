@@ -26,6 +26,10 @@ from .authenticated_case_taxpayer_binding import (
 from .gate4_ordinary_trade_candidate import Gate4OrdinaryTradeCandidateRuntimeFactory
 from .gate5_full_target_xml_projection import Gate5FullTargetXmlProjectionRuntimeFactory
 from .gate5_full_target_xml_projection import Gate5FullTargetXmlProjectionError
+from .gate5_declaration_semantic_input import (
+    Gate5DeclarationSemanticInputError,
+    Gate5DeclarationSemanticInputRuntimeFactory,
+)
 from .gate5_human_gap_closure import (
     Gate5HumanGapClosureError,
     Gate5HumanGapClosureRuntimeFactory,
@@ -39,11 +43,15 @@ from .gate5_tax_period_category_aggregation import (
     GATE5_TAX_PERIOD_COMPLETENESS_EVIDENCE_SCHEMA_VERSION,
 )
 from .gate5_trusted_methodology import (
+    GATE5_DECLARATION_INPUT_METHODOLOGY_ID,
+    GATE5_DECLARATION_INPUT_METHODOLOGY_VERSION,
     GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION,
     GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
     GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+    Gate5TrustedMethodologyAuthorityFactory,
+    Gate5TrustedMethodologyError,
 )
 from .ordinary_trade_tax_model_bridge import OrdinaryTradeTaxModelBridgeRuntimeFactory
 
@@ -76,6 +84,7 @@ _INN10 = re.compile(r"^[0-9]{10}$")
 _CODE4 = re.compile(r"^[0-9]{4}$")
 _KBK = re.compile(r"^[0-9]{20}$")
 _OKTMO = re.compile(r"^[0-9]{8}(?:[0-9]{3})?$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _CREDIT_KEYS = frozenset(
     {
         "withheld_at_source", "material_benefit_withheld", "trade_fee_credit",
@@ -86,7 +95,7 @@ _EXTERNAL_KEYS = frozenset(
     {
         "schema_version", "publication_id", "case_id", "tax_period",
         "operation_applicability", "filing_destination", "income_source",
-        "budget", "origin",
+        "budget", "taxpayer_capacity", "origin",
     }
 )
 
@@ -137,6 +146,8 @@ class OrdinaryTradeDeclarationMvpRuntime:
             retention_policy=retention_policy,
         ).create()
         self._projector = Gate5FullTargetXmlProjectionRuntimeFactory.create()
+        self._semantic_input = Gate5DeclarationSemanticInputRuntimeFactory.create()
+        self._methodology = Gate5TrustedMethodologyAuthorityFactory.create()
 
     def run(
         self,
@@ -167,6 +178,14 @@ class OrdinaryTradeDeclarationMvpRuntime:
             self._external_authority_provider.current_facts(context=context),
             context=context,
         )
+        try:
+            declarant_category = self._methodology.classify_declarant_category(
+                methodology_ref=_declaration_methodology_ref(),
+                taxpayer_capacity=external["taxpayer_capacity"]["kind"],
+                tax_period="2025",
+            )
+        except Gate5TrustedMethodologyError as exc:
+            raise OrdinaryTradeDeclarationMvpError(exc.code) from exc
         external_artifact_ref = "mvp_external_facts_" + _sha(external)[:32]
         self._persist(
             artifact_ref=external_artifact_ref,
@@ -209,6 +228,7 @@ class OrdinaryTradeDeclarationMvpRuntime:
             binding=binding,
             user=user,
             external=external,
+            declarant_category=declarant_category,
             facts=facts,
             canonical_coverage=coverage,
         )
@@ -268,9 +288,14 @@ class OrdinaryTradeDeclarationMvpRuntime:
             target_mechanics=assembly["owner_artifacts"]["target_mechanics"],
         )
         xml_bytes = projection["xml_bytes"]
-        semantic_reconciliation = self._projector.validate_supported_profile_semantics(
+        extracted_values = self._projector.extract_supported_profile_values(
             xml_bytes=xml_bytes
         )
+        semantic_reconciliation = self._semantic_input.reconcile_serialized_projection_values(
+            projection_input=assembly["owner_artifacts"]["projection_input"],
+            serialized_values=extracted_values["values"],
+        )
+        semantic_reconciliation["representation_proof"] = extracted_values
         bindings = {
             "taxpayer_binding_ref": binding["binding_ref"],
             "user_case_fact_refs": sorted(
@@ -343,10 +368,22 @@ class OrdinaryTradeDeclarationMvpRuntime:
         if not isinstance(result, dict):
             _fail("ordinary_trade_declaration_mvp_result_invalid")
         try:
-            self._projector.validate_supported_profile_semantics(
+            extracted_values = self._projector.extract_supported_profile_values(
                 xml_bytes=result.get("xml_bytes")
             )
-        except Gate5FullTargetXmlProjectionError as exc:
+            projection_input = result["assembly_receipt"]["owner_artifacts"][
+                "projection_input"
+            ]
+            self._semantic_input.reconcile_serialized_projection_values(
+                projection_input=projection_input,
+                serialized_values=extracted_values["values"],
+            )
+        except (
+            Gate5FullTargetXmlProjectionError,
+            Gate5DeclarationSemanticInputError,
+            KeyError,
+            TypeError,
+        ) as exc:
             raise OrdinaryTradeDeclarationMvpError(
                 "ordinary_trade_declaration_xml_semantics_invalid"
             ) from exc
@@ -472,7 +509,8 @@ def _resolved_inputs(
 
 def _right_side(
     *, context: ArtifactAccessContext, binding: dict[str, Any], user: dict[str, Any],
-    external: dict[str, Any], facts: tuple[dict[str, Any], ...],
+    external: dict[str, Any], declarant_category: dict[str, Any],
+    facts: tuple[dict[str, Any], ...],
     canonical_coverage: dict[str, Any]
 ) -> dict[str, Any]:
     taxpayer_ref = binding["scope"]["taxpayer_scope_ref"]
@@ -552,7 +590,7 @@ def _right_side(
             },
             "taxpayer": {
                 "taxpayer_ref": taxpayer_ref,
-                "declarant_category": user["declarant_category"],
+                "declarant_category": declarant_category["declarant_category"],
                 **copy.deepcopy(binding["taxpayer"]),
             },
             "signer": {
@@ -562,11 +600,53 @@ def _right_side(
                     user["representation_authority"]
                 ),
             },
-            "evidence_source_ref": user_refs["filing_instance_identity"],
+            "field_provenance": {
+                "filing_instance": {
+                    "source_kind": "authenticated_user_case_fact",
+                    "source_refs": [
+                        user_refs["filing_instance_identity"],
+                        user_refs["declaration_date"],
+                    ],
+                },
+                "destination_tax_authority": {
+                    "source_kind": "external_authoritative_evidence",
+                    "source_refs": [external["filing_destination"]["ref"]],
+                },
+                "taxpayer_identity": {
+                    "source_kind": "authenticated_identity_provider",
+                    "source_refs": [binding["binding_ref"]],
+                },
+                "taxpayer_period_status": {
+                    "source_kind": "methodology_derived_result",
+                    "source_refs": [user_refs["residency_evidence"]],
+                },
+                "declarant_category": {
+                    "source_kind": "methodology_derived_result",
+                    "source_refs": [
+                        external["taxpayer_capacity"]["source_ref"],
+                        declarant_category["authority_binding"]["resource_sha256"],
+                    ],
+                },
+                "signer": {
+                    "source_kind": "authenticated_user_case_fact",
+                    "source_refs": [user_refs["signer_and_representation"]],
+                },
+            },
+            "evidence_source_ref": (
+                "filing-composition-"
+                + _sha(
+                    {
+                        "binding": binding["binding_ref"],
+                        "user": user_refs,
+                        "external": external_ref,
+                        "category": declarant_category,
+                    }
+                )[:32]
+            ),
             "evidence": {
-                "schema_version": "broker_reports_gate5_owner_case_evidence_v1",
-                "status": "owner_verified_evidence",
-                "real_user_fact": True,
+                "schema_version": "broker_reports_gate5_owner_composed_evidence_v1",
+                "status": "owner_composed_evidence",
+                "real_user_fact": False,
             },
         },
         "taxable_income_source": {
@@ -622,20 +702,43 @@ def _validated_canonical_coverage(
                 "schema_version",
                 "case_id",
                 "status",
+                "document_scope",
                 "projections",
+                "missing_projection_documents",
+                "unexpected_projection_documents",
                 "runtime_ready_observations",
                 "relevant_unmapped_observations",
                 "coverage_ref",
                 "coverage_sha256",
             }
             and value["schema_version"]
-            == "broker_reports_ordinary_trade_current_case_coverage_v1"
+            == "broker_reports_ordinary_trade_current_case_coverage_v2"
             and value["case_id"] == context.case_id
             and value["status"] == "complete"
+            and isinstance(value["document_scope"], list)
+            and bool(value["document_scope"])
             and isinstance(value["projections"], list)
             and bool(value["projections"])
+            and len(value["document_scope"]) == len(value["projections"])
+            and value["missing_projection_documents"] == []
+            and value["unexpected_projection_documents"] == []
             and value["runtime_ready_observations"] > 0
             and value["relevant_unmapped_observations"] == 0
+            and all(
+                set(item)
+                == {
+                    "document_id",
+                    "canonical_version_id",
+                    "canonical_root_sha256",
+                    "manifest_ref",
+                }
+                and _identifier(item["document_id"])
+                and _identifier(item["canonical_version_id"])
+                and _SHA256.fullmatch(item["canonical_root_sha256"])
+                is not None
+                and _identifier(item["manifest_ref"])
+                for item in value["document_scope"]
+            )
             and all(
                 set(item)
                 == {
@@ -650,6 +753,22 @@ def _validated_canonical_coverage(
                 and item["relevant_unmapped_observations"] == 0
                 for item in value["projections"]
             )
+            and [
+                (
+                    item["document_id"],
+                    item["canonical_version_id"],
+                    item["canonical_root_sha256"],
+                )
+                for item in value["document_scope"]
+            ]
+            == [
+                (
+                    item["document_id"],
+                    item["canonical_version_id"],
+                    item["canonical_root_sha256"],
+                )
+                for item in value["projections"]
+            ]
             and value["coverage_sha256"] == digest
             and value["coverage_ref"]
             == "ordinary_trade_coverage_" + digest[:32]
@@ -714,8 +833,10 @@ def _declaration_user_inputs_from_owner_facts(
     budget = owned("budget_disposition", "code")
     declaration_date = owned("declaration_date", "text")
     residency = owned("residency_evidence", "residency_evidence")
+    if filing == "CORRECTION":
+        _fail("ordinary_trade_declaration_correction_number_required")
     if (
-        filing not in {"INITIAL", "CORRECTION"}
+        filing != "INITIAL"
         or signer != "SELF"
         or budget not in {"PAYMENT", "ADDITIONAL_PAYMENT"}
         or not isinstance(declaration_date, str)
@@ -737,10 +858,9 @@ def _declaration_user_inputs_from_owner_facts(
         "filing_instance": {
             "declaration_instance_ref": "mvp-declaration-2025-" + filing.lower(),
             "correction_kind": filing.lower(),
-            "correction_number": 0 if filing == "INITIAL" else 1,
+            "correction_number": 0,
             "declaration_date": declaration_date,
         },
-        "declarant_category": "other_individual_declaring_article_228_income",
         "signer_capacity": "taxpayer_self",
         "representation_authority": None,
         "income_scope": zeros,
@@ -774,6 +894,14 @@ def _validated_external_facts(
                 "iis_status": "outside_iis",
                 "exemption_applicability": "not_applicable",
             }
+            and set(value["taxpayer_capacity"]) == {"kind", "source_ref"}
+            and value["taxpayer_capacity"]["kind"]
+            in {
+                "individual_not_ip_not_private_practice",
+                "individual_entrepreneur",
+                "private_practice_professional",
+            }
+            and _identifier(value["taxpayer_capacity"]["source_ref"])
             and set(value["filing_destination"]) == {"ref", "code"}
             and _identifier(value["filing_destination"]["ref"])
             and _CODE4.fullmatch(value["filing_destination"]["code"]) is not None
@@ -821,6 +949,14 @@ def _operation_methodology_ref() -> dict[str, str]:
         "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
         "methodology_id": GATE5_SECURITIES_DISPOSAL_TAX_MODEL_METHODOLOGY_ID,
         "methodology_version": GATE5_SECURITIES_DISPOSAL_OPERATION_METHODOLOGY_VERSION,
+    }
+
+
+def _declaration_methodology_ref() -> dict[str, str]:
+    return {
+        "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+        "methodology_id": GATE5_DECLARATION_INPUT_METHODOLOGY_ID,
+        "methodology_version": GATE5_DECLARATION_INPUT_METHODOLOGY_VERSION,
     }
 
 
