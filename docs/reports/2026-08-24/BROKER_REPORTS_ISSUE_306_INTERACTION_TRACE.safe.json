@@ -10,16 +10,16 @@
     "pii_recorded": false,
     "secrets_recorded": false
   },
-  "receipt_sha256": "8277ff74d5b23de3c7174d791bc0179ad6fabfd357dff21d9197df1d0b3fd94c",
+  "receipt_sha256": "2f37aea3b4a15e82bcdfebde78f79aed8fb6099b9d38ce9858998927ea45f5f8",
   "schema_version": "broker_reports_issue306_safe_interaction_proof_v2",
   "tested_code_manifest": {
-    "browser_driver_sha256": "5210091eaa817ae34f2314c9d0e03fcfef44fc3399d243f18ab272a3e3cbd713",
-    "control_script_sha256": "2b176086ee283d8f954c4321831301728e9aa64f027fa92604942db158632b81",
+    "browser_driver_sha256": "d503d27e4b72d0c2199a3cfcf0f044a13bc01a2ce68948775561f29aba75de0a",
+    "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
     "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
-    "receipt_builder_sha256": "7a057b0af1d55dfd90bb9af922dbf28d684be19a2c4141f5b11aabe44ebe6c66"
+    "receipt_builder_sha256": "89976dcd479f0f6f05d8bfbe7820cb41be1f0fa864fbce19102b21900826b024"
   },
   "tested_commits": [
-    "dca244c3c46b3b4c14d0678cd28f92b0cf7b80b0"
+    "4aa92c6589c3310cf4fe4106126ee0bd8836fb6c"
   ],
   "user_mode": {
     "clean_room_runs": [
@@ -30,20 +30,12 @@
         "events": [
           {
             "event": "unanswered_tab_closed_and_second_case_admitted",
-            "first_elapsed_ms": 8128,
+            "first_elapsed_ms": 10638,
             "first_question_visible": true,
             "first_tab_closed_without_answer": true,
             "mode": "user",
             "second_case_question_visible": true,
-            "second_elapsed_ms": 8096
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "residency"
+            "second_elapsed_ms": 7596
           },
           {
             "accepted": true,
@@ -59,7 +51,31 @@
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
+            "question_family": "residency"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
             "question_family": "capacity"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "budget"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "signer"
           },
           {
             "accepted": true,
@@ -70,12 +86,12 @@
             "question_family": "destination"
           },
           {
-            "accepted": true,
+            "accepted": false,
             "deferred": false,
             "event": "question_answered",
-            "intentionally_invalid": false,
+            "intentionally_invalid": true,
             "mode": "user",
-            "question_family": "filing"
+            "question_family": "date"
           },
           {
             "accepted": true,
@@ -83,7 +99,7 @@
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
-            "question_family": "budget"
+            "question_family": "date"
           },
           {
             "accepted": false,
@@ -115,23 +131,7 @@
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
-            "question_family": "signer"
-          },
-          {
-            "accepted": false,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": true,
-            "mode": "user",
-            "question_family": "date"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "date"
+            "question_family": "filing"
           },
           {
             "accepted": true,
@@ -160,10 +160,10 @@
           },
           {
             "bytes": 1102,
-            "chat_url_sha256": "15eae5229eaf455e843446980b5b38a35eeb3e0cafeb71f64cc61a16919944a7",
+            "chat_url_sha256": "fc6f3d35f3c07a8966693c7bf0e9765ab67af2a4d1722aa12b9f3483e41f380b",
             "event": "private_xml_downloaded",
             "mode": "user",
-            "private_download_url_sha256": "52dd13246091e06b7be4c9db878ddff6ba7a90a60f399474334e9992c207b6b8",
+            "private_download_url_sha256": "2690047b9735377de44666c593ed25cdee495588c63241cc7308c1d30ec5e1e1",
             "sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5"
           },
           {
@@ -180,21 +180,21 @@
             "private_file_denied": true
           }
         ],
-        "finished_at": "2026-08-24T18:45:22.334Z",
+        "finished_at": "2026-08-24T19:27:40.014Z",
         "hidden_refs_observed": false,
         "proof_binding": {
-          "browser_driver_sha256": "5210091eaa817ae34f2314c9d0e03fcfef44fc3399d243f18ab272a3e3cbd713",
-          "control_prepared_receipt_sha256": "78d18f9f95e472d19c666d6bec06cc41a16e21923ff358b253f7fd1785acd2b3",
-          "control_script_sha256": "2b176086ee283d8f954c4321831301728e9aa64f027fa92604942db158632b81",
+          "browser_driver_sha256": "d503d27e4b72d0c2199a3cfcf0f044a13bc01a2ce68948775561f29aba75de0a",
+          "control_prepared_receipt_sha256": "adaea47181f562207a5f36c902dae65baca2604af624e1e0fa664ea1edc8b96c",
+          "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
           "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
-          "tested_commit": "dca244c3c46b3b4c14d0678cd28f92b0cf7b80b0"
+          "tested_commit": "4aa92c6589c3310cf4fe4106126ee0bd8836fb6c"
         },
-        "receipt_sha256": "679efd7de970b574e79e1165ec20fcb9e038d11e63f66b7061e3de8b24fcb17f",
-        "run_id": "9a7b101c-7849-4e7e-a2ec-283994b41c07",
+        "receipt_sha256": "b4f8f7fa8575a50d58ccfda5754171537210fe49ec2f9dceb1b12e81d72bdb92",
+        "run_id": "28247550-d93e-47fa-aa9b-b920d44ed38c",
         "run_kind": "clean_room",
         "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
         "source_kind": "synthetic_supported_fixture",
-        "started_at": "2026-08-24T18:41:58.983Z"
+        "started_at": "2026-08-24T19:24:17.483Z"
       },
       {
         "browser_ui_only": true,
@@ -207,6 +207,14 @@
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
+            "question_family": "zero_scope"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
             "question_family": "residency"
           },
           {
@@ -223,55 +231,15 @@
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
-            "question_family": "zero_scope"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
             "question_family": "budget"
           },
           {
-            "accepted": false,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": true,
-            "mode": "user",
-            "question_family": "date"
-          },
-          {
             "accepted": true,
             "deferred": false,
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
-            "question_family": "date"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "signer"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "oktmo"
-          },
-          {
-            "accepted": true,
-            "deferred": false,
-            "event": "question_answered",
-            "intentionally_invalid": false,
-            "mode": "user",
-            "question_family": "destination"
+            "question_family": "filing"
           },
           {
             "accepted": false,
@@ -298,12 +266,44 @@
             "question_family": "identity"
           },
           {
+            "accepted": false,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": true,
+            "mode": "user",
+            "question_family": "date"
+          },
+          {
             "accepted": true,
             "deferred": false,
             "event": "question_answered",
             "intentionally_invalid": false,
             "mode": "user",
-            "question_family": "filing"
+            "question_family": "date"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "oktmo"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "destination"
+          },
+          {
+            "accepted": true,
+            "deferred": false,
+            "event": "question_answered",
+            "intentionally_invalid": false,
+            "mode": "user",
+            "question_family": "signer"
           },
           {
             "event": "accepted_value_corrected",
@@ -324,10 +324,10 @@
           },
           {
             "bytes": 1102,
-            "chat_url_sha256": "442809bd62237054bdc1dc219d42358e926d85dae0e713423a863bd21b4632d6",
+            "chat_url_sha256": "ca95098b715de1aff2935dd92233f838c3074ebc74c9e8bd4d0b0517a2121252",
             "event": "private_xml_downloaded",
             "mode": "user",
-            "private_download_url_sha256": "bbef186d84677c9de7d131ab954928dd8bff40cd86451bd822a897770f99af77",
+            "private_download_url_sha256": "8b7ca4ad94e584b2a3bf2d28df018d7151d629ab850feb043c6ea59ea95517be",
             "sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5"
           },
           {
@@ -344,21 +344,21 @@
             "private_file_denied": true
           }
         ],
-        "finished_at": "2026-08-24T18:50:19.063Z",
+        "finished_at": "2026-08-24T19:32:25.481Z",
         "hidden_refs_observed": false,
         "proof_binding": {
-          "browser_driver_sha256": "5210091eaa817ae34f2314c9d0e03fcfef44fc3399d243f18ab272a3e3cbd713",
-          "control_prepared_receipt_sha256": "fa712e80e56a2a3583bde4fc6578b32d00efb8a8b42836149d841ed5508e1f22",
-          "control_script_sha256": "2b176086ee283d8f954c4321831301728e9aa64f027fa92604942db158632b81",
+          "browser_driver_sha256": "d503d27e4b72d0c2199a3cfcf0f044a13bc01a2ce68948775561f29aba75de0a",
+          "control_prepared_receipt_sha256": "5e8915ed8785de9061e07ed71073abe6e386b0e8cfb753c834e228fb9186eeb3",
+          "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
           "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
-          "tested_commit": "dca244c3c46b3b4c14d0678cd28f92b0cf7b80b0"
+          "tested_commit": "4aa92c6589c3310cf4fe4106126ee0bd8836fb6c"
         },
-        "receipt_sha256": "f6873cbee72f29e257dd402aab0c2383c0ae6dcb17966b940e219bc4b8e799ec",
-        "run_id": "7a0cf2bb-0722-459e-9875-7134ab93fd01",
+        "receipt_sha256": "dfd01df20191e4591a32dbeec485ec8165ae31b57ea96f573c4f51858627efe0",
+        "run_id": "6eae7a89-ecef-4dcb-a735-ed2502b9157b",
         "run_kind": "clean_room",
         "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
         "source_kind": "synthetic_supported_fixture",
-        "started_at": "2026-08-24T18:47:39.507Z"
+        "started_at": "2026-08-24T19:29:45.426Z"
       }
     ],
     "representative_source_run": {
@@ -373,34 +373,34 @@
           "xml_created": false
         }
       ],
-      "finished_at": "2026-08-24T18:46:13.203Z",
+      "finished_at": "2026-08-24T19:28:27.315Z",
       "hidden_refs_observed": false,
       "proof_binding": {
-        "browser_driver_sha256": "5210091eaa817ae34f2314c9d0e03fcfef44fc3399d243f18ab272a3e3cbd713",
-        "control_prepared_receipt_sha256": "78d18f9f95e472d19c666d6bec06cc41a16e21923ff358b253f7fd1785acd2b3",
-        "control_script_sha256": "2b176086ee283d8f954c4321831301728e9aa64f027fa92604942db158632b81",
+        "browser_driver_sha256": "d503d27e4b72d0c2199a3cfcf0f044a13bc01a2ce68948775561f29aba75de0a",
+        "control_prepared_receipt_sha256": "adaea47181f562207a5f36c902dae65baca2604af624e1e0fa664ea1edc8b96c",
+        "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
         "generated_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
-        "tested_commit": "dca244c3c46b3b4c14d0678cd28f92b0cf7b80b0"
+        "tested_commit": "4aa92c6589c3310cf4fe4106126ee0bd8836fb6c"
       },
-      "receipt_sha256": "9c52dd6b08737b493385c96283069dbdd56111187f58293b88bbba764b3c7dee",
-      "run_id": "5dd9c559-b644-4a85-be9a-cf4377baf275",
+      "receipt_sha256": "ac97ba4591c3fde2d2cd4d36f4f93f01f1033d4d6fafb27aa39050643f3ea3ea",
+      "run_id": "7bbb2127-bcb3-4757-a5ba-c0844781e13a",
       "run_kind": "representative_source",
       "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
       "source_kind": "public_representative_broker_report",
-      "started_at": "2026-08-24T18:45:31.397Z"
+      "started_at": "2026-08-24T19:27:47.053Z"
     }
   },
   "verification_mode": {
     "control_restored_receipts": [
       {
-        "control_run_id": "edb04d4c2a07f60dd456889144aa0c01",
+        "control_run_id": "cf9576e9bf9567ce6397d3c4f8bf26f7",
         "deployed_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
         "function_id": "broker_reports_ndfl",
         "legacy_function_inactive": false,
         "model_public_grant_added": false,
-        "predecessor_control_prepared_receipt_sha256": "78d18f9f95e472d19c666d6bec06cc41a16e21923ff358b253f7fd1785acd2b3",
+        "predecessor_control_prepared_receipt_sha256": "adaea47181f562207a5f36c902dae65baca2604af624e1e0fa664ea1edc8b96c",
         "proof_valves_enabled": false,
-        "receipt_sha256": "b861e7b9ad723b883c250d17aaa04d8b723d50a8482344e7a0d37147035a60d3",
+        "receipt_sha256": "4edb16d891948bd6fe0382d90997d0c40e1bf397fa7a167cdb7f77974a106cc4",
         "release_valves_exact": false,
         "schema_version": "broker_reports_gate5_openwebui_control_v0",
         "state_restored": true,
@@ -411,14 +411,14 @@
         "workspace_model_id": "broker_reports_ndfl"
       },
       {
-        "control_run_id": "9a48410e9a60035c5a06f6c5b335640f",
+        "control_run_id": "42b9ba8dc42398edd0b3a514ea97a06e",
         "deployed_bundle_sha256": "560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d",
         "function_id": "broker_reports_ndfl",
         "legacy_function_inactive": false,
         "model_public_grant_added": false,
-        "predecessor_control_prepared_receipt_sha256": "fa712e80e56a2a3583bde4fc6578b32d00efb8a8b42836149d841ed5508e1f22",
+        "predecessor_control_prepared_receipt_sha256": "5e8915ed8785de9061e07ed71073abe6e386b0e8cfb753c834e228fb9186eeb3",
         "proof_valves_enabled": false,
-        "receipt_sha256": "82ed31013b3794deda2dabe24ffdbc8993a6fe8ba2b0e3d8492edfb80b90b841",
+        "receipt_sha256": "5fd0ad09e024ebe15279f15b54ad18af9163f42ddada20c68f7f843b8ac97306",
         "release_valves_exact": false,
         "schema_version": "broker_reports_gate5_openwebui_control_v0",
         "state_restored": true,

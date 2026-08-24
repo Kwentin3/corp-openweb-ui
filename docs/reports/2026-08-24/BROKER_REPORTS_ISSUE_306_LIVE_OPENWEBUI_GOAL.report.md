@@ -12,10 +12,10 @@ Branch: `agent/issue-306-live-openwebui-goal`
 Final generated bundle SHA-256:
 `560775f2e0d51c50fa7a1d28853fa71914651ffd045d635a6790efd0f2766d2d`
 
-Live-tested code head: `dca244c3c46b3b4c14d0678cd28f92b0cf7b80b0`
+Live-tested code head: `4aa92c6589c3310cf4fe4106126ee0bd8836fb6c`
 
 Mechanically verified safe receipt:
-`8277ff74d5b23de3c7174d791bc0179ad6fabfd357dff21d9197df1d0b3fd94c`
+`2f37aea3b4a15e82bcdfebde78f79aed8fb6099b9d38ce9858998927ea45f5f8`
 
 ## Verdict
 
@@ -89,7 +89,7 @@ The final note explicitly distinguishes:
 - User B could not see the NDFL model, could not download the guessed private
   file URL, and could not see user A's chat result.
 - Closing a tab on an unanswered Human Fact question did not retain the source
-  workload lease: a second independent case reached its question in `8096 ms`
+  workload lease: a second independent case reached its question in `7596 ms`
   without answering the first; the proof fails at `30000 ms`.
 - Persisted queued callers now hold renewable leases; cancellation is persisted
   and expired orphan waiters recover fail-closed after restart.
@@ -190,6 +190,12 @@ working-tree hash that could not be reconstructed from the clean checkout.
 The proof now binds browser-driver, control and receipt-builder source to their
 exact clean tested Git blobs; the deployed generated bundle remains byte-exact.
 Both browser runs are repeated after this proof-boundary correction.
+
+The first run on the newly created replacement staging instance is rejected:
+after cold file processing the browser UI never emitted its chat request and
+the first question timed out. Its control window was fully restored. The
+accepted A2 and B runs started with new users/cases after the instance was warm;
+neither contains developer intervention or a retry of the rejected case.
 
 After the first exact-head CI exposed one stale Gate 3 workflow fixture still
 using the domain workflow id as its OpenWebUI workspace id, that fixture was
