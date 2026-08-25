@@ -536,9 +536,7 @@ async function proveCloseTabDoesNotHoldAdmission({ context, baseUrl, source, out
 async function retryAndResume(page, context, chatUrl, expectedHref, source, trace) {
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.locator('#chat-input').waitFor({ state: 'visible', timeout: 60000 });
-  if (!(await page.locator('body').innerText()).includes('Скачать XML')) {
-    throw new Error('xml_result_missing_after_reload');
-  }
+  await downloadLinks(page).last().waitFor({ state: 'visible', timeout: 60000 });
   const resumedHref = await downloadLinks(page).last().getAttribute('href');
   if (resumedHref !== expectedHref) throw new Error('reload_selected_stale_logical_file');
   await page.locator('input[type=file]').first().setInputFiles(source);
@@ -577,6 +575,7 @@ async function retryAndResume(page, context, chatUrl, expectedHref, source, trac
   await peer.close();
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.locator('#chat-input').waitFor({ state: 'visible', timeout: 60000 });
+  await downloadLinks(page).last().waitFor({ state: 'visible', timeout: 60000 });
   const after = await downloadLinks(page).last().getAttribute('href');
   if (after !== expectedHref) {
     throw new Error('concurrent_retry_created_new_logical_file');
