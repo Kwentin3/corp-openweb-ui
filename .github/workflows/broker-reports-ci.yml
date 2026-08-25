@@ -197,5 +197,8 @@ jobs:
           tests/test_broker_reports_gate5_full_target_xml_projection.py
           tests/test_broker_reports_ordinary_trade_declaration_mvp.py
           tests/test_broker_reports_ndfl_product_pipe.py
+          tests/test_broker_reports_workload_authority.py
+          tests/test_broker_reports_ndfl_workspace_model.py
+          tests/test_broker_reports_issue306_live_control.py
           tests/test_verify_frozen_evidence_manifest.py
           --tb=short

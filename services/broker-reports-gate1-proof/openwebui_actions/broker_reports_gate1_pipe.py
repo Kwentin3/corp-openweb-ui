@@ -91,6 +91,9 @@ from broker_reports_gate1.normalizer import NormalizationResult
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
+from broker_reports_gate1.ordinary_trade_projection import (
+    OrdinaryTradeProjectionFactory,
+)
 from broker_reports_gate1.gate5_human_gap_closure import (
     Gate5HumanGapClosureError,
 )
@@ -98,6 +101,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
     declaration_change_intent,
     declaration_request_help,
+    declaration_request_question,
 )
 from broker_reports_gate1.private_intake_bytes import (
     OpenWebUIPrivateIntakeBytesResolverFactory,
@@ -316,6 +320,9 @@ class Pipe:
             )
 
         session = None
+        hide_internal_workload = (
+            metadata.get("model_id") == NDFL_WORKSPACE_MODEL_STABLE_ID
+        )
         try:
             access = WorkloadAccessContext.from_artifact_context(
                 self._artifact_context(
@@ -369,16 +376,23 @@ class Pipe:
                     self.last_workload_snapshot,
                     done=self.last_workload_snapshot.get("state")
                     in {"completed", "failed", "cancelled", "awaiting_review"},
+                    hide_internal=hide_internal_workload,
                 )
                 return self._reused_workload_content(self.last_workload_snapshot)
             await self._emit_workload_snapshot(
-                __event_emitter__, self.last_workload_snapshot, done=False
+                __event_emitter__,
+                self.last_workload_snapshot,
+                done=False,
+                hide_internal=hide_internal_workload,
             )
 
             async def on_wait(snapshot):
                 self.last_workload_snapshot = snapshot
                 await self._emit_workload_snapshot(
-                    __event_emitter__, snapshot, done=False
+                    __event_emitter__,
+                    snapshot,
+                    done=False,
+                    hide_internal=hide_internal_workload,
                 )
 
             session = await authority.wait_for_admission(
@@ -390,7 +404,10 @@ class Pipe:
             self._workload_review_items = 0
             self.last_workload_snapshot = session.snapshot()
             await self._emit_workload_snapshot(
-                __event_emitter__, self.last_workload_snapshot, done=False
+                __event_emitter__,
+                self.last_workload_snapshot,
+                done=False,
+                hide_internal=hide_internal_workload,
             )
             with session.keepalive():
                 async with session.cancellation_scope():
@@ -411,7 +428,10 @@ class Pipe:
                 else:
                     self.last_workload_snapshot = session.snapshot()
             await self._emit_workload_snapshot(
-                __event_emitter__, self.last_workload_snapshot, done=True
+                __event_emitter__,
+                self.last_workload_snapshot,
+                done=True,
+                hide_internal=hide_internal_workload,
             )
             return content
         except WorkloadCancelledError:
@@ -756,6 +776,8 @@ class Pipe:
                 done=True,
             )
         chat_content = render_chat_content(result.safe_report)
+        if artifact_context.workspace_model_id == NDFL_WORKSPACE_MODEL_STABLE_ID:
+            chat_content = self._ndfl_source_user_content(product_result)
         if ndfl_gate3.get("status") == "completed":
             semantic_status = (
                 "Обычные сделки с ценными бумагами обработаны по "
@@ -820,6 +842,8 @@ class Pipe:
                         f"[Скачать XML]({download.get('url')}). Перед самостоятельной "
                         "подачей проверьте пользовательские реквизиты; операции и суммы "
                         "взяты из источника, налоговые классификации — из pinned-методики.",
+                        "",
+                        self._ndfl_ready_user_summary(declaration_result),
                     ]
                 )
         if self._live_smoke_requested(safe_body, messages_arg):
@@ -842,6 +866,22 @@ class Pipe:
                 ]
             )
         return chat_content
+
+    @staticmethod
+    def _ndfl_source_user_content(product: Any) -> str:
+        """Keep source-owner diagnostics behind the direct NDFL UI boundary."""
+
+        if not isinstance(product, dict):
+            return (
+                "Расчёт остановлен: загруженный документ не образует подтверждённый "
+                "поддерживаемый набор операций. XML не создан. Проверьте тип и "
+                "полноту брокерского отчёта или передайте документ на review."
+            )
+        return (
+            "Источник прочитан и привязан к текущему кейсу. Релевантные "
+            "неразобранные строки не используются молча: при их наличии выпуск "
+            "XML будет остановлен."
+        )
 
     async def _maybe_resume_ndfl_chat_turn(
         self,
@@ -889,6 +929,10 @@ class Pipe:
                 payload_root=Path(self.valves.artifact_payload_root),
             )
         ).create()
+        context = self._current_declaration_execution_context(
+            store=store,
+            context=context,
+        )
         result = await self._maybe_run_ndfl_gate3(
             store=store,
             context=context,
@@ -926,6 +970,60 @@ class Pipe:
             }
         self.last_artifact_manifest = {"ndfl_gate3": result, "resumed_case": True}
         return self._standalone_ndfl_chat_content(result)
+
+    @staticmethod
+    def _current_declaration_execution_context(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+    ) -> ArtifactAccessContext:
+        """Bind chat retries to the current source-owner projection set."""
+
+        current = OrdinaryTradeProjectionFactory(
+            store=store,
+            read_enabled=True,
+        ).create().current_case(context=context)
+        if not current:
+            return context
+        material = {
+            "owner": "OrdinaryTradeProjectionRuntime.current_case",
+            "user_id": context.user_id,
+            "case_id": context.case_id,
+            "chat_id": context.chat_id,
+            "workspace_model_id": context.workspace_model_id,
+            "current_projections": [
+                {
+                    "projection_artifact_id": record.artifact_id,
+                    "document_id": record.document_id,
+                    "canonical_version_id": payload["canonical_binding"][
+                        "canonical_version_id"
+                    ],
+                    "canonical_root_sha256": payload["canonical_binding"][
+                        "canonical_root_sha256"
+                    ],
+                    "projection_sha256": payload["projection_sha256"],
+                }
+                for record, payload in current
+            ],
+        }
+        execution_id = "ndflcase_" + hashlib.sha256(
+            json.dumps(
+                material,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()[:24]
+        return ArtifactAccessContext(
+            user_id=context.user_id,
+            normalization_run_id=execution_id,
+            case_id=context.case_id,
+            chat_id=context.chat_id,
+            workspace_model_id=context.workspace_model_id,
+            allow_private=context.allow_private,
+            require_source_available=context.require_source_available,
+            source_file_id=context.source_file_id,
+        )
 
     @staticmethod
     def _current_turn_has_files(body: dict[str, Any]) -> bool:
@@ -975,6 +1073,7 @@ class Pipe:
                 "3-НДФЛ XML подготовлен и проверен по XSD. "
                 f"[Скачать XML]({download.get('url')})."
             )
+            lines.append(self._ndfl_ready_user_summary(result.get("declaration")))
             lines.append(
                 "Чтобы исправить дату или ИНН, напишите «Изменить дату» "
                 "или «Изменить ИНН»."
@@ -982,6 +1081,78 @@ class Pipe:
         else:
             lines.append("Подготовка остановлена на точном типизированном блокере.")
         return "\n\n".join(lines)
+
+    @staticmethod
+    def _ndfl_ready_user_summary(declaration: Any) -> str:
+        """Present already owner-reconciled values without becoming an authority."""
+
+        values: dict[str, Any] = {}
+        if isinstance(declaration, dict):
+            reconciliation = declaration.get("semantic_reconciliation")
+            if (
+                isinstance(reconciliation, dict)
+                and reconciliation.get("status") == "passed"
+            ):
+                proof = reconciliation.get("representation_proof")
+                if isinstance(proof, dict) and proof.get("status") == "extracted":
+                    candidate = proof.get("values")
+                    if isinstance(candidate, dict):
+                        values = candidate
+        income = values.get("income_group")
+        formatted: dict[str, str] = {}
+        if isinstance(income, dict):
+            try:
+                formatted = {
+                    key: str(income[key])
+                    for key in (
+                        "total_income",
+                        "accepted_expenses",
+                        "tax_base",
+                        "calculated_tax",
+                        "tax_payable",
+                    )
+                }
+            except (KeyError, TypeError, ValueError):
+                formatted = {}
+        if formatted:
+            extracted = (
+                "Из отчёта: распознаны операции и связанные исходные суммы и "
+                "расходы; неразобранные релевантные строки блокируют выпуск."
+            )
+            calculated = (
+                "Рассчитано Tax Model и независимо сверено с XML: доход "
+                "{total_income} ₽; принятые расходы {accepted_expenses} ₽; "
+                "налоговая база {tax_base} ₽; исчисленный налог "
+                "{calculated_tax} ₽; к уплате {tax_payable} ₽."
+            ).format_map(formatted)
+        else:
+            extracted = (
+                "Из отчёта: распознанные операции и связанные с ними расходы; "
+                "неразобранные релевантные строки блокируют выпуск."
+            )
+            calculated = (
+                "Рассчитано Tax Model и независимо сверено с XML: доход, расходы, "
+                "налоговая база, исчисленный налог и итог к уплате/возврату."
+            )
+        return "\n".join(
+            [
+                "Что вошло в результат:",
+                f"- {extracted}",
+                f"- {calculated}",
+                "- Определено по методике резидентства: статус за 2025 год рассчитан "
+                "по указанным периодам присутствия/отсутствия и специальным причинам; "
+                "это вывод методики, а не введённый вами готовый налоговый статус.",
+                "- Подтверждено вами: периоды присутствия и отсутствия в России и "
+                "специальные причины отсутствия; статус как физического лица, ИП или "
+                "лица частной практики; ИНН и ФИО; вид декларации, дата, инспекция, "
+                "подписант, бюджетный итог и ОКТМО; отсутствие других доходов той же "
+                "категории, вычетов, переносимых убытков, зачётов и удержанного налога "
+                "в пределах этого кейса.",
+                "- Перед подачей: сверьте ИНН, ФИО, дату, номер корректировки, "
+                "инспекцию, ОКТМО, источник и полноту операций. XML только "
+                "подготовлен — в ФНС он не отправлялся.",
+            ]
+        )
 
     async def _maybe_run_ndfl_gate3(
         self,
@@ -1035,7 +1206,12 @@ class Pipe:
                 canonical_artifact_refs=canonical_refs,
                 context=context,
             )
-            current_actions = result["product"]["preparation"]["user_actions"]
+            preparation = result.get("product", {}).get("preparation")
+            preparation = preparation if isinstance(preparation, dict) else {}
+            current_actions = preparation.get("user_actions")
+            current_actions = (
+                current_actions if isinstance(current_actions, list) else []
+            )
             change = declaration_change_intent(trusted_interaction_message)
             adapted = None
             if change is not None:
@@ -1063,7 +1239,11 @@ class Pipe:
                         ],
                         "answer": change["answer"],
                     }
-            else:
+            elif current_actions:
+                # The source workload is already durably published at this point.
+                # Human think time belongs to the Human Fact request owner and must
+                # not retain the scarce Gate 1 admission lease.
+                self._finalize_workload_publication()
                 interactive_answer = await self._declaration_event_answer(
                     event_call=event_call,
                     current_actions=current_actions,
@@ -1072,6 +1252,8 @@ class Pipe:
                     message=interactive_answer,
                     current_requests=current_actions,
                 )
+            else:
+                return result
             if adapted["status"] == "ANSWER_READY":
                 try:
                     action_receipt = runtime.normalize_declaration_action(
@@ -1495,7 +1677,7 @@ class Pipe:
             raise NdflWorkflowError(
                 "ordinary_trade_declaration_interaction_request_invalid"
             )
-        question = str(request_action.get("question") or "").strip()
+        question = declaration_request_question(request_action)
         help_text = declaration_request_help(request_action)
         candidate_note = ""
         candidate = answer_contract.get("candidate")
@@ -1537,7 +1719,7 @@ class Pipe:
         user_actions = user_actions if isinstance(user_actions, list) else []
         if user_actions:
             first = user_actions[0]
-            question = str(first.get("question") or "").strip()
+            question = declaration_request_question(first)
             candidate = (
                 first.get("answer_contract", {}).get("candidate")
                 if isinstance(first.get("answer_contract"), dict)
@@ -3067,16 +3249,26 @@ class Pipe:
         snapshot: dict[str, Any] | None,
         *,
         done: bool,
+        hide_internal: bool = False,
     ) -> None:
         if not snapshot:
             return
-        description = (
-            f"Broker Reports job {snapshot['job_id']} state: {snapshot['state']}"
-        )
-        if snapshot.get("queue_position") is not None:
-            description += f" (queue {snapshot['queue_position']})"
-        if snapshot.get("provider_queue_position") is not None:
-            description += f" (provider queue {snapshot['provider_queue_position']})"
+        if hide_internal:
+            description = (
+                "Подготовка 3-НДФЛ: обработка завершена."
+                if done
+                else "Подготовка 3-НДФЛ: источник обрабатывается."
+            )
+        else:
+            description = (
+                f"Broker Reports job {snapshot['job_id']} state: {snapshot['state']}"
+            )
+            if snapshot.get("queue_position") is not None:
+                description += f" (queue {snapshot['queue_position']})"
+            if snapshot.get("provider_queue_position") is not None:
+                description += (
+                    f" (provider queue {snapshot['provider_queue_position']})"
+                )
         await self._emit(emitter, description, done=done)
 
     @staticmethod

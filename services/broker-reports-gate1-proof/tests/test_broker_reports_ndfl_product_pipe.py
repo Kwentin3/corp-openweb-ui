@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import copy
+from dataclasses import replace
 import importlib.util
 import json
 from pathlib import Path
@@ -15,7 +17,16 @@ from broker_reports_gate1 import (
     ArtifactAccessContext,
     GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
 )
-from broker_reports_gate1.gate3_ndfl_workflow import NdflWorkflowError
+from broker_reports_gate1.gate3_ndfl_workflow import (
+    NDFL_WORKSPACE_MODEL_STABLE_ID,
+    NdflWorkflowError,
+)
+from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
+    adapt_current_declaration_request,
+    declaration_request_help,
+    declaration_request_question,
+)
+from openwebui_actions import broker_reports_gate1_pipe as product_pipe
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 from broker_reports_gate1.artifact_retention import build_retention_policy
 import test_broker_reports_ordinary_trade_declaration_mvp as declaration_fixtures
@@ -28,7 +39,7 @@ def test_native_chat_scope_is_recovered_only_through_owner_lookup(
         @staticmethod
         async def get_chat_by_id_and_user_id(chat_id: str, user_id: str):
             assert (chat_id, user_id) == ("owned-chat", "user-a")
-            return SimpleNamespace(chat={"models": ["broker-reports-ndfl"]})
+            return SimpleNamespace(chat={"models": ["broker_reports_ndfl"]})
 
     class FakeRequest:
         async def json(self):
@@ -52,7 +63,7 @@ def test_native_chat_scope_is_recovered_only_through_owner_lookup(
 
     assert metadata == {
         "chat_id": "owned-chat",
-        "model_id": "broker-reports-ndfl",
+        "model_id": "broker_reports_ndfl",
     }
 
 
@@ -61,7 +72,7 @@ def test_product_stage_is_disabled_by_default() -> None:
     result = asyncio.run(
         pipe._maybe_run_ndfl_gate3(
             store=object(),
-            context=_context("broker-reports-ndfl"),
+            context=_context("broker_reports_ndfl"),
             artifact_manifest=SimpleNamespace(artifact_refs_by_type={}),
             user={"id": "user"},
             request=object(),
@@ -110,7 +121,7 @@ def test_public_pipe_rejects_caller_selected_hidden_declaration_action() -> None
                 __user__={"id": "user-a"},
                 __metadata__={
                     "chat_id": "case-a",
-                    "model_id": "broker-reports-ndfl",
+                    "model_id": "broker_reports_ndfl",
                 },
             )
         )
@@ -119,7 +130,9 @@ def test_public_pipe_rejects_caller_selected_hidden_declaration_action() -> None
 
 def test_maintained_stage_binds_event_response_to_current_owner_actions(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _use_direct_workspace_fixture(monkeypatch)
     _runtime, context, _providers, store = declaration_fixtures._case(
         tmp_path,
         proceeds="60.00",
@@ -163,11 +176,409 @@ def test_maintained_stage_binds_event_response_to_current_owner_actions(
     assert result["product"]["xml_created"] is True
     assert result["declaration_action_receipt"]["fact_created"] is True
     assert result["provider_calls_total"] == 0
+    result["product"]["private_download"] = {"url": "/private-owner-file"}
+    chat = pipe._standalone_ndfl_chat_content(result)
+    assert "Из отчёта: распознаны операции и связанные исходные суммы" in chat
+    assert "Из отчёта: доход" not in chat
+    assert "Tax Model и независимо сверено с XML: доход 60.00 ₽" in chat
+    assert "принятые расходы 43.00 ₽; налоговая база 17.00 ₽" in chat
+    assert "исчисленный налог 2 ₽" in chat
+    assert "Подтверждено вами" in chat
+    assert "Перед подачей" in chat
+    assert "в ФНС он не отправлялся" in chat
+
+
+def test_ready_summary_never_promotes_unreconciled_xml_values() -> None:
+    declaration = {
+        "semantic_reconciliation": {
+            "status": "failed",
+            "representation_proof": {
+                "status": "extracted",
+                "values": {
+                    "income_group": {
+                        "total_income": "999999.00",
+                        "accepted_expenses": "888888.00",
+                        "tax_base": "111111.00",
+                        "calculated_tax": "14444",
+                        "tax_payable": "14444",
+                    }
+                },
+            },
+        }
+    }
+
+    summary = Pipe._ndfl_ready_user_summary(declaration)
+
+    assert "999999" not in summary
+    assert "888888" not in summary
+    assert "Из отчёта: распознанные операции" in summary
+    assert "Рассчитано Tax Model" in summary
+
+
+def test_ready_summary_keeps_residency_evidence_separate_from_methodology_result() -> None:
+    summary = Pipe._ndfl_ready_user_summary({})
+
+    methodology_marker = "Определено по методике резидентства:"
+    user_marker = "Подтверждено вами:"
+    filing_marker = "Перед подачей:"
+    assert methodology_marker in summary
+    methodology = summary.split(methodology_marker, 1)[1].split(user_marker, 1)[0]
+    user_attested = summary.split(user_marker, 1)[1].split(filing_marker, 1)[0]
+
+    assert "вывод методики" in methodology
+    assert "подтвержден" not in methodology.lower()
+    assert "статус резидента" not in user_attested.lower()
+    assert "периоды присутствия и отсутствия" in user_attested
+    assert "специальные причины отсутствия" in user_attested
+    for entered_fact in (
+        "статус как физического лица, ИП или лица частной практики",
+        "ИНН и ФИО",
+        "вид декларации",
+        "дата",
+        "инспекция",
+        "подписант",
+        "бюджетный итог",
+        "ОКТМО",
+        "отсутствие других доходов той же категории",
+        "вычетов",
+        "переносимых убытков",
+        "зачётов",
+        "удержанного налога",
+    ):
+        assert entered_fact in user_attested
+    assert "расходов" not in user_attested
+
+
+def test_human_fact_wait_releases_source_workload_lease_first(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_direct_workspace_fixture(monkeypatch)
+    _runtime, context, _providers, store = declaration_fixtures._case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        include_store=True,
+    )
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    kwargs = {
+        "store": store,
+        "context": context,
+        "artifact_manifest": SimpleNamespace(artifact_refs_by_type={}),
+        "user": {"id": context.user_id},
+        "request": object(),
+        "event_emitter": None,
+        "retention_policy": build_retention_policy(mode="synthetic_dev"),
+    }
+    first = asyncio.run(pipe._maybe_run_ndfl_gate3(**kwargs))
+    current = first["product"]["preparation"]["user_actions"][0]
+    session = SimpleNamespace(terminal=False)
+    pipe._active_workload_session = session
+
+    def finalize() -> None:
+        assert session.terminal is False
+        session.terminal = True
+
+    monkeypatch.setattr(pipe, "_finalize_workload_publication", finalize)
+
+    async def event_call(payload):
+        assert session.terminal is True
+        assert payload["type"] in {"confirmation", "input"}
+        return _product_chat_answer(current["fact_key"])
+
+    result = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            **kwargs,
+            trusted_interaction_message="Continue",
+            event_call=event_call,
+        )
+    )
+
+    assert result["declaration_chat_receipt"]["status"] == "ANSWER_ACCEPTED"
+    assert result["provider_calls_total"] == 0
+
+
+def test_current_owner_code_request_uses_only_human_readable_presentation() -> None:
+    request = {
+        "request_publication_ref": "gap-request-publication-current",
+        "closure_type": "USER_FACT",
+        "fact_key": "filing_instance_identity",
+        "question": "Choose initial filing or correction for the 2025 declaration.",
+        "answer_contract": {
+            "kind": "code",
+            "allowed": ["INITIAL", "CORRECTION"],
+        },
+    }
+
+    assert declaration_request_question(request) == (
+        "Выберите вид декларации за 2025 год."
+    )
+    help_text = declaration_request_help(request)
+    assert help_text == (
+        "Допустимые ответы: Первичная декларация; Корректирующая декларация."
+    )
+    assert "INITIAL" not in help_text
+    assert adapt_current_declaration_request(
+        message="Первичная декларация", current_requests=[request]
+    ) == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "ANSWER_READY",
+        "request_publication_ref": "gap-request-publication-current",
+        "answer": {"kind": "code", "value": "INITIAL"},
+    }
+    assert adapt_current_declaration_request(
+        message="INITIAL", current_requests=[request]
+    )["status"] == "ANSWER_REJECTED"
+
+
+def test_new_owner_code_without_exact_label_coverage_fails_closed() -> None:
+    request = {
+        "request_publication_ref": "gap-request-publication-current",
+        "closure_type": "USER_FACT",
+        "fact_key": "filing_instance_identity",
+        "question": "owner question must not leak",
+        "answer_contract": {
+            "kind": "code",
+            "allowed": ["INITIAL", "CORRECTION", "NEW_OWNER_CODE"],
+        },
+    }
+
+    assert declaration_request_question(request) == (
+        "Ответ на этот запрос временно недоступен."
+    )
+    assert "NEW_OWNER_CODE" not in declaration_request_help(request)
+    result = adapt_current_declaration_request(
+        message="Первичная декларация", current_requests=[request]
+    )
+    assert result == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "OWNER_REQUEST_INVALID",
+        "reason_code": "declaration_chat_presentation_contract_invalid",
+    }
+
+
+def test_unknown_owner_fact_key_fails_closed_without_raw_vocabulary() -> None:
+    request = {
+        "request_publication_ref": "gap-request-publication-current",
+        "closure_type": "USER_FACT",
+        "fact_key": "future_owner_fact",
+        "question": "RAW OWNER QUESTION",
+        "answer_contract": {"kind": "code", "allowed": ["RAW_UNKNOWN"]},
+    }
+
+    question = declaration_request_question(request)
+    help_text = declaration_request_help(request)
+    assert question == "Ответ на этот запрос временно недоступен."
+    assert help_text == "Ответ на этот запрос временно недоступен."
+    assert "RAW OWNER QUESTION" not in question
+    assert "RAW_UNKNOWN" not in help_text
+    assert adapt_current_declaration_request(
+        message="RAW_UNKNOWN", current_requests=[request]
+    ) == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "OWNER_REQUEST_INVALID",
+        "reason_code": "declaration_chat_presentation_contract_invalid",
+    }
+
+
+def test_known_identity_with_misbound_code_contract_fails_closed() -> None:
+    request = {
+        "request_publication_ref": "gap-request-publication-current",
+        "closure_type": "USER_FACT",
+        "fact_key": "taxpayer_identity",
+        "question": "RAW OWNER QUESTION",
+        "answer_contract": {"kind": "code", "allowed": ["RAW_UNKNOWN"]},
+    }
+
+    assert declaration_request_question(request) == (
+        "Ответ на этот запрос временно недоступен."
+    )
+    assert "RAW_UNKNOWN" not in declaration_request_help(request)
+    assert adapt_current_declaration_request(
+        message="RAW_UNKNOWN", current_requests=[request]
+    ) == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "OWNER_REQUEST_INVALID",
+        "reason_code": "declaration_chat_presentation_contract_invalid",
+    }
+
+
+def test_known_code_request_with_misbound_text_contract_fails_closed() -> None:
+    request = {
+        "request_publication_ref": "gap-request-publication-current",
+        "closure_type": "USER_FACT",
+        "fact_key": "filing_instance_identity",
+        "question": "RAW OWNER QUESTION",
+        "answer_contract": {
+            "kind": "text",
+            "allowed": ["INITIAL", "CORRECTION"],
+        },
+    }
+
+    assert declaration_request_question(request) == (
+        "Ответ на этот запрос временно недоступен."
+    )
+    assert adapt_current_declaration_request(
+        message="RAW_ARBITRARY", current_requests=[request]
+    ) == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "OWNER_REQUEST_INVALID",
+        "reason_code": "declaration_chat_presentation_contract_invalid",
+    }
+
+
+def test_direct_ndfl_source_blocker_hides_internal_owner_diagnostics() -> None:
+    content = Pipe._ndfl_source_user_content(None)
+
+    assert "Расчёт остановлен" in content
+    assert "XML не создан" in content
+    assert "handoff" not in content
+    assert "normrun" not in content
+    assert "artifact" not in content.lower()
+
+
+def test_direct_ndfl_workload_status_hides_job_identity() -> None:
+    emitted = []
+
+    async def emitter(payload):
+        emitted.append(payload)
+
+    asyncio.run(
+        Pipe()._emit_workload_snapshot(
+            emitter,
+            {"job_id": "brjob_private", "state": "completed"},
+            done=True,
+            hide_internal=True,
+        )
+    )
+
+    assert emitted
+    rendered = json.dumps(emitted, ensure_ascii=False)
+    assert "Подготовка 3-НДФЛ" in rendered
+    assert "brjob_private" not in rendered
+    assert "completed" not in rendered
+
+
+def test_chat_transport_runs_bind_to_one_current_source_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_direct_workspace_fixture(monkeypatch)
+    _runtime, context, _providers, store = declaration_fixtures._case(
+        tmp_path,
+        proceeds="60.00",
+        include_store=True,
+    )
+    pipe = Pipe()
+    first = pipe._current_declaration_execution_context(
+        store=store,
+        context=replace(context, normalization_run_id="chat-transport-a"),
+    )
+    second = pipe._current_declaration_execution_context(
+        store=store,
+        context=replace(context, normalization_run_id="chat-transport-b"),
+    )
+
+    assert first == second
+    assert first.normalization_run_id.startswith("ndflcase_")
+    runtime = product_pipe.OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        retention_policy=build_retention_policy(mode="synthetic_dev"),
+    ).create()
+    first_result = runtime.run(canonical_artifact_refs=[], context=first)
+    second_result = runtime.run(canonical_artifact_refs=[], context=second)
+
+    assert first_result["product"]["status"] == "DECLARATION_XML_READY"
+    assert second_result["product"]["status"] == "DECLARATION_XML_READY"
+    assert first_result["declaration"]["xml_bytes"] == second_result["declaration"][
+        "xml_bytes"
+    ]
+    assert first_result["declaration"]["receipt_sha256"] == second_result[
+        "declaration"
+    ]["receipt_sha256"]
+
+
+def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    owner_result = {
+        "schema_version": "broker_reports_ordinary_trade_production_run_v1",
+        "enabled": True,
+        "status": "completed",
+        "provider_calls_total": 0,
+        "product": {
+            "status": "PREPARATION_INCOMPLETE",
+            "terminal": "ordinary_trade_declaration_canonical_relevant_unmapped",
+            "preparation": {
+                "status": "PREPARATION_INCOMPLETE",
+                "terminals": [
+                    "ordinary_trade_declaration_canonical_relevant_unmapped"
+                ],
+                "declaration_readiness": {"ready": False},
+                "gap_closure": {
+                    "user_facing_required_actions": [],
+                    "internal_owner_required_actions": [
+                        {
+                            "reason_code": (
+                                "ordinary_trade_declaration_canonical_relevant_unmapped"
+                            )
+                        }
+                    ],
+                },
+            },
+        },
+    }
+
+    class Runtime:
+        @staticmethod
+        def run(**_kwargs):
+            return copy.deepcopy(owner_result)
+
+    class Factory:
+        def __init__(self, **_kwargs):
+            pass
+
+        @staticmethod
+        def create():
+            return Runtime()
+
+    monkeypatch.setattr(product_pipe, "OrdinaryTradeProductionRuntimeFactory", Factory)
+
+    async def event_call(_payload):
+        raise AssertionError("typed owner blocker must not open a human request")
+
+    result = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            store=object(),
+            context=_context(NDFL_WORKSPACE_MODEL_STABLE_ID),
+            artifact_manifest=SimpleNamespace(artifact_refs_by_type={}),
+            user={"id": "user-a"},
+            request=object(),
+            event_emitter=None,
+            event_call=event_call,
+        )
+    )
+
+    assert result == owner_result
+    assert result["product"]["terminal"] == (
+        "ordinary_trade_declaration_canonical_relevant_unmapped"
+    )
+    assert result["provider_calls_total"] == 0
 
 
 def test_plain_chat_answer_cannot_select_a_new_current_request(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _use_direct_workspace_fixture(monkeypatch)
     _runtime, context, _providers, store = declaration_fixtures._case(
         tmp_path,
         proceeds="60.00",
@@ -208,6 +619,7 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _use_direct_workspace_fixture(monkeypatch)
     _runtime, context, _providers, store = declaration_fixtures._case(
         tmp_path / "case",
         proceeds="60.00",
@@ -295,7 +707,7 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
         metadata = {
             "chat_id": context.case_id,
             "case_id": context.case_id,
-            "model_id": "broker-reports-ndfl",
+            "model_id": "broker_reports_ndfl",
         }
 
         event_payloads = []
@@ -381,6 +793,15 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
         assert "fact_key" not in serialized_events
         assert "500100732259" not in serialized_events
         assert "••••" in serialized_events
+        for hidden_owner_vocabulary in (
+            "Choose initial filing",
+            "State whether the taxpayer",
+            "individual_not_ip_not_private_practice",
+            "INITIAL",
+            "SELF",
+            "PAYMENT",
+        ):
+            assert hidden_owner_vocabulary not in serialized_events
 
         change_content = public_turn("Изменить дату")
         changing = pipe.last_artifact_manifest["ndfl_gate3"]
@@ -475,7 +896,7 @@ def test_xml_delivery_uses_authenticated_openwebui_private_file_owner(
         user_id="user-a",
         normalization_run_id="run-a",
         case_id="case-a",
-        workspace_model_id="broker-reports-ndfl",
+        workspace_model_id="broker_reports_ndfl",
         allow_private=True,
     )
     kwargs = {
@@ -565,7 +986,7 @@ def test_concurrent_identical_xml_delivery_keeps_one_valid_owner_file(
         user_id="user-a",
         normalization_run_id="run-a",
         case_id="case-a",
-        workspace_model_id="broker-reports-ndfl",
+        workspace_model_id="broker_reports_ndfl",
         allow_private=True,
     )
     kwargs = {
@@ -646,7 +1067,7 @@ def test_private_xml_record_failure_removes_partial_storage_file(
         user_id="user-a",
         normalization_run_id="run-a",
         case_id="case-a",
-        workspace_model_id="broker-reports-ndfl",
+        workspace_model_id="broker_reports_ndfl",
         allow_private=True,
     )
 
@@ -670,17 +1091,19 @@ def test_private_xml_record_failure_removes_partial_storage_file(
 def _product_chat_answer(fact_key: str) -> str:
     return {
         "taxpayer_identity": "Подтверждаю",
-        "taxpayer_capacity": "individual_not_ip_not_private_practice",
+        "taxpayer_capacity": (
+            "Обычное физическое лицо — не ИП и не лицо частной практики"
+        ),
         "residency_evidence": (
             "Присутствие: 2025-01-01..2025-07-02; "
             "отсутствие: 2025-07-03..2025-12-31; причины: нет"
         ),
         "ordinary_trade_declaration_zero_scope_confirmed": "Да",
-        "filing_instance_identity": "INITIAL",
+        "filing_instance_identity": "Первичная декларация",
         "declaration_date": "2026-08-24",
         "filing_destination_code": "7705",
-        "signer_and_representation": "SELF",
-        "budget_disposition": "PAYMENT",
+        "signer_and_representation": "Подписываю лично",
+        "budget_disposition": "Налог к уплате",
         "budget_oktmo": "45382000",
     }[fact_key]
 
@@ -696,7 +1119,7 @@ def test_workload_failure_detail_exposes_only_explicit_safe_details() -> None:
 
 
 def test_human_residual_turn_reuses_one_validated_gate3_artifact() -> None:
-    context = _context("broker-reports-ndfl")
+    context = _context("broker_reports_ndfl")
     record = SimpleNamespace(
         artifact_id="annotations",
         artifact_type=GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
@@ -847,3 +1270,19 @@ def _context(workspace_model_id: str) -> ArtifactAccessContext:
         workspace_model_id=workspace_model_id,
         allow_private=True,
     )
+
+
+def _use_direct_workspace_fixture(monkeypatch: pytest.MonkeyPatch) -> None:
+    gate4_fixtures = (
+        declaration_fixtures.assembly_fixtures.bridge_fixtures.ordinary_fixtures.gate4_fixtures
+    )
+    original = gate4_fixtures._store_context
+
+    def direct_store_context(root: Path):
+        store, context = original(root)
+        return store, replace(
+            context,
+            workspace_model_id=NDFL_WORKSPACE_MODEL_STABLE_ID,
+        )
+
+    monkeypatch.setattr(gate4_fixtures, "_store_context", direct_store_context)

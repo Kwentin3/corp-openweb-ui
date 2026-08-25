@@ -34,7 +34,11 @@ from broker_reports_gate1.artifact_models import ArtifactRecord
 from broker_reports_gate1.gate3_financial_annotations_persistence import (
     GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
 )
-from broker_reports_gate1.gate3_ndfl_workflow import FACTORY_REQUIRED, FORBIDDEN
+from broker_reports_gate1.gate3_ndfl_workflow import (
+    FACTORY_REQUIRED,
+    FORBIDDEN,
+    NDFL_WORKSPACE_MODEL_STABLE_ID,
+)
 
 
 MODEL_ID = "models/gemini-3.5-flash"
@@ -435,7 +439,7 @@ def _store_and_context(tmp_path: Path):
         user_id="ndfl-user",
         normalization_run_id="ndfl-run-1",
         case_id="ndfl-case",
-        workspace_model_id=NDFL_WORKFLOW_STABLE_ID,
+        workspace_model_id=NDFL_WORKSPACE_MODEL_STABLE_ID,
         allow_private=True,
     )
     return store, context
