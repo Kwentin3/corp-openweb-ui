@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
@@ -37,6 +36,7 @@ _PROMPT_ONLY = frozenset(
 _CHANGE_INTENTS = {
     "изменить дату": "declaration_date",
     "изменить инн": "taxpayer_identity",
+    "изменить налоговый период": "selected_tax_period",
 }
 _UNAVAILABLE_REQUEST = "Ответ на этот запрос временно недоступен."
 
@@ -166,6 +166,12 @@ def declaration_change_intent(message: str) -> dict[str, Any] | None:
             value = text[len(prefix) :].strip()
             if fact_key == "declaration_date":
                 answer = {"kind": "text", "value": value}
+            elif fact_key == "selected_tax_period":
+                answer = (
+                    {"kind": "code", "value": value}
+                    if re.fullmatch(r"(?!0000$)[0-9]{4}", value)
+                    else None
+                )
             else:
                 match = _IDENTITY.fullmatch("Изменить: " + value)
                 answer = _identity_answer(match) if match else None
@@ -403,7 +409,7 @@ def _request_presentation(request: dict[str, Any]) -> dict[str, Any] | None:
                 f"Для выбранного периода {tax_period} нет точного профиля "
                 "декларации. Доступные профили: "
                 + "; ".join(profiles)
-                + ". Выберите: только анализ, неподдаваемый черновик или "
+                + ". Выберите: только анализ, неподаваемый черновик или "
                 "остановиться и продолжить позже."
             ),
         }
@@ -437,7 +443,7 @@ def declaration_surrogate_preview(preview: Any) -> str:
     """Render only a validated owner-produced non-filing preview."""
 
     if not isinstance(preview, dict):
-        return "Неподаваемый черновик недоступен: owner preview отсутствует."
+        return "Неподаваемый черновик недоступен: данные для него отсутствуют."
     required = {
         "schema_version",
         "status",
@@ -485,31 +491,87 @@ def declaration_surrogate_preview(preview: Any) -> str:
         or not isinstance(checks, list)
         or any(not isinstance(item, str) or not item for item in checks)
         or not isinstance(preview.get("non_filing_warning"), str)
+        or preview.get("non_filing_warning")
+        != (
+            "This preview uses an available profile from a different tax period. "
+            "It is not a declaration, cannot be filed, and has no XML download."
+        )
         or preview.get("filing_eligible") is not False
         or preview.get("xml_created") is not False
         or preview.get("download_available") is not False
     ):
-        return "Неподаваемый черновик недоступен: owner preview не прошёл проверку."
-    confirmed_lines = [
-        f"- {key}: {json.dumps(value, ensure_ascii=False, sort_keys=True)}"
-        for key, value in sorted(confirmed.items())
+        return "Неподаваемый черновик недоступен: данные не прошли проверку."
+    expected_checks = {
+        "obtain an exact declaration profile for the selected tax period",
+        "revalidate every placeholder through its existing domain owner",
+        "rerun deterministic calculation and release validation",
+    }
+    if set(checks) != expected_checks:
+        return "Неподаваемый черновик недоступен: данные не прошли проверку."
+    placeholder_labels = {
+        "taxpayer_identity": "ИНН и ФИО",
+        "taxpayer_capacity": "статус налогоплательщика",
+        "residency_evidence": "периоды присутствия и отсутствия в России",
+        "filing_instance_identity": "вид декларации",
+        "declaration_date": "дата декларации",
+        "filing_destination_code": "код налоговой инспекции",
+        "signer_and_representation": "подписант",
+        "budget_disposition": "итог к уплате или возврату",
+    }
+    placeholder_values = [
+        placeholder_labels.get(str(item["fact_key"])) for item in placeholders
     ]
-    placeholder_lines = [
-        f"- {item['fact_key']}: {item['placeholder']}" for item in placeholders
-    ]
-    check_lines = [f"- {item}" for item in checks]
+    if any(value is None for value in placeholder_values):
+        return "Неподаваемый черновик недоступен: данные не прошли проверку."
+    positions = confirmed.get("positions")
+    fifo = confirmed.get("fifo_calculations")
+    human = confirmed.get("owner_human_facts")
+    if (
+        not isinstance(positions, list)
+        or any(not isinstance(item, dict) for item in positions)
+        or not isinstance(fifo, list)
+        or not isinstance(human, dict)
+    ):
+        return "Неподаваемый черновик недоступен: данные не прошли проверку."
+    position_lines = []
+    position_labels = {
+        "CLOSED_DISPOSALS_PROVEN": "закрытая позиция рассчитана",
+        "OPEN_LONG_PROVEN": "открытая длинная позиция не включена в базу",
+        "OPEN_SHORT_PROVEN": "открытая короткая позиция не включена в базу",
+        "CLOSED_DISPOSAL_WITH_OPEN_LONG_REMAINDER": (
+            "закрытая часть рассчитана, длинный остаток оставлен открытым"
+        ),
+        "CLOSED_DISPOSAL_WITH_OPEN_SHORT_REMAINDER": (
+            "закрытая часть рассчитана, короткий остаток оставлен открытым"
+        ),
+        "UNRESOLVED_DISPOSAL_EVIDENCE_HORIZON": (
+            "история позиции требует дополнительного отчёта"
+        ),
+    }
+    for item in positions:
+        state_label = position_labels.get(str(item.get("state") or ""))
+        asset = str(item.get("asset") or "Инструмент")
+        if state_label is None:
+            return "Неподаваемый черновик недоступен: данные не прошли проверку."
+        position_lines.append(f"- {asset}: {state_label}")
+    profile_form = str(profile.get("form") or "3-НДФЛ").replace("NDFL", "НДФЛ")
+    profile_format = str(profile.get("electronic_format_version") or "")
     return "\n".join(
         [
             "Неподаваемый черновик (не подлежит подаче):",
-            f"Профиль: {preview['profile_id']} ({preview['profile_tax_period']}); "
-            f"выбранный период: {preview['selected_tax_period']}.",
-            "Подтверждённые данные:",
-            *(confirmed_lines or ["- нет"]),
-            "Незаполненные owner-поля:",
-            *(placeholder_lines or ["- нет"]),
-            "Обязательные проверки:",
-            *(check_lines or ["- нет"]),
-            str(preview["non_filing_warning"]),
+            f"Выбранный период: {preview['selected_tax_period']}; доступный "
+            f"профиль: {profile_form} за {preview['profile_tax_period']} год, "
+            f"электронный формат {profile_format}.",
+            f"Подтверждено из отчёта: закрытых продаж рассчитано {len(fifo)}.",
+            "Позиции:",
+            *(position_lines or ["- подтверждённые позиции не сформированы"]),
+            f"Пользовательских ответов учтено: {len(human)}.",
+            "Нужно дозаполнить:",
+            *([f"- {item}" for item in placeholder_values] or ["- ничего"]),
+            "Перед подачей нужен точный профиль выбранного года, повторная "
+            "проверка заполненных реквизитов и новый расчёт.",
+            "Этот черновик использует профиль другого года и не является "
+            "декларацией.",
             "XML и файл для скачивания не созданы.",
         ]
     )

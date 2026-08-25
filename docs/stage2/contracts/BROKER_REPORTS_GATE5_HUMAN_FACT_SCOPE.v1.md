@@ -1,8 +1,9 @@
-# Broker Reports Gate 5 Human Fact Scope v1
+﻿# Broker Reports Gate 5 Human Fact Scope v1
 
-Status: `CURRENT; ACTIVE FOR THE BOUNDED ISSUE #304 PRODUCT ROUTE`
+Status: `CURRENT; ACTIVE FOR THE BOUNDED ISSUE #304/#310 PRODUCT ROUTE`
 
-Issues: `#299`, review follow-up `#301`, product activation `#304`
+Issues: `#299`, review follow-up `#301`, product activation `#304`, product
+surface gate `#310`
 
 Date: 2026-08-24
 
@@ -72,10 +73,18 @@ by the bounded product action and cannot choose the lane, scope or predecessor.
 
 The mismatch question receives the available profile descriptions only from
 the existing full-target projection Definition owner. Display text may change,
-but it cannot create a profile or authorize release. The representation-only
-chat adapter validates and displays those owner-produced labels, including the
-profile ID and year; it may not replace them with a generic question that
-hides the available profile.
+but it cannot create a profile or authorize release. The owner-produced public
+label contains the form, tax year and electronic format version; internal
+profile IDs and XSD names are not user vocabulary. The representation-only chat
+adapter validates and displays the exact owner-produced labels and may not
+replace them with a generic question that hides the available profile.
+
+Issue #310 exposes period correction only through the bounded Russian phrase
+`Изменить налоговый период: ГГГГ`. The adapter validates a non-sentinel
+four-digit year and asks the existing Human owner to publish the successor; it
+does not accept a caller request ref, semantic lane or fact key. Therefore the
+public chat preserves the existing `2022 -> 2025 -> 2022` currentness proof and
+cannot resurrect the former profile-mode choice.
 
 Actual identity exists only as the current `taxpayer_identity` Human fact with
 provenance `USER_ATTESTED_CASE_FACT`. A Canonical INN/FIO assertion is a private

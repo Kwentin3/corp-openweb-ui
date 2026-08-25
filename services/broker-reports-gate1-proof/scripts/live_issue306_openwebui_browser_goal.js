@@ -180,9 +180,17 @@ async function sendMessage(page, message) {
   await send.waitFor({ state: 'visible', timeout: 10000 });
   await send.click();
   await page.waitForFunction(
-    (count) => document.querySelectorAll('[role="listitem"]').length > count,
-    messageCount,
-    { timeout: 30000 },
+    ({ count, modalTitle }) => {
+      if (document.querySelectorAll('[role="listitem"]').length > count) return true;
+      return Array.from(document.querySelectorAll('body *')).some((element) => {
+        const style = window.getComputedStyle(element);
+        return element.textContent?.trim() === modalTitle
+          && style.visibility !== 'hidden'
+          && style.display !== 'none';
+      });
+    },
+    { count: messageCount, modalTitle: MODAL_TITLE },
+    { timeout: 120000 },
   );
 }
 
@@ -205,6 +213,12 @@ async function waitForTurn(page) {
     /run normrun_/i,
     /brjob_/i,
     /technical link/i,
+    /exact status/i,
+    /terminal:/i,
+    /reason codes/i,
+    /case note/i,
+    /source completeness/i,
+    /[A-Z][A-Z0-9]+(?:_[A-Z0-9]+){2,}/,
   ];
   if (forbidden.some((pattern) => pattern.test(body))) {
     throw new Error('hidden_architecture_leaked_into_chat');
@@ -240,6 +254,7 @@ async function waitForQuestion(page) {
 function classifyQuestion(question) {
   const rules = [
     ['tax_period', /\u043d\u0430\u043b\u043e\u0433\u043e\u0432\u044b\u0439 \u043f\u0435\u0440\u0438\u043e\u0434/i],
+    ['profile_mode', /нет точного профиля декларации/i],
     ['residency', /периоды присутствия и отсутствия в России/i],
     ['capacity', /ваш статус за 2025 год/i],
     ['zero_scope', /нет других доходов той же категории/i],
@@ -626,18 +641,14 @@ async function runRepresentativeSourceBoundaryProof({ browser, control, source, 
   );
   const body = await waitForTurn(page);
   const required = [
-    'Exact status: PREPARATION_INCOMPLETE',
-    'terminal: ordinary_trade_canonical_evidence_missing',
-    'reason codes: ordinary_trade_canonical_evidence_missing',
-    'Case note: source completeness CANONICAL_EVIDENCE_MISSING',
-    'position evaluation NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE',
-    'selected tax period not selected',
-    'detected operation years none',
-    'exact profile NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE',
-    'positions none',
-    'calculated disposals 0',
-    'checks ordinary_trade_canonical_evidence_missing',
-    'filing eligible no',
+    'Не удалось получить подтверждённый набор операций',
+    'Итог по кейсу:',
+    'годы не определены',
+    'год ещё не выбран',
+    'налоговый период ещё не выбран',
+    'подтверждённые позиции пока не сформированы',
+    'Рассчитанные закрытые продажи: 0',
+    'Подаваемый XML на этом шаге не создан',
   ];
   const missing = required.filter((marker) => !body.includes(marker));
   if (missing.length) {
@@ -645,13 +656,16 @@ async function runRepresentativeSourceBoundaryProof({ browser, control, source, 
       `representative_source_exact_boundary_receipt_invalid:${missing.join('|')}`,
     );
   }
-  if (body.includes('gate5_source_fact_disposal_missing')) {
-    throw new Error('representative_source_extraction_gap_mislabeled_as_position');
+  const forbidden = [
+    'ordinary_trade_canonical_evidence_missing',
+    'gate5_source_fact_disposal_missing',
+    'UNSUPPORTED_EXACT_YEAR_PROFILE',
+    'DECLARATION_XML_READY',
+  ];
+  if (forbidden.some((marker) => body.includes(marker))) {
+    throw new Error('representative_source_internal_state_visible');
   }
-  if (body.includes('UNSUPPORTED_EXACT_YEAR_PROFILE')) {
-    throw new Error('representative_source_unselected_profile_was_evaluated');
-  }
-  if (body.includes('DECLARATION_XML_READY') || await downloadLinks(page).count()) {
+  if (await downloadLinks(page).count()) {
     throw new Error('representative_source_unjustified_declaration_created');
   }
   await page.screenshot({
@@ -669,17 +683,185 @@ async function runRepresentativeSourceBoundaryProof({ browser, control, source, 
     events: [{
       mode: 'user',
       event: 'representative_source_boundary_separation_proven',
-      exact_status: 'PREPARATION_INCOMPLETE',
-      exact_terminal: 'ordinary_trade_canonical_evidence_missing',
-      reason_codes: ['ordinary_trade_canonical_evidence_missing'],
-      source_completeness_status: 'CANONICAL_EVIDENCE_MISSING',
-      detected_operation_years: [],
-      selected_tax_period: null,
-      position_evaluation_status: 'NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE',
-      profile_support: 'NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE',
+      source_gap_explained_in_plain_language: true,
+      next_action_visible: true,
+      internal_status_hidden: true,
       xml_created: false,
       private_download_created: false,
-      filing_eligible: false,
+    }],
+  };
+}
+
+async function runIssue310NonFilingRoute({
+  browser,
+  control,
+  source,
+  outputDir,
+  route,
+}) {
+  const expected = {
+    open_long: [
+      'открытая длинная позиция',
+      'в налоговую базу не включена',
+      'XML не создан',
+    ],
+    sale_only: [
+      'историю позиции',
+      'Добавьте отчёт с предшествующими операциями',
+      'XML не создан',
+    ],
+  }[route];
+  if (!expected) throw new Error('issue310_non_filing_route_invalid');
+  const context = await browser.newContext();
+  const page = await login(context, control.base_url, control.users[0]);
+  await selectNdfl(page);
+  await page.locator('input[type=file]').first().setInputFiles(source);
+  await page.getByText(path.basename(source), { exact: false }).waitFor({
+    state: 'visible',
+    timeout: 60000,
+  });
+  await page.waitForTimeout(7000);
+  await sendMessage(page, 'Проверь операции и подготовь результат для 3-НДФЛ.');
+  const question = await waitForQuestion(page);
+  if (classifyQuestion(question) !== 'tax_period') {
+    throw new Error('issue310_tax_period_question_not_first');
+  }
+  const body = await answerQuestion(page, '2025');
+  const missing = expected.filter((marker) => !body.includes(marker));
+  if (missing.length) {
+    throw new Error(`issue310_non_filing_explanation_missing:${missing.join('|')}`);
+  }
+  if (await downloadLinks(page).count()) {
+    throw new Error('issue310_non_filing_route_created_download');
+  }
+  await page.screenshot({
+    path: path.join(outputDir, `issue310-${route}-user-view.png`),
+    fullPage: true,
+  });
+  await context.close();
+  return {
+    schema_version: 'broker_reports_issue310_safe_interaction_trace_v1',
+    route,
+    source_sha256: sha256Bytes(fs.readFileSync(source)),
+    browser_ui_only: true,
+    events: [{
+      mode: 'user',
+      event: 'non_filing_route_explained',
+      first_question: 'tax_period',
+      plain_language_explanation: true,
+      next_action_visible: true,
+      internal_status_hidden: true,
+      xml_created: false,
+      private_download_created: false,
+    }],
+  };
+}
+
+async function runIssue310UnsupportedProfileRoute({
+  browser,
+  control,
+  source,
+  outputDir,
+  mode,
+}) {
+  const modes = {
+    analysis: {
+      answer: 'Только анализ',
+      markers: ['Готов только анализ по выбранному периоду', 'XML не создавались'],
+    },
+    surrogate: {
+      answer: 'Неподаваемый черновик',
+      markers: [
+        'Неподаваемый черновик (не подлежит подаче)',
+        'Выбранный период: 2022',
+        '3-НДФЛ за 2025 год',
+        'электронный формат 5.20',
+        'XML и файл для скачивания не созданы',
+      ],
+    },
+    stop: {
+      answer: 'Остановиться и продолжить позже',
+      markers: ['Подготовка приостановлена', 'продолжить позже', 'XML не создан'],
+    },
+  };
+  const expected = modes[mode];
+  if (!expected) throw new Error('issue310_unsupported_mode_invalid');
+  const context = await browser.newContext();
+  const page = await login(context, control.base_url, control.users[0]);
+  await selectNdfl(page);
+  await page.locator('input[type=file]').first().setInputFiles(source);
+  await page.getByText(path.basename(source), { exact: false }).waitFor({
+    state: 'visible',
+    timeout: 60000,
+  });
+  await page.waitForTimeout(7000);
+  await sendMessage(page, 'Подготовь результат за 2022 год по этому отчёту.');
+  const periodQuestion = await waitForQuestion(page);
+  if (classifyQuestion(periodQuestion) !== 'tax_period') {
+    throw new Error('issue310_tax_period_question_not_first');
+  }
+  await answerQuestion(page, '2022');
+  const profileQuestion = await waitForQuestion(page);
+  if (classifyQuestion(profileQuestion) !== 'profile_mode') {
+    throw new Error('issue310_profile_mode_question_missing');
+  }
+  for (const marker of ['2022', '3-НДФЛ за 2025 год', '5.20']) {
+    if (!profileQuestion.includes(marker)) {
+      throw new Error(`issue310_profile_context_missing:${marker}`);
+    }
+  }
+  const body = await answerQuestion(page, expected.answer);
+  const missing = expected.markers.filter((marker) => !body.includes(marker));
+  if (missing.length) {
+    throw new Error(`issue310_unsupported_result_missing:${missing.join('|')}`);
+  }
+  if (await downloadLinks(page).count()) {
+    throw new Error('issue310_unsupported_profile_created_download');
+  }
+  let periodRoundTrip = false;
+  if (mode === 'stop') {
+    await sendMessage(page, 'Изменить налоговый период: 2025');
+    const supportedBody = await waitForTurn(page);
+    if (!supportedBody.includes('для 2025 года доступен точный профиль')) {
+      throw new Error('issue310_supported_period_not_visible_after_change');
+    }
+    const title = page.getByText(MODAL_TITLE, { exact: true });
+    if (await title.isVisible()) {
+      await page.keyboard.press('Escape');
+      await title.waitFor({ state: 'hidden', timeout: 30000 });
+    }
+    await sendMessage(page, 'Изменить налоговый период: 2022');
+    await waitForTurn(page);
+    const returnedQuestion = await waitForQuestion(page);
+    if (
+      classifyQuestion(returnedQuestion) !== 'profile_mode'
+      || !returnedQuestion.includes('2022')
+    ) {
+      throw new Error('issue310_period_round_trip_reused_stale_mode');
+    }
+    periodRoundTrip = true;
+  }
+  await page.screenshot({
+    path: path.join(outputDir, `issue310-unsupported-${mode}-user-view.png`),
+    fullPage: true,
+  });
+  await context.close();
+  return {
+    schema_version: 'broker_reports_issue310_safe_interaction_trace_v1',
+    route: `unsupported_${mode}`,
+    source_sha256: sha256Bytes(fs.readFileSync(source)),
+    browser_ui_only: true,
+    events: [{
+      mode: 'user',
+      event: 'unsupported_profile_choice_completed',
+      selected_tax_period: '2022',
+      available_profile_tax_period: '2025',
+      available_profile_format: '5.20',
+      selected_mode: mode,
+      period_round_trip_2022_2025_2022: periodRoundTrip,
+      internal_profile_id_hidden: true,
+      xml_created: false,
+      private_download_created: false,
     }],
   };
 }
@@ -722,6 +904,54 @@ async function runRepresentativeSourceBoundaryProof({ browser, control, source, 
     });
     fs.writeFileSync(safePath, JSON.stringify(boundSafe, null, 2) + '\n', 'utf8');
     process.stdout.write(JSON.stringify({ status: 'blocked_as_expected', safe_trace_path: safePath }));
+    return;
+  }
+  const issue310Route = process.env.ISSUE310_NON_FILING_ROUTE || '';
+  if (issue310Route) {
+    const safe = await runIssue310NonFilingRoute({
+      browser,
+      control,
+      source,
+      outputDir,
+      route: issue310Route,
+    });
+    await browser.close();
+    const safePath = path.join(outputDir, 'interaction.safe.json');
+    const boundSafe = receipt({
+      ...safe,
+      schema_version: 'broker_reports_issue310_browser_run_receipt_v1',
+      run_id: runId,
+      run_kind: issue310Route,
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+      proof_binding: proofBinding,
+    });
+    fs.writeFileSync(safePath, JSON.stringify(boundSafe, null, 2) + '\n', 'utf8');
+    process.stdout.write(JSON.stringify({ status: 'passed', safe_trace_path: safePath }));
+    return;
+  }
+  const issue310UnsupportedMode = process.env.ISSUE310_UNSUPPORTED_MODE || '';
+  if (issue310UnsupportedMode) {
+    const safe = await runIssue310UnsupportedProfileRoute({
+      browser,
+      control,
+      source,
+      outputDir,
+      mode: issue310UnsupportedMode,
+    });
+    await browser.close();
+    const safePath = path.join(outputDir, 'interaction.safe.json');
+    const boundSafe = receipt({
+      ...safe,
+      schema_version: 'broker_reports_issue310_browser_run_receipt_v1',
+      run_id: runId,
+      run_kind: `unsupported_${issue310UnsupportedMode}`,
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+      proof_binding: proofBinding,
+    });
+    fs.writeFileSync(safePath, JSON.stringify(boundSafe, null, 2) + '\n', 'utf8');
+    process.stdout.write(JSON.stringify({ status: 'passed', safe_trace_path: safePath }));
     return;
   }
   const context = await browser.newContext({ acceptDownloads: true });

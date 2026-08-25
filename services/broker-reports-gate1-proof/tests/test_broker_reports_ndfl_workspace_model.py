@@ -75,6 +75,20 @@ def test_ndfl_workspace_model_is_the_direct_pipe_without_knowledge_or_tools() ->
     assert desired["meta"]["skillIds"] == []
 
 
+def test_ndfl_workspace_model_presents_a_user_task_without_internal_stages() -> None:
+    desired = publisher.desired_ndfl_model(previous=None, legacy=_legacy_model())
+    meta = desired["meta"]
+
+    assert "3-НДФЛ" in meta["description"]
+    assert "брокерский отчёт" in meta["description"]
+    assert "Gate" not in meta["description"]
+    assert "workflow" not in meta["description"].lower()
+    assert [item["content"] for item in meta["suggestion_prompts"]] == [
+        "Помогите подготовить 3-НДФЛ по брокерскому отчёту.",
+        "Проверьте брокерский отчёт и объясните, какие операции можно рассчитать.",
+    ]
+
+
 def test_ndfl_product_is_a_single_direct_pipe_identity_without_base_acl_chain() -> None:
     desired = publisher.desired_ndfl_model(
         previous=None,

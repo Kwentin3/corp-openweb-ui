@@ -18,11 +18,13 @@ from broker_reports_gate1 import (
     GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
 )
 from broker_reports_gate1.gate3_ndfl_workflow import (
+    NDFL_WORKFLOW_STABLE_ID,
     NDFL_WORKSPACE_MODEL_STABLE_ID,
     NdflWorkflowError,
 )
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
+    declaration_change_intent,
     declaration_request_help,
     declaration_request_question,
     declaration_surrogate_preview,
@@ -87,6 +89,27 @@ def test_product_stage_is_disabled_by_default() -> None:
         "status": "disabled",
         "provider_calls_total": 0,
     }
+
+
+def test_legacy_ndfl_workspace_route_fails_closed_before_file_processing() -> None:
+    pipe = Pipe()
+    content = asyncio.run(
+        pipe.pipe(
+            {"messages": [{"role": "user", "content": "Подготовьте 3-НДФЛ"}]},
+            __user__={"id": "user-a"},
+            __metadata__={
+                "chat_id": "legacy-route-chat",
+                "model_id": NDFL_WORKFLOW_STABLE_ID,
+            },
+        )
+    )
+
+    assert "устаревшую карточку" in content
+    assert "XML не создан" in content
+    assert "актуальную карточку «NDFL»" in content
+    assert pipe.last_artifact_manifest is None
+    assert "Gate" not in content
+    assert "broker_reports" not in content
 
 
 def test_product_stage_rejects_base_pipe_identity_before_provider() -> None:
@@ -218,8 +241,10 @@ def test_period_and_profile_mode_are_owner_bound_but_user_presented(
     mode_request = mismatch["product"]["preparation"]["user_actions"][0]
     question = declaration_request_question(mode_request)
     assert "\u043d\u0435\u0442 \u0442\u043e\u0447\u043d\u043e\u0433\u043e \u043f\u0440\u043e\u0444\u0438\u043b\u044f" in question
-    assert "ru_3ndfl_2025_full_target_supplied_case" in question
+    assert "ru_3ndfl_2025_full_target_supplied_case" not in question
     assert "2025" in question
+    assert "3-НДФЛ" in question
+    assert "5.20" in question
     mode_answer = adapt_current_declaration_request(
         message="\u0422\u043e\u043b\u044c\u043a\u043e \u0430\u043d\u0430\u043b\u0438\u0437",
         current_requests=[mode_request],
@@ -256,11 +281,15 @@ def test_non_filing_surrogate_is_visible_in_standalone_chat(tmp_path: Path) -> N
     chat = Pipe()._standalone_ndfl_chat_content(result)
 
     assert result["product"]["status"] == "NON_FILING_SURROGATE_READY"
-    assert "ru_3ndfl_2025_full_target_supplied_case" in chat
+    assert "ru_3ndfl_2025_full_target_supplied_case" not in chat
     assert "2022" in chat
     assert "2025" in chat
+    assert "5.20" in chat
     assert "не подлежит подаче" in chat
     assert "XML и файл для скачивания не созданы" in chat
+    assert "owner" not in chat.lower()
+    assert "fact_key" not in chat
+    assert "REQUIRES_OWNER" not in chat
     assert "[Скачать XML]" not in chat
 
     tampered = copy.deepcopy(
@@ -268,7 +297,7 @@ def test_non_filing_surrogate_is_visible_in_standalone_chat(tmp_path: Path) -> N
     )
     tampered["profile_tax_period"] = "2024"
     rejected = declaration_surrogate_preview(tampered)
-    assert "owner preview не прошёл проверку" in rejected
+    assert "данные не прошли проверку" in rejected
     assert "ru_3ndfl_2025_full_target_supplied_case" not in rejected
 
 
@@ -328,8 +357,9 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
 
     assert surrogate["declaration_chat_receipt"]["status"] == "ANSWER_ACCEPTED"
     assert surrogate["product"]["status"] == "NON_FILING_SURROGATE_READY"
-    assert "ru_3ndfl_2025_full_target_supplied_case" in chat
+    assert "ru_3ndfl_2025_full_target_supplied_case" not in chat
     assert "не подлежит подаче" in chat
+    assert "owner" not in chat.lower()
     assert surrogate["product"]["xml_created"] is False
     assert surrogate["declaration"] is None
     assert surrogate["provider_calls_total"] == 0
@@ -363,10 +393,14 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
         "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
     }
     user = {"id": "surrogate-maintained-user", "email": "", "name": ""}
+    public_events = []
 
     def public_turn(message: str, *, files=None, event_response=None) -> str:
         async def event_call(_payload):
             return event_response
+
+        async def event_emitter(payload):
+            public_events.append(payload)
 
         message_record = {"role": "user", "content": message}
         if files:
@@ -377,6 +411,7 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
                 __user__=user,
                 __metadata__=metadata,
                 __event_call__=event_call,
+                __event_emitter__=event_emitter,
             )
         )
 
@@ -401,12 +436,129 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
 
     assert maintained["product"]["status"] == "NON_FILING_SURROGATE_READY"
     assert pipe.last_artifact_manifest.get("resumed_case") is None
-    assert "ru_3ndfl_2025_full_target_supplied_case" in chat
+    assert "ru_3ndfl_2025_full_target_supplied_case" not in chat
     assert "\u043d\u0435 \u043f\u043e\u0434\u043b\u0435\u0436\u0438\u0442 \u043f\u043e\u0434\u0430\u0447\u0435" in chat
+    assert "owner" not in chat.lower()
+    assert "fact_key" not in chat
     assert "[\u0421\u043a\u0430\u0447\u0430\u0442\u044c XML]" not in chat
     assert maintained["product"]["xml_created"] is False
     assert maintained["declaration"] is None
     assert maintained["provider_calls_total"] == 0
+
+    public_turn("Изменить налоговый период: 2025")
+    supported = pipe.last_artifact_manifest["ndfl_gate3"]
+    supported_profile = supported["product"]["preparation"]["period_profile"]
+    assert supported_profile["selected_tax_period"] == "2025"
+    assert supported_profile["profile_support"] == "SUPPORTED"
+    assert all(
+        item["fact_key"] != "profile_mismatch_mode"
+        for item in supported["product"]["preparation"]["user_actions"]
+    )
+
+    public_turn("Изменить налоговый период: 2022")
+    returned = pipe.last_artifact_manifest["ndfl_gate3"]
+    returned_profile = returned["product"]["preparation"]["period_profile"]
+    assert returned["product"]["status"] == "INPUT_REQUIRED"
+    assert returned_profile["selected_tax_period"] == "2022"
+    assert returned_profile["profile_mismatch_mode"] is None
+    assert returned["product"]["preparation"]["user_actions"][0]["fact_key"] == (
+        "profile_mismatch_mode"
+    )
+
+    rendered_events = json.dumps(public_events, ensure_ascii=False)
+    assert "Проверяю загруженный файл" in rendered_events
+    for hidden in (
+        "Gate 1",
+        "Gate 2",
+        "Gate 3",
+        "Gate 5",
+        "brjob_",
+        "normalization_run_id",
+    ):
+        assert hidden not in rendered_events
+
+
+@pytest.mark.parametrize(
+    ("fixture_name", "expected_status", "visible_markers"),
+    [
+        (
+            "issue310_open_long_ordinary_trade.csv",
+            "OPEN_POSITION_RETAINED",
+            ("открытая длинная позиция", "в налоговую базу не включена"),
+        ),
+        (
+            "issue310_sale_only_ordinary_trade.csv",
+            "PREPARATION_INCOMPLETE",
+            ("историю позиции", "Добавьте отчёт с предшествующими операциями"),
+        ),
+    ],
+)
+def test_public_file_turn_explains_non_filing_position_routes(
+    tmp_path: Path,
+    fixture_name: str,
+    expected_status: str,
+    visible_markers: tuple[str, ...],
+) -> None:
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    pipe.valves.artifact_store_path = str(tmp_path / "artifacts.sqlite3")
+    pipe.valves.artifact_payload_root = str(tmp_path / "payloads")
+    pipe.valves.workload_store_path = str(tmp_path / "workloads.sqlite3")
+    pipe.valves.workload_temp_root = str(tmp_path / "workload-temp")
+    pipe.valves.artifact_retention_mode = "synthetic_dev"
+    fixture = Path(__file__).parent / "fixtures" / fixture_name
+    file_ref = {
+        "type": "file",
+        "file": {
+            "id": "issue310-" + fixture.stem,
+            "filename": fixture.name,
+            "mime_type": "text/csv",
+            "content_bytes": fixture.read_bytes(),
+        },
+    }
+
+    async def select_period(_payload):
+        return "2025"
+
+    content = asyncio.run(
+        pipe.pipe(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Подготовь 3-НДФЛ по этому отчёту.",
+                        "files": [file_ref],
+                    }
+                ]
+            },
+            __user__={"id": "issue310-position-user", "email": "", "name": ""},
+            __metadata__={
+                "chat_id": "issue310-" + fixture.stem,
+                "case_id": "issue310-" + fixture.stem,
+                "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+            },
+            __event_call__=select_period,
+        )
+    )
+    result = pipe.last_artifact_manifest["ndfl_gate3"]
+
+    assert result["product"]["status"] == expected_status
+    for marker in visible_markers:
+        assert marker in content
+    assert "XML не создан" in content
+    assert "[Скачать XML]" not in content
+    assert result["product"]["xml_created"] is False
+    assert result["declaration"] is None
+    for hidden in (
+        "OPEN_POSITION_RETAINED",
+        "PREPARATION_INCOMPLETE",
+        "gate5_source_fact_acquisition_evidence_horizon_unproven",
+        "fact_key",
+        "reason codes",
+    ):
+        assert hidden not in content
 
 
 def test_ready_summary_never_promotes_unreconciled_xml_values() -> None:
@@ -555,6 +707,25 @@ def test_current_owner_code_request_uses_only_human_readable_presentation() -> N
     )["status"] == "ANSWER_REJECTED"
 
 
+def test_tax_period_change_intent_accepts_only_a_visible_four_digit_year() -> None:
+    assert declaration_change_intent("Изменить налоговый период") == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "CHANGE_REQUESTED",
+        "fact_key": "selected_tax_period",
+        "answer": None,
+    }
+    assert declaration_change_intent("Изменить налоговый период: 2022") == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "CHANGE_ANSWER_READY",
+        "fact_key": "selected_tax_period",
+        "answer": {"kind": "code", "value": "2022"},
+        "reason_code": None,
+    }
+    rejected = declaration_change_intent("Изменить налоговый период: 0000")
+    assert rejected["status"] == "ANSWER_REJECTED"
+    assert rejected["fact_key"] == "selected_tax_period"
+
+
 def test_new_owner_code_without_exact_label_coverage_fails_closed() -> None:
     request = {
         "request_publication_ref": "gap-request-publication-current",
@@ -684,10 +855,61 @@ def test_safe_stop_proof_requires_the_exact_owner_reason_not_generic_stop_text()
     ]
     rejected = Pipe._ndfl_product_blocker_content(wrong)
 
-    assert expected in accepted
-    assert "Exact status: PREPARATION_INCOMPLETE" in accepted
-    assert expected not in rejected
-    assert "ordinary_trade_generic_stop" in rejected
+    assert "историю позиции" in accepted
+    assert "Добавьте отчёт с предшествующими операциями" in accepted
+    assert "проверке достоверности" in rejected
+    for hidden in (
+        expected,
+        "ordinary_trade_generic_stop",
+        "Exact status",
+        "terminal",
+        "reason codes",
+    ):
+        assert hidden not in accepted
+        assert hidden not in rejected
+
+
+def test_case_note_translates_owner_state_without_internal_vocabulary() -> None:
+    product = {
+        "preparation": {
+            "final_note": {
+                "source_completeness_status": "COMPLETE_FOR_OBSERVED_SECURITY_FACTS",
+                "position_evaluation_status": "EVALUATED_FROM_SOURCE_FACTS",
+                "selected_tax_period": "2025",
+                "detected_operation_years": [2024, 2025],
+                "profile": {"support": "SUPPORTED", "form_version": "5.20"},
+                "positions": [
+                    {
+                        "asset": "ASSET-A",
+                        "state": "OPEN_LONG_PROVEN",
+                        "open_long_quantity": "3",
+                        "proven_open_short_quantity": "0",
+                    }
+                ],
+                "calculated_disposal_fact_ids": ["fact-private"],
+                "required_checks": ["taxpayer_identity", "budget_oktmo"],
+                "filing_eligible": False,
+            }
+        }
+    }
+
+    content = Pipe._ndfl_case_note_content(product)
+
+    assert "Итог по кейсу" in content
+    assert "открытая длинная позиция, остаток 3" in content
+    assert "ИНН и ФИО" in content
+    assert "ОКТМО" in content
+    assert "Подаваемый XML на этом шаге не создан" in content
+    for hidden in (
+        "COMPLETE_FOR_OBSERVED_SECURITY_FACTS",
+        "EVALUATED_FROM_SOURCE_FACTS",
+        "OPEN_LONG_PROVEN",
+        "taxpayer_identity",
+        "budget_oktmo",
+        "fact-private",
+        "Case note",
+    ):
+        assert hidden not in content
 
 
 def test_direct_ndfl_workload_status_hides_job_identity() -> None:
@@ -824,7 +1046,7 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
     assert result["provider_calls_total"] == 0
 
 
-def test_case_note_renders_empty_detected_years_as_none() -> None:
+def test_case_note_explains_that_operation_years_are_not_determined() -> None:
     content = Pipe._ndfl_case_note_content(
         {
             "preparation": {
@@ -849,7 +1071,9 @@ def test_case_note_renders_empty_detected_years_as_none() -> None:
         }
     )
 
-    assert "detected operation years none" in content
+    assert "годы не определены" in content
+    assert "CANONICAL_EVIDENCE_MISSING" not in content
+    assert "ordinary_trade_canonical_evidence_missing" not in content
 
 
 def test_plain_chat_answer_cannot_select_a_new_current_request(

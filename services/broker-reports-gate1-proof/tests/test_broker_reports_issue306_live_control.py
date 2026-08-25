@@ -189,6 +189,14 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "representative_source_boundary_separation_proven" in source
     assert "representative_source_exact_boundary_receipt_invalid" in source
     assert "hidden_architecture_leaked_into_chat" in source
+    assert "/exact status/i" in source
+    assert "/case note/i" in source
+    assert "/source completeness/i" in source
+    assert "ISSUE310_NON_FILING_ROUTE" in source
+    assert "ISSUE310_UNSUPPORTED_MODE" in source
+    assert "issue310_tax_period_question_not_first" in source
+    assert "issue310_non_filing_route_created_download" in source
+    assert "issue310_unsupported_profile_created_download" in source
     assert "broker_reports_issue306_browser_run_receipt_v2" in source
     assert "installed_bundle_not_current_tested_bytes" in source
     assert "unanswered_tab_closed_and_second_case_admitted" in source

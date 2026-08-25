@@ -2172,9 +2172,10 @@ def _available_profile_labels(value: Any) -> list[str]:
         ):
             _fail("gate5_available_declaration_profiles_invalid")
         years.add(item["tax_period"])
+        display_form = item["form"].replace("NDFL", "НДФЛ")
         labels.append(
-            f"{item['profile_id']} ({item['tax_period']} {item['form']} format "
-            f"{item['electronic_format_version']})"
+            f"{display_form} за {item['tax_period']} год, электронный формат "
+            f"{item['electronic_format_version']}"
         )
     return sorted(labels)
 

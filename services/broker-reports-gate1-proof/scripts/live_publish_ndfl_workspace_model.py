@@ -166,11 +166,25 @@ def desired_ndfl_model(
         "meta": {
             "profile_image_url": "/static/favicon.png",
             "description": (
-                "One Broker Reports NDFL workflow; Gate 1, Gate 2 and Gate 3 "
-                "are internal stages."
+                "Помогает проверить брокерский отчёт, рассчитать подтверждённые "
+                "операции и подготовить 3-НДФЛ либо честно объяснить, чего не хватает."
             ),
             "capabilities": _capabilities(capabilities_source),
-            "suggestion_prompts": None,
+            "suggestion_prompts": [
+                {
+                    "title": ["Подготовить", "3-НДФЛ"],
+                    "content": (
+                        "Помогите подготовить 3-НДФЛ по брокерскому отчёту."
+                    ),
+                },
+                {
+                    "title": ["Проверить", "операции"],
+                    "content": (
+                        "Проверьте брокерский отчёт и объясните, какие операции "
+                        "можно рассчитать."
+                    ),
+                },
+            ],
             "tags": [
                 {"name": "broker-reports"},
                 {"name": "ndfl"},
