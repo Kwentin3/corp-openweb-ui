@@ -185,6 +185,11 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
             for item in securities
             if item["status"] == "ready"
         }
+        ready_disposals = [
+            item
+            for item in securities
+            if item["status"] == "ready" and item["financial_type"] == _DISPOSAL
+        ]
         if counts["source_evidence_insufficient"]:
             tax_input_status = "SOURCE_EVIDENCE_INSUFFICIENT"
         elif {_PURCHASE, _DISPOSAL}.issubset(complete_types):
@@ -193,7 +198,10 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
             tax_input_status = "OPEN_POSITION_NOT_TAX_ACTIVATED"
         elif complete_types == {_DISPOSAL}:
             tax_input_status = (
-                "POSITION_SEMANTICS_OR_ACQUISITION_HORIZON_UNRESOLVED"
+                "OPEN_POSITION_NOT_TAX_ACTIVATED"
+                if ready_disposals
+                and all(item["position_effect"] == "OPEN_SHORT" for item in ready_disposals)
+                else "POSITION_SEMANTICS_OR_ACQUISITION_HORIZON_UNRESOLVED"
             )
         else:
             tax_input_status = "NO_SECURITY_OPERATIONS"
@@ -845,19 +853,21 @@ def _position_effect(roles: dict[str, dict[str, Any]]) -> str | None:
 
 def _security_assessment(fact: dict[str, Any]) -> dict[str, Any]:
     try:
-        _security_input(fact)
+        security_input = _security_input(fact)
     except Gate5DeterministicSourceFactConsumptionError as exc:
         return {
             "fact_id": fact["fact_id"],
             "financial_type": fact["financial_type"],
             "status": "source_evidence_insufficient",
             "reason_code": exc.code,
+            "position_effect": None,
         }
     return {
         "fact_id": fact["fact_id"],
         "financial_type": fact["financial_type"],
         "status": "ready",
         "reason_code": None,
+        "position_effect": security_input["position_effect"],
     }
 
 

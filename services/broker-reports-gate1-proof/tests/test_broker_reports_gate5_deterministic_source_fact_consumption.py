@@ -503,12 +503,20 @@ def test_source_proven_open_short_is_not_mislabeled_as_missing_acquisition(
     )
     _gate4(store).rebuild_case(context=context)
 
-    assembled = _consumer(store).assemble_available(
+    consumer = _consumer(store)
+    assessed = consumer.assess(
+        methodology_ref=_source_methodology_ref(), context=context
+    )
+    assembled = consumer.assemble_available(
         methodology_ref=_source_methodology_ref(), context=context
     )
     group = assembled["security_groups"][0]
 
     assert group["position_scope"]["state"] == "OPEN_SHORT_PROVEN"
+    assert assessed["security_tax_input_status"] == (
+        "OPEN_POSITION_NOT_TAX_ACTIVATED"
+    )
+    assert assessed["security_facts"][0]["position_effect"] == "OPEN_SHORT"
     assert group["position_scope"]["proven_open_short_quantity"] == "7"
     assert group["opening_short_fact_ids"]
     assert assembled["blockers"] == []

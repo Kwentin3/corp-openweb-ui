@@ -213,9 +213,10 @@ class OrdinaryTradeProductionRuntime:
                     if blockers
                     else "CLOSED_POSITION_CALCULATION_AVAILABLE"
                     if calculations
-                    else "OPEN_POSITION_NO_TAX_ACTIVATION"
+                    else assessment["security_tax_input_status"]
                 ),
                 "security_fact_counts": assessment["security_fact_counts"],
+                "security_facts": assessment["security_facts"],
                 "operation_period_observation": available[
                     "operation_period_observation"
                 ],

@@ -225,6 +225,55 @@ def test_detected_year_change_supersedes_one_period_lane_and_stales_old_choice(
     assert stale.value.code == "gate5_gap_request_stale"
 
 
+def test_detected_year_successor_supersedes_an_explicit_period_correction(
+    tmp_path: Path,
+) -> None:
+    runtime, context = _runtime(tmp_path)
+    first = runtime.publish_tax_period_selection_request(
+        context=context,
+        taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
+        detected_operation_years=["2025"],
+    )
+    first_fact = runtime.normalize_published_answer(
+        request_publication_ref=first["actions"][0]["request_publication_ref"],
+        answer={"kind": "code", "value": "2025"},
+        context=context,
+    )["typed_user_case_fact"]
+    correction = runtime.publish_user_case_fact_change_request(
+        context=context,
+        taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
+        tax_period="0000",
+        fact_key="selected_tax_period",
+    )
+    assert correction["answer_contract"][
+        "change_of_user_case_fact_ref"
+    ] == first_fact["user_case_fact_ref"]
+    runtime.normalize_published_answer(
+        request_publication_ref=correction["request_publication_ref"],
+        answer={"kind": "code", "value": "2024"},
+        context=context,
+    )
+
+    changed_evidence = runtime.publish_tax_period_selection_request(
+        context=context,
+        taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
+        detected_operation_years=["2026"],
+    )
+
+    assert changed_evidence["status"] == "INPUT_REQUIRED"
+    assert changed_evidence["selected_tax_period_fact"] is None
+    assert changed_evidence["actions"][0]["subject"] == {
+        "detected_operation_years": ["2026"]
+    }
+    with pytest.raises(Gate5HumanGapClosureError) as stale:
+        runtime.normalize_published_answer(
+            request_publication_ref=correction["request_publication_ref"],
+            answer={"kind": "code", "value": "2024"},
+            context=context,
+        )
+    assert stale.value.code == "gate5_gap_request_stale"
+
+
 def test_two_synthetic_taxpayer_scopes_in_one_case_remain_distinct(
     tmp_path: Path,
 ) -> None:

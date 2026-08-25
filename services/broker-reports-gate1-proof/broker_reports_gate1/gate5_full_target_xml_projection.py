@@ -279,8 +279,11 @@ class Gate5FullTargetXmlProjectionRuntime:
         target = self._definition["target"]
         return copy.deepcopy(
             {
-                key: target[key]
-                for key in (
+                "profile_id": self._definition["projection_id"],
+                "profile_version": self._definition["projection_version"],
+                **{
+                    key: target[key]
+                    for key in (
                     "tax_period",
                     "form",
                     "knd",
@@ -288,7 +291,8 @@ class Gate5FullTargetXmlProjectionRuntime:
                     "electronic_format_version",
                     "xsd_name",
                     "xsd_sha256",
-                )
+                    )
+                },
             }
         )
 

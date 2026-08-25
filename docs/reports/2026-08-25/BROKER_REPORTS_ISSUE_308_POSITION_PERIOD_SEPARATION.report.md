@@ -126,3 +126,36 @@ and Issue #308 after GitHub evaluates the final pushed head.
 Known limit: the current live T-Bank route proves an extraction boundary, not
 an open position or a 2022 declaration analysis. The implementation exposes
 that limit instead of filling it with fixture/corpus knowledge.
+
+## Independent-review stabilization follow-up
+
+The follow-up starts from reviewed PR head
+`3919878a07dbc033b5e2768691b07493ef45f85c` and changes only the two Issue #308
+boundaries.
+
+- Exact profile absence is now decided from `supported_profile()` identities
+  returned by the existing full-target Definition owner. A 2025 methodology
+  resource failure or source-assertion mismatch retains its original typed
+  Gate 5 reason and cannot enter the unsupported-year Human choice flow.
+- `0000` remains an internal Human scope sentinel and is rejected both during
+  answer normalization and when validating a persisted selected-period fact.
+- Period and mismatch-mode corrections clone the current owner request into an
+  immutable same-lane successor in the real scope. The old publication/fact is
+  stale; a mode fact left in the former year cannot control the newly selected
+  year.
+- The mismatch question lists the Definition owner's actual available profile
+  ID/version/year/form/format. `SURROGATE_DRAFT` is now a distinct structured
+  non-filing template with confirmed source/position/calculation fields,
+  placeholders/checks, an explicit year mismatch and no XML/download.
+- Source assessment now retains the same exact `position_effect` consumed by
+  grouped assembly. An owner-produced `OPEN_SHORT` is an open, non-activated
+  position in assessment and `OPEN_SHORT_PROVEN` in assembly/final-note
+  projections; disposal-only without that exact role remains the acquisition
+  horizon/semantic blocker.
+
+The representative T-Bank live trace and receipt were not rewritten: they
+still prove only the earlier Canonical-missing stop. Period/profile/position
+follow-up branches are integration proofs over repository-owned synthetic
+artifacts and the production runtime/action seams; they are not claimed as a
+new live T-Bank result. Final exact head and CI receipt are recorded only after
+the branch is committed and GitHub checks that exact head.

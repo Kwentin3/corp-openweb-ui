@@ -413,7 +413,7 @@ class OrdinaryTradeDeclarationMvpRuntime:
                     actions=[],
                     internal_blockers=[],
                 )
-                result["analysis"] = {
+                analysis = {
                     "fifo_calculations": copy.deepcopy(
                         source_assembly["fifo_calculations"]
                     ),
@@ -423,6 +423,20 @@ class OrdinaryTradeDeclarationMvpRuntime:
                     "filing_eligible": False,
                     "surrogate": mode == "SURROGATE_DRAFT",
                 }
+                if mode == "ANALYSIS_ONLY":
+                    analysis["analysis_mode"] = "DOCUMENT_ANALYSIS_ONLY"
+                elif mode == "SURROGATE_DRAFT":
+                    result["surrogate_preview"] = _non_filing_surrogate_preview(
+                        case_inputs=case_inputs,
+                        source_assembly=source_assembly,
+                    )
+                else:
+                    result["resume_state"] = {
+                        "status": "PAUSED_BY_USER",
+                        "selected_tax_period": case_inputs["tax_period"],
+                        "may_resume_when_exact_profile_available": True,
+                    }
+                result["analysis"] = analysis
             return self._with_case_summary(
                 result=result,
                 case_inputs=case_inputs,
@@ -1531,6 +1545,7 @@ def _period_profile_summary(
         "evidence_horizon_status": observation["evidence_horizon_status"],
         "profile_support": case_inputs.get("profile_support"),
         "profile_mismatch_mode": case_inputs.get("profile_mismatch_mode"),
+        "available_profiles": copy.deepcopy(case_inputs["available_profiles"]),
         "form_version": (
             supported_profile["electronic_format_version"] if supported else None
         ),
@@ -1542,6 +1557,82 @@ def _period_profile_summary(
         ),
         "filing_profile_available": supported,
         "xml_profile_available": supported,
+    }
+
+
+def _non_filing_surrogate_preview(
+    *,
+    case_inputs: dict[str, Any],
+    source_assembly: dict[str, Any],
+) -> dict[str, Any]:
+    available = copy.deepcopy(case_inputs["available_profiles"])
+    if not available:
+        _fail("ordinary_trade_declaration_available_profile_required")
+    profile = available[-1]
+    source = case_inputs["source_inputs"]
+    human_values = {
+        item["fact_key"]: copy.deepcopy(item["value"]["value"])
+        for item in case_inputs["human_facts"]
+        if item["fact_key"] != "profile_mismatch_mode"
+    }
+    confirmed_fields = {
+        "selected_tax_period": case_inputs["tax_period"],
+        "detected_operation_years": copy.deepcopy(
+            source_assembly["operation_period_observation"]["observed_operation_years"]
+        ),
+        "broker_name": source.get("broker_name"),
+        "broker_inn": source.get("broker_inn"),
+        "broker_kpp": source.get("broker_kpp"),
+        "broker_oktmo": source.get("broker_oktmo"),
+        "owner_human_facts": human_values,
+        "fifo_calculations": copy.deepcopy(source_assembly["fifo_calculations"]),
+        "positions": [
+            {
+                "asset": item["asset"],
+                "state": item["position_scope"]["state"],
+            }
+            for item in source_assembly["security_groups"]
+        ],
+    }
+    placeholders = [
+        {
+            "fact_key": fact_key,
+            "placeholder": "REQUIRES_OWNER_BOUND_FACT_FOR_EXACT_PROFILE",
+        }
+        for fact_key in (
+            "taxpayer_identity",
+            "taxpayer_capacity",
+            "residency_evidence",
+            "filing_instance_identity",
+            "declaration_date",
+            "filing_destination_code",
+            "signer_and_representation",
+            "budget_disposition",
+        )
+        if fact_key not in human_values
+    ]
+    return {
+        "schema_version": "broker_reports_non_filing_surrogate_preview_v0",
+        "status": "NON_FILING_TEMPLATE_ONLY",
+        "profile_id": profile["profile_id"],
+        "profile": profile,
+        "selected_tax_period": case_inputs["tax_period"],
+        "profile_tax_period": profile["tax_period"],
+        "period_mismatch": case_inputs["tax_period"] != profile["tax_period"],
+        "confirmed_fields": confirmed_fields,
+        "placeholders": placeholders,
+        "checks": [
+            "obtain an exact declaration profile for the selected tax period",
+            "revalidate every placeholder through its existing domain owner",
+            "rerun deterministic calculation and release validation",
+        ],
+        "non_filing_warning": (
+            "This preview uses an available profile from a different tax period. "
+            "It is not a declaration, cannot be filed, and has no XML download."
+        ),
+        "filing_eligible": False,
+        "xml_created": False,
+        "download_available": False,
     }
 
 

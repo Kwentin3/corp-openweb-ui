@@ -15,6 +15,7 @@ import pytest
 
 from broker_reports_gate1.artifact_retention import build_retention_policy
 from broker_reports_gate1.gate5_human_gap_closure import (
+    Gate5HumanGapClosureError,
     Gate5HumanGapClosureRuntimeFactory,
 )
 from broker_reports_gate1.gate5_full_target_xml_projection import (
@@ -32,6 +33,8 @@ from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
 from broker_reports_gate1.ordinary_trade_declaration_case_inputs import (
+    OrdinaryTradeDeclarationCaseInputsError,
+    OrdinaryTradeDeclarationCaseInputsRuntime,
     OrdinaryTradeDeclarationCaseInputsRuntimeFactory,
     primary_taxpayer_scope_ref,
 )
@@ -45,6 +48,7 @@ from broker_reports_gate1.gate5_trusted_methodology import (
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
     GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+    Gate5TrustedMethodologyError,
 )
 
 import test_broker_reports_active_category_declaration_assembly as assembly_fixtures
@@ -897,6 +901,8 @@ def test_tax_period_is_explicitly_selected_after_detected_year_is_shown(
 
 def test_period_summary_reads_exact_profile_from_xml_projection_owner() -> None:
     assert Gate5FullTargetXmlProjectionRuntimeFactory.create().supported_profile() == {
+        "profile_id": "ru_3ndfl_2025_full_target_supplied_case",
+        "profile_version": "2026-08-11.0-proof",
         "tax_period": "2025",
         "form": "3-NDFL",
         "knd": "1151020",
@@ -907,6 +913,19 @@ def test_period_summary_reads_exact_profile_from_xml_projection_owner() -> None:
             "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484"
         ),
     }
+
+
+def test_available_profile_owner_identity_rejects_neutral_sentinel() -> None:
+    profile = Gate5FullTargetXmlProjectionRuntimeFactory.create().supported_profile()
+    profile["tax_period"] = "0000"
+
+    with pytest.raises(OrdinaryTradeDeclarationCaseInputsError) as rejected:
+        OrdinaryTradeDeclarationCaseInputsRuntime(
+            metadata=object(),
+            human=object(),
+            available_profiles=[profile],
+        )
+    assert rejected.value.code == "ordinary_trade_available_profiles_invalid"
 
 
 @pytest.mark.parametrize(
@@ -963,6 +982,9 @@ def test_wrong_year_profile_never_creates_xml_and_requires_explicit_mode(
         "evidence_horizon_status": "OBSERVED_BOUNDS_ONLY",
         "profile_support": "UNSUPPORTED_EXACT_YEAR_PROFILE",
         "profile_mismatch_mode": None,
+        "available_profiles": [
+            Gate5FullTargetXmlProjectionRuntimeFactory.create().supported_profile()
+        ],
         "form_version": None,
         "xsd_name": None,
         "methodology_version": None,
@@ -990,6 +1012,222 @@ def test_wrong_year_profile_never_creates_xml_and_requires_explicit_mode(
     assert preparation["final_note"]["selected_tax_period"] == "2022"
     assert preparation["final_note"]["filing_eligible"] is False
     assert preparation["final_note"]["xml_created"] is False
+    if mode == "ANALYSIS_ONLY":
+        assert preparation["analysis"]["analysis_mode"] == "DOCUMENT_ANALYSIS_ONLY"
+        assert "surrogate_preview" not in preparation
+        assert "resume_state" not in preparation
+    elif mode == "SURROGATE_DRAFT":
+        preview = preparation["surrogate_preview"]
+        assert preview["profile_id"] == "ru_3ndfl_2025_full_target_supplied_case"
+        assert preview["selected_tax_period"] == "2022"
+        assert preview["profile_tax_period"] == "2025"
+        assert preview["period_mismatch"] is True
+        assert preview["confirmed_fields"]["broker_inn"] == "7707083893"
+        assert preview["placeholders"]
+        assert preview["checks"]
+        assert "not a declaration" in preview["non_filing_warning"]
+        assert preview["filing_eligible"] is False
+        assert preview["xml_created"] is False
+        assert preview["download_available"] is False
+        assert "xml_bytes" not in preview
+        assert "download" not in preview
+    else:
+        assert preparation["resume_state"]["status"] == "PAUSED_BY_USER"
+        assert "surrogate_preview" not in preparation
+
+
+def test_exact_profile_methodology_failure_keeps_owner_reason(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+    )
+
+    class InvalidMethodology:
+        def resolve_ordinary_trade_declaration_product(self, **_kwargs):
+            raise Gate5TrustedMethodologyError(
+                "gate5_ordinary_trade_product_methodology_invalid"
+            )
+
+    runtime._declaration._case_inputs._methodology = InvalidMethodology()
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+    preparation = result["product"]["preparation"]
+
+    assert result["product"]["status"] == "PREPARATION_INCOMPLETE"
+    assert result["product"]["terminal"] == (
+        "gate5_ordinary_trade_product_methodology_invalid"
+    )
+    assert preparation["period_profile"]["profile_support"] == "SUPPORTED"
+    assert preparation["user_actions"]
+    assert all(
+        item["fact_key"] != "profile_mismatch_mode"
+        for item in preparation["user_actions"]
+    )
+
+
+def test_exact_profile_source_assertion_mismatch_keeps_exact_blocker(
+    tmp_path: Path,
+) -> None:
+    mismatched = tuple(
+        line.replace("ADMITTED", "NOT_ADMITTED") for line in _METADATA_LINES
+    )
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        metadata_lines=mismatched,
+    )
+
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+    preparation = result["product"]["preparation"]
+
+    assert result["product"]["terminal"] == (
+        "gate5_ordinary_trade_product_source_evidence_unresolved"
+    )
+    assert preparation["period_profile"]["profile_support"] == "SUPPORTED"
+    assert preparation["internal_blockers"][0]["owner"] == (
+        "Gate5TrustedMethodologyAuthority"
+    )
+    assert all(
+        item["fact_key"] != "profile_mismatch_mode"
+        for item in preparation["user_actions"]
+    )
+
+
+def test_neutral_period_sentinel_is_never_a_user_tax_period(tmp_path: Path) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+    )
+    action = runtime.run(canonical_artifact_refs=[], context=context)["product"][
+        "preparation"
+    ]["user_actions"][0]
+
+    with pytest.raises(Gate5HumanGapClosureError) as rejected:
+        runtime.normalize_declaration_action(
+            request_publication_ref=action["request_publication_ref"],
+            answer={"kind": "code", "value": "0000"},
+            context=context,
+        )
+    assert rejected.value.code == "gate5_tax_period_neutral_sentinel_forbidden"
+
+
+def test_same_case_period_choice_can_be_corrected_to_supported_successor(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+    )
+    first_action = runtime.run(canonical_artifact_refs=[], context=context)["product"][
+        "preparation"
+    ]["user_actions"][0]
+    first_fact = runtime.normalize_declaration_action(
+        request_publication_ref=first_action["request_publication_ref"],
+        answer={"kind": "code", "value": "2022"},
+        context=context,
+    )["typed_user_case_fact"]
+    mismatch = runtime.run(canonical_artifact_refs=[], context=context)
+    old_mode_action = mismatch["product"]["preparation"]["user_actions"][0]
+
+    successor_action = runtime.publish_declaration_change_action(
+        fact_key="selected_tax_period",
+        context=context,
+    )
+    assert successor_action["scope_binding"]["tax_period"] == "0000"
+    assert successor_action["answer_contract"][
+        "change_of_user_case_fact_ref"
+    ] == first_fact["user_case_fact_ref"]
+    runtime.normalize_declaration_action(
+        request_publication_ref=successor_action["request_publication_ref"],
+        answer={"kind": "code", "value": "2025"},
+        context=context,
+    )
+
+    corrected = runtime.run(canonical_artifact_refs=[], context=context)
+    preparation = corrected["product"]["preparation"]
+    assert preparation["period_profile"]["selected_tax_period"] == "2025"
+    assert preparation["period_profile"]["profile_support"] == "SUPPORTED"
+    assert all(
+        item["fact_key"] != "profile_mismatch_mode"
+        for item in preparation["user_actions"]
+    )
+    with pytest.raises(Gate5HumanGapClosureError) as stale_period:
+        runtime.normalize_declaration_action(
+            request_publication_ref=first_action["request_publication_ref"],
+            answer={"kind": "code", "value": "2022"},
+            context=context,
+        )
+    assert stale_period.value.code == "gate5_gap_request_stale"
+    runtime.normalize_declaration_action(
+        request_publication_ref=old_mode_action["request_publication_ref"],
+        answer={"kind": "code", "value": "ANALYSIS_ONLY"},
+        context=context,
+    )
+    still_corrected = runtime.run(canonical_artifact_refs=[], context=context)
+    assert still_corrected["product"]["preparation"]["period_profile"][
+        "selected_tax_period"
+    ] == "2025"
+
+
+def test_same_case_profile_mode_can_be_changed_by_owner_successor(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+    )
+    period_action = runtime.run(canonical_artifact_refs=[], context=context)["product"][
+        "preparation"
+    ]["user_actions"][0]
+    runtime.normalize_declaration_action(
+        request_publication_ref=period_action["request_publication_ref"],
+        answer={"kind": "code", "value": "2022"},
+        context=context,
+    )
+    mismatch = runtime.run(canonical_artifact_refs=[], context=context)
+    mode_action = mismatch["product"]["preparation"]["user_actions"][0]
+    assert "ru_3ndfl_2025_full_target_supplied_case" in mode_action["question"]
+    first_mode = runtime.normalize_declaration_action(
+        request_publication_ref=mode_action["request_publication_ref"],
+        answer={"kind": "code", "value": "ANALYSIS_ONLY"},
+        context=context,
+    )["typed_user_case_fact"]
+
+    successor_action = runtime.publish_declaration_change_action(
+        fact_key="profile_mismatch_mode",
+        context=context,
+    )
+    assert successor_action["scope_binding"]["tax_period"] == "2022"
+    assert successor_action["answer_contract"][
+        "change_of_user_case_fact_ref"
+    ] == first_mode["user_case_fact_ref"]
+    runtime.normalize_declaration_action(
+        request_publication_ref=successor_action["request_publication_ref"],
+        answer={"kind": "code", "value": "STOP_RESUMABLE"},
+        context=context,
+    )
+
+    changed = runtime.run(canonical_artifact_refs=[], context=context)
+    assert changed["product"]["status"] == "STOPPED_RESUMABLE"
+    assert changed["product"]["preparation"]["period_profile"][
+        "profile_mismatch_mode"
+    ] == "STOP_RESUMABLE"
+    with pytest.raises(Gate5HumanGapClosureError) as stale_mode:
+        runtime.normalize_declaration_action(
+            request_publication_ref=mode_action["request_publication_ref"],
+            answer={"kind": "code", "value": "ANALYSIS_ONLY"},
+            context=context,
+        )
+    assert stale_mode.value.code == "gate5_gap_request_stale"
 
 
 def test_purchase_only_2022_keeps_open_position_separate_from_profile_choice(

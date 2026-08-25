@@ -24,9 +24,9 @@ their existing owners.
 | --- | --- | --- |
 | authenticated user and case | server-attested OpenWebUI context plus ArtifactStore ACL | upload, actions, facts and artifacts resolve under the same user/case |
 | taxpayer workflow scope | `primary_taxpayer_scope_ref` owned by product composition | opaque stable user+case slot; the selected period stays a separate Human Fact/scope dimension; the slot is neither INN nor taxpayer identity and is not caller-selectable |
-| selected tax period | `Gate5HumanGapClosureRuntime` fact `selected_tax_period` | owner-published request in the reserved pre-period `0000` scope; the exact four-digit answer is required before any declaration profile is resolved |
+| selected tax period | `Gate5HumanGapClosureRuntime` fact `selected_tax_period` | owner-published request in the reserved pre-period `0000` scope; `0000` itself is never a valid answer; a correction is an immutable same-lane successor before any declaration profile is resolved |
 | observed operation period | `Gate5DeterministicSourceFactConsumptionRuntime.assemble_available` | exact years/dates from source-bound Fact roles; not a document-period or evidence-horizon completeness claim |
-| exact year profile and mode | `Gate5TrustedMethodologyAuthorityFactory.create`, the full-target XML projection Definition owner, plus Human Fact `profile_mismatch_mode` | only alignment of the selected year, exact tax product methodology and owner-returned form/KND/order/format/XSD identity permits filing XML; an unsupported year requires explicit analysis-only, non-filing surrogate, or resumable stop |
+| exact year profile and mode | `Gate5TrustedMethodologyAuthorityFactory.create`, the full-target XML projection Definition owner, plus Human Fact `profile_mismatch_mode` | profile absence is decided only from the Definition owner's available profile identities; methodology/source failures retain their exact blocker; only alignment of selected year, methodology and form/KND/order/format/XSD permits filing XML; mode correction is a same-lane successor in the selected-year scope |
 | position/source/tax state | deterministic source-fact consumer | position quantities, source completeness and tax activation are separate fields; open groups cannot erase independent closed calculations |
 | taxpayer identity | `Gate5HumanGapClosureRuntime` fact `taxpayer_identity` | current request-bound `USER_ATTESTED_CASE_FACT`; an exact Canonical value is only a candidate until confirm/change |
 | current Canonical document scope and operation coverage | active Canonical pointers plus `OrdinaryTradeProjectionRuntime.current_case_coverage` | every active Canonical manifest must have exactly one current projection bound to the same document/version/root; a missing whole projection or any `RELEVANT_UNMAPPED` observation blocks XML |
@@ -84,6 +84,13 @@ owner supplies the correction number, it stops with
 Anything outside this matrix stops with a typed blocker. Missing or malformed
 identity/user/source/methodology owner output never produces XML. Partial acquisition
 commission remains `LEGAL_INTERPRETATION_REQUIRED`.
+
+An exact source-labelled negative exchange assertion such as `NOT_ADMITTED` is
+still a source fact; it is not dropped as if the label were absent. The trusted
+product methodology rejects that assertion with
+`gate5_ordinary_trade_product_source_evidence_unresolved`. Resource/hash/rule
+failures likewise keep their own methodology reason and never become an
+unsupported-year choice.
 
 Before a Human fact is persisted, `declaration_date` must be a real calendar
 date and a 12-digit taxpayer INN must pass both control-digit checks. An invalid
@@ -148,8 +155,11 @@ case-hash taxpayer surrogate, partial XML, or FNS submission is permitted.
 - `ANALYSIS_ONLY_READY`: an explicitly selected unsupported year retains
   owner-produced operation/position calculations and a final note; no filing
   eligibility, release, projection, XML or download is claimed.
-- `NON_FILING_SURROGATE_READY`: the same unsupported-year evidence is retained
-  as an explicitly non-filing surrogate; no official XML/download is created.
+- `NON_FILING_SURROGATE_READY`: a distinct structured preview names the
+  Definition-owned available profile, selected/profile years and mismatch,
+  fills current source/position/calculation fields, lists owner-bound
+  placeholders/checks, and carries an explicit non-filing warning; no official
+  XML/download is created and no alternate XML serializer is called.
 - `STOPPED_RESUMABLE`: the exact case remains persisted and resumable without
   a profile substitution.
 - `OPEN_POSITION_RETAINED`: source-proven open position evidence is retained;

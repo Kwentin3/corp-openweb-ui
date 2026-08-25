@@ -146,7 +146,7 @@ _PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
         "DECLARATION_SOURCE_ASSERTION",
         re.compile(
             r"(?im)^\s*(?:допуск\s+к\s+торгам|admitted\s+exchange\s+fact)"
-            r"\s*[:#-]\s*(?P<value>ADMITTED|ДОПУЩЕНА)\s*$"
+            r"\s*[:#-]\s*(?P<value>ADMITTED|NOT_ADMITTED|ДОПУЩЕНА)\s*$"
         ),
     ),
     (

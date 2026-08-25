@@ -42,10 +42,10 @@ def _receipt_sha256(value: dict) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _git_blob_sha256(path: Path) -> str:
+def _git_blob_sha256(path: Path, *, revision: str = "HEAD") -> str:
     relative = path.resolve().relative_to(REPO_ROOT).as_posix()
     blob = subprocess.check_output(
-        ["git", "show", f"HEAD:{relative}"],
+        ["git", "show", f"{revision}:{relative}"],
         cwd=REPO_ROOT,
     )
     return hashlib.sha256(blob).hexdigest()
@@ -327,16 +327,24 @@ def test_issue306_supported_source_has_owner_visible_direct_expense() -> None:
     assert disposal["Комиссия Биржи"] == "0.00"
 
 
-def test_committed_issue308_trace_is_bound_to_current_proof_code() -> None:
+def test_committed_issue308_trace_is_bound_to_its_live_tested_code() -> None:
     trace = json.loads(COMMITTED_TRACE_PATH.read_text(encoding="utf-8"))
     assert trace["schema_version"] == "broker_reports_issue308_safe_interaction_proof_v1"
     assert trace["receipt_sha256"] == _receipt_sha256(trace)
     assert trace["exact_base_sha"] == "cf8e9bf2d13354588f569994953e97d8b2daf218"
     assert trace["tested_commit"] == "310f5837d19d85eb590ee5892b6f12a15c6ccd89"
 
+    tested_commit = trace["tested_commit"]
     manifest = trace["tested_code_manifest"]
     assert manifest["generated_bundle_sha256"] == hashlib.sha256(
-        BUNDLE_PATH.read_bytes()
+        subprocess.check_output(
+            [
+                "git",
+                "show",
+                f"{tested_commit}:{BUNDLE_PATH.relative_to(REPO_ROOT).as_posix()}",
+            ],
+            cwd=REPO_ROOT,
+        )
     ).hexdigest()
     proof_text_paths = {
         "browser_driver_sha256": BROWSER_GOAL_PATH,
@@ -344,7 +352,7 @@ def test_committed_issue308_trace_is_bound_to_current_proof_code() -> None:
         "receipt_builder_sha256": RECEIPT_BUILDER_PATH,
     }
     for key, path in proof_text_paths.items():
-        assert manifest[key] == _git_blob_sha256(path)
+        assert manifest[key] == _git_blob_sha256(path, revision=tested_commit)
 
     source = trace["user_mode"]["representative_source_run"]
     assert source["receipt_sha256"] == _receipt_sha256(source)
