@@ -171,7 +171,17 @@ async function selectNdfl(page) {
   await page.locator('button[aria-label$="NDFL"]').last().click();
 }
 
+async function rememberTurnBoundary(page) {
+  const items = page.locator('[role="listitem"]');
+  const count = await items.count();
+  page.__issue310TurnBoundary = {
+    count,
+    text: count ? await items.last().innerText() : '',
+  };
+}
+
 async function sendMessage(page, message) {
+  await rememberTurnBoundary(page);
   const input = page.locator('#chat-input');
   await input.waitFor({ state: 'visible', timeout: 90000 });
   await input.fill(message);
@@ -182,13 +192,21 @@ async function sendMessage(page, message) {
 }
 
 async function waitForTurn(page) {
-  const terminalMessage = page.locator('[role="listitem"]').last().filter({
-    hasText: /Расчёт остановлен|Расчётный черновик готов|3-НДФЛ XML подготовлен|Подготовка остановлена|Подготовка приостановлена|Анализ завершён|Продажа найдена|В отчёте есть позиция|Не удалось|Готов только анализ|Неподаваемый черновик/,
-  });
-  await terminalMessage.waitFor({
-    state: 'visible',
-    timeout: 120000,
-  });
+  const boundary = page.__issue310TurnBoundary || { count: 0, text: '' };
+  await page.waitForFunction(
+    ({ previousCount, previousText }) => {
+      const items = [...document.querySelectorAll('[role="listitem"]')];
+      const last = items.at(-1);
+      if (!last) return false;
+      const text = (last.innerText || '').trim();
+      const advanced = items.length > previousCount || text !== previousText.trim();
+      return advanced && /Расчёт остановлен|Расчётный черновик готов|3-НДФЛ XML подготовлен|Подготовка остановлена|Подготовка приостановлена|Анализ завершён|Продажа найдена|В отчёте есть позиция|Не удалось|Готов только анализ|Неподаваемый черновик/.test(text);
+    },
+    { previousCount: boundary.count, previousText: boundary.text },
+    { timeout: 120000 },
+  );
+  page.__issue310TurnBoundary = null;
+  const terminalMessage = page.locator('[role="listitem"]').last();
   await page.locator('#chat-input').waitFor({ state: 'visible', timeout: 30000 });
   await page.waitForTimeout(500);
   const body = await terminalMessage.innerText();
@@ -266,6 +284,7 @@ async function answerQuestion(page, answer) {
     await textarea.waitFor({ state: 'visible', timeout: 10000 });
     await textarea.fill(answer);
   }
+  await rememberTurnBoundary(page);
   await page.getByRole('button', { name: 'Подтвердить', exact: true }).last().click();
   await page.getByText(MODAL_TITLE, { exact: true }).waitFor({
     state: 'hidden',
