@@ -173,6 +173,57 @@ def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) 
     assert second_safe["receipt_sha256"] != safe_state["receipt_sha256"]
 
 
+def test_redeploy_reissues_prepared_receipt_bound_to_new_bundle(
+    monkeypatch, tmp_path: Path
+) -> None:
+    control = _load_control_module()
+    state_path = tmp_path / "control.private.json"
+    previous_receipt = "a" * 64
+    state = {
+        "schema_version": "broker_reports_gate5_openwebui_control_private_v0",
+        "control_run_id": "b" * 32,
+        "base_url": "http://issue310.invalid",
+        "deployed_bundle_sha256": "old-bundle",
+        "control_prepared_receipt_sha256": previous_receipt,
+        "users": [{"id": "user-a"}, {"id": "user-b"}],
+        "user_a_model_visible": True,
+        "user_b_model_hidden": True,
+        "legacy_function_inactive": True,
+        "applied_valves": dict(control.GATE1_RELEASE_VALVES),
+    }
+    control._write_private_state(state_path, state)
+    monkeypatch.setattr(control, "_read_env", lambda _path: {})
+    monkeypatch.setattr(control, "_admin_session", lambda _env, _url: object())
+    monkeypatch.setattr(
+        control,
+        "_get_function",
+        lambda _session, _url: {"id": control.FUNCTION_ID},
+    )
+    monkeypatch.setattr(
+        control,
+        "_deploy_bundle",
+        lambda _session, _url, _function: ("old-bundle", "new-bundle"),
+    )
+
+    assert control._redeploy(
+        SimpleNamespace(state=str(state_path), env_file=str(tmp_path / "unused.env"))
+    ) == 0
+
+    private_state = json.loads(state_path.read_text(encoding="utf-8"))
+    safe_state = json.loads(
+        (tmp_path / "control-prepared.safe.json").read_text(encoding="utf-8")
+    )
+    assert safe_state["status"] == "prepared"
+    assert safe_state["deployed_bundle_sha256"] == "new-bundle"
+    assert safe_state["predecessor_control_prepared_receipt_sha256"] == (
+        previous_receipt
+    )
+    assert safe_state["receipt_sha256"] == _receipt_sha256(safe_state)
+    assert private_state["control_prepared_receipt_sha256"] == safe_state[
+        "receipt_sha256"
+    ]
+
+
 def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> None:
     source = BROWSER_GOAL_PATH.read_text(encoding="utf-8")
 

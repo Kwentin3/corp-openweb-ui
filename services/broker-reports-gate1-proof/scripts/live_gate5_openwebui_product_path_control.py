@@ -329,7 +329,7 @@ def _safe_result(state: dict[str, Any], *, status: str) -> dict[str, Any]:
         "deployed_bundle_sha256": state.get("deployed_bundle_sha256"),
         "predecessor_control_prepared_receipt_sha256": (
             state.get("control_prepared_receipt_sha256")
-            if status == "restored"
+            if status in {"prepared", "restored"}
             else None
         ),
         "temporary_users": len(state.get("users") or []),
@@ -566,13 +566,21 @@ def _redeploy(args: argparse.Namespace) -> int:
         _get_function(session, base_url),
     )
     state["deployed_bundle_sha256"] = deployed_sha256
+    safe = _safe_result(state, status="prepared")
+    state["control_prepared_receipt_sha256"] = safe["receipt_sha256"]
     _write_private_state(state_path, state)
+    safe_path = state_path.parent / "control-prepared.safe.json"
+    safe_path.write_text(
+        json.dumps(safe, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     print(
         json.dumps(
             {
                 "schema_version": "broker_reports_gate5_openwebui_control_v0",
                 "status": "bundle_deployed",
                 "deployed_bundle_sha256": deployed_sha256,
+                "control_prepared_receipt_sha256": safe["receipt_sha256"],
             }
         )
     )
