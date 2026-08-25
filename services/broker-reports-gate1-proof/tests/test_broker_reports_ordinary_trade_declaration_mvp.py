@@ -1090,6 +1090,9 @@ def test_exact_profile_source_assertion_mismatch_keeps_exact_blocker(
     assert preparation["internal_blockers"][0]["owner"] == (
         "Gate5TrustedMethodologyAuthority"
     )
+    assert preparation["internal_blockers"][0]["gap_owner_classification"] == (
+        "REAL_SOURCE_EVIDENCE_MISSING"
+    )
     assert all(
         item["fact_key"] != "profile_mismatch_mode"
         for item in preparation["user_actions"]
@@ -1165,15 +1168,37 @@ def test_same_case_period_choice_can_be_corrected_to_supported_successor(
             context=context,
         )
     assert stale_period.value.code == "gate5_gap_request_stale"
-    runtime.normalize_declaration_action(
-        request_publication_ref=old_mode_action["request_publication_ref"],
-        answer={"kind": "code", "value": "ANALYSIS_ONLY"},
-        context=context,
-    )
+    with pytest.raises(Gate5HumanGapClosureError) as stale_mode:
+        runtime.normalize_declaration_action(
+            request_publication_ref=old_mode_action["request_publication_ref"],
+            answer={"kind": "code", "value": "ANALYSIS_ONLY"},
+            context=context,
+        )
+    assert stale_mode.value.code == "gate5_gap_request_stale"
     still_corrected = runtime.run(canonical_artifact_refs=[], context=context)
     assert still_corrected["product"]["preparation"]["period_profile"][
         "selected_tax_period"
     ] == "2025"
+
+    return_action = runtime.publish_declaration_change_action(
+        fact_key="selected_tax_period",
+        context=context,
+    )
+    runtime.normalize_declaration_action(
+        request_publication_ref=return_action["request_publication_ref"],
+        answer={"kind": "code", "value": "2022"},
+        context=context,
+    )
+    returned = runtime.run(canonical_artifact_refs=[], context=context)
+    returned_preparation = returned["product"]["preparation"]
+    assert returned["product"]["status"] == "INPUT_REQUIRED"
+    assert returned_preparation["period_profile"]["selected_tax_period"] == "2022"
+    assert returned_preparation["period_profile"]["profile_mismatch_mode"] is None
+    fresh_mode_action = returned_preparation["user_actions"][0]
+    assert fresh_mode_action["fact_key"] == "profile_mismatch_mode"
+    assert fresh_mode_action["request_publication_ref"] != (
+        old_mode_action["request_publication_ref"]
+    )
 
 
 def test_same_case_profile_mode_can_be_changed_by_owner_successor(

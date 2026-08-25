@@ -25,6 +25,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
     declaration_request_help,
     declaration_request_question,
+    declaration_surrogate_preview,
 )
 from openwebui_actions import broker_reports_gate1_pipe as product_pipe
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
@@ -217,12 +218,121 @@ def test_period_and_profile_mode_are_owner_bound_but_user_presented(
     mode_request = mismatch["product"]["preparation"]["user_actions"][0]
     question = declaration_request_question(mode_request)
     assert "\u043d\u0435\u0442 \u0442\u043e\u0447\u043d\u043e\u0433\u043e \u043f\u0440\u043e\u0444\u0438\u043b\u044f" in question
+    assert "ru_3ndfl_2025_full_target_supplied_case" in question
+    assert "2025" in question
     mode_answer = adapt_current_declaration_request(
         message="\u0422\u043e\u043b\u044c\u043a\u043e \u0430\u043d\u0430\u043b\u0438\u0437",
         current_requests=[mode_request],
     )
     assert mode_answer["status"] == "ANSWER_READY"
     assert mode_answer["answer"] == {"kind": "code", "value": "ANALYSIS_ONLY"}
+
+
+def test_non_filing_surrogate_is_visible_in_standalone_chat(tmp_path: Path) -> None:
+    runtime, context, _providers = declaration_fixtures._case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+    )
+    period_request = runtime.run(canonical_artifact_refs=[], context=context)[
+        "product"
+    ]["preparation"]["user_actions"][0]
+    runtime.normalize_declaration_action(
+        request_publication_ref=period_request["request_publication_ref"],
+        answer={"kind": "code", "value": "2022"},
+        context=context,
+    )
+    mode_request = runtime.run(canonical_artifact_refs=[], context=context)[
+        "product"
+    ]["preparation"]["user_actions"][0]
+    runtime.normalize_declaration_action(
+        request_publication_ref=mode_request["request_publication_ref"],
+        answer={"kind": "code", "value": "SURROGATE_DRAFT"},
+        context=context,
+    )
+
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+    chat = Pipe()._standalone_ndfl_chat_content(result)
+
+    assert result["product"]["status"] == "NON_FILING_SURROGATE_READY"
+    assert "ru_3ndfl_2025_full_target_supplied_case" in chat
+    assert "2022" in chat
+    assert "2025" in chat
+    assert "не подлежит подаче" in chat
+    assert "XML и файл для скачивания не созданы" in chat
+    assert "[Скачать XML]" not in chat
+
+    tampered = copy.deepcopy(
+        result["product"]["preparation"]["surrogate_preview"]
+    )
+    tampered["profile_tax_period"] = "2024"
+    rejected = declaration_surrogate_preview(tampered)
+    assert "owner preview не прошёл проверку" in rejected
+    assert "ru_3ndfl_2025_full_target_supplied_case" not in rejected
+
+
+def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_direct_workspace_fixture(monkeypatch)
+    _runtime, context, _providers, store = declaration_fixtures._case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+        include_store=True,
+    )
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    kwargs = {
+        "store": store,
+        "context": context,
+        "artifact_manifest": SimpleNamespace(artifact_refs_by_type={}),
+        "user": {"id": context.user_id},
+        "request": object(),
+        "event_emitter": None,
+        "retention_policy": build_retention_policy(mode="synthetic_dev"),
+    }
+
+    first = asyncio.run(pipe._maybe_run_ndfl_gate3(**kwargs))
+    assert first["product"]["status"] == "INPUT_REQUIRED"
+
+    async def select_period(_payload):
+        return "2022"
+
+    mismatch = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            **kwargs,
+            trusted_interaction_message="Продолжить",
+            event_call=select_period,
+        )
+    )
+    assert mismatch["declaration_chat_receipt"]["status"] == "ANSWER_ACCEPTED"
+    assert mismatch["product"]["status"] == "INPUT_REQUIRED"
+
+    async def select_surrogate(_payload):
+        return "Неподаваемый черновик"
+
+    surrogate = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            **kwargs,
+            trusted_interaction_message="Продолжить",
+            event_call=select_surrogate,
+        )
+    )
+    chat = pipe._standalone_ndfl_chat_content(surrogate)
+
+    assert surrogate["declaration_chat_receipt"]["status"] == "ANSWER_ACCEPTED"
+    assert surrogate["product"]["status"] == "NON_FILING_SURROGATE_READY"
+    assert "ru_3ndfl_2025_full_target_supplied_case" in chat
+    assert "не подлежит подаче" in chat
+    assert surrogate["product"]["xml_created"] is False
+    assert surrogate["declaration"] is None
+    assert surrogate["provider_calls_total"] == 0
 
 
 def test_ready_summary_never_promotes_unreconciled_xml_values() -> None:

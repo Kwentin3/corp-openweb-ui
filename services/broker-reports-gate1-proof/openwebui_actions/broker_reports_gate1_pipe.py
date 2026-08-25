@@ -102,6 +102,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     declaration_change_intent,
     declaration_request_help,
     declaration_request_question,
+    declaration_surrogate_preview,
 )
 from broker_reports_gate1.private_intake_bytes import (
     OpenWebUIPrivateIntakeBytesResolverFactory,
@@ -1073,6 +1074,14 @@ class Pipe:
             "STOPPED_RESUMABLE",
         }:
             lines.append(self._ndfl_product_blocker_content(product))
+            if status == "NON_FILING_SURROGATE_READY":
+                preparation = product.get("preparation")
+                preparation = preparation if isinstance(preparation, dict) else {}
+                lines.append(
+                    declaration_surrogate_preview(
+                        preparation.get("surrogate_preview")
+                    )
+                )
         elif status == "DRAFT_READY":
             checklist = product.get("preparation", {}).get("checklist_fact_keys", [])
             lines.append(

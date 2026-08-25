@@ -45,15 +45,18 @@ Gate 5 Human Fact, Tax Model and XML owners.
 | --- | --- | --- |
 | purchase only | `OPEN_LONG_PROVEN` | `OPEN_POSITION_RETAINED`; no `disposal_missing`, no source-insufficient label |
 | sale only, no exact short role | `UNRESOLVED_DISPOSAL_EVIDENCE_HORIZON` | typed `gate5_source_fact_acquisition_evidence_horizon_unproven`; no invented short |
-| v4 owner-produced disposal with `position_effect=OPEN_SHORT` | `OPEN_SHORT_PROVEN` | open position retained; no `acquisition_missing` |
+| v4 owner-produced disposal with `position_effect=OPEN_SHORT` on the deterministic compatibility port | `OPEN_SHORT_PROVEN` | Gate 5 contract proof only; not currently emitted by the active ordinary-trade producer |
 | partial FIFO close | closed disposal plus `OPEN_LONG_PROVEN` remainder | closed calculation retained; remainder stays open |
 | mixed independent groups | per-group closed/open/unresolved states | closed groups calculate; unresolved group cannot erase them |
 | incomplete source role | no position repair | remains `SOURCE_EVIDENCE_INSUFFICIENT` fail-closed |
 
-Gate 3 role pack v4 publishes the optional exact `OPEN_SHORT` role, but v3
-remains the active role pack. The current ordinary-table mapping therefore
-cannot silently infer short semantics. Tests use a genuine v4 owner-produced
-Fact to prove the positive path.
+Gate 3 role pack v4 publishes the optional exact `OPEN_SHORT` role, but the
+active qualified ordinary-table mappings do not emit that role. The current
+production port therefore cannot silently infer short semantics or reuse the
+historical Gate 4 store as a fallback. A genuine v4 owner-produced Fact proves
+only the deterministic Gate 5 compatibility path. A separate active-factory
+test proves that the same historical Fact is not consumed by production and
+does not produce a false `OPEN_SHORT_PROVEN` claim.
 
 ## Period and profile matrix
 
@@ -148,10 +151,10 @@ boundaries.
   non-filing template with confirmed source/position/calculation fields,
   placeholders/checks, an explicit year mismatch and no XML/download.
 - Source assessment now retains the same exact `position_effect` consumed by
-  grouped assembly. An owner-produced `OPEN_SHORT` is an open, non-activated
-  position in assessment and `OPEN_SHORT_PROVEN` in assembly/final-note
-  projections; disposal-only without that exact role remains the acquisition
-  horizon/semantic blocker.
+  grouped assembly when its Fact port supplies that owner-produced role. This
+  proves the deterministic Gate 5 compatibility seam, not active production
+  reachability. The active ordinary mapping has no qualified short literal;
+  disposal-only therefore remains the acquisition-horizon/semantic blocker.
 
 The representative T-Bank live trace and receipt were not rewritten: they
 still prove only the earlier Canonical-missing stop. Period/profile/position
@@ -159,3 +162,41 @@ follow-up branches are integration proofs over repository-owned synthetic
 artifacts and the production runtime/action seams; they are not claimed as a
 new live T-Bank result. Final exact head and CI receipt are recorded only after
 the branch is committed and GitHub checks that exact head.
+
+## Second independent-review follow-up
+
+The second follow-up starts from reviewed exact head
+`e113c9125faaef39f7f765fc32533a80c373641a`.
+
+- The representation-only chat adapter now validates and displays the exact
+  Definition-owner available profile labels, including profile ID and 2025.
+- `NON_FILING_SURROGATE_READY` now renders the existing owner-produced preview
+  through both the standalone formatter and ordinary Pipe interaction flow:
+  profile/year mismatch, confirmed fields, placeholders, checks and an
+  explicit filing prohibition are visible; XML/download remain absent.
+- The trusted methodology owner carries the pinned rule's
+  `REAL_SOURCE_EVIDENCE_MISSING` classification with the exact
+  `gate5_ordinary_trade_product_source_evidence_unresolved` error. Case Inputs
+  no longer relabels that source gap as missing methodology.
+- Each mismatch-mode request binds the exact current selected-period fact ref.
+  Period correction makes the old request/fact stale, and a
+  `2022 -> 2025 -> 2022` round-trip requires a fresh mode answer.
+- No active production short owner was invented. An active
+  `OrdinaryTradeProductionRuntimeFactory.create` proof shows that an injected
+  historical v4 `OPEN_SHORT` Fact is outside the current ordinary projection
+  port and cannot support a production `OPEN_SHORT_PROVEN` claim. The positive
+  open-short result remains explicitly limited to the deterministic Fact v2
+  compatibility consumer until a source-qualified active mapping exists.
+
+Local verification on the final working tree before commit:
+
+- the four reproduced user/owner failures changed from `4 failed` to
+  `4 passed` after the boundary fixes;
+- the combined owner, declaration, Pipe and production-candidate set passed
+  `114` tests;
+- the exact active ordinary-trade CI guard passed `271` tests with five
+  existing SWIG deprecation warnings;
+- Ruff E9/F63/F7/F82, generated bundle parity and `git diff --check` passed.
+
+The final exact head and GitHub CI receipt are published in PR #309 and Issue
+#308 only after the commit is pushed and GitHub evaluates that exact SHA.

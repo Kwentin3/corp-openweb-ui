@@ -548,6 +548,24 @@ class Gate5HumanGapClosureRuntime:
         """Offer only non-filing outcomes when the exact year profile is absent."""
 
         self._publication_dependencies()
+        selected_period_facts = self.current_user_case_facts(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period="0000",
+        )
+        selected_period_fact = next(
+            (
+                item
+                for item in selected_period_facts
+                if item["fact_key"] == "selected_tax_period"
+            ),
+            None,
+        )
+        if (
+            selected_period_fact is None
+            or selected_period_fact["value"].get("value") != tax_period
+        ):
+            _fail("gate5_profile_mismatch_period_selection_invalid")
         scope = _human_fact_scope(
             context=context,
             taxpayer_scope_ref=taxpayer_scope_ref,
@@ -590,6 +608,9 @@ class Gate5HumanGapClosureRuntime:
                 "tax_period": tax_period,
                 "filing_eligible": False,
                 "available_profiles": profile_labels,
+                "selected_tax_period_fact_ref": selected_period_fact[
+                    "user_case_fact_ref"
+                ],
             },
             scope_binding=scope,
             semantic_request_key="human_fact:profile_mismatch_mode",
@@ -1242,6 +1263,33 @@ class Gate5HumanGapClosureRuntime:
             != request.get("request_publication_ref")
         ):
             _fail("gate5_gap_request_stale")
+        if request.get("fact_key") == "profile_mismatch_mode":
+            subject = request.get("subject")
+            selected_fact_ref = (
+                subject.get("selected_tax_period_fact_ref")
+                if isinstance(subject, dict)
+                else None
+            )
+            selected_period_facts = self.current_user_case_facts(
+                context=context,
+                taxpayer_scope_ref=request["scope_binding"]["taxpayer_scope_ref"],
+                tax_period="0000",
+            )
+            selected_period_fact = next(
+                (
+                    item
+                    for item in selected_period_facts
+                    if item["fact_key"] == "selected_tax_period"
+                ),
+                None,
+            )
+            if (
+                selected_period_fact is None
+                or selected_fact_ref != selected_period_fact["user_case_fact_ref"]
+                or selected_period_fact["value"].get("value")
+                != request["scope_binding"]["tax_period"]
+            ):
+                _fail("gate5_gap_request_stale")
 
     def _current_request_publication(
         self,

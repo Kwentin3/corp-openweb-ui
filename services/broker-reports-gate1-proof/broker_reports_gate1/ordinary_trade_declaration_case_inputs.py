@@ -178,7 +178,10 @@ class OrdinaryTradeDeclarationCaseInputsRuntime:
                 blockers.append(
                     {
                         "reason_code": exc.code,
-                        "gap_owner_classification": "METHODOLOGY_RULE_MISSING",
+                        "gap_owner_classification": (
+                            exc.gap_owner_classification
+                            or "METHODOLOGY_RULE_MISSING"
+                        ),
                         "owner": "Gate5TrustedMethodologyAuthority",
                     }
                 )

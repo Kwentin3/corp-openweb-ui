@@ -26,13 +26,13 @@ their existing owners.
 | taxpayer workflow scope | `primary_taxpayer_scope_ref` owned by product composition | opaque stable user+case slot; the selected period stays a separate Human Fact/scope dimension; the slot is neither INN nor taxpayer identity and is not caller-selectable |
 | selected tax period | `Gate5HumanGapClosureRuntime` fact `selected_tax_period` | owner-published request in the reserved pre-period `0000` scope; `0000` itself is never a valid answer; a correction is an immutable same-lane successor before any declaration profile is resolved |
 | observed operation period | `Gate5DeterministicSourceFactConsumptionRuntime.assemble_available` | exact years/dates from source-bound Fact roles; not a document-period or evidence-horizon completeness claim |
-| exact year profile and mode | `Gate5TrustedMethodologyAuthorityFactory.create`, the full-target XML projection Definition owner, plus Human Fact `profile_mismatch_mode` | profile absence is decided only from the Definition owner's available profile identities; methodology/source failures retain their exact blocker; only alignment of selected year, methodology and form/KND/order/format/XSD permits filing XML; mode correction is a same-lane successor in the selected-year scope |
+| exact year profile and mode | `Gate5TrustedMethodologyAuthorityFactory.create`, the full-target XML projection Definition owner, plus Human Fact `profile_mismatch_mode` | profile absence is decided only from the Definition owner's available profile identities; source-assertion insufficiency retains the methodology resource's `REAL_SOURCE_EVIDENCE_MISSING` classification while malformed/missing methodology remains a methodology blocker; only alignment of selected year, methodology and form/KND/order/format/XSD permits filing XML; the mode request binds the exact current selected-period fact revision and a period round-trip cannot revive an old mode |
 | position/source/tax state | deterministic source-fact consumer | position quantities, source completeness and tax activation are separate fields; open groups cannot erase independent closed calculations |
 | taxpayer identity | `Gate5HumanGapClosureRuntime` fact `taxpayer_identity` | current request-bound `USER_ATTESTED_CASE_FACT`; an exact Canonical value is only a candidate until confirm/change |
 | current Canonical document scope and operation coverage | active Canonical pointers plus `OrdinaryTradeProjectionRuntime.current_case_coverage` | every active Canonical manifest must have exactly one current projection bound to the same document/version/root; a missing whole projection or any `RELEVANT_UNMAPPED` observation blocks XML |
 | current broker facts | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | exact case-bound Fact v2 set and disposal fact ID, consumed only after Canonical coverage passes |
 | human declaration choices/facts | `Gate5HumanGapClosureRuntime` | current request-bound facts with exact user, case, taxpayer, period and publication-lane binding; stale/conflicting facts are rejected by that owner |
-| public chat interaction | maintained bundled `Pipe.pipe` plus the representation-only declaration chat adapter | native OpenWebUI `__event_call__` binds one browser response to the current owner request inside the same server call; no request ref, fact key or hidden action is caller-selectable |
+| public chat interaction | maintained bundled `Pipe.pipe` plus the representation-only declaration chat adapter | native OpenWebUI `__event_call__` binds one browser response to the current owner request inside the same server call; the visible mismatch question includes validated owner-produced profile ID/year and a ready surrogate renders its owner-produced preview; no request ref, fact key or hidden action is caller-selectable |
 | capacity, inspection code, signer, filing instance/date and OKTMO | `Gate5HumanGapClosureRuntime` | current user-attested facts; missing fill-only values permit draft but never XML |
 | source party and exact applicability assertions | existing `Gate3MetadataSourceFactRuntime` source owner | exact labels from Canonical versions named by current coverage; ambiguity or absence is a source blocker; no LLM or financial Gate 3 execution |
 | legal/methodology version, applicability, KBK and declarant category | `Gate5TrustedMethodologyAuthorityFactory.create` | repository resource identity/SHA-256 and exact pinned rules |
@@ -159,7 +159,10 @@ case-hash taxpayer surrogate, partial XML, or FNS submission is permitted.
   Definition-owned available profile, selected/profile years and mismatch,
   fills current source/position/calculation fields, lists owner-bound
   placeholders/checks, and carries an explicit non-filing warning; no official
-  XML/download is created and no alternate XML serializer is called.
+  XML/download is created and no alternate XML serializer is called. The Pipe
+  renders that validated preview in the ordinary chat flow, including the
+  confirmed data, placeholders, checks and explicit filing prohibition; it
+  does not synthesize fields or a download link.
 - `STOPPED_RESUMABLE`: the exact case remains persisted and resumable without
   a profile substitution.
 - `OPEN_POSITION_RETAINED`: source-proven open position evidence is retained;
@@ -180,3 +183,13 @@ completeness as `CANONICAL_EVIDENCE_MISSING`, position evaluation as
 profile support as `NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE`. It must not
 relabel an extraction boundary as an open position, period mismatch, or
 unsupported declaration profile.
+
+The deterministic Gate 5 consumer accepts an exact source-produced
+`position_effect=OPEN_SHORT` on its published Fact v2 compatibility contract.
+The active ordinary-trade producer is narrower: its currently qualified table
+mappings do not own or emit a short-position literal. Consequently the active
+`Gate4OrdinaryTradeCandidateRuntimeFactory.create` production port cannot yet
+produce `OPEN_SHORT_PROVEN`. Historical/injected Gate 4 facts must not be read
+as a fallback, and a plain disposal remains an evidence-horizon blocker. A
+production short claim requires a separately qualified exact source mapping
+and owner contract.

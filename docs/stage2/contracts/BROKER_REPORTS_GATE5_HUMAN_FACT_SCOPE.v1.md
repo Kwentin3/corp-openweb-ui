@@ -55,6 +55,13 @@ Its closed values are `ANALYSIS_ONLY`, `SURROGATE_DRAFT` and
 `STOP_RESUMABLE`. They are product-mode choices only and cannot authorize a
 wrong-year declaration release or XML.
 
+The mode request also binds the exact current owner-produced
+`selected_tax_period` fact ref in its subject. Current-publication validation
+replays that dependency against the neutral-scope period lane. Any period
+successor therefore makes the dependent mode request and fact stale even if
+the caller later returns to the same year (`2022 -> 2025 -> 2022`); a fresh
+mode publication and answer are required.
+
 Both `selected_tax_period` and `profile_mismatch_mode` use the same immutable
 owner-produced correction mechanism as the other product facts. The successor
 is cloned from the current owner request, binds
@@ -65,7 +72,10 @@ by the bounded product action and cannot choose the lane, scope or predecessor.
 
 The mismatch question receives the available profile descriptions only from
 the existing full-target projection Definition owner. Display text may change,
-but it cannot create a profile or authorize release.
+but it cannot create a profile or authorize release. The representation-only
+chat adapter validates and displays those owner-produced labels, including the
+profile ID and year; it may not replace them with a generic question that
+hides the available profile.
 
 Actual identity exists only as the current `taxpayer_identity` Human fact with
 provenance `USER_ATTESTED_CASE_FACT`. A Canonical INN/FIO assertion is a private

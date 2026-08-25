@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
@@ -369,6 +370,43 @@ def _request_presentation(request: dict[str, Any]) -> dict[str, Any] | None:
                 f"{detected}. \u0417\u0430 \u043a\u0430\u043a\u043e\u0439 \u043d\u0430\u043b\u043e\u0433\u043e\u0432\u044b\u0439 \u043f\u0435\u0440\u0438\u043e\u0434 \u0433\u043e\u0442\u043e\u0432\u0438\u043c \u0434\u0435\u043a\u043b\u0430\u0440\u0430\u0446\u0438\u044e?"
             ),
         }
+    if fact_key == "profile_mismatch_mode":
+        subject = request.get("subject")
+        tax_period = subject.get("tax_period") if isinstance(subject, dict) else None
+        profiles = (
+            subject.get("available_profiles") if isinstance(subject, dict) else None
+        )
+        selected_fact_ref = (
+            subject.get("selected_tax_period_fact_ref")
+            if isinstance(subject, dict)
+            else None
+        )
+        if (
+            not isinstance(tax_period, str)
+            or re.fullmatch(r"(?!0000$)[0-9]{4}", tax_period) is None
+            or not isinstance(profiles, list)
+            or not profiles
+            or profiles != sorted(set(profiles))
+            or any(
+                not isinstance(item, str)
+                or not item.strip()
+                or len(item) > 512
+                for item in profiles
+            )
+            or re.fullmatch(r"art_[0-9a-f]{32}", str(selected_fact_ref)) is None
+        ):
+            return None
+        base = _REQUEST_PRESENTATION[fact_key]
+        return {
+            **base,
+            "question": (
+                f"Для выбранного периода {tax_period} нет точного профиля "
+                "декларации. Доступные профили: "
+                + "; ".join(profiles)
+                + ". Выберите: только анализ, неподдаваемый черновик или "
+                "остановиться и продолжить позже."
+            ),
+        }
     presentation = _REQUEST_PRESENTATION.get(fact_key)
     return presentation if isinstance(presentation, dict) else None
 
@@ -395,6 +433,88 @@ def _presentation_contract_valid(request: dict[str, Any]) -> bool:
     )
 
 
+def declaration_surrogate_preview(preview: Any) -> str:
+    """Render only a validated owner-produced non-filing preview."""
+
+    if not isinstance(preview, dict):
+        return "Неподаваемый черновик недоступен: owner preview отсутствует."
+    required = {
+        "schema_version",
+        "status",
+        "profile_id",
+        "profile",
+        "selected_tax_period",
+        "profile_tax_period",
+        "period_mismatch",
+        "confirmed_fields",
+        "placeholders",
+        "checks",
+        "non_filing_warning",
+        "filing_eligible",
+        "xml_created",
+        "download_available",
+    }
+    confirmed = preview.get("confirmed_fields")
+    placeholders = preview.get("placeholders")
+    checks = preview.get("checks")
+    profile = preview.get("profile")
+    selected_period = preview.get("selected_tax_period")
+    profile_period = preview.get("profile_tax_period")
+    if (
+        set(preview) != required
+        or preview.get("schema_version")
+        != "broker_reports_non_filing_surrogate_preview_v0"
+        or preview.get("status") != "NON_FILING_TEMPLATE_ONLY"
+        or not isinstance(preview.get("profile_id"), str)
+        or not preview["profile_id"]
+        or not isinstance(profile, dict)
+        or profile.get("profile_id") != preview["profile_id"]
+        or profile.get("tax_period") != profile_period
+        or re.fullmatch(r"(?!0000$)[0-9]{4}", str(selected_period)) is None
+        or re.fullmatch(r"(?!0000$)[0-9]{4}", str(profile_period)) is None
+        or not isinstance(preview.get("period_mismatch"), bool)
+        or preview["period_mismatch"] != (selected_period != profile_period)
+        or not isinstance(confirmed, dict)
+        or not isinstance(placeholders, list)
+        or any(
+            not isinstance(item, dict)
+            or set(item) != {"fact_key", "placeholder"}
+            or not all(isinstance(value, str) and value for value in item.values())
+            for item in placeholders
+        )
+        or not isinstance(checks, list)
+        or any(not isinstance(item, str) or not item for item in checks)
+        or not isinstance(preview.get("non_filing_warning"), str)
+        or preview.get("filing_eligible") is not False
+        or preview.get("xml_created") is not False
+        or preview.get("download_available") is not False
+    ):
+        return "Неподаваемый черновик недоступен: owner preview не прошёл проверку."
+    confirmed_lines = [
+        f"- {key}: {json.dumps(value, ensure_ascii=False, sort_keys=True)}"
+        for key, value in sorted(confirmed.items())
+    ]
+    placeholder_lines = [
+        f"- {item['fact_key']}: {item['placeholder']}" for item in placeholders
+    ]
+    check_lines = [f"- {item}" for item in checks]
+    return "\n".join(
+        [
+            "Неподаваемый черновик (не подлежит подаче):",
+            f"Профиль: {preview['profile_id']} ({preview['profile_tax_period']}); "
+            f"выбранный период: {preview['selected_tax_period']}.",
+            "Подтверждённые данные:",
+            *(confirmed_lines or ["- нет"]),
+            "Незаполненные owner-поля:",
+            *(placeholder_lines or ["- нет"]),
+            "Обязательные проверки:",
+            *(check_lines or ["- нет"]),
+            str(preview["non_filing_warning"]),
+            "XML и файл для скачивания не созданы.",
+        ]
+    )
+
+
 def _result(status: str, *, reason_code: str | None = None) -> dict[str, Any]:
     result = {
         "schema_version": ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION,
@@ -417,4 +537,5 @@ __all__ = [
     "declaration_change_intent",
     "declaration_request_help",
     "declaration_request_question",
+    "declaration_surrogate_preview",
 ]

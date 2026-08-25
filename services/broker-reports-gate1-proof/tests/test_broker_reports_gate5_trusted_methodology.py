@@ -391,6 +391,9 @@ def test_ordinary_trade_product_methodology_requires_exact_source_assertions() -
     assert rejected.value.code == (
         "gate5_ordinary_trade_product_source_evidence_unresolved"
     )
+    assert rejected.value.gap_owner_classification == (
+        "REAL_SOURCE_EVIDENCE_MISSING"
+    )
 
 
 def test_factory_route_is_read_only_and_caller_cannot_supply_methodology_bytes() -> (

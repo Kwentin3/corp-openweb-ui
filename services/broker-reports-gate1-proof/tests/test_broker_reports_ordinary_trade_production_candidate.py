@@ -35,8 +35,12 @@ from broker_reports_gate1.ordinary_trade_semantic_compiler import (
     compile_schema_mapping,
 )
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
+from broker_reports_gate1.ordinary_trade_production_runtime import (
+    OrdinaryTradeProductionRuntimeFactory,
+)
 
 import test_broker_reports_gate4_sql_materialization as gate4_fixtures
+import test_broker_reports_gate5_deterministic_source_fact_consumption as source_fact_fixtures
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -445,6 +449,59 @@ def test_candidate_fact_adapter_has_no_forbidden_owners() -> None:
     assert "mappings" not in inspect.signature(
         OrdinaryTradeProjectionRuntime.compile_and_save
     ).parameters
+
+
+def test_active_production_does_not_claim_injected_historical_open_short(
+    tmp_path: Path,
+) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path)
+    document_id = "source-proven-short-outside-active-port"
+    document_context = replace(
+        context,
+        normalization_run_id=f"g540d-{document_id}-v1",
+    )
+    source_fact_fixtures._publish(
+        store,
+        context,
+        document_id=document_id,
+        source_rows=("OPEN_SHORT|01.03.2025|ACME|7|210.00|RUB",),
+        fact_specs=(
+            (
+                "SECURITY_DISPOSAL",
+                source_fact_fixtures._security_roles(
+                    "01.03.2025",
+                    "7",
+                    "210.00",
+                    position_effect="OPEN_SHORT",
+                ),
+            ),
+        ),
+        semantic_version="2.1.0",
+        role_pack_semantic_version="4.0.0",
+    )
+    historical_gate4 = source_fact_fixtures._gate4(store)
+    historical_gate4.rebuild_case(context=context)
+    historical_facts = historical_gate4.list_facts(context=context)
+    assert historical_facts[0]["roles"][-1]["value"] == "OPEN_SHORT"
+
+    OrdinaryTradeProjectionFactory(
+        store=store,
+        read_enabled=True,
+    ).create().compile_and_save(
+        document_id=document_id,
+        context=document_context,
+    )
+    result = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create().run(canonical_artifact_refs=[], context=document_context)
+
+    assert result["product"]["gate4"]["facts_total"] == 0
+    assert result["product"]["gate5"]["security_tax_input_status"] == (
+        "NO_SECURITY_OPERATIONS"
+    )
+    assert result["product"]["preparation"]["final_note"]["positions"] == []
+    assert result["provider_calls_total"] == 0
 
 
 def _case(tmp_path: Path, *, rows: tuple = _ROWS):
