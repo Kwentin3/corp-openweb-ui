@@ -768,7 +768,7 @@ async function runIssue310UnsupportedProfileRoute({
     },
     stop: {
       answer: 'Остановиться и продолжить позже',
-      markers: ['Подготовка приостановлена', 'продолжить позже', 'XML не создан'],
+      markers: ['Подготовка приостановлена', 'вернуться позже', 'XML не создан'],
     },
   };
   const expected = modes[mode];
