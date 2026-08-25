@@ -1,0 +1,76 @@
+{
+  "schema_version": "broker_reports_issue310_safe_interaction_trace_v1",
+  "issue": 310,
+  "tested_code_head": "e07db4391406ab23fded9f97755df49b6ee201b7",
+  "base_main": "ddd528e60f6edc0b7d3dd8b898a80f6ae855a166",
+  "generated_bundle_sha256": "6fe828fe5583c37f7f403791a76a381e9b4c281f4d8bf58c9bad7a87259cfbb8",
+  "control_prepared_receipt_sha256": "0016ad13c031d9c351e2cd924eb28010af12d054a0b10207d58f6d11830c5f6c",
+  "xml_sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5",
+  "environment": {
+    "surface": "actual OpenWebUI browser UI",
+    "isolation": "dedicated staging container and volume",
+    "production_mutated": false,
+    "browser_ui_only": true,
+    "developer_intervention_during_accepted_runs": false
+  },
+  "routes": [
+    {
+      "route": "supported_closed_trade",
+      "result": "private_xsd_valid_xml",
+      "receipt_sha256": "7b3be1ad6cc46ebcb7509da527e1f40c3a38c66626c6737df2a4c73342a6f70e",
+      "events": 19,
+      "checks": [
+        "one_question_at_a_time",
+        "invalid_inn_rejected",
+        "identity_deferred_then_supplied",
+        "invalid_date_rejected",
+        "date_corrected",
+        "private_download",
+        "reload_resume",
+        "same_source_reupload_idempotent",
+        "concurrent_retry_idempotent",
+        "second_user_acl_denied"
+      ]
+    },
+    {
+      "route": "open_long",
+      "result": "analysis_without_xml",
+      "receipt_sha256": "df802bbe94139aba70417e3a58199f5dc2c974ce3abd4546ecc1d80ddb39aa25"
+    },
+    {
+      "route": "sale_only_unknown_position_semantics",
+      "result": "source_history_gap_without_xml",
+      "receipt_sha256": "20d53d67794390dcc4cb37bb3d3c33d0d4bd0e3201d219e625ab332acbcaa526"
+    },
+    {
+      "route": "unsupported_year_analysis",
+      "result": "analysis_without_xml",
+      "receipt_sha256": "610595a69aecfc16d86d4381207f067663d680902967d5bf09d5d9a7af3e9c22"
+    },
+    {
+      "route": "unsupported_year_surrogate",
+      "result": "visible_non_filing_surrogate_without_xml",
+      "receipt_sha256": "94547b0a682811a1728ef54403cbc21c059f33a9eb8067362394d6407cbc2d9f"
+    },
+    {
+      "route": "unsupported_year_stop_and_round_trip",
+      "result": "resumable_stop_without_stale_mode_or_xml",
+      "receipt_sha256": "2e77b80fb6b5018a1132d5ccb582803f43503f9b5a1466760a3497b23f66c738"
+    },
+    {
+      "route": "representative_tbank_pdf",
+      "result": "source_gap_explained_without_xml",
+      "receipt_sha256": "4abe869edb73c9d213d73d7e103470b41bbc369a54b7c66e221d0f73f1777d46"
+    },
+    {
+      "route": "open_short",
+      "result": "active_production_owner_absent",
+      "owner": "Gate4OrdinaryTradeCandidateRuntime.current_fact_set",
+      "typed_blocker": "gate4_ordinary_trade_security_position_source_contract_missing",
+      "browser_success_claimed": false
+    }
+  ],
+  "provider_calls_total": 0,
+  "xml_files_created_on_non_filing_routes": 0,
+  "private_values_recorded": false
+}
