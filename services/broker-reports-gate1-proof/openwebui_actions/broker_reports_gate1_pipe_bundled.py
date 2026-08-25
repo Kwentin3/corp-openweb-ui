@@ -1342,8 +1342,17 @@ class Pipe:
 
     @staticmethod
     def _current_turn_has_files(body: dict[str, Any]) -> bool:
-        if isinstance(body.get("files"), list) and bool(body["files"]):
-            return True
+        # OpenWebUI keeps every chat file in top-level ``files`` on later
+        # turns.  That collection is case context, not proof that the current
+        # user message attached a new source.  Only the owner-produced current
+        # message (or the latest message on older transports) may select the
+        # intake path instead of resuming the current declaration case.
+        current_user = body.get("user_message")
+        if isinstance(current_user, dict):
+            return bool(
+                isinstance(current_user.get("files"), list)
+                and current_user["files"]
+            )
         messages = body.get("messages")
         if not isinstance(messages, list):
             return False

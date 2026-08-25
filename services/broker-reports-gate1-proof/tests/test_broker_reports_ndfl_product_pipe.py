@@ -934,6 +934,27 @@ def test_direct_ndfl_workload_status_hides_job_identity() -> None:
     assert "completed" not in rendered
 
 
+def test_current_turn_file_detection_ignores_persisted_chat_files() -> None:
+    historical = {"id": "already-bound-source"}
+
+    assert Pipe._current_turn_has_files(
+        {
+            "files": [historical],
+            "user_message": {"role": "user", "content": "Продолжить"},
+        }
+    ) is False
+    assert Pipe._current_turn_has_files(
+        {
+            "files": [historical, {"id": "new-source"}],
+            "user_message": {
+                "role": "user",
+                "content": "Проверить новый источник",
+                "files": [{"id": "new-source"}],
+            },
+        }
+    ) is True
+
+
 def test_chat_transport_runs_bind_to_one_current_source_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1231,7 +1252,13 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
 
             return asyncio.run(
                 pipe.pipe(
-                    {"messages": [{"role": "user", "content": message}]},
+                    {
+                        # Native OpenWebUI retains prior chat attachments here;
+                        # only user_message identifies the current turn.
+                        "files": [{"id": "persisted-source-context"}],
+                        "user_message": {"role": "user", "content": message},
+                        "messages": [{"role": "user", "content": message}],
+                    },
                     __user__={"id": user_id, "email": "", "name": ""},
                     __metadata__=metadata,
                     __event_call__=event_call,
