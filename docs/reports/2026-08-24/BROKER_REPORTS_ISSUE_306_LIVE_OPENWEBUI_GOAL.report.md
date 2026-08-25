@@ -10,12 +10,12 @@ Dependency: PR #305 merged unchanged from approved head
 Branch: `agent/issue-306-live-openwebui-goal`
 
 Final generated bundle SHA-256:
-`c7251c3d88b57f7b7bdc0acc8f02667c68601ca1444de0ec937004827a064dad`
+`ac9343493e39dd527a1649fa900ff2bfcd0efd164bb6f395fd963341ab3aaeca`
 
-Live-tested code head: `dd419f7d2f46a775c7f5e7c3e737b9b8d8bb4a8a`
+Live-tested code head: `ab7cad4a3aecd9f1dae4fbff5882916d919cda90`
 
 Mechanically verified safe receipt:
-`7ba919492b1e49177268310bdfdfff6c6ceed89fbc24d32c75f219485008ef12`
+`e0a58905a09d23eb8e7d53c0d25f5b8216a616c0f3da46d8dc9822206eded7c9`
 
 ## Verdict
 
@@ -63,6 +63,9 @@ import/submission claim is made.
 | Concurrent retry kept one logical link | yes | yes |
 | Cross-user file/case denial | yes | yes |
 | Final four-part note | yes | yes |
+| Residency methodology section visible | yes | yes |
+| User-attested residency evidence visible | yes | yes |
+| Residency conclusion absent from user-attested section | yes | yes |
 | Downloaded bytes | 1102 | 1102 |
 | XML SHA-256 | `655c2d5d…e79c5d5` | `655c2d5d…e79c5d5` |
 | Official XSD owner | valid | valid |
@@ -76,7 +79,9 @@ The final note explicitly distinguishes:
 
 - values extracted from the report;
 - values calculated by Tax Model and reconciled with XML;
-- facts confirmed by the user;
+- facts and evidence actually entered by the user;
+- residency status derived by the existing residency methodology owner, not
+  presented as a ready-made status confirmed by the user;
 - fields and completeness the user must check before filing, plus an explicit
   statement that nothing was submitted to FNS.
 
@@ -191,6 +196,16 @@ arbitrary production broker PDFs are supported.
     same buffer it hashes and uploads; the builder now requires that recorded
     length to equal the owner value exactly. An adversarial `639417 -> 639418`
     regression fails closed. No second source record or validator was added.
+20. Independent review at
+    `f4dea478ef7a6115012ffd08289210b54dd1eabc` found that the final summary
+    attributed the derived resident status to the user even though the user
+    supplied only presence/absence periods and special-reason evidence. The
+    presentation now keeps those identities separate: the user-attested
+    section lists only entered facts/evidence, while a dedicated methodology
+    section labels residency status as an output of the existing residency
+    methodology owner. Behavioral and browser-oracle regressions reject a
+    residency conclusion in the user-attested section. No residency owner or
+    classification path was added.
 
 No new questionnaire engine, owner, registry, Tax Model, Scope/Package/XML
 meaning, LLM authority, or artifact mutation path was added.
@@ -218,7 +233,7 @@ meaning, LLM authority, or artifact mutation path was added.
 - existing Human Fact currentness, correction, conflict and fail-closed rules
   remain covered by their owner suites.
 
-Final active-route command: `239 passed` across production candidate/release,
+Final active-route command: `240 passed` across production candidate/release,
 deterministic consumption, declaration preparation, Human Facts, Tax Model,
 Category/declaration assembly, XML projection, declaration MVP, installed
 Pipe, workload authority, workspace model, the committed Issue #306 trace and
@@ -232,11 +247,15 @@ The proof now binds browser-driver, control and receipt-builder source to their
 exact clean tested Git blobs; the deployed generated bundle remains byte-exact.
 Both browser runs are repeated after this proof-boundary correction.
 
-The first run on the newly created replacement staging instance is rejected:
-after cold file processing the browser UI never emitted its chat request and
-the first question timed out. Its control window was fully restored. The
-accepted A2 and B runs started with new users/cases after the instance was warm;
-neither contains developer intervention or a retry of the rejected case.
+Two preliminary runs on the newly created replacement staging instance are
+rejected and excluded from the safe receipt. The first hit an OpenWebUI
+`chat_message` parent-link persistence warning after cold file processing and
+the browser remained on an older chat branch. Its control window was fully
+restored. The next B control was prepared before that slow restore had fully
+settled, so its model grant was subsequently restored and no domain execution
+started; that control was also fully restored. Accepted A2 and B2 used new
+users/cases in strictly non-overlapping prepared-to-restored windows. Neither
+contains developer intervention or a retry of a rejected case.
 
 After the first exact-head CI exposed one stale Gate 3 workflow fixture still
 using the domain workflow id as its OpenWebUI workspace id, that fixture was
