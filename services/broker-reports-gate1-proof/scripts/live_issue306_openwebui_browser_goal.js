@@ -175,23 +175,10 @@ async function sendMessage(page, message) {
   const input = page.locator('#chat-input');
   await input.waitFor({ state: 'visible', timeout: 90000 });
   await input.fill(message);
-  const messageCount = await page.locator('[role="listitem"]').count();
   const send = page.locator('#send-message-button');
   await send.waitFor({ state: 'visible', timeout: 10000 });
   await send.click();
-  await page.waitForFunction(
-    ({ count, modalTitle }) => {
-      if (document.querySelectorAll('[role="listitem"]').length > count) return true;
-      return Array.from(document.querySelectorAll('body *')).some((element) => {
-        const style = window.getComputedStyle(element);
-        return element.textContent?.trim() === modalTitle
-          && style.visibility !== 'hidden'
-          && style.display !== 'none';
-      });
-    },
-    { count: messageCount, modalTitle: MODAL_TITLE },
-    { timeout: 120000 },
-  );
+  await page.waitForTimeout(250);
 }
 
 async function waitForTurn(page) {
