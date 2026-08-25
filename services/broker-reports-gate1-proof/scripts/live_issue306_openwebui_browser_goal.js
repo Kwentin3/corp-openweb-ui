@@ -191,7 +191,7 @@ async function sendMessage(page, message) {
   await page.waitForTimeout(250);
 }
 
-async function waitForTurn(page) {
+async function waitForTurn(page, timeout = 120000) {
   const boundary = page.__issue310TurnBoundary || { count: 0, text: '' };
   await page.waitForFunction(
     ({ previousCount, previousText }) => {
@@ -203,7 +203,7 @@ async function waitForTurn(page) {
       return advanced && /Расчёт остановлен|Расчётный черновик готов|3-НДФЛ XML подготовлен|Подготовка остановлена|Подготовка приостановлена|Анализ завершён|Продажа найдена|В отчёте есть позиция|Не удалось|Готов только анализ|Неподаваемый черновик/.test(text);
     },
     { previousCount: boundary.count, previousText: boundary.text },
-    { timeout: 120000 },
+    { timeout },
   );
   page.__issue310TurnBoundary = null;
   const terminalMessage = page.locator('[role="listitem"]').last();
@@ -557,18 +557,33 @@ async function retryAndResume(page, context, chatUrl, expectedHref, source, trac
   const peer = await context.newPage();
   await peer.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await peer.locator('#chat-input').waitFor({ state: 'visible', timeout: 60000 });
-  const retryHrefs = await Promise.all([
+  const retryResults = await Promise.allSettled([
     (async () => {
       await sendMessage(page, CONTINUE);
-      await waitForTurn(page);
+      await waitForTurn(page, 30000);
       return downloadLinks(page).last().getAttribute('href');
     })(),
     (async () => {
       await sendMessage(peer, CONTINUE);
-      await waitForTurn(peer);
+      await waitForTurn(peer, 30000);
       return downloadLinks(peer).last().getAttribute('href');
     })(),
   ]);
+  if (!retryResults.some((item) => item.status === 'fulfilled')) {
+    throw new Error('concurrent_retry_no_rendered_response');
+  }
+  const retryHrefs = [];
+  for (const [index, retry] of retryResults.entries()) {
+    const retryPage = index === 0 ? page : peer;
+    if (retry.status === 'rejected') {
+      await retryPage.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+      await retryPage.locator('#chat-input').waitFor({ state: 'visible', timeout: 60000 });
+      await downloadLinks(retryPage).last().waitFor({ state: 'visible', timeout: 60000 });
+      retryHrefs.push(await downloadLinks(retryPage).last().getAttribute('href'));
+    } else {
+      retryHrefs.push(retry.value);
+    }
+  }
   if (retryHrefs.some((href) => href !== expectedHref)) {
     throw new Error('concurrent_retry_selected_stale_logical_file');
   }
@@ -586,6 +601,9 @@ async function retryAndResume(page, context, chatUrl, expectedHref, source, trac
     reload_resumed: true,
     same_source_reupload_preserved_logical_file: true,
     logical_download_links_stable: true,
+    concurrent_rendered_responses: retryResults.filter(
+      (item) => item.status === 'fulfilled',
+    ).length,
   });
 }
 
