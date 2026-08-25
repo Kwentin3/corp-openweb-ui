@@ -119,7 +119,7 @@ def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) 
     monkeypatch.setattr(
         control,
         "_user_model_visibility",
-        lambda _url, email, _password: "-a@" in email,
+        lambda _url, email, _password: "-b@" not in email,
     )
     monkeypatch.setattr(
         control,
@@ -161,7 +161,8 @@ def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) 
     assert safe_state["status"] == "prepared"
     assert safe_state["control_run_id"] == "a" * 32
     assert private_state["control_run_id"] == safe_state["control_run_id"]
-    assert safe_state["temporary_users"] == 2
+    assert safe_state["temporary_users"] == 8
+    assert len(private_state["users"]) == 8
     assert safe_state["legacy_function_inactive"] is True
     assert private_state["original_legacy_function_active"] is True
     assert legacy["is_active"] is False
@@ -245,6 +246,8 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "/source completeness/i" in source
     assert "ISSUE310_NON_FILING_ROUTE" in source
     assert "ISSUE310_UNSUPPORTED_MODE" in source
+    assert "ISSUE310_USER_INDEX" in source
+    assert "bounded_visible_proof_user_index_invalid" in source
     assert "issue310_tax_period_question_not_first" in source
     assert "issue310_non_filing_route_created_download" in source
     assert "issue310_unsupported_profile_created_download" in source

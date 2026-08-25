@@ -877,9 +877,22 @@ async function runIssue310UnsupportedProfileRoute({
     throw new Error('usage: state truth source output_dir');
   }
   const control = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-  if (!Array.isArray(control.users) || control.users.length !== 2) {
+  if (!Array.isArray(control.users) || control.users.length < 2) {
     throw new Error('bounded_control_users_required');
   }
+  const userIndex = Number(process.env.ISSUE310_USER_INDEX || '0');
+  if (
+    !Number.isInteger(userIndex)
+    || userIndex < 0
+    || userIndex >= control.users.length
+    || userIndex === 1
+  ) {
+    throw new Error('bounded_visible_proof_user_index_invalid');
+  }
+  const routeControl = {
+    ...control,
+    users: [control.users[userIndex], control.users[1]],
+  };
   const truth = readTruth(truthPath);
   const startedAt = new Date().toISOString();
   const runId = crypto.randomUUID();
@@ -892,7 +905,7 @@ async function runIssue310UnsupportedProfileRoute({
   if (process.env.ISSUE306_SOURCE_SMOKE_ONLY === '1') {
     const safe = await runRepresentativeSourceBoundaryProof({
       browser,
-      control,
+      control: routeControl,
       source,
       outputDir,
     });
@@ -915,7 +928,7 @@ async function runIssue310UnsupportedProfileRoute({
   if (issue310Route) {
     const safe = await runIssue310NonFilingRoute({
       browser,
-      control,
+      control: routeControl,
       source,
       outputDir,
       route: issue310Route,
@@ -939,7 +952,7 @@ async function runIssue310UnsupportedProfileRoute({
   if (issue310UnsupportedMode) {
     const safe = await runIssue310UnsupportedProfileRoute({
       browser,
-      control,
+      control: routeControl,
       source,
       outputDir,
       mode: issue310UnsupportedMode,
@@ -960,11 +973,15 @@ async function runIssue310UnsupportedProfileRoute({
     return;
   }
   const context = await browser.newContext({ acceptDownloads: true });
-  const page = await login(context, control.base_url, control.users[0]);
+  const page = await login(
+    context,
+    routeControl.base_url,
+    routeControl.users[0],
+  );
   if (process.env.ISSUE306_CLOSE_TAB_PROOF === '1') {
     await proveCloseTabDoesNotHoldAdmission({
       context,
-      baseUrl: control.base_url,
+      baseUrl: routeControl.base_url,
       source,
       outputDir,
       trace,
@@ -975,8 +992,8 @@ async function runIssue310UnsupportedProfileRoute({
   await retryAndResume(page, context, chatUrl, result.href, source, trace);
   await proveSecondUserDenied(
     browser,
-    control.base_url,
-    control.users[1],
+    routeControl.base_url,
+    routeControl.users[1],
     result.href,
     chatUrl,
     trace,
