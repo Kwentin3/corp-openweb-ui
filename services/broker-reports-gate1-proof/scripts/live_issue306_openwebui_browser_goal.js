@@ -220,8 +220,8 @@ async function waitForTurn(page) {
       stableTicks = 0;
     }
   }
-  await page.locator('#send-message-button').waitFor({
-    state: 'visible',
+  await page.locator('#stop-response-button').waitFor({
+    state: 'hidden',
     timeout: 30000,
   });
   const forbidden = [
