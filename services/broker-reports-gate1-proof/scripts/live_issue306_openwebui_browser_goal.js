@@ -182,6 +182,13 @@ async function rememberTurnBoundary(page) {
 
 async function sendMessage(page, message) {
   await rememberTurnBoundary(page);
+  page.__issue310CompletionResponse = page.waitForResponse(
+    (response) => (
+      response.request().method() === 'POST'
+      && response.url().includes('/api/chat/completions')
+    ),
+    { timeout: 120000 },
+  );
   const input = page.locator('#chat-input');
   await input.waitFor({ state: 'visible', timeout: 90000 });
   await input.fill(message);
@@ -206,6 +213,11 @@ async function waitForTurn(page) {
     { timeout: 120000 },
   );
   page.__issue310TurnBoundary = null;
+  if (page.__issue310CompletionResponse) {
+    const response = await page.__issue310CompletionResponse;
+    await response.finished();
+    page.__issue310CompletionResponse = null;
+  }
   const terminalMessage = page.locator('[role="listitem"]').last();
   await page.locator('#chat-input').waitFor({ state: 'visible', timeout: 30000 });
   await page.waitForTimeout(500);
