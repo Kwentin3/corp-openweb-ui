@@ -788,6 +788,7 @@ async function runIssue310UnsupportedProfileRoute({
     throw new Error('issue310_tax_period_question_not_first');
   }
   await answerQuestion(page, '2022');
+  await sendMessage(page, CONTINUE);
   const profileQuestion = await waitForQuestion(page);
   if (classifyQuestion(profileQuestion) !== 'profile_mode') {
     throw new Error('issue310_profile_mode_question_missing');
@@ -819,6 +820,7 @@ async function runIssue310UnsupportedProfileRoute({
     }
     await sendMessage(page, 'Изменить налоговый период: 2022');
     await waitForTurn(page);
+    await sendMessage(page, CONTINUE);
     const returnedQuestion = await waitForQuestion(page);
     if (
       classifyQuestion(returnedQuestion) !== 'profile_mode'
