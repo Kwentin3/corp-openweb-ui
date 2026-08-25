@@ -1,0 +1,46 @@
+{
+  "schema_version": "broker_reports_gate3_financial_role_pack_v1",
+  "role_pack_id": "broker-reports-financial-roles",
+  "semantic_version": "4.0.0",
+  "status": "PUBLISHED",
+  "published_at": "2026-08-25",
+  "approval": {
+    "approval_id": "issue-308-source-proven-position-effect-2026-08-25",
+    "decision": "APPROVED",
+    "approved_by_role": "goal_setters",
+    "approved_at": "2026-08-25",
+    "basis": "Issue 308 requires an exact source-bound distinction between a disposal that closes a long position and a sale explicitly identified by the source as opening a short position"
+  },
+  "binding_contract": {
+    "value_source": "canonical_target_text",
+    "exact_text_policy": "optional_nonempty_literal_substring",
+    "normalized_or_computed_values_allowed": false,
+    "maximum_bindings_per_role_per_fact": 1,
+    "missing_status": "missing"
+  },
+  "roles": [
+    {"role_id": "date", "meaning": "Date directly stated for the source fact target.", "value_kind": "source_date_text"},
+    {"role_id": "asset", "meaning": "Exact asset identifier directly stated for the source fact target.", "value_kind": "source_asset_identifier_text"},
+    {"role_id": "quantity", "meaning": "Asset quantity directly stated for the source fact target.", "value_kind": "source_number_text"},
+    {"role_id": "unit_price", "meaning": "Unit price directly stated for the source fact target.", "value_kind": "source_number_text"},
+    {"role_id": "amount", "meaning": "Money amount directly stated for the source fact target.", "value_kind": "source_number_text"},
+    {"role_id": "currency", "meaning": "Money currency directly stated for the source fact target.", "value_kind": "source_currency_text"},
+    {"role_id": "source_wording", "meaning": "Literal source wording directly expressing the fact meaning in the same source target.", "value_kind": "source_literal_text"},
+    {"role_id": "position_effect", "meaning": "Exact source-authored position effect; OPEN_SHORT is admissible only when that literal is bound to the same disposal target.", "value_kind": "source_position_effect_code"}
+  ],
+  "profiles": [
+    {"financial_label": "SECURITY_PURCHASE", "required_roles": ["date", "asset", "quantity", "amount", "currency"], "optional_roles": ["unit_price"]},
+    {"financial_label": "SECURITY_DISPOSAL", "required_roles": ["date", "asset", "quantity", "amount", "currency"], "optional_roles": ["unit_price", "position_effect"]},
+    {"financial_label": "DIVIDEND_INCOME", "required_roles": ["date", "amount", "currency"], "optional_roles": ["asset"]},
+    {"financial_label": "COUPON_INCOME", "required_roles": ["date", "amount", "currency"], "optional_roles": ["asset"]},
+    {"financial_label": "INTEREST_INCOME", "required_roles": ["date", "amount", "currency"], "optional_roles": []},
+    {"financial_label": "SECURITIES_LENDING_INCOME", "required_roles": ["date", "amount", "currency"], "optional_roles": ["asset"]},
+    {"financial_label": "ACCRUED_COUPON_COMPONENT", "required_roles": ["amount", "currency"], "optional_roles": []},
+    {"financial_label": "TRANSACTION_CHARGE", "required_roles": ["date", "amount", "currency"], "optional_roles": ["asset"]},
+    {"financial_label": "COMMISSION", "required_roles": ["amount", "currency"], "optional_roles": ["date", "asset"]},
+    {"financial_label": "COMMISSION_TOTAL", "required_roles": ["amount", "currency"], "optional_roles": ["date", "asset"]},
+    {"financial_label": "TAX_WITHHELD", "required_roles": ["date", "amount", "currency"], "optional_roles": ["asset"]},
+    {"financial_label": "TAX_ADJUSTMENT", "required_roles": ["date", "amount", "currency", "source_wording"], "optional_roles": ["asset"]},
+    {"financial_label": "TAX_WITHHELD_TOTAL", "required_roles": ["amount", "currency"], "optional_roles": ["date", "asset"]}
+  ]
+}

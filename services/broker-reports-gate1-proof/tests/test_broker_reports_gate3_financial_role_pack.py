@@ -21,6 +21,8 @@ from broker_reports_gate1.gate3_financial_role_pack import (
     GATE3_ROLE_PACK_V3_VERSION,
     GATE3_ROLE_PACK_V3_1_FILE_SHA256,
     GATE3_ROLE_PACK_V3_1_VERSION,
+    GATE3_ROLE_PACK_V4_FILE_SHA256,
+    GATE3_ROLE_PACK_V4_VERSION,
 )
 
 
@@ -156,6 +158,7 @@ def test_current_role_pack_qualifies_asset_as_source_identifier() -> None:
         "2.0.0",
         "3.0.0",
         "3.1.0",
+        "4.0.0",
     )
     pack = owner.load_published()
     resource = PACKAGE_ROOT / "gate3_financial_role_pack.v3.json"
@@ -190,3 +193,19 @@ def test_inactive_g591_role_candidate_adds_only_source_wording_profile() -> None
         ("asset",),
     )
     assert [role["role_id"] for role in pack["roles"]][-1] == "source_wording"
+
+
+def test_issue308_position_effect_is_optional_source_bound_disposal_evidence() -> None:
+    owner = Gate3FinancialRolePackFactory.create()
+    pack = owner.load_published(GATE3_ROLE_PACK_V4_VERSION)
+    resource = PACKAGE_ROOT / "gate3_financial_role_pack.v4.json"
+    disposal = next(
+        item for item in pack["profiles"] if item["financial_label"] == "SECURITY_DISPOSAL"
+    )
+
+    assert hashlib.sha256(resource.read_bytes()).hexdigest() == (
+        GATE3_ROLE_PACK_V4_FILE_SHA256
+    )
+    assert "position_effect" not in disposal["required_roles"]
+    assert disposal["optional_roles"] == ["unit_price", "position_effect"]
+    assert GATE3_ROLE_PACK_CURRENT_VERSION == GATE3_ROLE_PACK_V3_VERSION

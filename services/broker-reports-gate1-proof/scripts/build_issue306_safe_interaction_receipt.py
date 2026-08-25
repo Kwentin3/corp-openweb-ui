@@ -209,12 +209,28 @@ def _validate_source_run(receipt: dict[str, Any]) -> None:
         or artifact.get("source_url") != expected["source_url"]
     ):
         raise Issue306ReceiptError("issue306_source_artifact_binding_invalid")
-    events = _event(receipt, "representative_source_blocked_before_declaration")
+    events = _event(
+        receipt,
+        "representative_source_boundary_separation_proven",
+    )
     if (
         len(events) != 1
         or events[0].get("xml_created") is not False
         or events[0].get("private_download_created") is not False
-        or events[0].get("typed_blocker_visible") is not True
+        or events[0].get("filing_eligible") is not False
+        or events[0].get("exact_status") != "PREPARATION_INCOMPLETE"
+        or events[0].get("exact_terminal")
+        != "ordinary_trade_canonical_evidence_missing"
+        or events[0].get("reason_codes")
+        != ["ordinary_trade_canonical_evidence_missing"]
+        or events[0].get("source_completeness_status")
+        != "CANONICAL_EVIDENCE_MISSING"
+        or events[0].get("detected_operation_years") != []
+        or events[0].get("selected_tax_period") is not None
+        or events[0].get("position_evaluation_status")
+        != "NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE"
+        or events[0].get("profile_support")
+        != "NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE"
     ):
         raise Issue306ReceiptError("issue306_source_blocker_not_proven")
 
@@ -370,18 +386,75 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     return {**base, "receipt_sha256": _sha_json(base)}
 
 
+def build_issue308_source_proof(args: argparse.Namespace) -> dict[str, Any]:
+    restored_paths = [Path(value).resolve() for value in args.control_restored]
+    if len(restored_paths) != 1 or not args.source_run:
+        raise Issue306ReceiptError("issue308_one_source_and_restore_required")
+    source = _read_receipt(
+        Path(args.source_run).resolve(),
+        schema="broker_reports_issue306_browser_run_receipt_v2",
+    )
+    restored = _read_receipt(
+        restored_paths[0],
+        schema="broker_reports_gate5_openwebui_control_v0",
+    )
+    expected = {
+        "generated_bundle_sha256": _sha_bytes(BUNDLE_PATH.read_bytes()),
+        "browser_driver_sha256": _git_blob_sha256(BROWSER_DRIVER_PATH),
+        "control_script_sha256": _git_blob_sha256(CONTROL_PATH),
+    }
+    _validate_binding(source, expected=expected)
+    _validate_source_run(source)
+    if (
+        restored.get("status") != "restored"
+        or restored.get("state_restored") is not True
+        or restored.get("deployed_bundle_sha256")
+        != expected["generated_bundle_sha256"]
+        or source["proof_binding"].get("control_prepared_receipt_sha256")
+        != restored.get("predecessor_control_prepared_receipt_sha256")
+    ):
+        raise Issue306ReceiptError("issue308_control_restore_binding_invalid")
+    base = {
+        "schema_version": "broker_reports_issue308_safe_interaction_proof_v1",
+        "exact_base_sha": args.base_sha,
+        "tested_commit": source["proof_binding"]["tested_commit"],
+        "tested_code_manifest": {
+            **expected,
+            "receipt_builder_sha256": _git_blob_sha256(SCRIPT_PATH),
+        },
+        "user_mode": {"representative_source_run": source},
+        "verification_mode": {"control_restored_receipt": restored},
+        "developer_mode": {
+            "diagnostic_intervention_during_user_run": False,
+            "new_tax_source_or_identity_authority_added": False,
+        },
+        "privacy": {
+            "pii_recorded": False,
+            "secrets_recorded": False,
+            "hidden_refs_recorded": False,
+            "document_contents_recorded": False,
+        },
+    }
+    return {**base, "receipt_sha256": _sha_json(base)}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-sha", required=True)
-    parser.add_argument("--clean-run", action="append", required=True)
-    parser.add_argument("--xml", action="append", required=True)
-    parser.add_argument("--source-run", required=True)
-    parser.add_argument("--control-restored", action="append", required=True)
+    parser.add_argument("--clean-run", action="append", default=[])
+    parser.add_argument("--xml", action="append", default=[])
+    parser.add_argument("--source-run")
+    parser.add_argument("--control-restored", action="append", default=[])
+    parser.add_argument("--issue308-source-only", action="store_true")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     if re.fullmatch(r"[0-9a-f]{40}", args.base_sha) is None:
         raise Issue306ReceiptError("issue306_base_sha_invalid")
-    result = build(args)
+    if not args.issue308_source_only and (
+        not args.clean_run or not args.xml or not args.source_run
+    ):
+        raise Issue306ReceiptError("issue306_full_proof_inputs_required")
+    result = build_issue308_source_proof(args) if args.issue308_source_only else build(args)
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(

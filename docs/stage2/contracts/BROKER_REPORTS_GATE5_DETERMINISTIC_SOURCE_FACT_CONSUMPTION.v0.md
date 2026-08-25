@@ -72,6 +72,44 @@ every source fact, and returns exact group/fact blockers. A failed group cannot
 erase a successfully calculated independent group. Purchase-only groups remain
 `NOT_ACTIVATED_FOR_SUPPLIED_CASE`; they are not forced into a disposal event.
 
+Issue #308 adds an explicit, orthogonal position scope to every security group.
+It reports source-proven purchase, resolved-disposal, unresolved-disposal,
+open-long and proven-open-short quantities separately from source completeness
+and tax activation. A purchase-only group is `OPEN_LONG_PROVEN` with
+`NOT_ACTIVATED_NO_DISPOSAL`; it is not `SOURCE_EVIDENCE_INSUFFICIENT`. A
+successful disposal may retain an open-long remainder while its closed portion
+remains an owner-produced FIFO calculation.
+
+The lightweight assessment uses the same separation: role-incomplete facts are
+`SOURCE_EVIDENCE_INSUFFICIENT`, purchase-only is
+`OPEN_POSITION_NOT_TAX_ACTIVATED`, sale-only without sufficient semantics is
+`POSITION_SEMANTICS_OR_ACQUISITION_HORIZON_UNRESOLVED`, and only a complete
+purchase/disposal set is `READY_FOR_FIFO`.
+
+Sale-only evidence does not prove an open short. Without an exact source-bound
+`position_effect=OPEN_SHORT`, the state is
+`UNRESOLVED_DISPOSAL_EVIDENCE_HORIZON` and the typed reason is
+`gate5_source_fact_acquisition_evidence_horizon_unproven`. The optional
+`position_effect` role is owned by the published Gate 3 Fact role contract and
+is accepted only when the exact `OPEN_SHORT` literal is bound to the same
+disposal source target. No date, sign, quantity or missing purchase permits a
+short inference.
+
+The role is published by financial role pack v4 but is not silently activated
+as the current role pack. The current exact-qualified ordinary-table route does
+not emit it. Therefore a normal sale-only case remains the typed evidence-
+horizon blocker until a qualified source owner actually returns that v4 role;
+tests of `OPEN_SHORT` use a genuine v4 owner-produced Fact, not a caller-made
+Fact dictionary.
+
+The same owner publishes `operation_period_observation`: exact min/max dates
+and years copied from source-bound security Fact roles, both per document and
+for the current case. These are observed operation bounds only. The current
+Fact contract does not prove a broker-statement/document reporting period, so
+`evidence_horizon_status=OBSERVED_BOUNDS_ONLY` and
+`document_period_status=NOT_PROVEN_BY_CURRENT_FACT_CONTRACT` remain explicit.
+Filename, broker identity and profile routing are never period evidence.
+
 Missing acquisition quantity in the current Gate 4 set is an
 `EVIDENCE_HORIZON_ACQUISITION_BASIS_GAP`. Historical acquisition may predate
 the supplied window. This state asserts neither parser/source defect nor a

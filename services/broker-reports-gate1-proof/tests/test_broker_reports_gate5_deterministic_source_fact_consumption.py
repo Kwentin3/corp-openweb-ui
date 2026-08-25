@@ -362,7 +362,7 @@ def test_available_assembly_resolves_independent_group_and_localizes_other_gap(
     assert groups["BETA"]["resolved_disposals"] == 0
     blocker = groups["BETA"]["blocker"]
     assert blocker["reason_code"] == (
-        "gate5_source_fact_acquisition_quantity_insufficient"
+        "gate5_source_fact_acquisition_evidence_horizon_unproven"
     )
     assert blocker["required_quantity"] == "7"
     assert blocker["available_prior_quantity"] == "0"
@@ -378,6 +378,170 @@ def test_available_assembly_resolves_independent_group_and_localizes_other_gap(
     assert assembled["invented_facts"] == 0
     assert assembled["invented_relations"] == 0
     assert assembled["reconciliation"] == "not_performed"
+
+
+def test_position_scope_separates_open_long_from_source_gap_and_tax_activation(
+    tmp_path: Path,
+) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path / "open-long")
+    _publish(
+        store,
+        context,
+        document_id="purchase-only",
+        source_rows=("Purchase|01.12.2022|ACME|10|100.00|RUB",),
+        fact_specs=(("SECURITY_PURCHASE", _security_roles("01.12.2022", "10", "100.00")),),
+        purchase_date="01.12.2022",
+    )
+    _gate4(store).rebuild_case(context=context)
+
+    consumer = _consumer(store)
+    assessed = consumer.assess(
+        methodology_ref=_source_methodology_ref(), context=context
+    )
+    assembled = consumer.assemble_available(
+        methodology_ref=_source_methodology_ref(), context=context
+    )
+    group = assembled["security_groups"][0]
+
+    assert group["status"] == "NOT_ACTIVATED_FOR_SUPPLIED_CASE"
+    assert group["blocker"] is None
+    assert group["position_scope"]["state"] == "OPEN_LONG_PROVEN"
+    assert group["position_scope"]["open_long_quantity"] == "10"
+    assert group["position_scope"]["tax_activation_status"] == (
+        "NOT_ACTIVATED_NO_DISPOSAL"
+    )
+    assert assembled["blockers"] == []
+    assert assembled["fifo_calculations"] == []
+    assert assessed["security_tax_input_status"] == (
+        "OPEN_POSITION_NOT_TAX_ACTIVATED"
+    )
+    assert assembled["operation_period_observation"]["observed_operation_years"] == [
+        "2022"
+    ]
+    assert assembled["operation_period_observation"]["evidence_horizon_status"] == (
+        "OBSERVED_BOUNDS_ONLY"
+    )
+
+
+@pytest.mark.parametrize("document_id", ["broker-report-2022", "broker-report-2099"])
+def test_document_name_year_never_overrides_owner_observed_operation_year(
+    tmp_path: Path,
+    document_id: str,
+) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path / document_id)
+    _publish(
+        store,
+        context,
+        document_id=document_id,
+        source_rows=("Purchase|01.12.2025|ACME|10|100.00|RUB",),
+        fact_specs=(("SECURITY_PURCHASE", _security_roles("01.12.2025", "10", "100.00")),),
+        purchase_date="01.12.2025",
+    )
+    _gate4(store).rebuild_case(context=context)
+
+    observation = _consumer(store).assemble_available(
+        methodology_ref=_source_methodology_ref(), context=context
+    )["operation_period_observation"]
+
+    assert observation["observed_operation_years"] == ["2025"]
+    assert observation["documents"][0]["document_id"] == document_id
+    assert observation["documents"][0]["document_period_status"] == (
+        "NOT_PROVEN_BY_CURRENT_FACT_CONTRACT"
+    )
+    assert observation["filename_or_broker_period_inference"] is False
+
+
+def test_sale_only_does_not_infer_short_and_reports_unproven_evidence_horizon(
+    tmp_path: Path,
+) -> None:
+    store, context = _case(tmp_path / "sale-only", include_purchases=False)
+
+    consumer = _consumer(store)
+    assessed = consumer.assess(
+        methodology_ref=_source_methodology_ref(), context=context
+    )
+    assembled = consumer.assemble_available(
+        methodology_ref=_source_methodology_ref(), context=context
+    )
+    group = assembled["security_groups"][0]
+
+    assert group["position_scope"]["state"] == (
+        "UNRESOLVED_DISPOSAL_EVIDENCE_HORIZON"
+    )
+    assert group["position_scope"]["short_inference_performed"] is False
+    assert assessed["security_tax_input_status"] == (
+        "POSITION_SEMANTICS_OR_ACQUISITION_HORIZON_UNRESOLVED"
+    )
+    assert group["blocker"]["reason_code"] == (
+        "gate5_source_fact_acquisition_evidence_horizon_unproven"
+    )
+    assert "short" not in group["blocker"]["closing_evidence"].lower()
+
+
+def test_source_proven_open_short_is_not_mislabeled_as_missing_acquisition(
+    tmp_path: Path,
+) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path / "open-short")
+    _publish(
+        store,
+        context,
+        document_id="source-proven-short",
+        source_rows=("OPEN_SHORT|01.03.2025|ACME|7|210.00|RUB",),
+        fact_specs=(
+            (
+                "SECURITY_DISPOSAL",
+                _security_roles(
+                    "01.03.2025",
+                    "7",
+                    "210.00",
+                    position_effect="OPEN_SHORT",
+                ),
+            ),
+        ),
+        semantic_version="2.1.0",
+        role_pack_semantic_version="4.0.0",
+    )
+    _gate4(store).rebuild_case(context=context)
+
+    consumer = _consumer(store)
+    assessed = consumer.assess(
+        methodology_ref=_source_methodology_ref(), context=context
+    )
+    assembled = consumer.assemble_available(
+        methodology_ref=_source_methodology_ref(), context=context
+    )
+    group = assembled["security_groups"][0]
+
+    assert group["position_scope"]["state"] == "OPEN_SHORT_PROVEN"
+    assert assessed["security_tax_input_status"] == (
+        "OPEN_POSITION_NOT_TAX_ACTIVATED"
+    )
+    assert assessed["security_facts"][0]["position_effect"] == "OPEN_SHORT"
+    assert group["position_scope"]["proven_open_short_quantity"] == "7"
+    assert group["opening_short_fact_ids"]
+    assert assembled["blockers"] == []
+    assert assembled["fifo_calculations"] == []
+
+
+def test_closed_portion_is_calculated_while_open_long_remainder_is_preserved(
+    tmp_path: Path,
+) -> None:
+    store, context = _case(tmp_path / "partial-close")
+
+    assembled = _consumer(store).assemble_available(
+        methodology_ref=_source_methodology_ref(), context=context
+    )
+    group = assembled["security_groups"][0]
+
+    assert len(assembled["fifo_calculations"]) == 1
+    assert group["position_scope"]["state"] == (
+        "CLOSED_DISPOSAL_WITH_OPEN_LONG_REMAINDER"
+    )
+    assert group["position_scope"]["resolved_disposal_quantity"] == "12"
+    assert group["position_scope"]["open_long_quantity"] == "8"
+    assert group["position_scope"]["tax_activation_status"] == (
+        "CLOSED_PORTION_AVAILABLE"
+    )
 
 
 def test_acquisition_basis_coverage_gap_is_quantified_without_zero_cost_inference(
@@ -879,6 +1043,8 @@ def _publish(
     purchase_date: str | None = None,
     target_indexes: tuple[int, ...] | None = None,
     same_table_row: bool = False,
+    semantic_version: str = "2.0.0",
+    role_pack_semantic_version: str | None = None,
 ) -> None:
     document_context = replace(
         context,
@@ -902,7 +1068,8 @@ def _publish(
         created_at="2026-08-13T00:00:00+00:00",
         purchase_date=purchase_date,
         fact_specs=fact_specs,
-        semantic_version="2.0.0",
+        semantic_version=semantic_version,
+        role_pack_semantic_version=role_pack_semantic_version,
         target_indexes=target_indexes,
         target_rows=(tuple(1 for _ in fact_specs) if same_table_row else None),
     )
@@ -915,15 +1082,19 @@ def _security_roles(
     currency: str = "RUB",
     *,
     asset: str = "ACME",
+    position_effect: str | None = None,
 ) -> tuple:
-    return (
+    roles = [
         ("date", date),
         ("asset", asset),
         ("quantity", quantity),
         ("amount", amount),
         ("currency", currency),
         ("unit_price", None),
-    )
+    ]
+    if position_effect is not None:
+        roles.append(("position_effect", position_effect))
+    return tuple(roles)
 
 
 def _gate4(store):

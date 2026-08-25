@@ -16,6 +16,15 @@ from .ordinary_trade_projection import OrdinaryTradeProjectionFactory
 _FACT_V2_HISTORICAL_ANNOTATION_SCHEMA_DISCRIMINATOR = (
     "broker_reports_financial_annotations_v2"
 )
+GATE4_ORDINARY_TRADE_CURRENT_FACT_SET_SCHEMA_VERSION = (
+    "broker_reports_gate4_ordinary_trade_current_fact_set_v1"
+)
+GATE4_ORDINARY_TRADE_BLOCKER_SCHEMA_VERSION = (
+    "broker_reports_gate4_ordinary_trade_blocker_v1"
+)
+GATE4_ORDINARY_TRADE_SECURITY_POSITION_SOURCE_CONTRACT_MISSING = (
+    "gate4_ordinary_trade_security_position_source_contract_missing"
+)
 
 
 FACTORY_REQUIRED = (
@@ -54,12 +63,13 @@ class Gate4OrdinaryTradeCandidateRuntime:
     def __init__(self, *, projections: Any) -> None:
         self._projections = projections
 
-    def list_facts(
+    def current_fact_set(
         self, *, context: ArtifactAccessContext
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         case_binding = _case_binding(context)
         facts: list[dict[str, Any]] = []
-        for record, projection in self._projections.current_case(context=context):
+        projections = self._projections.current_case(context=context)
+        for record, projection in projections:
             projection_binding = projection["canonical_binding"]
             canonical_binding = {
                 "document_id": projection_binding["document_id"],
@@ -132,7 +142,52 @@ class Gate4OrdinaryTradeCandidateRuntime:
             raise Gate4OrdinaryTradeCandidateError(
                 "gate4_ordinary_trade_fact_duplicate"
             )
-        return copy.deepcopy(facts)
+        security_facts = [
+            item
+            for item in facts
+            if item["financial_type"] in {"SECURITY_PURCHASE", "SECURITY_DISPOSAL"}
+        ]
+        relevant_unmapped = any(
+            observation.get("disposition") == "RELEVANT_UNMAPPED"
+            for _record, projection in projections
+            for observation in projection["source_observations"]
+        )
+        blockers = []
+        if projections and not security_facts and not relevant_unmapped:
+            blockers.append(
+                {
+                    "schema_version": GATE4_ORDINARY_TRADE_BLOCKER_SCHEMA_VERSION,
+                    "reason_code": (
+                        GATE4_ORDINARY_TRADE_SECURITY_POSITION_SOURCE_CONTRACT_MISSING
+                    ),
+                    "required_input": (
+                        "ordinary_trade_projection.runtime_records."
+                        "security_position_semantics"
+                    ),
+                    "gap_owner_classification": (
+                        "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT"
+                    ),
+                    "owner": "Gate4OrdinaryTradeCandidateRuntime",
+                    "blocking_scope": (
+                        "active_security_position_source_contract"
+                    ),
+                }
+            )
+        return {
+            "schema_version": GATE4_ORDINARY_TRADE_CURRENT_FACT_SET_SCHEMA_VERSION,
+            "status": (
+                "SECURITY_POSITION_SOURCE_CONTRACT_MISSING"
+                if blockers
+                else "READY"
+            ),
+            "facts": copy.deepcopy(facts),
+            "blockers": copy.deepcopy(blockers),
+        }
+
+    def list_facts(
+        self, *, context: ArtifactAccessContext
+    ) -> list[dict[str, Any]]:
+        return self.current_fact_set(context=context)["facts"]
 
 
 def _case_binding(context: ArtifactAccessContext) -> dict[str, str]:
@@ -213,6 +268,9 @@ def _validate_compatibility_fact(fact: dict[str, Any]) -> None:
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "GATE4_ORDINARY_TRADE_BLOCKER_SCHEMA_VERSION",
+    "GATE4_ORDINARY_TRADE_CURRENT_FACT_SET_SCHEMA_VERSION",
+    "GATE4_ORDINARY_TRADE_SECURITY_POSITION_SOURCE_CONTRACT_MISSING",
     "Gate4OrdinaryTradeCandidateError",
     "Gate4OrdinaryTradeCandidateRuntime",
     "Gate4OrdinaryTradeCandidateRuntimeFactory",

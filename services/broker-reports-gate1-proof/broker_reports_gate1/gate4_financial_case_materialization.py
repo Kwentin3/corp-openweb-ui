@@ -412,6 +412,8 @@ def _normalize_role_value(role: str, source_literal: str) -> str:
         return _normalize_decimal_literal(value)
     if role in {"asset", "currency", "source_wording"} and value:
         return value
+    if role == "position_effect" and value == "OPEN_SHORT":
+        return value
     raise Gate4FinancialCaseMaterializationError("gate4_role_value_invalid")
 
 

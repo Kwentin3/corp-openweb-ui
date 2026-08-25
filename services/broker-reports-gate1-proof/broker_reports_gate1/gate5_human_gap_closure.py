@@ -136,6 +136,8 @@ _REQUEST_PUBLICATION_KEYS = frozenset(
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _ARTIFACT_REF = re.compile(r"^art_[A-Fa-f0-9]{32}$")
 _KNOWN_FACT_KEYS = {
+    "selected_tax_period",
+    "profile_mismatch_mode",
     "taxpayer_identity_confirmed",
     "taxpayer_identity",
     "taxpayer_capacity",
@@ -451,6 +453,199 @@ class Gate5HumanGapClosureRuntime:
             "provider_calls_total": 0,
         }
 
+    def publish_tax_period_selection_request(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        taxpayer_scope_ref: str,
+        detected_operation_years: list[str],
+    ) -> dict[str, Any]:
+        """Publish/read the case-scoped period choice before a tax scope exists."""
+
+        self._publication_dependencies()
+        if (
+            not isinstance(detected_operation_years, list)
+            or detected_operation_years != sorted(set(detected_operation_years))
+            or any(re.fullmatch(r"[0-9]{4}", item) is None for item in detected_operation_years)
+        ):
+            _fail("gate5_tax_period_detection_invalid")
+        neutral_period = "0000"
+        scope = _human_fact_scope(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=neutral_period,
+        )
+        facts = self.current_user_case_facts(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=neutral_period,
+        )
+        selected = next(
+            (item for item in facts if item["fact_key"] == "selected_tax_period"),
+            None,
+        )
+        request = _request(
+            kind="REQUIRED",
+            priority="HIGH",
+            closure_type="USER_FACT",
+            fact_key="selected_tax_period",
+            demand_refs=["ordinary_trade_selected_tax_period"],
+            evidence_refs=[],
+            question=(
+                "Choose the tax period for this case. Detected operation years: "
+                + (", ".join(detected_operation_years) if detected_operation_years else "none")
+                + "."
+            ),
+            reason="the filing or analysis period must be explicitly selected",
+            helpful_evidence="a four-digit tax year chosen by the authenticated user",
+            client_benefit="prevents silently moving source operations into another year",
+            answer_contract={
+                "kind": "code",
+                "pattern": "^(?!0000$)[0-9]{4}$",
+            },
+            subject={"detected_operation_years": detected_operation_years},
+            scope_binding=scope,
+            semantic_request_key="human_fact:selected_tax_period",
+        )
+        current_change = self._current_product_change_request(
+            request=request,
+            context=context,
+        )
+        published = (
+            current_change
+            if current_change is not None
+            else self._persist_request(request=request, context=context)
+        )
+        self._reject_stale_request(request=published, context=context)
+        if selected is not None:
+            current = self.current_user_case_facts(
+                context=context,
+                taxpayer_scope_ref=taxpayer_scope_ref,
+                tax_period=neutral_period,
+            )
+            selected = next(
+                (item for item in current if item["fact_key"] == "selected_tax_period"),
+                None,
+            )
+        return {
+            "schema_version": "broker_reports_tax_period_selection_v0",
+            "status": "SELECTED" if selected is not None else "INPUT_REQUIRED",
+            "detected_operation_years": copy.deepcopy(detected_operation_years),
+            "selected_tax_period_fact": copy.deepcopy(selected),
+            "actions": [] if selected is not None else [published],
+            "scope_binding": scope,
+            "provider_calls_total": 0,
+        }
+
+    def publish_profile_mismatch_mode_request(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        taxpayer_scope_ref: str,
+        tax_period: str,
+        available_profiles: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Offer only non-filing outcomes when the exact year profile is absent."""
+
+        self._publication_dependencies()
+        selected_period_facts = self.current_user_case_facts(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period="0000",
+        )
+        selected_period_fact = next(
+            (
+                item
+                for item in selected_period_facts
+                if item["fact_key"] == "selected_tax_period"
+            ),
+            None,
+        )
+        if (
+            selected_period_fact is None
+            or selected_period_fact["value"].get("value") != tax_period
+        ):
+            _fail("gate5_profile_mismatch_period_selection_invalid")
+        scope = _human_fact_scope(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=tax_period,
+        )
+        facts = self.current_user_case_facts(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=tax_period,
+        )
+        selected = next(
+            (item for item in facts if item["fact_key"] == "profile_mismatch_mode"),
+            None,
+        )
+        profile_labels = _available_profile_labels(available_profiles)
+        request = _request(
+            kind="REQUIRED",
+            priority="HIGH",
+            closure_type="USER_FACT",
+            fact_key="profile_mismatch_mode",
+            demand_refs=["ordinary_trade_exact_year_profile"],
+            evidence_refs=[],
+            question=(
+                f"The exact declaration profile for {tax_period} is not available. "
+                f"Available profiles: {', '.join(profile_labels)}. "
+                "Choose analysis only, a clearly non-filing surrogate draft, or stop and resume later."
+            ),
+            reason="a filing artifact cannot use a profile from another tax year",
+            helpful_evidence="an explicit non-filing mode choice",
+            client_benefit="prevents generating wrong-year filing XML",
+            answer_contract={
+                "kind": "code",
+                "allowed": [
+                    "ANALYSIS_ONLY",
+                    "SURROGATE_DRAFT",
+                    "STOP_RESUMABLE",
+                ],
+            },
+            subject={
+                "tax_period": tax_period,
+                "filing_eligible": False,
+                "available_profiles": profile_labels,
+                "selected_tax_period_fact_ref": selected_period_fact[
+                    "user_case_fact_ref"
+                ],
+            },
+            scope_binding=scope,
+            semantic_request_key="human_fact:profile_mismatch_mode",
+        )
+        current_change = self._current_product_change_request(
+            request=request,
+            context=context,
+        )
+        published = (
+            current_change
+            if current_change is not None
+            else self._persist_request(request=request, context=context)
+        )
+        self._reject_stale_request(request=published, context=context)
+        if selected is not None:
+            current = self.current_user_case_facts(
+                context=context,
+                taxpayer_scope_ref=taxpayer_scope_ref,
+                tax_period=tax_period,
+            )
+            selected = next(
+                (item for item in current if item["fact_key"] == "profile_mismatch_mode"),
+                None,
+            )
+        return {
+            "schema_version": "broker_reports_profile_mismatch_mode_v0",
+            "status": "SELECTED" if selected is not None else "INPUT_REQUIRED",
+            "tax_period": tax_period,
+            "available_profiles": copy.deepcopy(available_profiles),
+            "selected_mode_fact": copy.deepcopy(selected),
+            "actions": [] if selected is not None else [published],
+            "scope_binding": scope,
+            "provider_calls_total": 0,
+        }
+
     def publish_ordinary_trade_declaration_change_request(
         self,
         *,
@@ -462,6 +657,25 @@ class Gate5HumanGapClosureRuntime:
     ) -> dict[str, Any]:
         """Publish an owner-bound successor before changing one current fact."""
 
+        if not isinstance(identity_candidates, list):
+            _fail("gate5_user_case_fact_change_identity_candidates_invalid")
+        return self.publish_user_case_fact_change_request(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=tax_period,
+            fact_key=fact_key,
+        )
+
+    def publish_user_case_fact_change_request(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        taxpayer_scope_ref: str,
+        tax_period: str,
+        fact_key: str,
+    ) -> dict[str, Any]:
+        """Mint a successor from the current owner request in its real scope."""
+
         self._publication_dependencies()
         facts = self.current_user_case_facts(
             context=context,
@@ -472,26 +686,31 @@ class Gate5HumanGapClosureRuntime:
         current_fact = facts_by_key.get(fact_key)
         if current_fact is None:
             _fail("gate5_user_case_fact_change_target_missing")
-        request_facts_by_key = dict(facts_by_key)
-        request_facts_by_key.pop(fact_key)
-        requests = _ordinary_trade_product_requests(
-            facts_by_key=request_facts_by_key,
-            identity_candidates=identity_candidates,
-            scope_binding=_human_fact_scope(
-                context=context,
-                taxpayer_scope_ref=taxpayer_scope_ref,
-                tax_period=tax_period,
-            ),
-            change_fact={
-                "fact_key": fact_key,
-                "user_case_fact_ref": current_fact["user_case_fact_ref"],
-            },
+        current_request = self._resolve_request_binding(
+            binding=current_fact["request_binding"],
+            context=context,
         )
-        request = next(
-            (item for item in requests if item.get("fact_key") == fact_key), None
+        answer_contract = copy.deepcopy(current_request["answer_contract"])
+        answer_contract["change_of_user_case_fact_ref"] = current_fact[
+            "user_case_fact_ref"
+        ]
+        request = _request(
+            kind=current_request["kind"],
+            priority=current_request["priority"],
+            closure_type=current_request["closure_type"],
+            fact_key=current_request["fact_key"],
+            demand_refs=current_request["demand_refs"],
+            evidence_refs=current_request["evidence_refs"],
+            question=current_request["question"],
+            reason=current_request["reason"],
+            helpful_evidence=current_request["helpful_evidence"],
+            client_benefit=current_request["client_benefit"],
+            answer_contract=answer_contract,
+            subject=current_request["subject"],
+            scope_binding=current_request["scope_binding"],
+            semantic_request_key=current_request["semantic_request_key"],
+            routing=current_request.get("routing"),
         )
-        if request is None:
-            _fail("gate5_user_case_fact_change_target_invalid")
         published = self._persist_request(request=request, context=context)
         self._reject_stale_request(request=published, context=context)
         return published
@@ -559,6 +778,8 @@ class Gate5HumanGapClosureRuntime:
             _fail("gate5_gap_answer_value_invalid")
         if expected.get("allowed") and value not in expected["allowed"]:
             _fail("gate5_gap_answer_value_invalid")
+        if validated["fact_key"] == "selected_tax_period" and value == "0000":
+            _fail("gate5_tax_period_neutral_sentinel_forbidden")
         if expected.get("pattern") and (
             not isinstance(value, str)
             or re.fullmatch(expected["pattern"], value) is None
@@ -749,6 +970,11 @@ class Gate5HumanGapClosureRuntime:
                 continue
             resolved = self._resolver.resolve_case(record.artifact_id, context)
             fact = _validated_user_fact_shape(resolved["payload"])
+            if (
+                fact["fact_key"] == "selected_tax_period"
+                and fact["value"].get("value") == "0000"
+            ):
+                _fail("gate5_tax_period_neutral_sentinel_forbidden")
             if fact["scope_binding"] != scope:
                 continue
             try:
@@ -806,6 +1032,7 @@ class Gate5HumanGapClosureRuntime:
             != request.get("semantic_request_key")
             or owner_request.get("scope_binding") != request.get("scope_binding")
             or not _artifact_ref_valid(contract.get("change_of_user_case_fact_ref"))
+            or not _same_request_state_without_change(owner_request, request)
         ):
             return None
         return {
@@ -1036,6 +1263,33 @@ class Gate5HumanGapClosureRuntime:
             != request.get("request_publication_ref")
         ):
             _fail("gate5_gap_request_stale")
+        if request.get("fact_key") == "profile_mismatch_mode":
+            subject = request.get("subject")
+            selected_fact_ref = (
+                subject.get("selected_tax_period_fact_ref")
+                if isinstance(subject, dict)
+                else None
+            )
+            selected_period_facts = self.current_user_case_facts(
+                context=context,
+                taxpayer_scope_ref=request["scope_binding"]["taxpayer_scope_ref"],
+                tax_period="0000",
+            )
+            selected_period_fact = next(
+                (
+                    item
+                    for item in selected_period_facts
+                    if item["fact_key"] == "selected_tax_period"
+                ),
+                None,
+            )
+            if (
+                selected_period_fact is None
+                or selected_fact_ref != selected_period_fact["user_case_fact_ref"]
+                or selected_period_fact["value"].get("value")
+                != request["scope_binding"]["tax_period"]
+            ):
+                _fail("gate5_gap_request_stale")
 
     def _current_request_publication(
         self,
@@ -1897,6 +2151,58 @@ def _request(
         **with_identity,
         "request_ref": _artifact_ref({"kind": "gap_request", "request": with_identity}),
     }
+
+
+def _available_profile_labels(value: Any) -> list[str]:
+    if not isinstance(value, list) or not value:
+        _fail("gate5_available_declaration_profiles_invalid")
+    labels: list[str] = []
+    years: set[str] = set()
+    for item in value:
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("tax_period"), str)
+            or re.fullmatch(r"[0-9]{4}", item["tax_period"]) is None
+            or not isinstance(item.get("form"), str)
+            or not item["form"]
+            or not isinstance(item.get("electronic_format_version"), str)
+            or not item["electronic_format_version"]
+            or not _identifier(item.get("profile_id"))
+            or item["tax_period"] in years
+        ):
+            _fail("gate5_available_declaration_profiles_invalid")
+        years.add(item["tax_period"])
+        labels.append(
+            f"{item['profile_id']} ({item['tax_period']} {item['form']} format "
+            f"{item['electronic_format_version']})"
+        )
+    return sorted(labels)
+
+
+def _same_request_state_without_change(
+    current: dict[str, Any], candidate: dict[str, Any]
+) -> bool:
+    excluded = {
+        "request_ref",
+        "request_id",
+        "request_sha256",
+        "request_publication_ref",
+    }
+    current_state = {
+        key: copy.deepcopy(item)
+        for key, item in current.items()
+        if key not in excluded
+    }
+    candidate_state = {
+        key: copy.deepcopy(item)
+        for key, item in candidate.items()
+        if key not in excluded
+    }
+    current_state["answer_contract"].pop(
+        "change_of_user_case_fact_ref",
+        None,
+    )
+    return current_state == candidate_state
 
 
 def _validated_routing(value: Any) -> dict[str, Any]:

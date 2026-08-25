@@ -168,9 +168,15 @@ _REFERENCE_KEYS = frozenset({"schema_version", "methodology_id", "methodology_ve
 
 
 class Gate5TrustedMethodologyError(ValueError):
-    def __init__(self, code: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        *,
+        gap_owner_classification: str | None = None,
+    ) -> None:
         super().__init__(code)
         self.code = code
+        self.gap_owner_classification = gap_owner_classification
 
 
 @dataclass(frozen=True)
@@ -398,10 +404,6 @@ class Gate5TrustedMethodologyAuthority:
             "payer_organization_jurisdiction": "RU",
             "realization_location_jurisdiction": "RU",
         }
-        if tax_period != "2025" or source_assertions != expected:
-            raise Gate5TrustedMethodologyError(
-                "gate5_ordinary_trade_product_source_evidence_unresolved"
-            )
         resolved = self.resolve(
             {
                 "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
@@ -434,6 +436,8 @@ class Gate5TrustedMethodologyAuthority:
                 "iis_status": "outside_iis",
                 "exemption_applicability": "not_applicable",
             }
+            or applicability.get("insufficient_inputs")
+            != "REAL_SOURCE_EVIDENCE_MISSING"
             or not isinstance(source, dict)
             or source.get("required_source_assertions")
             != {key: expected[key] for key in (
@@ -441,11 +445,18 @@ class Gate5TrustedMethodologyAuthority:
                 "realization_location_jurisdiction",
             )}
             or source.get("output") != "russian_source"
+            or source.get("insufficient_inputs")
+            != "REAL_SOURCE_EVIDENCE_MISSING"
             or not isinstance(kbk, dict)
             or kbk.get("output") != "18210102030011000110"
         ):
             raise Gate5TrustedMethodologyError(
                 "gate5_ordinary_trade_product_methodology_invalid"
+            )
+        if tax_period != "2025" or source_assertions != expected:
+            raise Gate5TrustedMethodologyError(
+                "gate5_ordinary_trade_product_source_evidence_unresolved",
+                gap_owner_classification=applicability["insufficient_inputs"],
             )
         return {
             "operation_applicability": copy.deepcopy(applicability["output"]),

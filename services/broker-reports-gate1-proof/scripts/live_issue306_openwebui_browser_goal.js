@@ -175,9 +175,15 @@ async function sendMessage(page, message) {
   const input = page.locator('#chat-input');
   await input.waitFor({ state: 'visible', timeout: 90000 });
   await input.fill(message);
+  const messageCount = await page.locator('[role="listitem"]').count();
   const send = page.locator('#send-message-button');
   await send.waitFor({ state: 'visible', timeout: 10000 });
   await send.click();
+  await page.waitForFunction(
+    (count) => document.querySelectorAll('[role="listitem"]').length > count,
+    messageCount,
+    { timeout: 30000 },
+  );
 }
 
 async function waitForTurn(page) {
@@ -233,6 +239,7 @@ async function waitForQuestion(page) {
 
 function classifyQuestion(question) {
   const rules = [
+    ['tax_period', /\u043d\u0430\u043b\u043e\u0433\u043e\u0432\u044b\u0439 \u043f\u0435\u0440\u0438\u043e\u0434/i],
     ['residency', /периоды присутствия и отсутствия в России/i],
     ['capacity', /ваш статус за 2025 год/i],
     ['zero_scope', /нет других доходов той же категории/i],
@@ -280,6 +287,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
   await sendMessage(page, 'Подготовь 3-НДФЛ по загруженному брокерскому отчёту.');
 
   const state = {
+    taxPeriodSelected: false,
     invalidDate: false,
     invalidInn: false,
     identityDeferred: false,
@@ -292,7 +300,10 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     const kind = classifyQuestion(visibleQuestion);
     let answer;
     let expectedRejection = false;
-    if (kind === 'residency') {
+    if (kind === 'tax_period') {
+      answer = '2025';
+      state.taxPeriodSelected = true;
+    } else if (kind === 'residency') {
       answer = `Присутствие: ${truth.present}; отсутствие: ${truth.absent}; причины: нет`;
     } else if (kind === 'capacity') {
       answer = 'Обычное физическое лицо — не ИП и не лицо частной практики';
@@ -354,7 +365,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
 
   if (!firstXmlBody) throw new Error('first_xml_not_reached');
   if (!state.draftReady) throw new Error('draft_ready_without_xml_not_observed');
-  if (!state.invalidInn || !state.invalidDate || !state.identityDeferred) {
+  if (!state.taxPeriodSelected || !state.invalidInn || !state.invalidDate || !state.identityDeferred) {
     throw new Error('required_invalid_and_deferred_matrix_incomplete');
   }
   if (!state.wrongDateAccepted) throw new Error('date_correction_predecessor_missing');
@@ -595,6 +606,84 @@ async function runRepresentativeSourceSmoke({ browser, control, source, outputDi
   };
 }
 
+async function runRepresentativeSourceBoundaryProof({ browser, control, source, outputDir }) {
+  const context = await browser.newContext();
+  const page = await login(context, control.base_url, control.users[0]);
+  const sourceArtifact = loadPublicRepresentativeSource(source);
+  await selectNdfl(page);
+  await page.locator('input[type=file]').first().setInputFiles(sourceArtifact.upload);
+  await page.getByText(path.basename(source), { exact: false }).waitFor({
+    state: 'visible',
+    timeout: 60000,
+  });
+  // OpenWebUI renders the file chip before its background extraction has
+  // necessarily settled. Keep this browser-only proof behind that visible
+  // upload boundary and prove below that the user message was really posted.
+  await page.waitForTimeout(20000);
+  await sendMessage(
+    page,
+    '\u041f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u044c 3-\u041d\u0414\u0424\u041b \u043f\u043e \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043d\u043d\u043e\u043c\u0443 \u0431\u0440\u043e\u043a\u0435\u0440\u0441\u043a\u043e\u043c\u0443 \u043e\u0442\u0447\u0451\u0442\u0443.',
+  );
+  const body = await waitForTurn(page);
+  const required = [
+    'Exact status: PREPARATION_INCOMPLETE',
+    'terminal: ordinary_trade_canonical_evidence_missing',
+    'reason codes: ordinary_trade_canonical_evidence_missing',
+    'Case note: source completeness CANONICAL_EVIDENCE_MISSING',
+    'position evaluation NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE',
+    'selected tax period not selected',
+    'detected operation years none',
+    'exact profile NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE',
+    'positions none',
+    'calculated disposals 0',
+    'checks ordinary_trade_canonical_evidence_missing',
+    'filing eligible no',
+  ];
+  const missing = required.filter((marker) => !body.includes(marker));
+  if (missing.length) {
+    throw new Error(
+      `representative_source_exact_boundary_receipt_invalid:${missing.join('|')}`,
+    );
+  }
+  if (body.includes('gate5_source_fact_disposal_missing')) {
+    throw new Error('representative_source_extraction_gap_mislabeled_as_position');
+  }
+  if (body.includes('UNSUPPORTED_EXACT_YEAR_PROFILE')) {
+    throw new Error('representative_source_unselected_profile_was_evaluated');
+  }
+  if (body.includes('DECLARATION_XML_READY') || await downloadLinks(page).count()) {
+    throw new Error('representative_source_unjustified_declaration_created');
+  }
+  await page.screenshot({
+    path: path.join(outputDir, 'representative-source-user-view.png'),
+    fullPage: true,
+  });
+  await context.close();
+  return {
+    schema_version: 'broker_reports_issue308_safe_interaction_trace_v1',
+    source_kind: 'public_representative_broker_report',
+    source_artifact: sourceArtifact.receipt,
+    browser_ui_only: true,
+    hidden_refs_observed: false,
+    document_contents_recorded: false,
+    events: [{
+      mode: 'user',
+      event: 'representative_source_boundary_separation_proven',
+      exact_status: 'PREPARATION_INCOMPLETE',
+      exact_terminal: 'ordinary_trade_canonical_evidence_missing',
+      reason_codes: ['ordinary_trade_canonical_evidence_missing'],
+      source_completeness_status: 'CANONICAL_EVIDENCE_MISSING',
+      detected_operation_years: [],
+      selected_tax_period: null,
+      position_evaluation_status: 'NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE',
+      profile_support: 'NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE',
+      xml_created: false,
+      private_download_created: false,
+      filing_eligible: false,
+    }],
+  };
+}
+
 (async () => {
   const [statePath, truthPath, sourcePath, outputPath] = process.argv.slice(2);
   if (!statePath || !truthPath || !sourcePath || !outputPath) {
@@ -614,7 +703,7 @@ async function runRepresentativeSourceSmoke({ browser, control, source, outputDi
   const trace = [];
   const browser = await chromium.launch({ headless: true });
   if (process.env.ISSUE306_SOURCE_SMOKE_ONLY === '1') {
-    const safe = await runRepresentativeSourceSmoke({
+    const safe = await runRepresentativeSourceBoundaryProof({
       browser,
       control,
       source,

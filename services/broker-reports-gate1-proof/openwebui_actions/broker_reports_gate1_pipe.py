@@ -102,6 +102,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     declaration_change_intent,
     declaration_request_help,
     declaration_request_question,
+    declaration_surrogate_preview,
 )
 from broker_reports_gate1.private_intake_bytes import (
     OpenWebUIPrivateIntakeBytesResolverFactory,
@@ -811,12 +812,17 @@ class Pipe:
             elif product.get("status") in {
                 "PREPARATION_INCOMPLETE",
                 "INPUT_REQUIRED",
+                "OPEN_POSITION_RETAINED",
+                "ANALYSIS_READY_WITH_OPEN_ITEMS",
+                "ANALYSIS_ONLY_READY",
+                "NON_FILING_SURROGATE_READY",
+                "STOPPED_RESUMABLE",
             }:
                 chat_content = "\n".join(
                     [
                         chat_content,
                         "",
-                        self._ndfl_product_blocker_content(product),
+                        self._ndfl_non_ready_product_content(product),
                     ]
                 )
             elif product.get("status") == "DRAFT_READY":
@@ -846,6 +852,9 @@ class Pipe:
                         self._ndfl_ready_user_summary(declaration_result),
                     ]
                 )
+            case_note = self._ndfl_case_note_content(product)
+            if case_note:
+                chat_content = "\n".join([chat_content, "", case_note])
         if self._live_smoke_requested(safe_body, messages_arg):
             smoke_lines = self._run_live_artifactstore_smoke(
                 store=artifact_store,
@@ -1055,8 +1064,16 @@ class Pipe:
             lines.append(
                 "Ответ не принят и не сохранён. Исправьте значение для текущего вопроса."
             )
-        if status in {"PREPARATION_INCOMPLETE", "INPUT_REQUIRED"}:
-            lines.append(self._ndfl_product_blocker_content(product))
+        if status in {
+            "PREPARATION_INCOMPLETE",
+            "INPUT_REQUIRED",
+            "OPEN_POSITION_RETAINED",
+            "ANALYSIS_READY_WITH_OPEN_ITEMS",
+            "ANALYSIS_ONLY_READY",
+            "NON_FILING_SURROGATE_READY",
+            "STOPPED_RESUMABLE",
+        }:
+            lines.append(self._ndfl_non_ready_product_content(product))
         elif status == "DRAFT_READY":
             checklist = product.get("preparation", {}).get("checklist_fact_keys", [])
             lines.append(
@@ -1080,6 +1097,9 @@ class Pipe:
             )
         else:
             lines.append("Подготовка остановлена на точном типизированном блокере.")
+        case_note = self._ndfl_case_note_content(product)
+        if case_note:
+            lines.append(case_note)
         return "\n\n".join(lines)
 
     @staticmethod
@@ -1710,7 +1730,30 @@ class Pipe:
         return value if isinstance(value, str) else ""
 
     @staticmethod
+    def _ndfl_non_ready_product_content(product: dict[str, Any]) -> str:
+        lines = [Pipe._ndfl_product_blocker_content(product)]
+        if product.get("status") == "NON_FILING_SURROGATE_READY":
+            preparation = product.get("preparation")
+            preparation = preparation if isinstance(preparation, dict) else {}
+            lines.append(
+                declaration_surrogate_preview(
+                    preparation.get("surrogate_preview")
+                )
+            )
+        return "\n".join(lines)
+
+    @staticmethod
     def _ndfl_product_blocker_content(product: dict[str, Any]) -> str:
+        gate5 = product.get("gate5")
+        gate5 = gate5 if isinstance(gate5, dict) else {}
+        reason_codes = gate5.get("blocker_reason_codes")
+        reason_codes = reason_codes if isinstance(reason_codes, list) else []
+        exact_note = (
+            f"Exact status: {product.get('status') or 'unknown'}; "
+            f"terminal: {product.get('terminal') or 'unknown'}; reason codes: "
+            + (", ".join(map(str, reason_codes)) if reason_codes else "none")
+            + "."
+        )
         preparation = product.get("preparation")
         preparation = preparation if isinstance(preparation, dict) else {}
         closure = preparation.get("gap_closure")
@@ -1739,17 +1782,71 @@ class Pipe:
                 + candidate_note
                 + " "
                 + declaration_request_help(first)
+                + " "
+                + exact_note
             )
         internal_actions = closure.get("internal_owner_required_actions")
         internal_actions = (
             internal_actions if isinstance(internal_actions, list) else []
         )
+        if not internal_actions:
+            return exact_note
         if internal_actions:
             return (
+                exact_note
+                + " "
                 "Расчёт остановлен на точной границе методики; "
                 "дополнительный документ у пользователя не запрашивается."
             )
         return "Расчёт остановлен: обязательные данные пока неполны."
+
+    @staticmethod
+    def _ndfl_case_note_content(product: dict[str, Any]) -> str:
+        preparation = product.get("preparation")
+        preparation = preparation if isinstance(preparation, dict) else {}
+        note = preparation.get("final_note")
+        if not isinstance(note, dict):
+            return ""
+        selected = note.get("selected_tax_period") or "not selected"
+        years = note.get("detected_operation_years")
+        years_text = (
+            ", ".join(map(str, years))
+            if isinstance(years, list) and years
+            else "none"
+        )
+        profile = note.get("profile")
+        profile = profile if isinstance(profile, dict) else {}
+        positions = note.get("positions")
+        positions = positions if isinstance(positions, list) else []
+        position_text = ", ".join(
+            f"{item.get('asset')}: {item.get('state')}"
+            for item in positions
+            if isinstance(item, dict)
+        ) or "none"
+        calculated = note.get("calculated_disposal_fact_ids")
+        calculated_total = len(calculated) if isinstance(calculated, list) else 0
+        checks = note.get("required_checks")
+        checks_text = (
+            ", ".join(map(str, checks))
+            if isinstance(checks, list) and checks
+            else "none"
+        )
+        filing = "yes" if note.get("filing_eligible") is True else "no"
+        return (
+            "Case note: source completeness "
+            f"{note.get('source_completeness_status') or 'unknown'}; "
+            "position evaluation "
+            f"{note.get('position_evaluation_status') or 'unknown'}; selected tax period "
+            f"{selected}; detected operation years {years_text}; exact profile "
+            f"{profile.get('support') or 'unknown'}"
+            + (
+                f" (form {profile.get('form_version')}, XSD {profile.get('xsd_name')})"
+                if profile.get("form_version") and profile.get("xsd_name")
+                else ""
+            )
+            + f"; positions {position_text}; calculated disposals {calculated_total}; "
+            f"checks {checks_text}; filing eligible {filing}."
+        )
 
     def _write_ndfl_private_audit(self, executions: list[Any]) -> dict[str, Any]:
         if not self.valves.ndfl_gate3_private_audit_enabled:

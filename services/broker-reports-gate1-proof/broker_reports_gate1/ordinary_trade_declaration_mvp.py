@@ -46,6 +46,7 @@ from .gate5_trusted_methodology import (
     Gate5TrustedMethodologyError,
 )
 from .ordinary_trade_tax_model_bridge import OrdinaryTradeTaxModelBridgeRuntimeFactory
+from .ordinary_trade_candidate_runtime import OrdinaryTradeCandidateRuntimeFactory
 from .ordinary_trade_declaration_case_inputs import (
     ORDINARY_TRADE_DECLARATION_CASE_INPUTS_SCHEMA_VERSION,
     OrdinaryTradeDeclarationCaseInputsRuntimeFactory,
@@ -107,6 +108,9 @@ class OrdinaryTradeDeclarationMvpRuntime:
         self._facts = Gate4OrdinaryTradeCandidateRuntimeFactory(
             store=store, read_enabled=read_enabled
         ).create()
+        self._source = OrdinaryTradeCandidateRuntimeFactory(
+            store=store, read_enabled=read_enabled
+        ).create()
         self._bridge = OrdinaryTradeTaxModelBridgeRuntimeFactory(
             store=store,
             read_enabled=read_enabled,
@@ -118,6 +122,7 @@ class OrdinaryTradeDeclarationMvpRuntime:
             retention_policy=retention_policy,
         ).create()
         self._projector = Gate5FullTargetXmlProjectionRuntimeFactory.create()
+        self._supported_profile = self._projector.supported_profile()
         self._semantic_input = Gate5DeclarationSemanticInputRuntimeFactory.create()
         self._methodology = Gate5TrustedMethodologyAuthorityFactory.create()
 
@@ -131,10 +136,22 @@ class OrdinaryTradeDeclarationMvpRuntime:
             canonical_coverage,
             context=context,
         )
+        source_assembly = self._source.assemble_available(
+            methodology_ref=_source_methodology_ref(),
+            context=context,
+        )
         case_inputs = self._case_inputs.current(
             context=context,
             canonical_coverage=coverage,
+            operation_period_observation=source_assembly[
+                "operation_period_observation"
+            ],
         )
+        if (
+            case_inputs.get("tax_period") != "2025"
+            or case_inputs.get("profile_support") != "SUPPORTED"
+        ):
+            _fail("ordinary_trade_declaration_exact_profile_required")
         if case_inputs["internal_blockers"]:
             _fail(case_inputs["internal_blockers"][0]["reason_code"])
         taxpayer_ref = case_inputs["taxpayer_scope_ref"]
@@ -342,16 +359,113 @@ class OrdinaryTradeDeclarationMvpRuntime:
             canonical_coverage,
             context=context,
         )
+        source_assembly = self._source.assemble_available(
+            methodology_ref=_source_methodology_ref(),
+            context=context,
+        )
         case_inputs = self._case_inputs.current(
             context=context,
             canonical_coverage=coverage,
+            operation_period_observation=source_assembly[
+                "operation_period_observation"
+            ],
         )
         actions = case_inputs["human_fact_publication"]["actions"]
-        if case_inputs["internal_blockers"]:
-            return _preparation_state(
-                status="PREPARATION_INCOMPLETE",
+        if case_inputs.get("tax_period") is None:
+            result = _preparation_state(
+                status="INPUT_REQUIRED",
                 actions=actions,
-                internal_blockers=case_inputs["internal_blockers"],
+                internal_blockers=[],
+                missing_critical=["selected_tax_period"],
+            )
+            return self._with_case_summary(
+                result=result,
+                case_inputs=case_inputs,
+                source_assembly=source_assembly,
+            )
+        if case_inputs["internal_blockers"]:
+            return self._with_case_summary(
+                result=_preparation_state(
+                    status="PREPARATION_INCOMPLETE",
+                    actions=actions,
+                    internal_blockers=case_inputs["internal_blockers"],
+                ),
+                case_inputs=case_inputs,
+                source_assembly=source_assembly,
+            )
+        if case_inputs.get("profile_support") != "SUPPORTED":
+            mode = case_inputs.get("profile_mismatch_mode")
+            if mode is None:
+                result = _preparation_state(
+                    status="INPUT_REQUIRED",
+                    actions=actions,
+                    internal_blockers=[],
+                    missing_critical=["profile_mismatch_mode"],
+                )
+            else:
+                status = {
+                    "ANALYSIS_ONLY": "ANALYSIS_ONLY_READY",
+                    "SURROGATE_DRAFT": "NON_FILING_SURROGATE_READY",
+                    "STOP_RESUMABLE": "STOPPED_RESUMABLE",
+                }[mode]
+                result = _preparation_state(
+                    status=status,
+                    actions=[],
+                    internal_blockers=[],
+                )
+                analysis = {
+                    "fifo_calculations": copy.deepcopy(
+                        source_assembly["fifo_calculations"]
+                    ),
+                    "security_groups": copy.deepcopy(
+                        source_assembly["security_groups"]
+                    ),
+                    "filing_eligible": False,
+                    "surrogate": mode == "SURROGATE_DRAFT",
+                }
+                if mode == "ANALYSIS_ONLY":
+                    analysis["analysis_mode"] = "DOCUMENT_ANALYSIS_ONLY"
+                elif mode == "SURROGATE_DRAFT":
+                    result["surrogate_preview"] = _non_filing_surrogate_preview(
+                        case_inputs=case_inputs,
+                        source_assembly=source_assembly,
+                    )
+                else:
+                    result["resume_state"] = {
+                        "status": "PAUSED_BY_USER",
+                        "selected_tax_period": case_inputs["tax_period"],
+                        "may_resume_when_exact_profile_available": True,
+                    }
+                result["analysis"] = analysis
+            return self._with_case_summary(
+                result=result,
+                case_inputs=case_inputs,
+                source_assembly=source_assembly,
+            )
+        if source_assembly["blockers"]:
+            status = (
+                "ANALYSIS_READY_WITH_OPEN_ITEMS"
+                if source_assembly["fifo_calculations"]
+                else "PREPARATION_INCOMPLETE"
+            )
+            return self._with_case_summary(
+                result=_preparation_state(
+                    status=status,
+                    actions=[],
+                    internal_blockers=source_assembly["blockers"],
+                ),
+                case_inputs=case_inputs,
+                source_assembly=source_assembly,
+            )
+        if not source_assembly["fifo_calculations"]:
+            return self._with_case_summary(
+                result=_preparation_state(
+                    status="OPEN_POSITION_RETAINED",
+                    actions=[],
+                    internal_blockers=[],
+                ),
+                case_inputs=case_inputs,
+                source_assembly=source_assembly,
             )
         facts_by_key = {
             item["fact_key"]: item for item in case_inputs["human_facts"]
@@ -363,11 +477,15 @@ class OrdinaryTradeDeclarationMvpRuntime:
         }
         missing_critical = sorted(critical - set(facts_by_key))
         if missing_critical:
-            return _preparation_state(
-                status="INPUT_REQUIRED",
-                actions=actions,
-                internal_blockers=[],
-                missing_critical=missing_critical,
+            return self._with_case_summary(
+                result=_preparation_state(
+                    status="INPUT_REQUIRED",
+                    actions=actions,
+                    internal_blockers=[],
+                    missing_critical=missing_critical,
+                ),
+                case_inputs=case_inputs,
+                source_assembly=source_assembly,
             )
         preview = self._calculate_preview(
             context=context,
@@ -375,18 +493,22 @@ class OrdinaryTradeDeclarationMvpRuntime:
             case_inputs=case_inputs,
         )
         if preview.get("status") != "calculated":
-            return _preparation_state(
-                status="PREPARATION_INCOMPLETE",
-                actions=actions,
-                internal_blockers=[
-                    {
-                        "reason_code": preview.get(
-                            "reason_code", "ordinary_trade_declaration_preview_blocked"
-                        ),
-                        "gap_owner_classification": "METHODOLOGY_RULE_MISSING",
-                        "owner": "ActiveCategoryDeclarationAssemblyRuntime",
-                    }
-                ],
+            return self._with_case_summary(
+                result=_preparation_state(
+                    status="PREPARATION_INCOMPLETE",
+                    actions=actions,
+                    internal_blockers=[
+                        {
+                            "reason_code": preview.get(
+                                "reason_code", "ordinary_trade_declaration_preview_blocked"
+                            ),
+                            "gap_owner_classification": "METHODOLOGY_RULE_MISSING",
+                            "owner": "ActiveCategoryDeclarationAssemblyRuntime",
+                        }
+                    ],
+                ),
+                case_inputs=case_inputs,
+                source_assembly=source_assembly,
             )
         if actions:
             result = _preparation_state(
@@ -398,22 +520,61 @@ class OrdinaryTradeDeclarationMvpRuntime:
             result["checklist_fact_keys"] = sorted(
                 item["fact_key"] for item in actions
             )
-            return result
+            return self._with_case_summary(
+                result=result,
+                case_inputs=case_inputs,
+                source_assembly=source_assembly,
+            )
         declaration = self.run(
             context=context,
             canonical_coverage=coverage,
         )
-        return {
-            "schema_version": "broker_reports_ordinary_trade_declaration_preparation_v1",
-            "status": "DECLARATION_XML_READY",
-            "terminal": declaration["terminal"],
-            "declaration_ready": True,
-            "xml_created": True,
-            "user_actions": [],
-            "internal_blockers": [],
-            "declaration": declaration,
-            "provider_calls_total": 0,
-        }
+        return self._with_case_summary(
+            result={
+                "schema_version": "broker_reports_ordinary_trade_declaration_preparation_v1",
+                "status": "DECLARATION_XML_READY",
+                "terminal": declaration["terminal"],
+                "declaration_ready": True,
+                "xml_created": True,
+                "user_actions": [],
+                "internal_blockers": [],
+                "declaration": declaration,
+                "provider_calls_total": 0,
+            },
+            case_inputs=case_inputs,
+            source_assembly=source_assembly,
+        )
+
+    def _with_case_summary(
+        self,
+        *,
+        result: dict[str, Any],
+        case_inputs: dict[str, Any],
+        source_assembly: dict[str, Any],
+    ) -> dict[str, Any]:
+        result["period_profile"] = _period_profile_summary(
+            case_inputs=case_inputs,
+            source_assembly=source_assembly,
+            supported_profile=self._supported_profile,
+        )
+        result.setdefault(
+            "analysis",
+            {
+                "fifo_calculations": copy.deepcopy(
+                    source_assembly["fifo_calculations"]
+                ),
+                "security_groups": copy.deepcopy(source_assembly["security_groups"]),
+                "filing_eligible": result.get("declaration_ready") is True,
+                "surrogate": False,
+            },
+        )
+        result["final_note"] = _final_case_note(
+            result=result,
+            case_inputs=case_inputs,
+            source_assembly=source_assembly,
+            supported_profile=self._supported_profile,
+        )
+        return result
 
     def normalize_action(
         self,
@@ -1340,18 +1501,20 @@ def _preparation_state(
     return {
         "schema_version": "broker_reports_ordinary_trade_declaration_preparation_v1",
         "status": status,
-        "terminal": (
-            "ordinary_trade_declaration_user_input_required"
-            if status == "INPUT_REQUIRED"
-            else (
-                "ordinary_trade_declaration_draft_ready"
-                if status == "DRAFT_READY"
-                else (
-                    internal_blockers[0]["reason_code"]
-                    if internal_blockers
-                    else "ordinary_trade_declaration_preparation_incomplete"
-                )
-            )
+        "terminal": {
+            "INPUT_REQUIRED": "ordinary_trade_declaration_user_input_required",
+            "DRAFT_READY": "ordinary_trade_declaration_draft_ready",
+            "ANALYSIS_ONLY_READY": "ordinary_trade_analysis_only_non_filing",
+            "NON_FILING_SURROGATE_READY": (
+                "ordinary_trade_surrogate_draft_non_filing"
+            ),
+            "STOPPED_RESUMABLE": "ordinary_trade_preparation_stopped_resumable",
+            "OPEN_POSITION_RETAINED": "ordinary_trade_closed_disposal_absent",
+        }.get(
+            status,
+            internal_blockers[0]["reason_code"]
+            if internal_blockers
+            else "ordinary_trade_declaration_preparation_incomplete",
         ),
         "declaration_ready": False,
         "xml_created": False,
@@ -1359,6 +1522,187 @@ def _preparation_state(
         "internal_blockers": copy.deepcopy(internal_blockers),
         "missing_calculation_critical_fact_keys": missing_critical or [],
         "provider_calls_total": 0,
+    }
+
+
+def _period_profile_summary(
+    *,
+    case_inputs: dict[str, Any],
+    source_assembly: dict[str, Any],
+    supported_profile: dict[str, Any],
+) -> dict[str, Any]:
+    observation = source_assembly["operation_period_observation"]
+    supported = case_inputs.get("profile_support") == "SUPPORTED"
+    selected = case_inputs.get("tax_period")
+    if supported and selected != supported_profile["tax_period"]:
+        _fail("ordinary_trade_declaration_profile_period_binding_invalid")
+    return {
+        "selected_tax_period": selected,
+        "detected_operation_years": copy.deepcopy(
+            observation["observed_operation_years"]
+        ),
+        "document_period_status": "NOT_PROVEN_BY_CURRENT_FACT_CONTRACT",
+        "evidence_horizon_status": observation["evidence_horizon_status"],
+        "profile_support": case_inputs.get("profile_support"),
+        "profile_mismatch_mode": case_inputs.get("profile_mismatch_mode"),
+        "available_profiles": copy.deepcopy(case_inputs["available_profiles"]),
+        "form_version": (
+            supported_profile["electronic_format_version"] if supported else None
+        ),
+        "xsd_name": supported_profile["xsd_name"] if supported else None,
+        "methodology_version": (
+            (case_inputs.get("methodology_inputs") or {})
+            .get("authority_binding", {})
+            .get("methodology_version")
+        ),
+        "filing_profile_available": supported,
+        "xml_profile_available": supported,
+    }
+
+
+def _non_filing_surrogate_preview(
+    *,
+    case_inputs: dict[str, Any],
+    source_assembly: dict[str, Any],
+) -> dict[str, Any]:
+    available = copy.deepcopy(case_inputs["available_profiles"])
+    if not available:
+        _fail("ordinary_trade_declaration_available_profile_required")
+    profile = available[-1]
+    source = case_inputs["source_inputs"]
+    human_values = {
+        item["fact_key"]: copy.deepcopy(item["value"]["value"])
+        for item in case_inputs["human_facts"]
+        if item["fact_key"] != "profile_mismatch_mode"
+    }
+    confirmed_fields = {
+        "selected_tax_period": case_inputs["tax_period"],
+        "detected_operation_years": copy.deepcopy(
+            source_assembly["operation_period_observation"]["observed_operation_years"]
+        ),
+        "broker_name": source.get("broker_name"),
+        "broker_inn": source.get("broker_inn"),
+        "broker_kpp": source.get("broker_kpp"),
+        "broker_oktmo": source.get("broker_oktmo"),
+        "owner_human_facts": human_values,
+        "fifo_calculations": copy.deepcopy(source_assembly["fifo_calculations"]),
+        "positions": [
+            {
+                "asset": item["asset"],
+                "state": item["position_scope"]["state"],
+            }
+            for item in source_assembly["security_groups"]
+        ],
+    }
+    placeholders = [
+        {
+            "fact_key": fact_key,
+            "placeholder": "REQUIRES_OWNER_BOUND_FACT_FOR_EXACT_PROFILE",
+        }
+        for fact_key in (
+            "taxpayer_identity",
+            "taxpayer_capacity",
+            "residency_evidence",
+            "filing_instance_identity",
+            "declaration_date",
+            "filing_destination_code",
+            "signer_and_representation",
+            "budget_disposition",
+        )
+        if fact_key not in human_values
+    ]
+    return {
+        "schema_version": "broker_reports_non_filing_surrogate_preview_v0",
+        "status": "NON_FILING_TEMPLATE_ONLY",
+        "profile_id": profile["profile_id"],
+        "profile": profile,
+        "selected_tax_period": case_inputs["tax_period"],
+        "profile_tax_period": profile["tax_period"],
+        "period_mismatch": case_inputs["tax_period"] != profile["tax_period"],
+        "confirmed_fields": confirmed_fields,
+        "placeholders": placeholders,
+        "checks": [
+            "obtain an exact declaration profile for the selected tax period",
+            "revalidate every placeholder through its existing domain owner",
+            "rerun deterministic calculation and release validation",
+        ],
+        "non_filing_warning": (
+            "This preview uses an available profile from a different tax period. "
+            "It is not a declaration, cannot be filed, and has no XML download."
+        ),
+        "filing_eligible": False,
+        "xml_created": False,
+        "download_available": False,
+    }
+
+
+def _final_case_note(
+    *,
+    result: dict[str, Any],
+    case_inputs: dict[str, Any],
+    source_assembly: dict[str, Any],
+    supported_profile: dict[str, Any],
+) -> dict[str, Any]:
+    period_profile = _period_profile_summary(
+        case_inputs=case_inputs,
+        source_assembly=source_assembly,
+        supported_profile=supported_profile,
+    )
+    required_checks = {
+        str(item["reason_code"])
+        for item in source_assembly["blockers"]
+        if isinstance(item, dict) and item.get("reason_code")
+    }
+    required_checks.update(
+        str(item["reason_code"])
+        for item in result.get("internal_blockers", [])
+        if isinstance(item, dict) and item.get("reason_code")
+    )
+    required_checks.update(
+        str(item["fact_key"])
+        for item in result.get("user_actions", [])
+        if isinstance(item, dict) and item.get("fact_key")
+    )
+    return {
+        "schema_version": "broker_reports_ordinary_trade_case_note_v1",
+        "source_completeness_status": (
+            "SOURCE_EVIDENCE_PARTIALLY_AVAILABLE"
+            if source_assembly["blockers"]
+            and source_assembly["fifo_calculations"]
+            else "SOURCE_EVIDENCE_INSUFFICIENT"
+            if source_assembly["blockers"]
+            else "COMPLETE_FOR_OBSERVED_SECURITY_FACTS"
+        ),
+        "position_evaluation_status": "EVALUATED_FROM_SOURCE_FACTS",
+        "selected_tax_period": period_profile["selected_tax_period"],
+        "detected_operation_years": period_profile["detected_operation_years"],
+        "profile": {
+            "support": period_profile["profile_support"],
+            "mismatch_mode": period_profile["profile_mismatch_mode"],
+            "form_version": period_profile["form_version"],
+            "xsd_name": period_profile["xsd_name"],
+            "methodology_version": period_profile["methodology_version"],
+        },
+        "positions": [
+            {
+                "asset": item["asset"],
+                "state": item["position_scope"]["state"],
+                "open_long_quantity": item["position_scope"][
+                    "open_long_quantity"
+                ],
+                "proven_open_short_quantity": item["position_scope"][
+                    "proven_open_short_quantity"
+                ],
+            }
+            for item in source_assembly["security_groups"]
+        ],
+        "calculated_disposal_fact_ids": sorted(
+            str(item["disposal_fact_id"])
+            for item in source_assembly["fifo_calculations"]
+        ),
+        "required_checks": sorted(required_checks),
+        "filing_eligible": result.get("declaration_ready") is True,
+        "xml_created": result.get("xml_created") is True,
     }
 
 

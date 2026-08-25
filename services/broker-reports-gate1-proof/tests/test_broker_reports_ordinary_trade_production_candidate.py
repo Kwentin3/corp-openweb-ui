@@ -35,8 +35,12 @@ from broker_reports_gate1.ordinary_trade_semantic_compiler import (
     compile_schema_mapping,
 )
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
+from broker_reports_gate1.ordinary_trade_production_runtime import (
+    OrdinaryTradeProductionRuntimeFactory,
+)
 
 import test_broker_reports_gate4_sql_materialization as gate4_fixtures
+import test_broker_reports_gate5_deterministic_source_fact_consumption as source_fact_fixtures
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -445,6 +449,89 @@ def test_candidate_fact_adapter_has_no_forbidden_owners() -> None:
     assert "mappings" not in inspect.signature(
         OrdinaryTradeProjectionRuntime.compile_and_save
     ).parameters
+
+
+def test_active_production_does_not_claim_injected_historical_open_short(
+    tmp_path: Path,
+) -> None:
+    expected = "gate4_ordinary_trade_security_position_source_contract_missing"
+    store, context = gate4_fixtures._store_context(tmp_path)
+    document_id = "source-proven-short-outside-active-port"
+    document_context = replace(
+        context,
+        normalization_run_id=f"g540d-{document_id}-v1",
+    )
+    source_fact_fixtures._publish(
+        store,
+        context,
+        document_id=document_id,
+        source_rows=("OPEN_SHORT|01.03.2025|ACME|7|210.00|RUB",),
+        fact_specs=(
+            (
+                "SECURITY_DISPOSAL",
+                source_fact_fixtures._security_roles(
+                    "01.03.2025",
+                    "7",
+                    "210.00",
+                    position_effect="OPEN_SHORT",
+                ),
+            ),
+        ),
+        semantic_version="2.1.0",
+        role_pack_semantic_version="4.0.0",
+    )
+    historical_gate4 = source_fact_fixtures._gate4(store)
+    historical_gate4.rebuild_case(context=context)
+    historical_facts = historical_gate4.list_facts(context=context)
+    assert historical_facts[0]["roles"][-1]["value"] == "OPEN_SHORT"
+
+    OrdinaryTradeProjectionFactory(
+        store=store,
+        read_enabled=True,
+    ).create().compile_and_save(
+        document_id=document_id,
+        context=document_context,
+    )
+    result = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create().run(canonical_artifact_refs=[], context=document_context)
+
+    assert result["product"]["gate4"]["facts_total"] == 0
+    assert result["product"]["gate5"]["security_tax_input_status"] == (
+        "SOURCE_EVIDENCE_INSUFFICIENT"
+    )
+    product = result["product"]
+    assert product["status"] == "PREPARATION_INCOMPLETE"
+    assert product["terminal"] == expected
+    assert product["gate4"]["source_contract_status"] == (
+        "SECURITY_POSITION_SOURCE_CONTRACT_MISSING"
+    )
+    assert product["gate5"]["execution_status"] == "source_contract_missing"
+    assert product["gate5"]["blocker_reason_codes"] == [expected]
+    blocker = product["preparation"]["gap_closure"][
+        "internal_owner_required_actions"
+    ][0]
+    assert blocker == {
+        "schema_version": "broker_reports_gate4_ordinary_trade_blocker_v1",
+        "reason_code": expected,
+        "required_input": (
+            "ordinary_trade_projection.runtime_records.security_position_semantics"
+        ),
+        "gap_owner_classification": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+        "owner": "Gate4OrdinaryTradeCandidateRuntime",
+        "blocking_scope": "active_security_position_source_contract",
+    }
+    note = product["preparation"]["final_note"]
+    assert note["source_completeness_status"] == (
+        "ACTIVE_SECURITY_POSITION_SOURCE_CONTRACT_MISSING"
+    )
+    assert note["position_evaluation_status"] == (
+        "NOT_EVALUATED_SOURCE_CONTRACT_MISSING"
+    )
+    assert note["positions"] == []
+    assert note["required_checks"] == [expected]
+    assert result["provider_calls_total"] == 0
 
 
 def _case(tmp_path: Path, *, rows: tuple = _ROWS):

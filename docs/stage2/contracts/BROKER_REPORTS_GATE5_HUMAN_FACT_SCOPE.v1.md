@@ -32,11 +32,50 @@ is deliberately excluded so a valid fact can replay in a later run. Workspace
 ID remains an ArtifactStore ACL boundary, not fact meaning.
 
 The Human owner validates mechanical equality of the taxpayer scope across
-request, fact and consumer. The Issue #304 composition mints exactly one opaque
-`primary_user_attested_taxpayer` slot from authenticated user, case and period.
+request, fact and consumer. The Issue #304/#308 composition mints exactly one opaque
+`primary_user_attested_taxpayer` slot from authenticated user and case.
 The caller cannot choose it. It is workflow scope only: it is not an INN,
 taxpayer identity, operation subject or claim that the portal authenticated a
 taxpayer.
+
+Issue #308 keeps tax-period choice separate from that stable taxpayer slot. A
+single `selected_tax_period` request is published in reserved scope period
+`0000`, which means only "selection not yet incorporated into a tax scope" and
+must never reach methodology, calculation, release or XML. It is rejected as
+a Human answer even though it remains valid inside the owner's scope contract.
+The answer is an exact non-sentinel four-digit year. All later facts use the selected real year in their
+ordinary Human scope. If the detected operation-year set changes, the owner
+publishes a successor in the same semantic lane and the former selection fact
+becomes stale; the caller cannot preserve an old evidence view by selecting a
+parallel lane.
+
+When the trusted methodology owner has no exact profile for the selected year,
+the same Human owner publishes `profile_mismatch_mode` in that real-year scope.
+Its closed values are `ANALYSIS_ONLY`, `SURROGATE_DRAFT` and
+`STOP_RESUMABLE`. They are product-mode choices only and cannot authorize a
+wrong-year declaration release or XML.
+
+The mode request also binds the exact current owner-produced
+`selected_tax_period` fact ref in its subject. Current-publication validation
+replays that dependency against the neutral-scope period lane. Any period
+successor therefore makes the dependent mode request and fact stale even if
+the caller later returns to the same year (`2022 -> 2025 -> 2022`); a fresh
+mode publication and answer are required.
+
+Both `selected_tax_period` and `profile_mismatch_mode` use the same immutable
+owner-produced correction mechanism as the other product facts. The successor
+is cloned from the current owner request, binds
+`change_of_user_case_fact_ref`, remains in the original semantic lane and real
+scope (`0000` only for period selection, the selected year for mode), and
+makes the old request/fact stale. The caller supplies only the fact key exposed
+by the bounded product action and cannot choose the lane, scope or predecessor.
+
+The mismatch question receives the available profile descriptions only from
+the existing full-target projection Definition owner. Display text may change,
+but it cannot create a profile or authorize release. The representation-only
+chat adapter validates and displays those owner-produced labels, including the
+profile ID and year; it may not replace them with a generic question that
+hides the available profile.
 
 Actual identity exists only as the current `taxpayer_identity` Human fact with
 provenance `USER_ATTESTED_CASE_FACT`. A Canonical INN/FIO assertion is a private
@@ -104,11 +143,12 @@ all fail closed. Repeating the same byte-equal answer reuses one artifact and
 does not create a false conflict. No timestamp or caller list order chooses a
 winner.
 
-An explicit product change command for `taxpayer_identity` or
-`declaration_date` asks this same owner to publish a successor in the existing
-semantic lane. The successor answer contract binds the exact fact being
-replaced. The old request and old fact become stale; the correction does not
-overwrite either artifact and cannot bypass cross-scope validation.
+An explicit bounded product change command asks this same owner to publish a
+successor in the existing semantic lane. This includes `selected_tax_period`,
+`profile_mismatch_mode`, `taxpayer_identity`, `declaration_date` and the other
+closed product fact keys. The successor answer contract binds the exact fact
+being replaced. The old request and old fact become stale; the correction does
+not overwrite either artifact and cannot bypass cross-scope validation.
 
 ## Authority ceiling
 
@@ -117,6 +157,8 @@ bounded product keys:
 
 ```text
 taxpayer_identity_confirmed
+selected_tax_period
+profile_mismatch_mode
 taxpayer_identity
 taxpayer_capacity
 filing_instance_identity

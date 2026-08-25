@@ -56,6 +56,12 @@ GATE5_ACQUISITION_BASIS_COVERAGE_SCHEMA_VERSION = (
 GATE5_ACQUISITION_BASIS_COVERAGE_CONTRACT_TERMINAL = (
     "ACQUISITION_BASIS_COVERAGE_CONTRACT_PROVEN"
 )
+GATE5_OPERATION_PERIOD_OBSERVATION_SCHEMA_VERSION = (
+    "broker_reports_gate5_operation_period_observation_v0"
+)
+GATE5_SECURITY_POSITION_SCOPE_SCHEMA_VERSION = (
+    "broker_reports_gate5_security_position_scope_v0"
+)
 
 FACTORY_REQUIRED = (
     "Gate5DeterministicSourceFactConsumptionRuntimeFactory.create composes "
@@ -78,6 +84,8 @@ _COMMISSION_TOTAL = "COMMISSION_TOTAL"
 _WITHHELD_DETAIL = "TAX_WITHHELD"
 _WITHHELD_TOTAL = "TAX_WITHHELD_TOTAL"
 _SECURITY_ROLES = ("date", "asset", "quantity", "amount", "currency")
+_POSITION_EFFECT_ROLE = "position_effect"
+_PROVEN_POSITION_EFFECTS = {"OPEN_SHORT"}
 _MONEY = re.compile(r"^-?(?:0|[1-9][0-9]{0,17})(?:\.[0-9]+)?$")
 _QUANTITY = re.compile(r"^(?:0|[1-9][0-9]{0,17})(?:\.[0-9]+)?$")
 _CURRENCY = re.compile(r"^[A-Z]{3}$")
@@ -177,12 +185,26 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
             for item in securities
             if item["status"] == "ready"
         }
-        tax_input_status = (
-            "READY_FOR_FIFO"
-            if counts["source_evidence_insufficient"] == 0
-            and {_PURCHASE, _DISPOSAL}.issubset(complete_types)
-            else "SOURCE_EVIDENCE_INSUFFICIENT"
-        )
+        ready_disposals = [
+            item
+            for item in securities
+            if item["status"] == "ready" and item["financial_type"] == _DISPOSAL
+        ]
+        if counts["source_evidence_insufficient"]:
+            tax_input_status = "SOURCE_EVIDENCE_INSUFFICIENT"
+        elif {_PURCHASE, _DISPOSAL}.issubset(complete_types):
+            tax_input_status = "READY_FOR_FIFO"
+        elif complete_types == {_PURCHASE}:
+            tax_input_status = "OPEN_POSITION_NOT_TAX_ACTIVATED"
+        elif complete_types == {_DISPOSAL}:
+            tax_input_status = (
+                "OPEN_POSITION_NOT_TAX_ACTIVATED"
+                if ready_disposals
+                and all(item["position_effect"] == "OPEN_SHORT" for item in ready_disposals)
+                else "POSITION_SEMANTICS_OR_ACQUISITION_HORIZON_UNRESOLVED"
+            )
+        else:
+            tax_input_status = "NO_SECURITY_OPERATIONS"
         document_consumption = []
         document_ids = sorted(
             {
@@ -308,6 +330,14 @@ class Gate5DeterministicSourceFactConsumptionRuntime:
                     {fact["financial_type"] for fact in facts}
                 )
             },
+            "operation_period_observation": _operation_period_observation(
+                ready_inputs=[
+                    _security_input(fact)
+                    for fact in facts
+                    if fact["financial_type"] in {_PURCHASE, _DISPOSAL}
+                    and _security_assessment(fact)["status"] == "ready"
+                ]
+            ),
             **assembly,
             "assertions": {
                 "commissions": _assertion_set(
@@ -807,24 +837,37 @@ def _security_input(fact: dict[str, Any]) -> dict[str, Any]:
         "quantity": quantity,
         "amount": amount,
         "currency": values["currency"],
+        "position_effect": _position_effect(roles),
     }
+
+
+def _position_effect(roles: dict[str, dict[str, Any]]) -> str | None:
+    role = roles.get(_POSITION_EFFECT_ROLE)
+    if role is None or role.get("status") != "value":
+        return None
+    value = role.get("value")
+    if value not in _PROVEN_POSITION_EFFECTS:
+        _fail("gate5_source_fact_position_effect_unsupported")
+    return str(value)
 
 
 def _security_assessment(fact: dict[str, Any]) -> dict[str, Any]:
     try:
-        _security_input(fact)
+        security_input = _security_input(fact)
     except Gate5DeterministicSourceFactConsumptionError as exc:
         return {
             "fact_id": fact["fact_id"],
             "financial_type": fact["financial_type"],
             "status": "source_evidence_insufficient",
             "reason_code": exc.code,
+            "position_effect": None,
         }
     return {
         "fact_id": fact["fact_id"],
         "financial_type": fact["financial_type"],
         "status": "ready",
         "reason_code": None,
+        "position_effect": security_input["position_effect"],
     }
 
 
@@ -888,13 +931,14 @@ def _assemble_available_security_groups(
     for item in ready_inputs:
         group = grouped.setdefault(
             (item["asset"], item["currency"]),
-            {"purchases": [], "disposals": []},
+            {"purchases": [], "disposals": [], "opening_shorts": []},
         )
-        target = (
-            group["purchases"]
-            if item["fact"]["financial_type"] == _PURCHASE
-            else group["disposals"]
-        )
+        if item["fact"]["financial_type"] == _PURCHASE:
+            target = group["purchases"]
+        elif item["position_effect"] == "OPEN_SHORT":
+            target = group["opening_shorts"]
+        else:
+            target = group["disposals"]
         target.append(item)
 
     groups: list[dict[str, Any]] = []
@@ -908,16 +952,28 @@ def _assemble_available_security_groups(
             members["disposals"],
             key=lambda item: (item["date"], item["fact"]["fact_id"]),
         )
+        opening_shorts = sorted(
+            members["opening_shorts"],
+            key=lambda item: (item["date"], item["fact"]["fact_id"]),
+        )
         if not disposals:
+            position = _position_scope(
+                purchases=purchases,
+                disposals=disposals,
+                opening_shorts=opening_shorts,
+                resolved_disposals=0,
+            )
             groups.append(
                 _available_group_row(
                     asset=asset,
                     currency=currency,
                     purchases=purchases,
                     disposals=disposals,
+                    opening_shorts=opening_shorts,
                     status="NOT_ACTIVATED_FOR_SUPPLIED_CASE",
                     resolved_disposals=0,
                     blocker=None,
+                    position_scope=position,
                 )
             )
             continue
@@ -980,9 +1036,16 @@ def _assemble_available_security_groups(
                 currency=currency,
                 purchases=purchases,
                 disposals=disposals,
+                opening_shorts=opening_shorts,
                 status=status,
                 resolved_disposals=len(resolved_disposals),
                 blocker=group_blocker,
+                position_scope=_position_scope(
+                    purchases=purchases,
+                    disposals=disposals,
+                    opening_shorts=opening_shorts,
+                    resolved_disposals=len(resolved_disposals),
+                ),
             )
         )
 
@@ -1015,14 +1078,16 @@ def _available_group_row(
     currency: str,
     purchases: list[dict[str, Any]],
     disposals: list[dict[str, Any]],
+    opening_shorts: list[dict[str, Any]],
     status: str,
     resolved_disposals: int,
     blocker: dict[str, Any] | None,
+    position_scope: dict[str, Any],
 ) -> dict[str, Any]:
     source_document_ids = sorted(
         {
             item["fact"]["gate3_binding"]["canonical_binding"]["document_id"]
-            for item in [*purchases, *disposals]
+            for item in [*purchases, *disposals, *opening_shorts]
         }
     )
     return {
@@ -1031,10 +1096,123 @@ def _available_group_row(
         "status": status,
         "purchase_fact_ids": [item["fact"]["fact_id"] for item in purchases],
         "disposal_fact_ids": [item["fact"]["fact_id"] for item in disposals],
+        "opening_short_fact_ids": [
+            item["fact"]["fact_id"] for item in opening_shorts
+        ],
         "source_document_ids": source_document_ids,
         "multi_source": len(source_document_ids) > 1,
         "resolved_disposals": resolved_disposals,
+        "position_scope": copy.deepcopy(position_scope),
         "blocker": copy.deepcopy(blocker),
+    }
+
+
+def _position_scope(
+    *,
+    purchases: list[dict[str, Any]],
+    disposals: list[dict[str, Any]],
+    opening_shorts: list[dict[str, Any]],
+    resolved_disposals: int,
+) -> dict[str, Any]:
+    purchase_quantity = sum(
+        (item["quantity"] for item in purchases), Decimal("0")
+    )
+    resolved_disposal_quantity = sum(
+        (item["quantity"] for item in disposals[:resolved_disposals]),
+        Decimal("0"),
+    )
+    unresolved_disposal_quantity = sum(
+        (item["quantity"] for item in disposals[resolved_disposals:]),
+        Decimal("0"),
+    )
+    open_long_quantity = max(
+        purchase_quantity - resolved_disposal_quantity, Decimal("0")
+    )
+    open_short_quantity = sum(
+        (item["quantity"] for item in opening_shorts), Decimal("0")
+    )
+    if unresolved_disposal_quantity:
+        state = "UNRESOLVED_DISPOSAL_EVIDENCE_HORIZON"
+        activation = "BLOCKED_EXACT_SOURCE_GAP"
+    elif open_long_quantity and resolved_disposal_quantity:
+        state = "CLOSED_DISPOSAL_WITH_OPEN_LONG_REMAINDER"
+        activation = "CLOSED_PORTION_AVAILABLE"
+    elif open_long_quantity:
+        state = "OPEN_LONG_PROVEN"
+        activation = "NOT_ACTIVATED_NO_DISPOSAL"
+    elif open_short_quantity and not resolved_disposal_quantity:
+        state = "OPEN_SHORT_PROVEN"
+        activation = "NOT_ACTIVATED_NO_CLOSING_PURCHASE"
+    elif open_short_quantity:
+        state = "CLOSED_DISPOSAL_WITH_OPEN_SHORT_REMAINDER"
+        activation = "CLOSED_PORTION_AVAILABLE"
+    else:
+        state = "CLOSED_DISPOSALS_PROVEN"
+        activation = "CLOSED_PORTION_AVAILABLE"
+    return {
+        "schema_version": GATE5_SECURITY_POSITION_SCOPE_SCHEMA_VERSION,
+        "state": state,
+        "purchase_quantity": _decimal_text(purchase_quantity),
+        "resolved_disposal_quantity": _decimal_text(resolved_disposal_quantity),
+        "unresolved_disposal_quantity": _decimal_text(
+            unresolved_disposal_quantity
+        ),
+        "open_long_quantity": _decimal_text(open_long_quantity),
+        "proven_open_short_quantity": _decimal_text(open_short_quantity),
+        "short_inference_performed": False,
+        "tax_activation_status": activation,
+    }
+
+
+def _operation_period_observation(
+    *, ready_inputs: list[dict[str, Any]]
+) -> dict[str, Any]:
+    by_document: dict[str, list[dict[str, Any]]] = {}
+    for item in ready_inputs:
+        document_id = item["fact"]["gate3_binding"]["canonical_binding"][
+            "document_id"
+        ]
+        by_document.setdefault(document_id, []).append(item)
+    documents = []
+    for document_id, items in sorted(by_document.items()):
+        dates = sorted(item["date"] for item in items)
+        documents.append(
+            {
+                "document_id": document_id,
+                "observed_operation_date_min": dates[0],
+                "observed_operation_date_max": dates[-1],
+                "observed_operation_years": sorted(
+                    {item["date"][:4] for item in items}
+                ),
+                "document_period_status": "NOT_PROVEN_BY_CURRENT_FACT_CONTRACT",
+            }
+        )
+    all_dates = sorted(item["date"] for item in ready_inputs)
+    return {
+        "schema_version": GATE5_OPERATION_PERIOD_OBSERVATION_SCHEMA_VERSION,
+        "observed_operation_date_min": all_dates[0] if all_dates else None,
+        "observed_operation_date_max": all_dates[-1] if all_dates else None,
+        "observed_operation_years": sorted(
+            {item["date"][:4] for item in ready_inputs}
+        ),
+        "purchase_years": sorted(
+            {
+                item["date"][:4]
+                for item in ready_inputs
+                if item["fact"]["financial_type"] == _PURCHASE
+            }
+        ),
+        "disposal_years": sorted(
+            {
+                item["date"][:4]
+                for item in ready_inputs
+                if item["fact"]["financial_type"] == _DISPOSAL
+                and item["position_effect"] != "OPEN_SHORT"
+            }
+        ),
+        "documents": documents,
+        "evidence_horizon_status": "OBSERVED_BOUNDS_ONLY",
+        "filename_or_broker_period_inference": False,
     }
 
 
@@ -1106,9 +1284,14 @@ def _fifo_group_blocker(
         disposed_quantity=first["quantity"],
         supported_quantity=min(first["quantity"], available),
     )
+    reason_code = (
+        "gate5_source_fact_acquisition_evidence_horizon_unproven"
+        if not purchases
+        else error.code
+    )
     return {
         "terminal": terminal,
-        "reason_code": error.code,
+        "reason_code": reason_code,
         "first_unresolved_disposal_fact_id": first["fact"]["fact_id"],
         "unresolved_disposal_fact_ids": [
             item["fact"]["fact_id"] for item in unresolved_disposals
@@ -1133,7 +1316,7 @@ def _fifo_group_blocker(
                 if item["date"] <= first["date"]
             ],
         },
-        "why_insufficient": error.code,
+        "why_insufficient": reason_code,
         "closing_evidence": (
             "a normalized SECURITY_PURCHASE for the same exact instrument and "
             "currency, dated no later than the disposal, covering at least the "

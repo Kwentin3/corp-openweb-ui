@@ -23,12 +23,16 @@ their existing owners.
 | Meaning | Owner | Consumer proof |
 | --- | --- | --- |
 | authenticated user and case | server-attested OpenWebUI context plus ArtifactStore ACL | upload, actions, facts and artifacts resolve under the same user/case |
-| taxpayer workflow scope | `primary_taxpayer_scope_ref` owned by product composition | opaque user+case+period slot; it is neither INN nor taxpayer identity and is not caller-selectable |
+| taxpayer workflow scope | `primary_taxpayer_scope_ref` owned by product composition | opaque stable user+case slot; the selected period stays a separate Human Fact/scope dimension; the slot is neither INN nor taxpayer identity and is not caller-selectable |
+| selected tax period | `Gate5HumanGapClosureRuntime` fact `selected_tax_period` | owner-published request in the reserved pre-period `0000` scope; `0000` itself is never a valid answer; a correction is an immutable same-lane successor before any declaration profile is resolved |
+| observed operation period | `Gate5DeterministicSourceFactConsumptionRuntime.assemble_available` | exact years/dates from source-bound Fact roles; not a document-period or evidence-horizon completeness claim |
+| exact year profile and mode | `Gate5TrustedMethodologyAuthorityFactory.create`, the full-target XML projection Definition owner, plus Human Fact `profile_mismatch_mode` | profile absence is decided only from the Definition owner's available profile identities; source-assertion insufficiency retains the methodology resource's `REAL_SOURCE_EVIDENCE_MISSING` classification while malformed/missing methodology remains a methodology blocker; only alignment of selected year, methodology and form/KND/order/format/XSD permits filing XML; the mode request binds the exact current selected-period fact revision and a period round-trip cannot revive an old mode |
+| position/source/tax state | deterministic source-fact consumer | position quantities, source completeness and tax activation are separate fields; open groups cannot erase independent closed calculations |
 | taxpayer identity | `Gate5HumanGapClosureRuntime` fact `taxpayer_identity` | current request-bound `USER_ATTESTED_CASE_FACT`; an exact Canonical value is only a candidate until confirm/change |
 | current Canonical document scope and operation coverage | active Canonical pointers plus `OrdinaryTradeProjectionRuntime.current_case_coverage` | every active Canonical manifest must have exactly one current projection bound to the same document/version/root; a missing whole projection or any `RELEVANT_UNMAPPED` observation blocks XML |
-| current broker facts | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | exact case-bound Fact v2 set and disposal fact ID, consumed only after Canonical coverage passes |
+| current broker facts | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | exact case-bound Fact v2 set and disposal fact ID, consumed only after Canonical coverage passes; `current_fact_set` is the owner of the typed active source-contract blocker when current ordinary projections cannot produce any security-position Fact |
 | human declaration choices/facts | `Gate5HumanGapClosureRuntime` | current request-bound facts with exact user, case, taxpayer, period and publication-lane binding; stale/conflicting facts are rejected by that owner |
-| public chat interaction | maintained bundled `Pipe.pipe` plus the representation-only declaration chat adapter | native OpenWebUI `__event_call__` binds one browser response to the current owner request inside the same server call; no request ref, fact key or hidden action is caller-selectable |
+| public chat interaction | maintained bundled `Pipe.pipe` plus the representation-only declaration chat adapter | native OpenWebUI `__event_call__` binds one browser response to the current owner request inside the same server call; the visible mismatch question includes validated owner-produced profile ID/year and one shared non-ready renderer displays the validated owner-produced surrogate in both resumed and file-processing `Pipe.pipe` turns; no request ref, fact key or hidden action is caller-selectable |
 | capacity, inspection code, signer, filing instance/date and OKTMO | `Gate5HumanGapClosureRuntime` | current user-attested facts; missing fill-only values permit draft but never XML |
 | source party and exact applicability assertions | existing `Gate3MetadataSourceFactRuntime` source owner | exact labels from Canonical versions named by current coverage; ambiguity or absence is a source blocker; no LLM or financial Gate 3 execution |
 | legal/methodology version, applicability, KBK and declarant category | `Gate5TrustedMethodologyAuthorityFactory.create` | repository resource identity/SHA-256 and exact pinned rules |
@@ -42,10 +46,19 @@ their existing owners.
 Caller supplies only `ArtifactAccessContext` and canonical artifact refs to the
 production root. Caller cannot supply a taxpayer ref, disposal fact ID,
 methodology version, Scope, Package, released values, projection, or receipt.
+The selected tax period and unsupported-profile mode are accepted only as
+current request-bound Human Facts; Pipe parameters and free chat text do not
+select them.
+
+Period/profile preparation runs for every Canonical-complete security case,
+including purchase-only and partially blocked cases. It does not wait for a
+closed disposal. The source consumer still owns position and calculation; the
+declaration adapter only composes its result with current Human/profile state.
 
 ## Supported case
 
-- tax period 2025; initial declaration only; individual resident whose external
+- explicitly selected tax period 2025 with the exact published 2025
+  methodology/form/XSD profile; initial declaration only; individual resident whose external
   user-attested capacity is `individual_not_ip_not_private_practice`; taxpayer signs for self;
 - exactly one ordinary organized-market security purchase and one disposal,
   outside IIS, in RUB, with a positive result;
@@ -71,6 +84,13 @@ owner supplies the correction number, it stops with
 Anything outside this matrix stops with a typed blocker. Missing or malformed
 identity/user/source/methodology owner output never produces XML. Partial acquisition
 commission remains `LEGAL_INTERPRETATION_REQUIRED`.
+
+An exact source-labelled negative exchange assertion such as `NOT_ADMITTED` is
+still a source fact; it is not dropped as if the label were absent. The trusted
+product methodology rejects that assertion with
+`gate5_ordinary_trade_product_source_evidence_unresolved`. Resource/hash/rule
+failures likewise keep their own methodology reason and never become an
+unsupported-year choice.
 
 Before a Human fact is persisted, `declaration_date` must be a real calendar
 date and a 12-digit taxpayer INN must pass both control-digit checks. An invalid
@@ -123,6 +143,8 @@ case-hash taxpayer surrogate, partial XML, or FNS submission is permitted.
 
 ## Product readiness states
 
+- `INPUT_REQUIRED` with `selected_tax_period`: detected operation years are
+  shown, but no year or profile is inferred and no XML is possible.
 - `INPUT_REQUIRED`: a calculation/scope-critical user fact is missing; no
   calculated result and no XML are claimed.
 - `DRAFT_READY`: the existing assembler's pre-XML preview has produced the
@@ -130,3 +152,55 @@ case-hash taxpayer surrogate, partial XML, or FNS submission is permitted.
   release, projection or XML is built.
 - `DECLARATION_XML_READY`: all real required values are current, the official
   XML has no placeholders, and XSD plus semantic reconciliation pass.
+- `ANALYSIS_ONLY_READY`: an explicitly selected unsupported year retains
+  owner-produced operation/position calculations and a final note; no filing
+  eligibility, release, projection, XML or download is claimed.
+- `NON_FILING_SURROGATE_READY`: a distinct structured preview names the
+  Definition-owned available profile, selected/profile years and mismatch,
+  fills current source/position/calculation fields, lists owner-bound
+  placeholders/checks, and carries an explicit non-filing warning; no official
+  XML/download is created and no alternate XML serializer is called. The Pipe
+  renders that validated preview in the ordinary chat flow, including the
+  confirmed data, placeholders, checks and explicit filing prohibition; it
+  does not synthesize fields or a download link.
+- `STOPPED_RESUMABLE`: the exact case remains persisted and resumable without
+  a profile substitution.
+- `OPEN_POSITION_RETAINED`: source-proven open position evidence is retained;
+  absence of a closing event is not reported as a source-completeness failure.
+- `PREPARATION_INCOMPLETE` with
+  `gate4_ordinary_trade_security_position_source_contract_missing`: current
+  ordinary projections exist, Canonical coverage has no prior blocker, but the
+  active Gate 4 candidate owner cannot produce any security-position Fact. The
+  result reports `INTERNAL_CONTRACT_OR_PIPELINE_DEFECT`, source completeness
+  `ACTIVE_SECURITY_POSITION_SOURCE_CONTRACT_MISSING` and position evaluation
+  `NOT_EVALUATED_SOURCE_CONTRACT_MISSING`; it must not claim an open position.
+- `ANALYSIS_READY_WITH_OPEN_ITEMS`: independent closed calculations are kept
+  while exact unresolved groups remain blocked from filing.
+
+Every preparation state includes `broker_reports_ordinary_trade_case_note_v1`.
+It projects, without re-deciding, the selected period, observed operation
+years, exact profile identity, open position states, owner-produced calculated
+disposals, remaining checks and actual release eligibility. Profile
+availability and release eligibility are distinct: even an exact 2025 profile
+does not make a draft or open position filing-eligible.
+
+The no-Canonical branch is included in that rule. It reports source
+completeness as `CANONICAL_EVIDENCE_MISSING`, position evaluation as
+`NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE`, no detected/selected period, and
+profile support as `NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE`. It must not
+relabel an extraction boundary as an open position, period mismatch, or
+unsupported declaration profile.
+
+The deterministic Gate 5 consumer accepts an exact source-produced
+`position_effect=OPEN_SHORT` on its published Fact v2 compatibility contract.
+The active ordinary-trade producer is narrower: its currently qualified table
+mappings do not own or emit a short-position literal. Consequently the active
+`Gate4OrdinaryTradeCandidateRuntimeFactory.create` production port cannot yet
+produce `OPEN_SHORT_PROVEN`. Historical/injected Gate 4 facts must not be read
+as a fallback, and a plain disposal remains an evidence-horizon blocker. A
+production short claim requires a separately qualified exact source mapping
+and owner contract. If a current ordinary projection yields no active security
+Fact at all, `Gate4OrdinaryTradeCandidateRuntime.current_fact_set` stops the
+composition with
+`gate4_ordinary_trade_security_position_source_contract_missing`; product
+status, Gate 5 accounting and the final note all retain that exact blocker.

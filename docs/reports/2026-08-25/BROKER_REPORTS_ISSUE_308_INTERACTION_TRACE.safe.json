@@ -1,0 +1,88 @@
+{
+  "developer_mode": {
+    "diagnostic_intervention_during_user_run": false,
+    "new_tax_source_or_identity_authority_added": false
+  },
+  "exact_base_sha": "cf8e9bf2d13354588f569994953e97d8b2daf218",
+  "privacy": {
+    "document_contents_recorded": false,
+    "hidden_refs_recorded": false,
+    "pii_recorded": false,
+    "secrets_recorded": false
+  },
+  "receipt_sha256": "277cc8f31e6541432a4ec6b344b4c2880a26118b64c6c984447ce7cc2f536368",
+  "schema_version": "broker_reports_issue308_safe_interaction_proof_v1",
+  "tested_code_manifest": {
+    "browser_driver_sha256": "fc4187751038f4cf323ad6427d0f9865f25611afc0ee2f6342d70ed62d5f2800",
+    "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
+    "generated_bundle_sha256": "2d2e367ee94bd48511666addf4b3d2e69e8ae979549855575f16b3a904505046",
+    "receipt_builder_sha256": "e652ab12b4cdc73e091f918af2e2e81c0ea44d8d3e268584c46c520d67fecfa1"
+  },
+  "tested_commit": "310f5837d19d85eb590ee5892b6f12a15c6ccd89",
+  "user_mode": {
+    "representative_source_run": {
+      "browser_ui_only": true,
+      "document_contents_recorded": false,
+      "events": [
+        {
+          "detected_operation_years": [],
+          "event": "representative_source_boundary_separation_proven",
+          "exact_status": "PREPARATION_INCOMPLETE",
+          "exact_terminal": "ordinary_trade_canonical_evidence_missing",
+          "filing_eligible": false,
+          "mode": "user",
+          "position_evaluation_status": "NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE",
+          "private_download_created": false,
+          "profile_support": "NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE",
+          "reason_codes": [
+            "ordinary_trade_canonical_evidence_missing"
+          ],
+          "selected_tax_period": null,
+          "source_completeness_status": "CANONICAL_EVIDENCE_MISSING",
+          "xml_created": false
+        }
+      ],
+      "finished_at": "2026-08-25T11:51:00.450Z",
+      "hidden_refs_observed": false,
+      "proof_binding": {
+        "browser_driver_sha256": "fc4187751038f4cf323ad6427d0f9865f25611afc0ee2f6342d70ed62d5f2800",
+        "control_prepared_receipt_sha256": "db9c32e3b5d70ec244bf87ce4710857bce14d2c7a04e4c99ee4b9bbcfdaf7973",
+        "control_script_sha256": "0e24a9d8ba00852cae1b8877910c52c4fe8b0b0a2ff3a3052b906fe7d9220e43",
+        "generated_bundle_sha256": "2d2e367ee94bd48511666addf4b3d2e69e8ae979549855575f16b3a904505046",
+        "tested_commit": "310f5837d19d85eb590ee5892b6f12a15c6ccd89"
+      },
+      "receipt_sha256": "3811891a1846e91fe699da08d94bf92144e7e79b2f8ed6696e60fd6d41eb04ad",
+      "run_id": "e8ca9ba7-9114-4a91-8c69-d68098289f13",
+      "run_kind": "representative_source",
+      "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
+      "source_artifact": {
+        "content_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+        "sample_id": "g537_tbank_public_pdf_purchase",
+        "size_bytes": 639417,
+        "source_url": "https://cdn.tbank.ru/static/documents/7b9ccdee-5a02-4ed6-9499-c76082cd8d30.pdf"
+      },
+      "source_kind": "public_representative_broker_report",
+      "started_at": "2026-08-25T11:49:53.836Z"
+    }
+  },
+  "verification_mode": {
+    "control_restored_receipt": {
+      "control_run_id": "ef90ffd52f68e1e1f322aa4d4b5f1e60",
+      "deployed_bundle_sha256": "2d2e367ee94bd48511666addf4b3d2e69e8ae979549855575f16b3a904505046",
+      "function_id": "broker_reports_ndfl",
+      "legacy_function_inactive": false,
+      "model_public_grant_added": false,
+      "predecessor_control_prepared_receipt_sha256": "db9c32e3b5d70ec244bf87ce4710857bce14d2c7a04e4c99ee4b9bbcfdaf7973",
+      "proof_valves_enabled": false,
+      "receipt_sha256": "d092ca231bff359817a8cdb369101a6d49ea0ad484ed6945fbe410593ff1a5ca",
+      "release_valves_exact": false,
+      "schema_version": "broker_reports_gate5_openwebui_control_v0",
+      "state_restored": true,
+      "status": "restored",
+      "temporary_users": 2,
+      "user_a_model_visible": true,
+      "user_b_model_hidden": true,
+      "workspace_model_id": "broker_reports_ndfl"
+    }
+  }
+}

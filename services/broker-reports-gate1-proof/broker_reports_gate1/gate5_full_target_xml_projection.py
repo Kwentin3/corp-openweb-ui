@@ -273,6 +273,29 @@ class Gate5FullTargetXmlProjectionRuntime:
         self._serializer = serializer
         self._validator = validator
 
+    def supported_profile(self) -> dict[str, Any]:
+        """Expose the immutable target identity owned by the projection Definition."""
+
+        target = self._definition["target"]
+        return copy.deepcopy(
+            {
+                "profile_id": self._definition["projection_id"],
+                "profile_version": self._definition["projection_version"],
+                **{
+                    key: target[key]
+                    for key in (
+                    "tax_period",
+                    "form",
+                    "knd",
+                    "order",
+                    "electronic_format_version",
+                    "xsd_name",
+                    "xsd_sha256",
+                    )
+                },
+            }
+        )
+
     def project(self, *, semantic_input: dict[str, Any]) -> dict[str, Any]:
         try:
             sealed = self._semantic_runtime.validate_semantic_input(

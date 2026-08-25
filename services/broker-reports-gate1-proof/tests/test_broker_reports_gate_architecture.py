@@ -285,7 +285,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v9",
+            "broker_reports_architecture_policy_v11",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -338,10 +338,31 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     "taxpayer_scope_contract": (
                         "primary_user_attested_taxpayer_slot_v1"
                     ),
+                    "tax_period_selection_contract": (
+                        "broker_reports_gate5_user_case_fact_v1:selected_tax_period"
+                    ),
+                    "operation_period_owner": (
+                        "Gate5DeterministicSourceFactConsumptionRuntime.assemble_available"
+                    ),
+                    "position_scope_contract": (
+                        "broker_reports_gate5_security_position_scope_v0"
+                    ),
+                    "profile_owners": [
+                        "Gate5TrustedMethodologyAuthorityFactory.create",
+                        (
+                            "Gate5FullTargetXmlProjectionDefinitionAuthorityFactory."
+                            "create"
+                        ),
+                    ],
                     "product_states": [
                         "INPUT_REQUIRED",
                         "DRAFT_READY",
                         "DECLARATION_XML_READY",
+                        "OPEN_POSITION_RETAINED",
+                        "ANALYSIS_READY_WITH_OPEN_ITEMS",
+                        "ANALYSIS_ONLY_READY",
+                        "NON_FILING_SURROGATE_READY",
+                        "STOPPED_RESUMABLE",
                     ],
                     "gate3_runtime_status": (
                         "financial_llm_deployment_rollback_only"
