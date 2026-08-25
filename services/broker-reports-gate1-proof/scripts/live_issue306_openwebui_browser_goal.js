@@ -368,11 +368,31 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
   const requiredSummarySections = [
     'Из отчёта:',
     'Рассчитано Tax Model и независимо сверено с XML:',
+    'Определено по методике резидентства:',
     'Подтверждено вами:',
     'Перед подачей:',
   ];
   if (requiredSummarySections.some((marker) => !correctedBody.includes(marker))) {
     throw new Error('final_user_summary_sections_missing');
+  }
+  const methodologySection = correctedBody
+    .split('Определено по методике резидентства:', 2)[1]
+    .split('Подтверждено вами:', 1)[0];
+  const userAttestedSection = correctedBody
+    .split('Подтверждено вами:', 2)[1]
+    .split('Перед подачей:', 1)[0];
+  if (
+    !/вывод методики/i.test(methodologySection)
+    || /подтвержден[а-яё]*/i.test(methodologySection)
+  ) {
+    throw new Error('residency_methodology_provenance_invalid');
+  }
+  if (
+    !/периоды присутствия и отсутствия/i.test(userAttestedSection)
+    || !/специальные причины отсутствия/i.test(userAttestedSection)
+    || /статус[^\n.;]{0,80}резидент/i.test(userAttestedSection)
+  ) {
+    throw new Error('residency_user_attested_provenance_invalid');
   }
   const visibleMatch = correctedBody.match(
     /Рассчитано Tax Model[^:]*:\s*доход\s+([0-9.]+)\s*₽;\s*принятые расходы\s+([0-9.]+)\s*₽;\s*налоговая база\s+([0-9.]+)\s*₽;\s*исчисленный налог\s+([0-9.]+)\s*₽;\s*к уплате\s+([0-9.]+)\s*₽/i,
@@ -390,6 +410,9 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     mode: 'user',
     event: 'final_summary_verified',
     required_sections_visible: true,
+    methodology_residency_section_visible: true,
+    user_residency_evidence_visible: true,
+    user_residency_conclusion_absent: true,
     visible_values: visibleValues,
   });
 

@@ -215,6 +215,40 @@ def test_ready_summary_never_promotes_unreconciled_xml_values() -> None:
     assert "Рассчитано Tax Model" in summary
 
 
+def test_ready_summary_keeps_residency_evidence_separate_from_methodology_result() -> None:
+    summary = Pipe._ndfl_ready_user_summary({})
+
+    methodology_marker = "Определено по методике резидентства:"
+    user_marker = "Подтверждено вами:"
+    filing_marker = "Перед подачей:"
+    assert methodology_marker in summary
+    methodology = summary.split(methodology_marker, 1)[1].split(user_marker, 1)[0]
+    user_attested = summary.split(user_marker, 1)[1].split(filing_marker, 1)[0]
+
+    assert "вывод методики" in methodology
+    assert "подтвержден" not in methodology.lower()
+    assert "статус резидента" not in user_attested.lower()
+    assert "периоды присутствия и отсутствия" in user_attested
+    assert "специальные причины отсутствия" in user_attested
+    for entered_fact in (
+        "статус как физического лица, ИП или лица частной практики",
+        "ИНН и ФИО",
+        "вид декларации",
+        "дата",
+        "инспекция",
+        "подписант",
+        "бюджетный итог",
+        "ОКТМО",
+        "отсутствие других доходов той же категории",
+        "вычетов",
+        "переносимых убытков",
+        "зачётов",
+        "удержанного налога",
+    ):
+        assert entered_fact in user_attested
+    assert "расходов" not in user_attested
+
+
 def test_human_fact_wait_releases_source_workload_lease_first(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

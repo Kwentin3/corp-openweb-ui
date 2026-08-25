@@ -192,6 +192,11 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "installed_bundle_not_current_tested_bytes" in source
     assert "unanswered_tab_closed_and_second_case_admitted" in source
     assert "final_summary_verified" in source
+    assert "residency_methodology_provenance_invalid" in source
+    assert "residency_user_attested_provenance_invalid" in source
+    assert "methodology_residency_section_visible: true" in source
+    assert "user_residency_evidence_visible: true" in source
+    assert "user_residency_conclusion_absent: true" in source
     assert "answer = 'INITIAL'" not in source
     assert "answer = 'SELF'" not in source
     assert "answer = 'PAYMENT'" not in source

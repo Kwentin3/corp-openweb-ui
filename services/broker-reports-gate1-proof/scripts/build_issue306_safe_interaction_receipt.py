@@ -152,7 +152,13 @@ def _validate_clean_run(receipt: dict[str, Any]) -> dict[str, str]:
     ):
         raise Issue306ReceiptError("issue306_deferred_answer_not_proven")
     summary = _event(receipt, "final_summary_verified")
-    if len(summary) != 1 or summary[0].get("required_sections_visible") is not True:
+    if (
+        len(summary) != 1
+        or summary[0].get("required_sections_visible") is not True
+        or summary[0].get("methodology_residency_section_visible") is not True
+        or summary[0].get("user_residency_evidence_visible") is not True
+        or summary[0].get("user_residency_conclusion_absent") is not True
+    ):
         raise Issue306ReceiptError("issue306_final_summary_not_proven")
     visible = summary[0].get("visible_values")
     keys = {
