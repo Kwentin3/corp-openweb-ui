@@ -289,11 +289,23 @@ function captureCompletionShapes(page, outputDir) {
       body = {};
     }
     const messages = Array.isArray(body.messages) ? body.messages : [];
+    const nestedBody = body.body && typeof body.body === 'object' ? body.body : {};
+    const nestedMessages = Array.isArray(nestedBody.messages) ? nestedBody.messages : [];
     const latestUser = [...messages].reverse().find((item) => item && item.role === 'user') || {};
+    const nestedLatestUser = [...nestedMessages]
+      .reverse()
+      .find((item) => item && item.role === 'user') || {};
     shapes.push({
+      top_keys: Object.keys(body).sort(),
+      nested_body_keys: Object.keys(nestedBody).sort(),
       body_files_total: Array.isArray(body.files) ? body.files.length : 0,
       latest_user_files_total: Array.isArray(latestUser.files) ? latestUser.files.length : 0,
       messages_total: messages.length,
+      nested_body_files_total: Array.isArray(nestedBody.files) ? nestedBody.files.length : 0,
+      nested_latest_user_files_total: Array.isArray(nestedLatestUser.files)
+        ? nestedLatestUser.files.length
+        : 0,
+      nested_messages_total: nestedMessages.length,
     });
     fs.writeFileSync(
       path.join(outputDir, 'completion-shapes.debug.json'),
