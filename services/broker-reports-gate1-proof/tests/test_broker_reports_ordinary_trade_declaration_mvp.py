@@ -38,6 +38,14 @@ from broker_reports_gate1.ordinary_trade_declaration_case_inputs import (
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
 )
+from broker_reports_gate1.ordinary_trade_candidate_runtime import (
+    OrdinaryTradeCandidateRuntimeFactory,
+)
+from broker_reports_gate1.gate5_trusted_methodology import (
+    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
+    GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+    GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+)
 
 import test_broker_reports_active_category_declaration_assembly as assembly_fixtures
 import test_broker_reports_gate5_human_fact_scope as human_fixtures
@@ -864,6 +872,302 @@ def test_cross_run_genuine_xml_hybrid_remains_rejected(tmp_path: Path) -> None:
     assert mixed.value.code == "ordinary_trade_declaration_xml_semantics_invalid"
 
 
+def test_tax_period_is_explicitly_selected_after_detected_year_is_shown(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+    )
+
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+    preparation = result["product"]["preparation"]
+    action = preparation["user_actions"][0]
+
+    assert result["product"]["status"] == "INPUT_REQUIRED"
+    assert action["fact_key"] == "selected_tax_period"
+    assert action["semantic_request_key"] == "human_fact:selected_tax_period"
+    assert preparation["period_profile"]["selected_tax_period"] is None
+    assert preparation["period_profile"]["detected_operation_years"] == ["2025"]
+    assert preparation["period_profile"]["profile_support"] == "NOT_EVALUATED"
+    assert result["product"]["xml_created"] is False
+
+
+def test_period_summary_reads_exact_profile_from_xml_projection_owner() -> None:
+    assert Gate5FullTargetXmlProjectionRuntimeFactory.create().supported_profile() == {
+        "tax_period": "2025",
+        "form": "3-NDFL",
+        "knd": "1151020",
+        "order": "FNS_ED-7-11/913@_2025-10-20",
+        "electronic_format_version": "5.20",
+        "xsd_name": "NO_NDFL3_1_033_00_05_20_01.xsd",
+        "xsd_sha256": (
+            "083128322833dbafb29be0bf919e33b7b362956244b422d34dd554c99a1e4484"
+        ),
+    }
+
+
+@pytest.mark.parametrize(
+    ("mode", "status", "terminal", "surrogate"),
+    [
+        (
+            "ANALYSIS_ONLY",
+            "ANALYSIS_ONLY_READY",
+            "ordinary_trade_analysis_only_non_filing",
+            False,
+        ),
+        (
+            "SURROGATE_DRAFT",
+            "NON_FILING_SURROGATE_READY",
+            "ordinary_trade_surrogate_draft_non_filing",
+            True,
+        ),
+        (
+            "STOP_RESUMABLE",
+            "STOPPED_RESUMABLE",
+            "ordinary_trade_preparation_stopped_resumable",
+            False,
+        ),
+    ],
+)
+def test_wrong_year_profile_never_creates_xml_and_requires_explicit_mode(
+    tmp_path: Path,
+    mode: str,
+    status: str,
+    terminal: str,
+    surrogate: bool,
+) -> None:
+    runtime, context, _providers = _case(
+        tmp_path / mode.lower(),
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+    )
+    first = runtime.run(canonical_artifact_refs=[], context=context)
+    period_action = first["product"]["preparation"]["user_actions"][0]
+    runtime.normalize_declaration_action(
+        request_publication_ref=period_action["request_publication_ref"],
+        answer={"kind": "code", "value": "2022"},
+        context=context,
+    )
+
+    mismatch = runtime.run(canonical_artifact_refs=[], context=context)
+    mismatch_action = mismatch["product"]["preparation"]["user_actions"][0]
+    assert mismatch_action["fact_key"] == "profile_mismatch_mode"
+    assert mismatch["product"]["preparation"]["period_profile"] == {
+        "selected_tax_period": "2022",
+        "detected_operation_years": ["2025"],
+        "document_period_status": "NOT_PROVEN_BY_CURRENT_FACT_CONTRACT",
+        "evidence_horizon_status": "OBSERVED_BOUNDS_ONLY",
+        "profile_support": "UNSUPPORTED_EXACT_YEAR_PROFILE",
+        "profile_mismatch_mode": None,
+        "form_version": None,
+        "xsd_name": None,
+        "methodology_version": None,
+        "filing_profile_available": False,
+        "xml_profile_available": False,
+    }
+    runtime.normalize_declaration_action(
+        request_publication_ref=mismatch_action["request_publication_ref"],
+        answer={"kind": "code", "value": mode},
+        context=context,
+    )
+
+    final = runtime.run(canonical_artifact_refs=[], context=context)
+    preparation = final["product"]["preparation"]
+
+    assert final["product"]["status"] == status
+    assert final["product"]["terminal"] == terminal
+    assert final["product"]["xml_created"] is False
+    assert final["product"]["declaration_ready"] is False
+    assert final["declaration"] is None
+    assert preparation["period_profile"]["selected_tax_period"] == "2022"
+    assert preparation["period_profile"]["profile_mismatch_mode"] == mode
+    assert preparation["analysis"]["surrogate"] is surrogate
+    assert preparation["analysis"]["filing_eligible"] is False
+    assert preparation["final_note"]["selected_tax_period"] == "2022"
+    assert preparation["final_note"]["filing_eligible"] is False
+    assert preparation["final_note"]["xml_created"] is False
+
+
+def test_purchase_only_2022_keeps_open_position_separate_from_profile_choice(
+    tmp_path: Path,
+) -> None:
+    bridge = assembly_fixtures.bridge_fixtures
+    purchase = bridge._with_roles(
+        bridge._row(side=bridge._PURCHASE_SIDE, charges=False),
+        trade_date="10.01.2022 10:00:00",
+        settlement_date="13.01.2022",
+    )
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+        financial_rows=(bridge._HEADERS, purchase),
+    )
+
+    first = runtime.run(canonical_artifact_refs=[], context=context)
+    first_preparation = first["product"]["preparation"]
+    group = first["product"]["gate5"]["security_groups"][0]
+
+    assert first["product"]["status"] == "INPUT_REQUIRED"
+    assert first["product"]["gate5"]["execution_status"] == (
+        "open_position_not_tax_activated"
+    )
+    assert first["product"]["gate5"]["blocker_reason_codes"] == []
+    assert group["position_scope"]["state"] == "OPEN_LONG_PROVEN"
+    assert first_preparation["final_note"]["detected_operation_years"] == [
+        "2022"
+    ]
+    period_action = first_preparation["user_actions"][0]
+    assert period_action["fact_key"] == "selected_tax_period"
+    runtime.normalize_declaration_action(
+        request_publication_ref=period_action["request_publication_ref"],
+        answer={"kind": "code", "value": "2022"},
+        context=context,
+    )
+
+    mismatch = runtime.run(canonical_artifact_refs=[], context=context)
+    mode_action = mismatch["product"]["preparation"]["user_actions"][0]
+    assert mode_action["fact_key"] == "profile_mismatch_mode"
+    runtime.normalize_declaration_action(
+        request_publication_ref=mode_action["request_publication_ref"],
+        answer={"kind": "code", "value": "ANALYSIS_ONLY"},
+        context=context,
+    )
+
+    final = runtime.run(canonical_artifact_refs=[], context=context)
+    note = final["product"]["preparation"]["final_note"]
+    assert final["product"]["status"] == "ANALYSIS_ONLY_READY"
+    assert note["selected_tax_period"] == "2022"
+    assert note["profile"]["support"] == "UNSUPPORTED_EXACT_YEAR_PROFILE"
+    assert note["positions"][0]["state"] == "OPEN_LONG_PROVEN"
+    assert note["calculated_disposal_fact_ids"] == []
+    assert note["filing_eligible"] is False
+    assert final["product"]["xml_created"] is False
+
+
+def test_sale_only_supported_period_retains_exact_evidence_horizon_blocker(
+    tmp_path: Path,
+) -> None:
+    bridge = assembly_fixtures.bridge_fixtures
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        financial_rows=(
+            bridge._HEADERS,
+            bridge._row(side=bridge._DISPOSAL_SIDE, charges=False),
+        ),
+    )
+
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+    product = result["product"]
+    note = product["preparation"]["final_note"]
+
+    assert product["status"] == "PREPARATION_INCOMPLETE"
+    assert product["terminal"] == (
+        "gate5_source_fact_acquisition_evidence_horizon_unproven"
+    )
+    assert product["gate5"]["blocker_reason_codes"] == [
+        "gate5_source_fact_acquisition_evidence_horizon_unproven"
+    ]
+    assert note["positions"][0]["state"] == (
+        "UNRESOLVED_DISPOSAL_EVIDENCE_HORIZON"
+    )
+    assert note["filing_eligible"] is False
+    assert product["xml_created"] is False
+
+
+def test_same_case_operation_year_successor_stales_old_period_choice(
+    tmp_path: Path,
+) -> None:
+    bridge = assembly_fixtures.bridge_fixtures
+    document_id = "ordinary-trade-candidate-document"
+    purchase_2022 = bridge._with_roles(
+        bridge._row(side=bridge._PURCHASE_SIDE, charges=False),
+        trade_date="10.01.2022 10:00:00",
+        settlement_date="13.01.2022",
+    )
+    runtime, context, _providers, store = _case(
+        tmp_path,
+        proceeds="60.00",
+        include_store=True,
+        publish_human_facts=False,
+        publish_tax_period=False,
+        financial_rows=(bridge._HEADERS, purchase_2022),
+    )
+    first = runtime.run(canonical_artifact_refs=[], context=context)
+    old_action = first["product"]["preparation"]["user_actions"][0]
+    runtime.normalize_declaration_action(
+        request_publication_ref=old_action["request_publication_ref"],
+        answer={"kind": "code", "value": "2022"},
+        context=context,
+    )
+    active = next(
+        item
+        for item in store.list_canonical_versions(
+            context=context,
+            document_id=document_id,
+        )
+        if item.status == "ACTIVE"
+    )
+    purchase_2024 = bridge._with_roles(
+        purchase_2022,
+        trade_date="10.01.2024 10:00:00",
+        settlement_date="13.01.2024",
+    )
+    successor_context = replace(
+        context,
+        normalization_run_id="ordinary-trade-operation-period-successor",
+    )
+    assembly_fixtures.bridge_fixtures.ordinary_fixtures.gate4_fixtures._activate_canonical(
+        store=store,
+        context=successor_context,
+        document_id=document_id,
+        artifact_version=2,
+        expected_previous_version_id=active.canonical_version_id,
+        table_rows=(bridge._HEADERS, purchase_2024),
+    )
+    successor = next(
+        item
+        for item in store.list_canonical_versions(
+            context=successor_context,
+            document_id=document_id,
+        )
+        if item.status == "ACTIVE"
+    )
+
+    changed = runtime.run(
+        canonical_artifact_refs=[str(successor.manifest_ref)],
+        context=successor_context,
+    )
+    changed_preparation = changed["product"]["preparation"]
+
+    assert changed["product"]["status"] == "INPUT_REQUIRED"
+    assert changed_preparation["period_profile"]["detected_operation_years"] == [
+        "2024"
+    ]
+    assert changed_preparation["period_profile"]["selected_tax_period"] is None
+    assert changed_preparation["user_actions"][0]["semantic_request_key"] == (
+        old_action["semantic_request_key"]
+    )
+    assert changed_preparation["user_actions"][0]["request_publication_ref"] != (
+        old_action["request_publication_ref"]
+    )
+    with pytest.raises(Exception) as stale:
+        runtime.normalize_declaration_action(
+            request_publication_ref=old_action["request_publication_ref"],
+            answer={"kind": "code", "value": "2022"},
+            context=successor_context,
+        )
+    assert getattr(stale.value, "code", "") == "gate5_gap_request_stale"
+    assert changed["product"]["xml_created"] is False
+
+
 def _case(
     root: Path,
     *,
@@ -872,9 +1176,14 @@ def _case(
     duplicate_disposal: bool = False,
     extra_incomplete_operation: bool = False,
     publish_human_facts: bool = True,
+    publish_tax_period: bool = True,
     metadata_lines: tuple[str, ...] = _METADATA_LINES,
+    financial_rows: tuple | None = None,
 ):
-    if duplicate_disposal or extra_incomplete_operation:
+    if financial_rows is not None:
+        bridge = assembly_fixtures.bridge_fixtures
+        store, context, _facts = bridge._case(root, rows=financial_rows)
+    elif duplicate_disposal or extra_incomplete_operation:
         bridge = assembly_fixtures.bridge_fixtures
         disposal = assembly_fixtures._with_amount(
             bridge._row(side=bridge._DISPOSAL_SIDE, charges=True), proceeds
@@ -913,6 +1222,21 @@ def _case(
         store=store,
         retention_policy=retention,
     )
+    if publish_tax_period:
+        selection = human.publish_tax_period_selection_request(
+            context=context,
+            taxpayer_scope_ref=primary_taxpayer_scope_ref(context=context),
+            detected_operation_years=["2025"],
+        )
+        if selection["actions"]:
+            selected = human.normalize_published_answer(
+                request_publication_ref=selection["actions"][0][
+                    "request_publication_ref"
+                ],
+                answer={"kind": "code", "value": "2025"},
+                context=context,
+            )
+            assert selected["status"] == "TYPED_USER_CASE_FACT_READY"
     if publish_human_facts:
         _publish_human_facts(
             human,
@@ -946,9 +1270,22 @@ def _publish_human_facts(
         read_enabled=True,
         retention_policy=retention,
     ).create()
+    source_assembly = OrdinaryTradeCandidateRuntimeFactory(
+        store=store, read_enabled=True
+    ).create().assemble_available(
+        methodology_ref={
+            "schema_version": GATE5_TRUSTED_METHODOLOGY_REF_SCHEMA_VERSION,
+            "methodology_id": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
+            "methodology_version": GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
+        },
+        context=context,
+    )
     published = owner.current(
         context=context,
         canonical_coverage=coverage,
+        operation_period_observation=source_assembly[
+            "operation_period_observation"
+        ],
     )
     requests = published["human_fact_publication"]["actions"]
     for request in requests:

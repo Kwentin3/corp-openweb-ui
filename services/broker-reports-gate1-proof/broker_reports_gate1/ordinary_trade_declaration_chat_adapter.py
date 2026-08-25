@@ -43,6 +43,19 @@ _UNAVAILABLE_REQUEST = "Ответ на этот запрос временно �
 # values still come exclusively from the current owner's answer_contract; this
 # table can only translate a visible label to a value already allowed there.
 _REQUEST_PRESENTATION = {
+    "profile_mismatch_mode": {
+        "answer_kind": "code",
+        "question": (
+            "\u0414\u043b\u044f \u0432\u044b\u0431\u0440\u0430\u043d\u043d\u043e\u0433\u043e \u0433\u043e\u0434\u0430 \u043d\u0435\u0442 \u0442\u043e\u0447\u043d\u043e\u0433\u043e \u043f\u0440\u043e\u0444\u0438\u043b\u044f \u0434\u0435\u043a\u043b\u0430\u0440\u0430\u0446\u0438\u0438. "
+            "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435: \u0442\u043e\u043b\u044c\u043a\u043e \u0430\u043d\u0430\u043b\u0438\u0437, \u043d\u0435\u043f\u043e\u0434\u0430\u0432\u0430\u0435\u043c\u044b\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a \u0438\u043b\u0438 "
+            "\u043e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c\u0441\u044f \u0438 \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c \u043f\u043e\u0437\u0436\u0435."
+        ),
+        "code_labels": {
+            "ANALYSIS_ONLY": "\u0422\u043e\u043b\u044c\u043a\u043e \u0430\u043d\u0430\u043b\u0438\u0437",
+            "SURROGATE_DRAFT": "\u041d\u0435\u043f\u043e\u0434\u0430\u0432\u0430\u0435\u043c\u044b\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a",
+            "STOP_RESUMABLE": "\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c\u0441\u044f \u0438 \u043f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c \u043f\u043e\u0437\u0436\u0435",
+        },
+    },
     "taxpayer_identity": {
         "answer_kind": "identity_choice",
         "question": (
@@ -339,6 +352,23 @@ def _request_presentation(request: dict[str, Any]) -> dict[str, Any] | None:
     if request.get("closure_type") != "USER_FACT":
         return None
     fact_key = request.get("fact_key")
+    if fact_key == "selected_tax_period":
+        subject = request.get("subject")
+        years = subject.get("detected_operation_years") if isinstance(subject, dict) else None
+        if (
+            not isinstance(years, list)
+            or years != sorted(set(years))
+            or any(re.fullmatch(r"[0-9]{4}", item) is None for item in years)
+        ):
+            return None
+        detected = ", ".join(years) if years else "\u043d\u0435\u0442"
+        return {
+            "answer_kind": "code",
+            "question": (
+                "\u0412 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430\u0445 \u0432\u0438\u0436\u0443 \u043e\u043f\u0435\u0440\u0430\u0446\u0438\u0438 \u0437\u0430 "
+                f"{detected}. \u0417\u0430 \u043a\u0430\u043a\u043e\u0439 \u043d\u0430\u043b\u043e\u0433\u043e\u0432\u044b\u0439 \u043f\u0435\u0440\u0438\u043e\u0434 \u0433\u043e\u0442\u043e\u0432\u0438\u043c \u0434\u0435\u043a\u043b\u0430\u0440\u0430\u0446\u0438\u044e?"
+            ),
+        }
     presentation = _REQUEST_PRESENTATION.get(fact_key)
     return presentation if isinstance(presentation, dict) else None
 

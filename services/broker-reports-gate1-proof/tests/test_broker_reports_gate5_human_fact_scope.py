@@ -12,6 +12,7 @@ import pytest
 
 from broker_reports_gate1 import build_retention_policy
 from broker_reports_gate1.artifact_models import ArtifactAccessContext
+from broker_reports_gate1.artifact_resolver import ArtifactResolver
 from broker_reports_gate1.gate5_client_evidence_review import (
     GATE5_CLIENT_EVIDENCE_REVIEW_SCHEMA_VERSION,
     Gate5ClientEvidenceReviewRuntime,
@@ -173,6 +174,55 @@ def test_fact_replays_across_run_but_not_across_semantic_scope(tmp_path: Path) -
     ) == [fact]
     assert "normalization_run_id" not in fact["scope_binding"]
     assert "workspace_model_id" not in fact["scope_binding"]
+
+
+def test_detected_year_change_supersedes_one_period_lane_and_stales_old_choice(
+    tmp_path: Path,
+) -> None:
+    runtime, context = _runtime(tmp_path)
+    first = runtime.publish_tax_period_selection_request(
+        context=context,
+        taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
+        detected_operation_years=["2025"],
+    )
+    first_request = first["actions"][0]
+    accepted = runtime.normalize_published_answer(
+        request_publication_ref=first_request["request_publication_ref"],
+        answer={"kind": "code", "value": "2025"},
+        context=context,
+    )
+    assert accepted["status"] == "TYPED_USER_CASE_FACT_READY"
+
+    changed = runtime.publish_tax_period_selection_request(
+        context=context,
+        taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
+        detected_operation_years=["2024", "2025"],
+    )
+    changed_request = changed["actions"][0]
+    publication = ArtifactResolver(runtime._store).resolve_case(
+        changed_request["request_publication_ref"], context
+    )["payload"]
+
+    assert changed["status"] == "INPUT_REQUIRED"
+    assert changed_request["semantic_request_key"] == (
+        first_request["semantic_request_key"]
+    )
+    assert changed_request["scope_binding"] == first_request["scope_binding"]
+    assert publication["predecessor_publication_ref"] == (
+        first_request["request_publication_ref"]
+    )
+    assert runtime.current_user_case_facts(
+        context=context,
+        taxpayer_scope_ref=SYNTHETIC_TAXPAYER_A,
+        tax_period="0000",
+    ) == []
+    with pytest.raises(Gate5HumanGapClosureError) as stale:
+        runtime.normalize_published_answer(
+            request_publication_ref=first_request["request_publication_ref"],
+            answer={"kind": "code", "value": "2025"},
+            context=context,
+        )
+    assert stale.value.code == "gate5_gap_request_stale"
 
 
 def test_two_synthetic_taxpayer_scopes_in_one_case_remain_distinct(

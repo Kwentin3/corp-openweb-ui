@@ -105,7 +105,8 @@ def test_review_scope_and_questions_are_exact_minimal_and_separated(
     acquisition = next(
         item
         for item in review["required_blockers"]
-        if item["reason_code"] == "gate5_source_fact_acquisition_quantity_insufficient"
+        if item["reason_code"]
+        == "gate5_source_fact_acquisition_evidence_horizon_unproven"
     )
     assert acquisition["quantitative_gap"] == {
         "required_quantity": "12",

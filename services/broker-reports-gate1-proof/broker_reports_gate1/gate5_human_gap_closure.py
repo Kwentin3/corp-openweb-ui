@@ -136,6 +136,8 @@ _REQUEST_PUBLICATION_KEYS = frozenset(
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _ARTIFACT_REF = re.compile(r"^art_[A-Fa-f0-9]{32}$")
 _KNOWN_FACT_KEYS = {
+    "selected_tax_period",
+    "profile_mismatch_mode",
     "taxpayer_identity_confirmed",
     "taxpayer_identity",
     "taxpayer_capacity",
@@ -448,6 +450,151 @@ class Gate5HumanGapClosureRuntime:
             ),
             "actions": published,
             "current_user_case_facts": current_facts,
+            "provider_calls_total": 0,
+        }
+
+    def publish_tax_period_selection_request(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        taxpayer_scope_ref: str,
+        detected_operation_years: list[str],
+    ) -> dict[str, Any]:
+        """Publish/read the case-scoped period choice before a tax scope exists."""
+
+        self._publication_dependencies()
+        if (
+            not isinstance(detected_operation_years, list)
+            or detected_operation_years != sorted(set(detected_operation_years))
+            or any(re.fullmatch(r"[0-9]{4}", item) is None for item in detected_operation_years)
+        ):
+            _fail("gate5_tax_period_detection_invalid")
+        neutral_period = "0000"
+        scope = _human_fact_scope(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=neutral_period,
+        )
+        facts = self.current_user_case_facts(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=neutral_period,
+        )
+        selected = next(
+            (item for item in facts if item["fact_key"] == "selected_tax_period"),
+            None,
+        )
+        request = _request(
+            kind="REQUIRED",
+            priority="HIGH",
+            closure_type="USER_FACT",
+            fact_key="selected_tax_period",
+            demand_refs=["ordinary_trade_selected_tax_period"],
+            evidence_refs=[],
+            question=(
+                "Choose the tax period for this case. Detected operation years: "
+                + (", ".join(detected_operation_years) if detected_operation_years else "none")
+                + "."
+            ),
+            reason="the filing or analysis period must be explicitly selected",
+            helpful_evidence="a four-digit tax year chosen by the authenticated user",
+            client_benefit="prevents silently moving source operations into another year",
+            answer_contract={"kind": "code", "pattern": "^[0-9]{4}$"},
+            subject={"detected_operation_years": detected_operation_years},
+            scope_binding=scope,
+            semantic_request_key="human_fact:selected_tax_period",
+        )
+        published = self._persist_request(request=request, context=context)
+        self._reject_stale_request(request=published, context=context)
+        if selected is not None:
+            current = self.current_user_case_facts(
+                context=context,
+                taxpayer_scope_ref=taxpayer_scope_ref,
+                tax_period=neutral_period,
+            )
+            selected = next(
+                (item for item in current if item["fact_key"] == "selected_tax_period"),
+                None,
+            )
+        return {
+            "schema_version": "broker_reports_tax_period_selection_v0",
+            "status": "SELECTED" if selected is not None else "INPUT_REQUIRED",
+            "detected_operation_years": copy.deepcopy(detected_operation_years),
+            "selected_tax_period_fact": copy.deepcopy(selected),
+            "actions": [] if selected is not None else [published],
+            "scope_binding": scope,
+            "provider_calls_total": 0,
+        }
+
+    def publish_profile_mismatch_mode_request(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        taxpayer_scope_ref: str,
+        tax_period: str,
+    ) -> dict[str, Any]:
+        """Offer only non-filing outcomes when the exact year profile is absent."""
+
+        self._publication_dependencies()
+        scope = _human_fact_scope(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=tax_period,
+        )
+        facts = self.current_user_case_facts(
+            context=context,
+            taxpayer_scope_ref=taxpayer_scope_ref,
+            tax_period=tax_period,
+        )
+        selected = next(
+            (item for item in facts if item["fact_key"] == "profile_mismatch_mode"),
+            None,
+        )
+        request = _request(
+            kind="REQUIRED",
+            priority="HIGH",
+            closure_type="USER_FACT",
+            fact_key="profile_mismatch_mode",
+            demand_refs=["ordinary_trade_exact_year_profile"],
+            evidence_refs=[],
+            question=(
+                f"The exact declaration profile for {tax_period} is not available. "
+                "Choose analysis only, a clearly non-filing surrogate draft, or stop and resume later."
+            ),
+            reason="a filing artifact cannot use a profile from another tax year",
+            helpful_evidence="an explicit non-filing mode choice",
+            client_benefit="prevents generating wrong-year filing XML",
+            answer_contract={
+                "kind": "code",
+                "allowed": [
+                    "ANALYSIS_ONLY",
+                    "SURROGATE_DRAFT",
+                    "STOP_RESUMABLE",
+                ],
+            },
+            subject={"tax_period": tax_period, "filing_eligible": False},
+            scope_binding=scope,
+            semantic_request_key="human_fact:profile_mismatch_mode",
+        )
+        published = self._persist_request(request=request, context=context)
+        self._reject_stale_request(request=published, context=context)
+        if selected is not None:
+            current = self.current_user_case_facts(
+                context=context,
+                taxpayer_scope_ref=taxpayer_scope_ref,
+                tax_period=tax_period,
+            )
+            selected = next(
+                (item for item in current if item["fact_key"] == "profile_mismatch_mode"),
+                None,
+            )
+        return {
+            "schema_version": "broker_reports_profile_mismatch_mode_v0",
+            "status": "SELECTED" if selected is not None else "INPUT_REQUIRED",
+            "tax_period": tax_period,
+            "selected_mode_fact": copy.deepcopy(selected),
+            "actions": [] if selected is not None else [published],
+            "scope_binding": scope,
             "provider_calls_total": 0,
         }
 

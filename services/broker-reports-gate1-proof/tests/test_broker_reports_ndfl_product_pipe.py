@@ -188,6 +188,43 @@ def test_maintained_stage_binds_event_response_to_current_owner_actions(
     assert "в ФНС он не отправлялся" in chat
 
 
+def test_period_and_profile_mode_are_owner_bound_but_user_presented(
+    tmp_path: Path,
+) -> None:
+    runtime, context, _providers = declaration_fixtures._case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+    )
+    first = runtime.run(canonical_artifact_refs=[], context=context)
+    period_request = first["product"]["preparation"]["user_actions"][0]
+
+    assert "2025" in declaration_request_question(period_request)
+    period_answer = adapt_current_declaration_request(
+        message="2022",
+        current_requests=[period_request],
+    )
+    assert period_answer["status"] == "ANSWER_READY"
+    assert period_answer["answer"] == {"kind": "code", "value": "2022"}
+    runtime.normalize_declaration_action(
+        request_publication_ref=period_answer["request_publication_ref"],
+        answer=period_answer["answer"],
+        context=context,
+    )
+
+    mismatch = runtime.run(canonical_artifact_refs=[], context=context)
+    mode_request = mismatch["product"]["preparation"]["user_actions"][0]
+    question = declaration_request_question(mode_request)
+    assert "\u043d\u0435\u0442 \u0442\u043e\u0447\u043d\u043e\u0433\u043e \u043f\u0440\u043e\u0444\u0438\u043b\u044f" in question
+    mode_answer = adapt_current_declaration_request(
+        message="\u0422\u043e\u043b\u044c\u043a\u043e \u0430\u043d\u0430\u043b\u0438\u0437",
+        current_requests=[mode_request],
+    )
+    assert mode_answer["status"] == "ANSWER_READY"
+    assert mode_answer["answer"] == {"kind": "code", "value": "ANALYSIS_ONLY"}
+
+
 def test_ready_summary_never_promotes_unreconciled_xml_values() -> None:
     declaration = {
         "semantic_reconciliation": {
@@ -440,6 +477,35 @@ def test_direct_ndfl_source_blocker_hides_internal_owner_diagnostics() -> None:
     assert "artifact" not in content.lower()
 
 
+def test_safe_stop_proof_requires_the_exact_owner_reason_not_generic_stop_text() -> None:
+    expected = "gate5_source_fact_acquisition_evidence_horizon_unproven"
+    product = {
+        "status": "PREPARATION_INCOMPLETE",
+        "terminal": expected,
+        "gate5": {"blocker_reason_codes": [expected]},
+        "preparation": {
+            "gap_closure": {
+                "user_facing_required_actions": [],
+                "internal_owner_required_actions": [{"reason_code": expected}],
+            }
+        },
+    }
+
+    accepted = Pipe._ndfl_product_blocker_content(product)
+    wrong = copy.deepcopy(product)
+    wrong["terminal"] = "ordinary_trade_generic_stop"
+    wrong["gate5"]["blocker_reason_codes"] = ["ordinary_trade_generic_stop"]
+    wrong["preparation"]["gap_closure"]["internal_owner_required_actions"] = [
+        {"reason_code": "ordinary_trade_generic_stop"}
+    ]
+    rejected = Pipe._ndfl_product_blocker_content(wrong)
+
+    assert expected in accepted
+    assert "Exact status: PREPARATION_INCOMPLETE" in accepted
+    assert expected not in rejected
+    assert "ordinary_trade_generic_stop" in rejected
+
+
 def test_direct_ndfl_workload_status_hides_job_identity() -> None:
     emitted = []
 
@@ -572,6 +638,34 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
         "ordinary_trade_declaration_canonical_relevant_unmapped"
     )
     assert result["provider_calls_total"] == 0
+
+
+def test_case_note_renders_empty_detected_years_as_none() -> None:
+    content = Pipe._ndfl_case_note_content(
+        {
+            "preparation": {
+                "final_note": {
+                    "source_completeness_status": "CANONICAL_EVIDENCE_MISSING",
+                    "position_evaluation_status": (
+                        "NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE"
+                    ),
+                    "selected_tax_period": None,
+                    "detected_operation_years": [],
+                    "profile": {
+                        "support": "NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE"
+                    },
+                    "positions": [],
+                    "calculated_disposal_fact_ids": [],
+                    "required_checks": [
+                        "ordinary_trade_canonical_evidence_missing"
+                    ],
+                    "filing_eligible": False,
+                }
+            }
+        }
+    )
+
+    assert "detected operation years none" in content
 
 
 def test_plain_chat_answer_cannot_select_a_new_current_request(

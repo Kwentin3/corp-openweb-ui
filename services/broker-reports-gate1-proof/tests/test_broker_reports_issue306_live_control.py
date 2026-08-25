@@ -186,7 +186,8 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "/api/chat" not in source
     assert "getAttribute('href')" in source
     assert "ISSUE306_SOURCE_SMOKE_ONLY" in source
-    assert "representative_source_blocked_before_declaration" in source
+    assert "representative_source_boundary_separation_proven" in source
+    assert "representative_source_exact_boundary_receipt_invalid" in source
     assert "hidden_architecture_leaked_into_chat" in source
     assert "broker_reports_issue306_browser_run_receipt_v2" in source
     assert "installed_bundle_not_current_tested_bytes" in source
@@ -258,10 +259,26 @@ def test_issue306_source_receipt_requires_owner_pinned_bytes() -> None:
         "source_artifact": dict(owner),
         "events": [
             {
-                "event": "representative_source_blocked_before_declaration",
+                "event": "representative_source_boundary_separation_proven",
+                "exact_status": "PREPARATION_INCOMPLETE",
+                "exact_terminal": (
+                    "ordinary_trade_canonical_evidence_missing"
+                ),
+                "reason_codes": [
+                    "ordinary_trade_canonical_evidence_missing"
+                ],
+                "source_completeness_status": "CANONICAL_EVIDENCE_MISSING",
+                "detected_operation_years": [],
+                "selected_tax_period": None,
+                "position_evaluation_status": (
+                    "NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE"
+                ),
+                "profile_support": (
+                    "NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE"
+                ),
                 "xml_created": False,
                 "private_download_created": False,
-                "typed_blocker_visible": True,
+                "filing_eligible": False,
             }
         ],
     }
@@ -271,6 +288,14 @@ def test_issue306_source_receipt_requires_owner_pinned_bytes() -> None:
         {"source_artifact": {**receipt["source_artifact"], "content_sha256": "0" * 64}},
         {"source_artifact": {**receipt["source_artifact"], "size_bytes": 0}},
         {"source_artifact": {**receipt["source_artifact"], "size_bytes": 639418}},
+        {
+            "events": [
+                {
+                    **receipt["events"][0],
+                    "exact_terminal": "ordinary_trade_generic_stop",
+                }
+            ]
+        },
     ):
         candidate = {**receipt, **mutation}
         try:

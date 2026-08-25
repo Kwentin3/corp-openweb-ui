@@ -23,7 +23,11 @@ their existing owners.
 | Meaning | Owner | Consumer proof |
 | --- | --- | --- |
 | authenticated user and case | server-attested OpenWebUI context plus ArtifactStore ACL | upload, actions, facts and artifacts resolve under the same user/case |
-| taxpayer workflow scope | `primary_taxpayer_scope_ref` owned by product composition | opaque user+case+period slot; it is neither INN nor taxpayer identity and is not caller-selectable |
+| taxpayer workflow scope | `primary_taxpayer_scope_ref` owned by product composition | opaque stable user+case slot; the selected period stays a separate Human Fact/scope dimension; the slot is neither INN nor taxpayer identity and is not caller-selectable |
+| selected tax period | `Gate5HumanGapClosureRuntime` fact `selected_tax_period` | owner-published request in the reserved pre-period `0000` scope; the exact four-digit answer is required before any declaration profile is resolved |
+| observed operation period | `Gate5DeterministicSourceFactConsumptionRuntime.assemble_available` | exact years/dates from source-bound Fact roles; not a document-period or evidence-horizon completeness claim |
+| exact year profile and mode | `Gate5TrustedMethodologyAuthorityFactory.create`, the full-target XML projection Definition owner, plus Human Fact `profile_mismatch_mode` | only alignment of the selected year, exact tax product methodology and owner-returned form/KND/order/format/XSD identity permits filing XML; an unsupported year requires explicit analysis-only, non-filing surrogate, or resumable stop |
+| position/source/tax state | deterministic source-fact consumer | position quantities, source completeness and tax activation are separate fields; open groups cannot erase independent closed calculations |
 | taxpayer identity | `Gate5HumanGapClosureRuntime` fact `taxpayer_identity` | current request-bound `USER_ATTESTED_CASE_FACT`; an exact Canonical value is only a candidate until confirm/change |
 | current Canonical document scope and operation coverage | active Canonical pointers plus `OrdinaryTradeProjectionRuntime.current_case_coverage` | every active Canonical manifest must have exactly one current projection bound to the same document/version/root; a missing whole projection or any `RELEVANT_UNMAPPED` observation blocks XML |
 | current broker facts | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | exact case-bound Fact v2 set and disposal fact ID, consumed only after Canonical coverage passes |
@@ -42,10 +46,19 @@ their existing owners.
 Caller supplies only `ArtifactAccessContext` and canonical artifact refs to the
 production root. Caller cannot supply a taxpayer ref, disposal fact ID,
 methodology version, Scope, Package, released values, projection, or receipt.
+The selected tax period and unsupported-profile mode are accepted only as
+current request-bound Human Facts; Pipe parameters and free chat text do not
+select them.
+
+Period/profile preparation runs for every Canonical-complete security case,
+including purchase-only and partially blocked cases. It does not wait for a
+closed disposal. The source consumer still owns position and calculation; the
+declaration adapter only composes its result with current Human/profile state.
 
 ## Supported case
 
-- tax period 2025; initial declaration only; individual resident whose external
+- explicitly selected tax period 2025 with the exact published 2025
+  methodology/form/XSD profile; initial declaration only; individual resident whose external
   user-attested capacity is `individual_not_ip_not_private_practice`; taxpayer signs for self;
 - exactly one ordinary organized-market security purchase and one disposal,
   outside IIS, in RUB, with a positive result;
@@ -123,6 +136,8 @@ case-hash taxpayer surrogate, partial XML, or FNS submission is permitted.
 
 ## Product readiness states
 
+- `INPUT_REQUIRED` with `selected_tax_period`: detected operation years are
+  shown, but no year or profile is inferred and no XML is possible.
 - `INPUT_REQUIRED`: a calculation/scope-critical user fact is missing; no
   calculated result and no XML are claimed.
 - `DRAFT_READY`: the existing assembler's pre-XML preview has produced the
@@ -130,3 +145,21 @@ case-hash taxpayer surrogate, partial XML, or FNS submission is permitted.
   release, projection or XML is built.
 - `DECLARATION_XML_READY`: all real required values are current, the official
   XML has no placeholders, and XSD plus semantic reconciliation pass.
+- `ANALYSIS_ONLY_READY`: an explicitly selected unsupported year retains
+  owner-produced operation/position calculations and a final note; no filing
+  eligibility, release, projection, XML or download is claimed.
+- `NON_FILING_SURROGATE_READY`: the same unsupported-year evidence is retained
+  as an explicitly non-filing surrogate; no official XML/download is created.
+- `STOPPED_RESUMABLE`: the exact case remains persisted and resumable without
+  a profile substitution.
+- `OPEN_POSITION_RETAINED`: source-proven open position evidence is retained;
+  absence of a closing event is not reported as a source-completeness failure.
+- `ANALYSIS_READY_WITH_OPEN_ITEMS`: independent closed calculations are kept
+  while exact unresolved groups remain blocked from filing.
+
+Every preparation state includes `broker_reports_ordinary_trade_case_note_v1`.
+It projects, without re-deciding, the selected period, observed operation
+years, exact profile identity, open position states, owner-produced calculated
+disposals, remaining checks and actual release eligibility. Profile
+availability and release eligibility are distinct: even an exact 2025 profile
+does not make a draft or open position filing-eligible.

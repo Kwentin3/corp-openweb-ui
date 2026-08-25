@@ -140,6 +140,15 @@ def test_unknown_schema_is_preserved_unmapped_without_semantic_fallback(
     assert {item["disposition"] for item in projection["source_observations"]} == {
         "RELEVANT_UNMAPPED"
     }
+    note = result["product"]["preparation"]["final_note"]
+    assert note["source_completeness_status"] == "RELEVANT_UNMAPPED"
+    assert note["position_evaluation_status"] == (
+        "NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE"
+    )
+    assert note["profile"]["support"] == (
+        "NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE"
+    )
+    assert note["filing_eligible"] is False
 
 
 def test_missing_canonical_stops_without_old_semantic_fallback(tmp_path: Path) -> None:
@@ -160,6 +169,19 @@ def test_missing_canonical_stops_without_old_semantic_fallback(tmp_path: Path) -
         "ordinary_trade_canonical_evidence_missing"
     )
     assert result["product"]["gate4"]["facts_total"] == 0
+    note = result["product"]["preparation"]["final_note"]
+    assert note["source_completeness_status"] == "CANONICAL_EVIDENCE_MISSING"
+    assert note["position_evaluation_status"] == (
+        "NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE"
+    )
+    assert note["selected_tax_period"] is None
+    assert note["detected_operation_years"] == []
+    assert note["profile"]["support"] == (
+        "NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE"
+    )
+    assert note["positions"] == []
+    assert note["calculated_disposal_fact_ids"] == []
+    assert note["filing_eligible"] is False
 
 
 def test_supported_table_survives_unknown_table_in_same_canonical(tmp_path: Path) -> None:
@@ -210,6 +232,171 @@ def test_supported_table_survives_unknown_table_in_same_canonical(tmp_path: Path
         for item in projection["source_observations"]
     ) == 2
     assert len(projection["runtime_records"]) == 3
+
+
+def test_production_purchase_only_is_open_long_not_missing_disposal(
+    tmp_path: Path,
+) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path)
+    mapping = OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()[0]
+    document_id = "purchase-only-open-long"
+    gate4_fixtures._activate_canonical(
+        store=store,
+        context=context,
+        document_id=document_id,
+        artifact_version=1,
+        expected_previous_version_id=None,
+        table_rows=(
+            tuple(item["header_literal"] for item in mapping["columns"]),
+            _row_for_mapping(
+                mapping,
+                side="PURCHASE",
+                trade_date="01.12.2022",
+                asset="ACME",
+                quantity="10",
+                gross_amount="100.00",
+            ),
+        ),
+    )
+    version = next(
+        item
+        for item in store.list_canonical_versions(context=context, document_id=document_id)
+        if item.status == "ACTIVE"
+    )
+
+    result = OrdinaryTradeProductionRuntimeFactory(
+        store=store, read_enabled=True
+    ).create().run(
+        canonical_artifact_refs=[str(version.manifest_ref)], context=context
+    )
+    group = result["product"]["gate5"]["security_groups"][0]
+
+    assert result["product"]["status"] == "OPEN_POSITION_RETAINED"
+    assert result["product"]["terminal"] == "ordinary_trade_closed_disposal_absent"
+    assert result["product"]["gate5"]["execution_status"] == (
+        "open_position_not_tax_activated"
+    )
+    assert result["product"]["gate5"]["blocker_reason_codes"] == []
+    assert group["position_scope"]["state"] == "OPEN_LONG_PROVEN"
+    assert group["blocker"] is None
+    assert result["product"]["xml_created"] is False
+
+
+def test_production_sale_only_reports_horizon_gap_without_short_inference(
+    tmp_path: Path,
+) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path)
+    mapping = OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()[0]
+    document_id = "sale-only-horizon-gap"
+    gate4_fixtures._activate_canonical(
+        store=store,
+        context=context,
+        document_id=document_id,
+        artifact_version=1,
+        expected_previous_version_id=None,
+        table_rows=(
+            tuple(item["header_literal"] for item in mapping["columns"]),
+            _row_for_mapping(
+                mapping,
+                side="DISPOSAL",
+                trade_date="01.03.2025",
+                asset="ACME",
+                quantity="7",
+                gross_amount="210.00",
+            ),
+        ),
+    )
+    version = next(
+        item
+        for item in store.list_canonical_versions(context=context, document_id=document_id)
+        if item.status == "ACTIVE"
+    )
+
+    result = OrdinaryTradeProductionRuntimeFactory(
+        store=store, read_enabled=True
+    ).create().run(
+        canonical_artifact_refs=[str(version.manifest_ref)], context=context
+    )
+    group = result["product"]["gate5"]["security_groups"][0]
+
+    assert result["product"]["terminal"] == (
+        "gate5_source_fact_acquisition_evidence_horizon_unproven"
+    )
+    assert result["product"]["gate5"]["blocker_reason_codes"] == [
+        "gate5_source_fact_acquisition_evidence_horizon_unproven"
+    ]
+    assert result["product"]["gate5"]["security_tax_input_status"] == (
+        "SOURCE_EVIDENCE_INSUFFICIENT"
+    )
+    assert group["position_scope"]["state"] == (
+        "UNRESOLVED_DISPOSAL_EVIDENCE_HORIZON"
+    )
+    assert group["position_scope"]["short_inference_performed"] is False
+
+
+def test_cross_year_acquisition_closes_selected_year_disposal_and_open_group_survives(
+    tmp_path: Path,
+) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path)
+    mapping = OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()[0]
+    document_id = "cross-year-mixed-positions"
+    gate4_fixtures._activate_canonical(
+        store=store,
+        context=context,
+        document_id=document_id,
+        artifact_version=1,
+        expected_previous_version_id=None,
+        table_rows=(
+            tuple(item["header_literal"] for item in mapping["columns"]),
+            _row_for_mapping(
+                mapping,
+                side="PURCHASE",
+                trade_date="01.12.2024",
+                asset="ACME",
+                quantity="10",
+                gross_amount="100.00",
+            ),
+            _row_for_mapping(
+                mapping,
+                side="DISPOSAL",
+                trade_date="01.03.2025",
+                asset="ACME",
+                quantity="6",
+                gross_amount="90.00",
+            ),
+            _row_for_mapping(
+                mapping,
+                side="PURCHASE",
+                trade_date="02.03.2025",
+                asset="BETA",
+                quantity="3",
+                gross_amount="30.00",
+            ),
+        ),
+    )
+    version = next(
+        item
+        for item in store.list_canonical_versions(context=context, document_id=document_id)
+        if item.status == "ACTIVE"
+    )
+
+    result = OrdinaryTradeProductionRuntimeFactory(
+        store=store, read_enabled=True
+    ).create().run(
+        canonical_artifact_refs=[str(version.manifest_ref)], context=context
+    )
+    gate5 = result["product"]["gate5"]
+    groups = {item["asset"]: item for item in gate5["security_groups"]}
+
+    assert gate5["operation_period_observation"]["observed_operation_years"] == [
+        "2024",
+        "2025",
+    ]
+    assert len(gate5["fifo_calculations"]) == 1
+    assert groups["ACME"]["position_scope"]["resolved_disposal_quantity"] == "6"
+    assert groups["ACME"]["position_scope"]["open_long_quantity"] == "4"
+    assert groups["BETA"]["position_scope"]["state"] == "OPEN_LONG_PROVEN"
+    assert gate5["blocker_reason_codes"] == []
 
 
 def test_charge_identity_is_bound_to_exact_commission_cell_and_trade_row(
@@ -502,3 +689,30 @@ def _literal_for_role(role: str) -> str:
         "unmapped": "",
         "venue": "MOEX",
     }[role]
+
+
+def _row_for_mapping(
+    mapping: dict,
+    *,
+    side: str,
+    trade_date: str,
+    asset: str,
+    quantity: str,
+    gross_amount: str,
+) -> tuple[str, ...]:
+    side_literal = next(
+        item["source_literal"]
+        for item in mapping["side_values"]
+        if item["normalized_value"] == side
+    )
+    overrides = {
+        "trade_date": trade_date,
+        "asset_name": asset,
+        "quantity": quantity,
+        "gross_amount": gross_amount,
+        "side": side_literal,
+    }
+    return tuple(
+        overrides.get(item["semantic_role"], _literal_for_role(item["semantic_role"]))
+        for item in mapping["columns"]
+    )

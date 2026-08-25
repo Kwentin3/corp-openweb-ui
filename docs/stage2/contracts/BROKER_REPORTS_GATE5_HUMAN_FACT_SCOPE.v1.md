@@ -32,11 +32,27 @@ is deliberately excluded so a valid fact can replay in a later run. Workspace
 ID remains an ArtifactStore ACL boundary, not fact meaning.
 
 The Human owner validates mechanical equality of the taxpayer scope across
-request, fact and consumer. The Issue #304 composition mints exactly one opaque
-`primary_user_attested_taxpayer` slot from authenticated user, case and period.
+request, fact and consumer. The Issue #304/#308 composition mints exactly one opaque
+`primary_user_attested_taxpayer` slot from authenticated user and case.
 The caller cannot choose it. It is workflow scope only: it is not an INN,
 taxpayer identity, operation subject or claim that the portal authenticated a
 taxpayer.
+
+Issue #308 keeps tax-period choice separate from that stable taxpayer slot. A
+single `selected_tax_period` request is published in reserved scope period
+`0000`, which means only "selection not yet incorporated into a tax scope" and
+must never reach methodology, calculation, release or XML. Its answer is an
+exact four-digit year. All later facts use the selected real year in their
+ordinary Human scope. If the detected operation-year set changes, the owner
+publishes a successor in the same semantic lane and the former selection fact
+becomes stale; the caller cannot preserve an old evidence view by selecting a
+parallel lane.
+
+When the trusted methodology owner has no exact profile for the selected year,
+the same Human owner publishes `profile_mismatch_mode` in that real-year scope.
+Its closed values are `ANALYSIS_ONLY`, `SURROGATE_DRAFT` and
+`STOP_RESUMABLE`. They are product-mode choices only and cannot authorize a
+wrong-year declaration release or XML.
 
 Actual identity exists only as the current `taxpayer_identity` Human fact with
 provenance `USER_ATTESTED_CASE_FACT`. A Canonical INN/FIO assertion is a private
@@ -117,6 +133,8 @@ bounded product keys:
 
 ```text
 taxpayer_identity_confirmed
+selected_tax_period
+profile_mismatch_mode
 taxpayer_identity
 taxpayer_capacity
 filing_instance_identity

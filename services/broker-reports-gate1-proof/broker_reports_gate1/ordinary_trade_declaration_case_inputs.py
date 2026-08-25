@@ -94,8 +94,10 @@ class OrdinaryTradeDeclarationCaseInputsRuntime:
         *,
         context: ArtifactAccessContext,
         canonical_coverage: dict[str, Any],
+        operation_period_observation: dict[str, Any],
     ) -> dict[str, Any]:
         taxpayer_scope_ref = primary_taxpayer_scope_ref(context=context)
+        detected_years = _detected_operation_years(operation_period_observation)
         metadata = self._metadata.collect_current(
             context=context,
             canonical_coverage=canonical_coverage,
@@ -105,15 +107,40 @@ class OrdinaryTradeDeclarationCaseInputsRuntime:
             for item in metadata["metadata_facts"]
             if item.get("fact_type") in {"TAXPAYER_TAX_IDENTIFIER", "PARTY_NAME"}
         ]
-        publication = self._human.publish_ordinary_trade_declaration_requests(
+        period_selection = self._human.publish_tax_period_selection_request(
             context=context,
             taxpayer_scope_ref=taxpayer_scope_ref,
-            tax_period="2025",
-            identity_candidates=identity_candidates,
+            detected_operation_years=detected_years,
         )
-        facts = publication["current_user_case_facts"]
+        selected_fact = period_selection["selected_tax_period_fact"]
+        if selected_fact is None:
+            return {
+                "schema_version": ORDINARY_TRADE_DECLARATION_CASE_INPUTS_SCHEMA_VERSION,
+                "taxpayer_scope_ref": taxpayer_scope_ref,
+                "tax_period": None,
+                "tax_period_selection": period_selection,
+                "profile_support": "NOT_EVALUATED",
+                "profile_mismatch_mode": None,
+                "human_fact_publication": {
+                    "schema_version": "broker_reports_ordinary_trade_user_actions_v1",
+                    "status": "OWNER_PUBLISHED",
+                    "scope_binding": period_selection["scope_binding"],
+                    "actions": period_selection["actions"],
+                    "current_user_case_facts": [],
+                    "provider_calls_total": 0,
+                },
+                "human_facts": [],
+                "source_metadata_collection": metadata,
+                "source_inputs": {},
+                "methodology_inputs": None,
+                "internal_blockers": [],
+                "provider_calls_total": 0,
+            }
+        tax_period = str(selected_fact["value"]["value"])
         source, blockers = _source_inputs(metadata["metadata_facts"])
         methodology = None
+        profile_support = "NOT_EVALUATED" if blockers else "SUPPORTED"
+        mismatch_mode = None
         if not blockers:
             try:
                 methodology = self._methodology.resolve_ordinary_trade_declaration_product(
@@ -128,19 +155,48 @@ class OrdinaryTradeDeclarationCaseInputsRuntime:
                             "realization_location_jurisdiction",
                         )
                     },
-                    tax_period="2025",
+                    tax_period=tax_period,
                 )
-            except Gate5TrustedMethodologyError as exc:
-                blockers.append(
-                    {
-                        "reason_code": exc.code,
-                        "gap_owner_classification": "METHODOLOGY_RULE_MISSING",
-                        "owner": "Gate5TrustedMethodologyAuthority",
-                    }
+            except Gate5TrustedMethodologyError:
+                profile_support = "UNSUPPORTED_EXACT_YEAR_PROFILE"
+                mode_publication = self._human.publish_profile_mismatch_mode_request(
+                    context=context,
+                    taxpayer_scope_ref=taxpayer_scope_ref,
+                    tax_period=tax_period,
                 )
+                mode_fact = mode_publication["selected_mode_fact"]
+                mismatch_mode = (
+                    None if mode_fact is None else str(mode_fact["value"]["value"])
+                )
+        if profile_support == "UNSUPPORTED_EXACT_YEAR_PROFILE":
+            facts = self._human.current_user_case_facts(
+                context=context,
+                taxpayer_scope_ref=taxpayer_scope_ref,
+                tax_period=tax_period,
+            )
+            publication = {
+                "schema_version": "broker_reports_ordinary_trade_user_actions_v1",
+                "status": "OWNER_PUBLISHED",
+                "scope_binding": mode_publication["scope_binding"],
+                "actions": mode_publication["actions"],
+                "current_user_case_facts": facts,
+                "provider_calls_total": 0,
+            }
+        else:
+            publication = self._human.publish_ordinary_trade_declaration_requests(
+                context=context,
+                taxpayer_scope_ref=taxpayer_scope_ref,
+                tax_period=tax_period,
+                identity_candidates=identity_candidates,
+            )
+            facts = publication["current_user_case_facts"]
         return {
             "schema_version": ORDINARY_TRADE_DECLARATION_CASE_INPUTS_SCHEMA_VERSION,
             "taxpayer_scope_ref": taxpayer_scope_ref,
+            "tax_period": tax_period,
+            "tax_period_selection": period_selection,
+            "profile_support": profile_support,
+            "profile_mismatch_mode": mismatch_mode,
             "human_fact_publication": publication,
             "human_facts": facts,
             "source_metadata_collection": metadata,
@@ -208,12 +264,24 @@ def primary_taxpayer_scope_ref(*, context: ArtifactAccessContext) -> str:
             "slot_kind": "primary_user_attested_taxpayer",
             "authenticated_user_ref": context.user_id,
             "case_id": context.case_id,
-            "tax_period": "2025",
         },
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
     return "taxpayer_slot_" + hashlib.sha256(material).hexdigest()[:32]
+
+
+def _detected_operation_years(value: Any) -> list[str]:
+    years = value.get("observed_operation_years") if isinstance(value, dict) else None
+    if (
+        not isinstance(years, list)
+        or years != sorted(set(years))
+        or any(re.fullmatch(r"[0-9]{4}", item) is None for item in years)
+    ):
+        raise OrdinaryTradeDeclarationCaseInputsError(
+            "ordinary_trade_operation_period_observation_invalid"
+        )
+    return copy.deepcopy(years)
 
 
 def _source_inputs(

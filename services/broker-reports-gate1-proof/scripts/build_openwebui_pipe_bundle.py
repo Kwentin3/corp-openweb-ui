@@ -42,6 +42,7 @@ GATE1_RESOURCE_NAMES = (
     "gate3_financial_role_pack.v2.json",
     "gate3_financial_role_pack.v3.json",
     "gate3_financial_role_pack.v3_1.json",
+    "gate3_financial_role_pack.v4.json",
     "gate3_labeling_response.v1.schema.json",
     "gate3_predeclared_assertion_labeling_response.v1.schema.json",
     "gate3_role_labeling_response.v1.schema.json",

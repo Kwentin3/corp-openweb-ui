@@ -11,9 +11,6 @@ from .canonical_store import CanonicalReaderFactory
 from .gate4_ordinary_trade_candidate import (
     Gate4OrdinaryTradeCandidateRuntimeFactory,
 )
-from .gate5_deterministic_source_fact_consumption import (
-    Gate5DeterministicSourceFactConsumptionError,
-)
 from .gate5_trusted_methodology import (
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_ID,
     GATE5_SOURCE_FACT_CONSUMPTION_METHODOLOGY_VERSION,
@@ -134,6 +131,8 @@ class OrdinaryTradeProductionRuntime:
             methodology_ref=_methodology_ref(),
             context=context,
         )
+        calculations = available["fifo_calculations"]
+        blockers = available["blockers"]
         execution_status = "completed"
         terminal = "gate5_source_facts_consumed"
         if canonical_coverage["status"] != "complete":
@@ -143,32 +142,30 @@ class OrdinaryTradeProductionRuntime:
                 if canonical_coverage["status"] == "missing_projection"
                 else "ordinary_trade_declaration_canonical_relevant_unmapped"
             )
-        else:
-            try:
-                consumed = self._gate5.run(
-                    methodology_ref=_methodology_ref(),
-                    context=context,
-                )
-                terminal = str((consumed.get("terminals") or [terminal])[-1])
-            except Gate5DeterministicSourceFactConsumptionError as exc:
-                execution_status = "source_evidence_insufficient"
-                terminal = exc.code
+        elif blockers:
+            execution_status = (
+                "source_evidence_partially_available"
+                if calculations
+                else "source_evidence_insufficient"
+            )
+            terminal = str(blockers[0]["reason_code"])
+        elif not calculations:
+            execution_status = "open_position_not_tax_activated"
+            terminal = "ordinary_trade_closed_disposal_absent"
 
         facts_sha256 = _sha256_json(facts)
         fact_types = [str(item.get("financial_type") or "") for item in facts]
-        product_status = (
-            "PREPARATION_INCOMPLETE"
-            if execution_status == "source_evidence_insufficient"
-            else "SOURCE_FACTS_CONSUMED"
-        )
+        product_status = {
+            "source_evidence_insufficient": "PREPARATION_INCOMPLETE",
+            "source_evidence_partially_available": (
+                "ANALYSIS_READY_WITH_OPEN_ITEMS"
+            ),
+            "open_position_not_tax_activated": "OPEN_POSITION_RETAINED",
+        }.get(execution_status, "SOURCE_FACTS_CONSUMED")
         declaration = None
         preparation = None
-        if execution_status == "completed":
-            if self._declaration is None:
-                execution_status = "declaration_blocked"
-                product_status = "PREPARATION_INCOMPLETE"
-                terminal = "ordinary_trade_declaration_authority_owners_required"
-            else:
+        if canonical_coverage["status"] == "complete":
+            if self._declaration is not None:
                 try:
                     preparation = self._declaration.prepare(
                         context=context,
@@ -181,6 +178,10 @@ class OrdinaryTradeProductionRuntime:
                     execution_status = "declaration_blocked"
                     product_status = "PREPARATION_INCOMPLETE"
                     terminal = exc.code
+            elif execution_status == "completed":
+                execution_status = "declaration_blocked"
+                product_status = "PREPARATION_INCOMPLETE"
+                terminal = "ordinary_trade_declaration_authority_owners_required"
         product = {
             "schema_version": "broker_reports_current_pipeline_result_v1",
             "status": product_status,
@@ -204,12 +205,26 @@ class OrdinaryTradeProductionRuntime:
             },
             "gate5": {
                 "execution_status": execution_status,
-                "security_tax_input_status": assessment["security_tax_input_status"],
+                "security_tax_input_status": (
+                    "SOURCE_EVIDENCE_INSUFFICIENT"
+                    if canonical_coverage["status"] != "complete"
+                    or (blockers and not calculations)
+                    else "CLOSED_POSITION_CALCULATION_WITH_SOURCE_GAPS"
+                    if blockers
+                    else "CLOSED_POSITION_CALCULATION_AVAILABLE"
+                    if calculations
+                    else "OPEN_POSITION_NO_TAX_ACTIVATION"
+                ),
                 "security_fact_counts": assessment["security_fact_counts"],
+                "operation_period_observation": available[
+                    "operation_period_observation"
+                ],
+                "security_groups": available["security_groups"],
+                "fifo_calculations": calculations,
                 "blocker_reason_codes": sorted(
                     {
                         str(item["reason_code"])
-                        for item in available["blockers"]
+                        for item in blockers
                     }
                     | (
                         {terminal}
@@ -241,6 +256,58 @@ class OrdinaryTradeProductionRuntime:
                     "status": product_status,
                     "terminals": [terminal],
                     "declaration_readiness": {"ready": False},
+                    "final_note": {
+                        "schema_version": "broker_reports_ordinary_trade_case_note_v1",
+                        "source_completeness_status": (
+                            str(canonical_coverage["status"]).upper()
+                            if canonical_coverage["status"] != "complete"
+                            else "SOURCE_EVIDENCE_PARTIALLY_AVAILABLE"
+                            if blockers and calculations
+                            else "SOURCE_EVIDENCE_INSUFFICIENT"
+                            if blockers
+                            else "COMPLETE_FOR_OBSERVED_SECURITY_FACTS"
+                        ),
+                        "position_evaluation_status": (
+                            "EVALUATED_FROM_SOURCE_FACTS"
+                            if available["security_groups"]
+                            else "NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE"
+                        ),
+                        "selected_tax_period": None,
+                        "detected_operation_years": available[
+                            "operation_period_observation"
+                        ]["observed_operation_years"],
+                        "profile": {
+                            "support": (
+                                "NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE"
+                                if canonical_coverage["status"] != "complete"
+                                else "NOT_EVALUATED_DECLARATION_OWNER_UNAVAILABLE"
+                            ),
+                            "mismatch_mode": None,
+                            "form_version": None,
+                            "xsd_name": None,
+                            "methodology_version": None,
+                        },
+                        "positions": [
+                            {
+                                "asset": item["asset"],
+                                "state": item["position_scope"]["state"],
+                                "open_long_quantity": item["position_scope"][
+                                    "open_long_quantity"
+                                ],
+                                "proven_open_short_quantity": item[
+                                    "position_scope"
+                                ]["proven_open_short_quantity"],
+                            }
+                            for item in available["security_groups"]
+                        ],
+                        "calculated_disposal_fact_ids": sorted(
+                            str(item["disposal_fact_id"])
+                            for item in calculations
+                        ),
+                        "required_checks": [terminal],
+                        "filing_eligible": False,
+                        "xml_created": False,
+                    },
                     "gap_closure": {
                         "user_facing_required_actions": [],
                         "internal_owner_required_actions": [
@@ -500,6 +567,27 @@ def _missing_canonical_result() -> dict[str, Any]:
                 "status": "PREPARATION_INCOMPLETE",
                 "terminals": [terminal],
                 "declaration_readiness": {"ready": False},
+                "final_note": {
+                    "schema_version": "broker_reports_ordinary_trade_case_note_v1",
+                    "source_completeness_status": "CANONICAL_EVIDENCE_MISSING",
+                    "position_evaluation_status": (
+                        "NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE"
+                    ),
+                    "selected_tax_period": None,
+                    "detected_operation_years": [],
+                    "profile": {
+                        "support": "NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE",
+                        "mismatch_mode": None,
+                        "form_version": None,
+                        "xsd_name": None,
+                        "methodology_version": None,
+                    },
+                    "positions": [],
+                    "calculated_disposal_fact_ids": [],
+                    "required_checks": [terminal],
+                    "filing_eligible": False,
+                    "xml_created": False,
+                },
                 "gap_closure": {
                     "user_facing_required_actions": [],
                     "internal_owner_required_actions": [
