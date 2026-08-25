@@ -278,6 +278,31 @@ function downloadLinks(page) {
   return page.locator('a', { hasText: 'Скачать XML' });
 }
 
+function captureCompletionShapes(page, outputDir) {
+  const shapes = [];
+  page.on('request', (request) => {
+    if (!request.url().includes('/api/chat/completions')) return;
+    let body = {};
+    try {
+      body = request.postDataJSON() || {};
+    } catch (_error) {
+      body = {};
+    }
+    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const latestUser = [...messages].reverse().find((item) => item && item.role === 'user') || {};
+    shapes.push({
+      body_files_total: Array.isArray(body.files) ? body.files.length : 0,
+      latest_user_files_total: Array.isArray(latestUser.files) ? latestUser.files.length : 0,
+      messages_total: messages.length,
+    });
+    fs.writeFileSync(
+      path.join(outputDir, 'completion-shapes.debug.json'),
+      JSON.stringify(shapes, null, 2) + '\n',
+      'utf8',
+    );
+  });
+}
+
 async function runUserLoop({ page, source, truth, outputDir, trace }) {
   await selectNdfl(page);
   await page.locator('input[type=file]').first().setInputFiles(source);
@@ -978,6 +1003,7 @@ async function runIssue310UnsupportedProfileRoute({
     routeControl.base_url,
     routeControl.users[0],
   );
+  captureCompletionShapes(page, outputDir);
   if (process.env.ISSUE306_CLOSE_TAB_PROOF === '1') {
     await proveCloseTabDoesNotHoldAdmission({
       context,
