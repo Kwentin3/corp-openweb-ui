@@ -500,7 +500,7 @@ async function proveCloseTabDoesNotHoldAdmission({ context, baseUrl, source, out
   });
 }
 
-async function retryAndResume(page, context, chatUrl, expectedHref, trace) {
+async function retryAndResume(page, context, chatUrl, expectedHref, source, trace) {
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.locator('#chat-input').waitFor({ state: 'visible', timeout: 60000 });
   if (!(await page.locator('body').innerText()).includes('Скачать XML')) {
@@ -508,6 +508,21 @@ async function retryAndResume(page, context, chatUrl, expectedHref, trace) {
   }
   const resumedHref = await downloadLinks(page).last().getAttribute('href');
   if (resumedHref !== expectedHref) throw new Error('reload_selected_stale_logical_file');
+  await page.locator('input[type=file]').first().setInputFiles(source);
+  await page.getByText(path.basename(source), { exact: false }).last().waitFor({
+    state: 'visible',
+    timeout: 60000,
+  });
+  await page.waitForTimeout(7000);
+  await sendMessage(
+    page,
+    'Я повторно добавил тот же брокерский отчёт. Проверь текущий результат.',
+  );
+  await waitForTurn(page);
+  const reuploadedHref = await downloadLinks(page).last().getAttribute('href');
+  if (reuploadedHref !== expectedHref) {
+    throw new Error('same_source_reupload_created_new_logical_file');
+  }
   const peer = await context.newPage();
   await peer.goto(chatUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await peer.locator('#chat-input').waitFor({ state: 'visible', timeout: 60000 });
@@ -537,6 +552,7 @@ async function retryAndResume(page, context, chatUrl, expectedHref, trace) {
     mode: 'user',
     event: 'resume_and_concurrent_retry',
     reload_resumed: true,
+    same_source_reupload_preserved_logical_file: true,
     logical_download_links_stable: true,
   });
 }
@@ -956,7 +972,7 @@ async function runIssue310UnsupportedProfileRoute({
   }
   const result = await runUserLoop({ page, source, truth, outputDir, trace });
   const chatUrl = page.url();
-  await retryAndResume(page, context, chatUrl, result.href, trace);
+  await retryAndResume(page, context, chatUrl, result.href, source, trace);
   await proveSecondUserDenied(
     browser,
     control.base_url,

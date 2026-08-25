@@ -251,6 +251,8 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "broker_reports_issue306_browser_run_receipt_v2" in source
     assert "installed_bundle_not_current_tested_bytes" in source
     assert "unanswered_tab_closed_and_second_case_admitted" in source
+    assert "same_source_reupload_created_new_logical_file" in source
+    assert "same_source_reupload_preserved_logical_file: true" in source
     assert "final_summary_verified" in source
     assert "residency_methodology_provenance_invalid" in source
     assert "residency_user_attested_provenance_invalid" in source
