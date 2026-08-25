@@ -335,6 +335,80 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
     assert surrogate["provider_calls_total"] == 0
 
 
+def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
+    tmp_path: Path,
+) -> None:
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    pipe.valves.artifact_store_path = str(tmp_path / "artifacts.sqlite3")
+    pipe.valves.artifact_payload_root = str(tmp_path / "payloads")
+    pipe.valves.workload_store_path = str(tmp_path / "workloads.sqlite3")
+    pipe.valves.workload_temp_root = str(tmp_path / "workload-temp")
+    pipe.valves.artifact_retention_mode = "synthetic_dev"
+    fixture = Path(__file__).parent / "fixtures/issue306_supported_ordinary_trade.csv"
+    file_ref = {
+        "type": "file",
+        "file": {
+            "id": "surrogate-maintained-file-turn",
+            "filename": fixture.name,
+            "mime_type": "text/csv",
+            "content_bytes": fixture.read_bytes(),
+        },
+    }
+    metadata = {
+        "chat_id": "surrogate-maintained-case",
+        "case_id": "surrogate-maintained-case",
+        "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+    }
+    user = {"id": "surrogate-maintained-user", "email": "", "name": ""}
+
+    def public_turn(message: str, *, files=None, event_response=None) -> str:
+        async def event_call(_payload):
+            return event_response
+
+        message_record = {"role": "user", "content": message}
+        if files:
+            message_record["files"] = files
+        return asyncio.run(
+            pipe.pipe(
+                {"messages": [message_record]},
+                __user__=user,
+                __metadata__=metadata,
+                __event_call__=event_call,
+            )
+        )
+
+    public_turn("Initial file processing", files=[file_ref])
+    first = pipe.last_artifact_manifest["ndfl_gate3"]
+    assert first["product"]["status"] == "INPUT_REQUIRED"
+
+    public_turn("Continue", event_response="2022")
+    mismatch = pipe.last_artifact_manifest["ndfl_gate3"]
+    assert mismatch["product"]["status"] == "INPUT_REQUIRED"
+
+    public_turn(
+        "Continue",
+        event_response="\u041d\u0435\u043f\u043e\u0434\u0430\u0432\u0430\u0435\u043c\u044b\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a",
+    )
+    selected = pipe.last_artifact_manifest["ndfl_gate3"]
+    assert selected["product"]["status"] == "NON_FILING_SURROGATE_READY"
+    assert pipe.last_artifact_manifest["resumed_case"] is True
+
+    chat = public_turn("Repeat file processing", files=[file_ref])
+    maintained = pipe.last_artifact_manifest["ndfl_gate3"]
+
+    assert maintained["product"]["status"] == "NON_FILING_SURROGATE_READY"
+    assert pipe.last_artifact_manifest.get("resumed_case") is None
+    assert "ru_3ndfl_2025_full_target_supplied_case" in chat
+    assert "\u043d\u0435 \u043f\u043e\u0434\u043b\u0435\u0436\u0438\u0442 \u043f\u043e\u0434\u0430\u0447\u0435" in chat
+    assert "[\u0421\u043a\u0430\u0447\u0430\u0442\u044c XML]" not in chat
+    assert maintained["product"]["xml_created"] is False
+    assert maintained["declaration"] is None
+    assert maintained["provider_calls_total"] == 0
+
+
 def test_ready_summary_never_promotes_unreconciled_xml_values() -> None:
     declaration = {
         "semantic_reconciliation": {

@@ -122,7 +122,13 @@ class OrdinaryTradeProductionRuntime:
 
         projections = self._projections.current_case(context=context)
         canonical_coverage = self._projections.current_case_coverage(context=context)
-        facts = self._gate4.list_facts(context=context)
+        gate4_fact_set = self._gate4.current_fact_set(context=context)
+        facts = gate4_fact_set["facts"]
+        source_contract_blockers = (
+            gate4_fact_set["blockers"]
+            if canonical_coverage["status"] == "complete"
+            else []
+        )
         assessment = self._gate5.assess(
             methodology_ref=_methodology_ref(),
             context=context,
@@ -142,6 +148,9 @@ class OrdinaryTradeProductionRuntime:
                 if canonical_coverage["status"] == "missing_projection"
                 else "ordinary_trade_declaration_canonical_relevant_unmapped"
             )
+        elif source_contract_blockers:
+            execution_status = "source_contract_missing"
+            terminal = str(source_contract_blockers[0]["reason_code"])
         elif blockers:
             execution_status = (
                 "source_evidence_partially_available"
@@ -160,11 +169,15 @@ class OrdinaryTradeProductionRuntime:
             "source_evidence_partially_available": (
                 "ANALYSIS_READY_WITH_OPEN_ITEMS"
             ),
+            "source_contract_missing": "PREPARATION_INCOMPLETE",
             "open_position_not_tax_activated": "OPEN_POSITION_RETAINED",
         }.get(execution_status, "SOURCE_FACTS_CONSUMED")
         declaration = None
         preparation = None
-        if canonical_coverage["status"] == "complete":
+        if (
+            canonical_coverage["status"] == "complete"
+            and not source_contract_blockers
+        ):
             if self._declaration is not None:
                 try:
                     preparation = self._declaration.prepare(
@@ -194,6 +207,14 @@ class OrdinaryTradeProductionRuntime:
             "route_owner": ORDINARY_TRADE_PRODUCTION_ROUTE_ID,
             "gate4": {
                 "status": "candidate_projection_facts",
+                **(
+                    {
+                        "source_contract_status": gate4_fact_set["status"],
+                        "source_contract_blockers": source_contract_blockers,
+                    }
+                    if source_contract_blockers
+                    else {}
+                ),
                 "facts_total": len(facts),
                 "security_facts_total": sum(
                     item in {"SECURITY_PURCHASE", "SECURITY_DISPOSAL"}
@@ -208,6 +229,7 @@ class OrdinaryTradeProductionRuntime:
                 "security_tax_input_status": (
                     "SOURCE_EVIDENCE_INSUFFICIENT"
                     if canonical_coverage["status"] != "complete"
+                    or source_contract_blockers
                     or (blockers and not calculations)
                     else "CLOSED_POSITION_CALCULATION_WITH_SOURCE_GAPS"
                     if blockers
@@ -226,6 +248,10 @@ class OrdinaryTradeProductionRuntime:
                     {
                         str(item["reason_code"])
                         for item in blockers
+                    }
+                    | {
+                        str(item["reason_code"])
+                        for item in source_contract_blockers
                     }
                     | (
                         {terminal}
@@ -262,6 +288,10 @@ class OrdinaryTradeProductionRuntime:
                         "source_completeness_status": (
                             str(canonical_coverage["status"]).upper()
                             if canonical_coverage["status"] != "complete"
+                            else (
+                                "ACTIVE_SECURITY_POSITION_SOURCE_CONTRACT_MISSING"
+                            )
+                            if source_contract_blockers
                             else "SOURCE_EVIDENCE_PARTIALLY_AVAILABLE"
                             if blockers and calculations
                             else "SOURCE_EVIDENCE_INSUFFICIENT"
@@ -269,7 +299,9 @@ class OrdinaryTradeProductionRuntime:
                             else "COMPLETE_FOR_OBSERVED_SECURITY_FACTS"
                         ),
                         "position_evaluation_status": (
-                            "EVALUATED_FROM_SOURCE_FACTS"
+                            "NOT_EVALUATED_SOURCE_CONTRACT_MISSING"
+                            if source_contract_blockers
+                            else "EVALUATED_FROM_SOURCE_FACTS"
                             if available["security_groups"]
                             else "NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE"
                         ),
@@ -312,7 +344,12 @@ class OrdinaryTradeProductionRuntime:
                     "gap_closure": {
                         "user_facing_required_actions": [],
                         "internal_owner_required_actions": [
-                            {"reason_code": terminal}
+                            *source_contract_blockers,
+                            *(
+                                [{"reason_code": terminal}]
+                                if not source_contract_blockers
+                                else []
+                            ),
                         ],
                     },
                 }

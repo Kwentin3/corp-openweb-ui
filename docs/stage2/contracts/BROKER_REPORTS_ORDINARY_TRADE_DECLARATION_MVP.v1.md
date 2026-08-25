@@ -30,9 +30,9 @@ their existing owners.
 | position/source/tax state | deterministic source-fact consumer | position quantities, source completeness and tax activation are separate fields; open groups cannot erase independent closed calculations |
 | taxpayer identity | `Gate5HumanGapClosureRuntime` fact `taxpayer_identity` | current request-bound `USER_ATTESTED_CASE_FACT`; an exact Canonical value is only a candidate until confirm/change |
 | current Canonical document scope and operation coverage | active Canonical pointers plus `OrdinaryTradeProjectionRuntime.current_case_coverage` | every active Canonical manifest must have exactly one current projection bound to the same document/version/root; a missing whole projection or any `RELEVANT_UNMAPPED` observation blocks XML |
-| current broker facts | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | exact case-bound Fact v2 set and disposal fact ID, consumed only after Canonical coverage passes |
+| current broker facts | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | exact case-bound Fact v2 set and disposal fact ID, consumed only after Canonical coverage passes; `current_fact_set` is the owner of the typed active source-contract blocker when current ordinary projections cannot produce any security-position Fact |
 | human declaration choices/facts | `Gate5HumanGapClosureRuntime` | current request-bound facts with exact user, case, taxpayer, period and publication-lane binding; stale/conflicting facts are rejected by that owner |
-| public chat interaction | maintained bundled `Pipe.pipe` plus the representation-only declaration chat adapter | native OpenWebUI `__event_call__` binds one browser response to the current owner request inside the same server call; the visible mismatch question includes validated owner-produced profile ID/year and a ready surrogate renders its owner-produced preview; no request ref, fact key or hidden action is caller-selectable |
+| public chat interaction | maintained bundled `Pipe.pipe` plus the representation-only declaration chat adapter | native OpenWebUI `__event_call__` binds one browser response to the current owner request inside the same server call; the visible mismatch question includes validated owner-produced profile ID/year and one shared non-ready renderer displays the validated owner-produced surrogate in both resumed and file-processing `Pipe.pipe` turns; no request ref, fact key or hidden action is caller-selectable |
 | capacity, inspection code, signer, filing instance/date and OKTMO | `Gate5HumanGapClosureRuntime` | current user-attested facts; missing fill-only values permit draft but never XML |
 | source party and exact applicability assertions | existing `Gate3MetadataSourceFactRuntime` source owner | exact labels from Canonical versions named by current coverage; ambiguity or absence is a source blocker; no LLM or financial Gate 3 execution |
 | legal/methodology version, applicability, KBK and declarant category | `Gate5TrustedMethodologyAuthorityFactory.create` | repository resource identity/SHA-256 and exact pinned rules |
@@ -167,6 +167,13 @@ case-hash taxpayer surrogate, partial XML, or FNS submission is permitted.
   a profile substitution.
 - `OPEN_POSITION_RETAINED`: source-proven open position evidence is retained;
   absence of a closing event is not reported as a source-completeness failure.
+- `PREPARATION_INCOMPLETE` with
+  `gate4_ordinary_trade_security_position_source_contract_missing`: current
+  ordinary projections exist, Canonical coverage has no prior blocker, but the
+  active Gate 4 candidate owner cannot produce any security-position Fact. The
+  result reports `INTERNAL_CONTRACT_OR_PIPELINE_DEFECT`, source completeness
+  `ACTIVE_SECURITY_POSITION_SOURCE_CONTRACT_MISSING` and position evaluation
+  `NOT_EVALUATED_SOURCE_CONTRACT_MISSING`; it must not claim an open position.
 - `ANALYSIS_READY_WITH_OPEN_ITEMS`: independent closed calculations are kept
   while exact unresolved groups remain blocked from filing.
 
@@ -192,4 +199,8 @@ mappings do not own or emit a short-position literal. Consequently the active
 produce `OPEN_SHORT_PROVEN`. Historical/injected Gate 4 facts must not be read
 as a fallback, and a plain disposal remains an evidence-horizon blocker. A
 production short claim requires a separately qualified exact source mapping
-and owner contract.
+and owner contract. If a current ordinary projection yields no active security
+Fact at all, `Gate4OrdinaryTradeCandidateRuntime.current_fact_set` stops the
+composition with
+`gate4_ordinary_trade_security_position_source_contract_missing`; product
+status, Gate 5 accounting and the final note all retain that exact blocker.

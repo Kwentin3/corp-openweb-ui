@@ -822,7 +822,7 @@ class Pipe:
                     [
                         chat_content,
                         "",
-                        self._ndfl_product_blocker_content(product),
+                        self._ndfl_non_ready_product_content(product),
                     ]
                 )
             elif product.get("status") == "DRAFT_READY":
@@ -1073,15 +1073,7 @@ class Pipe:
             "NON_FILING_SURROGATE_READY",
             "STOPPED_RESUMABLE",
         }:
-            lines.append(self._ndfl_product_blocker_content(product))
-            if status == "NON_FILING_SURROGATE_READY":
-                preparation = product.get("preparation")
-                preparation = preparation if isinstance(preparation, dict) else {}
-                lines.append(
-                    declaration_surrogate_preview(
-                        preparation.get("surrogate_preview")
-                    )
-                )
+            lines.append(self._ndfl_non_ready_product_content(product))
         elif status == "DRAFT_READY":
             checklist = product.get("preparation", {}).get("checklist_fact_keys", [])
             lines.append(
@@ -1736,6 +1728,19 @@ class Pipe:
         if event_type == "confirmation" and isinstance(value, bool):
             return "Да" if value else "Нет"
         return value if isinstance(value, str) else ""
+
+    @staticmethod
+    def _ndfl_non_ready_product_content(product: dict[str, Any]) -> str:
+        lines = [Pipe._ndfl_product_blocker_content(product)]
+        if product.get("status") == "NON_FILING_SURROGATE_READY":
+            preparation = product.get("preparation")
+            preparation = preparation if isinstance(preparation, dict) else {}
+            lines.append(
+                declaration_surrogate_preview(
+                    preparation.get("surrogate_preview")
+                )
+            )
+        return "\n".join(lines)
 
     @staticmethod
     def _ndfl_product_blocker_content(product: dict[str, Any]) -> str:

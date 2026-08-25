@@ -454,6 +454,7 @@ def test_candidate_fact_adapter_has_no_forbidden_owners() -> None:
 def test_active_production_does_not_claim_injected_historical_open_short(
     tmp_path: Path,
 ) -> None:
+    expected = "gate4_ordinary_trade_security_position_source_contract_missing"
     store, context = gate4_fixtures._store_context(tmp_path)
     document_id = "source-proven-short-outside-active-port"
     document_context = replace(
@@ -498,9 +499,38 @@ def test_active_production_does_not_claim_injected_historical_open_short(
 
     assert result["product"]["gate4"]["facts_total"] == 0
     assert result["product"]["gate5"]["security_tax_input_status"] == (
-        "NO_SECURITY_OPERATIONS"
+        "SOURCE_EVIDENCE_INSUFFICIENT"
     )
-    assert result["product"]["preparation"]["final_note"]["positions"] == []
+    product = result["product"]
+    assert product["status"] == "PREPARATION_INCOMPLETE"
+    assert product["terminal"] == expected
+    assert product["gate4"]["source_contract_status"] == (
+        "SECURITY_POSITION_SOURCE_CONTRACT_MISSING"
+    )
+    assert product["gate5"]["execution_status"] == "source_contract_missing"
+    assert product["gate5"]["blocker_reason_codes"] == [expected]
+    blocker = product["preparation"]["gap_closure"][
+        "internal_owner_required_actions"
+    ][0]
+    assert blocker == {
+        "schema_version": "broker_reports_gate4_ordinary_trade_blocker_v1",
+        "reason_code": expected,
+        "required_input": (
+            "ordinary_trade_projection.runtime_records.security_position_semantics"
+        ),
+        "gap_owner_classification": "INTERNAL_CONTRACT_OR_PIPELINE_DEFECT",
+        "owner": "Gate4OrdinaryTradeCandidateRuntime",
+        "blocking_scope": "active_security_position_source_contract",
+    }
+    note = product["preparation"]["final_note"]
+    assert note["source_completeness_status"] == (
+        "ACTIVE_SECURITY_POSITION_SOURCE_CONTRACT_MISSING"
+    )
+    assert note["position_evaluation_status"] == (
+        "NOT_EVALUATED_SOURCE_CONTRACT_MISSING"
+    )
+    assert note["positions"] == []
+    assert note["required_checks"] == [expected]
     assert result["provider_calls_total"] == 0
 
 

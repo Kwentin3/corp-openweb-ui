@@ -45,7 +45,7 @@ Gate 5 Human Fact, Tax Model and XML owners.
 | --- | --- | --- |
 | purchase only | `OPEN_LONG_PROVEN` | `OPEN_POSITION_RETAINED`; no `disposal_missing`, no source-insufficient label |
 | sale only, no exact short role | `UNRESOLVED_DISPOSAL_EVIDENCE_HORIZON` | typed `gate5_source_fact_acquisition_evidence_horizon_unproven`; no invented short |
-| v4 owner-produced disposal with `position_effect=OPEN_SHORT` on the deterministic compatibility port | `OPEN_SHORT_PROVEN` | Gate 5 contract proof only; not currently emitted by the active ordinary-trade producer |
+| v4 owner-produced disposal with `position_effect=OPEN_SHORT` on the deterministic compatibility port | `OPEN_SHORT_PROVEN` | Gate 5 contract proof only; when the current active projection produces no security Fact, production stops with typed `gate4_ordinary_trade_security_position_source_contract_missing` instead of claiming an empty open position |
 | partial FIFO close | closed disposal plus `OPEN_LONG_PROVEN` remainder | closed calculation retained; remainder stays open |
 | mixed independent groups | per-group closed/open/unresolved states | closed groups calculate; unresolved group cannot erase them |
 | incomplete source role | no position repair | remains `SOURCE_EVIDENCE_INSUFFICIENT` fail-closed |
@@ -56,7 +56,10 @@ production port therefore cannot silently infer short semantics or reuse the
 historical Gate 4 store as a fallback. A genuine v4 owner-produced Fact proves
 only the deterministic Gate 5 compatibility path. A separate active-factory
 test proves that the same historical Fact is not consumed by production and
-does not produce a false `OPEN_SHORT_PROVEN` claim.
+does not produce a false `OPEN_SHORT_PROVEN` claim. The active owner now also
+returns an exact source-contract blocker when its current projections yield no
+security Fact, so the product cannot combine `OPEN_POSITION_RETAINED` with
+`NO_SECURITY_OPERATIONS` and an empty position list.
 
 ## Period and profile matrix
 
@@ -200,3 +203,47 @@ Local verification on the final working tree before commit:
 
 The final exact head and GitHub CI receipt are published in PR #309 and Issue
 #308 only after the commit is pushed and GitHub evaluates that exact SHA.
+
+## Third independent-review follow-up
+
+The third follow-up starts from reviewed exact head
+`5db41c2768ebe8c865af43da0c9479ae9eca5a56` and closes the two remaining
+observable boundary defects.
+
+- The maintained file-processing branch and the resume branch now call one
+  `_ndfl_non_ready_product_content` representation helper. A real public
+  `Pipe.pipe` sequence processes a genuine CSV, selects 2022 and
+  `SURROGATE_DRAFT`, then repeats a turn carrying the file; the returned public
+  text contains the validated owner profile/preview and no XML link. The test
+  no longer substitutes a private standalone formatter for the public result.
+- `Gate4OrdinaryTradeCandidateRuntime.current_fact_set` is the single owner of
+  active Fact-set availability. When current ordinary projections have no
+  prior `RELEVANT_UNMAPPED` observation but yield no security-position Fact, it
+  returns typed blocker
+  `gate4_ordinary_trade_security_position_source_contract_missing`, owned by
+  `Gate4OrdinaryTradeCandidateRuntime` and classified
+  `INTERNAL_CONTRACT_OR_PIPELINE_DEFECT`.
+- Production preserves that blocker as `PREPARATION_INCOMPLETE`, terminal,
+  Gate 5 blocker accounting, internal owner action and final-note check. Source
+  completeness is `ACTIVE_SECURITY_POSITION_SOURCE_CONTRACT_MISSING`, position
+  evaluation is `NOT_EVALUATED_SOURCE_CONTRACT_MISSING`, and positions remain
+  empty without an `OPEN_POSITION_RETAINED` claim.
+- A prior Canonical coverage blocker remains primary, and a genuine
+  purchase-only Fact still reaches `OPEN_POSITION_RETAINED`. No historical
+  Gate 4 read, fallback, short inference, provider call or second authority was
+  added.
+
+Verification on the final working tree before commit:
+
+- the two exact public/product probes failed before implementation and pass
+  after it; together with the two preserved precedence regressions the focused
+  set is `4 passed`;
+- the exact active ordinary-trade production guard is `272 passed` with five
+  existing SWIG deprecation warnings;
+- architecture plus Gate 1/Gate 2 bundle tests are `45 passed` with the same
+  existing warnings;
+- Ruff E9/F63/F7/F82, generated bundle parity/idempotence and
+  `git diff --check` pass.
+
+The new exact head and exact-head CI receipt are published in PR #309 and Issue
+#308 only after commit/push and GitHub evaluation of that exact SHA.
