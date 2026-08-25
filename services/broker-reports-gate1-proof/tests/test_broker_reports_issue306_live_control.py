@@ -18,7 +18,7 @@ RECEIPT_BUILDER_PATH = (
 )
 COMMITTED_TRACE_PATH = (
     REPO_ROOT
-    / "docs/reports/2026-08-24/BROKER_REPORTS_ISSUE_306_INTERACTION_TRACE.safe.json"
+    / "docs/reports/2026-08-25/BROKER_REPORTS_ISSUE_308_INTERACTION_TRACE.safe.json"
 )
 BUNDLE_PATH = (
     SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
@@ -327,10 +327,12 @@ def test_issue306_supported_source_has_owner_visible_direct_expense() -> None:
     assert disposal["Комиссия Биржи"] == "0.00"
 
 
-def test_committed_issue306_trace_is_bound_to_current_proof_code() -> None:
+def test_committed_issue308_trace_is_bound_to_current_proof_code() -> None:
     trace = json.loads(COMMITTED_TRACE_PATH.read_text(encoding="utf-8"))
-    assert trace["schema_version"] == "broker_reports_issue306_safe_interaction_proof_v2"
+    assert trace["schema_version"] == "broker_reports_issue308_safe_interaction_proof_v1"
     assert trace["receipt_sha256"] == _receipt_sha256(trace)
+    assert trace["exact_base_sha"] == "cf8e9bf2d13354588f569994953e97d8b2daf218"
+    assert trace["tested_commit"] == "310f5837d19d85eb590ee5892b6f12a15c6ccd89"
 
     manifest = trace["tested_code_manifest"]
     assert manifest["generated_bundle_sha256"] == hashlib.sha256(
@@ -344,17 +346,15 @@ def test_committed_issue306_trace_is_bound_to_current_proof_code() -> None:
     for key, path in proof_text_paths.items():
         assert manifest[key] == _git_blob_sha256(path)
 
-    clean_runs = trace["user_mode"]["clean_room_runs"]
-    assert len(clean_runs) == 2
-    assert len({item["run_id"] for item in clean_runs}) == 2
-    for item in clean_runs:
-        assert item["receipt_sha256"] == _receipt_sha256(item)
-        assert item["proof_binding"]["generated_bundle_sha256"] == manifest[
-            "generated_bundle_sha256"
-        ]
     source = trace["user_mode"]["representative_source_run"]
     assert source["receipt_sha256"] == _receipt_sha256(source)
     assert source["run_kind"] == "representative_source"
+    assert source["browser_ui_only"] is True
+    assert source["document_contents_recorded"] is False
+    assert source["hidden_refs_observed"] is False
+    assert source["proof_binding"]["generated_bundle_sha256"] == manifest[
+        "generated_bundle_sha256"
+    ]
     source_owner = json.loads(PUBLIC_SOURCE_CORPUS_PATH.read_text(encoding="utf-8"))
     source_owner = next(
         item
@@ -368,24 +368,33 @@ def test_committed_issue306_trace_is_bound_to_current_proof_code() -> None:
         "source_url": source_owner["evidence_origin"]["source_url"],
     }
 
-    restored = trace["verification_mode"]["control_restored_receipts"]
-    assert len(restored) == 2
-    assert len({item["control_run_id"] for item in restored}) == 2
-    for item in restored:
-        assert item["status"] == "restored"
-        assert item["state_restored"] is True
-        assert item["receipt_sha256"] == _receipt_sha256(item)
-    close_events = [
-        event
-        for item in clean_runs
-        for event in item["events"]
-        if event.get("event") == "unanswered_tab_closed_and_second_case_admitted"
+    assert source["events"] == [
+        {
+            "detected_operation_years": [],
+            "event": "representative_source_boundary_separation_proven",
+            "exact_status": "PREPARATION_INCOMPLETE",
+            "exact_terminal": "ordinary_trade_canonical_evidence_missing",
+            "filing_eligible": False,
+            "mode": "user",
+            "position_evaluation_status": (
+                "NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE"
+            ),
+            "private_download_created": False,
+            "profile_support": "NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE",
+            "reason_codes": ["ordinary_trade_canonical_evidence_missing"],
+            "selected_tax_period": None,
+            "source_completeness_status": "CANONICAL_EVIDENCE_MISSING",
+            "xml_created": False,
+        }
     ]
-    assert close_events
-    assert max(int(event["second_elapsed_ms"]) for event in close_events) < 30000
 
-    owner_checks = trace["verification_mode"]["owner_xml_verification"]
-    assert len(owner_checks) == 2
-    assert all(item["xsd_valid"] is True for item in owner_checks)
-    assert all(item["visible_values_match"] is True for item in owner_checks)
-    assert trace["verification_mode"]["downloaded_xml_byte_equal_between_runs"] is True
+    restored = trace["verification_mode"]["control_restored_receipt"]
+    assert restored["status"] == "restored"
+    assert restored["state_restored"] is True
+    assert restored["receipt_sha256"] == _receipt_sha256(restored)
+    assert restored["deployed_bundle_sha256"] == manifest[
+        "generated_bundle_sha256"
+    ]
+    assert restored["predecessor_control_prepared_receipt_sha256"] == source[
+        "proof_binding"
+    ]["control_prepared_receipt_sha256"]

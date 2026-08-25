@@ -163,3 +163,10 @@ years, exact profile identity, open position states, owner-produced calculated
 disposals, remaining checks and actual release eligibility. Profile
 availability and release eligibility are distinct: even an exact 2025 profile
 does not make a draft or open position filing-eligible.
+
+The no-Canonical branch is included in that rule. It reports source
+completeness as `CANONICAL_EVIDENCE_MISSING`, position evaluation as
+`NOT_EVALUATED_SOURCE_FACTS_UNAVAILABLE`, no detected/selected period, and
+profile support as `NOT_EVALUATED_SOURCE_COVERAGE_INCOMPLETE`. It must not
+relabel an extraction boundary as an open position, period mismatch, or
+unsupported declaration profile.
