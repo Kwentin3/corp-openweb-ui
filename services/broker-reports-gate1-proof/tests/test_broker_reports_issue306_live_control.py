@@ -29,6 +29,9 @@ BUNDLE_PATH = (
     SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
 )
 PUBLIC_SOURCE_CORPUS_PATH = SERVICE_ROOT / "tests/fixtures/g537_coverage_corpus.v0.json"
+SUPPORTED_SOURCE_PATH = (
+    SERVICE_ROOT / "tests/fixtures/issue306_supported_ordinary_trade.csv"
+)
 
 
 def _load_control_module():
@@ -602,6 +605,57 @@ def test_committed_issue310_full_journals_bind_code_routes_and_cleanup() -> None
     assert source["source_artifact"]["size_bytes"] == source_owner["size_bytes"]
     assert source["events"][0]["source_gap_explained_in_plain_language"] is True
     assert source["events"][0]["xml_created"] is False
+
+    follow_up_index = trace["private_file_idempotency_follow_up"]
+    follow_up_path = ISSUE310_TRACE_PATH.parent / follow_up_index["safe_receipt"]
+    follow_up = json.loads(follow_up_path.read_text(encoding="utf-8"))
+    assert follow_up["receipt_sha256"] == follow_up_index["safe_receipt_sha256"]
+    assert follow_up["receipt_sha256"] == _receipt_sha256(follow_up)
+    assert follow_up["evidence_code_head"] == follow_up_index["evidence_code_head"]
+    follow_up_head = follow_up["evidence_code_head"]
+    follow_up_binding = follow_up["proof_binding"]
+    assert follow_up_binding["generated_bundle_sha256"] == hashlib.sha256(
+        subprocess.check_output(
+            [
+                "git",
+                "show",
+                f"{follow_up_head}:{BUNDLE_PATH.relative_to(REPO_ROOT).as_posix()}",
+            ],
+            cwd=REPO_ROOT,
+        )
+    ).hexdigest()
+    assert follow_up_binding["browser_driver_sha256"] == _git_blob_sha256(
+        BROWSER_GOAL_PATH,
+        revision=follow_up_head,
+    )
+    assert follow_up_binding["control_script_sha256"] == _git_blob_sha256(
+        SCRIPT_PATH,
+        revision=follow_up_head,
+    )
+    assert follow_up_binding["source_fixture_sha256"] == _git_blob_sha256(
+        SUPPORTED_SOURCE_PATH,
+        revision=follow_up_head,
+    )
+    assert follow_up_binding["exact_head_ci_conclusion"] == "success"
+    browser = follow_up["browser_clean_room"]
+    assert browser["browser_receipt_sha256"] == follow_up_index[
+        "browser_receipt_sha256"
+    ]
+    assert browser["journal_events"] == 22
+    assert browser["same_source_reupload_preserved_logical_file"] is True
+    assert browser["logical_download_links_stable"] is True
+    assert browser["concurrent_rendered_responses"] == 2
+    assert browser["second_user_private_file_denied"] is True
+    assert follow_up["native_files_readback"] == {
+        "final_same_user_case_xml_records_total": 1,
+        "distinct_pre_correction_xml_retained": True,
+        "distinct_pre_correction_xml_reason": (
+            "declaration_date_correction_changed_xml_bytes"
+        ),
+        "duplicate_final_xml_record_created": False,
+    }
+    assert follow_up["cleanup"]["state_restored"] is True
+    assert follow_up["cleanup"]["temporary_users_removed"] == 8
 
     control = trace["control_chain"]
     prepared = json.loads(

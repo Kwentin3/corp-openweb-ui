@@ -1,0 +1,63 @@
+{
+  "schema_version": "broker_reports_issue310_private_file_idempotency_proof_v1",
+  "issue": 310,
+  "prior_exact_head": "9406dc6a638fdd8d960074f672c671dca8ec90fc",
+  "evidence_code_head": "1d57c18fd3acf4f907b2607a69e94fd2c4ec0a66",
+  "defect_reproduced_on_prior_head": "same_user_case_and_xml_with_distinct_valid_execution_receipts_created_duplicate_native_files",
+  "minimal_owner_fix": {
+    "owner": "OpenWebUI Files publication boundary in the maintained Pipe",
+    "logical_identity": [
+      "authenticated_user_ref",
+      "case_scope_sha256",
+      "xml_sha256"
+    ],
+    "execution_receipt_role": "immutable_first_publication_provenance_not_logical_file_identity",
+    "changed_xml_user_or_case_creates_distinct_file": true,
+    "caller_selected_identity": false
+  },
+  "proof_binding": {
+    "generated_bundle_sha256": "32a7b79526158680fd9a1e9e7780a3e4667590a8cbef4b8d3ab4a73883949774",
+    "browser_driver_sha256": "de3385a16deaa8868ed2f9fbb896b24210d9850e8bcdeb3750cdc160b57c5201",
+    "control_script_sha256": "2d51061b32495702050e9405713a2931afaf5e38d866e0c00a044726b089dab5",
+    "source_fixture_sha256": "9a085fb35dde0ce154630a9cb1d93bc4b6ecaf00b7c30cb8bd8f4de4b5ef8915",
+    "exact_head_ci_run": 32967848711,
+    "exact_head_ci_job": 98174343284,
+    "exact_head_ci_conclusion": "success"
+  },
+  "browser_clean_room": {
+    "browser_receipt_sha256": "7b568ae0d6f7ad6a2ec0c29453ec265de162bb28ac0e5667f817593db11ffa05",
+    "journal_events": 22,
+    "xml_sha256": "655c2d5d3ce005cddc6638c51919e52ed2ea60a0d3dbc118384bc92d7e79c5d5",
+    "xml_size_bytes": 1102,
+    "reload_resumed": true,
+    "same_source_reupload_preserved_logical_file": true,
+    "logical_download_links_stable": true,
+    "concurrent_rendered_responses": 2,
+    "second_user_model_hidden": true,
+    "second_user_private_file_denied": true,
+    "second_user_case_denied": true,
+    "developer_intervention_during_user_run": false
+  },
+  "native_files_readback": {
+    "final_same_user_case_xml_records_total": 1,
+    "distinct_pre_correction_xml_retained": true,
+    "distinct_pre_correction_xml_reason": "declaration_date_correction_changed_xml_bytes",
+    "duplicate_final_xml_record_created": false
+  },
+  "regression_proof": {
+    "sequential_distinct_valid_receipts_reuse_one_file": true,
+    "concurrent_distinct_valid_receipts_reuse_one_file": true,
+    "losing_physical_attempt_removed_without_removing_winner": true,
+    "corrupted_retained_receipt_metadata_fails_closed": true,
+    "active_guard": "322 passed",
+    "architecture_bundle_privacy_control": "46 passed"
+  },
+  "cleanup": {
+    "control_prepared_receipt_sha256": "ff95ff88a0f6a0bc9e18d3c10f891a870277bf3c7ec57d17ab259f0cb1a17d9e",
+    "control_restored_receipt_sha256": "2c9f6eccee878398f6ca7f665ac3cd29be4daca07898696ed7a7ed039270dae3",
+    "temporary_users_removed": 8,
+    "state_restored": true,
+    "bootstrap_restored": true
+  },
+  "receipt_sha256": "ebb520b267944156f65549591afb7fae44a1c3985e7cb2d6d7af492f8d5753d3"
+}

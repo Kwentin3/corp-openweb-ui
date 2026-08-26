@@ -122,3 +122,54 @@ The final report commit necessarily changes the Git head without changing the
 product bundle or browser driver. Exact-head CI and the browser matrix are
 repeated after that commit; their immutable final SHA and receipt hashes are
 published in PR #311 and Issue #310.
+
+## Private XML publication follow-up
+
+The attempted final-head repetition on `9406dc6a638fdd8d960074f672c671dca8ec90fc`
+found one further product defect and produced no accepted receipt. After a
+valid declaration had been downloaded, re-uploading the byte-identical source
+created another native Files record for the same user, case and XML bytes.
+Readback confirmed that this was not a browser link-selection error: the two
+records had equal case and XML hashes but different valid execution receipt
+hashes.
+
+The cause was a wrong identity boundary. `_publish_ndfl_xml_file` included the
+current execution receipt hash in the deterministic native file ID. A receipt
+proves one execution's provenance; it is not the semantic identity of the
+downloadable XML. The minimal correction keeps the owner in the maintained
+Pipe and defines native logical file identity as:
+
+```text
+authenticated user + case scope SHA-256 + XML SHA-256
+```
+
+The first valid receipt remains immutable provenance metadata. Reuse checks
+the exact owner, stable publication-identity hash, case, XML hash, physical
+bytes and the retained receipt's type. A change of XML bytes, authenticated
+user or case still creates a distinct File; a different valid receipt alone
+does not. No source, Human Fact, tax, XML, storage or receipt authority was
+added.
+
+Adversarial tests prove sequential and concurrent calls with distinct valid
+receipt hashes converge on one native File, a losing physical attempt cannot
+delete the winner, and corrupted retained receipt metadata fails closed.
+Local results are `322 passed` for the required active production guard and
+`46 passed` for the architecture/bundle/privacy/control set.
+
+Exact code head `1d57c18fd3acf4f907b2607a69e94fd2c4ec0a66` passed required
+CI run `32967848711`, job `98174343284`. The post-CI real OpenWebUI clean-room
+run completed all 22 events and produced browser receipt
+`7b568ae0d6f7ad6a2ec0c29453ec265de162bb28ac0e5667f817593db11ffa05`.
+It proved reload/resume, byte-identical source re-upload with the same logical
+download link, two concurrent rendered retries, and second-user model/file/case
+denial. Native Files readback showed exactly one record for the final
+case+XML hash. The different pre-correction XML remained a separate expected
+record because the declaration-date correction changed XML bytes.
+
+The follow-up safe receipt is
+`issue310-live/1d57c18-private-file-idempotency.safe.json`, receipt SHA-256
+`ebb520b267944156f65549591afb7fae44a1c3985e7cb2d6d7af492f8d5753d3`.
+The proof window was restored: control receipt
+`2c9f6eccee878398f6ca7f665ac3cd29be4daca07898696ed7a7ed039270dae3`
+has `state_restored=true`, all eight temporary users were removed, and the
+bootstrap layer was restored.

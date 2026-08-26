@@ -75,6 +75,14 @@
       "full_receipt": "issue310-live/bed97a9-tbank-source-gap.safe.json"
     }
   ],
+  "private_file_idempotency_follow_up": {
+    "prior_failed_head": "9406dc6a638fdd8d960074f672c671dca8ec90fc",
+    "evidence_code_head": "1d57c18fd3acf4f907b2607a69e94fd2c4ec0a66",
+    "result": "same_source_reupload_and_concurrent_retry_preserved_one_final_case_xml_file",
+    "browser_receipt_sha256": "7b568ae0d6f7ad6a2ec0c29453ec265de162bb28ac0e5667f817593db11ffa05",
+    "safe_receipt_sha256": "ebb520b267944156f65549591afb7fae44a1c3985e7cb2d6d7af492f8d5753d3",
+    "safe_receipt": "issue310-live/1d57c18-private-file-idempotency.safe.json"
+  },
   "control_chain": {
     "prepared_receipt_sha256": "a91b81ebf494bb5678a067cd79fdc309c05031e69d1d52b7206871a049f61fc7",
     "prepared_receipt": "issue310-live/bed97a9-control-prepared.safe.json",
