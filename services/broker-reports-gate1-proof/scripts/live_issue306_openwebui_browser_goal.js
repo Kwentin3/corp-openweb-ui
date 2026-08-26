@@ -291,9 +291,15 @@ function classifyQuestion(question) {
     ['budget', /итог декларации для бюджета/i],
     ['oktmo', /код ОКТМО/i],
   ];
-  const found = rules.find(([, regex]) => regex.test(question));
+  const found = rules
+    .map(([kind, regex]) => {
+      const match = question.match(regex);
+      return match ? { kind, index: match.index } : null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => right.index - left.index)[0];
   if (!found) throw new Error('visible_question_not_understood');
-  return found[0];
+  return found.kind;
 }
 
 function safeJournalAnswer(kind, answer) {
