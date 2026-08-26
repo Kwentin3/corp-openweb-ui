@@ -360,7 +360,7 @@ async function answerQuestionWithCandidateConfirmation(page, answer, confirm = t
   const actionButton = page.getByRole('button', {
     name: confirm
       ? /^(Подтвердить|Да|Confirm|Yes)$/i
-      : /^(Отмена|Отклонить|Нет|Cancel|No)$/i,
+      : /^(Отмена|Отменить|Отклонить|Нет|Cancel|No)$/i,
   }).last();
   await actionButton.waitFor({ state: 'visible', timeout: 30000 });
   const confirmationSurface = actionButton.locator(
