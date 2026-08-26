@@ -357,17 +357,20 @@ async function answerQuestion(page, answer) {
 
 async function answerQuestionWithCandidateConfirmation(page, answer, confirm = true) {
   await sendMessage(page, answer);
-  const dialog = page.locator('[role="dialog"]').filter({
-    hasText: 'Подтвердите понимание ответа',
-  }).last();
-  await dialog.waitFor({ state: 'visible', timeout: 60000 });
-  const confirmationText = await dialog.innerText();
-  const actionButton = dialog.getByRole('button', {
+  const actionButton = page.getByRole('button', {
     name: confirm
       ? /^(Подтвердить|Да|Confirm|Yes)$/i
       : /^(Отмена|Отклонить|Нет|Cancel|No)$/i,
   }).last();
   await actionButton.waitFor({ state: 'visible', timeout: 30000 });
+  const confirmationSurface = actionButton.locator(
+    'xpath=ancestor::*[.//button[normalize-space()="Отменить"] and .//button[normalize-space()="Подтвердить"]][1]',
+  );
+  await confirmationSurface.waitFor({ state: 'visible', timeout: 30000 });
+  const confirmationText = await confirmationSurface.innerText();
+  if (!confirmationText.includes('Подтвердите понимание ответа')) {
+    throw new Error('native_confirmation_title_missing');
+  }
   await actionButton.click();
   return {
     body: await waitForTurn(page),

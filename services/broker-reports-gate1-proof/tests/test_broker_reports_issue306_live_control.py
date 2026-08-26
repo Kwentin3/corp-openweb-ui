@@ -275,6 +275,9 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "answer = 'PAYMENT'" not in source
     assert "answer = 'individual_not_ip_not_private_practice'" not in source
     assert "answerQuestionWithCandidateConfirmation" in source
+    assert "native_confirmation_title_missing" in source
+    assert "normalize-space()=\"Отменить\"" in source
+    assert "normalize-space()=\"Подтвердить\"" in source
     assert "подаю первый раз" in source
     assert "подписывать буду сам" in source
     assert "я обычный человек, не ИП" in source
