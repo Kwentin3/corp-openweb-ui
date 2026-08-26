@@ -195,7 +195,7 @@ async function sendMessage(page, message) {
   await page.waitForTimeout(250);
 }
 
-async function waitForTurn(page, timeout = 120000) {
+async function waitForTurn(page, timeout = 240000) {
   const boundary = page.__issue310TurnBoundary || { count: 0, text: '' };
   await page.waitForFunction(
     ({ previousCount, previousText }) => {
