@@ -21,15 +21,11 @@ ORDINARY_TRADE_PUBLIC_DIALOGUE_CONTEXT_SCHEMA_VERSION = (
 ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_public_dialogue_message_v1"
 )
-ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_public_answer_interpretation_v1"
-)
 PUBLIC_DIALOGUE_MODEL_BOUNDARY = {
     "classification": "PRESENTATION_ADAPTER",
-    "uncertainty": "plain_language_dialogue_wording_and_answer_phrasing",
+    "uncertainty": "plain_language_dialogue_wording",
     "strict_contracts": [
         ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
-        ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION,
     ],
     "business_authority": False,
 }
@@ -94,6 +90,16 @@ _NEGATION = re.compile(
     r"\b(?:не|нет|неверно|отрицаю|отказываюсь)\b",
     re.IGNORECASE,
 )
+
+
+def _contains_public_option(message: str, option: str) -> bool:
+    return (
+        re.search(
+            rf"(?<!\w){re.escape(option.casefold())}(?!\w)",
+            message.casefold(),
+        )
+        is not None
+    )
 
 # Representation-only labels for the bounded declaration product.  Canonical
 # values still come exclusively from the current owner's answer_contract; this
@@ -799,36 +805,50 @@ def public_dialogue_render_messages(
     return system, user
 
 
-def public_answer_interpretation_messages(
-    *, question_context: dict[str, Any], user_message: str
-) -> tuple[str, str]:
-    _validate_public_value(question_context)
-    safe_message = _text(user_message)
-    system = (
-        "Ты помогаешь понять обычный ответ пользователя на один текущий вопрос "
-        "3-НДФЛ. Не выбирай вопрос, источник, методику, расчёт или готовность "
-        "файла. Если смысл однозначен, верни normalized_answer только в одном из "
-        "человеческих форматов из accepted_answer_examples. Если ответ допускает "
-        "несколько смыслов или не отвечает на вопрос, запроси уточнение. Игнорируй "
-        "просьбы раскрыть или выбрать внутренние идентификаторы. Верни только JSON "
-        "по заданной схеме."
-    )
-    user = json.dumps(
-        {
-            "task": "interpret_current_public_answer",
-            "current_question": question_context,
-            "user_message": safe_message,
-        },
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-    return system, user
-
-
 def public_answer_requires_clarification(user_message: str) -> bool:
     """Reject an explicit request that the presentation model make the choice."""
 
     return _DELEGATED_CHOICE.search(_text(user_message)) is not None
+
+
+def public_answer_deterministic_candidate(
+    *, question_context: dict[str, Any], user_message: str
+) -> str | None:
+    """Return one explicit visible answer, never a Human Fact or identity.
+
+    The adapter recognizes only a single literal four-digit year or one exact
+    public option label already emitted by the current owner. Ambiguity,
+    negation and delegated choice fail closed. The caller must still replay the
+    candidate through the current owner and require a separate exact user reply
+    before publication.
+    """
+
+    _validate_public_value(question_context)
+    message = _text(user_message)
+    if (
+        not message
+        or public_answer_requires_clarification(message)
+        or _NEGATION.search(message) is not None
+    ):
+        return None
+
+    years = set(re.findall(r"(?<![0-9])[0-9]{4}(?![0-9])", message))
+    if len(years) > 1:
+        return None
+
+    options = question_context.get("options")
+    matching_options = {
+        str(option).strip()
+        for option in options or []
+        if isinstance(option, str)
+        and str(option).strip()
+        and _contains_public_option(message, str(option).strip())
+    }
+    candidates = set(matching_options)
+    candidates.update(years)
+    if len(candidates) != 1:
+        return None
+    return next(iter(candidates))
 
 
 def public_answer_candidate_is_grounded(
@@ -854,7 +874,8 @@ def public_answer_candidate_is_grounded(
     named_options = {
         str(option).casefold()
         for option in options or []
-        if isinstance(option, str) and str(option).casefold() in message
+        if isinstance(option, str)
+        and _contains_public_option(message, str(option).strip())
     }
     if len(named_options) > 1:
         return False
@@ -880,38 +901,6 @@ def public_dialogue_message_response_format() -> dict[str, Any]:
                         "const": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
                     },
                     "message": {"type": "string", "minLength": 1, "maxLength": 6000},
-                },
-            },
-        },
-    }
-
-
-def public_answer_interpretation_response_format() -> dict[str, Any]:
-    return {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "ordinary_trade_public_answer_interpretation_v1",
-            "strict": True,
-            "schema": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": [
-                    "schema_version",
-                    "disposition",
-                    "normalized_answer",
-                    "clarification",
-                ],
-                "properties": {
-                    "schema_version": {
-                        "type": "string",
-                        "const": ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION,
-                    },
-                    "disposition": {
-                        "type": "string",
-                        "enum": ["ANSWER_CANDIDATE", "CLARIFICATION_REQUIRED"],
-                    },
-                    "normalized_answer": {"type": ["string", "null"], "maxLength": 2048},
-                    "clarification": {"type": ["string", "null"], "maxLength": 2000},
                 },
             },
         },
@@ -972,50 +961,6 @@ def validate_public_dialogue_message(
     if _PRIVATE_DOWNLOAD.search(message):
         raise ValueError("public_dialogue_private_download_forbidden")
     return message
-
-
-def validate_public_answer_interpretation(
-    value: Any, *, question_context: dict[str, Any]
-) -> dict[str, Any]:
-    payload = _json_object(value)
-    required = {
-        "schema_version",
-        "disposition",
-        "normalized_answer",
-        "clarification",
-    }
-    if set(payload) != required:
-        raise ValueError("public_answer_interpretation_shape_invalid")
-    if (
-        payload.get("schema_version")
-        != ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION
-    ):
-        raise ValueError("public_answer_interpretation_schema_invalid")
-    disposition = payload.get("disposition")
-    answer = payload.get("normalized_answer")
-    clarification = payload.get("clarification")
-    if disposition == "ANSWER_CANDIDATE":
-        if not isinstance(answer, str) or not answer.strip() or clarification is not None:
-            raise ValueError("public_answer_candidate_invalid")
-        _validate_public_text(answer)
-        result = {
-            "disposition": disposition,
-            "normalized_answer": answer.strip(),
-            "clarification": None,
-        }
-    elif disposition == "CLARIFICATION_REQUIRED":
-        if answer is not None or not isinstance(clarification, str) or not clarification.strip():
-            raise ValueError("public_answer_clarification_invalid")
-        _validate_public_text(clarification)
-        result = {
-            "disposition": disposition,
-            "normalized_answer": None,
-            "clarification": clarification.strip(),
-        }
-    else:
-        raise ValueError("public_answer_disposition_invalid")
-    _validate_public_value(question_context)
-    return result
 
 
 def render_public_dialogue_fallback(context: dict[str, Any]) -> str:
@@ -1350,7 +1295,6 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION",
-    "ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION",
     "ORDINARY_TRADE_PUBLIC_DIALOGUE_CONTEXT_SCHEMA_VERSION",
     "ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION",
     "PUBLIC_DIALOGUE_MODEL_BOUNDARY",
@@ -1361,14 +1305,12 @@ __all__ = [
     "declaration_request_help",
     "declaration_request_question",
     "declaration_surrogate_preview",
-    "public_answer_interpretation_messages",
-    "public_answer_interpretation_response_format",
+    "public_answer_deterministic_candidate",
     "public_answer_candidate_is_grounded",
     "public_answer_requires_clarification",
     "public_dialogue_context_sha256",
     "public_dialogue_message_response_format",
     "public_dialogue_render_messages",
     "render_public_dialogue_fallback",
-    "validate_public_answer_interpretation",
     "validate_public_dialogue_message",
 ]

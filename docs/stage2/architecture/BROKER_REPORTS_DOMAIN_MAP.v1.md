@@ -342,13 +342,18 @@ transport success alone.
 - **Business meaning:** OpenWebUI is a host and transport boundary, not a source
   of canonical financial policy.
 - **Inputs:** user request, files, valves, OpenWebUI request context.
-- **Outputs:** calls to maintained factories and bounded chat responses.
+- **Outputs:** calls to maintained factories and bounded chat responses. The
+  Issue #310 presentation sub-boundary has exactly two owners: Pipe owns the
+  pinned HTTPS/no-redirect/byte-bounded OpenWebUI transport; the declaration
+  chat adapter owns the safe public context, strict dialogue validation and
+  deterministic literal-answer proposal. Neither owns Human Facts.
 - **Current sole owner:** maintained
   `openwebui_actions/broker_reports_*_pipe.py` adapters; generated bundles are
   closed-world outputs only.
 - **Allowed consumers:** OpenWebUI Function runtime.
 - **Forbidden knowledge:** duplicate validators/materializers, hidden RAG,
-  workspace imports, business policy in bundles.
+  workspace imports, business policy in bundles, caller-derived presentation
+  origins, or model interpretation/publication of Human answers.
 - **Runtime status:** `ACTIVE_PRODUCT` in repository.
 - **Evidence:** bundle parity tests, factory-call tests, closed-world checks.
 - **Open debt:** none for live bundle parity.

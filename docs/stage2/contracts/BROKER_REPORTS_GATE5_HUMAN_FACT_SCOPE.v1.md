@@ -24,7 +24,8 @@ authenticated context + externally supplied taxpayer scope + tax period
 The implementation reuses `ArtifactStorePort` and `ArtifactResolver`. It adds
 no registry, workflow/event engine, identity authority, receipt engine or
 domain provider/LLM path. Issue #310 adds a separate presentation-only model
-call outside this owner; it cannot publish or validate a Human Fact.
+call for final dialogue wording outside this owner; it cannot interpret,
+publish or validate a Human Fact.
 
 ## Scope and the product taxpayer slot
 
@@ -95,14 +96,16 @@ change on the current owner publication. `DEFER` creates no fact.
 For the Issue #304/#310 product route, the bundled Pipe obtains that publication
 from the Human owner and keeps its `request_publication_ref` on the server. The
 representation-only adapter strips the request down to one public question,
-safe answer help, human labels and a masked candidate. Ordinary chat text may
-be interpreted into an answer candidate, but it cannot supply or select a
-publication ref, fact key, taxpayer scope or hidden action. The candidate is
-validated against the current owner answer shape but creates no fact. The user
-must repeat the proposed owner-accepted wording in a separate message; only
-that direct authenticated reply is rebound to the already selected current
-publication and may pass Human owner normalization. The native OpenWebUI `__event_call__`
-remains an optional exact-input fallback; it is not the primary conversation.
+safe answer help, human labels and a masked candidate. It may recognize only
+one literal four-digit year or one exact visible option label already emitted
+by the current owner. It cannot supply or select a publication ref, fact key,
+taxpayer scope or hidden action. Negation, delegated choice and multiple
+candidates fail closed. The candidate is replayed against the current owner
+answer shape but creates no fact. The user must repeat the proposed
+owner-accepted wording in a separate message; only that direct authenticated
+reply is rebound to the already selected current publication and may pass
+Human owner normalization. The native OpenWebUI `__event_call__` remains an
+optional exact-input fallback; it is not the primary conversation.
 
 ## Public dialogue context and presentation model
 
@@ -116,8 +119,8 @@ current request, outcome and filing eligibility
 -> validated visible wording or deterministic human fallback
 
 natural user reply + current public question
--> authenticated native OpenWebUI completion endpoint -> presentation model candidate
--> existing declaration chat adapter -> visible confirmation proposal, no fact
+-> deterministic literal year/exact visible-option recognition
+-> current owner answer validation -> visible confirmation proposal, no fact
 -> separate direct authenticated user reply
 -> exact current request_publication_ref kept by Pipe
 -> Gate5HumanGapClosureRuntime normalization and publication
@@ -130,15 +133,14 @@ fact keys, owner names, reason codes, internal statuses, source rows or
 methodology identifiers. Final private download URLs are appended by the Pipe
 after validation and are never model-produced.
 
-The presentation model returns strict structured output. A reply cannot choose
-the request identity because that field does not exist in its schema. The
-visible message must retain every owner-produced public statement and the exact
-current question. Internal vocabulary, positive filing claims when filing is
-not eligible, private file URLs and unknown fields fail closed to the same
-deterministic public context. Model failure creates no new meaning and no Human
-Fact; a presentation call that exceeds its bounded runtime window is treated as
-unavailable instead of holding the current request open indefinitely. Exact UI
-controls/deterministic parsing remain only a safe fallback.
+The presentation model returns only strict structured dialogue wording. It is
+not called while adapting an answer and cannot choose an answer or request
+identity. The visible message must retain every owner-produced public statement
+and the exact current question. Internal vocabulary, positive filing claims
+when filing is not eligible, private file URLs and unknown fields fail closed
+to the same deterministic public context. Model failure creates no new meaning
+and no Human Fact; a presentation call that exceeds its bounded runtime window
+is treated as unavailable instead of holding the current request open.
 
 The native completion target is an administrator-pinned HTTPS OpenWebUI origin,
 never `request.base_url`, Host or another caller-derived address. Redirects are
@@ -147,7 +149,8 @@ user bearer token cannot be forwarded to a caller-selected or redirected
 origin.
 
 Metrics are separate: `presentation_llm_calls_total` counts only conversation
-rendering/interpretation; `domain_provider_calls_total` remains zero for the
+rendering; answer adaptation has zero model calls. `domain_provider_calls_total`
+remains zero for the
 deterministic ordinary-trade calculation, tax, release and XML path.
 
 The former `gate5_case_taxpayer_scope_ref` case hash is removed. Hashing a case

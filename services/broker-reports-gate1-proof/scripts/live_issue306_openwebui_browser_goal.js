@@ -446,8 +446,8 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     if (expectedConfirmation !== confirmationRequired) {
       throw new Error(
         expectedConfirmation
-          ? 'model_candidate_was_not_held_for_confirmation'
-          : 'unexpected_model_confirmation_barrier',
+          ? 'deterministic_candidate_was_not_held_for_confirmation'
+          : 'unexpected_deterministic_confirmation_barrier',
       );
     }
     if (body.includes('Расчётный черновик готов. XML не создан')) {
@@ -466,7 +466,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
       expected_next_action: expectedRejection
         ? 'Ответ не сохраняется; тот же вопрос остаётся текущим.'
         : expectedConfirmation
-          ? 'Интерпретация показана пользователю, но факт не создан; тот же вопрос ждёт отдельного прямого ответа.'
+          ? 'Однозначный видимый кандидат показан пользователю, но факт не создан; тот же вопрос ждёт отдельного прямого ответа.'
         : 'Ответ проходит текущую проверку; чат показывает следующий текущий вопрос или итог.',
       actual_visible_result: safeJournalVisibleText(body, truth),
       assessment: 'понятно',

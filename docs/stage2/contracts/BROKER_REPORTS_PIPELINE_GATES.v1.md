@@ -607,8 +607,9 @@ Every direct structured-model call site is classified in
 Each entry names the uncertainty removed and strict output contract. Gate 4,
 deterministic Gate 5, Declaration Semantics, Release and Projection admit no
 source-semantic provider call. `PRESENTATION_ADAPTER` may phrase only a safe
-owner-produced public context or propose an answer for separate explicit user
-confirmation. It has no business authority and may send an authenticated call
+owner-produced public context. Answer adaptation is deterministic and may only
+recognize one literal year or one exact visible current-owner option before a
+separate explicit user confirmation. It has no business authority and may send an authenticated call
 only to the administrator-pinned HTTPS OpenWebUI origin, with redirects denied
 and response bytes bounded.
 

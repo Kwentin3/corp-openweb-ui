@@ -7,18 +7,17 @@ import pytest
 import openwebui_actions.broker_reports_gate1_pipe as pipe_module
 
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
-    ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION,
     ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
     PUBLIC_DIALOGUE_MODEL_BOUNDARY,
     adapt_current_declaration_request,
     build_public_dialogue_context,
     build_public_question_context,
     public_answer_candidate_is_grounded,
+    public_answer_deterministic_candidate,
     public_answer_requires_clarification,
     public_dialogue_context_sha256,
     public_dialogue_message_response_format,
     render_public_dialogue_fallback,
-    validate_public_answer_interpretation,
     validate_public_dialogue_message,
 )
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
@@ -110,10 +109,9 @@ def test_residency_owner_rejects_ambiguous_no_absence_phrasing(message: str) -> 
 def test_presentation_model_boundary_is_local_and_has_no_business_authority() -> None:
     assert PUBLIC_DIALOGUE_MODEL_BOUNDARY == {
         "classification": "PRESENTATION_ADAPTER",
-        "uncertainty": "plain_language_dialogue_wording_and_answer_phrasing",
+        "uncertainty": "plain_language_dialogue_wording",
         "strict_contracts": [
             "broker_reports_ordinary_trade_public_dialogue_message_v1",
-            "broker_reports_ordinary_trade_public_answer_interpretation_v1",
         ],
         "business_authority": False,
     }
@@ -236,35 +234,41 @@ def test_public_message_rejects_leaks_and_false_filing_claims() -> None:
         )
 
 
-def test_interpretation_contract_cannot_select_request_or_fact_identity() -> None:
+def test_deterministic_candidate_uses_only_visible_current_question_values() -> None:
     question = build_public_question_context(_request())
     assert question is not None
-    accepted = validate_public_answer_interpretation(
-        {
-            "schema_version": (
-                ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION
-            ),
-            "disposition": "ANSWER_CANDIDATE",
-            "normalized_answer": "Первичная декларация",
-            "clarification": None,
-        },
+    assert public_answer_deterministic_candidate(
         question_context=question,
-    )
-    assert accepted["normalized_answer"] == "Первичная декларация"
+        user_message="Первичная декларация, пожалуйста.",
+    ) == "Первичная декларация"
 
-    with pytest.raises(ValueError, match="shape_invalid"):
-        validate_public_answer_interpretation(
-            {
-                "schema_version": (
-                    ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION
-                ),
-                "disposition": "ANSWER_CANDIDATE",
-                "normalized_answer": "Первичная декларация",
-                "clarification": None,
-                "request_publication_ref": "art_" + "b" * 32,
-            },
-            question_context=question,
-        )
+    year_question = {
+        "question": "Какой год вы выбираете?",
+        "help": "Введите год.",
+        "options": [],
+        "accepted_answer_examples": ["ГГГГ"],
+        "candidate_hint": None,
+    }
+    assert public_answer_deterministic_candidate(
+        question_context=year_question,
+        user_message="Беру 2025 год.",
+    ) == "2025"
+    assert public_answer_deterministic_candidate(
+        question_context=year_question,
+        user_message="Возможно 2024 или 2025.",
+    ) is None
+    assert public_answer_deterministic_candidate(
+        question_context=year_question,
+        user_message="Не 2025 год.",
+    ) is None
+    confirmation_question = {
+        **year_question,
+        "options": ["Да", "Нет"],
+    }
+    assert public_answer_deterministic_candidate(
+        question_context=confirmation_question,
+        user_message="Данные нужно проверить.",
+    ) is None
 
 
 def test_candidate_grounding_rejects_delegated_and_multiple_choices() -> None:
@@ -317,40 +321,17 @@ def test_candidate_grounding_never_inverts_an_explicit_negation(
     ) is False
 
 
-def test_pipe_model_candidate_requires_a_separate_direct_owner_answer(
+def test_pipe_deterministic_candidate_requires_a_separate_direct_owner_answer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pipe = Pipe()
-    calls: list[dict] = []
-
-    def completion(*, request, form_data, user, **_kwargs):
-        calls.append(form_data)
-        assert request is not None
-        assert user.id == "user-a"
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps(
-                            {
-                                "schema_version": (
-                                    ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION
-                                ),
-                                "disposition": "ANSWER_CANDIDATE",
-                                "normalized_answer": "Первичная декларация",
-                                "clarification": None,
-                            },
-                            ensure_ascii=False,
-                        )
-                    }
-                }
-            ]
-        }
 
     monkeypatch.setattr(
         pipe,
         "_openwebui_completion_dependencies",
-        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+        lambda _user_id: (_ for _ in ()).throw(
+            AssertionError("answer adaptation must not call the model")
+        ),
     )
     adapted, dialogue = asyncio.run(
         pipe._adapt_ndfl_public_answer(
@@ -364,15 +345,14 @@ def test_pipe_model_candidate_requires_a_separate_direct_owner_answer(
 
     assert adapted == {
         "status": "ANSWER_CONFIRMATION_REQUIRED",
-        "reason_code": "declaration_chat_model_candidate_confirmation_required",
+        "reason_code": (
+            "declaration_chat_deterministic_candidate_confirmation_required"
+        ),
     }
     assert "Первичная декларация" in dialogue["answer_feedback"]
-    assert dialogue["interpretation_model_used"] is True
-    assert dialogue["presentation_llm_calls_total"] == 1
-    model_input = calls[0]["messages"][1]["content"]
-    assert "request_publication_ref" not in model_input
-    assert "fact_key" not in model_input
-    assert "INITIAL" not in model_input
+    assert dialogue["deterministic_candidate_used"] is True
+    assert dialogue["interpretation_model_used"] is False
+    assert dialogue["presentation_llm_calls_total"] == 0
 
     confirmed, confirmed_dialogue = asyncio.run(
         pipe._adapt_ndfl_public_answer(

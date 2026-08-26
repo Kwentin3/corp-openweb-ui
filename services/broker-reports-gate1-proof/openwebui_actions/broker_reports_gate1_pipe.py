@@ -106,15 +106,13 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     declaration_change_intent,
     declaration_request_help,
     declaration_request_question,
-    public_answer_interpretation_messages,
-    public_answer_interpretation_response_format,
     public_answer_candidate_is_grounded,
+    public_answer_deterministic_candidate,
     public_answer_requires_clarification,
     public_dialogue_context_sha256,
     public_dialogue_message_response_format,
     public_dialogue_render_messages,
     render_public_dialogue_fallback,
-    validate_public_answer_interpretation,
     validate_public_dialogue_message,
 )
 from broker_reports_gate1.private_intake_bytes import (
@@ -1111,13 +1109,14 @@ class Pipe:
         request: Any,
         event_call: Any,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Let the model propose wording; bind only through the current owner."""
+        """Recognize visible wording; bind only through the current owner."""
 
         baseline = self._presentation_llm_calls_total
         question = build_public_question_context(current_actions[0])
         dialogue = {
             "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
             "answer_feedback": None,
+            "deterministic_candidate_used": False,
             "interpretation_model_used": False,
             "presentation_fallback_used": False,
         }
@@ -1143,87 +1142,53 @@ class Pipe:
             )
         elif direct.get("status") == "ANSWER_READY":
             adapted = direct
-        elif self.valves.ndfl_presentation_llm_enabled:
-            try:
-                system_content, user_content = public_answer_interpretation_messages(
-                    question_context=question,
-                    user_message=message,
-                )
-                raw = await self._call_openwebui_presentation_completion(
-                    system_content=system_content,
-                    user_content=user_content,
-                    response_format=public_answer_interpretation_response_format(),
-                    user=user,
-                    request=request,
-                    task="ordinary_trade_public_answer_interpretation",
-                )
-                interpretation = validate_public_answer_interpretation(
-                    raw,
-                    question_context=question,
-                )
-                dialogue["interpretation_model_used"] = True
-                if interpretation["disposition"] == "ANSWER_CANDIDATE":
-                    normalized_answer = interpretation["normalized_answer"]
-                    model_candidate_grounded = public_answer_candidate_is_grounded(
-                        question_context=question,
-                        user_message=message,
-                        normalized_answer=normalized_answer,
-                    )
-                    owner_candidate = adapt_current_declaration_request(
-                        message=normalized_answer,
-                        current_requests=current_actions,
-                    )
-                    if owner_candidate.get("status") != "ANSWER_READY":
-                        adapted = {
-                            "status": "ANSWER_REJECTED",
-                            "reason_code": "declaration_chat_model_candidate_invalid",
-                        }
-                        dialogue["answer_feedback"] = (
-                            "Ответ пока не принят: формулировка не совпала с "
-                            "допустимым ответом на текущий вопрос."
-                        )
-                    elif not model_candidate_grounded:
-                        adapted = {
-                            "status": "ANSWER_REJECTED",
-                            "reason_code": "declaration_chat_model_candidate_ungrounded",
-                        }
-                        dialogue["answer_feedback"] = (
-                            "Не буду выбирать за вас. Уточните ответ на текущий "
-                            "вопрос своими словами."
-                        )
-                    else:
-                        # A model interpretation is never a Human Fact. Ask the
-                        # user to repeat the owner-accepted wording in a separate
-                        # message; only that direct reply may be published.
-                        adapted = {
-                            "status": "ANSWER_CONFIRMATION_REQUIRED",
-                            "reason_code": (
-                                "declaration_chat_model_candidate_confirmation_required"
-                            ),
-                        }
-                        dialogue["answer_feedback"] = (
-                            f"Я понял ваш ответ как «{normalized_answer}». "
-                            "Чтобы сохранить его, отправьте эту формулировку "
-                            "отдельным сообщением без изменений."
-                        )
-                else:
-                    adapted = {
-                        "status": "ANSWER_REJECTED",
-                        "reason_code": "declaration_chat_answer_ambiguous",
-                    }
-                    dialogue["answer_feedback"] = interpretation["clarification"]
-            except Exception:
-                adapted = adapt_current_declaration_request(
-                    message=message,
+        else:
+            normalized_answer = public_answer_deterministic_candidate(
+                question_context=question,
+                user_message=message,
+            )
+            owner_candidate = (
+                adapt_current_declaration_request(
+                    message=normalized_answer,
                     current_requests=current_actions,
                 )
-                dialogue["presentation_fallback_used"] = True
-        else:
-            adapted = adapt_current_declaration_request(
-                message=message,
-                current_requests=current_actions,
+                if normalized_answer is not None
+                else {"status": "ANSWER_REJECTED"}
             )
-            dialogue["presentation_fallback_used"] = True
+            grounded = bool(
+                normalized_answer is not None
+                and public_answer_candidate_is_grounded(
+                    question_context=question,
+                    user_message=message,
+                    normalized_answer=normalized_answer,
+                )
+            )
+            if owner_candidate.get("status") == "ANSWER_READY" and grounded:
+                # A representation candidate is never a Human Fact. The user
+                # must repeat the owner-accepted wording in a separate message;
+                # only that direct reply may be published.
+                adapted = {
+                    "status": "ANSWER_CONFIRMATION_REQUIRED",
+                    "reason_code": (
+                        "declaration_chat_deterministic_candidate_confirmation_required"
+                    ),
+                }
+                dialogue["deterministic_candidate_used"] = True
+                dialogue["answer_feedback"] = (
+                    f"Я понял ваш ответ как «{normalized_answer}». "
+                    "Чтобы сохранить его, отправьте эту формулировку "
+                    "отдельным сообщением без изменений."
+                )
+            else:
+                adapted = {
+                    "status": "ANSWER_REJECTED",
+                    "reason_code": "declaration_chat_answer_requires_explicit_value",
+                }
+                dialogue["presentation_fallback_used"] = True
+                dialogue["answer_feedback"] = (
+                    "Ответ пока не принят. Укажите один точный вариант для "
+                    "текущего вопроса своими словами."
+                )
         if adapted.get("status") == "ANSWER_REJECTED" and not dialogue.get(
             "answer_feedback"
         ):
