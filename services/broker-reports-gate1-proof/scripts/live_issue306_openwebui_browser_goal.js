@@ -203,8 +203,10 @@ async function waitForTurn(page, timeout = 240000) {
       const last = items.at(-1);
       if (!last) return false;
       const text = (last.innerText || '').trim();
-      const advanced = items.length > previousCount || text !== previousText.trim();
-      return advanced && /Откуда взялись сведения|Что можно сделать дальше|Файл 3-НДФЛ подготовлен|XML не создан|XML не создавался|Неподаваемый черновик|Подготовка приостановлена|Подготовку нельзя|Расчёт сохранён|Не удалось/.test(text);
+      // OpenWebUI inserts the user message and then a distinct assistant
+      // list item.  Wait for that non-empty assistant item; presentation is
+      // intentionally free to omit decorative headings.
+      return items.length >= previousCount + 2 && text.length > 0;
     },
     { previousCount: boundary.count, previousText: boundary.text },
     { timeout },
