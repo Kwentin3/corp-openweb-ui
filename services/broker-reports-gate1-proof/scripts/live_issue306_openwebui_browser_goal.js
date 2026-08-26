@@ -204,10 +204,9 @@ async function waitForTurn(page, timeout = 240000) {
       if (!last) return false;
       const text = (last.innerText || '').trim();
       // OpenWebUI may append an assistant item or reuse its progress item.
-      // Either way, wait for non-empty assistant text that advanced this turn;
-      // presentation may omit decorative headings.
+      // Wait for owner-required question/outcome text, not decorative headings.
       const advanced = items.length > previousCount || text !== previousText.trim();
-      return advanced && text.length > 0;
+      return advanced && /налоговый период|нет точного профиля декларации|периоды присутствия и отсутствия в России|ваш статус за 2025 год|нет других доходов той же категории|ИНН и ФИО|вид декларации за 2025 год|дату подписания декларации|код налоговой инспекции|кто подписывает декларацию|итог декларации для бюджета|код ОКТМО|Файл 3-НДФЛ подготовлен|XML не создан|XML не создавался|Неподаваемый черновик|Подготовка приостановлена|Подготовку нельзя|Расчёт сохранён|Не удалось/i.test(text);
     },
     { previousCount: boundary.count, previousText: boundary.text },
     { timeout },
