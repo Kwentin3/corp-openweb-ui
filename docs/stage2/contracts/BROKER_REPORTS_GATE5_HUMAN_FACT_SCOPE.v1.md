@@ -145,7 +145,8 @@ evidence quote. The model does not supply the contract version: the runtime
 owns and adds it after strict shape validation. It cannot choose a request identity,
 publish a fact or bypass the current owner's answer validation. The visible
 confirmation is composed by the runtime from the validated short model message,
-the exact normalized public value and the deterministic owner-context renderer;
+the exact normalized public value, runtime-owned confirmation or clarification
+wording and the deterministic owner-context renderer;
 therefore the model is neither a second owner renderer nor responsible for
 copying owner statements. The composed message must retain every owner-produced
 public statement and the exact current question. Internal vocabulary, positive filing claims when filing is not

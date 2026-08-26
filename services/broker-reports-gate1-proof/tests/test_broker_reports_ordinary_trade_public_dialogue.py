@@ -215,6 +215,38 @@ def test_genuine_short_candidate_with_confirm_imperative_is_accepted() -> None:
     assert "Предлагаемое значение: Первичная декларация." in interpreted["message"]
 
 
+def test_runtime_owns_confirmation_wording_for_plain_model_understanding() -> None:
+    context = build_public_dialogue_context(product=_product())
+    interpreted = validate_public_dialogue_interpretation(
+        {
+            "disposition": "CANDIDATE",
+            "message": "Вы хотите подать первичную декларацию. Это верно?",
+            "normalized_answer": "Первичная декларация",
+            "evidence_quote": "первый раз",
+        },
+        context=context,
+        user_message="Подаю декларацию первый раз",
+    )
+
+    assert "Подтвердите эту интерпретацию." in interpreted["message"]
+
+
+def test_runtime_owns_clarification_marker_for_plain_model_question() -> None:
+    context = build_public_dialogue_context(product=_product())
+    interpreted = validate_public_dialogue_interpretation(
+        {
+            "disposition": "CLARIFY",
+            "message": "Вы имеете в виду первичную или корректирующую декларацию?",
+            "normalized_answer": "",
+            "evidence_quote": "",
+        },
+        context=context,
+        user_message="Кажется, первый, хотя не уверен",
+    )
+
+    assert "Уточните ответ на текущий вопрос." in interpreted["message"]
+
+
 def test_model_cannot_choose_or_echo_interpretation_schema_version() -> None:
     context = build_public_dialogue_context(product=_product())
 

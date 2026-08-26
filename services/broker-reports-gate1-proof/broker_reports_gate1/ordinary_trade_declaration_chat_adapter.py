@@ -819,7 +819,7 @@ def public_dialogue_interpretation_messages(
         "текущего вопроса, а evidence_quote — точной короткой цитатой из ответа "
         "пользователя. CANDIDATE — лишь предложение, не сохранённый факт. В message "
         "дай только короткую понятную человеку интерпретацию или просьбу уточнить "
-        "ответ. Для CANDIDATE явно попроси подтверждение. Точный owner-контекст runtime "
+        "ответ. Точный owner-контекст и просьбу подтвердить runtime "
         "добавит сам: не повторяй summary, provenance, current_question, help или "
         "next_actions. Не упоминай внутреннюю "
         "архитектуру, коды, ссылки сущностей или форматы внутренних контрактов. "
@@ -921,8 +921,6 @@ def validate_public_dialogue_interpretation(
     if disposition == "CLARIFY":
         if normalized_answer or evidence_quote:
             raise ValueError("public_dialogue_clarification_candidate_forbidden")
-        if "уточн" not in interpretation_message.casefold():
-            raise ValueError("public_dialogue_clarification_request_missing")
     else:
         if not normalized_answer or not evidence_quote:
             raise ValueError("public_dialogue_candidate_incomplete")
@@ -938,11 +936,12 @@ def validate_public_dialogue_interpretation(
             and normalized_answer not in options
         ):
             raise ValueError("public_dialogue_candidate_not_on_public_surface")
-        if re.search(r"подтверд|подтверж", interpretation_message.casefold()) is None:
-            raise ValueError("public_dialogue_candidate_confirmation_missing")
     visible_parts = [interpretation_message]
     if disposition == "CANDIDATE":
         visible_parts.append(f"Предлагаемое значение: {normalized_answer}.")
+        visible_parts.append("Подтвердите эту интерпретацию.")
+    else:
+        visible_parts.append("Уточните ответ на текущий вопрос.")
     visible_parts.append(render_public_dialogue_fallback(context))
     visible_message = validate_public_dialogue_message(
         {
