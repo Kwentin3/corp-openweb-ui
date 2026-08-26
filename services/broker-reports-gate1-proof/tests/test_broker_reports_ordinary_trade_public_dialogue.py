@@ -71,10 +71,13 @@ def _residency_request() -> dict:
     }
 
 
-def test_residency_owner_accepts_explicit_no_absence_without_model_authority() -> None:
+@pytest.mark.parametrize("separator", ["..", "—", "–"])
+def test_residency_owner_accepts_explicit_no_absence_without_model_authority(
+    separator: str,
+) -> None:
     result = adapt_current_declaration_request(
         message=(
-            "Присутствие: 2025-01-01..2025-12-31; "
+            f"Присутствие: 2025-01-01{separator}2025-12-31; "
             "отсутствие: нет; причины: нет"
         ),
         current_requests=[_residency_request()],
@@ -91,6 +94,7 @@ def test_residency_owner_accepts_explicit_no_absence_without_model_authority() -
 @pytest.mark.parametrize(
     "message",
     [
+        "Присутствие: 2025-01-01-2025-12-31; отсутствие: нет; причины: нет",
         "Присутствие: 2025-01-01..2025-12-31; отсутствие: не знаю; причины: нет",
         "Присутствие: 2025-01-01..2025-12-31; отсутствие: нет; причины: не помню",
     ],
