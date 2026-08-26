@@ -173,3 +173,43 @@ The proof window was restored: control receipt
 `2c9f6eccee878398f6ca7f665ac3cd29be4daca07898696ed7a7ed039270dae3`
 has `state_restored=true`, all eight temporary users were removed, and the
 bootstrap layer was restored.
+
+## Natural-language answer interpretation follow-up
+
+The next independent review started from exact head
+`579681bf6d4cf39949f8806b583e588d3b7cc664`. It correctly found that the
+previous safety correction had also removed the product's ability to
+understand ordinary free-form answers. The code head before this report update
+is `71ca56eb35edc64e8c4477e0000772490dc2f07d`.
+
+The corrected boundary keeps one owner per meaning:
+
+- one bounded presentation-model call receives only the safe current public
+  context and the current user reply;
+- its strict result is `CLARIFY | CANDIDATE`, visible wording, one normalized
+  public answer and one verbatim evidence quote;
+- the Pipe rejects hidden owner codes, unknown public options, direct
+  negation, non-verbatim evidence and owner-invalid candidates;
+- a valid candidate is still not a Human Fact and is shown through native
+  OpenWebUI confirmation;
+- only after explicit confirmation does the existing
+  `Gate5HumanGapClosureRuntime` validate and publish against the server-held
+  current request publication;
+- refusal, ambiguity, model failure or missing confirmation leaves the current
+  request unchanged and creates no fact;
+- the interpretation call also owns the visible message for that turn, so the
+  Pipe cannot make a second presentation call after confirmation.
+
+No pending-answer registry, second Human Fact owner, source/tax authority,
+workflow engine or alternate persistence path was added. The architecture
+snapshot is `broker_reports_architecture_policy_v14`.
+
+Local verification before the evidence commit:
+
+- active ordinary-trade production guard: `328 passed`, five existing SWIG
+  warnings;
+- focused dialogue/Pipe/architecture/bundle/release guard: `133 passed`, the
+  same five warnings;
+- separate architecture/bundle/release guard: `77 passed`, the same warnings;
+- Ruff, JavaScript syntax, generated-bundle parity and `git diff --check`:
+  passed.
