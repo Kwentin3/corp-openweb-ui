@@ -285,7 +285,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v13",
+            "broker_reports_architecture_policy_v14",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -302,7 +302,9 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "declaration_semantics": "target_independent_declaration_meaning",
                 "release": "evidence_completeness_and_release_decision",
                 "projection": "representation_only",
-                "presentation_adapter": "public_dialogue_wording_only",
+                "presentation_adapter": (
+                    "public_dialogue_wording_and_non_authoritative_answer_proposal"
+                ),
             },
         )
         self.assertEqual(
@@ -399,8 +401,11 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             classification,
             (
                 "PRESENTATION_ADAPTER",
-                "plain_language_dialogue_wording",
-                "ordinary_trade_public_dialogue_message_v1",
+                "plain_language_dialogue_wording_and_answer_proposal",
+                (
+                    "ordinary_trade_public_dialogue_message_v1"
+                    "|broker_reports_ordinary_trade_public_interpretation_v1"
+                ),
             ),
         )
         self.assertIn(classification[0], architecture_policy.LLM_BOUNDARY_CLASSES)

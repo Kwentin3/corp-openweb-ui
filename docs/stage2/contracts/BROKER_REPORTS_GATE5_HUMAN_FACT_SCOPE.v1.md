@@ -96,16 +96,19 @@ change on the current owner publication. `DEFER` creates no fact.
 For the Issue #304/#310 product route, the bundled Pipe obtains that publication
 from the Human owner and keeps its `request_publication_ref` on the server. The
 representation-only adapter strips the request down to one public question,
-safe answer help, human labels and a masked candidate. It may recognize only
-one literal four-digit year or one exact visible option label already emitted
-by the current owner. It cannot supply or select a publication ref, fact key,
-taxpayer scope or hidden action. Negation, delegated choice and multiple
-candidates fail closed. The candidate is replayed against the current owner
-answer shape but creates no fact. The user must repeat the proposed
-owner-accepted wording in a separate message; only that direct authenticated
-reply is rebound to the already selected current publication and may pass
-Human owner normalization. The native OpenWebUI `__event_call__` remains an
-optional exact-input fallback; it is not the primary conversation.
+safe answer help, human labels and a masked candidate. For an exact public
+owner form it delegates directly to the current owner. For a free-form answer
+it makes one bounded conversation-model call over only that public context and
+the current reply. The strict result is `CLARIFY | CANDIDATE`, visible wording,
+one proposed public answer and an exact evidence quote. It cannot supply or
+select a publication ref, fact key, taxpayer scope or hidden action. The Pipe
+replays a candidate against the current owner answer shape and vetoes direct
+negation, but this still creates no fact. The user must explicitly confirm the
+displayed interpretation through native OpenWebUI `__event_call__`, or provide
+the exact owner form on a later bound turn. Only then may the already selected
+current publication pass Human owner normalization. Refusal, ambiguity,
+invalid model output, owner mismatch or missing confirmation leaves the
+request current and creates no fact.
 
 ## Public dialogue context and presentation model
 
@@ -119,9 +122,9 @@ current request, outcome and filing eligibility
 -> validated visible wording or deterministic human fallback
 
 natural user reply + current public question
--> deterministic literal year/exact visible-option recognition
--> current owner answer validation -> visible confirmation proposal, no fact
--> separate direct authenticated user reply
+-> one bounded presentation-model call -> CLARIFY or public CANDIDATE
+-> current owner answer validation -> explicit confirmation, still no fact
+-> native confirmation or later exact owner-form reply
 -> exact current request_publication_ref kept by Pipe
 -> Gate5HumanGapClosureRuntime normalization and publication
 ```
@@ -133,13 +136,19 @@ fact keys, owner names, reason codes, internal statuses, source rows or
 methodology identifiers. Final private download URLs are appended by the Pipe
 after validation and are never model-produced.
 
-The presentation model returns only strict structured dialogue wording. It is
-not called while adapting an answer and cannot choose an answer or request
-identity. The visible message must retain every owner-produced public statement
-and the exact current question. Internal vocabulary, positive filing claims
-when filing is not eligible, private file URLs and unknown fields fail closed
-to the same deterministic public context. Model failure creates no new meaning
-and no Human Fact; a presentation call that exceeds its bounded runtime window
+The presentation model returns either strict structured dialogue wording for
+an initial/status turn or one strict
+`broker_reports_ordinary_trade_public_interpretation_v1` answer proposal. A
+proposal contains `CLARIFY | CANDIDATE`, visible message, normalized public
+answer and verbatim evidence quote. It cannot choose a request identity,
+publish a fact or bypass the current owner's answer validation. The visible
+message must retain every owner-produced public statement and the exact current
+question. Internal vocabulary, positive filing claims when filing is not
+eligible, private file URLs, unknown fields, non-verbatim evidence and
+unconfirmed candidates fail closed. One conversation turn cannot make a
+second presentation call: after interpretation, any post-confirmation state is
+rendered from the new owner context deterministically. Model failure creates no
+new meaning and no Human Fact; a call that exceeds its bounded runtime window
 is treated as unavailable instead of holding the current request open.
 
 The native completion target is an administrator-pinned HTTPS OpenWebUI origin,
@@ -148,10 +157,10 @@ denied and the response body is byte-bounded before JSON parsing. The incoming
 user bearer token cannot be forwarded to a caller-selected or redirected
 origin.
 
-Metrics are separate: `presentation_llm_calls_total` counts only conversation
-rendering; answer adaptation has zero model calls. `domain_provider_calls_total`
-remains zero for the
-deterministic ordinary-trade calculation, tax, release and XML path.
+Metrics are separate: `presentation_llm_calls_total` counts the single bounded
+conversation call used for either rendering or free-answer interpretation;
+`domain_provider_calls_total` remains zero for the deterministic ordinary-trade
+calculation, tax, release and XML path.
 
 The former `gate5_case_taxpayer_scope_ref` case hash is removed. Hashing a case
 ID only obfuscated the case and silently invented a one-taxpayer invariant.

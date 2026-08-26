@@ -106,13 +106,15 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     declaration_change_intent,
     declaration_request_help,
     declaration_request_question,
-    public_answer_candidate_is_grounded,
-    public_answer_deterministic_candidate,
+    public_answer_candidate_conflicts_with_explicit_negation,
     public_answer_requires_clarification,
     public_dialogue_context_sha256,
+    public_dialogue_interpretation_messages,
+    public_dialogue_interpretation_response_format,
     public_dialogue_message_response_format,
     public_dialogue_render_messages,
     render_public_dialogue_fallback,
+    validate_public_dialogue_interpretation,
     validate_public_dialogue_message,
 )
 from broker_reports_gate1.private_intake_bytes import (
@@ -1105,19 +1107,24 @@ class Pipe:
         *,
         message: str,
         current_actions: list[dict[str, Any]],
+        product: dict[str, Any],
+        declaration: Any,
         user: Any,
         request: Any,
         event_call: Any,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Recognize visible wording; bind only through the current owner."""
+        """Propose one public interpretation; bind only through the owner."""
 
         baseline = self._presentation_llm_calls_total
         question = build_public_question_context(current_actions[0])
         dialogue = {
             "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
             "answer_feedback": None,
-            "deterministic_candidate_used": False,
             "interpretation_model_used": False,
+            "interpretation_disposition": None,
+            "candidate_proposed": False,
+            "explicit_confirmation_received": False,
+            "presentation_call_already_used": False,
             "presentation_fallback_used": False,
         }
         direct = adapt_current_declaration_request(
@@ -1143,73 +1150,120 @@ class Pipe:
         elif direct.get("status") == "ANSWER_READY":
             adapted = direct
         else:
-            normalized_answer = public_answer_deterministic_candidate(
-                question_context=question,
-                user_message=message,
-            )
-            owner_candidate = (
-                adapt_current_declaration_request(
-                    message=normalized_answer,
-                    current_requests=current_actions,
-                )
-                if normalized_answer is not None
-                else {"status": "ANSWER_REJECTED"}
-            )
-            grounded = bool(
-                normalized_answer is not None
-                and public_answer_candidate_is_grounded(
-                    question_context=question,
-                    user_message=message,
-                    normalized_answer=normalized_answer,
-                )
-            )
-            if owner_candidate.get("status") == "ANSWER_READY" and grounded:
-                # A representation candidate is never a Human Fact. The user
-                # must repeat the owner-accepted wording in a separate message;
-                # only that direct reply may be published.
-                adapted = {
-                    "status": "ANSWER_CONFIRMATION_REQUIRED",
-                    "reason_code": (
-                        "declaration_chat_deterministic_candidate_confirmation_required"
-                    ),
-                }
-                dialogue["deterministic_candidate_used"] = True
-                dialogue["answer_feedback"] = (
-                    f"Я понял ваш ответ как «{normalized_answer}». "
-                    "Чтобы сохранить его, отправьте эту формулировку "
-                    "отдельным сообщением без изменений."
-                )
-            else:
+            interpretation: dict[str, str] | None = None
+            if self.valves.ndfl_presentation_llm_enabled:
+                try:
+                    context = build_public_dialogue_context(
+                        product=product,
+                        declaration=declaration,
+                    )
+                    system_content, user_content = (
+                        public_dialogue_interpretation_messages(
+                            context=context,
+                            user_message=message,
+                        )
+                    )
+                    raw = await self._call_openwebui_presentation_completion(
+                        system_content=system_content,
+                        user_content=user_content,
+                        response_format=(
+                            public_dialogue_interpretation_response_format()
+                        ),
+                        user=user,
+                        request=request,
+                        task="ordinary_trade_public_answer_interpretation",
+                    )
+                    interpretation = validate_public_dialogue_interpretation(
+                        raw,
+                        context=context,
+                        user_message=message,
+                    )
+                    dialogue["interpretation_model_used"] = True
+                    dialogue["interpretation_disposition"] = interpretation[
+                        "disposition"
+                    ]
+                    dialogue["presentation_call_already_used"] = True
+                    dialogue["pre_rendered_context_sha256"] = (
+                        public_dialogue_context_sha256(context)
+                    )
+                    dialogue["pre_rendered_message"] = interpretation["message"]
+                except Exception:
+                    dialogue["presentation_call_already_used"] = True
+                    dialogue["presentation_fallback_used"] = True
+            if interpretation is None:
                 adapted = {
                     "status": "ANSWER_REJECTED",
                     "reason_code": "declaration_chat_answer_requires_explicit_value",
                 }
-                dialogue["presentation_fallback_used"] = True
                 dialogue["answer_feedback"] = (
                     "Ответ пока не принят. Укажите один точный вариант для "
                     "текущего вопроса своими словами."
                 )
+            elif interpretation["disposition"] == "CLARIFY":
+                adapted = {
+                    "status": "ANSWER_REJECTED",
+                    "reason_code": "declaration_chat_answer_requires_clarification",
+                }
+            else:
+                normalized_answer = interpretation["normalized_answer"]
+                owner_candidate = adapt_current_declaration_request(
+                    message=normalized_answer,
+                    current_requests=current_actions,
+                )
+                conflicts = public_answer_candidate_conflicts_with_explicit_negation(
+                    user_message=message,
+                    normalized_answer=normalized_answer,
+                )
+                if owner_candidate.get("status") != "ANSWER_READY" or conflicts:
+                    adapted = {
+                        "status": "ANSWER_REJECTED",
+                        "reason_code": (
+                            "declaration_chat_interpretation_conflicts_with_user"
+                            if conflicts
+                            else "declaration_chat_interpretation_not_owner_accepted"
+                        ),
+                    }
+                    dialogue.pop("pre_rendered_message", None)
+                    dialogue["answer_feedback"] = (
+                        "Ответ пока не принят. Уточните один вариант без отрицания "
+                        "или двусмысленности."
+                    )
+                else:
+                    dialogue["candidate_proposed"] = True
+                    confirmed = await self._declaration_candidate_confirmation(
+                        event_call=event_call,
+                        normalized_answer=normalized_answer,
+                        visible_message=interpretation["message"],
+                    )
+                    if confirmed is True:
+                        adapted = owner_candidate
+                        dialogue["explicit_confirmation_received"] = True
+                        dialogue.pop("pre_rendered_message", None)
+                    elif confirmed is False:
+                        adapted = {
+                            "status": "ANSWER_REJECTED",
+                            "reason_code": (
+                                "declaration_chat_interpretation_not_confirmed"
+                            ),
+                        }
+                        dialogue.pop("pre_rendered_message", None)
+                        dialogue["answer_feedback"] = (
+                            "Интерпретация не подтверждена и не сохранена. "
+                            "Ответьте на текущий вопрос ещё раз своими словами."
+                        )
+                    else:
+                        adapted = {
+                            "status": "ANSWER_CONFIRMATION_REQUIRED",
+                            "reason_code": (
+                                "declaration_chat_interpretation_confirmation_required"
+                            ),
+                        }
         if adapted.get("status") == "ANSWER_REJECTED" and not dialogue.get(
             "answer_feedback"
-        ):
+        ) and not dialogue.get("pre_rendered_message"):
             dialogue["answer_feedback"] = (
                 "Ответ пока не принят. Уточните его для текущего вопроса."
             )
-        if (
-            adapted.get("status") != "ANSWER_READY"
-            and dialogue.get("presentation_fallback_used") is True
-            and callable(event_call)
-        ):
-            interactive_answer = await self._declaration_event_answer(
-                event_call=event_call,
-                current_actions=current_actions,
-            )
-            adapted = adapt_current_declaration_request(
-                message=interactive_answer,
-                current_requests=current_actions,
-            )
-            if adapted.get("status") == "ANSWER_READY":
-                dialogue["answer_feedback"] = None
         dialogue["presentation_llm_calls_total"] = (
             self._presentation_llm_calls_total - baseline
         )
@@ -1236,7 +1290,18 @@ class Pipe:
         fallback_used = bool(existing.get("presentation_fallback_used"))
         model_used = False
         content = ""
-        if self.valves.ndfl_presentation_llm_enabled:
+        context_sha256 = public_dialogue_context_sha256(context)
+        call_already_used = bool(existing.get("presentation_call_already_used"))
+        if (
+            call_already_used
+            and existing.get("pre_rendered_context_sha256") == context_sha256
+            and isinstance(existing.get("pre_rendered_message"), str)
+        ):
+            content = existing["pre_rendered_message"]
+            model_used = bool(existing.get("interpretation_model_used"))
+        elif call_already_used:
+            fallback_used = True
+        elif self.valves.ndfl_presentation_llm_enabled:
             try:
                 system_content, user_content = public_dialogue_render_messages(context)
                 raw = await self._call_openwebui_presentation_completion(
@@ -1267,8 +1332,10 @@ class Pipe:
             **existing,
             "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
             "context": context,
-            "context_sha256": public_dialogue_context_sha256(context),
-            "presentation_model_used": model_used,
+            "context_sha256": context_sha256,
+            "presentation_model_used": bool(
+                model_used or existing.get("interpretation_model_used")
+            ),
             "presentation_fallback_used": fallback_used,
             "presentation_llm_calls_total": self._presentation_llm_calls_total,
             "domain_provider_calls_total": int(result.get("provider_calls_total") or 0),
@@ -1554,6 +1621,16 @@ class Pipe:
                     trusted_interaction_message.casefold()
                     == "показать точный ввод"
                 ):
+                    dialogue = {
+                        "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
+                        "answer_feedback": None,
+                        "interpretation_model_used": False,
+                        "interpretation_disposition": None,
+                        "candidate_proposed": False,
+                        "explicit_confirmation_received": False,
+                        "presentation_call_already_used": False,
+                        "presentation_fallback_used": False,
+                    }
                     interactive_answer = await self._declaration_event_answer(
                         event_call=event_call,
                         current_actions=current_actions,
@@ -1566,6 +1643,8 @@ class Pipe:
                     adapted, dialogue = await self._adapt_ndfl_public_answer(
                         message=trusted_interaction_message,
                         current_actions=current_actions,
+                        product=result["product"],
+                        declaration=result.get("declaration"),
                         user=user,
                         request=request,
                         event_call=event_call,
@@ -2054,6 +2133,46 @@ class Pipe:
         if event_type == "confirmation" and isinstance(value, bool):
             return "Да" if value else "Нет"
         return value if isinstance(value, str) else ""
+
+    @staticmethod
+    async def _declaration_candidate_confirmation(
+        *, event_call: Any, normalized_answer: str, visible_message: str
+    ) -> bool | None:
+        """Confirm a presentation-only candidate without publishing it."""
+
+        if not callable(event_call):
+            return None
+        candidate = str(normalized_answer or "").strip()
+        message = str(visible_message or "").strip()
+        if (
+            not candidate
+            or len(candidate) > 2048
+            or not message
+            or len(message) > 6000
+            or candidate.casefold() not in message.casefold()
+        ):
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_interaction_request_invalid"
+            )
+        try:
+            value = await event_call(
+                {
+                    "type": "confirmation",
+                    "data": {
+                        "title": "Подтвердите понимание ответа",
+                        "message": message,
+                    },
+                }
+            )
+        except Exception as exc:
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_interaction_boundary_failed"
+            ) from exc
+        if isinstance(value, dict) and value.get("error"):
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_interaction_boundary_failed"
+            )
+        return value if isinstance(value, bool) else None
 
     def _write_ndfl_private_audit(self, executions: list[Any]) -> dict[str, Any]:
         if not self.valves.ndfl_gate3_private_audit_enabled:

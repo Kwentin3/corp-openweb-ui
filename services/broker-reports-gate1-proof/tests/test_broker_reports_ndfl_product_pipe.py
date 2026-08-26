@@ -24,6 +24,7 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
     NdflWorkflowError,
 )
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
+    ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION,
     adapt_current_declaration_request,
     build_public_dialogue_context,
     declaration_change_intent,
@@ -213,10 +214,10 @@ def test_maintained_stage_binds_event_response_to_current_owner_actions(
             return answer
 
         result = asyncio.run(
-            pipe._maybe_run_ndfl_gate3(
-                **kwargs,
-                trusted_interaction_message="Продолжить",
-                event_call=event_call,
+                pipe._maybe_run_ndfl_gate3(
+                    **kwargs,
+                    trusted_interaction_message="показать точный ввод",
+                    event_call=event_call,
             )
         )
         assert result["declaration_chat_receipt"]["status"] == "ANSWER_ACCEPTED"
@@ -237,7 +238,7 @@ def test_maintained_stage_binds_event_response_to_current_owner_actions(
     assert "не отправлялся в ФНС автоматически" in chat
 
 
-def test_deterministic_proposal_creates_no_fact_until_direct_confirmation(
+def test_llm_proposal_creates_no_fact_until_native_confirmation_and_owner_publish(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -267,12 +268,46 @@ def test_deterministic_proposal_creates_no_fact_until_direct_confirmation(
         "request_publication_ref"
     ]
 
+    model_calls: list[str] = []
+
+    def completion(**call):
+        form_data = call["form_data"]
+        turn = json.loads(form_data["messages"][1]["content"])
+        user_message = turn["current_user_message"]
+        context_for_turn = turn["context"]
+        model_calls.append(user_message)
+        clarify = user_message == "Не 2025 год"
+        visible = render_public_dialogue_fallback(context_for_turn)
+        visible += (
+            "\n\nУточните, пожалуйста, какой год вы подтверждаете."
+            if clarify
+            else "\n\nЯ понял ваш ответ как «2025». Подтверждаете эту интерпретацию?"
+        )
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "schema_version": (
+                                    ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION
+                                ),
+                                "disposition": "CLARIFY" if clarify else "CANDIDATE",
+                                "message": visible,
+                                "normalized_answer": "" if clarify else "2025",
+                                "evidence_quote": "" if clarify else "Беру 2025 год",
+                            },
+                            ensure_ascii=False,
+                        )
+                    }
+                }
+            ]
+        }
+
     monkeypatch.setattr(
         pipe,
         "_openwebui_completion_dependencies",
-        lambda _user_id: (_ for _ in ()).throw(
-            AssertionError("answer adaptation must not call the model")
-        ),
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
     )
     negated = asyncio.run(
         pipe._maybe_run_ndfl_gate3(
@@ -283,7 +318,7 @@ def test_deterministic_proposal_creates_no_fact_until_direct_confirmation(
     assert negated["declaration_chat_receipt"] == {
         "status": "ANSWER_REJECTED",
         "answer_accepted": False,
-        "reason_code": "declaration_chat_answer_requires_explicit_value",
+        "reason_code": "declaration_chat_answer_requires_clarification",
     }
     assert negated["product"]["preparation"]["user_actions"][0][
         "request_publication_ref"
@@ -301,17 +336,24 @@ def test_deterministic_proposal_creates_no_fact_until_direct_confirmation(
         "answer_accepted": False,
         "fact_created": False,
         "reason_code": (
-            "declaration_chat_deterministic_candidate_confirmation_required"
+            "declaration_chat_interpretation_confirmation_required"
         ),
     }
     assert proposed["product"]["preparation"]["user_actions"][0][
         "request_publication_ref"
     ] == current_ref
 
+    confirmations: list[dict] = []
+
+    async def confirm(payload):
+        confirmations.append(payload)
+        return True
+
     confirmed = asyncio.run(
         pipe._maybe_run_ndfl_gate3(
             **kwargs,
-            trusted_interaction_message="2025",
+            trusted_interaction_message="Беру 2025 год",
+            event_call=confirm,
         )
     )
     assert confirmed["declaration_chat_receipt"] == {
@@ -322,6 +364,19 @@ def test_deterministic_proposal_creates_no_fact_until_direct_confirmation(
     assert confirmed["product"]["preparation"]["user_actions"][0][
         "request_publication_ref"
     ] != current_ref
+    assert model_calls == ["Не 2025 год", "Беру 2025 год", "Беру 2025 год"]
+    assert confirmations[0]["type"] == "confirmation"
+    assert "2025" in confirmations[0]["data"]["message"]
+    rendered = asyncio.run(
+        pipe._render_ndfl_public_dialogue(
+            result=confirmed,
+            user={"id": context.user_id},
+            request=object(),
+        )
+    )
+    assert rendered
+    assert model_calls == ["Не 2025 год", "Беру 2025 год", "Беру 2025 год"]
+    assert confirmed["public_dialogue"]["presentation_llm_calls_total"] == 3
 
 
 def test_period_and_profile_mode_are_owner_bound_but_user_presented(
@@ -448,7 +503,7 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
     mismatch = asyncio.run(
         pipe._maybe_run_ndfl_gate3(
             **kwargs,
-            trusted_interaction_message="Продолжить",
+            trusted_interaction_message="показать точный ввод",
             event_call=select_period,
         )
     )
@@ -461,7 +516,7 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
     surrogate = asyncio.run(
         pipe._maybe_run_ndfl_gate3(
             **kwargs,
-            trusted_interaction_message="Продолжить",
+            trusted_interaction_message="показать точный ввод",
             event_call=select_surrogate,
         )
     )
@@ -778,10 +833,10 @@ def test_human_fact_wait_releases_source_workload_lease_first(
         return _product_chat_answer(current["fact_key"])
 
     result = asyncio.run(
-        pipe._maybe_run_ndfl_gate3(
-            **kwargs,
-            trusted_interaction_message="Continue",
-            event_call=event_call,
+            pipe._maybe_run_ndfl_gate3(
+                **kwargs,
+                trusted_interaction_message="показать точный ввод",
+                event_call=event_call,
         )
     )
 
@@ -1412,7 +1467,7 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
             fact_key = action["fact_key"]
             if fact_key == "taxpayer_identity":
                 rejected = public_turn(
-                    "Продолжить",
+                    "показать точный ввод",
                     event_response="Изменить: 123456789012; Иванов; Иван; Иванович",
                 )
                 first = pipe.last_artifact_manifest["ndfl_gate3"]
@@ -1422,7 +1477,9 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
                     "Изменить: 500100732259; Иванов; Иван; Иванович"
                 )
             elif fact_key == "declaration_date":
-                rejected = public_turn("Продолжить", event_response="2025-99-99")
+                rejected = public_turn(
+                    "показать точный ввод", event_response="2025-99-99"
+                )
                 first = pipe.last_artifact_manifest["ndfl_gate3"]
                 assert first["declaration_chat_receipt"] == {
                     "status": "ANSWER_REJECTED",
@@ -1433,7 +1490,7 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
                 last_answer = "2026-08-24"
             else:
                 last_answer = _product_chat_answer(fact_key)
-            public_turn("Продолжить", event_response=last_answer)
+            public_turn("показать точный ввод", event_response=last_answer)
             first = pipe.last_artifact_manifest["ndfl_gate3"]
             states.add(first["product"]["status"])
 
@@ -1473,12 +1530,14 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
             "declaration_date"
         ]
         assert "календарную дату" in change_content
-        rejected_change = public_turn("Продолжить", event_response="2025-99-99")
+        rejected_change = public_turn(
+            "показать точный ввод", event_response="2025-99-99"
+        )
         changing = pipe.last_artifact_manifest["ndfl_gate3"]
         assert changing["product"]["status"] == "DRAFT_READY"
         assert changing["declaration_chat_receipt"]["status"] == "ANSWER_REJECTED"
         assert "не принят" in rejected_change
-        public_turn("Продолжить", event_response="2026-08-25")
+        public_turn("показать точный ввод", event_response="2026-08-25")
         corrected = pipe.last_artifact_manifest["ndfl_gate3"]
         corrected_file_id = corrected["product"]["private_download"]["file_id"]
         assert corrected["product"]["status"] == "DECLARATION_XML_READY"

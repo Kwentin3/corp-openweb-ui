@@ -274,6 +274,14 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "answer = 'SELF'" not in source
     assert "answer = 'PAYMENT'" not in source
     assert "answer = 'individual_not_ip_not_private_practice'" not in source
+    assert "answerQuestionWithCandidateConfirmation" in source
+    assert "подаю первый раз" in source
+    assert "подписывать буду сам" in source
+    assert "я обычный человек, не ИП" in source
+    assert "answer = 'не подтверждаю'" in source
+    assert "answer = 'не 2025'" in source
+    assert "может первая, а может корректирующая" in source
+    assert "candidate_confirmation_completed" in source
     assert "visible_system_text" in source
     assert "natural_user_answer" in source
     assert "what_user_could_understand" in source

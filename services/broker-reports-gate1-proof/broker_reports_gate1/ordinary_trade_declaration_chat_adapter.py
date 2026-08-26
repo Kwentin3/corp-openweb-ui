@@ -21,11 +21,15 @@ ORDINARY_TRADE_PUBLIC_DIALOGUE_CONTEXT_SCHEMA_VERSION = (
 ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_public_dialogue_message_v1"
 )
+ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_public_interpretation_v1"
+)
 PUBLIC_DIALOGUE_MODEL_BOUNDARY = {
     "classification": "PRESENTATION_ADAPTER",
-    "uncertainty": "plain_language_dialogue_wording",
+    "uncertainty": "plain_language_dialogue_wording_and_answer_proposal",
     "strict_contracts": [
         ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+        ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION,
     ],
     "business_authority": False,
 }
@@ -86,21 +90,6 @@ _DELEGATED_CHOICE = re.compile(
     r"\b(?:выбер(?:и|ите)|реш(?:и|ите)|определ(?:и|ите))\b.{0,80}\bза меня\b",
     re.IGNORECASE,
 )
-_NEGATION = re.compile(
-    r"\b(?:не|нет|неверно|отрицаю|отказываюсь)\b",
-    re.IGNORECASE,
-)
-
-
-def _contains_public_option(message: str, option: str) -> bool:
-    return (
-        re.search(
-            rf"(?<!\w){re.escape(option.casefold())}(?!\w)",
-            message.casefold(),
-        )
-        is not None
-    )
-
 # Representation-only labels for the bounded declaration product.  Canonical
 # values still come exclusively from the current owner's answer_contract; this
 # table can only translate a visible label to a value already allowed there.
@@ -805,84 +794,52 @@ def public_dialogue_render_messages(
     return system, user
 
 
+def public_dialogue_interpretation_messages(
+    *, context: dict[str, Any], user_message: str
+) -> tuple[str, str]:
+    """Build one public, bounded conversation turn for a free-form answer.
+
+    The model sees no request identity, fact key, owner code or case artifact.
+    It may only ask for clarification or propose one public answer for explicit
+    user confirmation. The current owner remains the only validator/publisher.
+    """
+
+    _validate_public_value(context)
+    message = _text(user_message)
+    if not message:
+        raise ValueError("public_dialogue_user_message_required")
+    system = (
+        "Ты ведёшь диалог о подготовке 3-НДФЛ. Используй только переданный "
+        "public dialogue context и текущий ответ пользователя. Не рассчитывай "
+        "налог, не определяй полноту источника и не делай налоговых выводов. "
+        "Верни CLARIFY, если ответ неоднозначен, отрицает или не подтверждает "
+        "предлагаемое значение, либо не относится к текущему вопросу. Верни "
+        "CANDIDATE только для одного однозначного ответа: normalized_answer "
+        "должен быть формой, которую допускают options или accepted_answer_examples "
+        "текущего вопроса, а evidence_quote — точной короткой цитатой из ответа "
+        "пользователя. CANDIDATE — лишь предложение, не сохранённый факт. В message "
+        "простым русским языком покажи понимание и попроси явное подтверждение. "
+        "Каждый элемент summary, каждый label/text из provenance, current_question, "
+        "его help и каждый next_actions вставь дословно. Не упоминай внутреннюю "
+        "архитектуру, коды, ссылки сущностей или форматы внутренних контрактов. "
+        "Верни только JSON по заданной схеме."
+    )
+    user = json.dumps(
+        {
+            "task": "understand_current_public_answer",
+            "context": context,
+            "current_user_message": message,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return system, user
+
+
 def public_answer_requires_clarification(user_message: str) -> bool:
     """Reject an explicit request that the presentation model make the choice."""
 
     return _DELEGATED_CHOICE.search(_text(user_message)) is not None
-
-
-def public_answer_deterministic_candidate(
-    *, question_context: dict[str, Any], user_message: str
-) -> str | None:
-    """Return one explicit visible answer, never a Human Fact or identity.
-
-    The adapter recognizes only a single literal four-digit year or one exact
-    public option label already emitted by the current owner. Ambiguity,
-    negation and delegated choice fail closed. The caller must still replay the
-    candidate through the current owner and require a separate exact user reply
-    before publication.
-    """
-
-    _validate_public_value(question_context)
-    message = _text(user_message)
-    if (
-        not message
-        or public_answer_requires_clarification(message)
-        or _NEGATION.search(message) is not None
-    ):
-        return None
-
-    years = set(re.findall(r"(?<![0-9])[0-9]{4}(?![0-9])", message))
-    if len(years) > 1:
-        return None
-
-    options = question_context.get("options")
-    matching_options = {
-        str(option).strip()
-        for option in options or []
-        if isinstance(option, str)
-        and str(option).strip()
-        and _contains_public_option(message, str(option).strip())
-    }
-    candidates = set(matching_options)
-    candidates.update(years)
-    if len(candidates) != 1:
-        return None
-    return next(iter(candidates))
-
-
-def public_answer_candidate_is_grounded(
-    *,
-    question_context: dict[str, Any],
-    user_message: str,
-    normalized_answer: str,
-) -> bool:
-    """Conservatively check wording before asking for explicit confirmation.
-
-    This is defense in depth, not publication authority: even a grounded model
-    candidate must be repeated by the user as a separate direct owner answer.
-    """
-
-    _validate_public_value(question_context)
-    message = _text(user_message).casefold()
-    candidate = _text(normalized_answer).casefold()
-    if not candidate or candidate not in message:
-        return False
-    if _NEGATION.search(message) is not None:
-        return False
-    options = question_context.get("options")
-    named_options = {
-        str(option).casefold()
-        for option in options or []
-        if isinstance(option, str)
-        and _contains_public_option(message, str(option).strip())
-    }
-    if len(named_options) > 1:
-        return False
-    years = set(re.findall(r"(?<![0-9])[0-9]{4}(?![0-9])", message))
-    if re.fullmatch(r"[0-9]{4}", candidate) and len(years) > 1:
-        return False
-    return True
 
 
 def public_dialogue_message_response_format() -> dict[str, Any]:
@@ -905,6 +862,124 @@ def public_dialogue_message_response_format() -> dict[str, Any]:
             },
         },
     }
+
+
+def public_dialogue_interpretation_response_format() -> dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "ordinary_trade_public_interpretation_v1",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "schema_version",
+                    "disposition",
+                    "message",
+                    "normalized_answer",
+                    "evidence_quote",
+                ],
+                "properties": {
+                    "schema_version": {
+                        "type": "string",
+                        "const": ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION,
+                    },
+                    "disposition": {
+                        "type": "string",
+                        "enum": ["CLARIFY", "CANDIDATE"],
+                    },
+                    "message": {"type": "string", "minLength": 1, "maxLength": 6000},
+                    "normalized_answer": {"type": "string", "maxLength": 2048},
+                    "evidence_quote": {"type": "string", "maxLength": 512},
+                },
+            },
+        },
+    }
+
+
+def validate_public_dialogue_interpretation(
+    value: Any,
+    *,
+    context: dict[str, Any],
+    user_message: str,
+) -> dict[str, str]:
+    payload = _json_object(value)
+    expected = {
+        "schema_version",
+        "disposition",
+        "message",
+        "normalized_answer",
+        "evidence_quote",
+    }
+    if set(payload) != expected:
+        raise ValueError("public_dialogue_interpretation_shape_invalid")
+    if (
+        payload.get("schema_version")
+        != ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION
+    ):
+        raise ValueError("public_dialogue_interpretation_schema_invalid")
+    disposition = str(payload.get("disposition") or "")
+    if disposition not in {"CLARIFY", "CANDIDATE"}:
+        raise ValueError("public_dialogue_interpretation_disposition_invalid")
+    visible_message = validate_public_dialogue_message(
+        {
+            "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+            "message": payload.get("message"),
+        },
+        context=context,
+    )
+    normalized_answer = str(payload.get("normalized_answer") or "").strip()
+    evidence_quote = str(payload.get("evidence_quote") or "").strip()
+    if disposition == "CLARIFY":
+        if normalized_answer or evidence_quote:
+            raise ValueError("public_dialogue_clarification_candidate_forbidden")
+        if "уточн" not in visible_message.casefold():
+            raise ValueError("public_dialogue_clarification_request_missing")
+    else:
+        if not normalized_answer or not evidence_quote:
+            raise ValueError("public_dialogue_candidate_incomplete")
+        _validate_public_text(normalized_answer)
+        if evidence_quote.casefold() not in _text(user_message).casefold():
+            raise ValueError("public_dialogue_candidate_evidence_not_verbatim")
+        question = context.get("current_question")
+        question = question if isinstance(question, dict) else {}
+        options = question.get("options")
+        if (
+            isinstance(options, list)
+            and options
+            and normalized_answer not in options
+        ):
+            raise ValueError("public_dialogue_candidate_not_on_public_surface")
+        if normalized_answer.casefold() not in visible_message.casefold():
+            raise ValueError("public_dialogue_candidate_not_visible")
+        if "подтверж" not in visible_message.casefold():
+            raise ValueError("public_dialogue_candidate_confirmation_missing")
+    return {
+        "schema_version": ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION,
+        "disposition": disposition,
+        "message": visible_message,
+        "normalized_answer": normalized_answer,
+        "evidence_quote": evidence_quote,
+    }
+
+
+def public_answer_candidate_conflicts_with_explicit_negation(
+    *, user_message: str, normalized_answer: str
+) -> bool:
+    """Veto direct inversions without treating every Russian `не` as refusal."""
+
+    message = _text(user_message).casefold()
+    candidate = _text(normalized_answer).casefold()
+    if not message or not candidate:
+        return True
+    if re.search(r"\bне\s+(?:подтвержда(?:ю|ем)?|соглас(?:ен|на)|верно)\b", message):
+        return True
+    if re.fullmatch(r"[0-9]{4}", candidate) and re.search(
+        rf"\bне\s+{re.escape(candidate)}\b", message
+    ):
+        return True
+    return re.search(rf"\bне\s+{re.escape(candidate)}\b", message) is not None
 
 
 def validate_public_dialogue_message(
@@ -1297,6 +1372,7 @@ __all__ = [
     "ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION",
     "ORDINARY_TRADE_PUBLIC_DIALOGUE_CONTEXT_SCHEMA_VERSION",
     "ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION",
     "PUBLIC_DIALOGUE_MODEL_BOUNDARY",
     "adapt_current_declaration_request",
     "build_public_dialogue_context",
@@ -1305,12 +1381,14 @@ __all__ = [
     "declaration_request_help",
     "declaration_request_question",
     "declaration_surrogate_preview",
-    "public_answer_deterministic_candidate",
-    "public_answer_candidate_is_grounded",
+    "public_answer_candidate_conflicts_with_explicit_negation",
     "public_answer_requires_clarification",
     "public_dialogue_context_sha256",
     "public_dialogue_message_response_format",
+    "public_dialogue_interpretation_messages",
+    "public_dialogue_interpretation_response_format",
     "public_dialogue_render_messages",
     "render_public_dialogue_fallback",
     "validate_public_dialogue_message",
+    "validate_public_dialogue_interpretation",
 ]
