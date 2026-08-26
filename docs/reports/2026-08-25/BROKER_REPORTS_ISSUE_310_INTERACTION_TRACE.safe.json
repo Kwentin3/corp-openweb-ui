@@ -1,5 +1,5 @@
 {
-  "schema_version": "broker_reports_issue310_safe_interaction_trace_v3",
+  "schema_version": "broker_reports_issue310_safe_interaction_trace_v4",
   "issue": 310,
   "base_main": "ddd528e60f6edc0b7d3dd8b898a80f6ae855a166",
   "review_follow_up_start_head": "b08e74cf8ff8cf8001b1e859a8d6294cca2d2567",
@@ -82,6 +82,20 @@
     "browser_receipt_sha256": "7b568ae0d6f7ad6a2ec0c29453ec265de162bb28ac0e5667f817593db11ffa05",
     "safe_receipt_sha256": "ebb520b267944156f65549591afb7fae44a1c3985e7cb2d6d7af492f8d5753d3",
     "safe_receipt": "issue310-live/1d57c18-private-file-idempotency.safe.json"
+  },
+  "natural_language_interpretation_follow_up": {
+    "review_start_head": "579681bf6d4cf39949f8806b583e588d3b7cc664",
+    "evidence_code_head": "a6318b8006911f1551616602492e32bbd49dcbc3",
+    "generated_bundle_sha256": "9cfe6bef2a8a4303a88a5cc6dc8db5ee8121aa8d0edadea9e5ffd150ab948c64",
+    "browser_driver_sha256": "59014cf80ae62d63393dc293272dc65ab464bdf5166f40851179bcecbef8a48f",
+    "browser_receipt_sha256": "665922447a89975ffaca23c9e7539a100a5121a2129e3e1c00365f59f9c4f869",
+    "browser_receipt": "issue310-live/a6318b8-natural-language-confirmation.safe.json",
+    "presentation_proxy_audit": "issue310-live/a6318b8-presentation-proxy-audit.safe.json",
+    "control_prepared_receipt_sha256": "a8661419840b382be85e94797542b7fc7a21af14e4a0c58286375e712d4496ad",
+    "control_prepared_receipt": "issue310-live/a6318b8-control-prepared.safe.json",
+    "control_restored_receipt_sha256": "6090296ea34d6c8c65beab26d2af904877cb0725f9d7e75f65932c9271faa248",
+    "control_restored_receipt": "issue310-live/a6318b8-control-restored.safe.json",
+    "state_restored": true
   },
   "control_chain": {
     "prepared_receipt_sha256": "a91b81ebf494bb5678a067cd79fdc309c05031e69d1d52b7206871a049f61fc7",

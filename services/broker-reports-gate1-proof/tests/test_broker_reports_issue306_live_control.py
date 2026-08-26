@@ -514,7 +514,7 @@ def test_committed_issue308_trace_is_bound_to_its_live_tested_code() -> None:
 def test_committed_issue310_full_journals_bind_code_routes_and_cleanup() -> None:
     trace = json.loads(ISSUE310_TRACE_PATH.read_text(encoding="utf-8"))
     assert trace["schema_version"] == (
-        "broker_reports_issue310_safe_interaction_trace_v3"
+        "broker_reports_issue310_safe_interaction_trace_v4"
     )
     assert trace["journal_events_total"] == 33
     assert trace["public_dialogue_boundary"] == {
@@ -697,3 +697,120 @@ def test_committed_issue310_full_journals_bind_code_routes_and_cleanup() -> None
         "receipt_sha256"
     ]
     assert restored["state_restored"] is True
+
+    natural_index = trace["natural_language_interpretation_follow_up"]
+    natural_path = ISSUE310_TRACE_PATH.parent / natural_index["browser_receipt"]
+    natural_text = natural_path.read_text(encoding="utf-8")
+    natural = json.loads(natural_text)
+    assert natural["receipt_sha256"] == natural_index["browser_receipt_sha256"]
+    assert natural["receipt_sha256"] == _receipt_sha256(natural)
+    assert natural["proof_binding"]["tested_commit"] == natural_index[
+        "evidence_code_head"
+    ]
+    natural_head = natural_index["evidence_code_head"]
+    assert natural["proof_binding"]["generated_bundle_sha256"] == hashlib.sha256(
+        subprocess.check_output(
+            [
+                "git",
+                "show",
+                f"{natural_head}:{BUNDLE_PATH.relative_to(REPO_ROOT).as_posix()}",
+            ],
+            cwd=REPO_ROOT,
+        )
+    ).hexdigest()
+    assert natural["proof_binding"]["generated_bundle_sha256"] == natural_index[
+        "generated_bundle_sha256"
+    ]
+    assert natural["proof_binding"]["browser_driver_sha256"] == _git_blob_sha256(
+        BROWSER_GOAL_PATH,
+        revision=natural_head,
+    )
+    assert natural["proof_binding"]["browser_driver_sha256"] == natural_index[
+        "browser_driver_sha256"
+    ]
+    assert natural["browser_ui_only"] is True
+    assert natural["hidden_refs_observed"] is False
+    assert natural["developer_intervention_during_user_run"] is False
+    assert len(natural["events"]) == 24
+    assert re.search(r"(?<![0-9])[0-9]{12}(?![0-9])", natural_text) is None
+    assert re.search(r"\bart_[A-Za-z0-9_-]+\b", natural_text) is None
+
+    interpreted = [
+        item
+        for item in natural["events"]
+        if item.get("interpretation_disposition") in {"CLARIFY", "CANDIDATE"}
+    ]
+    assert len(interpreted) == 8
+    assert all(item["presentation_llm_calls_total"] == 1 for item in interpreted)
+    assert all(item["domain_provider_calls_total"] == 0 for item in interpreted)
+    assert all(item["fact_created"] is False for item in interpreted if item[
+        "interpretation_disposition"
+    ] == "CLARIFY")
+    rejected_candidate = next(
+        item
+        for item in interpreted
+        if item["interpretation_disposition"] == "CANDIDATE"
+        and item["confirmation_result"] == "rejected"
+    )
+    assert rejected_candidate["fact_created"] is False
+    assert rejected_candidate["request_state_before"]["question_family"] == (
+        rejected_candidate["request_state_after"]["question_family"]
+    )
+    confirmed = [
+        item
+        for item in interpreted
+        if item["interpretation_disposition"] == "CANDIDATE"
+        and item["confirmation_result"] == "confirmed"
+    ]
+    assert len(confirmed) == 4
+    assert all(item["fact_created"] is True for item in confirmed)
+
+    proxy = json.loads(
+        (
+            ISSUE310_TRACE_PATH.parent
+            / natural_index["presentation_proxy_audit"]
+        ).read_text(encoding="utf-8")
+    )
+    assert proxy["run_receipt_sha256"] == natural["receipt_sha256"]
+    assert proxy["tested_commit"] == natural_head
+    assert proxy["deployed_bundle_sha256"] == natural_index[
+        "generated_bundle_sha256"
+    ]
+    assert proxy["transport"] == {
+        "model_ids": ["models/gemini-3.5-flash"],
+        "presentation_only_values": [True],
+        "http_calls_total": 50,
+        "http_200_total": 50,
+        "tasks": {
+            "ordinary_trade_public_answer_interpretation": 24,
+            "ordinary_trade_public_dialogue_render": 26,
+        },
+        "unique_request_hashes_total": 36,
+        "unique_answer_interpretation_request_hashes": 23,
+        "unique_dialogue_render_request_hashes": 13,
+    }
+
+    natural_prepared = json.loads(
+        (
+            ISSUE310_TRACE_PATH.parent
+            / natural_index["control_prepared_receipt"]
+        ).read_text(encoding="utf-8")
+    )
+    natural_restored = json.loads(
+        (
+            ISSUE310_TRACE_PATH.parent
+            / natural_index["control_restored_receipt"]
+        ).read_text(encoding="utf-8")
+    )
+    assert natural_prepared["receipt_sha256"] == natural_index[
+        "control_prepared_receipt_sha256"
+    ]
+    assert natural_prepared["receipt_sha256"] == _receipt_sha256(natural_prepared)
+    assert natural_restored["receipt_sha256"] == natural_index[
+        "control_restored_receipt_sha256"
+    ]
+    assert natural_restored["receipt_sha256"] == _receipt_sha256(natural_restored)
+    assert natural_restored["predecessor_control_prepared_receipt_sha256"] == (
+        natural_prepared["receipt_sha256"]
+    )
+    assert natural_restored["state_restored"] is True

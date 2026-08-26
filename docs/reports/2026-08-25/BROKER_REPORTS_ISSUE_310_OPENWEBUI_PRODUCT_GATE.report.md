@@ -179,8 +179,9 @@ bootstrap layer was restored.
 The next independent review started from exact head
 `579681bf6d4cf39949f8806b583e588d3b7cc664`. It correctly found that the
 previous safety correction had also removed the product's ability to
-understand ordinary free-form answers. The code head before this report update
-is `71ca56eb35edc64e8c4477e0000772490dc2f07d`.
+understand ordinary free-form answers. The final accepted live run exercised
+code head `a6318b8006911f1551616602492e32bbd49dcbc3` and generated bundle
+SHA-256 `9cfe6bef2a8a4303a88a5cc6dc8db5ee8121aa8d0edadea9e5ffd150ab948c64`.
 
 The corrected boundary keeps one owner per meaning:
 
@@ -195,8 +196,8 @@ The corrected boundary keeps one owner per meaning:
 - only after explicit confirmation does the existing
   `Gate5HumanGapClosureRuntime` validate and publish against the server-held
   current request publication;
-- refusal, ambiguity, model failure or missing confirmation leaves the current
-  request unchanged and creates no fact;
+- refusal, ambiguity, model failure or missing confirmation creates no fact
+  and leaves the same question family current;
 - the interpretation call also owns the visible message for that turn, so the
   Pipe cannot make a second presentation call after confirmation.
 
@@ -204,12 +205,85 @@ No pending-answer registry, second Human Fact owner, source/tax authority,
 workflow engine or alternate persistence path was added. The architecture
 snapshot is `broker_reports_architecture_policy_v14`.
 
-Local verification before the evidence commit:
+### Failure-to-fix cycle
 
-- active ordinary-trade production guard: `328 passed`, five existing SWIG
+The first live attempts were not accepted as evidence. They exposed four
+presentation-path defects in sequence: the model was allowed to emit
+runtime-owned contract wording, the native roleless confirmation surface was
+not located, its negative action is labelled `Отменить`, and a completed
+assistant turn could be persisted without reaching the active browser event
+stream. A later attempt isolated an SSH-tunnel interruption; it did not produce
+an accepted receipt and caused no product change.
+
+The minimal corrections were:
+
+- runtime-owned schema version, exact normalized public value and
+  confirmation/clarification wording;
+- exact title-and-buttons binding for the native confirmation surface;
+- host-owned replay of an already completed assistant leaf, allowed only for
+  the exact authenticated user, chat, parent user text and NDFL model;
+- one browser reload after a lost terminal event, with no message resend and
+  exact last-user/terminal-assistant adjacency required.
+
+The replay seam does not rerun the model or any domain owner. Negative tests
+reject incomplete, foreign-model, foreign-workspace and misbound-parent leaves.
+
+### Accepted real OpenWebUI proof
+
+The final clean-room browser run used the real pinned OpenWebUI presentation
+model `models/gemini-3.5-flash`, native confirmation UI and only browser-visible
+product actions. It completed 24 journal events and produced the privacy-safe
+receipt
+`665922447a89975ffaca23c9e7539a100a5121a2129e3e1c00365f59f9c4f869`.
+The full journal is
+`issue310-live/a6318b8-natural-language-confirmation.safe.json`.
+
+| Current question | Free answer | Model result | User action | Fact |
+| --- | --- | --- | --- | --- |
+| tax period | `не 2025` | `CLARIFY` | no confirmation offered | not created |
+| tax period | `Беру 2025 год.` | `CANDIDATE: 2025` | confirmed | created by existing owner |
+| capacity | `я обычный человек, не ИП` | `CANDIDATE` | confirmed | created by existing owner |
+| filing | `не подтверждаю` | `CLARIFY` | no confirmation offered | not created |
+| filing | `может первая, а может корректирующая` | `CLARIFY` | no confirmation offered | not created |
+| filing | `подаю первый раз` | `CANDIDATE: INITIAL` | rejected | not created |
+| filing | `подаю первый раз` | `CANDIDATE: INITIAL` | confirmed | created by existing owner |
+| signer | `подписывать буду сам` | `CANDIDATE` | confirmed | created by existing owner |
+
+The separate delegated-choice answer was also rejected without a model-owned
+fact. Every recorded interpretation turn has
+`domain_provider_calls_total=0`; direct already-owner-readable inputs do not
+need an interpretation completion. The final XML was created only after the
+confirmed facts and was downloaded through the native private Files route.
+
+The external HTTPS proxy audit is committed as
+`issue310-live/a6318b8-presentation-proxy-audit.safe.json`. Across the complete
+browser control, including correction and concurrent retry checks, all 50
+presentation requests returned HTTP 200, used only the pinned model, carried
+`presentation_only=true`, and belonged only to dialogue rendering (26) or
+answer interpretation (24). Aggregate proxy counts are not presented as a
+per-turn proof: request hashes identify message bytes, not a browser turn. The
+one-call interpretation boundary is instead enforced in the Pipe and its
+focused adversarial tests.
+
+Control run `adec79d9beb1cfb3dd50a180983fa5ae` was prepared with receipt
+`a8661419840b382be85e94797542b7fc7a21af14e4a0c58286375e712d4496ad`
+and restored with receipt
+`6090296ea34d6c8c65beab26d2af904877cb0725f9d7e75f65932c9271faa248`.
+The restored receipt has `state_restored=true`; both safe receipts are committed
+next to the journal.
+
+### Verification
+
+- active ordinary-trade production guard: `333 passed`, five existing SWIG
   warnings;
-- focused dialogue/Pipe/architecture/bundle/release guard: `133 passed`, the
-  same five warnings;
-- separate architecture/bundle/release guard: `77 passed`, the same warnings;
-- Ruff, JavaScript syntax, generated-bundle parity and `git diff --check`:
-  passed.
+- focused dialogue/Pipe/browser-driver guard: `90 passed`, the same warnings;
+- browser-driver static contract: `8 passed`;
+- generated bundle byte parity, Ruff, JavaScript syntax and `git diff --check`:
+  passed;
+- exact code-head CI for `a6318b8...`: run `33011617367`, job
+  `98319052968`, `success` in 10m28s.
+
+The evidence/report commit changes only tracked proof material after the live
+run. Its new exact PR head and exact-head CI are published in PR #311 and Issue
+#310 after CI completes. PR #311 and Issue #310 remain open; no merge is
+performed.
