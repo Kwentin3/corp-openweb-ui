@@ -355,21 +355,24 @@ async function answerQuestion(page, answer) {
   return waitForTurn(page);
 }
 
-async function answerQuestionWithCandidateConfirmation(page, answer) {
+async function answerQuestionWithCandidateConfirmation(page, answer, confirm = true) {
   await sendMessage(page, answer);
   const dialog = page.locator('[role="dialog"]').filter({
     hasText: 'Подтвердите понимание ответа',
   }).last();
   await dialog.waitFor({ state: 'visible', timeout: 60000 });
   const confirmationText = await dialog.innerText();
-  const confirmButton = dialog.getByRole('button', {
-    name: /^(Подтвердить|Да|Confirm|Yes)$/i,
+  const actionButton = dialog.getByRole('button', {
+    name: confirm
+      ? /^(Подтвердить|Да|Confirm|Yes)$/i
+      : /^(Отмена|Отклонить|Нет|Cancel|No)$/i,
   }).last();
-  await confirmButton.waitFor({ state: 'visible', timeout: 30000 });
-  await confirmButton.click();
+  await actionButton.waitFor({ state: 'visible', timeout: 30000 });
+  await actionButton.click();
   return {
     body: await waitForTurn(page),
     confirmationText,
+    confirmationResult: confirm ? 'confirmed' : 'rejected',
   };
 }
 
@@ -397,6 +400,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     identityDeferred: false,
     filingRefusal: false,
     filingAmbiguity: false,
+    filingCandidateRefused: false,
     wrongDateAccepted: false,
     draftReady: false,
   };
@@ -407,6 +411,8 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     let answer;
     let expectedRejection = false;
     let requiresCandidateConfirmation = false;
+    let confirmationAccepted = true;
+    let interpretationDisposition = null;
     if (kind === 'tax_period' && !state.ambiguousAnswer) {
       answer = 'Выберите подходящий год за меня.';
       state.ambiguousAnswer = true;
@@ -415,16 +421,19 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
       answer = 'не 2025';
       state.negatedYear = true;
       expectedRejection = true;
+      interpretationDisposition = 'CLARIFY';
     } else if (kind === 'tax_period' && !state.naturalYearProposal) {
       answer = 'Беру 2025 год.';
       state.naturalYearProposal = true;
       requiresCandidateConfirmation = true;
+      interpretationDisposition = 'CANDIDATE';
       state.taxPeriodSelected = true;
     } else if (kind === 'residency') {
       answer = `Присутствие: ${truth.present}; отсутствие: ${truth.absent}; причины: нет`;
     } else if (kind === 'capacity') {
       answer = 'я обычный человек, не ИП';
       requiresCandidateConfirmation = true;
+      interpretationDisposition = 'CANDIDATE';
     } else if (kind === 'zero_scope') {
       answer = true;
     } else if (kind === 'identity' && !state.invalidInn) {
@@ -440,13 +449,23 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
       answer = 'не подтверждаю';
       state.filingRefusal = true;
       expectedRejection = true;
+      interpretationDisposition = 'CLARIFY';
     } else if (kind === 'filing' && !state.filingAmbiguity) {
       answer = 'может первая, а может корректирующая';
       state.filingAmbiguity = true;
       expectedRejection = true;
+      interpretationDisposition = 'CLARIFY';
+    } else if (kind === 'filing' && !state.filingCandidateRefused) {
+      answer = 'подаю первый раз';
+      requiresCandidateConfirmation = true;
+      confirmationAccepted = false;
+      interpretationDisposition = 'CANDIDATE';
+      expectedRejection = true;
+      state.filingCandidateRefused = true;
     } else if (kind === 'filing') {
       answer = 'подаю первый раз';
       requiresCandidateConfirmation = true;
+      interpretationDisposition = 'CANDIDATE';
     } else if (kind === 'date' && !state.invalidDate) {
       answer = '2025-99-99';
       state.invalidDate = true;
@@ -459,28 +478,38 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     } else if (kind === 'signer') {
       answer = 'подписывать буду сам';
       requiresCandidateConfirmation = true;
+      interpretationDisposition = 'CANDIDATE';
     } else if (kind === 'budget') {
       answer = 'Налог к уплате';
     } else if (kind === 'oktmo') {
       answer = truth.oktmo;
     }
 
+    const beforeState = {
+      question_family: kind,
+      visible_state_sha256: sha256Bytes(safeJournalVisibleText(visibleQuestion, truth)),
+    };
     const turn = requiresCandidateConfirmation
-      ? await answerQuestionWithCandidateConfirmation(page, answer)
-      : { body: await answerQuestion(page, answer), confirmationText: '' };
+      ? await answerQuestionWithCandidateConfirmation(page, answer, confirmationAccepted)
+      : {
+        body: await answerQuestion(page, answer),
+        confirmationText: '',
+        confirmationResult: 'not_requested',
+      };
     const body = turn.body;
     const rejected = (
       body.includes('Ответ пока не принят')
       || body.includes('Ответ не принят')
       || body.includes('Не буду выбирать за вас')
       || body.includes('Уточните')
+      || body.includes('Интерпретация не подтверждена')
     );
     if (expectedRejection !== rejected) {
       throw new Error(expectedRejection ? 'invalid_answer_was_accepted' : 'valid_answer_was_rejected');
     }
     if (
       requiresCandidateConfirmation
-      && !turn.confirmationText.includes('Я понял ваш ответ как')
+      && !turn.confirmationText.includes('Предлагаемое значение:')
     ) {
       throw new Error('llm_candidate_was_not_explicitly_confirmed');
     }
@@ -496,6 +525,23 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
       question_family: kind,
       visible_system_text: safeJournalVisibleText(visibleQuestion, truth),
       natural_user_answer: safeJournalAnswer(kind, answer),
+      proposed_interpretation: safeJournalVisibleText(turn.confirmationText, truth),
+      interpretation_disposition: interpretationDisposition,
+      confirmation_result: turn.confirmationResult,
+      request_state_before: beforeState,
+      request_state_after: {
+        question_family: rejected ? kind : (() => {
+          try { return classifyQuestion(body); } catch (_error) { return 'terminal_or_next'; }
+        })(),
+        visible_state_sha256: sha256Bytes(safeJournalVisibleText(body, truth)),
+      },
+      fact_created: !rejected && !(kind === 'identity' && answer === 'Позже'),
+      presentation_llm_calls_total: (
+        requiresCandidateConfirmation
+        || interpretationDisposition === 'CLARIFY'
+        || (expectedRejection && answer !== 'Выберите подходящий год за меня.')
+      ) ? 1 : 0,
+      domain_provider_calls_total: 0,
       what_user_could_understand: userUnderstanding(kind),
       expected_next_action: expectedRejection
         ? 'Ответ не сохраняется; тот же вопрос остаётся текущим.'
@@ -508,7 +554,9 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
       problem_class: 'none',
       accepted: !rejected,
       intentionally_invalid: expectedRejection,
-      candidate_confirmation_completed: requiresCandidateConfirmation,
+      candidate_confirmation_completed: (
+        requiresCandidateConfirmation && confirmationAccepted
+      ),
       deferred: kind === 'identity' && answer === 'Позже',
     });
     if (body.includes('Файл 3-НДФЛ подготовлен и проверен на соответствие формату ФНС.')) {
@@ -519,7 +567,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
 
   if (!firstXmlBody) throw new Error('first_xml_not_reached');
   if (!state.draftReady) throw new Error('draft_ready_without_xml_not_observed');
-  if (!state.taxPeriodSelected || !state.ambiguousAnswer || !state.negatedYear || !state.naturalYearProposal || !state.invalidInn || !state.invalidDate || !state.identityDeferred || !state.filingRefusal || !state.filingAmbiguity) {
+  if (!state.taxPeriodSelected || !state.ambiguousAnswer || !state.negatedYear || !state.naturalYearProposal || !state.invalidInn || !state.invalidDate || !state.identityDeferred || !state.filingRefusal || !state.filingAmbiguity || !state.filingCandidateRefused) {
     throw new Error('required_invalid_and_deferred_matrix_incomplete');
   }
   if (!state.wrongDateAccepted) throw new Error('date_correction_predecessor_missing');

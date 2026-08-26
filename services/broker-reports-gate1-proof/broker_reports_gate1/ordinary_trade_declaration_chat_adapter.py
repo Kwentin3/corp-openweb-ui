@@ -818,9 +818,10 @@ def public_dialogue_interpretation_messages(
         "должен быть формой, которую допускают options или accepted_answer_examples "
         "текущего вопроса, а evidence_quote — точной короткой цитатой из ответа "
         "пользователя. CANDIDATE — лишь предложение, не сохранённый факт. В message "
-        "простым русским языком покажи понимание и попроси явное подтверждение. "
-        "Каждый элемент summary, каждый label/text из provenance, current_question, "
-        "его help и каждый next_actions вставь дословно. Не упоминай внутреннюю "
+        "дай только короткую понятную человеку интерпретацию или просьбу уточнить "
+        "ответ. Для CANDIDATE явно попроси подтверждение. Точный owner-контекст runtime "
+        "добавит сам: не повторяй summary, provenance, current_question, help или "
+        "next_actions. Не упоминай внутреннюю "
         "архитектуру, коды, ссылки сущностей или форматы внутренних контрактов. "
         "Верни только JSON по заданной схеме."
     )
@@ -874,17 +875,12 @@ def public_dialogue_interpretation_response_format() -> dict[str, Any]:
                 "type": "object",
                 "additionalProperties": False,
                 "required": [
-                    "schema_version",
                     "disposition",
                     "message",
                     "normalized_answer",
                     "evidence_quote",
                 ],
                 "properties": {
-                    "schema_version": {
-                        "type": "string",
-                        "const": ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION,
-                    },
                     "disposition": {
                         "type": "string",
                         "enum": ["CLARIFY", "CANDIDATE"],
@@ -906,7 +902,6 @@ def validate_public_dialogue_interpretation(
 ) -> dict[str, str]:
     payload = _json_object(value)
     expected = {
-        "schema_version",
         "disposition",
         "message",
         "normalized_answer",
@@ -914,27 +909,19 @@ def validate_public_dialogue_interpretation(
     }
     if set(payload) != expected:
         raise ValueError("public_dialogue_interpretation_shape_invalid")
-    if (
-        payload.get("schema_version")
-        != ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION
-    ):
-        raise ValueError("public_dialogue_interpretation_schema_invalid")
     disposition = str(payload.get("disposition") or "")
     if disposition not in {"CLARIFY", "CANDIDATE"}:
         raise ValueError("public_dialogue_interpretation_disposition_invalid")
-    visible_message = validate_public_dialogue_message(
-        {
-            "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
-            "message": payload.get("message"),
-        },
-        context=context,
-    )
+    interpretation_message = str(payload.get("message") or "").strip()
+    if not interpretation_message or len(interpretation_message) > 2000:
+        raise ValueError("public_dialogue_interpretation_message_length_invalid")
+    _validate_public_text(interpretation_message)
     normalized_answer = str(payload.get("normalized_answer") or "").strip()
     evidence_quote = str(payload.get("evidence_quote") or "").strip()
     if disposition == "CLARIFY":
         if normalized_answer or evidence_quote:
             raise ValueError("public_dialogue_clarification_candidate_forbidden")
-        if "уточн" not in visible_message.casefold():
+        if "уточн" not in interpretation_message.casefold():
             raise ValueError("public_dialogue_clarification_request_missing")
     else:
         if not normalized_answer or not evidence_quote:
@@ -951,10 +938,24 @@ def validate_public_dialogue_interpretation(
             and normalized_answer not in options
         ):
             raise ValueError("public_dialogue_candidate_not_on_public_surface")
-        if normalized_answer.casefold() not in visible_message.casefold():
-            raise ValueError("public_dialogue_candidate_not_visible")
-        if "подтверж" not in visible_message.casefold():
+        if "подтверж" not in interpretation_message.casefold():
             raise ValueError("public_dialogue_candidate_confirmation_missing")
+    visible_parts = [interpretation_message]
+    if disposition == "CANDIDATE":
+        visible_parts.append(f"Предлагаемое значение: {normalized_answer}.")
+    visible_parts.append(render_public_dialogue_fallback(context))
+    visible_message = validate_public_dialogue_message(
+        {
+            "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+            "message": "\n\n".join(visible_parts),
+        },
+        context=context,
+    )
+    if (
+        disposition == "CANDIDATE"
+        and normalized_answer.casefold() not in visible_message.casefold()
+    ):
+        raise ValueError("public_dialogue_candidate_not_visible")
     return {
         "schema_version": ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION,
         "disposition": disposition,

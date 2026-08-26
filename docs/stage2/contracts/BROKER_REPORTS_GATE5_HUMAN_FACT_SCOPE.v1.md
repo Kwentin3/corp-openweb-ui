@@ -139,11 +139,16 @@ after validation and are never model-produced.
 The presentation model returns either strict structured dialogue wording for
 an initial/status turn or one strict
 `broker_reports_ordinary_trade_public_interpretation_v1` answer proposal. A
-proposal contains `CLARIFY | CANDIDATE`, visible message, normalized public
-answer and verbatim evidence quote. It cannot choose a request identity,
+proposal contains exactly `CLARIFY | CANDIDATE`, one short human-facing
+interpretation or clarification, a normalized public answer and a verbatim
+evidence quote. The model does not supply the contract version: the runtime
+owns and adds it after strict shape validation. It cannot choose a request identity,
 publish a fact or bypass the current owner's answer validation. The visible
-message must retain every owner-produced public statement and the exact current
-question. Internal vocabulary, positive filing claims when filing is not
+confirmation is composed by the runtime from the validated short model message,
+the exact normalized public value and the deterministic owner-context renderer;
+therefore the model is neither a second owner renderer nor responsible for
+copying owner statements. The composed message must retain every owner-produced
+public statement and the exact current question. Internal vocabulary, positive filing claims when filing is not
 eligible, private file URLs, unknown fields, non-verbatim evidence and
 unconfirmed candidates fail closed. One conversation turn cannot make a
 second presentation call: after interpretation, any post-confirmation state is

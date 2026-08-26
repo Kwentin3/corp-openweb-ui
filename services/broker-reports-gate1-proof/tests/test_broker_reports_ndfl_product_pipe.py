@@ -24,7 +24,6 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
     NdflWorkflowError,
 )
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
-    ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION,
     adapt_current_declaration_request,
     build_public_dialogue_context,
     declaration_change_intent,
@@ -277,11 +276,10 @@ def test_llm_proposal_creates_no_fact_until_native_confirmation_and_owner_publis
         context_for_turn = turn["context"]
         model_calls.append(user_message)
         clarify = user_message == "Не 2025 год"
-        visible = render_public_dialogue_fallback(context_for_turn)
-        visible += (
-            "\n\nУточните, пожалуйста, какой год вы подтверждаете."
+        visible = (
+            "Уточните, пожалуйста, какой год вы подтверждаете."
             if clarify
-            else "\n\nЯ понял ваш ответ как «2025». Подтверждаете эту интерпретацию?"
+            else "Я понял ваш ответ как «2025». Подтверждаете эту интерпретацию?"
         )
         return {
             "choices": [
@@ -289,9 +287,6 @@ def test_llm_proposal_creates_no_fact_until_native_confirmation_and_owner_publis
                     "message": {
                         "content": json.dumps(
                             {
-                                "schema_version": (
-                                    ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION
-                                ),
                                 "disposition": "CLARIFY" if clarify else "CANDIDATE",
                                 "message": visible,
                                 "normalized_answer": "" if clarify else "2025",

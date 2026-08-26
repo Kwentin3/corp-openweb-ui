@@ -282,6 +282,13 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "answer = 'не 2025'" in source
     assert "может первая, а может корректирующая" in source
     assert "candidate_confirmation_completed" in source
+    assert "confirmation_result" in source
+    assert "request_state_before" in source
+    assert "request_state_after" in source
+    assert "fact_created" in source
+    assert "presentation_llm_calls_total" in source
+    assert "domain_provider_calls_total" in source
+    assert "filingCandidateRefused" in source
     assert "visible_system_text" in source
     assert "natural_user_answer" in source
     assert "what_user_could_understand" in source

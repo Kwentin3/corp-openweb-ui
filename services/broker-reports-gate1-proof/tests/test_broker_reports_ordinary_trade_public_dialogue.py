@@ -8,7 +8,6 @@ import openwebui_actions.broker_reports_gate1_pipe as pipe_module
 
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
-    ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION,
     PUBLIC_DIALOGUE_MODEL_BOUNDARY,
     adapt_current_declaration_request,
     build_public_dialogue_context,
@@ -18,6 +17,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     public_dialogue_interpretation_response_format,
     public_dialogue_message_response_format,
     render_public_dialogue_fallback,
+    validate_public_dialogue_interpretation,
     validate_public_dialogue_message,
 )
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
@@ -71,14 +71,13 @@ def _product_with_request(request: dict) -> dict:
 def _interpretation_completion(
     *, context: dict, disposition: str, normalized_answer: str = "", evidence: str = ""
 ):
-    visible = render_public_dialogue_fallback(context)
     if disposition == "CANDIDATE":
-        visible += (
-            f"\n\nЯ понял ваш ответ как «{normalized_answer}». "
+        visible = (
+            f"Я понял ваш ответ как «{normalized_answer}». "
             "Подтверждаете эту интерпретацию?"
         )
     else:
-        visible += "\n\nУточните, пожалуйста, что именно вы имеете в виду."
+        visible = "Уточните, пожалуйста, что именно вы имеете в виду."
 
     def completion(**_kwargs):
         return {
@@ -87,9 +86,6 @@ def _interpretation_completion(
                     "message": {
                         "content": json.dumps(
                             {
-                                "schema_version": (
-                                    ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION
-                                ),
                                 "disposition": disposition,
                                 "message": visible,
                                 "normalized_answer": normalized_answer,
@@ -162,12 +158,64 @@ def test_presentation_model_boundary_is_local_and_has_no_business_authority() ->
     schema = public_dialogue_interpretation_response_format()["json_schema"]["schema"]
     assert schema["properties"]["disposition"]["enum"] == ["CLARIFY", "CANDIDATE"]
     assert set(schema["required"]) == {
-        "schema_version",
         "disposition",
         "message",
         "normalized_answer",
         "evidence_quote",
     }
+    assert "schema_version" not in schema["properties"]
+
+
+def test_short_model_candidate_is_composed_with_exact_owner_context() -> None:
+    context = build_public_dialogue_context(product=_product())
+    interpreted = validate_public_dialogue_interpretation(
+        {
+            "disposition": "CANDIDATE",
+            "message": (
+                "Вы указали первичную декларацию. "
+                "Подтверждаете эту интерпретацию?"
+            ),
+            "normalized_answer": "Первичная декларация",
+            "evidence_quote": "первый раз",
+        },
+        context=context,
+        user_message="Подаю декларацию первый раз",
+    )
+
+    assert interpreted["schema_version"] == (
+        "broker_reports_ordinary_trade_public_interpretation_v1"
+    )
+    assert interpreted["message"].startswith("Вы указали первичную декларацию.")
+    assert render_public_dialogue_fallback(context) in interpreted["message"]
+    validate_public_dialogue_message(
+        {
+            "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+            "message": interpreted["message"],
+        },
+        context=context,
+    )
+
+
+def test_model_cannot_choose_or_echo_interpretation_schema_version() -> None:
+    context = build_public_dialogue_context(product=_product())
+
+    with pytest.raises(
+        ValueError, match="public_dialogue_interpretation_shape_invalid"
+    ):
+        validate_public_dialogue_interpretation(
+            {
+                "schema_version": "broker_reports_ordinary_trade_public_dialogue_context_v1",
+                "disposition": "CANDIDATE",
+                "message": (
+                    "Вы указали первичную декларацию. "
+                    "Подтверждаете эту интерпретацию?"
+                ),
+                "normalized_answer": "Первичная декларация",
+                "evidence_quote": "первый раз",
+            },
+            context=context,
+            user_message="Подаю декларацию первый раз",
+        )
 
 
 def test_public_context_strips_owner_identity_and_keeps_one_current_question() -> None:
