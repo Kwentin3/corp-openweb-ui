@@ -86,6 +86,10 @@ _PUBLIC_FORBIDDEN_TEXT = (
 )
 _INTERNAL_STATUS = re.compile(r"\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b")
 _PRIVATE_DOWNLOAD = re.compile(r"/api/v1/files/[^\s)]+", re.IGNORECASE)
+_DELEGATED_CHOICE = re.compile(
+    r"\b(?:выбер(?:и|ите)|реш(?:и|ите)|определ(?:и|ите))\b.{0,80}\bза меня\b",
+    re.IGNORECASE,
+)
 
 # Representation-only labels for the bounded declaration product.  Canonical
 # values still come exclusively from the current owner's answer_contract; this
@@ -814,6 +818,39 @@ def public_answer_interpretation_messages(
     return system, user
 
 
+def public_answer_requires_clarification(user_message: str) -> bool:
+    """Reject an explicit request that the presentation model make the choice."""
+
+    return _DELEGATED_CHOICE.search(_text(user_message)) is not None
+
+
+def public_answer_candidate_is_grounded(
+    *,
+    question_context: dict[str, Any],
+    user_message: str,
+    normalized_answer: str,
+) -> bool:
+    """Prove the candidate is present and is not one of several named choices."""
+
+    _validate_public_value(question_context)
+    message = _text(user_message).casefold()
+    candidate = _text(normalized_answer).casefold()
+    if not candidate or candidate not in message:
+        return False
+    options = question_context.get("options")
+    named_options = {
+        str(option).casefold()
+        for option in options or []
+        if isinstance(option, str) and str(option).casefold() in message
+    }
+    if len(named_options) > 1:
+        return False
+    years = set(re.findall(r"(?<![0-9])[0-9]{4}(?![0-9])", message))
+    if re.fullmatch(r"[0-9]{4}", candidate) and len(years) > 1:
+        return False
+    return True
+
+
 def public_dialogue_message_response_format() -> dict[str, Any]:
     return {
         "type": "json_schema",
@@ -1304,6 +1341,8 @@ __all__ = [
     "declaration_surrogate_preview",
     "public_answer_interpretation_messages",
     "public_answer_interpretation_response_format",
+    "public_answer_candidate_is_grounded",
+    "public_answer_requires_clarification",
     "public_dialogue_context_sha256",
     "public_dialogue_message_response_format",
     "public_dialogue_render_messages",

@@ -106,6 +106,8 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     declaration_request_question,
     public_answer_interpretation_messages,
     public_answer_interpretation_response_format,
+    public_answer_candidate_is_grounded,
+    public_answer_requires_clarification,
     public_dialogue_context_sha256,
     public_dialogue_message_response_format,
     public_dialogue_render_messages,
@@ -1113,6 +1115,15 @@ class Pipe:
                 current_requests=current_actions,
             )
             dialogue["presentation_fallback_used"] = True
+        elif public_answer_requires_clarification(message):
+            adapted = {
+                "status": "ANSWER_REJECTED",
+                "reason_code": "declaration_chat_answer_delegates_choice",
+            }
+            dialogue["answer_feedback"] = (
+                "Не буду выбирать за вас. Уточните ответ на текущий вопрос "
+                "своими словами."
+            )
         elif self.valves.ndfl_presentation_llm_enabled:
             try:
                 system_content, user_content = public_answer_interpretation_messages(
@@ -1136,7 +1147,11 @@ class Pipe:
                     normalized_answer = interpretation["normalized_answer"]
                     model_candidate_grounded = bool(
                         direct.get("status") == "ANSWER_READY"
-                        or normalized_answer.casefold() in message.casefold()
+                        or public_answer_candidate_is_grounded(
+                            question_context=question,
+                            user_message=message,
+                            normalized_answer=normalized_answer,
+                        )
                     )
                     adapted = (
                         direct

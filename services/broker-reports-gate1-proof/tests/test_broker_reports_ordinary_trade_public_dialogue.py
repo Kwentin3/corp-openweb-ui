@@ -12,6 +12,8 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     PUBLIC_DIALOGUE_MODEL_BOUNDARY,
     build_public_dialogue_context,
     build_public_question_context,
+    public_answer_candidate_is_grounded,
+    public_answer_requires_clarification,
     public_dialogue_context_sha256,
     render_public_dialogue_fallback,
     validate_public_answer_interpretation,
@@ -218,6 +220,29 @@ def test_interpretation_contract_cannot_select_request_or_fact_identity() -> Non
         )
 
 
+def test_candidate_grounding_rejects_delegated_and_multiple_choices() -> None:
+    assert public_answer_requires_clarification(
+        "Выберите подходящий год за меня."
+    ) is True
+    question = {
+        "question": "Какой год выбираете?",
+        "help": "Введите год.",
+        "options": [],
+        "accepted_answer_examples": ["ГГГГ"],
+        "candidate_hint": None,
+    }
+    assert public_answer_candidate_is_grounded(
+        question_context=question,
+        user_message="Беру 2025 год.",
+        normalized_answer="2025",
+    ) is True
+    assert public_answer_candidate_is_grounded(
+        question_context=question,
+        user_message="Возможно 2024 или 2025.",
+        normalized_answer="2025",
+    ) is False
+
+
 def test_pipe_model_candidate_is_rebound_to_current_owner_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -290,25 +315,7 @@ def test_pipe_rejects_model_choice_not_grounded_in_ambiguous_user_answer(
     }
 
     def completion(**_kwargs):
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "content": json.dumps(
-                            {
-                                "schema_version": (
-                                    ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION
-                                ),
-                                "disposition": "ANSWER_CANDIDATE",
-                                "normalized_answer": "2025",
-                                "clarification": None,
-                            },
-                            ensure_ascii=False,
-                        )
-                    }
-                }
-            ]
-        }
+        raise AssertionError("delegated choice must not reach the model")
 
     monkeypatch.setattr(
         pipe,
@@ -326,7 +333,7 @@ def test_pipe_rejects_model_choice_not_grounded_in_ambiguous_user_answer(
     )
 
     assert adapted["status"] == "ANSWER_REJECTED"
-    assert adapted["reason_code"] == "declaration_chat_model_candidate_ungrounded"
+    assert adapted["reason_code"] == "declaration_chat_answer_delegates_choice"
     assert dialogue["answer_feedback"] == (
         "Не буду выбирать за вас. Уточните ответ на текущий вопрос своими словами."
     )
