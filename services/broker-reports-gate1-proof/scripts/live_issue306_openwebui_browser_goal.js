@@ -364,7 +364,7 @@ async function answerQuestionWithCandidateConfirmation(page, answer, confirm = t
   }).last();
   await actionButton.waitFor({ state: 'visible', timeout: 30000 });
   const confirmationSurface = actionButton.locator(
-    'xpath=ancestor::*[.//button[normalize-space()="Отменить"] and .//button[normalize-space()="Подтвердить"]][1]',
+    'xpath=ancestor::*[.//*[normalize-space()="Подтвердите понимание ответа"] and .//button[normalize-space()="Отменить"] and .//button[normalize-space()="Подтвердить"]][1]',
   );
   await confirmationSurface.waitFor({ state: 'visible', timeout: 30000 });
   const confirmationText = await confirmationSurface.innerText();
