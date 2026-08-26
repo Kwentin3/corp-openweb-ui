@@ -15,6 +15,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     public_answer_candidate_is_grounded,
     public_answer_requires_clarification,
     public_dialogue_context_sha256,
+    public_dialogue_message_response_format,
     render_public_dialogue_fallback,
     validate_public_answer_interpretation,
     validate_public_dialogue_message,
@@ -421,6 +422,89 @@ def test_stalled_presentation_model_is_bounded_and_uses_fallback(
     )
     assert result["public_dialogue"]["presentation_fallback_used"] is True
     assert result["public_dialogue"]["presentation_llm_calls_total"] == 1
+
+
+def test_live_request_uses_authenticated_native_openwebui_completion_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+    captured: dict = {}
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        @staticmethod
+        def read() -> bytes:
+            return json.dumps(
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    {
+                                        "schema_version": (
+                                            ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION
+                                        ),
+                                        "message": "Безопасный ответ",
+                                    },
+                                    ensure_ascii=False,
+                                )
+                            }
+                        }
+                    ]
+                },
+                ensure_ascii=False,
+            ).encode("utf-8")
+
+    def urlopen(outbound, *, timeout):
+        captured["url"] = outbound.full_url
+        captured["authorization"] = outbound.headers["Authorization"]
+        captured["payload"] = json.loads(outbound.data.decode("utf-8"))
+        captured["timeout"] = timeout
+        return Response()
+
+    monkeypatch.setattr(pipe_module.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda _user_id: (_ for _ in ()).throw(
+            AssertionError("live request must use the bounded HTTP boundary")
+        ),
+    )
+    request = type(
+        "Request",
+        (),
+        {
+            "base_url": "https://openwebui.example/",
+            "headers": {"authorization": "Bearer proof-token"},
+        },
+    )()
+    result = asyncio.run(
+        pipe._call_openwebui_presentation_completion(
+            system_content="system",
+            user_content="context",
+            response_format=public_dialogue_message_response_format(),
+            user={"id": "user-a"},
+            request=request,
+            task="ordinary_trade_public_dialogue_render",
+        )
+    )
+
+    assert "Безопасный ответ" in result
+    assert captured["url"] == "https://openwebui.example/api/chat/completions"
+    assert captured["authorization"] == "Bearer proof-token"
+    assert captured["payload"]["model"] == "models/gemini-3.5-flash"
+    assert captured["payload"]["metadata"]["broker_reports_gate1"] == {
+        "presentation_only": True,
+        "task": "ordinary_trade_public_dialogue_render",
+    }
+    assert captured["timeout"] == 45.0
 
 
 def test_valid_model_render_is_the_primary_public_surface(

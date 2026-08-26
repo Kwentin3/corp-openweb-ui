@@ -271,6 +271,7 @@ import inspect
 import io
 import json
 import re
+import urllib.request
 import uuid
 from contextlib import nullcontext
 from dataclasses import asdict, is_dataclass
@@ -1556,11 +1557,6 @@ class Pipe:
         model_id = str(self.valves.ndfl_presentation_model_id or "").strip()
         if not user_id or not model_id:
             raise NdflWorkflowError("ndfl_presentation_model_unavailable")
-        completion_fn, user_model = self._openwebui_completion_dependencies(user_id)
-        if inspect.isawaitable(user_model):
-            user_model = await user_model
-        if user_model is None:
-            raise NdflWorkflowError("ndfl_presentation_model_unavailable")
         form_data = {
             "model": model_id,
             "messages": [
@@ -1578,6 +1574,22 @@ class Pipe:
         }
         self._presentation_llm_calls_total += 1
         try:
+            http_target = self._openwebui_presentation_http_target(request)
+            if http_target is not None:
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self._openwebui_presentation_http_completion,
+                        target=http_target,
+                        form_data=form_data,
+                    ),
+                    timeout=NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS + 5.0,
+                )
+                return self._extract_completion_content(response)
+            completion_fn, user_model = self._openwebui_completion_dependencies(user_id)
+            if inspect.isawaitable(user_model):
+                user_model = await user_model
+            if user_model is None:
+                raise NdflWorkflowError("ndfl_presentation_model_unavailable")
             try:
                 response = completion_fn(
                     request=request,
@@ -1603,6 +1615,57 @@ class Pipe:
             return self._extract_completion_content(response)
         except Exception as exc:
             raise NdflWorkflowError("ndfl_presentation_model_call_failed") from exc
+
+    @staticmethod
+    def _openwebui_presentation_http_target(
+        request: Any,
+    ) -> tuple[str, str] | None:
+        headers = getattr(request, "headers", None)
+        base_url = str(getattr(request, "base_url", "") or "").rstrip("/")
+        authorization = (
+            str(headers.get("authorization") or "").strip()
+            if headers is not None and hasattr(headers, "get")
+            else ""
+        )
+        if (
+            re.fullmatch(r"https?://[^/?#]+", base_url) is None
+            or not authorization.startswith("Bearer ")
+        ):
+            return None
+        return f"{base_url}/api/chat/completions", authorization
+
+    @staticmethod
+    def _openwebui_presentation_http_completion(
+        *,
+        target: tuple[str, str],
+        form_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        url, authorization = target
+        body = json.dumps(
+            form_data,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        outbound = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                "Accept": "application/json",
+                "Authorization": authorization,
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(  # noqa: S310 - attested current OpenWebUI origin
+            outbound,
+            timeout=NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS,
+        ) as response:
+            if int(getattr(response, "status", 0) or 0) != 200:
+                raise NdflWorkflowError("ndfl_presentation_model_http_failed")
+            value = json.loads(response.read().decode("utf-8"))
+        if not isinstance(value, dict):
+            raise NdflWorkflowError("ndfl_presentation_model_http_invalid")
+        return value
 
     def _standalone_ndfl_chat_content(self, result: dict[str, Any]) -> str:
         product = result.get("product")

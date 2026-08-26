@@ -110,11 +110,11 @@ The cross-domain map for the Issue #310 seam is:
 current request, outcome and filing eligibility
 -> existing domain owners in OrdinaryTradeProductionRuntime
 -> ordinary_trade_public_dialogue_context_v1 (representation only)
--> OpenWebUI presentation model
+-> authenticated native OpenWebUI completion endpoint -> presentation model
 -> validated visible wording or deterministic human fallback
 
 natural user reply + current public question
--> OpenWebUI presentation model candidate
+-> authenticated native OpenWebUI completion endpoint -> presentation model candidate
 -> existing declaration chat adapter
 -> exact current request_publication_ref kept by Pipe
 -> Gate5HumanGapClosureRuntime normalization and publication
