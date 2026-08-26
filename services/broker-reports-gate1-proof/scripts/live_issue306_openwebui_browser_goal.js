@@ -347,7 +347,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     state: 'visible',
     timeout: 60000,
   });
-  await page.waitForTimeout(7000);
+  await page.waitForTimeout(20000);
   await sendMessage(page, 'Подготовь 3-НДФЛ по загруженному брокерскому отчёту.');
 
   const state = {
@@ -540,7 +540,7 @@ async function startUnansweredCase({ context, baseUrl, source, screenshotPath })
     state: 'visible',
     timeout: 60000,
   });
-  await page.waitForTimeout(7000);
+  await page.waitForTimeout(20000);
   const started = Date.now();
   await sendMessage(page, 'Подготовь 3-НДФЛ по загруженному брокерскому отчёту.');
   await waitForQuestion(page);
@@ -588,7 +588,7 @@ async function retryAndResume(page, context, chatUrl, expectedHref, source, trac
     state: 'visible',
     timeout: 60000,
   });
-  await page.waitForTimeout(7000);
+  await page.waitForTimeout(20000);
   await sendMessage(
     page,
     'Я повторно добавил тот же брокерский отчёт. Проверь текущий результат.',
@@ -687,7 +687,7 @@ async function runRepresentativeSourceSmoke({ browser, control, source, outputDi
     state: 'visible',
     timeout: 60000,
   });
-  await page.waitForTimeout(7000);
+  await page.waitForTimeout(20000);
   await sendMessage(page, 'Подготовь 3-НДФЛ по загруженному брокерскому отчёту.');
   const body = await waitForTurn(page);
   if (body.includes('3-НДФЛ XML подготовлен') || await downloadLinks(page).count()) {
@@ -813,7 +813,7 @@ async function runIssue310NonFilingRoute({
     state: 'visible',
     timeout: 60000,
   });
-  await page.waitForTimeout(7000);
+  await page.waitForTimeout(20000);
   await sendMessage(page, 'Проверь операции и подготовь результат для 3-НДФЛ.');
   const question = await waitForQuestion(page);
   if (classifyQuestion(question) !== 'tax_period') {
@@ -887,7 +887,7 @@ async function runIssue310UnsupportedProfileRoute({
     state: 'visible',
     timeout: 60000,
   });
-  await page.waitForTimeout(7000);
+  await page.waitForTimeout(20000);
   await sendMessage(page, 'Подготовь результат за 2022 год по этому отчёту.');
   const periodQuestion = await waitForQuestion(page);
   if (classifyQuestion(periodQuestion) !== 'tax_period') {
