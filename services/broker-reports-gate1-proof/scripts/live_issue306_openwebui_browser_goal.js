@@ -186,6 +186,7 @@ async function rememberTurnBoundary(page) {
 
 async function sendMessage(page, message) {
   await rememberTurnBoundary(page);
+  page.__issue310LastSentMessage = message;
   const input = page.locator('#chat-input');
   await input.waitFor({ state: 'visible', timeout: 90000 });
   await input.fill(message);
@@ -197,8 +198,9 @@ async function sendMessage(page, message) {
 
 async function waitForTurn(page, timeout = 240000) {
   const boundary = page.__issue310TurnBoundary || { count: 0, text: '' };
-  await page.waitForFunction(
-    ({ previousCount, previousText }) => {
+  const terminalPattern = /налоговый период|нет точного профиля декларации|периоды присутствия и отсутствия в России|ваш статус за 2025 год|нет других доходов той же категории|ИНН и ФИО|вид декларации за 2025 год|дату подписания декларации|код налоговой инспекции|кто подписывает декларацию|итог декларации для бюджета|код ОКТМО|Файл 3-НДФЛ подготовлен|XML не создан|XML не создавался|Неподаваемый черновик|Подготовка приостановлена|Подготовку нельзя|Расчёт сохранён|Не удалось/i;
+  const waitForAdvancedTurn = (waitTimeout) => page.waitForFunction(
+    ({ previousCount, previousText, terminalSource, terminalFlags }) => {
       const items = [...document.querySelectorAll('[role="listitem"]')];
       const last = items.at(-1);
       if (!last) return false;
@@ -206,11 +208,47 @@ async function waitForTurn(page, timeout = 240000) {
       // OpenWebUI may append an assistant item or reuse its progress item.
       // Wait for owner-required question/outcome text, not decorative headings.
       const advanced = items.length > previousCount || text !== previousText.trim();
-      return advanced && /налоговый период|нет точного профиля декларации|периоды присутствия и отсутствия в России|ваш статус за 2025 год|нет других доходов той же категории|ИНН и ФИО|вид декларации за 2025 год|дату подписания декларации|код налоговой инспекции|кто подписывает декларацию|итог декларации для бюджета|код ОКТМО|Файл 3-НДФЛ подготовлен|XML не создан|XML не создавался|Неподаваемый черновик|Подготовка приостановлена|Подготовку нельзя|Расчёт сохранён|Не удалось/i.test(text);
+      return advanced && new RegExp(terminalSource, terminalFlags).test(text);
     },
-    { previousCount: boundary.count, previousText: boundary.text },
-    { timeout },
+    {
+      previousCount: boundary.count,
+      previousText: boundary.text,
+      terminalSource: terminalPattern.source,
+      terminalFlags: terminalPattern.flags,
+    },
+    { timeout: waitTimeout },
   );
+  try {
+    await waitForAdvancedTurn(Math.min(timeout, 120000));
+  } catch (error) {
+    await page.reload({ waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.locator('#chat-input').waitFor({ state: 'visible', timeout: 60000 });
+    await page.locator('#stop-response-button').waitFor({
+      state: 'hidden',
+      timeout: 60000,
+    });
+    const sentMessage = page.__issue310LastSentMessage || '';
+    await page.waitForFunction(
+      ({ expectedUserText, terminalSource, terminalFlags }) => {
+        const items = [...document.querySelectorAll('[role="listitem"]')];
+        const last = items.at(-1);
+        const prior = items.at(-2);
+        return Boolean(
+          last
+          && prior
+          && (prior.innerText || '').includes(expectedUserText)
+          && new RegExp(terminalSource, terminalFlags).test(last.innerText || ''),
+        );
+      },
+      {
+        expectedUserText: sentMessage,
+        terminalSource: terminalPattern.source,
+        terminalFlags: terminalPattern.flags,
+      },
+      { timeout: Math.max(30000, timeout - Math.min(timeout, 120000)) },
+    );
+    page.__issue310CompletedTurnBrowserReadback = true;
+  }
   page.__issue310TurnBoundary = null;
   const terminalMessage = page.locator('[role="listitem"]').last();
   await page.locator('#chat-input').waitFor({ state: 'visible', timeout: 30000 });

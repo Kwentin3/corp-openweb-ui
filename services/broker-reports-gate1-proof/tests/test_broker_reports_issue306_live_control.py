@@ -290,6 +290,8 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "request_state_before" in source
     assert "request_state_after" in source
     assert "fact_created" in source
+    assert "__issue310CompletedTurnBrowserReadback" in source
+    assert "expectedUserText: sentMessage" in source
     assert "presentation_llm_calls_total" in source
     assert "domain_provider_calls_total" in source
     assert "filingCandidateRefused" in source
