@@ -95,6 +95,129 @@ def test_native_chat_scope_is_recovered_only_through_owner_lookup(
     }
 
 
+def test_completed_host_owned_current_turn_is_replayed_without_reexecution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeChats:
+        @staticmethod
+        async def get_chat_by_id_and_user_id(chat_id: str, user_id: str):
+            assert (chat_id, user_id) == ("owned-chat", "user-a")
+            return SimpleNamespace(
+                chat={
+                    "history": {
+                        "currentId": "assistant-current",
+                        "messages": {
+                            "user-current": {
+                                "role": "user",
+                                "content": "Изменить дату: 2026-08-25",
+                            },
+                            "assistant-current": {
+                                "role": "assistant",
+                                "parentId": "user-current",
+                                "model": NDFL_WORKSPACE_MODEL_STABLE_ID,
+                                "done": True,
+                                "content": "Файл 3-НДФЛ подготовлен.",
+                            },
+                        },
+                    }
+                }
+            )
+
+    openwebui = ModuleType("open_webui")
+    models = ModuleType("open_webui.models")
+    chats = ModuleType("open_webui.models.chats")
+    chats.Chats = FakeChats
+    monkeypatch.setitem(sys.modules, "open_webui", openwebui)
+    monkeypatch.setitem(sys.modules, "open_webui.models", models)
+    monkeypatch.setitem(sys.modules, "open_webui.models.chats", chats)
+
+    pipe = Pipe()
+
+    async def forbidden_resume(**_kwargs):
+        raise AssertionError("completed turn must not re-run domain or presentation owners")
+
+    monkeypatch.setattr(pipe, "_maybe_resume_ndfl_chat_turn", forbidden_resume)
+    content = asyncio.run(
+        pipe.pipe(
+            {
+                "messages": [
+                    {"role": "user", "content": "Изменить дату: 2026-08-25"}
+                ]
+            },
+            __user__={"id": "user-a"},
+            __metadata__={
+                "chat_id": "owned-chat",
+                "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+            },
+        )
+    )
+
+    assert content == "Файл 3-НДФЛ подготовлен."
+    assert pipe.last_artifact_manifest == {
+        "resumed_case": True,
+        "replayed_completed_openwebui_turn": True,
+    }
+    assert pipe._presentation_llm_calls_total == 0
+
+
+@pytest.mark.parametrize(
+    ("workspace_model", "done", "model", "parent_content"),
+    [
+        (NDFL_WORKSPACE_MODEL_STABLE_ID, False, NDFL_WORKSPACE_MODEL_STABLE_ID, "Текущий ответ"),
+        (NDFL_WORKSPACE_MODEL_STABLE_ID, True, "foreign-model", "Текущий ответ"),
+        (NDFL_WORKSPACE_MODEL_STABLE_ID, True, NDFL_WORKSPACE_MODEL_STABLE_ID, "Другой ответ"),
+        ("broker_reports_gate1_pipe", True, NDFL_WORKSPACE_MODEL_STABLE_ID, "Текущий ответ"),
+    ],
+)
+def test_completed_turn_replay_rejects_incomplete_foreign_or_misbound_leaf(
+    monkeypatch: pytest.MonkeyPatch,
+    workspace_model: str,
+    done: bool,
+    model: str,
+    parent_content: str,
+) -> None:
+    class FakeChats:
+        @staticmethod
+        async def get_chat_by_id_and_user_id(_chat_id: str, _user_id: str):
+            return SimpleNamespace(
+                chat={
+                    "history": {
+                        "currentId": "assistant-current",
+                        "messages": {
+                            "user-current": {
+                                "role": "user",
+                                "content": parent_content,
+                            },
+                            "assistant-current": {
+                                "role": "assistant",
+                                "parentId": "user-current",
+                                "model": model,
+                                "done": done,
+                                "content": "Старый ответ",
+                            },
+                        },
+                    }
+                }
+            )
+
+    openwebui = ModuleType("open_webui")
+    models = ModuleType("open_webui.models")
+    chats = ModuleType("open_webui.models.chats")
+    chats.Chats = FakeChats
+    monkeypatch.setitem(sys.modules, "open_webui", openwebui)
+    monkeypatch.setitem(sys.modules, "open_webui.models", models)
+    monkeypatch.setitem(sys.modules, "open_webui.models.chats", chats)
+
+    replay = asyncio.run(
+        Pipe()._server_attested_completed_turn_content(
+            metadata={"chat_id": "owned-chat", "model_id": workspace_model},
+            user={"id": "user-a"},
+            interaction_message="Текущий ответ",
+        )
+    )
+    assert replay is None
+
+
 def test_product_stage_is_disabled_by_default() -> None:
     pipe = Pipe()
     result = asyncio.run(
@@ -273,7 +396,6 @@ def test_llm_proposal_creates_no_fact_until_native_confirmation_and_owner_publis
         form_data = call["form_data"]
         turn = json.loads(form_data["messages"][1]["content"])
         user_message = turn["current_user_message"]
-        context_for_turn = turn["context"]
         model_calls.append(user_message)
         clarify = user_message == "Не 2025 год"
         visible = (

@@ -327,6 +327,17 @@ class Pipe:
         )
         if "broker_reports_declaration_action" in safe_body:
             raise NdflWorkflowError("ordinary_trade_declaration_hidden_action_forbidden")
+        completed_turn = await self._server_attested_completed_turn_content(
+            metadata=metadata,
+            user=__user__,
+            interaction_message=interaction_message,
+        )
+        if completed_turn is not None:
+            self.last_artifact_manifest = {
+                "resumed_case": True,
+                "replayed_completed_openwebui_turn": True,
+            }
+            return completed_turn
         resumed = await self._maybe_resume_ndfl_chat_turn(
             body=safe_body,
             metadata=metadata,
@@ -4360,6 +4371,58 @@ class Pipe:
                 )
             )
         return max(candidates)[2] if candidates else (trusted or value)
+
+    @classmethod
+    async def _server_attested_completed_turn_content(
+        cls,
+        *,
+        metadata: dict[str, Any],
+        user: Any,
+        interaction_message: str,
+    ) -> str | None:
+        """Replay only the host-owned completed leaf for this exact user turn."""
+
+        chat_id = str(metadata.get("chat_id") or "").strip()
+        if metadata.get("model_id") != NDFL_WORKSPACE_MODEL_STABLE_ID:
+            return None
+        user_id = (
+            str(user.get("id") or user.get("user_id") or "").strip()
+            if isinstance(user, dict)
+            else ""
+        )
+        if not chat_id or not user_id or not interaction_message:
+            return None
+        try:
+            from open_webui.models.chats import Chats
+
+            chat = await Chats.get_chat_by_id_and_user_id(chat_id, user_id)
+        except (ImportError, AttributeError):
+            return None
+        if chat is None or not isinstance(chat.chat, dict):
+            return None
+        history = chat.chat.get("history")
+        history = history if isinstance(history, dict) else {}
+        messages = history.get("messages")
+        messages = messages if isinstance(messages, dict) else {}
+        current_id = str(history.get("currentId") or "").strip()
+        current = messages.get(current_id)
+        if (
+            not isinstance(current, dict)
+            or current.get("role") != "assistant"
+            or current.get("done") is not True
+            or str(current.get("model") or "").strip()
+            != NDFL_WORKSPACE_MODEL_STABLE_ID
+        ):
+            return None
+        parent = messages.get(str(current.get("parentId") or ""))
+        if (
+            not isinstance(parent, dict)
+            or parent.get("role") != "user"
+            or cls._message_text(parent.get("content")) != interaction_message
+        ):
+            return None
+        content = current.get("content")
+        return content if isinstance(content, str) and content.strip() else None
 
     def _file_obj(self, item: Any) -> dict[str, Any] | None:
         if not isinstance(item, dict):
