@@ -415,7 +415,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     if (expectedRejection !== rejected) {
       throw new Error(expectedRejection ? 'invalid_answer_was_accepted' : 'valid_answer_was_rejected');
     }
-    if (body.includes('Расчётный черновик готов. XML не создан.')) {
+    if (body.includes('Расчётный черновик готов. XML не создан')) {
       state.draftReady = true;
     }
     if (body.includes('Расчёт остановлен на точной границе методики')) {
