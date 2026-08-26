@@ -203,9 +203,11 @@ async function waitForTurn(page, timeout = 240000) {
       const last = items.at(-1);
       if (!last) return false;
       const text = (last.innerText || '').trim();
-      // OpenWebUI exposes assistant messages as list items.  Wait for the new
-      // non-empty assistant item; presentation may omit decorative headings.
-      return items.length > previousCount && text.length > 0;
+      // OpenWebUI may append an assistant item or reuse its progress item.
+      // Either way, wait for non-empty assistant text that advanced this turn;
+      // presentation may omit decorative headings.
+      const advanced = items.length > previousCount || text !== previousText.trim();
+      return advanced && text.length > 0;
     },
     { previousCount: boundary.count, previousText: boundary.text },
     { timeout },
