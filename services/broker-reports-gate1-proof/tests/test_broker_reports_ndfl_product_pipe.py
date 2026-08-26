@@ -930,7 +930,10 @@ def test_case_note_translates_owner_state_without_internal_vocabulary() -> None:
 
     assert "В операциях обнаружены годы: 2024, 2025" in content
     assert "открытая длинная позиция, остаток 3" in content
-    assert "Доступный профиль декларации: 5.20" in content
+    assert (
+        "Доступный профиль декларации: 3-НДФЛ за 2025 год, "
+        "электронный формат 5.20"
+    ) in content
     assert "XML не создан" in content
     for hidden in (
         "COMPLETE_FOR_OBSERVED_SECURITY_FACTS",

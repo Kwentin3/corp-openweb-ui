@@ -1116,7 +1116,16 @@ def _public_summary_lines(
     profile = profile if isinstance(profile, dict) else {}
     form_version = profile.get("form_version")
     if isinstance(form_version, str) and form_version.strip():
-        lines.append(f"Доступный профиль декларации: {form_version.strip()}.")
+        profile_label = form_version.strip()
+        if (
+            profile.get("support") == "SUPPORTED"
+            and isinstance(selected, str)
+            and re.fullmatch(r"[0-9]+(?:\.[0-9]+)+", profile_label)
+        ):
+            profile_label = (
+                f"3-НДФЛ за {selected} год, электронный формат {profile_label}"
+            )
+        lines.append(f"Доступный профиль декларации: {profile_label}.")
     positions = note.get("positions")
     if isinstance(positions, list) and positions:
         lines.append("Позиции:")
