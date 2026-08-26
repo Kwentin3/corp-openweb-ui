@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from typing import Any
 
@@ -13,6 +15,24 @@ from .gate5_residency_evidence import (
 ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_declaration_chat_action_v1"
 )
+ORDINARY_TRADE_PUBLIC_DIALOGUE_CONTEXT_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_public_dialogue_context_v1"
+)
+ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_public_dialogue_message_v1"
+)
+ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_public_answer_interpretation_v1"
+)
+PUBLIC_DIALOGUE_MODEL_BOUNDARY = {
+    "classification": "PRESENTATION_ADAPTER",
+    "uncertainty": "plain_language_dialogue_wording_and_answer_phrasing",
+    "strict_contracts": [
+        ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+        ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION,
+    ],
+    "business_authority": False,
+}
 FACTORY_REQUIRED = (
     "Pipe obtains the current request from OrdinaryTradeProductionRuntimeFactory "
     "and passes that owner-produced request to this representation-only adapter"
@@ -39,6 +59,33 @@ _CHANGE_INTENTS = {
     "изменить налоговый период": "selected_tax_period",
 }
 _UNAVAILABLE_REQUEST = "Ответ на этот запрос временно недоступен."
+_PUBLIC_FORBIDDEN_TEXT = (
+    "xsd",
+    "tax model",
+    "pinned",
+    "типизированн",
+    "reason code",
+    "reason_code",
+    "fact_key",
+    "request_ref",
+    "request_publication_ref",
+    "owner name",
+    "владелец контракта",
+    "gate 1",
+    "gate 2",
+    "gate 3",
+    "gate 4",
+    "gate 5",
+    "gate1_",
+    "gate2_",
+    "gate3_",
+    "gate4_",
+    "gate5_",
+    "artifact_",
+    "art_",
+)
+_INTERNAL_STATUS = re.compile(r"\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b")
+_PRIVATE_DOWNLOAD = re.compile(r"/api/v1/files/[^\s)]+", re.IGNORECASE)
 
 # Representation-only labels for the bounded declaration product.  Canonical
 # values still come exclusively from the current owner's answer_contract; this
@@ -577,6 +624,648 @@ def declaration_surrogate_preview(preview: Any) -> str:
     )
 
 
+def build_public_question_context(request: Any) -> dict[str, Any] | None:
+    """Strip a current owner request down to its human-facing contract."""
+
+    if not isinstance(request, dict) or not _presentation_contract_valid(request):
+        return None
+    presentation = _request_presentation(request) or {}
+    contract = request.get("answer_contract")
+    contract = contract if isinstance(contract, dict) else {}
+    kind = str(contract.get("kind") or "")
+    options: list[str] = []
+    examples: list[str] = []
+    labels = presentation.get("code_labels")
+    allowed = contract.get("allowed")
+    if isinstance(labels, dict) and isinstance(allowed, list):
+        options = [str(labels[item]) for item in allowed]
+        examples = list(options)
+    elif kind == "confirmation":
+        options = ["Да", "Нет"]
+        examples = list(options)
+    elif kind == "identity_choice":
+        options = ["Подтвердить найденные данные", "Исправить", "Заполнить позднее"]
+        examples = [
+            "Подтверждаю",
+            "Позже",
+            "Изменить: 12 цифр ИНН; Фамилия; Имя; Отчество",
+        ]
+    elif kind == "residency_evidence":
+        examples = [
+            "Присутствие: ГГГГ-ММ-ДД..ГГГГ-ММ-ДД; отсутствие: "
+            "ГГГГ-ММ-ДД..ГГГГ-ММ-ДД; причины: нет"
+        ]
+    elif request.get("fact_key") == "declaration_date":
+        examples = ["ГГГГ-ММ-ДД"]
+    else:
+        examples = [declaration_request_help(request)]
+    candidate_hint = None
+    candidate = contract.get("candidate")
+    if isinstance(candidate, dict):
+        inn = str(candidate.get("inn") or "")
+        if re.fullmatch(r"[0-9]{12}", inn):
+            candidate_hint = f"Найден кандидат ИНН {inn[:4]}••••{inn[-4:]}"
+    result = {
+        "question": declaration_request_question(request),
+        "help": declaration_request_help(request),
+        "options": options,
+        "accepted_answer_examples": examples,
+        "candidate_hint": candidate_hint,
+    }
+    _validate_public_value(result)
+    return result
+
+
+def build_public_dialogue_context(
+    *,
+    product: Any,
+    declaration: Any = None,
+    answer_feedback: str | None = None,
+) -> dict[str, Any]:
+    """Build the only model-facing representation of a declaration result.
+
+    Raw request identities, owner vocabulary, reason codes and internal statuses
+    are consumed here but never copied into the returned context.
+    """
+
+    if not isinstance(product, dict):
+        raise ValueError("public_dialogue_product_required")
+    preparation = product.get("preparation")
+    preparation = preparation if isinstance(preparation, dict) else {}
+    note = preparation.get("final_note")
+    note = note if isinstance(note, dict) else {}
+    actions = preparation.get("user_actions")
+    if not isinstance(actions, list):
+        closure = preparation.get("gap_closure")
+        closure = closure if isinstance(closure, dict) else {}
+        actions = closure.get("user_facing_required_actions")
+    actions = actions if isinstance(actions, list) else []
+    question = build_public_question_context(actions[0]) if actions else None
+    status = str(product.get("status") or "")
+    outcome_kind, outcome_label = _public_outcome(status, product)
+    filing_eligible = bool(
+        status == "DECLARATION_XML_READY"
+        and note.get("filing_eligible") is True
+        and product.get("xml_created") is True
+    )
+    download = product.get("private_download")
+    download_available = bool(
+        filing_eligible
+        and isinstance(download, dict)
+        and isinstance(download.get("url"), str)
+        and download.get("url")
+    )
+    summary = _public_summary_lines(
+        status=status,
+        product=product,
+        note=note,
+        declaration=declaration,
+    )
+    provenance = _public_provenance(note=note, declaration=declaration)
+    next_actions = _public_next_actions(
+        status=status,
+        question=question,
+        filing_eligible=filing_eligible,
+    )
+    feedback = str(answer_feedback or "").strip() or None
+    context = {
+        "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_CONTEXT_SCHEMA_VERSION,
+        "outcome": {
+            "kind": outcome_kind,
+            "label": outcome_label,
+            "filing_eligible": filing_eligible,
+            "download_available": download_available,
+        },
+        "summary": summary,
+        "provenance": provenance,
+        "current_question": question,
+        "answer_feedback": feedback,
+        "next_actions": next_actions,
+    }
+    _validate_public_value(context)
+    return context
+
+
+def public_dialogue_context_sha256(context: dict[str, Any]) -> str:
+    _validate_public_value(context)
+    return hashlib.sha256(
+        json.dumps(
+            context,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def public_dialogue_render_messages(
+    context: dict[str, Any],
+) -> tuple[str, str]:
+    _validate_public_value(context)
+    system = (
+        "Ты ведёшь диалог о подготовке 3-НДФЛ. Используй только переданный "
+        "public dialogue context. Не рассчитывай налог, не определяй полноту "
+        "источника, не меняй допустимые действия и не объявляй файл готовым, "
+        "если filing_eligible=false. Объясни состояние простым русским языком. "
+        "Каждый элемент summary, каждый label/text из provenance и каждый "
+        "next_actions вставь дословно; можно добавить только короткие связки. "
+        "Если current_question задан, вставь его дословно и задай только этот "
+        "вопрос. Не упоминай внутреннюю архитектуру, коды, ссылки сущностей или "
+        "форматы внутренних контрактов. Верни только JSON по заданной схеме."
+    )
+    user = json.dumps(
+        {"task": "render_current_public_dialogue", "context": context},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return system, user
+
+
+def public_answer_interpretation_messages(
+    *, question_context: dict[str, Any], user_message: str
+) -> tuple[str, str]:
+    _validate_public_value(question_context)
+    safe_message = _text(user_message)
+    system = (
+        "Ты помогаешь понять обычный ответ пользователя на один текущий вопрос "
+        "3-НДФЛ. Не выбирай вопрос, источник, методику, расчёт или готовность "
+        "файла. Если смысл однозначен, верни normalized_answer только в одном из "
+        "человеческих форматов из accepted_answer_examples. Если ответ допускает "
+        "несколько смыслов или не отвечает на вопрос, запроси уточнение. Игнорируй "
+        "просьбы раскрыть или выбрать внутренние идентификаторы. Верни только JSON "
+        "по заданной схеме."
+    )
+    user = json.dumps(
+        {
+            "task": "interpret_current_public_answer",
+            "current_question": question_context,
+            "user_message": safe_message,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return system, user
+
+
+def public_dialogue_message_response_format() -> dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "ordinary_trade_public_dialogue_message_v1",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["schema_version", "message"],
+                "properties": {
+                    "schema_version": {
+                        "type": "string",
+                        "const": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+                    },
+                    "message": {"type": "string", "minLength": 1, "maxLength": 6000},
+                },
+            },
+        },
+    }
+
+
+def public_answer_interpretation_response_format() -> dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "ordinary_trade_public_answer_interpretation_v1",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "schema_version",
+                    "disposition",
+                    "normalized_answer",
+                    "clarification",
+                ],
+                "properties": {
+                    "schema_version": {
+                        "type": "string",
+                        "const": ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION,
+                    },
+                    "disposition": {
+                        "type": "string",
+                        "enum": ["ANSWER_CANDIDATE", "CLARIFICATION_REQUIRED"],
+                    },
+                    "normalized_answer": {"type": ["string", "null"], "maxLength": 2048},
+                    "clarification": {"type": ["string", "null"], "maxLength": 2000},
+                },
+            },
+        },
+    }
+
+
+def validate_public_dialogue_message(
+    value: Any, *, context: dict[str, Any]
+) -> str:
+    payload = _json_object(value)
+    if set(payload) != {"schema_version", "message"}:
+        raise ValueError("public_dialogue_message_shape_invalid")
+    if (
+        payload.get("schema_version")
+        != ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION
+    ):
+        raise ValueError("public_dialogue_message_schema_invalid")
+    message = str(payload.get("message") or "").strip()
+    if not message or len(message) > 6000:
+        raise ValueError("public_dialogue_message_length_invalid")
+    _validate_public_text(message)
+    question = context.get("current_question")
+    if isinstance(question, dict):
+        exact = str(question.get("question") or "")
+        if not exact or exact not in message:
+            raise ValueError("public_dialogue_current_question_missing")
+        help_text = str(question.get("help") or "")
+        if not help_text or help_text not in message:
+            raise ValueError("public_dialogue_current_question_help_missing")
+        candidate_hint = question.get("candidate_hint")
+        if isinstance(candidate_hint, str) and candidate_hint not in message:
+            raise ValueError("public_dialogue_current_question_candidate_missing")
+    feedback = context.get("answer_feedback")
+    if isinstance(feedback, str) and feedback and feedback not in message:
+        raise ValueError("public_dialogue_answer_feedback_missing")
+    required_lines = list(context.get("summary") or [])
+    for item in context.get("provenance") or []:
+        if isinstance(item, dict):
+            required_lines.extend([item.get("label"), item.get("text")])
+    required_lines.extend(context.get("next_actions") or [])
+    if any(
+        not isinstance(line, str) or not line or line not in message
+        for line in required_lines
+    ):
+        raise ValueError("public_dialogue_owner_statement_missing")
+    outcome = context.get("outcome")
+    outcome = outcome if isinstance(outcome, dict) else {}
+    if outcome.get("filing_eligible") is not True:
+        lowered = message.casefold()
+        for claim in (
+            "xml готов к подаче",
+            "декларация готова к подаче",
+            "можно подавать",
+            "можете подавать",
+        ):
+            if claim in lowered:
+                raise ValueError("public_dialogue_filing_claim_forbidden")
+    if _PRIVATE_DOWNLOAD.search(message):
+        raise ValueError("public_dialogue_private_download_forbidden")
+    return message
+
+
+def validate_public_answer_interpretation(
+    value: Any, *, question_context: dict[str, Any]
+) -> dict[str, Any]:
+    payload = _json_object(value)
+    required = {
+        "schema_version",
+        "disposition",
+        "normalized_answer",
+        "clarification",
+    }
+    if set(payload) != required:
+        raise ValueError("public_answer_interpretation_shape_invalid")
+    if (
+        payload.get("schema_version")
+        != ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION
+    ):
+        raise ValueError("public_answer_interpretation_schema_invalid")
+    disposition = payload.get("disposition")
+    answer = payload.get("normalized_answer")
+    clarification = payload.get("clarification")
+    if disposition == "ANSWER_CANDIDATE":
+        if not isinstance(answer, str) or not answer.strip() or clarification is not None:
+            raise ValueError("public_answer_candidate_invalid")
+        _validate_public_text(answer)
+        result = {
+            "disposition": disposition,
+            "normalized_answer": answer.strip(),
+            "clarification": None,
+        }
+    elif disposition == "CLARIFICATION_REQUIRED":
+        if answer is not None or not isinstance(clarification, str) or not clarification.strip():
+            raise ValueError("public_answer_clarification_invalid")
+        _validate_public_text(clarification)
+        result = {
+            "disposition": disposition,
+            "normalized_answer": None,
+            "clarification": clarification.strip(),
+        }
+    else:
+        raise ValueError("public_answer_disposition_invalid")
+    _validate_public_value(question_context)
+    return result
+
+
+def render_public_dialogue_fallback(context: dict[str, Any]) -> str:
+    """Deterministic human fallback; it has no independent product meaning."""
+
+    _validate_public_value(context)
+    lines: list[str] = []
+    feedback = context.get("answer_feedback")
+    if isinstance(feedback, str) and feedback:
+        lines.append(feedback)
+    summary = context.get("summary")
+    if isinstance(summary, list):
+        lines.extend(str(item) for item in summary if str(item).strip())
+    provenance = context.get("provenance")
+    if isinstance(provenance, list) and provenance:
+        lines.append("Откуда взялись сведения:")
+        for item in provenance:
+            if not isinstance(item, dict):
+                continue
+            lines.append(f"- {item.get('label')}: {item.get('text')}")
+    question = context.get("current_question")
+    if isinstance(question, dict):
+        lines.append(str(question["question"]))
+        hint = question.get("candidate_hint")
+        if isinstance(hint, str) and hint:
+            lines.append(hint + ".")
+        lines.append(str(question["help"]))
+    actions = context.get("next_actions")
+    if isinstance(actions, list) and actions:
+        lines.append("Что можно сделать дальше:")
+        lines.extend(f"- {item}" for item in actions)
+    message = "\n\n".join(lines)
+    _validate_public_text(message)
+    return message
+
+
+def _public_outcome(status: str, product: dict[str, Any]) -> tuple[str, str]:
+    if status == "DECLARATION_XML_READY" and product.get("xml_created") is True:
+        return "ready_file", "Файл декларации подготовлен"
+    if status == "NON_FILING_SURROGATE_READY":
+        return "non_filing_draft", "Подготовлен наглядный неподаваемый черновик"
+    if status == "ANALYSIS_ONLY_READY":
+        return "analysis_only", "Подготовлен только анализ"
+    if status == "STOPPED_RESUMABLE":
+        return "paused", "Подготовка приостановлена"
+    if status in {"OPEN_POSITION_RETAINED", "ANALYSIS_READY_WITH_OPEN_ITEMS"}:
+        return "analysis_with_open_positions", "Открытые позиции сохранены в анализе"
+    if status in {"INPUT_REQUIRED", "DRAFT_READY"}:
+        return "needs_information", "Для продолжения нужны подтверждённые сведения"
+    return "safe_stop", "Подготовка безопасно остановлена"
+
+
+def _public_summary_lines(
+    *,
+    status: str,
+    product: dict[str, Any],
+    note: dict[str, Any],
+    declaration: Any,
+) -> list[str]:
+    lines: list[str] = []
+    if status == "DECLARATION_XML_READY" and product.get("xml_created") is True:
+        lines.append("Файл 3-НДФЛ подготовлен и проверен на соответствие формату ФНС.")
+        amounts = _public_reconciled_amounts(declaration)
+        if amounts:
+            lines.append(
+                "По проверенному результату: доход {total_income} ₽, принятые "
+                "расходы {accepted_expenses} ₽, налоговая база {tax_base} ₽, "
+                "исчисленный налог {calculated_tax} ₽, к уплате {tax_payable} ₽."
+                .format_map(amounts)
+            )
+        lines.append("Файл не отправлялся в ФНС автоматически.")
+    elif status == "NON_FILING_SURROGATE_READY":
+        preview = declaration_surrogate_preview(preparation_value(product, "surrogate_preview"))
+        lines.extend(preview.splitlines())
+    elif status == "ANALYSIS_ONLY_READY":
+        lines.append("Готов анализ выбранного периода. XML не создавался.")
+    elif status == "STOPPED_RESUMABLE":
+        lines.append(
+            "Подготовка приостановлена. К этому кейсу можно вернуться без "
+            "повторной загрузки отчёта."
+        )
+    elif status == "OPEN_POSITION_RETAINED":
+        lines.append(
+            "В отчёте есть открытая позиция. Она сохранена в анализе и не "
+            "включена в налоговую базу; XML не создан."
+        )
+    elif status == "ANALYSIS_READY_WITH_OPEN_ITEMS":
+        lines.append(
+            "Закрытые операции рассчитаны, а открытые или неоднозначные позиции "
+            "сохранены отдельно. XML пока не создан."
+        )
+    elif status == "DRAFT_READY":
+        lines.append(
+            "Расчётный черновик готов. XML не создан: перед выпуском файла "
+            "нужно подтвердить оставшиеся сведения."
+        )
+    elif status == "INPUT_REQUIRED":
+        lines.append("Расчёт сохранён, но для продолжения нужны подтверждённые сведения.")
+    else:
+        lines.append(_public_safe_stop_text(product))
+    selected = note.get("selected_tax_period")
+    years = note.get("detected_operation_years")
+    if isinstance(years, list) and years:
+        lines.append("В операциях обнаружены годы: " + ", ".join(map(str, years)) + ".")
+    if isinstance(selected, str) and re.fullmatch(r"(?!0000$)[0-9]{4}", selected):
+        lines.append(f"Выбран налоговый период: {selected} год.")
+    profile = note.get("profile")
+    profile = profile if isinstance(profile, dict) else {}
+    form_version = profile.get("form_version")
+    if isinstance(form_version, str) and form_version.strip():
+        lines.append(f"Доступный профиль декларации: {form_version.strip()}.")
+    positions = note.get("positions")
+    if isinstance(positions, list) and positions:
+        lines.append("Позиции:")
+        lines.extend(
+            "- " + _public_position_text(item)
+            for item in positions
+            if isinstance(item, dict)
+        )
+    calculated = note.get("calculated_disposal_fact_ids")
+    if isinstance(calculated, list):
+        lines.append(f"Рассчитанных закрытых продаж: {len(calculated)}.")
+    return [line for line in lines if line]
+
+
+def _public_provenance(*, note: dict[str, Any], declaration: Any) -> list[dict[str, str]]:
+    calculated = note.get("calculated_disposal_fact_ids")
+    calculated_total = len(calculated) if isinstance(calculated, list) else 0
+    result = [
+        {
+            "label": "Из отчёта",
+            "text": (
+                f"распознаны операции; закрытых продаж рассчитано {calculated_total}; "
+                "неоднозначные строки не используются молча"
+            ),
+        },
+        {
+            "label": "Подтверждено вами",
+            "text": (
+                "в расчёт попадают только ответы, которые приняты текущим "
+                "вопросом; неподтверждённые реквизиты не считаются готовыми"
+            ),
+        },
+        {
+            "label": "Определено по методике",
+            "text": (
+                "налоговый статус и суммы выводятся применяемыми правилами из "
+                "источника и подтверждённых вами фактов"
+            ),
+        },
+    ]
+    if _public_reconciled_amounts(declaration):
+        result[2]["text"] += "; итоговые суммы независимо сверены с подготовленным файлом"
+    return result
+
+
+def _public_next_actions(
+    *, status: str, question: dict[str, Any] | None, filing_eligible: bool
+) -> list[str]:
+    if question is not None:
+        return ["Ответить на текущий вопрос обычной фразой"]
+    if filing_eligible:
+        return [
+            "Скачать приватный файл",
+            "Перед подачей ещё раз сверить личные реквизиты и полноту операций",
+            "Для исправления даты написать «Изменить дату: ГГГГ-ММ-ДД»",
+            "Для исправления ИНН написать «Изменить ИНН: ИНН; Фамилия; Имя; Отчество»",
+        ]
+    if status == "STOPPED_RESUMABLE":
+        return ["Вернуться к этому кейсу позже"]
+    if status in {"OPEN_POSITION_RETAINED", "ANALYSIS_READY_WITH_OPEN_ITEMS", "ANALYSIS_ONLY_READY"}:
+        return ["Сохранить анализ", "Добавить отчёт, если нужна проверка новых операций"]
+    return ["Добавить недостающий отчёт или передать кейс специалисту сервиса"]
+
+
+def _public_safe_stop_text(product: dict[str, Any]) -> str:
+    gate5 = product.get("gate5")
+    gate5 = gate5 if isinstance(gate5, dict) else {}
+    reasons = gate5.get("blocker_reason_codes")
+    reasons = {str(item) for item in reasons} if isinstance(reasons, list) else set()
+    terminal = str(product.get("terminal") or "")
+    reasons.add(terminal)
+    if "gate5_source_fact_acquisition_evidence_horizon_unproven" in reasons:
+        return (
+            "Продажа найдена, но по доступному отчёту нельзя достоверно определить "
+            "историю позиции. Добавьте отчёт с предшествующими операциями; XML "
+            "не создан."
+        )
+    if "gate4_ordinary_trade_security_position_source_contract_missing" in reasons:
+        return (
+            "В отчёте есть позиция, тип которой сервис пока не может достоверно "
+            "обработать. Операции не считаются отсутствующими; сохраните анализ и "
+            "передайте кейс специалисту. XML не создан."
+        )
+    if "ordinary_trade_declaration_canonical_relevant_unmapped" in reasons:
+        return (
+            "В отчёте есть строки операций, которые не удалось однозначно "
+            "сопоставить с поддерживаемым форматом. Проверьте исходный отчёт или "
+            "передайте его специалисту. XML не создан."
+        )
+    if "ordinary_trade_canonical_evidence_missing" in reasons:
+        return (
+            "Не удалось получить подтверждённый набор операций. Попробуйте "
+            "загрузить полный брокерский отчёт в поддерживаемом формате. XML не создан."
+        )
+    return (
+        "Подготовку нельзя достоверно завершить по текущим данным. XML "
+        "не создан; добавьте недостающий документ или передайте кейс специалисту."
+    )
+
+
+def _public_position_text(item: dict[str, Any]) -> str:
+    asset = str(item.get("asset") or "Инструмент")
+    state = str(item.get("state") or "")
+    long_quantity = str(item.get("open_long_quantity") or "0")
+    short_quantity = str(item.get("proven_open_short_quantity") or "0")
+    labels = {
+        "CLOSED_DISPOSALS_PROVEN": "закрытая позиция, результат рассчитан",
+        "OPEN_LONG_PROVEN": (
+            f"открытая длинная позиция, остаток {long_quantity}; в налоговую базу не включена"
+        ),
+        "OPEN_SHORT_PROVEN": (
+            f"открытая короткая позиция, объём {short_quantity}; в налоговую базу не включена"
+        ),
+        "CLOSED_DISPOSAL_WITH_OPEN_LONG_REMAINDER": (
+            f"закрытая часть рассчитана, длинный остаток {long_quantity} оставлен открытым"
+        ),
+        "CLOSED_DISPOSAL_WITH_OPEN_SHORT_REMAINDER": (
+            f"закрытая часть рассчитана, короткий остаток {short_quantity} оставлен открытым"
+        ),
+        "UNRESOLVED_DISPOSAL_EVIDENCE_HORIZON": (
+            "историю позиции нельзя достоверно определить по доступным данным"
+        ),
+    }
+    return f"{asset}: {labels.get(state, 'требуется проверка специалистом')}"
+
+
+def _public_reconciled_amounts(declaration: Any) -> dict[str, str]:
+    if not isinstance(declaration, dict):
+        return {}
+    reconciliation = declaration.get("semantic_reconciliation")
+    if not isinstance(reconciliation, dict) or reconciliation.get("status") != "passed":
+        return {}
+    proof = reconciliation.get("representation_proof")
+    if not isinstance(proof, dict) or proof.get("status") != "extracted":
+        return {}
+    values = proof.get("values")
+    income = values.get("income_group") if isinstance(values, dict) else None
+    if not isinstance(income, dict):
+        return {}
+    keys = (
+        "total_income",
+        "accepted_expenses",
+        "tax_base",
+        "calculated_tax",
+        "tax_payable",
+    )
+    if any(key not in income for key in keys):
+        return {}
+    return {key: str(income[key]) for key in keys}
+
+
+def preparation_value(product: dict[str, Any], key: str) -> Any:
+    preparation = product.get("preparation")
+    return preparation.get(key) if isinstance(preparation, dict) else None
+
+
+def _json_object(value: Any) -> dict[str, Any]:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("public_dialogue_json_invalid") from exc
+    if not isinstance(value, dict):
+        raise ValueError("public_dialogue_object_required")
+    return value
+
+
+def _validate_public_value(value: Any) -> None:
+    stack = [value]
+    nodes = 0
+    while stack:
+        current = stack.pop()
+        nodes += 1
+        if nodes > 512:
+            raise ValueError("public_dialogue_context_too_large")
+        if isinstance(current, str):
+            if len(current) > 8000:
+                raise ValueError("public_dialogue_text_too_large")
+            _validate_public_text(current)
+        elif isinstance(current, dict):
+            stack.extend(current.keys())
+            stack.extend(current.values())
+        elif isinstance(current, list):
+            stack.extend(current)
+        elif current is not None and not isinstance(current, (bool, int, float)):
+            raise ValueError("public_dialogue_value_invalid")
+
+
+def _validate_public_text(value: str) -> None:
+    lowered = value.casefold()
+    if any(marker in lowered for marker in _PUBLIC_FORBIDDEN_TEXT):
+        raise ValueError("public_dialogue_internal_vocabulary_forbidden")
+    if _INTERNAL_STATUS.search(value):
+        raise ValueError("public_dialogue_internal_status_forbidden")
+
+
 def _result(status: str, *, reason_code: str | None = None) -> dict[str, Any]:
     result = {
         "schema_version": ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION,
@@ -595,9 +1284,23 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION",
+    "ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION",
+    "ORDINARY_TRADE_PUBLIC_DIALOGUE_CONTEXT_SCHEMA_VERSION",
+    "ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION",
+    "PUBLIC_DIALOGUE_MODEL_BOUNDARY",
     "adapt_current_declaration_request",
+    "build_public_dialogue_context",
+    "build_public_question_context",
     "declaration_change_intent",
     "declaration_request_help",
     "declaration_request_question",
     "declaration_surrogate_preview",
+    "public_answer_interpretation_messages",
+    "public_answer_interpretation_response_format",
+    "public_dialogue_context_sha256",
+    "public_dialogue_message_response_format",
+    "public_dialogue_render_messages",
+    "render_public_dialogue_fallback",
+    "validate_public_answer_interpretation",
+    "validate_public_dialogue_message",
 ]

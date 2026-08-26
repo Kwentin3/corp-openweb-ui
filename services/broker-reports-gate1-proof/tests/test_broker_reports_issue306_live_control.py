@@ -266,6 +266,16 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "answer = 'SELF'" not in source
     assert "answer = 'PAYMENT'" not in source
     assert "answer = 'individual_not_ip_not_private_practice'" not in source
+    assert "visible_system_text" in source
+    assert "natural_user_answer" in source
+    assert "what_user_could_understand" in source
+    assert "expected_next_action" in source
+    assert "actual_visible_result" in source
+    assert "problem_class" in source
+    assert "getByText(MODAL_TITLE" not in source
+    assert "page.getByRole('button', { name: 'Подтвердить'" not in source
+    assert "/\\bXSD\\b/i" in source
+    assert "/Tax Model/i" in source
     assert "childProcess.execFileSync" in source
     assert "gitBlobSha256" in source
     assert "['show', `${testedCommit}:${relative}`]" in source

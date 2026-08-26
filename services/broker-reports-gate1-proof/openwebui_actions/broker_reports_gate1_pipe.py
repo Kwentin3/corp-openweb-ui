@@ -99,10 +99,19 @@ from broker_reports_gate1.gate5_human_gap_closure import (
 )
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
+    build_public_dialogue_context,
+    build_public_question_context,
     declaration_change_intent,
     declaration_request_help,
     declaration_request_question,
-    declaration_surrogate_preview,
+    public_answer_interpretation_messages,
+    public_answer_interpretation_response_format,
+    public_dialogue_context_sha256,
+    public_dialogue_message_response_format,
+    public_dialogue_render_messages,
+    render_public_dialogue_fallback,
+    validate_public_answer_interpretation,
+    validate_public_dialogue_message,
 )
 from broker_reports_gate1.private_intake_bytes import (
     OpenWebUIPrivateIntakeBytesResolverFactory,
@@ -230,6 +239,8 @@ class Pipe:
             default="/app/backend/data/broker_reports_gate1/gate3-product-proof"
         )
         ndfl_gate3_private_audit_id: str = Field(default="")
+        ndfl_presentation_llm_enabled: bool = Field(default=True)
+        ndfl_presentation_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
         pdf_table_intake_enabled: bool = Field(
             default=True,
             description=(
@@ -263,6 +274,7 @@ class Pipe:
         self.last_workload_snapshot: dict[str, Any] | None = None
         self._active_workload_session = None
         self._workload_review_items = 0
+        self._presentation_llm_calls_total = 0
 
     async def pipe(
         self,
@@ -276,6 +288,7 @@ class Pipe:
         __event_call__=None,
         **kwargs,
     ) -> str:
+        self._presentation_llm_calls_total = 0
         safe_body = body if isinstance(body, dict) else {}
         messages_arg = __messages__ or kwargs.get("__messages__")
         metadata = await self._server_attested_runtime_metadata(
@@ -762,6 +775,7 @@ class Pipe:
                 retention_policy=retention_policy,
                 trusted_interaction_message=trusted_interaction_message,
                 event_call=__event_call__,
+                source_turn=bool(file_refs),
             ),
             enabled=(
                 bool(self.valves.ndfl_gate3_enabled)
@@ -824,80 +838,27 @@ class Pipe:
                 ),
                 done=True,
             )
-        chat_content = render_chat_content(result.safe_report)
         if artifact_context.workspace_model_id == NDFL_WORKSPACE_MODEL_STABLE_ID:
-            chat_content = self._ndfl_source_user_content(product_result)
-        if ndfl_gate3.get("status") == "completed":
-            semantic_status = (
-                "Обычные сделки с ценными бумагами обработаны по "
-                "квалифицированной точной схеме; неизвестные строки сохранены "
-                "без догадок."
-                if ndfl_gate3.get("route_owner")
-                == "ordinary_trade_exact_fingerprint_v1"
-                else (
-                    "Финансовые операции из текущей версии документа "
-                    "классифицированы без изменения исходных значений."
-                )
+            chat_content = await self._render_ndfl_public_dialogue(
+                result=ndfl_gate3,
+                user=__user__,
+                request=__request__,
             )
-            chat_content = "\n".join(
-                [
-                    chat_content,
-                    "",
-                    semantic_status,
-                ]
-            )
-        product = ndfl_gate3.get("product")
-        if isinstance(product, dict):
-            if product.get("status") == "DECLARATION_READY":
-                chat_content = "\n".join(
-                    [
-                        chat_content,
-                        "",
-                        "Расчётная часть готова. Выпуск декларации ожидает "
-                        "запечатанный семантический пакет.",
-                    ]
+        else:
+            chat_content = render_chat_content(result.safe_report)
+            if ndfl_gate3.get("status") == "completed":
+                semantic_status = (
+                    "Обычные сделки с ценными бумагами обработаны по "
+                    "квалифицированной точной схеме; неизвестные строки сохранены "
+                    "без догадок."
+                    if ndfl_gate3.get("route_owner")
+                    == "ordinary_trade_exact_fingerprint_v1"
+                    else (
+                        "Финансовые операции из текущей версии документа "
+                        "классифицированы без изменения исходных значений."
+                    )
                 )
-            elif product.get("status") in {
-                "PREPARATION_INCOMPLETE",
-                "INPUT_REQUIRED",
-                "OPEN_POSITION_RETAINED",
-                "ANALYSIS_READY_WITH_OPEN_ITEMS",
-                "ANALYSIS_ONLY_READY",
-                "NON_FILING_SURROGATE_READY",
-                "STOPPED_RESUMABLE",
-            }:
-                chat_content = "\n".join(
-                    [
-                        chat_content,
-                        "",
-                        self._ndfl_non_ready_product_content(product),
-                    ]
-                )
-            elif product.get("status") == "DRAFT_READY":
-                chat_content = "\n".join(
-                    [
-                        chat_content,
-                        "",
-                        self._ndfl_draft_content(product),
-                    ]
-                )
-            elif product.get("status") == "DECLARATION_XML_READY":
-                download = product.get("private_download") or {}
-                chat_content = "\n".join(
-                    [
-                        chat_content,
-                        "",
-                        "3-НДФЛ XML подготовлен и проверен по XSD. "
-                        f"[Скачать XML]({download.get('url')}). Перед самостоятельной "
-                        "подачей проверьте пользовательские реквизиты; операции и суммы "
-                        "взяты из источника, налоговые классификации — из pinned-методики.",
-                        "",
-                        self._ndfl_ready_user_summary(declaration_result),
-                    ]
-                )
-            case_note = self._ndfl_case_note_content(product)
-            if case_note:
-                chat_content = "\n".join([chat_content, "", case_note])
+                chat_content = "\n".join([chat_content, "", semantic_status])
         if self._live_smoke_requested(safe_body, messages_arg):
             smoke_lines = self._run_live_artifactstore_smoke(
                 store=artifact_store,
@@ -1029,8 +990,13 @@ class Pipe:
                 "url": f"/api/v1/files/{file_id}/content?attachment=true",
                 "content_type": "application/xml",
             }
+        content = await self._render_ndfl_public_dialogue(
+            result=result,
+            user=user,
+            request=request,
+        )
         self.last_artifact_manifest = {"ndfl_gate3": result, "resumed_case": True}
-        return self._standalone_ndfl_chat_content(result)
+        return content
 
     @staticmethod
     def _current_declaration_execution_context(
@@ -1116,119 +1082,254 @@ class Pipe:
             and latest_user["files"]
         )
 
-    def _standalone_ndfl_chat_content(self, result: dict[str, Any]) -> str:
-        product = result["product"]
-        status = product.get("status")
-        lines = ["Текущий кейс 3-НДФЛ возобновлён без повторного чтения отчёта."]
-        receipt = result.get("declaration_chat_receipt")
-        if isinstance(receipt, dict) and receipt.get("status") == "ANSWER_REJECTED":
-            lines.append(
-                "Ответ не принят и не сохранён. Исправьте значение для текущего вопроса."
-            )
-        if status in {
-            "PREPARATION_INCOMPLETE",
-            "INPUT_REQUIRED",
-            "OPEN_POSITION_RETAINED",
-            "ANALYSIS_READY_WITH_OPEN_ITEMS",
-            "ANALYSIS_ONLY_READY",
-            "NON_FILING_SURROGATE_READY",
-            "STOPPED_RESUMABLE",
-        }:
-            lines.append(self._ndfl_non_ready_product_content(product))
-        elif status == "DRAFT_READY":
-            lines.append(self._ndfl_draft_content(product))
-            actions = product.get("preparation", {}).get("user_actions", [])
-            if actions:
-                lines.append(self._ndfl_product_blocker_content(product))
-        elif status == "DECLARATION_XML_READY":
-            download = product.get("private_download") or {}
-            lines.append(
-                "3-НДФЛ XML подготовлен и проверен по XSD. "
-                f"[Скачать XML]({download.get('url')})."
-            )
-            lines.append(self._ndfl_ready_user_summary(result.get("declaration")))
-            lines.append(
-                "Чтобы исправить дату или ИНН, напишите «Изменить дату» "
-                "или «Изменить ИНН»."
-            )
-        else:
-            lines.append("Подготовка остановлена на точном типизированном блокере.")
-        case_note = self._ndfl_case_note_content(product)
-        if case_note:
-            lines.append(case_note)
-        return "\n\n".join(lines)
+    async def _adapt_ndfl_public_answer(
+        self,
+        *,
+        message: str,
+        current_actions: list[dict[str, Any]],
+        user: Any,
+        request: Any,
+        event_call: Any,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Let the model propose wording; bind only through the current owner."""
 
-    @staticmethod
-    def _ndfl_ready_user_summary(declaration: Any) -> str:
-        """Present already owner-reconciled values without becoming an authority."""
-
-        values: dict[str, Any] = {}
-        if isinstance(declaration, dict):
-            reconciliation = declaration.get("semantic_reconciliation")
-            if (
-                isinstance(reconciliation, dict)
-                and reconciliation.get("status") == "passed"
-            ):
-                proof = reconciliation.get("representation_proof")
-                if isinstance(proof, dict) and proof.get("status") == "extracted":
-                    candidate = proof.get("values")
-                    if isinstance(candidate, dict):
-                        values = candidate
-        income = values.get("income_group")
-        formatted: dict[str, str] = {}
-        if isinstance(income, dict):
+        baseline = self._presentation_llm_calls_total
+        question = build_public_question_context(current_actions[0])
+        dialogue = {
+            "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
+            "answer_feedback": None,
+            "interpretation_model_used": False,
+            "presentation_fallback_used": False,
+        }
+        adapted: dict[str, Any]
+        if question is None:
+            adapted = adapt_current_declaration_request(
+                message=message,
+                current_requests=current_actions,
+            )
+            dialogue["presentation_fallback_used"] = True
+        elif self.valves.ndfl_presentation_llm_enabled:
             try:
-                formatted = {
-                    key: str(income[key])
-                    for key in (
-                        "total_income",
-                        "accepted_expenses",
-                        "tax_base",
-                        "calculated_tax",
-                        "tax_payable",
+                system_content, user_content = public_answer_interpretation_messages(
+                    question_context=question,
+                    user_message=message,
+                )
+                raw = await self._call_openwebui_presentation_completion(
+                    system_content=system_content,
+                    user_content=user_content,
+                    response_format=public_answer_interpretation_response_format(),
+                    user=user,
+                    request=request,
+                    task="ordinary_trade_public_answer_interpretation",
+                )
+                interpretation = validate_public_answer_interpretation(
+                    raw,
+                    question_context=question,
+                )
+                dialogue["interpretation_model_used"] = True
+                if interpretation["disposition"] == "ANSWER_CANDIDATE":
+                    adapted = adapt_current_declaration_request(
+                        message=interpretation["normalized_answer"],
+                        current_requests=current_actions,
                     )
-                }
-            except (KeyError, TypeError, ValueError):
-                formatted = {}
-        if formatted:
-            extracted = (
-                "Из отчёта: распознаны операции и связанные исходные суммы и "
-                "расходы; неразобранные релевантные строки блокируют выпуск."
-            )
-            calculated = (
-                "Рассчитано Tax Model и независимо сверено с XML: доход "
-                "{total_income} ₽; принятые расходы {accepted_expenses} ₽; "
-                "налоговая база {tax_base} ₽; исчисленный налог "
-                "{calculated_tax} ₽; к уплате {tax_payable} ₽."
-            ).format_map(formatted)
+                    if adapted.get("status") != "ANSWER_READY":
+                        adapted = {
+                            "status": "ANSWER_REJECTED",
+                            "reason_code": "declaration_chat_model_candidate_invalid",
+                        }
+                        dialogue["answer_feedback"] = (
+                            "Ответ пока не принят: формулировка не совпала с "
+                            "допустимым ответом на текущий вопрос."
+                        )
+                else:
+                    adapted = {
+                        "status": "ANSWER_REJECTED",
+                        "reason_code": "declaration_chat_answer_ambiguous",
+                    }
+                    dialogue["answer_feedback"] = interpretation["clarification"]
+            except Exception:
+                adapted = adapt_current_declaration_request(
+                    message=message,
+                    current_requests=current_actions,
+                )
+                dialogue["presentation_fallback_used"] = True
         else:
-            extracted = (
-                "Из отчёта: распознанные операции и связанные с ними расходы; "
-                "неразобранные релевантные строки блокируют выпуск."
+            adapted = adapt_current_declaration_request(
+                message=message,
+                current_requests=current_actions,
             )
-            calculated = (
-                "Рассчитано Tax Model и независимо сверено с XML: доход, расходы, "
-                "налоговая база, исчисленный налог и итог к уплате/возврату."
+            dialogue["presentation_fallback_used"] = True
+        if adapted.get("status") == "ANSWER_REJECTED" and not dialogue.get(
+            "answer_feedback"
+        ):
+            dialogue["answer_feedback"] = (
+                "Ответ пока не принят. Уточните его для текущего вопроса."
             )
-        return "\n".join(
-            [
-                "Что вошло в результат:",
-                f"- {extracted}",
-                f"- {calculated}",
-                "- Определено по методике резидентства: статус за 2025 год рассчитан "
-                "по указанным периодам присутствия/отсутствия и специальным причинам; "
-                "это вывод методики, а не введённый вами готовый налоговый статус.",
-                "- Подтверждено вами: периоды присутствия и отсутствия в России и "
-                "специальные причины отсутствия; статус как физического лица, ИП или "
-                "лица частной практики; ИНН и ФИО; вид декларации, дата, инспекция, "
-                "подписант, бюджетный итог и ОКТМО; отсутствие других доходов той же "
-                "категории, вычетов, переносимых убытков, зачётов и удержанного налога "
-                "в пределах этого кейса.",
-                "- Перед подачей: сверьте ИНН, ФИО, дату, номер корректировки, "
-                "инспекцию, ОКТМО, источник и полноту операций. XML только "
-                "подготовлен — в ФНС он не отправлялся.",
-            ]
+        if (
+            adapted.get("status") != "ANSWER_READY"
+            and dialogue.get("presentation_fallback_used") is True
+            and callable(event_call)
+        ):
+            interactive_answer = await self._declaration_event_answer(
+                event_call=event_call,
+                current_actions=current_actions,
+            )
+            adapted = adapt_current_declaration_request(
+                message=interactive_answer,
+                current_requests=current_actions,
+            )
+            if adapted.get("status") == "ANSWER_READY":
+                dialogue["answer_feedback"] = None
+        dialogue["presentation_llm_calls_total"] = (
+            self._presentation_llm_calls_total - baseline
         )
+        dialogue["domain_provider_calls_total"] = 0
+        return adapted, dialogue
+
+    async def _render_ndfl_public_dialogue(
+        self,
+        *,
+        result: dict[str, Any],
+        user: Any,
+        request: Any,
+    ) -> str:
+        product = result.get("product")
+        if not isinstance(product, dict):
+            return self._ndfl_source_user_content(product)
+        existing = result.get("public_dialogue")
+        existing = existing if isinstance(existing, dict) else {}
+        context = build_public_dialogue_context(
+            product=product,
+            declaration=result.get("declaration"),
+            answer_feedback=existing.get("answer_feedback"),
+        )
+        fallback_used = bool(existing.get("presentation_fallback_used"))
+        model_used = False
+        content = ""
+        if self.valves.ndfl_presentation_llm_enabled:
+            try:
+                system_content, user_content = public_dialogue_render_messages(context)
+                raw = await self._call_openwebui_presentation_completion(
+                    system_content=system_content,
+                    user_content=user_content,
+                    response_format=public_dialogue_message_response_format(),
+                    user=user,
+                    request=request,
+                    task="ordinary_trade_public_dialogue_render",
+                )
+                content = validate_public_dialogue_message(raw, context=context)
+                model_used = True
+            except Exception:
+                fallback_used = True
+        if not content:
+            content = render_public_dialogue_fallback(context)
+        download = product.get("private_download")
+        if (
+            context["outcome"]["download_available"] is True
+            and isinstance(download, dict)
+            and isinstance(download.get("url"), str)
+            and download["url"]
+        ):
+            content = "\n\n".join(
+                [content, f"[Скачать приватный XML]({download['url']})"]
+            )
+        result["public_dialogue"] = {
+            **existing,
+            "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
+            "context": context,
+            "context_sha256": public_dialogue_context_sha256(context),
+            "presentation_model_used": model_used,
+            "presentation_fallback_used": fallback_used,
+            "presentation_llm_calls_total": self._presentation_llm_calls_total,
+            "domain_provider_calls_total": int(result.get("provider_calls_total") or 0),
+            "visible_message_sha256": hashlib.sha256(
+                content.encode("utf-8")
+            ).hexdigest(),
+        }
+        return content
+
+    async def _call_openwebui_presentation_completion(
+        self,
+        *,
+        system_content: str,
+        user_content: str,
+        response_format: dict[str, Any],
+        user: Any,
+        request: Any,
+        task: str,
+    ) -> Any:
+        if request is None:
+            raise NdflWorkflowError("ndfl_presentation_model_unavailable")
+        user_id = self._user_id(user, {})
+        model_id = str(self.valves.ndfl_presentation_model_id or "").strip()
+        if not user_id or not model_id:
+            raise NdflWorkflowError("ndfl_presentation_model_unavailable")
+        completion_fn, user_model = self._openwebui_completion_dependencies(user_id)
+        if inspect.isawaitable(user_model):
+            user_model = await user_model
+        if user_model is None:
+            raise NdflWorkflowError("ndfl_presentation_model_unavailable")
+        form_data = {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content},
+            ],
+            "stream": False,
+            "response_format": response_format,
+            "metadata": {
+                "broker_reports_gate1": {
+                    "presentation_only": True,
+                    "task": task,
+                }
+            },
+        }
+        self._presentation_llm_calls_total += 1
+        try:
+            try:
+                response = completion_fn(
+                    request=request,
+                    form_data=form_data,
+                    user=user_model,
+                    bypass_filter=True,
+                    bypass_system_prompt=True,
+                )
+            except TypeError:
+                try:
+                    response = completion_fn(
+                        request=request,
+                        form_data=form_data,
+                        user=user_model,
+                    )
+                except TypeError:
+                    response = completion_fn(request, form_data, user_model)
+            if inspect.isawaitable(response):
+                response = await response
+            return self._extract_completion_content(response)
+        except Exception as exc:
+            raise NdflWorkflowError("ndfl_presentation_model_call_failed") from exc
+
+    def _standalone_ndfl_chat_content(self, result: dict[str, Any]) -> str:
+        product = result.get("product")
+        if not isinstance(product, dict):
+            return self._ndfl_source_user_content(product)
+        existing = result.get("public_dialogue")
+        existing = existing if isinstance(existing, dict) else {}
+        context = build_public_dialogue_context(
+            product=product,
+            declaration=result.get("declaration"),
+            answer_feedback=existing.get("answer_feedback"),
+        )
+        content = render_public_dialogue_fallback(context)
+        download = product.get("private_download")
+        if (
+            context["outcome"]["download_available"] is True
+            and isinstance(download, dict)
+            and isinstance(download.get("url"), str)
+            and download["url"]
+        ):
+            content += f"\n\n[Скачать приватный XML]({download['url']})"
+        return content
 
     async def _maybe_run_ndfl_gate3(
         self,
@@ -1242,6 +1343,7 @@ class Pipe:
         retention_policy: Any | None = None,
         trusted_interaction_message: str = "",
         event_call: Any = None,
+        source_turn: bool = False,
     ) -> dict[str, Any]:
         candidate_enabled = bool(self.valves.ordinary_trade_candidate_enabled)
         if not candidate_enabled and not self.valves.ndfl_gate3_enabled:
@@ -1290,6 +1392,7 @@ class Pipe:
             )
             change = declaration_change_intent(trusted_interaction_message)
             adapted = None
+            dialogue = None
             if change is not None:
                 if change["status"] == "ANSWER_REJECTED":
                     adapted = change
@@ -1320,14 +1423,29 @@ class Pipe:
                 # Human think time belongs to the Human Fact request owner and must
                 # not retain the scarce Gate 1 admission lease.
                 self._finalize_workload_publication()
-                interactive_answer = await self._declaration_event_answer(
-                    event_call=event_call,
-                    current_actions=current_actions,
-                )
-                adapted = adapt_current_declaration_request(
-                    message=interactive_answer,
-                    current_requests=current_actions,
-                )
+                if source_turn or not trusted_interaction_message:
+                    return result
+                if (
+                    trusted_interaction_message.casefold()
+                    == "показать точный ввод"
+                ):
+                    interactive_answer = await self._declaration_event_answer(
+                        event_call=event_call,
+                        current_actions=current_actions,
+                    )
+                    adapted = adapt_current_declaration_request(
+                        message=interactive_answer,
+                        current_requests=current_actions,
+                    )
+                else:
+                    adapted, dialogue = await self._adapt_ndfl_public_answer(
+                        message=trusted_interaction_message,
+                        current_actions=current_actions,
+                        user=user,
+                        request=request,
+                        event_call=event_call,
+                    )
+                    result["public_dialogue"] = dialogue
             else:
                 return result
             if adapted["status"] == "ANSWER_READY":
@@ -1342,6 +1460,12 @@ class Pipe:
                         canonical_artifact_refs=canonical_refs,
                         context=context,
                     )
+                    if isinstance(dialogue, dict):
+                        dialogue["answer_feedback"] = (
+                            "Ответ не принят и не сохранён. Исправьте значение "
+                            "для текущего вопроса."
+                        )
+                        result["public_dialogue"] = dialogue
                     result["declaration_chat_receipt"] = {
                         "status": "ANSWER_REJECTED",
                         "answer_accepted": False,
@@ -1352,6 +1476,8 @@ class Pipe:
                     canonical_artifact_refs=canonical_refs,
                     context=context,
                 )
+                if isinstance(dialogue, dict):
+                    result["public_dialogue"] = dialogue
             elif adapted["status"] == "ANSWER_REJECTED":
                 result["declaration_chat_receipt"] = {
                     "status": "ANSWER_REJECTED",
@@ -1784,283 +1910,6 @@ class Pipe:
         if event_type == "confirmation" and isinstance(value, bool):
             return "Да" if value else "Нет"
         return value if isinstance(value, str) else ""
-
-    @staticmethod
-    def _ndfl_non_ready_product_content(product: dict[str, Any]) -> str:
-        lines = [Pipe._ndfl_product_blocker_content(product)]
-        if product.get("status") == "NON_FILING_SURROGATE_READY":
-            preparation = product.get("preparation")
-            preparation = preparation if isinstance(preparation, dict) else {}
-            lines.append(
-                declaration_surrogate_preview(
-                    preparation.get("surrogate_preview")
-                )
-            )
-        return "\n".join(lines)
-
-    @staticmethod
-    def _ndfl_product_blocker_content(product: dict[str, Any]) -> str:
-        gate5 = product.get("gate5")
-        gate5 = gate5 if isinstance(gate5, dict) else {}
-        reason_codes = gate5.get("blocker_reason_codes")
-        reason_codes = reason_codes if isinstance(reason_codes, list) else []
-        preparation = product.get("preparation")
-        preparation = preparation if isinstance(preparation, dict) else {}
-        closure = preparation.get("gap_closure")
-        closure = closure if isinstance(closure, dict) else {}
-        user_actions = closure.get("user_facing_required_actions")
-        user_actions = user_actions if isinstance(user_actions, list) else []
-        if user_actions:
-            first = user_actions[0]
-            question = declaration_request_question(first)
-            candidate = (
-                first.get("answer_contract", {}).get("candidate")
-                if isinstance(first.get("answer_contract"), dict)
-                else None
-            )
-            candidate_note = ""
-            if isinstance(candidate, dict):
-                inn = str(candidate.get("inn") or "")
-                if re.fullmatch(r"[0-9]{12}", inn):
-                    candidate_note = (
-                        f" Найден кандидат ИНН {inn[:4]}••••{inn[-4:]}; "
-                        "подтвердите, измените или заполните позднее."
-                    )
-            return (
-                "Расчёт остановлен без догадок. Нужны подтверждённые данные"
-                + (": " + question if question else ".")
-                + candidate_note
-                + " "
-                + declaration_request_help(first)
-            )
-        internal_actions = closure.get("internal_owner_required_actions")
-        internal_actions = (
-            internal_actions if isinstance(internal_actions, list) else []
-        )
-        if internal_actions:
-            return Pipe._ndfl_internal_stop_content(
-                terminal=str(product.get("terminal") or ""),
-                reason_codes=[str(item) for item in reason_codes],
-            )
-        status = str(product.get("status") or "")
-        if status == "OPEN_POSITION_RETAINED":
-            return (
-                "Анализ завершён: закрытых продаж для декларации нет, но в "
-                "отчёте сохранена открытая позиция. Она не включена в налоговую "
-                "базу. XML не создан."
-            )
-        if status == "ANALYSIS_READY_WITH_OPEN_ITEMS":
-            return (
-                "Доказанные закрытые операции рассчитаны, а незавершённые или "
-                "неоднозначные позиции сохранены отдельно. До их проверки XML "
-                "не создан."
-            )
-        if status == "ANALYSIS_ONLY_READY":
-            return (
-                "Готов только анализ по выбранному периоду. Подаваемая "
-                "декларация и XML не создавались."
-            )
-        if status == "STOPPED_RESUMABLE":
-            return (
-                "Подготовка приостановлена. К этому кейсу можно вернуться позже "
-                "без повторной загрузки отчёта; XML не создан."
-            )
-        return (
-            "Не удалось достоверно завершить подготовку. XML не создан. "
-            "Сохраните кейс и обратитесь к специалисту сервиса для проверки."
-        )
-
-    @staticmethod
-    def _ndfl_internal_stop_content(
-        *, terminal: str, reason_codes: list[str]
-    ) -> str:
-        identities = {terminal, *reason_codes}
-        if "gate5_source_fact_acquisition_evidence_horizon_unproven" in identities:
-            return (
-                "Продажа найдена, но по доступному отчёту нельзя достоверно "
-                "определить историю позиции: система не придумывает ни покупку, "
-                "ни короткую позицию. Добавьте отчёт с предшествующими операциями "
-                "или сохраните анализ без декларации. XML не создан."
-            )
-        if "gate4_ordinary_trade_security_position_source_contract_missing" in identities:
-            return (
-                "В отчёте есть позиция, тип которой текущий сервис пока не умеет "
-                "достоверно передать в расчёт. Операции не объявлены пустыми. "
-                "Сохраните анализ и передайте кейс специалисту; XML не создан."
-            )
-        if "ordinary_trade_declaration_canonical_relevant_unmapped" in identities:
-            return (
-                "В отчёте есть строки операций, которые не удалось однозначно "
-                "сопоставить с поддерживаемым форматом. Проверьте исходный отчёт "
-                "или передайте его специалисту. XML не создан."
-            )
-        if "ordinary_trade_canonical_evidence_missing" in identities:
-            return (
-                "Не удалось получить подтверждённый набор операций из этого "
-                "документа. Попробуйте загрузить полный брокерский отчёт в "
-                "поддерживаемом формате или передайте документ специалисту. "
-                "XML не создан."
-            )
-        if "gate5_ordinary_trade_product_source_evidence_unresolved" in identities:
-            return (
-                "В исходных данных не хватает сведений для достоверного расчёта. "
-                "Добавьте документ с недостающими операциями или сохраните кейс "
-                "для проверки специалистом. XML не создан."
-            )
-        return (
-            "Подготовка остановлена на внутренней проверке достоверности. "
-            "Дополнительные налоговые сведения от вас сейчас не требуются. "
-            "Сохраните кейс и обратитесь к специалисту сервиса; XML не создан."
-        )
-
-    @staticmethod
-    def _ndfl_case_note_content(product: dict[str, Any]) -> str:
-        preparation = product.get("preparation")
-        preparation = preparation if isinstance(preparation, dict) else {}
-        note = preparation.get("final_note")
-        if not isinstance(note, dict):
-            return ""
-        selected = note.get("selected_tax_period")
-        years = note.get("detected_operation_years")
-        years_text = (
-            ", ".join(map(str, years))
-            if isinstance(years, list) and years
-            else "не определены"
-        )
-        profile = note.get("profile")
-        profile = profile if isinstance(profile, dict) else {}
-        positions = note.get("positions")
-        positions = positions if isinstance(positions, list) else []
-        position_lines = [
-            Pipe._ndfl_position_content(item)
-            for item in positions
-            if isinstance(item, dict)
-        ]
-        calculated = note.get("calculated_disposal_fact_ids")
-        calculated_total = len(calculated) if isinstance(calculated, list) else 0
-        checks = note.get("required_checks")
-        check_labels = Pipe._ndfl_required_check_labels(checks)
-        source_status = str(note.get("source_completeness_status") or "")
-        source_text = {
-            "COMPLETE_FOR_OBSERVED_SECURITY_FACTS": (
-                "распознанные операции полностью учтены в пределах доступного отчёта"
-            ),
-            "SOURCE_EVIDENCE_PARTIALLY_AVAILABLE": (
-                "часть операций рассчитана, часть требует проверки источника"
-            ),
-            "SOURCE_EVIDENCE_INSUFFICIENT": (
-                "исходных сведений недостаточно для полного расчёта"
-            ),
-        }.get(source_status, "полноту исходных сведений нужно проверить специалисту")
-        profile_support = str(profile.get("support") or "")
-        if profile_support == "SUPPORTED":
-            profile_text = (
-                f"для {selected} года доступен точный профиль формы "
-                f"{profile.get('form_version')}"
-            )
-        elif selected:
-            profile_text = (
-                f"для выбранного {selected} года точного профиля декларации нет"
-            )
-        else:
-            profile_text = "налоговый период ещё не выбран"
-        lines = [
-            "Итог по кейсу:",
-            f"- Источник: {source_text}.",
-            f"- Период: в операциях обнаружены годы {years_text}; "
-            + (f"выбран {selected} год." if selected else "год ещё не выбран."),
-            f"- Профиль декларации: {profile_text}.",
-        ]
-        if position_lines:
-            lines.extend(["- Позиции:", *[f"  - {item}" for item in position_lines]])
-        else:
-            lines.append("- Позиции: подтверждённые позиции пока не сформированы.")
-        lines.append(f"- Рассчитанные закрытые продажи: {calculated_total}.")
-        if check_labels:
-            lines.append("- Нужно проверить или дозаполнить: " + "; ".join(check_labels) + ".")
-        lines.append(
-            "- Исправить выбранный год можно сообщением: "
-            "«Изменить налоговый период: ГГГГ»."
-        )
-        lines.append(
-            "- XML можно использовать для подачи только после завершения всех "
-            "проверок."
-            if note.get("filing_eligible") is True
-            else "- Подаваемый XML на этом шаге не создан."
-        )
-        return "\n".join(lines)
-
-    @staticmethod
-    def _ndfl_draft_content(product: dict[str, Any]) -> str:
-        preparation = product.get("preparation")
-        preparation = preparation if isinstance(preparation, dict) else {}
-        labels = Pipe._ndfl_required_check_labels(
-            preparation.get("checklist_fact_keys")
-        )
-        result = "Расчётный черновик готов. XML не создан."
-        if labels:
-            result += " Осталось проверить или заполнить: " + "; ".join(labels) + "."
-        return result
-
-    @staticmethod
-    def _ndfl_position_content(item: dict[str, Any]) -> str:
-        asset = str(item.get("asset") or "Инструмент")
-        state = str(item.get("state") or "")
-        long_quantity = str(item.get("open_long_quantity") or "0")
-        short_quantity = str(item.get("proven_open_short_quantity") or "0")
-        labels = {
-            "CLOSED_DISPOSALS_PROVEN": "закрытая позиция, результат рассчитан",
-            "OPEN_LONG_PROVEN": (
-                f"открытая длинная позиция, остаток {long_quantity}; "
-                "в налоговую базу не включена"
-            ),
-            "OPEN_SHORT_PROVEN": (
-                f"открытая короткая позиция, объём {short_quantity}; "
-                "в налоговую базу не включена"
-            ),
-            "CLOSED_DISPOSAL_WITH_OPEN_LONG_REMAINDER": (
-                f"закрытая часть рассчитана, длинный остаток {long_quantity} "
-                "оставлен открытым"
-            ),
-            "CLOSED_DISPOSAL_WITH_OPEN_SHORT_REMAINDER": (
-                f"закрытая часть рассчитана, короткий остаток {short_quantity} "
-                "оставлен открытым"
-            ),
-            "UNRESOLVED_DISPOSAL_EVIDENCE_HORIZON": (
-                "историю позиции нельзя достоверно определить по доступным данным"
-            ),
-        }
-        return f"{asset}: {labels.get(state, 'требуется проверка специалистом')}"
-
-    @staticmethod
-    def _ndfl_required_check_labels(value: Any) -> list[str]:
-        if not isinstance(value, list):
-            return []
-        labels = {
-            "selected_tax_period": "налоговый период",
-            "taxpayer_capacity": "статус налогоплательщика",
-            "residency_evidence": "периоды присутствия и отсутствия в России",
-            "zero_income_scope": "другие доходы этой категории",
-            "zero_deductions_scope": "вычеты",
-            "zero_loss_carryforward_scope": "переносимые убытки",
-            "zero_credit_scope": "зачёты и удержанный налог",
-            "taxpayer_identity": "ИНН и ФИО",
-            "filing_instance_identity": "вид декларации",
-            "declaration_date": "дата декларации",
-            "filing_destination_code": "код налоговой инспекции",
-            "signer_and_representation": "подписант",
-            "budget_disposition": "итог к уплате или возврату",
-            "budget_oktmo": "ОКТМО",
-            "profile_mismatch_mode": "режим работы без точного профиля года",
-        }
-        result = []
-        for item in value:
-            label = labels.get(str(item))
-            if label and label not in result:
-                result.append(label)
-        if value and not result:
-            result.append("проверка специалистом")
-        return result
 
     def _write_ndfl_private_audit(self, executions: list[Any]) -> dict[str, Any]:
         if not self.valves.ndfl_gate3_private_audit_enabled:

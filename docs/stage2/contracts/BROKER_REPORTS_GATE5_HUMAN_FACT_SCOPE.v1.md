@@ -23,7 +23,8 @@ authenticated context + externally supplied taxpayer scope + tax period
 
 The implementation reuses `ArtifactStorePort` and `ArtifactResolver`. It adds
 no registry, workflow/event engine, identity authority, receipt engine or
-provider/LLM path.
+domain provider/LLM path. Issue #310 adds a separate presentation-only model
+call outside this owner; it cannot publish or validate a Human Fact.
 
 ## Scope and the product taxpayer slot
 
@@ -91,12 +92,52 @@ provenance `USER_ATTESTED_CASE_FACT`. A Canonical INN/FIO assertion is a private
 candidate and has no identity authority until the user chooses confirm or
 change on the current owner publication. `DEFER` creates no fact.
 
-For the Issue #304 product route, the bundled Pipe obtains that publication
-from the Human owner and keeps its `request_publication_ref` inside one server
-call. The native OpenWebUI `__event_call__` carries only the displayed question,
-safe answer help and a masked candidate to the browser. Its response is adapted
-to the already selected current publication; ordinary chat text cannot supply
-or select a publication ref, fact key, taxpayer scope or hidden action.
+For the Issue #304/#310 product route, the bundled Pipe obtains that publication
+from the Human owner and keeps its `request_publication_ref` on the server. The
+representation-only adapter strips the request down to one public question,
+safe answer help, human labels and a masked candidate. Ordinary chat text may
+be interpreted into an answer candidate, but it cannot supply or select a
+publication ref, fact key, taxpayer scope or hidden action. The candidate is
+then rebound to the already selected current publication and must pass the
+unchanged Human owner normalization. The native OpenWebUI `__event_call__`
+remains an optional exact-input fallback; it is not the primary conversation.
+
+## Public dialogue context and presentation model
+
+The cross-domain map for the Issue #310 seam is:
+
+```text
+current request, outcome and filing eligibility
+-> existing domain owners in OrdinaryTradeProductionRuntime
+-> ordinary_trade_public_dialogue_context_v1 (representation only)
+-> OpenWebUI presentation model
+-> validated visible wording or deterministic human fallback
+
+natural user reply + current public question
+-> OpenWebUI presentation model candidate
+-> existing declaration chat adapter
+-> exact current request_publication_ref kept by Pipe
+-> Gate5HumanGapClosureRuntime normalization and publication
+```
+
+The model-facing context contains only human-readable summary statements,
+provenance labels, the one current question, allowed human actions, the next
+step and filing/download booleans. It contains no raw request/artifact refs,
+fact keys, owner names, reason codes, internal statuses, source rows or
+methodology identifiers. Final private download URLs are appended by the Pipe
+after validation and are never model-produced.
+
+The presentation model returns strict structured output. A reply cannot choose
+the request identity because that field does not exist in its schema. The
+visible message must retain every owner-produced public statement and the exact
+current question. Internal vocabulary, positive filing claims when filing is
+not eligible, private file URLs and unknown fields fail closed to the same
+deterministic public context. Model failure creates no new meaning and no Human
+Fact; exact UI controls/deterministic parsing remain only a safe fallback.
+
+Metrics are separate: `presentation_llm_calls_total` counts only conversation
+rendering/interpretation; `domain_provider_calls_total` remains zero for the
+deterministic ordinary-trade calculation, tax, release and XML path.
 
 The former `gate5_case_taxpayer_scope_ref` case hash is removed. Hashing a case
 ID only obfuscated the case and silently invented a one-taxpayer invariant.
@@ -197,7 +238,8 @@ validation is not used as a substitute for these Human-fact checks.
 Residency remains raw interval evidence interpreted by
 `Gate5ResidencyEvidenceRuntimeFactory.create`. Additional documents return
 `NORMALIZATION_REQUIRED`; external/methodology actions cannot become Human
-facts. Runtime provider/LLM calls remain zero.
+facts. Domain calculation/provider calls remain zero; presentation calls have
+the bounded authority described above and are accounted separately.
 
 ## Compatibility and activation
 

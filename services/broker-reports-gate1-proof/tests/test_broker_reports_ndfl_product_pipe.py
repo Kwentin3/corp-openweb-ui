@@ -24,15 +24,39 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
 )
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
+    build_public_dialogue_context,
     declaration_change_intent,
     declaration_request_help,
     declaration_request_question,
     declaration_surrogate_preview,
+    render_public_dialogue_fallback,
 )
 from openwebui_actions import broker_reports_gate1_pipe as product_pipe
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 from broker_reports_gate1.artifact_retention import build_retention_policy
 import test_broker_reports_ordinary_trade_declaration_mvp as declaration_fixtures
+
+
+def _ready_public_product() -> dict:
+    return {
+        "status": "DECLARATION_XML_READY",
+        "xml_created": True,
+        "private_download": {"url": "/private-owner-file"},
+        "preparation": {
+            "user_actions": [],
+            "final_note": {
+                "selected_tax_period": "2025",
+                "detected_operation_years": ["2025"],
+                "profile": {
+                    "support": "SUPPORTED",
+                    "form_version": "3-НДФЛ, электронный формат 5.20",
+                },
+                "positions": [],
+                "calculated_disposal_fact_ids": ["private-owner-fact"],
+                "filing_eligible": True,
+            },
+        },
+    }
 
 
 def test_native_chat_scope_is_recovered_only_through_owner_lookup(
@@ -202,14 +226,14 @@ def test_maintained_stage_binds_event_response_to_current_owner_actions(
     assert result["provider_calls_total"] == 0
     result["product"]["private_download"] = {"url": "/private-owner-file"}
     chat = pipe._standalone_ndfl_chat_content(result)
-    assert "Из отчёта: распознаны операции и связанные исходные суммы" in chat
+    assert "Из отчёта: распознаны операции" in chat
     assert "Из отчёта: доход" not in chat
-    assert "Tax Model и независимо сверено с XML: доход 60.00 ₽" in chat
-    assert "принятые расходы 43.00 ₽; налоговая база 17.00 ₽" in chat
+    assert "По проверенному результату: доход 60.00 ₽" in chat
+    assert "принятые расходы 43.00 ₽, налоговая база 17.00 ₽" in chat
     assert "исчисленный налог 2 ₽" in chat
     assert "Подтверждено вами" in chat
     assert "Перед подачей" in chat
-    assert "в ФНС он не отправлялся" in chat
+    assert "не отправлялся в ФНС автоматически" in chat
 
 
 def test_period_and_profile_mode_are_owner_bound_but_user_presented(
@@ -419,13 +443,12 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     first = pipe.last_artifact_manifest["ndfl_gate3"]
     assert first["product"]["status"] == "INPUT_REQUIRED"
 
-    public_turn("Continue", event_response="2022")
+    public_turn("2022")
     mismatch = pipe.last_artifact_manifest["ndfl_gate3"]
     assert mismatch["product"]["status"] == "INPUT_REQUIRED"
 
     public_turn(
-        "Continue",
-        event_response="\u041d\u0435\u043f\u043e\u0434\u0430\u0432\u0430\u0435\u043c\u044b\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a",
+        "\u041d\u0435\u043f\u043e\u0434\u0430\u0432\u0430\u0435\u043c\u044b\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a"
     )
     selected = pipe.last_artifact_manifest["ndfl_gate3"]
     assert selected["product"]["status"] == "NON_FILING_SURROGATE_READY"
@@ -519,10 +542,7 @@ def test_public_file_turn_explains_non_filing_position_routes(
         },
     }
 
-    async def select_period(_payload):
-        return "2025"
-
-    content = asyncio.run(
+    first_content = asyncio.run(
         pipe.pipe(
             {
                 "messages": [
@@ -539,7 +559,21 @@ def test_public_file_turn_explains_non_filing_position_routes(
                 "case_id": "issue310-" + fixture.stem,
                 "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
             },
-            __event_call__=select_period,
+        )
+    )
+    assert pipe.last_artifact_manifest["ndfl_gate3"]["product"]["status"] == (
+        "INPUT_REQUIRED"
+    )
+    assert "За какой налоговый период" in first_content
+    content = asyncio.run(
+        pipe.pipe(
+            {"messages": [{"role": "user", "content": "2025"}]},
+            __user__={"id": "issue310-position-user", "email": "", "name": ""},
+            __metadata__={
+                "chat_id": "issue310-" + fixture.stem,
+                "case_id": "issue310-" + fixture.stem,
+                "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+            },
         )
     )
     result = pipe.last_artifact_manifest["ndfl_gate3"]
@@ -580,45 +614,38 @@ def test_ready_summary_never_promotes_unreconciled_xml_values() -> None:
         }
     }
 
-    summary = Pipe._ndfl_ready_user_summary(declaration)
+    context = build_public_dialogue_context(
+        product=_ready_public_product(),
+        declaration=declaration,
+    )
+    summary = render_public_dialogue_fallback(context)
 
     assert "999999" not in summary
     assert "888888" not in summary
-    assert "Из отчёта: распознанные операции" in summary
-    assert "Рассчитано Tax Model" in summary
+    assert "Из отчёта: распознаны операции" in summary
+    assert "По проверенному результату" not in summary
 
 
 def test_ready_summary_keeps_residency_evidence_separate_from_methodology_result() -> None:
-    summary = Pipe._ndfl_ready_user_summary({})
+    summary = render_public_dialogue_fallback(
+        build_public_dialogue_context(
+            product=_ready_public_product(),
+            declaration={},
+        )
+    )
 
-    methodology_marker = "Определено по методике резидентства:"
+    methodology_marker = "Определено по методике:"
     user_marker = "Подтверждено вами:"
-    filing_marker = "Перед подачей:"
     assert methodology_marker in summary
-    methodology = summary.split(methodology_marker, 1)[1].split(user_marker, 1)[0]
-    user_attested = summary.split(user_marker, 1)[1].split(filing_marker, 1)[0]
+    methodology = summary.split(methodology_marker, 1)[1]
+    user_attested = summary.split(user_marker, 1)[1].split(
+        methodology_marker, 1
+    )[0]
 
-    assert "вывод методики" in methodology
-    assert "подтвержден" not in methodology.lower()
+    assert "налоговый статус и суммы" in methodology
+    assert "подтверждено методикой" not in methodology.lower()
     assert "статус резидента" not in user_attested.lower()
-    assert "периоды присутствия и отсутствия" in user_attested
-    assert "специальные причины отсутствия" in user_attested
-    for entered_fact in (
-        "статус как физического лица, ИП или лица частной практики",
-        "ИНН и ФИО",
-        "вид декларации",
-        "дата",
-        "инспекция",
-        "подписант",
-        "бюджетный итог",
-        "ОКТМО",
-        "отсутствие других доходов той же категории",
-        "вычетов",
-        "переносимых убытков",
-        "зачётов",
-        "удержанного налога",
-    ):
-        assert entered_fact in user_attested
+    assert "только ответы, которые приняты текущим вопросом" in user_attested
     assert "расходов" not in user_attested
 
 
@@ -846,18 +873,22 @@ def test_safe_stop_proof_requires_the_exact_owner_reason_not_generic_stop_text()
         },
     }
 
-    accepted = Pipe._ndfl_product_blocker_content(product)
+    accepted = render_public_dialogue_fallback(
+        build_public_dialogue_context(product=product)
+    )
     wrong = copy.deepcopy(product)
     wrong["terminal"] = "ordinary_trade_generic_stop"
     wrong["gate5"]["blocker_reason_codes"] = ["ordinary_trade_generic_stop"]
     wrong["preparation"]["gap_closure"]["internal_owner_required_actions"] = [
         {"reason_code": "ordinary_trade_generic_stop"}
     ]
-    rejected = Pipe._ndfl_product_blocker_content(wrong)
+    rejected = render_public_dialogue_fallback(
+        build_public_dialogue_context(product=wrong)
+    )
 
     assert "историю позиции" in accepted
     assert "Добавьте отчёт с предшествующими операциями" in accepted
-    assert "проверке достоверности" in rejected
+    assert "нельзя достоверно завершить" in rejected
     for hidden in (
         expected,
         "ordinary_trade_generic_stop",
@@ -893,13 +924,14 @@ def test_case_note_translates_owner_state_without_internal_vocabulary() -> None:
         }
     }
 
-    content = Pipe._ndfl_case_note_content(product)
+    content = render_public_dialogue_fallback(
+        build_public_dialogue_context(product=product)
+    )
 
-    assert "Итог по кейсу" in content
+    assert "В операциях обнаружены годы: 2024, 2025" in content
     assert "открытая длинная позиция, остаток 3" in content
-    assert "ИНН и ФИО" in content
-    assert "ОКТМО" in content
-    assert "Подаваемый XML на этом шаге не создан" in content
+    assert "Доступный профиль декларации: 5.20" in content
+    assert "XML не создан" in content
     for hidden in (
         "COMPLETE_FOR_OBSERVED_SECURITY_FACTS",
         "EVALUATED_FROM_SOURCE_FACTS",
@@ -1068,8 +1100,16 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
 
 
 def test_case_note_explains_that_operation_years_are_not_determined() -> None:
-    content = Pipe._ndfl_case_note_content(
-        {
+    content = render_public_dialogue_fallback(
+        build_public_dialogue_context(
+            product={
+                "status": "PREPARATION_INCOMPLETE",
+                "terminal": "ordinary_trade_canonical_evidence_missing",
+                "gate5": {
+                    "blocker_reason_codes": [
+                        "ordinary_trade_canonical_evidence_missing"
+                    ]
+                },
             "preparation": {
                 "final_note": {
                     "source_completeness_status": "CANONICAL_EVIDENCE_MISSING",
@@ -1088,16 +1128,18 @@ def test_case_note_explains_that_operation_years_are_not_determined() -> None:
                     ],
                     "filing_eligible": False,
                 }
-            }
-        }
+                },
+            },
+        )
     )
 
-    assert "годы не определены" in content
+    assert "Не удалось получить подтверждённый набор операций" in content
+    assert "Рассчитанных закрытых продаж: 0" in content
     assert "CANONICAL_EVIDENCE_MISSING" not in content
     assert "ordinary_trade_canonical_evidence_missing" not in content
 
 
-def test_plain_chat_answer_cannot_select_a_new_current_request(
+def test_plain_chat_answer_is_bound_only_to_the_current_owner_request(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1134,8 +1176,8 @@ def test_plain_chat_answer_cannot_select_a_new_current_request(
     assert replay["product"]["status"] == "INPUT_REQUIRED"
     assert replay["product"]["preparation"]["user_actions"][0][
         "request_publication_ref"
-    ] == current["request_publication_ref"]
-    assert "declaration_action_receipt" not in replay
+    ] != current["request_publication_ref"]
+    assert replay["declaration_action_receipt"]["fact_created"] is True
 
 
 def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(

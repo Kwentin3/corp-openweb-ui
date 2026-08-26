@@ -14,7 +14,6 @@ const path = require('path');
 const playwrightModule = process.env.ISSUE306_PLAYWRIGHT_MODULE || 'playwright';
 const { chromium } = require(playwrightModule);
 
-const MODAL_TITLE = 'Данные для 3-НДФЛ';
 const CONTINUE = 'Продолжить';
 const PUBLIC_SOURCE_SAMPLE_ID = 'g537_tbank_public_pdf_purchase';
 
@@ -200,7 +199,7 @@ async function waitForTurn(page, timeout = 120000) {
       if (!last) return false;
       const text = (last.innerText || '').trim();
       const advanced = items.length > previousCount || text !== previousText.trim();
-      return advanced && /Расчёт остановлен|Расчётный черновик готов|3-НДФЛ XML подготовлен|Подготовка остановлена|Подготовка приостановлена|Анализ завершён|Продажа найдена|В отчёте есть позиция|Не удалось|Готов только анализ|Неподаваемый черновик/.test(text);
+      return advanced && /Откуда взялись сведения|Что можно сделать дальше|Файл 3-НДФЛ подготовлен|XML не создан|XML не создавался|Неподаваемый черновик|Подготовка приостановлена|Подготовку нельзя|Расчёт сохранён|Не удалось/.test(text);
     },
     { previousCount: boundary.count, previousText: boundary.text },
     { timeout },
@@ -237,6 +236,10 @@ async function waitForTurn(page, timeout = 120000) {
     /reason codes/i,
     /case note/i,
     /source completeness/i,
+    /\bXSD\b/i,
+    /Tax Model/i,
+    /\bpinned\b/i,
+    /типизированн/i,
     /[A-Z][A-Z0-9]+(?:_[A-Z0-9]+){2,}/,
   ];
   if (forbidden.some((pattern) => pattern.test(body))) {
@@ -246,11 +249,7 @@ async function waitForTurn(page, timeout = 120000) {
 }
 
 async function waitForQuestion(page) {
-  const title = page.getByText(MODAL_TITLE, { exact: true });
-  await title.waitFor({ state: 'visible', timeout: 120000 });
-  const body = await page.locator('body').innerText();
-  const marker = body.lastIndexOf(MODAL_TITLE);
-  const question = marker >= 0 ? body.slice(marker) : body;
+  const question = await waitForTurn(page);
   const forbidden = [
     /fact_key/i,
     /ArtifactStore/i,
@@ -290,25 +289,42 @@ function classifyQuestion(question) {
   return found[0];
 }
 
-async function answerQuestion(page, answer) {
-  const textarea = page.locator('textarea:visible').last();
-  if (answer === true) {
-    if (await textarea.count()) throw new Error('confirmation_rendered_as_text_input');
-  } else {
-    await textarea.waitFor({ state: 'visible', timeout: 10000 });
-    await textarea.fill(answer);
+function safeJournalAnswer(kind, answer) {
+  if (kind === 'residency') return 'Я был в России в указанные периоды; даты обезличены.';
+  if (kind === 'identity') return answer === 'Позже'
+    ? 'Заполню данные позже.'
+    : 'Исправляю ИНН и ФИО; значения обезличены.';
+  if (['date', 'destination', 'oktmo'].includes(kind)) {
+    return `Сообщаю ${kind}; значение обезличено.`;
   }
-  await rememberTurnBoundary(page);
-  await page.getByRole('button', { name: 'Подтвердить', exact: true }).last().click();
-  await page.getByText(MODAL_TITLE, { exact: true }).waitFor({
-    state: 'hidden',
-    timeout: 30000,
-  });
+  return answer === true ? 'Да.' : String(answer);
+}
+
+function userUnderstanding(kind) {
+  const meanings = {
+    tax_period: 'Нужно выбрать год декларации из годов операций.',
+    profile_mode: 'Для этого года нет точной формы; можно выбрать только неподаваемый результат.',
+    residency: 'Нужно сообщить даты, а не готовый налоговый вывод.',
+    capacity: 'Нужно указать фактический статус человека.',
+    zero_scope: 'Нельзя молча считать отсутствующими другие суммы этой категории.',
+    identity: 'Найденные реквизиты остаются кандидатом до подтверждения.',
+    filing: 'Нужно выбрать первичную или корректирующую декларацию.',
+    date: 'Нужно указать корректную календарную дату.',
+    destination: 'Нужен код выбранной налоговой инспекции.',
+    signer: 'Нужно указать, кто подписывает декларацию.',
+    budget: 'Нужно подтвердить вид бюджетного итога.',
+    oktmo: 'Нужен точный код ОКТМО.',
+  };
+  return meanings[kind];
+}
+
+async function answerQuestion(page, answer) {
+  await sendMessage(page, answer === true ? 'Да' : answer);
   return waitForTurn(page);
 }
 
 function downloadLinks(page) {
-  return page.locator('a', { hasText: 'Скачать XML' });
+  return page.getByRole('link', { name: /Скачать.*XML/i });
 }
 
 async function runUserLoop({ page, source, truth, outputDir, trace }) {
@@ -323,6 +339,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
 
   const state = {
     taxPeriodSelected: false,
+    ambiguousAnswer: false,
     invalidDate: false,
     invalidInn: false,
     identityDeferred: false,
@@ -335,7 +352,11 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     const kind = classifyQuestion(visibleQuestion);
     let answer;
     let expectedRejection = false;
-    if (kind === 'tax_period') {
+    if (kind === 'tax_period' && !state.ambiguousAnswer) {
+      answer = 'Выберите подходящий год за меня.';
+      state.ambiguousAnswer = true;
+      expectedRejection = true;
+    } else if (kind === 'tax_period') {
       answer = '2025';
       state.taxPeriodSelected = true;
     } else if (kind === 'residency') {
@@ -373,7 +394,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     }
 
     const body = await answerQuestion(page, answer);
-    const rejected = body.includes('Ответ не принят и не сохранён');
+    const rejected = body.includes('Ответ пока не принят');
     if (expectedRejection !== rejected) {
       throw new Error(expectedRejection ? 'invalid_answer_was_accepted' : 'valid_answer_was_rejected');
     }
@@ -387,20 +408,28 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
       mode: 'user',
       event: 'question_answered',
       question_family: kind,
+      visible_system_text: visibleQuestion,
+      natural_user_answer: safeJournalAnswer(kind, answer),
+      what_user_could_understand: userUnderstanding(kind),
+      expected_next_action: expectedRejection
+        ? 'Ответ не сохраняется; тот же вопрос остаётся текущим.'
+        : 'Ответ проходит текущую проверку; чат показывает следующий текущий вопрос или итог.',
+      actual_visible_result: body,
+      assessment: 'понятно',
+      problem_class: 'none',
       accepted: !rejected,
       intentionally_invalid: expectedRejection,
       deferred: kind === 'identity' && answer === 'Позже',
     });
-    if (body.includes('3-НДФЛ XML подготовлен и проверен по XSD.')) {
+    if (body.includes('Файл 3-НДФЛ подготовлен и проверен на соответствие формату ФНС.')) {
       firstXmlBody = body;
       break;
     }
-    await sendMessage(page, CONTINUE);
   }
 
   if (!firstXmlBody) throw new Error('first_xml_not_reached');
   if (!state.draftReady) throw new Error('draft_ready_without_xml_not_observed');
-  if (!state.taxPeriodSelected || !state.invalidInn || !state.invalidDate || !state.identityDeferred) {
+  if (!state.taxPeriodSelected || !state.ambiguousAnswer || !state.invalidInn || !state.invalidDate || !state.identityDeferred) {
     throw new Error('required_invalid_and_deferred_matrix_incomplete');
   }
   if (!state.wrongDateAccepted) throw new Error('date_correction_predecessor_missing');
@@ -408,40 +437,38 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
 
   await sendMessage(page, `Изменить дату: ${truth.declarationDate}`);
   const correctedBody = await waitForTurn(page);
-  if (!correctedBody.includes('3-НДФЛ XML подготовлен и проверен по XSD.')) {
+  if (!correctedBody.includes('Файл 3-НДФЛ подготовлен и проверен на соответствие формату ФНС.')) {
     throw new Error('corrected_xml_not_ready');
   }
   const requiredSummarySections = [
     'Из отчёта:',
-    'Рассчитано Tax Model и независимо сверено с XML:',
-    'Определено по методике резидентства:',
+    'По проверенному результату:',
+    'Определено по методике:',
     'Подтверждено вами:',
-    'Перед подачей:',
+    'Перед подачей ещё раз сверить',
   ];
   if (requiredSummarySections.some((marker) => !correctedBody.includes(marker))) {
     throw new Error('final_user_summary_sections_missing');
   }
   const methodologySection = correctedBody
-    .split('Определено по методике резидентства:', 2)[1]
-    .split('Подтверждено вами:', 1)[0];
+    .split('Определено по методике:', 2)[1];
   const userAttestedSection = correctedBody
     .split('Подтверждено вами:', 2)[1]
-    .split('Перед подачей:', 1)[0];
+    .split('Определено по методике:', 1)[0];
   if (
-    !/вывод методики/i.test(methodologySection)
-    || /подтвержден[а-яё]*/i.test(methodologySection)
+    !/налоговый статус и суммы/i.test(methodologySection)
+    || /подтверждено методикой/i.test(methodologySection)
   ) {
     throw new Error('residency_methodology_provenance_invalid');
   }
   if (
-    !/периоды присутствия и отсутствия/i.test(userAttestedSection)
-    || !/специальные причины отсутствия/i.test(userAttestedSection)
+    !/только ответы, которые приняты текущим вопросом/i.test(userAttestedSection)
     || /статус[^\n.;]{0,80}резидент/i.test(userAttestedSection)
   ) {
     throw new Error('residency_user_attested_provenance_invalid');
   }
   const visibleMatch = correctedBody.match(
-    /Рассчитано Tax Model[^:]*:\s*доход\s+([0-9.]+)\s*₽;\s*принятые расходы\s+([0-9.]+)\s*₽;\s*налоговая база\s+([0-9.]+)\s*₽;\s*исчисленный налог\s+([0-9.]+)\s*₽;\s*к уплате\s+([0-9.]+)\s*₽/i,
+    /По проверенному результату:\s*доход\s+([0-9.]+)\s*₽,\s*принятые расходы\s+([0-9.]+)\s*₽,\s*налоговая база\s+([0-9.]+)\s*₽,\s*исчисленный налог\s+([0-9.]+)\s*₽,\s*к уплате\s+([0-9.]+)\s*₽/i,
   );
   if (!visibleMatch) throw new Error('visible_calculation_values_missing');
   const visibleValues = {
@@ -649,7 +676,7 @@ async function runRepresentativeSourceSmoke({ browser, control, source, outputDi
   if (body.includes('3-НДФЛ XML подготовлен') || await downloadLinks(page).count()) {
     throw new Error('representative_source_unjustified_declaration_created');
   }
-  if (!/Расчёт остановлен|Подготовка остановлена/.test(body)) {
+  if (!/Не удалось|Подготовка безопасно остановлена/.test(body)) {
     throw new Error('representative_source_typed_blocker_not_visible');
   }
   await page.screenshot({
@@ -695,13 +722,9 @@ async function runRepresentativeSourceBoundaryProof({ browser, control, source, 
   const body = await waitForTurn(page);
   const required = [
     'Не удалось получить подтверждённый набор операций',
-    'Итог по кейсу:',
-    'годы не определены',
-    'год ещё не выбран',
-    'налоговый период ещё не выбран',
-    'подтверждённые позиции пока не сформированы',
-    'Рассчитанные закрытые продажи: 0',
-    'Подаваемый XML на этом шаге не создан',
+    'XML не создан',
+    'Рассчитанных закрытых продаж: 0',
+    'Добавить недостающий отчёт или передать кейс специалисту сервиса',
   ];
   const missing = required.filter((marker) => !body.includes(marker));
   if (missing.length) {
@@ -820,7 +843,7 @@ async function runIssue310UnsupportedProfileRoute({
   const modes = {
     analysis: {
       answer: 'Только анализ',
-      markers: ['Готов только анализ по выбранному периоду', 'XML не создавались'],
+      markers: ['Готов анализ выбранного периода', 'XML не создавался'],
     },
     surrogate: {
       answer: 'Неподаваемый черновик',
@@ -834,7 +857,7 @@ async function runIssue310UnsupportedProfileRoute({
     },
     stop: {
       answer: 'Остановиться и продолжить позже',
-      markers: ['Подготовка приостановлена', 'вернуться позже', 'XML не создан'],
+      markers: ['Подготовка приостановлена', 'Вернуться к этому кейсу позже'],
     },
   };
   const expected = modes[mode];
@@ -853,9 +876,7 @@ async function runIssue310UnsupportedProfileRoute({
   if (classifyQuestion(periodQuestion) !== 'tax_period') {
     throw new Error('issue310_tax_period_question_not_first');
   }
-  await answerQuestion(page, '2022');
-  await sendMessage(page, CONTINUE);
-  const profileQuestion = await waitForQuestion(page);
+  const profileQuestion = await answerQuestion(page, '2022');
   if (classifyQuestion(profileQuestion) !== 'profile_mode') {
     throw new Error('issue310_profile_mode_question_missing');
   }
@@ -876,18 +897,11 @@ async function runIssue310UnsupportedProfileRoute({
   if (mode === 'stop') {
     await sendMessage(page, 'Изменить налоговый период: 2025');
     const supportedBody = await waitForTurn(page);
-    if (!supportedBody.includes('для 2025 года доступен точный профиль')) {
+    if (!supportedBody.includes('Доступный профиль декларации: 3-НДФЛ за 2025 год')) {
       throw new Error('issue310_supported_period_not_visible_after_change');
     }
-    const title = page.getByText(MODAL_TITLE, { exact: true });
-    if (await title.isVisible()) {
-      await page.keyboard.press('Escape');
-      await title.waitFor({ state: 'hidden', timeout: 30000 });
-    }
     await sendMessage(page, 'Изменить налоговый период: 2022');
-    await waitForTurn(page);
-    await sendMessage(page, CONTINUE);
-    const returnedQuestion = await waitForQuestion(page);
+    const returnedQuestion = await waitForTurn(page);
     if (
       classifyQuestion(returnedQuestion) !== 'profile_mode'
       || !returnedQuestion.includes('2022')
