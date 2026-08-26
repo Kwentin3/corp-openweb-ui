@@ -1,0 +1,43 @@
+{
+  "schema_version": "broker_reports_issue306_browser_run_receipt_v2",
+  "source_kind": "public_representative_broker_report",
+  "source_artifact": {
+    "sample_id": "g537_tbank_public_pdf_purchase",
+    "content_sha256": "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67",
+    "size_bytes": 639417,
+    "source_url": "https://cdn.tbank.ru/static/documents/7b9ccdee-5a02-4ed6-9499-c76082cd8d30.pdf"
+  },
+  "browser_ui_only": true,
+  "hidden_refs_observed": false,
+  "document_contents_recorded": false,
+  "events": [
+    {
+      "mode": "user",
+      "event": "representative_source_boundary_separation_proven",
+      "visible_system_text": "NDFL\nСегодня в 14:29\nПодготовка 3-НДФЛ: обработка завершена.\n\nНе удалось получить подтверждённый набор операций. Попробуйте загрузить полный брокерский отчёт в поддерживаемом формате. XML не создан.\n\nРассчитанных закрытых продаж: 0.\n\nОткуда взялись сведения:\n\nИз отчёта: распознаны операции; закрытых продаж рассчитано 0; неоднозначные строки не используются молча\n\nПодтверждено вами: в расчёт попадают только ответы, которые приняты текущим вопросом; неподтверждённые реквизиты не считаются готовыми\n\nОпределено по методике: налоговый статус и суммы выводятся применяемыми правилами из источника и подтверждённых вами фактов\n\nЧто можно сделать дальше:\n\nДобавить недостающий отчёт или передать кейс специалисту сервиса",
+      "natural_user_answer": "Подготовь 3-НДФЛ по загруженному брокерскому отчёту.",
+      "what_user_could_understand": "Из этого источника нельзя доказать поддерживаемый набор операций; XML не создан.",
+      "expected_next_action": "Показать source gap простыми словами и предложить добавить отчёт либо передать кейс специалисту.",
+      "actual_visible_result": "NDFL\nСегодня в 14:29\nПодготовка 3-НДФЛ: обработка завершена.\n\nНе удалось получить подтверждённый набор операций. Попробуйте загрузить полный брокерский отчёт в поддерживаемом формате. XML не создан.\n\nРассчитанных закрытых продаж: 0.\n\nОткуда взялись сведения:\n\nИз отчёта: распознаны операции; закрытых продаж рассчитано 0; неоднозначные строки не используются молча\n\nПодтверждено вами: в расчёт попадают только ответы, которые приняты текущим вопросом; неподтверждённые реквизиты не считаются готовыми\n\nОпределено по методике: налоговый статус и суммы выводятся применяемыми правилами из источника и подтверждённых вами фактов\n\nЧто можно сделать дальше:\n\nДобавить недостающий отчёт или передать кейс специалисту сервиса",
+      "assessment": "понятно",
+      "problem_class": "none",
+      "source_gap_explained_in_plain_language": true,
+      "next_action_visible": true,
+      "internal_status_hidden": true,
+      "xml_created": false,
+      "private_download_created": false
+    }
+  ],
+  "run_id": "52970201-003b-4fa9-9b0a-e6a8fe48b81c",
+  "run_kind": "representative_source",
+  "started_at": "2026-08-26T11:28:31.975Z",
+  "finished_at": "2026-08-26T11:30:01.007Z",
+  "proof_binding": {
+    "tested_commit": "bed97a943ab1fafff49b501f4a1a2d45e14e4543",
+    "generated_bundle_sha256": "c3c92ce5c2b427ac8f6fef3a6b4954f7bdb9f8ed9a7220dec8f7b9595d8f1763",
+    "browser_driver_sha256": "de3385a16deaa8868ed2f9fbb896b24210d9850e8bcdeb3750cdc160b57c5201",
+    "control_script_sha256": "2d51061b32495702050e9405713a2931afaf5e38d866e0c00a044726b089dab5",
+    "control_prepared_receipt_sha256": "a91b81ebf494bb5678a067cd79fdc309c05031e69d1d52b7206871a049f61fc7"
+  },
+  "receipt_sha256": "f182cbfce71bbfed5b0b34f86543afd36e16537a0d505da377591920a9a4a834"
+}

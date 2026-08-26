@@ -1,0 +1,18 @@
+{
+  "control_run_id": "6d6e8a43bfc837f2ba66c0d6c3d55ade",
+  "deployed_bundle_sha256": "c3c92ce5c2b427ac8f6fef3a6b4954f7bdb9f8ed9a7220dec8f7b9595d8f1763",
+  "function_id": "broker_reports_ndfl",
+  "legacy_function_inactive": false,
+  "model_public_grant_added": false,
+  "predecessor_control_prepared_receipt_sha256": "a91b81ebf494bb5678a067cd79fdc309c05031e69d1d52b7206871a049f61fc7",
+  "proof_valves_enabled": false,
+  "receipt_sha256": "1a1c11d53360b9c0aa76d47a98e21e0949256ba6404f5a2412cf7fa630654436",
+  "release_valves_exact": false,
+  "schema_version": "broker_reports_gate5_openwebui_control_v0",
+  "state_restored": true,
+  "status": "restored",
+  "temporary_users": 8,
+  "user_a_model_visible": true,
+  "user_b_model_hidden": true,
+  "workspace_model_id": "broker_reports_ndfl"
+}

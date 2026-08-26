@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import re
 import subprocess
 from types import SimpleNamespace
 
@@ -19,6 +20,10 @@ RECEIPT_BUILDER_PATH = (
 COMMITTED_TRACE_PATH = (
     REPO_ROOT
     / "docs/reports/2026-08-25/BROKER_REPORTS_ISSUE_308_INTERACTION_TRACE.safe.json"
+)
+ISSUE310_TRACE_PATH = (
+    REPO_ROOT
+    / "docs/reports/2026-08-25/BROKER_REPORTS_ISSUE_310_INTERACTION_TRACE.safe.json"
 )
 BUNDLE_PATH = (
     SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
@@ -480,3 +485,140 @@ def test_committed_issue308_trace_is_bound_to_its_live_tested_code() -> None:
     assert restored["predecessor_control_prepared_receipt_sha256"] == source[
         "proof_binding"
     ]["control_prepared_receipt_sha256"]
+
+
+def test_committed_issue310_full_journals_bind_code_routes_and_cleanup() -> None:
+    trace = json.loads(ISSUE310_TRACE_PATH.read_text(encoding="utf-8"))
+    assert trace["schema_version"] == (
+        "broker_reports_issue310_safe_interaction_trace_v3"
+    )
+    assert trace["journal_events_total"] == 33
+    assert trace["public_dialogue_boundary"] == {
+        "classification": "PRESENTATION_ADAPTER",
+        "business_authority": False,
+        "answer_model_calls": 0,
+        "answer_candidate_policy": (
+            "one_literal_year_or_one_exact_visible_current_owner_option"
+        ),
+        "separate_exact_user_confirmation_required": True,
+        "human_fact_owner_reused": True,
+        "native_openwebui_completion_used_for_dialogue_wording_only": True,
+        "domain_provider_calls_added": 0,
+    }
+
+    tested_commit = trace["evidence_code_head"]
+    binding = trace["proof_binding"]
+    assert binding["generated_bundle_sha256"] == hashlib.sha256(
+        subprocess.check_output(
+            [
+                "git",
+                "show",
+                f"{tested_commit}:{BUNDLE_PATH.relative_to(REPO_ROOT).as_posix()}",
+            ],
+            cwd=REPO_ROOT,
+        )
+    ).hexdigest()
+    assert binding["browser_driver_sha256"] == _git_blob_sha256(
+        BROWSER_GOAL_PATH,
+        revision=tested_commit,
+    )
+    assert binding["control_script_sha256"] == _git_blob_sha256(
+        SCRIPT_PATH,
+        revision=tested_commit,
+    )
+
+    expected_routes = {
+        "supported_closed_trade": 22,
+        "unsupported_analysis": 2,
+        "unsupported_surrogate": 2,
+        "unsupported_stop": 4,
+        "open_long": 1,
+        "sale_only": 1,
+        "representative_tbank_source": 1,
+    }
+    assert {
+        item["route"]: item["journal_events"]
+        for item in trace["accepted_runs"]
+    } == expected_routes
+
+    receipts: dict[str, dict] = {}
+    for item in trace["accepted_runs"]:
+        receipt_path = ISSUE310_TRACE_PATH.parent / item["full_receipt"]
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipts[item["route"]] = receipt
+        assert receipt["receipt_sha256"] == item["receipt_sha256"]
+        assert receipt["receipt_sha256"] == _receipt_sha256(receipt)
+        assert receipt["proof_binding"]["tested_commit"] == tested_commit
+        assert receipt["proof_binding"]["generated_bundle_sha256"] == binding[
+            "generated_bundle_sha256"
+        ]
+        assert receipt["proof_binding"]["browser_driver_sha256"] == binding[
+            "browser_driver_sha256"
+        ]
+        assert receipt["proof_binding"]["control_script_sha256"] == binding[
+            "control_script_sha256"
+        ]
+        assert len(receipt["events"]) == item["journal_events"]
+        event_text = json.dumps(receipt["events"], ensure_ascii=False)
+        assert re.search(r"(?<![0-9])[0-9]{12}(?![0-9])", event_text) is None
+        assert re.search(r"\bart_[A-Za-z0-9_-]+\b", event_text) is None
+
+    supported = receipts["supported_closed_trade"]
+    assert supported["browser_ui_only"] is True
+    assert supported["hidden_refs_observed"] is False
+    assert supported["document_contents_recorded"] is False
+    assert [
+        (
+            item.get("natural_user_answer"),
+            item.get("confirmation_required"),
+            item.get("accepted"),
+        )
+        for item in supported["events"]
+        if item.get("question_family") == "tax_period"
+    ][:3] == [
+        ("Выберите подходящий год за меня.", False, False),
+        ("Беру 2025 год.", True, False),
+        ("2025", False, True),
+    ]
+    assert {item["event"] for item in supported["events"]}.issuperset(
+        {
+            "unanswered_tab_closed_and_second_case_admitted",
+            "private_xml_downloaded",
+            "resume_and_concurrent_retry",
+            "second_user_denied",
+        }
+    )
+
+    source = receipts["representative_tbank_source"]
+    source_owner = json.loads(PUBLIC_SOURCE_CORPUS_PATH.read_text(encoding="utf-8"))
+    source_owner = next(
+        item
+        for item in source_owner["samples"]
+        if item.get("sample_id") == "g537_tbank_public_pdf_purchase"
+    )
+    assert source["source_artifact"]["content_sha256"] == source_owner[
+        "content_sha256"
+    ]
+    assert source["source_artifact"]["size_bytes"] == source_owner["size_bytes"]
+    assert source["events"][0]["source_gap_explained_in_plain_language"] is True
+    assert source["events"][0]["xml_created"] is False
+
+    control = trace["control_chain"]
+    prepared = json.loads(
+        (ISSUE310_TRACE_PATH.parent / control["prepared_receipt"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    restored = json.loads(
+        (ISSUE310_TRACE_PATH.parent / control["restored_receipt"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert prepared["receipt_sha256"] == control["prepared_receipt_sha256"]
+    assert prepared["receipt_sha256"] == _receipt_sha256(prepared)
+    assert restored["receipt_sha256"] == control["restored_receipt_sha256"]
+    assert restored["receipt_sha256"] == _receipt_sha256(restored)
+    assert restored["predecessor_control_prepared_receipt_sha256"] == prepared[
+        "receipt_sha256"
+    ]
+    assert restored["state_restored"] is True
