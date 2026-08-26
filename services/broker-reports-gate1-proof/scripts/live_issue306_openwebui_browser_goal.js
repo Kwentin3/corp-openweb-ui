@@ -163,11 +163,16 @@ async function login(context, baseUrl, user) {
 }
 
 async function selectNdfl(page) {
-  const ndfl = page.locator('button[aria-label$="NDFL"]');
+  const selected = page.locator(
+    'button[aria-label^="Выбранная модель:"], button[aria-label^="Selected model:"]',
+  );
+  await selected.first().waitFor({ state: 'visible', timeout: 60000 });
+  await selected.first().click();
+  const ndfl = page.locator(
+    'button[aria-label="Выбрать модель NDFL"], button[aria-label="Select model NDFL"]',
+  );
   await ndfl.first().waitFor({ state: 'visible', timeout: 60000 });
   await ndfl.first().click();
-  await page.waitForTimeout(500);
-  await page.locator('button[aria-label$="NDFL"]').last().click();
 }
 
 async function rememberTurnBoundary(page) {
