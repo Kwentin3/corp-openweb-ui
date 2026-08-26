@@ -1866,21 +1866,27 @@ class Pipe:
                 "authenticated_user_ref": context.user_id,
                 "case_scope_sha256": case_scope_sha256,
                 "xml_sha256": xml_sha256,
-                "receipt_sha256": receipt_sha256,
             },
             sort_keys=True,
             separators=(",", ":"),
         )
+        publication_identity_sha256 = hashlib.sha256(
+            file_material.encode("utf-8")
+        ).hexdigest()
         file_id = str(
             uuid.uuid5(
                 uuid.UUID("99ab3cab-969f-4c79-bf48-3e7e5030911b"),
                 file_material,
             )
         )
-        expected_data = {
+        stable_expected_data = {
             "broker_reports_declaration_product": True,
             "private_user_artifact": True,
             "case_scope_sha256": case_scope_sha256,
+            "publication_identity_sha256": publication_identity_sha256,
+        }
+        inserted_data = {
+            **stable_expected_data,
             "receipt_sha256": receipt_sha256,
         }
 
@@ -1897,10 +1903,16 @@ class Pipe:
             meta = meta if isinstance(meta, dict) else {}
             data = meta.get("data") if isinstance(meta.get("data"), dict) else {}
             row_path = str(getattr(row, "path", "") or "")
+            stored_receipt_sha256 = str(data.get("receipt_sha256") or "")
             if (
                 str(getattr(row, "user_id", "") or "") != context.user_id
                 or str(getattr(row, "hash", "") or "") != xml_sha256
-                or data != expected_data
+                or set(data) != {*stable_expected_data, "receipt_sha256"}
+                or any(
+                    data.get(key) != value
+                    for key, value in stable_expected_data.items()
+                )
+                or re.fullmatch(r"[0-9a-f]{64}", stored_receipt_sha256) is None
                 or not row_path
             ):
                 raise NdflWorkflowError(
@@ -1954,7 +1966,7 @@ class Pipe:
                         "content_type": "application/xml",
                         "size": len(contents),
                         "file_hash": xml_sha256,
-                        "data": expected_data,
+                        "data": inserted_data,
                     },
                 ),
             )

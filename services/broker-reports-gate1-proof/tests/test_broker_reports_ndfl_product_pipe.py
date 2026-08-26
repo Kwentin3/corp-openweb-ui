@@ -6,6 +6,7 @@ from dataclasses import replace
 import importlib.util
 import json
 from pathlib import Path
+import re
 import sys
 import threading
 from types import ModuleType
@@ -1570,8 +1571,14 @@ def test_xml_delivery_uses_authenticated_openwebui_private_file_owner(
     }
     file_id = asyncio.run(Pipe._publish_ndfl_xml_file(**kwargs))
     repeated = asyncio.run(Pipe._publish_ndfl_xml_file(**kwargs))
+    successor_receipt = asyncio.run(
+        Pipe._publish_ndfl_xml_file(
+            **{**kwargs, "receipt_sha256": "b" * 64},
+        )
+    )
 
     assert repeated == file_id
+    assert successor_receipt == file_id
     assert captured["uploads"] == 1
     assert captured["inserts"] == 1
     assert captured["user_id"] == "user-a"
@@ -1579,6 +1586,22 @@ def test_xml_delivery_uses_authenticated_openwebui_private_file_owner(
     assert captured["form"].id == file_id
     assert captured["form"].meta["data"]["private_user_artifact"] is True
     assert captured["form"].meta["data"]["receipt_sha256"] == "a" * 64
+    assert re.fullmatch(
+        r"[0-9a-f]{64}",
+        captured["form"].meta["data"]["publication_identity_sha256"],
+    )
+
+    rows[file_id].meta["data"]["receipt_sha256"] = "not-a-receipt"
+    with pytest.raises(NdflWorkflowError) as corrupted:
+        asyncio.run(
+            Pipe._publish_ndfl_xml_file(
+                **{**kwargs, "receipt_sha256": "c" * 64},
+            )
+        )
+    assert (
+        corrupted.value.code
+        == "ordinary_trade_declaration_private_file_reuse_binding_invalid"
+    )
 
 
 def test_concurrent_identical_xml_delivery_keeps_one_valid_owner_file(
@@ -1656,13 +1679,12 @@ def test_concurrent_identical_xml_delivery_keeps_one_valid_owner_file(
         "filename": "3-ndfl-2025.xml",
         "xml_bytes": xml_bytes,
         "xml_sha256": __import__("hashlib").sha256(xml_bytes).hexdigest(),
-        "receipt_sha256": "c" * 64,
     }
 
     async def publish_twice():
         return await asyncio.gather(
-            Pipe._publish_ndfl_xml_file(**kwargs),
-            Pipe._publish_ndfl_xml_file(**kwargs),
+            Pipe._publish_ndfl_xml_file(**kwargs, receipt_sha256="c" * 64),
+            Pipe._publish_ndfl_xml_file(**kwargs, receipt_sha256="d" * 64),
             return_exceptions=True,
         )
 
@@ -1674,7 +1696,12 @@ def test_concurrent_identical_xml_delivery_keeps_one_valid_owner_file(
     assert Path(next(iter(rows.values())).path).read_bytes() == xml_bytes
     assert len(list(tmp_path.glob("*"))) == 1
     assert calls == {"upload": 2, "insert": 2, "delete": 1}
-    assert asyncio.run(Pipe._publish_ndfl_xml_file(**kwargs)) == results[0]
+    assert (
+        asyncio.run(
+            Pipe._publish_ndfl_xml_file(**kwargs, receipt_sha256="e" * 64)
+        )
+        == results[0]
+    )
     assert calls == {"upload": 2, "insert": 2, "delete": 1}
 
 
