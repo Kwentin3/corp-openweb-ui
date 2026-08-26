@@ -196,6 +196,25 @@ def test_short_model_candidate_is_composed_with_exact_owner_context() -> None:
     )
 
 
+def test_genuine_short_candidate_with_confirm_imperative_is_accepted() -> None:
+    context = build_public_dialogue_context(product=_product())
+    interpreted = validate_public_dialogue_interpretation(
+        {
+            "disposition": "CANDIDATE",
+            "message": (
+                "Вы хотите подать первичную декларацию. "
+                "Пожалуйста, подтвердите этот выбор."
+            ),
+            "normalized_answer": "Первичная декларация",
+            "evidence_quote": "первый раз",
+        },
+        context=context,
+        user_message="Подаю декларацию первый раз",
+    )
+
+    assert "Предлагаемое значение: Первичная декларация." in interpreted["message"]
+
+
 def test_model_cannot_choose_or_echo_interpretation_schema_version() -> None:
     context = build_public_dialogue_context(product=_product())
 

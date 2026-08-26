@@ -938,7 +938,7 @@ def validate_public_dialogue_interpretation(
             and normalized_answer not in options
         ):
             raise ValueError("public_dialogue_candidate_not_on_public_surface")
-        if "подтверж" not in interpretation_message.casefold():
+        if re.search(r"подтверд|подтверж", interpretation_message.casefold()) is None:
             raise ValueError("public_dialogue_candidate_confirmation_missing")
     visible_parts = [interpretation_message]
     if disposition == "CANDIDATE":
