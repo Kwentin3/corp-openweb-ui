@@ -23,6 +23,7 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
     NdflWorkflowError,
 )
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
+    ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION,
     adapt_current_declaration_request,
     build_public_dialogue_context,
     declaration_change_intent,
@@ -234,6 +235,95 @@ def test_maintained_stage_binds_event_response_to_current_owner_actions(
     assert "Подтверждено вами" in chat
     assert "Перед подачей" in chat
     assert "не отправлялся в ФНС автоматически" in chat
+
+
+def test_model_proposal_creates_no_fact_until_separate_direct_confirmation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_direct_workspace_fixture(monkeypatch)
+    _runtime, context, _providers, store = declaration_fixtures._case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+        include_store=True,
+    )
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    kwargs = {
+        "store": store,
+        "context": context,
+        "artifact_manifest": SimpleNamespace(artifact_refs_by_type={}),
+        "user": {"id": context.user_id},
+        "request": object(),
+        "event_emitter": None,
+        "retention_policy": build_retention_policy(mode="synthetic_dev"),
+    }
+    first = asyncio.run(pipe._maybe_run_ndfl_gate3(**kwargs))
+    current_ref = first["product"]["preparation"]["user_actions"][0][
+        "request_publication_ref"
+    ]
+
+    def completion(**_kwargs):
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "schema_version": (
+                                    ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION
+                                ),
+                                "disposition": "ANSWER_CANDIDATE",
+                                "normalized_answer": "2025",
+                                "clarification": None,
+                            },
+                            ensure_ascii=False,
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+    )
+    proposed = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            **kwargs,
+            trusted_interaction_message="Беру 2025 год",
+        )
+    )
+
+    assert proposed["declaration_chat_receipt"] == {
+        "status": "ANSWER_CONFIRMATION_REQUIRED",
+        "answer_accepted": False,
+        "fact_created": False,
+        "reason_code": "declaration_chat_model_candidate_confirmation_required",
+    }
+    assert proposed["product"]["preparation"]["user_actions"][0][
+        "request_publication_ref"
+    ] == current_ref
+
+    confirmed = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            **kwargs,
+            trusted_interaction_message="2025",
+        )
+    )
+    assert confirmed["declaration_chat_receipt"] == {
+        "status": "ANSWER_ACCEPTED",
+        "answer_accepted": True,
+        "fact_created": True,
+    }
+    assert confirmed["product"]["preparation"]["user_actions"][0][
+        "request_publication_ref"
+    ] != current_ref
 
 
 def test_period_and_profile_mode_are_owner_bound_but_user_presented(

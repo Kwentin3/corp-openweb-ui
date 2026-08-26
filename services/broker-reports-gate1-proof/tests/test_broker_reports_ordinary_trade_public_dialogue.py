@@ -22,6 +22,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     validate_public_dialogue_message,
 )
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
+from broker_reports_gate1.gate3_ndfl_workflow import NdflWorkflowError
 
 
 def _request() -> dict:
@@ -289,7 +290,34 @@ def test_candidate_grounding_rejects_delegated_and_multiple_choices() -> None:
     ) is False
 
 
-def test_pipe_model_candidate_is_rebound_to_current_owner_request(
+@pytest.mark.parametrize(
+    ("user_message", "normalized_answer"),
+    [
+        ("Не подтверждаю эти данные", "Подтверждаю"),
+        ("Не 2025 год", "2025"),
+        ("Я не индивидуальный предприниматель", "Индивидуальный предприниматель"),
+    ],
+)
+def test_candidate_grounding_never_inverts_an_explicit_negation(
+    user_message: str,
+    normalized_answer: str,
+) -> None:
+    question = {
+        "question": "Уточните ответ.",
+        "help": "Ответьте своими словами.",
+        "options": [normalized_answer],
+        "accepted_answer_examples": [normalized_answer],
+        "candidate_hint": None,
+    }
+
+    assert public_answer_candidate_is_grounded(
+        question_context=question,
+        user_message=user_message,
+        normalized_answer=normalized_answer,
+    ) is False
+
+
+def test_pipe_model_candidate_requires_a_separate_direct_owner_answer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pipe = Pipe()
@@ -335,17 +363,34 @@ def test_pipe_model_candidate_is_rebound_to_current_owner_request(
     )
 
     assert adapted == {
-        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
-        "status": "ANSWER_READY",
-        "request_publication_ref": "art_" + "a" * 32,
-        "answer": {"kind": "code", "value": "INITIAL"},
+        "status": "ANSWER_CONFIRMATION_REQUIRED",
+        "reason_code": "declaration_chat_model_candidate_confirmation_required",
     }
+    assert "Первичная декларация" in dialogue["answer_feedback"]
     assert dialogue["interpretation_model_used"] is True
     assert dialogue["presentation_llm_calls_total"] == 1
     model_input = calls[0]["messages"][1]["content"]
     assert "request_publication_ref" not in model_input
     assert "fact_key" not in model_input
     assert "INITIAL" not in model_input
+
+    confirmed, confirmed_dialogue = asyncio.run(
+        pipe._adapt_ndfl_public_answer(
+            message="Первичная декларация",
+            current_actions=[_request()],
+            user={"id": "user-a"},
+            request=object(),
+            event_call=None,
+        )
+    )
+    assert confirmed == {
+        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
+        "status": "ANSWER_READY",
+        "request_publication_ref": "art_" + "a" * 32,
+        "answer": {"kind": "code", "value": "INITIAL"},
+    }
+    assert confirmed_dialogue["interpretation_model_used"] is False
+    assert confirmed_dialogue["presentation_llm_calls_total"] == 0
 
 
 def test_pipe_rejects_model_choice_not_grounded_in_ambiguous_user_answer(
@@ -485,7 +530,8 @@ def test_live_request_uses_authenticated_native_openwebui_completion_boundary(
             return False
 
         @staticmethod
-        def read() -> bytes:
+        def read(limit: int) -> bytes:
+            captured["read_limit"] = limit
             return json.dumps(
                 {
                     "choices": [
@@ -507,14 +553,20 @@ def test_live_request_uses_authenticated_native_openwebui_completion_boundary(
                 ensure_ascii=False,
             ).encode("utf-8")
 
-    def urlopen(outbound, *, timeout):
-        captured["url"] = outbound.full_url
-        captured["authorization"] = outbound.headers["Authorization"]
-        captured["payload"] = json.loads(outbound.data.decode("utf-8"))
-        captured["timeout"] = timeout
-        return Response()
+    class Opener:
+        @staticmethod
+        def open(outbound, *, timeout):
+            captured["url"] = outbound.full_url
+            captured["authorization"] = outbound.headers["Authorization"]
+            captured["payload"] = json.loads(outbound.data.decode("utf-8"))
+            captured["timeout"] = timeout
+            return Response()
 
-    monkeypatch.setattr(pipe_module.urllib.request, "urlopen", urlopen)
+    def build_opener(handler):
+        captured["redirect_handler"] = handler
+        return Opener()
+
+    monkeypatch.setattr(pipe_module.urllib.request, "build_opener", build_opener)
     monkeypatch.setattr(
         pipe,
         "_openwebui_completion_dependencies",
@@ -526,10 +578,13 @@ def test_live_request_uses_authenticated_native_openwebui_completion_boundary(
         "Request",
         (),
         {
-            "base_url": "https://openwebui.example/",
+            "base_url": "https://attacker.example/",
             "headers": {"authorization": "Bearer proof-token"},
         },
     )()
+    pipe.valves.ndfl_presentation_openwebui_origin = (
+        "https://openwebui.internal.example"
+    )
     result = asyncio.run(
         pipe._call_openwebui_presentation_completion(
             system_content="system",
@@ -542,7 +597,9 @@ def test_live_request_uses_authenticated_native_openwebui_completion_boundary(
     )
 
     assert "Безопасный ответ" in result
-    assert captured["url"] == "https://openwebui.example/api/chat/completions"
+    assert captured["url"] == (
+        "https://openwebui.internal.example/api/chat/completions"
+    )
     assert captured["authorization"] == "Bearer proof-token"
     assert captured["payload"]["model"] == "models/gemini-3.5-flash"
     assert captured["payload"]["metadata"]["broker_reports_gate1"] == {
@@ -550,6 +607,103 @@ def test_live_request_uses_authenticated_native_openwebui_completion_boundary(
         "task": "ordinary_trade_public_dialogue_render",
     }
     assert captured["timeout"] == 45.0
+    assert captured["read_limit"] == 1024 * 1024 + 1
+    assert captured["redirect_handler"].redirect_request() is None
+
+
+@pytest.mark.parametrize(
+    "caller_base_url",
+    ["https://attacker.example/", "http://169.254.169.254/"],
+)
+def test_presentation_target_ignores_caller_base_url(
+    caller_base_url: str,
+) -> None:
+    pipe = Pipe()
+    pipe.valves.ndfl_presentation_openwebui_origin = "https://openwebui.example"
+    request = type(
+        "Request",
+        (),
+        {
+            "base_url": caller_base_url,
+            "headers": {"authorization": "Bearer SECRET"},
+        },
+    )()
+
+    assert pipe._openwebui_presentation_http_target(request) == (
+        "https://openwebui.example/api/chat/completions",
+        "Bearer SECRET",
+    )
+
+
+def test_presentation_target_rejects_non_https_pinned_origin() -> None:
+    pipe = Pipe()
+    pipe.valves.ndfl_presentation_openwebui_origin = "http://169.254.169.254"
+    request = type(
+        "Request",
+        (),
+        {"headers": {"authorization": "Bearer SECRET"}},
+    )()
+
+    with pytest.raises(
+        NdflWorkflowError,
+        match="ndfl_presentation_openwebui_origin_invalid",
+    ):
+        pipe._openwebui_presentation_http_target(request)
+
+
+def test_presentation_target_fails_closed_without_bearer() -> None:
+    pipe = Pipe()
+    pipe.valves.ndfl_presentation_openwebui_origin = "https://openwebui.example"
+    request = type("Request", (), {"headers": {}})()
+
+    with pytest.raises(
+        NdflWorkflowError,
+        match="ndfl_presentation_bearer_required",
+    ):
+        pipe._openwebui_presentation_http_target(request)
+
+
+def test_presentation_http_response_is_byte_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        @staticmethod
+        def read(limit: int) -> bytes:
+            return b"x" * limit
+
+    class Opener:
+        @staticmethod
+        def open(_outbound, *, timeout):
+            assert timeout == 45.0
+            return Response()
+
+    monkeypatch.setattr(
+        pipe_module.urllib.request,
+        "build_opener",
+        lambda _handler: Opener(),
+    )
+
+    with pytest.raises(
+        NdflWorkflowError,
+        match="ndfl_presentation_model_http_too_large",
+    ):
+        pipe._openwebui_presentation_http_completion(
+            target=(
+                "https://openwebui.example/api/chat/completions",
+                "Bearer proof-token",
+            ),
+            form_data={"model": "safe"},
+        )
 
 
 def test_valid_model_render_is_the_primary_public_surface(

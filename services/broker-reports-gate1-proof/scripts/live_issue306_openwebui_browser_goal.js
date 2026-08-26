@@ -313,6 +313,25 @@ function safeJournalAnswer(kind, answer) {
   return answer === true ? 'Да.' : String(answer);
 }
 
+function safeJournalVisibleText(value, truth) {
+  let safe = String(value || '');
+  const privateValues = [
+    truth.inn,
+    truth.lastName,
+    truth.firstName,
+    truth.middleName,
+    truth.present,
+    truth.absent,
+    truth.destination,
+    truth.oktmo,
+    truth.declarationDate,
+  ].filter((item) => typeof item === 'string' && item.length > 0);
+  for (const privateValue of privateValues) {
+    safe = safe.split(privateValue).join('[обезличено]');
+  }
+  return safe;
+}
+
 function userUnderstanding(kind) {
   const meanings = {
     tax_period: 'Нужно выбрать год декларации из годов операций.',
@@ -353,6 +372,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
   const state = {
     taxPeriodSelected: false,
     ambiguousAnswer: false,
+    naturalYearProposal: false,
     invalidDate: false,
     invalidInn: false,
     identityDeferred: false,
@@ -365,10 +385,15 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     const kind = classifyQuestion(visibleQuestion);
     let answer;
     let expectedRejection = false;
+    let expectedConfirmation = false;
     if (kind === 'tax_period' && !state.ambiguousAnswer) {
       answer = 'Выберите подходящий год за меня.';
       state.ambiguousAnswer = true;
       expectedRejection = true;
+    } else if (kind === 'tax_period' && !state.naturalYearProposal) {
+      answer = 'Беру 2025 год.';
+      state.naturalYearProposal = true;
+      expectedConfirmation = true;
     } else if (kind === 'tax_period') {
       answer = '2025';
       state.taxPeriodSelected = true;
@@ -412,8 +437,18 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
       || body.includes('Ответ не принят')
       || body.includes('Не буду выбирать за вас')
     );
+    const confirmationRequired = body.includes(
+      'Чтобы сохранить его, отправьте эту формулировку отдельным сообщением',
+    );
     if (expectedRejection !== rejected) {
       throw new Error(expectedRejection ? 'invalid_answer_was_accepted' : 'valid_answer_was_rejected');
+    }
+    if (expectedConfirmation !== confirmationRequired) {
+      throw new Error(
+        expectedConfirmation
+          ? 'model_candidate_was_not_held_for_confirmation'
+          : 'unexpected_model_confirmation_barrier',
+      );
     }
     if (body.includes('Расчётный черновик готов. XML не создан')) {
       state.draftReady = true;
@@ -425,17 +460,20 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
       mode: 'user',
       event: 'question_answered',
       question_family: kind,
-      visible_system_text: visibleQuestion,
+      visible_system_text: safeJournalVisibleText(visibleQuestion, truth),
       natural_user_answer: safeJournalAnswer(kind, answer),
       what_user_could_understand: userUnderstanding(kind),
       expected_next_action: expectedRejection
         ? 'Ответ не сохраняется; тот же вопрос остаётся текущим.'
+        : expectedConfirmation
+          ? 'Интерпретация показана пользователю, но факт не создан; тот же вопрос ждёт отдельного прямого ответа.'
         : 'Ответ проходит текущую проверку; чат показывает следующий текущий вопрос или итог.',
-      actual_visible_result: body,
+      actual_visible_result: safeJournalVisibleText(body, truth),
       assessment: 'понятно',
       problem_class: 'none',
-      accepted: !rejected,
+      accepted: !rejected && !confirmationRequired,
       intentionally_invalid: expectedRejection,
+      confirmation_required: confirmationRequired,
       deferred: kind === 'identity' && answer === 'Позже',
     });
     if (body.includes('Файл 3-НДФЛ подготовлен и проверен на соответствие формату ФНС.')) {
@@ -446,7 +484,7 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
 
   if (!firstXmlBody) throw new Error('first_xml_not_reached');
   if (!state.draftReady) throw new Error('draft_ready_without_xml_not_observed');
-  if (!state.taxPeriodSelected || !state.ambiguousAnswer || !state.invalidInn || !state.invalidDate || !state.identityDeferred) {
+  if (!state.taxPeriodSelected || !state.ambiguousAnswer || !state.naturalYearProposal || !state.invalidInn || !state.invalidDate || !state.identityDeferred) {
     throw new Error('required_invalid_and_deferred_matrix_incomplete');
   }
   if (!state.wrongDateAccepted) throw new Error('date_correction_predecessor_missing');
@@ -711,6 +749,13 @@ async function runRepresentativeSourceSmoke({ browser, control, source, outputDi
     events: [{
       mode: 'user',
       event: 'representative_source_blocked_before_declaration',
+      visible_system_text: body,
+      natural_user_answer: 'Подготовь 3-НДФЛ по загруженному брокерскому отчёту.',
+      what_user_could_understand: 'Источник не доказал полный поддерживаемый набор операций, поэтому декларация не создана.',
+      expected_next_action: 'Остановиться без XML и объяснить безопасный следующий шаг.',
+      actual_visible_result: body,
+      assessment: 'понятно',
+      problem_class: 'none',
       xml_created: false,
       private_download_created: false,
       typed_blocker_visible: true,
@@ -776,6 +821,13 @@ async function runRepresentativeSourceBoundaryProof({ browser, control, source, 
     events: [{
       mode: 'user',
       event: 'representative_source_boundary_separation_proven',
+      visible_system_text: body,
+      natural_user_answer: 'Подготовь 3-НДФЛ по загруженному брокерскому отчёту.',
+      what_user_could_understand: 'Из этого источника нельзя доказать поддерживаемый набор операций; XML не создан.',
+      expected_next_action: 'Показать source gap простыми словами и предложить добавить отчёт либо передать кейс специалисту.',
+      actual_visible_result: body,
+      assessment: 'понятно',
+      problem_class: 'none',
       source_gap_explained_in_plain_language: true,
       next_action_visible: true,
       internal_status_hidden: true,
@@ -801,6 +853,11 @@ async function runIssue310NonFilingRoute({
     sale_only: [
       'историю позиции',
       'Добавьте отчёт с предшествующими операциями',
+      'XML не создан',
+    ],
+    open_short: [
+      'тип которой сервис пока не может достоверно обработать',
+      'Операции не считаются отсутствующими',
       'XML не создан',
     ],
   }[route];
@@ -840,6 +897,17 @@ async function runIssue310NonFilingRoute({
     events: [{
       mode: 'user',
       event: 'non_filing_route_explained',
+      visible_system_text: question,
+      natural_user_answer: '2025',
+      what_user_could_understand: ({
+        open_long: 'Открытая длинная позиция сохранена вне налоговой базы, декларация по ней не выпущена.',
+        sale_only: 'Для продажи не хватает истории позиции; система не выдумывает покупку или короткую позицию.',
+        open_short: 'Позиция обнаружена, но активный источник пока не доказывает её тип; система не заявляет отсутствие операций.',
+      })[route],
+      expected_next_action: 'Показать честный non-filing результат без XML и понятный следующий шаг.',
+      actual_visible_result: body,
+      assessment: 'понятно',
+      problem_class: 'none',
       first_question: 'tax_period',
       plain_language_explanation: true,
       next_action_visible: true,
@@ -911,12 +979,24 @@ async function runIssue310UnsupportedProfileRoute({
     throw new Error('issue310_unsupported_profile_created_download');
   }
   let periodRoundTrip = false;
+  const roundTripEvents = [];
   if (mode === 'stop') {
     await sendMessage(page, 'Изменить налоговый период: 2025');
     const supportedBody = await waitForTurn(page);
     if (!supportedBody.includes('Доступный профиль декларации: 3-НДФЛ за 2025 год')) {
       throw new Error('issue310_supported_period_not_visible_after_change');
     }
+    roundTripEvents.push({
+      mode: 'user',
+      event: 'unsupported_period_changed_to_supported',
+      visible_system_text: body,
+      natural_user_answer: 'Изменить налоговый период: 2025',
+      what_user_could_understand: 'После смены года показан поддерживаемый профиль 2025.',
+      expected_next_action: 'Опубликовать новый current запрос для поддерживаемого периода.',
+      actual_visible_result: supportedBody,
+      assessment: 'понятно',
+      problem_class: 'none',
+    });
     await sendMessage(page, 'Изменить налоговый период: 2022');
     const returnedQuestion = await waitForTurn(page);
     if (
@@ -925,6 +1005,17 @@ async function runIssue310UnsupportedProfileRoute({
     ) {
       throw new Error('issue310_period_round_trip_reused_stale_mode');
     }
+    roundTripEvents.push({
+      mode: 'user',
+      event: 'unsupported_period_round_trip_requires_new_mode',
+      visible_system_text: supportedBody,
+      natural_user_answer: 'Изменить налоговый период: 2022',
+      what_user_could_understand: 'Возврат к 2022 снова требует выбора режима; прежний выбор не воскрес.',
+      expected_next_action: 'Показать новый current вопрос режима для 2022.',
+      actual_visible_result: returnedQuestion,
+      assessment: 'понятно',
+      problem_class: 'none',
+    });
     periodRoundTrip = true;
   }
   await page.screenshot({
@@ -937,18 +1028,39 @@ async function runIssue310UnsupportedProfileRoute({
     route: `unsupported_${mode}`,
     source_sha256: sha256Bytes(fs.readFileSync(source)),
     browser_ui_only: true,
-    events: [{
-      mode: 'user',
-      event: 'unsupported_profile_choice_completed',
-      selected_tax_period: '2022',
-      available_profile_tax_period: '2025',
-      available_profile_format: '5.20',
-      selected_mode: mode,
-      period_round_trip_2022_2025_2022: periodRoundTrip,
-      internal_profile_id_hidden: true,
-      xml_created: false,
-      private_download_created: false,
-    }],
+    events: [
+      {
+        mode: 'user',
+        event: 'unsupported_period_selected',
+        visible_system_text: periodQuestion,
+        natural_user_answer: '2022',
+        what_user_could_understand: 'Для 2022 нет точного профиля, поэтому нужен явный non-filing режим.',
+        expected_next_action: 'Показать три допустимых режима и доступный профиль 2025/5.20.',
+        actual_visible_result: profileQuestion,
+        assessment: 'понятно',
+        problem_class: 'none',
+      },
+      {
+        mode: 'user',
+        event: 'unsupported_profile_choice_completed',
+        visible_system_text: profileQuestion,
+        natural_user_answer: expected.answer,
+        what_user_could_understand: 'Выбранный режим не является декларацией и не создаёт XML.',
+        expected_next_action: 'Показать выбранный non-filing результат без файла для скачивания.',
+        actual_visible_result: body,
+        assessment: 'понятно',
+        problem_class: 'none',
+        selected_tax_period: '2022',
+        available_profile_tax_period: '2025',
+        available_profile_format: '5.20',
+        selected_mode: mode,
+        period_round_trip_2022_2025_2022: periodRoundTrip,
+        internal_profile_id_hidden: true,
+        xml_created: false,
+        private_download_created: false,
+      },
+      ...roundTripEvents,
+    ],
   };
 }
 

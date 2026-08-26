@@ -98,8 +98,10 @@ representation-only adapter strips the request down to one public question,
 safe answer help, human labels and a masked candidate. Ordinary chat text may
 be interpreted into an answer candidate, but it cannot supply or select a
 publication ref, fact key, taxpayer scope or hidden action. The candidate is
-then rebound to the already selected current publication and must pass the
-unchanged Human owner normalization. The native OpenWebUI `__event_call__`
+validated against the current owner answer shape but creates no fact. The user
+must repeat the proposed owner-accepted wording in a separate message; only
+that direct authenticated reply is rebound to the already selected current
+publication and may pass Human owner normalization. The native OpenWebUI `__event_call__`
 remains an optional exact-input fallback; it is not the primary conversation.
 
 ## Public dialogue context and presentation model
@@ -115,7 +117,8 @@ current request, outcome and filing eligibility
 
 natural user reply + current public question
 -> authenticated native OpenWebUI completion endpoint -> presentation model candidate
--> existing declaration chat adapter
+-> existing declaration chat adapter -> visible confirmation proposal, no fact
+-> separate direct authenticated user reply
 -> exact current request_publication_ref kept by Pipe
 -> Gate5HumanGapClosureRuntime normalization and publication
 ```
@@ -136,6 +139,12 @@ deterministic public context. Model failure creates no new meaning and no Human
 Fact; a presentation call that exceeds its bounded runtime window is treated as
 unavailable instead of holding the current request open indefinitely. Exact UI
 controls/deterministic parsing remain only a safe fallback.
+
+The native completion target is an administrator-pinned HTTPS OpenWebUI origin,
+never `request.base_url`, Host or another caller-derived address. Redirects are
+denied and the response body is byte-bounded before JSON parsing. The incoming
+user bearer token cannot be forwarded to a caller-selected or redirected
+origin.
 
 Metrics are separate: `presentation_llm_calls_total` counts only conversation
 rendering/interpretation; `domain_provider_calls_total` remains zero for the

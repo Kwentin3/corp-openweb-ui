@@ -285,7 +285,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v11",
+            "broker_reports_architecture_policy_v12",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -302,6 +302,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "declaration_semantics": "target_independent_declaration_meaning",
                 "release": "evidence_completeness_and_release_decision",
                 "projection": "representation_only",
+                "presentation_adapter": "public_dialogue_wording_only",
             },
         )
         self.assertEqual(
@@ -325,6 +326,14 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                         "OrdinaryTradeProjectionRuntime.current_case_coverage"
                     ),
                     "human_fact_owner": "Gate5HumanGapClosureRuntime",
+                    "public_dialogue_owner": (
+                        "ordinary_trade_declaration_chat_adapter"
+                    ),
+                    "presentation_transport_owner": (
+                        "Pipe._call_openwebui_presentation_completion"
+                    ),
+                    "presentation_model_boundary": "PRESENTATION_ADAPTER",
+                    "presentation_business_authority": False,
                     "case_metadata_source_owner": (
                         "Gate3MetadataSourceFactRuntime"
                     ),
@@ -374,6 +383,41 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 }
             },
         )
+
+    def test_public_dialogue_model_is_one_representation_only_boundary(self):
+        route = architecture_policy.ACTIVE_PRODUCT_ROUTES[
+            "ordinary_security_trades"
+        ]
+        classification = architecture_policy.PROVIDER_CALL_SITE_CLASSIFICATIONS[
+            "ordinary_trade_public_dialogue"
+        ]
+        pipe = (
+            OPENWEBUI_ACTIONS / "broker_reports_gate1_pipe.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertEqual(
+            classification,
+            (
+                "PRESENTATION_ADAPTER",
+                "plain_language_dialogue_wording_and_answer_phrasing",
+                "ordinary_trade_public_dialogue_message_and_interpretation_v1",
+            ),
+        )
+        self.assertIn(classification[0], architecture_policy.LLM_BOUNDARY_CLASSES)
+        self.assertEqual(
+            route["public_dialogue_owner"],
+            "ordinary_trade_declaration_chat_adapter",
+        )
+        self.assertEqual(
+            route["presentation_transport_owner"],
+            "Pipe._call_openwebui_presentation_completion",
+        )
+        self.assertEqual(route["presentation_model_boundary"], classification[0])
+        self.assertFalse(route["presentation_business_authority"])
+        self.assertNotIn('getattr(request, "base_url"', pipe)
+        self.assertIn("ndfl_presentation_openwebui_origin", pipe)
+        self.assertIn("_NdflPresentationNoRedirectHandler", pipe)
+        self.assertIn("NDFL_PRESENTATION_MAX_RESPONSE_BYTES + 1", pipe)
 
     def test_machine_readable_policy_is_fail_closed(self):
         self.assertFalse(NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED)

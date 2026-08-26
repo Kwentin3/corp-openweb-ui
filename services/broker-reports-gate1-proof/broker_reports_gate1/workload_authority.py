@@ -1810,6 +1810,11 @@ class WorkloadSession:
     def keepalive(self) -> Iterator["WorkloadSession"]:
         stop = threading.Event()
 
+        # Renew synchronously before relying on thread scheduling.  Under a
+        # loaded interpreter the first daemon-thread timeslice may otherwise
+        # arrive after a deliberately short lease has already expired.
+        self.authority._heartbeat(self)
+
         def heartbeat_loop() -> None:
             interval = float(self.authority.config.heartbeat_interval_seconds or 1.0)
             while not stop.wait(interval):

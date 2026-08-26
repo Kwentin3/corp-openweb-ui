@@ -88,6 +88,7 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
     "ndfl_gate3_model_id": "models/gemini-3.5-flash",
     "ndfl_presentation_llm_enabled": True,
     "ndfl_presentation_model_id": "models/gemini-3.5-flash",
+    "ndfl_presentation_openwebui_origin": "https://gpt.alpha-soft.ru",
     "pdf_table_intake_enabled": True,
     "pdf_table_intake_provider_profile": "google_gemini",
     "pdf_table_intake_model_id": "models/gemini-3.5-flash",

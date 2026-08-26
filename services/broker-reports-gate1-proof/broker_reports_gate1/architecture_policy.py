@@ -14,7 +14,7 @@ from .pdf_table_locator import (
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v11"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v12"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -37,6 +37,7 @@ GATE_OWNERSHIP = {
     "declaration_semantics": "target_independent_declaration_meaning",
     "release": "evidence_completeness_and_release_decision",
     "projection": "representation_only",
+    "presentation_adapter": "public_dialogue_wording_only",
 }
 
 # Gate names describe stable responsibilities. This separate closed map records
@@ -59,6 +60,12 @@ ACTIVE_PRODUCT_ROUTES = {
             "OrdinaryTradeProjectionRuntime.current_case_coverage"
         ),
         "human_fact_owner": "Gate5HumanGapClosureRuntime",
+        "public_dialogue_owner": "ordinary_trade_declaration_chat_adapter",
+        "presentation_transport_owner": (
+            "Pipe._call_openwebui_presentation_completion"
+        ),
+        "presentation_model_boundary": "PRESENTATION_ADAPTER",
+        "presentation_business_authority": False,
         "case_metadata_source_owner": "Gate3MetadataSourceFactRuntime",
         "declaration_contract": (
             "BROKER_REPORTS_ORDINARY_TRADE_DECLARATION_MVP.v1"
@@ -107,7 +114,13 @@ DOMAIN_BOUNDARY_SEQUENCE = (
     "projection",
 )
 LLM_BOUNDARY_CLASSES = frozenset(
-    {"SOURCE_ADAPTER", "METHODOLOGY_ADAPTER", "HUMAN_ADAPTER", "RESEARCH_ONLY"}
+    {
+        "SOURCE_ADAPTER",
+        "METHODOLOGY_ADAPTER",
+        "HUMAN_ADAPTER",
+        "PRESENTATION_ADAPTER",
+        "RESEARCH_ONLY",
+    }
 )
 DETERMINISTIC_RUNTIME_PREFIXES = (
     "gate4_",
@@ -182,6 +195,11 @@ PROVIDER_CALL_SITE_CLASSIFICATIONS = {
         "HUMAN_ADAPTER",
         "natural_language_factual_answer",
         "gate5_single_input_factual_proposal_schema",
+    ),
+    "ordinary_trade_public_dialogue": (
+        "PRESENTATION_ADAPTER",
+        "plain_language_dialogue_wording_and_answer_phrasing",
+        "ordinary_trade_public_dialogue_message_and_interpretation_v1",
     ),
 }
 

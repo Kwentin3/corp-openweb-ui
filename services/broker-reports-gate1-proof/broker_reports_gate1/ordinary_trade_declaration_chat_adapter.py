@@ -90,6 +90,10 @@ _DELEGATED_CHOICE = re.compile(
     r"\b(?:выбер(?:и|ите)|реш(?:и|ите)|определ(?:и|ите))\b.{0,80}\bза меня\b",
     re.IGNORECASE,
 )
+_NEGATION = re.compile(
+    r"\b(?:не|нет|неверно|отрицаю|отказываюсь)\b",
+    re.IGNORECASE,
+)
 
 # Representation-only labels for the bounded declaration product.  Canonical
 # values still come exclusively from the current owner's answer_contract; this
@@ -833,12 +837,18 @@ def public_answer_candidate_is_grounded(
     user_message: str,
     normalized_answer: str,
 ) -> bool:
-    """Prove the candidate is present and is not one of several named choices."""
+    """Conservatively check wording before asking for explicit confirmation.
+
+    This is defense in depth, not publication authority: even a grounded model
+    candidate must be repeated by the user as a separate direct owner answer.
+    """
 
     _validate_public_value(question_context)
     message = _text(user_message).casefold()
     candidate = _text(normalized_answer).casefold()
     if not candidate or candidate not in message:
+        return False
+    if _NEGATION.search(message) is not None:
         return False
     options = question_context.get("options")
     named_options = {

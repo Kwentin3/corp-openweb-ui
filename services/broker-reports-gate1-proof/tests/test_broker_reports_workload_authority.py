@@ -512,15 +512,42 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
         )
         queued = self._submit(authority, WorkloadKind.GATE1)
 
+        def lease_expiry(job_id: str) -> float:
+            with closing(sqlite3.connect(config.sqlite_path)) as conn:
+                value = conn.execute(
+                    "SELECT lease_expires_epoch FROM workload_jobs WHERE job_id = ?",
+                    (job_id,),
+                ).fetchone()[0]
+            return float(value)
+
+        initial_holder_expiry = lease_expiry(holder.job_id)
+        heartbeat_observed = threading.Event()
+        actual_heartbeat = authority._heartbeat
+
+        def observed_heartbeat(session):
+            actual_heartbeat(session)
+            heartbeat_observed.set()
+
+        authority._heartbeat = observed_heartbeat
+
         async def scenario():
             with holder.keepalive():
+                immediate_expiry = lease_expiry(holder.job_id)
+                self.assertGreater(immediate_expiry, initial_holder_expiry)
                 waiter = asyncio.create_task(
                     authority.wait_for_admission(
                         job_id=queued.job_id,
                         access=self.access,
                     )
                 )
-                await asyncio.sleep(0.35)
+                heartbeat_observed.clear()
+                self.assertTrue(
+                    await asyncio.to_thread(heartbeat_observed.wait, 1.0)
+                )
+                self.assertGreater(
+                    lease_expiry(holder.job_id),
+                    immediate_expiry,
+                )
                 self.assertEqual(
                     authority.snapshot(job_id=queued.job_id, access=self.access)[
                         "state"

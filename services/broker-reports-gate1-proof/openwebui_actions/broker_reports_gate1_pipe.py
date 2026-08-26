@@ -17,6 +17,7 @@ import inspect
 import io
 import json
 import re
+import urllib.parse
 import urllib.request
 import uuid
 from contextlib import nullcontext
@@ -162,6 +163,14 @@ _GATE2_USABLE_HANDOFF_STATUSES = frozenset(
 )
 _COMPLETED_WITH_REVIEW_ADVISORY = "completed_with_review_advisory"
 NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS = 45.0
+NDFL_PRESENTATION_MAX_RESPONSE_BYTES = 1024 * 1024
+
+
+class _NdflPresentationNoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Keep the user credential on the one administrator-pinned origin."""
+
+    def redirect_request(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
 
 
 def _trusted_taxpayer_scope_ref_required() -> str:
@@ -245,6 +254,13 @@ class Pipe:
         ndfl_gate3_private_audit_id: str = Field(default="")
         ndfl_presentation_llm_enabled: bool = Field(default=True)
         ndfl_presentation_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
+        ndfl_presentation_openwebui_origin: str = Field(
+            default="",
+            description=(
+                "Administrator-pinned HTTPS origin for the native OpenWebUI "
+                "completion endpoint; never derived from request metadata."
+            ),
+        )
         pdf_table_intake_enabled: bool = Field(
             default=True,
             description=(
@@ -1148,23 +1164,16 @@ class Pipe:
                 dialogue["interpretation_model_used"] = True
                 if interpretation["disposition"] == "ANSWER_CANDIDATE":
                     normalized_answer = interpretation["normalized_answer"]
-                    model_candidate_grounded = bool(
-                        direct.get("status") == "ANSWER_READY"
-                        or public_answer_candidate_is_grounded(
-                            question_context=question,
-                            user_message=message,
-                            normalized_answer=normalized_answer,
-                        )
+                    model_candidate_grounded = public_answer_candidate_is_grounded(
+                        question_context=question,
+                        user_message=message,
+                        normalized_answer=normalized_answer,
                     )
-                    adapted = (
-                        direct
-                        if direct.get("status") == "ANSWER_READY"
-                        else adapt_current_declaration_request(
-                            message=normalized_answer,
-                            current_requests=current_actions,
-                        )
+                    owner_candidate = adapt_current_declaration_request(
+                        message=normalized_answer,
+                        current_requests=current_actions,
                     )
-                    if adapted.get("status") != "ANSWER_READY":
+                    if owner_candidate.get("status") != "ANSWER_READY":
                         adapted = {
                             "status": "ANSWER_REJECTED",
                             "reason_code": "declaration_chat_model_candidate_invalid",
@@ -1181,6 +1190,21 @@ class Pipe:
                         dialogue["answer_feedback"] = (
                             "Не буду выбирать за вас. Уточните ответ на текущий "
                             "вопрос своими словами."
+                        )
+                    else:
+                        # A model interpretation is never a Human Fact. Ask the
+                        # user to repeat the owner-accepted wording in a separate
+                        # message; only that direct reply may be published.
+                        adapted = {
+                            "status": "ANSWER_CONFIRMATION_REQUIRED",
+                            "reason_code": (
+                                "declaration_chat_model_candidate_confirmation_required"
+                            ),
+                        }
+                        dialogue["answer_feedback"] = (
+                            f"Я понял ваш ответ как «{normalized_answer}». "
+                            "Чтобы сохранить его, отправьте эту формулировку "
+                            "отдельным сообщением без изменений."
                         )
                 else:
                     adapted = {
@@ -1364,23 +1388,49 @@ class Pipe:
         except Exception as exc:
             raise NdflWorkflowError("ndfl_presentation_model_call_failed") from exc
 
-    @staticmethod
     def _openwebui_presentation_http_target(
+        self,
         request: Any,
     ) -> tuple[str, str] | None:
         headers = getattr(request, "headers", None)
-        base_url = str(getattr(request, "base_url", "") or "").rstrip("/")
+        origin = str(
+            self.valves.ndfl_presentation_openwebui_origin or ""
+        ).strip()
         authorization = (
             str(headers.get("authorization") or "").strip()
             if headers is not None and hasattr(headers, "get")
             else ""
         )
-        if (
-            re.fullmatch(r"https?://[^/?#]+", base_url) is None
-            or not authorization.startswith("Bearer ")
-        ):
+        if not origin:
             return None
-        return f"{base_url}/api/chat/completions", authorization
+        try:
+            parsed = urllib.parse.urlsplit(origin)
+            port = parsed.port
+        except ValueError as exc:
+            raise NdflWorkflowError(
+                "ndfl_presentation_openwebui_origin_invalid"
+            ) from exc
+        if (
+            parsed.scheme.casefold() != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise NdflWorkflowError("ndfl_presentation_openwebui_origin_invalid")
+        if not authorization.startswith("Bearer "):
+            raise NdflWorkflowError("ndfl_presentation_bearer_required")
+        netloc = parsed.hostname
+        if ":" in netloc and not netloc.startswith("["):
+            netloc = f"[{netloc}]"
+        if port is not None:
+            netloc = f"{netloc}:{port}"
+        url = urllib.parse.urlunsplit(
+            ("https", netloc, "/api/chat/completions", "", "")
+        )
+        return url, authorization
 
     @staticmethod
     def _openwebui_presentation_http_completion(
@@ -1404,13 +1454,17 @@ class Pipe:
             },
             method="POST",
         )
-        with urllib.request.urlopen(  # noqa: S310 - attested current OpenWebUI origin
+        opener = urllib.request.build_opener(_NdflPresentationNoRedirectHandler())
+        with opener.open(
             outbound,
             timeout=NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS,
         ) as response:
             if int(getattr(response, "status", 0) or 0) != 200:
                 raise NdflWorkflowError("ndfl_presentation_model_http_failed")
-            value = json.loads(response.read().decode("utf-8"))
+            raw = response.read(NDFL_PRESENTATION_MAX_RESPONSE_BYTES + 1)
+            if len(raw) > NDFL_PRESENTATION_MAX_RESPONSE_BYTES:
+                raise NdflWorkflowError("ndfl_presentation_model_http_too_large")
+            value = json.loads(raw.decode("utf-8"))
         if not isinstance(value, dict):
             raise NdflWorkflowError("ndfl_presentation_model_http_invalid")
         return value
@@ -1588,6 +1642,13 @@ class Pipe:
                 result["declaration_chat_receipt"] = {
                     "status": "ANSWER_REJECTED",
                     "answer_accepted": False,
+                    "reason_code": adapted["reason_code"],
+                }
+            elif adapted["status"] == "ANSWER_CONFIRMATION_REQUIRED":
+                result["declaration_chat_receipt"] = {
+                    "status": "ANSWER_CONFIRMATION_REQUIRED",
+                    "answer_accepted": False,
+                    "fact_created": False,
                     "reason_code": adapted["reason_code"],
                 }
             if action_receipt is not None:
