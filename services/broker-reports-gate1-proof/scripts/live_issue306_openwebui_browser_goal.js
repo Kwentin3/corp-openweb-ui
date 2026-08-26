@@ -215,6 +215,10 @@ async function waitForTurn(page, timeout = 240000) {
   page.__issue310TurnBoundary = null;
   const terminalMessage = page.locator('[role="listitem"]').last();
   await page.locator('#chat-input').waitFor({ state: 'visible', timeout: 30000 });
+  await page.locator('#stop-response-button').waitFor({
+    state: 'hidden',
+    timeout: 30000,
+  });
   let body = await terminalMessage.innerText();
   let stableTicks = 0;
   while (stableTicks < 5) {
@@ -227,10 +231,6 @@ async function waitForTurn(page, timeout = 240000) {
       stableTicks = 0;
     }
   }
-  await page.locator('#stop-response-button').waitFor({
-    state: 'hidden',
-    timeout: 30000,
-  });
   const forbidden = [
     /fact_key/i,
     /ArtifactStore/i,
