@@ -1125,6 +1125,8 @@ class Pipe:
                 "Не буду выбирать за вас. Уточните ответ на текущий вопрос "
                 "своими словами."
             )
+        elif direct.get("status") == "ANSWER_READY":
+            adapted = direct
         elif self.valves.ndfl_presentation_llm_enabled:
             try:
                 system_content, user_content = public_answer_interpretation_messages(
