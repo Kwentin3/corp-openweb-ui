@@ -399,7 +399,11 @@ async function runUserLoop({ page, source, truth, outputDir, trace }) {
     }
 
     const body = await answerQuestion(page, answer);
-    const rejected = body.includes('Ответ пока не принят');
+    const rejected = (
+      body.includes('Ответ пока не принят')
+      || body.includes('Ответ не принят')
+      || body.includes('Не буду выбирать за вас')
+    );
     if (expectedRejection !== rejected) {
       throw new Error(expectedRejection ? 'invalid_answer_was_accepted' : 'valid_answer_was_rejected');
     }
