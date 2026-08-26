@@ -1101,6 +1101,10 @@ class Pipe:
             "interpretation_model_used": False,
             "presentation_fallback_used": False,
         }
+        direct = adapt_current_declaration_request(
+            message=message,
+            current_requests=current_actions,
+        )
         adapted: dict[str, Any]
         if question is None:
             adapted = adapt_current_declaration_request(
@@ -1128,9 +1132,18 @@ class Pipe:
                 )
                 dialogue["interpretation_model_used"] = True
                 if interpretation["disposition"] == "ANSWER_CANDIDATE":
-                    adapted = adapt_current_declaration_request(
-                        message=interpretation["normalized_answer"],
-                        current_requests=current_actions,
+                    normalized_answer = interpretation["normalized_answer"]
+                    model_candidate_grounded = bool(
+                        direct.get("status") == "ANSWER_READY"
+                        or normalized_answer.casefold() in message.casefold()
+                    )
+                    adapted = (
+                        direct
+                        if direct.get("status") == "ANSWER_READY"
+                        else adapt_current_declaration_request(
+                            message=normalized_answer,
+                            current_requests=current_actions,
+                        )
                     )
                     if adapted.get("status") != "ANSWER_READY":
                         adapted = {
@@ -1140,6 +1153,15 @@ class Pipe:
                         dialogue["answer_feedback"] = (
                             "Ответ пока не принят: формулировка не совпала с "
                             "допустимым ответом на текущий вопрос."
+                        )
+                    elif not model_candidate_grounded:
+                        adapted = {
+                            "status": "ANSWER_REJECTED",
+                            "reason_code": "declaration_chat_model_candidate_ungrounded",
+                        }
+                        dialogue["answer_feedback"] = (
+                            "Не буду выбирать за вас. Уточните ответ на текущий "
+                            "вопрос своими словами."
                         )
                 else:
                     adapted = {

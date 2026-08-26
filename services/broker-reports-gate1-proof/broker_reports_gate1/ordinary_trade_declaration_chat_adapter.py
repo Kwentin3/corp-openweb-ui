@@ -377,6 +377,13 @@ def _answer(
             value = str(by_label.get(value.casefold()) or "")
         if isinstance(allowed, list) and value not in allowed:
             return None
+        pattern = contract.get("pattern")
+        if isinstance(pattern, str):
+            try:
+                if re.fullmatch(pattern, value) is None:
+                    return None
+            except re.error:
+                return None
         return {"kind": kind, "value": value}
     if kind == "text":
         return {"kind": kind, "value": text.strip()}

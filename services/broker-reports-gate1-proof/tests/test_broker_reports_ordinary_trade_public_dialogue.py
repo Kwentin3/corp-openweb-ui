@@ -254,7 +254,7 @@ def test_pipe_model_candidate_is_rebound_to_current_owner_request(
     )
     adapted, dialogue = asyncio.run(
         pipe._adapt_ndfl_public_answer(
-            message="Это будет моя первая декларация.",
+            message="Первичная декларация, пожалуйста.",
             current_actions=[_request()],
             user={"id": "user-a"},
             request=object(),
@@ -274,6 +274,61 @@ def test_pipe_model_candidate_is_rebound_to_current_owner_request(
     assert "request_publication_ref" not in model_input
     assert "fact_key" not in model_input
     assert "INITIAL" not in model_input
+
+
+def test_pipe_rejects_model_choice_not_grounded_in_ambiguous_user_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+    request = {
+        "request_publication_ref": "art_" + "c" * 32,
+        "closure_type": "USER_FACT",
+        "fact_key": "selected_tax_period",
+        "subject": {"detected_operation_years": ["2024", "2025"]},
+        "answer_contract": {"kind": "code", "pattern": "(?!0000$)[0-9]{4}"},
+    }
+
+    def completion(**_kwargs):
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "schema_version": (
+                                    ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION
+                                ),
+                                "disposition": "ANSWER_CANDIDATE",
+                                "normalized_answer": "2025",
+                                "clarification": None,
+                            },
+                            ensure_ascii=False,
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+    )
+    adapted, dialogue = asyncio.run(
+        pipe._adapt_ndfl_public_answer(
+            message="Выберите подходящий год за меня.",
+            current_actions=[request],
+            user={"id": "user-a"},
+            request=object(),
+            event_call=None,
+        )
+    )
+
+    assert adapted["status"] == "ANSWER_REJECTED"
+    assert adapted["reason_code"] == "declaration_chat_model_candidate_ungrounded"
+    assert dialogue["answer_feedback"] == (
+        "Не буду выбирать за вас. Уточните ответ на текущий вопрос своими словами."
+    )
 
 
 def test_invalid_model_render_uses_same_context_fallback_without_new_meaning(
