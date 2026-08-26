@@ -412,6 +412,7 @@ _GATE2_USABLE_HANDOFF_STATUSES = frozenset(
     {"ready_with_safe_refs", "ready_with_reduced_subset"}
 )
 _COMPLETED_WITH_REVIEW_ADVISORY = "completed_with_review_advisory"
+NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS = 45.0
 
 
 def _trusted_taxpayer_scope_ref_required() -> str:
@@ -1580,7 +1581,10 @@ class Pipe:
                 except TypeError:
                     response = completion_fn(request, form_data, user_model)
             if inspect.isawaitable(response):
-                response = await response
+                response = await asyncio.wait_for(
+                    response,
+                    timeout=NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS,
+                )
             return self._extract_completion_content(response)
         except Exception as exc:
             raise NdflWorkflowError("ndfl_presentation_model_call_failed") from exc

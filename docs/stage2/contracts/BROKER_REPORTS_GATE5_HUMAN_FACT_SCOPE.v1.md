@@ -133,7 +133,9 @@ visible message must retain every owner-produced public statement and the exact
 current question. Internal vocabulary, positive filing claims when filing is
 not eligible, private file URLs and unknown fields fail closed to the same
 deterministic public context. Model failure creates no new meaning and no Human
-Fact; exact UI controls/deterministic parsing remain only a safe fallback.
+Fact; a presentation call that exceeds its bounded runtime window is treated as
+unavailable instead of holding the current request open indefinitely. Exact UI
+controls/deterministic parsing remain only a safe fallback.
 
 Metrics are separate: `presentation_llm_calls_total` counts only conversation
 rendering/interpretation; `domain_provider_calls_total` remains zero for the

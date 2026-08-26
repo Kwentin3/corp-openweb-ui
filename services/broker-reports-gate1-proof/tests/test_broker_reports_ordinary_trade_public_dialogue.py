@@ -4,6 +4,7 @@ import asyncio
 import json
 
 import pytest
+import openwebui_actions.broker_reports_gate1_pipe as pipe_module
 
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION,
@@ -379,6 +380,40 @@ def test_invalid_model_render_uses_same_context_fallback_without_new_meaning(
     assert result["public_dialogue"]["presentation_fallback_used"] is True
     assert result["public_dialogue"]["presentation_llm_calls_total"] == 1
     assert result["public_dialogue"]["domain_provider_calls_total"] == 0
+
+
+def test_stalled_presentation_model_is_bounded_and_uses_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+
+    async def completion(**_kwargs):
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+    )
+    monkeypatch.setattr(
+        pipe_module,
+        "NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS",
+        0.01,
+    )
+    result = {"provider_calls_total": 0, "product": _product(), "declaration": None}
+    content = asyncio.run(
+        pipe._render_ndfl_public_dialogue(
+            result=result,
+            user={"id": "user-a"},
+            request=object(),
+        )
+    )
+
+    assert content == render_public_dialogue_fallback(
+        result["public_dialogue"]["context"]
+    )
+    assert result["public_dialogue"]["presentation_fallback_used"] is True
+    assert result["public_dialogue"]["presentation_llm_calls_total"] == 1
 
 
 def test_valid_model_render_is_the_primary_public_surface(
