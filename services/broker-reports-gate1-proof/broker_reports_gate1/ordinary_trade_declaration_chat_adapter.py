@@ -193,8 +193,8 @@ _DATE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 _RESIDENCY = re.compile(
     r"^присутствие:\s*([0-9]{4}-[0-9]{2}-[0-9]{2})\.\."
     r"([0-9]{4}-[0-9]{2}-[0-9]{2})\s*;\s*отсутствие:\s*"
-    r"([0-9]{4}-[0-9]{2}-[0-9]{2})\.\."
-    r"([0-9]{4}-[0-9]{2}-[0-9]{2})\s*;\s*причины:\s*нет$",
+    r"(?:([0-9]{4}-[0-9]{2}-[0-9]{2})\.\."
+    r"([0-9]{4}-[0-9]{2}-[0-9]{2})|нет)\s*;\s*причины:\s*нет$",
     re.IGNORECASE,
 )
 
@@ -305,7 +305,7 @@ def declaration_request_help(request: dict[str, Any]) -> str:
     if kind == "residency_evidence":
         return (
             "Формат: «Присутствие: ГГГГ-ММ-ДД..ГГГГ-ММ-ДД; "
-            "отсутствие: ГГГГ-ММ-ДД..ГГГГ-ММ-ДД; причины: нет»."
+            "отсутствие: ГГГГ-ММ-ДД..ГГГГ-ММ-ДД или нет; причины: нет»."
         )
     allowed = contract.get("allowed")
     if isinstance(allowed, list) and allowed:
@@ -358,9 +358,11 @@ def _answer(
                     "presence_intervals": [
                         {"start_date": present_start, "end_date": present_end}
                     ],
-                    "absence_intervals": [
-                        {"start_date": absent_start, "end_date": absent_end}
-                    ],
+                    "absence_intervals": (
+                        [{"start_date": absent_start, "end_date": absent_end}]
+                        if absent_start is not None and absent_end is not None
+                        else []
+                    ),
                     "absence_reason_evidence": [],
                     "all_absence_reasons_reported": True,
                     "evidence_refs": ["owner_bound_chat_answer"],
@@ -664,7 +666,8 @@ def build_public_question_context(request: Any) -> dict[str, Any] | None:
     elif kind == "residency_evidence":
         examples = [
             "Присутствие: ГГГГ-ММ-ДД..ГГГГ-ММ-ДД; отсутствие: "
-            "ГГГГ-ММ-ДД..ГГГГ-ММ-ДД; причины: нет"
+            "ГГГГ-ММ-ДД..ГГГГ-ММ-ДД; причины: нет",
+            "Присутствие: ГГГГ-ММ-ДД..ГГГГ-ММ-ДД; отсутствие: нет; причины: нет",
         ]
     elif request.get("fact_key") == "declaration_date":
         examples = ["ГГГГ-ММ-ДД"]

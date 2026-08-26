@@ -10,6 +10,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     ORDINARY_TRADE_PUBLIC_ANSWER_INTERPRETATION_SCHEMA_VERSION,
     ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
     PUBLIC_DIALOGUE_MODEL_BOUNDARY,
+    adapt_current_declaration_request,
     build_public_dialogue_context,
     build_public_question_context,
     public_answer_candidate_is_grounded,
@@ -59,6 +60,46 @@ def _product(*, status: str = "INPUT_REQUIRED") -> dict:
             },
         },
     }
+
+
+def _residency_request() -> dict:
+    return {
+        "request_publication_ref": "art_" + "b" * 32,
+        "closure_type": "USER_FACT",
+        "fact_key": "residency_evidence",
+        "answer_contract": {"kind": "residency_evidence"},
+    }
+
+
+def test_residency_owner_accepts_explicit_no_absence_without_model_authority() -> None:
+    result = adapt_current_declaration_request(
+        message=(
+            "Присутствие: 2025-01-01..2025-12-31; "
+            "отсутствие: нет; причины: нет"
+        ),
+        current_requests=[_residency_request()],
+    )
+
+    assert result["status"] == "ANSWER_READY"
+    proposal = result["answer"]["value"]["proposal"]
+    assert proposal["presence_intervals"] == [
+        {"start_date": "2025-01-01", "end_date": "2025-12-31"}
+    ]
+    assert proposal["absence_intervals"] == []
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Присутствие: 2025-01-01..2025-12-31; отсутствие: не знаю; причины: нет",
+        "Присутствие: 2025-01-01..2025-12-31; отсутствие: нет; причины: не помню",
+    ],
+)
+def test_residency_owner_rejects_ambiguous_no_absence_phrasing(message: str) -> None:
+    assert adapt_current_declaration_request(
+        message=message,
+        current_requests=[_residency_request()],
+    )["status"] == "ANSWER_REJECTED"
 
 
 def test_presentation_model_boundary_is_local_and_has_no_business_authority() -> None:
