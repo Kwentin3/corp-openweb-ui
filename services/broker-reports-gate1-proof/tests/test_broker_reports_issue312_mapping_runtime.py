@@ -705,7 +705,7 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
         assert hidden.casefold() not in visible_question.casefold()
 
     candidate = await runtime.run_with_automatic_mapping(
-        canonical_artifact_refs=[canonical_ref],
+        canonical_artifact_refs=[],
         context=context,
         user_message="Общая сумма — вторая колонка.",
     )
@@ -729,7 +729,7 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
         visible_message=exact_confirmation,
     )
     completed = await runtime.run_with_automatic_mapping(
-        canonical_artifact_refs=[canonical_ref],
+        canonical_artifact_refs=[],
         context=context,
         confirmation=confirmed,
         expected_confirmation_artifact_id=candidate["semantic_mapping"][

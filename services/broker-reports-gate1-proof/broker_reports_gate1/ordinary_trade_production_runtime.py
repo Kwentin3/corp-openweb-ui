@@ -177,6 +177,11 @@ class OrdinaryTradeProductionRuntime:
             expected_confirmation_artifact_id = None
             if mapping_turn["status"] != "COMPLETE":
                 break
+            if not refs:
+                self._projections.compile_and_save(
+                    document_id=document_id,
+                    context=context,
+                )
             result = self.run(canonical_artifact_refs=refs, context=context)
         result["provider_calls_total"] = provider_calls
         if mapping_turn is not None:
@@ -203,10 +208,14 @@ class OrdinaryTradeProductionRuntime:
             )
             for artifact_ref in refs
         ]
-        if not refs and not self._projections.current_case(context=context):
-            return _missing_canonical_result()
-
         projections = self._projections.current_case(context=context)
+        if not refs:
+            if not projections:
+                return _missing_canonical_result()
+            documents = [
+                self._current_projection_document(record, projection)
+                for record, projection in projections
+            ]
         canonical_coverage = self._projections.current_case_coverage(context=context)
         gate4_fact_set = self._gate4.current_fact_set(context=context)
         facts = gate4_fact_set["facts"]
@@ -545,6 +554,33 @@ class OrdinaryTradeProductionRuntime:
             ),
             fact_key=fact_key,
         )
+
+    @staticmethod
+    def _current_projection_document(
+        record: Any, projection: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Expose owner-read current projections to source-free chat resumes."""
+
+        return {
+            "document_id": str(record.document_id),
+            "canonical_version_id": projection["canonical_binding"][
+                "canonical_version_id"
+            ],
+            "projection_artifact_id": record.artifact_id,
+            "activation_receipt": None,
+            "runtime_ready_observations": sum(
+                item["disposition"] == "RUNTIME_READY"
+                for item in projection["source_observations"]
+            ),
+            "relevant_unmapped_observations": sum(
+                item["disposition"] == "RELEVANT_UNMAPPED"
+                for item in projection["source_observations"]
+            ),
+            "matched_qualified_tables": sum(
+                int(item["matched_tables"])
+                for item in projection["mapping_matches"]
+            ),
+        }
 
     def _activate_compile_and_verify(
         self,
