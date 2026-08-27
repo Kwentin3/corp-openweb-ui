@@ -301,6 +301,7 @@ def test_locator_prompt_is_native_coordinates_and_locator_only() -> None:
     assert "[ymin, xmin, ymax, xmax]" in model_view["task"]
     assert "Never use one box that encloses two distinct grids" in model_view["task"]
     assert "no visible data row is not a data table" in model_view["task"]
+    assert "verify that at least one such body row is visibly present" in model_view["task"]
     assert "Do not transcribe text" in model_view["task"]
 
 
