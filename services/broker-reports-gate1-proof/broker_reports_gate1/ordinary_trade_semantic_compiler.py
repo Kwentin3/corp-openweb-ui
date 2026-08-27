@@ -444,7 +444,6 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
             or not isinstance(item.get("column"), int)
             or item["column"] < 1
             or not isinstance(item.get("header_literal"), str)
-            or not item["header_literal"]
             or item.get("semantic_role") not in _ROLES
         ):
             _fail("ordinary_trade_mapping_column_invalid")
@@ -752,7 +751,6 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
         or not isinstance(item.get("column"), int)
         or item["column"] < 1
         or not isinstance(item.get("literal"), str)
-        or not item["literal"]
         for item in headers
     ):
         _fail("ordinary_trade_table_resolution_invalid")

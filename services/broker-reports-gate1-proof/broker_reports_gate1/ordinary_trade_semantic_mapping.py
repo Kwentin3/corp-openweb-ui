@@ -743,7 +743,7 @@ def _validate_table_decision(
         (item for item in table["rows"] if item["row"] == decision["header_row"]),
         None,
     )
-    if row is None or not row["cells"] or any(not item["literal"] for item in row["cells"]):
+    if row is None or not row["cells"]:
         _fail("ordinary_trade_semantic_mapping_header_invalid")
     headers = [
         {"column": item["column"], "literal": item["literal"]}

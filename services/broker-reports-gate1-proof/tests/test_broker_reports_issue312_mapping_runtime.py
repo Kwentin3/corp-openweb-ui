@@ -439,6 +439,49 @@ async def _production_composition_maps_unknown_then_publishes_facts(tmp_path) ->
     assert answer_client.calls == []
 
 
+async def _sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
+    headers = list(case_fixtures.candidate._ROWS[0])
+    headers[0] = headers[0] + " (sparse unknown version)"
+    headers[8] = ""
+    rows = (tuple(headers), *case_fixtures.candidate._ROWS[1:])
+    store, context, document_id, mapping = case_fixtures.candidate._case(
+        tmp_path, rows=rows
+    )
+    envelope = CanonicalReaderFactory(
+        store=store, read_enabled=True
+    ).create().read_active_envelope(document_id, context)
+    table = next(
+        item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
+    )
+    mapping_client = BoundaryModelClient(
+        [case_fixtures._complete(table, mapping)]
+    )
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=mapping_client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+    ).create()
+    canonical_ref = store.get_active_canonical_version(
+        context=context, document_id=document_id
+    ).manifest_ref
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref],
+        context=context,
+    )
+
+    assert result["semantic_mapping"]["status"] == "COMPLETE"
+    assert result["provider_calls_total"] == 1
+    assert result["product"]["gate4"]["security_facts_total"] == 2
+    assert result["product"]["gate4"]["transaction_charge_facts_total"] == 2
+    assert result["product"]["terminal"] != (
+        "ordinary_trade_declaration_canonical_relevant_unmapped"
+    )
+
+
 async def _known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
     store, context, document_id, _mapping = case_fixtures.candidate._case(tmp_path)
     mapping_client = BoundaryModelClient([])
@@ -783,6 +826,10 @@ def test_provider_failure_and_invalid_output_are_distinct_terminals(tmp_path) ->
 
 def test_production_composition_maps_unknown_then_publishes_facts(tmp_path) -> None:
     asyncio.run(_production_composition_maps_unknown_then_publishes_facts(tmp_path))
+
+
+def test_sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
+    asyncio.run(_sparse_exact_header_reaches_terminal_facts(tmp_path))
 
 
 def test_known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
