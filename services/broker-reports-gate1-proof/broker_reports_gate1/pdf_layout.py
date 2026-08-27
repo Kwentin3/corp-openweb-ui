@@ -870,7 +870,7 @@ def _table_candidate_from_pdfplumber(
     columns = list(getattr(table, "columns", []) or [])
     rows_total = len(rows)
     columns_total = len(columns)
-    if rows_total < 2 or columns_total < 2:
+    if rows_total < 1 or columns_total < 2:
         return None
     contributing = [
         int(word["parser_ordinal"])
@@ -928,7 +928,7 @@ def _table_candidate_from_pdfplumber(
     rows_total = compacted["rows_total"]
     columns_total = compacted["columns_total"]
     cell_inventory = compacted["cells"]
-    if rows_total < 2 or columns_total < 2 or len(contributing) < max(4, rows_total):
+    if rows_total < 1 or columns_total < 2 or len(contributing) < max(2, rows_total):
         return None
     ruling_evidence_total = sum(
         1
