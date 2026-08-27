@@ -777,7 +777,13 @@ def validate_case_qualified_mapping(
     for item in understandings:
         if (
             not isinstance(item, dict)
-            or set(item) != {"question_id", "option_id", "label_sha256"}
+            or set(item)
+            != {
+                "question_id",
+                "option_id",
+                "label_sha256",
+                "decision_sha256",
+            }
             or not all(isinstance(value, str) and value for value in item.values())
             or re.fullmatch(r"[0-9a-f]{64}", item["label_sha256"]) is None
         ):

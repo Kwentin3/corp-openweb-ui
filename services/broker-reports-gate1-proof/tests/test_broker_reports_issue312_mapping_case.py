@@ -62,7 +62,7 @@ def _complete(table, mapping):
         "status": "COMPLETE",
         "table_decisions": [
             {
-                "table_node_id": table["node_id"],
+                "table_ref": "table_1",
                 "header_row": 1,
                 "disposition": "SECURITY_TRADES",
                 "columns": [
@@ -80,6 +80,21 @@ def _complete(table, mapping):
         ],
         "clarification": None,
         "message": "Mapping готов.",
+    }
+
+
+def _column_role_decision(column: int, semantic_role: str) -> dict:
+    return {
+        "decision_kind": "COLUMN_ROLE",
+        "table_ref": "table_1",
+        "header_row": 1,
+        "column": column,
+        "semantic_role": semantic_role,
+        "amount_column": None,
+        "currency_column": None,
+        "source_literal": None,
+        "normalized_value": None,
+        "disposition": None,
     }
 
 
@@ -140,11 +155,19 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
         "table_decisions": [],
         "clarification": {
             "question_id": "q_money_role",
-            "table_node_id": table["node_id"],
+            "table_ref": "table_1",
             "question": "Какая колонка является общей суммой сделки?",
             "options": [
-                {"option_id": "o_first", "label": "Первая денежная колонка"},
-                {"option_id": "o_second", "label": "Вторая денежная колонка"},
+                {
+                    "option_id": "o_first",
+                    "label": "Первая денежная колонка",
+                    "decision": _column_role_decision(9, "gross_amount"),
+                },
+                {
+                    "option_id": "o_second",
+                    "label": "Вторая денежная колонка",
+                    "decision": _column_role_decision(10, "gross_amount"),
+                },
             ],
         },
         "message": "Нужно уточнить назначение денежной колонки.",
@@ -175,7 +198,7 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
             "message": "Понял: общая сумма во второй денежной колонке.",
             "evidence_quote": "во второй",
         },
-        question=clarification["clarification"],
+        question=outcome["question"],
         user_message="Общая сумма во второй.",
     )
     candidate_record, candidate_payload = cases.save_answer_candidate(
@@ -206,11 +229,19 @@ def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
     ).create()
     question = {
         "question_id": "q_money_role",
-        "table_node_id": table["node_id"],
+        "table_ref": "table_1",
         "question": "Какая колонка содержит общую сумму?",
         "options": [
-            {"option_id": "o_first", "label": "Первая"},
-            {"option_id": "o_second", "label": "Вторая"},
+            {
+                "option_id": "o_first",
+                "label": "Первая",
+                "decision": _column_role_decision(9, "gross_amount"),
+            },
+            {
+                "option_id": "o_second",
+                "label": "Вторая",
+                "decision": _column_role_decision(10, "gross_amount"),
+            },
         ],
     }
     outcome = semantic.validate_mapping_response(

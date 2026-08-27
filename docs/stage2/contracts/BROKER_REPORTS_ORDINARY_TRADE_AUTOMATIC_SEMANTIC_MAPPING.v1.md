@@ -25,11 +25,19 @@ workspace. Revisions are deterministic; stale or concurrent answers fail
 closed. A clarification is resumed in that same case. Free text is interpreted
 only against the current option identifiers by a strict Human Adapter.
 
-A candidate never becomes executable implicitly. Native OpenWebUI confirmation
-must append the confirmed understanding. Only `COMPLETE` exposes mapping v3 and
+A candidate never becomes executable implicitly. Every clarification option
+contains a validator-checked, machine-applicable decision bound to the exact
+table/header and column, literal, binding or disposition. Native OpenWebUI
+confirmation must append that decision and its digest. A final mapping that
+does not satisfy every confirmed decision fails closed. Only `COMPLETE` exposes mapping v3 and
 `broker_reports_ordinary_trade_case_mapping_qualification_v1`; the receipt
 prohibits global reuse and seals the exact model response, execution metadata,
-confirmed understanding and Canonical/table scope.
+confirmed decision and Canonical/table scope.
+
+The model-facing package uses opaque table ordinals, omits Canonical/case
+identities and hashes, and bounds source rows to the minimum mapping sample.
+The answer interpreter receives question text and option labels/IDs only; the
+machine decisions remain code-owned case state.
 
 ## Completeness and terminals
 
@@ -37,7 +45,8 @@ Every Canonical table receives exactly one disposition:
 
 - `SECURITY_TRADES` requires a complete validated mapping;
 - `NO_NAMED_CONSUMER` retains literal observations and provenance but emits no
-  Fact v2;
+  Fact v2 only after an exact machine-applicable table-disposition decision was
+  explicitly confirmed; model output alone stops for specialist review;
 - `UNSUPPORTED_FINANCIAL_MEANING` stops with a typed owner blocker;
 - ambiguity produces one bounded clarification and no mapping admission.
 

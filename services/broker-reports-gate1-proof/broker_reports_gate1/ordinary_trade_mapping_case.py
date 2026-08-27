@@ -329,6 +329,8 @@ class OrdinaryTradeMappingCaseRuntime:
                         option["label"].encode("utf-8")
                     ).hexdigest(),
                     "label": option["label"],
+                    "decision": copy.deepcopy(option["decision"]),
+                    "decision_sha256": _sha256_json(option["decision"]),
                 },
             ]
             status = "MAPPING_REQUIRED"
@@ -565,9 +567,18 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
     for item in confirmed:
         if (
             not isinstance(item, dict)
-            or set(item) != {"question_id", "option_id", "label_sha256", "label"}
+            or set(item)
+            != {
+                "question_id",
+                "option_id",
+                "label_sha256",
+                "label",
+                "decision",
+                "decision_sha256",
+            }
             or hashlib.sha256(item["label"].encode("utf-8")).hexdigest()
             != item["label_sha256"]
+            or _sha256_json(item["decision"]) != item["decision_sha256"]
         ):
             _fail("ordinary_trade_mapping_case_confirmation_invalid")
     mappings = payload.get("qualified_mappings")

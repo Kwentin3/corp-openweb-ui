@@ -177,7 +177,6 @@ class OrdinaryTradeAutomaticMappingRuntime:
         try:
             package = self._semantic.build_mapping_package(
                 canonical=binding["canonical"],
-                canonical_binding=binding["canonical_binding"],
                 confirmed_understandings=confirmed,
             )
         except OrdinaryTradeSemanticMappingError as exc:
@@ -272,7 +271,6 @@ class OrdinaryTradeAutomaticMappingRuntime:
         package = self._semantic.build_answer_package(
             question=payload["question"],
             user_message=user_message,
-            case_binding_sha256=payload["case_binding"]["case_binding_sha256"],
         )
         try:
             response = await self._answer_model_client.extract(

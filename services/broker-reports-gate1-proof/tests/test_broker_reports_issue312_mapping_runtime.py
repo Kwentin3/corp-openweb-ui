@@ -1,17 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 import copy
 
-import pytest
-
 from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResult
+from broker_reports_gate1.ordinary_trade_mapping_case import (
+    OrdinaryTradeMappingCaseFactory,
+)
 from broker_reports_gate1.ordinary_trade_mapping_runtime import (
     OrdinaryTradeAutomaticMappingRuntimeFactory,
 )
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
-from broker_reports_gate1.ordinary_trade_projection import OrdinaryTradeProjectionFactory
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
@@ -46,8 +47,7 @@ def _runtime(store, client):
     ).create()
 
 
-@pytest.mark.asyncio
-async def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
+async def _one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)
     )
@@ -64,18 +64,29 @@ async def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> Non
     assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
 
 
-@pytest.mark.asyncio
-async def test_clarification_answer_confirmation_resumes_same_case(tmp_path) -> None:
+async def _clarification_answer_confirmation_resumes_same_case(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)
     )
     question = {
         "question_id": "q_money_role",
-        "table_node_id": table["node_id"],
+        "table_ref": "table_1",
         "question": "Какая колонка содержит общую сумму сделки?",
         "options": [
-            {"option_id": "o_first", "label": "Первая денежная колонка"},
-            {"option_id": "o_second", "label": "Вторая денежная колонка"},
+            {
+                "option_id": "o_first",
+                "label": "Первая денежная колонка",
+                "decision": case_fixtures._column_role_decision(
+                    9, "gross_amount"
+                ),
+            },
+            {
+                "option_id": "o_second",
+                "label": "Вторая денежная колонка",
+                "decision": case_fixtures._column_role_decision(
+                    10, "gross_amount"
+                ),
+            },
         ],
     }
     complete = case_fixtures._complete(table, mapping)
@@ -119,13 +130,93 @@ async def test_clarification_answer_confirmation_resumes_same_case(tmp_path) -> 
     assert completed["status"] == "COMPLETE"
     assert len(client.calls) == 3
     mapping_package = client.calls[-1]["package"]
-    assert mapping_package["case"]["confirmed_understandings"][0]["label"] == (
-        "Вторая денежная колонка"
+    assert mapping_package["case"]["confirmed_decisions"][0]["column"] == 10
+    assert mapping_package["case"]["confirmed_decisions"][0][
+        "semantic_role"
+    ] == "gross_amount"
+
+
+async def _confirmed_column_role_conflict_fails_closed(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    question = {
+        "question_id": "q_gross_column",
+        "table_ref": "table_1",
+        "question": "Какая колонка содержит общую сумму сделки?",
+        "options": [
+            {
+                "option_id": "o_unit",
+                "label": "Колонка 9",
+                "decision": case_fixtures._column_role_decision(
+                    9, "gross_amount"
+                ),
+            },
+            {
+                "option_id": "o_gross",
+                "label": "Колонка 10",
+                "decision": case_fixtures._column_role_decision(
+                    10, "gross_amount"
+                ),
+            },
+        ],
+    }
+    conflicting = case_fixtures._complete(table, mapping)
+    roles = {
+        item["column"]: item["semantic_role"]
+        for item in conflicting["table_decisions"][0]["columns"]
+    }
+    assert roles[10] == "gross_amount"
+    roles[9], roles[10] = roles[10], roles[9]
+    for item in conflicting["table_decisions"][0]["columns"]:
+        item["semantic_role"] = roles[item["column"]]
+    client = BoundaryModelClient(
+        [
+            {
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "CLARIFICATION_REQUIRED",
+                "table_decisions": [],
+                "clarification": question,
+                "message": "Нужно уточнить колонку общей суммы.",
+            },
+            {
+                "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
+                "status": "CANDIDATE",
+                "option_id": "o_gross",
+                "message": "Я понял: общая сумма находится в колонке 10.",
+                "evidence_quote": "колонка 10",
+            },
+            conflicting,
+        ]
+    )
+    runtime = _runtime(store, client)
+    await runtime.resolve(document_id=document_id, context=context)
+    candidate = await runtime.resolve(
+        document_id=document_id,
+        context=context,
+        user_message="Это колонка 10.",
+    )
+    result = await runtime.resolve(
+        document_id=document_id,
+        context=context,
+        confirmation=True,
+        expected_confirmation_artifact_id=candidate["mapping_case_artifact_id"],
+    )
+
+    assert result["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["public_state"]["may_resume"] is False
+    current = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(
+        document_id=document_id, context=context
+    )[1]
+    assert current["qualified_mappings"] == []
+    assert current["reason_code"] == (
+        "ordinary_trade_semantic_mapping_confirmed_decision_conflict"
     )
 
 
-@pytest.mark.asyncio
-async def test_provider_failure_and_invalid_output_are_distinct_terminals(
+async def _provider_failure_and_invalid_output_are_distinct_terminals(
     tmp_path,
 ) -> None:
     first = case_fixtures._unknown_case(tmp_path / "provider")
@@ -149,8 +240,7 @@ async def test_provider_failure_and_invalid_output_are_distinct_terminals(
     assert invalid["public_state"]["may_resume"] is False
 
 
-@pytest.mark.asyncio
-async def test_production_composition_maps_unknown_then_publishes_facts(tmp_path) -> None:
+async def _production_composition_maps_unknown_then_publishes_facts(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)
     )
@@ -184,8 +274,7 @@ async def test_production_composition_maps_unknown_then_publishes_facts(tmp_path
     assert answer_client.calls == []
 
 
-@pytest.mark.asyncio
-async def test_known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
+async def _known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
     store, context, document_id, _mapping = case_fixtures.candidate._case(tmp_path)
     mapping_client = BoundaryModelClient([])
     answer_client = BoundaryModelClient([])
@@ -212,8 +301,7 @@ async def test_known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
     assert answer_client.calls == []
 
 
-@pytest.mark.asyncio
-async def test_unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
+async def _unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, _mapping = (
         case_fixtures._unknown_case(tmp_path)
     )
@@ -225,11 +313,23 @@ async def test_unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None
                 "table_decisions": [],
                 "clarification": {
                     "question_id": "q_money_role",
-                    "table_node_id": table["node_id"],
+                    "table_ref": "table_1",
                     "question": "Какая колонка содержит общую сумму?",
                     "options": [
-                        {"option_id": "o_first", "label": "Первая"},
-                        {"option_id": "o_second", "label": "Вторая"},
+                        {
+                            "option_id": "o_first",
+                            "label": "Первая",
+                            "decision": case_fixtures._column_role_decision(
+                                9, "gross_amount"
+                            ),
+                        },
+                        {
+                            "option_id": "o_second",
+                            "label": "Вторая",
+                            "decision": case_fixtures._column_role_decision(
+                                10, "gross_amount"
+                            ),
+                        },
                     ],
                 },
                 "message": "Нужно одно уточнение.",
@@ -260,8 +360,7 @@ async def test_unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None
     )
 
 
-@pytest.mark.asyncio
-async def test_no_named_consumer_retains_observations_without_fact_v2(tmp_path) -> None:
+async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, _mapping = (
         case_fixtures._unknown_case(tmp_path)
     )
@@ -272,7 +371,7 @@ async def test_no_named_consumer_retains_observations_without_fact_v2(tmp_path) 
                 "status": "COMPLETE",
                 "table_decisions": [
                     {
-                        "table_node_id": table["node_id"],
+                        "table_ref": "table_1",
                         "header_row": 1,
                         "disposition": "NO_NAMED_CONSUMER",
                         "columns": [],
@@ -301,14 +400,40 @@ async def test_no_named_consumer_retains_observations_without_fact_v2(tmp_path) 
         canonical_artifact_refs=[canonical_ref], context=context
     )
 
-    assert result["semantic_mapping"]["status"] == "COMPLETE"
+    assert result["semantic_mapping"]["status"] == "SPECIALIST_REVIEW_REQUIRED"
     assert result["product"]["gate4"]["facts_total"] == 0
-    projection = OrdinaryTradeProjectionFactory(
-        store=store, read_enabled=True
-    ).create().current_case(context=context)[0][1]
-    observations = projection["source_observations"]
-    assert observations
-    assert {item["disposition"] for item in observations} == {
-        "SOURCE_RETAINED_NO_CONSUMER"
-    }
-    assert all(item["fields"] for item in observations)
+    assert result["product"]["gate5"]["security_tax_input_status"] == (
+        "SOURCE_MAPPING_INCOMPLETE"
+    )
+
+
+def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
+    asyncio.run(_one_strict_mapping_call_completes_unknown_schema(tmp_path))
+
+
+def test_clarification_answer_confirmation_resumes_same_case(tmp_path) -> None:
+    asyncio.run(_clarification_answer_confirmation_resumes_same_case(tmp_path))
+
+
+def test_confirmed_column_role_conflict_fails_closed(tmp_path) -> None:
+    asyncio.run(_confirmed_column_role_conflict_fails_closed(tmp_path))
+
+
+def test_provider_failure_and_invalid_output_are_distinct_terminals(tmp_path) -> None:
+    asyncio.run(_provider_failure_and_invalid_output_are_distinct_terminals(tmp_path))
+
+
+def test_production_composition_maps_unknown_then_publishes_facts(tmp_path) -> None:
+    asyncio.run(_production_composition_maps_unknown_then_publishes_facts(tmp_path))
+
+
+def test_known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
+    asyncio.run(_known_schema_fast_path_has_zero_semantic_calls(tmp_path))
+
+
+def test_unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
+    asyncio.run(_unfinished_mapping_publishes_no_partial_fact_v2(tmp_path))
+
+
+def test_model_cannot_exclude_financial_table_without_confirmation(tmp_path) -> None:
+    asyncio.run(_model_cannot_exclude_financial_table_without_confirmation(tmp_path))
