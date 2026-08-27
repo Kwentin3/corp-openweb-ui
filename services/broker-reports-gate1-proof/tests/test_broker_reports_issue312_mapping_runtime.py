@@ -453,9 +453,9 @@ async def _sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
     table = next(
         item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
     )
-    mapping_client = BoundaryModelClient(
-        [case_fixtures._complete(table, mapping)]
-    )
+    response = case_fixtures._complete(table, mapping)
+    response["table_decisions"][0]["amount_currency_bindings"].reverse()
+    mapping_client = BoundaryModelClient([response])
     runtime = OrdinaryTradeProductionRuntimeFactory(
         store=store,
         read_enabled=True,

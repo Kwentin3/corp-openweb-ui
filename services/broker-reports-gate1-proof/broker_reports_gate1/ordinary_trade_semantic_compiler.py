@@ -290,12 +290,21 @@ def compile_schema_mapping(
         columns=columns,
     )
     frozen_qualification_ref = copy.deepcopy(dict(qualification_ref))
+    frozen_amount_currency_bindings = [
+        copy.deepcopy(dict(item)) for item in amount_currency_bindings
+    ]
+    frozen_amount_currency_bindings.sort(
+        key=lambda item: (
+            item.get("amount_column")
+            if isinstance(item.get("amount_column"), int)
+            and not isinstance(item.get("amount_column"), bool)
+            else -1
+        )
+    )
     material = {
         "structural_fingerprint": fingerprint,
         "columns": columns,
-        "amount_currency_bindings": [
-            copy.deepcopy(dict(item)) for item in amount_currency_bindings
-        ],
+        "amount_currency_bindings": frozen_amount_currency_bindings,
         "side_values": [copy.deepcopy(dict(item)) for item in side_values],
         "qualification_ref": frozen_qualification_ref,
     }
