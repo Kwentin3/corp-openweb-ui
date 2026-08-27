@@ -317,7 +317,7 @@ def test_runtime_derives_terminal_status_from_validated_table_decisions(tmp_path
     assert len(result["qualified_mappings"]) == 1
 
 
-def test_runtime_owns_short_provider_question_identifiers(tmp_path) -> None:
+def test_runtime_unconditionally_owns_provider_question_identifiers(tmp_path) -> None:
     _context, canonical, binding, _table, _known = _canonical_case(tmp_path)
     response = {
         "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
@@ -337,7 +337,7 @@ def test_runtime_owns_short_provider_question_identifiers(tmp_path) -> None:
                     },
                 },
                 {
-                    "option_id": "o_2",
+                    "option_id": "o_runtime_1",
                     "label": "Second amount",
                     "decision": {
                         "table_ref": "table_1",
@@ -361,11 +361,12 @@ def test_runtime_owns_short_provider_question_identifiers(tmp_path) -> None:
     )
 
     assert result["status"] == "CLARIFICATION_REQUIRED"
-    assert result["question"]["question_id"] == "q_runtime_mapping"
+    assert result["question"]["question_id"] == "q_choice_prompt"
     assert [item["option_id"] for item in result["question"]["options"]] == [
-        "o_runtime_1",
-        "o_runtime_2",
+        "o_choice_1",
+        "o_choice_2",
     ]
+    assert len({item["option_id"] for item in result["question"]["options"]}) == 2
 
 
 def test_free_answer_requires_strict_candidate_then_explicit_confirmation(tmp_path) -> None:

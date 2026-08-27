@@ -156,17 +156,17 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
         "status": "CLARIFICATION_REQUIRED",
         "table_decisions": [],
         "clarification": {
-            "question_id": "q_money_role",
+            "question_id": "q_1",
             "table_ref": "table_1",
             "question": "Какая колонка является общей суммой сделки?",
             "options": [
                 {
-                    "option_id": "o_first",
+                    "option_id": "o_1",
                     "label": "Первая денежная колонка",
                     "decision": _column_role_decision(9, "gross_amount"),
                 },
                 {
-                    "option_id": "o_second",
+                    "option_id": "o_runtime_1",
                     "label": "Вторая денежная колонка",
                     "decision": _column_role_decision(10, "gross_amount"),
                 },
@@ -196,7 +196,7 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
         response={
             "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
             "status": "CANDIDATE",
-            "option_id": "o_second",
+            "option_id": "o_choice_2",
             "message": "Понял: общая сумма во второй денежной колонке.",
             "evidence_quote": "во второй",
         },
@@ -218,7 +218,7 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
         accepted=True,
     )
     assert confirmed["status"] == "MAPPING_REQUIRED"
-    assert confirmed["confirmed_understandings"][0]["option_id"] == "o_second"
+    assert confirmed["confirmed_understandings"][0]["option_id"] == "o_choice_2"
 
 
 def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
@@ -235,7 +235,7 @@ def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
         "question": "Какая колонка содержит общую сумму?",
         "options": [
             {
-                "option_id": "o_first",
+                "option_id": "o_runtime_1",
                 "label": "Первая",
                 "decision": _column_role_decision(9, "gross_amount"),
             },
@@ -276,7 +276,7 @@ def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
         interpretation={
             "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
             "status": "CANDIDATE",
-            "option_id": "o_first",
+            "option_id": "o_choice_1",
             "message": "Первая.",
             "evidence_quote": "первая",
         },

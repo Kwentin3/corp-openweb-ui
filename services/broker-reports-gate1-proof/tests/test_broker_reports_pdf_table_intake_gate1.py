@@ -24,10 +24,10 @@ from broker_reports_gate1.canonical_artifact import (  # noqa: E402
     CanonicalNormalizerConfig,
     CanonicalNormalizerFactory,
 )
-from broker_reports_gate1.canonical_store import CanonicalReaderFactory  # noqa: E402
 from broker_reports_gate1.inputs import FileInput  # noqa: E402
 from broker_reports_gate1.gate2_handoff import persist_gate1_result  # noqa: E402
 from broker_reports_gate1.normalizer import Gate1Normalizer  # noqa: E402
+from broker_reports_gate1.pdf_layout import PdfPlumberLayoutAdapter  # noqa: E402
 from broker_reports_gate1.pdf_text_layer import (  # noqa: E402
     validate_pdf_source_unit_structure,
 )
@@ -466,8 +466,9 @@ def test_tight_source_bound_regions_persist_independent_of_fallback_lines(
     }
 
 
-def test_false_locator_region_preserves_valid_tables_and_publishes_canonical(
+def test_rejected_locator_region_preserves_valid_tables_but_blocks_canonical(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
     pdf_bytes = _two_table_pdf()
     digest = hashlib.sha256(pdf_bytes).hexdigest()
@@ -478,7 +479,6 @@ def test_false_locator_region_preserves_valid_tables_and_publishes_canonical(
                 [
                     [107, 80, 229, 919],
                     [426, 80, 549, 919],
-                    [900, 0, 1000, 1000],
                 ]
             )
         )
@@ -492,7 +492,23 @@ def test_false_locator_region_preserves_valid_tables_and_publishes_canonical(
             ]
         )
     )
-    assert intake.safe_summary["candidates_total"] == 3
+    assert intake.safe_summary["candidates_total"] == 2
+
+    original_find = PdfPlumberLayoutAdapter._find_unbounded_table_candidates
+    calls = 0
+
+    def fail_second_region(self, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("native extraction rejected")
+        return original_find(self, **kwargs)
+
+    monkeypatch.setattr(
+        PdfPlumberLayoutAdapter,
+        "_find_unbounded_table_candidates",
+        fail_second_region,
+    )
 
     file_input = FileInput(
         private_ref="file-false-locator-region",
@@ -517,23 +533,23 @@ def test_false_locator_region_preserves_valid_tables_and_publishes_canonical(
         for item in normalized.package["private_normalized_table_projections"]
         if item.get("source_format") == "pdf"
     ]
-    assert len(projections) == 2
+    assert len(projections) == 1
     assert all(
         item.get("projection_status") == "ready"
         and item.get("validator_status") == "passed"
         for item in projections
     )
-    assert not any(
+    assert any(
         item.get("code") == "pdf_table_normalization_incomplete"
         for item in normalized.package["normalization_blockers"]
     )
     page = normalized.package["private_normalized_source_payloads"][0][
         "pdf_text_layer_projection"
     ]["page_inventory"][0]
-    assert page["table_locator_regions_total"] == 3
-    assert page["table_locator_regions_accepted_total"] == 2
+    assert page["table_locator_regions_total"] == 2
+    assert page["table_locator_regions_accepted_total"] == 1
     assert page["table_locator_regions_rejected_total"] == 1
-    assert "pdf_table_locator_region_native_table_not_found_rejected" in (
+    assert "pdf_table_locator_region_native_extraction_rejected" in (
         page["table_reason_codes"]
     )
 
@@ -560,18 +576,10 @@ def test_false_locator_region_preserves_valid_tables_and_publishes_canonical(
         retention_policy=build_retention_policy(mode="api_smoke"),
     )
 
-    assert "broker_reports_canonical_build_failure_v1" not in (
+    assert "broker_reports_canonical_build_failure_v1" in (
         manifest.artifact_refs_by_type
     )
-    canonical_ref = manifest.artifact_refs_by_type[
-        "broker_reports_canonical_artifact_v1"
-    ][0]
-    canonical = CanonicalReaderFactory(store=store, read_enabled=True).create().read(
-        canonical_ref, context
-    )
-    assert len(
-        [item for item in canonical["nodes"] if item["node_type"] == "TABLE"]
-    ) == 2
+    assert "broker_reports_canonical_artifact_v1" not in manifest.artifact_refs_by_type
 
 
 def test_borderless_table_compacts_only_empty_parser_axes() -> None:

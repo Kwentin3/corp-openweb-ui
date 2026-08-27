@@ -406,6 +406,7 @@ class Gate1Normalizer:
                         or len(layout_pages) != expected_pages
                         or blocked_table_pages
                         or accepted_regions + rejected_regions != located_regions
+                        or rejected_regions
                         or ready_projections != accepted_regions
                     ):
                         reason = (

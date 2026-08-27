@@ -89,7 +89,7 @@ async def _clarification_answer_confirmation_resumes_same_case(tmp_path) -> None
                 ),
             },
             {
-                "option_id": "o_second",
+                "option_id": "o_runtime_2",
                 "label": "Вторая денежная колонка",
                 "decision": case_fixtures._column_role_decision(
                     10, "gross_amount"
@@ -110,7 +110,7 @@ async def _clarification_answer_confirmation_resumes_same_case(tmp_path) -> None
             {
                 "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
                 "status": "CANDIDATE",
-                "option_id": "o_second",
+                "option_id": "o_choice_2",
                 "message": "Я понял: общая сумма во второй колонке.",
                 "evidence_quote": "во второй",
             },
@@ -164,7 +164,7 @@ async def _confirmed_column_role_conflict_fails_closed(tmp_path) -> None:
                 ),
             },
             {
-                "option_id": "o_gross",
+                "option_id": "o_runtime_2",
                 "label": "Колонка 10",
                 "decision": case_fixtures._column_role_decision(
                     10, "gross_amount"
@@ -193,7 +193,7 @@ async def _confirmed_column_role_conflict_fails_closed(tmp_path) -> None:
             {
                 "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
                 "status": "CANDIDATE",
-                "option_id": "o_gross",
+                "option_id": "o_choice_2",
                 "message": "Я понял: общая сумма находится в колонке 10.",
                 "evidence_quote": "колонка 10",
             },
@@ -239,7 +239,7 @@ async def _public_confirmation_renders_validated_decision_not_model_text(
         "question": "Подтвердите, что колонка 10 содержит общую сумму сделки.",
         "options": [
             {
-                "option_id": "o_lie",
+                "option_id": "o_runtime_1",
                 "label": "Колонка 10 — общая сумма сделки",
                 "decision": case_fixtures._column_role_decision(
                     9, "gross_amount"
@@ -266,7 +266,7 @@ async def _public_confirmation_renders_validated_decision_not_model_text(
             {
                 "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
                 "status": "CANDIDATE",
-                "option_id": "o_lie",
+                "option_id": "o_choice_1",
                 "message": "Общая сумма находится в колонке 10.",
                 "evidence_quote": "первый вариант",
             },
@@ -280,7 +280,7 @@ async def _public_confirmation_renders_validated_decision_not_model_text(
     )
     assert visible_options[0]["label"].startswith("Колонка 9 ")
     assert visible_options[0]["label"] != question["options"][0]["label"]
-    assert visible_options[0]["option_ref"] == "o_lie"
+    assert visible_options[0]["option_ref"] == "o_choice_1"
 
     candidate = await runtime.resolve(
         document_id=document_id,
@@ -588,7 +588,7 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
                 "decision": case_fixtures._column_role_decision(9, "gross_amount"),
             },
             {
-                "option_id": "o_second",
+                "option_id": "o_runtime_2",
                 "label": "Model says gross_amount is column 9",
                 "decision": case_fixtures._column_role_decision(10, "gross_amount"),
             },
@@ -611,7 +611,7 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
             {
                 "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
                 "status": "CANDIDATE",
-                "option_id": "o_second",
+                "option_id": "o_choice_2",
                 "message": "Model says gross_amount is column 9.",
                 "evidence_quote": "вторая колонка",
             }
@@ -641,7 +641,7 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
         "Вариант 2",
     ]
     assert public_context["current_question"]["source_evidence"][0] == {
-        "option_ref": "o_first",
+        "option_ref": "o_choice_1",
         "public_label": "Вариант 1",
         "quoted_source": (
             f"Колонка 9 «{source_injection}» — общая сумма сделки"
@@ -669,8 +669,8 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
                     ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION
                 ),
                 "disposition": "REJECT",
-                "question_ref": "q_money_role",
-                "option_refs": ["o_first", "o_second"],
+                "question_ref": "q_choice_prompt",
+                "option_refs": ["o_choice_1", "o_choice_2"],
             }
         return {
             "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
@@ -680,8 +680,8 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
             ),
             "turn_binding": {
                 "kind": "MAPPING_CLARIFICATION",
-                "question_ref": "q_money_role",
-                "option_refs": ["o_first", "o_second"],
+                "question_ref": "q_choice_prompt",
+                "option_refs": ["o_choice_1", "o_choice_2"],
             },
         }
 

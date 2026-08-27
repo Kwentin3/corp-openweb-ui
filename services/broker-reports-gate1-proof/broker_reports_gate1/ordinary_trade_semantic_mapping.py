@@ -579,12 +579,10 @@ def _normalize_model_question(
     normalized = copy.deepcopy(question)
     node_id = node_ids_by_ref[normalized.pop("table_ref")]
     normalized["table_node_id"] = node_id
-    if re.fullmatch(r"q_[a-z0-9][a-z0-9_-]{5,63}", normalized["question_id"]) is None:
-        normalized["question_id"] = "q_runtime_mapping"
+    normalized["question_id"] = "q_choice_prompt"
     normalized["question"] = "Какое из следующих проверяемых решений верно?"
     for index, option in enumerate(normalized["options"], start=1):
-        if re.fullmatch(r"o_[a-z0-9][a-z0-9_-]{2,63}", option["option_id"]) is None:
-            option["option_id"] = f"o_runtime_{index}"
+        option["option_id"] = f"o_choice_{index}"
         decision = option["decision"]
         if decision["table_ref"] != question["table_ref"]:
             _fail("ordinary_trade_semantic_mapping_question_decision_invalid")
@@ -604,6 +602,7 @@ def _normalize_model_question(
     digests = [_sha256_json(item["decision"]) for item in normalized["options"]]
     if len(digests) != len(set(digests)):
         _fail("ordinary_trade_semantic_mapping_question_decision_invalid")
+    _validate_question(normalized, internal=True)
     return normalized
 
 
