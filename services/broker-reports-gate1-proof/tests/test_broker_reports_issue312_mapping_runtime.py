@@ -11,6 +11,11 @@ from broker_reports_gate1.ordinary_trade_mapping_case import (
 from broker_reports_gate1.ordinary_trade_mapping_runtime import (
     OrdinaryTradeAutomaticMappingRuntimeFactory,
 )
+from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
+    ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+    build_public_dialogue_context,
+    render_public_dialogue_fallback,
+)
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
@@ -18,6 +23,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
 )
+from openwebui_actions.broker_reports_gate1_pipe import Pipe
 
 import test_broker_reports_issue312_mapping_case as case_fixtures
 
@@ -515,6 +521,139 @@ async def _unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
     )
 
 
+async def _production_pipe_keeps_mapping_question_confirmation_and_case(
+    tmp_path,
+) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    question = {
+        "question_id": "q_money_role",
+        "table_ref": "table_1",
+        "question": "Model-authored wording must not reach the user.",
+        "options": [
+            {
+                "option_id": "o_first",
+                "label": "Model says gross_amount is column 10",
+                "decision": case_fixtures._column_role_decision(9, "gross_amount"),
+            },
+            {
+                "option_id": "o_second",
+                "label": "Model says gross_amount is column 9",
+                "decision": case_fixtures._column_role_decision(10, "gross_amount"),
+            },
+        ],
+    }
+    mapping_client = BoundaryModelClient(
+        [
+            {
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "CLARIFICATION_REQUIRED",
+                "table_decisions": [],
+                "clarification": question,
+                "message": "Raw mapping message must not reach presentation.",
+            },
+            case_fixtures._complete(table, mapping),
+        ]
+    )
+    answer_client = BoundaryModelClient(
+        [
+            {
+                "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
+                "status": "CANDIDATE",
+                "option_id": "o_second",
+                "message": "Model says gross_amount is column 9.",
+                "evidence_quote": "вторая колонка",
+            }
+        ]
+    )
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=mapping_client,
+        mapping_answer_model_client=answer_client,
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+    ).create()
+    canonical_ref = store.get_active_canonical_version(
+        context=context, document_id=document_id
+    ).manifest_ref
+
+    first = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+    first_case_id = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]["case_id"]
+    public_context = build_public_dialogue_context(product=first["product"])
+    assert public_context["current_question"]["options"][0].startswith("Колонка 9 ")
+    assert public_context["current_question"]["options"][1].startswith("Колонка 10 ")
+    assert public_context["next_actions"] == [
+        "Ответить на текущий вопрос обычной фразой"
+    ]
+
+    pipe = Pipe()
+    captured = {}
+
+    async def presentation_completion(**kwargs):
+        captured.update(kwargs)
+        assert "Колонка 9" in kwargs["user_content"]
+        assert "Колонка 10" in kwargs["user_content"]
+        return {
+            "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+            "message": render_public_dialogue_fallback(public_context),
+        }
+
+    pipe._call_openwebui_presentation_completion = presentation_completion
+    visible_question = await pipe._render_ndfl_public_dialogue(
+        result=first, user={"id": "user-a"}, request=object()
+    )
+    assert captured["task"] == "ordinary_trade_public_dialogue_render"
+    assert "Колонка 9" in visible_question
+    assert "Колонка 10" in visible_question
+    assert "Добавить недостающий отчёт" not in visible_question
+    for hidden in ("mapping", "gross_amount", "Fact v2"):
+        assert hidden.casefold() not in visible_question.casefold()
+
+    candidate = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref],
+        context=context,
+        user_message="Общая сумма — вторая колонка.",
+    )
+    candidate_context = build_public_dialogue_context(product=candidate["product"])
+    visible_confirmation = render_public_dialogue_fallback(candidate_context)
+    exact_confirmation = candidate["semantic_mapping"]["public_state"][
+        "confirmation_message"
+    ]
+    assert exact_confirmation.startswith("Подтвердите: Колонка 10 ")
+    assert exact_confirmation in visible_confirmation
+
+    async def native_confirmation(event):
+        assert event["type"] == "confirmation"
+        assert event["data"]["message"] == exact_confirmation
+        return True
+
+    confirmed = await pipe._mapping_candidate_confirmation(
+        event_call=native_confirmation,
+        visible_message=exact_confirmation,
+    )
+    completed = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref],
+        context=context,
+        confirmation=confirmed,
+        expected_confirmation_artifact_id=candidate["semantic_mapping"][
+            "mapping_case_artifact_id"
+        ],
+    )
+    completed_case = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    assert completed["semantic_mapping"]["status"] == "COMPLETE"
+    assert completed_case["case_id"] == first_case_id
+    assert completed_case["confirmed_understandings"][0]["decision"]["column"] == 10
+    assert completed["product"]["gate4"]["security_facts_total"] == 2
+
+
 async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, _mapping = (
         case_fixtures._unknown_case(tmp_path)
@@ -604,6 +743,10 @@ def test_known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
 
 def test_unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
     asyncio.run(_unfinished_mapping_publishes_no_partial_fact_v2(tmp_path))
+
+
+def test_production_pipe_keeps_mapping_question_confirmation_and_case(tmp_path) -> None:
+    asyncio.run(_production_pipe_keeps_mapping_question_confirmation_and_case(tmp_path))
 
 
 def test_model_cannot_exclude_financial_table_without_confirmation(tmp_path) -> None:

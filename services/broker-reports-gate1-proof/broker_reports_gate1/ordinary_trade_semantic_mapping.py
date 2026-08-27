@@ -629,7 +629,7 @@ def _render_decision_label(
         role_label = _ROLE_LABELS.get(role, str(role))
         return (
             f"Колонка {decision['column']} «{headers[decision['column']]}» — "
-            f"{role_label} ({role})"
+            f"{role_label}"
         )
     if kind == "AMOUNT_CURRENCY_BINDING":
         amount = decision["amount_column"]
@@ -648,7 +648,7 @@ def _render_decision_label(
     disposition = decision["disposition"]
     labels = {
         "SECURITY_TRADES": "таблица содержит сделки с ценными бумагами",
-        "NO_NAMED_CONSUMER": "для таблицы нет текущего получателя Fact v2",
+        "NO_NAMED_CONSUMER": "таблица не относится к поддерживаемым операциям",
         "UNSUPPORTED_FINANCIAL_MEANING": (
             "таблица содержит неподдерживаемый финансовый смысл"
         ),

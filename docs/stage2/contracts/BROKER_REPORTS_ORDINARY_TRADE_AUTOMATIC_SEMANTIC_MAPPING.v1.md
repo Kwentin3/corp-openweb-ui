@@ -47,6 +47,14 @@ the native confirmation from the validated decision plus exact header/literal
 surface. Therefore displayed column/role/binding and applied decision cannot
 diverge.
 
+The product composition publishes that bounded public surface as one
+`MAPPING_CLARIFICATION` action. The representation-only public-dialogue adapter
+validates and projects the exact question and options for the presentation LLM
+and deterministic fallback; it never copies the raw mapping state or machine
+decision. A pending candidate instead projects the exact code-owned
+confirmation with only `Да` / `Нет`. Internal role codes, mapping vocabulary
+and Fact contract names are forbidden on both public paths.
+
 ## Completeness and terminals
 
 Every Canonical table receives exactly one disposition:

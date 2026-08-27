@@ -83,6 +83,11 @@ _PUBLIC_FORBIDDEN_TEXT = (
     "gate5_",
     "artifact_",
     "art_",
+    "mapping",
+    "fact v2",
+    "gross_amount",
+    "unit_price",
+    "source_ref",
 )
 _INTERNAL_STATUS = re.compile(r"\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b")
 _PRIVATE_DOWNLOAD = re.compile(r"/api/v1/files/[^\s)]+", re.IGNORECASE)
@@ -639,6 +644,9 @@ def declaration_surrogate_preview(preview: Any) -> str:
 def build_public_question_context(request: Any) -> dict[str, Any] | None:
     """Strip a current owner request down to its human-facing contract."""
 
+    mapping_question = _mapping_public_question_context(request)
+    if mapping_question is not None:
+        return mapping_question
     if not isinstance(request, dict) or not _presentation_contract_valid(request):
         return None
     presentation = _request_presentation(request) or {}
@@ -685,6 +693,60 @@ def build_public_question_context(request: Any) -> dict[str, Any] | None:
         "accepted_answer_examples": examples,
         "candidate_hint": candidate_hint,
     }
+    _validate_public_value(result)
+    return result
+
+
+def _mapping_public_question_context(request: Any) -> dict[str, Any] | None:
+    """Project one mapping-owner action without exposing its machine decision."""
+
+    if not isinstance(request, dict) or request.get("kind") != "MAPPING_CLARIFICATION":
+        return None
+    if set(request) != {"kind", "question", "confirmation_message"}:
+        return None
+    question = request.get("question")
+    if not isinstance(question, dict) or set(question) != {"question", "options"}:
+        return None
+    exact_question = str(question.get("question") or "").strip()
+    options = question.get("options")
+    if (
+        not exact_question
+        or len(exact_question) > 1000
+        or not isinstance(options, list)
+        or not 2 <= len(options) <= 8
+        or any(
+            not isinstance(item, str) or not item.strip() or len(item) > 1000
+            for item in options
+        )
+        or len(options) != len(set(options))
+    ):
+        return None
+    visible_options = [item.strip() for item in options]
+    confirmation = request.get("confirmation_message")
+    if confirmation is not None:
+        confirmation = str(confirmation).strip()
+        if not confirmation or len(confirmation) > 2000:
+            return None
+        result = {
+            "question": confirmation,
+            "help": (
+                "Ответьте «Да», если всё верно, или «Нет», если нужно уточнить ответ."
+            ),
+            "options": ["Да", "Нет"],
+            "accepted_answer_examples": ["Да", "Нет"],
+            "candidate_hint": None,
+        }
+    else:
+        result = {
+            "question": exact_question,
+            "help": (
+                "Варианты: " + "; ".join(visible_options) + ". "
+                "Ответьте обычной фразой."
+            ),
+            "options": visible_options,
+            "accepted_answer_examples": list(visible_options),
+            "candidate_hint": None,
+        }
     _validate_public_value(result)
     return result
 

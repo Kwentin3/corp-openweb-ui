@@ -39,6 +39,10 @@ from broker_reports_gate1.gate2_financial_semantic_v6_choice import (
 from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (
     COMPATIBILITY_WRAPPER_DELEGATES_ONLY,
 )
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    ANSWER_RESPONSE_SCHEMA_VERSION,
+    MAPPING_RESPONSE_SCHEMA_VERSION,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -285,7 +289,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v17",
+            "broker_reports_architecture_policy_v18",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -426,6 +430,20 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertIn("ndfl_presentation_openwebui_origin", pipe)
         self.assertIn("_NdflPresentationNoRedirectHandler", pipe)
         self.assertIn("NDFL_PRESENTATION_MAX_RESPONSE_BYTES + 1", pipe)
+
+    def test_ordinary_trade_mapping_provider_contract_ids_match_runtime(self):
+        self.assertEqual(
+            architecture_policy.PROVIDER_CALL_SITE_CLASSIFICATIONS[
+                "ordinary_trade_semantic_mapping"
+            ][2],
+            MAPPING_RESPONSE_SCHEMA_VERSION,
+        )
+        self.assertEqual(
+            architecture_policy.PROVIDER_CALL_SITE_CLASSIFICATIONS[
+                "ordinary_trade_mapping_answer"
+            ][2],
+            ANSWER_RESPONSE_SCHEMA_VERSION,
+        )
 
     def test_machine_readable_policy_is_fail_closed(self):
         self.assertFalse(NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED)

@@ -12,7 +12,6 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
     build_public_dialogue_context,
     build_public_question_context,
-    public_answer_requires_clarification,
     public_dialogue_context_sha256,
     public_dialogue_interpretation_response_format,
     public_dialogue_message_response_format,
@@ -66,6 +65,42 @@ def _product_with_request(request: dict) -> dict:
     product = _product()
     product["preparation"]["user_actions"] = [request]
     return product
+
+
+def _mapping_product(*, confirmation: bool = False) -> dict:
+    question = {
+        "question": "Какое из следующих проверяемых решений верно?",
+        "options": [
+            "Колонка 9 «Цена» — цена одной бумаги",
+            "Колонка 10 «Сумма» — общая сумма сделки",
+        ],
+    }
+    return {
+        "status": "INPUT_REQUIRED",
+        "terminal": (
+            "ordinary_trade_mapping_confirmation_required"
+            if confirmation
+            else "ordinary_trade_mapping_clarification_required"
+        ),
+        "xml_created": False,
+        "gate5": {"blocker_reason_codes": []},
+        "preparation": {
+            "gap_closure": {
+                "user_facing_required_actions": [
+                    {
+                        "kind": "MAPPING_CLARIFICATION",
+                        "question": question,
+                        "confirmation_message": (
+                            "Подтвердите: Колонка 10 «Сумма» — общая сумма сделки"
+                            if confirmation
+                            else None
+                        ),
+                    }
+                ]
+            },
+            "final_note": {"filing_eligible": False},
+        },
+    }
 
 
 def _interpretation_completion(
@@ -301,6 +336,61 @@ def test_public_context_strips_owner_identity_and_keeps_one_current_question() -
     assert public_dialogue_context_sha256(context) == public_dialogue_context_sha256(
         context
     )
+
+
+def test_mapping_clarification_crosses_public_dialogue_as_exact_safe_question() -> None:
+    context = build_public_dialogue_context(product=_mapping_product())
+    fallback = render_public_dialogue_fallback(context)
+
+    assert context["current_question"] == {
+        "question": "Какое из следующих проверяемых решений верно?",
+        "help": (
+            "Варианты: Колонка 9 «Цена» — цена одной бумаги; "
+            "Колонка 10 «Сумма» — общая сумма сделки. "
+            "Ответьте обычной фразой."
+        ),
+        "options": [
+            "Колонка 9 «Цена» — цена одной бумаги",
+            "Колонка 10 «Сумма» — общая сумма сделки",
+        ],
+        "accepted_answer_examples": [
+            "Колонка 9 «Цена» — цена одной бумаги",
+            "Колонка 10 «Сумма» — общая сумма сделки",
+        ],
+        "candidate_hint": None,
+    }
+    assert "Колонка 9" in fallback
+    assert "Колонка 10" in fallback
+    assert "Добавить недостающий отчёт" not in fallback
+    for hidden in ("mapping", "gross_amount", "Fact v2"):
+        assert hidden.casefold() not in fallback.casefold()
+
+
+def test_mapping_confirmation_crosses_public_dialogue_with_exact_decision() -> None:
+    context = build_public_dialogue_context(product=_mapping_product(confirmation=True))
+    fallback = render_public_dialogue_fallback(context)
+
+    assert context["current_question"] == {
+        "question": "Подтвердите: Колонка 10 «Сумма» — общая сумма сделки",
+        "help": "Ответьте «Да», если всё верно, или «Нет», если нужно уточнить ответ.",
+        "options": ["Да", "Нет"],
+        "accepted_answer_examples": ["Да", "Нет"],
+        "candidate_hint": None,
+    }
+    assert "Подтвердите: Колонка 10" in fallback
+    assert "Добавить недостающий отчёт" not in fallback
+
+
+def test_mapping_public_question_rejects_raw_machine_state() -> None:
+    action = _mapping_product()["preparation"]["gap_closure"][
+        "user_facing_required_actions"
+    ][0]
+    action["question"]["decision"] = {
+        "decision_kind": "COLUMN_ROLE",
+        "semantic_role": "gross_amount",
+    }
+
+    assert build_public_question_context(action) is None
 
 
 @pytest.mark.parametrize(

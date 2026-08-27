@@ -262,7 +262,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertFalse(source_bound["pdfplumber_settings_selected_by_model"])
         self.assertEqual(
             {
-                "architecture_policy_version": "broker_reports_architecture_policy_v17",
+                "architecture_policy_version": "broker_reports_architecture_policy_v18",
                 "knowledge_rag_vectorization_allowed": False,
                 "local_ocr_production_allowed": False,
                 "local_ocr_worker_pool_allowed": False,
