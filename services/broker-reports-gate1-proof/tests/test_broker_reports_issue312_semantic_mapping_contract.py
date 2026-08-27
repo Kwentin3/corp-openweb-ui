@@ -297,6 +297,26 @@ def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
     assert "table_resolutions" not in result
 
 
+def test_runtime_derives_terminal_status_from_validated_table_decisions(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    response = _complete_response(table, known)
+    response["status"] = "UNSUPPORTED"
+
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert len(result["qualified_mappings"]) == 1
+
+
 def test_free_answer_requires_strict_candidate_then_explicit_confirmation(tmp_path) -> None:
     _context, canonical, binding, table, _known = _canonical_case(tmp_path)
     owner = OrdinaryTradeSemanticMappingFactory.create()

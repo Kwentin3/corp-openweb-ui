@@ -385,8 +385,6 @@ class OrdinaryTradeSemanticMapping:
                 }
             )
         expected_status = "UNSUPPORTED" if unsupported else "COMPLETE"
-        if status != expected_status:
-            _fail("ordinary_trade_semantic_mapping_status_invalid")
         if expected_status == "COMPLETE":
             dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
                 canonical=canonical,
@@ -400,7 +398,7 @@ class OrdinaryTradeSemanticMapping:
             ):
                 _fail("ordinary_trade_semantic_mapping_dry_run_incomplete")
         return {
-            "status": status,
+            "status": expected_status,
             "message": value["message"].strip(),
             "question": None,
             "qualified_mappings": qualified_mappings,
