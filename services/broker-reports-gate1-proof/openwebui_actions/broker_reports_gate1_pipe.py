@@ -1059,38 +1059,14 @@ class Pipe:
         ).create().current_case(context=context)
         if not current:
             return context
-        material = {
-            "owner": "OrdinaryTradeProjectionRuntime.current_case",
-            "user_id": context.user_id,
-            "case_id": context.case_id,
-            "chat_id": context.chat_id,
-            "workspace_model_id": context.workspace_model_id,
-            "current_projections": [
-                {
-                    "projection_artifact_id": record.artifact_id,
-                    "document_id": record.document_id,
-                    "canonical_version_id": payload["canonical_binding"][
-                        "canonical_version_id"
-                    ],
-                    "canonical_root_sha256": payload["canonical_binding"][
-                        "canonical_root_sha256"
-                    ],
-                    "projection_sha256": payload["projection_sha256"],
-                }
-                for record, payload in current
-            ],
-        }
-        execution_id = "ndflcase_" + hashlib.sha256(
-            json.dumps(
-                material,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest()[:24]
+        owner_run_ids = {record.normalization_run_id for record, _payload in current}
+        if len(owner_run_ids) != 1:
+            raise NdflWorkflowError(
+                "ordinary_trade_current_projection_run_ambiguous"
+            )
         return ArtifactAccessContext(
             user_id=context.user_id,
-            normalization_run_id=execution_id,
+            normalization_run_id=next(iter(owner_run_ids)),
             case_id=context.case_id,
             chat_id=context.chat_id,
             workspace_model_id=context.workspace_model_id,
