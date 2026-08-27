@@ -682,6 +682,7 @@ def test_relevant_unmapped_incomplete_operation_blocks_before_xml(
         tmp_path,
         proceeds="60.00",
         extra_incomplete_operation=True,
+        publish_human_facts=False,
     )
 
     result = runtime.run(canonical_artifact_refs=[], context=context)
@@ -691,7 +692,8 @@ def test_relevant_unmapped_incomplete_operation_blocks_before_xml(
     assert result["product"]["terminal"] == (
         "ordinary_trade_declaration_canonical_relevant_unmapped"
     )
-    assert result["product"]["gate4"]["security_facts_total"] == 2
+    assert result["product"]["gate4"]["security_facts_total"] == 0
+    assert result["product"]["gate4"]["facts_total"] == 0
     assert result["system_identity"]["canonical_coverage_sha256"]
 
 

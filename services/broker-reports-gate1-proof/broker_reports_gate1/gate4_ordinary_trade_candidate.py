@@ -152,6 +152,9 @@ class Gate4OrdinaryTradeCandidateRuntime:
             for _record, projection in projections
             for observation in projection["source_observations"]
         )
+        if relevant_unmapped:
+            facts = []
+            security_facts = []
         blockers = []
         if projections and not security_facts and not relevant_unmapped:
             blockers.append(
@@ -176,7 +179,9 @@ class Gate4OrdinaryTradeCandidateRuntime:
         return {
             "schema_version": GATE4_ORDINARY_TRADE_CURRENT_FACT_SET_SCHEMA_VERSION,
             "status": (
-                "SECURITY_POSITION_SOURCE_CONTRACT_MISSING"
+                "SOURCE_MAPPING_INCOMPLETE"
+                if relevant_unmapped
+                else "SECURITY_POSITION_SOURCE_CONTRACT_MISSING"
                 if blockers
                 else "READY"
             ),

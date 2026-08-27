@@ -32,6 +32,9 @@ FORBIDDEN = (
 
 
 QUALIFICATION_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_qualification_v2"
+CASE_QUALIFICATION_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_case_mapping_qualification_v1"
+)
 _CONSUMER_CONTRACT = "Gate4FinancialCaseFactV2.amount_currency"
 _RELATION_BASES = {
     "EXPLICIT_DENOMINATION_HEADER",
@@ -602,6 +605,201 @@ def validate_qualified_mapping(
     _validate_qualification(mapping=mapping, receipt=receipt)
 
 
+def qualify_case_mapping(
+    *,
+    title_literal: str | None,
+    headers: list[dict[str, Any]],
+    model_columns: list[dict[str, Any]],
+    amount_currency_bindings: list[dict[str, int]],
+    side_values: list[dict[str, str]],
+    case_scope: dict[str, str],
+    model_decision: dict[str, str],
+    confirmed_understandings: list[dict[str, str]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Admit one model-proposed mapping only for its authenticated case scope."""
+
+    provisional = compile_schema_mapping(
+        title_literal=title_literal,
+        headers=headers,
+        model_columns=model_columns,
+        amount_currency_bindings=amount_currency_bindings,
+        side_values=side_values,
+        qualification_ref={
+            "qualification_id": "otqual_" + "0" * 32,
+            "receipt_sha256": "0" * 64,
+        },
+    )
+    semantic_scope = {
+        "columns": provisional["columns"],
+        "amount_currency_bindings": provisional["amount_currency_bindings"],
+        "side_values": provisional["side_values"],
+    }
+    headers_by_column = {
+        item["column"]: item["header_literal"] for item in provisional["columns"]
+    }
+    material = {
+        "schema_version": CASE_QUALIFICATION_SCHEMA_VERSION,
+        "status": "QUALIFIED_FOR_CASE",
+        "case_scope": copy.deepcopy(case_scope),
+        "structural_fingerprint": provisional["structural_fingerprint"],
+        "evidence_surface": {
+            "title_literal": provisional["title_literal"],
+            "headers": copy.deepcopy(headers),
+        },
+        "semantic_scope_sha256": _sha256_json(semantic_scope),
+        "relation_claims": [
+            {
+                "amount_column": item["amount_column"],
+                "currency_column": item["currency_column"],
+                "amount_header_literal": headers_by_column[item["amount_column"]],
+                "currency_header_literal": headers_by_column[item["currency_column"]],
+                "evidence_basis": "MODEL_PROPOSED_CASE_SCOPE",
+                "consumer_contract": _CONSUMER_CONTRACT,
+            }
+            for item in provisional["amount_currency_bindings"]
+        ],
+        "model_decision": copy.deepcopy(model_decision),
+        "confirmed_understandings": copy.deepcopy(confirmed_understandings),
+        "consumer_contracts": [_CONSUMER_CONTRACT],
+        "global_reuse_allowed": False,
+    }
+    qualification_id = "otqual_" + _sha256_json(material)[:32]
+    receipt = {**material, "qualification_id": qualification_id}
+    receipt["receipt_sha256"] = _sha256_json(receipt)
+    mapping = compile_schema_mapping(
+        title_literal=title_literal,
+        headers=headers,
+        model_columns=model_columns,
+        amount_currency_bindings=amount_currency_bindings,
+        side_values=side_values,
+        qualification_ref={
+            "qualification_id": qualification_id,
+            "receipt_sha256": receipt["receipt_sha256"],
+        },
+    )
+    validate_case_qualified_mapping(
+        mapping=mapping,
+        receipt=receipt,
+        expected_case_scope=case_scope,
+    )
+    return mapping, receipt
+
+
+def validate_case_qualified_mapping(
+    *,
+    mapping: dict[str, Any],
+    receipt: dict[str, Any],
+    expected_case_scope: dict[str, str],
+) -> None:
+    """Validate case qualification without promoting it to the global registry."""
+
+    validate_schema_mapping(mapping)
+    expected_keys = {
+        "schema_version",
+        "status",
+        "case_scope",
+        "structural_fingerprint",
+        "evidence_surface",
+        "semantic_scope_sha256",
+        "relation_claims",
+        "model_decision",
+        "confirmed_understandings",
+        "consumer_contracts",
+        "global_reuse_allowed",
+        "qualification_id",
+        "receipt_sha256",
+    }
+    if (
+        not isinstance(receipt, dict)
+        or set(receipt) != expected_keys
+        or receipt.get("schema_version") != CASE_QUALIFICATION_SCHEMA_VERSION
+        or receipt.get("status") != "QUALIFIED_FOR_CASE"
+        or receipt.get("case_scope") != expected_case_scope
+        or receipt.get("structural_fingerprint")
+        != mapping["structural_fingerprint"]
+        or receipt.get("consumer_contracts") != [_CONSUMER_CONTRACT]
+        or receipt.get("global_reuse_allowed") is not False
+    ):
+        raise RuntimeError("ordinary_trade_case_mapping_qualification_invalid")
+    frozen = copy.deepcopy(receipt)
+    receipt_sha256 = frozen.pop("receipt_sha256", None)
+    if (
+        not isinstance(receipt_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", receipt_sha256) is None
+        or receipt_sha256 != _sha256_json(frozen)
+        or mapping["qualification_ref"]
+        != {
+            "qualification_id": receipt["qualification_id"],
+            "receipt_sha256": receipt_sha256,
+        }
+    ):
+        raise RuntimeError("ordinary_trade_case_mapping_qualification_hash_invalid")
+    id_material = copy.deepcopy(frozen)
+    qualification_id = id_material.pop("qualification_id", None)
+    if qualification_id != "otqual_" + _sha256_json(id_material)[:32]:
+        raise RuntimeError("ordinary_trade_case_mapping_qualification_identity_invalid")
+    expected_surface = {
+        "title_literal": mapping["title_literal"],
+        "headers": [
+            {"column": item["column"], "literal": item["header_literal"]}
+            for item in mapping["columns"]
+        ],
+    }
+    if receipt.get("evidence_surface") != expected_surface:
+        raise RuntimeError("ordinary_trade_case_mapping_surface_invalid")
+    scope = {
+        "columns": mapping["columns"],
+        "amount_currency_bindings": mapping["amount_currency_bindings"],
+        "side_values": mapping["side_values"],
+    }
+    if receipt.get("semantic_scope_sha256") != _sha256_json(scope):
+        raise RuntimeError("ordinary_trade_case_mapping_scope_invalid")
+    model_decision = receipt.get("model_decision")
+    if (
+        not isinstance(model_decision, dict)
+        or set(model_decision)
+        != {
+            "model_id",
+            "provider_profile_id",
+            "response_sha256",
+            "execution_metadata_sha256",
+        }
+        or not all(isinstance(value, str) and value for value in model_decision.values())
+        or any(
+            re.fullmatch(r"[0-9a-f]{64}", model_decision[key]) is None
+            for key in ("response_sha256", "execution_metadata_sha256")
+        )
+    ):
+        raise RuntimeError("ordinary_trade_case_mapping_model_decision_invalid")
+    understandings = receipt.get("confirmed_understandings")
+    if not isinstance(understandings, list):
+        raise RuntimeError("ordinary_trade_case_mapping_confirmation_invalid")
+    for item in understandings:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"question_id", "option_id", "label_sha256"}
+            or not all(isinstance(value, str) and value for value in item.values())
+            or re.fullmatch(r"[0-9a-f]{64}", item["label_sha256"]) is None
+        ):
+            raise RuntimeError("ordinary_trade_case_mapping_confirmation_invalid")
+    headers_by_column = {
+        item["column"]: item["header_literal"] for item in mapping["columns"]
+    }
+    expected_claims = [
+        {
+            "amount_column": item["amount_column"],
+            "currency_column": item["currency_column"],
+            "amount_header_literal": headers_by_column[item["amount_column"]],
+            "currency_header_literal": headers_by_column[item["currency_column"]],
+            "evidence_basis": "MODEL_PROPOSED_CASE_SCOPE",
+            "consumer_contract": _CONSUMER_CONTRACT,
+        }
+        for item in mapping["amount_currency_bindings"]
+    ]
+    if receipt.get("relation_claims") != expected_claims:
+        raise RuntimeError("ordinary_trade_case_mapping_relation_coverage_invalid")
+
+
 _QUALIFIED_ENTRIES = tuple(
     _compile_qualified_entry(spec=spec, relation_claims=claims)
     for spec, claims in zip(_MAPPING_SPECS, _RELATION_CLAIMS, strict=True)
@@ -627,12 +825,31 @@ class OrdinaryTradeQualifiedMappingAuthority:
             _validate_qualification(mapping=mapping, receipt=receipt)
         return copy.deepcopy(list(_QUALIFICATION_RECEIPTS))
 
+    def qualify_case_mapping(self, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
+        return qualify_case_mapping(**kwargs)
+
+    def validate_case_mapping(
+        self,
+        *,
+        mapping: dict[str, Any],
+        receipt: dict[str, Any],
+        expected_case_scope: dict[str, str],
+    ) -> None:
+        validate_case_qualified_mapping(
+            mapping=mapping,
+            receipt=receipt,
+            expected_case_scope=expected_case_scope,
+        )
+
 
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "QUALIFICATION_SCHEMA_VERSION",
+    "CASE_QUALIFICATION_SCHEMA_VERSION",
     "OrdinaryTradeQualifiedMappingAuthority",
     "OrdinaryTradeQualifiedMappingAuthorityFactory",
     "validate_qualified_mapping",
+    "qualify_case_mapping",
+    "validate_case_qualified_mapping",
 ]
