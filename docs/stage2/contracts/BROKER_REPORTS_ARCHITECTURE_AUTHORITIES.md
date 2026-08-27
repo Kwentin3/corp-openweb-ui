@@ -30,7 +30,7 @@ meaning, while reading the named fields for the policy data itself.
 ## Active ordinary-trade architecture
 
 This is the implementation-owner map for the currently activated
-`ordinary_trade_exact_fingerprint_v1` route. It is subordinate to Pipeline
+`ordinary_trade_automatic_semantic_mapping_v1` route. It is subordinate to Pipeline
 Gates for numbering, but it is the current answer to **WHO PRODUCES / WHO
 CONSUMES** for ordinary security trades.
 
@@ -38,7 +38,8 @@ CONSUMES** for ordinary security trades.
 PDF
 -> source-bound normalization
 -> immutable CanonicalArtifactV1
--> frozen exact schema/enum mapping + qualification receipt
+-> frozen exact mapping fast path OR strict case-scoped semantic mapping
+-> append-only clarification/confirmation case + qualification receipt
 -> Source Observations
 -> deterministic runtime records
 -> Gate4FinancialCaseFactV2 compatibility port
@@ -49,8 +50,10 @@ PDF
 | --- | --- | --- | --- | --- | --- |
 | Source intake and normalization | source bytes, table location, deterministic pdfplumber structure/literals and provenance | authenticated upload and table-location response | persisted Gate 1 artifacts and validated Canonical candidate | financial labels, row values from the model, tax meaning | Canonical lifecycle |
 | Canonical lifecycle | immutable document/page/table/row/cell representation, exact source refs, activation and current-version selection | validated normalized source plus trusted `ArtifactAccessContext` | active `CanonicalArtifactV1` via `CanonicalReaderFactory.create` | source mutation, financial naming, consumer-specific repair | ordinary-trade projection |
-| Qualified mapping authority | meaning of one exact table schema, literal side enum and amount-column to currency-column bindings; qualification receipt v2 distinguishes direct wording from reviewed schema interpretation | package-owned mapping and receipt registry | mapping v3 plus `broker_reports_ordinary_trade_mapping_qualification_v2` through `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | row/value authorship, broker/year/filename profile keys, fuzzy matching, runtime model call, unqualified or unauditable relation admission | semantic compiler through the projection owner only |
-| Ordinary-trade semantic compiler | exact schema match, source-observation disposition, execution of qualified amount/currency bindings, deterministic date/decimal transforms and runtime-record lineage | active Canonical plus qualified mappings | `broker_reports_ordinary_trade_runtime_projection_v4`: Source Observations, qualified authority lineage and runtime records | tax, proximity/adjacency binding, relations, inferred continuation, value deduplication, Canonical mutation | projection store and Gate 4 adapter |
+| Case semantic mapping | strict source-semantic proposal for every unknown Canonical table plus bounded clarification options | exact immutable Canonical context through `OrdinaryTradeSemanticMappingFactory.create` | strict mapping response or one clarification; no source refs or values are authored by the model | Canonical mutation, broker/year/filename routing, fuzzy admission, retry, repair, partial publication | append-only mapping case |
+| Mapping case | exact user/case/chat/workspace and Canonical binding, same-case resume, stale-answer rejection and native explicit confirmation | validated proposal or interpreted answer | `broker_reports_ordinary_trade_mapping_case_v1`; only `COMPLETE` exposes case-qualified material | implicit confirmation, overwrite, cross-tenant reuse, global registry promotion | qualified mapping authority |
+| Qualified mapping authority | meaning of one exact table schema, literal side enum and amount-column to currency-column bindings; frozen receipt v2 remains the zero-call fast path and case receipt v1 is exact-context only | package registry or confirmed mapping case | mapping v3 plus `broker_reports_ordinary_trade_mapping_qualification_v2` or `broker_reports_ordinary_trade_case_mapping_qualification_v1` | row/value authorship, broker/year/filename profile keys, fuzzy matching, unconfirmed admission or global reuse of a case mapping | semantic compiler through the projection owner only |
+| Ordinary-trade semantic compiler | exact schema match, explicit no-named-consumer retention, execution of qualified amount/currency bindings, deterministic date/decimal transforms and runtime-record lineage | active Canonical plus qualified mappings | `broker_reports_ordinary_trade_runtime_projection_v5`: Source Observations, qualified authority lineage, mapping-case ref and runtime records | tax, proximity/adjacency binding, relations, inferred continuation, value deduplication, Canonical mutation | projection store and Gate 4 adapter |
 | Projection store/current view | immutable projection persistence, exact active-Canonical selection and mandatory composition of the qualified mapping authority with the compiler | active Canonical plus private case context | one current projection per document through `OrdinaryTradeProjectionFactory.create` | caller-supplied mappings, overwrite, stale/latest-wins selection, new meaning | Gate 4 ordinary adapter |
 | Gate 4 ordinary adapter | admission into the existing Fact v2 shape, deterministic fact identity and exact active security-position source-contract availability | current validated ordinary projection | `Gate4FinancialCaseFactV2` plus `broker_reports_gate4_ordinary_trade_current_fact_set_v1` through `Gate4OrdinaryTradeCandidateRuntimeFactory.create`; when current projections have no prior `RELEVANT_UNMAPPED` observation but yield no security Fact, the owner returns typed `gate4_ordinary_trade_security_position_source_contract_missing`; current qualified mappings do not emit the optional v4 `position_effect` role | Canonical reads, model calls, classification, tax, SQL cache, historical Gate 4 fallback or invented position state | deterministic Gate 5 and production composition |
 | Gate 5 deterministic consumer | reviewed methodology, exact operation-period observation, separate position/source/tax states, FIFO calculation and explicit blockers | Fact v2 only plus trusted context and methodology ref | independent group calculations, `broker_reports_gate5_security_position_scope_v0`, observed dates/years and source blockers; assessment retains an exact source-produced `position_effect` when its Fact port supplies one, but this is not an active-mapping production claim | PDF/Canonical/model output reads, document-period inference, short inference, source-semantic repair, default zero, hidden relations | product composition and later declaration domains only for exact closed calculations |
@@ -66,6 +69,8 @@ PDF
 - Qualified schema/enum mapping and admission law:
   [Ordinary Trade Qualified Mapping v1](./BROKER_REPORTS_ORDINARY_TRADE_QUALIFIED_MAPPING.v1.md)
   through `ordinary_trade_qualified_mappings.py`.
+- Unknown-schema dialogue and case qualification:
+  [Ordinary Trade Automatic Semantic Mapping v1](./BROKER_REPORTS_ORDINARY_TRADE_AUTOMATIC_SEMANTIC_MAPPING.v1.md).
 - Source Observation/runtime projection: `ordinary_trade_semantic_compiler.py`.
 - Fact boundary: Gate 4 Financial Case Fact v2.
 - Tax-methodology behavior: the existing trusted Gate 5 methodology authority.
@@ -369,7 +374,7 @@ below are legacy code-identity maps, not current release activation. Under
 Pipeline Gates v1, LLM-friendly projection, sparse financial-type labeling and
 source-bound role labeling belong to the retained Gate 3 responsibility
 contour. They run only when that deployment-rollback path is explicitly
-selected; `ordinary_trade_exact_fingerprint_v1` does not call them. DOC33's
+selected; `ordinary_trade_automatic_semantic_mapping_v1` does not call them. DOC33's
 neutral reader-only renderer remains completeness proof
 tooling, not a product or persisted stage output.
 DOC27 likewise creates no Gate 3 projection and switches no background or

@@ -2,15 +2,16 @@
 
 Status: `CURRENT SUPPORTING CONTRACT`
 
-Updated: 2026-08-21 (ordinary-trade production-route conformance)
+Updated: 2026-08-27 (automatic case-scoped semantic mapping)
 
 ## Active ordinary-trade route override
 
-For `ordinary_trade_exact_fingerprint_v1`, the source-semantic step is not the
+For `ordinary_trade_automatic_semantic_mapping_v1`, the source-semantic step is not the
 historical Gate 3 model runtime. Its one-way ownership is:
 
 | Domain | Sole owner | Input | Output | Must not own |
 | --- | --- | --- | --- | --- |
+| unknown-schema proposal and dialogue | `OrdinaryTradeSemanticMappingFactory.create` + `OrdinaryTradeMappingCaseFactory.create` | immutable Canonical + trusted case context | strict proposal, clarification, explicit confirmation and exact case receipt | Canonical mutation, implicit confirmation, global reuse, broker/year/filename routing |
 | qualified schema/enum/amount-currency meaning | `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | immutable package mapping and receipt registry | exact mapping v3 with receipt-covered amount-column to currency-column pairs | row values, broker profiles, fuzzy routing, unqualified or proximity binding, tax |
 | source observation/runtime compilation | `OrdinaryTradeSemanticCompilerFactory.create` | active Canonical + exact mappings | Source Observations + deterministic runtime records | tax, relations, adjacency binding, inferred continuation, Canonical repair |
 | current projection | `OrdinaryTradeProjectionFactory.create` | validated compiler output + trusted case context | one immutable current projection per active Canonical | meaning, latest-wins, stale reuse |

@@ -157,7 +157,7 @@ FUNCTION_CONTRACTS = (
             "Gate5DeclarationPreparationRuntimeFactory",
             "broker_reports_current_pipeline_result_v1",
             "OrdinaryTradeProductionRuntimeFactory",
-            "ordinary_trade_exact_fingerprint_v1",
+            "ordinary_trade_automatic_semantic_mapping_v1",
             "legacy_fallback_used",
         ),
         retired_valve_keys=GATE1_RETIRED_VALVE_KEYS,

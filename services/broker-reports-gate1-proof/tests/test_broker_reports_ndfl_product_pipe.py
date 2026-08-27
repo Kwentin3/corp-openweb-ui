@@ -1330,6 +1330,10 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
         def run(**_kwargs):
             return copy.deepcopy(owner_result)
 
+        @staticmethod
+        async def run_with_automatic_mapping(**_kwargs):
+            return copy.deepcopy(owner_result)
+
     class Factory:
         def __init__(self, **_kwargs):
             pass

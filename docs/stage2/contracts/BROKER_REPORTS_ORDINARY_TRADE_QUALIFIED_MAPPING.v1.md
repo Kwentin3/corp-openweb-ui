@@ -2,7 +2,7 @@
 
 Status: `CURRENT AUTHORITY`
 
-Updated: 2026-08-22
+Updated: 2026-08-27
 
 ## Definition
 
@@ -21,6 +21,12 @@ The executable mapping and its qualification receipt are separate obligations:
 Production admission requires both objects and exact identity/hash agreement.
 A structurally valid mapping without its matching receipt is only a candidate,
 not production authority.
+
+The frozen receipt-v2 registry is the zero-model-call fast path, not an
+admission list. An unknown exact schema follows the separate
+[Automatic Semantic Mapping v1](./BROKER_REPORTS_ORDINARY_TRADE_AUTOMATIC_SEMANTIC_MAPPING.v1.md)
+case flow. Only an explicitly confirmed, exact-context case receipt v1 may be
+executed, and it is never promoted to or reused as a global registry entry.
 
 ## Admission law
 
@@ -68,7 +74,7 @@ source-text proof.
 that relation. A future consumer requires a new versioned claim and receipt;
 it must not silently widen the present mapping.
 
-## Cold-start extension rule
+## Frozen fast-path extension rule
 
 For a new exact schema:
 

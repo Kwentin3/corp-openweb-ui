@@ -230,7 +230,10 @@ GATE1_MODULE_ORDER = [
 GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_semantic_compiler",
     "ordinary_trade_qualified_mappings",
+    "ordinary_trade_semantic_mapping",
+    "ordinary_trade_mapping_case",
     "ordinary_trade_projection",
+    "ordinary_trade_mapping_runtime",
     "gate4_ordinary_trade_candidate",
     "ordinary_trade_candidate_runtime",
     "authenticated_case_taxpayer_binding",
@@ -340,7 +343,7 @@ def main() -> None:
             pipe_source=pipe_source,
             title="Broker Reports Gate 1 Pipe Backend Normalizer",
             version="0.39.0-ordinary-trade-production-bundled",
-            package_version="gate1_ordinary_trade_production_v1",
+            package_version="gate1_ordinary_trade_production_v2",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
             requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1",
         )

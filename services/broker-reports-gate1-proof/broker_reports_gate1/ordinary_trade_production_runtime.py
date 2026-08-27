@@ -18,6 +18,9 @@ from .gate5_trusted_methodology import (
 )
 from .ordinary_trade_candidate_runtime import OrdinaryTradeCandidateRuntimeFactory
 from .ordinary_trade_projection import OrdinaryTradeProjectionFactory
+from .ordinary_trade_mapping_runtime import (
+    OrdinaryTradeAutomaticMappingRuntimeFactory,
+)
 from .ordinary_trade_declaration_mvp import (
     OrdinaryTradeDeclarationMvpError,
     OrdinaryTradeDeclarationMvpRuntime,
@@ -27,7 +30,7 @@ from .ordinary_trade_declaration_mvp import (
 ORDINARY_TRADE_PRODUCTION_RUN_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_production_run_v1"
 )
-ORDINARY_TRADE_PRODUCTION_ROUTE_ID = "ordinary_trade_exact_fingerprint_v1"
+ORDINARY_TRADE_PRODUCTION_ROUTE_ID = "ordinary_trade_automatic_semantic_mapping_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeProductionRuntimeFactory.create is the only production "
     "activation, projection and Gate 5 composition entrypoint"
@@ -52,10 +55,18 @@ class OrdinaryTradeProductionRuntimeFactory:
         store: ArtifactStorePort,
         read_enabled: bool,
         retention_policy: RetentionPolicy | None = None,
+        mapping_model_client: Any | None = None,
+        mapping_answer_model_client: Any | None = None,
+        mapping_model_id: str | None = None,
+        mapping_provider_profile_id: str | None = None,
     ) -> None:
         self._store = store
         self._read_enabled = read_enabled
         self._retention_policy = retention_policy
+        self._mapping_model_client = mapping_model_client
+        self._mapping_answer_model_client = mapping_answer_model_client
+        self._mapping_model_id = mapping_model_id
+        self._mapping_provider_profile_id = mapping_provider_profile_id
 
     def create(self) -> "OrdinaryTradeProductionRuntime":
         declaration = None
@@ -65,10 +76,31 @@ class OrdinaryTradeProductionRuntimeFactory:
                 read_enabled=self._read_enabled,
                 retention_policy=self._retention_policy,
             )
+        mapping = None
+        mapping_values = (
+            self._mapping_model_client,
+            self._mapping_answer_model_client,
+            self._mapping_model_id,
+            self._mapping_provider_profile_id,
+        )
+        if any(item is not None for item in mapping_values):
+            if not all(item is not None for item in mapping_values):
+                raise OrdinaryTradeProductionError(
+                    "ordinary_trade_mapping_runtime_configuration_incomplete"
+                )
+            mapping = OrdinaryTradeAutomaticMappingRuntimeFactory(
+                store=self._store,
+                read_enabled=self._read_enabled,
+                model_client=self._mapping_model_client,
+                answer_model_client=self._mapping_answer_model_client,
+                model_id=str(self._mapping_model_id),
+                provider_profile_id=str(self._mapping_provider_profile_id),
+            ).create()
         return OrdinaryTradeProductionRuntime(
             store=self._store,
             read_enabled=self._read_enabled,
             declaration=declaration,
+            mapping=mapping,
         )
 
 
@@ -79,6 +111,7 @@ class OrdinaryTradeProductionRuntime:
         store: ArtifactStorePort,
         read_enabled: bool,
         declaration: OrdinaryTradeDeclarationMvpRuntime | None = None,
+        mapping: Any | None = None,
     ) -> None:
         self._store = store
         self._reader = CanonicalReaderFactory(
@@ -98,6 +131,59 @@ class OrdinaryTradeProductionRuntime:
             read_enabled=read_enabled,
         ).create()
         self._declaration = declaration
+        self._mapping = mapping
+
+    async def run_with_automatic_mapping(
+        self,
+        *,
+        canonical_artifact_refs: Iterable[str],
+        context: ArtifactAccessContext,
+        user_message: str = "",
+        confirmation: bool | None = None,
+        expected_confirmation_artifact_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Run the exact fast path, then resolve one unknown case at a time."""
+
+        refs = list(canonical_artifact_refs)
+        result = self.run(canonical_artifact_refs=refs, context=context)
+        if self._mapping is None:
+            return result
+        provider_calls = 0
+        mapping_turn = None
+        maximum_steps = max(1, len(result.get("documents") or []))
+        for _step in range(maximum_steps):
+            unresolved = [
+                item
+                for item in result.get("documents") or []
+                if int(item.get("relevant_unmapped_observations") or 0) > 0
+            ]
+            if not unresolved:
+                break
+            document_id = str(unresolved[0]["document_id"])
+            mapping_turn = await self._mapping.resolve(
+                document_id=document_id,
+                context=context,
+                user_message=user_message,
+                confirmation=confirmation,
+                expected_confirmation_artifact_id=(
+                    expected_confirmation_artifact_id
+                ),
+            )
+            provider_calls += int(
+                mapping_turn.get("provider_calls_this_turn") or 0
+            )
+            user_message = ""
+            confirmation = None
+            expected_confirmation_artifact_id = None
+            if mapping_turn["status"] != "COMPLETE":
+                break
+            result = self.run(canonical_artifact_refs=refs, context=context)
+        result["provider_calls_total"] = provider_calls
+        if mapping_turn is not None:
+            result["semantic_mapping"] = mapping_turn
+        if mapping_turn is not None and mapping_turn["status"] != "COMPLETE":
+            _apply_mapping_terminal(result=result, mapping_turn=mapping_turn)
+        return result
 
     def run(
         self,
@@ -492,7 +578,7 @@ class OrdinaryTradeProductionRuntime:
                 expected_previous_version_id=previous,
                 context=context,
                 actor=ORDINARY_TRADE_PRODUCTION_ROUTE_ID,
-                reason="ordinary_trade_exact_fingerprint_compilation",
+                reason="ordinary_trade_automatic_semantic_mapping_compilation",
             )
         elif previous != selected.canonical_version_id:
             raise OrdinaryTradeProductionError(
@@ -539,6 +625,104 @@ class OrdinaryTradeProductionRuntime:
                 int(item["matched_tables"]) for item in projection["mapping_matches"]
             ),
         }
+
+
+def _apply_mapping_terminal(
+    *, result: dict[str, Any], mapping_turn: dict[str, Any]
+) -> None:
+    status = str(mapping_turn.get("status") or "")
+    public = mapping_turn.get("public_state")
+    public = public if isinstance(public, dict) else {}
+    terminals = {
+        "CLARIFICATION_REQUIRED": (
+            "INPUT_REQUIRED",
+            "ordinary_trade_mapping_clarification_required",
+            "mapping_clarification_required",
+        ),
+        "CONFIRMATION_REQUIRED": (
+            "INPUT_REQUIRED",
+            "ordinary_trade_mapping_confirmation_required",
+            "mapping_confirmation_required",
+        ),
+        "MAPPING_REQUIRED": (
+            "INPUT_REQUIRED",
+            "ordinary_trade_mapping_resume_required",
+            "mapping_resume_required",
+        ),
+        "PROVIDER_UNAVAILABLE": (
+            "PREPARATION_INCOMPLETE",
+            "ordinary_trade_mapping_provider_unavailable",
+            "mapping_provider_unavailable",
+        ),
+        "UNSUPPORTED": (
+            "PREPARATION_INCOMPLETE",
+            "ordinary_trade_mapping_unsupported_financial_meaning",
+            "mapping_unsupported",
+        ),
+        "SPECIALIST_REVIEW_REQUIRED": (
+            "PREPARATION_INCOMPLETE",
+            "ordinary_trade_mapping_specialist_review_required",
+            "mapping_specialist_review_required",
+        ),
+        "SOURCE_CONTEXT_LIMIT": (
+            "PREPARATION_INCOMPLETE",
+            "ordinary_trade_mapping_source_context_limit",
+            "mapping_source_context_limit",
+        ),
+        "MAPPING_OUTPUT_INVALID": (
+            "PREPARATION_INCOMPLETE",
+            "ordinary_trade_mapping_output_invalid",
+            "mapping_output_invalid",
+        ),
+    }
+    product_status, terminal, execution_status = terminals.get(
+        status,
+        (
+            "PREPARATION_INCOMPLETE",
+            "ordinary_trade_mapping_state_invalid",
+            "mapping_state_invalid",
+        ),
+    )
+    product = result["product"]
+    product["status"] = product_status
+    product["terminal"] = terminal
+    product["declaration_ready"] = False
+    product["xml_created"] = False
+    product["gate5"]["execution_status"] = execution_status
+    product["gate5"]["security_tax_input_status"] = (
+        "SOURCE_MAPPING_INCOMPLETE"
+    )
+    product["gate5"]["blocker_reason_codes"] = [terminal]
+    preparation = product["preparation"]
+    preparation["status"] = product_status
+    preparation["terminals"] = [terminal]
+    preparation["declaration_readiness"] = {"ready": False}
+    preparation["gap_closure"] = {
+        "user_facing_required_actions": (
+            [
+                {
+                    "kind": "MAPPING_CLARIFICATION",
+                    "question": public.get("question"),
+                    "confirmation_message": public.get(
+                        "confirmation_message"
+                    ),
+                }
+            ]
+            if status in {"CLARIFICATION_REQUIRED", "CONFIRMATION_REQUIRED"}
+            else []
+        ),
+        "internal_owner_required_actions": (
+            []
+            if status in {"CLARIFICATION_REQUIRED", "CONFIRMATION_REQUIRED"}
+            else [{"reason_code": terminal}]
+        ),
+    }
+    final_note = preparation.get("final_note")
+    if isinstance(final_note, dict):
+        final_note["source_completeness_status"] = status
+        final_note["required_checks"] = [terminal]
+        final_note["filing_eligible"] = False
+        final_note["xml_created"] = False
 
 
 def _methodology_ref() -> dict[str, str]:

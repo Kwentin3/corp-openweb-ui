@@ -23,7 +23,7 @@ REPO_ROOT = SERVICE_ROOT.parents[1]
 BUNDLE_PATH = SERVICE_ROOT / "openwebui_actions" / "broker_reports_gate1_pipe_bundled.py"
 FUNCTION_ID = "broker_reports_gate1_pipe"
 WORKSPACE_MODEL_ID = "broker-reports-ndfl"
-PROJECTION_TYPE = "broker_reports_ordinary_trade_runtime_projection_v4"
+PROJECTION_TYPE = "broker_reports_ordinary_trade_runtime_projection_v5"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 
@@ -99,7 +99,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
         "status": "passed",
         "server_case_bound": True,
         "live_bundle_sha256": live_bundle_sha256,
-        "active_route": "ordinary_trade_exact_fingerprint_v1",
+        "active_route": "ordinary_trade_automatic_semantic_mapping_v1",
         "ordinary_trade_candidate_enabled": True,
         "current_gate3_enabled": False,
         "semantic_fallback_used": False,
@@ -278,8 +278,8 @@ if ({expect_unmapped!r} and (ready != 0 or unmapped == 0)) or (
 ):
     raise RuntimeError("ordinary_trade_live_scope_result_invalid")
 if not any(
-    row["actor"] == "ordinary_trade_exact_fingerprint_v1"
-    and row["reason"] == "ordinary_trade_exact_fingerprint_compilation"
+    row["actor"] == "ordinary_trade_automatic_semantic_mapping_v1"
+    and row["reason"] == "ordinary_trade_automatic_semantic_mapping_compilation"
     for row in receipts
 ):
     raise RuntimeError("ordinary_trade_live_activation_owner_invalid")

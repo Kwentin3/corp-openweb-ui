@@ -205,7 +205,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         required_pipeline = {
-            "ACTIVE_ORDINARY_TRADE_ROUTE = ordinary_trade_exact_fingerprint_v1",
+            "ACTIVE_ORDINARY_TRADE_ROUTE = ordinary_trade_automatic_semantic_mapping_v1",
             "GATE3_EXECUTION_IN_ACTIVE_ORDINARY_TRADE_ROUTE = DISABLED",
             "LEGACY_SEMANTIC_FALLBACK = FORBIDDEN",
             "GATE3_BINDING_FIELD = COMPATIBILITY_FIELD_ONLY",
@@ -285,7 +285,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v14",
+            "broker_reports_architecture_policy_v15",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -311,10 +311,12 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             architecture_policy.ACTIVE_PRODUCT_ROUTES,
             {
                 "ordinary_security_trades": {
-                    "route_id": "ordinary_trade_exact_fingerprint_v1",
+                    "route_id": "ordinary_trade_automatic_semantic_mapping_v1",
                     "composition_root": "OrdinaryTradeProductionRuntimeFactory.create",
                     "source_semantics_owner": (
-                        "OrdinaryTradeQualifiedMappingAuthorityFactory.create"
+                        "OrdinaryTradeSemanticMappingFactory.create"
+                        "+OrdinaryTradeMappingCaseFactory.create"
+                        "+OrdinaryTradeQualifiedMappingAuthorityFactory.create"
                         "+OrdinaryTradeSemanticCompilerFactory.create"
                     ),
                     "mapping_contract": (
@@ -322,6 +324,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     ),
                     "qualification_contract": (
                         "broker_reports_ordinary_trade_mapping_qualification_v2"
+                        "|broker_reports_ordinary_trade_case_mapping_qualification_v1"
                     ),
                     "normalized_fact_contract": "Gate4FinancialCaseFactV2",
                     "canonical_completeness_owner": (
