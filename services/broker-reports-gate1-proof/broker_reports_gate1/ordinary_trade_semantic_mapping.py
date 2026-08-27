@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v5"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v6"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -122,7 +122,12 @@ class OrdinaryTradeSemanticMapping:
             "NO_NAMED_CONSUMER is only for source "
             "content that has no current ordinary-trade Fact v2 consumer. Use "
             "UNSUPPORTED_FINANCIAL_MEANING when the table is financial but outside the "
-            "closed contract. If one financial decision is ambiguous, ask exactly one "
+            "closed contract. Never return COMPLETE with an unconfirmed "
+            "NO_NAMED_CONSUMER decision. Instead return CLARIFICATION_REQUIRED for "
+            "exactly one such table, with mutually exclusive options that include the "
+            "NO_NAMED_CONSUMER decision and its plausible alternative; after a confirmed "
+            "decision, ask about the next unconfirmed exclusion if one remains. "
+            "If one financial decision is ambiguous, ask exactly one "
             "plain-language question and provide two to four mutually exclusive "
             "options. For CLARIFICATION_REQUIRED, table_decisions must be empty and "
             "clarification must contain that one question. Every option must carry "
