@@ -157,6 +157,20 @@ def _borderless_aligned_table_pdf() -> bytes:
     return data
 
 
+def _borderless_single_data_row_table_pdf() -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=320, height=110)
+    for y, values in (
+        (32, ("Name", "Amount", "Currency")),
+        (62, ("AAA", "10", "RUB")),
+    ):
+        for x, value in zip((18, 145, 245), values, strict=True):
+            page.insert_text((x, y), value, fontsize=8)
+    data = document.tobytes(deflate=True)
+    document.close()
+    return data
+
+
 def _two_page_table_pdf(*, second_page_header: bool) -> bytes:
     document = fitz.open()
     first = document.new_page(width=320, height=320)
@@ -286,6 +300,7 @@ def test_locator_prompt_is_native_coordinates_and_locator_only() -> None:
     assert model_view["task"] == PDF_TABLE_LOCATOR_PROMPT
     assert "[ymin, xmin, ymax, xmax]" in model_view["task"]
     assert "Never use one box that encloses two distinct grids" in model_view["task"]
+    assert "no visible data row is not a data table" in model_view["task"]
     assert "Do not transcribe text" in model_view["task"]
 
 
@@ -637,6 +652,54 @@ def test_source_bound_header_only_table_is_preserved_as_projection() -> None:
     ]
     assert len(projections) == 1
     assert projections[0]["row_count"] == 1
+    assert projections[0]["column_count"] == 3
+    assert projections[0]["projection_status"] == "ready"
+    assert not any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        for item in normalized.package["normalization_blockers"]
+    )
+
+
+def test_source_bound_borderless_single_data_row_is_preserved() -> None:
+    pdf_bytes = _borderless_single_data_row_table_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    normalized = Gate1Normalizer().normalize(
+        [
+            FileInput(
+                private_ref="single-data-row",
+                original_filename_private="single-data-row.pdf",
+                mime_type="application/pdf",
+                source_kind="unit_test",
+                declared_size_bytes=len(pdf_bytes),
+                bytes_provider=lambda: pdf_bytes,
+                provider_label="unit_test",
+            )
+        ],
+        pdf_table_locator_pages_by_sha256={
+            digest: [
+                {
+                    "page_number": 1,
+                    "status": "located",
+                    "regions": [
+                        {
+                            "region_ref": "single-data-row-region",
+                            "bbox_pdf_points": [9.0, 20.0, 311.0, 72.0],
+                            "model_values_used_as_source_literals": False,
+                            "pdfplumber_settings_selected_by_model": False,
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert len(projections) == 1
+    assert projections[0]["row_count"] == 2
     assert projections[0]["column_count"] == 3
     assert projections[0]["projection_status"] == "ready"
     assert not any(
