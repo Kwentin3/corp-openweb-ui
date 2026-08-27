@@ -7,11 +7,13 @@ import pytest
 
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.gate2_model_contracts import Gate2ProviderExecutionMetadata
+from broker_reports_gate1.gate2_model_contracts import gate2_provider_profile
 from broker_reports_gate1.gate2_model_requests import (
     ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
     Gate2OpenWebUIRequestBuilder,
 )
+from broker_reports_gate1.gate2_provider_adapters import Gate2ProviderAdapterFactory
 from broker_reports_gate1.ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
@@ -111,6 +113,80 @@ def _complete_response(table, known):
         "clarification": None,
         "message": "Структура сделок определена.",
     }
+
+
+def _property_enum_sets(schema: object, property_name: str) -> list[set[str]]:
+    results: list[set[str]] = []
+    pending = [schema]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, list):
+            pending.extend(current)
+            continue
+        if not isinstance(current, dict):
+            continue
+        properties = current.get("properties")
+        if isinstance(properties, dict) and isinstance(
+            properties.get(property_name), dict
+        ):
+            property_schema = properties[property_name]
+            property_pending = [property_schema]
+            while property_pending:
+                nested = property_pending.pop()
+                if isinstance(nested, list):
+                    property_pending.extend(nested)
+                elif isinstance(nested, dict):
+                    if isinstance(nested.get("enum"), list):
+                        results.append(set(nested["enum"]))
+                    property_pending.extend(nested.values())
+        pending.extend(current.values())
+    return results
+
+
+def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
+    owner = OrdinaryTradeSemanticMappingFactory.create()
+    response_format = owner.mapping_response_format()
+    canonical_response_format = copy.deepcopy(response_format)
+    form_data = Gate2OpenWebUIRequestBuilder(
+        request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
+    ).build(
+        prompt=owner.mapping_prompt(),
+        package={"phase": "map", "case": {}},
+        model_id="models/gemini-3.5-flash",
+        response_format=response_format,
+    )
+    prepared = Gate2ProviderAdapterFactory(
+        profile=gate2_provider_profile("google_gemini")
+    ).create().prepare_form_data(
+        form_data=form_data,
+        response_format=response_format,
+    )
+    provider_schema = prepared.provider_visible_schema
+
+    assert _property_enum_sets(provider_schema, "status") == [
+        {"COMPLETE", "CLARIFICATION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
+    ]
+    disposition_enums = _property_enum_sets(provider_schema, "disposition")
+    assert len(disposition_enums) == 2
+    assert all(
+        values
+        == {"SECURITY_TRADES", "NO_NAMED_CONSUMER", "UNSUPPORTED_FINANCIAL_MEANING"}
+        for values in disposition_enums
+    )
+    decision_kind_enums = _property_enum_sets(provider_schema, "decision_kind")
+    assert len(decision_kind_enums) == 1
+    assert all(
+        values
+        == {"COLUMN_ROLE", "AMOUNT_CURRENCY_BINDING", "SIDE_VALUE", "TABLE_DISPOSITION"}
+        for values in decision_kind_enums
+    )
+    normalized_value_enums = _property_enum_sets(provider_schema, "normalized_value")
+    assert len(normalized_value_enums) == 2
+    assert all(
+        values == {"PURCHASE", "DISPOSAL"}
+        for values in normalized_value_enums
+    )
+    assert response_format == canonical_response_format
 
 
 def test_unknown_schema_mapping_is_qualified_only_for_exact_case(tmp_path) -> None:
