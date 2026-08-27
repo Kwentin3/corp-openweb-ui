@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v4"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v5"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -112,8 +112,11 @@ class OrdinaryTradeSemanticMapping:
             "and the allowed semantic roles from the supplied case. Do not create, "
             "change, calculate or omit source rows, values, dates, amounts or links. "
             "Classify every table exactly once. SECURITY_TRADES requires a complete "
-            "column mapping, exact side enum and an explicit currency column for every "
-            "gross or commission amount column. "
+            "column mapping and exact side enum. amount_currency_bindings must contain "
+            "exactly one entry, sorted by amount_column, for every column mapped as "
+            "gross_amount, broker_commission or exchange_commission; each entry must "
+            "point to the column mapped as currency. Do not add bindings for unit_price, "
+            "accrued_interest or any other role. "
             "Rows may be sampled; column_distinct_values is derived from the full "
             "Canonical and must be used to cover every exact side literal. "
             "NO_NAMED_CONSUMER is only for source "

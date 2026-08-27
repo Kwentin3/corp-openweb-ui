@@ -143,6 +143,13 @@ def _property_enum_sets(schema: object, property_name: str) -> list[set[str]]:
     return results
 
 
+def test_mapping_prompt_states_exact_currency_binding_contract() -> None:
+    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
+
+    assert "gross_amount, broker_commission or exchange_commission" in prompt
+    assert "Do not add bindings for unit_price" in prompt
+
+
 def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
     owner = OrdinaryTradeSemanticMappingFactory.create()
     response_format = owner.mapping_response_format()
