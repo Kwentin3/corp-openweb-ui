@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v3"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v4"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -121,7 +121,9 @@ class OrdinaryTradeSemanticMapping:
             "UNSUPPORTED_FINANCIAL_MEANING when the table is financial but outside the "
             "closed contract. If one financial decision is ambiguous, ask exactly one "
             "plain-language question and provide two to four mutually exclusive "
-            "options. Every option must carry one machine-applicable decision. "
+            "options. For CLARIFICATION_REQUIRED, table_decisions must be empty and "
+            "clarification must contain that one question. Every option must carry "
+            "one machine-applicable decision. "
             "Confirmed decisions are authoritative only for this case and the final "
             "mapping must satisfy them exactly. "
             "Return only strict JSON."
