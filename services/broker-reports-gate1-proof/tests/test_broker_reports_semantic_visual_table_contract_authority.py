@@ -78,7 +78,7 @@ def test_boundary_parse_is_strict_and_performs_no_repair() -> None:
 
 def test_architecture_policy_makes_semantic_boundary_authoritative() -> None:
     assert architecture_policy.ARCHITECTURE_POLICY_VERSION == (
-        "broker_reports_architecture_policy_v21"
+        "broker_reports_architecture_policy_v22"
     )
     assert architecture_policy.VISUAL_TABLE_MODEL_FACING_CONTRACT == (
         architecture_policy.PDF_TABLE_LOCATOR_RESPONSE_SCHEMA

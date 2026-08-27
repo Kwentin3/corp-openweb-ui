@@ -14,7 +14,7 @@ from .pdf_table_locator import (
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v21"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v22"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -68,6 +68,9 @@ ACTIVE_PRODUCT_ROUTES = {
             "Pipe._call_openwebui_presentation_completion"
         ),
         "presentation_model_boundary": "PRESENTATION_ADAPTER",
+        "mapping_presentation_verification": (
+            "safe_brief_draft_then_bound_semantic_accept_or_fallback"
+        ),
         "presentation_business_authority": False,
         "case_metadata_source_owner": "Gate3MetadataSourceFactRuntime",
         "declaration_contract": (
@@ -203,7 +206,8 @@ PROVIDER_CALL_SITE_CLASSIFICATIONS = {
         "PRESENTATION_ADAPTER",
         "plain_language_dialogue_wording_and_answer_proposal",
         (
-            "broker_reports_ordinary_trade_public_dialogue_message_v4"
+            "broker_reports_ordinary_trade_public_dialogue_message_v5"
+            "|broker_reports_ordinary_trade_public_mapping_verification_v1"
             "|broker_reports_ordinary_trade_public_interpretation_v1"
         ),
     ),

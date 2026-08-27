@@ -19,7 +19,10 @@ ORDINARY_TRADE_PUBLIC_DIALOGUE_CONTEXT_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_public_dialogue_context_v3"
 )
 ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_public_dialogue_message_v4"
+    "broker_reports_ordinary_trade_public_dialogue_message_v5"
+)
+ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_public_mapping_verification_v1"
 )
 ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_public_interpretation_v1"
@@ -29,6 +32,7 @@ PUBLIC_DIALOGUE_MODEL_BOUNDARY = {
     "uncertainty": "plain_language_dialogue_wording_and_answer_proposal",
     "strict_contracts": [
         ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+        ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION,
         ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION,
     ],
     "business_authority": False,
@@ -91,9 +95,6 @@ _PUBLIC_FORBIDDEN_TEXT = (
 )
 _INTERNAL_STATUS = re.compile(r"\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b")
 _PRIVATE_DOWNLOAD = re.compile(r"/api/v1/files/[^\s)]+", re.IGNORECASE)
-_MAPPING_QUESTION_PLAN_REFS = frozenset(
-    {"direct_comparison", "guided_comparison"}
-)
 _DELEGATED_CHOICE = re.compile(
     r"\b(?:выбер(?:и|ите)|реш(?:и|ите)|определ(?:и|ите))\b.{0,80}\bза меня\b",
     re.IGNORECASE,
@@ -921,9 +922,9 @@ def public_dialogue_render_messages(
             "переданным question_ref, option_ref и безопасным описаниям вариантов. "
             "Исходные заголовки и ячейки тебе не передаются. Не создавай "
             "другой вопрос, действие, запрос данных или финансовый вывод. "
-            "В message верни только один разрешённый question plan ref из brief. "
-            "Runtime соберёт из выбранного плана и safe descriptions один естественный "
-            "вопрос, затем отдельно покажет привязанные цитаты и разрешённое следующее "
+            "В message своими словами задай один естественный вопрос о выборе из brief. "
+            "Runtime отдельно проверит формулировку, затем покажет привязанные цитаты "
+            "и разрешённое следующее "
             "действие. Верни только JSON по схеме."
         )
         user = json.dumps(
@@ -933,13 +934,10 @@ def public_dialogue_render_messages(
                     "question_ref": question["question_ref"],
                     "task": question["communication_brief"]["subject"],
                     "options": question["communication_brief"]["options"],
-                    "allowed_question_plan_refs": sorted(
-                        _MAPPING_QUESTION_PLAN_REFS
-                    ),
                     "allowed_next_actions": context.get("next_actions") or [],
                     "rules": [
-                        "select exactly one allowed question plan ref",
-                        "do not return free-form mapping wording",
+                        "write exactly one natural question about the stated choice",
+                        "do not add another request, action or conclusion",
                     ],
                 },
             },
@@ -1018,23 +1016,10 @@ def public_answer_requires_clarification(user_message: str) -> bool:
 def public_dialogue_message_response_format(
     *, context: dict[str, Any] | None = None
 ) -> dict[str, Any]:
-    question = context.get("current_question") if isinstance(context, dict) else None
-    mapping_turn = (
-        isinstance(question, dict)
-        and question.get("authority_kind") == "source_choice"
-    )
-    message_schema: dict[str, Any] = (
-        {
-            "type": "string",
-            "enum": sorted(_MAPPING_QUESTION_PLAN_REFS),
-        }
-        if mapping_turn
-        else {"type": "string", "minLength": 1, "maxLength": 6000}
-    )
     return {
         "type": "json_schema",
         "json_schema": {
-            "name": "ordinary_trade_public_dialogue_message_v4",
+            "name": "ordinary_trade_public_dialogue_message_v5",
             "strict": True,
             "schema": {
                 "type": "object",
@@ -1045,7 +1030,11 @@ def public_dialogue_message_response_format(
                         "type": "string",
                         "const": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
                     },
-                    "message": message_schema,
+                    "message": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 6000,
+                    },
                     "turn_binding": {
                         "type": "object",
                         "additionalProperties": False,
@@ -1072,6 +1061,101 @@ def public_dialogue_message_response_format(
             },
         },
     }
+
+
+def public_mapping_verification_response_format() -> dict[str, Any]:
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "ordinary_trade_public_mapping_verification_v1",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "schema_version",
+                    "disposition",
+                    "question_ref",
+                    "option_refs",
+                ],
+                "properties": {
+                    "schema_version": {
+                        "type": "string",
+                        "const": ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION,
+                    },
+                    "disposition": {
+                        "type": "string",
+                        "enum": ["ACCEPT", "REJECT"],
+                    },
+                    "question_ref": {"type": "string", "minLength": 1},
+                    "option_refs": {
+                        "type": "array",
+                        "items": {"type": "string", "minLength": 1},
+                        "maxItems": 8,
+                    },
+                },
+            },
+        },
+    }
+
+
+def public_mapping_verification_messages(
+    *, context: dict[str, Any], draft: Any
+) -> tuple[str, str]:
+    message, binding, question = _validated_mapping_dialogue_draft(
+        draft, context=context
+    )
+    system = (
+        "You are a strict presentation verifier. The source document is not available "
+        "to you. ACCEPT only when the draft contains exactly one natural speech act: "
+        "asking the user to choose between the options in the safe communication brief. "
+        "REJECT any additional question, request for data or action, instruction, claim, "
+        "or financial conclusion. Return only JSON matching the schema and copy the "
+        "provided question_ref and option_refs exactly."
+    )
+    user = json.dumps(
+        {
+            "task": "verify_bound_mapping_question",
+            "communication_brief": question.get("communication_brief"),
+            "draft": message,
+            "turn_binding": binding,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return system, user
+
+
+def validate_public_mapping_verification(
+    value: Any, *, context: dict[str, Any]
+) -> str:
+    payload = _json_object(value)
+    if set(payload) != {
+        "schema_version",
+        "disposition",
+        "question_ref",
+        "option_refs",
+    }:
+        raise ValueError("public_mapping_verification_shape_invalid")
+    if (
+        payload.get("schema_version")
+        != ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION
+    ):
+        raise ValueError("public_mapping_verification_schema_invalid")
+    question = context.get("current_question")
+    if not isinstance(question, dict) or question.get("authority_kind") != "source_choice":
+        raise ValueError("public_mapping_verification_context_invalid")
+    evidence = question.get("source_evidence")
+    evidence = evidence if isinstance(evidence, list) else []
+    expected_refs = [str(item.get("option_ref") or "") for item in evidence]
+    if payload.get("question_ref") != question.get("question_ref") or payload.get(
+        "option_refs"
+    ) != expected_refs:
+        raise ValueError("public_mapping_verification_binding_invalid")
+    disposition = payload.get("disposition")
+    if disposition not in {"ACCEPT", "REJECT"}:
+        raise ValueError("public_mapping_verification_disposition_invalid")
+    return disposition
 
 
 def public_dialogue_interpretation_response_format() -> dict[str, Any]:
@@ -1197,7 +1281,7 @@ def public_answer_candidate_conflicts_with_explicit_negation(
 
 
 def validate_public_dialogue_message(
-    value: Any, *, context: dict[str, Any]
+    value: Any, *, context: dict[str, Any], mapping_verification: Any | None = None
 ) -> str:
     payload = _json_object(value)
     if set(payload) != {"schema_version", "message", "turn_binding"}:
@@ -1210,7 +1294,6 @@ def validate_public_dialogue_message(
     message = str(payload.get("message") or "").strip()
     if not message or len(message) > 6000:
         raise ValueError("public_dialogue_message_length_invalid")
-    _validate_public_text(message)
     question = context.get("current_question")
     question = question if isinstance(question, dict) else None
     binding = payload.get("turn_binding")
@@ -1221,12 +1304,13 @@ def validate_public_dialogue_message(
     }:
         raise ValueError("public_dialogue_turn_binding_invalid")
     if question and question.get("authority_kind") == "source_choice":
-        return _validate_mapping_dialogue_message(
-            message=message,
-            binding=binding,
-            context=context,
-            question=question,
-        )
+        _validated_mapping_dialogue_draft(payload, context=context)
+        if validate_public_mapping_verification(
+            mapping_verification, context=context
+        ) != "ACCEPT":
+            raise ValueError("public_mapping_verification_rejected")
+        return _render_public_dialogue_context(context, question_override=message)
+    _validate_public_text(message)
     if binding != {
         "kind": "OWNER_CONTEXT",
         "question_ref": None,
@@ -1273,13 +1357,24 @@ def validate_public_dialogue_message(
     return message
 
 
-def _validate_mapping_dialogue_message(
-    *,
-    message: str,
-    binding: dict[str, Any],
-    context: dict[str, Any],
-    question: dict[str, Any],
-) -> str:
+def _validated_mapping_dialogue_draft(
+    value: Any, *, context: dict[str, Any]
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    payload = _json_object(value)
+    if set(payload) != {"schema_version", "message", "turn_binding"}:
+        raise ValueError("public_dialogue_message_shape_invalid")
+    if (
+        payload.get("schema_version")
+        != ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION
+    ):
+        raise ValueError("public_dialogue_message_schema_invalid")
+    message = str(payload.get("message") or "").strip()
+    if not message or len(message) > 6000:
+        raise ValueError("public_dialogue_message_length_invalid")
+    binding = payload.get("turn_binding")
+    question = context.get("current_question")
+    if not isinstance(binding, dict) or not isinstance(question, dict):
+        raise ValueError("public_dialogue_mapping_binding_invalid")
     evidence = question.get("source_evidence")
     evidence = evidence if isinstance(evidence, list) else []
     expected_refs = [str(item.get("option_ref") or "") for item in evidence]
@@ -1292,7 +1387,8 @@ def _validate_mapping_dialogue_message(
     brief = question.get("communication_brief")
     brief_options = brief.get("options") if isinstance(brief, dict) else None
     required_descriptions = [
-        item.get("description") for item in (brief_options or [])
+        item.get("description")
+        for item in (brief_options or [])
         if isinstance(item, dict)
     ]
     if (
@@ -1301,24 +1397,7 @@ def _validate_mapping_dialogue_message(
         or any(not isinstance(description, str) for description in required_descriptions)
     ):
         raise ValueError("public_dialogue_mapping_brief_invalid")
-    if message not in _MAPPING_QUESTION_PLAN_REFS:
-        raise ValueError("public_dialogue_mapping_question_plan_invalid")
-    rendered_question = _render_mapping_question_plan(
-        plan_ref=message,
-        descriptions=required_descriptions,
-    )
-    return _render_public_dialogue_context(
-        context, question_override=rendered_question
-    )
-
-
-def _render_mapping_question_plan(
-    *, plan_ref: str, descriptions: list[str]
-) -> str:
-    choices = " или ".join(descriptions)
-    if plan_ref == "guided_comparison":
-        return f"Помогите уточнить, какой вариант верен: {choices}?"
-    return f"Что верно: {choices}?"
+    return message, binding, question
 
 
 def render_public_dialogue_fallback(context: dict[str, Any]) -> str:
@@ -1716,6 +1795,7 @@ __all__ = [
     "ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION",
     "ORDINARY_TRADE_PUBLIC_DIALOGUE_CONTEXT_SCHEMA_VERSION",
     "ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION",
     "ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION",
     "PUBLIC_DIALOGUE_MODEL_BOUNDARY",
     "adapt_current_declaration_request",
@@ -1729,10 +1809,13 @@ __all__ = [
     "public_answer_requires_clarification",
     "public_dialogue_context_sha256",
     "public_dialogue_message_response_format",
+    "public_mapping_verification_messages",
+    "public_mapping_verification_response_format",
     "public_dialogue_interpretation_messages",
     "public_dialogue_interpretation_response_format",
     "public_dialogue_render_messages",
     "render_public_dialogue_fallback",
     "validate_public_dialogue_message",
     "validate_public_dialogue_interpretation",
+    "validate_public_mapping_verification",
 ]

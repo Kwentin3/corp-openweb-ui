@@ -13,6 +13,7 @@ from broker_reports_gate1.ordinary_trade_mapping_runtime import (
 )
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+    ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION,
     build_public_dialogue_context,
     render_public_dialogue_fallback,
 )
@@ -610,15 +611,24 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
     ]
 
     pipe = Pipe()
-    captured = {}
+    captured = []
 
     async def presentation_completion(**kwargs):
-        captured.update(kwargs)
+        captured.append(kwargs)
         assert source_injection not in kwargs["user_content"]
         assert "quoted_source" not in kwargs["user_content"]
         assert "untrusted_source_literals" not in kwargs["user_content"]
         assert "колонка 9 — общая сумма сделки" in kwargs["user_content"]
         assert "колонка 10 — общая сумма сделки" in kwargs["user_content"]
+        if kwargs["task"] == "ordinary_trade_public_mapping_verification":
+            return {
+                "schema_version": (
+                    ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION
+                ),
+                "disposition": "REJECT",
+                "question_ref": "q_money_role",
+                "option_refs": ["o_first", "o_second"],
+            }
         return {
             "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
             "message": (
@@ -636,7 +646,10 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
     visible_question = await pipe._render_ndfl_public_dialogue(
         result=first, user={"id": "user-a"}, request=object()
     )
-    assert captured["task"] == "ordinary_trade_public_dialogue_render"
+    assert [call["task"] for call in captured] == [
+        "ordinary_trade_public_dialogue_render",
+        "ordinary_trade_public_mapping_verification",
+    ]
     assert "Колонка 9" in visible_question
     assert "Колонка 10" in visible_question
     assert source_injection in visible_question

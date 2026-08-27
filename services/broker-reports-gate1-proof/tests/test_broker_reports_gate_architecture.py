@@ -289,7 +289,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v21",
+            "broker_reports_architecture_policy_v22",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -342,6 +342,9 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                         "Pipe._call_openwebui_presentation_completion"
                     ),
                     "presentation_model_boundary": "PRESENTATION_ADAPTER",
+                    "mapping_presentation_verification": (
+                        "safe_brief_draft_then_bound_semantic_accept_or_fallback"
+                    ),
                     "presentation_business_authority": False,
                     "case_metadata_source_owner": (
                         "Gate3MetadataSourceFactRuntime"
@@ -410,7 +413,8 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "PRESENTATION_ADAPTER",
                 "plain_language_dialogue_wording_and_answer_proposal",
                 (
-                    "broker_reports_ordinary_trade_public_dialogue_message_v4"
+                    "broker_reports_ordinary_trade_public_dialogue_message_v5"
+                    "|broker_reports_ordinary_trade_public_mapping_verification_v1"
                     "|broker_reports_ordinary_trade_public_interpretation_v1"
                 ),
             ),

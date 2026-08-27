@@ -113,6 +113,8 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     public_dialogue_interpretation_response_format,
     public_dialogue_message_response_format,
     public_dialogue_render_messages,
+    public_mapping_verification_messages,
+    public_mapping_verification_response_format,
     render_public_dialogue_fallback,
     validate_public_dialogue_interpretation,
     validate_public_dialogue_message,
@@ -1345,7 +1347,34 @@ class Pipe:
                     request=request,
                     task="ordinary_trade_public_dialogue_render",
                 )
-                content = validate_public_dialogue_message(raw, context=context)
+                question = context.get("current_question")
+                mapping_verification = None
+                if (
+                    isinstance(question, dict)
+                    and question.get("authority_kind") == "source_choice"
+                ):
+                    verifier_system, verifier_user = (
+                        public_mapping_verification_messages(
+                            context=context, draft=raw
+                        )
+                    )
+                    mapping_verification = (
+                        await self._call_openwebui_presentation_completion(
+                            system_content=verifier_system,
+                            user_content=verifier_user,
+                            response_format=(
+                                public_mapping_verification_response_format()
+                            ),
+                            user=user,
+                            request=request,
+                            task="ordinary_trade_public_mapping_verification",
+                        )
+                    )
+                content = validate_public_dialogue_message(
+                    raw,
+                    context=context,
+                    mapping_verification=mapping_verification,
+                )
                 model_used = True
             except Exception:
                 fallback_used = True

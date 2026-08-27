@@ -8,6 +8,7 @@ import openwebui_actions.broker_reports_gate1_pipe as pipe_module
 
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+    ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION,
     PUBLIC_DIALOGUE_MODEL_BOUNDARY,
     adapt_current_declaration_request,
     build_public_dialogue_context,
@@ -16,6 +17,8 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     public_dialogue_interpretation_response_format,
     public_dialogue_message_response_format,
     public_dialogue_render_messages,
+    public_mapping_verification_messages,
+    public_mapping_verification_response_format,
     render_public_dialogue_fallback,
     validate_public_dialogue_interpretation,
     validate_public_dialogue_message,
@@ -164,6 +167,15 @@ def _owner_context_payload(message: str) -> dict:
     }
 
 
+def _mapping_verification(disposition: str = "ACCEPT") -> dict:
+    return {
+        "schema_version": ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION,
+        "disposition": disposition,
+        "question_ref": "q_money_role",
+        "option_refs": ["o_first", "o_second"],
+    }
+
+
 def _residency_request() -> dict:
     return {
         "request_publication_ref": "art_" + "b" * 32,
@@ -213,7 +225,8 @@ def test_presentation_model_boundary_is_local_and_has_no_business_authority() ->
         "classification": "PRESENTATION_ADAPTER",
         "uncertainty": "plain_language_dialogue_wording_and_answer_proposal",
         "strict_contracts": [
-            "broker_reports_ordinary_trade_public_dialogue_message_v4",
+            "broker_reports_ordinary_trade_public_dialogue_message_v5",
+            "broker_reports_ordinary_trade_public_mapping_verification_v1",
             "broker_reports_ordinary_trade_public_interpretation_v1",
         ],
         "business_authority": False,
@@ -234,6 +247,13 @@ def test_presentation_model_boundary_is_local_and_has_no_business_authority() ->
         "turn_binding",
     }
     assert render_schema["properties"]["turn_binding"]["additionalProperties"] is False
+    verifier_schema = public_mapping_verification_response_format()["json_schema"][
+        "schema"
+    ]
+    assert verifier_schema["properties"]["disposition"]["enum"] == [
+        "ACCEPT",
+        "REJECT",
+    ]
 
 
 def test_short_model_candidate_is_composed_with_exact_owner_context() -> None:
@@ -434,32 +454,33 @@ def test_mapping_model_question_is_bound_and_source_taint_cannot_escape_quotes()
         "option_refs": ["o_first", "o_second"],
     }
 
+    first_question = "Какой вариант точнее описывает общую сумму сделки?"
     visible = validate_public_dialogue_message(
         {
             "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
-            "message": "direct_comparison",
+            "message": first_question,
             "turn_binding": binding,
         },
         context=context,
+        mapping_verification=_mapping_verification(),
     )
 
-    assert "Что верно: Вариант 1: колонка 9 — цена одной бумаги" in visible
-    assert visible.index("Что верно:") < visible.index("> Вариант 1:")
+    assert first_question in visible
+    assert visible.index(first_question) < visible.index("> Вариант 1:")
     assert f"> Вариант 1: Колонка 9 «{injection}»" in visible
+    second_question = "Помогите выбрать: это первый вариант или второй?"
     guided = validate_public_dialogue_message(
         {
             "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
-            "message": "guided_comparison",
+            "message": second_question,
             "turn_binding": binding,
         },
         context=context,
+        mapping_verification=_mapping_verification(),
     )
-    guided_question = (
-        "Помогите уточнить, какой вариант верен: Вариант 1: колонка 9"
-    )
-    assert guided_question in guided
-    assert guided.index(guided_question) < guided.index("> Вариант 1:")
-    with pytest.raises(ValueError, match="mapping_question_plan_invalid"):
+    assert second_question in guided
+    assert guided.index(second_question) < guided.index("> Вариант 1:")
+    with pytest.raises(ValueError, match="verification_rejected"):
         validate_public_dialogue_message(
             {
                 "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
@@ -467,8 +488,9 @@ def test_mapping_model_question_is_bound_and_source_taint_cannot_escape_quotes()
                 "turn_binding": binding,
             },
             context=context,
+            mapping_verification=_mapping_verification("REJECT"),
         )
-    with pytest.raises(ValueError, match="mapping_question_plan_invalid"):
+    with pytest.raises(ValueError, match="verification_rejected"):
         validate_public_dialogue_message(
             {
                 "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
@@ -478,6 +500,7 @@ def test_mapping_model_question_is_bound_and_source_taint_cannot_escape_quotes()
                 "turn_binding": binding,
             },
             context=context,
+            mapping_verification=_mapping_verification("REJECT"),
         )
 
 
@@ -495,36 +518,42 @@ def test_mapping_prompt_excludes_raw_source_and_password_paraphrase_falls_back()
     assert injection not in user
     assert "quoted_source" not in user
     assert "untrusted_source_literals" not in user
-    assert (
-        '"allowed_question_plan_refs": ["direct_comparison", "guided_comparison"]'
-        in user
-    )
+    assert "allowed_question_plan_refs" not in user
     mapping_schema = public_dialogue_message_response_format(context=context)[
         "json_schema"
     ]["schema"]
     assert mapping_schema["properties"]["message"] == {
         "type": "string",
-        "enum": ["direct_comparison", "guided_comparison"],
+        "minLength": 1,
+        "maxLength": 6000,
     }
-    with pytest.raises(ValueError, match="mapping_question_plan_invalid"):
+    draft = {
+        "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+        "message": "Какой у вас пароль?",
+        "turn_binding": {
+            "kind": "MAPPING_CLARIFICATION",
+            "question_ref": "q_money_role",
+            "option_refs": ["o_first", "o_second"],
+        },
+    }
+    _verifier_system, verifier_user = public_mapping_verification_messages(
+        context=context, draft=draft
+    )
+    assert injection not in verifier_user
+    assert "quoted_source" not in verifier_user
+    assert "untrusted_source_literals" not in verifier_user
+    with pytest.raises(ValueError, match="verification_rejected"):
         validate_public_dialogue_message(
-            {
-                "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
-                "message": "Какой у вас пароль?",
-                "turn_binding": {
-                    "kind": "MAPPING_CLARIFICATION",
-                    "question_ref": "q_money_role",
-                    "option_refs": ["o_first", "o_second"],
-                },
-            },
+            draft,
             context=context,
+            mapping_verification=_mapping_verification("REJECT"),
         )
 
 
 def test_mapping_question_cannot_append_another_speech_act() -> None:
     context = build_public_dialogue_context(product=_mapping_product())
 
-    with pytest.raises(ValueError, match="mapping_question_plan_invalid"):
+    with pytest.raises(ValueError, match="verification_rejected"):
         validate_public_dialogue_message(
             {
                 "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
@@ -539,7 +568,81 @@ def test_mapping_question_cannot_append_another_speech_act() -> None:
                 },
             },
             context=context,
+            mapping_verification=_mapping_verification("REJECT"),
         )
+
+
+def test_mapping_verifier_must_bind_exact_current_turn() -> None:
+    context = build_public_dialogue_context(product=_mapping_product())
+    draft = {
+        "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+        "message": "Какой из двух вариантов соответствует общей сумме сделки?",
+        "turn_binding": {
+            "kind": "MAPPING_CLARIFICATION",
+            "question_ref": "q_money_role",
+            "option_refs": ["o_first", "o_second"],
+        },
+    }
+    invalid = _mapping_verification()
+    invalid["option_refs"] = ["o_second", "o_first"]
+
+    with pytest.raises(ValueError, match="verification_binding_invalid"):
+        validate_public_dialogue_message(
+            draft, context=context, mapping_verification=invalid
+        )
+
+
+@pytest.mark.parametrize(
+    "verifier_result",
+    [
+        None,
+        {
+            "schema_version": "wrong_verifier_schema",
+            "disposition": "ACCEPT",
+            "question_ref": "q_money_role",
+            "option_refs": ["o_first", "o_second"],
+        },
+    ],
+)
+def test_mapping_verifier_failure_uses_runtime_fallback(verifier_result) -> None:
+    asyncio.run(_mapping_verifier_failure_uses_runtime_fallback(verifier_result))
+
+
+async def _mapping_verifier_failure_uses_runtime_fallback(verifier_result) -> None:
+    product = _mapping_product()
+    context = build_public_dialogue_context(product=product)
+    result = {"product": product}
+    pipe = Pipe()
+    calls: list[str] = []
+
+    async def completion(**kwargs):
+        calls.append(kwargs["task"])
+        if kwargs["task"] == "ordinary_trade_public_mapping_verification":
+            if verifier_result is None:
+                raise RuntimeError("verifier unavailable")
+            return verifier_result
+        return {
+            "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+            "message": "Какой вариант соответствует общей сумме сделки?",
+            "turn_binding": {
+                "kind": "MAPPING_CLARIFICATION",
+                "question_ref": "q_money_role",
+                "option_refs": ["o_first", "o_second"],
+            },
+        }
+
+    pipe._call_openwebui_presentation_completion = completion
+    visible = await pipe._render_ndfl_public_dialogue(
+        result=result, user={"id": "user-a"}, request=object()
+    )
+
+    assert visible == render_public_dialogue_fallback(context)
+    assert calls == [
+        "ordinary_trade_public_dialogue_render",
+        "ordinary_trade_public_mapping_verification",
+    ]
+    assert result["public_dialogue"]["presentation_fallback_used"] is True
+    assert result["public_dialogue"]["presentation_model_used"] is False
 
 
 def test_tagged_source_is_not_checked_as_owner_authored_vocabulary() -> None:
