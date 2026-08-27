@@ -271,9 +271,13 @@ def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
             "table_ref": "table_2",
             "header_row": 1,
             "disposition": "NO_NAMED_CONSUMER",
-            "columns": [],
-            "amount_currency_bindings": [],
-            "side_values": [],
+            "columns": copy.deepcopy(response["table_decisions"][0]["columns"]),
+            "amount_currency_bindings": copy.deepcopy(
+                response["table_decisions"][0]["amount_currency_bindings"]
+            ),
+            "side_values": copy.deepcopy(
+                response["table_decisions"][0]["side_values"]
+            ),
         }
     )
 

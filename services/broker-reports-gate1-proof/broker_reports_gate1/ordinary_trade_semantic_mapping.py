@@ -758,8 +758,6 @@ def _validate_table_decision(
     )
     disposition = decision["disposition"]
     if disposition != "SECURITY_TRADES":
-        if decision["columns"] or decision["amount_currency_bindings"] or decision["side_values"]:
-            _fail("ordinary_trade_semantic_mapping_nonconsumer_scope_invalid")
         return {
             "table_node_id": table["table_node_id"],
             "header_row": decision["header_row"],
