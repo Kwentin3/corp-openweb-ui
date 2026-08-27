@@ -41,19 +41,28 @@ Canonical so rare side literals below the row sample remain addressable.
 The answer interpreter receives question text and option labels/IDs only; the
 machine decisions remain code-owned case state.
 
-Model-authored question, option and interpretation wording is never the public
-meaning of a confirmation. Code renders the public question, every option and
-the native confirmation from the validated decision plus exact header/literal
-surface. Therefore displayed column/role/binding and applied decision cannot
-diverge.
+Model-authored option and interpretation wording is never the public meaning of
+a confirmation. Code binds every option to the validated decision and separates
+the exact header/literal surface as untrusted source data. The presentation LLM
+may author one natural subject question only through the current opaque question
+and complete option-ref set; source-derived lexical surface may appear only in
+the separately rendered quoted evidence. Native confirmation remains an exact
+code-owned rendering of the selected validated decision. Therefore displayed
+column/role/binding and applied decision cannot diverge.
 
 The product composition publishes that bounded public surface as one
 `MAPPING_CLARIFICATION` action. The representation-only public-dialogue adapter
-validates and projects the exact question and options for the presentation LLM
-and deterministic fallback; it never copies the raw mapping state or machine
-decision. A pending candidate instead projects the exact code-owned
-confirmation with only `Да` / `Нет`. Internal role codes, mapping vocabulary
-and Fact contract names are forbidden on both public paths.
+projects an opaque current-question ref, opaque option refs, code-owned option
+meaning and explicitly tagged source literals into a strict communication
+brief; it never copies the raw mapping state or machine decision. The model
+returns one natural question plus the exact existing bindings. Runtime checks
+the complete binding, one-question speech-act shape and dynamic source taint;
+it does not interpret the source or human wording with a semantic keyword list.
+Invalid output falls back to the same bound question and quoted evidence. A
+pending candidate instead projects the exact code-owned confirmation with only
+`Да` / `Нет` and does not require a presentation-model call. Internal role
+codes, mapping vocabulary and Fact contract names are forbidden on both public
+paths.
 
 ## Completeness and terminals
 

@@ -228,6 +228,7 @@ def test_free_answer_requires_strict_candidate_then_explicit_confirmation(tmp_pa
             {
                 "option_id": "o_first",
                 "label": "Первая денежная колонка",
+                "source_literals": [],
                 "decision": {
                     **_column_role_decision(9, "gross_amount"),
                     "table_node_id": table["node_id"],
@@ -236,6 +237,7 @@ def test_free_answer_requires_strict_candidate_then_explicit_confirmation(tmp_pa
             {
                 "option_id": "o_second",
                 "label": "Вторая денежная колонка",
+                "source_literals": [],
                 "decision": {
                     **_column_role_decision(10, "gross_amount"),
                     "table_node_id": table["node_id"],
@@ -291,6 +293,7 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
             {
                 "option_id": "o_yes",
                 "label": "Да",
+                "source_literals": [],
                 "decision": {
                     **_table_disposition_decision("SECURITY_TRADES"),
                     "table_node_id": table["node_id"],
@@ -299,6 +302,7 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
             {
                 "option_id": "o_nope",
                 "label": "Нет",
+                "source_literals": [],
                 "decision": {
                     **_table_disposition_decision("NO_NAMED_CONSUMER"),
                     "table_node_id": table["node_id"],

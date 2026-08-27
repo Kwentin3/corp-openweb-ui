@@ -267,7 +267,10 @@ class OrdinaryTradeMappingCaseRuntime:
             candidate = {
                 "question_id": prior["question"]["question_id"],
                 "option_id": interpretation["option_id"],
-                "message": f"Подтвердите: {selected_option['label']}",
+                "message": (
+                    "Подтвердите выбранное понимание исходных данных:\n"
+                    f"> {selected_option['label']}"
+                ),
                 "evidence_quote_sha256": hashlib.sha256(
                     interpretation["evidence_quote"].encode("utf-8")
                 ).hexdigest(),
@@ -387,14 +390,27 @@ class OrdinaryTradeMappingCaseRuntime:
             "message": payload["message"],
             "question": (
                 {
+                    "question_ref": question["question_id"],
                     "question": question["question"],
-                    "options": [item["label"] for item in question["options"]],
+                    "options": [
+                        {
+                            "option_ref": item["option_id"],
+                            "label": item["label"],
+                            "source_literals": list(item["source_literals"]),
+                        }
+                        for item in question["options"]
+                    ],
                 }
                 if isinstance(question, dict)
                 else None
             ),
             "confirmation_message": (
                 (payload.get("pending_candidate") or {}).get("message")
+                if payload["status"] == "CONFIRMATION_REQUIRED"
+                else None
+            ),
+            "confirmation_option_ref": (
+                (payload.get("pending_candidate") or {}).get("option_id")
                 if payload["status"] == "CONFIRMATION_REQUIRED"
                 else None
             ),

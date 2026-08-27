@@ -21,9 +21,11 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
 import test_broker_reports_ordinary_trade_production_candidate as candidate
 
 
-def _unknown_case(tmp_path):
+def _unknown_case(tmp_path, *, source_header_injection: str | None = None):
     headers = list(candidate._ROWS[0])
     headers[0] = headers[0] + " (новая версия)"
+    if source_header_injection is not None:
+        headers[8] = source_header_injection
     rows = (tuple(headers), *candidate._ROWS[1:])
     store, context, document_id, mapping = candidate._case(tmp_path, rows=rows)
     envelope = CanonicalReaderFactory(

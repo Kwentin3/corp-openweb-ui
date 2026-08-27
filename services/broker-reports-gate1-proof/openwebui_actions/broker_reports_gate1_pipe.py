@@ -1326,6 +1326,12 @@ class Pipe:
             model_used = bool(existing.get("interpretation_model_used"))
         elif call_already_used:
             fallback_used = True
+        elif (
+            isinstance(context.get("current_question"), dict)
+            and context["current_question"].get("authority_kind")
+            == "source_choice_confirmation"
+        ):
+            content = render_public_dialogue_fallback(context)
         elif self.valves.ndfl_presentation_llm_enabled:
             try:
                 system_content, user_content = public_dialogue_render_messages(context)

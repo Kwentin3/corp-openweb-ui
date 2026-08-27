@@ -706,6 +706,9 @@ def _apply_mapping_terminal(
                     "confirmation_message": public.get(
                         "confirmation_message"
                     ),
+                    "confirmation_option_ref": public.get(
+                        "confirmation_option_ref"
+                    ),
                 }
             ]
             if status in {"CLARIFICATION_REQUIRED", "CONFIRMATION_REQUIRED"}

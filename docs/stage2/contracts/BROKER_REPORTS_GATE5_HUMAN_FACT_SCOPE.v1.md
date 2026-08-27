@@ -117,7 +117,7 @@ The cross-domain map for the Issue #310 seam is:
 ```text
 current request, outcome and filing eligibility
 -> existing domain owners in OrdinaryTradeProductionRuntime
--> ordinary_trade_public_dialogue_context_v1 (representation only)
+-> broker_reports_ordinary_trade_public_dialogue_context_v2 (representation only)
 -> authenticated native OpenWebUI completion endpoint -> presentation model
 -> validated visible wording or deterministic human fallback
 

@@ -595,6 +595,10 @@ def _normalize_model_question(
             decision=decision,
             table=tables[decision["table_node_id"]],
         )
+        option["source_literals"] = _decision_source_literals(
+            decision=decision,
+            table=tables[decision["table_node_id"]],
+        )
     digests = [_sha256_json(item["decision"]) for item in normalized["options"]]
     if len(digests) != len(set(digests)):
         _fail("ordinary_trade_semantic_mapping_question_decision_invalid")
@@ -654,6 +658,28 @@ def _render_decision_label(
         ),
     }
     return labels[disposition]
+
+
+def _decision_source_literals(
+    *, decision: dict[str, Any], table: dict[str, Any]
+) -> list[str]:
+    """Keep source wording explicit and separate from code-owned decision text."""
+
+    header = next(
+        item for item in table["rows"] if item["row"] == decision["header_row"]
+    )
+    headers = {item["column"]: item["literal"] for item in header["cells"]}
+    kind = decision["decision_kind"]
+    if kind == "COLUMN_ROLE":
+        return [headers[decision["column"]]]
+    if kind == "AMOUNT_CURRENCY_BINDING":
+        return [
+            headers[decision["amount_column"]],
+            headers[decision["currency_column"]],
+        ]
+    if kind == "SIDE_VALUE":
+        return [decision["source_literal"]]
+    return []
 
 
 def _validate_table_decision(
@@ -918,7 +944,12 @@ def _validate_question(
     for option in question["options"]:
         if (
             not isinstance(option, dict)
-            or set(option) != {"option_id", "label", "decision"}
+            or set(option)
+            != (
+                {"option_id", "label", "decision", "source_literals"}
+                if internal
+                else {"option_id", "label", "decision"}
+            )
             or not isinstance(option.get("option_id"), str)
             or re.fullmatch(r"o_[a-z0-9][a-z0-9_-]{2,63}", option["option_id"])
             is None
@@ -927,6 +958,21 @@ def _validate_question(
             or not isinstance(option.get("decision"), dict)
             or set(option["decision"])
             != (_INTERNAL_DECISION_FIELDS if internal else _DECISION_FIELDS)
+            or (
+                internal
+                and (
+                    not isinstance(option.get("source_literals"), list)
+                    or len(option["source_literals"]) > 4
+                    or any(
+                        not isinstance(item, str)
+                        or not item.strip()
+                        or len(item) > 500
+                        for item in option["source_literals"]
+                    )
+                    or len(option["source_literals"])
+                    != len(set(option["source_literals"]))
+                )
+            )
         ):
             _fail("ordinary_trade_semantic_mapping_question_invalid")
         option_ids.append(option["option_id"])
