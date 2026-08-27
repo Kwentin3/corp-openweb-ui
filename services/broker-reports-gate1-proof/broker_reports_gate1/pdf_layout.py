@@ -554,13 +554,55 @@ class PdfPlumberLayoutAdapter:
                     strategy_ref == "aligned_text_v0"
                     and (
                         candidate["rows_total"]
-                        < (2 if source_bound else self.config.aligned_table_min_rows)
+                        < (1 if source_bound else self.config.aligned_table_min_rows)
                         or candidate["columns_total"]
                         < self.config.aligned_table_min_columns
                     )
                 ):
                     reasons.append("pdf_table_aligned_text_low_confidence_rejected")
                     continue
+                raw_candidates.append(candidate)
+
+        if (
+            source_bound
+            and not raw_candidates
+            and len(words) >= 2
+            and len(vector_lines) + len(rects) >= 2
+        ):
+            settings = {
+                "vertical_strategy": "text",
+                "horizontal_strategy": "text",
+                "min_words_vertical": 1,
+                "min_words_horizontal": 1,
+                "text_x_tolerance": self.config.word_x_tolerance,
+                "text_y_tolerance": self.config.word_y_tolerance,
+                "snap_tolerance": self.config.table_snap_tolerance,
+                "join_tolerance": self.config.table_join_tolerance,
+                "intersection_tolerance": self.config.table_intersection_tolerance,
+            }
+            try:
+                found = page.find_tables(table_settings=settings)
+            except Exception:
+                reasons.append("pdf_table_aligned_text_failed")
+                found = []
+            for table in found:
+                candidate = _table_candidate_from_pdfplumber(
+                    table=table,
+                    strategy_ref="aligned_text_v0",
+                    geometry_confidence=0.8,
+                    words=words,
+                    vector_lines=vector_lines,
+                    rects=rects,
+                )
+                if candidate is None or candidate["columns_total"] < 2:
+                    reasons.append("pdf_table_aligned_text_low_confidence_rejected")
+                    continue
+                candidate["reconstruction_reason_codes"] = sorted(
+                    {
+                        *candidate.get("reconstruction_reason_codes", []),
+                        "source_bound_single_band_alignment_fallback",
+                    }
+                )
                 raw_candidates.append(candidate)
 
         accepted: list[dict[str, Any]] = []

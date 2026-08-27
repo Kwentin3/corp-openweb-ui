@@ -80,6 +80,19 @@ def _header_only_table_pdf() -> bytes:
     return data
 
 
+def _horizontally_framed_header_only_pdf() -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=240, height=100)
+    for y in (25, 65):
+        page.draw_line((10, y), (230, y), color=(0, 0, 0), width=1)
+    page.insert_text((18, 48), "Date")
+    page.insert_text((93, 48), "Asset")
+    page.insert_text((168, 48), "Amount")
+    data = document.tobytes(deflate=True)
+    document.close()
+    return data
+
+
 def _two_table_pdf() -> bytes:
     document = fitz.open()
     page = document.new_page(width=595, height=842)
@@ -655,6 +668,57 @@ def test_source_bound_header_only_table_is_preserved_as_projection() -> None:
     assert projections[0]["row_count"] == 1
     assert projections[0]["column_count"] == 3
     assert projections[0]["projection_status"] == "ready"
+    assert not any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        for item in normalized.package["normalization_blockers"]
+    )
+
+
+def test_source_bound_horizontally_framed_header_is_preserved() -> None:
+    pdf_bytes = _horizontally_framed_header_only_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    normalized = Gate1Normalizer().normalize(
+        [
+            FileInput(
+                private_ref="framed-header",
+                original_filename_private="framed-header.pdf",
+                mime_type="application/pdf",
+                source_kind="unit_test",
+                declared_size_bytes=len(pdf_bytes),
+                bytes_provider=lambda: pdf_bytes,
+                provider_label="unit_test",
+            )
+        ],
+        pdf_table_locator_pages_by_sha256={
+            digest: [
+                {
+                    "page_number": 1,
+                    "status": "located",
+                    "regions": [
+                        {
+                            "region_ref": "framed-header-region",
+                            "bbox_pdf_points": [9.0, 24.0, 231.0, 66.0],
+                            "model_values_used_as_source_literals": False,
+                            "pdfplumber_settings_selected_by_model": False,
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert len(projections) == 1
+    assert projections[0]["row_count"] == 1
+    assert projections[0]["column_count"] == 3
+    assert projections[0]["projection_status"] == "ready"
+    assert "source_bound_single_band_alignment_fallback" in (
+        projections[0]["reconstruction_reason_codes"]
+    )
     assert not any(
         item.get("code") == "pdf_table_normalization_incomplete"
         for item in normalized.package["normalization_blockers"]
