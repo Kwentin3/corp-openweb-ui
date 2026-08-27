@@ -213,7 +213,7 @@ def test_presentation_model_boundary_is_local_and_has_no_business_authority() ->
         "classification": "PRESENTATION_ADAPTER",
         "uncertainty": "plain_language_dialogue_wording_and_answer_proposal",
         "strict_contracts": [
-            "broker_reports_ordinary_trade_public_dialogue_message_v3",
+            "broker_reports_ordinary_trade_public_dialogue_message_v4",
             "broker_reports_ordinary_trade_public_interpretation_v1",
         ],
         "business_authority": False,
@@ -437,10 +437,7 @@ def test_mapping_model_question_is_bound_and_source_taint_cannot_escape_quotes()
     visible = validate_public_dialogue_message(
         {
             "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
-            "message": (
-                "Что верно: Вариант 1: колонка 9 — цена одной бумаги или "
-                "Вариант 2: колонка 10 — общая сумма сделки?"
-            ),
+            "message": "direct_comparison",
             "turn_binding": binding,
         },
         context=context,
@@ -449,7 +446,20 @@ def test_mapping_model_question_is_bound_and_source_taint_cannot_escape_quotes()
     assert "Что верно: Вариант 1: колонка 9 — цена одной бумаги" in visible
     assert visible.index("Что верно:") < visible.index("> Вариант 1:")
     assert f"> Вариант 1: Колонка 9 «{injection}»" in visible
-    with pytest.raises(ValueError, match="mapping_subject_binding"):
+    guided = validate_public_dialogue_message(
+        {
+            "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+            "message": "guided_comparison",
+            "turn_binding": binding,
+        },
+        context=context,
+    )
+    guided_question = (
+        "Помогите уточнить, какой вариант верен: Вариант 1: колонка 9"
+    )
+    assert guided_question in guided
+    assert guided.index(guided_question) < guided.index("> Вариант 1:")
+    with pytest.raises(ValueError, match="mapping_question_plan_invalid"):
         validate_public_dialogue_message(
             {
                 "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
@@ -458,7 +468,7 @@ def test_mapping_model_question_is_bound_and_source_taint_cannot_escape_quotes()
             },
             context=context,
         )
-    with pytest.raises(ValueError, match="question_shape"):
+    with pytest.raises(ValueError, match="mapping_question_plan_invalid"):
         validate_public_dialogue_message(
             {
                 "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
@@ -485,11 +495,43 @@ def test_mapping_prompt_excludes_raw_source_and_password_paraphrase_falls_back()
     assert injection not in user
     assert "quoted_source" not in user
     assert "untrusted_source_literals" not in user
-    with pytest.raises(ValueError, match="mapping_subject_binding"):
+    assert (
+        '"allowed_question_plan_refs": ["direct_comparison", "guided_comparison"]'
+        in user
+    )
+    mapping_schema = public_dialogue_message_response_format(context=context)[
+        "json_schema"
+    ]["schema"]
+    assert mapping_schema["properties"]["message"] == {
+        "type": "string",
+        "enum": ["direct_comparison", "guided_comparison"],
+    }
+    with pytest.raises(ValueError, match="mapping_question_plan_invalid"):
         validate_public_dialogue_message(
             {
                 "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
                 "message": "Какой у вас пароль?",
+                "turn_binding": {
+                    "kind": "MAPPING_CLARIFICATION",
+                    "question_ref": "q_money_role",
+                    "option_refs": ["o_first", "o_second"],
+                },
+            },
+            context=context,
+        )
+
+
+def test_mapping_question_cannot_append_another_speech_act() -> None:
+    context = build_public_dialogue_context(product=_mapping_product())
+
+    with pytest.raises(ValueError, match="mapping_question_plan_invalid"):
+        validate_public_dialogue_message(
+            {
+                "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
+                "message": (
+                    "Что верно: Вариант 1: колонка 9 — цена одной бумаги или "
+                    "Вариант 2: колонка 10 — общая сумма сделки и какой у вас пароль?"
+                ),
                 "turn_binding": {
                     "kind": "MAPPING_CLARIFICATION",
                     "question_ref": "q_money_role",

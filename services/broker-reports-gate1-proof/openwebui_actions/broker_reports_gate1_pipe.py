@@ -1338,7 +1338,9 @@ class Pipe:
                 raw = await self._call_openwebui_presentation_completion(
                     system_content=system_content,
                     user_content=user_content,
-                    response_format=public_dialogue_message_response_format(),
+                    response_format=public_dialogue_message_response_format(
+                        context=context
+                    ),
                     user=user,
                     request=request,
                     task="ordinary_trade_public_dialogue_render",

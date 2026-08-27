@@ -44,10 +44,12 @@ machine decisions remain code-owned case state.
 Model-authored option and interpretation wording is never the public meaning of
 a confirmation. Code binds every option to the validated decision and separates
 the exact header/literal surface as untrusted source data. The presentation LLM
-may author one natural subject question only from the current opaque question,
-complete option-ref set and code-owned descriptions of the validated column,
-financial role or binding. It receives no source-derived title, header or cell
-text. Runtime separately renders that text as quoted evidence. Native
+authors the current subject turn by selecting one closed natural-question plan
+from the current opaque question, complete option-ref set and code-owned
+descriptions of the validated column, financial role or binding. It receives no
+source-derived title, header or cell text and returns no free-form mapping
+wording. Runtime renders the chosen plan and separately appends source text as
+quoted evidence. Native
 confirmation remains an exact code-owned rendering of the selected validated
 decision. Therefore displayed column/role/binding and applied decision cannot
 diverge.
@@ -57,12 +59,15 @@ The product composition publishes that bounded public surface as one
 projects an opaque current-question ref, opaque option refs, code-owned option
 meaning into a strict communication brief; it never copies tagged source data,
 raw mapping state or machine decisions into the presentation prompt. The model
-returns one natural question plus the exact existing bindings. Runtime checks
-the complete binding, one-question speech-act shape and exact presence of every
-code-owned safe option description; it does not interpret source or human
-wording with a regex, keyword or lexical semantic filter. Tagged source data is
-validated only for exact structure and size, then appended by runtime as quoted
-evidence. Invalid output falls back to the same bound question and evidence. A
+returns one allowed question-plan ref plus the exact existing bindings; the
+mapping-turn response schema exposes only those plan refs. Runtime checks the
+complete binding and plan membership, then composes exactly one
+question from every code-owned safe option description. No model-authored free
+text enters this mapping speech act, and runtime does not interpret source or
+human wording with a regex, keyword or lexical semantic filter. Tagged source
+data is validated only for exact structure and size, then appended by runtime as
+quoted evidence. Invalid output falls back to the same bound question and
+evidence. A
 pending candidate instead projects the exact code-owned confirmation with only
 `Да` / `Нет` and does not require a presentation-model call. Internal role
 codes, mapping vocabulary and Fact contract names are forbidden on both public

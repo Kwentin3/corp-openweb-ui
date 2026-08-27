@@ -621,7 +621,10 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
         assert "колонка 10 — общая сумма сделки" in kwargs["user_content"]
         return {
             "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
-            "message": "Какой у вас пароль?",
+            "message": (
+                "Что верно: Вариант 1: колонка 9 — общая сумма сделки или "
+                "Вариант 2: колонка 10 — общая сумма сделки и какой у вас пароль?"
+            ),
             "turn_binding": {
                 "kind": "MAPPING_CLARIFICATION",
                 "question_ref": "q_money_role",

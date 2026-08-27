@@ -19,7 +19,7 @@ ORDINARY_TRADE_PUBLIC_DIALOGUE_CONTEXT_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_public_dialogue_context_v3"
 )
 ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_public_dialogue_message_v3"
+    "broker_reports_ordinary_trade_public_dialogue_message_v4"
 )
 ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_public_interpretation_v1"
@@ -91,6 +91,9 @@ _PUBLIC_FORBIDDEN_TEXT = (
 )
 _INTERNAL_STATUS = re.compile(r"\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b")
 _PRIVATE_DOWNLOAD = re.compile(r"/api/v1/files/[^\s)]+", re.IGNORECASE)
+_MAPPING_QUESTION_PLAN_REFS = frozenset(
+    {"direct_comparison", "guided_comparison"}
+)
 _DELEGATED_CHOICE = re.compile(
     r"\b(?:выбер(?:и|ите)|реш(?:и|ите)|определ(?:и|ите))\b.{0,80}\bза меня\b",
     re.IGNORECASE,
@@ -918,9 +921,10 @@ def public_dialogue_render_messages(
             "переданным question_ref, option_ref и безопасным описаниям вариантов. "
             "Исходные заголовки и ячейки тебе не передаются. Не создавай "
             "другой вопрос, действие, запрос данных или финансовый вывод. "
-            "В message верни один короткий естественный вопрос, заканчивающийся "
-            "знаком вопроса. Runtime отдельно покажет привязанные цитаты и "
-            "разрешённое следующее действие. Верни только JSON по схеме."
+            "В message верни только один разрешённый question plan ref из brief. "
+            "Runtime соберёт из выбранного плана и safe descriptions один естественный "
+            "вопрос, затем отдельно покажет привязанные цитаты и разрешённое следующее "
+            "действие. Верни только JSON по схеме."
         )
         user = json.dumps(
             {
@@ -929,11 +933,13 @@ def public_dialogue_render_messages(
                     "question_ref": question["question_ref"],
                     "task": question["communication_brief"]["subject"],
                     "options": question["communication_brief"]["options"],
+                    "allowed_question_plan_refs": sorted(
+                        _MAPPING_QUESTION_PLAN_REFS
+                    ),
                     "allowed_next_actions": context.get("next_actions") or [],
                     "rules": [
-                        "ask only the current bound question",
-                        "include every safe option description verbatim",
-                        "do not request any other information or action",
+                        "select exactly one allowed question plan ref",
+                        "do not return free-form mapping wording",
                     ],
                 },
             },
@@ -1009,11 +1015,26 @@ def public_answer_requires_clarification(user_message: str) -> bool:
     return _DELEGATED_CHOICE.search(_text(user_message)) is not None
 
 
-def public_dialogue_message_response_format() -> dict[str, Any]:
+def public_dialogue_message_response_format(
+    *, context: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    question = context.get("current_question") if isinstance(context, dict) else None
+    mapping_turn = (
+        isinstance(question, dict)
+        and question.get("authority_kind") == "source_choice"
+    )
+    message_schema: dict[str, Any] = (
+        {
+            "type": "string",
+            "enum": sorted(_MAPPING_QUESTION_PLAN_REFS),
+        }
+        if mapping_turn
+        else {"type": "string", "minLength": 1, "maxLength": 6000}
+    )
     return {
         "type": "json_schema",
         "json_schema": {
-            "name": "ordinary_trade_public_dialogue_message_v3",
+            "name": "ordinary_trade_public_dialogue_message_v4",
             "strict": True,
             "schema": {
                 "type": "object",
@@ -1024,7 +1045,7 @@ def public_dialogue_message_response_format() -> dict[str, Any]:
                         "type": "string",
                         "const": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
                     },
-                    "message": {"type": "string", "minLength": 1, "maxLength": 6000},
+                    "message": message_schema,
                     "turn_binding": {
                         "type": "object",
                         "additionalProperties": False,
@@ -1268,14 +1289,6 @@ def _validate_mapping_dialogue_message(
         "option_refs": expected_refs,
     }:
         raise ValueError("public_dialogue_mapping_binding_invalid")
-    if (
-        len(message) > 600
-        or "\n" in message
-        or not message.endswith("?")
-        or message.count("?") != 1
-        or any(marker in message for marker in (".", "!", ";"))
-    ):
-        raise ValueError("public_dialogue_mapping_question_shape_invalid")
     brief = question.get("communication_brief")
     brief_options = brief.get("options") if isinstance(brief, dict) else None
     required_descriptions = [
@@ -1285,14 +1298,27 @@ def _validate_mapping_dialogue_message(
     if (
         not required_descriptions
         or len(required_descriptions) != len(evidence)
-        or any(
-            not isinstance(description, str)
-            or description.casefold() not in message.casefold()
-            for description in required_descriptions
-        )
+        or any(not isinstance(description, str) for description in required_descriptions)
     ):
-        raise ValueError("public_dialogue_mapping_subject_binding_invalid")
-    return _render_public_dialogue_context(context, question_override=message)
+        raise ValueError("public_dialogue_mapping_brief_invalid")
+    if message not in _MAPPING_QUESTION_PLAN_REFS:
+        raise ValueError("public_dialogue_mapping_question_plan_invalid")
+    rendered_question = _render_mapping_question_plan(
+        plan_ref=message,
+        descriptions=required_descriptions,
+    )
+    return _render_public_dialogue_context(
+        context, question_override=rendered_question
+    )
+
+
+def _render_mapping_question_plan(
+    *, plan_ref: str, descriptions: list[str]
+) -> str:
+    choices = " или ".join(descriptions)
+    if plan_ref == "guided_comparison":
+        return f"Помогите уточнить, какой вариант верен: {choices}?"
+    return f"Что верно: {choices}?"
 
 
 def render_public_dialogue_fallback(context: dict[str, Any]) -> str:
