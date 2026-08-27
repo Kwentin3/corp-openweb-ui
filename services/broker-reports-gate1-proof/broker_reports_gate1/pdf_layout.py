@@ -399,6 +399,16 @@ class PdfPlumberLayoutAdapter:
         else:
             table_status = "not_claimed"
 
+        locator_regions_total = (
+            len(locator_page.get("regions") or [])
+            if locator_mode and locator_page is not None
+            else 0
+        )
+        locator_regions_accepted_total = (
+            sum(bool(item.get("locator_region_ref")) for item in table_candidates)
+            if locator_mode
+            else 0
+        )
         return {
             "page_number": page_number,
             "width": _number(getattr(page, "width", 0.0)),
@@ -435,9 +445,11 @@ class PdfPlumberLayoutAdapter:
                 if locator_mode and locator_page is not None
                 else ("missing" if locator_mode else "not_requested")
             ),
-            "table_locator_regions_total": (
-                len(locator_page.get("regions") or [])
-                if locator_mode and locator_page is not None
+            "table_locator_regions_total": locator_regions_total,
+            "table_locator_regions_accepted_total": locator_regions_accepted_total,
+            "table_locator_regions_rejected_total": (
+                locator_regions_total - locator_regions_accepted_total
+                if locator_mode
                 else 0
             ),
         }
@@ -588,7 +600,7 @@ class PdfPlumberLayoutAdapter:
                 or bbox[3] > page_bbox[3]
                 or any(_bbox_overlap(bbox, other) for other in locator_bboxes)
             ):
-                reasons.append("pdf_table_locator_region_invalid_failed")
+                reasons.append("pdf_table_locator_region_invalid_rejected")
                 continue
             locator_bboxes.append([_number(value) for value in bbox])
             region_words = [
@@ -620,14 +632,14 @@ class PdfPlumberLayoutAdapter:
                     rects=region_rects,
                 )
             except Exception:
-                reasons.append("pdf_table_locator_region_native_extraction_failed")
+                reasons.append("pdf_table_locator_region_native_extraction_rejected")
                 continue
             reasons.extend(region_reasons)
             if len(candidates) != 1:
                 reasons.append(
-                    "pdf_table_locator_region_native_table_not_found_failed"
+                    "pdf_table_locator_region_native_table_not_found_rejected"
                     if not candidates
-                    else "pdf_table_locator_region_native_table_ambiguous_failed"
+                    else "pdf_table_locator_region_native_table_ambiguous_rejected"
                 )
                 continue
             candidate = candidates[0]
@@ -648,8 +660,6 @@ class PdfPlumberLayoutAdapter:
                 }
             )
             selected.append(candidate)
-        if any(reason.endswith("_failed") for reason in reasons):
-            return [], sorted(set(reasons))
         return selected, sorted(set(reasons))
 
     def _provided_capabilities(self) -> list[str]:

@@ -24,6 +24,7 @@ from broker_reports_gate1.canonical_artifact import (  # noqa: E402
     CanonicalNormalizerConfig,
     CanonicalNormalizerFactory,
 )
+from broker_reports_gate1.canonical_store import CanonicalReaderFactory  # noqa: E402
 from broker_reports_gate1.inputs import FileInput  # noqa: E402
 from broker_reports_gate1.gate2_handoff import persist_gate1_result  # noqa: E402
 from broker_reports_gate1.normalizer import Gate1Normalizer  # noqa: E402
@@ -463,6 +464,114 @@ def test_tight_source_bound_regions_persist_independent_of_fallback_lines(
         item["code"]
         for item in validate_pdf_source_unit_structure(legacy_without_fallback)
     }
+
+
+def test_false_locator_region_preserves_valid_tables_and_publishes_canonical(
+    tmp_path: Path,
+) -> None:
+    pdf_bytes = _two_table_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    intake = (
+        PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
+        .create_with_provider(
+            StaticDetectorProvider(
+                [
+                    [107, 80, 229, 919],
+                    [426, 80, 549, 919],
+                    [900, 0, 1000, 1000],
+                ]
+            )
+        )
+        .run(
+            [
+                {
+                    "document_ref": "pdfsource_false_locator_region",
+                    "pdf_bytes": pdf_bytes,
+                    "pdf_sha256": digest,
+                }
+            ]
+        )
+    )
+    assert intake.safe_summary["candidates_total"] == 3
+
+    file_input = FileInput(
+        private_ref="file-false-locator-region",
+        original_filename_private="false-locator-region.pdf",
+        mime_type="application/pdf",
+        source_kind="unit_test",
+        declared_size_bytes=len(pdf_bytes),
+        bytes_provider=lambda: pdf_bytes,
+        provider_label="unit_test",
+    )
+    normalized = Gate1Normalizer().normalize(
+        [file_input],
+        input_context={
+            "canonical_gate2_write_enabled": True,
+            "canonical_gate2_read_enabled": True,
+            "normalizer_version": "false-locator-region-terminal-test-v1",
+        },
+        pdf_table_locator_pages_by_sha256={digest: intake.private_page_results},
+    )
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert len(projections) == 2
+    assert all(
+        item.get("projection_status") == "ready"
+        and item.get("validator_status") == "passed"
+        for item in projections
+    )
+    assert not any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        for item in normalized.package["normalization_blockers"]
+    )
+    page = normalized.package["private_normalized_source_payloads"][0][
+        "pdf_text_layer_projection"
+    ]["page_inventory"][0]
+    assert page["table_locator_regions_total"] == 3
+    assert page["table_locator_regions_accepted_total"] == 2
+    assert page["table_locator_regions_rejected_total"] == 1
+    assert "pdf_table_locator_region_native_table_not_found_rejected" in (
+        page["table_reason_codes"]
+    )
+
+    store = ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=tmp_path / "artifacts.sqlite3",
+            payload_root=tmp_path / "payloads",
+        )
+    ).create()
+    context = ArtifactAccessContext(
+        user_id="user-1",
+        case_id="case-false-locator-region",
+        chat_id="chat-false-locator-region",
+        workspace_model_id="broker_reports_ndfl",
+        normalization_run_id=normalized.package["normalization_run"]["run_id"],
+        allow_private=True,
+        require_source_available=True,
+    )
+    manifest = persist_gate1_result(
+        store=store,
+        result=normalized,
+        context=context,
+        retention_policy=build_retention_policy(mode="api_smoke"),
+    )
+
+    assert "broker_reports_canonical_build_failure_v1" not in (
+        manifest.artifact_refs_by_type
+    )
+    canonical_ref = manifest.artifact_refs_by_type[
+        "broker_reports_canonical_artifact_v1"
+    ][0]
+    canonical = CanonicalReaderFactory(store=store, read_enabled=True).create().read(
+        canonical_ref, context
+    )
+    assert len(
+        [item for item in canonical["nodes"] if item["node_type"] == "TABLE"]
+    ) == 2
 
 
 def test_borderless_table_compacts_only_empty_parser_axes() -> None:
