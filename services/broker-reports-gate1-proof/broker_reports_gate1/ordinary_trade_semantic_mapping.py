@@ -14,6 +14,7 @@ from .ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
 from .ordinary_trade_semantic_compiler import structural_fingerprint
+from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFactory
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
@@ -23,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v2"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v3"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -80,6 +81,7 @@ _MAX_ROWS_PER_TABLE = 256
 _MAX_CELLS_TOTAL = 12_000
 _MAX_CONTEXT_BYTES = 524_288
 _MAX_MODEL_ROWS_PER_TABLE = 24
+_MAX_DISTINCT_VALUES_PER_COLUMN = 64
 _DECISION_KINDS = {
     "COLUMN_ROLE",
     "AMOUNT_CURRENCY_BINDING",
@@ -111,7 +113,10 @@ class OrdinaryTradeSemanticMapping:
             "change, calculate or omit source rows, values, dates, amounts or links. "
             "Classify every table exactly once. SECURITY_TRADES requires a complete "
             "column mapping, exact side enum and an explicit currency column for every "
-            "gross or commission amount column. NO_NAMED_CONSUMER is only for source "
+            "gross or commission amount column. "
+            "Rows may be sampled; column_distinct_values is derived from the full "
+            "Canonical and must be used to cover every exact side literal. "
+            "NO_NAMED_CONSUMER is only for source "
             "content that has no current ordinary-trade Fact v2 consumer. Use "
             "UNSUPPORTED_FINANCIAL_MEANING when the table is financial but outside the "
             "closed contract. If one financial decision is ambiguous, ask exactly one "
@@ -246,7 +251,10 @@ class OrdinaryTradeSemanticMapping:
             )
             return {
                 "status": status,
-                "message": value["message"].strip(),
+                "message": (
+                    "Выберите одно из проверяемых mapping-решений; перед "
+                    "применением выбранное решение будет показано ещё раз."
+                ),
                 "question": question,
                 "model_response_sha256": _sha256_json(value),
                 "execution_metadata_sha256": _execution_metadata_sha256(
@@ -379,6 +387,18 @@ class OrdinaryTradeSemanticMapping:
         expected_status = "UNSUPPORTED" if unsupported else "COMPLETE"
         if status != expected_status:
             _fail("ordinary_trade_semantic_mapping_status_invalid")
+        if expected_status == "COMPLETE":
+            dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
+                canonical=canonical,
+                canonical_binding=canonical_binding,
+                mappings=qualified_mappings,
+                table_resolutions=table_resolutions,
+            )
+            if any(
+                item.get("disposition") == "RELEVANT_UNMAPPED"
+                for item in dry_run["source_observations"]
+            ):
+                _fail("ordinary_trade_semantic_mapping_dry_run_incomplete")
         return {
             "status": status,
             "message": value["message"].strip(),
@@ -503,12 +523,30 @@ def _model_table_surfaces(
     model_tables = []
     for table in tables:
         rows = table["rows"]
+        distinct_by_column: dict[int, list[str]] = {}
+        for row in rows:
+            for cell in row["cells"]:
+                values = distinct_by_column.setdefault(cell["column"], [])
+                if cell["literal"] and cell["literal"] not in values:
+                    values.append(cell["literal"])
         model_tables.append(
             {
                 "table_ref": refs_by_node_id[table["table_node_id"]],
                 "rows_total": len(rows),
                 "rows": copy.deepcopy(rows[:_MAX_MODEL_ROWS_PER_TABLE]),
                 "rows_truncated": len(rows) > _MAX_MODEL_ROWS_PER_TABLE,
+                "column_distinct_values": [
+                    {
+                        "column": column,
+                        "values": copy.deepcopy(
+                            values[:_MAX_DISTINCT_VALUES_PER_COLUMN]
+                        ),
+                        "values_truncated": (
+                            len(values) > _MAX_DISTINCT_VALUES_PER_COLUMN
+                        ),
+                    }
+                    for column, values in sorted(distinct_by_column.items())
+                ],
             }
         )
     return model_tables, refs_by_node_id
@@ -543,6 +581,7 @@ def _normalize_model_question(
     normalized = copy.deepcopy(question)
     node_id = node_ids_by_ref[normalized.pop("table_ref")]
     normalized["table_node_id"] = node_id
+    normalized["question"] = "Какое из следующих проверяемых решений верно?"
     for option in normalized["options"]:
         decision = option["decision"]
         if decision["table_ref"] != question["table_ref"]:
@@ -552,10 +591,69 @@ def _normalize_model_question(
             decision=decision,
             table=tables[decision["table_node_id"]],
         )
+        option["label"] = _render_decision_label(
+            decision=decision,
+            table=tables[decision["table_node_id"]],
+        )
     digests = [_sha256_json(item["decision"]) for item in normalized["options"]]
     if len(digests) != len(set(digests)):
         _fail("ordinary_trade_semantic_mapping_question_decision_invalid")
     return normalized
+
+
+_ROLE_LABELS = {
+    "asset_name": "ценная бумага",
+    "trade_date": "дата сделки",
+    "side": "направление сделки",
+    "quantity": "количество",
+    "unit_price": "цена одной бумаги",
+    "currency": "валюта",
+    "gross_amount": "общая сумма сделки",
+    "broker_commission": "комиссия брокера",
+    "exchange_commission": "комиссия биржи",
+}
+
+
+def _render_decision_label(
+    *, decision: dict[str, Any], table: dict[str, Any]
+) -> str:
+    """Render the exact validated machine decision without model-authored wording."""
+
+    header = next(
+        item for item in table["rows"] if item["row"] == decision["header_row"]
+    )
+    headers = {item["column"]: item["literal"] for item in header["cells"]}
+    kind = decision["decision_kind"]
+    if kind == "COLUMN_ROLE":
+        role = decision["semantic_role"]
+        role_label = _ROLE_LABELS.get(role, str(role))
+        return (
+            f"Колонка {decision['column']} «{headers[decision['column']]}» — "
+            f"{role_label} ({role})"
+        )
+    if kind == "AMOUNT_CURRENCY_BINDING":
+        amount = decision["amount_column"]
+        currency = decision["currency_column"]
+        return (
+            f"Сумма в колонке {amount} «{headers[amount]}» выражена в валюте "
+            f"из колонки {currency} «{headers[currency]}»"
+        )
+    if kind == "SIDE_VALUE":
+        normalized = (
+            "покупка"
+            if decision["normalized_value"] == "PURCHASE"
+            else "продажа"
+        )
+        return f"Значение «{decision['source_literal']}» означает: {normalized}"
+    disposition = decision["disposition"]
+    labels = {
+        "SECURITY_TRADES": "таблица содержит сделки с ценными бумагами",
+        "NO_NAMED_CONSUMER": "для таблицы нет текущего получателя Fact v2",
+        "UNSUPPORTED_FINANCIAL_MEANING": (
+            "таблица содержит неподдерживаемый финансовый смысл"
+        ),
+    }
+    return labels[disposition]
 
 
 def _validate_table_decision(
@@ -647,6 +745,8 @@ def _validate_table_decision(
             for item in side_values
         )
         or len({item["source_literal"] for item in side_values}) != len(side_values)
+        or {item["source_literal"] for item in side_values}
+        != source_side_literals
     ):
         _fail("ordinary_trade_semantic_mapping_side_invalid")
     return {

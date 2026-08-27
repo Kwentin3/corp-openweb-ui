@@ -259,10 +259,15 @@ class OrdinaryTradeMappingCaseRuntime:
             candidate = None
         elif status == "CANDIDATE":
             target_status = "CONFIRMATION_REQUIRED"
+            selected_option = next(
+                item
+                for item in prior["question"]["options"]
+                if item["option_id"] == interpretation["option_id"]
+            )
             candidate = {
                 "question_id": prior["question"]["question_id"],
                 "option_id": interpretation["option_id"],
-                "message": interpretation["message"],
+                "message": f"Подтвердите: {selected_option['label']}",
                 "evidence_quote_sha256": hashlib.sha256(
                     interpretation["evidence_quote"].encode("utf-8")
                 ).hexdigest(),

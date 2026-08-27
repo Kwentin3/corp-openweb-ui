@@ -36,8 +36,16 @@ confirmed decision and Canonical/table scope.
 
 The model-facing package uses opaque table ordinals, omits Canonical/case
 identities and hashes, and bounds source rows to the minimum mapping sample.
+Code adds a bounded distinct-value surface for every column from the full
+Canonical so rare side literals below the row sample remain addressable.
 The answer interpreter receives question text and option labels/IDs only; the
 machine decisions remain code-owned case state.
+
+Model-authored question, option and interpretation wording is never the public
+meaning of a confirmation. Code renders the public question, every option and
+the native confirmation from the validated decision plus exact header/literal
+surface. Therefore displayed column/role/binding and applied decision cannot
+diverge.
 
 ## Completeness and terminals
 
@@ -54,6 +62,12 @@ Until all relevant tables are confirmed and complete, Gate 4 publishes no
 partial Fact v2. Provider failure, invalid structured output, source-context
 limit, unsupported meaning and specialist-review need remain distinct typed
 states with no late mutation or silent repair.
+
+`COMPLETE` additionally requires exact coverage of every literal in the chosen
+side column from the full Canonical and a deterministic compiler dry-run with
+zero `RELEVANT_UNMAPPED` observations. Sample truncation cannot weaken this
+full-source check; incomplete coverage stops in the mapping case before any
+qualified material is persisted.
 
 ## Release boundary
 

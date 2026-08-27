@@ -235,14 +235,26 @@ class OrdinaryTradeAutomaticMappingRuntime:
             code = getattr(
                 exc, "code", "ordinary_trade_semantic_mapping_output_invalid"
             )
+            incomplete = str(code) in {
+                "ordinary_trade_semantic_mapping_side_invalid",
+                "ordinary_trade_semantic_mapping_dry_run_incomplete",
+            }
             saved = self._cases.save_provider_terminal(
                 document_id=document_id,
                 context=context,
                 status="MAPPING_OUTPUT_INVALID",
                 reason_code=str(code),
                 message=(
-                    "Ответ модели противоречив или не связан с Canonical. Факты "
-                    "не опубликованы; требуется проверка специалиста."
+                    (
+                        "Mapping не покрывает все значения и строки полного "
+                        "Canonical. Факты не опубликованы; требуется уточнение "
+                        "mapping или проверка специалиста."
+                    )
+                    if incomplete
+                    else (
+                        "Ответ модели противоречив или не связан с Canonical. "
+                        "Факты не опубликованы; требуется проверка специалиста."
+                    )
                 ),
                 provider_calls_total=1,
             )

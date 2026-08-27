@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 
+from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResult
 from broker_reports_gate1.ordinary_trade_mapping_case import (
     OrdinaryTradeMappingCaseFactory,
@@ -71,7 +72,7 @@ async def _clarification_answer_confirmation_resumes_same_case(tmp_path) -> None
     question = {
         "question_id": "q_money_role",
         "table_ref": "table_1",
-        "question": "Какая колонка содержит общую сумму сделки?",
+        "question": "Подтвердите, что колонка 10 содержит общую сумму сделки.",
         "options": [
             {
                 "option_id": "o_first",
@@ -119,7 +120,9 @@ async def _clarification_answer_confirmation_resumes_same_case(tmp_path) -> None
         user_message="Общая сумма во второй.",
     )
     assert candidate["status"] == "CONFIRMATION_REQUIRED"
-    assert candidate["public_state"]["confirmation_message"].startswith("Я понял")
+    assert candidate["public_state"]["confirmation_message"].startswith(
+        "Подтвердите: Колонка 10"
+    )
 
     completed = await runtime.resolve(
         document_id=document_id,
@@ -214,6 +217,158 @@ async def _confirmed_column_role_conflict_fails_closed(tmp_path) -> None:
     assert current["reason_code"] == (
         "ordinary_trade_semantic_mapping_confirmed_decision_conflict"
     )
+
+
+async def _public_confirmation_renders_validated_decision_not_model_text(
+    tmp_path,
+) -> None:
+    store, context, document_id, _canonical, _binding, _table, _mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    question = {
+        "question_id": "q_visible_decision",
+        "table_ref": "table_1",
+        "question": "Подтвердите, что колонка 10 содержит общую сумму сделки.",
+        "options": [
+            {
+                "option_id": "o_lie",
+                "label": "Колонка 10 — общая сумма сделки",
+                "decision": case_fixtures._column_role_decision(
+                    9, "gross_amount"
+                ),
+            },
+            {
+                "option_id": "o_other",
+                "label": "Колонка 9 — общая сумма сделки",
+                "decision": case_fixtures._column_role_decision(
+                    10, "gross_amount"
+                ),
+            },
+        ],
+    }
+    client = BoundaryModelClient(
+        [
+            {
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "CLARIFICATION_REQUIRED",
+                "table_decisions": [],
+                "clarification": question,
+                "message": "Нужно уточнить колонку.",
+            },
+            {
+                "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
+                "status": "CANDIDATE",
+                "option_id": "o_lie",
+                "message": "Общая сумма находится в колонке 10.",
+                "evidence_quote": "первый вариант",
+            },
+        ]
+    )
+    runtime = _runtime(store, client)
+    first = await runtime.resolve(document_id=document_id, context=context)
+    visible_options = first["public_state"]["question"]["options"]
+    assert first["public_state"]["question"]["question"] == (
+        "Какое из следующих проверяемых решений верно?"
+    )
+    assert visible_options[0].startswith("Колонка 9 ")
+    assert visible_options[0] != question["options"][0]["label"]
+
+    candidate = await runtime.resolve(
+        document_id=document_id,
+        context=context,
+        user_message="Выбираю первый вариант.",
+    )
+    confirmation = candidate["public_state"]["confirmation_message"]
+    assert confirmation.startswith("Подтвердите: Колонка 9 ")
+    assert "колонке 10" not in confirmation
+
+
+async def _rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> None:
+    purchase = case_fixtures.candidate._ROWS[1]
+    disposal = case_fixtures.candidate._ROWS[2]
+    headers = list(case_fixtures.candidate._ROWS[0])
+    headers[0] = headers[0] + " (редкая сторона ниже sample)"
+    rows = (tuple(headers), *([purchase] * 24), disposal)
+    store, context, document_id, mapping = case_fixtures.candidate._case(
+        tmp_path, rows=rows
+    )
+    envelope = CanonicalReaderFactory(
+        store=store, read_enabled=True
+    ).create().read_active_envelope(document_id, context)
+    table = next(
+        item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
+    )
+    incomplete = case_fixtures._complete(table, mapping)
+    incomplete["table_decisions"][0]["side_values"] = [
+        item
+        for item in incomplete["table_decisions"][0]["side_values"]
+        if item["normalized_value"] == "PURCHASE"
+    ]
+    client = BoundaryModelClient([incomplete])
+    runtime = _runtime(store, client)
+
+    result = await runtime.resolve(document_id=document_id, context=context)
+
+    assert result["status"] == "MAPPING_OUTPUT_INVALID"
+    assert "не покрывает все значения" in result["public_state"]["message"]
+    package_table = client.calls[0]["package"]["case"]["tables"][0]
+    assert package_table["rows_truncated"] is True
+    side_column = next(
+        item["column"]
+        for item in mapping["columns"]
+        if item["semantic_role"] == "side"
+    )
+    side_surface = next(
+        item
+        for item in package_table["column_distinct_values"]
+        if item["column"] == side_column
+    )
+    assert {
+        case_fixtures.candidate._ROWS[1][side_column - 1],
+        case_fixtures.candidate._ROWS[2][side_column - 1],
+    } <= set(side_surface["values"])
+    current = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    assert current["qualified_mappings"] == []
+    assert current["table_resolutions"] == []
+
+
+async def _complete_mapping_requires_clean_deterministic_dry_run(tmp_path) -> None:
+    purchase = case_fixtures.candidate._ROWS[1]
+    disposal = list(case_fixtures.candidate._ROWS[2])
+    mapping_template = case_fixtures.candidate._QUALIFIED_MAPPING
+    gross_column = next(
+        item["column"]
+        for item in mapping_template["columns"]
+        if item["semantic_role"] == "gross_amount"
+    )
+    disposal[gross_column - 1] = ""
+    headers = list(case_fixtures.candidate._ROWS[0])
+    headers[0] = headers[0] + " (dry-run incomplete)"
+    rows = (tuple(headers), purchase, tuple(disposal))
+    store, context, document_id, mapping = case_fixtures.candidate._case(
+        tmp_path, rows=rows
+    )
+    envelope = CanonicalReaderFactory(
+        store=store, read_enabled=True
+    ).create().read_active_envelope(document_id, context)
+    table = next(
+        item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
+    )
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping)])
+    runtime = _runtime(store, client)
+
+    result = await runtime.resolve(document_id=document_id, context=context)
+
+    assert result["status"] == "MAPPING_OUTPUT_INVALID"
+    current = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    assert current["reason_code"] == (
+        "ordinary_trade_semantic_mapping_dry_run_incomplete"
+    )
+    assert current["qualified_mappings"] == []
 
 
 async def _provider_failure_and_invalid_output_are_distinct_terminals(
@@ -417,6 +572,22 @@ def test_clarification_answer_confirmation_resumes_same_case(tmp_path) -> None:
 
 def test_confirmed_column_role_conflict_fails_closed(tmp_path) -> None:
     asyncio.run(_confirmed_column_role_conflict_fails_closed(tmp_path))
+
+
+def test_public_confirmation_renders_validated_decision_not_model_text(
+    tmp_path,
+) -> None:
+    asyncio.run(
+        _public_confirmation_renders_validated_decision_not_model_text(tmp_path)
+    )
+
+
+def test_rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> None:
+    asyncio.run(_rare_side_literal_below_sample_cannot_complete_mapping(tmp_path))
+
+
+def test_complete_mapping_requires_clean_deterministic_dry_run(tmp_path) -> None:
+    asyncio.run(_complete_mapping_requires_clean_deterministic_dry_run(tmp_path))
 
 
 def test_provider_failure_and_invalid_output_are_distinct_terminals(tmp_path) -> None:
