@@ -658,6 +658,21 @@ def _mapped_observation(
         if item["column"] in cells
     ]
     by_role = _by_role(fields)
+    record_anchor_roles = {"trade_date", "side", "quantity", "gross_amount"}
+    has_record_anchor = any(
+        _single_nonempty(by_role, role) is not None for role in record_anchor_roles
+    )
+    if not has_record_anchor:
+        return _observation(
+            binding=binding,
+            table=table,
+            row=row,
+            fields=fields,
+            disposition="SOURCE_RETAINED_NO_CONSUMER",
+            reason="MAPPED_TABLE_NON_RECORD_ROW",
+            mapping_id=mapping["mapping_id"],
+            numeric_convention=numeric_convention,
+        )
     side_literals = {
         item["source_literal"]: item["normalized_value"]
         for item in mapping["side_values"]

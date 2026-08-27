@@ -17,6 +17,9 @@ from broker_reports_gate1.gate2_provider_adapters import Gate2ProviderAdapterFac
 from broker_reports_gate1.ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
+from broker_reports_gate1.ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerFactory,
+)
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
@@ -237,6 +240,66 @@ def test_unknown_schema_mapping_is_qualified_only_for_exact_case(tmp_path) -> No
             receipt=receipt,
             expected_case_scope=foreign,
         )
+
+
+def test_mapped_table_retains_wrapped_non_record_row_without_blocking_facts(
+    tmp_path,
+) -> None:
+    context, canonical, binding, table, known = _canonical_case(tmp_path)
+    source_row = next(
+        item
+        for item in table["content"]["cells"]
+        if item["row"] == 2 and item["column"] == 4
+    )
+    continuation_row = max(
+        item["row"] for item in table["content"]["cells"]
+    ) + 1
+    continuation = copy.deepcopy(source_row)
+    continuation.update(
+        {
+            "row": continuation_row,
+            "column": 4,
+            "value": "ADR",
+            "raw_value": "ADR",
+            "displayed_value": "ADR",
+            "source_coordinate": f"R{continuation_row}C4",
+        }
+    )
+    table["content"]["cells"].append(continuation)
+    table["content"]["rows"].append(["", "", "", "ADR"])
+
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=_complete_response(table, known),
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
+    )
+
+    assert result["status"] == "COMPLETE"
+    projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+        canonical=canonical,
+        canonical_binding=binding,
+        mappings=result["qualified_mappings"],
+        table_resolutions=result["table_resolutions"],
+    )
+    assert projection["runtime_records"]
+    assert all(
+        item["disposition"] == "RUNTIME_READY"
+        for item in projection["source_observations"][:-1]
+    )
+    assert (
+        projection["source_observations"][-1]["row"],
+        projection["source_observations"][-1]["disposition"],
+        projection["source_observations"][-1]["reason_code"],
+    ) == (
+        continuation_row,
+        "SOURCE_RETAINED_NO_CONSUMER",
+        "MAPPED_TABLE_NON_RECORD_ROW",
+    )
 
 
 def test_prompt_injection_cell_cannot_author_mapping_or_source_literal(tmp_path) -> None:
