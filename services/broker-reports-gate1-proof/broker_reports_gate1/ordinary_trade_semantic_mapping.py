@@ -579,8 +579,12 @@ def _normalize_model_question(
     normalized = copy.deepcopy(question)
     node_id = node_ids_by_ref[normalized.pop("table_ref")]
     normalized["table_node_id"] = node_id
+    if re.fullmatch(r"q_[a-z0-9][a-z0-9_-]{5,63}", normalized["question_id"]) is None:
+        normalized["question_id"] = "q_runtime_mapping"
     normalized["question"] = "Какое из следующих проверяемых решений верно?"
-    for option in normalized["options"]:
+    for index, option in enumerate(normalized["options"], start=1):
+        if re.fullmatch(r"o_[a-z0-9][a-z0-9_-]{2,63}", option["option_id"]) is None:
+            option["option_id"] = f"o_runtime_{index}"
         decision = option["decision"]
         if decision["table_ref"] != question["table_ref"]:
             _fail("ordinary_trade_semantic_mapping_question_decision_invalid")
@@ -960,8 +964,14 @@ def _validate_question(
         not isinstance(question, dict)
         or set(question) != {"question_id", table_key, "question", "options"}
         or not isinstance(question.get("question_id"), str)
-        or re.fullmatch(r"q_[a-z0-9][a-z0-9_-]{5,63}", question["question_id"])
-        is None
+        or (
+            internal
+            and re.fullmatch(
+                r"q_[a-z0-9][a-z0-9_-]{5,63}", question["question_id"]
+            )
+            is None
+        )
+        or (not internal and not question["question_id"].strip())
         or not isinstance(question.get(table_key), str)
         or (table_refs is not None and question[table_key] not in table_refs)
         or not isinstance(question.get("question"), str)
@@ -981,8 +991,14 @@ def _validate_question(
                 else {"option_id", "label", "decision"}
             )
             or not isinstance(option.get("option_id"), str)
-            or re.fullmatch(r"o_[a-z0-9][a-z0-9_-]{2,63}", option["option_id"])
-            is None
+            or (
+                internal
+                and re.fullmatch(
+                    r"o_[a-z0-9][a-z0-9_-]{2,63}", option["option_id"]
+                )
+                is None
+            )
+            or (not internal and not option["option_id"].strip())
             or not isinstance(option.get("label"), str)
             or not option["label"].strip()
             or not isinstance(option.get("decision"), dict)
