@@ -155,6 +155,8 @@ def test_mapping_prompt_requires_confirmation_before_table_exclusion() -> None:
 
     assert "Never return COMPLETE with an unconfirmed NO_NAMED_CONSUMER" in prompt
     assert "ask about the next unconfirmed exclusion" in prompt
+    assert "balances, holdings, reference/master data" in prompt
+    assert "only for a transaction table" in prompt
 
 
 def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
@@ -329,6 +331,30 @@ def test_runtime_derives_terminal_status_from_validated_table_decisions(tmp_path
 
     assert result["status"] == "COMPLETE"
     assert len(result["qualified_mappings"]) == 1
+
+
+def test_unsupported_decision_never_carries_partial_mapping_material(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    response = _complete_response(table, known)
+    response["table_decisions"][0]["disposition"] = (
+        "UNSUPPORTED_FINANCIAL_MEANING"
+    )
+
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+
+    assert result["status"] == "UNSUPPORTED"
+    assert result["qualified_mappings"] == []
+    assert result["qualification_receipts"] == []
+    assert result["table_resolutions"] == []
 
 
 def test_runtime_unconditionally_owns_provider_question_identifiers(tmp_path) -> None:

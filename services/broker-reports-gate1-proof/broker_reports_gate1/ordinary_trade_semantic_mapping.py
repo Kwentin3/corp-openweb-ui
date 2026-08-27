@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v6"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v7"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -119,10 +119,12 @@ class OrdinaryTradeSemanticMapping:
             "accrued_interest or any other role. "
             "Rows may be sampled; column_distinct_values is derived from the full "
             "Canonical and must be used to cover every exact side literal. "
-            "NO_NAMED_CONSUMER is only for source "
-            "content that has no current ordinary-trade Fact v2 consumer. Use "
-            "UNSUPPORTED_FINANCIAL_MEANING when the table is financial but outside the "
-            "closed contract. Never return COMPLETE with an unconfirmed "
+            "NO_NAMED_CONSUMER is for content with no current ordinary-trade Fact v2 "
+            "consumer, including balances, holdings, reference/master data, collateral, "
+            "cash summaries and other non-transaction tables. "
+            "UNSUPPORTED_FINANCIAL_MEANING is only for a transaction table whose rows "
+            "carry a financial meaning outside the ordinary security-trade contract, "
+            "not merely for auxiliary financial content. Never return COMPLETE with an unconfirmed "
             "NO_NAMED_CONSUMER decision. Instead return CLARIFICATION_REQUIRED for "
             "exactly one such table, with mutually exclusive options that include the "
             "NO_NAMED_CONSUMER decision and its plausible alternative; after a confirmed "
@@ -316,7 +318,6 @@ class OrdinaryTradeSemanticMapping:
         qualified_mappings: list[dict[str, Any]] = []
         qualification_receipts: list[dict[str, Any]] = []
         table_resolutions: list[dict[str, Any]] = []
-        unsupported = False
         resolved_decisions = []
         for decision in decisions:
             table = tables[str(decision.get("table_node_id"))]
@@ -344,6 +345,22 @@ class OrdinaryTradeSemanticMapping:
                     "отдельного подтверждённого доменного решения."
                 ),
                 "question": None,
+                "model_response_sha256": model_decision["response_sha256"],
+                "execution_metadata_sha256": model_decision[
+                    "execution_metadata_sha256"
+                ],
+            }
+        if any(
+            item["disposition"] == "UNSUPPORTED_FINANCIAL_MEANING"
+            for item in resolved_decisions
+        ):
+            return {
+                "status": "UNSUPPORTED",
+                "message": value["message"].strip(),
+                "question": None,
+                "qualified_mappings": [],
+                "qualification_receipts": [],
+                "table_resolutions": [],
                 "model_response_sha256": model_decision["response_sha256"],
                 "execution_metadata_sha256": model_decision[
                     "execution_metadata_sha256"
@@ -378,10 +395,6 @@ class OrdinaryTradeSemanticMapping:
                 )
                 qualified_mappings.append(mapping)
                 qualification_receipts.append(receipt)
-            else:
-                unsupported = unsupported or (
-                    resolved["disposition"] == "UNSUPPORTED_FINANCIAL_MEANING"
-                )
             table_resolutions.append(
                 {
                     key: copy.deepcopy(resolved[key])
@@ -394,21 +407,19 @@ class OrdinaryTradeSemanticMapping:
                     )
                 }
             )
-        expected_status = "UNSUPPORTED" if unsupported else "COMPLETE"
-        if expected_status == "COMPLETE":
-            dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
-                canonical=canonical,
-                canonical_binding=canonical_binding,
-                mappings=qualified_mappings,
-                table_resolutions=table_resolutions,
-            )
-            if any(
-                item.get("disposition") == "RELEVANT_UNMAPPED"
-                for item in dry_run["source_observations"]
-            ):
-                _fail("ordinary_trade_semantic_mapping_dry_run_incomplete")
+        dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            mappings=qualified_mappings,
+            table_resolutions=table_resolutions,
+        )
+        if any(
+            item.get("disposition") == "RELEVANT_UNMAPPED"
+            for item in dry_run["source_observations"]
+        ):
+            _fail("ordinary_trade_semantic_mapping_dry_run_incomplete")
         return {
-            "status": expected_status,
+            "status": "COMPLETE",
             "message": value["message"].strip(),
             "question": None,
             "qualified_mappings": qualified_mappings,
