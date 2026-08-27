@@ -22,6 +22,8 @@ FUNCTION_ID = "broker_reports_ndfl"
 MODEL_ID = FUNCTION_ID
 LEGACY_FUNCTION_ID = "broker_reports_gate1_pipe"
 BUNDLE_PATH = SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
+VISIBLE_PROOF_USER_SUFFIXES = ("a", "c", "d", "e", "f", "g", "h")
+HIDDEN_PROOF_USER_SUFFIX = "b"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
@@ -329,7 +331,7 @@ def _safe_result(state: dict[str, Any], *, status: str) -> dict[str, Any]:
         "deployed_bundle_sha256": state.get("deployed_bundle_sha256"),
         "predecessor_control_prepared_receipt_sha256": (
             state.get("control_prepared_receipt_sha256")
-            if status == "restored"
+            if status in {"prepared", "restored"}
             else None
         ),
         "temporary_users": len(state.get("users") or []),
@@ -414,17 +416,28 @@ def _prepare(args: argparse.Namespace) -> int:
         previous_bundle_sha256, deployed_bundle_sha256 = _deploy_bundle(
             session, base_url, before_function
         )
-        user_a = _create_user(session, base_url, suffix="a", role="user")
-        users.append(user_a)
-        user_b = _create_user(session, base_url, suffix="b", role="user")
-        users.append(user_b)
+        visible_users = [
+            _create_user(session, base_url, suffix=suffix, role="user")
+            for suffix in VISIBLE_PROOF_USER_SUFFIXES
+        ]
+        user_a = visible_users[0]
+        user_b = _create_user(
+            session,
+            base_url,
+            suffix=HIDDEN_PROOF_USER_SUFFIX,
+            role="user",
+        )
+        users.extend([user_a, user_b, *visible_users[1:]])
         proof_grants = [
             *before_grants,
-            {
-                "principal_type": "user",
-                "principal_id": user_a["id"],
-                "permission": "read",
-            },
+            *[
+                {
+                    "principal_type": "user",
+                    "principal_id": user["id"],
+                    "permission": "read",
+                }
+                for user in visible_users
+            ],
         ]
         updated_model = _update_model_grants(session, base_url, proof_grants)
         grants_changed = True
@@ -447,11 +460,15 @@ def _prepare(args: argparse.Namespace) -> int:
         if updated_valves != proof_valves:
             raise G536ControlError("proof_valves_readback_mismatch")
 
-        user_a_visible = _user_model_visibility(
-            base_url, user_a["email"], user_a["password"]
-        )
+        visible_user_results = [
+            _user_model_visibility(base_url, user["email"], user["password"])
+            for user in visible_users
+        ]
+        user_a_visible = all(visible_user_results)
         user_b_visible = _user_model_visibility(
-            base_url, user_b["email"], user_b["password"]
+            base_url,
+            user_b["email"],
+            user_b["password"],
         )
         if not user_a_visible or user_b_visible:
             raise G536ControlError("temporary_model_visibility_invalid")
@@ -566,13 +583,21 @@ def _redeploy(args: argparse.Namespace) -> int:
         _get_function(session, base_url),
     )
     state["deployed_bundle_sha256"] = deployed_sha256
+    safe = _safe_result(state, status="prepared")
+    state["control_prepared_receipt_sha256"] = safe["receipt_sha256"]
     _write_private_state(state_path, state)
+    safe_path = state_path.parent / "control-prepared.safe.json"
+    safe_path.write_text(
+        json.dumps(safe, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     print(
         json.dumps(
             {
                 "schema_version": "broker_reports_gate5_openwebui_control_v0",
                 "status": "bundle_deployed",
                 "deployed_bundle_sha256": deployed_sha256,
+                "control_prepared_receipt_sha256": safe["receipt_sha256"],
             }
         )
     )

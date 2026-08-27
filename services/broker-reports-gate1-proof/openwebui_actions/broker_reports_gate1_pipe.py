@@ -17,6 +17,8 @@ import inspect
 import io
 import json
 import re
+import urllib.parse
+import urllib.request
 import uuid
 from contextlib import nullcontext
 from dataclasses import asdict, is_dataclass
@@ -99,10 +101,21 @@ from broker_reports_gate1.gate5_human_gap_closure import (
 )
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
+    build_public_dialogue_context,
+    build_public_question_context,
     declaration_change_intent,
     declaration_request_help,
     declaration_request_question,
-    declaration_surrogate_preview,
+    public_answer_candidate_conflicts_with_explicit_negation,
+    public_answer_requires_clarification,
+    public_dialogue_context_sha256,
+    public_dialogue_interpretation_messages,
+    public_dialogue_interpretation_response_format,
+    public_dialogue_message_response_format,
+    public_dialogue_render_messages,
+    render_public_dialogue_fallback,
+    validate_public_dialogue_interpretation,
+    validate_public_dialogue_message,
 )
 from broker_reports_gate1.private_intake_bytes import (
     OpenWebUIPrivateIntakeBytesResolverFactory,
@@ -149,6 +162,15 @@ _GATE2_USABLE_HANDOFF_STATUSES = frozenset(
     {"ready_with_safe_refs", "ready_with_reduced_subset"}
 )
 _COMPLETED_WITH_REVIEW_ADVISORY = "completed_with_review_advisory"
+NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS = 45.0
+NDFL_PRESENTATION_MAX_RESPONSE_BYTES = 1024 * 1024
+
+
+class _NdflPresentationNoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Keep the user credential on the one administrator-pinned origin."""
+
+    def redirect_request(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
 
 
 def _trusted_taxpayer_scope_ref_required() -> str:
@@ -230,6 +252,15 @@ class Pipe:
             default="/app/backend/data/broker_reports_gate1/gate3-product-proof"
         )
         ndfl_gate3_private_audit_id: str = Field(default="")
+        ndfl_presentation_llm_enabled: bool = Field(default=True)
+        ndfl_presentation_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
+        ndfl_presentation_openwebui_origin: str = Field(
+            default="",
+            description=(
+                "Administrator-pinned HTTPS origin for the native OpenWebUI "
+                "completion endpoint; never derived from request metadata."
+            ),
+        )
         pdf_table_intake_enabled: bool = Field(
             default=True,
             description=(
@@ -263,6 +294,7 @@ class Pipe:
         self.last_workload_snapshot: dict[str, Any] | None = None
         self._active_workload_session = None
         self._workload_review_items = 0
+        self._presentation_llm_calls_total = 0
 
     async def pipe(
         self,
@@ -276,6 +308,7 @@ class Pipe:
         __event_call__=None,
         **kwargs,
     ) -> str:
+        self._presentation_llm_calls_total = 0
         safe_body = body if isinstance(body, dict) else {}
         messages_arg = __messages__ or kwargs.get("__messages__")
         metadata = await self._server_attested_runtime_metadata(
@@ -283,6 +316,8 @@ class Pipe:
             metadata=(__metadata__ if isinstance(__metadata__, dict) else {}),
             user=__user__,
         )
+        if metadata.get("model_id") == NDFL_WORKFLOW_STABLE_ID:
+            return self._ndfl_legacy_route_content()
         interaction_message = await self._trusted_interaction_message(
             body=safe_body,
             messages_arg=messages_arg,
@@ -292,6 +327,17 @@ class Pipe:
         )
         if "broker_reports_declaration_action" in safe_body:
             raise NdflWorkflowError("ordinary_trade_declaration_hidden_action_forbidden")
+        completed_turn = await self._server_attested_completed_turn_content(
+            metadata=metadata,
+            user=__user__,
+            interaction_message=interaction_message,
+        )
+        if completed_turn is not None:
+            self.last_artifact_manifest = {
+                "resumed_case": True,
+                "replayed_completed_openwebui_turn": True,
+            }
+            return completed_turn
         resumed = await self._maybe_resume_ndfl_chat_turn(
             body=safe_body,
             metadata=metadata,
@@ -379,7 +425,10 @@ class Pipe:
                     in {"completed", "failed", "cancelled", "awaiting_review"},
                     hide_internal=hide_internal_workload,
                 )
-                return self._reused_workload_content(self.last_workload_snapshot)
+                return self._reused_workload_content(
+                    self.last_workload_snapshot,
+                    hide_internal=hide_internal_workload,
+                )
             await self._emit_workload_snapshot(
                 __event_emitter__,
                 self.last_workload_snapshot,
@@ -440,10 +489,18 @@ class Pipe:
                 self.last_workload_snapshot = session.snapshot()
             await self._emit(
                 __event_emitter__,
-                "Broker Reports workload cancelled; no partial success was published.",
+                (
+                    "Подготовка 3-НДФЛ отменена. Незавершённый результат не опубликован."
+                    if hide_internal_workload
+                    else "Broker Reports workload cancelled; no partial success was published."
+                ),
                 done=True,
             )
-            return "Broker Reports workload cancelled. Partial successful output was not published."
+            return (
+                "Подготовка 3-НДФЛ отменена. Незавершённый результат не опубликован."
+                if hide_internal_workload
+                else "Broker Reports workload cancelled. Partial successful output was not published."
+            )
         except asyncio.CancelledError:
             if session is not None and not session.terminal:
                 session.cancel("caller_task_cancelled")
@@ -503,8 +560,25 @@ class Pipe:
         return "bridem_" + hashlib.sha256(material.encode("utf-8")).hexdigest()
 
     @staticmethod
-    def _reused_workload_content(snapshot: dict[str, Any]) -> str:
+    def _reused_workload_content(
+        snapshot: dict[str, Any], *, hide_internal: bool = False
+    ) -> str:
         state = str(snapshot.get("state") or "")
+        if hide_internal:
+            return {
+                "completed": (
+                    "Этот файл уже обработан. Текущий результат доступен в кейсе."
+                ),
+                "awaiting_review": (
+                    "Обработка завершена, но результат требует проверки специалистом."
+                ),
+                "failed": (
+                    "Файл обработать не удалось. Незавершённый результат не опубликован."
+                ),
+                "cancelled": (
+                    "Обработка файла отменена. Незавершённый результат не опубликован."
+                ),
+            }.get(state, "Этот файл уже обрабатывается.")
         if state == "completed":
             if snapshot.get("terminal_code") == _COMPLETED_WITH_REVIEW_ADVISORY:
                 return (
@@ -544,11 +618,17 @@ class Pipe:
         __event_call__=None,
         **kwargs,
     ) -> str:
-        await self._emit(
-            __event_emitter__, "Checking uploaded file refs...", done=False
-        )
         safe_body = body if isinstance(body, dict) else {}
         safe_metadata = __metadata__ if isinstance(__metadata__, dict) else {}
+        await self._emit(
+            __event_emitter__,
+            self._progress_description(
+                safe_metadata,
+                user_message="Проверяю загруженный файл…",
+                internal_message="Checking uploaded file refs...",
+            ),
+            done=False,
+        )
         trusted_interaction_message = str(
             kwargs.pop("__trusted_interaction_message__", "") or ""
         ).strip()
@@ -726,6 +806,7 @@ class Pipe:
                 retention_policy=retention_policy,
                 trusted_interaction_message=trusted_interaction_message,
                 event_call=__event_call__,
+                source_turn=bool(file_refs),
             ),
             enabled=(
                 bool(self.valves.ndfl_gate3_enabled)
@@ -768,93 +849,47 @@ class Pipe:
 
         if not file_refs:
             await self._emit(
-                __event_emitter__, "No uploaded file refs were visible.", done=True
+                __event_emitter__,
+                self._progress_description(
+                    safe_metadata,
+                    user_message="Загруженный файл не найден.",
+                    internal_message="No uploaded file refs were visible.",
+                ),
+                done=True,
             )
         else:
             await self._emit(
                 __event_emitter__,
-                "Gate 1 artifacts persisted and compact report ready.",
+                self._progress_description(
+                    safe_metadata,
+                    user_message="Отчёт обработан, результат сохранён в кейсе.",
+                    internal_message=(
+                        "Gate 1 artifacts persisted and compact report ready."
+                    ),
+                ),
                 done=True,
             )
-        chat_content = render_chat_content(result.safe_report)
         if artifact_context.workspace_model_id == NDFL_WORKSPACE_MODEL_STABLE_ID:
-            chat_content = self._ndfl_source_user_content(product_result)
-        if ndfl_gate3.get("status") == "completed":
-            semantic_status = (
-                "Обычные сделки с ценными бумагами обработаны по "
-                "квалифицированной точной схеме; неизвестные строки сохранены "
-                "без догадок."
-                if ndfl_gate3.get("route_owner")
-                == "ordinary_trade_exact_fingerprint_v1"
-                else (
-                    "Gate 3: финансовые типы и их роли сохранены для "
-                    "текущей версии документа."
-                )
+            chat_content = await self._render_ndfl_public_dialogue(
+                result=ndfl_gate3,
+                user=__user__,
+                request=__request__,
             )
-            chat_content = "\n".join(
-                [
-                    chat_content,
-                    "",
-                    semantic_status,
-                ]
-            )
-        product = ndfl_gate3.get("product")
-        if isinstance(product, dict):
-            if product.get("status") == "DECLARATION_READY":
-                chat_content = "\n".join(
-                    [
-                        chat_content,
-                        "",
-                        "Расчётная часть готова. Выпуск декларации ожидает "
-                        "запечатанный семантический пакет.",
-                    ]
+        else:
+            chat_content = render_chat_content(result.safe_report)
+            if ndfl_gate3.get("status") == "completed":
+                semantic_status = (
+                    "Обычные сделки с ценными бумагами обработаны по "
+                    "квалифицированной точной схеме; неизвестные строки сохранены "
+                    "без догадок."
+                    if ndfl_gate3.get("route_owner")
+                    == "ordinary_trade_exact_fingerprint_v1"
+                    else (
+                        "Финансовые операции из текущей версии документа "
+                        "классифицированы без изменения исходных значений."
+                    )
                 )
-            elif product.get("status") in {
-                "PREPARATION_INCOMPLETE",
-                "INPUT_REQUIRED",
-                "OPEN_POSITION_RETAINED",
-                "ANALYSIS_READY_WITH_OPEN_ITEMS",
-                "ANALYSIS_ONLY_READY",
-                "NON_FILING_SURROGATE_READY",
-                "STOPPED_RESUMABLE",
-            }:
-                chat_content = "\n".join(
-                    [
-                        chat_content,
-                        "",
-                        self._ndfl_non_ready_product_content(product),
-                    ]
-                )
-            elif product.get("status") == "DRAFT_READY":
-                checklist = product.get("preparation", {}).get(
-                    "checklist_fact_keys", []
-                )
-                chat_content = "\n".join(
-                    [
-                        chat_content,
-                        "",
-                        "Расчётный черновик готов. XML не создан. Осталось: "
-                        + ", ".join(map(str, checklist))
-                        + ".",
-                    ]
-                )
-            elif product.get("status") == "DECLARATION_XML_READY":
-                download = product.get("private_download") or {}
-                chat_content = "\n".join(
-                    [
-                        chat_content,
-                        "",
-                        "3-НДФЛ XML подготовлен и проверен по XSD. "
-                        f"[Скачать XML]({download.get('url')}). Перед самостоятельной "
-                        "подачей проверьте пользовательские реквизиты; операции и суммы "
-                        "взяты из источника, налоговые классификации — из pinned-методики.",
-                        "",
-                        self._ndfl_ready_user_summary(declaration_result),
-                    ]
-                )
-            case_note = self._ndfl_case_note_content(product)
-            if case_note:
-                chat_content = "\n".join([chat_content, "", case_note])
+                chat_content = "\n".join([chat_content, "", semantic_status])
         if self._live_smoke_requested(safe_body, messages_arg):
             smoke_lines = self._run_live_artifactstore_smoke(
                 store=artifact_store,
@@ -890,6 +925,15 @@ class Pipe:
             "Источник прочитан и привязан к текущему кейсу. Релевантные "
             "неразобранные строки не используются молча: при их наличии выпуск "
             "XML будет остановлен."
+        )
+
+    @staticmethod
+    def _ndfl_legacy_route_content() -> str:
+        return (
+            "Подготовка 3-НДФЛ в этом чате недоступна: он открыт через "
+            "устаревшую карточку сервиса. Загруженный файл не использован для "
+            "расчёта, XML не создан. Начните новый чат через актуальную карточку "
+            "«NDFL». Если она не видна, обратитесь к администратору сервиса."
         )
 
     async def _maybe_resume_ndfl_chat_turn(
@@ -977,8 +1021,13 @@ class Pipe:
                 "url": f"/api/v1/files/{file_id}/content?attachment=true",
                 "content_type": "application/xml",
             }
+        content = await self._render_ndfl_public_dialogue(
+            result=result,
+            user=user,
+            request=request,
+        )
         self.last_artifact_manifest = {"ndfl_gate3": result, "resumed_case": True}
-        return self._standalone_ndfl_chat_content(result)
+        return content
 
     @staticmethod
     def _current_declaration_execution_context(
@@ -1036,8 +1085,17 @@ class Pipe:
 
     @staticmethod
     def _current_turn_has_files(body: dict[str, Any]) -> bool:
-        if isinstance(body.get("files"), list) and bool(body["files"]):
-            return True
+        # OpenWebUI keeps every chat file in top-level ``files`` on later
+        # turns.  That collection is case context, not proof that the current
+        # user message attached a new source.  Only the owner-produced current
+        # message (or the latest message on older transports) may select the
+        # intake path instead of resuming the current declaration case.
+        current_user = body.get("user_message")
+        if isinstance(current_user, dict):
+            return bool(
+                isinstance(current_user.get("files"), list)
+                and current_user["files"]
+            )
         messages = body.get("messages")
         if not isinstance(messages, list):
             return False
@@ -1055,124 +1113,426 @@ class Pipe:
             and latest_user["files"]
         )
 
-    def _standalone_ndfl_chat_content(self, result: dict[str, Any]) -> str:
-        product = result["product"]
-        status = product.get("status")
-        lines = ["Текущий кейс 3-НДФЛ возобновлён без повторного чтения отчёта."]
-        receipt = result.get("declaration_chat_receipt")
-        if isinstance(receipt, dict) and receipt.get("status") == "ANSWER_REJECTED":
-            lines.append(
-                "Ответ не принят и не сохранён. Исправьте значение для текущего вопроса."
+    async def _adapt_ndfl_public_answer(
+        self,
+        *,
+        message: str,
+        current_actions: list[dict[str, Any]],
+        product: dict[str, Any],
+        declaration: Any,
+        user: Any,
+        request: Any,
+        event_call: Any,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Propose one public interpretation; bind only through the owner."""
+
+        baseline = self._presentation_llm_calls_total
+        question = build_public_question_context(current_actions[0])
+        dialogue = {
+            "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
+            "answer_feedback": None,
+            "interpretation_model_used": False,
+            "interpretation_disposition": None,
+            "candidate_proposed": False,
+            "explicit_confirmation_received": False,
+            "presentation_call_already_used": False,
+            "presentation_fallback_used": False,
+        }
+        direct = adapt_current_declaration_request(
+            message=message,
+            current_requests=current_actions,
+        )
+        adapted: dict[str, Any]
+        if question is None:
+            adapted = adapt_current_declaration_request(
+                message=message,
+                current_requests=current_actions,
             )
-        if status in {
-            "PREPARATION_INCOMPLETE",
-            "INPUT_REQUIRED",
-            "OPEN_POSITION_RETAINED",
-            "ANALYSIS_READY_WITH_OPEN_ITEMS",
-            "ANALYSIS_ONLY_READY",
-            "NON_FILING_SURROGATE_READY",
-            "STOPPED_RESUMABLE",
-        }:
-            lines.append(self._ndfl_non_ready_product_content(product))
-        elif status == "DRAFT_READY":
-            checklist = product.get("preparation", {}).get("checklist_fact_keys", [])
-            lines.append(
-                "Расчётный черновик готов. XML не создан. Осталось: "
-                + ", ".join(map(str, checklist))
-                + "."
+            dialogue["presentation_fallback_used"] = True
+        elif public_answer_requires_clarification(message):
+            adapted = {
+                "status": "ANSWER_REJECTED",
+                "reason_code": "declaration_chat_answer_delegates_choice",
+            }
+            dialogue["answer_feedback"] = (
+                "Не буду выбирать за вас. Уточните ответ на текущий вопрос "
+                "своими словами."
             )
-            actions = product.get("preparation", {}).get("user_actions", [])
-            if actions:
-                lines.append(self._ndfl_product_blocker_content(product))
-        elif status == "DECLARATION_XML_READY":
-            download = product.get("private_download") or {}
-            lines.append(
-                "3-НДФЛ XML подготовлен и проверен по XSD. "
-                f"[Скачать XML]({download.get('url')})."
-            )
-            lines.append(self._ndfl_ready_user_summary(result.get("declaration")))
-            lines.append(
-                "Чтобы исправить дату или ИНН, напишите «Изменить дату» "
-                "или «Изменить ИНН»."
-            )
+        elif direct.get("status") == "ANSWER_READY":
+            adapted = direct
         else:
-            lines.append("Подготовка остановлена на точном типизированном блокере.")
-        case_note = self._ndfl_case_note_content(product)
-        if case_note:
-            lines.append(case_note)
-        return "\n\n".join(lines)
+            interpretation: dict[str, str] | None = None
+            if self.valves.ndfl_presentation_llm_enabled:
+                try:
+                    context = build_public_dialogue_context(
+                        product=product,
+                        declaration=declaration,
+                    )
+                    system_content, user_content = (
+                        public_dialogue_interpretation_messages(
+                            context=context,
+                            user_message=message,
+                        )
+                    )
+                    raw = await self._call_openwebui_presentation_completion(
+                        system_content=system_content,
+                        user_content=user_content,
+                        response_format=(
+                            public_dialogue_interpretation_response_format()
+                        ),
+                        user=user,
+                        request=request,
+                        task="ordinary_trade_public_answer_interpretation",
+                    )
+                    interpretation = validate_public_dialogue_interpretation(
+                        raw,
+                        context=context,
+                        user_message=message,
+                    )
+                    dialogue["interpretation_model_used"] = True
+                    dialogue["interpretation_disposition"] = interpretation[
+                        "disposition"
+                    ]
+                    dialogue["presentation_call_already_used"] = True
+                    dialogue["pre_rendered_context_sha256"] = (
+                        public_dialogue_context_sha256(context)
+                    )
+                    dialogue["pre_rendered_message"] = interpretation["message"]
+                except Exception:
+                    dialogue["presentation_call_already_used"] = True
+                    dialogue["presentation_fallback_used"] = True
+            if interpretation is None:
+                adapted = {
+                    "status": "ANSWER_REJECTED",
+                    "reason_code": "declaration_chat_answer_requires_explicit_value",
+                }
+                dialogue["answer_feedback"] = (
+                    "Ответ пока не принят. Укажите один точный вариант для "
+                    "текущего вопроса своими словами."
+                )
+            elif interpretation["disposition"] == "CLARIFY":
+                adapted = {
+                    "status": "ANSWER_REJECTED",
+                    "reason_code": "declaration_chat_answer_requires_clarification",
+                }
+            else:
+                normalized_answer = interpretation["normalized_answer"]
+                owner_candidate = adapt_current_declaration_request(
+                    message=normalized_answer,
+                    current_requests=current_actions,
+                )
+                conflicts = public_answer_candidate_conflicts_with_explicit_negation(
+                    user_message=message,
+                    normalized_answer=normalized_answer,
+                )
+                if owner_candidate.get("status") != "ANSWER_READY" or conflicts:
+                    adapted = {
+                        "status": "ANSWER_REJECTED",
+                        "reason_code": (
+                            "declaration_chat_interpretation_conflicts_with_user"
+                            if conflicts
+                            else "declaration_chat_interpretation_not_owner_accepted"
+                        ),
+                    }
+                    dialogue.pop("pre_rendered_message", None)
+                    dialogue["answer_feedback"] = (
+                        "Ответ пока не принят. Уточните один вариант без отрицания "
+                        "или двусмысленности."
+                    )
+                else:
+                    dialogue["candidate_proposed"] = True
+                    confirmed = await self._declaration_candidate_confirmation(
+                        event_call=event_call,
+                        normalized_answer=normalized_answer,
+                        visible_message=interpretation["message"],
+                    )
+                    if confirmed is True:
+                        adapted = owner_candidate
+                        dialogue["explicit_confirmation_received"] = True
+                        dialogue.pop("pre_rendered_message", None)
+                    elif confirmed is False:
+                        adapted = {
+                            "status": "ANSWER_REJECTED",
+                            "reason_code": (
+                                "declaration_chat_interpretation_not_confirmed"
+                            ),
+                        }
+                        dialogue.pop("pre_rendered_message", None)
+                        dialogue["answer_feedback"] = (
+                            "Интерпретация не подтверждена и не сохранена. "
+                            "Ответьте на текущий вопрос ещё раз своими словами."
+                        )
+                    else:
+                        adapted = {
+                            "status": "ANSWER_CONFIRMATION_REQUIRED",
+                            "reason_code": (
+                                "declaration_chat_interpretation_confirmation_required"
+                            ),
+                        }
+        if adapted.get("status") == "ANSWER_REJECTED" and not dialogue.get(
+            "answer_feedback"
+        ) and not dialogue.get("pre_rendered_message"):
+            dialogue["answer_feedback"] = (
+                "Ответ пока не принят. Уточните его для текущего вопроса."
+            )
+        dialogue["presentation_llm_calls_total"] = (
+            self._presentation_llm_calls_total - baseline
+        )
+        dialogue["domain_provider_calls_total"] = 0
+        return adapted, dialogue
+
+    async def _render_ndfl_public_dialogue(
+        self,
+        *,
+        result: dict[str, Any],
+        user: Any,
+        request: Any,
+    ) -> str:
+        product = result.get("product")
+        if not isinstance(product, dict):
+            return self._ndfl_source_user_content(product)
+        existing = result.get("public_dialogue")
+        existing = existing if isinstance(existing, dict) else {}
+        context = build_public_dialogue_context(
+            product=product,
+            declaration=result.get("declaration"),
+            answer_feedback=existing.get("answer_feedback"),
+        )
+        fallback_used = bool(existing.get("presentation_fallback_used"))
+        model_used = False
+        content = ""
+        context_sha256 = public_dialogue_context_sha256(context)
+        call_already_used = bool(existing.get("presentation_call_already_used"))
+        if (
+            call_already_used
+            and existing.get("pre_rendered_context_sha256") == context_sha256
+            and isinstance(existing.get("pre_rendered_message"), str)
+        ):
+            content = existing["pre_rendered_message"]
+            model_used = bool(existing.get("interpretation_model_used"))
+        elif call_already_used:
+            fallback_used = True
+        elif self.valves.ndfl_presentation_llm_enabled:
+            try:
+                system_content, user_content = public_dialogue_render_messages(context)
+                raw = await self._call_openwebui_presentation_completion(
+                    system_content=system_content,
+                    user_content=user_content,
+                    response_format=public_dialogue_message_response_format(),
+                    user=user,
+                    request=request,
+                    task="ordinary_trade_public_dialogue_render",
+                )
+                content = validate_public_dialogue_message(raw, context=context)
+                model_used = True
+            except Exception:
+                fallback_used = True
+        if not content:
+            content = render_public_dialogue_fallback(context)
+        download = product.get("private_download")
+        if (
+            context["outcome"]["download_available"] is True
+            and isinstance(download, dict)
+            and isinstance(download.get("url"), str)
+            and download["url"]
+        ):
+            content = "\n\n".join(
+                [content, f"[Скачать приватный XML]({download['url']})"]
+            )
+        result["public_dialogue"] = {
+            **existing,
+            "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
+            "context": context,
+            "context_sha256": context_sha256,
+            "presentation_model_used": bool(
+                model_used or existing.get("interpretation_model_used")
+            ),
+            "presentation_fallback_used": fallback_used,
+            "presentation_llm_calls_total": self._presentation_llm_calls_total,
+            "domain_provider_calls_total": int(result.get("provider_calls_total") or 0),
+            "visible_message_sha256": hashlib.sha256(
+                content.encode("utf-8")
+            ).hexdigest(),
+        }
+        return content
+
+    async def _call_openwebui_presentation_completion(
+        self,
+        *,
+        system_content: str,
+        user_content: str,
+        response_format: dict[str, Any],
+        user: Any,
+        request: Any,
+        task: str,
+    ) -> Any:
+        if request is None:
+            raise NdflWorkflowError("ndfl_presentation_model_unavailable")
+        user_id = self._user_id(user, {})
+        model_id = str(self.valves.ndfl_presentation_model_id or "").strip()
+        if not user_id or not model_id:
+            raise NdflWorkflowError("ndfl_presentation_model_unavailable")
+        form_data = {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content},
+            ],
+            "stream": False,
+            "response_format": response_format,
+            "metadata": {
+                "broker_reports_gate1": {
+                    "presentation_only": True,
+                    "task": task,
+                }
+            },
+        }
+        self._presentation_llm_calls_total += 1
+        try:
+            http_target = self._openwebui_presentation_http_target(request)
+            if http_target is not None:
+                response = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        self._openwebui_presentation_http_completion,
+                        target=http_target,
+                        form_data=form_data,
+                    ),
+                    timeout=NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS + 5.0,
+                )
+                return self._extract_completion_content(response)
+            completion_fn, user_model = self._openwebui_completion_dependencies(user_id)
+            if inspect.isawaitable(user_model):
+                user_model = await user_model
+            if user_model is None:
+                raise NdflWorkflowError("ndfl_presentation_model_unavailable")
+            try:
+                response = completion_fn(
+                    request=request,
+                    form_data=form_data,
+                    user=user_model,
+                    bypass_filter=True,
+                    bypass_system_prompt=True,
+                )
+            except TypeError:
+                try:
+                    response = completion_fn(
+                        request=request,
+                        form_data=form_data,
+                        user=user_model,
+                    )
+                except TypeError:
+                    response = completion_fn(request, form_data, user_model)
+            if inspect.isawaitable(response):
+                response = await asyncio.wait_for(
+                    response,
+                    timeout=NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS,
+                )
+            return self._extract_completion_content(response)
+        except Exception as exc:
+            raise NdflWorkflowError("ndfl_presentation_model_call_failed") from exc
+
+    def _openwebui_presentation_http_target(
+        self,
+        request: Any,
+    ) -> tuple[str, str] | None:
+        headers = getattr(request, "headers", None)
+        origin = str(
+            self.valves.ndfl_presentation_openwebui_origin or ""
+        ).strip()
+        authorization = (
+            str(headers.get("authorization") or "").strip()
+            if headers is not None and hasattr(headers, "get")
+            else ""
+        )
+        if not origin:
+            return None
+        try:
+            parsed = urllib.parse.urlsplit(origin)
+            port = parsed.port
+        except ValueError as exc:
+            raise NdflWorkflowError(
+                "ndfl_presentation_openwebui_origin_invalid"
+            ) from exc
+        if (
+            parsed.scheme.casefold() != "https"
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise NdflWorkflowError("ndfl_presentation_openwebui_origin_invalid")
+        if not authorization.startswith("Bearer "):
+            raise NdflWorkflowError("ndfl_presentation_bearer_required")
+        netloc = parsed.hostname
+        if ":" in netloc and not netloc.startswith("["):
+            netloc = f"[{netloc}]"
+        if port is not None:
+            netloc = f"{netloc}:{port}"
+        url = urllib.parse.urlunsplit(
+            ("https", netloc, "/api/chat/completions", "", "")
+        )
+        return url, authorization
 
     @staticmethod
-    def _ndfl_ready_user_summary(declaration: Any) -> str:
-        """Present already owner-reconciled values without becoming an authority."""
-
-        values: dict[str, Any] = {}
-        if isinstance(declaration, dict):
-            reconciliation = declaration.get("semantic_reconciliation")
-            if (
-                isinstance(reconciliation, dict)
-                and reconciliation.get("status") == "passed"
-            ):
-                proof = reconciliation.get("representation_proof")
-                if isinstance(proof, dict) and proof.get("status") == "extracted":
-                    candidate = proof.get("values")
-                    if isinstance(candidate, dict):
-                        values = candidate
-        income = values.get("income_group")
-        formatted: dict[str, str] = {}
-        if isinstance(income, dict):
-            try:
-                formatted = {
-                    key: str(income[key])
-                    for key in (
-                        "total_income",
-                        "accepted_expenses",
-                        "tax_base",
-                        "calculated_tax",
-                        "tax_payable",
-                    )
-                }
-            except (KeyError, TypeError, ValueError):
-                formatted = {}
-        if formatted:
-            extracted = (
-                "Из отчёта: распознаны операции и связанные исходные суммы и "
-                "расходы; неразобранные релевантные строки блокируют выпуск."
-            )
-            calculated = (
-                "Рассчитано Tax Model и независимо сверено с XML: доход "
-                "{total_income} ₽; принятые расходы {accepted_expenses} ₽; "
-                "налоговая база {tax_base} ₽; исчисленный налог "
-                "{calculated_tax} ₽; к уплате {tax_payable} ₽."
-            ).format_map(formatted)
-        else:
-            extracted = (
-                "Из отчёта: распознанные операции и связанные с ними расходы; "
-                "неразобранные релевантные строки блокируют выпуск."
-            )
-            calculated = (
-                "Рассчитано Tax Model и независимо сверено с XML: доход, расходы, "
-                "налоговая база, исчисленный налог и итог к уплате/возврату."
-            )
-        return "\n".join(
-            [
-                "Что вошло в результат:",
-                f"- {extracted}",
-                f"- {calculated}",
-                "- Определено по методике резидентства: статус за 2025 год рассчитан "
-                "по указанным периодам присутствия/отсутствия и специальным причинам; "
-                "это вывод методики, а не введённый вами готовый налоговый статус.",
-                "- Подтверждено вами: периоды присутствия и отсутствия в России и "
-                "специальные причины отсутствия; статус как физического лица, ИП или "
-                "лица частной практики; ИНН и ФИО; вид декларации, дата, инспекция, "
-                "подписант, бюджетный итог и ОКТМО; отсутствие других доходов той же "
-                "категории, вычетов, переносимых убытков, зачётов и удержанного налога "
-                "в пределах этого кейса.",
-                "- Перед подачей: сверьте ИНН, ФИО, дату, номер корректировки, "
-                "инспекцию, ОКТМО, источник и полноту операций. XML только "
-                "подготовлен — в ФНС он не отправлялся.",
-            ]
+    def _openwebui_presentation_http_completion(
+        *,
+        target: tuple[str, str],
+        form_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        url, authorization = target
+        body = json.dumps(
+            form_data,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        outbound = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                "Accept": "application/json",
+                "Authorization": authorization,
+                "Content-Type": "application/json",
+            },
+            method="POST",
         )
+        opener = urllib.request.build_opener(_NdflPresentationNoRedirectHandler())
+        with opener.open(
+            outbound,
+            timeout=NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS,
+        ) as response:
+            if int(getattr(response, "status", 0) or 0) != 200:
+                raise NdflWorkflowError("ndfl_presentation_model_http_failed")
+            raw = response.read(NDFL_PRESENTATION_MAX_RESPONSE_BYTES + 1)
+            if len(raw) > NDFL_PRESENTATION_MAX_RESPONSE_BYTES:
+                raise NdflWorkflowError("ndfl_presentation_model_http_too_large")
+            value = json.loads(raw.decode("utf-8"))
+        if not isinstance(value, dict):
+            raise NdflWorkflowError("ndfl_presentation_model_http_invalid")
+        return value
+
+    def _standalone_ndfl_chat_content(self, result: dict[str, Any]) -> str:
+        product = result.get("product")
+        if not isinstance(product, dict):
+            return self._ndfl_source_user_content(product)
+        existing = result.get("public_dialogue")
+        existing = existing if isinstance(existing, dict) else {}
+        context = build_public_dialogue_context(
+            product=product,
+            declaration=result.get("declaration"),
+            answer_feedback=existing.get("answer_feedback"),
+        )
+        content = render_public_dialogue_fallback(context)
+        download = product.get("private_download")
+        if (
+            context["outcome"]["download_available"] is True
+            and isinstance(download, dict)
+            and isinstance(download.get("url"), str)
+            and download["url"]
+        ):
+            content += f"\n\n[Скачать приватный XML]({download['url']})"
+        return content
 
     async def _maybe_run_ndfl_gate3(
         self,
@@ -1186,6 +1546,7 @@ class Pipe:
         retention_policy: Any | None = None,
         trusted_interaction_message: str = "",
         event_call: Any = None,
+        source_turn: bool = False,
     ) -> dict[str, Any]:
         candidate_enabled = bool(self.valves.ordinary_trade_candidate_enabled)
         if not candidate_enabled and not self.valves.ndfl_gate3_enabled:
@@ -1213,7 +1574,7 @@ class Pipe:
         if candidate_enabled:
             await self._emit(
                 event_emitter,
-                "Compiling exact-qualified ordinary trades and running Gate 5...",
+                "Проверяю операции и рассчитываю подтверждённые закрытые сделки…",
                 done=False,
             )
             runtime = OrdinaryTradeProductionRuntimeFactory(
@@ -1234,6 +1595,7 @@ class Pipe:
             )
             change = declaration_change_intent(trusted_interaction_message)
             adapted = None
+            dialogue = None
             if change is not None:
                 if change["status"] == "ANSWER_REJECTED":
                     adapted = change
@@ -1264,14 +1626,41 @@ class Pipe:
                 # Human think time belongs to the Human Fact request owner and must
                 # not retain the scarce Gate 1 admission lease.
                 self._finalize_workload_publication()
-                interactive_answer = await self._declaration_event_answer(
-                    event_call=event_call,
-                    current_actions=current_actions,
-                )
-                adapted = adapt_current_declaration_request(
-                    message=interactive_answer,
-                    current_requests=current_actions,
-                )
+                if source_turn or not trusted_interaction_message:
+                    return result
+                if (
+                    trusted_interaction_message.casefold()
+                    == "показать точный ввод"
+                ):
+                    dialogue = {
+                        "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
+                        "answer_feedback": None,
+                        "interpretation_model_used": False,
+                        "interpretation_disposition": None,
+                        "candidate_proposed": False,
+                        "explicit_confirmation_received": False,
+                        "presentation_call_already_used": False,
+                        "presentation_fallback_used": False,
+                    }
+                    interactive_answer = await self._declaration_event_answer(
+                        event_call=event_call,
+                        current_actions=current_actions,
+                    )
+                    adapted = adapt_current_declaration_request(
+                        message=interactive_answer,
+                        current_requests=current_actions,
+                    )
+                else:
+                    adapted, dialogue = await self._adapt_ndfl_public_answer(
+                        message=trusted_interaction_message,
+                        current_actions=current_actions,
+                        product=result["product"],
+                        declaration=result.get("declaration"),
+                        user=user,
+                        request=request,
+                        event_call=event_call,
+                    )
+                    result["public_dialogue"] = dialogue
             else:
                 return result
             if adapted["status"] == "ANSWER_READY":
@@ -1286,6 +1675,12 @@ class Pipe:
                         canonical_artifact_refs=canonical_refs,
                         context=context,
                     )
+                    if isinstance(dialogue, dict):
+                        dialogue["answer_feedback"] = (
+                            "Ответ не принят и не сохранён. Исправьте значение "
+                            "для текущего вопроса."
+                        )
+                        result["public_dialogue"] = dialogue
                     result["declaration_chat_receipt"] = {
                         "status": "ANSWER_REJECTED",
                         "answer_accepted": False,
@@ -1296,10 +1691,19 @@ class Pipe:
                     canonical_artifact_refs=canonical_refs,
                     context=context,
                 )
+                if isinstance(dialogue, dict):
+                    result["public_dialogue"] = dialogue
             elif adapted["status"] == "ANSWER_REJECTED":
                 result["declaration_chat_receipt"] = {
                     "status": "ANSWER_REJECTED",
                     "answer_accepted": False,
+                    "reason_code": adapted["reason_code"],
+                }
+            elif adapted["status"] == "ANSWER_CONFIRMATION_REQUIRED":
+                result["declaration_chat_receipt"] = {
+                    "status": "ANSWER_CONFIRMATION_REQUIRED",
+                    "answer_accepted": False,
+                    "fact_created": False,
                     "reason_code": adapted["reason_code"],
                 }
             if action_receipt is not None:
@@ -1358,7 +1762,7 @@ class Pipe:
             raise NdflWorkflowError("ndfl_gate2_canonical_artifact_missing")
         await self._emit(
             event_emitter,
-            "NDFL is activating exact Gate 2 versions and running Gate 3...",
+            "Проверяю операции текущей версии отчёта…",
             done=False,
         )
         model_client = Gate2StructuredModelClientFactory(
@@ -1552,21 +1956,27 @@ class Pipe:
                 "authenticated_user_ref": context.user_id,
                 "case_scope_sha256": case_scope_sha256,
                 "xml_sha256": xml_sha256,
-                "receipt_sha256": receipt_sha256,
             },
             sort_keys=True,
             separators=(",", ":"),
         )
+        publication_identity_sha256 = hashlib.sha256(
+            file_material.encode("utf-8")
+        ).hexdigest()
         file_id = str(
             uuid.uuid5(
                 uuid.UUID("99ab3cab-969f-4c79-bf48-3e7e5030911b"),
                 file_material,
             )
         )
-        expected_data = {
+        stable_expected_data = {
             "broker_reports_declaration_product": True,
             "private_user_artifact": True,
             "case_scope_sha256": case_scope_sha256,
+            "publication_identity_sha256": publication_identity_sha256,
+        }
+        inserted_data = {
+            **stable_expected_data,
             "receipt_sha256": receipt_sha256,
         }
 
@@ -1583,10 +1993,16 @@ class Pipe:
             meta = meta if isinstance(meta, dict) else {}
             data = meta.get("data") if isinstance(meta.get("data"), dict) else {}
             row_path = str(getattr(row, "path", "") or "")
+            stored_receipt_sha256 = str(data.get("receipt_sha256") or "")
             if (
                 str(getattr(row, "user_id", "") or "") != context.user_id
                 or str(getattr(row, "hash", "") or "") != xml_sha256
-                or data != expected_data
+                or set(data) != {*stable_expected_data, "receipt_sha256"}
+                or any(
+                    data.get(key) != value
+                    for key, value in stable_expected_data.items()
+                )
+                or re.fullmatch(r"[0-9a-f]{64}", stored_receipt_sha256) is None
                 or not row_path
             ):
                 raise NdflWorkflowError(
@@ -1640,7 +2056,7 @@ class Pipe:
                         "content_type": "application/xml",
                         "size": len(contents),
                         "file_hash": xml_sha256,
-                        "data": expected_data,
+                        "data": inserted_data,
                     },
                 ),
             )
@@ -1730,123 +2146,44 @@ class Pipe:
         return value if isinstance(value, str) else ""
 
     @staticmethod
-    def _ndfl_non_ready_product_content(product: dict[str, Any]) -> str:
-        lines = [Pipe._ndfl_product_blocker_content(product)]
-        if product.get("status") == "NON_FILING_SURROGATE_READY":
-            preparation = product.get("preparation")
-            preparation = preparation if isinstance(preparation, dict) else {}
-            lines.append(
-                declaration_surrogate_preview(
-                    preparation.get("surrogate_preview")
-                )
-            )
-        return "\n".join(lines)
+    async def _declaration_candidate_confirmation(
+        *, event_call: Any, normalized_answer: str, visible_message: str
+    ) -> bool | None:
+        """Confirm a presentation-only candidate without publishing it."""
 
-    @staticmethod
-    def _ndfl_product_blocker_content(product: dict[str, Any]) -> str:
-        gate5 = product.get("gate5")
-        gate5 = gate5 if isinstance(gate5, dict) else {}
-        reason_codes = gate5.get("blocker_reason_codes")
-        reason_codes = reason_codes if isinstance(reason_codes, list) else []
-        exact_note = (
-            f"Exact status: {product.get('status') or 'unknown'}; "
-            f"terminal: {product.get('terminal') or 'unknown'}; reason codes: "
-            + (", ".join(map(str, reason_codes)) if reason_codes else "none")
-            + "."
-        )
-        preparation = product.get("preparation")
-        preparation = preparation if isinstance(preparation, dict) else {}
-        closure = preparation.get("gap_closure")
-        closure = closure if isinstance(closure, dict) else {}
-        user_actions = closure.get("user_facing_required_actions")
-        user_actions = user_actions if isinstance(user_actions, list) else []
-        if user_actions:
-            first = user_actions[0]
-            question = declaration_request_question(first)
-            candidate = (
-                first.get("answer_contract", {}).get("candidate")
-                if isinstance(first.get("answer_contract"), dict)
-                else None
+        if not callable(event_call):
+            return None
+        candidate = str(normalized_answer or "").strip()
+        message = str(visible_message or "").strip()
+        if (
+            not candidate
+            or len(candidate) > 2048
+            or not message
+            or len(message) > 6000
+            or candidate.casefold() not in message.casefold()
+        ):
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_interaction_request_invalid"
             )
-            candidate_note = ""
-            if isinstance(candidate, dict):
-                inn = str(candidate.get("inn") or "")
-                if re.fullmatch(r"[0-9]{12}", inn):
-                    candidate_note = (
-                        f" Найден кандидат ИНН {inn[:4]}••••{inn[-4:]}; "
-                        "подтвердите, измените или заполните позднее."
-                    )
-            return (
-                "Расчёт остановлен без догадок. Нужны подтверждённые данные"
-                + (": " + question if question else ".")
-                + candidate_note
-                + " "
-                + declaration_request_help(first)
-                + " "
-                + exact_note
+        try:
+            value = await event_call(
+                {
+                    "type": "confirmation",
+                    "data": {
+                        "title": "Подтвердите понимание ответа",
+                        "message": message,
+                    },
+                }
             )
-        internal_actions = closure.get("internal_owner_required_actions")
-        internal_actions = (
-            internal_actions if isinstance(internal_actions, list) else []
-        )
-        if not internal_actions:
-            return exact_note
-        if internal_actions:
-            return (
-                exact_note
-                + " "
-                "Расчёт остановлен на точной границе методики; "
-                "дополнительный документ у пользователя не запрашивается."
+        except Exception as exc:
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_interaction_boundary_failed"
+            ) from exc
+        if isinstance(value, dict) and value.get("error"):
+            raise NdflWorkflowError(
+                "ordinary_trade_declaration_interaction_boundary_failed"
             )
-        return "Расчёт остановлен: обязательные данные пока неполны."
-
-    @staticmethod
-    def _ndfl_case_note_content(product: dict[str, Any]) -> str:
-        preparation = product.get("preparation")
-        preparation = preparation if isinstance(preparation, dict) else {}
-        note = preparation.get("final_note")
-        if not isinstance(note, dict):
-            return ""
-        selected = note.get("selected_tax_period") or "not selected"
-        years = note.get("detected_operation_years")
-        years_text = (
-            ", ".join(map(str, years))
-            if isinstance(years, list) and years
-            else "none"
-        )
-        profile = note.get("profile")
-        profile = profile if isinstance(profile, dict) else {}
-        positions = note.get("positions")
-        positions = positions if isinstance(positions, list) else []
-        position_text = ", ".join(
-            f"{item.get('asset')}: {item.get('state')}"
-            for item in positions
-            if isinstance(item, dict)
-        ) or "none"
-        calculated = note.get("calculated_disposal_fact_ids")
-        calculated_total = len(calculated) if isinstance(calculated, list) else 0
-        checks = note.get("required_checks")
-        checks_text = (
-            ", ".join(map(str, checks))
-            if isinstance(checks, list) and checks
-            else "none"
-        )
-        filing = "yes" if note.get("filing_eligible") is True else "no"
-        return (
-            "Case note: source completeness "
-            f"{note.get('source_completeness_status') or 'unknown'}; "
-            "position evaluation "
-            f"{note.get('position_evaluation_status') or 'unknown'}; selected tax period "
-            f"{selected}; detected operation years {years_text}; exact profile "
-            f"{profile.get('support') or 'unknown'}"
-            + (
-                f" (form {profile.get('form_version')}, XSD {profile.get('xsd_name')})"
-                if profile.get("form_version") and profile.get("xsd_name")
-                else ""
-            )
-            + f"; positions {position_text}; calculated disposals {calculated_total}; "
-            f"checks {checks_text}; filing eligible {filing}."
-        )
+        return value if isinstance(value, bool) else None
 
     def _write_ndfl_private_audit(self, executions: list[Any]) -> dict[str, Any]:
         if not self.valves.ndfl_gate3_private_audit_enabled:
@@ -2167,7 +2504,13 @@ class Pipe:
         )
         await self._emit(
             event_emitter,
-            "Resolving managed Document Metadata Passport prompt...",
+            self._progress_description(
+                metadata,
+                user_message="Проверяю реквизиты документа…",
+                internal_message=(
+                    "Resolving managed Document Metadata Passport prompt..."
+                ),
+            ),
             done=False,
         )
         try:
@@ -2178,7 +2521,17 @@ class Pipe:
         except DocumentPassportError:
             await self._emit(
                 event_emitter,
-                "Document metadata passport stage unavailable; continuing with safe Gate 1 fallback.",
+                self._progress_description(
+                    metadata,
+                    user_message=(
+                        "Автоматическая проверка реквизитов недоступна; "
+                        "продолжаю без предположений."
+                    ),
+                    internal_message=(
+                        "Document metadata passport stage unavailable; "
+                        "continuing with safe Gate 1 fallback."
+                    ),
+                ),
                 done=False,
             )
             return result
@@ -2192,7 +2545,13 @@ class Pipe:
         )
         await self._emit(
             event_emitter,
-            "Calling OpenWebUI model for document metadata passports...",
+            self._progress_description(
+                metadata,
+                user_message="Сверяю реквизиты документа…",
+                internal_message=(
+                    "Calling OpenWebUI model for document metadata passports..."
+                ),
+            ),
             done=False,
         )
         raw_outputs = []
@@ -2285,7 +2644,13 @@ class Pipe:
             criticality_refinement_enabled=criticality_refinement_enabled,
         )
         await self._emit(
-            event_emitter, "Document metadata passports validated.", done=False
+            event_emitter,
+            self._progress_description(
+                metadata,
+                user_message="Реквизиты документа проверены.",
+                internal_message="Document metadata passports validated.",
+            ),
+            done=False,
         )
         return NormalizationResult(
             package=applied["package"],
@@ -2311,7 +2676,13 @@ class Pipe:
         )
         await self._emit(
             event_emitter,
-            "Building deterministic Gate 1 metadata gap report...",
+            self._progress_description(
+                metadata,
+                user_message="Проверяю, какие сведения нужно уточнить…",
+                internal_message=(
+                    "Building deterministic Gate 1 metadata gap report..."
+                ),
+            ),
             done=False,
         )
         gap_report = build_metadata_gap_report(
@@ -2341,7 +2712,17 @@ class Pipe:
         except ClarificationError:
             await self._emit(
                 event_emitter,
-                "Clarification prompt unavailable; persisting deterministic metadata gap report only.",
+                self._progress_description(
+                    metadata,
+                    user_message=(
+                        "Автоматическое уточнение недоступно; сохраняю только "
+                        "подтверждённые сведения."
+                    ),
+                    internal_message=(
+                        "Clarification prompt unavailable; persisting "
+                        "deterministic metadata gap report only."
+                    ),
+                ),
                 done=False,
             )
             applied_gap = apply_metadata_gap_report_stage(
@@ -2357,7 +2738,13 @@ class Pipe:
             )
         await self._emit(
             event_emitter,
-            "Calling OpenWebUI model for Gate 1 clarification questions...",
+            self._progress_description(
+                metadata,
+                user_message="Готовлю уточняющие вопросы по документу…",
+                internal_message=(
+                    "Calling OpenWebUI model for Gate 1 clarification questions..."
+                ),
+            ),
             done=False,
         )
         try:
@@ -2420,7 +2807,13 @@ class Pipe:
                 bounded_graph=result.bounded_graph,
             )
         await self._emit(
-            event_emitter, "Gate 1 clarification questions prepared.", done=False
+            event_emitter,
+            self._progress_description(
+                metadata,
+                user_message="Уточняющие вопросы по документу готовы.",
+                internal_message="Gate 1 clarification questions prepared.",
+            ),
+            done=False,
         )
         return NormalizationResult(
             package=applied["package"],
@@ -3369,6 +3762,14 @@ class Pipe:
         await self._emit(emitter, description, done=done)
 
     @staticmethod
+    def _progress_description(
+        metadata: dict[str, Any], *, user_message: str, internal_message: str
+    ) -> str:
+        if metadata.get("model_id") == NDFL_WORKSPACE_MODEL_STABLE_ID:
+            return user_message
+        return internal_message
+
+    @staticmethod
     def _workload_failure_code(exc: BaseException) -> str:
         raw = str(getattr(exc, "code", "") or exc.__class__.__name__).lower()
         normalized = re.sub(r"[^a-z0-9_.:-]+", "_", raw).strip("_")
@@ -3970,6 +4371,58 @@ class Pipe:
                 )
             )
         return max(candidates)[2] if candidates else (trusted or value)
+
+    @classmethod
+    async def _server_attested_completed_turn_content(
+        cls,
+        *,
+        metadata: dict[str, Any],
+        user: Any,
+        interaction_message: str,
+    ) -> str | None:
+        """Replay only the host-owned completed leaf for this exact user turn."""
+
+        chat_id = str(metadata.get("chat_id") or "").strip()
+        if metadata.get("model_id") != NDFL_WORKSPACE_MODEL_STABLE_ID:
+            return None
+        user_id = (
+            str(user.get("id") or user.get("user_id") or "").strip()
+            if isinstance(user, dict)
+            else ""
+        )
+        if not chat_id or not user_id or not interaction_message:
+            return None
+        try:
+            from open_webui.models.chats import Chats
+
+            chat = await Chats.get_chat_by_id_and_user_id(chat_id, user_id)
+        except (ImportError, AttributeError):
+            return None
+        if chat is None or not isinstance(chat.chat, dict):
+            return None
+        history = chat.chat.get("history")
+        history = history if isinstance(history, dict) else {}
+        messages = history.get("messages")
+        messages = messages if isinstance(messages, dict) else {}
+        current_id = str(history.get("currentId") or "").strip()
+        current = messages.get(current_id)
+        if (
+            not isinstance(current, dict)
+            or current.get("role") != "assistant"
+            or current.get("done") is not True
+            or str(current.get("model") or "").strip()
+            != NDFL_WORKSPACE_MODEL_STABLE_ID
+        ):
+            return None
+        parent = messages.get(str(current.get("parentId") or ""))
+        if (
+            not isinstance(parent, dict)
+            or parent.get("role") != "user"
+            or cls._message_text(parent.get("content")) != interaction_message
+        ):
+            return None
+        content = current.get("content")
+        return content if isinstance(content, str) and content.strip() else None
 
     def _file_obj(self, item: Any) -> dict[str, Any] | None:
         if not isinstance(item, dict):

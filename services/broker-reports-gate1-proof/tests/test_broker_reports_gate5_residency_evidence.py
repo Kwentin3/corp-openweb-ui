@@ -74,6 +74,29 @@ def test_user_resident_claim_without_interval_evidence_is_not_authoritative() ->
     assert result["reason"] == "article_207_exception_evidence_requires_review"
 
 
+def test_full_year_presence_with_explicit_no_absence_is_complete_evidence() -> None:
+    runtime = Gate5ResidencyEvidenceRuntimeFactory.create()
+    evidence = runtime.normalize_human_answer(
+        human_answer=(
+            "Присутствие: 2025-01-01..2025-12-31; "
+            "отсутствие: нет; причины: нет"
+        ),
+        proposal=_proposal(
+            presence=[("2025-01-01", "2025-12-31")],
+            absence=[],
+            all_reasons=True,
+        ),
+        source_ref="residency-request-no-absence",
+    )
+
+    assert evidence["presence_days"] == 365
+    assert evidence["absence_days"] == 0
+    assert evidence["interval_coverage"] == "COMPLETE_WINDOW"
+    result = runtime.classify(evidence=evidence)
+    assert result["status"] == "RESIDENT"
+    assert result["period_status"] == "resident_individual"
+
+
 def test_complete_window_under_183_days_becomes_nonresident_by_methodology() -> None:
     runtime = Gate5ResidencyEvidenceRuntimeFactory.create()
     evidence = runtime.normalize_human_answer(

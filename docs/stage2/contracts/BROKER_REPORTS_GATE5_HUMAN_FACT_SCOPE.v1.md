@@ -1,8 +1,9 @@
-# Broker Reports Gate 5 Human Fact Scope v1
+﻿# Broker Reports Gate 5 Human Fact Scope v1
 
-Status: `CURRENT; ACTIVE FOR THE BOUNDED ISSUE #304 PRODUCT ROUTE`
+Status: `CURRENT; ACTIVE FOR THE BOUNDED ISSUE #304/#310 PRODUCT ROUTE`
 
-Issues: `#299`, review follow-up `#301`, product activation `#304`
+Issues: `#299`, review follow-up `#301`, product activation `#304`, product
+surface gate `#310`
 
 Date: 2026-08-24
 
@@ -22,7 +23,9 @@ authenticated context + externally supplied taxpayer scope + tax period
 
 The implementation reuses `ArtifactStorePort` and `ArtifactResolver`. It adds
 no registry, workflow/event engine, identity authority, receipt engine or
-provider/LLM path.
+domain provider/LLM path. Issue #310 adds a separate presentation-only model
+call for final dialogue wording outside this owner; it cannot interpret,
+publish or validate a Human Fact.
 
 ## Scope and the product taxpayer slot
 
@@ -72,22 +75,98 @@ by the bounded product action and cannot choose the lane, scope or predecessor.
 
 The mismatch question receives the available profile descriptions only from
 the existing full-target projection Definition owner. Display text may change,
-but it cannot create a profile or authorize release. The representation-only
-chat adapter validates and displays those owner-produced labels, including the
-profile ID and year; it may not replace them with a generic question that
-hides the available profile.
+but it cannot create a profile or authorize release. The owner-produced public
+label contains the form, tax year and electronic format version; internal
+profile IDs and XSD names are not user vocabulary. The representation-only chat
+adapter validates and displays the exact owner-produced labels and may not
+replace them with a generic question that hides the available profile.
+
+Issue #310 exposes period correction only through the bounded Russian phrase
+`Изменить налоговый период: ГГГГ`. The adapter validates a non-sentinel
+four-digit year and asks the existing Human owner to publish the successor; it
+does not accept a caller request ref, semantic lane or fact key. Therefore the
+public chat preserves the existing `2022 -> 2025 -> 2022` currentness proof and
+cannot resurrect the former profile-mode choice.
 
 Actual identity exists only as the current `taxpayer_identity` Human fact with
 provenance `USER_ATTESTED_CASE_FACT`. A Canonical INN/FIO assertion is a private
 candidate and has no identity authority until the user chooses confirm or
 change on the current owner publication. `DEFER` creates no fact.
 
-For the Issue #304 product route, the bundled Pipe obtains that publication
-from the Human owner and keeps its `request_publication_ref` inside one server
-call. The native OpenWebUI `__event_call__` carries only the displayed question,
-safe answer help and a masked candidate to the browser. Its response is adapted
-to the already selected current publication; ordinary chat text cannot supply
-or select a publication ref, fact key, taxpayer scope or hidden action.
+For the Issue #304/#310 product route, the bundled Pipe obtains that publication
+from the Human owner and keeps its `request_publication_ref` on the server. The
+representation-only adapter strips the request down to one public question,
+safe answer help, human labels and a masked candidate. For an exact public
+owner form it delegates directly to the current owner. For a free-form answer
+it makes one bounded conversation-model call over only that public context and
+the current reply. The strict result is `CLARIFY | CANDIDATE`, visible wording,
+one proposed public answer and an exact evidence quote. It cannot supply or
+select a publication ref, fact key, taxpayer scope or hidden action. The Pipe
+replays a candidate against the current owner answer shape and vetoes direct
+negation, but this still creates no fact. The user must explicitly confirm the
+displayed interpretation through native OpenWebUI `__event_call__`, or provide
+the exact owner form on a later bound turn. Only then may the already selected
+current publication pass Human owner normalization. Refusal, ambiguity,
+invalid model output, owner mismatch or missing confirmation leaves the
+request current and creates no fact.
+
+## Public dialogue context and presentation model
+
+The cross-domain map for the Issue #310 seam is:
+
+```text
+current request, outcome and filing eligibility
+-> existing domain owners in OrdinaryTradeProductionRuntime
+-> ordinary_trade_public_dialogue_context_v1 (representation only)
+-> authenticated native OpenWebUI completion endpoint -> presentation model
+-> validated visible wording or deterministic human fallback
+
+natural user reply + current public question
+-> one bounded presentation-model call -> CLARIFY or public CANDIDATE
+-> current owner answer validation -> explicit confirmation, still no fact
+-> native confirmation or later exact owner-form reply
+-> exact current request_publication_ref kept by Pipe
+-> Gate5HumanGapClosureRuntime normalization and publication
+```
+
+The model-facing context contains only human-readable summary statements,
+provenance labels, the one current question, allowed human actions, the next
+step and filing/download booleans. It contains no raw request/artifact refs,
+fact keys, owner names, reason codes, internal statuses, source rows or
+methodology identifiers. Final private download URLs are appended by the Pipe
+after validation and are never model-produced.
+
+The presentation model returns either strict structured dialogue wording for
+an initial/status turn or one strict
+`broker_reports_ordinary_trade_public_interpretation_v1` answer proposal. A
+proposal contains exactly `CLARIFY | CANDIDATE`, one short human-facing
+interpretation or clarification, a normalized public answer and a verbatim
+evidence quote. The model does not supply the contract version: the runtime
+owns and adds it after strict shape validation. It cannot choose a request identity,
+publish a fact or bypass the current owner's answer validation. The visible
+confirmation is composed by the runtime from the validated short model message,
+the exact normalized public value, runtime-owned confirmation or clarification
+wording and the deterministic owner-context renderer;
+therefore the model is neither a second owner renderer nor responsible for
+copying owner statements. The composed message must retain every owner-produced
+public statement and the exact current question. Internal vocabulary, positive filing claims when filing is not
+eligible, private file URLs, unknown fields, non-verbatim evidence and
+unconfirmed candidates fail closed. One conversation turn cannot make a
+second presentation call: after interpretation, any post-confirmation state is
+rendered from the new owner context deterministically. Model failure creates no
+new meaning and no Human Fact; a call that exceeds its bounded runtime window
+is treated as unavailable instead of holding the current request open.
+
+The native completion target is an administrator-pinned HTTPS OpenWebUI origin,
+never `request.base_url`, Host or another caller-derived address. Redirects are
+denied and the response body is byte-bounded before JSON parsing. The incoming
+user bearer token cannot be forwarded to a caller-selected or redirected
+origin.
+
+Metrics are separate: `presentation_llm_calls_total` counts the single bounded
+conversation call used for either rendering or free-answer interpretation;
+`domain_provider_calls_total` remains zero for the deterministic ordinary-trade
+calculation, tax, release and XML path.
 
 The former `gate5_case_taxpayer_scope_ref` case hash is removed. Hashing a case
 ID only obfuscated the case and silently invented a one-taxpayer invariant.
@@ -188,7 +267,8 @@ validation is not used as a substitute for these Human-fact checks.
 Residency remains raw interval evidence interpreted by
 `Gate5ResidencyEvidenceRuntimeFactory.create`. Additional documents return
 `NORMALIZATION_REQUIRED`; external/methodology actions cannot become Human
-facts. Runtime provider/LLM calls remain zero.
+facts. Domain calculation/provider calls remain zero; presentation calls have
+the bounded authority described above and are accounted separately.
 
 ## Compatibility and activation
 

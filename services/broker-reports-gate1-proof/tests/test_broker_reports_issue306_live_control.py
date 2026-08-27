@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import re
 import subprocess
 from types import SimpleNamespace
 
@@ -20,10 +21,17 @@ COMMITTED_TRACE_PATH = (
     REPO_ROOT
     / "docs/reports/2026-08-25/BROKER_REPORTS_ISSUE_308_INTERACTION_TRACE.safe.json"
 )
+ISSUE310_TRACE_PATH = (
+    REPO_ROOT
+    / "docs/reports/2026-08-25/BROKER_REPORTS_ISSUE_310_INTERACTION_TRACE.safe.json"
+)
 BUNDLE_PATH = (
     SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
 )
 PUBLIC_SOURCE_CORPUS_PATH = SERVICE_ROOT / "tests/fixtures/g537_coverage_corpus.v0.json"
+SUPPORTED_SOURCE_PATH = (
+    SERVICE_ROOT / "tests/fixtures/issue306_supported_ordinary_trade.csv"
+)
 
 
 def _load_control_module():
@@ -119,7 +127,7 @@ def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) 
     monkeypatch.setattr(
         control,
         "_user_model_visibility",
-        lambda _url, email, _password: "-a@" in email,
+        lambda _url, email, _password: "-b@" not in email,
     )
     monkeypatch.setattr(
         control,
@@ -161,7 +169,8 @@ def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) 
     assert safe_state["status"] == "prepared"
     assert safe_state["control_run_id"] == "a" * 32
     assert private_state["control_run_id"] == safe_state["control_run_id"]
-    assert safe_state["temporary_users"] == 2
+    assert safe_state["temporary_users"] == 8
+    assert len(private_state["users"]) == 8
     assert safe_state["legacy_function_inactive"] is True
     assert private_state["original_legacy_function_active"] is True
     assert legacy["is_active"] is False
@@ -171,6 +180,57 @@ def test_prepare_uses_current_release_owned_valves(monkeypatch, tmp_path: Path) 
     second_state = dict(private_state, control_run_id="b" * 32)
     second_safe = control._safe_result(second_state, status="prepared")
     assert second_safe["receipt_sha256"] != safe_state["receipt_sha256"]
+
+
+def test_redeploy_reissues_prepared_receipt_bound_to_new_bundle(
+    monkeypatch, tmp_path: Path
+) -> None:
+    control = _load_control_module()
+    state_path = tmp_path / "control.private.json"
+    previous_receipt = "a" * 64
+    state = {
+        "schema_version": "broker_reports_gate5_openwebui_control_private_v0",
+        "control_run_id": "b" * 32,
+        "base_url": "http://issue310.invalid",
+        "deployed_bundle_sha256": "old-bundle",
+        "control_prepared_receipt_sha256": previous_receipt,
+        "users": [{"id": "user-a"}, {"id": "user-b"}],
+        "user_a_model_visible": True,
+        "user_b_model_hidden": True,
+        "legacy_function_inactive": True,
+        "applied_valves": dict(control.GATE1_RELEASE_VALVES),
+    }
+    control._write_private_state(state_path, state)
+    monkeypatch.setattr(control, "_read_env", lambda _path: {})
+    monkeypatch.setattr(control, "_admin_session", lambda _env, _url: object())
+    monkeypatch.setattr(
+        control,
+        "_get_function",
+        lambda _session, _url: {"id": control.FUNCTION_ID},
+    )
+    monkeypatch.setattr(
+        control,
+        "_deploy_bundle",
+        lambda _session, _url, _function: ("old-bundle", "new-bundle"),
+    )
+
+    assert control._redeploy(
+        SimpleNamespace(state=str(state_path), env_file=str(tmp_path / "unused.env"))
+    ) == 0
+
+    private_state = json.loads(state_path.read_text(encoding="utf-8"))
+    safe_state = json.loads(
+        (tmp_path / "control-prepared.safe.json").read_text(encoding="utf-8")
+    )
+    assert safe_state["status"] == "prepared"
+    assert safe_state["deployed_bundle_sha256"] == "new-bundle"
+    assert safe_state["predecessor_control_prepared_receipt_sha256"] == (
+        previous_receipt
+    )
+    assert safe_state["receipt_sha256"] == _receipt_sha256(safe_state)
+    assert private_state["control_prepared_receipt_sha256"] == safe_state[
+        "receipt_sha256"
+    ]
 
 
 def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> None:
@@ -189,9 +249,21 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "representative_source_boundary_separation_proven" in source
     assert "representative_source_exact_boundary_receipt_invalid" in source
     assert "hidden_architecture_leaked_into_chat" in source
+    assert "/exact status/i" in source
+    assert "/case note/i" in source
+    assert "/source completeness/i" in source
+    assert "ISSUE310_NON_FILING_ROUTE" in source
+    assert "ISSUE310_UNSUPPORTED_MODE" in source
+    assert "ISSUE310_USER_INDEX" in source
+    assert "bounded_visible_proof_user_index_invalid" in source
+    assert "issue310_tax_period_question_not_first" in source
+    assert "issue310_non_filing_route_created_download" in source
+    assert "issue310_unsupported_profile_created_download" in source
     assert "broker_reports_issue306_browser_run_receipt_v2" in source
     assert "installed_bundle_not_current_tested_bytes" in source
     assert "unanswered_tab_closed_and_second_case_admitted" in source
+    assert "same_source_reupload_created_new_logical_file" in source
+    assert "same_source_reupload_preserved_logical_file: true" in source
     assert "final_summary_verified" in source
     assert "residency_methodology_provenance_invalid" in source
     assert "residency_user_attested_provenance_invalid" in source
@@ -202,6 +274,37 @@ def test_browser_goal_driver_cannot_bypass_rendered_openwebui_boundaries() -> No
     assert "answer = 'SELF'" not in source
     assert "answer = 'PAYMENT'" not in source
     assert "answer = 'individual_not_ip_not_private_practice'" not in source
+    assert "answerQuestionWithCandidateConfirmation" in source
+    assert "native_confirmation_title_missing" in source
+    assert "Отмена|Отменить|Отклонить" in source
+    assert "normalize-space()=\"Отменить\"" in source
+    assert "normalize-space()=\"Подтвердить\"" in source
+    assert "подаю первый раз" in source
+    assert "подписывать буду сам" in source
+    assert "я обычный человек, не ИП" in source
+    assert "answer = 'не подтверждаю'" in source
+    assert "answer = 'не 2025'" in source
+    assert "может первая, а может корректирующая" in source
+    assert "candidate_confirmation_completed" in source
+    assert "confirmation_result" in source
+    assert "request_state_before" in source
+    assert "request_state_after" in source
+    assert "fact_created" in source
+    assert "__issue310CompletedTurnBrowserReadback" in source
+    assert "expectedUserText: sentMessage" in source
+    assert "presentation_llm_calls_total" in source
+    assert "domain_provider_calls_total" in source
+    assert "filingCandidateRefused" in source
+    assert "visible_system_text" in source
+    assert "natural_user_answer" in source
+    assert "what_user_could_understand" in source
+    assert "expected_next_action" in source
+    assert "actual_visible_result" in source
+    assert "problem_class" in source
+    assert "getByText(MODAL_TITLE" not in source
+    assert "page.getByRole('button', { name: 'Подтвердить'" not in source
+    assert "/\\bXSD\\b/i" in source
+    assert "/Tax Model/i" in source
     assert "childProcess.execFileSync" in source
     assert "gitBlobSha256" in source
     assert "['show', `${testedCommit}:${relative}`]" in source
@@ -406,3 +509,308 @@ def test_committed_issue308_trace_is_bound_to_its_live_tested_code() -> None:
     assert restored["predecessor_control_prepared_receipt_sha256"] == source[
         "proof_binding"
     ]["control_prepared_receipt_sha256"]
+
+
+def test_committed_issue310_full_journals_bind_code_routes_and_cleanup() -> None:
+    trace = json.loads(ISSUE310_TRACE_PATH.read_text(encoding="utf-8"))
+    assert trace["schema_version"] == (
+        "broker_reports_issue310_safe_interaction_trace_v4"
+    )
+    assert trace["journal_events_total"] == 33
+    assert trace["public_dialogue_boundary"] == {
+        "classification": "PRESENTATION_ADAPTER",
+        "business_authority": False,
+        "answer_model_calls": 0,
+        "answer_candidate_policy": (
+            "one_literal_year_or_one_exact_visible_current_owner_option"
+        ),
+        "separate_exact_user_confirmation_required": True,
+        "human_fact_owner_reused": True,
+        "native_openwebui_completion_used_for_dialogue_wording_only": True,
+        "domain_provider_calls_added": 0,
+    }
+
+    tested_commit = trace["evidence_code_head"]
+    binding = trace["proof_binding"]
+    assert binding["generated_bundle_sha256"] == hashlib.sha256(
+        subprocess.check_output(
+            [
+                "git",
+                "show",
+                f"{tested_commit}:{BUNDLE_PATH.relative_to(REPO_ROOT).as_posix()}",
+            ],
+            cwd=REPO_ROOT,
+        )
+    ).hexdigest()
+    assert binding["browser_driver_sha256"] == _git_blob_sha256(
+        BROWSER_GOAL_PATH,
+        revision=tested_commit,
+    )
+    assert binding["control_script_sha256"] == _git_blob_sha256(
+        SCRIPT_PATH,
+        revision=tested_commit,
+    )
+
+    expected_routes = {
+        "supported_closed_trade": 22,
+        "unsupported_analysis": 2,
+        "unsupported_surrogate": 2,
+        "unsupported_stop": 4,
+        "open_long": 1,
+        "sale_only": 1,
+        "representative_tbank_source": 1,
+    }
+    assert {
+        item["route"]: item["journal_events"]
+        for item in trace["accepted_runs"]
+    } == expected_routes
+
+    receipts: dict[str, dict] = {}
+    for item in trace["accepted_runs"]:
+        receipt_path = ISSUE310_TRACE_PATH.parent / item["full_receipt"]
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        receipts[item["route"]] = receipt
+        assert receipt["receipt_sha256"] == item["receipt_sha256"]
+        assert receipt["receipt_sha256"] == _receipt_sha256(receipt)
+        assert receipt["proof_binding"]["tested_commit"] == tested_commit
+        assert receipt["proof_binding"]["generated_bundle_sha256"] == binding[
+            "generated_bundle_sha256"
+        ]
+        assert receipt["proof_binding"]["browser_driver_sha256"] == binding[
+            "browser_driver_sha256"
+        ]
+        assert receipt["proof_binding"]["control_script_sha256"] == binding[
+            "control_script_sha256"
+        ]
+        assert len(receipt["events"]) == item["journal_events"]
+        event_text = json.dumps(receipt["events"], ensure_ascii=False)
+        assert re.search(r"(?<![0-9])[0-9]{12}(?![0-9])", event_text) is None
+        assert re.search(r"\bart_[A-Za-z0-9_-]+\b", event_text) is None
+
+    supported = receipts["supported_closed_trade"]
+    assert supported["browser_ui_only"] is True
+    assert supported["hidden_refs_observed"] is False
+    assert supported["document_contents_recorded"] is False
+    assert [
+        (
+            item.get("natural_user_answer"),
+            item.get("confirmation_required"),
+            item.get("accepted"),
+        )
+        for item in supported["events"]
+        if item.get("question_family") == "tax_period"
+    ][:3] == [
+        ("Выберите подходящий год за меня.", False, False),
+        ("Беру 2025 год.", True, False),
+        ("2025", False, True),
+    ]
+    assert {item["event"] for item in supported["events"]}.issuperset(
+        {
+            "unanswered_tab_closed_and_second_case_admitted",
+            "private_xml_downloaded",
+            "resume_and_concurrent_retry",
+            "second_user_denied",
+        }
+    )
+
+    source = receipts["representative_tbank_source"]
+    source_owner = json.loads(PUBLIC_SOURCE_CORPUS_PATH.read_text(encoding="utf-8"))
+    source_owner = next(
+        item
+        for item in source_owner["samples"]
+        if item.get("sample_id") == "g537_tbank_public_pdf_purchase"
+    )
+    assert source["source_artifact"]["content_sha256"] == source_owner[
+        "content_sha256"
+    ]
+    assert source["source_artifact"]["size_bytes"] == source_owner["size_bytes"]
+    assert source["events"][0]["source_gap_explained_in_plain_language"] is True
+    assert source["events"][0]["xml_created"] is False
+
+    follow_up_index = trace["private_file_idempotency_follow_up"]
+    follow_up_path = ISSUE310_TRACE_PATH.parent / follow_up_index["safe_receipt"]
+    follow_up = json.loads(follow_up_path.read_text(encoding="utf-8"))
+    assert follow_up["receipt_sha256"] == follow_up_index["safe_receipt_sha256"]
+    assert follow_up["receipt_sha256"] == _receipt_sha256(follow_up)
+    assert follow_up["evidence_code_head"] == follow_up_index["evidence_code_head"]
+    follow_up_head = follow_up["evidence_code_head"]
+    follow_up_binding = follow_up["proof_binding"]
+    assert follow_up_binding["generated_bundle_sha256"] == hashlib.sha256(
+        subprocess.check_output(
+            [
+                "git",
+                "show",
+                f"{follow_up_head}:{BUNDLE_PATH.relative_to(REPO_ROOT).as_posix()}",
+            ],
+            cwd=REPO_ROOT,
+        )
+    ).hexdigest()
+    assert follow_up_binding["browser_driver_sha256"] == _git_blob_sha256(
+        BROWSER_GOAL_PATH,
+        revision=follow_up_head,
+    )
+    assert follow_up_binding["control_script_sha256"] == _git_blob_sha256(
+        SCRIPT_PATH,
+        revision=follow_up_head,
+    )
+    assert follow_up_binding["source_fixture_sha256"] == _git_blob_sha256(
+        SUPPORTED_SOURCE_PATH,
+        revision=follow_up_head,
+    )
+    assert follow_up_binding["exact_head_ci_conclusion"] == "success"
+    browser = follow_up["browser_clean_room"]
+    assert browser["browser_receipt_sha256"] == follow_up_index[
+        "browser_receipt_sha256"
+    ]
+    assert browser["journal_events"] == 22
+    assert browser["same_source_reupload_preserved_logical_file"] is True
+    assert browser["logical_download_links_stable"] is True
+    assert browser["concurrent_rendered_responses"] == 2
+    assert browser["second_user_private_file_denied"] is True
+    assert follow_up["native_files_readback"] == {
+        "final_same_user_case_xml_records_total": 1,
+        "distinct_pre_correction_xml_retained": True,
+        "distinct_pre_correction_xml_reason": (
+            "declaration_date_correction_changed_xml_bytes"
+        ),
+        "duplicate_final_xml_record_created": False,
+    }
+    assert follow_up["cleanup"]["state_restored"] is True
+    assert follow_up["cleanup"]["temporary_users_removed"] == 8
+
+    control = trace["control_chain"]
+    prepared = json.loads(
+        (ISSUE310_TRACE_PATH.parent / control["prepared_receipt"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    restored = json.loads(
+        (ISSUE310_TRACE_PATH.parent / control["restored_receipt"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert prepared["receipt_sha256"] == control["prepared_receipt_sha256"]
+    assert prepared["receipt_sha256"] == _receipt_sha256(prepared)
+    assert restored["receipt_sha256"] == control["restored_receipt_sha256"]
+    assert restored["receipt_sha256"] == _receipt_sha256(restored)
+    assert restored["predecessor_control_prepared_receipt_sha256"] == prepared[
+        "receipt_sha256"
+    ]
+    assert restored["state_restored"] is True
+
+    natural_index = trace["natural_language_interpretation_follow_up"]
+    natural_path = ISSUE310_TRACE_PATH.parent / natural_index["browser_receipt"]
+    natural_text = natural_path.read_text(encoding="utf-8")
+    natural = json.loads(natural_text)
+    assert natural["receipt_sha256"] == natural_index["browser_receipt_sha256"]
+    assert natural["receipt_sha256"] == _receipt_sha256(natural)
+    assert natural["proof_binding"]["tested_commit"] == natural_index[
+        "evidence_code_head"
+    ]
+    natural_head = natural_index["evidence_code_head"]
+    assert natural["proof_binding"]["generated_bundle_sha256"] == hashlib.sha256(
+        subprocess.check_output(
+            [
+                "git",
+                "show",
+                f"{natural_head}:{BUNDLE_PATH.relative_to(REPO_ROOT).as_posix()}",
+            ],
+            cwd=REPO_ROOT,
+        )
+    ).hexdigest()
+    assert natural["proof_binding"]["generated_bundle_sha256"] == natural_index[
+        "generated_bundle_sha256"
+    ]
+    assert natural["proof_binding"]["browser_driver_sha256"] == _git_blob_sha256(
+        BROWSER_GOAL_PATH,
+        revision=natural_head,
+    )
+    assert natural["proof_binding"]["browser_driver_sha256"] == natural_index[
+        "browser_driver_sha256"
+    ]
+    assert natural["browser_ui_only"] is True
+    assert natural["hidden_refs_observed"] is False
+    assert natural["developer_intervention_during_user_run"] is False
+    assert len(natural["events"]) == 24
+    assert re.search(r"(?<![0-9])[0-9]{12}(?![0-9])", natural_text) is None
+    assert re.search(r"\bart_[A-Za-z0-9_-]+\b", natural_text) is None
+
+    interpreted = [
+        item
+        for item in natural["events"]
+        if item.get("interpretation_disposition") in {"CLARIFY", "CANDIDATE"}
+    ]
+    assert len(interpreted) == 8
+    assert all(item["presentation_llm_calls_total"] == 1 for item in interpreted)
+    assert all(item["domain_provider_calls_total"] == 0 for item in interpreted)
+    assert all(item["fact_created"] is False for item in interpreted if item[
+        "interpretation_disposition"
+    ] == "CLARIFY")
+    rejected_candidate = next(
+        item
+        for item in interpreted
+        if item["interpretation_disposition"] == "CANDIDATE"
+        and item["confirmation_result"] == "rejected"
+    )
+    assert rejected_candidate["fact_created"] is False
+    assert rejected_candidate["request_state_before"]["question_family"] == (
+        rejected_candidate["request_state_after"]["question_family"]
+    )
+    confirmed = [
+        item
+        for item in interpreted
+        if item["interpretation_disposition"] == "CANDIDATE"
+        and item["confirmation_result"] == "confirmed"
+    ]
+    assert len(confirmed) == 4
+    assert all(item["fact_created"] is True for item in confirmed)
+
+    proxy = json.loads(
+        (
+            ISSUE310_TRACE_PATH.parent
+            / natural_index["presentation_proxy_audit"]
+        ).read_text(encoding="utf-8")
+    )
+    assert proxy["run_receipt_sha256"] == natural["receipt_sha256"]
+    assert proxy["tested_commit"] == natural_head
+    assert proxy["deployed_bundle_sha256"] == natural_index[
+        "generated_bundle_sha256"
+    ]
+    assert proxy["transport"] == {
+        "model_ids": ["models/gemini-3.5-flash"],
+        "presentation_only_values": [True],
+        "http_calls_total": 50,
+        "http_200_total": 50,
+        "tasks": {
+            "ordinary_trade_public_answer_interpretation": 24,
+            "ordinary_trade_public_dialogue_render": 26,
+        },
+        "unique_request_hashes_total": 36,
+        "unique_answer_interpretation_request_hashes": 23,
+        "unique_dialogue_render_request_hashes": 13,
+    }
+
+    natural_prepared = json.loads(
+        (
+            ISSUE310_TRACE_PATH.parent
+            / natural_index["control_prepared_receipt"]
+        ).read_text(encoding="utf-8")
+    )
+    natural_restored = json.loads(
+        (
+            ISSUE310_TRACE_PATH.parent
+            / natural_index["control_restored_receipt"]
+        ).read_text(encoding="utf-8")
+    )
+    assert natural_prepared["receipt_sha256"] == natural_index[
+        "control_prepared_receipt_sha256"
+    ]
+    assert natural_prepared["receipt_sha256"] == _receipt_sha256(natural_prepared)
+    assert natural_restored["receipt_sha256"] == natural_index[
+        "control_restored_receipt_sha256"
+    ]
+    assert natural_restored["receipt_sha256"] == _receipt_sha256(natural_restored)
+    assert natural_restored["predecessor_control_prepared_receipt_sha256"] == (
+        natural_prepared["receipt_sha256"]
+    )
+    assert natural_restored["state_restored"] is True

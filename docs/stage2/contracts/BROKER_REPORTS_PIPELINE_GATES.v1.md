@@ -602,10 +602,17 @@ Gate 4 never consumes a narrow recovery delta.
 
 Every direct structured-model call site is classified in
 `architecture_policy.PROVIDER_CALL_SITE_CLASSIFICATIONS` as exactly one of
-`SOURCE_ADAPTER`, `METHODOLOGY_ADAPTER`, `HUMAN_ADAPTER`, or `RESEARCH_ONLY`.
+`SOURCE_ADAPTER`, `METHODOLOGY_ADAPTER`, `HUMAN_ADAPTER`,
+`PRESENTATION_ADAPTER`, or `RESEARCH_ONLY`.
 Each entry names the uncertainty removed and strict output contract. Gate 4,
 deterministic Gate 5, Declaration Semantics, Release and Projection admit no
-source-semantic provider call.
+source-semantic provider call. `PRESENTATION_ADAPTER` may phrase only a safe
+owner-produced public context and may propose `CLARIFY` or one public answer
+from a natural reply. The proposal is replayed through the current owner and
+cannot create a Human Fact before separate explicit user confirmation. It has
+no business authority and may send one authenticated conversation call
+only to the administrator-pinned HTTPS OpenWebUI origin, with redirects denied
+and response bytes bounded.
 
 ## Authority hierarchy
 

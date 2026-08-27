@@ -1220,7 +1220,8 @@ def test_same_case_profile_mode_can_be_changed_by_owner_successor(
     )
     mismatch = runtime.run(canonical_artifact_refs=[], context=context)
     mode_action = mismatch["product"]["preparation"]["user_actions"][0]
-    assert "ru_3ndfl_2025_full_target_supplied_case" in mode_action["question"]
+    assert "ru_3ndfl_2025_full_target_supplied_case" not in mode_action["question"]
+    assert "3-НДФЛ за 2025 год, электронный формат 5.20" in mode_action["question"]
     first_mode = runtime.normalize_declaration_action(
         request_publication_ref=mode_action["request_publication_ref"],
         answer={"kind": "code", "value": "ANALYSIS_ONLY"},

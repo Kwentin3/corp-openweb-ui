@@ -27,6 +27,7 @@ services/broker-reports-gate1-proof/broker_reports_gate1/gate5_clean_context_dec
 services/broker-reports-gate1-proof/broker_reports_gate1/gate5_full_target_xml_projection.ru_3ndfl_2025.v0.json text eol=lf
 services/broker-reports-gate1-proof/broker_reports_gate1/gate5_full_target_xml_schema.NO_NDFL3_1_033_00_05_20_01.xsd.b64 text eol=lf
 services/broker-reports-gate1-proof/broker_reports_gate1/gate5_end_to_end_supplied_case.proof.v0.json text eol=lf
+services/broker-reports-gate1-proof/openwebui_actions/*_bundled.py text eol=lf
 docs/reports/2026-08-10/BROKER_REPORTS_GATE5_CLEAN_CONTEXT_DECLARATION_AUTHORING_G5_19.* text eol=lf
 docs/reports/2026-08-14/BROKER_REPORTS_GATE5_DECLARATION_INPUT_CONTRACT_AUDIT_G5_43.report.md text eol=lf whitespace=-trailing-space
 docs/stage2/contracts/BROKER_REPORTS_GATE3_ROLE_LABELING_RESPONSE.v1.schema.json text eol=lf

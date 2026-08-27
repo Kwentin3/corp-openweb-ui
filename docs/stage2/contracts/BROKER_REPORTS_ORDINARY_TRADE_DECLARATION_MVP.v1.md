@@ -32,7 +32,7 @@ their existing owners.
 | current Canonical document scope and operation coverage | active Canonical pointers plus `OrdinaryTradeProjectionRuntime.current_case_coverage` | every active Canonical manifest must have exactly one current projection bound to the same document/version/root; a missing whole projection or any `RELEVANT_UNMAPPED` observation blocks XML |
 | current broker facts | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | exact case-bound Fact v2 set and disposal fact ID, consumed only after Canonical coverage passes; `current_fact_set` is the owner of the typed active source-contract blocker when current ordinary projections cannot produce any security-position Fact |
 | human declaration choices/facts | `Gate5HumanGapClosureRuntime` | current request-bound facts with exact user, case, taxpayer, period and publication-lane binding; stale/conflicting facts are rejected by that owner |
-| public chat interaction | maintained bundled `Pipe.pipe` plus the representation-only declaration chat adapter | native OpenWebUI `__event_call__` binds one browser response to the current owner request inside the same server call; the visible mismatch question includes validated owner-produced profile ID/year and one shared non-ready renderer displays the validated owner-produced surrogate in both resumed and file-processing `Pipe.pipe` turns; no request ref, fact key or hidden action is caller-selectable |
+| public chat interaction | maintained bundled `Pipe.pipe` plus the representation-only declaration chat adapter | one bounded presentation call may turn a natural reply into `CLARIFY` or one public candidate; the candidate is replayed through the current owner but remains non-persistent until native OpenWebUI confirmation (or a later exact owner-form reply), after which only `Gate5HumanGapClosureRuntime` may publish; the visible mismatch question includes validated owner-produced profile ID/year and one shared non-ready renderer displays the validated owner-produced surrogate in both resumed and file-processing `Pipe.pipe` turns; no request ref, fact key or hidden action is caller-selectable |
 | capacity, inspection code, signer, filing instance/date and OKTMO | `Gate5HumanGapClosureRuntime` | current user-attested facts; missing fill-only values permit draft but never XML |
 | source party and exact applicability assertions | existing `Gate3MetadataSourceFactRuntime` source owner | exact labels from Canonical versions named by current coverage; ambiguity or absence is a source blocker; no LLM or financial Gate 3 execution |
 | legal/methodology version, applicability, KBK and declarant category | `Gate5TrustedMethodologyAuthorityFactory.create` | repository resource identity/SHA-256 and exact pinned rules |
@@ -41,7 +41,7 @@ their existing owners.
 | XML/XSD representation | `Gate5FullTargetXmlProjectionRuntimeFactory.create` | deterministic bytes, official XSD conformance, and representation-only extraction of serialized literals; no rate or tax formula |
 | released semantics -> serialized XML values | `Gate5DeclarationSemanticInputRuntimeFactory.create` | exact equality between extracted numeric fields and owner-produced released values |
 | active persistence | `OrdinaryTradeDeclarationMvpRuntime` through the existing ArtifactStore | private XML and MVP receipt artifacts |
-| downloadable file delivery | native OpenWebUI `Storage` plus `Files` | deterministic private Files identity binds authenticated user, case hash, current receipt and XML hashes; each physical upload attempt has a distinct path, exact existing bytes/record are verified and reused, and only an unowned losing/failed attempt is removed |
+| downloadable file delivery | native OpenWebUI `Storage` plus `Files` | deterministic private Files publication identity binds authenticated user, case hash and XML hash; the first owner-produced receipt remains immutable provenance but is not logical file identity, so a later valid execution receipt for byte-identical XML cannot create a duplicate; each physical upload attempt has a distinct path, exact existing bytes/record are verified and reused, and only an unowned losing/failed attempt is removed |
 
 Caller supplies only `ArtifactAccessContext` and canonical artifact refs to the
 production root. Caller cannot supply a taxpayer ref, disposal fact ID,
@@ -104,16 +104,22 @@ The wire XML is stored as Base64 inside private
 `broker_reports_ordinary_trade_declaration_xml_v1`; its SHA-256 is over the
 original official `windows-1251` bytes. The maintained OpenWebUI composition
 also publishes those exact bytes through the authenticated private File owner.
-The file ID is deterministic for authenticated user, case scope, receipt hash
-and XML hash. Before reuse, Files metadata, owner, stored-byte hash and binding
-metadata are checked. A sequential retry therefore performs no second upload
-or record insertion. Concurrent identical calls may both upload because native
+The file ID is deterministic for authenticated user, case scope and XML hash.
+Its stable publication-identity hash binds those same owner-controlled fields.
+The first valid execution receipt is retained as immutable provenance metadata,
+but receipt hash is deliberately not part of the logical file identity: two
+valid executions which produce byte-identical XML for the same user and case
+must resolve to one native File. Before reuse, Files metadata, owner,
+publication identity, stored-byte hash and the syntax of the retained receipt
+are checked. A sequential retry therefore performs no second upload or record
+insertion even if harmless source provenance produces a different current
+receipt. Concurrent identical calls may both upload because native
 Files/Storage do not expose a shared atomic create-if-absent operation; their
 physical attempt paths are distinct, the losing insert revalidates the winning
 owner record and deletes only its own attempt, and both callers return the one
-valid deterministic file ID. A different corrected receipt/XML gets a
-different file. Storage bytes are deleted after a failed insert only when no
-valid owner record claims that exact attempt.
+valid deterministic file ID. Changed XML, user or case scope gets a different
+file; a changed receipt alone does not. Storage bytes are deleted after a
+failed insert only when no valid owner record claims that exact attempt.
 The paired
 `broker_reports_ordinary_trade_declaration_mvp_receipt_v1` binds taxpayer,
 current Canonical coverage, current Fact v2 set, all ten exact Human Fact
