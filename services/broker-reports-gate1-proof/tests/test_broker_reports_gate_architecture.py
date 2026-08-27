@@ -289,7 +289,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v19",
+            "broker_reports_architecture_policy_v20",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -410,7 +410,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "PRESENTATION_ADAPTER",
                 "plain_language_dialogue_wording_and_answer_proposal",
                 (
-                    "broker_reports_ordinary_trade_public_dialogue_message_v2"
+                    "broker_reports_ordinary_trade_public_dialogue_message_v3"
                     "|broker_reports_ordinary_trade_public_interpretation_v1"
                 ),
             ),

@@ -15,7 +15,10 @@ from .canonical_store import CanonicalReaderFactory
 from .ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
-from .ordinary_trade_semantic_mapping import MAPPING_CASE_SCHEMA_VERSION
+from .ordinary_trade_semantic_mapping import (
+    MAPPING_CASE_SCHEMA_VERSION,
+    mapping_decision_communication_description,
+)
 
 
 MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
@@ -397,6 +400,11 @@ class OrdinaryTradeMappingCaseRuntime:
                             "option_ref": item["option_id"],
                             "label": item["label"],
                             "source_literals": list(item["source_literals"]),
+                            "safe_description": (
+                                mapping_decision_communication_description(
+                                    item["decision"]
+                                )
+                            ),
                         }
                         for item in question["options"]
                     ],

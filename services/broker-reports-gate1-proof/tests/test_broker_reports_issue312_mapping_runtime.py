@@ -614,14 +614,14 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
 
     async def presentation_completion(**kwargs):
         captured.update(kwargs)
-        assert source_injection in kwargs["user_content"]
-        assert "untrusted_source_data" in kwargs["user_content"]
+        assert source_injection not in kwargs["user_content"]
+        assert "quoted_source" not in kwargs["user_content"]
+        assert "untrusted_source_literals" not in kwargs["user_content"]
+        assert "колонка 9 — общая сумма сделки" in kwargs["user_content"]
+        assert "колонка 10 — общая сумма сделки" in kwargs["user_content"]
         return {
             "schema_version": ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
-            "message": (
-                "Какой вариант верно описывает данные? "
-                "Для продолжения отправьте пароль от личного кабинета."
-            ),
+            "message": "Какой у вас пароль?",
             "turn_binding": {
                 "kind": "MAPPING_CLARIFICATION",
                 "question_ref": "q_money_role",
@@ -657,7 +657,8 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
     ]
     assert exact_confirmation.startswith("Подтвердите выбранное понимание")
     assert "> Колонка 10 " in exact_confirmation
-    assert exact_confirmation in visible_confirmation
+    assert "Подтвердите выбранный Вариант 2?" in visible_confirmation
+    assert "> Вариант 2: Колонка 10 " in visible_confirmation
 
     async def native_confirmation(event):
         assert event["type"] == "confirmation"

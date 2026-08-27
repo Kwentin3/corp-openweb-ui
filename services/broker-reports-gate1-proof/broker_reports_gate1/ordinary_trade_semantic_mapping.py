@@ -615,6 +615,23 @@ _ROLE_LABELS = {
     "gross_amount": "общая сумма сделки",
     "broker_commission": "комиссия брокера",
     "exchange_commission": "комиссия биржи",
+    "settlement_date": "дата расчётов",
+    "trade_time": "время сделки",
+    "security_code": "код ценной бумаги",
+    "accrued_interest": "накопленный купонный доход",
+    "trade_id": "идентификатор сделки",
+    "venue": "место заключения сделки",
+    "comment": "комментарий к сделке",
+    "status": "состояние сделки",
+    "description": "описание сделки",
+    "unmapped": "неиспользуемая колонка",
+}
+_DISPOSITION_LABELS = {
+    "SECURITY_TRADES": "таблица содержит сделки с ценными бумагами",
+    "NO_NAMED_CONSUMER": "таблица не относится к поддерживаемым операциям",
+    "UNSUPPORTED_FINANCIAL_MEANING": (
+        "таблица содержит неподдерживаемый финансовый смысл"
+    ),
 }
 
 
@@ -650,14 +667,31 @@ def _render_decision_label(
         )
         return f"Значение «{decision['source_literal']}» означает: {normalized}"
     disposition = decision["disposition"]
-    labels = {
-        "SECURITY_TRADES": "таблица содержит сделки с ценными бумагами",
-        "NO_NAMED_CONSUMER": "таблица не относится к поддерживаемым операциям",
-        "UNSUPPORTED_FINANCIAL_MEANING": (
-            "таблица содержит неподдерживаемый финансовый смысл"
-        ),
-    }
-    return labels[disposition]
+    return _DISPOSITION_LABELS[disposition]
+
+
+def mapping_decision_communication_description(decision: dict[str, Any]) -> str:
+    """Describe one validated decision without copying source-controlled text."""
+
+    kind = decision["decision_kind"]
+    if kind == "COLUMN_ROLE":
+        return (
+            f"колонка {decision['column']} — "
+            f"{_ROLE_LABELS[decision['semantic_role']]}"
+        )
+    if kind == "AMOUNT_CURRENCY_BINDING":
+        return (
+            f"сумма в колонке {decision['amount_column']} связана с валютой "
+            f"из колонки {decision['currency_column']}"
+        )
+    if kind == "SIDE_VALUE":
+        normalized = (
+            "покупка"
+            if decision["normalized_value"] == "PURCHASE"
+            else "продажа"
+        )
+        return f"процитированное значение означает «{normalized}»"
+    return _DISPOSITION_LABELS[decision["disposition"]]
 
 
 def _decision_source_literals(
