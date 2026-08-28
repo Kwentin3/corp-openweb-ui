@@ -1,0 +1,102 @@
+{
+  "schema_version": "broker_reports_canonical_table_pipeline_audit_receipt_safe_v1",
+  "status": "R_AND_D_COMPLETE_NO_PRODUCTION_CHANGE",
+  "branch": "agent/rd-canonical-financial-role-mapping-kiss",
+  "visual_proof_head": "0f664b65b42bb3752c4b56397a223220af40782e",
+  "scope": "research_only",
+  "prior_report_corrected": true,
+  "corpus_scope_audit": {
+    "frozen_documents": 12,
+    "customer_broker_reports": 1,
+    "non_customer_documents": 11,
+    "prior_holdout_score_valid_for_tax_product": false
+  },
+  "canonical_static_audit": {
+    "customer_report": {
+      "tables": 10,
+      "header_present": 2,
+      "header_absent": 8,
+      "naive_headerless_continuation_candidates": 8,
+      "exact_mechanical_continuation_groups": 0,
+      "private_receipt_sha256": "7e71ebbfa6515843dd7665f53c0270fca9d676752e0873175a60fc088878757"
+    },
+    "explanatory_guide": {
+      "tables": 35,
+      "header_present": 4,
+      "header_absent": 31,
+      "naive_headerless_continuation_candidates": 30,
+      "exact_mechanical_continuation_groups": 0,
+      "private_receipt_sha256": "68e9235a6914a439ea10df9a73d906c378511b11003d64872a129fa79ac3a9d4"
+    }
+  },
+  "pdfplumber_parameter_audit": {
+    "page": 11,
+    "same_crop": true,
+    "min_words_vertical_3_columns": 5,
+    "min_words_vertical_2_columns": 8,
+    "min_words_vertical_1_columns": 11,
+    "source_values_included": false,
+    "safe_receipt_sha256": "70c9411820764ba6aab70983c28acbf2f88527d8358d0253e06b3b54bb76dbfd"
+  },
+  "visual_audit": {
+    "model_id": "models/gemini-3.5-flash",
+    "provider_profile": "google_gemini",
+    "total_model_submissions": 4,
+    "retry": false,
+    "repair": false,
+    "best_of_n": false,
+    "manual_output_edit": false,
+    "v1": {
+      "head": "a9b27061e641cfac6ee5806c2fed277007de3fb3",
+      "freeze_sha256": "6b9e289f2333b789ed937c8523f5147a7dbc52c913633050dff9494a628196ca",
+      "submissions": 2,
+      "validated": 0,
+      "terminal": "SCHEMA_PROJECTION_CONST_REMOVED",
+      "safe_receipt_sha256": "6b1cf84e38d7688d73c244d4e09286d6f03135999c559d54314ba0ef2a71ca08"
+    },
+    "v2": {
+      "head": "0f664b65b42bb3752c4b56397a223220af40782e",
+      "freeze_sha256": "67354b174fda5b1b471aea0e60c663819df5a7a69f54d163d237c7f5b2bd0dfc",
+      "submissions": 2,
+      "validated": 2,
+      "safe_receipt_sha256": "10b4ac87acac683834c00998e0364f4e76de08f98f60b74f68b3f3de826e4ec7",
+      "cases": [
+        {
+          "case_id": "customer_report",
+          "document_purpose": "CUSTOMER_BROKER_REPORT",
+          "tax_data_scope": "CUSTOMER_TRANSACTION_DATA",
+          "table_purpose": "TRANSACTION_DATA",
+          "columns": 32,
+          "data_rows": 5,
+          "financial_rows": 5
+        },
+        {
+          "case_id": "explanatory_guide",
+          "document_purpose": "CLIENT_GUIDE_OR_SAMPLE",
+          "tax_data_scope": "EXPLANATORY_ONLY",
+          "table_purpose": "EXPLANATORY_EXAMPLE",
+          "columns": 8,
+          "data_rows": 2,
+          "financial_rows": 1,
+          "publishable_customer_facts": 0
+        }
+      ]
+    }
+  },
+  "tests": {
+    "focused_new": "6 passed",
+    "research_projection_architecture_issue312_pack": "111 passed",
+    "gate1_gate2_bundle_parity": "13 passed",
+    "ruff": "PASS",
+    "diff_check": "PASS"
+  },
+  "mutations": {
+    "canonical": false,
+    "source_store": false,
+    "production": false,
+    "cd": false,
+    "openwebui": false,
+    "merge": false
+  },
+  "private_values_committed": false
+}

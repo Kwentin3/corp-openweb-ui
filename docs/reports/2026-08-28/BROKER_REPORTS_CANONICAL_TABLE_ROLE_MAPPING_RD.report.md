@@ -1,5 +1,12 @@
 # Canonical table financial-role mapping R&D
 
+> Исправление от 2026-08-28: вывод ниже о том, что гипотеза опровергнута,
+> больше не считается действующим. В frozen sample только один из 12 документов
+> оказался реальным отчётом клиента; остальные были инструкциями, примерами,
+> отчётностью самих брокеров, регуляторными формами или factsheet. Кроме того,
+> часть расхождений впервые возникала в PDFPlumber до смысловой разметки.
+> Актуальный аудит: [BROKER_REPORTS_CANONICAL_TABLE_PIPELINE_AUDIT.report.md](BROKER_REPORTS_CANONICAL_TABLE_PIPELINE_AUDIT.report.md).
+
 Дата: 2026-08-28
 
 Статус: **гипотеза опровергнута; production integration не рекомендована**
