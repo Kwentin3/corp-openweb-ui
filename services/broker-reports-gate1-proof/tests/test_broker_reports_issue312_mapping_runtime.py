@@ -1389,7 +1389,28 @@ async def _unknown_trade_and_auxiliary_tables_complete_after_review(tmp_path) ->
             "side_values": [],
         }
     )
-    client = BoundaryModelClient([response])
+    client = BoundaryModelClient(
+        [
+            response,
+            {
+                "schema_version": SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION,
+                "verdict": "APPROVE_COMPLETE",
+                "selected_option_position": None,
+                "table_findings": [
+                    {
+                        "table_ref": "table_1",
+                        "finding": "SUPPORTED_MAPPING_COMPLETE",
+                    },
+                    {
+                        "table_ref": "table_2",
+                        "finding": (
+                            "SAFE_AGGREGATE_OR_REFERENCE_AUXILIARY"
+                        ),
+                    },
+                ],
+            },
+        ]
+    )
     runtime = OrdinaryTradeProductionRuntimeFactory(
         store=store,
         read_enabled=True,

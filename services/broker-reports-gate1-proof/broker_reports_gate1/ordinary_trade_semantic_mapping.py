@@ -104,6 +104,7 @@ _REVIEW_VERDICTS = {
 _REVIEW_FINDINGS = {
     "SUPPORTED_MAPPING_COMPLETE",
     "SAFE_NON_FINANCIAL_AUXILIARY",
+    "SAFE_AGGREGATE_OR_REFERENCE_AUXILIARY",
     "UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT",
     "SOURCE_MEANING_UNRESOLVED",
 }
@@ -198,7 +199,12 @@ class OrdinaryTradeSemanticMapping:
             "SAFE_NON_FINANCIAL_AUXILIARY is allowed only when the table contains no "
             "financial transaction, income, expense, tax, cash movement, position, "
             "unsupported financial operation, incomplete financial record, or damaged "
-            "financial record. Missing fields never make financial content safe to "
+            "financial record. SAFE_AGGREGATE_OR_REFERENCE_AUXILIARY is allowed for an "
+            "account-level aggregate, balance, portfolio, turnover, cash-ledger summary "
+            "or reference table only when every row is summary/reference content and no "
+            "row states a dividend, interest, tax, fee, cash event, security operation, "
+            "incomplete transaction or damaged financial record. Missing fields never "
+            "make financial content safe to "
             "discard. SUPPORTED_MAPPING_COMPLETE requires the proposed supported-trade "
             "mapping to cover every financial row without inventing values. Use "
             "UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT whenever financial content "
@@ -578,18 +584,21 @@ class OrdinaryTradeSemanticMapping:
                 for item in raw_decisions
                 if isinstance(item, dict)
             }
-            expected_findings = {
+            allowed_findings = {
                 table_ref: (
-                    "SUPPORTED_MAPPING_COMPLETE"
+                    {"SUPPORTED_MAPPING_COMPLETE"}
                     if dispositions.get(table_ref) == "SECURITY_TRADES"
-                    else "SAFE_NON_FINANCIAL_AUXILIARY"
+                    else {
+                        "SAFE_NON_FINANCIAL_AUXILIARY",
+                        "SAFE_AGGREGATE_OR_REFERENCE_AUXILIARY",
+                    }
                     if dispositions.get(table_ref) == "NO_NAMED_CONSUMER"
-                    else None
+                    else set()
                 )
                 for table_ref in table_refs
             }
             if value["verdict"] == "APPROVE_COMPLETE" and any(
-                item["finding"] != expected_findings[item["table_ref"]]
+                item["finding"] not in allowed_findings[item["table_ref"]]
                 for item in findings
             ):
                 _fail("ordinary_trade_semantic_review_approval_invalid")
@@ -616,14 +625,14 @@ class OrdinaryTradeSemanticMapping:
                     or any(item["finding"] in risky_findings for item in findings)
                 ):
                     _fail("ordinary_trade_semantic_review_selection_invalid")
-                expected_findings = _expected_semantic_review_findings(
+                allowed_findings = _allowed_semantic_review_findings(
                     table_refs=table_refs,
                     table_decisions=review_candidates[selected_position - 1][
                         "candidate_table_decisions"
                     ],
                 )
                 if any(
-                    item["finding"] != expected_findings[item["table_ref"]]
+                    item["finding"] not in allowed_findings[item["table_ref"]]
                     for item in findings
                 ):
                     _fail("ordinary_trade_semantic_review_selection_invalid")
@@ -633,7 +642,7 @@ class OrdinaryTradeSemanticMapping:
                 ):
                     _fail("ordinary_trade_semantic_review_ambiguity_invalid")
                 candidate_findings = [
-                    _expected_semantic_review_findings(
+                    _allowed_semantic_review_findings(
                         table_refs=table_refs,
                         table_decisions=option["candidate_table_decisions"],
                     )
@@ -644,7 +653,7 @@ class OrdinaryTradeSemanticMapping:
                     or any(item != candidate_findings[0] for item in candidate_findings)
                     or any(
                         item["finding"]
-                        != candidate_findings[0][item["table_ref"]]
+                        not in candidate_findings[0][item["table_ref"]]
                         for item in findings
                     )
                 ):
@@ -1931,9 +1940,9 @@ def _semantic_review_proposal(value: Mapping[str, Any]) -> dict[str, Any]:
     _fail("ordinary_trade_semantic_review_mapper_terminal_invalid")
 
 
-def _expected_semantic_review_findings(
+def _allowed_semantic_review_findings(
     *, table_refs: list[Any], table_decisions: Any
-) -> dict[str, str]:
+) -> dict[str, frozenset[str]]:
     if not isinstance(table_decisions, list):
         _fail("ordinary_trade_semantic_review_package_invalid")
     dispositions = {
@@ -1941,19 +1950,24 @@ def _expected_semantic_review_findings(
         for item in table_decisions
         if isinstance(item, dict)
     }
-    expected = {
+    allowed = {
         str(table_ref): (
-            "SUPPORTED_MAPPING_COMPLETE"
+            frozenset({"SUPPORTED_MAPPING_COMPLETE"})
             if dispositions.get(table_ref) == "SECURITY_TRADES"
-            else "SAFE_NON_FINANCIAL_AUXILIARY"
+            else frozenset(
+                {
+                    "SAFE_NON_FINANCIAL_AUXILIARY",
+                    "SAFE_AGGREGATE_OR_REFERENCE_AUXILIARY",
+                }
+            )
             if dispositions.get(table_ref) == "NO_NAMED_CONSUMER"
-            else ""
+            else frozenset()
         )
         for table_ref in table_refs
     }
-    if any(not item for item in expected.values()):
+    if any(not item for item in allowed.values()):
         _fail("ordinary_trade_semantic_review_finding_invalid")
-    return expected
+    return allowed
 
 
 def _execution_metadata_sha256(value: Any) -> str:

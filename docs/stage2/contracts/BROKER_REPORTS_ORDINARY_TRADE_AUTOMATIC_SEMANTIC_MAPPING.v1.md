@@ -98,8 +98,10 @@ Every Canonical table receives exactly one disposition:
 
 - `SECURITY_TRADES` requires a complete validated mapping;
 - `NO_NAMED_CONSUMER` retains literal observations and provenance but emits no
-  Fact v2 only after the reviewer independently proves
-  `SAFE_NON_FINANCIAL_AUXILIARY` from the same evidence;
+  Fact v2 only after the reviewer independently proves either truly
+  non-financial auxiliary content or an account-level aggregate/reference
+  summary with no row-level dividend, interest, tax, fee, cash event, security
+  operation, incomplete transaction or damaged financial record;
 - `UNSUPPORTED_FINANCIAL_MEANING` stops with a typed owner blocker;
 - unsupported, incomplete, damaged or unresolved financial content is
   `REJECT_UNSAFE`, remains relevant/unmapped and blocks atomic publication;

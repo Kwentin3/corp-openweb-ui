@@ -262,9 +262,18 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
     assert _property_enum_sets(review_schema, "finding") == [{
         "SUPPORTED_MAPPING_COMPLETE",
         "SAFE_NON_FINANCIAL_AUXILIARY",
+        "SAFE_AGGREGATE_OR_REFERENCE_AUXILIARY",
         "UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT",
         "SOURCE_MEANING_UNRESOLVED",
     }]
+
+
+def test_review_prompt_separates_safe_aggregates_from_financial_events() -> None:
+    prompt = OrdinaryTradeSemanticMappingFactory.create().semantic_review_prompt().content
+
+    assert "account-level aggregate, balance, portfolio, turnover" in prompt
+    assert "dividend, interest, tax, fee, cash event" in prompt
+    assert "incomplete transaction or damaged financial record" in prompt
 
 
 def test_unknown_schema_mapping_is_qualified_only_for_exact_case(tmp_path) -> None:
