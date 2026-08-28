@@ -23,6 +23,7 @@ from scripts.canonical_financial_role_mapping_research import (
     response_schema,
     safe_result,
     score_contract,
+    stable_sha256,
     validate_response,
 )
 
@@ -89,6 +90,143 @@ def _trade_contract(table: dict, *, include_sell: bool = True) -> dict:
             {"amount_column_ref": "c6", "currency_column_ref": "c7"}
         ],
         "categorical_normalizations": categories,
+    }
+
+
+def _controlled_restored_tbank_fixture() -> dict:
+    headers = [
+        "Номер сделки",
+        "Дата заключения",
+        "Время заключения",
+        "Вид сделки",
+        "Сокращенное наименование актива",
+        "Код актива",
+        "Цена за единицу",
+        "Валюта цены",
+        "Количество",
+        "Сумма сделки",
+        "Валюта расчетов",
+        "Комиссия брокера",
+        "Валюта комиссии брокера",
+        "Комиссия биржи",
+        "Валюта комиссии биржи",
+    ]
+    def row(
+        trade_id: str,
+        time: str,
+        price: str,
+        quantity: str,
+        gross: str,
+        broker_commission: str,
+        exchange_commission: str,
+    ) -> list[str]:
+        return [
+            trade_id,
+            "06.06.2022",
+            time,
+            "Покупка",
+            "Ozon Holdings PLC ORD SHS ADR",
+            "OZON",
+            price,
+            "RUB",
+            quantity,
+            gross,
+            "RUB",
+            broker_commission,
+            "RUB",
+            exchange_commission,
+            "RUB",
+        ]
+
+    values = [
+        row("5586419352", "15:04:08", "793", "1", "793", "2,38", "0.04"),
+        row("5586419351", "15:04:08", "793", "1", "793", "2,38", "0.04"),
+        row("5586419350", "15:04:08", "792,5", "1", "792,5", "2,38", "0.04"),
+        row("5586423274", "15:05:05", "796", "3", "2388", "7,16", "0.11"),
+        row("5586423273", "15:05:05", "793", "1", "793", "2,38", "0.04"),
+    ]
+    table = _table(
+        [headers, *values], node_id="controlled_restored_tbank_trade_table"
+    )
+    return {
+        "terminal": "DOWNSTREAM_READY_IF_CANONICAL_RESTORED",
+        "table": table,
+        "binding": {
+            "header_sha256": stable_sha256(headers),
+            "columns": table["columns"],
+        },
+    }
+
+
+def _validated_controlled_restored_table(fixture: dict) -> dict:
+    table = fixture.get("table")
+    binding = fixture.get("binding")
+    if (
+        fixture.get("terminal") != "DOWNSTREAM_READY_IF_CANONICAL_RESTORED"
+        or not isinstance(table, dict)
+        or not isinstance(binding, dict)
+        or set(binding) != {"header_sha256", "columns"}
+        or table.get("columns") != binding["columns"]
+        or not isinstance(table.get("rows"), list)
+        or not table["rows"]
+        or stable_sha256(
+            [cell["literal"] for cell in table["rows"][0].get("cells", [])]
+        )
+        != binding["header_sha256"]
+    ):
+        raise ResearchMappingError("controlled_restored_table_binding_stale")
+    return copy.deepcopy(table)
+
+
+def _tbank_frozen_role_contract(table: dict) -> dict:
+    surface = build_table_surface(
+        table, table_ref="table_1", variant="header_plus_profiles"
+    )
+    purchase = next(
+        item["value_ref"]
+        for profile in surface["column_profiles"]
+        if profile["column_ref"] == "c4"
+        for item in profile["categorical_values"]
+        if item["literal"] == "Покупка"
+    )
+    roles = [
+        "trade_id",
+        "trade_date",
+        "trade_time",
+        "side",
+        "asset_name",
+        "security_code",
+        "unit_price",
+        "currency",
+        "quantity",
+        "gross_amount",
+        "currency",
+        "broker_commission",
+        "currency",
+        "exchange_commission",
+        "currency",
+    ]
+    return {
+        "schema_version": "broker_reports_research_table_role_mapping_v1",
+        "table_ref": "table_1",
+        "table_kind": "ORDINARY_SECURITY_TRADES",
+        "header_row": 1,
+        "columns": [
+            {"column_ref": f"c{column}", "role": role}
+            for column, role in enumerate(roles, start=1)
+        ],
+        "amount_currency_bindings": [
+            {"amount_column_ref": "c10", "currency_column_ref": "c11"},
+            {"amount_column_ref": "c12", "currency_column_ref": "c13"},
+            {"amount_column_ref": "c14", "currency_column_ref": "c15"},
+        ],
+        "categorical_normalizations": [
+            {
+                "column_ref": "c4",
+                "value_ref": purchase,
+                "normalized_value": "PURCHASE",
+            }
+        ],
     }
 
 
@@ -366,3 +504,92 @@ def test_scoring_and_safe_projection_are_observable_not_snapshot_only() -> None:
     assert safe["rows_accounted"] == 3
     assert safe["private_values_committed"] is False
     assert "observations" in safe and safe["observations"] == 2
+
+
+def test_controlled_restored_tbank_table_replays_through_roles_only_contract() -> None:
+    fixture = _controlled_restored_tbank_fixture()
+    restored = _validated_controlled_restored_table(fixture)
+    assert fixture["terminal"] == "DOWNSTREAM_READY_IF_CANONICAL_RESTORED"
+    assert restored["rows"][0]["cells"][4]["literal"] == (
+        "Сокращенное наименование актива"
+    )
+    assert len(restored["rows"]) == 6
+
+    canonical = {
+        "nodes": [
+            {
+                "node_type": "TABLE",
+                "node_id": restored["table_node_id"],
+                "content": {
+                    "cells": [
+                        {
+                            "row": row["row"],
+                            "column": cell["column"],
+                            "displayed_value": cell["literal"],
+                        }
+                        for row in restored["rows"]
+                        for cell in row["cells"]
+                    ]
+                },
+            }
+        ]
+    }
+    tables = extract_tables(canonical)
+    assert len(tables) == 1
+    table = tables[0]
+    assert len(table["rows"]) == 6
+    assert table["rows"][1]["cells"][4]["literal"] == ("Ozon Holdings PLC ORD SHS ADR")
+
+    request = compose_request(
+        table=table, table_ref="table_1", variant="header_plus_profiles"
+    )
+    mapper_package = request["messages"][1]["content"]
+    assert "source_refs" not in mapper_package
+    assert "geometry" not in mapper_package.lower()
+    assert ".png" not in mapper_package.lower()
+
+    frozen_response = _tbank_frozen_role_contract(table)
+    contract = validate_response(
+        raw_response=json.dumps(frozen_response, ensure_ascii=False),
+        table=table,
+        table_ref="table_1",
+    )
+    application = apply_contract(
+        table=table,
+        contract=contract,
+        table_ref="table_1",
+    )
+    assert application["terminal"] == "COMPLETE"
+    assert application["rows_accounted"] == application["rows_total"] == 6
+    assert application["row_status_counts"] == {
+        "OBSERVATION": 5,
+        "STRUCTURAL_HEADER": 1,
+    }
+    assert [item["normalized_side"] for item in application["observations"]] == [
+        "PURCHASE"
+    ] * 5
+    commission_bindings = [
+        binding
+        for observation in application["observations"]
+        for binding in observation["bindings"]
+        if binding["role"] in {"broker_commission", "exchange_commission"}
+    ]
+    assert len(commission_bindings) == 10
+    assert all(
+        binding["currency_column"] is not None for binding in commission_bindings
+    )
+    assert application["source_literals_unchanged"] is True
+    assert "facts" not in application
+    assert "published" not in application
+
+
+def test_controlled_restored_table_rejects_stale_header_column_binding() -> None:
+    fixture = _controlled_restored_tbank_fixture()
+    header = fixture["table"]["rows"][0]["cells"]
+    header[0]["literal"], header[1]["literal"] = (
+        header[1]["literal"],
+        header[0]["literal"],
+    )
+    with pytest.raises(ResearchMappingError) as exc:
+        _validated_controlled_restored_table(fixture)
+    assert exc.value.code == "controlled_restored_table_binding_stale"

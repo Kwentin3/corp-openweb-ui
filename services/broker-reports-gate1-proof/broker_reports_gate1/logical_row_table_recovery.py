@@ -6128,7 +6128,10 @@ def _source_accounting_scope(
     released_refs: list[str] = []
     for region in regions:
         if not _region_has_exact_row_word_partition(region) or any(
-            not _row_has_exact_entry_word_partition(row)
+            # Ownership accounting proves an exact set partition.  Parser
+            # reading order is separate evidence and may legitimately differ
+            # from left-to-right geometry inside one PDF row.
+            not _entry_bands_partition_words(row.entries, row.words)
             for row in region.rows
         ):
             raise LogicalRowTableRecoveryError(

@@ -5312,6 +5312,67 @@ def test_g1_release_ledger_closes_global_source_accounting() -> None:
     assert not owned_refs.intersection(paragraph_refs)
 
 
+def test_source_accounting_accepts_exact_geometry_partition_when_reading_order_drifts(
+) -> None:
+    builder = ProjectionBuilder(ref_prefix="accounting_reading_order_drift")
+    refs: list[str] = []
+    for y, left, right in (
+        (100, "Item", "Amount"),
+        (114, "Alpha", "10"),
+        (128, "Beta", "20"),
+        (142, "Gamma", "30"),
+    ):
+        refs += builder.add_row(
+            page_number=1,
+            y=y,
+            entries=[(20, left, 50), (200, right, 30)],
+        )
+    builder.add_candidate(
+        page_number=1,
+        bbox=[15, 95, 235, 152],
+        word_refs=refs,
+    )
+    projection = builder.projection()
+    projection["word_inventory"][0]["geometry_reading_order"] = 99
+
+    result = LogicalRowTableFactory().create().recover(
+        projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+    )
+
+    assert len(result.tables) == 1
+    assert _table_text(result.tables[0]) == [
+        ["Item", "Amount"],
+        ["Alpha", "10"],
+        ["Beta", "20"],
+        ["Gamma", "30"],
+    ]
+    assert len(result.source_word_ownership) == len(refs)
+    assert len(
+        {item["source_word_id"] for item in result.source_word_ownership}
+    ) == len(refs)
+    assert result.unowned_word_refs == []
+
+
+def test_source_accounting_order_relaxation_still_rejects_orphan_mutation(
+) -> None:
+    region = _internal_microtrack_region(
+        [
+            [[(20.0, 80.0, "Header")], [(200.0, 230.0, "Amount")]],
+            [[(20.0, 80.0, "Item")], [(200.0, 230.0, "10")]],
+        ],
+        ref_prefix="accounting_order_relaxation_orphan",
+    )
+    region.rows[0].entries[-1].words.pop()
+
+    with pytest.raises(
+        recovery_module.LogicalRowTableRecoveryError,
+        match="logical_row_source_accounting_partition_invalid",
+    ):
+        recovery_module._source_accounting_scope([region])
+
+
 def test_materialization_rejects_orphan_word_before_state_mutation() -> None:
     region = _internal_microtrack_region(
         [

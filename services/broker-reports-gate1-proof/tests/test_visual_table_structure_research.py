@@ -6,17 +6,24 @@ import pytest
 
 from broker_reports_gate1.visual_table_structure_research import (
     FORBIDDEN,
+    VISUAL_LOGICAL_COLUMN_PROPOSAL_SCHEMA_VERSION,
     VISUAL_TABLE_STRUCTURE_SCHEMA_VERSION,
     VisualTableStructureError,
     VisualTableStructureProjectionFactory,
+    logical_column_proposal_model_view,
+    logical_column_proposal_response_schema,
     model_view,
     response_schema,
 )
 
 
+SOURCE_SHA256 = "a" * 64
+
+
 def _page() -> dict:
     return {
         "page_number": 1,
+        "source_sha256": SOURCE_SHA256,
         "width": 1000.0,
         "height": 1000.0,
         "word_inventory": [
@@ -56,9 +63,35 @@ def _value() -> dict:
     }
 
 
+def _logical_column_value() -> dict:
+    return {
+        "schema_version": VISUAL_LOGICAL_COLUMN_PROPOSAL_SCHEMA_VERSION,
+        "source_binding": {
+            "source_sha256": SOURCE_SHA256,
+            "page_number": 1,
+        },
+        "table_order": 1,
+        "leaf_label_boxes_2d": [
+            [100, 40, 150, 150],
+            [100, 200, 150, 400],
+        ],
+    }
+
+
+def _bound_structure(*, page: dict | None = None) -> dict:
+    bound = (
+        VisualTableStructureProjectionFactory()
+        .create()
+        .bind(provider_value=_value(), parser_page=page or _page())
+    )
+    return bound["tables"][0]
+
+
 def test_binds_visual_geometry_to_exact_parser_owned_words() -> None:
-    result = VisualTableStructureProjectionFactory().create().bind(
-        provider_value=_value(), parser_page=_page()
+    result = (
+        VisualTableStructureProjectionFactory()
+        .create()
+        .bind(provider_value=_value(), parser_page=_page())
     )
 
     assert [item["title_text"] for item in result["tables"]] == [
@@ -89,14 +122,211 @@ def test_source_word_mutation_changes_bound_identity() -> None:
     )
 
 
+def test_binds_leaf_label_boxes_to_unique_exact_header_words() -> None:
+    result = (
+        VisualTableStructureProjectionFactory()
+        .create()
+        .bind_logical_column_proposal(
+            provider_value=_logical_column_value(),
+            parser_page=_page(),
+            bound_structure=_bound_structure(),
+        )
+    )
+
+    assert [item["header_text"] for item in result["leaf_columns"]] == [
+        "Date",
+        "Amount",
+    ]
+    assert [item["logical_column_order"] for item in result["leaf_columns"]] == [1, 2]
+    assert result["source_binding"] == {
+        "source_sha256": SOURCE_SHA256,
+        "page_number": 1,
+    }
+    assert result["proposal_for"] == "logical_row_owner"
+    assert result["model_literals_used_as_source_values"] is False
+    assert result["canonical_mutated"] is False
+
+
+def test_leaf_column_source_word_mutation_changes_bound_identity() -> None:
+    projector = VisualTableStructureProjectionFactory().create()
+    page_before = _page()
+    before = projector.bind_logical_column_proposal(
+        provider_value=_logical_column_value(),
+        parser_page=page_before,
+        bound_structure=_bound_structure(page=page_before),
+    )
+    page_after = _page()
+    page_after["word_inventory"][1]["text"] = "Changed"
+    after = projector.bind_logical_column_proposal(
+        provider_value=_logical_column_value(),
+        parser_page=page_after,
+        bound_structure=_bound_structure(page=page_after),
+    )
+
+    assert before["leaf_columns"][0]["header_text"] == "Date"
+    assert after["leaf_columns"][0]["header_text"] == "Changed"
+    assert (
+        before["leaf_columns"][0]["header_word_refs"][0]
+        != after["leaf_columns"][0]["header_word_refs"][0]
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("source_sha256", "b" * 64), ("page_number", 2)],
+)
+def test_rejects_leaf_column_source_or_page_misbinding(
+    field: str, value: object
+) -> None:
+    proposal = _logical_column_value()
+    proposal["source_binding"][field] = value
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        (
+            VisualTableStructureProjectionFactory()
+            .create()
+            .bind_logical_column_proposal(
+                provider_value=proposal,
+                parser_page=_page(),
+                bound_structure=_bound_structure(),
+            )
+        )
+
+    assert exc_info.value.code == "visual_logical_column_source_binding_mismatch"
+
+
+def test_rejects_leaf_label_boxes_out_of_left_to_right_order() -> None:
+    proposal = _logical_column_value()
+    proposal["leaf_label_boxes_2d"].reverse()
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        (
+            VisualTableStructureProjectionFactory()
+            .create()
+            .bind_logical_column_proposal(
+                provider_value=proposal,
+                parser_page=_page(),
+                bound_structure=_bound_structure(),
+            )
+        )
+
+    assert exc_info.value.code == "visual_logical_column_groups_not_left_to_right"
+
+
+def test_rejects_overlapping_leaf_label_boxes() -> None:
+    proposal = _logical_column_value()
+    proposal["leaf_label_boxes_2d"][0] = [100, 40, 150, 250]
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        (
+            VisualTableStructureProjectionFactory()
+            .create()
+            .bind_logical_column_proposal(
+                provider_value=proposal,
+                parser_page=_page(),
+                bound_structure=_bound_structure(),
+            )
+        )
+
+    assert exc_info.value.code == "visual_logical_column_groups_overlap"
+
+
+def test_preserves_shared_header_word_outside_leaf_labels() -> None:
+    page = _page()
+    page["word_inventory"].append(
+        {"parser_ordinal": 11, "text": "Shared", "bbox": [160, 110, 190, 140]}
+    )
+    proposal = _logical_column_value()
+    result = (
+        VisualTableStructureProjectionFactory()
+        .create()
+        .bind_logical_column_proposal(
+            provider_value=proposal,
+            parser_page=page,
+            bound_structure=_bound_structure(page=page),
+        )
+    )
+
+    assert [item["header_text"] for item in result["leaf_columns"]] == [
+        "Date",
+        "Amount",
+    ]
+    assert len(result["shared_or_non_leaf_header_word_refs"]) == 1
+
+
+def test_rejects_one_header_word_owned_by_two_touching_leaf_boxes() -> None:
+    page = _page()
+    page["word_inventory"][2]["bbox"] = [190, 110, 210, 140]
+    proposal = _logical_column_value()
+    proposal["leaf_label_boxes_2d"] = [
+        [100, 40, 150, 200],
+        [100, 200, 150, 400],
+    ]
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        (
+            VisualTableStructureProjectionFactory()
+            .create()
+            .bind_logical_column_proposal(
+                provider_value=proposal,
+                parser_page=page,
+                bound_structure=_bound_structure(page=page),
+            )
+        )
+
+    assert exc_info.value.code == "visual_logical_column_header_word_ownership_invalid"
+
+
+def test_rejects_leaf_label_box_without_source_word() -> None:
+    proposal = _logical_column_value()
+    proposal["leaf_label_boxes_2d"] = [
+        [100, 40, 150, 150],
+        [100, 150, 150, 200],
+        [100, 200, 150, 400],
+    ]
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        (
+            VisualTableStructureProjectionFactory()
+            .create()
+            .bind_logical_column_proposal(
+                provider_value=proposal,
+                parser_page=_page(),
+                bound_structure=_bound_structure(),
+            )
+        )
+
+    assert exc_info.value.code == "visual_logical_column_source_binding_empty"
+
+
+def test_rejects_stale_bound_header_receipt() -> None:
+    structure = _bound_structure()
+    structure["header_word_refs"][0] = "forged"
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        (
+            VisualTableStructureProjectionFactory()
+            .create()
+            .bind_logical_column_proposal(
+                provider_value=_logical_column_value(),
+                parser_page=_page(),
+                bound_structure=structure,
+            )
+        )
+
+    assert exc_info.value.code == "visual_logical_column_bound_structures_stale"
+
+
 def test_supports_a_genuine_headerless_table_without_inventing_header_words() -> None:
     value = _value()
     value["tables"] = [value["tables"][0]]
     value["tables"][0]["header_status"] = "ABSENT"
     value["tables"][0]["header_boxes_2d"] = []
 
-    result = VisualTableStructureProjectionFactory().create().bind(
-        provider_value=value, parser_page=_page()
+    result = (
+        VisualTableStructureProjectionFactory()
+        .create()
+        .bind(provider_value=value, parser_page=_page())
     )
 
     assert result["tables"][0]["header_text"] == ""
@@ -152,6 +382,27 @@ def test_prompt_is_generic_and_output_contract_is_geometry_only() -> None:
     assert "table_box_2d" not in serialized_schema
     assert "header_boxes_2d" in serialized_schema
     assert FORBIDDEN.startswith("research-only")
+
+
+def test_logical_column_contract_is_source_bound_and_geometry_only() -> None:
+    view = logical_column_proposal_model_view(
+        case_ref="case_1",
+        source_sha256=SOURCE_SHA256,
+        page_number=1,
+        table_order=1,
+    )
+    prompt = view["instruction"].lower()
+    serialized_schema = repr(logical_column_proposal_response_schema()).lower()
+
+    assert view["source_binding"]["source_sha256"] == SOURCE_SHA256
+    assert view["table_order"] == 1
+    assert "leaf_label_boxes_2d" in serialized_schema
+    assert "source_sha256" in serialized_schema
+    assert "header_text" not in serialized_schema
+    assert "financial_role" not in serialized_schema
+    assert "broker" not in prompt
+    assert "t-bank" not in prompt
+    assert "merrill" not in prompt
 
 
 def test_projection_does_not_mutate_provider_or_parser_inputs() -> None:
