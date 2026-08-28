@@ -268,6 +268,10 @@ async def _clarification_answer_confirmation_resumes_same_case(tmp_path) -> None
                 "clarification": question,
                 "message": "Нужно уточнить денежные колонки.",
             },
+            _review_response(
+                verdict="IRREDUCIBLE_AMBIGUITY",
+                finding="SOURCE_MEANING_UNRESOLVED",
+            ),
             {
                 "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
                 "status": "CANDIDATE",

@@ -121,6 +121,8 @@ Technical compilation of two candidates proves only executability. The reviewer
 may autonomously select one only when source wording and rows rule out the other;
 otherwise it emits an inspectable irreducible-ambiguity receipt. Conversely,
 missing roles never authorize dropping an incomplete financial row.
+`SOURCE_MEANING_UNRESOLVED` may support that terminal only for the one disputed
+table; it is never evidence that another table is a safe auxiliary.
 Transaction-level security, quantity, unit-price, withheld-tax, payee,
 counterparty or transaction-id evidence keeps a row relevant unless Canonical
 affirmatively identifies it as an aggregate.

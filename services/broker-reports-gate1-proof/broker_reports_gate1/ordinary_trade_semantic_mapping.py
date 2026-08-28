@@ -35,7 +35,7 @@ SEMANTIC_ADJUDICATION_RECEIPT_SCHEMA_VERSION = (
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v4"
 MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v9"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
-SEMANTIC_REVIEW_PROMPT_VERSION = "ordinary_trade_semantic_review_prompt_v3"
+SEMANTIC_REVIEW_PROMPT_VERSION = "ordinary_trade_semantic_review_prompt_v4"
 SEMANTIC_ADJUDICATION_PROMPT_VERSION = (
     "ordinary_trade_semantic_adjudication_prompt_v1"
 )
@@ -224,8 +224,9 @@ class OrdinaryTradeSemanticMapping:
             "mapping to cover every financial row without inventing values. Use "
             "UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT whenever financial content "
             "exists outside the supported complete mapping. Use SOURCE_MEANING_UNRESOLVED "
-            "when the proposal does not represent an evidenced source meaning, not merely "
-            "because two complete supported candidates remain indistinguishable. Review "
+            "for the one disputed table when two complete supported candidates remain "
+            "indistinguishable on the source; it is never safe-auxiliary evidence and is "
+            "invalid on any other table in that ambiguity review. Review "
             "all tables even if only one "
             "decision looks risky. For a COMPLETE proposal, APPROVE_COMPLETE only when "
             "every table finding exactly supports atomic publication; otherwise return "
@@ -707,8 +708,17 @@ class OrdinaryTradeSemanticMapping:
                 ):
                     _fail("ordinary_trade_semantic_review_selection_invalid")
             elif value["verdict"] == "IRREDUCIBLE_AMBIGUITY":
+                question_table_ref = review_package["proposal"].get(
+                    "clarification_table_ref"
+                )
                 if selected_position is not None or any(
-                    item["finding"] in risky_findings for item in findings
+                    item["finding"]
+                    == "UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT"
+                    or (
+                        item["finding"] == "SOURCE_MEANING_UNRESOLVED"
+                        and item["table_ref"] != question_table_ref
+                    )
+                    for item in findings
                 ):
                     _fail("ordinary_trade_semantic_review_ambiguity_invalid")
                 candidate_findings = [
@@ -724,6 +734,10 @@ class OrdinaryTradeSemanticMapping:
                     or any(
                         item["finding"]
                         not in candidate_findings[0][item["table_ref"]]
+                        and not (
+                            item["table_ref"] == question_table_ref
+                            and item["finding"] == "SOURCE_MEANING_UNRESOLVED"
+                        )
                         for item in findings
                     )
                 ):
@@ -2130,6 +2144,7 @@ def _semantic_review_proposal(value: Mapping[str, Any]) -> dict[str, Any]:
         return {
             "status": status,
             "table_decisions": [],
+            "clarification_table_ref": clarification.get("table_ref"),
             "clarification_candidates": [
                 {
                     "option_position": index,
