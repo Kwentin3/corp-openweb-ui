@@ -20,9 +20,12 @@ ORDINARY_TRADE_MAPPING_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_schema_mapping_v3"
 )
 ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_runtime_projection_v5"
+    "broker_reports_ordinary_trade_runtime_projection_v6"
 )
 SOURCE_OBSERVATION_SCHEMA_VERSION = "broker_reports_source_observation_v1"
+NO_CONSUMER_QUALIFICATION_SCHEMA_VERSION = (
+    "broker_reports_no_named_consumer_qualification_v1"
+)
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticCompilerFactory.create is the only production-candidate "
     "Canonical to ordinary-trade projection entrypoint"
@@ -116,6 +119,38 @@ class OrdinaryTradeSemanticCompilerFactory:
 class OrdinaryTradeSemanticCompiler:
     """Compile a full Canonical document using exact qualified mappings only."""
 
+    def qualify_no_named_consumer(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        table_node_id: str,
+        header_row: int,
+    ) -> dict[str, Any]:
+        """Prove that one table cannot currently execute as ordinary trades."""
+
+        binding = _canonical_binding(canonical=canonical, value=canonical_binding)
+        table = next(
+            (
+                item
+                for item in canonical.get("nodes", [])
+                if isinstance(item, dict)
+                and item.get("node_type") == "TABLE"
+                and item.get("node_id") == table_node_id
+            ),
+            None,
+        )
+        if table is None:
+            _fail("ordinary_trade_no_consumer_table_missing")
+        receipt = _no_consumer_qualification(
+            table=table,
+            canonical_root_sha256=binding["canonical_root_sha256"],
+            header_row=header_row,
+        )
+        if receipt["potential_trade_rows"]:
+            _fail("ordinary_trade_no_consumer_unproven")
+        return receipt
+
     def compile(
         self,
         *,
@@ -180,6 +215,7 @@ class OrdinaryTradeSemanticCompiler:
                     table=table,
                     rows=rows,
                     resolutions=accepted_resolutions,
+                    canonical_root_sha256=binding["canonical_root_sha256"],
                 )
                 if len(resolutions) > 1:
                     _fail("ordinary_trade_table_resolution_ambiguous")
@@ -839,6 +875,7 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
             "structural_fingerprint",
             "evidence_surface",
             "disposition",
+            "exclusion_qualification",
         }
         or not isinstance(value.get("table_node_id"), str)
         or not value["table_node_id"]
@@ -880,6 +917,11 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
     )
     if value.get("structural_fingerprint") != expected:
         _fail("ordinary_trade_table_resolution_fingerprint_invalid")
+    qualification = value.get("exclusion_qualification")
+    if value["disposition"] == "NO_NAMED_CONSUMER":
+        _validated_no_consumer_qualification(qualification)
+    elif qualification is not None:
+        _fail("ordinary_trade_table_resolution_invalid")
     return copy.deepcopy(dict(value))
 
 
@@ -888,6 +930,7 @@ def _matching_table_resolutions(
     table: Mapping[str, Any],
     rows: dict[int, dict[int, dict[str, Any]]],
     resolutions: tuple[dict[str, Any], ...],
+    canonical_root_sha256: str,
 ) -> list[dict[str, Any]]:
     result = []
     for resolution in resolutions:
@@ -907,8 +950,127 @@ def _matching_table_resolutions(
             )
         ):
             _fail("ordinary_trade_table_resolution_surface_stale")
+        if resolution["disposition"] == "NO_NAMED_CONSUMER":
+            current = _no_consumer_qualification(
+                table=table,
+                canonical_root_sha256=canonical_root_sha256,
+                header_row=resolution["header_row"],
+            )
+            if current != resolution["exclusion_qualification"]:
+                _fail("ordinary_trade_no_consumer_qualification_stale")
+            if current["potential_trade_rows"]:
+                _fail("ordinary_trade_no_consumer_unproven")
         result.append(resolution)
     return result
+
+
+def _no_consumer_qualification(
+    *,
+    table: Mapping[str, Any],
+    canonical_root_sha256: str,
+    header_row: int,
+) -> dict[str, Any]:
+    rows = _table_rows(table)
+    if header_row not in rows:
+        _fail("ordinary_trade_no_consumer_header_missing")
+    examined_rows: list[int] = []
+    potential_trade_rows: list[int] = []
+    for row_number, cells in sorted(rows.items()):
+        if row_number <= header_row:
+            continue
+        literals = [
+            _literal(cell).strip()
+            for _, cell in sorted(cells.items())
+            if _literal(cell).strip()
+        ]
+        if not literals:
+            continue
+        examined_rows.append(row_number)
+        date_candidates = sum(
+            _runtime_candidate(literal=literal, role="date")
+            for literal in literals
+        )
+        numeric_candidates = sum(
+            _runtime_candidate(literal=literal, role="amount")
+            for literal in literals
+        )
+        # A supported trade needs seven roles. Reject exclusion even when one
+        # role may be absent so incomplete financial rows remain fail-closed.
+        if len(literals) >= 6 and date_candidates >= 1 and numeric_candidates >= 2:
+            potential_trade_rows.append(row_number)
+    receipt = {
+        "schema_version": NO_CONSUMER_QUALIFICATION_SCHEMA_VERSION,
+        "table_node_id": str(table.get("node_id") or ""),
+        "header_row": header_row,
+        "canonical_root_sha256": canonical_root_sha256,
+        "table_sha256": _sha256_json(table),
+        "qualification_basis": (
+            "NO_FULL_OR_ONE_REQUIRED_ROLE_SHORT_RUNTIME_ROW"
+        ),
+        "examined_rows": examined_rows,
+        "potential_trade_rows": potential_trade_rows,
+    }
+    receipt["receipt_sha256"] = _sha256_json(receipt)
+    _validated_no_consumer_qualification(receipt)
+    return receipt
+
+
+def _runtime_candidate(*, literal: str, role: str) -> int:
+    try:
+        normalize_runtime_value(role, literal)
+    except OrdinaryTradeSemanticCompilerError:
+        return 0
+    return 1
+
+
+def _validated_no_consumer_qualification(value: Any) -> None:
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema_version",
+            "table_node_id",
+            "header_row",
+            "canonical_root_sha256",
+            "table_sha256",
+            "qualification_basis",
+            "examined_rows",
+            "potential_trade_rows",
+            "receipt_sha256",
+        }
+        or value.get("schema_version")
+        != NO_CONSUMER_QUALIFICATION_SCHEMA_VERSION
+        or not isinstance(value.get("table_node_id"), str)
+        or not value["table_node_id"]
+        or not isinstance(value.get("header_row"), int)
+        or value["header_row"] < 1
+        or value.get("qualification_basis")
+        != "NO_FULL_OR_ONE_REQUIRED_ROLE_SHORT_RUNTIME_ROW"
+        or any(
+            re.fullmatch(r"[0-9a-f]{64}", str(value.get(key) or "")) is None
+            for key in (
+                "canonical_root_sha256",
+                "table_sha256",
+                "receipt_sha256",
+            )
+        )
+        or not isinstance(value.get("examined_rows"), list)
+        or not isinstance(value.get("potential_trade_rows"), list)
+        or any(
+            not isinstance(item, int) or item <= value["header_row"]
+            for key in ("examined_rows", "potential_trade_rows")
+            for item in value[key]
+        )
+        or value["examined_rows"] != sorted(set(value["examined_rows"]))
+        or value["potential_trade_rows"]
+        != sorted(set(value["potential_trade_rows"]))
+        or not set(value["potential_trade_rows"]) <= set(value["examined_rows"])
+    ):
+        _fail("ordinary_trade_no_consumer_qualification_invalid")
+    frozen = copy.deepcopy(value)
+    digest = frozen.pop("receipt_sha256")
+    if digest != _sha256_json(frozen):
+        _fail("ordinary_trade_no_consumer_qualification_invalid")
 
 
 def _field(
@@ -1359,6 +1521,7 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "ORDINARY_TRADE_MAPPING_SCHEMA_VERSION",
+    "NO_CONSUMER_QUALIFICATION_SCHEMA_VERSION",
     "ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION",
     "OrdinaryTradeSemanticCompiler",
     "OrdinaryTradeSemanticCompilerError",

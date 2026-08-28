@@ -18,13 +18,13 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v2"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v3"
 )
 ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
-MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v8"
+MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v3"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v9"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -142,7 +142,9 @@ class OrdinaryTradeSemanticMapping:
             "plain-language question and provide two to four mutually exclusive "
             "options. For CLARIFICATION_REQUIRED, table_decisions must be empty and "
             "clarification must contain that one question. Every option must carry "
-            "one machine-applicable decision. "
+            "one machine-applicable decision and candidate_table_decisions covering "
+            "every supplied table. Each complete candidate must independently satisfy "
+            "the same full-Canonical compiler contract as COMPLETE. "
             "Confirmed decisions are authoritative only for this case and the final "
             "mapping must satisfy them exactly. "
             "Return only strict JSON."
@@ -253,6 +255,7 @@ class OrdinaryTradeSemanticMapping:
         frozen_mappings: Iterable[Mapping[str, Any]] = (),
     ) -> dict[str, Any]:
         value = _strict_model_value(response)
+        frozen_mappings = tuple(frozen_mappings)
         if (
             set(value)
             != {"schema_version", "status", "table_decisions", "clarification", "message"}
@@ -274,6 +277,27 @@ class OrdinaryTradeSemanticMapping:
         )
         node_ids_by_ref = {value: key for key, value in refs_by_node_id.items()}
         status = value["status"]
+        case_scope_base = {
+            key: str(canonical_binding.get(key) or "")
+            for key in (
+                "document_id",
+                "canonical_version_id",
+                "canonical_root_sha256",
+                "source_artifact_ref",
+                "source_sha256",
+            )
+        }
+        case_scope_base["user_scope_sha256"] = user_scope_sha256
+        if not all(case_scope_base.values()):
+            _fail("ordinary_trade_semantic_mapping_canonical_binding_invalid")
+        model_decision = {
+            "model_id": model_id,
+            "provider_profile_id": provider_profile_id,
+            "response_sha256": _sha256_json(value),
+            "execution_metadata_sha256": _execution_metadata_sha256(
+                execution_metadata
+            ),
+        }
         if status == "CLARIFICATION_REQUIRED":
             if value["table_decisions"] or not isinstance(value.get("clarification"), dict):
                 _fail("ordinary_trade_semantic_mapping_clarification_invalid")
@@ -282,9 +306,54 @@ class OrdinaryTradeSemanticMapping:
                 tables=tables,
                 node_ids_by_ref=node_ids_by_ref,
             )
+            _validate_ambiguity_shape(question)
+            mapping_prompt = self.mapping_prompt()
+            autonomous_attempt = {
+                "terminal_status": status,
+                "mapping_prompt_sha256": mapping_prompt.hash,
+                "model_visible_package_sha256": _sha256_json(
+                    self.build_mapping_package(
+                        canonical=canonical,
+                        confirmed_understandings=confirmed_understandings,
+                        target_table_node_ids=target_table_node_ids,
+                    )
+                ),
+                "model_response_sha256": model_decision["response_sha256"],
+                "execution_metadata_sha256": model_decision[
+                    "execution_metadata_sha256"
+                ],
+            }
+            candidate_results = []
+            for option in question["options"]:
+                candidate = _qualify_full_mapping_candidate(
+                    canonical=canonical,
+                    canonical_binding=canonical_binding,
+                    tables=tables,
+                    decisions=option["candidate_table_decisions"],
+                    case_scope_base=case_scope_base,
+                    model_decision=model_decision,
+                    confirmed_understandings=confirmed_understandings,
+                    frozen_mappings=frozen_mappings,
+                )
+                resolved = next(
+                    (
+                        item
+                        for item in candidate["resolved_decisions"]
+                        if item["table_node_id"] == question["table_node_id"]
+                    ),
+                    None,
+                )
+                if resolved is None or not _resolved_decision_satisfies(
+                    resolved=resolved,
+                    decision=option["decision"],
+                ):
+                    _fail("ordinary_trade_semantic_mapping_ambiguity_invalid")
+                candidate_results.append(candidate)
             question["ambiguity_receipt"] = _build_ambiguity_receipt(
                 question=question,
                 table=tables[question["table_node_id"]],
+                candidate_results=candidate_results,
+                autonomous_attempt=autonomous_attempt,
             )
             return {
                 "status": status,
@@ -318,44 +387,17 @@ class OrdinaryTradeSemanticMapping:
         ids = [item.get("table_node_id") for item in decisions if isinstance(item, dict)]
         if len(ids) != len(tables) or set(ids) != set(tables) or len(ids) != len(set(ids)):
             _fail("ordinary_trade_semantic_mapping_table_coverage_invalid")
-        case_scope_base = {
-            key: str(canonical_binding.get(key) or "")
-            for key in (
-                "document_id",
-                "canonical_version_id",
-                "canonical_root_sha256",
-                "source_artifact_ref",
-                "source_sha256",
-            )
-        }
-        case_scope_base["user_scope_sha256"] = user_scope_sha256
-        if not all(case_scope_base.values()):
-            _fail("ordinary_trade_semantic_mapping_canonical_binding_invalid")
-        model_decision = {
-            "model_id": model_id,
-            "provider_profile_id": provider_profile_id,
-            "response_sha256": _sha256_json(value),
-            "execution_metadata_sha256": _execution_metadata_sha256(
-                execution_metadata
-            ),
-        }
-        authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
-        qualified_mappings: list[dict[str, Any]] = []
-        qualification_receipts: list[dict[str, Any]] = []
-        table_resolutions: list[dict[str, Any]] = []
-        resolved_decisions = []
-        for decision in decisions:
-            table = tables[str(decision.get("table_node_id"))]
-            resolved = _validate_table_decision(decision=decision, table=table)
-            resolved_decisions.append(resolved)
-        _validate_confirmed_decisions(
+        candidate = _qualify_full_mapping_candidate(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            tables=tables,
+            decisions=decisions,
+            case_scope_base=case_scope_base,
+            model_decision=model_decision,
             confirmed_understandings=confirmed_understandings,
-            resolved_decisions=resolved_decisions,
+            frozen_mappings=frozen_mappings,
         )
-        if any(
-            item["disposition"] == "UNSUPPORTED_FINANCIAL_MEANING"
-            for item in resolved_decisions
-        ):
+        if candidate["status"] == "UNSUPPORTED":
             return {
                 "status": "UNSUPPORTED",
                 "message": value["message"].strip(),
@@ -368,76 +410,13 @@ class OrdinaryTradeSemanticMapping:
                     "execution_metadata_sha256"
                 ],
             }
-        for resolved in resolved_decisions:
-            if resolved["disposition"] == "SECURITY_TRADES":
-                case_scope = {
-                    **case_scope_base,
-                    "table_node_id": resolved["table_node_id"],
-                }
-                mapping, receipt = authority.qualify_case_mapping(
-                    title_literal=None,
-                    headers=resolved["headers"],
-                    model_columns=resolved["columns"],
-                    amount_currency_bindings=resolved["amount_currency_bindings"],
-                    side_values=resolved["side_values"],
-                    case_scope=case_scope,
-                    model_decision=model_decision,
-                    confirmed_understandings=[
-                        {
-                            key: item[key]
-                            for key in (
-                                "question_id",
-                                "option_id",
-                                "label_sha256",
-                                "decision_sha256",
-                            )
-                        }
-                        for item in confirmed_understandings
-                    ],
-                )
-                qualified_mappings.append(mapping)
-                qualification_receipts.append(receipt)
-            table_resolutions.append(
-                {
-                    key: copy.deepcopy(resolved[key])
-                    for key in (
-                        "table_node_id",
-                        "header_row",
-                        "structural_fingerprint",
-                        "evidence_surface",
-                        "disposition",
-                    )
-                }
-            )
-        dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
-            canonical=canonical,
-            canonical_binding=canonical_binding,
-            mappings=frozen_mappings,
-            scoped_mappings=[
-                {
-                    "table_node_id": receipt["case_scope"]["table_node_id"],
-                    "mapping": mapping,
-                }
-                for mapping, receipt in zip(
-                    qualified_mappings,
-                    qualification_receipts,
-                    strict=True,
-                )
-            ],
-            table_resolutions=table_resolutions,
-        )
-        if any(
-            item.get("disposition") == "RELEVANT_UNMAPPED"
-            for item in dry_run["source_observations"]
-        ):
-            _fail("ordinary_trade_semantic_mapping_dry_run_incomplete")
         return {
             "status": "COMPLETE",
             "message": value["message"].strip(),
             "question": None,
-            "qualified_mappings": qualified_mappings,
-            "qualification_receipts": qualification_receipts,
-            "table_resolutions": table_resolutions,
+            "qualified_mappings": candidate["qualified_mappings"],
+            "qualification_receipts": candidate["qualification_receipts"],
+            "table_resolutions": candidate["table_resolutions"],
             "model_response_sha256": model_decision["response_sha256"],
             "execution_metadata_sha256": model_decision[
                 "execution_metadata_sha256"
@@ -647,6 +626,10 @@ def _normalize_model_question(
         if decision["table_ref"] != question["table_ref"]:
             _fail("ordinary_trade_semantic_mapping_question_decision_invalid")
         decision["table_node_id"] = node_ids_by_ref[decision.pop("table_ref")]
+        option["candidate_table_decisions"] = _normalize_model_decisions(
+            option["candidate_table_decisions"],
+            node_ids_by_ref=node_ids_by_ref,
+        )
         _validate_clarification_decision(
             decision=decision,
             table=tables[decision["table_node_id"]],
@@ -666,16 +649,156 @@ def _normalize_model_question(
     return normalized
 
 
+def _qualify_full_mapping_candidate(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    tables: dict[str, dict[str, Any]],
+    decisions: list[dict[str, Any]],
+    case_scope_base: dict[str, str],
+    model_decision: dict[str, str],
+    confirmed_understandings: list[dict[str, Any]],
+    frozen_mappings: Iterable[Mapping[str, Any]],
+) -> dict[str, Any]:
+    ids = [item.get("table_node_id") for item in decisions if isinstance(item, dict)]
+    if len(ids) != len(tables) or set(ids) != set(tables) or len(ids) != len(set(ids)):
+        _fail("ordinary_trade_semantic_mapping_table_coverage_invalid")
+    resolved_decisions = [
+        _validate_table_decision(
+            decision=decision,
+            table=tables[str(decision.get("table_node_id"))],
+        )
+        for decision in decisions
+    ]
+    _validate_confirmed_decisions(
+        confirmed_understandings=confirmed_understandings,
+        resolved_decisions=resolved_decisions,
+    )
+    if any(
+        item["disposition"] == "UNSUPPORTED_FINANCIAL_MEANING"
+        for item in resolved_decisions
+    ):
+        return {
+            "status": "UNSUPPORTED",
+            "resolved_decisions": resolved_decisions,
+            "qualified_mappings": [],
+            "qualification_receipts": [],
+            "table_resolutions": [],
+            "dry_run": None,
+        }
+    authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
+    compiler = OrdinaryTradeSemanticCompilerFactory.create()
+    qualified_mappings: list[dict[str, Any]] = []
+    qualification_receipts: list[dict[str, Any]] = []
+    table_resolutions: list[dict[str, Any]] = []
+    for resolved in resolved_decisions:
+        exclusion_qualification = None
+        if resolved["disposition"] == "SECURITY_TRADES":
+            case_scope = {
+                **case_scope_base,
+                "table_node_id": resolved["table_node_id"],
+            }
+            mapping, receipt = authority.qualify_case_mapping(
+                title_literal=None,
+                headers=resolved["headers"],
+                model_columns=resolved["columns"],
+                amount_currency_bindings=resolved["amount_currency_bindings"],
+                side_values=resolved["side_values"],
+                case_scope=case_scope,
+                model_decision=model_decision,
+                confirmed_understandings=[
+                    {
+                        key: item[key]
+                        for key in (
+                            "question_id",
+                            "option_id",
+                            "label_sha256",
+                            "decision_sha256",
+                        )
+                    }
+                    for item in confirmed_understandings
+                ],
+            )
+            qualified_mappings.append(mapping)
+            qualification_receipts.append(receipt)
+        elif resolved["disposition"] == "NO_NAMED_CONSUMER":
+            exclusion_qualification = compiler.qualify_no_named_consumer(
+                canonical=canonical,
+                canonical_binding=canonical_binding,
+                table_node_id=resolved["table_node_id"],
+                header_row=resolved["header_row"],
+            )
+        table_resolutions.append(
+            {
+                **{
+                    key: copy.deepcopy(resolved[key])
+                    for key in (
+                        "table_node_id",
+                        "header_row",
+                        "structural_fingerprint",
+                        "evidence_surface",
+                        "disposition",
+                    )
+                },
+                "exclusion_qualification": exclusion_qualification,
+            }
+        )
+    dry_run = compiler.compile(
+        canonical=canonical,
+        canonical_binding=canonical_binding,
+        mappings=frozen_mappings,
+        scoped_mappings=[
+            {
+                "table_node_id": receipt["case_scope"]["table_node_id"],
+                "mapping": mapping,
+            }
+            for mapping, receipt in zip(
+                qualified_mappings,
+                qualification_receipts,
+                strict=True,
+            )
+        ],
+        table_resolutions=table_resolutions,
+    )
+    if any(
+        item.get("disposition") == "RELEVANT_UNMAPPED"
+        for item in dry_run["source_observations"]
+    ):
+        _fail("ordinary_trade_semantic_mapping_dry_run_incomplete")
+    return {
+        "status": "COMPLETE",
+        "resolved_decisions": resolved_decisions,
+        "qualified_mappings": qualified_mappings,
+        "qualification_receipts": qualification_receipts,
+        "table_resolutions": table_resolutions,
+        "dry_run": dry_run,
+    }
+
+
 def _build_ambiguity_receipt(
-    *, question: dict[str, Any], table: dict[str, Any]
+    *,
+    question: dict[str, Any],
+    table: dict[str, Any],
+    candidate_results: list[dict[str, Any]],
+    autonomous_attempt: dict[str, str],
 ) -> dict[str, Any]:
     decisions = [item["decision"] for item in question["options"]]
+    _validate_ambiguity_shape(question)
     if (
-        len({item["decision_kind"] for item in decisions}) != 1
-        or len({item["header_row"] for item in decisions}) != 1
-        or len({_sha256_json(item) for item in decisions}) != len(decisions)
+        len(candidate_results) != len(question["options"])
+        or any(item["status"] != "COMPLETE" for item in candidate_results)
     ):
         _fail("ordinary_trade_semantic_mapping_ambiguity_invalid")
+    runtime_record_hashes = [
+        _sha256_json(item["dry_run"]["runtime_records"])
+        for item in candidate_results
+    ]
+    materially_different = (
+        len(runtime_record_hashes) > 1
+        and len(runtime_record_hashes) == len(set(runtime_record_hashes))
+    )
+    if not materially_different:
+        _fail("ordinary_trade_semantic_mapping_ambiguity_not_material")
     coordinates = []
     for decision in decisions:
         for key in ("column", "amount_column", "currency_column"):
@@ -691,7 +814,7 @@ def _build_ambiguity_receipt(
         )
     ]
     receipt = {
-        "schema_version": "broker_reports_ordinary_trade_ambiguity_receipt_v1",
+        "schema_version": "broker_reports_ordinary_trade_ambiguity_receipt_v2",
         "table_node_id": question["table_node_id"],
         "source_units": {
             "table_node_id": question["table_node_id"],
@@ -704,18 +827,42 @@ def _build_ambiguity_receipt(
                 "option_id": option["option_id"],
                 "decision_kind": option["decision"]["decision_kind"],
                 "decision_sha256": _sha256_json(option["decision"]),
-                "structural_validation": "PASS",
-                "domain_contract_validation": "PASS",
+                "candidate_table_decisions_sha256": _sha256_json(
+                    option["candidate_table_decisions"]
+                ),
+                "projection_sha256": candidate["dry_run"]["projection_sha256"],
+                "runtime_records_sha256": runtime_records_sha256,
+                "qualification_receipts_sha256": _sha256_json(
+                    candidate["qualification_receipts"]
+                ),
+                "table_resolutions_sha256": _sha256_json(
+                    candidate["table_resolutions"]
+                ),
             }
-            for option in question["options"]
+            for option, candidate, runtime_records_sha256 in zip(
+                question["options"],
+                candidate_results,
+                runtime_record_hashes,
+                strict=True,
+            )
         ],
-        "materially_different": True,
-        "same_evidence_autonomous_status": "UNABLE_TO_EXCLUDE_ONE_CANDIDATE",
+        "materially_different": materially_different,
+        "autonomous_attempt": copy.deepcopy(autonomous_attempt),
         "human_knowledge_required": "SELECT_TRUE_SOURCE_INTERPRETATION",
         "disputed_facts_published": 0,
     }
     receipt["receipt_sha256"] = _sha256_json(receipt)
     return receipt
+
+
+def _validate_ambiguity_shape(question: dict[str, Any]) -> None:
+    decisions = [item["decision"] for item in question["options"]]
+    if (
+        len({item["decision_kind"] for item in decisions}) != 1
+        or len({item["header_row"] for item in decisions}) != 1
+        or len({_sha256_json(item) for item in decisions}) != len(decisions)
+    ):
+        _fail("ordinary_trade_semantic_mapping_ambiguity_invalid")
 
 
 _ROLE_LABELS = {
@@ -1086,9 +1233,20 @@ def _validate_question(
             not isinstance(option, dict)
             or set(option)
             != (
-                {"option_id", "label", "decision", "source_literals"}
+                {
+                    "option_id",
+                    "label",
+                    "decision",
+                    "candidate_table_decisions",
+                    "source_literals",
+                }
                 if internal
-                else {"option_id", "label", "decision"}
+                else {
+                    "option_id",
+                    "label",
+                    "decision",
+                    "candidate_table_decisions",
+                }
             )
             or not isinstance(option.get("option_id"), str)
             or (
@@ -1104,6 +1262,7 @@ def _validate_question(
             or not isinstance(option.get("decision"), dict)
             or set(option["decision"])
             != (_INTERNAL_DECISION_FIELDS if internal else _DECISION_FIELDS)
+            or not isinstance(option.get("candidate_table_decisions"), list)
             or (
                 internal
                 and (
@@ -1132,14 +1291,24 @@ def _validate_question(
                 "option_id": option["option_id"],
                 "decision_kind": option["decision"]["decision_kind"],
                 "decision_sha256": _sha256_json(option["decision"]),
-                "structural_validation": "PASS",
-                "domain_contract_validation": "PASS",
+                "candidate_table_decisions_sha256": _sha256_json(
+                    option["candidate_table_decisions"]
+                ),
             }
             for option in question["options"]
         ]
         if (
             receipt["table_node_id"] != question["table_node_id"]
-            or receipt["candidate_interpretations"] != expected_candidates
+            or len(receipt["candidate_interpretations"])
+            != len(expected_candidates)
+            or any(
+                any(candidate.get(key) != expected[key] for key in expected)
+                for candidate, expected in zip(
+                    receipt["candidate_interpretations"],
+                    expected_candidates,
+                    strict=True,
+                )
+            )
         ):
             _fail("ordinary_trade_semantic_mapping_ambiguity_invalid")
 
@@ -1152,7 +1321,7 @@ def _validate_ambiguity_receipt(receipt: Any) -> None:
         "evidence_surface_sha256",
         "candidate_interpretations",
         "materially_different",
-        "same_evidence_autonomous_status",
+        "autonomous_attempt",
         "human_knowledge_required",
         "disputed_facts_published",
         "receipt_sha256",
@@ -1161,7 +1330,7 @@ def _validate_ambiguity_receipt(receipt: Any) -> None:
         not isinstance(receipt, dict)
         or set(receipt) != expected_keys
         or receipt.get("schema_version")
-        != "broker_reports_ordinary_trade_ambiguity_receipt_v1"
+        != "broker_reports_ordinary_trade_ambiguity_receipt_v2"
         or not isinstance(receipt.get("table_node_id"), str)
         or not receipt["table_node_id"]
         or not isinstance(receipt.get("source_units"), dict)
@@ -1186,8 +1355,30 @@ def _validate_ambiguity_receipt(receipt: Any) -> None:
         )
         is None
         or receipt.get("materially_different") is not True
-        or receipt.get("same_evidence_autonomous_status")
-        != "UNABLE_TO_EXCLUDE_ONE_CANDIDATE"
+        or not isinstance(receipt.get("autonomous_attempt"), dict)
+        or set(receipt["autonomous_attempt"])
+        != {
+            "terminal_status",
+            "mapping_prompt_sha256",
+            "model_visible_package_sha256",
+            "model_response_sha256",
+            "execution_metadata_sha256",
+        }
+        or receipt["autonomous_attempt"].get("terminal_status")
+        != "CLARIFICATION_REQUIRED"
+        or any(
+            re.fullmatch(
+                r"[0-9a-f]{64}",
+                str(receipt["autonomous_attempt"].get(key) or ""),
+            )
+            is None
+            for key in (
+                "mapping_prompt_sha256",
+                "model_visible_package_sha256",
+                "model_response_sha256",
+                "execution_metadata_sha256",
+            )
+        )
         or receipt.get("human_knowledge_required")
         != "SELECT_TRUE_SOURCE_INTERPRETATION"
         or receipt.get("disputed_facts_published") != 0
@@ -1200,18 +1391,37 @@ def _validate_ambiguity_receipt(receipt: Any) -> None:
                 "option_id",
                 "decision_kind",
                 "decision_sha256",
-                "structural_validation",
-                "domain_contract_validation",
+                "candidate_table_decisions_sha256",
+                "projection_sha256",
+                "runtime_records_sha256",
+                "qualification_receipts_sha256",
+                "table_resolutions_sha256",
             }
             or item.get("decision_kind") not in _DECISION_KINDS
             or re.fullmatch(
                 r"[0-9a-f]{64}", str(item.get("decision_sha256") or "")
             )
             is None
-            or item.get("structural_validation") != "PASS"
-            or item.get("domain_contract_validation") != "PASS"
+            or any(
+                re.fullmatch(r"[0-9a-f]{64}", str(item.get(key) or ""))
+                is None
+                for key in (
+                    "candidate_table_decisions_sha256",
+                    "projection_sha256",
+                    "runtime_records_sha256",
+                    "qualification_receipts_sha256",
+                    "table_resolutions_sha256",
+                )
+            )
             for item in receipt["candidate_interpretations"]
         )
+        or len(
+            {
+                item["runtime_records_sha256"]
+                for item in receipt["candidate_interpretations"]
+            }
+        )
+        != len(receipt["candidate_interpretations"])
     ):
         _fail("ordinary_trade_semantic_mapping_ambiguity_invalid")
     frozen = copy.deepcopy(receipt)
@@ -1356,11 +1566,20 @@ def _mapping_response_schema() -> dict[str, Any]:
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
-                    "required": ["option_id", "label", "decision"],
+                    "required": [
+                        "option_id",
+                        "label",
+                        "decision",
+                        "candidate_table_decisions",
+                    ],
                     "properties": {
                         "option_id": {"type": "string", "minLength": 1},
                         "label": {"type": "string", "minLength": 1},
                         "decision": decision,
+                        "candidate_table_decisions": {
+                            "type": "array",
+                            "items": table_decision,
+                        },
                     },
                 },
             },

@@ -100,6 +100,60 @@ def _column_role_decision(column: int, semantic_role: str) -> dict:
     }
 
 
+def _gross_candidate_table_decisions(mapping, gross_column: int) -> list[dict]:
+    decision = copy.deepcopy(_complete({}, mapping)["table_decisions"][0])
+    by_column = {item["column"]: item for item in decision["columns"]}
+    prior_gross = next(
+        item["column"]
+        for item in decision["columns"]
+        if item["semantic_role"] == "gross_amount"
+    )
+    target_role = by_column[gross_column]["semantic_role"]
+    by_column[gross_column]["semantic_role"] = "gross_amount"
+    by_column[prior_gross]["semantic_role"] = target_role
+    currency_column = next(
+        item["column"]
+        for item in decision["columns"]
+        if item["semantic_role"] == "currency"
+    )
+    monetary_roles = {
+        "gross_amount",
+        "broker_commission",
+        "exchange_commission",
+    }
+    decision["amount_currency_bindings"] = [
+        {"amount_column": item["column"], "currency_column": currency_column}
+        for item in decision["columns"]
+        if item["semantic_role"] in monetary_roles
+    ]
+    return [decision]
+
+
+def _role_override_candidate_table_decisions(
+    mapping, column: int, semantic_role: str
+) -> list[dict]:
+    decision = copy.deepcopy(_complete({}, mapping)["table_decisions"][0])
+    next(
+        item for item in decision["columns"] if item["column"] == column
+    )["semantic_role"] = semantic_role
+    currency_columns = [
+        item["column"]
+        for item in decision["columns"]
+        if item["semantic_role"] == "currency"
+    ]
+    if len(currency_columns) == 1:
+        decision["amount_currency_bindings"] = [
+            {
+                "amount_column": item["column"],
+                "currency_column": currency_columns[0],
+            }
+            for item in decision["columns"]
+            if item["semantic_role"]
+            in {"gross_amount", "broker_commission", "exchange_commission"}
+        ]
+    return [decision]
+
+
 def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> None:
     store, context, document_id, canonical, binding, table, mapping = _unknown_case(
         tmp_path
@@ -144,7 +198,7 @@ def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> 
 
 
 def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) -> None:
-    store, context, document_id, canonical, binding, table, _mapping = _unknown_case(
+    store, context, document_id, canonical, binding, table, mapping = _unknown_case(
         tmp_path
     )
     semantic = OrdinaryTradeSemanticMappingFactory.create()
@@ -164,11 +218,17 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
                     "option_id": "o_1",
                     "label": "Первая денежная колонка",
                     "decision": _column_role_decision(9, "gross_amount"),
+                    "candidate_table_decisions": _gross_candidate_table_decisions(
+                        mapping, 9
+                    ),
                 },
                 {
                     "option_id": "o_runtime_1",
                     "label": "Вторая денежная колонка",
                     "decision": _column_role_decision(10, "gross_amount"),
+                    "candidate_table_decisions": _gross_candidate_table_decisions(
+                        mapping, 10
+                    ),
                 },
             ],
         },
@@ -222,7 +282,7 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
 
 
 def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
-    store, context, document_id, canonical, binding, table, _mapping = _unknown_case(
+    store, context, document_id, canonical, binding, table, mapping = _unknown_case(
         tmp_path
     )
     semantic = OrdinaryTradeSemanticMappingFactory.create()
@@ -238,11 +298,17 @@ def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
                 "option_id": "o_runtime_1",
                 "label": "Первая",
                 "decision": _column_role_decision(9, "gross_amount"),
+                "candidate_table_decisions": _gross_candidate_table_decisions(
+                    mapping, 9
+                ),
             },
             {
                 "option_id": "o_second",
                 "label": "Вторая",
                 "decision": _column_role_decision(10, "gross_amount"),
+                "candidate_table_decisions": _gross_candidate_table_decisions(
+                    mapping, 10
+                ),
             },
         ],
     }

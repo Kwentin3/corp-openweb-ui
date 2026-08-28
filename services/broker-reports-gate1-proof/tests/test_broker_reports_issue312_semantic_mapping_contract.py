@@ -119,6 +119,31 @@ def _complete_response(table, known):
     }
 
 
+def _gross_candidate_table_decisions(known, gross_column: int) -> list[dict]:
+    decision = copy.deepcopy(_complete_response({}, known)["table_decisions"][0])
+    by_column = {item["column"]: item for item in decision["columns"]}
+    prior_gross = next(
+        item["column"]
+        for item in decision["columns"]
+        if item["semantic_role"] == "gross_amount"
+    )
+    target_role = by_column[gross_column]["semantic_role"]
+    by_column[gross_column]["semantic_role"] = "gross_amount"
+    by_column[prior_gross]["semantic_role"] = target_role
+    currency_column = next(
+        item["column"]
+        for item in decision["columns"]
+        if item["semantic_role"] == "currency"
+    )
+    decision["amount_currency_bindings"] = [
+        {"amount_column": item["column"], "currency_column": currency_column}
+        for item in decision["columns"]
+        if item["semantic_role"]
+        in {"gross_amount", "broker_commission", "exchange_commission"}
+    ]
+    return [decision]
+
+
 def _property_enum_sets(schema: object, property_name: str) -> list[set[str]]:
     results: list[set[str]] = []
     pending = [schema]
@@ -189,7 +214,7 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         {"COMPLETE", "CLARIFICATION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
     ]
     disposition_enums = _property_enum_sets(provider_schema, "disposition")
-    assert len(disposition_enums) == 2
+    assert len(disposition_enums) == 3
     assert all(
         values
         == {"SECURITY_TRADES", "NO_NAMED_CONSUMER", "UNSUPPORTED_FINANCIAL_MEANING"}
@@ -203,7 +228,7 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         for values in decision_kind_enums
     )
     normalized_value_enums = _property_enum_sets(provider_schema, "normalized_value")
-    assert len(normalized_value_enums) == 2
+    assert len(normalized_value_enums) == 3
     assert all(
         values == {"PURCHASE", "DISPOSAL"}
         for values in normalized_value_enums
@@ -410,6 +435,25 @@ def test_autonomous_table_exclusion_is_full_source_validated(
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
     second = copy.deepcopy(table)
     second["node_id"] = f"{table['node_id']}_second"
+    template = copy.deepcopy(second["content"]["cells"][0])
+    second["content"]["cells"] = []
+    for row_number, values in enumerate(
+        (("Label", "Opening", "Closing"), ("RUB", "0", "100")),
+        start=1,
+    ):
+        for column, literal in enumerate(values, start=1):
+            cell = copy.deepcopy(template)
+            cell.update(
+                {
+                    "row": row_number,
+                    "column": column,
+                    "source_coordinate": f"R{row_number}C{column}",
+                    "raw_value": literal,
+                    "value": literal,
+                    "displayed_value": literal,
+                }
+            )
+            second["content"]["cells"].append(cell)
     canonical["nodes"].append(second)
     response = _complete_response(table, known)
     response["table_decisions"].append(
@@ -442,6 +486,27 @@ def test_autonomous_table_exclusion_is_full_source_validated(
     assert len(result["qualified_mappings"]) == 1
     assert len(result["table_resolutions"]) == 2
     assert result["table_resolutions"][1]["disposition"] == "NO_NAMED_CONSUMER"
+    qualification = result["table_resolutions"][1]["exclusion_qualification"]
+    assert qualification["potential_trade_rows"] == []
+    assert qualification["examined_rows"] == [2]
+    tampered_resolutions = copy.deepcopy(result["table_resolutions"])
+    tampered_resolutions[1]["exclusion_qualification"]["table_sha256"] = "0" * 64
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        OrdinaryTradeSemanticCompilerFactory.create().compile(
+            canonical=canonical,
+            canonical_binding=binding,
+            mappings=[],
+            scoped_mappings=[
+                {
+                    "table_node_id": result["qualification_receipts"][0][
+                        "case_scope"
+                    ]["table_node_id"],
+                    "mapping": result["qualified_mappings"][0],
+                }
+            ],
+            table_resolutions=tampered_resolutions,
+        )
+    assert exc.value.code == "ordinary_trade_no_consumer_qualification_invalid"
 
 
 def test_runtime_derives_terminal_status_from_validated_table_decisions(tmp_path) -> None:
@@ -489,7 +554,7 @@ def test_unsupported_decision_never_carries_partial_mapping_material(tmp_path) -
 
 
 def test_runtime_unconditionally_owns_provider_question_identifiers(tmp_path) -> None:
-    _context, canonical, binding, _table, _known = _canonical_case(tmp_path)
+    _context, canonical, binding, _table, known = _canonical_case(tmp_path)
     response = {
         "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
         "status": "CLARIFICATION_REQUIRED",
@@ -506,6 +571,9 @@ def test_runtime_unconditionally_owns_provider_question_identifiers(tmp_path) ->
                         "table_ref": "table_1",
                         **_column_role_decision(9, "gross_amount"),
                     },
+                    "candidate_table_decisions": _gross_candidate_table_decisions(
+                        known, 9
+                    ),
                 },
                 {
                     "option_id": "o_runtime_1",
@@ -514,6 +582,9 @@ def test_runtime_unconditionally_owns_provider_question_identifiers(tmp_path) ->
                         "table_ref": "table_1",
                         **_column_role_decision(10, "gross_amount"),
                     },
+                    "candidate_table_decisions": _gross_candidate_table_decisions(
+                        known, 10
+                    ),
                 },
             ],
         },
@@ -565,6 +636,7 @@ def test_clarification_must_describe_one_material_semantic_fork(tmp_path) -> Non
                         "table_ref": "table_1",
                         **_column_role_decision(9, "gross_amount"),
                     },
+                    "candidate_table_decisions": [],
                 },
                 {
                     "option_id": "o_disposition",
@@ -573,11 +645,13 @@ def test_clarification_must_describe_one_material_semantic_fork(tmp_path) -> Non
                         "table_ref": "table_1",
                         **_table_disposition_decision("NO_NAMED_CONSUMER"),
                     },
+                    "candidate_table_decisions": [],
                 },
             ],
         },
         "message": "Need one decision.",
     }
+
 
     with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
         OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
@@ -606,6 +680,7 @@ def test_free_answer_requires_strict_candidate_then_explicit_confirmation(tmp_pa
                 "option_id": "o_first",
                 "label": "Первая денежная колонка",
                 "source_literals": [],
+                "candidate_table_decisions": [],
                 "decision": {
                     **_column_role_decision(9, "gross_amount"),
                     "table_node_id": table["node_id"],
@@ -615,6 +690,7 @@ def test_free_answer_requires_strict_candidate_then_explicit_confirmation(tmp_pa
                 "option_id": "o_second",
                 "label": "Вторая денежная колонка",
                 "source_literals": [],
+                "candidate_table_decisions": [],
                 "decision": {
                     **_column_role_decision(10, "gross_amount"),
                     "table_node_id": table["node_id"],
@@ -670,6 +746,7 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
         "options": [
             {
                 "option_id": "o_yes",
+                "candidate_table_decisions": [],
                 "label": "Да",
                 "source_literals": [],
                 "decision": {
@@ -679,6 +756,7 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
             },
             {
                 "option_id": "o_nope",
+                "candidate_table_decisions": [],
                 "label": "Нет",
                 "source_literals": [],
                 "decision": {

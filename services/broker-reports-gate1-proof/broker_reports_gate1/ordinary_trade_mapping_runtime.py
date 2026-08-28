@@ -276,6 +276,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
             incomplete = str(code) in {
                 "ordinary_trade_semantic_mapping_side_invalid",
                 "ordinary_trade_semantic_mapping_dry_run_incomplete",
+                "ordinary_trade_no_consumer_unproven",
             }
             saved = self._cases.save_provider_terminal(
                 document_id=document_id,

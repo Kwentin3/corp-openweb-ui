@@ -145,12 +145,18 @@ async def _clarification_answer_confirmation_resumes_same_case(tmp_path) -> None
                 "decision": case_fixtures._column_role_decision(
                     9, "gross_amount"
                 ),
+                "candidate_table_decisions": (
+                    case_fixtures._gross_candidate_table_decisions(mapping, 9)
+                ),
             },
             {
                 "option_id": "o_runtime_2",
                 "label": "Вторая денежная колонка",
                 "decision": case_fixtures._column_role_decision(
                     10, "gross_amount"
+                ),
+                "candidate_table_decisions": (
+                    case_fixtures._gross_candidate_table_decisions(mapping, 10)
                 ),
             },
         ],
@@ -180,8 +186,12 @@ async def _clarification_answer_confirmation_resumes_same_case(tmp_path) -> None
     assert first["status"] == "CLARIFICATION_REQUIRED"
     receipt = first["public_state"]["ambiguity_receipt"]
     assert receipt["materially_different"] is True
-    assert receipt["same_evidence_autonomous_status"] == (
-        "UNABLE_TO_EXCLUDE_ONE_CANDIDATE"
+    assert receipt["autonomous_attempt"]["terminal_status"] == (
+        "CLARIFICATION_REQUIRED"
+    )
+    assert all(
+        item["projection_sha256"] and item["runtime_records_sha256"]
+        for item in receipt["candidate_interpretations"]
     )
     assert len(receipt["candidate_interpretations"]) == 2
     assert receipt["disputed_facts_published"] == 0
@@ -227,12 +237,18 @@ async def _confirmed_column_role_conflict_fails_closed(tmp_path) -> None:
                 "decision": case_fixtures._column_role_decision(
                     9, "gross_amount"
                 ),
+                "candidate_table_decisions": (
+                    case_fixtures._gross_candidate_table_decisions(mapping, 9)
+                ),
             },
             {
                 "option_id": "o_runtime_2",
                 "label": "Колонка 10",
                 "decision": case_fixtures._column_role_decision(
                     10, "gross_amount"
+                ),
+                "candidate_table_decisions": (
+                    case_fixtures._gross_candidate_table_decisions(mapping, 10)
                 ),
             },
         ],
@@ -295,7 +311,7 @@ async def _confirmed_column_role_conflict_fails_closed(tmp_path) -> None:
 async def _public_confirmation_renders_validated_decision_not_model_text(
     tmp_path,
 ) -> None:
-    store, context, document_id, _canonical, _binding, _table, _mapping = (
+    store, context, document_id, _canonical, _binding, _table, mapping = (
         case_fixtures._unknown_case(tmp_path)
     )
     question = {
@@ -309,12 +325,18 @@ async def _public_confirmation_renders_validated_decision_not_model_text(
                 "decision": case_fixtures._column_role_decision(
                     9, "gross_amount"
                 ),
+                "candidate_table_decisions": (
+                    case_fixtures._gross_candidate_table_decisions(mapping, 9)
+                ),
             },
             {
                 "option_id": "o_other",
                 "label": "Колонка 9 — общая сумма сделки",
                 "decision": case_fixtures._column_role_decision(
                     10, "gross_amount"
+                ),
+                "candidate_table_decisions": (
+                    case_fixtures._gross_candidate_table_decisions(mapping, 10)
                 ),
             },
         ],
@@ -856,7 +878,7 @@ async def _row_classification_reaches_product_terminal(tmp_path, *, row, blocked
 
 
 async def _unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
-    store, context, document_id, _canonical, _binding, table, _mapping = (
+    store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)
     )
     client = BoundaryModelClient(
@@ -876,12 +898,22 @@ async def _unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
                             "decision": case_fixtures._column_role_decision(
                                 9, "gross_amount"
                             ),
+                            "candidate_table_decisions": (
+                                case_fixtures._gross_candidate_table_decisions(
+                                    mapping, 9
+                                )
+                            ),
                         },
                         {
                             "option_id": "o_second",
                             "label": "Вторая",
                             "decision": case_fixtures._column_role_decision(
                                 10, "gross_amount"
+                            ),
+                            "candidate_table_decisions": (
+                                case_fixtures._gross_candidate_table_decisions(
+                                    mapping, 10
+                                )
                             ),
                         },
                     ],
@@ -932,11 +964,17 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
                 "option_id": "o_first",
                 "label": "Model says gross_amount is column 10",
                 "decision": case_fixtures._column_role_decision(9, "gross_amount"),
+                "candidate_table_decisions": (
+                    case_fixtures._gross_candidate_table_decisions(mapping, 9)
+                ),
             },
             {
                 "option_id": "o_runtime_2",
                 "label": "Model says gross_amount is column 9",
                 "decision": case_fixtures._column_role_decision(10, "gross_amount"),
+                "candidate_table_decisions": (
+                    case_fixtures._gross_candidate_table_decisions(mapping, 10)
+                ),
             },
         ],
     }
@@ -1137,6 +1175,16 @@ async def _auxiliary_table_is_resolved_autonomously_without_question(tmp_path) -
     assert result["provider_calls_total"] == 1
     assert result["product"]["gate4"]["facts_total"] == 0
     assert result["documents"][0]["relevant_unmapped_observations"] == 0
+    current = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    qualification = current["table_resolutions"][0][
+        "exclusion_qualification"
+    ]
+    assert qualification["potential_trade_rows"] == []
+    assert qualification["examined_rows"] == [2]
+    assert qualification["canonical_root_sha256"]
+    assert qualification["table_sha256"]
 
 
 async def _unknown_trade_and_auxiliary_tables_complete_in_one_call(tmp_path) -> None:
@@ -1189,6 +1237,140 @@ async def _unknown_trade_and_auxiliary_tables_complete_in_one_call(tmp_path) -> 
     assert current["table_resolutions"][1]["disposition"] == "NO_NAMED_CONSUMER"
 
 
+async def _model_exclusion_cannot_hide_unknown_trade_table(tmp_path) -> None:
+    known_rows = tuple(tuple(row) for row in case_fixtures.candidate._ROWS)
+    unknown_rows = _unknown_rows(suffix="must not disappear")
+    store, context, _document_id, tables, canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(known_rows, unknown_rows),
+    )
+    client = BoundaryModelClient(
+        [
+            {
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "COMPLETE",
+                "table_decisions": [
+                    {
+                        "table_ref": "table_1",
+                        "header_row": 1,
+                        "disposition": "NO_NAMED_CONSUMER",
+                        "columns": [],
+                        "amount_currency_bindings": [],
+                        "side_values": [],
+                    }
+                ],
+                "clarification": None,
+                "message": "The unknown table has no named consumer.",
+            }
+        ]
+    )
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+    ).create()
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+
+    assert result["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["product"]["gate4"]["facts_total"] == 0
+    assert result["documents"][0]["relevant_unmapped_observations"] >= 2
+    projection = OrdinaryTradeProjectionFactory(
+        store=store, read_enabled=True
+    ).create().read(
+        artifact_id=result["documents"][0]["projection_artifact_id"],
+        context=context,
+    )
+    retained_financial_rows = {
+        item["row"]
+        for item in projection["source_observations"]
+        if item["table_node_id"] == tables[1]["node_id"]
+        and item["disposition"] == "RELEVANT_UNMAPPED"
+    }
+    assert {2, 3} <= retained_financial_rows
+    current = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=_document_id, context=context)[1]
+    assert current["reason_code"] == "ordinary_trade_no_consumer_unproven"
+    assert len(client.calls) == 1
+
+
+async def _fabricated_ambiguity_cannot_reach_the_user(tmp_path) -> None:
+    source_literal = "Дата заключения (новая версия)"
+    store, context, _document_id, _canonical, _binding, _table, mapping = (
+        case_fixtures._unknown_case(
+            tmp_path,
+            source_header_injection=source_literal,
+        )
+    )
+    client = BoundaryModelClient(
+        [
+            {
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "CLARIFICATION_REQUIRED",
+                "table_decisions": [],
+                "clarification": {
+                    "question_id": "q_fabricated_role",
+                    "table_ref": "table_1",
+                    "question": "Which role is correct?",
+                    "options": [
+                        {
+                            "option_id": "o_asset",
+                            "label": "Asset name",
+                            "decision": case_fixtures._column_role_decision(
+                                9, "asset_name"
+                            ),
+                            "candidate_table_decisions": (
+                                case_fixtures._role_override_candidate_table_decisions(
+                                    mapping, 9, "asset_name"
+                                )
+                            ),
+                        },
+                        {
+                            "option_id": "o_fee",
+                            "label": "Broker commission",
+                            "decision": case_fixtures._column_role_decision(
+                                9, "broker_commission"
+                            ),
+                            "candidate_table_decisions": (
+                                case_fixtures._role_override_candidate_table_decisions(
+                                    mapping, 9, "broker_commission"
+                                )
+                            ),
+                        },
+                    ],
+                },
+                "message": "Need the user to select a role.",
+            }
+        ]
+    )
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+    ).create()
+    canonical_ref = store.get_active_canonical_version(
+        context=context, document_id=_document_id
+    ).manifest_ref
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+
+    assert result["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["semantic_mapping"]["public_state"]["ambiguity_receipt"] is None
+    assert result["product"]["gate4"]["facts_total"] == 0
+    assert len(client.calls) == 1
+
+
 def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
     asyncio.run(_one_strict_mapping_call_completes_unknown_schema(tmp_path))
 
@@ -1239,6 +1421,14 @@ def test_mixed_known_and_unknown_tables_reach_gate4_facts(tmp_path) -> None:
 
 def test_unknown_trade_and_auxiliary_tables_complete_in_one_call(tmp_path) -> None:
     asyncio.run(_unknown_trade_and_auxiliary_tables_complete_in_one_call(tmp_path))
+
+
+def test_model_exclusion_cannot_hide_unknown_trade_table(tmp_path) -> None:
+    asyncio.run(_model_exclusion_cannot_hide_unknown_trade_table(tmp_path))
+
+
+def test_fabricated_ambiguity_cannot_reach_the_user(tmp_path) -> None:
+    asyncio.run(_fabricated_ambiguity_cannot_reach_the_user(tmp_path))
 
 
 def test_identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> None:
