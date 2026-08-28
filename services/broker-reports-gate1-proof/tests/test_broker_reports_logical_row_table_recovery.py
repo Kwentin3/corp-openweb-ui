@@ -15,6 +15,8 @@ from broker_reports_gate1.logical_row_table_recovery import (
     FACTORY_REQUIRED,
     FORBIDDEN,
     LogicalRowTableFactory,
+    LogicalRowStructuralProposal,
+    LogicalRowTableRecoveryError,
     logical_table_block_id,
 )
 
@@ -145,6 +147,22 @@ class ProjectionBuilder:
         self.vectors.append(
             {
                 "object_ref": f"{self.ref_prefix}_vector_{len(self.vectors) + 1}",
+                "page_ref": page_ref,
+                "bbox_ref": self._add_bbox(page_ref=page_ref, bbox=bbox),
+            }
+        )
+
+
+    def add_rect(
+        self,
+        *,
+        page_number: int,
+        bbox: list[float],
+    ) -> None:
+        page_ref = self._page_ref(page_number)
+        self.rects.append(
+            {
+                "object_ref": f"{self.ref_prefix}_rect_{len(self.rects) + 1}",
                 "page_ref": page_ref,
                 "bbox_ref": self._add_bbox(page_ref=page_ref, bbox=bbox),
             }
@@ -5353,6 +5371,270 @@ def test_source_accounting_accepts_exact_geometry_partition_when_reading_order_d
         {item["source_word_id"] for item in result.source_word_ownership}
     ) == len(refs)
     assert result.unowned_word_refs == []
+
+
+def _structural_proposal_fixture(
+    *, include_competing_body: bool = False
+) -> tuple[dict[str, Any], LogicalRowStructuralProposal]:
+    builder = ProjectionBuilder(
+        ref_prefix="structural_proposal",
+        width=1620.0,
+        height=500.0,
+    )
+    shared_refs = builder.add_row(
+        page_number=1,
+        y=18.0,
+        entries=[
+            (20.0, "Execution", 260.0),
+            (400.0, "Instrument", 260.0),
+            (800.0, "Amounts", 260.0),
+            (1200.0, "Settlement", 260.0),
+        ],
+    )
+    header_entries = [
+        (30.0 + ordinal * 48.0, f"H{ordinal + 1}", 20.0) for ordinal in range(32)
+    ]
+    header_refs = builder.add_row(
+        page_number=1,
+        y=34.0,
+        entries=header_entries,
+    )
+    builder.add_candidate(
+        page_number=1,
+        bbox=[20.0, 15.0, 1570.0, 45.0],
+        word_refs=[*shared_refs, *header_refs],
+    )
+
+    body_refs: list[str] = []
+    rule_y = [75.0 + ordinal * 30.0 for ordinal in range(6)]
+    for logical_row in range(5):
+        body_refs.extend(
+            builder.add_row(
+                page_number=1,
+                y=rule_y[logical_row] + 6.0,
+                entries=[
+                    (
+                        50.0 + column * 48.0,
+                        f"{logical_row + 1}.{column + 1}",
+                        20.0,
+                    )
+                    for column in range(32)
+                ],
+            )
+        )
+        body_refs.extend(
+            builder.add_row(
+                page_number=1,
+                y=rule_y[logical_row] + 17.0,
+                entries=[(30.0 + (logical_row % 4) * 48.0, "wrapped", 28.0)],
+            )
+        )
+    builder.add_candidate(
+        page_number=1,
+        bbox=[20.0, rule_y[0], 1570.0, rule_y[-1]],
+        word_refs=body_refs,
+    )
+    for y in rule_y[1:-1]:
+        builder.add_vector_line(
+            page_number=1,
+            bbox=[20.0, y, 1570.0, y + 0.2],
+        )
+    for y in (rule_y[0], rule_y[-1]):
+        builder.add_rect(
+            page_number=1,
+            bbox=[20.0, y - 1.0, 1570.0, y + 1.0],
+        )
+
+    if include_competing_body:
+        competing_refs = []
+        competing_rules = [285.0 + ordinal * 24.0 for ordinal in range(6)]
+        for logical_row in range(5):
+            competing_refs.extend(
+                builder.add_row(
+                    page_number=1,
+                    y=competing_rules[logical_row] + 6.0,
+                    entries=[
+                        (30.0, str(logical_row + 1), 20.0),
+                        (78.0, str(logical_row + 2), 20.0),
+                        (126.0, str(logical_row + 3), 20.0),
+                    ],
+                )
+            )
+        builder.add_candidate(
+            page_number=1,
+            bbox=[20.0, competing_rules[0], 1570.0, competing_rules[-1]],
+            word_refs=competing_refs,
+        )
+        for y in competing_rules[1:-1]:
+            builder.add_vector_line(
+                page_number=1,
+                bbox=[20.0, y, 1570.0, y + 0.2],
+            )
+        for y in (competing_rules[0], competing_rules[-1]):
+            builder.add_rect(
+                page_number=1,
+                bbox=[20.0, y - 1.0, 1570.0, y + 1.0],
+            )
+
+    proposal = LogicalRowStructuralProposal(
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        page_number=1,
+        page_leaf_box_pdf_points=tuple(
+            (x - 2.0, 32.0, x + 22.0, 44.0) for x, _, _ in header_entries
+        ),
+        header_word_refs=tuple(header_refs),
+        shared_header_word_refs=tuple(shared_refs),
+    )
+    return builder.projection(), proposal
+
+
+def test_optional_structural_proposal_recovers_32_columns_and_five_body_bands() -> None:
+    projection, proposal = _structural_proposal_fixture()
+
+    result = (
+        LogicalRowTableFactory()
+        .create()
+        .recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+    )
+
+    assert result.diagnostics["research_structural_proposal_applied"] == 1
+    assert len(result.tables) == 1
+    table = result.tables[0]
+    assert len(table["logical_columns"]) == 32
+    assert len(table["ordered_rows"]) == 6
+    assert [row["role"] for row in table["ordered_rows"]] == [
+        "COLUMN_HEADER",
+        "DATA",
+        "DATA",
+        "DATA",
+        "DATA",
+        "DATA",
+    ]
+    assert [len(row["entries"]) for row in table["ordered_rows"][-5:]] == [
+        32,
+        32,
+        32,
+        32,
+        32,
+    ]
+    assert any(
+        "wrapped" in entry["text"]
+        for row in table["ordered_rows"][-5:]
+        for entry in row["entries"]
+    )
+    assert result.unowned_word_refs == []
+    assert result.diagnostics["multiple_word_owners_total"] == 0
+    assert result.diagnostics["provider_calls"] == 0
+
+
+def test_structural_proposal_default_none_is_byte_equivalent_baseline() -> None:
+    projection, _ = _structural_proposal_fixture()
+    runtime = LogicalRowTableFactory().create()
+
+    implicit = runtime.recover(
+        projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+    )
+    explicit = runtime.recover(
+        projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        structural_proposal=None,
+    )
+
+    assert implicit.as_dict() == explicit.as_dict()
+    assert "research_structural_proposal_applied" not in implicit.diagnostics
+
+
+def test_structural_proposal_rejects_a_stale_header_ref_atomically() -> None:
+    projection, proposal = _structural_proposal_fixture()
+    proposal = replace(
+        proposal,
+        header_word_refs=("stale_word_ref", *proposal.header_word_refs[1:]),
+    )
+
+    with pytest.raises(LogicalRowTableRecoveryError) as exc_info:
+        LogicalRowTableFactory().create().recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+
+    assert str(exc_info.value) == "logical_row_structural_proposal_header_refs_stale"
+
+
+def test_structural_proposal_rejects_leaf_box_drift_atomically() -> None:
+    projection, proposal = _structural_proposal_fixture()
+    boxes = list(proposal.page_leaf_box_pdf_points)
+    boxes[0] = (boxes[0][0] + 24.0, *boxes[0][1:])
+    proposal = replace(proposal, page_leaf_box_pdf_points=tuple(boxes))
+
+    with pytest.raises(LogicalRowTableRecoveryError) as exc_info:
+        LogicalRowTableFactory().create().recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+
+    assert str(exc_info.value) == "logical_row_structural_proposal_leaf_boxes_invalid"
+
+
+def test_structural_proposal_rejects_missing_source_rule_atomically() -> None:
+    projection, proposal = _structural_proposal_fixture()
+    projection["vector_line_inventory"].pop()
+
+    with pytest.raises(LogicalRowTableRecoveryError) as exc_info:
+        LogicalRowTableFactory().create().recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+
+    assert (
+        str(exc_info.value) == "logical_row_structural_proposal_body_region_ambiguous"
+    )
+
+
+def test_structural_proposal_rejects_missing_outer_rect_rule_atomically() -> None:
+    projection, proposal = _structural_proposal_fixture()
+    projection["rect_inventory"].pop()
+
+    with pytest.raises(LogicalRowTableRecoveryError) as exc_info:
+        LogicalRowTableFactory().create().recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+
+    assert (
+        str(exc_info.value) == "logical_row_structural_proposal_body_region_ambiguous"
+    )
+
+
+def test_structural_proposal_rejects_two_five_band_body_regions() -> None:
+    projection, proposal = _structural_proposal_fixture(include_competing_body=True)
+
+    with pytest.raises(LogicalRowTableRecoveryError) as exc_info:
+        LogicalRowTableFactory().create().recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+
+    assert (
+        str(exc_info.value) == "logical_row_structural_proposal_body_region_ambiguous"
+    )
 
 
 def test_source_accounting_order_relaxation_still_rejects_orphan_mutation(
