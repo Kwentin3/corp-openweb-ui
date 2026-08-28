@@ -33,11 +33,11 @@ from broker_reports_gate1.pdf_text_layer import (  # noqa: E402
 from broker_reports_gate1.visual_role_context_research import (  # noqa: E402
     VisualRoleContextResearchFactory,
     compose_visual_role_model_view,
+    project_visual_role_response_schema,
+    validate_visual_role_response,
 )
 from canonical_financial_role_mapping_research import (  # noqa: E402
-    apply_contract,
     stable_sha256,
-    validate_response,
 )
 from local_pdf_vlm_guided_intake_development import (  # noqa: E402
     _openwebui_request,
@@ -201,7 +201,11 @@ def _prepare(args: argparse.Namespace) -> int:
         "visual_structure_evidence_sha256": _file_sha256(visual_result_path),
         "visual_structure": structure,
         "visual_model_view": model_view,
-        "response_schema": baseline_request["response_format"]["json_schema"]["schema"],
+        "response_schema": project_visual_role_response_schema(
+            baseline_response_schema=baseline_request["response_format"][
+                "json_schema"
+            ]["schema"]
+        ),
         "png_path": str(png_path),
         "png_sha256": hashlib.sha256(png_bytes).hexdigest(),
         "column_geometry": geometry,
@@ -268,15 +272,10 @@ def _execute(args: argparse.Namespace) -> int:
     )
     error = None
     visual_contract = None
-    visual_application = None
     try:
-        visual_contract = validate_response(
+        visual_contract = validate_visual_role_response(
             raw_response=response.get("json_output"),
-            table=freeze["table"],
-            table_ref="table_1",
-        )
-        visual_application = apply_contract(
-            table=freeze["table"], contract=visual_contract
+            response_schema=freeze["response_schema"],
         )
     except RuntimeError as exc:
         error = str(exc)
@@ -284,7 +283,7 @@ def _execute(args: argparse.Namespace) -> int:
         contract=freeze["baseline_contract"],
         application=freeze["baseline_application"],
     )
-    visual = _summary(contract=visual_contract, application=visual_application)
+    visual = _visual_summary(contract=visual_contract)
     safe = {
         "schema_version": RESULT_SCHEMA,
         "freeze_sha256": freeze["freeze_sha256"],
@@ -302,9 +301,7 @@ def _execute(args: argparse.Namespace) -> int:
         "repair": False,
         "best_of_n": False,
         "manual_output_edit": False,
-        "source_literals_unchanged": (
-            visual_application or {}
-        ).get("source_literals_unchanged"),
+        "source_literals_unchanged": True if visual_contract is not None else None,
         "canonical_mutated": False,
         "facts_published": 0,
         "private_values_committed": False,
@@ -316,7 +313,6 @@ def _execute(args: argparse.Namespace) -> int:
         "qualification": qualification,
         "provider_attempt": response.get("attempt"),
         "visual_contract": visual_contract,
-        "visual_application": visual_application,
         "raw_private_response": response.get("raw_private_response"),
     }
     output_root.mkdir(parents=True)
@@ -340,6 +336,30 @@ def _summary(*, contract: Any, application: Any) -> dict[str, Any] | None:
         "terminal": application["terminal"],
         "observations": len(application["observations"]),
         "relevant_unmapped": application["relevant_unmapped"],
+        "key_roles": {
+            column: roles.get(column)
+            for column in ("c3", "c7", "c8", "c13", "c15", "c18", "c20", "c22")
+        },
+        "amount_currency_bindings": {
+            column: bindings.get(column) for column in ("c18", "c20", "c22")
+        },
+    }
+
+
+def _visual_summary(*, contract: Any) -> dict[str, Any] | None:
+    if not isinstance(contract, dict):
+        return None
+    roles = {item["column_ref"]: item["role"] for item in contract["columns"]}
+    bindings = {
+        item["amount_column_ref"]: item["currency_column_ref"]
+        for item in contract["amount_currency_bindings"]
+    }
+    return {
+        "table_kind": contract["table_kind"],
+        "header_row": contract["header_row"],
+        "terminal": "ROLE_MAPPING_ONLY_NO_FACTS",
+        "observations": 0,
+        "relevant_unmapped": None,
         "key_roles": {
             column: roles.get(column)
             for column in ("c3", "c7", "c8", "c13", "c15", "c18", "c20", "c22")

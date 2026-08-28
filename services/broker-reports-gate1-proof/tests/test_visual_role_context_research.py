@@ -11,6 +11,8 @@ from broker_reports_gate1.visual_role_context_research import (
     VisualRoleContextResearchFactory,
     compose_visual_role_model_view,
     enrich_role_request,
+    project_visual_role_response_schema,
+    validate_visual_role_response,
 )
 from scripts.canonical_financial_role_mapping_research import compose_request
 
@@ -226,3 +228,36 @@ def test_visual_model_view_reuses_mapper_case_and_binds_image_columns() -> None:
         {"column_ref": "c2", "x_min_1000": 500, "x_max_1000": 1000},
     ]
     assert "never transcribe" in result["instruction"]
+
+
+def test_visual_role_schema_removes_only_row_value_normalization() -> None:
+    baseline = compose_request(
+        table=_table(), table_ref="table_1", variant="header_plus_profiles"
+    )["response_format"]["json_schema"]["schema"]
+    projected = project_visual_role_response_schema(
+        baseline_response_schema=baseline
+    )
+    response = {
+        "schema_version": "broker_reports_research_table_role_mapping_v1",
+        "table_ref": "table_1",
+        "table_kind": "STRUCTURALLY_INCOMPATIBLE",
+        "header_row": 1,
+        "columns": [
+            {"column_ref": "c1", "role": "unmapped"},
+            {"column_ref": "c2", "role": "unmapped"},
+        ],
+        "amount_currency_bindings": [],
+    }
+
+    assert "categorical_normalizations" in baseline["required"]
+    assert "categorical_normalizations" not in projected["required"]
+    assert validate_visual_role_response(
+        raw_response=response, response_schema=projected
+    ) == response
+
+    response["columns"].reverse()
+    with pytest.raises(VisualRoleContextError) as exc_info:
+        validate_visual_role_response(
+            raw_response=response, response_schema=projected
+        )
+    assert exc_info.value.code == "visual_role_context_columns_invalid"

@@ -6,6 +6,8 @@ import math
 import statistics
 from typing import Any, Mapping
 
+from jsonschema import Draft202012Validator
+
 from .visual_table_structure_research import (
     VisualTableStructureError,
     VisualTableStructureProjection,
@@ -291,6 +293,62 @@ def compose_visual_role_model_view(
     }
 
 
+def project_visual_role_response_schema(
+    *, baseline_response_schema: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Remove row-value normalization from an image-only role comparison."""
+
+    schema = copy.deepcopy(dict(baseline_response_schema))
+    required = schema.get("required")
+    properties = schema.get("properties")
+    if (
+        not isinstance(required, list)
+        or not isinstance(properties, dict)
+        or "categorical_normalizations" not in required
+        or "categorical_normalizations" not in properties
+    ):
+        raise VisualRoleContextError("visual_role_context_response_schema_invalid")
+    required.remove("categorical_normalizations")
+    del properties["categorical_normalizations"]
+    return schema
+
+
+def validate_visual_role_response(
+    *, raw_response: Any, response_schema: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Validate the reduced role contract without compiling source facts."""
+
+    if not isinstance(raw_response, dict):
+        raise VisualRoleContextError("visual_role_context_response_invalid")
+    errors = list(Draft202012Validator(response_schema).iter_errors(raw_response))
+    if errors:
+        raise VisualRoleContextError("visual_role_context_response_invalid")
+    value = copy.deepcopy(raw_response)
+    column_refs = [item["column_ref"] for item in value["columns"]]
+    expected_refs = response_schema["properties"]["columns"]["items"][
+        "properties"
+    ]["column_ref"]["enum"]
+    if column_refs != expected_refs:
+        raise VisualRoleContextError("visual_role_context_columns_invalid")
+    role_by_column = {item["column_ref"]: item["role"] for item in value["columns"]}
+    bindings = value["amount_currency_bindings"]
+    pairs = [
+        (item["amount_column_ref"], item["currency_column_ref"])
+        for item in bindings
+    ]
+    if (
+        len(pairs) != len(set(pairs))
+        or any(role_by_column.get(amount) not in {
+            "gross_amount",
+            "broker_commission",
+            "exchange_commission",
+        } for amount, _currency in pairs)
+        or any(role_by_column.get(currency) != "currency" for _amount, currency in pairs)
+    ):
+        raise VisualRoleContextError("visual_role_context_bindings_invalid")
+    return value
+
+
 def _source_column_bounds(
     *,
     table_candidate: Mapping[str, Any],
@@ -392,4 +450,6 @@ __all__ = [
     "VisualRoleContextResearchFactory",
     "compose_visual_role_model_view",
     "enrich_role_request",
+    "project_visual_role_response_schema",
+    "validate_visual_role_response",
 ]
