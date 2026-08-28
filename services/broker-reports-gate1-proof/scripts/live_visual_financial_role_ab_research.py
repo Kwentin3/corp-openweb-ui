@@ -60,6 +60,7 @@ def main() -> int:
     prepare = subparsers.add_parser("prepare")
     prepare.add_argument("--prior-role-root", type=Path, required=True)
     prepare.add_argument("--normalization-result", type=Path, required=True)
+    prepare.add_argument("--visual-result", type=Path, required=True)
     prepare.add_argument("--pdf", type=Path, required=True)
     prepare.add_argument("--private-output-root", type=Path, required=True)
     execute = subparsers.add_parser("execute")
@@ -130,13 +131,52 @@ def _prepare(args: argparse.Namespace) -> int:
     raster = PdfTableRasterFactory(
         PdfTableRasterConfig(padding_points=0)
     ).create()
+    visual_result_path = args.visual_result.resolve()
+    visual_result = _read_object(visual_result_path)
+    visual_run = next(
+        (
+            item
+            for item in visual_result.get("runs", [])
+            if item.get("case_ref") == "tbank_page_1"
+        ),
+        None,
+    )
+    if not isinstance(visual_run, dict) or not isinstance(
+        visual_run.get("bound"), dict
+    ):
+        raise LiveVisualRoleAbError("visual_role_ab_visual_evidence_missing")
+    page_width = float(parser_page["width"])
+    page_height = float(parser_page["height"])
+    candidate_bbox = candidate["bbox"]
+    table_box_2d = [
+        round(candidate_bbox[1] * 1000 / page_height),
+        round(candidate_bbox[0] * 1000 / page_width),
+        round(candidate_bbox[3] * 1000 / page_height),
+        round(candidate_bbox[2] * 1000 / page_width),
+    ]
+    structure = VisualRoleContextResearchFactory().create().select_structure(
+        bound_structures=visual_run["bound"], table_box_2d=table_box_2d
+    )
+    context_boxes = [
+        *structure.get("title_boxes_2d", []),
+        *structure.get("header_boxes_2d", []),
+    ]
+    if not context_boxes:
+        raise LiveVisualRoleAbError("visual_role_ab_visual_context_missing")
+    context_top = min(item[0] for item in context_boxes) * page_height / 1000
+    crop_bbox = [
+        candidate_bbox[0],
+        min(candidate_bbox[1], context_top),
+        candidate_bbox[2],
+        candidate_bbox[3],
+    ]
     rendered = raster.render(
         pdf_bytes=pdf_bytes,
         pdf_sha256=pdf_sha256,
         document_ref="visual_role_ab_document",
         page_number=parser_page["page_number"],
         table_ref="table_1",
-        table_bbox=candidate["bbox"],
+        table_bbox=crop_bbox,
         dpi=200,
         escalation_reason="research_visual_financial_role_ab",
     )
@@ -158,6 +198,8 @@ def _prepare(args: argparse.Namespace) -> int:
         "baseline_contract": baseline["contract"],
         "baseline_application": baseline["application"],
         "baseline_evidence_sha256": _file_sha256(baseline_path),
+        "visual_structure_evidence_sha256": _file_sha256(visual_result_path),
+        "visual_structure": structure,
         "visual_model_view": model_view,
         "response_schema": baseline_request["response_format"]["json_schema"]["schema"],
         "png_path": str(png_path),
