@@ -43,9 +43,9 @@ from local_pdf_vlm_guided_intake_development import (  # noqa: E402
 )
 
 
-FREEZE_SCHEMA = "broker_reports_visual_table_structure_freeze_rd_v2"
-PRIVATE_RESULT_SCHEMA = "broker_reports_visual_table_structure_result_private_rd_v2"
-SAFE_RESULT_SCHEMA = "broker_reports_visual_table_structure_result_safe_rd_v2"
+FREEZE_SCHEMA = "broker_reports_visual_table_structure_freeze_rd_v3"
+PRIVATE_RESULT_SCHEMA = "broker_reports_visual_table_structure_result_private_rd_v3"
+SAFE_RESULT_SCHEMA = "broker_reports_visual_table_structure_result_safe_rd_v3"
 INPUT_SCHEMA = "broker_reports_visual_table_structure_input_private_rd_v1"
 MODEL_ID = "models/gemini-3.5-flash"
 PROVIDER_PROFILE = "google_gemini"
@@ -269,7 +269,7 @@ def _execute(args: argparse.Namespace) -> int:
                 "expected_tables": evaluation["expected_tables"],
                 "proposed_tables": evaluation["proposed_tables"],
                 "source_bound_tables": evaluation["source_bound_tables"],
-                "titles_matched": evaluation["titles_matched"],
+                "contexts_matched": evaluation["contexts_matched"],
                 "headers_matched": evaluation["headers_matched"],
                 "body_statuses_matched": evaluation["body_statuses_matched"],
                 "all_expected_matched": evaluation["all_expected_matched"],
@@ -285,7 +285,7 @@ def _execute(args: argparse.Namespace) -> int:
         "expected_tables": sum(item["expected_tables"] for item in safe_runs),
         "proposed_tables": sum(item["proposed_tables"] for item in safe_runs),
         "source_bound_tables": sum(item["source_bound_tables"] for item in safe_runs),
-        "titles_matched": sum(item["titles_matched"] for item in safe_runs),
+        "contexts_matched": sum(item["contexts_matched"] for item in safe_runs),
         "headers_matched": sum(item["headers_matched"] for item in safe_runs),
         "body_statuses_matched": sum(
             item["body_statuses_matched"] for item in safe_runs
@@ -332,14 +332,18 @@ def _execute(args: argparse.Namespace) -> int:
 def _evaluate(*, bound: dict[str, Any] | None, gold: dict[str, Any]) -> dict[str, Any]:
     expected = gold["tables"]
     proposed = (bound or {}).get("tables") or []
-    titles_matched = 0
+    contexts_matched = 0
     headers_matched = 0
     body_statuses_matched = 0
     for expected_table, proposed_table in zip(expected, proposed):
-        if _contains_phrases(
-            proposed_table.get("title_text", ""), expected_table["title_contains"]
-        ):
-            titles_matched += 1
+        context_text = " ".join(
+            [
+                proposed_table.get("title_text", ""),
+                proposed_table.get("header_text", ""),
+            ]
+        )
+        if _contains_phrases(context_text, expected_table["title_contains"]):
+            contexts_matched += 1
         if _contains_phrases(
             proposed_table.get("header_text", ""), expected_table["header_contains"]
         ):
@@ -349,7 +353,7 @@ def _evaluate(*, bound: dict[str, Any] | None, gold: dict[str, Any]) -> dict[str
     expected_total = len(expected)
     all_expected_matched = (
         len(proposed) == expected_total
-        and titles_matched == expected_total
+        and contexts_matched == expected_total
         and headers_matched == expected_total
         and body_statuses_matched == expected_total
     )
@@ -357,7 +361,7 @@ def _evaluate(*, bound: dict[str, Any] | None, gold: dict[str, Any]) -> dict[str
         "expected_tables": expected_total,
         "proposed_tables": len(proposed),
         "source_bound_tables": len(proposed) if bound is not None else 0,
-        "titles_matched": titles_matched,
+        "contexts_matched": contexts_matched,
         "headers_matched": headers_matched,
         "body_statuses_matched": body_statuses_matched,
         "all_expected_matched": all_expected_matched,

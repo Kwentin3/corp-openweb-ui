@@ -11,10 +11,10 @@ from .contracts import stable_digest
 
 
 VISUAL_TABLE_STRUCTURE_SCHEMA_VERSION = (
-    "broker_reports_visual_table_structure_response_rd_v2"
+    "broker_reports_visual_table_structure_response_rd_v3"
 )
 VISUAL_TABLE_STRUCTURE_POLICY_VERSION = (
-    "broker_reports_visual_table_structure_projection_rd_v2"
+    "broker_reports_visual_table_structure_projection_rd_v3"
 )
 VISUAL_TABLE_STRUCTURE_COORDINATE_CONTRACT = (
     "gemini_box_2d_ymin_xmin_ymax_xmax_normalized_0_1000"
@@ -40,10 +40,7 @@ separate number is needed. Do not merge adjacent tables merely because they
 have the same number of columns. A separate title, group/currency label,
 header band, whitespace, or break in row continuity starts a new table.
 
-For each table return geometry only:
-- table_box_2d covers the table grid, including its header and visible body,
-  but not unrelated prose. For EMPTY_TEMPLATE it covers the header grid only;
-  never return the whole page as an empty-table box;
+For each table return only the geometry needed to recover its visible meaning:
 - title_boxes_2d cover only the title or specific section label belonging to
   this table; use an empty list when there is no visible title;
 - header_boxes_2d cover every visible column-header band. Wrapped text inside
@@ -89,7 +86,6 @@ def response_schema() -> dict[str, Any]:
                     "type": "object",
                     "additionalProperties": False,
                     "required": [
-                        "table_box_2d",
                         "title_status",
                         "title_boxes_2d",
                         "header_status",
@@ -97,7 +93,6 @@ def response_schema() -> dict[str, Any]:
                         "body_status",
                     ],
                     "properties": {
-                        "table_box_2d": copy.deepcopy(box),
                         "title_status": {
                             "type": "string",
                             "enum": ["PRESENT", "ABSENT"],
@@ -142,7 +137,6 @@ def model_view(*, case_ref: str) -> dict[str, Any]:
 class VisualTableStructureProjectionConfig:
     coordinate_normalizer: int = 1000
     maximum_tables: int = 32
-    maximum_title_distance: int = 180
 
 
 class VisualTableStructureProjectionFactory:
@@ -159,10 +153,6 @@ class VisualTableStructureProjectionFactory:
         if not 1 <= self.config.maximum_tables <= 64:
             raise VisualTableStructureError(
                 "visual_table_structure_table_budget_invalid"
-            )
-        if not 0 <= self.config.maximum_title_distance <= 300:
-            raise VisualTableStructureError(
-                "visual_table_structure_title_distance_invalid"
             )
         return VisualTableStructureProjection(self.config)
 
@@ -182,24 +172,8 @@ class VisualTableStructureProjection:
         used_title_words: set[int] = set()
         used_header_words: set[int] = set()
         previous_order_key: tuple[int, int] | None = None
-        previous_table_box: list[int] | None = None
 
         for expected_order, raw in enumerate(value["tables"], 1):
-            table_box = self._box(raw["table_box_2d"])
-            order_key = (table_box[0], table_box[1])
-            if previous_order_key is not None and order_key < previous_order_key:
-                raise VisualTableStructureError(
-                    "visual_table_structure_boxes_not_ordered"
-                )
-            if previous_table_box is not None and _bbox_iou(
-                table_box, previous_table_box
-            ) > 0.15:
-                raise VisualTableStructureError(
-                    "visual_table_structure_table_overlap_invalid"
-                )
-            previous_order_key = order_key
-            previous_table_box = table_box
-
             title_boxes = [self._box(item) for item in raw["title_boxes_2d"]]
             header_boxes = [self._box(item) for item in raw["header_boxes_2d"]]
             self._validate_presence_contract(
@@ -212,13 +186,24 @@ class VisualTableStructureProjection:
                 boxes=header_boxes,
                 kind="header",
             )
-            for box in header_boxes:
-                if not _contains(table_box, box):
-                    raise VisualTableStructureError(
-                        "visual_table_structure_header_outside_table"
-                    )
-            for box in title_boxes:
-                self._validate_title_position(table_box=table_box, title_box=box)
+            structure_boxes = [*title_boxes, *header_boxes]
+            if not structure_boxes:
+                raise VisualTableStructureError(
+                    "visual_table_structure_geometry_missing"
+                )
+            order_box = min(structure_boxes, key=lambda item: (item[0], item[1]))
+            order_key = (order_box[0], order_box[1])
+            if previous_order_key is not None and order_key < previous_order_key:
+                raise VisualTableStructureError(
+                    "visual_table_structure_boxes_not_ordered"
+                )
+            previous_order_key = order_key
+            for title_box in title_boxes:
+                for header_box in header_boxes:
+                    if title_box[0] > header_box[2]:
+                        raise VisualTableStructureError(
+                            "visual_table_structure_title_below_header"
+                        )
             if any(
                 _bbox_iou(title, header) > 0.05
                 for title in title_boxes
@@ -253,7 +238,6 @@ class VisualTableStructureProjection:
             tables.append(
                 {
                     "table_order": expected_order,
-                    "table_box_2d": table_box,
                     "title_status": raw["title_status"],
                     "title_boxes_2d": title_boxes,
                     "title_word_refs": _word_refs(page["page_number"], title_words),
@@ -379,27 +363,6 @@ class VisualTableStructureProjection:
                     f"visual_table_structure_{kind}_boxes_not_ordered"
                 )
 
-    def _validate_title_position(
-        self, *, table_box: list[int], title_box: list[int]
-    ) -> None:
-        horizontal_overlap = max(
-            0, min(table_box[3], title_box[3]) - max(table_box[1], title_box[1])
-        )
-        if horizontal_overlap <= 0:
-            raise VisualTableStructureError(
-                "visual_table_structure_title_not_near_table"
-            )
-        if title_box[0] > table_box[2]:
-            raise VisualTableStructureError(
-                "visual_table_structure_title_below_table"
-            )
-        vertical_gap = max(0, table_box[0] - title_box[2])
-        if vertical_gap > self.config.maximum_title_distance:
-            raise VisualTableStructureError(
-                "visual_table_structure_title_not_near_table"
-            )
-
-
 def _source_to_normalized(
     bbox: list[float], *, width: float, height: float
 ) -> list[float]:
@@ -448,15 +411,6 @@ def _word_refs(page_number: int, words: list[dict[str, Any]]) -> list[str]:
 
 def _words_text(words: list[dict[str, Any]]) -> str:
     return " ".join(item["text"] for item in words).strip()
-
-
-def _contains(outer: list[int], inner: list[int]) -> bool:
-    return (
-        outer[0] <= inner[0]
-        and outer[1] <= inner[1]
-        and outer[2] >= inner[2]
-        and outer[3] >= inner[3]
-    )
 
 
 def _bbox_iou(left: list[int], right: list[int]) -> float:

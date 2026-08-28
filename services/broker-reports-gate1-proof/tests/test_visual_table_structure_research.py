@@ -39,7 +39,6 @@ def _value() -> dict:
         "schema_version": VISUAL_TABLE_STRUCTURE_SCHEMA_VERSION,
         "tables": [
             {
-                "table_box_2d": [100, 40, 240, 400],
                 "title_status": "PRESENT",
                 "title_boxes_2d": [[40, 40, 90, 400]],
                 "header_status": "PRESENT",
@@ -47,7 +46,6 @@ def _value() -> dict:
                 "body_status": "HAS_DATA",
             },
             {
-                "table_box_2d": [100, 540, 240, 900],
                 "title_status": "PRESENT",
                 "title_boxes_2d": [[40, 540, 90, 900]],
                 "header_status": "PRESENT",
@@ -117,16 +115,16 @@ def test_rejects_model_literals_and_unknown_contract_fields() -> None:
     assert exc_info.value.code == "visual_table_structure_response_invalid"
 
 
-def test_rejects_header_box_outside_its_table() -> None:
+def test_rejects_title_geometry_below_header_geometry() -> None:
     value = _value()
-    value["tables"][0]["header_boxes_2d"] = [[250, 40, 300, 400]]
+    value["tables"][0]["title_boxes_2d"] = [[160, 40, 210, 400]]
 
     with pytest.raises(VisualTableStructureError) as exc_info:
         VisualTableStructureProjectionFactory().create().bind(
             provider_value=value, parser_page=_page()
         )
 
-    assert exc_info.value.code == "visual_table_structure_header_outside_table"
+    assert exc_info.value.code == "visual_table_structure_title_below_header"
 
 
 def test_rejects_presence_contract_mismatch() -> None:
@@ -151,7 +149,7 @@ def test_prompt_is_generic_and_output_contract_is_geometry_only() -> None:
     assert "merrill" not in prompt
     assert "title_text" not in serialized_schema
     assert "header_text" not in serialized_schema
-    assert "table_box_2d" in serialized_schema
+    assert "table_box_2d" not in serialized_schema
     assert "header_boxes_2d" in serialized_schema
     assert FORBIDDEN.startswith("research-only")
 
