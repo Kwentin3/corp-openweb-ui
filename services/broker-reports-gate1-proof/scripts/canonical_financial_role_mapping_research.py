@@ -21,7 +21,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
 
 
 SCHEMA_VERSION = "broker_reports_research_table_role_mapping_v1"
-PROMPT_VERSION = "canonical_financial_role_mapping_research_prompt_v1"
+PROMPT_VERSION = "canonical_financial_role_mapping_research_prompt_v2"
 SURFACE_VARIANTS = (
     "header_only",
     "header_plus_profiles",
@@ -243,11 +243,14 @@ def compose_request(
         "that directly means purchase or disposal. Never guess an unseen value. "
         "Return only strict JSON."
     )
-    package = {
-        "prompt_version": PROMPT_VERSION,
-        "allowed_roles": role_guide,
-        "required_ordinary_roles": sorted(REQUIRED_ORDINARY_ROLES),
-        "table": surface,
+    transport_package = {
+        "phase": "map",
+        "case": {
+            "prompt_version": PROMPT_VERSION,
+            "allowed_roles": role_guide,
+            "required_ordinary_roles": sorted(REQUIRED_ORDINARY_ROLES),
+            "table": surface,
+        },
     }
     schema = response_schema(table=table, table_ref=table_ref)
     return {
@@ -255,7 +258,12 @@ def compose_request(
             {"role": "system", "content": instruction},
             {
                 "role": "user",
-                "content": json.dumps(package, ensure_ascii=False, separators=(",", ":")),
+                "content": json.dumps(
+                    transport_package,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
             },
         ],
         "response_format": {

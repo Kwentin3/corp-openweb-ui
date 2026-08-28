@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import copy
+import json
+from types import SimpleNamespace
 
 import pytest
+
+from broker_reports_gate1.gate2_model_clients import Gate2StructuredModelClientFactory
+from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelClientConfig
+from broker_reports_gate1.gate2_model_requests import (
+    ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
+)
 
 from scripts.canonical_financial_role_mapping_research import (
     ResearchMappingError,
@@ -275,7 +284,63 @@ def test_request_contains_no_model_permission_to_create_rows_or_facts() -> None:
     instruction = request["messages"][0]["content"]
     assert "Do not label individual rows" in instruction
     assert "create financial facts" in instruction
+    assert [item["role"] for item in request["messages"]] == ["system", "user"]
     assert request["response_format"]["json_schema"]["strict"] is True
+
+
+def test_request_crosses_the_owned_provider_seam_exactly_once() -> None:
+    table = _trade_table()
+    request = compose_request(
+        table=table, table_ref="table_1", variant="header_plus_profiles"
+    )
+    response = _trade_contract(table)
+    captured: list[dict] = []
+
+    def complete(*, form_data, **_kwargs):
+        captured.append(copy.deepcopy(form_data))
+        return {
+            "id": "research-local-seam-response",
+            "model": "models/gemini-3.5-flash",
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(response, ensure_ascii=False),
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": 100,
+                "completion_tokens": 20,
+                "total_tokens": 120,
+            },
+        }
+
+    user = SimpleNamespace(id="research-user")
+    client = Gate2StructuredModelClientFactory(
+        config=Gate2StructuredModelClientConfig(
+            request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
+            provider_profile_id="google_gemini",
+        ),
+        user=user,
+        request=SimpleNamespace(),
+        completion_resolver=lambda _user_id: (complete, user),
+    ).create()
+    result = asyncio.run(
+        client.extract(
+            prompt=SimpleNamespace(
+                content=request["messages"][0]["content"],
+                prompt_ref="research:local-seam",
+                hash="research-local-seam-prompt-hash",
+            ),
+            package=json.loads(request["messages"][1]["content"]),
+            model_id="models/gemini-3.5-flash",
+            response_format=request["response_format"],
+        )
+    )
+
+    assert len(captured) == 1
+    assert json.loads(result.content) == response
 
 
 def test_scoring_and_safe_projection_are_observable_not_snapshot_only() -> None:

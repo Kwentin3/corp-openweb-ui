@@ -40,7 +40,7 @@ from broker_reports_gate1.gate2_model_contracts import (  # noqa: E402
     gate2_provider_profile,
 )
 from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
-    GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
+    ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
 )
 from canonical_financial_role_mapping_research import (  # noqa: E402
     PROMPT_VERSION,
@@ -69,7 +69,7 @@ from live_gate3_chunk_batch_labeling import (  # noqa: E402
 
 DEFAULT_MODEL_ID = "models/gemini-3.5-flash"
 DEFAULT_PROVIDER_PROFILE = "google_gemini"
-FREEZE_SCHEMA = "broker_reports_research_table_role_freeze_v1"
+FREEZE_SCHEMA = "broker_reports_research_table_role_freeze_v2"
 
 
 def main() -> int:
@@ -238,6 +238,7 @@ def _freeze(args: argparse.Namespace, corpus_root: Path, root: Path) -> int:
         "source_worktree_clean": True,
         "provider_profile_id": args.provider_profile_id,
         "model_id": args.model_id,
+        "request_profile": ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
         "model_policy": {
             "temperature_override": None,
             "seed_override": None,
@@ -267,6 +268,7 @@ def _freeze(args: argparse.Namespace, corpus_root: Path, root: Path) -> int:
             "source_worktree_clean": freeze["source_worktree_clean"],
             "provider_profile_id": freeze["provider_profile_id"],
             "model_id": freeze["model_id"],
+            "request_profile": freeze["request_profile"],
             "model_policy": freeze["model_policy"],
             "development_cases": sum(
                 case["split"] == "development" for case in frozen_cases
@@ -344,7 +346,7 @@ def _execute(args: argparse.Namespace, corpus_root: Path, root: Path) -> int:
 
     client = Gate2StructuredModelClientFactory(
         config=Gate2StructuredModelClientConfig(
-            request_profile=GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
+            request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
             provider_profile_id=args.provider_profile_id,
             capability_probe=False,
             economy_budget_enforcement=False,
@@ -363,15 +365,20 @@ def _execute(args: argparse.Namespace, corpus_root: Path, root: Path) -> int:
             request = private_case["requests"][variant]
             if stable_sha256(request) != frozen_case["request_sha256_by_variant"][variant]:
                 raise SystemExit("research_request_drift")
-            schema = request["response_format"]["json_schema"]["schema"]
             calls_before = submissions["count"]
             started = time.perf_counter()
             try:
+                prompt = SimpleNamespace(
+                    content=request["messages"][0]["content"],
+                    prompt_ref=f"research:{PROMPT_VERSION}",
+                    hash=stable_sha256(request["messages"][0]["content"]),
+                )
                 result = asyncio.run(
-                    client.label_gate3_once(
-                        model_visible_request=request,
-                        canonical_schema=schema,
+                    client.extract(
+                        prompt=prompt,
+                        package=json.loads(request["messages"][1]["content"]),
                         model_id=args.model_id,
+                        response_format=request["response_format"],
                     )
                 )
             except Gate2SourceFactRuntimeError as exc:
@@ -387,13 +394,14 @@ def _execute(args: argparse.Namespace, corpus_root: Path, root: Path) -> int:
                 raw = {
                     "case_id": frozen_case["case_id"],
                     "variant": variant,
-                    "raw_model_output": _jsonable(result.adapter_extracted_output),
-                    "raw_provider_response": _jsonable(result.raw_provider_response),
-                    "execution_metadata": _jsonable(result.execution_metadata),
-                    "metrics": _jsonable(result.metrics),
-                    "operational_retry_receipt": _jsonable(
-                        result.operational_retry_receipt
+                    "raw_model_output": _jsonable(result.content),
+                    "raw_provider_response": None,
+                    "raw_provider_response_unavailable_reason": (
+                        "owned_generic_model_client_returns_extracted_output_only"
                     ),
+                    "execution_metadata": _jsonable(result.execution_metadata),
+                    "metrics": _jsonable(result.execution_metadata),
+                    "operational_retry_receipt": None,
                     "transport_submissions": submissions["count"] - calls_before,
                     "elapsed_seconds": time.perf_counter() - started,
                 }
@@ -403,7 +411,7 @@ def _execute(args: argparse.Namespace, corpus_root: Path, root: Path) -> int:
                 _write_json(raw_path, raw)
                 try:
                     contract = validate_response(
-                        raw_response=result.adapter_extracted_output,
+                        raw_response=result.content,
                         table=private_case["table"],
                         table_ref="table_1",
                     )
@@ -434,7 +442,7 @@ def _execute(args: argparse.Namespace, corpus_root: Path, root: Path) -> int:
                             request=request,
                             contract=contract,
                             application=application,
-                            metrics=_jsonable(result.metrics),
+                            metrics=_jsonable(result.execution_metadata),
                         ),
                         "raw_evidence_file": raw_path.name,
                         "transport_submissions": submissions["count"] - calls_before,
@@ -682,6 +690,8 @@ def _verify_freeze(freeze: dict[str, Any], args: argparse.Namespace) -> None:
         or bool(_git_status_porcelain())
         or freeze.get("provider_profile_id") != args.provider_profile_id
         or freeze.get("model_id") != args.model_id
+        or freeze.get("request_profile")
+        != ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
         or freeze.get("provider_submissions_before_freeze") != 0
     ):
         raise SystemExit("research_freeze_invalid_or_drifted")
@@ -750,6 +760,7 @@ def _error_receipt(exc: Exception) -> dict[str, Any]:
         "code": getattr(exc, "code", None),
         "failure_class": getattr(exc, "failure_class", None),
         "message": str(exc),
+        "raw_output": _jsonable(getattr(exc, "raw_output", None)),
         "execution_metadata": _jsonable(getattr(exc, "execution_metadata", None)),
     }
 
