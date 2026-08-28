@@ -72,6 +72,7 @@ def test_resolves_full_source_word_refs_and_bboxes_for_one_page() -> None:
             {
                 "page_number": 1,
                 "page_ref": "pdfpage_1",
+                "page_projection_status": "complete",
                 "layout_projection_status": "complete",
                 "layout_page_width": 600.0,
                 "layout_page_height": 800.0,
@@ -111,6 +112,46 @@ def test_resolves_full_source_word_refs_and_bboxes_for_one_page() -> None:
             "source_bbox": [10.0, 20.0, 50.0, 40.0],
         }
     ]
+
+
+def test_accepts_partial_layout_when_page_projection_is_complete() -> None:
+    projection = {
+        "layout_projection_status": "partial",
+        "page_inventory": [
+            {
+                "page_number": 1,
+                "page_ref": "pdfpage_1",
+                "page_projection_status": "complete",
+                "layout_projection_status": "partial",
+                "layout_page_width": 600.0,
+                "layout_page_height": 800.0,
+            }
+        ],
+        "bbox_inventory": [
+            {
+                "bbox_ref": "pdfbbox_1",
+                "page_ref": "pdfpage_1",
+                "bbox": [10.0, 20.0, 50.0, 40.0],
+            }
+        ],
+        "word_inventory": [
+            {
+                "parser_ordinal": 7,
+                "text": "Header",
+                "word_ref": "pdfword_real_1",
+                "page_ref": "pdfpage_1",
+                "bbox_ref": "pdfbbox_1",
+            }
+        ],
+    }
+
+    result = CLI._projection_parser_page(
+        projection=projection,
+        page_number=1,
+        source_sha256="a" * 64,
+    )
+
+    assert result["word_inventory"][0]["source_word_ref"] == "pdfword_real_1"
 
 
 def test_safe_receipt_has_terminal_counts_hashes_and_no_private_values() -> None:

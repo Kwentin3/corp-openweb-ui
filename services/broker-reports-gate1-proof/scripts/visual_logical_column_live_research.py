@@ -309,7 +309,7 @@ def _projection_parser_page(
 ) -> dict[str, Any]:
     if (
         not isinstance(projection, dict)
-        or projection.get("layout_projection_status") != "complete"
+        or projection.get("layout_projection_status") not in {"complete", "partial"}
         or not isinstance(projection.get("page_inventory"), list)
         or not isinstance(projection.get("word_inventory"), list)
         or not isinstance(projection.get("bbox_inventory"), list)
@@ -327,7 +327,8 @@ def _projection_parser_page(
     )
     if (
         not isinstance(page, dict)
-        or page.get("layout_projection_status") != "complete"
+        or page.get("page_projection_status") != "complete"
+        or page.get("layout_projection_status") not in {"complete", "partial"}
         or not _finite_positive(page.get("layout_page_width"))
         or not _finite_positive(page.get("layout_page_height"))
         or not isinstance(page.get("page_ref"), str)
