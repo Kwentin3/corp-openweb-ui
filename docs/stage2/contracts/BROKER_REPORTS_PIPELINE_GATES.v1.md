@@ -4,7 +4,7 @@ Status: `CURRENT`
 
 Classification: `CURRENT AUTHORITY`
 
-Updated: 2026-08-27 (automatic case-scoped semantic mapping)
+Updated: 2026-08-28 (independently reviewed automatic semantic mapping)
 
 ```text
 CURRENT_PIPELINE_AUTHORITY = ONE
@@ -38,7 +38,9 @@ broker_reports_gate1_pipe
   -> immutable active CanonicalArtifactV1
   -> OrdinaryTradeProductionRuntimeFactory.create
   -> exact qualified mapping fast path OR OrdinaryTradeSemanticMappingFactory.create
-  -> OrdinaryTradeMappingCaseFactory.create and explicit user confirmation
+  -> same-Canonical independent semantic review for every risky mapper terminal
+  -> OrdinaryTradeMappingCaseFactory.create; user confirmation only for a
+     reviewer-certified irreducible ambiguity
   -> OrdinaryTradeQualifiedMappingAuthorityFactory.create
   -> OrdinaryTradeSemanticCompilerFactory.create
   -> immutable Source Observations + deterministic runtime records
@@ -63,8 +65,9 @@ or methodology blocker.
 
 **Source world.** Gate 1 owns source identity and custody. Gate 2 produces a
 faithful Canonical and may change form, not meaning. In the active ordinary-
-trade route, one frozen exact-schema mapping plus its qualification receipt and
-one deterministic compiler assign only qualified source meaning and preserve
+trade route, one frozen exact-schema mapping plus its qualification receipt, or
+one mapper proposal plus one same-Canonical independent semantic review, and one
+deterministic compiler assign only qualified source meaning and preserve
 every literal and cell reference. The historical Gate 3 model path performs the analogous source-
 semantic responsibility only when explicitly selected as deployment rollback.
 Gate 4 publishes only contract-valid normalized source facts. Visual metadata
@@ -123,8 +126,15 @@ otherwise use `EVIDENCE_GAP`.
 ```text
 SOURCE_MEANING_ADMISSION = NAMED_DOWNSTREAM_CONSUMER + REQUIRED_FACTUAL_DISTINCTION
 TAX_CRITICAL_SOURCE_MEANING_ADMISSION = SOURCE_MEANING_ADMISSION + VERSIONED_METHODOLOGY_INPUT
-NO_NAMED_CONSUMER = RETAIN_AS_UNMAPPED_SOURCE_CONTENT
+NO_NAMED_CONSUMER = SAME_CANONICAL_PROOF_OF_SAFE_AUXILIARY_WITHOUT_INDEPENDENT_ROW_FACTS
 ```
+
+`NO_NAMED_CONSUMER` is not inferred from the absence of a complete supported
+trade mapping or from missing fields. A proven table-wide category total,
+balance or reference may summarize financial activity without becoming an
+independently addressable event. Unknown income, expense, tax, cash movement,
+unsupported operation, incomplete transaction or damaged financial row remains
+relevant and blocks atomic fact publication.
 
 Before adding a source type, field or state, name its current owner and
 contract, the exact downstream consumer, why that consumer needs the factual

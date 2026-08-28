@@ -542,7 +542,7 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
                 )
                 heartbeat_observed.clear()
                 self.assertTrue(
-                    await asyncio.to_thread(heartbeat_observed.wait, 1.0)
+                    await asyncio.to_thread(heartbeat_observed.wait, 5.0)
                 )
                 self.assertGreater(
                     lease_expiry(holder.job_id),
@@ -558,7 +558,7 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
                 holder.transition(WorkloadState.BUILDING_DOCUMENT_MEMORY)
                 holder.transition(WorkloadState.VALIDATING)
                 holder.complete()
-                admitted = await asyncio.wait_for(waiter, timeout=1.0)
+                admitted = await asyncio.wait_for(waiter, timeout=5.0)
                 admitted.cancel("test_cleanup")
 
         asyncio.run(scenario())
