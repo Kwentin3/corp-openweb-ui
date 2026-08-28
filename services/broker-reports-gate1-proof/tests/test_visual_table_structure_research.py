@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 
+import fitz
 import pytest
 
+from broker_reports_gate1.pdf_table_raster import (
+    PdfTableRasterConfig,
+    PdfTableRasterFactory,
+)
 from broker_reports_gate1.visual_table_structure_research import (
     FORBIDDEN,
     VISUAL_LOGICAL_COLUMN_PROPOSAL_SCHEMA_VERSION,
@@ -18,6 +24,7 @@ from broker_reports_gate1.visual_table_structure_research import (
 
 
 SOURCE_SHA256 = "a" * 64
+CROP_MANIFEST_HASH = "c" * 64
 
 
 def _page() -> dict:
@@ -39,6 +46,15 @@ def _page() -> dict:
             {"parser_ordinal": 10, "text": "Alpha", "bbox": [750, 170, 800, 200]},
         ],
     }
+
+
+def _source_bound_page(*, source_sha256: str) -> dict:
+    page = _page()
+    page["source_sha256"] = source_sha256
+    for ordinal, word in enumerate(page["word_inventory"], 1):
+        word["source_word_ref"] = f"pdfword_{ordinal:024x}"
+        word["source_bbox"] = copy.deepcopy(word["bbox"])
+    return page
 
 
 def _value() -> dict:
@@ -69,6 +85,7 @@ def _logical_column_value() -> dict:
         "source_binding": {
             "source_sha256": SOURCE_SHA256,
             "page_number": 1,
+            "crop_manifest_hash": CROP_MANIFEST_HASH,
         },
         "table_order": 1,
         "leaf_label_boxes_2d": [
@@ -85,6 +102,28 @@ def _bound_structure(*, page: dict | None = None) -> dict:
         .bind(provider_value=_value(), parser_page=page or _page())
     )
     return bound["tables"][0]
+
+
+def _exact_crop(*, table_bbox: list[float] | None = None) -> tuple[dict, str]:
+    document = fitz.open()
+    document.new_page(width=1000, height=1000)
+    pdf_bytes = document.tobytes(deflate=True)
+    document.close()
+    source_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+    rendered = (
+        PdfTableRasterFactory(PdfTableRasterConfig(padding_points=0))
+        .create()
+        .render(
+            pdf_bytes=pdf_bytes,
+            pdf_sha256=source_sha256,
+            document_ref="visual-structure-test",
+            page_number=1,
+            table_ref="table-1",
+            table_bbox=table_bbox or [40, 40, 400, 240],
+            dpi=150,
+        )
+    )
+    return rendered, source_sha256
 
 
 def test_binds_visual_geometry_to_exact_parser_owned_words() -> None:
@@ -130,6 +169,7 @@ def test_binds_leaf_label_boxes_to_unique_exact_header_words() -> None:
             provider_value=_logical_column_value(),
             parser_page=_page(),
             bound_structure=_bound_structure(),
+            expected_crop_manifest_hash=CROP_MANIFEST_HASH,
         )
     )
 
@@ -141,6 +181,7 @@ def test_binds_leaf_label_boxes_to_unique_exact_header_words() -> None:
     assert result["source_binding"] == {
         "source_sha256": SOURCE_SHA256,
         "page_number": 1,
+        "crop_manifest_hash": CROP_MANIFEST_HASH,
     }
     assert result["proposal_for"] == "logical_row_owner"
     assert result["model_literals_used_as_source_values"] is False
@@ -154,6 +195,7 @@ def test_leaf_column_source_word_mutation_changes_bound_identity() -> None:
         provider_value=_logical_column_value(),
         parser_page=page_before,
         bound_structure=_bound_structure(page=page_before),
+        expected_crop_manifest_hash=CROP_MANIFEST_HASH,
     )
     page_after = _page()
     page_after["word_inventory"][1]["text"] = "Changed"
@@ -161,6 +203,7 @@ def test_leaf_column_source_word_mutation_changes_bound_identity() -> None:
         provider_value=_logical_column_value(),
         parser_page=page_after,
         bound_structure=_bound_structure(page=page_after),
+        expected_crop_manifest_hash=CROP_MANIFEST_HASH,
     )
 
     assert before["leaf_columns"][0]["header_text"] == "Date"
@@ -189,6 +232,7 @@ def test_rejects_leaf_column_source_or_page_misbinding(
                 provider_value=proposal,
                 parser_page=_page(),
                 bound_structure=_bound_structure(),
+                expected_crop_manifest_hash=CROP_MANIFEST_HASH,
             )
         )
 
@@ -207,6 +251,7 @@ def test_rejects_leaf_label_boxes_out_of_left_to_right_order() -> None:
                 provider_value=proposal,
                 parser_page=_page(),
                 bound_structure=_bound_structure(),
+                expected_crop_manifest_hash=CROP_MANIFEST_HASH,
             )
         )
 
@@ -225,6 +270,7 @@ def test_rejects_overlapping_leaf_label_boxes() -> None:
                 provider_value=proposal,
                 parser_page=_page(),
                 bound_structure=_bound_structure(),
+                expected_crop_manifest_hash=CROP_MANIFEST_HASH,
             )
         )
 
@@ -244,6 +290,7 @@ def test_preserves_shared_header_word_outside_leaf_labels() -> None:
             provider_value=proposal,
             parser_page=page,
             bound_structure=_bound_structure(page=page),
+            expected_crop_manifest_hash=CROP_MANIFEST_HASH,
         )
     )
 
@@ -271,6 +318,7 @@ def test_rejects_one_header_word_owned_by_two_touching_leaf_boxes() -> None:
                 provider_value=proposal,
                 parser_page=page,
                 bound_structure=_bound_structure(page=page),
+                expected_crop_manifest_hash=CROP_MANIFEST_HASH,
             )
         )
 
@@ -293,6 +341,7 @@ def test_rejects_leaf_label_box_without_source_word() -> None:
                 provider_value=proposal,
                 parser_page=_page(),
                 bound_structure=_bound_structure(),
+                expected_crop_manifest_hash=CROP_MANIFEST_HASH,
             )
         )
 
@@ -311,10 +360,264 @@ def test_rejects_stale_bound_header_receipt() -> None:
                 provider_value=_logical_column_value(),
                 parser_page=_page(),
                 bound_structure=structure,
+                expected_crop_manifest_hash=CROP_MANIFEST_HASH,
             )
         )
 
     assert exc_info.value.code == "visual_logical_column_bound_structures_stale"
+
+
+def test_prepares_one_exact_crop_with_words_and_header_in_same_coordinates() -> None:
+    rendered, source_sha256 = _exact_crop()
+    page = _source_bound_page(source_sha256=source_sha256)
+    projector = VisualTableStructureProjectionFactory().create()
+    original_page = copy.deepcopy(page)
+    original_structure = _bound_structure(page=page)
+    structure_before = copy.deepcopy(original_structure)
+
+    result = projector.prepare_logical_column_crop_scope(
+        case_ref="case_1",
+        parser_page=page,
+        bound_structure=original_structure,
+        rendered_crop=rendered,
+        table_order=1,
+    )
+
+    assert result["model_view"]["input"] == "ONE_EXACT_TABLE_CROP_PNG"
+    assert (
+        result["source_binding"]["crop_manifest_hash"]
+        == rendered["manifest"]["manifest_hash"]
+    )
+    assert result["crop_identity"]["rendered_bbox"] == [40.0, 40.0, 400.0, 240.0]
+    assert result["parser_page"]["width"] == 360.0
+    assert result["parser_page"]["height"] == 200.0
+    assert result["parser_page"]["word_inventory"][0]["bbox"] == [
+        10.0,
+        10.0,
+        140.0,
+        40.0,
+    ]
+    assert result["parser_page"]["word_inventory"][0]["source_word_ref"] == (
+        "pdfword_000000000000000000000001"
+    )
+    assert result["parser_page"]["word_inventory"][0]["source_bbox"] == [
+        50,
+        50,
+        180,
+        80,
+    ]
+    assert result["bound_structure"]["header_boxes_2d"] == [[300, 0, 550, 1000]]
+    assert result["bound_structure"]["header_text"] == "Date Amount"
+    assert page == original_page
+    assert original_structure == structure_before
+    assert result["model_literals_used_as_source_values"] is False
+    assert result["canonical_mutated"] is False
+
+
+def test_crop_preparation_and_leaf_binding_share_exact_crop_identity() -> None:
+    rendered, source_sha256 = _exact_crop()
+    page = _source_bound_page(source_sha256=source_sha256)
+    projector = VisualTableStructureProjectionFactory().create()
+    prepared = projector.prepare_logical_column_crop_scope(
+        case_ref="case_1",
+        parser_page=page,
+        bound_structure=_bound_structure(page=page),
+        rendered_crop=rendered,
+        table_order=1,
+    )
+    proposal = {
+        "schema_version": VISUAL_LOGICAL_COLUMN_PROPOSAL_SCHEMA_VERSION,
+        "source_binding": copy.deepcopy(prepared["source_binding"]),
+        "table_order": 1,
+        "leaf_label_boxes_2d": [
+            [300, 20, 550, 180],
+            [300, 560, 550, 820],
+        ],
+    }
+
+    result = projector.bind_logical_column_proposal(
+        provider_value=proposal,
+        parser_page=prepared["parser_page"],
+        bound_structure=prepared["bound_structure"],
+        expected_crop_manifest_hash=prepared["crop_identity"]["manifest_hash"],
+        crop_identity=prepared["crop_identity"],
+    )
+
+    assert [item["header_text"] for item in result["leaf_columns"]] == [
+        "Date",
+        "Amount",
+    ]
+    assert result["source_binding"] == prepared["source_binding"]
+    assert result["leaf_columns"][0]["header_word_refs"] == [
+        "pdfword_000000000000000000000002"
+    ]
+    assert result["leaf_columns"][0]["page_leaf_box_pdf_points"] == [
+        47.2,
+        100.0,
+        104.8,
+        150.0,
+    ]
+    assert result["leaf_columns"][1]["page_leaf_box_pdf_points"] == [
+        241.6,
+        100.0,
+        335.2,
+        150.0,
+    ]
+
+
+def test_rejects_forged_crop_bbox_against_real_source_word_geometry() -> None:
+    rendered, source_sha256 = _exact_crop()
+    page = _source_bound_page(source_sha256=source_sha256)
+    projector = VisualTableStructureProjectionFactory().create()
+    prepared = projector.prepare_logical_column_crop_scope(
+        case_ref="case_1",
+        parser_page=page,
+        bound_structure=_bound_structure(page=page),
+        rendered_crop=rendered,
+        table_order=1,
+    )
+    proposal = {
+        "schema_version": VISUAL_LOGICAL_COLUMN_PROPOSAL_SCHEMA_VERSION,
+        "source_binding": copy.deepcopy(prepared["source_binding"]),
+        "table_order": 1,
+        "leaf_label_boxes_2d": [
+            [300, 20, 550, 180],
+            [300, 560, 550, 820],
+        ],
+    }
+    forged_identity = copy.deepcopy(prepared["crop_identity"])
+    forged_identity["rendered_bbox"] = [41.0, 40.0, 401.0, 240.0]
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        projector.bind_logical_column_proposal(
+            provider_value=proposal,
+            parser_page=prepared["parser_page"],
+            bound_structure=prepared["bound_structure"],
+            expected_crop_manifest_hash=prepared["crop_identity"]["manifest_hash"],
+            crop_identity=forged_identity,
+        )
+
+    assert exc_info.value.code == ("visual_logical_column_crop_identity_word_mismatch")
+
+
+def test_rejects_invalid_real_source_word_ref() -> None:
+    rendered, source_sha256 = _exact_crop()
+    page = _source_bound_page(source_sha256=source_sha256)
+    page["word_inventory"][0]["source_word_ref"] = "forged"
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        VisualTableStructureProjectionFactory().create().prepare_logical_column_crop_scope(
+            case_ref="case_1",
+            parser_page=page,
+            bound_structure=_bound_structure(page=page),
+            rendered_crop=rendered,
+            table_order=1,
+        )
+
+    assert exc_info.value.code == "visual_table_structure_parser_word_invalid"
+
+
+def test_rejects_forged_source_bbox_before_crop_preparation() -> None:
+    rendered, source_sha256 = _exact_crop()
+    page = _source_bound_page(source_sha256=source_sha256)
+    page["word_inventory"][0]["source_bbox"] = [51, 50, 181, 80]
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        VisualTableStructureProjectionFactory().create().prepare_logical_column_crop_scope(
+            case_ref="case_1",
+            parser_page=page,
+            bound_structure=_bound_structure(page=page),
+            rendered_crop=rendered,
+            table_order=1,
+        )
+
+    assert exc_info.value.code == ("visual_logical_column_source_word_binding_invalid")
+
+
+def test_rejects_leaf_response_bound_to_a_different_crop() -> None:
+    rendered, source_sha256 = _exact_crop()
+    page = _page()
+    page["source_sha256"] = source_sha256
+    projector = VisualTableStructureProjectionFactory().create()
+    prepared = projector.prepare_logical_column_crop_scope(
+        case_ref="case_1",
+        parser_page=page,
+        bound_structure=_bound_structure(page=page),
+        rendered_crop=rendered,
+        table_order=1,
+    )
+    proposal = {
+        "schema_version": VISUAL_LOGICAL_COLUMN_PROPOSAL_SCHEMA_VERSION,
+        "source_binding": copy.deepcopy(prepared["source_binding"]),
+        "table_order": 1,
+        "leaf_label_boxes_2d": [[300, 20, 550, 180]],
+    }
+    proposal["source_binding"]["crop_manifest_hash"] = "d" * 64
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        projector.bind_logical_column_proposal(
+            provider_value=proposal,
+            parser_page=prepared["parser_page"],
+            bound_structure=prepared["bound_structure"],
+            expected_crop_manifest_hash=prepared["crop_identity"]["manifest_hash"],
+        )
+
+    assert exc_info.value.code == "visual_logical_column_source_binding_mismatch"
+
+
+def test_rejects_crop_png_drift_before_preparing_model_input() -> None:
+    rendered, source_sha256 = _exact_crop()
+    page = _page()
+    page["source_sha256"] = source_sha256
+    rendered["private_png_base64"] = "ZGlmZmVyZW50"
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        VisualTableStructureProjectionFactory().create().prepare_logical_column_crop_scope(
+            case_ref="case_1",
+            parser_page=page,
+            bound_structure=_bound_structure(page=page),
+            rendered_crop=rendered,
+            table_order=1,
+        )
+
+    assert exc_info.value.code == "visual_logical_column_crop_png_identity_mismatch"
+
+
+def test_rejects_crop_that_cuts_through_a_parser_owned_word() -> None:
+    rendered, source_sha256 = _exact_crop()
+    page = _page()
+    page["source_sha256"] = source_sha256
+    page["word_inventory"].append(
+        {"parser_ordinal": 11, "text": "Cut", "bbox": [30, 60, 50, 80]}
+    )
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        VisualTableStructureProjectionFactory().create().prepare_logical_column_crop_scope(
+            case_ref="case_1",
+            parser_page=page,
+            bound_structure=_bound_structure(page=page),
+            rendered_crop=rendered,
+            table_order=1,
+        )
+
+    assert exc_info.value.code == "visual_logical_column_crop_crossing_source_word"
+
+
+def test_rejects_a_valid_but_wrong_exact_crop_for_the_bound_header() -> None:
+    rendered, source_sha256 = _exact_crop(table_bbox=[450, 40, 900, 240])
+    page = _page()
+    page["source_sha256"] = source_sha256
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        VisualTableStructureProjectionFactory().create().prepare_logical_column_crop_scope(
+            case_ref="case_1",
+            parser_page=page,
+            bound_structure=_bound_structure(page=page),
+            rendered_crop=rendered,
+            table_order=1,
+        )
+
+    assert exc_info.value.code == "visual_logical_column_crop_header_outside_crop"
 
 
 def test_supports_a_genuine_headerless_table_without_inventing_header_words() -> None:
@@ -389,12 +692,14 @@ def test_logical_column_contract_is_source_bound_and_geometry_only() -> None:
         case_ref="case_1",
         source_sha256=SOURCE_SHA256,
         page_number=1,
+        crop_manifest_hash=CROP_MANIFEST_HASH,
         table_order=1,
     )
     prompt = view["instruction"].lower()
     serialized_schema = repr(logical_column_proposal_response_schema()).lower()
 
     assert view["source_binding"]["source_sha256"] == SOURCE_SHA256
+    assert view["source_binding"]["crop_manifest_hash"] == CROP_MANIFEST_HASH
     assert view["table_order"] == 1
     assert "leaf_label_boxes_2d" in serialized_schema
     assert "source_sha256" in serialized_schema
