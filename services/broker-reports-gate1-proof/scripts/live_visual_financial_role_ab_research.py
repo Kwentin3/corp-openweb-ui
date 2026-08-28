@@ -137,7 +137,7 @@ def _prepare(args: argparse.Namespace) -> int:
         page_number=parser_page["page_number"],
         table_ref="table_1",
         table_bbox=candidate["bbox"],
-        dpi=300,
+        dpi=200,
         escalation_reason="research_visual_financial_role_ab",
     )
     png_bytes = base64.b64decode(rendered["private_png_base64"])
