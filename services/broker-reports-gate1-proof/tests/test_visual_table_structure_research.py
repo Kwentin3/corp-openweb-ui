@@ -39,7 +39,6 @@ def _value() -> dict:
         "schema_version": VISUAL_TABLE_STRUCTURE_SCHEMA_VERSION,
         "tables": [
             {
-                "table_order": 1,
                 "table_box_2d": [100, 40, 240, 400],
                 "title_status": "PRESENT",
                 "title_boxes_2d": [[40, 40, 90, 400]],
@@ -48,7 +47,6 @@ def _value() -> dict:
                 "body_status": "HAS_DATA",
             },
             {
-                "table_order": 2,
                 "table_box_2d": [100, 540, 240, 900],
                 "title_status": "PRESENT",
                 "title_boxes_2d": [[40, 540, 90, 900]],

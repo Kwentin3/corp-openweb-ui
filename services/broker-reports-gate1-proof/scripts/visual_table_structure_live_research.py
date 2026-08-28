@@ -43,9 +43,9 @@ from local_pdf_vlm_guided_intake_development import (  # noqa: E402
 )
 
 
-FREEZE_SCHEMA = "broker_reports_visual_table_structure_freeze_rd_v1"
-PRIVATE_RESULT_SCHEMA = "broker_reports_visual_table_structure_result_private_rd_v1"
-SAFE_RESULT_SCHEMA = "broker_reports_visual_table_structure_result_safe_rd_v1"
+FREEZE_SCHEMA = "broker_reports_visual_table_structure_freeze_rd_v2"
+PRIVATE_RESULT_SCHEMA = "broker_reports_visual_table_structure_result_private_rd_v2"
+SAFE_RESULT_SCHEMA = "broker_reports_visual_table_structure_result_safe_rd_v2"
 INPUT_SCHEMA = "broker_reports_visual_table_structure_input_private_rd_v1"
 MODEL_ID = "models/gemini-3.5-flash"
 PROVIDER_PROFILE = "google_gemini"
