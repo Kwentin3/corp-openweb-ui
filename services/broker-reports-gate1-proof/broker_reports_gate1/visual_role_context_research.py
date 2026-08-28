@@ -277,9 +277,13 @@ def compose_visual_role_model_view(
         != "broker_reports_visual_column_geometry_rd_v1"
     ):
         raise VisualRoleContextError("visual_role_context_geometry_invalid")
+    instruction = messages[0]["content"].replace(
+        "Return every supplied column_ref exactly once and assign only one allowed role.",
+        "Return only columns with a supported non-unmapped role; omit unmapped columns.",
+    )
     return {
         "instruction": (
-            messages[0]["content"]
+            instruction
             + " The attached image is the exact source table crop. Use it to "
             "understand the visible title and multi-row header. column_geometry "
             "binds each supplied column_ref to a horizontal image strip. The "
@@ -310,6 +314,15 @@ def project_visual_role_response_schema(
         raise VisualRoleContextError("visual_role_context_response_schema_invalid")
     required.remove("categorical_normalizations")
     del properties["categorical_normalizations"]
+    columns = properties.get("columns")
+    if not isinstance(columns, dict):
+        raise VisualRoleContextError("visual_role_context_response_schema_invalid")
+    columns.pop("minItems", None)
+    columns.pop("maxItems", None)
+    role_schema = columns["items"]["properties"]["role"]
+    role_schema["enum"] = [
+        item for item in role_schema["enum"] if item != "unmapped"
+    ]
     return schema
 
 
@@ -328,7 +341,9 @@ def validate_visual_role_response(
     expected_refs = response_schema["properties"]["columns"]["items"][
         "properties"
     ]["column_ref"]["enum"]
-    if column_refs != expected_refs:
+    if len(column_refs) != len(set(column_refs)) or any(
+        item not in expected_refs for item in column_refs
+    ):
         raise VisualRoleContextError("visual_role_context_columns_invalid")
     role_by_column = {item["column_ref"]: item["role"] for item in value["columns"]}
     bindings = value["amount_currency_bindings"]

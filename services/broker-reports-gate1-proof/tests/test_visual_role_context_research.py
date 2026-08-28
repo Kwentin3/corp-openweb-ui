@@ -243,8 +243,8 @@ def test_visual_role_schema_removes_only_row_value_normalization() -> None:
         "table_kind": "STRUCTURALLY_INCOMPATIBLE",
         "header_row": 1,
         "columns": [
-            {"column_ref": "c1", "role": "unmapped"},
-            {"column_ref": "c2", "role": "unmapped"},
+            {"column_ref": "c1", "role": "trade_date"},
+            {"column_ref": "c2", "role": "gross_amount"},
         ],
         "amount_currency_bindings": [],
     }
@@ -255,7 +255,7 @@ def test_visual_role_schema_removes_only_row_value_normalization() -> None:
         raw_response=response, response_schema=projected
     ) == response
 
-    response["columns"].reverse()
+    response["columns"][1]["column_ref"] = "c1"
     with pytest.raises(VisualRoleContextError) as exc_info:
         validate_visual_role_response(
             raw_response=response, response_schema=projected
