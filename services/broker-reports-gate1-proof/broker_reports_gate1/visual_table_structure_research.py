@@ -259,6 +259,24 @@ class VisualTableStructureProjection:
             "source_words_owner": "pdfplumber_word_inventory",
         }
 
+    def bind_word_inventory(
+        self, *, parser_page: dict[str, Any], boxes_2d: list[list[int]]
+    ) -> list[dict[str, Any]]:
+        """Return exact parser words selected by normalized visual geometry."""
+
+        page = self._validated_parser_page(parser_page)
+        boxes = [self._box(item) for item in boxes_2d]
+        words = _words_in_boxes(page["words"], boxes)
+        return [
+            {
+                "parser_ordinal": item["parser_ordinal"],
+                "text": item["text"],
+                "bbox_2d": copy.deepcopy(item["bbox_2d"]),
+                "word_ref": _word_refs(page["page_number"], [item])[0],
+            }
+            for item in words
+        ]
+
     def _validated_provider_value(self, value: Any) -> dict[str, Any]:
         errors = sorted(
             Draft202012Validator(response_schema()).iter_errors(value),
