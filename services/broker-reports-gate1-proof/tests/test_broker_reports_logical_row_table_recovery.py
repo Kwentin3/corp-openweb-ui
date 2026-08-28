@@ -5537,6 +5537,62 @@ def test_optional_structural_proposal_recovers_32_columns_and_five_body_bands() 
     assert result.diagnostics["provider_calls"] == 0
 
 
+def test_structural_proposal_uses_leaf_box_seam_for_body_column_ownership() -> None:
+    projection, proposal = _structural_proposal_fixture()
+    boxes = list(proposal.page_leaf_box_pdf_points)
+    left = boxes[7]
+    right = boxes[8]
+    boxes[8] = (left[2], right[1], boxes[9][0], right[3])
+    proposal = replace(proposal, page_leaf_box_pdf_points=tuple(boxes))
+
+    old_center_midpoint = (
+        recovery_module._bbox_center_x(left)
+        + recovery_module._bbox_center_x(boxes[8])
+    ) / 2.0
+    shared_edge = left[2]
+    seam_word = next(
+        item for item in projection["word_inventory"] if item["text"] == "1.8"
+    )
+    bbox_by_ref = {
+        item["bbox_ref"]: item["bbox"] for item in projection["bbox_inventory"]
+    }
+    seam_word_center = recovery_module._bbox_center_x(
+        tuple(bbox_by_ref[seam_word["bbox_ref"]])
+    )
+    assert shared_edge < seam_word_center < old_center_midpoint
+
+    result = LogicalRowTableFactory().create().recover(
+        projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        structural_proposal=proposal,
+    )
+
+    table = result.tables[0]
+    right_column_id = table["logical_columns"][8]["column_id"]
+    seam_anchor = next(
+        item
+        for item in result.anchors
+        if item["locator"]["source_block_ref"] == seam_word["word_ref"]
+    )
+    owner = next(
+        item
+        for item in result.source_word_ownership
+        if item["source_anchor_id"] == seam_anchor["anchor_id"]
+    )
+    body_entry = next(
+        entry
+        for row in table["ordered_rows"]
+        if row["role"] == "DATA"
+        for entry in row["entries"]
+        if entry["entry_id"] == owner["owner_entry_id"]
+    )
+    assert body_entry["logical_column_id"] == right_column_id
+    assert "1.8" in body_entry["text"]
+    assert result.unowned_word_refs == []
+    assert result.diagnostics["multiple_word_owners_total"] == 0
+
+
 def test_research_projection_roundtrips_32_columns_into_new_canonical() -> None:
     source_projection, proposal = _structural_proposal_fixture()
     for ordinal, word in enumerate(source_projection["word_inventory"], start=1):

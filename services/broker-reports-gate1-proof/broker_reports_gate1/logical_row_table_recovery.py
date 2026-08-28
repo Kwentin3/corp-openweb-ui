@@ -6179,7 +6179,8 @@ def _apply_research_structural_proposal(
     boundaries = (
         table_left,
         *tuple(
-            (left + right) / 2.0 for left, right in zip(leaf_centers, leaf_centers[1:])
+            (left[2] + right[0]) / 2.0
+            for left, right in zip(leaf_boxes, leaf_boxes[1:])
         ),
         table_right,
     )
