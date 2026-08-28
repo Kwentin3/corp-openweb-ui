@@ -126,13 +126,15 @@ otherwise use `EVIDENCE_GAP`.
 ```text
 SOURCE_MEANING_ADMISSION = NAMED_DOWNSTREAM_CONSUMER + REQUIRED_FACTUAL_DISTINCTION
 TAX_CRITICAL_SOURCE_MEANING_ADMISSION = SOURCE_MEANING_ADMISSION + VERSIONED_METHODOLOGY_INPUT
-NO_NAMED_CONSUMER = SAME_CANONICAL_PROOF_OF_SAFE_AUXILIARY_WITHOUT_ROW_FACTS
+NO_NAMED_CONSUMER = SAME_CANONICAL_PROOF_OF_SAFE_AUXILIARY_WITHOUT_INDEPENDENT_ROW_FACTS
 ```
 
 `NO_NAMED_CONSUMER` is not inferred from the absence of a complete supported
-trade mapping. Unknown income, expense, tax, cash movement, unsupported
-operation, incomplete transaction or damaged financial row remains relevant
-and blocks atomic fact publication.
+trade mapping or from missing fields. A proven table-wide category total,
+balance or reference may summarize financial activity without becoming an
+independently addressable event. Unknown income, expense, tax, cash movement,
+unsupported operation, incomplete transaction or damaged financial row remains
+relevant and blocks atomic fact publication.
 
 Before adding a source type, field or state, name its current owner and
 contract, the exact downstream consumer, why that consumer needs the factual

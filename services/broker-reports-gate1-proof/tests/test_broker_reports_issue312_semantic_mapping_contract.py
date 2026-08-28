@@ -273,9 +273,12 @@ def test_review_prompt_separates_safe_aggregates_from_financial_events() -> None
 
     assert "table-wide evidence affirmatively" in prompt
     assert "category total, balance or reference" in prompt
+    assert "activity-category label and aggregate debit/credit totals" in prompt
+    assert "a date alone does not give it transaction identity" in prompt
     assert "Do not infer aggregation merely from missing fields" in prompt
     assert "dividend row tied to a security and payment date" in prompt
     assert "trade row with operation, quantity, price and amount" in prompt
+    assert "payee, counterparty or transaction-id" in prompt
     assert "independent, incomplete or damaged financial event" in prompt
 
 

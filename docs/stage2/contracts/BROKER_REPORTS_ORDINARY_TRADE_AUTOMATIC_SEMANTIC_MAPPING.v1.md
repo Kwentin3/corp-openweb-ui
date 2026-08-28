@@ -100,8 +100,10 @@ Every Canonical table receives exactly one disposition:
 - `NO_NAMED_CONSUMER` retains literal observations and provenance but emits no
   Fact v2 only after the reviewer independently proves either truly
   non-financial auxiliary content or an account-level aggregate/reference
-  summary with no row-level dividend, interest, tax, fee, cash event, security
-  operation, incomplete transaction or damaged financial record;
+  summary whose rows are category totals, balances or references rather than
+  independently addressable financial events; those totals may summarize fees,
+  taxes, income, trades or cash activity, but a date or missing fields alone do
+  not prove aggregation;
 - `UNSUPPORTED_FINANCIAL_MEANING` stops with a typed owner blocker;
 - unsupported, incomplete, damaged or unresolved financial content is
   `REJECT_UNSAFE`, remains relevant/unmapped and blocks atomic publication;
@@ -117,6 +119,9 @@ Technical compilation of two candidates proves only executability. The reviewer
 may autonomously select one only when source wording and rows rule out the other;
 otherwise it emits an inspectable irreducible-ambiguity receipt. Conversely,
 missing roles never authorize dropping an incomplete financial row.
+Transaction-level security, quantity, unit-price, withheld-tax, payee,
+counterparty or transaction-id evidence keeps a row relevant unless Canonical
+affirmatively identifies it as an aggregate.
 
 `COMPLETE` additionally requires exact coverage of every literal in the chosen
 side column from the full Canonical and a deterministic compiler dry-run with
