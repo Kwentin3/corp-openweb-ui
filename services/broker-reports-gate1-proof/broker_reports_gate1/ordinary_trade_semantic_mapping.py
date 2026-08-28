@@ -379,7 +379,8 @@ class OrdinaryTradeSemanticMapping:
         ):
             _fail("ordinary_trade_semantic_adjudication_package_invalid")
         package = {
-            "phase": "adjudicate_mapping_review",
+            "phase": "review_mapping",
+            "adjudication_of": receipt["receipt_sha256"],
             "case": copy.deepcopy(review_package.get("case")),
             "proposal": copy.deepcopy(review_package.get("proposal")),
             "prior_review": {
@@ -866,7 +867,9 @@ class OrdinaryTradeSemanticMapping:
             mapping_outcome.get("status") != "COMPLETE"
             or review_outcome.get("status") != "REVIEW_REJECTED"
             or prior_receipt.get("verdict") != "REJECT_UNSAFE"
-            or adjudication_package.get("phase") != "adjudicate_mapping_review"
+            or adjudication_package.get("phase") != "review_mapping"
+            or adjudication_package.get("adjudication_of")
+            != prior_receipt["receipt_sha256"]
             or adjudication_package.get("case") != review_package.get("case")
             or adjudication_package.get("proposal")
             != review_package.get("proposal")
