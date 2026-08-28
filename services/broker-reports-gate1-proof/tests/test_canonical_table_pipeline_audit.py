@@ -109,7 +109,7 @@ def test_visual_contract_supports_headerless_and_multi_band_tables() -> None:
     assert schema["properties"]["header_bands"]["type"] == "array"
     assert schema["properties"]["header_bands"].get("minItems") is None
     response = {
-        "schema_version": "broker_reports_table_pipeline_visual_audit_v1",
+        "schema_version": "broker_reports_table_pipeline_visual_audit_v2",
         "document_purpose": "CUSTOMER_BROKER_REPORT",
         "tax_data_scope": "CUSTOMER_TRANSACTION_DATA",
         "table_purpose": "TRANSACTION_DATA",
@@ -130,7 +130,7 @@ def test_visual_contract_rejects_unclassified_document_scope() -> None:
     with pytest.raises(TablePipelineAuditError) as exc:
         validate_visual_output(
             {
-                "schema_version": "broker_reports_table_pipeline_visual_audit_v1",
+                "schema_version": "broker_reports_table_pipeline_visual_audit_v2",
                 "document_purpose": "CUSTOMER_BROKER_REPORT",
             }
         )
@@ -145,3 +145,13 @@ def test_visual_request_is_generic_and_does_not_publish_facts() -> None:
     assert "broker or filename routing" in FORBIDDEN
     assert "T-Bank" not in instruction
     assert "Merrill" not in instruction
+
+
+def test_schema_version_survives_the_shared_gemini_projection() -> None:
+    from broker_reports_gate1.pdf_table_locator_provider import project_gemini_schema
+
+    projected, _ = project_gemini_schema(visual_response_schema())
+    assert projected["properties"]["schema_version"] == {
+        "type": "string",
+        "enum": ["broker_reports_table_pipeline_visual_audit_v2"],
+    }

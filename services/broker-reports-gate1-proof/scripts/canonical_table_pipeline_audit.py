@@ -30,10 +30,10 @@ from local_pdf_vlm_guided_intake_development import (  # noqa: E402
 )
 
 
-SCHEMA_VERSION = "broker_reports_table_pipeline_visual_audit_v1"
-FREEZE_VERSION = "broker_reports_table_pipeline_visual_freeze_v1"
-RESULT_VERSION = "broker_reports_table_pipeline_visual_result_v1"
-SAFE_RESULT_VERSION = "broker_reports_table_pipeline_visual_result_safe_v1"
+SCHEMA_VERSION = "broker_reports_table_pipeline_visual_audit_v2"
+FREEZE_VERSION = "broker_reports_table_pipeline_visual_freeze_v2"
+RESULT_VERSION = "broker_reports_table_pipeline_visual_result_v2"
+SAFE_RESULT_VERSION = "broker_reports_table_pipeline_visual_result_safe_v2"
 STATIC_AUDIT_VERSION = "broker_reports_table_pipeline_static_audit_v1"
 MODEL_ID = "models/gemini-3.5-flash"
 PROVIDER_PROFILE = "google_gemini"
@@ -73,7 +73,9 @@ def visual_response_schema() -> dict[str, Any]:
             "summary",
         ],
         "properties": {
-            "schema_version": {"type": "string", "const": SCHEMA_VERSION},
+            # The shared Gemini schema projector intentionally removes `const`.
+            # An exact one-item enum survives projection and remains closed.
+            "schema_version": {"type": "string", "enum": [SCHEMA_VERSION]},
             "document_purpose": {
                 "type": "string",
                 "enum": [
@@ -137,7 +139,7 @@ def visual_model_view(case_id: str) -> dict[str, Any]:
     if not case_id:
         raise TablePipelineAuditError("table_pipeline_case_id_required")
     return {
-        "task_version": "table_pipeline_visual_understanding_v1",
+        "task_version": "table_pipeline_visual_understanding_v2",
         "case_ref": case_id,
         "input": "ONE_PNG_TABLE_REGION",
         "instruction": (
