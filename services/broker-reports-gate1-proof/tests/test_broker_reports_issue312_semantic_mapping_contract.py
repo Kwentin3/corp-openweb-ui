@@ -154,11 +154,13 @@ def test_mapping_prompt_states_exact_currency_binding_contract() -> None:
     assert "Do not add bindings for unit_price" in prompt
 
 
-def test_mapping_prompt_requires_confirmation_before_table_exclusion() -> None:
+def test_mapping_prompt_requires_autonomy_before_genuine_ambiguity() -> None:
     prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
 
-    assert "Never return COMPLETE with an unconfirmed NO_NAMED_CONSUMER" in prompt
-    assert "ask about the next unconfirmed exclusion" in prompt
+    assert "Return COMPLETE with autonomous NO_NAMED_CONSUMER" in prompt
+    assert "same supplied evidence cannot rule either one out" in prompt
+    assert "exactly one entry for every header column" in prompt
+    assert "Aggregated cash-flow, turnover or cash-ledger summaries" in prompt
     assert "balances, holdings, reference/master data" in prompt
     assert "only for a transaction table" in prompt
 
@@ -402,7 +404,7 @@ def test_prompt_injection_cell_cannot_author_mapping_or_source_literal(tmp_path)
     assert exc.value.code == "ordinary_trade_semantic_mapping_side_invalid"
 
 
-def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
+def test_autonomous_table_exclusion_is_full_source_validated(
     tmp_path,
 ) -> None:
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
@@ -436,9 +438,10 @@ def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
         user_scope_sha256="a" * 64,
     )
 
-    assert result["status"] == "SPECIALIST_REVIEW_REQUIRED"
-    assert "qualified_mappings" not in result
-    assert "table_resolutions" not in result
+    assert result["status"] == "COMPLETE"
+    assert len(result["qualified_mappings"]) == 1
+    assert len(result["table_resolutions"]) == 2
+    assert result["table_resolutions"][1]["disposition"] == "NO_NAMED_CONSUMER"
 
 
 def test_runtime_derives_terminal_status_from_validated_table_decisions(tmp_path) -> None:
@@ -535,6 +538,60 @@ def test_runtime_unconditionally_owns_provider_question_identifiers(tmp_path) ->
         "o_choice_2",
     ]
     assert len({item["option_id"] for item in result["question"]["options"]}) == 2
+    receipt = result["question"]["ambiguity_receipt"]
+    assert receipt["source_units"]["table_node_id"] == result["question"][
+        "table_node_id"
+    ]
+    assert receipt["materially_different"] is True
+    assert receipt["disputed_facts_published"] == 0
+    assert len(receipt["candidate_interpretations"]) == 2
+
+
+def test_clarification_must_describe_one_material_semantic_fork(tmp_path) -> None:
+    _context, canonical, binding, _table, _known = _canonical_case(tmp_path)
+    response = {
+        "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+        "status": "CLARIFICATION_REQUIRED",
+        "table_decisions": [],
+        "clarification": {
+            "question_id": "q_mixed_fork",
+            "table_ref": "table_1",
+            "question": "Which interpretation is true?",
+            "options": [
+                {
+                    "option_id": "o_column",
+                    "label": "Amount column",
+                    "decision": {
+                        "table_ref": "table_1",
+                        **_column_role_decision(9, "gross_amount"),
+                    },
+                },
+                {
+                    "option_id": "o_disposition",
+                    "label": "Not a trade table",
+                    "decision": {
+                        "table_ref": "table_1",
+                        **_table_disposition_decision("NO_NAMED_CONSUMER"),
+                    },
+                },
+            ],
+        },
+        "message": "Need one decision.",
+    }
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+            response=response,
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256="a" * 64,
+        )
+
+    assert exc.value.code == "ordinary_trade_semantic_mapping_ambiguity_invalid"
 
 
 def test_free_answer_requires_strict_candidate_then_explicit_confirmation(tmp_path) -> None:

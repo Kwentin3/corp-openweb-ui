@@ -451,6 +451,11 @@ class OrdinaryTradeMappingCaseRuntime:
                 if isinstance(question, dict)
                 else None
             ),
+            "ambiguity_receipt": (
+                copy.deepcopy(question.get("ambiguity_receipt"))
+                if isinstance(question, dict)
+                else None
+            ),
             "confirmation_message": (
                 (payload.get("pending_candidate") or {}).get("message")
                 if payload["status"] == "CONFIRMATION_REQUIRED"

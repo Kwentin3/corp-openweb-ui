@@ -178,6 +178,13 @@ async def _clarification_answer_confirmation_resumes_same_case(tmp_path) -> None
     runtime = _runtime(store, client)
     first = await runtime.resolve(document_id=document_id, context=context)
     assert first["status"] == "CLARIFICATION_REQUIRED"
+    receipt = first["public_state"]["ambiguity_receipt"]
+    assert receipt["materially_different"] is True
+    assert receipt["same_evidence_autonomous_status"] == (
+        "UNABLE_TO_EXCLUDE_ONE_CANDIDATE"
+    )
+    assert len(receipt["candidate_interpretations"]) == 2
+    assert receipt["disputed_facts_published"] == 0
 
     candidate = await runtime.resolve(
         document_id=document_id,
@@ -1084,9 +1091,15 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
     assert completed["product"]["gate4"]["security_facts_total"] == 2
 
 
-async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -> None:
-    store, context, document_id, _canonical, _binding, table, _mapping = (
-        case_fixtures._unknown_case(tmp_path)
+async def _auxiliary_table_is_resolved_autonomously_without_question(tmp_path) -> None:
+    store, context, document_id, _tables, canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(
+            (
+                ("Currency", "Opening balance", "Closing balance"),
+                ("RUB", "0", "100"),
+            ),
+        ),
     )
     client = BoundaryModelClient(
         [
@@ -1116,19 +1129,64 @@ async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
     ).create()
-    canonical_ref = store.get_active_canonical_version(
-        context=context, document_id=document_id
-    ).manifest_ref
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+
+    assert result["semantic_mapping"]["status"] == "COMPLETE"
+    assert result["provider_calls_total"] == 1
+    assert result["product"]["gate4"]["facts_total"] == 0
+    assert result["documents"][0]["relevant_unmapped_observations"] == 0
+
+
+async def _unknown_trade_and_auxiliary_tables_complete_in_one_call(tmp_path) -> None:
+    unknown_rows = _unknown_rows(suffix="trade plus auxiliary")
+    mapping = case_fixtures.candidate._mapping_from_headers(unknown_rows[0])
+    auxiliary_rows = (
+        ("Currency", "Opening balance", "Closing balance"),
+        ("RUB", "0", "100"),
+    )
+    store, context, document_id, _tables, canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(unknown_rows, auxiliary_rows),
+    )
+    response = _response_for_tables(table_count=1, mapping=mapping)
+    response["table_decisions"].append(
+        {
+            "table_ref": "table_2",
+            "header_row": 1,
+            "disposition": "NO_NAMED_CONSUMER",
+            "columns": [],
+            "amount_currency_bindings": [],
+            "side_values": [],
+        }
+    )
+    client = BoundaryModelClient([response])
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+    ).create()
 
     result = await runtime.run_with_automatic_mapping(
         canonical_artifact_refs=[canonical_ref], context=context
     )
 
-    assert result["semantic_mapping"]["status"] == "SPECIALIST_REVIEW_REQUIRED"
-    assert result["product"]["gate4"]["facts_total"] == 0
-    assert result["product"]["gate5"]["security_tax_input_status"] == (
-        "SOURCE_MAPPING_INCOMPLETE"
-    )
+    assert result["semantic_mapping"]["status"] == "COMPLETE"
+    assert result["provider_calls_total"] == 1
+    assert result["product"]["gate4"]["security_facts_total"] == 2
+    assert result["product"]["gate4"]["transaction_charge_facts_total"] == 2
+    assert result["documents"][0]["relevant_unmapped_observations"] == 0
+    assert len(client.calls) == 1
+    current = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    assert current["provider_calls_total"] == 1
+    assert current["confirmed_understandings"] == []
+    assert current["table_resolutions"][1]["disposition"] == "NO_NAMED_CONSUMER"
 
 
 def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
@@ -1179,6 +1237,10 @@ def test_mixed_known_and_unknown_tables_reach_gate4_facts(tmp_path) -> None:
     asyncio.run(_mixed_known_and_unknown_tables_reach_gate4_facts(tmp_path))
 
 
+def test_unknown_trade_and_auxiliary_tables_complete_in_one_call(tmp_path) -> None:
+    asyncio.run(_unknown_trade_and_auxiliary_tables_complete_in_one_call(tmp_path))
+
+
 def test_identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> None:
     asyncio.run(_identical_unknown_table_nodes_execute_in_exact_scope(tmp_path))
 
@@ -1225,5 +1287,5 @@ def test_production_pipe_keeps_mapping_question_confirmation_and_case(tmp_path) 
     asyncio.run(_production_pipe_keeps_mapping_question_confirmation_and_case(tmp_path))
 
 
-def test_model_cannot_exclude_financial_table_without_confirmation(tmp_path) -> None:
-    asyncio.run(_model_cannot_exclude_financial_table_without_confirmation(tmp_path))
+def test_auxiliary_table_is_resolved_autonomously_without_question(tmp_path) -> None:
+    asyncio.run(_auxiliary_table_is_resolved_autonomously_without_question(tmp_path))
