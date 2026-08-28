@@ -115,7 +115,11 @@ def _prepare(args: argparse.Namespace) -> int:
                 "visual_structure_parser_page_unavailable"
             )
         parser_page = parsed.pages[case["page_number"] - 1]
-        page_bbox = [0.0, 0.0, parser_page["width"], parser_page["height"]]
+        page_bbox = _verified_page_bbox(
+            pdf_bytes=pdf_bytes,
+            page_number=case["page_number"],
+            parser_page=parser_page,
+        )
         rendered = raster.render_full_page(
             pdf_bytes=bytes_by_hash[pdf_sha256],
             pdf_sha256=pdf_sha256,
@@ -433,6 +437,33 @@ def _validate_freeze(value: dict[str, Any]) -> None:
         or value.get("scheduled_model_calls") != len(value.get("cases") or [])
     ):
         raise VisualTableStructureLiveError("visual_structure_freeze_invalid_or_drifted")
+
+
+def _verified_page_bbox(
+    *, pdf_bytes: bytes, page_number: int, parser_page: dict[str, Any]
+) -> list[float]:
+    import fitz
+
+    document = fitz.open(stream=pdf_bytes, filetype="pdf")
+    try:
+        if page_number < 1 or page_number > len(document):
+            raise VisualTableStructureLiveError("visual_structure_page_invalid")
+        page_bbox = [
+            round(float(value), 6) for value in document[page_number - 1].rect
+        ]
+    finally:
+        document.close()
+    parser_bbox = [
+        0.0,
+        0.0,
+        float(parser_page.get("width") or 0.0),
+        float(parser_page.get("height") or 0.0),
+    ]
+    if any(abs(left - right) > 0.01 for left, right in zip(page_bbox, parser_bbox)):
+        raise VisualTableStructureLiveError(
+            "visual_structure_parser_pdf_page_identity_mismatch"
+        )
+    return page_bbox
 
 
 def _require_clean_head() -> None:
