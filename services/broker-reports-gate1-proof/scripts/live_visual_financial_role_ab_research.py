@@ -87,7 +87,7 @@ def _prepare(args: argparse.Namespace) -> int:
         "development-dev_tbank_t01-header_plus_profiles.private.json"
     )
     baseline = _read_object(baseline_path)
-    if baseline.get("status") != "VALIDATED_AND_APPLIED":
+    if baseline.get("status") != "VALIDATED":
         raise LiveVisualRoleAbError("visual_role_ab_baseline_invalid")
     pdf_path = args.pdf.resolve()
     pdf_bytes = pdf_path.read_bytes()
