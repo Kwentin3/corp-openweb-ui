@@ -1,0 +1,76 @@
+{
+  "schema_version": "broker_reports_visual_table_title_header_rd_receipt_safe_v1",
+  "date": "2026-08-28",
+  "status": "research_complete_product_inactive",
+  "source_branch": "agent/rd-canonical-financial-role-mapping-kiss",
+  "final_live_source_head": "e68e9f03e373be053573e958f96d888d0079a20a",
+  "research_contract": {
+    "model_output": [
+      "title_boxes_2d",
+      "header_boxes_2d",
+      "title_status",
+      "header_status",
+      "body_status"
+    ],
+    "model_text_used_as_source_values": false,
+    "source_word_owner": "pdfplumber_word_inventory",
+    "existing_table_locator_reused": true,
+    "canonical_mutated": false,
+    "product_activated": false
+  },
+  "runs": [
+    {
+      "version": "v1_full_geometry_and_explicit_order",
+      "source_head": "5a7e370d0aef4afebb63eb957ddd4f5e5f3b2eea",
+      "freeze_sha256": "5b15724931a6eae0726c4123847c3ada2e164fa731407353432cc84175d6a41f",
+      "safe_result_file_sha256": "7fbb76d1652246c77ce54f250e261d5c38ca20a36d6f7ba95071eef94b316b24",
+      "safe_receipt_sha256": "e257f94e35492877ff3f2fbe3fbdaca74901b1d313537ea0848d7c44b13dddf8",
+      "provider_submissions": 4,
+      "expected_tables": 19,
+      "source_bound_tables": 8,
+      "gold_matched_cases": 1
+    },
+    {
+      "version": "v2_full_geometry_array_order",
+      "source_head": "8bfcdf538103b587226f8b66316dd26fef1cb9fc",
+      "freeze_sha256": "a5f19872cc8970b1c5a22de29f8b02bf66abb940d81386ff66a6cb58f969219e",
+      "safe_result_file_sha256": "0122dd3842f22e006f51676a456195c06869d4cf34eac5ae773104ac6f57c343",
+      "safe_receipt_sha256": "9015f76bf593b02da48cda7f969b3e02a718f772d723b8eabeebb5de143555fa",
+      "provider_submissions": 4,
+      "expected_tables": 19,
+      "source_bound_tables": 15,
+      "gold_matched_cases": 1
+    },
+    {
+      "version": "v3_title_header_geometry_only",
+      "source_head": "e68e9f03e373be053573e958f96d888d0079a20a",
+      "freeze_sha256": "5707b4aeb7b334919ebcb10a2e4c6fe574cd9c9ccdb255691f5d6b9e0cabafca",
+      "safe_result_file_sha256": "daf685c1652218706eb3aa59ea9adcd7edfff2bd38f8d95b11c1acd5517e0dbb",
+      "safe_receipt_sha256": "37d3bc76e5a64086a2d15f6e63e2551498030b5ef3d6011c01992c87dd6bf767",
+      "provider_submissions": 4,
+      "expected_tables": 19,
+      "proposed_tables": 19,
+      "source_bound_tables": 19,
+      "contexts_matched": 19,
+      "headers_text_matched": 17,
+      "body_statuses_matched": 19,
+      "gold_matched_cases": 3,
+      "visual_header_geometry_reviewed_correct": 19
+    }
+  ],
+  "aggregate": {
+    "provider_submissions": 12,
+    "retry": false,
+    "repair": false,
+    "best_of_n": false,
+    "manual_model_output_edit": false,
+    "broker_specific_routes": false,
+    "header_dictionaries": false,
+    "production_mutation": false
+  },
+  "limits": [
+    "no_cross_page_headerless_continuation_live_case",
+    "no_damaged_glyph_reconstruction",
+    "research_corpus_too_small_for_product_activation"
+  ]
+}
