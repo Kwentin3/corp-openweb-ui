@@ -19,6 +19,11 @@ from broker_reports_gate1.logical_row_table_recovery import (
     LogicalRowTableRecoveryError,
     logical_table_block_id,
 )
+from broker_reports_gate1.canonical_artifact import (
+    CanonicalNormalizerConfig,
+    CanonicalNormalizerFactory,
+)
+from broker_reports_gate1.table_projection import NormalizedTableProjectionFactory
 
 
 SOURCE_CHECKSUM = "a" * 64
@@ -5530,6 +5535,165 @@ def test_optional_structural_proposal_recovers_32_columns_and_five_body_bands() 
     assert result.unowned_word_refs == []
     assert result.diagnostics["multiple_word_owners_total"] == 0
     assert result.diagnostics["provider_calls"] == 0
+
+
+def test_research_projection_roundtrips_32_columns_into_new_canonical() -> None:
+    source_projection, proposal = _structural_proposal_fixture()
+    for ordinal, word in enumerate(source_projection["word_inventory"], start=1):
+        word["source_value_ref"] = f"sourcevalue_structural_{ordinal}"
+    recovery = LogicalRowTableFactory().create().recover(
+        source_projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        structural_proposal=proposal,
+    )
+    payload = {
+        "source_payload_ref": "payload_structural_research",
+        "parser_completeness_status": "complete",
+        "parser_completeness_reason_codes": [],
+        "pdf_text_layer_projection": source_projection,
+    }
+    visual_unit = {
+        "unit_ref": "unit_structural_visual_page_1",
+        "document_id": "document_structural_research",
+        "parent_payload_ref": payload["source_payload_ref"],
+        "normalization_run_id": "run_structural_research",
+        "pdf_unit_type": "pdf_visual_page_unit",
+        "source_location": {"kind": "pdf_visual_page_render", "page": 1},
+        "page_refs": [source_projection["page_inventory"][0]["page_ref"]],
+    }
+
+    projected = (
+        NormalizedTableProjectionFactory()
+        .create()
+        .build_research_projection_for_logical_row_recovery(
+            recovery=recovery,
+            payloads=[payload],
+            source_units=[visual_unit],
+        )
+    )
+
+    assert len(projected.projections) == 1
+    projection = projected.projections[0]
+    assert projection["validator_status"] == "passed"
+    assert projection["research_only"] is True
+    assert projection["product_reachability"] is False
+    assert projection["ordered_logical_rows_remain_authority"] is True
+    assert projection["rectangular_grid_is_canonical"] is False
+    assert projection["row_count"] == 6
+    assert projection["column_count"] == 32
+    assert [row["row_role"] for row in projection["rows"]] == [
+        "header_row",
+        "data_row",
+        "data_row",
+        "data_row",
+        "data_row",
+        "data_row",
+    ]
+    anchor_by_id = {str(item["anchor_id"]): item for item in recovery.anchors}
+    word_by_ref = {
+        str(item["word_ref"]): item for item in source_projection["word_inventory"]
+    }
+    expected_word_refs = {
+        str(
+            anchor_by_id[str(item["source_anchor_id"])]["locator"][
+                "source_block_ref"
+            ]
+        )
+        for item in recovery.source_word_ownership
+    }
+    expected_source_value_refs = {
+        str(word_by_ref[word_ref]["source_value_ref"])
+        for word_ref in expected_word_refs
+    }
+    assert set(projection["source_value_refs"]) == expected_source_value_refs
+    assert {
+        str(item["source_object_ref"])
+        for item in projection["source_value_index"]
+    } == expected_word_refs
+
+    canonical = CanonicalNormalizerFactory(
+        CanonicalNormalizerConfig(normalizer_version="logical-row-research-test-v1")
+    ).create().build(
+        tenant_id="tenant-research",
+        artifact_version=1,
+        document={
+            "container_format": "pdf",
+            "sha256": SOURCE_CHECKSUM,
+            "declared_mime_type": "application/pdf",
+        },
+        source_artifact_ref="source-structural-research",
+        source_payloads=[payload],
+        source_units=[visual_unit],
+        table_projections=projected.projections,
+    )
+
+    tables = [node for node in canonical["nodes"] if node["node_type"] == "TABLE"]
+    assert len(tables) == 1
+    assert len(tables[0]["content"]["header"]) == 32
+    assert len(tables[0]["content"]["rows"]) == 5
+    assert {len(row) for row in tables[0]["content"]["rows"]} == {32}
+    assert canonical["status"] == "validated"
+    rebuilt = CanonicalNormalizerFactory(
+        CanonicalNormalizerConfig(normalizer_version="logical-row-research-test-v1")
+    ).create().build(
+        tenant_id="tenant-research",
+        artifact_version=1,
+        document={
+            "container_format": "pdf",
+            "sha256": SOURCE_CHECKSUM,
+            "declared_mime_type": "application/pdf",
+        },
+        source_artifact_ref="source-structural-research",
+        source_payloads=[payload],
+        source_units=[visual_unit],
+        table_projections=projected.projections,
+    )
+    assert rebuilt["canonical_root_hash"] == canonical["canonical_root_hash"]
+
+
+def test_research_projection_rejects_a_mutated_anchor_source_ref() -> None:
+    source_projection, proposal = _structural_proposal_fixture()
+    for ordinal, word in enumerate(source_projection["word_inventory"], start=1):
+        word["source_value_ref"] = f"sourcevalue_structural_{ordinal}"
+    recovery = LogicalRowTableFactory().create().recover(
+        source_projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        structural_proposal=proposal,
+    )
+    owned_anchor_id = str(recovery.source_word_ownership[0]["source_anchor_id"])
+    owned_anchor = next(
+        item for item in recovery.anchors if item["anchor_id"] == owned_anchor_id
+    )
+    owned_anchor["locator"]["source_block_ref"] = "mutated_word_ref"
+
+    with pytest.raises(ValueError, match="logical_row_recovery_anchor_source_binding_invalid"):
+        (
+            NormalizedTableProjectionFactory()
+            .create()
+            .build_research_projection_for_logical_row_recovery(
+                recovery=recovery,
+                payloads=[
+                    {
+                        "source_payload_ref": "payload_structural_research",
+                        "pdf_text_layer_projection": source_projection,
+                    }
+                ],
+                source_units=[
+                    {
+                        "unit_ref": "unit_structural_visual_page_1",
+                        "document_id": "document_structural_research",
+                        "parent_payload_ref": "payload_structural_research",
+                        "pdf_unit_type": "pdf_visual_page_unit",
+                        "source_location": {"page": 1},
+                        "page_refs": [
+                            source_projection["page_inventory"][0]["page_ref"]
+                        ],
+                    }
+                ],
+            )
+        )
 
 
 def test_structural_proposal_default_none_is_byte_equivalent_baseline() -> None:
