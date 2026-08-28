@@ -1254,6 +1254,7 @@ def _activate_canonical(
     expected_previous_version_id: str | None,
     source_rows: tuple[str, ...] = _SOURCE_ROWS,
     table_rows: tuple[tuple[str, ...], ...] | None = None,
+    table_row_sets: tuple[tuple[tuple[str, ...], ...], ...] | None = None,
 ):
     retention = build_retention_policy(mode="api_smoke")
     source_ref = f"g4-runtime-source-{document_id}-{artifact_version}"
@@ -1307,7 +1308,11 @@ def _activate_canonical(
     table_projections = []
     container_format = "html_text"
     declared_mime_type = "text/html"
+    if table_rows is not None and table_row_sets is not None:
+        raise ValueError("table_rows_and_table_row_sets_are_mutually_exclusive")
     if table_rows is not None:
+        table_row_sets = (table_rows,)
+    if table_row_sets is not None:
         container_format = "pdf"
         declared_mime_type = "application/pdf"
         source_payloads = [
@@ -1315,49 +1320,63 @@ def _activate_canonical(
                 "parser_completeness_status": "complete",
                 "parser_completeness_reason_codes": [],
                 "pdf_text_layer_projection": {
-                    "page_inventory": [{"page_number": 1}],
+                    "page_inventory": [
+                        {"page_number": index}
+                        for index in range(1, len(table_row_sets) + 1)
+                    ],
                     "line_inventory": [],
                 },
             }
         ]
-        source_units = [
-            {
-                "unit_ref": "g4-test-table-unit",
-                "source_location": {"page": 1, "line_start": 1},
-                "text": "\n".join(" ".join(row) for row in table_rows),
-            }
-        ]
-        values = [
-            (row_index, column_index, value)
-            for row_index, row in enumerate(table_rows, start=1)
-            for column_index, value in enumerate(row, start=1)
-        ]
-        table_projections = [
-            {
-                "projection_status": "ready",
-                "table_projection_id": "g4-test-table-projection",
-                "source_unit_ref": "g4-test-table-unit",
-                "row_count": len(table_rows),
-                "column_count": max(len(row) for row in table_rows),
-                "cells": [
-                    {
-                        "row_ordinal": row_index,
-                        "column_ordinal": column_index,
-                        "normalized_private_value_path": (
-                            f"v-{row_index}-{column_index}"
-                        ),
-                    }
-                    for row_index, column_index, _value in values
-                ],
-                "private_values": [
-                    {
-                        "value_path_ref": f"v-{row_index}-{column_index}",
-                        "normalized_value": value,
-                    }
-                    for row_index, column_index, value in values
-                ],
-            }
-        ]
+        source_units = []
+        table_projections = []
+        for table_index, current_rows in enumerate(table_row_sets, start=1):
+            unit_ref = f"g4-test-table-unit-{table_index}"
+            source_units.append(
+                {
+                    "unit_ref": unit_ref,
+                    "source_location": {
+                        "page": table_index,
+                        "line_start": 1,
+                    },
+                    "text": "\n".join(" ".join(row) for row in current_rows),
+                }
+            )
+            values = [
+                (row_index, column_index, value)
+                for row_index, row in enumerate(current_rows, start=1)
+                for column_index, value in enumerate(row, start=1)
+            ]
+            table_projections.append(
+                {
+                    "projection_status": "ready",
+                    "table_projection_id": (
+                        f"g4-test-table-projection-{table_index}"
+                    ),
+                    "source_unit_ref": unit_ref,
+                    "row_count": len(current_rows),
+                    "column_count": max(len(row) for row in current_rows),
+                    "cells": [
+                        {
+                            "row_ordinal": row_index,
+                            "column_ordinal": column_index,
+                            "normalized_private_value_path": (
+                                f"v-{table_index}-{row_index}-{column_index}"
+                            ),
+                        }
+                        for row_index, column_index, _value in values
+                    ],
+                    "private_values": [
+                        {
+                            "value_path_ref": (
+                                f"v-{table_index}-{row_index}-{column_index}"
+                            ),
+                            "normalized_value": value,
+                        }
+                        for row_index, column_index, value in values
+                    ],
+                }
+            )
     artifact = normalizer.build(
         tenant_id=context.user_id,
         artifact_version=artifact_version,

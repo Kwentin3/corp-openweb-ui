@@ -20,6 +20,10 @@ from .ordinary_trade_semantic_compiler import (
 from .ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
+from .ordinary_trade_mapping_case import (
+    MAPPING_CASE_ARTIFACT_TYPE,
+    OrdinaryTradeMappingCaseFactory,
+)
 
 
 ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE = (
@@ -68,6 +72,9 @@ class OrdinaryTradeProjectionRuntime:
         self._mappings = (
             OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()
         )
+        self._mapping_cases = OrdinaryTradeMappingCaseFactory(
+            store=store, read_enabled=read_enabled
+        ).create()
 
     def compile_and_save(
         self,
@@ -85,10 +92,43 @@ class OrdinaryTradeProjectionRuntime:
             "source_artifact_ref": str(source.get("source_artifact_ref") or ""),
             "source_sha256": str(source.get("source_sha256") or ""),
         }
+        case_material = self._mapping_cases.qualified_material(
+            document_id=document_id,
+            context=context,
+        )
+        case_material = case_material or {
+            "mapping_case_artifact_id": None,
+            "qualified_mappings": [],
+            "qualification_receipts": [],
+            "table_resolutions": [],
+        }
+        receipts_by_id = {
+            item["qualification_id"]: item
+            for item in case_material["qualification_receipts"]
+        }
+        scoped_mappings = []
+        for mapping in case_material["qualified_mappings"]:
+            qualification_id = mapping["qualification_ref"]["qualification_id"]
+            receipt = receipts_by_id.get(qualification_id)
+            table_node_id = ((receipt or {}).get("case_scope") or {}).get(
+                "table_node_id"
+            )
+            if not isinstance(table_node_id, str) or not table_node_id:
+                raise OrdinaryTradeProjectionError(
+                    "ordinary_trade_case_mapping_scope_missing"
+                )
+            scoped_mappings.append(
+                {"table_node_id": table_node_id, "mapping": mapping}
+            )
         projection = self._compiler.compile(
             canonical=envelope.artifact,
             canonical_binding=binding,
             mappings=self._mappings,
+            scoped_mappings=scoped_mappings,
+            table_resolutions=case_material["table_resolutions"],
+            semantic_mapping_case_ref=case_material[
+                "mapping_case_artifact_id"
+            ],
         )
         active = self._store.get_active_canonical_version(
             context=context, document_id=document_id
@@ -139,6 +179,10 @@ class OrdinaryTradeProjectionRuntime:
                     item["disposition"] == "RELEVANT_UNMAPPED"
                     for item in projection["source_observations"]
                 ),
+                "source_retained_no_consumer_observations": sum(
+                    item["disposition"] == "SOURCE_RETAINED_NO_CONSUMER"
+                    for item in projection["source_observations"]
+                ),
                 "broker_or_year_profiles": 0,
             },
         )
@@ -166,11 +210,18 @@ class OrdinaryTradeProjectionRuntime:
         self, *, context: ArtifactAccessContext
     ) -> list[tuple[ArtifactRecord, dict[str, Any]]]:
         _private_case(context)
+        catalog = self._resolver.catalog_case(context)
         records = [
             item
-            for item in self._resolver.catalog_case(context)
+            for item in catalog
             if item.artifact_type == ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE
         ]
+        mapping_case_documents = {
+            item.document_id
+            for item in catalog
+            if item.artifact_type == MAPPING_CASE_ARTIFACT_TYPE
+            and item.document_id
+        }
         current: list[tuple[ArtifactRecord, dict[str, Any]]] = []
         by_document: dict[str, int] = {}
         for record in records:
@@ -189,9 +240,24 @@ class OrdinaryTradeProjectionRuntime:
                 artifact_id=record.artifact_id,
                 context=record_context,
             )
+            material = (
+                self._mapping_cases.qualified_material(
+                    document_id=record.document_id,
+                    context=record_context,
+                )
+                if record.document_id in mapping_case_documents
+                else None
+            )
+            expected_mapping_case_ref = (
+                material["mapping_case_artifact_id"]
+                if material is not None
+                else None
+            )
             if (
                 payload["canonical_binding"]["canonical_version_id"]
                 != active.canonical_version_id
+                or payload.get("semantic_mapping_case_ref")
+                != expected_mapping_case_ref
             ):
                 continue
             current.append((record, payload))

@@ -27,6 +27,7 @@ from broker_reports_gate1.canonical_artifact import (  # noqa: E402
 from broker_reports_gate1.inputs import FileInput  # noqa: E402
 from broker_reports_gate1.gate2_handoff import persist_gate1_result  # noqa: E402
 from broker_reports_gate1.normalizer import Gate1Normalizer  # noqa: E402
+from broker_reports_gate1.pdf_layout import PdfPlumberLayoutAdapter  # noqa: E402
 from broker_reports_gate1.pdf_text_layer import (  # noqa: E402
     validate_pdf_source_unit_structure,
 )
@@ -59,6 +60,34 @@ def _single_page_pdf() -> bytes:
     page.insert_text((14, 88), "BBB")
     page.insert_text((44, 88), "3")
     page.insert_text((74, 88), "20")
+    data = document.tobytes(deflate=True)
+    document.close()
+    return data
+
+
+def _header_only_table_pdf() -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=240, height=100)
+    for x in (10, 85, 160, 230):
+        page.draw_line((x, 25), (x, 65), color=(0, 0, 0), width=1)
+    for y in (25, 65):
+        page.draw_line((10, y), (230, y), color=(0, 0, 0), width=1)
+    page.insert_text((18, 48), "Date")
+    page.insert_text((93, 48), "Asset")
+    page.insert_text((168, 48), "Amount")
+    data = document.tobytes(deflate=True)
+    document.close()
+    return data
+
+
+def _horizontally_framed_header_only_pdf() -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=240, height=100)
+    for y in (25, 65):
+        page.draw_line((10, y), (230, y), color=(0, 0, 0), width=1)
+    page.insert_text((18, 48), "Date")
+    page.insert_text((93, 48), "Asset")
+    page.insert_text((168, 48), "Amount")
     data = document.tobytes(deflate=True)
     document.close()
     return data
@@ -133,6 +162,20 @@ def _borderless_aligned_table_pdf() -> bytes:
         (32, ("Name", "Amount", "Currency")),
         (62, ("AAA", "10", "RUB")),
         (92, ("BBB", "20", "RUB")),
+    ):
+        for x, value in zip((18, 145, 245), values, strict=True):
+            page.insert_text((x, y), value, fontsize=8)
+    data = document.tobytes(deflate=True)
+    document.close()
+    return data
+
+
+def _borderless_single_data_row_table_pdf() -> bytes:
+    document = fitz.open()
+    page = document.new_page(width=320, height=110)
+    for y, values in (
+        (32, ("Name", "Amount", "Currency")),
+        (62, ("AAA", "10", "RUB")),
     ):
         for x, value in zip((18, 145, 245), values, strict=True):
             page.insert_text((x, y), value, fontsize=8)
@@ -270,6 +313,8 @@ def test_locator_prompt_is_native_coordinates_and_locator_only() -> None:
     assert model_view["task"] == PDF_TABLE_LOCATOR_PROMPT
     assert "[ymin, xmin, ymax, xmax]" in model_view["task"]
     assert "Never use one box that encloses two distinct grids" in model_view["task"]
+    assert "no visible data row is not a data table" in model_view["task"]
+    assert "verify that at least one such body row is visibly present" in model_view["task"]
     assert "Do not transcribe text" in model_view["task"]
 
 
@@ -463,6 +508,269 @@ def test_tight_source_bound_regions_persist_independent_of_fallback_lines(
         item["code"]
         for item in validate_pdf_source_unit_structure(legacy_without_fallback)
     }
+
+
+def test_rejected_locator_region_preserves_valid_tables_but_blocks_canonical(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    pdf_bytes = _two_table_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    intake = (
+        PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
+        .create_with_provider(
+            StaticDetectorProvider(
+                [
+                    [107, 80, 229, 919],
+                    [426, 80, 549, 919],
+                ]
+            )
+        )
+        .run(
+            [
+                {
+                    "document_ref": "pdfsource_false_locator_region",
+                    "pdf_bytes": pdf_bytes,
+                    "pdf_sha256": digest,
+                }
+            ]
+        )
+    )
+    assert intake.safe_summary["candidates_total"] == 2
+
+    original_find = PdfPlumberLayoutAdapter._find_unbounded_table_candidates
+    calls = 0
+
+    def fail_second_region(self, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("native extraction rejected")
+        return original_find(self, **kwargs)
+
+    monkeypatch.setattr(
+        PdfPlumberLayoutAdapter,
+        "_find_unbounded_table_candidates",
+        fail_second_region,
+    )
+
+    file_input = FileInput(
+        private_ref="file-false-locator-region",
+        original_filename_private="false-locator-region.pdf",
+        mime_type="application/pdf",
+        source_kind="unit_test",
+        declared_size_bytes=len(pdf_bytes),
+        bytes_provider=lambda: pdf_bytes,
+        provider_label="unit_test",
+    )
+    normalized = Gate1Normalizer().normalize(
+        [file_input],
+        input_context={
+            "canonical_gate2_write_enabled": True,
+            "canonical_gate2_read_enabled": True,
+            "normalizer_version": "false-locator-region-terminal-test-v1",
+        },
+        pdf_table_locator_pages_by_sha256={digest: intake.private_page_results},
+    )
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert len(projections) == 1
+    assert all(
+        item.get("projection_status") == "ready"
+        and item.get("validator_status") == "passed"
+        for item in projections
+    )
+    assert any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        for item in normalized.package["normalization_blockers"]
+    )
+    page = normalized.package["private_normalized_source_payloads"][0][
+        "pdf_text_layer_projection"
+    ]["page_inventory"][0]
+    assert page["table_locator_regions_total"] == 2
+    assert page["table_locator_regions_accepted_total"] == 1
+    assert page["table_locator_regions_rejected_total"] == 1
+    assert "pdf_table_locator_region_native_extraction_rejected" in (
+        page["table_reason_codes"]
+    )
+
+    store = ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=tmp_path / "artifacts.sqlite3",
+            payload_root=tmp_path / "payloads",
+        )
+    ).create()
+    context = ArtifactAccessContext(
+        user_id="user-1",
+        case_id="case-false-locator-region",
+        chat_id="chat-false-locator-region",
+        workspace_model_id="broker_reports_ndfl",
+        normalization_run_id=normalized.package["normalization_run"]["run_id"],
+        allow_private=True,
+        require_source_available=True,
+    )
+    manifest = persist_gate1_result(
+        store=store,
+        result=normalized,
+        context=context,
+        retention_policy=build_retention_policy(mode="api_smoke"),
+    )
+
+    assert "broker_reports_canonical_build_failure_v1" in (
+        manifest.artifact_refs_by_type
+    )
+    assert "broker_reports_canonical_artifact_v1" not in manifest.artifact_refs_by_type
+
+
+def test_source_bound_header_only_table_is_preserved_as_projection() -> None:
+    pdf_bytes = _header_only_table_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    normalized = Gate1Normalizer().normalize(
+        [
+            FileInput(
+                private_ref="header-only-table",
+                original_filename_private="header-only-table.pdf",
+                mime_type="application/pdf",
+                source_kind="unit_test",
+                declared_size_bytes=len(pdf_bytes),
+                bytes_provider=lambda: pdf_bytes,
+                provider_label="unit_test",
+            )
+        ],
+        pdf_table_locator_pages_by_sha256={
+            digest: [
+                {
+                    "page_number": 1,
+                    "status": "located",
+                    "regions": [
+                        {
+                            "region_ref": "header-only-region",
+                            "bbox_pdf_points": [9.0, 24.0, 231.0, 66.0],
+                            "model_values_used_as_source_literals": False,
+                            "pdfplumber_settings_selected_by_model": False,
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert len(projections) == 1
+    assert projections[0]["row_count"] == 1
+    assert projections[0]["column_count"] == 3
+    assert projections[0]["projection_status"] == "ready"
+    assert not any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        for item in normalized.package["normalization_blockers"]
+    )
+
+
+def test_source_bound_horizontally_framed_header_is_preserved() -> None:
+    pdf_bytes = _horizontally_framed_header_only_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    normalized = Gate1Normalizer().normalize(
+        [
+            FileInput(
+                private_ref="framed-header",
+                original_filename_private="framed-header.pdf",
+                mime_type="application/pdf",
+                source_kind="unit_test",
+                declared_size_bytes=len(pdf_bytes),
+                bytes_provider=lambda: pdf_bytes,
+                provider_label="unit_test",
+            )
+        ],
+        pdf_table_locator_pages_by_sha256={
+            digest: [
+                {
+                    "page_number": 1,
+                    "status": "located",
+                    "regions": [
+                        {
+                            "region_ref": "framed-header-region",
+                            "bbox_pdf_points": [9.0, 24.0, 231.0, 66.0],
+                            "model_values_used_as_source_literals": False,
+                            "pdfplumber_settings_selected_by_model": False,
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert len(projections) == 1
+    assert projections[0]["row_count"] == 1
+    assert projections[0]["column_count"] == 3
+    assert projections[0]["projection_status"] == "ready"
+    assert "source_bound_single_band_alignment_fallback" in (
+        projections[0]["reconstruction_reason_codes"]
+    )
+    assert not any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        for item in normalized.package["normalization_blockers"]
+    )
+
+
+def test_source_bound_borderless_single_data_row_is_preserved() -> None:
+    pdf_bytes = _borderless_single_data_row_table_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    normalized = Gate1Normalizer().normalize(
+        [
+            FileInput(
+                private_ref="single-data-row",
+                original_filename_private="single-data-row.pdf",
+                mime_type="application/pdf",
+                source_kind="unit_test",
+                declared_size_bytes=len(pdf_bytes),
+                bytes_provider=lambda: pdf_bytes,
+                provider_label="unit_test",
+            )
+        ],
+        pdf_table_locator_pages_by_sha256={
+            digest: [
+                {
+                    "page_number": 1,
+                    "status": "located",
+                    "regions": [
+                        {
+                            "region_ref": "single-data-row-region",
+                            "bbox_pdf_points": [9.0, 20.0, 311.0, 72.0],
+                            "model_values_used_as_source_literals": False,
+                            "pdfplumber_settings_selected_by_model": False,
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert len(projections) == 1
+    assert projections[0]["row_count"] == 2
+    assert projections[0]["column_count"] == 3
+    assert projections[0]["projection_status"] == "ready"
+    assert not any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        for item in normalized.package["normalization_blockers"]
+    )
 
 
 def test_borderless_table_compacts_only_empty_parser_axes() -> None:

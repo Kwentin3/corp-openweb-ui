@@ -41,7 +41,12 @@ titled table sections. A distinct table title or column header together with a
 clear whitespace gap or a break in grid/row continuity starts a new table
 instance. Do not split one continuous grid merely because it contains internal
 section rows, repeated headers, or is a page continuation. A table continuation
-without its original header is still one table instance. Do not treat prose,
+without its original header is still one table instance. A titled or ruled
+section that shows column headers but no visible data row is not a data table;
+do not return a box for that empty section. Background fill, top/bottom rules,
+a title, and one row of column labels still form an empty section when there is
+no separate body row containing visible cell values. Before returning each box,
+verify that at least one such body row is visibly present. Do not treat prose,
 lists, page furniture, illustrative screenshots without a data grid, or
 decorative lines as tables. Do not transcribe text, labels, dates, amounts,
 rows, columns, or cell values. If no visible data table exists, return

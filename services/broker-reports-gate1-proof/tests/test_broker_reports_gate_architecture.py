@@ -39,6 +39,10 @@ from broker_reports_gate1.gate2_financial_semantic_v6_choice import (
 from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (
     COMPATIBILITY_WRAPPER_DELEGATES_ONLY,
 )
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    ANSWER_RESPONSE_SCHEMA_VERSION,
+    MAPPING_RESPONSE_SCHEMA_VERSION,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -205,7 +209,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         required_pipeline = {
-            "ACTIVE_ORDINARY_TRADE_ROUTE = ordinary_trade_exact_fingerprint_v1",
+            "ACTIVE_ORDINARY_TRADE_ROUTE = ordinary_trade_automatic_semantic_mapping_v1",
             "GATE3_EXECUTION_IN_ACTIVE_ORDINARY_TRADE_ROUTE = DISABLED",
             "LEGACY_SEMANTIC_FALLBACK = FORBIDDEN",
             "GATE3_BINDING_FIELD = COMPATIBILITY_FIELD_ONLY",
@@ -285,7 +289,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v14",
+            "broker_reports_architecture_policy_v23",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -311,10 +315,12 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             architecture_policy.ACTIVE_PRODUCT_ROUTES,
             {
                 "ordinary_security_trades": {
-                    "route_id": "ordinary_trade_exact_fingerprint_v1",
+                    "route_id": "ordinary_trade_automatic_semantic_mapping_v1",
                     "composition_root": "OrdinaryTradeProductionRuntimeFactory.create",
                     "source_semantics_owner": (
-                        "OrdinaryTradeQualifiedMappingAuthorityFactory.create"
+                        "OrdinaryTradeSemanticMappingFactory.create"
+                        "+OrdinaryTradeMappingCaseFactory.create"
+                        "+OrdinaryTradeQualifiedMappingAuthorityFactory.create"
                         "+OrdinaryTradeSemanticCompilerFactory.create"
                     ),
                     "mapping_contract": (
@@ -322,6 +328,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     ),
                     "qualification_contract": (
                         "broker_reports_ordinary_trade_mapping_qualification_v2"
+                        "|broker_reports_ordinary_trade_case_mapping_qualification_v1"
                     ),
                     "normalized_fact_contract": "Gate4FinancialCaseFactV2",
                     "canonical_completeness_owner": (
@@ -335,6 +342,9 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                         "Pipe._call_openwebui_presentation_completion"
                     ),
                     "presentation_model_boundary": "PRESENTATION_ADAPTER",
+                    "mapping_presentation_verification": (
+                        "safe_brief_draft_then_bound_semantic_accept_or_fallback"
+                    ),
                     "presentation_business_authority": False,
                     "case_metadata_source_owner": (
                         "Gate3MetadataSourceFactRuntime"
@@ -403,7 +413,8 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "PRESENTATION_ADAPTER",
                 "plain_language_dialogue_wording_and_answer_proposal",
                 (
-                    "ordinary_trade_public_dialogue_message_v1"
+                    "broker_reports_ordinary_trade_public_dialogue_message_v5"
+                    "|broker_reports_ordinary_trade_public_mapping_verification_v1"
                     "|broker_reports_ordinary_trade_public_interpretation_v1"
                 ),
             ),
@@ -423,6 +434,20 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertIn("ndfl_presentation_openwebui_origin", pipe)
         self.assertIn("_NdflPresentationNoRedirectHandler", pipe)
         self.assertIn("NDFL_PRESENTATION_MAX_RESPONSE_BYTES + 1", pipe)
+
+    def test_ordinary_trade_mapping_provider_contract_ids_match_runtime(self):
+        self.assertEqual(
+            architecture_policy.PROVIDER_CALL_SITE_CLASSIFICATIONS[
+                "ordinary_trade_semantic_mapping"
+            ][2],
+            MAPPING_RESPONSE_SCHEMA_VERSION,
+        )
+        self.assertEqual(
+            architecture_policy.PROVIDER_CALL_SITE_CLASSIFICATIONS[
+                "ordinary_trade_mapping_answer"
+            ][2],
+            ANSWER_RESPONSE_SCHEMA_VERSION,
+        )
 
     def test_machine_readable_policy_is_fail_closed(self):
         self.assertFalse(NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED)

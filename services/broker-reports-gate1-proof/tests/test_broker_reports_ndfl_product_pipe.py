@@ -1271,7 +1271,10 @@ def test_chat_transport_runs_bind_to_one_current_source_execution(
     )
 
     assert first == second
-    assert first.normalization_run_id.startswith("ndflcase_")
+    current = product_pipe.OrdinaryTradeProjectionFactory(
+        store=store, read_enabled=True
+    ).create().current_case(context=context)
+    assert first.normalization_run_id == current[0][0].normalization_run_id
     runtime = product_pipe.OrdinaryTradeProductionRuntimeFactory(
         store=store,
         read_enabled=True,
@@ -1328,6 +1331,10 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
     class Runtime:
         @staticmethod
         def run(**_kwargs):
+            return copy.deepcopy(owner_result)
+
+        @staticmethod
+        async def run_with_automatic_mapping(**_kwargs):
             return copy.deepcopy(owner_result)
 
     class Factory:

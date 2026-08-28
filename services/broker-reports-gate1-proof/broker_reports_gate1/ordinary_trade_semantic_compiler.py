@@ -20,7 +20,7 @@ ORDINARY_TRADE_MAPPING_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_schema_mapping_v3"
 )
 ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_runtime_projection_v4"
+    "broker_reports_ordinary_trade_runtime_projection_v5"
 )
 SOURCE_OBSERVATION_SCHEMA_VERSION = "broker_reports_source_observation_v1"
 FACTORY_REQUIRED = (
@@ -33,7 +33,11 @@ FORBIDDEN = (
 )
 
 _TABLE_TYPE = "SECURITY_TRADES"
-_DISPOSITIONS = {"RUNTIME_READY", "RELEVANT_UNMAPPED"}
+_DISPOSITIONS = {
+    "RUNTIME_READY",
+    "RELEVANT_UNMAPPED",
+    "SOURCE_RETAINED_NO_CONSUMER",
+}
 _ROLES = {
     "asset_name",
     "trade_date",
@@ -63,6 +67,16 @@ _REQUIRED = {
     "unit_price",
     "currency",
     "gross_amount",
+}
+_DISPLAY_ONLY_NON_RECORD_ROLES = {
+    "asset_name",
+    "security_code",
+    "trade_id",
+    "venue",
+    "comment",
+    "status",
+    "description",
+    "unmapped",
 }
 _MAPPING_KEYS = {
     "schema_version",
@@ -108,16 +122,39 @@ class OrdinaryTradeSemanticCompiler:
         canonical: Mapping[str, Any],
         canonical_binding: Mapping[str, str],
         mappings: Iterable[Mapping[str, Any]],
+        scoped_mappings: Iterable[Mapping[str, Any]] = (),
+        table_resolutions: Iterable[Mapping[str, Any]] = (),
+        semantic_mapping_case_ref: str | None = None,
     ) -> dict[str, Any]:
+        if semantic_mapping_case_ref is not None and (
+            not isinstance(semantic_mapping_case_ref, str)
+            or not semantic_mapping_case_ref.startswith("art_otmapcase_")
+        ):
+            _fail("ordinary_trade_mapping_case_ref_invalid")
         binding = _canonical_binding(canonical=canonical, value=canonical_binding)
         accepted = tuple(_validated_mapping(item) for item in mappings)
+        accepted_scoped = tuple(
+            _validated_scoped_mapping(item) for item in scoped_mappings
+        )
+        accepted_resolutions = tuple(
+            _validated_table_resolution(item) for item in table_resolutions
+        )
         fingerprints = [item["structural_fingerprint"] for item in accepted]
         if len(fingerprints) != len(set(fingerprints)):
             _fail("ordinary_trade_mapping_fingerprint_duplicate")
+        scoped_nodes = [item["table_node_id"] for item in accepted_scoped]
+        if len(scoped_nodes) != len(set(scoped_nodes)):
+            _fail("ordinary_trade_case_mapping_scope_duplicate")
+        resolution_nodes = [item["table_node_id"] for item in accepted_resolutions]
+        if len(resolution_nodes) != len(set(resolution_nodes)):
+            _fail("ordinary_trade_table_resolution_duplicate")
 
         observations: list[dict[str, Any]] = []
         runtime_records: list[dict[str, Any]] = []
-        mapping_matches: dict[str, int] = {item["mapping_id"]: 0 for item in accepted}
+        all_mappings = (*accepted, *(item["mapping"] for item in accepted_scoped))
+        mapping_matches: dict[str, int] = {
+            item["mapping_id"]: 0 for item in all_mappings
+        }
         table_nodes = [
             item
             for item in canonical.get("nodes", [])
@@ -125,10 +162,53 @@ class OrdinaryTradeSemanticCompiler:
         ]
         for table in table_nodes:
             rows = _table_rows(table)
-            matches = _matching_mappings(rows=rows, mappings=accepted)
-            if len(matches) > 1:
+            global_matches = _matching_mappings(rows=rows, mappings=accepted)
+            if len(global_matches) > 1:
                 _fail("ordinary_trade_table_mapping_ambiguous")
+            scoped_matches = _matching_scoped_mappings(
+                table=table,
+                rows=rows,
+                mappings=accepted_scoped,
+            )
+            if len(scoped_matches) > 1:
+                _fail("ordinary_trade_case_mapping_scope_ambiguous")
+            if global_matches and scoped_matches:
+                _fail("ordinary_trade_table_mapping_authority_conflict")
+            matches = global_matches or scoped_matches
             if not matches:
+                resolutions = _matching_table_resolutions(
+                    table=table,
+                    rows=rows,
+                    resolutions=accepted_resolutions,
+                )
+                if len(resolutions) > 1:
+                    _fail("ordinary_trade_table_resolution_ambiguous")
+                if resolutions:
+                    resolution = resolutions[0]
+                    observations.extend(
+                        _unmapped_table_rows(
+                            binding=binding,
+                            table=table,
+                            rows={
+                                row: cells
+                                for row, cells in rows.items()
+                                if row > resolution["header_row"]
+                            },
+                            reason=(
+                                "NO_NAMED_ORDINARY_TRADE_CONSUMER"
+                                if resolution["disposition"]
+                                == "NO_NAMED_CONSUMER"
+                                else "UNSUPPORTED_FINANCIAL_MEANING"
+                            ),
+                            disposition=(
+                                "SOURCE_RETAINED_NO_CONSUMER"
+                                if resolution["disposition"]
+                                == "NO_NAMED_CONSUMER"
+                                else "RELEVANT_UNMAPPED"
+                            ),
+                        )
+                    )
+                    continue
                 observations.extend(
                     _unmapped_table_rows(
                         binding=binding,
@@ -159,8 +239,9 @@ class OrdinaryTradeSemanticCompiler:
                         _runtime_records(observation=observation, mapping=mapping)
                     )
 
-        if any(count > 1 for count in mapping_matches.values()):
-            _fail("ordinary_trade_mapping_reuse_ambiguous")
+        for scoped in accepted_scoped:
+            if mapping_matches[scoped["mapping"]["mapping_id"]] != 1:
+                _fail("ordinary_trade_case_mapping_scope_stale")
         _validate_projection_lineage(
             observations=observations,
             runtime_records=runtime_records,
@@ -172,6 +253,7 @@ class OrdinaryTradeSemanticCompiler:
         projection = {
             "schema_version": ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION,
             "canonical_binding": binding,
+            "semantic_mapping_case_ref": semantic_mapping_case_ref,
             "compiler_contract": {
                 "canonical_is_source_authority": True,
                 "model_owns_rows": False,
@@ -186,9 +268,12 @@ class OrdinaryTradeSemanticCompiler:
                     "structural_fingerprint": item["structural_fingerprint"],
                     "qualification_ref": copy.deepcopy(item["qualification_ref"]),
                 }
-                for item in accepted
+                for item in all_mappings
                 if mapping_matches[item["mapping_id"]] > 0
             ],
+            "qualified_table_resolutions": copy.deepcopy(
+                list(accepted_resolutions)
+            ),
             "mapping_matches": [
                 {"mapping_id": key, "matched_tables": value}
                 for key, value in sorted(mapping_matches.items())
@@ -200,6 +285,35 @@ class OrdinaryTradeSemanticCompiler:
         projection["projection_sha256"] = _sha256_json(projection)
         validate_ordinary_trade_projection(projection)
         return projection
+
+    def unmapped_table_node_ids(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        mappings: Iterable[Mapping[str, Any]],
+    ) -> list[str]:
+        """Return exact table nodes not covered by the frozen schema registry."""
+
+        accepted = tuple(_validated_mapping(item) for item in mappings)
+        fingerprints = [item["structural_fingerprint"] for item in accepted]
+        if len(fingerprints) != len(set(fingerprints)):
+            _fail("ordinary_trade_mapping_fingerprint_duplicate")
+        result: list[str] = []
+        for table in canonical.get("nodes", []):
+            if not isinstance(table, dict) or table.get("node_type") != "TABLE":
+                continue
+            node_id = table.get("node_id")
+            if not isinstance(node_id, str) or not node_id:
+                _fail("ordinary_trade_table_node_id_invalid")
+            matches = _matching_mappings(
+                rows=_table_rows(table),
+                mappings=accepted,
+            )
+            if len(matches) > 1:
+                _fail("ordinary_trade_table_mapping_ambiguous")
+            if not matches:
+                result.append(node_id)
+        return result
 
 
 def compile_schema_mapping(
@@ -236,12 +350,21 @@ def compile_schema_mapping(
         columns=columns,
     )
     frozen_qualification_ref = copy.deepcopy(dict(qualification_ref))
+    frozen_amount_currency_bindings = [
+        copy.deepcopy(dict(item)) for item in amount_currency_bindings
+    ]
+    frozen_amount_currency_bindings.sort(
+        key=lambda item: (
+            item.get("amount_column")
+            if isinstance(item.get("amount_column"), int)
+            and not isinstance(item.get("amount_column"), bool)
+            else -1
+        )
+    )
     material = {
         "structural_fingerprint": fingerprint,
         "columns": columns,
-        "amount_currency_bindings": [
-            copy.deepcopy(dict(item)) for item in amount_currency_bindings
-        ],
+        "amount_currency_bindings": frozen_amount_currency_bindings,
         "side_values": [copy.deepcopy(dict(item)) for item in side_values],
         "qualification_ref": frozen_qualification_ref,
     }
@@ -280,8 +403,10 @@ def validate_ordinary_trade_projection(value: Any) -> None:
         != {
             "schema_version",
             "canonical_binding",
+            "semantic_mapping_case_ref",
             "compiler_contract",
             "qualified_semantic_authorities",
+            "qualified_table_resolutions",
             "mapping_matches",
             "source_observations",
             "runtime_records",
@@ -388,7 +513,6 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
             or not isinstance(item.get("column"), int)
             or item["column"] < 1
             or not isinstance(item.get("header_literal"), str)
-            or not item["header_literal"]
             or item.get("semantic_role") not in _ROLES
         ):
             _fail("ordinary_trade_mapping_column_invalid")
@@ -444,6 +568,20 @@ def validate_schema_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
     """Validate a mapping candidate without granting production qualification."""
 
     return _validated_mapping(value)
+
+
+def _validated_scoped_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != {"table_node_id", "mapping"}
+        or not isinstance(value.get("table_node_id"), str)
+        or not value["table_node_id"]
+    ):
+        _fail("ordinary_trade_case_mapping_scope_invalid")
+    return {
+        "table_node_id": value["table_node_id"],
+        "mapping": _validated_mapping(value.get("mapping")),
+    }
 
 
 def _validated_amount_currency_bindings(
@@ -535,6 +673,20 @@ def _matching_mappings(
     return result
 
 
+def _matching_scoped_mappings(
+    *,
+    table: Mapping[str, Any],
+    rows: dict[int, dict[int, dict[str, Any]]],
+    mappings: tuple[dict[str, Any], ...],
+) -> list[tuple[dict[str, Any], int]]:
+    scoped = tuple(
+        item["mapping"]
+        for item in mappings
+        if item["table_node_id"] == table.get("node_id")
+    )
+    return _matching_mappings(rows=rows, mappings=scoped)
+
+
 def _table_numeric_convention(
     *,
     rows: dict[int, dict[int, dict[str, Any]]],
@@ -594,6 +746,26 @@ def _mapped_observation(
         if item["column"] in cells
     ]
     by_role = _by_role(fields)
+    record_anchor_roles = {"trade_date", "side", "quantity", "gross_amount"}
+    has_record_anchor = any(
+        _single_nonempty(by_role, role) is not None for role in record_anchor_roles
+    )
+    has_named_financial_value = any(
+        field["literal"].strip()
+        and field["semantic_role"] not in _DISPLAY_ONLY_NON_RECORD_ROLES
+        for field in fields
+    )
+    if not has_record_anchor and not has_named_financial_value:
+        return _observation(
+            binding=binding,
+            table=table,
+            row=row,
+            fields=fields,
+            disposition="SOURCE_RETAINED_NO_CONSUMER",
+            reason="MAPPED_TABLE_NON_RECORD_ROW",
+            mapping_id=mapping["mapping_id"],
+            numeric_convention=numeric_convention,
+        )
     side_literals = {
         item["source_literal"]: item["normalized_value"]
         for item in mapping["side_values"]
@@ -632,6 +804,7 @@ def _unmapped_table_rows(
     table: Mapping[str, Any],
     rows: dict[int, dict[int, dict[str, Any]]],
     reason: str,
+    disposition: str = "RELEVANT_UNMAPPED",
 ) -> list[dict[str, Any]]:
     result = []
     for row, cells in sorted(rows.items()):
@@ -647,12 +820,94 @@ def _unmapped_table_rows(
                     table=table,
                     row=row,
                     fields=fields,
-                    disposition="RELEVANT_UNMAPPED",
+                    disposition=disposition,
                     reason=reason,
                     mapping_id=None,
                     numeric_convention=None,
                 )
             )
+    return result
+
+
+def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
+    if (
+        not isinstance(value, Mapping)
+        or set(value)
+        != {
+            "table_node_id",
+            "header_row",
+            "structural_fingerprint",
+            "evidence_surface",
+            "disposition",
+        }
+        or not isinstance(value.get("table_node_id"), str)
+        or not value["table_node_id"]
+        or not isinstance(value.get("header_row"), int)
+        or value["header_row"] < 1
+        or value.get("disposition")
+        not in {
+            "SECURITY_TRADES",
+            "NO_NAMED_CONSUMER",
+            "UNSUPPORTED_FINANCIAL_MEANING",
+        }
+    ):
+        _fail("ordinary_trade_table_resolution_invalid")
+    surface = value.get("evidence_surface")
+    if (
+        not isinstance(surface, dict)
+        or set(surface) != {"title_literal", "headers"}
+        or surface.get("title_literal") is not None
+        or not isinstance(surface.get("headers"), list)
+        or not surface["headers"]
+    ):
+        _fail("ordinary_trade_table_resolution_invalid")
+    headers = surface["headers"]
+    if any(
+        not isinstance(item, dict)
+        or set(item) != {"column", "literal"}
+        or not isinstance(item.get("column"), int)
+        or item["column"] < 1
+        or not isinstance(item.get("literal"), str)
+        for item in headers
+    ):
+        _fail("ordinary_trade_table_resolution_invalid")
+    expected = structural_fingerprint(
+        title_literal=None,
+        columns=[
+            {"column": item["column"], "header_literal": item["literal"]}
+            for item in headers
+        ],
+    )
+    if value.get("structural_fingerprint") != expected:
+        _fail("ordinary_trade_table_resolution_fingerprint_invalid")
+    return copy.deepcopy(dict(value))
+
+
+def _matching_table_resolutions(
+    *,
+    table: Mapping[str, Any],
+    rows: dict[int, dict[int, dict[str, Any]]],
+    resolutions: tuple[dict[str, Any], ...],
+) -> list[dict[str, Any]]:
+    result = []
+    for resolution in resolutions:
+        if resolution["table_node_id"] != table.get("node_id"):
+            continue
+        cells = rows.get(resolution["header_row"])
+        expected = {
+            item["column"]: item["literal"]
+            for item in resolution["evidence_surface"]["headers"]
+        }
+        if (
+            cells is None
+            or set(cells) != set(expected)
+            or any(
+                _literal(cells[column]) != literal
+                for column, literal in expected.items()
+            )
+        ):
+            _fail("ordinary_trade_table_resolution_surface_stale")
+        result.append(resolution)
     return result
 
 

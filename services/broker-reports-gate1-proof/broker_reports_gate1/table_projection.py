@@ -1534,12 +1534,14 @@ def _pdf_geometry_reasons(
         reasons.append("pdf_table_geometry_confidence_below_threshold")
     rows = _dicts(candidate.get("row_inventory"))
     cells = _dicts(candidate.get("cell_inventory"))
-    if len(rows) < 2 or len(cells) < 4:
+    source_bound = source_unit.get("table_locator_scope_status") == "source_bound"
+    minimum_rows = 1 if source_bound else 2
+    minimum_cells = 2 if source_bound else 4
+    if len(rows) < minimum_rows or len(cells) < minimum_cells:
         reasons.append("pdf_table_geometry_insufficient_structure")
     row_cell_counts = Counter(int(item.get("row_ordinal") or 0) for item in cells)
     if not row_cell_counts or max(row_cell_counts.values(), default=0) < 2:
         reasons.append("pdf_table_geometry_column_structure_insufficient")
-    source_bound = source_unit.get("table_locator_scope_status") == "source_bound"
     if (
         not source_bound
         and vector_line_contract_present

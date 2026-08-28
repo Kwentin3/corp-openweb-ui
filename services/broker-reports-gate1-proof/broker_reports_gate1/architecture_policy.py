@@ -14,7 +14,7 @@ from .pdf_table_locator import (
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v14"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v23"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -45,15 +45,18 @@ GATE_OWNERSHIP = {
 # route, so the generic Gate 3 label cannot reactivate its historical runtime.
 ACTIVE_PRODUCT_ROUTES = {
     "ordinary_security_trades": {
-        "route_id": "ordinary_trade_exact_fingerprint_v1",
+        "route_id": "ordinary_trade_automatic_semantic_mapping_v1",
         "composition_root": "OrdinaryTradeProductionRuntimeFactory.create",
         "source_semantics_owner": (
-            "OrdinaryTradeQualifiedMappingAuthorityFactory.create"
+            "OrdinaryTradeSemanticMappingFactory.create"
+            "+OrdinaryTradeMappingCaseFactory.create"
+            "+OrdinaryTradeQualifiedMappingAuthorityFactory.create"
             "+OrdinaryTradeSemanticCompilerFactory.create"
         ),
         "mapping_contract": "broker_reports_ordinary_trade_schema_mapping_v3",
         "qualification_contract": (
             "broker_reports_ordinary_trade_mapping_qualification_v2"
+            "|broker_reports_ordinary_trade_case_mapping_qualification_v1"
         ),
         "normalized_fact_contract": "Gate4FinancialCaseFactV2",
         "canonical_completeness_owner": (
@@ -65,6 +68,9 @@ ACTIVE_PRODUCT_ROUTES = {
             "Pipe._call_openwebui_presentation_completion"
         ),
         "presentation_model_boundary": "PRESENTATION_ADAPTER",
+        "mapping_presentation_verification": (
+            "safe_brief_draft_then_bound_semantic_accept_or_fallback"
+        ),
         "presentation_business_authority": False,
         "case_metadata_source_owner": "Gate3MetadataSourceFactRuntime",
         "declaration_contract": (
@@ -200,9 +206,20 @@ PROVIDER_CALL_SITE_CLASSIFICATIONS = {
         "PRESENTATION_ADAPTER",
         "plain_language_dialogue_wording_and_answer_proposal",
         (
-            "ordinary_trade_public_dialogue_message_v1"
+            "broker_reports_ordinary_trade_public_dialogue_message_v5"
+            "|broker_reports_ordinary_trade_public_mapping_verification_v1"
             "|broker_reports_ordinary_trade_public_interpretation_v1"
         ),
+    ),
+    "ordinary_trade_semantic_mapping": (
+        "SOURCE_ADAPTER",
+        "external_table_semantics_and_column_roles",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v2",
+    ),
+    "ordinary_trade_mapping_answer": (
+        "HUMAN_ADAPTER",
+        "natural_language_mapping_clarification_answer",
+        "broker_reports_ordinary_trade_mapping_answer_response_v1",
     ),
 }
 

@@ -2,7 +2,7 @@
 
 Status: `CURRENT AUTHORITY`
 
-Updated: 2026-08-22
+Updated: 2026-08-27
 
 ## Definition
 
@@ -21,6 +21,19 @@ The executable mapping and its qualification receipt are separate obligations:
 Production admission requires both objects and exact identity/hash agreement.
 A structurally valid mapping without its matching receipt is only a candidate,
 not production authority.
+
+The frozen receipt-v2 registry is the zero-model-call fast path, not an
+admission list. An unknown exact schema follows the separate
+[Automatic Semantic Mapping v1](./BROKER_REPORTS_ORDINARY_TRADE_AUTOMATIC_SEMANTIC_MAPPING.v1.md)
+case flow. Only an explicitly confirmed, exact-context case receipt v1 may be
+executed, and it is never promoted to or reused as a global registry entry.
+
+Registry and case scope are intentionally different. A frozen mapping is
+schema-scoped and may execute independently for each exact matching table node.
+A case-qualified mapping is paired with the `table_node_id` sealed by its case
+receipt and may execute exactly once at that node. The compiler rejects a
+missing/stale node and rejects registry/case overlap on the same node; it never
+chooses one authority by order or fingerprint alone.
 
 ## Admission law
 
@@ -68,7 +81,7 @@ source-text proof.
 that relation. A future consumer requires a new versioned claim and receipt;
 it must not silently widen the present mapping.
 
-## Cold-start extension rule
+## Frozen fast-path extension rule
 
 For a new exact schema:
 
@@ -91,7 +104,8 @@ new runtime algorithm or broker profile.
 - `OrdinaryTradeQualifiedMappingAuthorityFactory.create` owns production
   mapping admission and matching receipts.
 - `OrdinaryTradeSemanticCompilerFactory.create` executes admitted mappings and
-  deterministic syntax transforms only.
+  deterministic syntax transforms only; repeated matching nodes are separate
+  executions, not inferred continuation.
 - Gate 4 consumes the projection through its existing Fact v2 boundary.
 - Gate 5 consumes Fact v2 and never reads Canonical or qualification receipts.
 - Historical Gate 3 is deployment rollback compatibility, not a fallback.

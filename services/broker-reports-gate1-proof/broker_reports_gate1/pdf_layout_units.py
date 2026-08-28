@@ -651,6 +651,12 @@ class PdfLayoutUnitBuilder:
                 "table_locator_regions_total": int(
                     raw_layout.get("table_locator_regions_total") or 0
                 ),
+                "table_locator_regions_accepted_total": int(
+                    raw_layout.get("table_locator_regions_accepted_total") or 0
+                ),
+                "table_locator_regions_rejected_total": int(
+                    raw_layout.get("table_locator_regions_rejected_total") or 0
+                ),
                 "_layout_words": words,
                 "_layout_lines": lines,
                 "_layout_candidates": candidates,

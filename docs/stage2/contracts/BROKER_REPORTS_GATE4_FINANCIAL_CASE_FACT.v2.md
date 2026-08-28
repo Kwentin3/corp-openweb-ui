@@ -51,7 +51,7 @@ semantic_binding:
 The binding is copied from the immutable current upstream projection and
 participates in `fact_id`. On the historical path that projection is a
 `FinancialAnnotationsV2` sidecar. On the active ordinary-trade path it is the
-immutable `broker_reports_ordinary_trade_runtime_projection_v4` artifact with
+immutable `broker_reports_ordinary_trade_runtime_projection_v5` artifact with
 exact Canonical lineage and mapping authority identity.
 
 `gate3_binding` and its

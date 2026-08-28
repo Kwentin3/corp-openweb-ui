@@ -364,6 +364,26 @@ class Gate1Normalizer:
                         for page in locator_pages
                         if isinstance(page, dict)
                     )
+                    layout_pages = [
+                        page
+                        for payload in full_source_result.payloads
+                        if isinstance(payload, dict)
+                        and isinstance(
+                            payload.get("pdf_text_layer_projection"), dict
+                        )
+                        for page in payload["pdf_text_layer_projection"].get(
+                            "page_inventory", []
+                        )
+                        if isinstance(page, dict)
+                    ]
+                    accepted_regions = sum(
+                        int(page.get("table_locator_regions_accepted_total") or 0)
+                        for page in layout_pages
+                    )
+                    rejected_regions = sum(
+                        int(page.get("table_locator_regions_rejected_total") or 0)
+                        for page in layout_pages
+                    )
                     ready_projections = sum(
                         projection.get("projection_status") == "ready"
                         and projection.get("validator_status") == "passed"
@@ -376,10 +396,18 @@ class Gate1Normalizer:
                         or page.get("status") == "failed"
                         for page in locator_pages
                     )
+                    blocked_table_pages = sum(
+                        page.get("table_candidate_status") == "blocked"
+                        for page in layout_pages
+                    )
                     if (
                         len(locator_pages) != expected_pages
                         or failed_pages
-                        or ready_projections != located_regions
+                        or len(layout_pages) != expected_pages
+                        or blocked_table_pages
+                        or accepted_regions + rejected_regions != located_regions
+                        or rejected_regions
+                        or ready_projections != accepted_regions
                     ):
                         reason = (
                             "locator_pages_or_native_table_count_mismatch:"
@@ -387,6 +415,9 @@ class Gate1Normalizer:
                             f"locator_pages={len(locator_pages)};"
                             f"failed_pages={failed_pages};"
                             f"located_regions={located_regions};"
+                            f"accepted_regions={accepted_regions};"
+                            f"rejected_regions={rejected_regions};"
+                            f"blocked_table_pages={blocked_table_pages};"
                             f"ready_projections={ready_projections}"
                         )
                         blocker = blocker_factory.pdf_table_normalization_incomplete(

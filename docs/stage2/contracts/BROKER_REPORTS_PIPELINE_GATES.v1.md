@@ -4,7 +4,7 @@ Status: `CURRENT`
 
 Classification: `CURRENT AUTHORITY`
 
-Updated: 2026-08-22 (qualified semantic authority receipt)
+Updated: 2026-08-27 (automatic case-scoped semantic mapping)
 
 ```text
 CURRENT_PIPELINE_AUTHORITY = ONE
@@ -18,7 +18,7 @@ GATE4_STATUS = CLOSED
 G4.1_CLOSED = CONTRACT_PROVEN
 G4.6_CLOSED = NO_NEW_READ_LAYER_REQUIRED
 GATE5_PRODUCT_STATUS = CURRENT_FAIL_CLOSED
-ACTIVE_ORDINARY_TRADE_ROUTE = ordinary_trade_exact_fingerprint_v1
+ACTIVE_ORDINARY_TRADE_ROUTE = ordinary_trade_automatic_semantic_mapping_v1
 GATE3_EXECUTION_IN_ACTIVE_ORDINARY_TRADE_ROUTE = DISABLED
 LEGACY_SEMANTIC_FALLBACK = FORBIDDEN
 GATE3_BINDING_FIELD = COMPATIBILITY_FIELD_ONLY
@@ -37,6 +37,8 @@ broker_reports_gate1_pipe
   -> Gate1Normalizer / persist_gate1_result
   -> immutable active CanonicalArtifactV1
   -> OrdinaryTradeProductionRuntimeFactory.create
+  -> exact qualified mapping fast path OR OrdinaryTradeSemanticMappingFactory.create
+  -> OrdinaryTradeMappingCaseFactory.create and explicit user confirmation
   -> OrdinaryTradeQualifiedMappingAuthorityFactory.create
   -> OrdinaryTradeSemanticCompilerFactory.create
   -> immutable Source Observations + deterministic runtime records
@@ -433,7 +435,7 @@ read valve remains disabled.
   claim, and demand-scoped recovery cannot delete unrelated validated facts.
 - **PUBLIC PORT:** `Gate3ChunkBatchLabelingFactory.create`; consumer demand
   enters only through `Gate3EvidenceDemandPortFactory.create`.
-- **ACTIVE STATUS:** not executed by `ordinary_trade_exact_fingerprint_v1`.
+- **ACTIVE STATUS:** not executed by `ordinary_trade_automatic_semantic_mapping_v1`.
   The active route fulfills the source-semantic responsibility through the
   qualified mapping and deterministic compiler above; this is not a second
   model path or fallback.

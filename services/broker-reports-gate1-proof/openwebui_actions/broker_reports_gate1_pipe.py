@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.39.0-ordinary-trade-production
+version: 0.40.0-automatic-semantic-mapping
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1
 """
@@ -113,6 +113,8 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     public_dialogue_interpretation_response_format,
     public_dialogue_message_response_format,
     public_dialogue_render_messages,
+    public_mapping_verification_messages,
+    public_mapping_verification_response_format,
     render_public_dialogue_fallback,
     validate_public_dialogue_interpretation,
     validate_public_dialogue_message,
@@ -130,6 +132,8 @@ from broker_reports_gate1.gate2_model_contracts import (
 )
 from broker_reports_gate1.gate2_model_requests import (
     GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
+    ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
+    ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
 )
 from broker_reports_gate1.gate3_ndfl_workflow import (
     NDFL_PROVIDER_MODEL_ID,
@@ -241,9 +245,21 @@ class Pipe:
         ordinary_trade_candidate_enabled: bool = Field(
             default=False,
             description=(
-                "Use the exact-qualified ordinary-trade compiler before Gate 5; "
-                "unknown schemas remain unmapped without semantic fallback."
+                "Use the ordinary-trade source-semantic compiler before Gate 5."
             ),
+        )
+        ordinary_trade_semantic_mapping_enabled: bool = Field(
+            default=True,
+            description=(
+                "Resolve unknown schemas through one strict case-scoped semantic "
+                "mapping call; known exact schemas remain zero-call."
+            ),
+        )
+        ordinary_trade_mapping_provider_profile_id: str = Field(
+            default=NDFL_PROVIDER_PROFILE_ID
+        )
+        ordinary_trade_mapping_model_id: str = Field(
+            default=NDFL_PROVIDER_MODEL_ID
         )
         ndfl_gate3_provider_profile_id: str = Field(default=NDFL_PROVIDER_PROFILE_ID)
         ndfl_gate3_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
@@ -1043,38 +1059,14 @@ class Pipe:
         ).create().current_case(context=context)
         if not current:
             return context
-        material = {
-            "owner": "OrdinaryTradeProjectionRuntime.current_case",
-            "user_id": context.user_id,
-            "case_id": context.case_id,
-            "chat_id": context.chat_id,
-            "workspace_model_id": context.workspace_model_id,
-            "current_projections": [
-                {
-                    "projection_artifact_id": record.artifact_id,
-                    "document_id": record.document_id,
-                    "canonical_version_id": payload["canonical_binding"][
-                        "canonical_version_id"
-                    ],
-                    "canonical_root_sha256": payload["canonical_binding"][
-                        "canonical_root_sha256"
-                    ],
-                    "projection_sha256": payload["projection_sha256"],
-                }
-                for record, payload in current
-            ],
-        }
-        execution_id = "ndflcase_" + hashlib.sha256(
-            json.dumps(
-                material,
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
-        ).hexdigest()[:24]
+        owner_run_ids = {record.normalization_run_id for record, _payload in current}
+        if len(owner_run_ids) != 1:
+            raise NdflWorkflowError(
+                "ordinary_trade_current_projection_run_ambiguous"
+            )
         return ArtifactAccessContext(
             user_id=context.user_id,
-            normalization_run_id=execution_id,
+            normalization_run_id=next(iter(owner_run_ids)),
             case_id=context.case_id,
             chat_id=context.chat_id,
             workspace_model_id=context.workspace_model_id,
@@ -1312,18 +1304,53 @@ class Pipe:
             model_used = bool(existing.get("interpretation_model_used"))
         elif call_already_used:
             fallback_used = True
+        elif (
+            isinstance(context.get("current_question"), dict)
+            and context["current_question"].get("authority_kind")
+            == "source_choice_confirmation"
+        ):
+            content = render_public_dialogue_fallback(context)
         elif self.valves.ndfl_presentation_llm_enabled:
             try:
                 system_content, user_content = public_dialogue_render_messages(context)
                 raw = await self._call_openwebui_presentation_completion(
                     system_content=system_content,
                     user_content=user_content,
-                    response_format=public_dialogue_message_response_format(),
+                    response_format=public_dialogue_message_response_format(
+                        context=context
+                    ),
                     user=user,
                     request=request,
                     task="ordinary_trade_public_dialogue_render",
                 )
-                content = validate_public_dialogue_message(raw, context=context)
+                question = context.get("current_question")
+                mapping_verification = None
+                if (
+                    isinstance(question, dict)
+                    and question.get("authority_kind") == "source_choice"
+                ):
+                    verifier_system, verifier_user = (
+                        public_mapping_verification_messages(
+                            context=context, draft=raw
+                        )
+                    )
+                    mapping_verification = (
+                        await self._call_openwebui_presentation_completion(
+                            system_content=verifier_system,
+                            user_content=verifier_user,
+                            response_format=(
+                                public_mapping_verification_response_format()
+                            ),
+                            user=user,
+                            request=request,
+                            task="ordinary_trade_public_mapping_verification",
+                        )
+                    )
+                content = validate_public_dialogue_message(
+                    raw,
+                    context=context,
+                    mapping_verification=mapping_verification,
+                )
                 model_used = True
             except Exception:
                 fallback_used = True
@@ -1577,16 +1604,85 @@ class Pipe:
                 "Проверяю операции и рассчитываю подтверждённые закрытые сделки…",
                 done=False,
             )
+            mapping_client = None
+            answer_client = None
+            if self.valves.ordinary_trade_semantic_mapping_enabled:
+                mapping_client = Gate2StructuredModelClientFactory(
+                    config=Gate2StructuredModelClientConfig(
+                        request_profile=(
+                            ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
+                        ),
+                        provider_profile_id=(
+                            self.valves.ordinary_trade_mapping_provider_profile_id
+                        ),
+                        capability_probe=False,
+                        economy_budget_enforcement=False,
+                    ),
+                    user=user,
+                    request=request,
+                ).create()
+                answer_client = Gate2StructuredModelClientFactory(
+                    config=Gate2StructuredModelClientConfig(
+                        request_profile=(
+                            ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE
+                        ),
+                        provider_profile_id=(
+                            self.valves.ordinary_trade_mapping_provider_profile_id
+                        ),
+                        capability_probe=False,
+                        economy_budget_enforcement=False,
+                    ),
+                    user=user,
+                    request=request,
+                ).create()
             runtime = OrdinaryTradeProductionRuntimeFactory(
                 store=store,
                 read_enabled=True,
                 retention_policy=retention_policy,
+                mapping_model_client=mapping_client,
+                mapping_answer_model_client=answer_client,
+                mapping_model_id=(
+                    self.valves.ordinary_trade_mapping_model_id
+                    if mapping_client is not None
+                    else None
+                ),
+                mapping_provider_profile_id=(
+                    self.valves.ordinary_trade_mapping_provider_profile_id
+                    if mapping_client is not None
+                    else None
+                ),
             ).create()
             action_receipt = None
-            result = runtime.run(
+            result = await runtime.run_with_automatic_mapping(
                 canonical_artifact_refs=canonical_refs,
                 context=context,
+                user_message=(
+                    trusted_interaction_message if not source_turn else ""
+                ),
             )
+            semantic_turn = result.get("semantic_mapping")
+            if (
+                isinstance(semantic_turn, dict)
+                and semantic_turn.get("status") == "CONFIRMATION_REQUIRED"
+            ):
+                confirmation_value = await self._mapping_candidate_confirmation(
+                    event_call=event_call,
+                    visible_message=str(
+                        (semantic_turn.get("public_state") or {}).get(
+                            "confirmation_message"
+                        )
+                        or ""
+                    ),
+                )
+                if confirmation_value is not None:
+                    result = await runtime.run_with_automatic_mapping(
+                        canonical_artifact_refs=canonical_refs,
+                        context=context,
+                        confirmation=confirmation_value,
+                        expected_confirmation_artifact_id=str(
+                            semantic_turn["mapping_case_artifact_id"]
+                        ),
+                    )
             preparation = result.get("product", {}).get("preparation")
             preparation = preparation if isinstance(preparation, dict) else {}
             current_actions = preparation.get("user_actions")
@@ -2182,6 +2278,39 @@ class Pipe:
         if isinstance(value, dict) and value.get("error"):
             raise NdflWorkflowError(
                 "ordinary_trade_declaration_interaction_boundary_failed"
+            )
+        return value if isinstance(value, bool) else None
+
+    @staticmethod
+    async def _mapping_candidate_confirmation(
+        *, event_call: Any, visible_message: str
+    ) -> bool | None:
+        """Confirm one server-bound semantic understanding without parsing text."""
+
+        if not callable(event_call):
+            return None
+        message = str(visible_message or "").strip()
+        if not message or len(message) > 6000:
+            raise NdflWorkflowError(
+                "ordinary_trade_mapping_interaction_request_invalid"
+            )
+        try:
+            value = await event_call(
+                {
+                    "type": "confirmation",
+                    "data": {
+                        "title": "Подтвердите понимание отчёта",
+                        "message": message,
+                    },
+                }
+            )
+        except Exception as exc:
+            raise NdflWorkflowError(
+                "ordinary_trade_mapping_interaction_boundary_failed"
+            ) from exc
+        if isinstance(value, dict) and value.get("error"):
+            raise NdflWorkflowError(
+                "ordinary_trade_mapping_interaction_boundary_failed"
             )
         return value if isinstance(value, bool) else None
 

@@ -399,6 +399,16 @@ class PdfPlumberLayoutAdapter:
         else:
             table_status = "not_claimed"
 
+        locator_regions_total = (
+            len(locator_page.get("regions") or [])
+            if locator_mode and locator_page is not None
+            else 0
+        )
+        locator_regions_accepted_total = (
+            sum(bool(item.get("locator_region_ref")) for item in table_candidates)
+            if locator_mode
+            else 0
+        )
         return {
             "page_number": page_number,
             "width": _number(getattr(page, "width", 0.0)),
@@ -435,9 +445,11 @@ class PdfPlumberLayoutAdapter:
                 if locator_mode and locator_page is not None
                 else ("missing" if locator_mode else "not_requested")
             ),
-            "table_locator_regions_total": (
-                len(locator_page.get("regions") or [])
-                if locator_mode and locator_page is not None
+            "table_locator_regions_total": locator_regions_total,
+            "table_locator_regions_accepted_total": locator_regions_accepted_total,
+            "table_locator_regions_rejected_total": (
+                locator_regions_total - locator_regions_accepted_total
+                if locator_mode
                 else 0
             ),
         }
@@ -473,6 +485,7 @@ class PdfPlumberLayoutAdapter:
         words: list[dict[str, Any]],
         vector_lines: list[dict[str, Any]],
         rects: list[dict[str, Any]],
+        source_bound: bool = False,
     ) -> tuple[list[dict[str, Any]], list[str]]:
         raw_candidates: list[dict[str, Any]] = []
         reasons: list[str] = []
@@ -494,13 +507,22 @@ class PdfPlumberLayoutAdapter:
                 },
                 0.95,
             ))
-        if _has_aligned_column_evidence(words):
+        aligned_min_words_vertical = 3
+        aligned_evidence = _has_aligned_column_evidence(words)
+        if (
+            source_bound
+            and not aligned_evidence
+            and _has_aligned_column_evidence(words, minimum_row_bands=2)
+        ):
+            aligned_min_words_vertical = 2
+            aligned_evidence = True
+        if aligned_evidence:
             strategies.append((
                 "aligned_text_v0",
                 {
                     "vertical_strategy": "text",
                     "horizontal_strategy": "text",
-                    "min_words_vertical": 3,
+                    "min_words_vertical": aligned_min_words_vertical,
                     "min_words_horizontal": 2,
                     "text_x_tolerance": self.config.word_x_tolerance,
                     "text_y_tolerance": self.config.word_y_tolerance,
@@ -531,13 +553,56 @@ class PdfPlumberLayoutAdapter:
                 if (
                     strategy_ref == "aligned_text_v0"
                     and (
-                        candidate["rows_total"] < self.config.aligned_table_min_rows
+                        candidate["rows_total"]
+                        < (1 if source_bound else self.config.aligned_table_min_rows)
                         or candidate["columns_total"]
                         < self.config.aligned_table_min_columns
                     )
                 ):
                     reasons.append("pdf_table_aligned_text_low_confidence_rejected")
                     continue
+                raw_candidates.append(candidate)
+
+        if (
+            source_bound
+            and not raw_candidates
+            and len(words) >= 2
+            and len(vector_lines) + len(rects) >= 2
+        ):
+            settings = {
+                "vertical_strategy": "text",
+                "horizontal_strategy": "text",
+                "min_words_vertical": 1,
+                "min_words_horizontal": 1,
+                "text_x_tolerance": self.config.word_x_tolerance,
+                "text_y_tolerance": self.config.word_y_tolerance,
+                "snap_tolerance": self.config.table_snap_tolerance,
+                "join_tolerance": self.config.table_join_tolerance,
+                "intersection_tolerance": self.config.table_intersection_tolerance,
+            }
+            try:
+                found = page.find_tables(table_settings=settings)
+            except Exception:
+                reasons.append("pdf_table_aligned_text_failed")
+                found = []
+            for table in found:
+                candidate = _table_candidate_from_pdfplumber(
+                    table=table,
+                    strategy_ref="aligned_text_v0",
+                    geometry_confidence=0.8,
+                    words=words,
+                    vector_lines=vector_lines,
+                    rects=rects,
+                )
+                if candidate is None or candidate["columns_total"] < 2:
+                    reasons.append("pdf_table_aligned_text_low_confidence_rejected")
+                    continue
+                candidate["reconstruction_reason_codes"] = sorted(
+                    {
+                        *candidate.get("reconstruction_reason_codes", []),
+                        "source_bound_single_band_alignment_fallback",
+                    }
+                )
                 raw_candidates.append(candidate)
 
         accepted: list[dict[str, Any]] = []
@@ -572,25 +637,52 @@ class PdfPlumberLayoutAdapter:
         reasons: list[str] = []
         locator_bboxes: list[list[float]] = []
         for ordinal, region in enumerate(locator_regions, 1):
-            bbox = (
+            locator_bbox = (
                 list(region.get("bbox_pdf_points") or [])
                 if isinstance(region, dict)
                 else []
             )
             if (
-                len(bbox) != 4
-                or any(not isinstance(value, (int, float)) for value in bbox)
-                or bbox[0] >= bbox[2]
-                or bbox[1] >= bbox[3]
-                or bbox[0] < page_bbox[0]
-                or bbox[1] < page_bbox[1]
-                or bbox[2] > page_bbox[2]
-                or bbox[3] > page_bbox[3]
-                or any(_bbox_overlap(bbox, other) for other in locator_bboxes)
+                len(locator_bbox) != 4
+                or any(
+                    not isinstance(value, (int, float)) for value in locator_bbox
+                )
+                or locator_bbox[0] >= locator_bbox[2]
+                or locator_bbox[1] >= locator_bbox[3]
+                or locator_bbox[0] < page_bbox[0]
+                or locator_bbox[1] < page_bbox[1]
+                or locator_bbox[2] > page_bbox[2]
+                or locator_bbox[3] > page_bbox[3]
             ):
-                reasons.append("pdf_table_locator_region_invalid_failed")
+                reasons.append("pdf_table_locator_region_invalid_rejected")
                 continue
-            locator_bboxes.append([_number(value) for value in bbox])
+            bbox = [_number(value) for value in locator_bbox]
+            minor_overlap_partitioned = False
+            if locator_bboxes and _bbox_overlap(bbox, locator_bboxes[-1]):
+                previous = locator_bboxes[-1]
+                vertical_overlap = previous[3] - bbox[1]
+                shared_width = max(
+                    0.0, min(previous[2], bbox[2]) - max(previous[0], bbox[0])
+                )
+                narrowest_width = min(
+                    previous[2] - previous[0], bbox[2] - bbox[0]
+                )
+                if (
+                    0.0 < vertical_overlap
+                    <= self.config.locator_crop_margin_points * 2.0
+                    and narrowest_width > 0.0
+                    and shared_width / narrowest_width >= 0.8
+                    and bbox[1] < previous[3] < bbox[3]
+                ):
+                    bbox[1] = previous[3]
+                    minor_overlap_partitioned = True
+                else:
+                    reasons.append("pdf_table_locator_region_invalid_rejected")
+                    continue
+            if any(_bbox_overlap(bbox, other) for other in locator_bboxes):
+                reasons.append("pdf_table_locator_region_invalid_rejected")
+                continue
+            locator_bboxes.append(bbox)
             region_words = [
                 word
                 for word in words
@@ -618,16 +710,17 @@ class PdfPlumberLayoutAdapter:
                     words=region_words,
                     vector_lines=region_lines,
                     rects=region_rects,
+                    source_bound=True,
                 )
             except Exception:
-                reasons.append("pdf_table_locator_region_native_extraction_failed")
+                reasons.append("pdf_table_locator_region_native_extraction_rejected")
                 continue
             reasons.extend(region_reasons)
             if len(candidates) != 1:
                 reasons.append(
-                    "pdf_table_locator_region_native_table_not_found_failed"
+                    "pdf_table_locator_region_native_table_not_found_rejected"
                     if not candidates
-                    else "pdf_table_locator_region_native_table_ambiguous_failed"
+                    else "pdf_table_locator_region_native_table_ambiguous_rejected"
                 )
                 continue
             candidate = candidates[0]
@@ -635,7 +728,7 @@ class PdfPlumberLayoutAdapter:
                 region.get("region_ref") or f"locator_region_{ordinal}"
             )
             candidate["locator_bbox_pdf_points"] = [
-                round(_number(value), 6) for value in bbox
+                round(_number(value), 6) for value in locator_bbox
             ]
             candidate["locator_scope_status"] = "source_bound"
             candidate["model_values_used_as_source_literals"] = False
@@ -644,12 +737,15 @@ class PdfPlumberLayoutAdapter:
                 {
                     *candidate.get("reconstruction_reason_codes", []),
                     "locator_boundary_margin_applied",
+                    *(
+                        ["locator_minor_overlap_partitioned"]
+                        if minor_overlap_partitioned
+                        else []
+                    ),
                     "vlm_region_pdfplumber_structure_source_literals",
                 }
             )
             selected.append(candidate)
-        if any(reason.endswith("_failed") for reason in reasons):
-            return [], sorted(set(reasons))
         return selected, sorted(set(reasons))
 
     def _provided_capabilities(self) -> list[str]:
@@ -860,7 +956,7 @@ def _table_candidate_from_pdfplumber(
     columns = list(getattr(table, "columns", []) or [])
     rows_total = len(rows)
     columns_total = len(columns)
-    if rows_total < 2 or columns_total < 2:
+    if rows_total < 1 or columns_total < 2:
         return None
     contributing = [
         int(word["parser_ordinal"])
@@ -918,7 +1014,7 @@ def _table_candidate_from_pdfplumber(
     rows_total = compacted["rows_total"]
     columns_total = compacted["columns_total"]
     cell_inventory = compacted["cells"]
-    if rows_total < 2 or columns_total < 2 or len(contributing) < max(4, rows_total):
+    if rows_total < 1 or columns_total < 2 or len(contributing) < max(2, rows_total):
         return None
     ruling_evidence_total = sum(
         1
@@ -1053,7 +1149,9 @@ def _geometry_key(item: dict[str, Any]) -> tuple[float, float, int]:
     )
 
 
-def _has_aligned_column_evidence(words: list[dict[str, Any]]) -> bool:
+def _has_aligned_column_evidence(
+    words: list[dict[str, Any]], *, minimum_row_bands: int = 3
+) -> bool:
     clusters: list[list[dict[str, Any]]] = []
     for word in sorted(words, key=lambda item: float((item.get("bbox") or [0.0])[0])):
         x0 = float((word.get("bbox") or [0.0])[0])
@@ -1081,7 +1179,7 @@ def _has_aligned_column_evidence(words: list[dict[str, Any]]) -> bool:
             round(float((item.get("bbox") or [0.0, 0.0])[1]) / 3.0)
             for item in cluster
         }
-        if len(row_bands) >= 3:
+        if len(row_bands) >= minimum_row_bands:
             repeated_columns += 1
     return repeated_columns >= 2
 
