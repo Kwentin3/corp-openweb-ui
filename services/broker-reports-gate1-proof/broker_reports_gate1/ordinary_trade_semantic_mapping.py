@@ -29,10 +29,16 @@ SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION = (
 SEMANTIC_REVIEW_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_semantic_review_receipt_v1"
 )
+SEMANTIC_ADJUDICATION_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_semantic_adjudication_receipt_v2"
+)
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v4"
 MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v9"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
 SEMANTIC_REVIEW_PROMPT_VERSION = "ordinary_trade_semantic_review_prompt_v3"
+SEMANTIC_ADJUDICATION_PROMPT_VERSION = (
+    "ordinary_trade_semantic_adjudication_prompt_v1"
+)
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
     "mapping contract and case-qualification entrypoint"
@@ -236,6 +242,31 @@ class OrdinaryTradeSemanticMapping:
             output_schema_id=SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION,
         )
 
+    def semantic_adjudication_prompt(self) -> Gate2ManagedPrompt:
+        content = (
+            "Adjudicate one prior REJECT_UNSAFE review of a COMPLETE document-wide "
+            "mapping against exactly the supplied Canonical table evidence. The mapper "
+            "and prior reviewer are untrusted proposals; re-read every row yourself. "
+            "Correct a false rejection only when table-wide evidence affirmatively "
+            "shows a category-total, balance, portfolio, turnover, cash-ledger or "
+            "reconciliation summary with no independently addressable event. A row made "
+            "only of a period or date plus an activity-category label and aggregate "
+            "debit/credit totals is a summary row; a date alone is not transaction "
+            "identity. Missing fields alone never prove aggregation. Dividend rows tied "
+            "to a security and payment date, incomplete trades with operation, quantity, "
+            "price and amount, and any event-level security, withheld-tax, payee, "
+            "counterparty or transaction-id evidence remain unsafe. APPROVE_COMPLETE "
+            "only when every proposed SECURITY_TRADES table is complete and every "
+            "NO_NAMED_CONSUMER table is independently proven safe by those rules; "
+            "otherwise return REJECT_UNSAFE. Do not use broker, year, filename, external "
+            "knowledge, expected output or convenience. Return only strict JSON."
+        )
+        return _managed_prompt(
+            version=SEMANTIC_ADJUDICATION_PROMPT_VERSION,
+            content=content,
+            output_schema_id=SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION,
+        )
+
     def mapping_response_format(self) -> dict[str, Any]:
         return _response_format(
             name="ordinary_trade_semantic_mapping_v1",
@@ -326,6 +357,35 @@ class OrdinaryTradeSemanticMapping:
             "phase": "review_mapping",
             "case": copy.deepcopy(case),
             "proposal": _semantic_review_proposal(value),
+        }
+        if len(_canonical_json(package).encode("utf-8")) > _MAX_CONTEXT_BYTES:
+            _fail("ordinary_trade_semantic_mapping_context_limit")
+        return package
+
+    def build_semantic_adjudication_package(
+        self,
+        *,
+        review_package: Mapping[str, Any],
+        review_response: Any,
+        review_outcome: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        prior = _strict_model_value(review_response)
+        receipt = review_outcome.get("semantic_review_receipt")
+        _validate_semantic_review_receipt(receipt)
+        if (
+            review_package.get("phase") != "review_mapping"
+            or review_outcome.get("status") != "REVIEW_REJECTED"
+            or receipt.get("verdict") != "REJECT_UNSAFE"
+        ):
+            _fail("ordinary_trade_semantic_adjudication_package_invalid")
+        package = {
+            "phase": "adjudicate_mapping_review",
+            "case": copy.deepcopy(review_package.get("case")),
+            "proposal": copy.deepcopy(review_package.get("proposal")),
+            "prior_review": {
+                "response": copy.deepcopy(prior),
+                "receipt_sha256": receipt["receipt_sha256"],
+            },
         }
         if len(_canonical_json(package).encode("utf-8")) > _MAX_CONTEXT_BYTES:
             _fail("ordinary_trade_semantic_mapping_context_limit")
@@ -777,6 +837,104 @@ class OrdinaryTradeSemanticMapping:
             ],
             "semantic_review_receipt": receipt,
         }
+
+    def validate_semantic_adjudication(
+        self,
+        *,
+        response: Any,
+        mapping_outcome: Mapping[str, Any],
+        mapping_response: Any,
+        mapping_package: Mapping[str, Any],
+        review_package: Mapping[str, Any],
+        review_response: Any,
+        review_outcome: Mapping[str, Any],
+        adjudication_package: Mapping[str, Any],
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        model_id: str,
+        provider_profile_id: str,
+        execution_metadata: Any,
+        confirmed_understandings: list[dict[str, Any]],
+        user_scope_sha256: str,
+        target_table_node_ids: Iterable[str] | None = None,
+        frozen_mappings: Iterable[Mapping[str, Any]] = (),
+    ) -> dict[str, Any]:
+        prior_receipt = review_outcome.get("semantic_review_receipt")
+        _validate_semantic_review_receipt(prior_receipt)
+        prior_value = _strict_model_value(review_response)
+        if (
+            mapping_outcome.get("status") != "COMPLETE"
+            or review_outcome.get("status") != "REVIEW_REJECTED"
+            or prior_receipt.get("verdict") != "REJECT_UNSAFE"
+            or adjudication_package.get("phase") != "adjudicate_mapping_review"
+            or adjudication_package.get("case") != review_package.get("case")
+            or adjudication_package.get("proposal")
+            != review_package.get("proposal")
+            or adjudication_package.get("prior_review")
+            != {
+                "response": prior_value,
+                "receipt_sha256": prior_receipt["receipt_sha256"],
+            }
+        ):
+            _fail("ordinary_trade_semantic_adjudication_evidence_mismatch")
+        final = self.validate_semantic_review(
+            response=response,
+            mapping_outcome=mapping_outcome,
+            mapping_response=mapping_response,
+            mapping_package=mapping_package,
+            review_package=review_package,
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            model_id=model_id,
+            provider_profile_id=provider_profile_id,
+            execution_metadata=execution_metadata,
+            confirmed_understandings=confirmed_understandings,
+            user_scope_sha256=user_scope_sha256,
+            target_table_node_ids=target_table_node_ids,
+            frozen_mappings=frozen_mappings,
+        )
+        final_receipt = final.get("semantic_review_receipt")
+        _validate_semantic_review_receipt(final_receipt)
+        if final.get("status") not in {"COMPLETE", "REVIEW_REJECTED"}:
+            _fail("ordinary_trade_semantic_adjudication_verdict_invalid")
+        receipt = {
+            "schema_version": SEMANTIC_ADJUDICATION_RECEIPT_SCHEMA_VERSION,
+            "canonical_root_sha256": prior_receipt["canonical_root_sha256"],
+            "mapper_terminal_status": "COMPLETE",
+            "mapping_prompt_sha256": prior_receipt["mapping_prompt_sha256"],
+            "mapping_package_sha256": prior_receipt["mapping_package_sha256"],
+            "mapping_response_sha256": prior_receipt["mapping_response_sha256"],
+            "mapping_execution_metadata_sha256": prior_receipt[
+                "mapping_execution_metadata_sha256"
+            ],
+            "review_prompt_sha256": prior_receipt["review_prompt_sha256"],
+            "review_package_sha256": prior_receipt["review_package_sha256"],
+            "review_response_sha256": prior_receipt["review_response_sha256"],
+            "review_execution_metadata_sha256": prior_receipt[
+                "review_execution_metadata_sha256"
+            ],
+            "review_verdict": prior_receipt["verdict"],
+            "review_table_findings": copy.deepcopy(
+                prior_receipt["table_findings"]
+            ),
+            "adjudication_prompt_sha256": self.semantic_adjudication_prompt().hash,
+            "adjudication_package_sha256": _sha256_json(adjudication_package),
+            "adjudication_response_sha256": final_receipt[
+                "review_response_sha256"
+            ],
+            "adjudication_execution_metadata_sha256": final_receipt[
+                "review_execution_metadata_sha256"
+            ],
+            "same_canonical_evidence": True,
+            "verdict": final_receipt["verdict"],
+            "selected_option_position": None,
+            "table_findings": copy.deepcopy(final_receipt["table_findings"]),
+        }
+        receipt["receipt_sha256"] = _sha256_json(receipt)
+        _validate_semantic_review_receipt(receipt)
+        final = copy.deepcopy(dict(final))
+        final["semantic_review_receipt"] = receipt
+        return final
 
     def validate_answer_response(
         self,
@@ -1235,7 +1393,7 @@ def _bind_ambiguity_review(
 
 
 def _validate_semantic_review_receipt(value: Any) -> None:
-    expected_keys = {
+    review_keys = {
         "schema_version",
         "canonical_root_sha256",
         "mapper_terminal_status",
@@ -1253,6 +1411,14 @@ def _validate_semantic_review_receipt(value: Any) -> None:
         "table_findings",
         "receipt_sha256",
     }
+    adjudication_keys = review_keys | {
+        "review_verdict",
+        "review_table_findings",
+        "adjudication_prompt_sha256",
+        "adjudication_package_sha256",
+        "adjudication_response_sha256",
+        "adjudication_execution_metadata_sha256",
+    }
     digest_fields = {
         "canonical_root_sha256",
         "mapping_prompt_sha256",
@@ -1265,11 +1431,25 @@ def _validate_semantic_review_receipt(value: Any) -> None:
         "review_execution_metadata_sha256",
         "receipt_sha256",
     }
+    schema_version = value.get("schema_version") if isinstance(value, dict) else None
+    if schema_version == SEMANTIC_ADJUDICATION_RECEIPT_SCHEMA_VERSION:
+        expected_keys = adjudication_keys
+        digest_fields |= {
+            "adjudication_prompt_sha256",
+            "adjudication_package_sha256",
+            "adjudication_response_sha256",
+            "adjudication_execution_metadata_sha256",
+        }
+    else:
+        expected_keys = review_keys
     if (
         not isinstance(value, dict)
         or set(value) != expected_keys
-        or value.get("schema_version")
-        != SEMANTIC_REVIEW_RECEIPT_SCHEMA_VERSION
+        or schema_version
+        not in {
+            SEMANTIC_REVIEW_RECEIPT_SCHEMA_VERSION,
+            SEMANTIC_ADJUDICATION_RECEIPT_SCHEMA_VERSION,
+        }
         or value.get("mapper_terminal_status")
         not in {"COMPLETE", "CLARIFICATION_REQUIRED"}
         or value.get("verdict") not in _REVIEW_VERDICTS
@@ -1288,6 +1468,19 @@ def _validate_semantic_review_receipt(value: Any) -> None:
             or item.get("finding") not in _REVIEW_FINDINGS
             for item in value["table_findings"]
         )
+    ):
+        _fail("ordinary_trade_semantic_review_receipt_invalid")
+    if schema_version == SEMANTIC_ADJUDICATION_RECEIPT_SCHEMA_VERSION and (
+        value.get("review_verdict") != "REJECT_UNSAFE"
+        or not isinstance(value.get("review_table_findings"), list)
+        or not value["review_table_findings"]
+        or any(
+            not isinstance(item, dict)
+            or set(item) != {"table_ref", "finding"}
+            or item.get("finding") not in _REVIEW_FINDINGS
+            for item in value["review_table_findings"]
+        )
+        or value.get("selected_option_position") is not None
     ):
         _fail("ordinary_trade_semantic_review_receipt_invalid")
     selected = value.get("selected_option_position")
@@ -2222,6 +2415,7 @@ __all__ = [
     "FORBIDDEN",
     "MAPPING_CASE_SCHEMA_VERSION",
     "MAPPING_RESPONSE_SCHEMA_VERSION",
+    "SEMANTIC_ADJUDICATION_RECEIPT_SCHEMA_VERSION",
     "SEMANTIC_REVIEW_RECEIPT_SCHEMA_VERSION",
     "SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION",
     "OrdinaryTradeSemanticMapping",

@@ -13,8 +13,10 @@ not rejected merely because it is absent from that registry. One strict source
 adapter proposes the table disposition, column roles, side literals and
 consumer-required amount/currency bindings. A second bounded document-wide
 semantic review then checks every risky decision against the same Canonical
-evidence. Thus an unknown-schema success path uses two model calls; preserving
-one call is not an admission criterion.
+evidence. Thus an undisputed unknown-schema success path uses two model calls.
+When that review rejects a mapper `COMPLETE`, one bounded adjudication pass sees
+the same evidence plus the first review; this disputed path uses three calls and
+never retries. Preserving one call is not an admission criterion.
 
 The model receives only bounded immutable Canonical table context. It does not
 author literals, source references, Canonical changes, facts or tax meaning.

@@ -306,6 +306,8 @@ class OrdinaryTradeAutomaticMappingRuntime:
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
             )
+        mapper_outcome = outcome
+        provider_calls_total = 1
         if outcome["status"] in {"COMPLETE", "CLARIFICATION_REQUIRED"}:
             try:
                 review_package = self._semantic.build_semantic_review_package(
@@ -357,9 +359,9 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 )
             try:
                 _strict_result(review_response)
-                outcome = self._semantic.validate_semantic_review(
+                review_outcome = self._semantic.validate_semantic_review(
                     response=review_response,
-                    mapping_outcome=outcome,
+                    mapping_outcome=mapper_outcome,
                     mapping_response=response,
                     mapping_package=package,
                     review_package=review_package,
@@ -391,6 +393,80 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 return self._result(
                     current=saved, context=context, provider_calls_this_turn=2
                 )
+            outcome = review_outcome
+            provider_calls_total = 2
+            if (
+                outcome["status"] == "REVIEW_REJECTED"
+                and mapper_outcome["status"] == "COMPLETE"
+            ):
+                try:
+                    adjudication_package = (
+                        self._semantic.build_semantic_adjudication_package(
+                            review_package=review_package,
+                            review_response=review_response,
+                            review_outcome=outcome,
+                        )
+                    )
+                    adjudication_response = await self._review_model_client.extract(
+                        prompt=self._semantic.semantic_adjudication_prompt(),
+                        package=adjudication_package,
+                        model_id=self._model_id,
+                        response_format=(
+                            self._semantic.semantic_review_response_format()
+                        ),
+                    )
+                    _strict_result(adjudication_response)
+                    outcome = self._semantic.validate_semantic_adjudication(
+                        response=adjudication_response,
+                        mapping_outcome=mapper_outcome,
+                        mapping_response=response,
+                        mapping_package=package,
+                        review_package=review_package,
+                        review_response=review_response,
+                        review_outcome=review_outcome,
+                        adjudication_package=adjudication_package,
+                        canonical=binding["canonical"],
+                        canonical_binding=binding["canonical_binding"],
+                        model_id=self._model_id,
+                        provider_profile_id=self._provider_profile_id,
+                        execution_metadata=(
+                            adjudication_response.execution_metadata
+                        ),
+                        confirmed_understandings=confirmed,
+                        user_scope_sha256=binding["user_scope_sha256"],
+                        target_table_node_ids=target_table_node_ids,
+                        frozen_mappings=self._frozen_mappings,
+                    )
+                    provider_calls_total = 3
+                except Exception as exc:
+                    code = getattr(
+                        exc,
+                        "code",
+                        "ordinary_trade_semantic_adjudication_failed",
+                    )
+                    saved = self._cases.save_provider_terminal(
+                        document_id=document_id,
+                        context=context,
+                        status=(
+                            "PROVIDER_UNAVAILABLE"
+                            if isinstance(exc, Gate2SourceFactRuntimeError)
+                            else "MAPPING_OUTPUT_INVALID"
+                        ),
+                        reason_code=str(code),
+                        message=(
+                            "Independent same-evidence adjudication did not validate "
+                            "the disputed review. No facts were published."
+                        ),
+                        provider_calls_total=3,
+                        semantic_review_receipt=review_outcome[
+                            "semantic_review_receipt"
+                        ],
+                    )
+                    return self._result(
+                        current=saved,
+                        context=context,
+                        provider_calls_this_turn=3,
+                    )
             if outcome["status"] == "REVIEW_REJECTED":
                 saved = self._cases.save_provider_terminal(
                     document_id=document_id,
@@ -401,30 +477,24 @@ class OrdinaryTradeAutomaticMappingRuntime:
                         "Independent same-evidence review found unresolved financial "
                         "content. No partial facts were published."
                     ),
-                    provider_calls_total=2,
+                    provider_calls_total=provider_calls_total,
                     semantic_review_receipt=outcome["semantic_review_receipt"],
                 )
                 return self._result(
-                    current=saved, context=context, provider_calls_this_turn=2
+                    current=saved,
+                    context=context,
+                    provider_calls_this_turn=provider_calls_total,
                 )
         saved = self._cases.save_mapping_outcome(
             document_id=document_id,
             context=context,
             outcome=outcome,
-            provider_calls_total=(
-                2
-                if outcome["status"] in {"COMPLETE", "CLARIFICATION_REQUIRED"}
-                else 1
-            ),
+            provider_calls_total=provider_calls_total,
         )
         return self._result(
             current=saved,
             context=context,
-            provider_calls_this_turn=(
-                2
-                if outcome["status"] in {"COMPLETE", "CLARIFICATION_REQUIRED"}
-                else 1
-            ),
+            provider_calls_this_turn=provider_calls_total,
         )
 
     async def _interpret_answer(

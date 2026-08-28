@@ -1394,6 +1394,23 @@ async def _unknown_trade_and_auxiliary_tables_complete_after_review(tmp_path) ->
             response,
             {
                 "schema_version": SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION,
+                "verdict": "REJECT_UNSAFE",
+                "selected_option_position": None,
+                "table_findings": [
+                    {
+                        "table_ref": "table_1",
+                        "finding": "SUPPORTED_MAPPING_COMPLETE",
+                    },
+                    {
+                        "table_ref": "table_2",
+                        "finding": (
+                            "UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT"
+                        ),
+                    },
+                ],
+            },
+            {
+                "schema_version": SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION,
                 "verdict": "APPROVE_COMPLETE",
                 "selected_option_position": None,
                 "table_findings": [
@@ -1425,17 +1442,22 @@ async def _unknown_trade_and_auxiliary_tables_complete_after_review(tmp_path) ->
     )
 
     assert result["semantic_mapping"]["status"] == "COMPLETE"
-    assert result["provider_calls_total"] == 2
+    assert result["provider_calls_total"] == 3
     assert result["product"]["gate4"]["security_facts_total"] == 2
     assert result["product"]["gate4"]["transaction_charge_facts_total"] == 2
     assert result["documents"][0]["relevant_unmapped_observations"] == 0
-    assert len(client.calls) == 2
+    assert len(client.calls) == 3
     current = OrdinaryTradeMappingCaseFactory(
         store=store, read_enabled=True
     ).create().current(document_id=document_id, context=context)[1]
-    assert current["provider_calls_total"] == 2
+    assert current["provider_calls_total"] == 3
     assert current["confirmed_understandings"] == []
     assert current["table_resolutions"][1]["disposition"] == "NO_NAMED_CONSUMER"
+    assert current["semantic_review_receipt"]["schema_version"] == (
+        "broker_reports_ordinary_trade_semantic_adjudication_receipt_v2"
+    )
+    assert current["semantic_review_receipt"]["review_verdict"] == "REJECT_UNSAFE"
+    assert current["semantic_review_receipt"]["verdict"] == "APPROVE_COMPLETE"
 
 
 async def _model_exclusion_cannot_hide_unknown_trade_table(tmp_path) -> None:
@@ -1595,65 +1617,6 @@ async def _dividend_table_cannot_be_silently_excluded(tmp_path) -> None:
                 verdict="REJECT_UNSAFE",
                 finding="UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT",
             ),
-        ]
-    )
-    runtime = OrdinaryTradeProductionRuntimeFactory(
-        store=store,
-        read_enabled=True,
-        mapping_model_client=client,
-        mapping_answer_model_client=BoundaryModelClient([]),
-        mapping_model_id="models/gemini-3.5-flash",
-        mapping_provider_profile_id="google_gemini",
-    ).create()
-
-    result = await runtime.run_with_automatic_mapping(
-        canonical_artifact_refs=[canonical_ref], context=context
-    )
-
-    assert result["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
-    assert result["product"]["gate4"]["facts_total"] == 0
-    projection = OrdinaryTradeProjectionFactory(
-        store=store, read_enabled=True
-    ).create().read(
-        artifact_id=result["documents"][0]["projection_artifact_id"],
-        context=context,
-    )
-    assert any(
-        item["table_node_id"] == tables[1]["node_id"]
-        and item["row"] == 2
-        and item["disposition"] == "RELEVANT_UNMAPPED"
-        for item in projection["source_observations"]
-    )
-    current = OrdinaryTradeMappingCaseFactory(
-        store=store, read_enabled=True
-    ).create().current(document_id=_document_id, context=context)[1]
-    assert current["semantic_review_receipt"]["verdict"] == "REJECT_UNSAFE"
-    assert current["semantic_review_receipt"]["table_findings"][0]["finding"] == (
-        "UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT"
-    )
-
-
-async def _incomplete_financial_row_cannot_be_silently_excluded(tmp_path) -> None:
-    known_rows = tuple(tuple(row) for row in case_fixtures.candidate._ROWS)
-    incomplete_rows = (
-        (
-            "Дата сделки",
-            "Операция",
-            "Инструмент",
-            "Количество",
-            "Цена",
-            "Сумма",
-            "Валюта",
-        ),
-        ("15.01.2025", "Покупка", "", "10", "100.00", "1000.00", ""),
-    )
-    store, context, _document_id, tables, canonical_ref = _multi_table_case(
-        tmp_path,
-        table_row_sets=(known_rows, incomplete_rows),
-    )
-    client = BoundaryModelClient(
-        [
-            _no_consumer_response(),
             _review_response(
                 verdict="REJECT_UNSAFE",
                 finding="UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT",
@@ -1691,6 +1654,79 @@ async def _incomplete_financial_row_cannot_be_silently_excluded(tmp_path) -> Non
         store=store, read_enabled=True
     ).create().current(document_id=_document_id, context=context)[1]
     assert current["semantic_review_receipt"]["verdict"] == "REJECT_UNSAFE"
+    assert current["semantic_review_receipt"]["schema_version"] == (
+        "broker_reports_ordinary_trade_semantic_adjudication_receipt_v2"
+    )
+    assert current["semantic_review_receipt"]["table_findings"][0]["finding"] == (
+        "UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT"
+    )
+
+
+async def _incomplete_financial_row_cannot_be_silently_excluded(tmp_path) -> None:
+    known_rows = tuple(tuple(row) for row in case_fixtures.candidate._ROWS)
+    incomplete_rows = (
+        (
+            "Дата сделки",
+            "Операция",
+            "Инструмент",
+            "Количество",
+            "Цена",
+            "Сумма",
+            "Валюта",
+        ),
+        ("15.01.2025", "Покупка", "", "10", "100.00", "1000.00", ""),
+    )
+    store, context, _document_id, tables, canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(known_rows, incomplete_rows),
+    )
+    client = BoundaryModelClient(
+        [
+            _no_consumer_response(),
+            _review_response(
+                verdict="REJECT_UNSAFE",
+                finding="UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT",
+            ),
+            _review_response(
+                verdict="REJECT_UNSAFE",
+                finding="UNSUPPORTED_OR_INCOMPLETE_FINANCIAL_CONTENT",
+            ),
+        ]
+    )
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+    ).create()
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+
+    assert result["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["product"]["gate4"]["facts_total"] == 0
+    projection = OrdinaryTradeProjectionFactory(
+        store=store, read_enabled=True
+    ).create().read(
+        artifact_id=result["documents"][0]["projection_artifact_id"],
+        context=context,
+    )
+    assert any(
+        item["table_node_id"] == tables[1]["node_id"]
+        and item["row"] == 2
+        and item["disposition"] == "RELEVANT_UNMAPPED"
+        for item in projection["source_observations"]
+    )
+    current = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=_document_id, context=context)[1]
+    assert current["semantic_review_receipt"]["verdict"] == "REJECT_UNSAFE"
+    assert current["semantic_review_receipt"]["schema_version"] == (
+        "broker_reports_ordinary_trade_semantic_adjudication_receipt_v2"
+    )
 
 
 async def _obvious_date_ambiguity_is_resolved_autonomously(tmp_path) -> None:
