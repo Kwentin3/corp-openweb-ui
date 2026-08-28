@@ -208,6 +208,45 @@ class OrdinaryTradeMappingCaseRuntime:
             "MAPPING_OUTPUT_INVALID",
         }:
             _fail("ordinary_trade_mapping_case_outcome_invalid")
+        return self._save_terminal(
+            document_id=document_id,
+            context=context,
+            status=status,
+            reason_code=reason_code,
+            message=message,
+            provider_calls_total=provider_calls_total,
+        )
+
+    def save_deterministic_terminal(
+        self,
+        *,
+        document_id: str,
+        context: ArtifactAccessContext,
+        status: str,
+        reason_code: str,
+        message: str,
+    ) -> tuple[ArtifactRecord, dict[str, Any]]:
+        if status != "SPECIALIST_REVIEW_REQUIRED":
+            _fail("ordinary_trade_mapping_case_outcome_invalid")
+        return self._save_terminal(
+            document_id=document_id,
+            context=context,
+            status=status,
+            reason_code=reason_code,
+            message=message,
+            provider_calls_total=0,
+        )
+
+    def _save_terminal(
+        self,
+        *,
+        document_id: str,
+        context: ArtifactAccessContext,
+        status: str,
+        reason_code: str,
+        message: str,
+        provider_calls_total: int,
+    ) -> tuple[ArtifactRecord, dict[str, Any]]:
         current = self.current(document_id=document_id, context=context)
         prior = current[1] if current is not None else None
         if prior is not None and prior["status"] == "COMPLETE":

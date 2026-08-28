@@ -18,6 +18,7 @@ from broker_reports_gate1.ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
 from broker_reports_gate1.ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerError,
     OrdinaryTradeSemanticCompilerFactory,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
@@ -240,6 +241,70 @@ def test_unknown_schema_mapping_is_qualified_only_for_exact_case(tmp_path) -> No
             receipt=receipt,
             expected_case_scope=foreign,
         )
+
+
+def test_registry_and_case_mapping_conflict_fails_at_exact_table_scope(
+    tmp_path,
+) -> None:
+    context, canonical, binding, table, known = _canonical_case(tmp_path)
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=_complete_response(table, known),
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        OrdinaryTradeSemanticCompilerFactory.create().compile(
+            canonical=canonical,
+            canonical_binding=binding,
+            mappings=[known],
+            scoped_mappings=[
+                {
+                    "table_node_id": table["node_id"],
+                    "mapping": result["qualified_mappings"][0],
+                }
+            ],
+            table_resolutions=result["table_resolutions"],
+        )
+
+    assert exc.value.code == "ordinary_trade_table_mapping_authority_conflict"
+
+
+def test_foreign_case_mapping_table_scope_fails_before_any_runtime_record(
+    tmp_path,
+) -> None:
+    context, canonical, binding, table, known = _canonical_case(tmp_path)
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=_complete_response(table, known),
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        OrdinaryTradeSemanticCompilerFactory.create().compile(
+            canonical=canonical,
+            canonical_binding=binding,
+            mappings=[],
+            scoped_mappings=[
+                {
+                    "table_node_id": "foreign-table-node",
+                    "mapping": result["qualified_mappings"][0],
+                }
+            ],
+            table_resolutions=[],
+        )
+
+    assert exc.value.code == "ordinary_trade_case_mapping_scope_stale"
 
 
 def test_mapped_table_retains_wrapped_non_record_row_without_blocking_facts(

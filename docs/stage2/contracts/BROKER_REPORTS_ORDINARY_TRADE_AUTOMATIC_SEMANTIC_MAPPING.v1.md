@@ -7,7 +7,8 @@ Updated: 2026-08-27
 ## Scope
 
 The active `ordinary_trade_automatic_semantic_mapping_v1` route keeps qualified
-exact mappings as a zero-call fast path. An unknown Canonical table schema is
+exact mappings as a zero-call fast path. Only table nodes not covered by that
+frozen path enter the model package. An unknown Canonical table schema is
 not rejected merely because it is absent from that registry: one strict source
 adapter may propose the table disposition, column roles, side literals and
 consumer-required amount/currency bindings.
@@ -33,6 +34,12 @@ does not satisfy every confirmed decision fails closed. Only `COMPLETE` exposes 
 `broker_reports_ordinary_trade_case_mapping_qualification_v1`; the receipt
 prohibits global reuse and seals the exact model response, execution metadata,
 confirmed decision and Canonical/table scope.
+
+Execution preserves that distinction: frozen mappings remain schema-scoped;
+case mappings remain exact-node-scoped. Two table nodes with the same structure
+are independent source containers. A confirmed case decision for each node may
+execute without inferred continuation, while a case mapping that overlaps a
+frozen mapping on the same node fails closed as an authority conflict.
 
 The model-facing package uses opaque table ordinals, omits Canonical/case
 identities and hashes, and bounds source rows to the minimum mapping sample.
@@ -94,6 +101,13 @@ side column from the full Canonical and a deterministic compiler dry-run with
 zero `RELEVANT_UNMAPPED` observations. Sample truncation cannot weaken this
 full-source check; incomplete coverage stops in the mapping case before any
 qualified material is persisted.
+
+Within a qualified trade table, display-only text rows may be retained without
+blocking. That terminal requires every non-empty mapped field to be display or
+reference text with no standalone transaction/monetary consumer. A row with any
+non-empty mapped date, side, quantity, price, currency, amount, commission,
+accrued-interest or settlement value remains `RELEVANT_UNMAPPED`; it emits zero
+Fact v2 until the exact row contract is complete.
 
 ## Release boundary
 

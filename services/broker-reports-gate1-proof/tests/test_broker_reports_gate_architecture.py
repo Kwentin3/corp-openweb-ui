@@ -289,7 +289,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v22",
+            "broker_reports_architecture_policy_v23",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,

@@ -99,15 +99,32 @@ class OrdinaryTradeProjectionRuntime:
         case_material = case_material or {
             "mapping_case_artifact_id": None,
             "qualified_mappings": [],
+            "qualification_receipts": [],
             "table_resolutions": [],
         }
+        receipts_by_id = {
+            item["qualification_id"]: item
+            for item in case_material["qualification_receipts"]
+        }
+        scoped_mappings = []
+        for mapping in case_material["qualified_mappings"]:
+            qualification_id = mapping["qualification_ref"]["qualification_id"]
+            receipt = receipts_by_id.get(qualification_id)
+            table_node_id = ((receipt or {}).get("case_scope") or {}).get(
+                "table_node_id"
+            )
+            if not isinstance(table_node_id, str) or not table_node_id:
+                raise OrdinaryTradeProjectionError(
+                    "ordinary_trade_case_mapping_scope_missing"
+                )
+            scoped_mappings.append(
+                {"table_node_id": table_node_id, "mapping": mapping}
+            )
         projection = self._compiler.compile(
             canonical=envelope.artifact,
             canonical_binding=binding,
-            mappings=[
-                *self._mappings,
-                *case_material["qualified_mappings"],
-            ],
+            mappings=self._mappings,
+            scoped_mappings=scoped_mappings,
             table_resolutions=case_material["table_resolutions"],
             semantic_mapping_case_ref=case_material[
                 "mapping_case_artifact_id"

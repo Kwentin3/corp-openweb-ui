@@ -13,6 +13,12 @@ from .ordinary_trade_semantic_mapping import (
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
+from .ordinary_trade_qualified_mappings import (
+    OrdinaryTradeQualifiedMappingAuthorityFactory,
+)
+from .ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerFactory,
+)
 
 
 FACTORY_REQUIRED = (
@@ -70,6 +76,10 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
             answer_model_client=self._answer_model_client,
             model_id=self._model_id,
             provider_profile_id=self._provider_profile_id,
+            frozen_mappings=(
+                OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()
+            ),
+            compiler=OrdinaryTradeSemanticCompilerFactory.create(),
         )
 
 
@@ -83,6 +93,8 @@ class OrdinaryTradeAutomaticMappingRuntime:
         answer_model_client: Any,
         model_id: str,
         provider_profile_id: str,
+        frozen_mappings: list[dict[str, Any]],
+        compiler: Any,
     ) -> None:
         self._cases = cases
         self._semantic = semantic
@@ -90,6 +102,8 @@ class OrdinaryTradeAutomaticMappingRuntime:
         self._answer_model_client = answer_model_client
         self._model_id = model_id
         self._provider_profile_id = provider_profile_id
+        self._frozen_mappings = frozen_mappings
+        self._compiler = compiler
 
     async def resolve(
         self,
@@ -174,10 +188,32 @@ class OrdinaryTradeAutomaticMappingRuntime:
         confirmed = (
             current[1]["confirmed_understandings"] if current is not None else []
         )
+        target_table_node_ids = self._compiler.unmapped_table_node_ids(
+            canonical=binding["canonical"],
+            mappings=self._frozen_mappings,
+        )
+        if not target_table_node_ids:
+            saved = self._cases.save_deterministic_terminal(
+                document_id=document_id,
+                context=context,
+                status="SPECIALIST_REVIEW_REQUIRED",
+                reason_code="ordinary_trade_known_mapping_row_incomplete",
+                message=(
+                    "Exact schema mapping is already known, but at least one source "
+                    "row is incomplete for the ordinary-trade consumer. No semantic "
+                    "remapping or partial facts were applied."
+                ),
+            )
+            return self._result(
+                current=saved,
+                context=context,
+                provider_calls_this_turn=0,
+            )
         try:
             package = self._semantic.build_mapping_package(
                 canonical=binding["canonical"],
                 confirmed_understandings=confirmed,
+                target_table_node_ids=target_table_node_ids,
             )
         except OrdinaryTradeSemanticMappingError as exc:
             if exc.code != "ordinary_trade_semantic_mapping_context_limit":
@@ -230,6 +266,8 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 execution_metadata=response.execution_metadata,
                 confirmed_understandings=confirmed,
                 user_scope_sha256=binding["user_scope_sha256"],
+                target_table_node_ids=target_table_node_ids,
+                frozen_mappings=self._frozen_mappings,
             )
         except Exception as exc:
             code = getattr(

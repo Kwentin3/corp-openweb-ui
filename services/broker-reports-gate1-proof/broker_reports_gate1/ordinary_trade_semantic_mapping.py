@@ -7,7 +7,7 @@ import hashlib
 import json
 import re
 from dataclasses import asdict, is_dataclass
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 from .gate2_source_fact_contracts import Gate2ManagedPrompt
 from .ordinary_trade_qualified_mappings import (
@@ -176,8 +176,12 @@ class OrdinaryTradeSemanticMapping:
         *,
         canonical: Mapping[str, Any],
         confirmed_understandings: list[dict[str, Any]],
+        target_table_node_ids: Iterable[str] | None = None,
     ) -> dict[str, Any]:
-        tables, refs_by_node_id = _model_table_surfaces(canonical)
+        tables, refs_by_node_id = _model_table_surfaces(
+            canonical,
+            target_table_node_ids=target_table_node_ids,
+        )
         confirmed_decisions = []
         for item in confirmed_understandings:
             decision = copy.deepcopy(item["decision"])
@@ -236,6 +240,8 @@ class OrdinaryTradeSemanticMapping:
         execution_metadata: Any,
         confirmed_understandings: list[dict[str, Any]],
         user_scope_sha256: str,
+        target_table_node_ids: Iterable[str] | None = None,
+        frozen_mappings: Iterable[Mapping[str, Any]] = (),
     ) -> dict[str, Any]:
         value = _strict_model_value(response)
         if (
@@ -248,9 +254,15 @@ class OrdinaryTradeSemanticMapping:
             or not value["message"].strip()
         ):
             _fail("ordinary_trade_semantic_mapping_response_invalid")
-        table_surfaces = _table_surfaces(canonical)
+        table_surfaces = _selected_table_surfaces(
+            canonical=canonical,
+            target_table_node_ids=target_table_node_ids,
+        )
         tables = {item["table_node_id"]: item for item in table_surfaces}
-        _model_tables, refs_by_node_id = _model_table_surfaces(canonical)
+        _model_tables, refs_by_node_id = _model_table_surfaces(
+            canonical,
+            target_table_node_ids=target_table_node_ids,
+        )
         node_ids_by_ref = {value: key for key, value in refs_by_node_id.items()}
         status = value["status"]
         if status == "CLARIFICATION_REQUIRED":
@@ -410,7 +422,18 @@ class OrdinaryTradeSemanticMapping:
         dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
             canonical=canonical,
             canonical_binding=canonical_binding,
-            mappings=qualified_mappings,
+            mappings=frozen_mappings,
+            scoped_mappings=[
+                {
+                    "table_node_id": receipt["case_scope"]["table_node_id"],
+                    "mapping": mapping,
+                }
+                for mapping, receipt in zip(
+                    qualified_mappings,
+                    qualification_receipts,
+                    strict=True,
+                )
+            ],
             table_resolutions=table_resolutions,
         )
         if any(
@@ -531,10 +554,15 @@ def _table_surfaces(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
 
 def _model_table_surfaces(
     canonical: Mapping[str, Any],
+    *,
+    target_table_node_ids: Iterable[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, str]]:
     """Expose only opaque table refs and a bounded value sample to the model."""
 
-    tables = _table_surfaces(canonical)
+    tables = _selected_table_surfaces(
+        canonical=canonical,
+        target_table_node_ids=target_table_node_ids,
+    )
     refs_by_node_id = {
         table["table_node_id"]: f"table_{index}"
         for index, table in enumerate(tables, start=1)
@@ -569,6 +597,27 @@ def _model_table_surfaces(
             }
         )
     return model_tables, refs_by_node_id
+
+
+def _selected_table_surfaces(
+    *,
+    canonical: Mapping[str, Any],
+    target_table_node_ids: Iterable[str] | None,
+) -> list[dict[str, Any]]:
+    tables = _table_surfaces(canonical)
+    if target_table_node_ids is None:
+        return tables
+    target_ids = list(target_table_node_ids)
+    if (
+        not target_ids
+        or len(target_ids) != len(set(target_ids))
+        or any(not isinstance(item, str) or not item for item in target_ids)
+    ):
+        _fail("ordinary_trade_semantic_mapping_target_scope_invalid")
+    by_id = {item["table_node_id"]: item for item in tables}
+    if any(item not in by_id for item in target_ids):
+        _fail("ordinary_trade_semantic_mapping_target_scope_stale")
+    return [by_id[item] for item in target_ids]
 
 
 def _normalize_model_decisions(
