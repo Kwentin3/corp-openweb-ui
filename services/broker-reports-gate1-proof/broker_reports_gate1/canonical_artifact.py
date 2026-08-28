@@ -124,6 +124,7 @@ class CanonicalNormalizer:
             source_artifact_ref=source_artifact_ref,
         )
         if source_format == "pdf":
+            self._validate_pdf_table_projections(table_projections)
             self._adapt_pdf(
                 builder,
                 source_payloads,
@@ -203,6 +204,53 @@ class CanonicalNormalizer:
                 ",".join(validation["error_codes"]),
             )
         return artifact
+
+    @staticmethod
+    def _validate_pdf_table_projections(
+        table_projections: list[dict[str, Any]],
+    ) -> None:
+        """Revalidate the inactive logical-row bridge before assembly.
+
+        Historical PDF projections predate the validator receipt and remain a
+        separate migration concern.  The new research bridge is never allowed
+        to rely on its own declared status.
+        """
+
+        from .table_projection import (  # noqa: PLC0415
+            NormalizedTableProjectionFactory,
+        )
+
+        validator = NormalizedTableProjectionFactory().create().validator
+        for ordinal, projection in enumerate(table_projections):
+            if not isinstance(projection, dict):
+                raise CanonicalArtifactError(
+                    "canonical_table_projection_validation_failed",
+                    f"{ordinal}:table_projection_not_an_object",
+                )
+            if projection.get("research_only") is not True:
+                continue
+            validation = validator.validate(projection)
+            declared_status = str(projection.get("validator_status") or "")
+            if declared_status == "passed" and validation["passed"]:
+                continue
+            reason_codes = sorted(
+                {
+                    *(
+                        ["table_projection_validator_status_missing_or_failed"]
+                        if declared_status != "passed"
+                        else []
+                    ),
+                    *[
+                        str(item.get("code") or "")
+                        for item in validation["errors"]
+                    ],
+                }
+            )
+            projection_ref = str(projection.get("table_projection_id") or ordinal)
+            raise CanonicalArtifactError(
+                "canonical_table_projection_validation_failed",
+                f"{projection_ref}:{','.join(reason_codes)}",
+            )
 
     def build_xlsx_streaming(
         self,
@@ -1608,15 +1656,10 @@ def _projection_canonical_cells(
     builder: "_LogicalBuilder",
     projection: dict[str, Any],
     source_location: dict[str, Any],
-) -> list[dict[str, Any]] | None:
+) -> list[dict[str, Any]]:
     projection_cells = [
         cell for cell in projection.get("cells") or [] if isinstance(cell, dict)
     ]
-    rectangular_cell_count = int(projection.get("row_count") or 0) * int(
-        projection.get("column_count") or 0
-    )
-    if len(projection_cells) >= rectangular_cell_count:
-        return None
     values = {
         str(item.get("value_path_ref") or ""): item.get("normalized_value")
         for item in projection.get("private_values") or []
