@@ -271,9 +271,12 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
 def test_review_prompt_separates_safe_aggregates_from_financial_events() -> None:
     prompt = OrdinaryTradeSemanticMappingFactory.create().semantic_review_prompt().content
 
-    assert "account-level aggregate, balance, portfolio, turnover" in prompt
-    assert "dividend, interest, tax, fee, cash event" in prompt
-    assert "incomplete transaction or damaged financial record" in prompt
+    assert "table-wide evidence affirmatively" in prompt
+    assert "category total, balance or reference" in prompt
+    assert "Do not infer aggregation merely from missing fields" in prompt
+    assert "dividend row tied to a security and payment date" in prompt
+    assert "trade row with operation, quantity, price and amount" in prompt
+    assert "independent, incomplete or damaged financial event" in prompt
 
 
 def test_unknown_schema_mapping_is_qualified_only_for_exact_case(tmp_path) -> None:
