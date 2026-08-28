@@ -277,6 +277,65 @@ def test_rejects_overlapping_leaf_label_boxes() -> None:
     assert exc_info.value.code == "visual_logical_column_groups_overlap"
 
 
+def test_accepts_leaf_box_slightly_outside_approximate_header_geometry() -> None:
+    proposal = _logical_column_value()
+    proposal["leaf_label_boxes_2d"][1] = [100, 200, 154, 402]
+
+    result = (
+        VisualTableStructureProjectionFactory()
+        .create()
+        .bind_logical_column_proposal(
+            provider_value=proposal,
+            parser_page=_page(),
+            bound_structure=_bound_structure(),
+            expected_crop_manifest_hash=CROP_MANIFEST_HASH,
+        )
+    )
+
+    assert [item["header_text"] for item in result["leaf_columns"]] == [
+        "Date",
+        "Amount",
+    ]
+
+
+def test_rejects_leaf_box_that_also_selects_a_body_word() -> None:
+    proposal = _logical_column_value()
+    proposal["leaf_label_boxes_2d"][0] = [100, 40, 200, 150]
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        (
+            VisualTableStructureProjectionFactory()
+            .create()
+            .bind_logical_column_proposal(
+                provider_value=proposal,
+                parser_page=_page(),
+                bound_structure=_bound_structure(),
+                expected_crop_manifest_hash=CROP_MANIFEST_HASH,
+            )
+        )
+
+    assert exc_info.value.code == ("visual_logical_column_non_header_word_selected")
+
+
+def test_rejects_leaf_box_that_selects_no_authoritative_header_word() -> None:
+    proposal = _logical_column_value()
+    proposal["leaf_label_boxes_2d"][0] = [170, 40, 200, 150]
+
+    with pytest.raises(VisualTableStructureError) as exc_info:
+        (
+            VisualTableStructureProjectionFactory()
+            .create()
+            .bind_logical_column_proposal(
+                provider_value=proposal,
+                parser_page=_page(),
+                bound_structure=_bound_structure(),
+                expected_crop_manifest_hash=CROP_MANIFEST_HASH,
+            )
+        )
+
+    assert exc_info.value.code == ("visual_logical_column_non_header_word_selected")
+
+
 def test_preserves_shared_header_word_outside_leaf_labels() -> None:
     page = _page()
     page["word_inventory"].append(
@@ -292,6 +351,36 @@ def test_preserves_shared_header_word_outside_leaf_labels() -> None:
             bound_structure=_bound_structure(page=page),
             expected_crop_manifest_hash=CROP_MANIFEST_HASH,
         )
+    )
+
+    assert [item["header_text"] for item in result["leaf_columns"]] == [
+        "Date",
+        "Amount",
+    ]
+    assert len(result["shared_or_non_leaf_header_word_refs"]) == 1
+
+
+def test_preserves_shared_word_from_a_separate_multirow_header_band() -> None:
+    page = _page()
+    page["word_inventory"].append(
+        {"parser_ordinal": 11, "text": "Shared", "bbox": [160, 90, 190, 98]}
+    )
+    value = _value()
+    value["tables"][0]["header_boxes_2d"] = [
+        [90, 40, 100, 400],
+        [100, 40, 150, 400],
+    ]
+    projector = VisualTableStructureProjectionFactory().create()
+    structure = projector.bind(
+        provider_value=value,
+        parser_page=page,
+    )["tables"][0]
+
+    result = projector.bind_logical_column_proposal(
+        provider_value=_logical_column_value(),
+        parser_page=page,
+        bound_structure=structure,
+        expected_crop_manifest_hash=CROP_MANIFEST_HASH,
     )
 
     assert [item["header_text"] for item in result["leaf_columns"]] == [

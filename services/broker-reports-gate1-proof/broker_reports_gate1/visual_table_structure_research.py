@@ -424,14 +424,20 @@ class VisualTableStructureProjection:
             raise VisualTableStructureError(
                 "visual_logical_column_header_presence_mismatch"
             )
-        header_boxes = [self._box(item) for item in structure["header_boxes_2d"]]
-        self._validate_leaf_label_boxes(boxes=boxes, header_boxes=header_boxes)
+        self._validate_leaf_label_boxes(boxes=boxes)
         leaf_words = [_words_in_boxes(page["words"], [box]) for box in boxes]
         if any(not words for words in leaf_words):
             raise VisualTableStructureError(
                 "visual_logical_column_source_binding_empty"
             )
+        authoritative_header_ordinals = {
+            item["parser_ordinal"] for item in header_words
+        }
         ordinals = [item["parser_ordinal"] for words in leaf_words for item in words]
+        if any(ordinal not in authoritative_header_ordinals for ordinal in ordinals):
+            raise VisualTableStructureError(
+                "visual_logical_column_non_header_word_selected"
+            )
         if len(ordinals) != len(set(ordinals)):
             raise VisualTableStructureError(
                 "visual_logical_column_header_word_ownership_invalid"
@@ -747,14 +753,7 @@ class VisualTableStructureProjection:
             )
         return structure, words
 
-    def _validate_leaf_label_boxes(
-        self, *, boxes: list[list[int]], header_boxes: list[list[int]]
-    ) -> None:
-        if any(
-            not any(_box_contains(header, box) for header in header_boxes)
-            for box in boxes
-        ):
-            raise VisualTableStructureError("visual_logical_column_box_outside_header")
+    def _validate_leaf_label_boxes(self, *, boxes: list[list[int]]) -> None:
         if any(_boxes_overlap(left, right) for left, right in zip(boxes, boxes[1:])):
             raise VisualTableStructureError("visual_logical_column_groups_overlap")
         if any(right[1] < left[3] for left, right in zip(boxes, boxes[1:])):
