@@ -2177,6 +2177,7 @@ _GEMINI_PRESERVED_ENUM_PROPERTIES = {
     "identifier_type",
     "income_type_candidate",
     "fee_type_candidate",
+    "finding",
     "fx_fact_kind",
     "movement_type_candidate",
     "normalized_value",
@@ -2193,9 +2194,12 @@ _GEMINI_PRESERVED_ENUM_PROPERTIES = {
     "subtype_candidate",
     "withholding_type_candidate",
     "validator_status",
+    "verdict",
 }
 
-_REQUIRED_SEMANTIC_ENUM_PROPERTIES = frozenset({"choice", "reason"})
+_REQUIRED_SEMANTIC_ENUM_PROPERTIES = frozenset(
+    {"choice", "finding", "reason", "verdict"}
+)
 
 
 class _DuplicateProviderJsonKeyError(ValueError):

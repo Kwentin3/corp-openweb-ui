@@ -56,6 +56,7 @@ class OrdinaryTradeProductionRuntimeFactory:
         read_enabled: bool,
         retention_policy: RetentionPolicy | None = None,
         mapping_model_client: Any | None = None,
+        mapping_review_model_client: Any | None = None,
         mapping_answer_model_client: Any | None = None,
         mapping_model_id: str | None = None,
         mapping_provider_profile_id: str | None = None,
@@ -64,6 +65,7 @@ class OrdinaryTradeProductionRuntimeFactory:
         self._read_enabled = read_enabled
         self._retention_policy = retention_policy
         self._mapping_model_client = mapping_model_client
+        self._mapping_review_model_client = mapping_review_model_client
         self._mapping_answer_model_client = mapping_answer_model_client
         self._mapping_model_id = mapping_model_id
         self._mapping_provider_profile_id = mapping_provider_profile_id
@@ -83,7 +85,7 @@ class OrdinaryTradeProductionRuntimeFactory:
             self._mapping_model_id,
             self._mapping_provider_profile_id,
         )
-        if any(item is not None for item in mapping_values):
+        if any(item is not None for item in (*mapping_values, self._mapping_review_model_client)):
             if not all(item is not None for item in mapping_values):
                 raise OrdinaryTradeProductionError(
                     "ordinary_trade_mapping_runtime_configuration_incomplete"
@@ -92,6 +94,10 @@ class OrdinaryTradeProductionRuntimeFactory:
                 store=self._store,
                 read_enabled=self._read_enabled,
                 model_client=self._mapping_model_client,
+                review_model_client=(
+                    self._mapping_review_model_client
+                    or self._mapping_model_client
+                ),
                 answer_model_client=self._mapping_answer_model_client,
                 model_id=str(self._mapping_model_id),
                 provider_profile_id=str(self._mapping_provider_profile_id),

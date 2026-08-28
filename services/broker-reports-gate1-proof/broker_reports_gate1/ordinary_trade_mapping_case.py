@@ -18,6 +18,7 @@ from .ordinary_trade_qualified_mappings import (
 from .ordinary_trade_semantic_mapping import (
     MAPPING_CASE_SCHEMA_VERSION,
     mapping_decision_communication_description,
+    validate_semantic_review_receipt,
 )
 
 
@@ -188,6 +189,9 @@ class OrdinaryTradeMappingCaseRuntime:
             execution_metadata_sha256=outcome.get(
                 "execution_metadata_sha256"
             ),
+            semantic_review_receipt=copy.deepcopy(
+                outcome.get("semantic_review_receipt")
+            ),
             reason_code=None,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
@@ -201,6 +205,7 @@ class OrdinaryTradeMappingCaseRuntime:
         reason_code: str,
         message: str,
         provider_calls_total: int,
+        semantic_review_receipt: dict[str, Any] | None = None,
     ) -> tuple[ArtifactRecord, dict[str, Any]]:
         if status not in {
             "PROVIDER_UNAVAILABLE",
@@ -215,6 +220,7 @@ class OrdinaryTradeMappingCaseRuntime:
             reason_code=reason_code,
             message=message,
             provider_calls_total=provider_calls_total,
+            semantic_review_receipt=semantic_review_receipt,
         )
 
     def save_deterministic_terminal(
@@ -235,6 +241,7 @@ class OrdinaryTradeMappingCaseRuntime:
             reason_code=reason_code,
             message=message,
             provider_calls_total=0,
+            semantic_review_receipt=None,
         )
 
     def _save_terminal(
@@ -246,6 +253,7 @@ class OrdinaryTradeMappingCaseRuntime:
         reason_code: str,
         message: str,
         provider_calls_total: int,
+        semantic_review_receipt: dict[str, Any] | None,
     ) -> tuple[ArtifactRecord, dict[str, Any]]:
         current = self.current(document_id=document_id, context=context)
         prior = current[1] if current is not None else None
@@ -271,6 +279,9 @@ class OrdinaryTradeMappingCaseRuntime:
             ),
             model_response_sha256=None,
             execution_metadata_sha256=None,
+            semantic_review_receipt=copy.deepcopy(
+                semantic_review_receipt
+            ),
             reason_code=reason_code,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
@@ -338,6 +349,9 @@ class OrdinaryTradeMappingCaseRuntime:
             ),
             model_response_sha256=None,
             execution_metadata_sha256=None,
+            semantic_review_receipt=copy.deepcopy(
+                prior.get("semantic_review_receipt")
+            ),
             reason_code=None,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
@@ -400,6 +414,9 @@ class OrdinaryTradeMappingCaseRuntime:
             provider_calls_total=prior["provider_calls_total"],
             model_response_sha256=None,
             execution_metadata_sha256=None,
+            semantic_review_receipt=copy.deepcopy(
+                prior.get("semantic_review_receipt")
+            ),
             reason_code=None,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
@@ -498,6 +515,7 @@ class OrdinaryTradeMappingCaseRuntime:
             "provider_calls_total": values["provider_calls_total"],
             "model_response_sha256": values["model_response_sha256"],
             "execution_metadata_sha256": values["execution_metadata_sha256"],
+            "semantic_review_receipt": values["semantic_review_receipt"],
             "reason_code": values["reason_code"],
         }
         payload["integrity_sha256"] = _sha256_json(payload)
@@ -587,6 +605,7 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         "provider_calls_total",
         "model_response_sha256",
         "execution_metadata_sha256",
+        "semantic_review_receipt",
         "reason_code",
         "integrity_sha256",
     }
@@ -657,10 +676,38 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
     mappings = payload.get("qualified_mappings")
     receipts = payload.get("qualification_receipts")
     resolutions = payload.get("table_resolutions")
+    semantic_review_receipt = payload.get("semantic_review_receipt")
+    if semantic_review_receipt is not None:
+        try:
+            validate_semantic_review_receipt(semantic_review_receipt)
+        except Exception as exc:
+            raise OrdinaryTradeMappingCaseError(
+                "ordinary_trade_mapping_case_semantic_review_invalid"
+            ) from exc
+        if (
+            semantic_review_receipt.get("canonical_root_sha256")
+            != binding["canonical_binding"]["canonical_root_sha256"]
+        ):
+            _fail("ordinary_trade_mapping_case_semantic_review_stale")
     if not all(isinstance(item, list) for item in (mappings, receipts, resolutions)):
         _fail("ordinary_trade_mapping_case_material_invalid")
     if payload["status"] == "COMPLETE":
-        if len(mappings) != len(receipts) or not resolutions:
+        if (
+            len(mappings) != len(receipts)
+            or not resolutions
+            or semantic_review_receipt is None
+            or semantic_review_receipt.get("verdict")
+            not in {"APPROVE_COMPLETE", "SELECT_OPTION"}
+            or (
+                semantic_review_receipt.get("verdict") == "APPROVE_COMPLETE"
+                and semantic_review_receipt.get("mapper_terminal_status") != "COMPLETE"
+            )
+            or (
+                semantic_review_receipt.get("verdict") == "SELECT_OPTION"
+                and semantic_review_receipt.get("mapper_terminal_status")
+                != "CLARIFICATION_REQUIRED"
+            )
+        ):
             _fail("ordinary_trade_mapping_case_material_invalid")
         receipts_by_id = {item.get("qualification_id"): item for item in receipts}
         for mapping in mappings:
@@ -683,8 +730,18 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
     elif mappings or receipts or resolutions:
         _fail("ordinary_trade_mapping_case_partial_publication")
     if payload["status"] == "CLARIFICATION_REQUIRED":
-        if not isinstance(payload.get("question"), dict):
+        if (
+            not isinstance(payload.get("question"), dict)
+            or semantic_review_receipt is None
+            or semantic_review_receipt.get("verdict")
+            != "IRREDUCIBLE_AMBIGUITY"
+            or semantic_review_receipt.get("mapper_terminal_status")
+            != "CLARIFICATION_REQUIRED"
+        ):
             _fail("ordinary_trade_mapping_case_question_invalid")
+    if payload["status"] == "MAPPING_OUTPUT_INVALID" and semantic_review_receipt is not None:
+        if semantic_review_receipt.get("verdict") != "REJECT_UNSAFE":
+            _fail("ordinary_trade_mapping_case_semantic_review_invalid")
     if payload["status"] == "CONFIRMATION_REQUIRED":
         candidate = payload.get("pending_candidate")
         question = payload.get("question")

@@ -44,6 +44,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         store: Any,
         read_enabled: bool,
         model_client: Any,
+        review_model_client: Any | None = None,
         answer_model_client: Any | None = None,
         model_id: str,
         provider_profile_id: str,
@@ -51,6 +52,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         self._store = store
         self._read_enabled = read_enabled
         self._model_client = model_client
+        self._review_model_client = review_model_client or model_client
         self._answer_model_client = answer_model_client or model_client
         self._model_id = model_id
         self._provider_profile_id = provider_profile_id
@@ -58,6 +60,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
     def create(self) -> "OrdinaryTradeAutomaticMappingRuntime":
         if (
             self._model_client is None
+            or self._review_model_client is None
             or not isinstance(self._model_id, str)
             or not self._model_id
             or not isinstance(self._provider_profile_id, str)
@@ -73,6 +76,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
             ).create(),
             semantic=OrdinaryTradeSemanticMappingFactory.create(),
             model_client=self._model_client,
+            review_model_client=self._review_model_client,
             answer_model_client=self._answer_model_client,
             model_id=self._model_id,
             provider_profile_id=self._provider_profile_id,
@@ -90,6 +94,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         cases: Any,
         semantic: Any,
         model_client: Any,
+        review_model_client: Any,
         answer_model_client: Any,
         model_id: str,
         provider_profile_id: str,
@@ -99,6 +104,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         self._cases = cases
         self._semantic = semantic
         self._model_client = model_client
+        self._review_model_client = review_model_client
         self._answer_model_client = answer_model_client
         self._model_id = model_id
         self._provider_profile_id = provider_profile_id
@@ -300,14 +306,125 @@ class OrdinaryTradeAutomaticMappingRuntime:
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
             )
+        if outcome["status"] in {"COMPLETE", "CLARIFICATION_REQUIRED"}:
+            try:
+                review_package = self._semantic.build_semantic_review_package(
+                    mapping_package=package,
+                    mapping_response=response,
+                )
+            except Exception as exc:
+                code = getattr(
+                    exc, "code", "ordinary_trade_semantic_review_package_invalid"
+                )
+                saved = self._cases.save_provider_terminal(
+                    document_id=document_id,
+                    context=context,
+                    status="SOURCE_CONTEXT_LIMIT",
+                    reason_code=str(code),
+                    message=(
+                        "The complete same-evidence review package exceeds the safe "
+                        "source-context boundary. No facts were published."
+                    ),
+                    provider_calls_total=1,
+                )
+                return self._result(
+                    current=saved, context=context, provider_calls_this_turn=1
+                )
+            try:
+                review_response = await self._review_model_client.extract(
+                    prompt=self._semantic.semantic_review_prompt(),
+                    package=review_package,
+                    model_id=self._model_id,
+                    response_format=self._semantic.semantic_review_response_format(),
+                )
+            except Exception as exc:
+                code = getattr(
+                    exc, "code", "ordinary_trade_semantic_review_provider_failed"
+                )
+                saved = self._cases.save_provider_terminal(
+                    document_id=document_id,
+                    context=context,
+                    status="PROVIDER_UNAVAILABLE",
+                    reason_code=str(code),
+                    message=(
+                        "Independent same-evidence semantic review is unavailable. "
+                        "The saved case can be resumed later; no facts were published."
+                    ),
+                    provider_calls_total=2,
+                )
+                return self._result(
+                    current=saved, context=context, provider_calls_this_turn=2
+                )
+            try:
+                _strict_result(review_response)
+                outcome = self._semantic.validate_semantic_review(
+                    response=review_response,
+                    mapping_outcome=outcome,
+                    mapping_response=response,
+                    mapping_package=package,
+                    review_package=review_package,
+                    canonical=binding["canonical"],
+                    canonical_binding=binding["canonical_binding"],
+                    model_id=self._model_id,
+                    provider_profile_id=self._provider_profile_id,
+                    execution_metadata=review_response.execution_metadata,
+                    confirmed_understandings=confirmed,
+                    user_scope_sha256=binding["user_scope_sha256"],
+                    target_table_node_ids=target_table_node_ids,
+                    frozen_mappings=self._frozen_mappings,
+                )
+            except Exception as exc:
+                code = getattr(
+                    exc, "code", "ordinary_trade_semantic_review_output_invalid"
+                )
+                saved = self._cases.save_provider_terminal(
+                    document_id=document_id,
+                    context=context,
+                    status="MAPPING_OUTPUT_INVALID",
+                    reason_code=str(code),
+                    message=(
+                        "Independent same-evidence semantic review did not validate "
+                        "the document-wide mapping. No facts were published."
+                    ),
+                    provider_calls_total=2,
+                )
+                return self._result(
+                    current=saved, context=context, provider_calls_this_turn=2
+                )
+            if outcome["status"] == "REVIEW_REJECTED":
+                saved = self._cases.save_provider_terminal(
+                    document_id=document_id,
+                    context=context,
+                    status="MAPPING_OUTPUT_INVALID",
+                    reason_code=outcome["reason_code"],
+                    message=(
+                        "Independent same-evidence review found unresolved financial "
+                        "content. No partial facts were published."
+                    ),
+                    provider_calls_total=2,
+                    semantic_review_receipt=outcome["semantic_review_receipt"],
+                )
+                return self._result(
+                    current=saved, context=context, provider_calls_this_turn=2
+                )
         saved = self._cases.save_mapping_outcome(
             document_id=document_id,
             context=context,
             outcome=outcome,
-            provider_calls_total=1,
+            provider_calls_total=(
+                2
+                if outcome["status"] in {"COMPLETE", "CLARIFICATION_REQUIRED"}
+                else 1
+            ),
         )
         return self._result(
-            current=saved, context=context, provider_calls_this_turn=1
+            current=saved,
+            context=context,
+            provider_calls_this_turn=(
+                2
+                if outcome["status"] in {"COMPLETE", "CLARIFICATION_REQUIRED"}
+                else 1
+            ),
         )
 
     async def _interpret_answer(

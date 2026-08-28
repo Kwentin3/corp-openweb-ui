@@ -497,6 +497,9 @@ def test_production_factory_is_the_only_candidate_route_and_has_no_old_owner() -
     assert pipe.index("if candidate_enabled:") < pipe.index(
         "Gate2StructuredModelClientFactory("
     )
+    assert "ORDINARY_TRADE_SEMANTIC_REVIEW_REQUEST_PROFILE" in pipe
+    assert "mapping_review_model_client=review_client" in pipe
+    assert pipe.count("Gate2StructuredModelClientFactory(") >= 3
 
 
 def test_qualified_mapping_authority_is_immutable_and_has_no_profile_keys() -> None:

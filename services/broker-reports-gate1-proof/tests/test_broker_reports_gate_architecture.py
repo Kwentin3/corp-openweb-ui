@@ -42,6 +42,7 @@ from broker_reports_gate1.gate2_financial_semantic_v6_evidence import (
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
+    SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION,
 )
 
 
@@ -289,7 +290,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v24",
+            "broker_reports_architecture_policy_v25",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -325,6 +326,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                     ),
                     "mapping_contract": (
                         "broker_reports_ordinary_trade_schema_mapping_v3"
+                    ),
+                    "semantic_review_contract": (
+                        "broker_reports_ordinary_trade_semantic_review_response_v1"
+                        "|broker_reports_ordinary_trade_semantic_review_receipt_v1"
                     ),
                     "qualification_contract": (
                         "broker_reports_ordinary_trade_mapping_qualification_v2"
@@ -447,6 +452,16 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "ordinary_trade_mapping_answer"
             ][2],
             ANSWER_RESPONSE_SCHEMA_VERSION,
+        )
+        self.assertEqual(
+            architecture_policy.PROVIDER_CALL_SITE_CLASSIFICATIONS[
+                "ordinary_trade_semantic_review"
+            ],
+            (
+                "SOURCE_ADAPTER",
+                "same_canonical_financial_completeness_and_irreducible_ambiguity",
+                SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION,
+            ),
         )
 
     def test_machine_readable_policy_is_fail_closed(self):
