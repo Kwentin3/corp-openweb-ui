@@ -343,6 +343,7 @@ def _execute(args: argparse.Namespace) -> int:
     _require_clean_head()
     output_root = args.private_output_root.resolve()
     _require_new_root(output_root)
+    output_root.mkdir(parents=True)
     profile = gate2_provider_profile(PROVIDER_PROFILE)
     if MODEL_ID not in profile.approved_model_ids:
         raise LiveTableScopedRoleError("table_scope_model_not_approved")
@@ -405,6 +406,16 @@ def _execute(args: argparse.Namespace) -> int:
             )
         )
         execution_metadata = _jsonable(result.execution_metadata)
+        _write_json(
+            output_root / "provider-response.private.json",
+            {
+                "freeze_sha256": freeze["freeze_sha256"],
+                "source_head": freeze["source_head"],
+                "provider_submissions": submissions["count"],
+                "content": _jsonable(result.content),
+                "execution_metadata": execution_metadata,
+            },
+        )
         contract = validate_response(
             raw_response=result.content,
             table=freeze["table"],
@@ -481,7 +492,6 @@ def _execute(args: argparse.Namespace) -> int:
         "product_activation": False,
     }
     safe["receipt_sha256"] = stable_sha256(safe)
-    output_root.mkdir(parents=True)
     _write_json(output_root / "result.private.json", private)
     _write_json(output_root / "result.safe.json", safe)
     print(json.dumps(safe, ensure_ascii=False, indent=2))
@@ -497,6 +507,8 @@ def _jsonable(value: Any) -> Any:
         return [_jsonable(item) for item in value]
     if hasattr(value, "model_dump"):
         return _jsonable(value.model_dump())
+    if hasattr(value, "snapshot"):
+        return _jsonable(value.snapshot())
     return str(value)
 
 

@@ -11,6 +11,7 @@ from broker_reports_gate1.canonical_artifact import (
 from broker_reports_gate1.logical_row_table_recovery import (
     LogicalRowTableRecoveryResult,
 )
+from broker_reports_gate1.gate2_model_contracts import Gate2ProviderExecutionMetadata
 from broker_reports_gate1.table_scoped_role_research import (
     TableScopedRoleResearchError,
     TableScopedRoleResearchFactory,
@@ -26,9 +27,34 @@ from scripts.canonical_financial_role_mapping_research import (
     extract_tables,
     validate_response,
 )
+from scripts.live_table_scoped_financial_role_research import _jsonable
 
 
 SOURCE_SHA = "a" * 64
+
+
+def test_live_receipt_serializes_provider_metadata_as_mapping() -> None:
+    metadata = Gate2ProviderExecutionMetadata(
+        provider_id="provider",
+        provider_profile_id="profile",
+        provider_profile_revision="revision",
+        adapter_id="adapter",
+        adapter_version="version",
+        requested_model_id="model",
+        structured_output_mode="json_schema",
+        response_format_type="json_schema",
+        response_format_schema_mode="strict",
+        input_tokens=10,
+        output_tokens=5,
+        total_tokens=15,
+    )
+
+    serialized = _jsonable(metadata)
+
+    assert serialized["schema_version"] == "gate2_provider_execution_metadata_v1"
+    assert serialized["input_tokens"] == 10
+    assert serialized["output_tokens"] == 5
+    assert serialized["total_tokens"] == 15
 
 
 def _fixture() -> tuple[
