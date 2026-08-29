@@ -17,6 +17,15 @@ from broker_reports_gate1.visual_role_context_research import (
 from scripts.canonical_financial_role_mapping_research import compose_request
 
 
+LOGICAL_WORD_REFS = {
+    "title": "pdfword_" + "1" * 24,
+    "h1": "pdfword_" + "2" * 24,
+    "h2": "pdfword_" + "3" * 24,
+    "d1": "pdfword_" + "4" * 24,
+    "d2": "pdfword_" + "5" * 24,
+}
+
+
 def _page() -> dict:
     return {
         "page_number": 1,
@@ -78,6 +87,84 @@ def _table() -> dict:
     }
 
 
+def _logical_projection_page() -> dict:
+    page = _page()
+    page["source_sha256"] = "a" * 64
+    for word, ref in zip(
+        page["word_inventory"],
+        LOGICAL_WORD_REFS.values(),
+        strict=True,
+    ):
+        word["source_word_ref"] = ref
+        word["source_bbox"] = copy.deepcopy(word["bbox"])
+    return page
+
+
+def _logical_projection() -> dict:
+    return {
+        "validator_status": "passed",
+        "research_only": True,
+        "product_reachability": False,
+        "column_refs": ["logical_1", "logical_2"],
+        "rows": [
+            {
+                "row_ref": "header_row",
+                "row_role": "header_row",
+                "cell_refs": ["h1", "h2"],
+            },
+            {
+                "row_ref": "data_row",
+                "row_role": "data_row",
+                "cell_refs": ["d1", "d2"],
+            },
+        ],
+        "cells": [
+            {
+                "cell_ref": "h1",
+                "row_ref": "header_row",
+                "column_ref": "logical_1",
+                "column_ordinal": 1,
+                "source_value_refs": ["sv_h1"],
+                "normalized_private_value_path": "path_h1",
+            },
+            {
+                "cell_ref": "h2",
+                "row_ref": "header_row",
+                "column_ref": "logical_2",
+                "column_ordinal": 2,
+                "source_value_refs": ["sv_h2"],
+                "normalized_private_value_path": "path_h2",
+            },
+        ],
+        "private_values": [
+            {"value_path_ref": "path_h1", "normalized_value": "Date"},
+            {"value_path_ref": "path_h2", "normalized_value": "Amount"},
+        ],
+        "source_value_index": [
+            {
+                "source_value_ref": "sv_h1",
+                "source_object_ref": LOGICAL_WORD_REFS["h1"],
+            },
+            {
+                "source_value_ref": "sv_h2",
+                "source_object_ref": LOGICAL_WORD_REFS["h2"],
+            },
+        ],
+    }
+
+
+def _logical_bound_structure() -> dict:
+    value = _structure()
+    value.update(
+        {
+            "table_order": 1,
+            "title_word_refs": [LOGICAL_WORD_REFS["title"]],
+            "header_word_refs": [LOGICAL_WORD_REFS["h1"], LOGICAL_WORD_REFS["h2"]],
+        }
+    )
+    return value
+
+
 def test_build_binds_exact_parser_words_to_existing_column_refs() -> None:
     result = VisualRoleContextResearchFactory().create().build(
         parser_page=_page(),
@@ -103,6 +190,49 @@ def test_build_binds_exact_parser_words_to_existing_column_refs() -> None:
     assert result["model_literals_used_as_source_values"] is False
     assert result["financial_roles_assigned"] is False
     assert result["canonical_mutated"] is False
+
+
+def test_logical_projection_replaces_damaged_candidate_as_visual_context_owner() -> None:
+    adapter = VisualRoleContextResearchFactory().create()
+    result = adapter.build_from_table_projection(
+        parser_page=_logical_projection_page(),
+        bound_structure=_logical_bound_structure(),
+        table_projection=_logical_projection(),
+        expected_source_sha256="a" * 64,
+    )
+
+    assert result["title_literal"] == "Trades"
+    assert result["header_labels"] == [
+        {
+            "column_ref": "c1",
+            "literal": "Date",
+            "word_refs": [LOGICAL_WORD_REFS["h1"]],
+        },
+        {
+            "column_ref": "c2",
+            "literal": "Amount",
+            "word_refs": [LOGICAL_WORD_REFS["h2"]],
+        },
+    ]
+    assert result["table_geometry_owner"] == (
+        "logical_row_recovery_table_projection"
+    )
+    assert result["canonical_mutated"] is False
+
+
+def test_logical_projection_visual_header_drift_fails_closed() -> None:
+    projection = _logical_projection()
+    projection["source_value_index"][1]["source_object_ref"] = LOGICAL_WORD_REFS[
+        "d2"
+    ]
+    with pytest.raises(VisualRoleContextError) as exc_info:
+        VisualRoleContextResearchFactory().create().build_from_table_projection(
+            parser_page=_logical_projection_page(),
+            bound_structure=_logical_bound_structure(),
+            table_projection=projection,
+            expected_source_sha256="a" * 64,
+        )
+    assert exc_info.value.code == "visual_role_projection_header_mismatch"
 
 
 def test_source_word_mutation_changes_context_and_does_not_mutate_inputs() -> None:

@@ -213,6 +213,154 @@ class VisualRoleContextResearch:
             "canonical_mutated": False,
         }
 
+    def build_from_table_projection(
+        self,
+        *,
+        parser_page: dict[str, Any],
+        bound_structure: Mapping[str, Any],
+        table_projection: Mapping[str, Any],
+        expected_source_sha256: str,
+    ) -> dict[str, Any]:
+        """Bind proven visual context to a validated logical-row projection."""
+
+        if (
+            parser_page.get("source_sha256") != expected_source_sha256
+            or table_projection.get("validator_status") != "passed"
+            or table_projection.get("research_only") is not True
+            or table_projection.get("product_reachability") is not False
+        ):
+            raise VisualRoleContextError("visual_role_projection_scope_invalid")
+        if (
+            bound_structure.get("title_status") != "PRESENT"
+            or bound_structure.get("header_status") != "PRESENT"
+            or bound_structure.get("body_status") != "HAS_DATA"
+        ):
+            raise VisualRoleContextError("visual_role_context_header_unavailable")
+        try:
+            title_words = self.word_projector.bind_word_inventory(
+                parser_page=parser_page,
+                boxes_2d=bound_structure.get("title_boxes_2d") or [],
+            )
+            header_words = self.word_projector.bind_word_inventory(
+                parser_page=parser_page,
+                boxes_2d=bound_structure.get("header_boxes_2d") or [],
+            )
+        except VisualTableStructureError as exc:
+            raise VisualRoleContextError(exc.code) from exc
+        title_refs = [str(item["word_ref"]) for item in title_words]
+        header_refs = [str(item["word_ref"]) for item in header_words]
+        if (
+            not title_refs
+            or not header_refs
+            or set(title_refs) != set(bound_structure.get("title_word_refs") or [])
+            or set(header_refs)
+            != set(bound_structure.get("header_word_refs") or [])
+        ):
+            raise VisualRoleContextError("visual_role_context_source_binding_stale")
+
+        rows = table_projection.get("rows")
+        cells = table_projection.get("cells")
+        columns = table_projection.get("column_refs")
+        private_values = table_projection.get("private_values")
+        source_index = table_projection.get("source_value_index")
+        if not all(
+            isinstance(item, list)
+            for item in (rows, cells, columns, private_values, source_index)
+        ):
+            raise VisualRoleContextError("visual_role_projection_invalid")
+        header_rows = [
+            item
+            for item in rows
+            if isinstance(item, dict) and item.get("row_role") == "header_row"
+        ]
+        if len(header_rows) != 1:
+            raise VisualRoleContextError("visual_role_projection_header_invalid")
+        header_row_ref = header_rows[0].get("row_ref")
+        header_cells = sorted(
+            [
+                item
+                for item in cells
+                if isinstance(item, dict) and item.get("row_ref") == header_row_ref
+            ],
+            key=lambda item: int(item.get("column_ordinal") or 0),
+        )
+        if (
+            len(header_cells) != len(columns)
+            or [item.get("column_ref") for item in header_cells] != columns
+            or [item.get("column_ordinal") for item in header_cells]
+            != list(range(1, len(columns) + 1))
+        ):
+            raise VisualRoleContextError("visual_role_projection_header_invalid")
+        value_by_path = {
+            str(item.get("value_path_ref") or ""): item.get("normalized_value")
+            for item in private_values
+            if isinstance(item, dict) and item.get("value_path_ref")
+        }
+        object_by_value = {
+            str(item.get("source_value_ref") or ""): str(
+                item.get("source_object_ref") or ""
+            )
+            for item in source_index
+            if isinstance(item, dict) and item.get("source_value_ref")
+        }
+        labels = []
+        represented_refs: list[str] = []
+        for ordinal, cell in enumerate(header_cells, start=1):
+            source_refs = cell.get("source_value_refs")
+            word_refs = (
+                [object_by_value.get(str(ref), "") for ref in source_refs]
+                if isinstance(source_refs, list)
+                else []
+            )
+            literal = value_by_path.get(
+                str(cell.get("normalized_private_value_path") or "")
+            )
+            if (
+                not word_refs
+                or any(not ref for ref in word_refs)
+                or not isinstance(literal, str)
+            ):
+                raise VisualRoleContextError("visual_role_projection_header_invalid")
+            represented_refs.extend(word_refs)
+            labels.append(
+                {
+                    "column_ref": f"c{ordinal}",
+                    "literal": literal,
+                    "word_refs": word_refs,
+                }
+            )
+        if (
+            len(represented_refs) != len(set(represented_refs))
+            or set(represented_refs) != set(header_refs)
+        ):
+            raise VisualRoleContextError("visual_role_projection_header_mismatch")
+        return {
+            "schema_version": VISUAL_ROLE_CONTEXT_SCHEMA,
+            "page_number": parser_page.get("page_number"),
+            "title_literal": " ".join(
+                item["text"]
+                for item in sorted(
+                    title_words,
+                    key=lambda item: (
+                        item["bbox_2d"][0],
+                        item["bbox_2d"][1],
+                        item["parser_ordinal"],
+                    ),
+                )
+            ).strip(),
+            "title_word_refs": title_refs,
+            "header_boxes_2d": copy.deepcopy(
+                bound_structure.get("header_boxes_2d") or []
+            ),
+            "header_labels": labels,
+            "unassigned_header_word_refs": [],
+            "source_words_owner": "pdfplumber_word_inventory",
+            "table_geometry_owner": "logical_row_recovery_table_projection",
+            "model_literals_used_as_source_values": False,
+            "financial_roles_assigned": False,
+            "canonical_mutated": False,
+        }
+
 
 def enrich_role_request(
     *, baseline_request: Mapping[str, Any], visual_context: Mapping[str, Any]
