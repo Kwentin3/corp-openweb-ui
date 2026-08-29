@@ -3,16 +3,22 @@ from __future__ import annotations
 import ast
 import copy
 import hashlib
+import inspect
 import json
-from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+from broker_reports_gate1.contracts import sha256_json
+from broker_reports_gate1.full_source import (
+    FullSourceArtifactBuilder,
+    FullSourceArtifactFactory,
+    FullSourceBuildResult,
+)
 from broker_reports_gate1.logical_row_table_recovery import (
-    LogicalRowTableRecoveryResult,
+    LogicalRowTableFactory,
+    LogicalRowTableRecoveryError,
 )
 from broker_reports_gate1.managed_document_contracts_v2 import (
     SCHEMA_CANONICAL_SHA256,
@@ -24,6 +30,12 @@ from broker_reports_gate1.managed_pdf_document_v2 import (
     FORBIDDEN,
     ManagedPdfDocumentV2Error,
     ManagedPdfDocumentV2Factory,
+    _managed_document_recovery_projection,
+)
+from tests.test_broker_reports_logical_row_table_recovery import (
+    _page_candidate_refs,
+    _scope_request,
+    _source_bound_case,
 )
 from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
 
@@ -42,6 +54,21 @@ MODULE_PATH = (
     / "broker_reports_gate1"
     / "managed_pdf_document_v2.py"
 )
+# Frozen by executing the real legacy builder at PR3 exact head 1ce206f over
+# `_ruled_table_pdf()` with the source identity used by the parity test below.
+PR3_LEGACY_CONTENT_SHA256 = (
+    "b1d556c1090fda2e5283fd9bcbd23c0ed033d33512dd5379f3c739f8dd9403f8"
+)
+PR3_LEGACY_INTEGRITY_SHA256 = (
+    "110fb0447a60c9b69a69cf24861ac11f6658266dee1392b9af23c419a06974df"
+)
+PR3_LEGACY_CANONICAL_SHA256 = (
+    "15f0446b2e7755ad1997e292bcacaba88f6f57ba41fc8d7c1931c4283b5bad05"
+)
+
+
+def _schema() -> dict[str, Any]:
+    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
 
 
 def _document_id_for_source_ref(source_artifact_ref: str) -> str:
@@ -54,445 +81,322 @@ def _document_id_for_source_ref(source_artifact_ref: str) -> str:
     return f"document_pdf_{hashlib.sha256(canonical).hexdigest()[:24]}"
 
 
-def _source_word_id_for_ref(source_block_ref: str) -> str:
-    canonical = json.dumps(
-        [source_block_ref],
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return f"source_word_{hashlib.sha256(canonical).hexdigest()[:24]}"
+def _managed_full_source(
+    pdf_bytes: bytes,
+    *,
+    source_artifact_ref: str,
+) -> FullSourceBuildResult:
+    checksum = hashlib.sha256(pdf_bytes).hexdigest()
+    return FullSourceArtifactFactory().create().build(
+        normalization_run_id=f"normrun_managed_{checksum[:24]}",
+        document_id=_document_id_for_source_ref(source_artifact_ref),
+        profile_id="broker_reports_managed_document_v2",
+        container_format="pdf",
+        content_bytes=pdf_bytes,
+        source_checksum_sha256=checksum,
+    )
 
 
-class _FakeFullSourceBuilder:
-    def __init__(self, payload: dict[str, Any]) -> None:
-        self.payload = payload
-        self.calls: list[dict[str, Any]] = []
+def _count_real_full_source_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[dict[str, Any]]:
+    calls: list[dict[str, Any]] = []
+    original = FullSourceArtifactBuilder.build
 
-    def build(self, **kwargs: Any) -> SimpleNamespace:
-        self.calls.append(kwargs)
-        return SimpleNamespace(
-            payloads=[self.payload],
-            units=[{"must_not_be_consumed": True}],
-            summary={"parser_completeness_status": "complete"},
+    def counting_build(
+        owner: FullSourceArtifactBuilder,
+        **kwargs: Any,
+    ) -> FullSourceBuildResult:
+        calls.append(copy.deepcopy(kwargs))
+        return original(owner, **kwargs)
+
+    monkeypatch.setattr(FullSourceArtifactBuilder, "build", counting_build)
+    return calls
+
+
+def test_legacy_real_owner_matches_frozen_pr3_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pdf_bytes = _ruled_table_pdf()
+    assert hashlib.sha256(pdf_bytes).hexdigest() == PR3_LEGACY_CONTENT_SHA256
+    calls = _count_real_full_source_calls(monkeypatch)
+
+    result = ManagedPdfDocumentV2Factory().create(_schema()).build(
+        pdf_bytes,
+        source_artifact_ref="private_pdf_pr3_legacy_parity",
+    )
+
+    assert len(calls) == 1
+    assert result.status == "COMPLETE"
+    assert result.managed_document.integrity_sha256 == PR3_LEGACY_INTEGRITY_SHA256
+    assert (
+        hashlib.sha256(result.managed_document.canonical_json_bytes()).hexdigest()
+        == PR3_LEGACY_CANONICAL_SHA256
+    )
+    assert result.safe_diagnostics["logical_tables_total"] == 1
+    assert result.safe_diagnostics["logical_rows_total"] == 3
+    assert result.safe_diagnostics["source_words_total"] == 14
+    assert result.safe_diagnostics["table_words_total"] == 9
+    assert result.safe_diagnostics["paragraph_words_total"] == 5
+
+
+def test_scope_bridge_real_owners_seal_reviewed_title_and_header_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pdf_bytes, source_sha256, _ = _source_bound_case(
+        distinct_second_title=True
+    )
+    source_ref = "private_pdf_source_bound_title"
+    payload = _managed_full_source(
+        pdf_bytes,
+        source_artifact_ref=source_ref,
+    ).payloads[0]
+    projection = payload["pdf_text_layer_projection"]
+    first_refs = _page_candidate_refs(payload, 1)
+    second_refs = _page_candidate_refs(payload, 2)
+    second_page_ref = next(
+        page["page_ref"]
+        for page in projection["page_inventory"]
+        if page["page_number"] == 2
+    )
+    title_refs = [
+        word["word_ref"]
+        for word in projection["word_inventory"]
+        if word["page_ref"] == second_page_ref
+        and word["word_ref"] not in set(second_refs)
+    ]
+    requests = (
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=1,
+            title_refs=[],
+            header_ref_groups=[first_refs[:2]],
+            body_refs=first_refs[2:],
+        ),
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=2,
+            title_refs=title_refs,
+            header_ref_groups=[second_refs[:2]],
+            body_refs=second_refs[2:],
+        ),
+    )
+    calls = _count_real_full_source_calls(monkeypatch)
+
+    result = (
+        ManagedPdfDocumentV2Factory()
+        .create(_schema())
+        .build_with_source_bound_scopes(
+            pdf_bytes,
+            source_artifact_ref=source_ref,
+            source_bound_scope_requests=requests,
+        )
+    )
+    tables = [
+        block["content"]
+        for block in result.managed_document.payload["blocks"]
+        if block["block_type"] == "TABLE"
+    ]
+    reviewed_parts = [
+        part["reviewed_source_bound_evidence"]
+        for table in tables
+        for part in table["source_parts"]
+    ]
+
+    assert len(calls) == 1
+    assert result.status == "COMPLETE"
+    assert len(tables) == 2
+    assert {item["proposal_sha256"] for item in reviewed_parts} == {
+        sha256_json(request["proposal"]) for request in requests
+    }
+    assert {item["raster_manifest_sha256"] for item in reviewed_parts} == {
+        request["raster_manifest"]["manifest_hash"] for request in requests
+    }
+    assert all(
+        row["role_origin"] == "REVIEWED_SOURCE_BOUND"
+        and all(
+            entry["origin"] == "REVIEWED_SOURCE_BOUND"
+            for entry in row["entries"]
+        )
+        for table in tables
+        for row in table["ordered_rows"]
+        if row["role"] in {"TABLE_TITLE", "COLUMN_HEADER", "DATA"}
+    )
+    assert result.safe_diagnostics["unowned_words_total"] == 0
+    assert result.safe_diagnostics["multiple_word_owners_total"] == 0
+    assert result.safe_diagnostics["paragraph_table_overlap_total"] == 0
+    with pytest.raises(
+        ManagedDocumentContractV2Error,
+        match="managed_document_v2_reviewed_source_bound_public_input_forbidden",
+    ):
+        ManagedDocumentContractV2Validator(_schema()).seal(
+            result.managed_document.payload
         )
 
 
-class _FakeFullSourceFactory:
-    def __init__(self, builder: _FakeFullSourceBuilder) -> None:
-        self.builder = builder
-        self.create_calls = 0
-
-    def create(self) -> _FakeFullSourceBuilder:
-        self.create_calls += 1
-        return self.builder
-
-
-class _FakeRecoveryRuntime:
-    def __init__(self, result: LogicalRowTableRecoveryResult) -> None:
-        self.result = result
-        self.projection: Any = None
-        self.kwargs: dict[str, Any] = {}
-
-    def recover(
-        self,
-        projection: dict[str, Any],
-        **kwargs: Any,
-    ) -> LogicalRowTableRecoveryResult:
-        self.projection = projection
-        self.kwargs = kwargs
-        return self.result
-
-
-class _FakeRecoveryFactory:
-    def __init__(self, runtime: _FakeRecoveryRuntime) -> None:
-        self.runtime = runtime
-        self.create_calls = 0
-
-    def create(self) -> _FakeRecoveryRuntime:
-        self.create_calls += 1
-        return self.runtime
-
-
-def _schema() -> dict[str, Any]:
-    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
-
-
-def _projection() -> dict[str, Any]:
-    return {
-        "schema_version": "pdf_text_layer_projection_v0",
-        "page_inventory": [
-            {
-                "page_ref": "page_fixture",
-                "page_number": 1,
-                "layout_page_width": 320.0,
-                "layout_page_height": 320.0,
-            }
-        ],
-        "bbox_inventory": [
-            {
-                "bbox_ref": "bbox_before",
-                "page_ref": "page_fixture",
-                "bbox": [20.0, 20.0, 80.0, 30.0],
-            },
-            {
-                "bbox_ref": "bbox_table",
-                "page_ref": "page_fixture",
-                "bbox": [20.0, 60.0, 80.0, 70.0],
-            },
-            {
-                "bbox_ref": "bbox_after",
-                "page_ref": "page_fixture",
-                "bbox": [20.0, 100.0, 80.0, 110.0],
-            },
-        ],
-        "word_inventory": [
-            _word("word_before", "Before", "bbox_before", 1),
-            _word("word_table", "TableOwned", "bbox_table", 2),
-            _word("word_after", "After", "bbox_after", 3),
-        ],
-        "line_inventory": [
-            _line("line_before", "word_before"),
-            _line("line_table", "word_table"),
-            _line("line_after", "word_after"),
-        ],
-        "block_inventory": [
-            _block("source_block_before", "line_before"),
-            _block("source_block_table", "line_table"),
-            _block("source_block_after", "line_after"),
-        ],
-    }
-
-
-def _word(
-    word_ref: str,
-    text: str,
-    bbox_ref: str,
-    order: int,
-) -> dict[str, Any]:
-    return {
-        "word_ref": word_ref,
-        "page_ref": "page_fixture",
-        "bbox_ref": bbox_ref,
-        "text": text,
-        "geometry_reading_order": order,
-        "parser_ordinal": order,
-    }
-
-
-def _line(line_ref: str, word_ref: str) -> dict[str, Any]:
-    return {
-        "line_ref": line_ref,
-        "page_ref": "page_fixture",
-        "word_refs": [word_ref],
-    }
-
-
-def _block(block_ref: str, line_ref: str) -> dict[str, Any]:
-    return {
-        "block_ref": block_ref,
-        "page_ref": "page_fixture",
-        "line_refs": [line_ref],
-    }
-
-
-def _recovery() -> LogicalRowTableRecoveryResult:
-    anchor = {
-        "information_class": "PROVENANCE",
-        "anchor_id": "anchor_fixture_table_word",
-        "source_format": "PDF",
-        "checksum_sha256": "a" * 64,
-        "locator": {
-            "kind": "PDF",
-            "source_part_index": 1,
-            "page": 1,
-            "source_block_ref": "word_table",
-            "bbox": [20.0, 60.0, 80.0, 70.0],
-            "private_locator": {
-                "information_class": "PRIVATE_SOURCE",
-                "status": "PRESENT",
-                "ref": "private_fixture#anchor_fixture_table_word",
-                "checksum_sha256": "b" * 64,
-            },
-        },
-    }
-    region_anchor = {
-        "information_class": "PROVENANCE",
-        "anchor_id": "anchor_fixture_table_region",
-        "source_format": "PDF",
-        "checksum_sha256": "a" * 64,
-        "locator": {
-            "kind": "PDF",
-            "source_part_index": 1,
-            "page": 1,
-            "source_block_ref": "source_block_table",
-            "bbox": [20.0, 60.0, 80.0, 70.0],
-            "private_locator": {
-                "information_class": "PRIVATE_SOURCE",
-                "status": "PRESENT",
-                "ref": "private_fixture#anchor_fixture_table_region",
-                "checksum_sha256": "2" * 64,
-            },
-        },
-    }
-    geometry = {
-        "information_class": "PRIVATE_SOURCE",
-        "geometry_evidence_id": "geometry_fixture_table",
-        "kind": "TABLE_REGION",
-        "origin": "DETERMINISTIC_DERIVED",
-        "source_anchor_ids": ["anchor_fixture_table_region"],
-        "private_artifact": {
-            "information_class": "PRIVATE_SOURCE",
-            "status": "PRESENT",
-            "ref": "private_fixture#geometry_fixture_table",
-            "checksum_sha256": "c" * 64,
-        },
-        "evidence_checksum_sha256": "d" * 64,
-        "issue_ids": [],
-    }
-    row_geometry = {
-        "information_class": "PRIVATE_SOURCE",
-        "geometry_evidence_id": "geometry_fixture_row",
-        "kind": "ROW_BAND",
-        "origin": "DETERMINISTIC_DERIVED",
-        "source_anchor_ids": ["anchor_fixture_table_word"],
-        "private_artifact": {
-            "information_class": "PRIVATE_SOURCE",
-            "status": "PRESENT",
-            "ref": "private_fixture#geometry_fixture_row",
-            "checksum_sha256": "3" * 64,
-        },
-        "evidence_checksum_sha256": "4" * 64,
-        "issue_ids": [],
-    }
-    entry_geometry = {
-        "information_class": "PRIVATE_SOURCE",
-        "geometry_evidence_id": "geometry_fixture_entry_base",
-        "kind": "ENTRY_REGION",
-        "origin": "DETERMINISTIC_DERIVED",
-        "source_anchor_ids": ["anchor_fixture_table_word"],
-        "private_artifact": {
-            "information_class": "PRIVATE_SOURCE",
-            "status": "PRESENT",
-            "ref": "private_fixture#geometry_fixture_entry_base",
-            "checksum_sha256": "5" * 64,
-        },
-        "evidence_checksum_sha256": "6" * 64,
-        "issue_ids": [],
-    }
-    table = {
-        "information_class": "CONTENT",
-        "table_id": "table_fixture",
-        "completeness_status": "COMPLETE",
-        "ordered_rows": [
-            {
-                "row_id": "row_fixture",
-                "ordinal": 0,
-                "role": "DATA",
-                "role_origin": "DETERMINISTIC_DERIVED",
-                "nesting_level": 0,
-                "parent_row_id": None,
-                "entries": [
-                    {
-                        "entry_id": "entry_fixture",
-                        "ordinal": 0,
-                        "kind": "LABEL",
-                        "text": "TableOwned",
-                        "origin": "DETERMINISTIC_DERIVED",
-                        "column_binding_status": "NOT_APPLICABLE",
-                        "logical_column_id": None,
-                        "covers_logical_column_ids": [],
-                        "source_anchor_ids": ["anchor_fixture_table_word"],
-                        "geometry_evidence_ids": [
-                            "geometry_fixture_entry_base"
-                        ],
-                        "issue_ids": [],
-                    }
-                ],
-                "source_anchor_ids": ["anchor_fixture_table_word"],
-                "geometry_evidence_ids": ["geometry_fixture_row"],
-                "issue_ids": [],
-            }
-        ],
-        "logical_columns": [],
-        "source_parts": [
-            {
-                "source_part_id": "source_part_fixture",
-                "ordinal": 0,
-                "page": 1,
-                "region_anchor_id": "anchor_fixture_table_region",
-                "first_row_id": "row_fixture",
-                "last_row_id": "row_fixture",
-                "continuation_status": "SINGLE",
-                "geometry_evidence_ids": ["geometry_fixture_table"],
-                "continuation_evidence_ids": [],
-                "issue_ids": [],
-            }
-        ],
-        "relations": [],
-        "issues": [],
-        "known_gap_ids": [],
-    }
-    ownership = {
-        "information_class": "PRIVATE_SOURCE",
-        "source_word_id": _source_word_id_for_ref("word_table"),
-        "table_id": "table_fixture",
-        "owner_status": "OWNED",
-        "owner_entry_id": "entry_fixture",
-        "duplicate_of_source_word_id": None,
-        "source_anchor_id": "anchor_fixture_table_word",
-        "issue_ids": [],
-    }
-    return LogicalRowTableRecoveryResult(
-        schema_version="broker_reports_logical_row_table_recovery_v1",
-        recovery_policy_version="logical_row_geometry_recovery_policy_v1",
-        tables=[table],
-        anchors=[anchor, region_anchor],
-        geometry_evidence=[geometry, row_geometry, entry_geometry],
-        source_word_ownership=[ownership],
-        issues=[],
-        paragraph_owned_word_refs=["word_before", "word_after"],
-        unowned_word_refs=[],
-        diagnostics={
-            "logical_tables_total": 1,
-            "multiple_word_owners_total": 0,
-            "unowned_words_total": 0,
-        },
+def test_scope_bridge_model_only_absent_stays_partial_without_join() -> None:
+    pdf_bytes, source_sha256, _ = _source_bound_case()
+    source_ref = "private_pdf_source_bound_absent"
+    payload = _managed_full_source(
+        pdf_bytes,
+        source_artifact_ref=source_ref,
+    ).payloads[0]
+    second_refs = _page_candidate_refs(payload, 2)
+    requests = (
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=2,
+            title_refs=[],
+            header_ref_groups=[],
+            body_refs=second_refs,
+        ),
     )
 
-
-def _cover_bound_recovery() -> LogicalRowTableRecoveryResult:
-    recovery = copy.deepcopy(_recovery())
-    table = recovery.tables[0]
-    row = table["ordered_rows"][0]
-    entry = row["entries"][0]
-    column_ids = ["column_fixture_left", "column_fixture_right"]
-    entry_geometry_id = "geometry_fixture_entry"
-    entry.update(
-        {
-            "column_binding_status": "BOUND",
-            "logical_column_id": None,
-            "covers_logical_column_ids": column_ids,
-            "geometry_evidence_ids": [entry_geometry_id],
-        }
+    result = (
+        ManagedPdfDocumentV2Factory()
+        .create(_schema())
+        .build_with_source_bound_scopes(
+            pdf_bytes,
+            source_artifact_ref=source_ref,
+            source_bound_scope_requests=requests,
+        )
     )
-    row["role"] = "COLUMN_HEADER"
-    table["logical_columns"] = [
-        {
-            "column_id": column_id,
-            "ordinal": ordinal,
-            "header_path": [entry["entry_id"]],
-            "source_anchor_ids": list(entry["source_anchor_ids"]),
-            "geometry_evidence_ids": [f"geometry_fixture_column_{ordinal}"],
-            "issue_ids": [],
-        }
-        for ordinal, column_id in enumerate(column_ids)
+    tables = [
+        block["content"]
+        for block in result.managed_document.payload["blocks"]
+        if block["block_type"] == "TABLE"
     ]
 
-    def geometry(evidence_id: str, kind: str, checksum: str) -> dict[str, Any]:
-        return {
-            "information_class": "PRIVATE_SOURCE",
-            "geometry_evidence_id": evidence_id,
-            "kind": kind,
-            "origin": "DETERMINISTIC_DERIVED",
-            "source_anchor_ids": list(entry["source_anchor_ids"]),
-            "private_artifact": {
-                "information_class": "PRIVATE_SOURCE",
-                "status": "PRESENT",
-                "ref": f"private_fixture#{evidence_id}",
-                "checksum_sha256": checksum * 64,
-            },
-            "evidence_checksum_sha256": checksum * 64,
-            "issue_ids": [],
-        }
-
-    recovery.geometry_evidence[:] = [
-        item
-        for item in recovery.geometry_evidence
-        if item["geometry_evidence_id"] != "geometry_fixture_entry_base"
+    assert result.status == "PARTIAL"
+    assert len(tables) == 2
+    assert all(len(table["source_parts"]) == 1 for table in tables)
+    assert not any(
+        row["role_origin"] == "REVIEWED_SOURCE_BOUND"
+        or any(
+            entry["origin"] == "REVIEWED_SOURCE_BOUND"
+            for entry in row["entries"]
+        )
+        for table in tables
+        for row in table["ordered_rows"]
+    )
+    audit_parts = [
+        part["source_bound_audit_evidence"]
+        for table in tables
+        for part in table["source_parts"]
+        if "source_bound_audit_evidence" in part
     ]
-    recovery.geometry_evidence.extend(
-        [
-            geometry(entry_geometry_id, "ENTRY_REGION", "e"),
-            geometry("geometry_fixture_column_0", "COLUMN_ALIGNMENT", "f"),
-            geometry("geometry_fixture_column_1", "COLUMN_ALIGNMENT", "1"),
-        ]
+    assert len(audit_parts) == 1
+    assert audit_parts[0]["structural_authority"] is False
+    assert not any(
+        "reviewed_source_bound_evidence" in part
+        for table in tables
+        for part in table["source_parts"]
     )
-    return recovery
-
-
-def _payload(projection: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "source_payload_ref": "source_payload_fixture",
-        "container_format": "pdf",
-        "parser_completeness_status": "complete",
-        "text_layer_projection_status": "complete",
-        "layout_projection_status": "complete",
-        "pdf_text_layer_projection": projection,
-        "normalized_projection": {"must_not_be_consumed": True},
-    }
-
-
-def _factory_fixture(
-    recovery: LogicalRowTableRecoveryResult | None = None,
-) -> tuple[
-    ManagedPdfDocumentV2Factory,
-    dict[str, Any],
-    _FakeFullSourceFactory,
-    _FakeRecoveryFactory,
-]:
-    projection = _projection()
-    full_builder = _FakeFullSourceBuilder(_payload(projection))
-    full_factory = _FakeFullSourceFactory(full_builder)
-    recovery_runtime = _FakeRecoveryRuntime(recovery or _recovery())
-    recovery_factory = _FakeRecoveryFactory(recovery_runtime)
-    factory = ManagedPdfDocumentV2Factory(
-        full_source_factory=full_factory,
-        logical_row_table_factory=recovery_factory,
+    assert any(
+        issue["code"] == "logical_table_continuation_header_ambiguous"
+        for issue in result.managed_document.payload["quality"]["issue_ledger"]
     )
-    return factory, projection, full_factory, recovery_factory
-
-
-def test_factory_route_uses_only_full_source_projection_and_seals_v2() -> None:
-    factory, projection, full_factory, recovery_factory = _factory_fixture()
-    content = b"%PDF-1.7 synthetic boundary fixture"
-    result = factory.create(_schema()).build(
-        content,
-        source_artifact_ref="private_pdf_fixture",
-    )
-
-    assert full_factory.create_calls == 1
-    assert recovery_factory.create_calls == 1
-    assert recovery_factory.runtime.projection is projection
-    assert full_factory.builder.calls == [
-        {
-            "normalization_run_id": (
-                "normrun_doc6_" + hashlib.sha256(content).hexdigest()[:24]
-            ),
-            "document_id": (
-                _document_id_for_source_ref("private_pdf_fixture")
-            ),
-            "profile_id": "broker_reports_managed_document_v2",
-            "container_format": "pdf",
-            "content_bytes": content,
-            "source_checksum_sha256": hashlib.sha256(content).hexdigest(),
-        }
-    ]
-    assert recovery_factory.runtime.kwargs == {
-        "source_checksum_sha256": hashlib.sha256(content).hexdigest(),
-        "private_evidence_ref": "private_pdf_fixture",
-    }
-    assert result.status == "COMPLETE"
     assert (
-        ManagedDocumentContractV2Validator(_schema())
-        .validate(result.managed_document.payload)
-        .payload
-        == result.managed_document.payload
+        result.safe_diagnostics["table_words_total"]
+        + result.safe_diagnostics["paragraph_words_total"]
+        == result.safe_diagnostics["source_words_total"]
     )
+
+
+def test_no_public_fake_owner_full_source_or_ready_evidence_input() -> None:
+    factory_parameters = inspect.signature(
+        ManagedPdfDocumentV2Factory
+    ).parameters
+    builder = ManagedPdfDocumentV2Factory().create(_schema())
+    legacy_parameters = inspect.signature(builder.build).parameters
+    scoped_parameters = inspect.signature(
+        builder.build_with_source_bound_scopes
+    ).parameters
+
+    assert list(factory_parameters) == ["config"]
+    assert list(legacy_parameters) == ["content_bytes", "source_artifact_ref"]
+    assert list(scoped_parameters) == [
+        "content_bytes",
+        "source_artifact_ref",
+        "source_bound_scope_requests",
+    ]
+    assert not {
+        "full_source_factory",
+        "logical_row_table_factory",
+        "full_source",
+        "profile_id",
+        "units",
+        "summary",
+        "reviewed_plan",
+        "ready_evidence",
+        "source_bound_scope_receipts",
+    }.intersection(
+        {*factory_parameters, *legacy_parameters, *scoped_parameters}
+    )
+    with pytest.raises(TypeError):
+        ManagedPdfDocumentV2Factory(full_source_factory=object())  # type: ignore[call-arg]
+    assert not hasattr(builder, "full_source_builder")
+    assert not hasattr(builder, "recovery_runtime")
+    assert not hasattr(builder, "validator")
+    with pytest.raises(AttributeError):
+        builder.full_source_builder = object()  # type: ignore[attr-defined]
+    with pytest.raises(AttributeError):
+        builder.recovery_runtime = object()  # type: ignore[attr-defined]
+    with pytest.raises(AttributeError):
+        builder.validator = object()  # type: ignore[attr-defined]
+
+
+def test_legacy_adapter_rejects_malicious_source_bound_recovery() -> None:
+    pdf_bytes = _ruled_table_pdf()
+    source_ref = "private_pdf_legacy_malicious_recovery"
+    checksum = hashlib.sha256(pdf_bytes).hexdigest()
+    payload = _managed_full_source(
+        pdf_bytes,
+        source_artifact_ref=source_ref,
+    ).payloads[0]
+    recovered = LogicalRowTableFactory().create().recover(
+        payload["pdf_text_layer_projection"],
+        source_checksum_sha256=checksum,
+        private_evidence_ref=source_ref,
+    )
+    malicious = copy.deepcopy(recovered)
+    malicious.tables[0]["source_parts"][0]["source_bound_scope_ref"] = (
+        "tablescopereceipt_" + "0" * 24
+    )
+
+    with pytest.raises(
+        ManagedPdfDocumentV2Error,
+        match="managed_pdf_v2_reviewed_source_bound_legacy_forbidden",
+    ):
+        _managed_document_recovery_projection(
+            malicious,
+            allow_reviewed=False,
+        )
+
+
+def test_scope_bridge_rejects_ready_receipt_shape() -> None:
+    with pytest.raises(
+        LogicalRowTableRecoveryError,
+        match="logical_row_source_bound_scope_requests_invalid",
+    ):
+        (
+            ManagedPdfDocumentV2Factory()
+            .create(_schema())
+            .build_with_source_bound_scopes(
+                _ruled_table_pdf(),
+                source_artifact_ref="private_pdf_ready_receipt_rejected",
+                source_bound_scope_requests=({"receipt": object()},),
+            )
+        )
 
 
 def test_factory_rejects_same_id_schema_tampering() -> None:
-    factory, _, _, _ = _factory_fixture()
     tampered_schema = _schema()
     tampered_schema["$defs"]["tableContent"]["additionalProperties"] = True
 
@@ -500,175 +404,29 @@ def test_factory_rejects_same_id_schema_tampering() -> None:
         ManagedDocumentContractV2Error,
         match="managed_document_v2_schema_hash_invalid",
     ):
-        factory.create(tampered_schema)
+        ManagedPdfDocumentV2Factory().create(tampered_schema)
 
 
-def test_document_id_is_opaque_source_artifact_identity_not_source_hash() -> None:
-    source_ref = "private_pdf_stable_identity"
-    first_factory, _, _, _ = _factory_fixture()
-    second_factory, _, _, _ = _factory_fixture()
-    third_factory, _, _, _ = _factory_fixture()
-
-    first = first_factory.create(_schema()).build(
-        b"synthetic source alpha",
-        source_artifact_ref=source_ref,
-    )
-    second = second_factory.create(_schema()).build(
-        b"synthetic source beta",
-        source_artifact_ref=source_ref,
-    )
-    third = third_factory.create(_schema()).build(
-        b"synthetic source alpha",
-        source_artifact_ref="private_pdf_different_identity",
-    )
-    first_id = first.managed_document.payload["document_id"]
-
-    assert first_id == _document_id_for_source_ref(source_ref)
-    assert second.managed_document.payload["document_id"] == first_id
-    assert third.managed_document.payload["document_id"] != first_id
-    assert hashlib.sha256(b"synthetic source alpha").hexdigest()[:24] not in first_id
-    assert source_ref not in first_id
-
-
-def test_source_artifact_identity_is_required_for_safe_document_id() -> None:
-    factory, _, _, _ = _factory_fixture()
-
+def test_source_artifact_identity_is_required() -> None:
     with pytest.raises(
         ManagedPdfDocumentV2Error,
         match="managed_pdf_v2_private_source_ref_required",
     ):
-        factory.create(_schema()).build(b"synthetic source")
-
-
-def test_factory_strictly_seals_cover_bound_header_entry() -> None:
-    factory, _, _, _ = _factory_fixture(_cover_bound_recovery())
-
-    result = factory.create(_schema()).build(
-        b"synthetic covered source",
-        source_artifact_ref="private_pdf_fixture",
-    )
-    table = next(
-        block["content"]
-        for block in result.managed_document.payload["blocks"]
-        if block["block_type"] == "TABLE"
-    )
-    entry = table["ordered_rows"][0]["entries"][0]
-    column_ids = [column["column_id"] for column in table["logical_columns"]]
-
-    assert entry["column_binding_status"] == "BOUND"
-    assert entry["logical_column_id"] is None
-    assert entry["covers_logical_column_ids"] == column_ids
-    assert [column["header_path"] for column in table["logical_columns"]] == [
-        [entry["entry_id"]],
-        [entry["entry_id"]],
-    ]
-    assert (
-        ManagedDocumentContractV2Validator(_schema())
-        .validate(result.managed_document.payload)
-        .payload
-        == result.managed_document.payload
-    )
-
-
-def test_table_is_emitted_at_first_owned_word_and_never_in_paragraph() -> None:
-    factory, _, _, _ = _factory_fixture()
-    result = factory.create(_schema()).build(
-        b"synthetic source",
-        source_artifact_ref="private_pdf_fixture",
-    )
-    blocks = result.managed_document.payload["blocks"]
-
-    assert [block["block_type"] for block in blocks] == [
-        "BOUNDARY",
-        "PARAGRAPH",
-        "TABLE",
-        "PARAGRAPH",
-    ]
-    paragraph_texts = [
-        block["content"]["raw_text"]
-        for block in blocks
-        if block["block_type"] == "PARAGRAPH"
-    ]
-    assert paragraph_texts == ["Before", "After"]
-    assert all("TableOwned" not in text for text in paragraph_texts)
-    table = next(
-        block["content"] for block in blocks if block["block_type"] == "TABLE"
-    )
-    assert table["ordered_rows"][0]["entries"][0]["text"] == "TableOwned"
-    assert result.safe_diagnostics["paragraph_table_overlap_total"] == 0
-    assert result.safe_diagnostics["unowned_words_total"] == 0
-
-
-def test_paragraph_preserves_full_source_physical_line_boundaries() -> None:
-    factory, projection, _, recovery_factory = _factory_fixture()
-    projection["bbox_inventory"].append(
-        {
-            "bbox_ref": "bbox_before_second",
-            "page_ref": "page_fixture",
-            "bbox": [20.0, 35.0, 100.0, 45.0],
-        }
-    )
-    for word in projection["word_inventory"]:
-        if word["word_ref"] in {"word_table", "word_after"}:
-            word["geometry_reading_order"] += 1
-            word["parser_ordinal"] += 1
-    projection["word_inventory"].append(
-        _word(
-            "word_before_second",
-            "SecondLine",
-            "bbox_before_second",
-            2,
+        ManagedPdfDocumentV2Factory().create(_schema()).build(
+            _ruled_table_pdf()
         )
-    )
-    projection["line_inventory"].append(
-        _line("line_before_second", "word_before_second")
-    )
-    first_block = next(
-        block
-        for block in projection["block_inventory"]
-        if block["block_ref"] == "source_block_before"
-    )
-    first_block["line_refs"].append("line_before_second")
-    recovery_factory.runtime.result = replace(
-        recovery_factory.runtime.result,
-        paragraph_owned_word_refs=[
-            "word_before",
-            "word_before_second",
-            "word_after",
-        ],
-    )
-
-    result = factory.create(_schema()).build(
-        b"synthetic source",
-        source_artifact_ref="private_pdf_fixture",
-    )
-    paragraph_texts = [
-        block["content"]["raw_text"]
-        for block in result.managed_document.payload["blocks"]
-        if block["block_type"] == "PARAGRAPH"
-    ]
-
-    assert paragraph_texts == ["Before\nSecondLine", "After"]
 
 
-def test_public_factories_complete_real_synthetic_pdf_without_word_gaps() -> (
-    None
-):
-    result = (
-        ManagedPdfDocumentV2Factory()
-        .create(_schema())
-        .build(
-            _ruled_table_pdf(),
-            source_artifact_ref="private_pdf_ruled_fixture",
-        )
+def test_real_public_factory_has_exact_word_accounting() -> None:
+    result = ManagedPdfDocumentV2Factory().create(_schema()).build(
+        _ruled_table_pdf(),
+        source_artifact_ref="private_pdf_real_accounting",
     )
 
     assert result.status == "COMPLETE"
-    assert [
-        block["block_type"]
-        for block in result.managed_document.payload["blocks"]
-    ] == ["BOUNDARY", "PARAGRAPH", "TABLE", "PARAGRAPH"]
-    assert result.safe_diagnostics["logical_tables_total"] == 1
+    assert result.safe_diagnostics[
+        "managed_document_schema_canonical_sha256"
+    ] == SCHEMA_CANONICAL_SHA256
     assert result.safe_diagnostics["unowned_words_total"] == 0
     assert result.safe_diagnostics["multiple_word_owners_total"] == 0
     assert result.safe_diagnostics["paragraph_table_overlap_total"] == 0
@@ -677,68 +435,6 @@ def test_public_factories_complete_real_synthetic_pdf_without_word_gaps() -> (
         + result.safe_diagnostics["paragraph_words_total"]
         == result.safe_diagnostics["source_words_total"]
     )
-
-
-def test_safe_and_private_diagnostics_are_separate() -> None:
-    factory, _, _, _ = _factory_fixture()
-    result = factory.create(_schema()).build(
-        b"synthetic source",
-        source_artifact_ref="private_pdf_fixture",
-    )
-
-    safe_text = json.dumps(result.safe_diagnostics, sort_keys=True)
-    assert "private_pdf_fixture" not in safe_text
-    assert "word_before" not in safe_text
-    assert "TableOwned" not in safe_text
-    assert result.safe_diagnostics["private_values_included"] is False
-    assert "document_id" not in result.safe_diagnostics
-    assert result.safe_diagnostics[
-        "managed_document_schema_canonical_sha256"
-    ] == SCHEMA_CANONICAL_SHA256
-    assert result.private_diagnostics["private_source_ref"] == (
-        "private_pdf_fixture"
-    )
-    assert result.private_diagnostics["document_id"] == (
-        result.managed_document.payload["document_id"]
-    )
-    assert result.private_diagnostics["paragraph_owned_word_refs"] == [
-        "word_before",
-        "word_after",
-    ]
-
-
-def test_partition_gap_or_overlap_fails_before_contract_seal() -> None:
-    missing = replace(
-        _recovery(),
-        paragraph_owned_word_refs=["word_before"],
-    )
-    factory, _, _, _ = _factory_fixture(missing)
-    with pytest.raises(
-        ManagedPdfDocumentV2Error,
-        match="managed_pdf_v2_source_word_partition_invalid",
-    ):
-        factory.create(_schema()).build(
-            b"synthetic source",
-            source_artifact_ref="private_pdf_fixture",
-        )
-
-    overlap = replace(
-        _recovery(),
-        paragraph_owned_word_refs=[
-            "word_before",
-            "word_table",
-            "word_after",
-        ],
-    )
-    factory, _, _, _ = _factory_fixture(overlap)
-    with pytest.raises(
-        ManagedPdfDocumentV2Error,
-        match="managed_pdf_v2_paragraph_table_word_overlap",
-    ):
-        factory.create(_schema()).build(
-            b"synthetic source",
-            source_artifact_ref="private_pdf_fixture",
-        )
 
 
 def test_inactive_v2_builder_has_no_product_or_bundle_reachability() -> None:
@@ -754,6 +450,8 @@ def test_inactive_v2_builder_has_no_product_or_bundle_reachability() -> None:
     assert "pdf_layout_units" not in imported_modules
     assert "broker_pdf_neutral_tables" not in imported_modules
     assert "table_projection" not in imported_modules
+    assert "canonical_artifact" not in imported_modules
+    assert "normalizer" not in imported_modules
     assert "managed_pdf_document_v2" not in (
         SERVICE_ROOT / "broker_reports_gate1" / "__init__.py"
     ).read_text(encoding="utf-8")
@@ -764,3 +462,14 @@ def test_inactive_v2_builder_has_no_product_or_bundle_reachability() -> None:
         )
         for path in (SERVICE_ROOT / "openwebui_actions").glob("*.py")
     )
+    reviewed_seal_callers = []
+    for path in (SERVICE_ROOT / "broker_reports_gate1").glob("*.py"):
+        candidate_tree = ast.parse(path.read_text(encoding="utf-8"))
+        if any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_seal_reviewed_source_bound"
+            for node in ast.walk(candidate_tree)
+        ):
+            reviewed_seal_callers.append(path.name)
+    assert reviewed_seal_callers == ["managed_pdf_document_v2.py"]
