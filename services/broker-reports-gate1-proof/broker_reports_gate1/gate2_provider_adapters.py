@@ -8,7 +8,7 @@ import math
 from dataclasses import dataclass, field as dataclass_field, replace
 from typing import Any, Callable, Protocol
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import unquote_to_bytes, urlsplit
 from urllib.request import (
     HTTPRedirectHandler,
     ProxyHandler,
@@ -149,6 +149,34 @@ class _Gate2NoRedirectHandler(HTTPRedirectHandler):
         return None
 
 
+def _safe_provider_base_path(value: str) -> str | None:
+    index = 0
+    while index < len(value):
+        if value[index] != "%":
+            index += 1
+            continue
+        if (
+            index + 2 >= len(value)
+            or any(
+                character not in "0123456789abcdefABCDEF"
+                for character in value[index + 1 : index + 3]
+            )
+        ):
+            return None
+        index += 3
+    try:
+        decoded = unquote_to_bytes(value).decode("utf-8", errors="strict")
+    except UnicodeDecodeError:
+        return None
+    if "%" in decoded:
+        return None
+    if any(ord(character) < 32 or ord(character) == 127 for character in decoded):
+        return None
+    if any(segment in {".", ".."} for segment in decoded.split("/")):
+        return None
+    return decoded.rstrip("/")
+
+
 class Gate2OpenWebUIProviderConnectionResolver:
     def __init__(self, request: Any) -> None:
         self.request = request
@@ -237,11 +265,69 @@ class Gate2OpenWebUIProviderConnectionResolver:
 
     @staticmethod
     def _matches_profile(profile: Gate2ProviderProfile, base_url: str) -> bool:
-        normalized = base_url.lower()
-        return any(
-            normalized.startswith(prefix.lower().rstrip("/"))
-            for prefix in profile.connection_base_url_prefixes
+        if "?" in base_url or "#" in base_url:
+            return False
+        try:
+            candidate = urlsplit(base_url)
+            candidate_port = candidate.port
+        except (TypeError, ValueError):
+            return False
+        if (
+            not candidate.scheme
+            or candidate.hostname is None
+            or candidate.username is not None
+            or candidate.password is not None
+            or candidate.query
+            or candidate.fragment
+        ):
+            return False
+        candidate_scheme = candidate.scheme.lower()
+        candidate_host = candidate.hostname.lower()
+        candidate_effective_port = (
+            candidate_port
+            if candidate_port is not None
+            else {"http": 80, "https": 443}.get(candidate_scheme)
         )
+        candidate_path = _safe_provider_base_path(candidate.path)
+        if candidate_path is None:
+            return False
+        for prefix in profile.connection_base_url_prefixes:
+            if "?" in prefix or "#" in prefix:
+                continue
+            try:
+                approved = urlsplit(prefix)
+                approved_port = approved.port
+            except (TypeError, ValueError):
+                continue
+            if (
+                not approved.scheme
+                or approved.hostname is None
+                or approved.username is not None
+                or approved.password is not None
+                or approved.query
+                or approved.fragment
+            ):
+                continue
+            approved_scheme = approved.scheme.lower()
+            approved_effective_port = (
+                approved_port
+                if approved_port is not None
+                else {"http": 80, "https": 443}.get(approved_scheme)
+            )
+            if (
+                candidate_scheme != approved_scheme
+                or candidate_host != approved.hostname.lower()
+                or candidate_effective_port != approved_effective_port
+            ):
+                continue
+            approved_path = _safe_provider_base_path(approved.path)
+            if approved_path is None:
+                continue
+            if candidate_path == approved_path or candidate_path.startswith(
+                approved_path + "/"
+            ):
+                return True
+        return False
 
     @staticmethod
     def _matches_context_v2_1_budget_smoke_profile(

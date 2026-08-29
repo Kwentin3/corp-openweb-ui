@@ -10,14 +10,19 @@ import pytest
 
 from broker_reports_gate1.contracts import sha256_json
 from broker_reports_gate1.full_source import FullSourceArtifactFactory
+from broker_reports_gate1.logical_row_table_recovery import LogicalRowTableFactory
 from broker_reports_gate1.pdf_document_visual_adjudication import (
     FACTORY_REQUIRED,
     FORBIDDEN,
     PdfDocumentVisualAdjudicationError,
-    PdfDocumentVisualAdjudicationFactory,
+    _PdfDocumentVisualAdjudicationRuntime,
 )
+from broker_reports_gate1.pdf_table_raster import PdfTableRasterFactory
 from broker_reports_gate1.pdf_table_locator_provider import (
     PDF_DOCUMENT_VISUAL_PROVIDER_ADAPTER_VERSION,
+)
+from broker_reports_gate1.source_bound_table_scope import (
+    SourceBoundTableScopeFactory,
 )
 from tests.test_broker_reports_logical_row_table_recovery import (
     PRIVATE_EVIDENCE_REF,
@@ -30,24 +35,6 @@ from tests.test_broker_reports_logical_row_table_recovery import (
 
 
 PACKAGE = Path(__file__).resolve().parents[1] / "broker_reports_gate1"
-
-
-class _ProviderFactory:
-    def __init__(
-        self,
-        proposal: dict,
-        critic: dict | None = None,
-        receipt_mutator: Any | None = None,
-    ) -> None:
-        self.adapter = _Provider(
-            proposal,
-            critic or proposal,
-            receipt_mutator=receipt_mutator,
-        )
-
-    def create_with_connection(self, connection: Any) -> "_Provider":
-        assert connection is _CONNECTION
-        return self.adapter
 
 
 class _Provider:
@@ -167,9 +154,6 @@ class _Provider:
         }
 
 
-_CONNECTION = object()
-
-
 def _visual_table(
     payload: dict,
     *,
@@ -207,14 +191,17 @@ def _run(
     critic: dict | None = None,
     receipt_mutator: Any | None = None,
 ):
-    provider_factory = _ProviderFactory(
+    provider = _Provider(
         proposal,
-        critic,
+        critic or proposal,
         receipt_mutator=receipt_mutator,
     )
-    runtime = PdfDocumentVisualAdjudicationFactory(
-        provider_factory=provider_factory
-    ).create_with_connection(_CONNECTION)
+    runtime = _PdfDocumentVisualAdjudicationRuntime(
+        provider=provider,
+        raster=PdfTableRasterFactory().create(),
+        logical_rows=LogicalRowTableFactory().create(),
+        scope_binder=SourceBoundTableScopeFactory().create(),
+    )
     result = runtime.adjudicate(
         task_id="document_visual_test",
         pdf_bytes=pdf_bytes,
@@ -222,7 +209,7 @@ def _run(
         source_checksum_sha256=source_sha256,
         private_evidence_ref=PRIVATE_EVIDENCE_REF,
     )
-    return result, provider_factory.adapter
+    return result, provider
 
 
 def _two_page_observations(
@@ -421,13 +408,16 @@ def test_attempt_model_identity_must_equal_created_provider_config(
 
 def test_created_provider_model_must_be_approved_and_models_shaped() -> None:
     observations = {"pages": [{"tables": []}]}
-    provider_factory = _ProviderFactory(observations)
-    provider_factory.adapter.config.model_id = "gemini-3.5-flash"
+    provider = _Provider(observations, observations, receipt_mutator=None)
+    provider.config.model_id = "gemini-3.5-flash"
 
     with pytest.raises(PdfDocumentVisualAdjudicationError) as raised:
-        PdfDocumentVisualAdjudicationFactory(
-            provider_factory=provider_factory
-        ).create_with_connection(_CONNECTION)
+        _PdfDocumentVisualAdjudicationRuntime(
+            provider=provider,
+            raster=PdfTableRasterFactory().create(),
+            logical_rows=LogicalRowTableFactory().create(),
+            scope_binder=SourceBoundTableScopeFactory().create(),
+        )
 
     assert raised.value.code == "document_visual_provider_model_invalid"
 
@@ -592,7 +582,7 @@ def test_coordinator_is_inactive_closed_world_and_has_no_ready_receipt_input() -
     source = (PACKAGE / "pdf_document_visual_adjudication.py").read_text(
         encoding="utf-8"
     )
-    assert "PdfDocumentVisualAdjudicationFactory.create_with_connection" in FACTORY_REQUIRED
+    assert "PdfDocumentVisualAdjudicationFactory.create_for_openwebui" in FACTORY_REQUIRED
     assert "no ready receipt input" in FORBIDDEN
     assert "SourceBoundTableScopeReceipt" not in source
     assert "openwebui_actions" not in source

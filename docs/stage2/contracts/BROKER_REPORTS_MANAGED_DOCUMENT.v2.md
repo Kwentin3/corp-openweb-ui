@@ -50,7 +50,8 @@ The DOC6 contour is offline and inactive:
 | Operation | Sole owner | Responsibility |
 | --- | --- | --- |
 | Full-source PDF observations | `FullSourceArtifactFactory.create` | Existing private source text, order, words, layout and provenance projection. |
-| PDF-to-v2 document orchestration | `ManagedPdfDocumentV2Factory` | Accepts raw PDF bytes plus a required private source-artifact identity, invokes the established FullSource owner internally, consumes its sole complete PDF projection, preserves document order, coordinates table recovery and submits one candidate for validation. |
+| PDF-to-v2 document orchestration | `ManagedPdfDocumentV2Factory` | Preserves the legacy build and owns the additive adjudicated route. Both accept raw PDF bytes plus a required private source-artifact identity and invoke the established FullSource owner internally exactly once. The adjudicated route alone constructs the exact document adjudicator and admits its same-call recovery to private assembly. |
+| Document-wide visual admission | `PdfDocumentVisualAdjudicationFactory.create_for_openwebui` | Resolves the enabled Admin provider through the established OpenWebUI connection owner, uses the same FullSource payload and ordered full-page rasters for proposal and critic, owns coverage admission, and invokes LogicalRow recovery exactly once. |
 | Logical table recovery | `LogicalRowTableFactory` | Table boundary, ordered row bands, row grouping, roles, hierarchy, entries, optional logical columns, continuation and source-word ownership. |
 | v2 contract validation and sealing | `ManagedDocumentContractV2Validator` | Draft 2020-12 schema, cross-object invariants, duplicate-key rejection, canonical JSON and integrity. |
 | LLM Document View v2 | `ManagedDocumentLlmViewV2Factory` | Deterministic derived row-oriented view of an already validated v2 document. |
@@ -61,22 +62,29 @@ public `build(content_bytes, source_artifact_ref=...)` API accepts non-empty raw
 PDF bytes and a required `PRIVATE_SOURCE` artifact identity. The builder calls
 the exact `FullSourceArtifactFactory.create()` builder exactly once and
 delegates to a private assembly seam. The additive
-`build_with_source_bound_scopes(...)` accepts the same original bytes/private
-artifact identity plus raw scope requests and also invokes FullSource exactly
-once. No public method accepts `FullSourceBuildResult`, profile, units, summary,
-ready receipt or ready reviewed evidence.
+`create_adjudicated_for_openwebui(schema, request)` resolves the enabled Admin
+provider before it returns a builder. That builder accepts the same original
+bytes/private artifact identity plus task ID and DPI. No public method accepts
+`FullSourceBuildResult`, recovery, adjudication result, profile, units,
+summary, raw scope request, ready receipt, reviewed plan or ready reviewed
+evidence.
 The factory and builder expose no FullSource/recovery/validator dependency
-injection or mutable owner attributes; the private build call constructs both
-established source owners and the exact v2 validator as local variables. Tests may
+injection or replaceable public owner attributes. The private adjudicator
+runtime is sealed to the exact resolved provider identity, model, endpoint,
+credential digest and transport; mutation fails before FullSource. The private
+build call constructs both established source owners and the exact v2 validator
+as local variables. Tests may
 count the real owner call through a local monkeypatch, but no official builder
 path accepts a fake owner or validator.
 
-Only `build_with_source_bound_scopes(...)` accepts original
-`source_bound_scope_requests`; the legacy `build(...)` signature and behavior
-remain unchanged. The builder passes those requests to
+The legacy `build(...)` signature and behavior remain unchanged. The
+adjudicated builder creates `PdfDocumentVisualAdjudicationFactory` itself; its
+public build accepts only PDF bytes, source identity, task ID and DPI. The
+adjudicator passes its accepted original geometry to
 `LogicalRowTableFactory.recover_with_source_bound_scopes`, where the existing
 binder creates and consumes private receipts within the same owner call. No
-ready receipt or caller-created scope is accepted. The closed v2 document
+ready receipt, caller-created scope or caller-created adjudication result is
+accepted. The closed v2 document
 retains the resulting title/header rows, issues and exact word ownership; the
 receipt transport fields remain recovery-only and are not added to v2
 `source_parts`. An accepted `PRESENT` leading title/header/body partition keeps
@@ -99,16 +107,26 @@ The normative inactive flow is:
 ManagedPdfDocumentV2Factory.create(schema)
 -> ManagedPdfDocumentV2Builder.build(content_bytes, source_artifact_ref=...)
 -> FullSourceArtifactFactory.create().build
--> shared validated ManagedPdfDocumentV2 assembly seam
 -> LogicalRowTableFactory
+-> shared validated ManagedPdfDocumentV2 assembly seam
 -> ManagedDocumentContractV2Validator
 -> broker_reports_managed_document_v2
 -> ManagedDocumentLlmViewV2Factory
+
+ManagedPdfDocumentV2Factory.create_adjudicated_for_openwebui(schema, request)
+-> resolve enabled OpenWebUI Admin provider and seal its authority binding
+-> adjudicated builder.build(content_bytes, source_artifact_ref=..., task_id=..., dpi=...)
+-> FullSourceArtifactFactory.create().build exactly once
+-> same-raster PROPOSAL and CRITIC: 4 HTTP / 2 model generations
+-> LogicalRowTableFactory exactly once
+-> PARTIAL: no Managed document
+-> COVERAGE_COMPLETE: private Managed assembly and exact-plan seal
 ```
 
-No owner in this contour is a product entrypoint. Provider calls, model-based
-structure recovery, Knowledge/RAG, vectorization, product activation and
-generated-bundle routing are forbidden.
+No owner in this contour is a product entrypoint. Provider calls are confined
+to the exact adjudicator factory route. Knowledge/RAG, vectorization,
+Canonical/fact publication, product activation and generated-bundle routing
+are forbidden.
 
 ## 3. Contract-owner boundary
 
@@ -135,8 +153,9 @@ public evidence contract.
 
 The legacy no-scope path rejects any returned `source_bound_*` transport,
 prebuilt reviewed record or reviewed row/entry origin before assembly. The
-scoped path permits promotion only when its own public call received non-empty
-raw requests and its local LogicalRow call produced the exact reviewed plan.
+adjudicated path permits promotion only when its locally created document
+adjudicator returned `COVERAGE_COMPLETE` and its same-call LogicalRow recovery
+produced the exact reviewed plan.
 The reviewed plan is non-empty only for an actually accepted `PRESENT` leading
 structure. Merely obtaining a `BOUND` receipt is not reviewed role authority.
 

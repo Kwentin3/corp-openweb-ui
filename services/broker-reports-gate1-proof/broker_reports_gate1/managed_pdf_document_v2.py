@@ -17,6 +17,10 @@ from .managed_document_contracts_v2 import (
     ManagedDocumentContractV2Validator,
     ManagedDocumentV2,
 )
+from .pdf_document_visual_adjudication import (
+    PdfDocumentVisualAdjudicationFactory,
+    PdfDocumentVisualAdjudicationResult,
+)
 
 
 MANAGED_PDF_V2_BUILDER_VERSION = (
@@ -46,12 +50,14 @@ _SOURCE_BOUND_RECOVERY_ONLY_SOURCE_PART_FIELDS = frozenset(
 )
 
 FACTORY_REQUIRED = (
-    "ManagedPdfDocumentV2Factory.create is the sole inactive PDF to Managed "
-    "Document v2 orchestration route"
+    "ManagedPdfDocumentV2Factory.create preserves the legacy route; "
+    "ManagedPdfDocumentV2Factory.create_adjudicated_for_openwebui is the sole "
+    "inactive reviewed PDF to Managed Document v2 orchestration route"
 )
 FORBIDDEN = (
     "The v2 builder must not read PdfLayoutUnitBuilder units, historical grid "
-    "owners, provider output, visual gold, product routes, or generated bundles"
+    "owners, public raw scopes/results/receipts/plans, visual gold, product "
+    "routes, Canonical/fact owners, or generated bundles"
 )
 
 
@@ -73,6 +79,14 @@ class ManagedPdfDocumentV2BuildResult:
     private_diagnostics: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class ManagedPdfDocumentV2AdjudicatedBuildResult:
+    status: str
+    managed_document: ManagedDocumentV2 | None
+    safe_diagnostics: dict[str, Any]
+    private_diagnostics: dict[str, Any]
+
+
 class ManagedPdfDocumentV2Factory:
     """Compose the established FullSource, recovery and v2 contract owners."""
 
@@ -87,17 +101,28 @@ class ManagedPdfDocumentV2Factory:
             raise ManagedPdfDocumentV2Error(
                 "managed_pdf_v2_config_invalid"
             )
-        validated_schema = copy.deepcopy(dict(schema))
-        ManagedDocumentContractV2Validator(validated_schema)
-        schema_json = json.dumps(
-            validated_schema,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
         return ManagedPdfDocumentV2Builder(
             config=self.config,
-            schema_json=schema_json,
+            schema_json=_validated_schema_json(schema),
+        )
+
+    def create_adjudicated_for_openwebui(
+        self,
+        schema: Mapping[str, Any],
+        request: Any,
+    ) -> "_ManagedPdfDocumentV2AdjudicatedBuilder":
+        if not self.config.created_at or not self.config.profile_id:
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_config_invalid"
+            )
+        return _ManagedPdfDocumentV2AdjudicatedBuilder(
+            config=self.config,
+            schema_json=_validated_schema_json(schema),
+            _adjudicator=(
+                PdfDocumentVisualAdjudicationFactory().create_for_openwebui(
+                    request
+                )
+            ),
         )
 
 
@@ -122,26 +147,24 @@ class ManagedPdfDocumentV2Builder:
         return self._build_owned_source(
             content_bytes=content_bytes,
             source_artifact_ref=source_artifact_ref,
-            source_bound_scope_requests=(),
         )
 
-    def build_with_source_bound_scopes(
+    def _build_adjudicated(
         self,
         content_bytes: bytes,
         *,
         source_artifact_ref: str | None = None,
-        source_bound_scope_requests: tuple[Mapping[str, Any], ...],
-    ) -> ManagedPdfDocumentV2BuildResult:
-        """Build once and bind raw visual scope requests in the same call."""
-
-        if not source_bound_scope_requests:
-            raise ManagedPdfDocumentV2Error(
-                "managed_pdf_v2_source_bound_scope_requests_invalid"
-            )
+        task_id: str,
+        dpi: int,
+        adjudicator: Any,
+    ) -> ManagedPdfDocumentV2AdjudicatedBuildResult:
+        adjudicator._assert_authority()
         return self._build_owned_source(
             content_bytes=content_bytes,
             source_artifact_ref=source_artifact_ref,
-            source_bound_scope_requests=source_bound_scope_requests,
+            task_id=_adjudication_task_id(task_id),
+            dpi=_adjudication_dpi(dpi),
+            adjudicator=adjudicator,
         )
 
     def _build_owned_source(
@@ -149,17 +172,18 @@ class ManagedPdfDocumentV2Builder:
         *,
         content_bytes: bytes,
         source_artifact_ref: str | None,
-        source_bound_scope_requests: tuple[Mapping[str, Any], ...],
-    ) -> ManagedPdfDocumentV2BuildResult:
+        task_id: str | None = None,
+        dpi: int = 150,
+        adjudicator: Any = None,
+    ) -> (
+        ManagedPdfDocumentV2BuildResult
+        | ManagedPdfDocumentV2AdjudicatedBuildResult
+    ):
         if not isinstance(content_bytes, bytes) or not content_bytes:
             raise ManagedPdfDocumentV2Error(
                 "managed_pdf_v2_source_bytes_invalid"
-            )
+        )
         private_ref = _private_source_ref(source_artifact_ref)
-        if not isinstance(source_bound_scope_requests, tuple):
-            raise ManagedPdfDocumentV2Error(
-                "managed_pdf_v2_source_bound_scope_requests_invalid"
-            )
         document_id = _identifier(
             "document_pdf",
             ["private_source_artifact_identity", private_ref],
@@ -179,25 +203,35 @@ class ManagedPdfDocumentV2Builder:
             raise ManagedPdfDocumentV2Error(
                 "managed_pdf_v2_full_source_projection_missing"
             )
-        recovery_runtime = LogicalRowTableFactory().create()
-        if source_bound_scope_requests:
-            recovered: LogicalRowTableRecoveryResult = (
-                recovery_runtime.recover_with_source_bound_scopes(
-                    full_source_payload=payload,
-                    source_checksum_sha256=source_checksum,
-                    private_evidence_ref=private_ref,
-                    source_bound_scope_requests=source_bound_scope_requests,
-                )
-            )
-        else:
-            recovered = recovery_runtime.recover(
+        adjudication: PdfDocumentVisualAdjudicationResult | None = None
+        if task_id is None:
+            recovered = LogicalRowTableFactory().create().recover(
                 projection,
                 source_checksum_sha256=source_checksum,
                 private_evidence_ref=private_ref,
             )
+        else:
+            adjudication = adjudicator.adjudicate(
+                task_id=task_id,
+                pdf_bytes=content_bytes,
+                full_source_payload=payload,
+                source_checksum_sha256=source_checksum,
+                private_evidence_ref=private_ref,
+                dpi=dpi,
+            )
+            if adjudication.status != "COVERAGE_COMPLETE":
+                return _partial_adjudicated_result(
+                    adjudication=adjudication,
+                    document_id=document_id,
+                    source_checksum=source_checksum,
+                    private_ref=private_ref,
+                    full_source=full_source,
+                    payload=payload,
+                )
+            recovered = adjudication.recovery
         recovered, reviewed_plan = _managed_document_recovery_projection(
             recovered,
-            allow_reviewed=bool(source_bound_scope_requests),
+            allow_reviewed=adjudication is not None,
         )
         candidate, assembly = _assemble_document(
             projection=projection,
@@ -208,6 +242,19 @@ class ManagedPdfDocumentV2Builder:
             private_source_ref=private_ref,
             created_at=self.config.created_at,
         )
+        if (
+            adjudication is not None
+            and candidate["quality"]["status"] != "COMPLETE"
+        ):
+            return _partial_adjudicated_result(
+                adjudication=adjudication,
+                document_id=document_id,
+                source_checksum=source_checksum,
+                private_ref=private_ref,
+                full_source=full_source,
+                payload=payload,
+                detail_code="managed_pdf_v2_candidate_partial",
+            )
         validator = ManagedDocumentContractV2Validator(
             json.loads(self._schema_json.decode("utf-8"))
         )
@@ -234,19 +281,66 @@ class ManagedPdfDocumentV2Builder:
             "unowned_words_total": 0,
             "multiple_word_owners_total": 0,
             "paragraph_table_overlap_total": 0,
-            "factory_route": [
-                "ManagedPdfDocumentV2Factory.create",
-                "FullSourceArtifactFactory.create",
-                "LogicalRowTableFactory.create",
-                "ManagedDocumentContractV2Validator.seal",
-            ],
+            "factory_route": (
+                [
+                    "ManagedPdfDocumentV2Factory.create",
+                    "FullSourceArtifactFactory.create",
+                    "LogicalRowTableFactory.create",
+                    "ManagedDocumentContractV2Validator.seal",
+                ]
+                if adjudication is None
+                else [
+                    (
+                        "ManagedPdfDocumentV2Factory."
+                        "create_adjudicated_for_openwebui"
+                    ),
+                    "FullSourceArtifactFactory.create",
+                    (
+                        "PdfDocumentVisualAdjudicationFactory."
+                        "create_for_openwebui"
+                    ),
+                    "LogicalRowTableFactory.create",
+                    "ManagedDocumentContractV2Validator.seal",
+                ]
+            ),
             "canonical_projection_field": (
                 "FullSourceBuildResult.payloads[0]."
                 "pdf_text_layer_projection"
             ),
             "pdf_layout_units_consumed": 0,
             "grid_owner_calls": 0,
-            "provider_calls_total": 0,
+            "provider_calls_total": (
+                0
+                if adjudication is None
+                else adjudication.provider_accounting[
+                    "provider_http_calls"
+                ]
+            ),
+            **(
+                {
+                    "provider_http_calls": adjudication.provider_accounting[
+                        "provider_http_calls"
+                    ],
+                    "model_generation_calls": (
+                        adjudication.provider_accounting[
+                            "model_generation_calls"
+                        ]
+                    ),
+                    "count_tokens_http_calls": (
+                        adjudication.provider_accounting[
+                            "count_tokens_http_calls"
+                        ]
+                    ),
+                    "same_raster_binding": adjudication.provider_accounting[
+                        "same_raster_binding"
+                    ],
+                    "managed_document_created": True,
+                    "canonical_artifacts_created": 0,
+                    "facts_published": 0,
+                }
+                if adjudication is not None
+                else {}
+            ),
             "product_route_connected": False,
             "generated_bundle_connected": False,
             "private_values_included": False,
@@ -280,13 +374,167 @@ class ManagedPdfDocumentV2Builder:
             "managed_document_integrity_sha256": (
                 managed_document.integrity_sha256
             ),
+            **(
+                {
+                    "adjudication_status": adjudication.status,
+                    "adjudication_provider_accounting": copy.deepcopy(
+                        adjudication.provider_accounting
+                    ),
+                    "adjudication_page_coverage": copy.deepcopy(
+                        list(adjudication.page_coverage)
+                    ),
+                    "adjudication_issues": copy.deepcopy(
+                        list(adjudication.issues)
+                    ),
+                }
+                if adjudication is not None
+                else {}
+            ),
         }
+        if adjudication is not None:
+            return ManagedPdfDocumentV2AdjudicatedBuildResult(
+                status=status,
+                managed_document=managed_document,
+                safe_diagnostics=safe_diagnostics,
+                private_diagnostics=private_diagnostics,
+            )
         return ManagedPdfDocumentV2BuildResult(
             status=status,
             managed_document=managed_document,
             safe_diagnostics=safe_diagnostics,
             private_diagnostics=private_diagnostics,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class _ManagedPdfDocumentV2AdjudicatedBuilder:
+    config: ManagedPdfDocumentV2Config
+    schema_json: bytes
+    _adjudicator: Any
+
+    def build(
+        self,
+        content_bytes: bytes,
+        *,
+        source_artifact_ref: str | None = None,
+        task_id: str,
+        dpi: int = 150,
+    ) -> ManagedPdfDocumentV2AdjudicatedBuildResult:
+        return ManagedPdfDocumentV2Builder(
+            config=self.config,
+            schema_json=self.schema_json,
+        )._build_adjudicated(
+            content_bytes,
+            source_artifact_ref=source_artifact_ref,
+            task_id=task_id,
+            dpi=dpi,
+            adjudicator=self._adjudicator,
+        )
+
+
+def _validated_schema_json(schema: Mapping[str, Any]) -> bytes:
+    validated_schema = copy.deepcopy(dict(schema))
+    ManagedDocumentContractV2Validator(validated_schema)
+    return json.dumps(
+        validated_schema,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _adjudication_task_id(value: str) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or len(value) > 180
+    ):
+        raise ManagedPdfDocumentV2Error(
+            "managed_pdf_v2_adjudication_task_id_invalid"
+        )
+    return value
+
+
+def _adjudication_dpi(value: int) -> int:
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < 72
+        or value > 300
+    ):
+        raise ManagedPdfDocumentV2Error(
+            "managed_pdf_v2_adjudication_dpi_invalid"
+        )
+    return value
+
+
+def _partial_adjudicated_result(
+    *,
+    adjudication: PdfDocumentVisualAdjudicationResult,
+    document_id: str,
+    source_checksum: str,
+    private_ref: str,
+    full_source: Any,
+    payload: Mapping[str, Any],
+    detail_code: str | None = None,
+) -> ManagedPdfDocumentV2AdjudicatedBuildResult:
+    accounting = copy.deepcopy(adjudication.provider_accounting)
+    safe_diagnostics = {
+        "schema_version": SAFE_BUILD_DIAGNOSTICS_SCHEMA_VERSION,
+        "builder_version": MANAGED_PDF_V2_BUILDER_VERSION,
+        "status": "PARTIAL",
+        "factory_route": [
+            "ManagedPdfDocumentV2Factory.create_adjudicated_for_openwebui",
+            "FullSourceArtifactFactory.create",
+            "PdfDocumentVisualAdjudicationFactory.create_for_openwebui",
+            "LogicalRowTableFactory.create",
+        ],
+        "provider_calls_total": accounting["provider_http_calls"],
+        "provider_http_calls": accounting["provider_http_calls"],
+        "model_generation_calls": accounting["model_generation_calls"],
+        "count_tokens_http_calls": accounting["count_tokens_http_calls"],
+        "same_raster_binding": accounting["same_raster_binding"],
+        "managed_document_created": False,
+        "canonical_artifacts_created": 0,
+        "facts_published": 0,
+        "product_route_connected": False,
+        "generated_bundle_connected": False,
+        "private_values_included": False,
+    }
+    private_diagnostics = {
+        "schema_version": PRIVATE_BUILD_DIAGNOSTICS_SCHEMA_VERSION,
+        "builder_version": MANAGED_PDF_V2_BUILDER_VERSION,
+        "document_id": document_id,
+        "source_checksum_sha256": source_checksum,
+        "private_source_ref": private_ref,
+        "full_source_payload_ref": payload.get("source_payload_ref"),
+        "full_source_summary": copy.deepcopy(
+            getattr(full_source, "summary", {})
+        ),
+        "adjudication_status": adjudication.status,
+        "adjudication_provider_accounting": accounting,
+        "adjudication_page_coverage": copy.deepcopy(
+            list(adjudication.page_coverage)
+        ),
+        "adjudication_observation_coverage": copy.deepcopy(
+            list(adjudication.observation_coverage)
+        ),
+        "adjudication_parser_candidate_coverage": copy.deepcopy(
+            list(adjudication.parser_candidate_coverage)
+        ),
+        "adjudication_issues": copy.deepcopy(list(adjudication.issues)),
+        "recovery_diagnostics": copy.deepcopy(
+            adjudication.recovery.diagnostics
+        ),
+        **({"detail_code": detail_code} if detail_code is not None else {}),
+    }
+    return ManagedPdfDocumentV2AdjudicatedBuildResult(
+        status="PARTIAL",
+        managed_document=None,
+        safe_diagnostics=safe_diagnostics,
+        private_diagnostics=private_diagnostics,
+    )
 
 
 def _private_source_ref(value: str | None) -> str:

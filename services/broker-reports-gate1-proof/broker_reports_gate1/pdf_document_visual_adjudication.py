@@ -34,7 +34,7 @@ DOCUMENT_VISUAL_ADJUDICATION_POLICY = (
     "pdf_document_visual_adjudication_policy_v1_proposed_inactive"
 )
 FACTORY_REQUIRED = (
-    "PdfDocumentVisualAdjudicationFactory.create_with_connection is the only "
+    "PdfDocumentVisualAdjudicationFactory.create_for_openwebui is the only "
     "inactive document-wide visual orchestration entrypoint"
 )
 FORBIDDEN = (
@@ -87,31 +87,30 @@ class PdfDocumentVisualAdjudicationResult:
 
 
 class PdfDocumentVisualAdjudicationFactory:
-    def __init__(
-        self,
-        *,
-        provider_factory: Any | None = None,
-        raster_factory: PdfTableRasterFactory | None = None,
-        logical_row_factory: LogicalRowTableFactory | None = None,
-        scope_factory: SourceBoundTableScopeFactory | None = None,
-    ) -> None:
-        self.provider_factory = provider_factory or PdfTableLocatorProviderFactory()
-        self.raster_factory = raster_factory or PdfTableRasterFactory()
-        self.logical_row_factory = logical_row_factory or LogicalRowTableFactory()
-        self.scope_factory = scope_factory or SourceBoundTableScopeFactory()
-
-    def create_with_connection(
-        self, connection: Any
-    ) -> "PdfDocumentVisualAdjudicationRuntime":
-        return PdfDocumentVisualAdjudicationRuntime(
-            provider=self.provider_factory.create_with_connection(connection),
-            raster=self.raster_factory.create(),
-            logical_rows=self.logical_row_factory.create(),
-            scope_binder=self.scope_factory.create(),
+    def create_for_openwebui(
+        self, request: Any
+    ) -> "_PdfDocumentVisualAdjudicationRuntime":
+        return _PdfDocumentVisualAdjudicationRuntime(
+            provider=PdfTableLocatorProviderFactory().create_for_openwebui(
+                request
+            ),
+            raster=PdfTableRasterFactory().create(),
+            logical_rows=LogicalRowTableFactory().create(),
+            scope_binder=SourceBoundTableScopeFactory().create(),
         )
 
 
-class PdfDocumentVisualAdjudicationRuntime:
+class _PdfDocumentVisualAdjudicationRuntime:
+    __slots__ = (
+        "_provider",
+        "_expected_model_id",
+        "_raster",
+        "_logical_rows",
+        "_scope_binder",
+        "_authority_binding",
+        "_sealed",
+    )
+
     def __init__(
         self,
         *,
@@ -120,11 +119,37 @@ class PdfDocumentVisualAdjudicationRuntime:
         logical_rows: Any,
         scope_binder: Any,
     ) -> None:
-        self.provider = provider
-        self.expected_model_id = _expected_provider_model_id(provider)
-        self.raster = raster
-        self.logical_rows = logical_rows
-        self.scope_binder = scope_binder
+        object.__setattr__(self, "_provider", provider)
+        object.__setattr__(
+            self,
+            "_expected_model_id",
+            _expected_provider_model_id(provider),
+        )
+        object.__setattr__(self, "_raster", raster)
+        object.__setattr__(self, "_logical_rows", logical_rows)
+        object.__setattr__(self, "_scope_binder", scope_binder)
+        object.__setattr__(
+            self,
+            "_authority_binding",
+            _provider_authority_binding(provider),
+        )
+        object.__setattr__(self, "_sealed", True)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if getattr(self, "_sealed", False):
+            raise PdfDocumentVisualAdjudicationError(
+                "document_visual_runtime_mutation_forbidden"
+            )
+        object.__setattr__(self, name, value)
+
+    def _assert_authority(self) -> None:
+        if (
+            _provider_authority_binding(self._provider)
+            != self._authority_binding
+        ):
+            raise PdfDocumentVisualAdjudicationError(
+                "document_visual_provider_authority_mutated"
+            )
 
     def adjudicate(
         self,
@@ -136,6 +161,7 @@ class PdfDocumentVisualAdjudicationRuntime:
         private_evidence_ref: str,
         dpi: int = 150,
     ) -> PdfDocumentVisualAdjudicationResult:
+        self._assert_authority()
         payload, projection, pages = _validated_input(
             pdf_bytes=pdf_bytes,
             full_source_payload=full_source_payload,
@@ -149,7 +175,7 @@ class PdfDocumentVisualAdjudicationRuntime:
             dpi=dpi,
         )
         document_binding = _document_binding(page_images)
-        proposal_result = self.provider.invoke_document_visual_geometry(
+        proposal_result = self._provider.invoke_document_visual_geometry(
             task_id=f"{task_id}_proposal",
             phase="PROPOSAL",
             page_images=page_images,
@@ -159,7 +185,8 @@ class PdfDocumentVisualAdjudicationRuntime:
         )
         proposal = _terminal_output(proposal_result, "proposal")
         proposal_attempt = _attempt(proposal_result, "proposal")
-        critic_result = self.provider.invoke_document_visual_geometry(
+        self._assert_authority()
+        critic_result = self._provider.invoke_document_visual_geometry(
             task_id=f"{task_id}_critic",
             phase="CRITIC",
             page_images=page_images,
@@ -173,7 +200,7 @@ class PdfDocumentVisualAdjudicationRuntime:
             proposal_attempt,
             critic_attempt,
             expected_document_binding=document_binding,
-            expected_model_id=self.expected_model_id,
+            expected_model_id=self._expected_model_id,
             proposal_task_id=f"{task_id}_proposal",
             critic_task_id=f"{task_id}_critic",
         )
@@ -189,14 +216,14 @@ class PdfDocumentVisualAdjudicationRuntime:
         )
         requests = tuple(plan["scope_requests"])
         if requests:
-            recovery = self.logical_rows.recover_with_source_bound_scopes(
+            recovery = self._logical_rows.recover_with_source_bound_scopes(
                 full_source_payload=payload,
                 source_checksum_sha256=source_checksum_sha256,
                 private_evidence_ref=private_evidence_ref,
                 source_bound_scope_requests=requests,
             )
         else:
-            recovery = self.logical_rows.recover(
+            recovery = self._logical_rows.recover(
                 projection,
                 source_checksum_sha256=source_checksum_sha256,
                 private_evidence_ref=private_evidence_ref,
@@ -241,7 +268,7 @@ class PdfDocumentVisualAdjudicationRuntime:
         manifests = {}
         for page in pages:
             expected_bbox = _page_bbox(page)
-            rendered = self.raster.render_full_page(
+            rendered = self._raster.render_full_page(
                 pdf_bytes=pdf_bytes,
                 pdf_sha256=source_checksum_sha256,
                 document_ref=document_ref,
@@ -331,7 +358,7 @@ class PdfDocumentVisualAdjudicationRuntime:
                 else:
                     raw_proposal = _scope_proposal(first)
                     try:
-                        bound = self.scope_binder.bind(
+                        bound = self._scope_binder.bind(
                             proposal=raw_proposal,
                             full_source_payload=payload,
                             source_checksum_sha256=source_checksum_sha256,
@@ -747,6 +774,52 @@ def _expected_provider_model_id(provider: Any) -> str:
             "document_visual_provider_model_invalid"
         )
     return model_id
+
+
+def _provider_authority_binding(provider: Any) -> tuple[Any, ...]:
+    config = getattr(provider, "config", None)
+    profile = getattr(provider, "profile", None)
+    connection = getattr(provider, "connection", None)
+    invoke = getattr(provider, "invoke_document_visual_geometry", None)
+    invoke_function = getattr(invoke, "__func__", invoke)
+    invoke_owner = getattr(invoke, "__self__", None)
+    api_key = getattr(connection, "api_key", None)
+    api_key_sha256 = (
+        hashlib.sha256(api_key.encode("utf-8")).hexdigest()
+        if isinstance(api_key, str)
+        else None
+    )
+    transport = getattr(provider, "urlopen_fn", None)
+    return (
+        id(provider),
+        type(provider).__module__,
+        type(provider).__qualname__,
+        id(invoke_function),
+        id(invoke_owner),
+        id(config),
+        type(config).__module__,
+        type(config).__qualname__,
+        getattr(config, "provider_profile", None),
+        getattr(config, "model_id", None),
+        getattr(config, "timeout_seconds", None),
+        getattr(config, "maximum_output_tokens", None),
+        getattr(config, "maximum_counted_input_tokens", None),
+        getattr(config, "thinking_level", None),
+        id(profile),
+        type(profile).__module__,
+        type(profile).__qualname__,
+        getattr(profile, "profile_id", None),
+        getattr(profile, "approved_model_ids", None),
+        getattr(profile, "connection_base_url_prefixes", None),
+        id(connection),
+        type(connection).__module__,
+        type(connection).__qualname__,
+        getattr(connection, "base_url", None),
+        api_key_sha256,
+        id(transport),
+        type(transport).__module__,
+        type(transport).__qualname__,
+    )
 
 
 def _sha256(value: Any) -> bool:

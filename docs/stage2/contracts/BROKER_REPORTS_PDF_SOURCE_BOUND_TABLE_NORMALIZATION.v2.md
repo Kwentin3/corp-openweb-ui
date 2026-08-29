@@ -127,7 +127,7 @@ decision. Those consumers remain absent in this PR.
 
 ## Inactive document-wide adjudication coordinator
 
-`PdfDocumentVisualAdjudicationFactory.create_with_connection` is the sole
+`PdfDocumentVisualAdjudicationFactory.create_for_openwebui` is the sole
 proposed coordinator entrypoint. It validates one whole FullSource payload,
 renders every page exactly once through `PdfTableRasterFactory`, and submits
 that same ordered raster set first to `PROPOSAL` and then to `CRITIC`. A
@@ -165,11 +165,14 @@ publication is always forbidden, and no facts or Canonical values are emitted.
 
 ## Inactive adjudicated Managed Document bridge
 
-`ManagedPdfDocumentV2Factory.create_adjudicated(schema, connection)` is the
-only proposed reviewed Managed entrypoint. Its builder accepts only original
-PDF bytes, a private source-artifact identity, task ID and DPI. It creates the
-exact FullSource owner once, passes that same payload and source checksum to
-the exact factory-created document adjudicator, and accepts no public
+`ManagedPdfDocumentV2Factory.create_adjudicated_for_openwebui(schema, request)` is the
+only proposed reviewed Managed entrypoint. It resolves the enabled OpenWebUI
+Admin provider and seals its authority binding before returning a builder.
+Local, ambiguous or later-mutated provider authority fails before FullSource.
+The builder accepts only original PDF bytes, a private source-artifact identity,
+task ID and DPI. It creates the exact FullSource owner once, passes that same
+payload and source checksum to the exact factory-created document adjudicator,
+and accepts no public raw connection,
 FullSource, recovery, adjudication result, receipt, reviewed plan or raw scope
 request.
 

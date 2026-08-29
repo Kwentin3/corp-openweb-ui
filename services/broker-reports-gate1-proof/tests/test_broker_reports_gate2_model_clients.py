@@ -7,6 +7,7 @@ import hashlib
 import json
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -464,6 +465,83 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
 
         self.assertEqual(blocked.exception.code, "gate2_provider_configuration_blocked")
         self.assertEqual(blocked.exception.failure_class, "provider_configuration")
+
+    def test_openwebui_connection_resolver_requires_exact_origin(self):
+        profile = gate2_provider_profile("openai")
+        rejected_urls = (
+            "http://api.openai.com/v1",
+            "https://api.openai.com:0/v1",
+            "https://api.openai.com:00/v1",
+            "https://api.openai.com:444/v1",
+            "https://api.openai.com.attacker.invalid/v1",
+            "https://api.openai.com@attacker.invalid/v1",
+            "https://attacker.invalid@api.openai.com/v1",
+            "https://api.openai.com/v1?redirect=attacker",
+            "https://api.openai.com/v1?",
+            "https://api.openai.com/v1#fragment",
+            "https://api.openai.com/v1#",
+            "https://api.openai.com/v1/../evil",
+            "https://api.openai.com/v1/%2e%2e/evil",
+            "https://api.openai.com/v1/%2E%2E%2Fevil",
+            "https://api.openai.com/v1/%252e%252e/evil",
+            "https://api.openai.com/v1/%2",
+            "https://api.openai.com/v1/%GG",
+        )
+
+        for url in rejected_urls:
+            with self.subTest(url=url):
+                config = self.request.app.state.config
+                config.OPENAI_API_BASE_URLS = [url]
+                config.OPENAI_API_KEYS = ["unit-openai-key"]
+                config.OPENAI_API_CONFIGS = {"0": {"enable": True}}
+                with self.assertRaises(Gate2SourceFactRuntimeError) as blocked:
+                    Gate2OpenWebUIProviderConnectionResolver(
+                        self.request
+                    ).resolve(profile)
+                self.assertEqual(
+                    blocked.exception.code,
+                    "gate2_provider_configuration_blocked",
+                )
+
+    def test_openwebui_connection_resolver_preserves_approved_paths(self):
+        profile = gate2_provider_profile("openai")
+        for url in (
+            "https://api.openai.com",
+            "https://api.openai.com/v1",
+            "https://api.openai.com:443/v1/models",
+        ):
+            with self.subTest(url=url):
+                config = self.request.app.state.config
+                config.OPENAI_API_BASE_URLS = [url]
+                config.OPENAI_API_KEYS = ["unit-openai-key"]
+                config.OPENAI_API_CONFIGS = {"0": {"enable": True}}
+                connection = Gate2OpenWebUIProviderConnectionResolver(
+                    self.request
+                ).resolve(profile)
+                self.assertEqual(connection.base_url, url)
+
+    def test_openwebui_connection_resolver_uses_path_boundary(self):
+        profile = replace(
+            gate2_provider_profile("openai"),
+            connection_base_url_prefixes=("https://api.openai.com/v1",),
+        )
+        matcher = Gate2OpenWebUIProviderConnectionResolver._matches_profile
+
+        self.assertTrue(matcher(profile, "https://api.openai.com/v1"))
+        self.assertTrue(matcher(profile, "https://api.openai.com/v1/models"))
+        self.assertFalse(matcher(profile, "https://api.openai.com/v11"))
+        self.assertFalse(matcher(profile, "https://api.openai.com/v1evil"))
+        self.assertFalse(
+            matcher(
+                replace(
+                    profile,
+                    connection_base_url_prefixes=(
+                        "https://api.openai.com/v1/../admin",
+                    ),
+                ),
+                "https://api.openai.com/v1/admin",
+            )
+        )
 
     def test_source_v0_request_and_result_are_observable_without_schema_rewrite(self):
         response_format = self._response_format()
