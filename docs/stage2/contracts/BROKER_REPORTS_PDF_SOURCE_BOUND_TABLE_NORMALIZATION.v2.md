@@ -92,6 +92,39 @@ below it. A conflict with independently proven header evidence is typed
 `source_bound_table_scope_header_presence_conflict`, remains `PARTIAL`, and
 does not authorize a join.
 
+## Inactive document-wide visual provider seam
+
+The existing `PdfTableLocatorProviderFactory` owns one additive inactive
+`invoke_document_visual_geometry` transport seam. It accepts an ordered,
+non-empty bounded set of existing full-page raster-owner outputs for exactly
+one PDF document. It performs one `countTokens` preflight over the exact
+multimodal `generateContentRequest`, then exactly one `generateContent` call.
+Thus one successful invocation has two provider HTTP calls but only one model
+generation; neither call is a retry. The existing single-page `count_tokens`
+and `invoke` APIs remain unchanged.
+
+The host validates every raster manifest through the existing locator
+coordinate owner, recomputes its manifest hash, checks its PNG hash and byte
+count, requires one-based page order, and binds the request to the exact
+document, page refs, manifest hashes, and PNG hashes. The model receives only
+ordered page images, page ordinals, a fixed task, and, for the later critic
+phase, the first closed geometry proposal. Its response is a fixed page-array
+contract containing normalized boxes and closed presence/body-status enums.
+It contains no source text, source refs, table identity, or continuation.
+The canonical JSON bytes for both inline-image HTTP bodies must each remain
+strictly below Gemini's 20 MB inline request limit. `countTokens` must remain
+at or below the configured input-token guard before generation is attempted.
+The generation receipt binds both request hashes, both byte counts, the token
+count and exact `2 HTTP / 1 generation` accounting. Gemini's documented
+structured-output `maxItems` keyword remains in this document-only adapted
+schema, while the legacy single-page schema projection stays byte-compatible.
+
+The seam has no internal retry or failover. Schema-invalid, incomplete,
+refused, stale, misbound, over-byte or over-token input remains failed. This
+provider slice owns no coverage,
+adjudication, binding, continuation, Canonical, fact, intake, or product
+decision. Those consumers remain absent in this PR.
+
 ## Fragment-local continuation rule
 
 A right fragment may join one previous logical table only when all of the
