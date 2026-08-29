@@ -17,6 +17,10 @@ from .managed_document_contracts_v2 import (
     ManagedDocumentContractV2Validator,
     ManagedDocumentV2,
 )
+from .managed_whole_table_projection import (
+    _ManagedWholeTableProjectionResult,
+    _project_sealed_adjudicated_managed_document,
+)
 from .pdf_document_visual_adjudication import (
     PdfDocumentVisualAdjudicationFactory,
     PdfDocumentVisualAdjudicationResult,
@@ -89,6 +93,8 @@ class ManagedPdfDocumentV2AdjudicatedBuildResult:
     managed_document: ManagedDocumentV2 | None
     safe_diagnostics: dict[str, Any]
     private_diagnostics: dict[str, Any]
+    whole_table_projections: tuple[dict[str, Any], ...]
+    whole_table_projection_diagnostics: dict[str, Any]
 
 
 class ManagedPdfDocumentV2Factory:
@@ -294,6 +300,14 @@ class ManagedPdfDocumentV2Builder:
             if reviewed_plan
             else validator.seal(candidate)
         )
+        whole_table_projection: _ManagedWholeTableProjectionResult | None = None
+        if adjudication is not None:
+            whole_table_projection = (
+                _project_sealed_adjudicated_managed_document(
+                    managed_document,
+                    expected_source_unit_ledger=source_unit_ledger_plan,
+                )
+            )
         status = str(managed_document.payload["quality"]["status"])
         safe_diagnostics = {
             "schema_version": SAFE_BUILD_DIAGNOSTICS_SCHEMA_VERSION,
@@ -363,6 +377,12 @@ class ManagedPdfDocumentV2Builder:
                         "same_raster_binding"
                     ],
                     "managed_document_created": True,
+                    "whole_table_projection_status": (
+                        whole_table_projection.status
+                    ),
+                    "whole_table_projections_total": len(
+                        whole_table_projection.projections
+                    ),
                     "canonical_artifacts_created": 0,
                     "facts_published": 0,
                 }
@@ -414,6 +434,12 @@ class ManagedPdfDocumentV2Builder:
                     "adjudication_issues": copy.deepcopy(
                         list(adjudication.issues)
                     ),
+                    "whole_table_projection_status": (
+                        whole_table_projection.status
+                    ),
+                    "whole_table_projection_issues": copy.deepcopy(
+                        list(whole_table_projection.issues)
+                    ),
                 }
                 if adjudication is not None
                 else {}
@@ -425,6 +451,11 @@ class ManagedPdfDocumentV2Builder:
                 managed_document=managed_document,
                 safe_diagnostics=safe_diagnostics,
                 private_diagnostics=private_diagnostics,
+                whole_table_projections=whole_table_projection.projections,
+                whole_table_projection_diagnostics={
+                    "status": whole_table_projection.status,
+                    "issues": copy.deepcopy(list(whole_table_projection.issues)),
+                },
             )
         return ManagedPdfDocumentV2BuildResult(
             status=status,
@@ -524,6 +555,8 @@ def _partial_adjudicated_result(
         "count_tokens_http_calls": accounting["count_tokens_http_calls"],
         "same_raster_binding": accounting["same_raster_binding"],
         "managed_document_created": False,
+        "whole_table_projection_status": "NOT_READY",
+        "whole_table_projections_total": 0,
         "canonical_artifacts_created": 0,
         "facts_published": 0,
         "product_route_connected": False,
@@ -562,6 +595,13 @@ def _partial_adjudicated_result(
         managed_document=None,
         safe_diagnostics=safe_diagnostics,
         private_diagnostics=private_diagnostics,
+        whole_table_projections=(),
+        whole_table_projection_diagnostics={
+            "status": "NOT_READY",
+            "issues": [
+                {"code": "managed_whole_table_projection_managed_missing"}
+            ],
+        },
     )
 
 

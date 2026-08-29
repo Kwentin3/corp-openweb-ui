@@ -677,6 +677,13 @@ def test_adjudicated_partial_returns_zero_managed_canonical_and_facts(
     assert result.safe_diagnostics["count_tokens_http_calls"] == 2
     assert result.safe_diagnostics["same_raster_binding"] is True
     assert result.safe_diagnostics["managed_document_created"] is False
+    assert result.safe_diagnostics["whole_table_projection_status"] == "NOT_READY"
+    assert result.safe_diagnostics["whole_table_projections_total"] == 0
+    assert result.whole_table_projections == ()
+    assert result.whole_table_projection_diagnostics == {
+        "status": "NOT_READY",
+        "issues": [{"code": "managed_whole_table_projection_managed_missing"}],
+    }
     assert result.safe_diagnostics["canonical_artifacts_created"] == 0
     assert result.safe_diagnostics["facts_published"] == 0
 
@@ -733,6 +740,16 @@ def test_adjudicated_headerless_continuation_seals_one_whole_unit_table(
         if unit["unit_ref"] in {record["unit_ref"] for record in records}
     } == {"pdf_table_candidate_unit"}
     assert len(tables[0]["covered_source_word_refs"]) == 12
+    assert result.safe_diagnostics["whole_table_projection_status"] == "READY"
+    assert result.safe_diagnostics["whole_table_projections_total"] == 1
+    assert len(result.whole_table_projections) == 1
+    projection = result.whole_table_projections[0]
+    assert projection["ordered_rows"] == tables[0]["ordered_rows"]
+    assert projection["source_part_refs"] == [
+        part["source_part_id"] for part in tables[0]["source_parts"]
+    ]
+    assert projection["continuation_header_row_refs"] == []
+    assert projection["receipt"]["continuation_headers_collapsed"] is False
     assert result.safe_diagnostics["canonical_artifacts_created"] == 0
     assert result.safe_diagnostics["facts_published"] == 0
 
