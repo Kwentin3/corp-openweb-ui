@@ -768,6 +768,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "source_bound_table_scope.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "managed_pdf_document_v2.py"
         ),
         (
