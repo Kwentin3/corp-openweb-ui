@@ -16,6 +16,7 @@ from .ordinary_trade_qualified_mappings import (
 from .ordinary_trade_semantic_compiler import (
     OrdinaryTradeSemanticCompilerError,
     OrdinaryTradeSemanticCompilerFactory,
+    compile_managed_header_case_mapping_candidate,
     ordinary_trade_canonical_managed_header_view,
     ordinary_trade_canonical_managed_row_replay,
     ordinary_trade_canonical_table_rows,
@@ -35,6 +36,15 @@ MANAGED_DOCUMENT_CANDIDATE_SCHEMA_VERSION = (
 )
 MANAGED_DOCUMENT_SEMANTIC_EVIDENCE_SCHEMA_VERSION = (
     "broker_reports_managed_document_semantic_evidence_v1"
+)
+MANAGED_DOCUMENT_SEMANTIC_REVIEW_SCHEMA_VERSION = (
+    "broker_reports_managed_document_semantic_review_contract_v1"
+)
+MANAGED_DOCUMENT_SEMANTIC_PROPOSAL_SCHEMA_VERSION = (
+    "broker_reports_managed_document_semantic_proposal_v1"
+)
+MANAGED_DOCUMENT_SEMANTIC_CRITIC_SCHEMA_VERSION = (
+    "broker_reports_managed_document_semantic_critic_v1"
 )
 MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v7"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
@@ -99,6 +109,16 @@ _DECISION_KINDS = {
     "AMOUNT_CURRENCY_BINDING",
     "SIDE_VALUE",
     "TABLE_DISPOSITION",
+}
+_REVIEW_DISPOSITIONS = {
+    "SECURITY_TRADES",
+    "SAFE_AUXILIARY",
+    "UNSUPPORTED_FINANCIAL",
+}
+_CRITIC_DECISIONS = {
+    "SELECT_OPTION",
+    "UNRESOLVED",
+    "REJECT_FINANCIAL_RISK",
 }
 
 
@@ -1740,6 +1760,409 @@ def _managed_document_semantic_evidence(
     }
 
 
+def _review_owned_managed_document_semantic_evidence(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    user_scope_sha256: str,
+    evidence: Mapping[str, Any],
+    proposal_response: Any,
+    critic_response: Any,
+) -> dict[str, Any]:
+    """Validate two raw inactive semantic phases over same-call evidence."""
+
+    if (
+        not isinstance(evidence, Mapping)
+        or evidence.get("schema_version")
+        != MANAGED_DOCUMENT_SEMANTIC_EVIDENCE_SCHEMA_VERSION
+        or evidence.get("canonical_binding") != canonical_binding
+        or evidence.get("user_scope_sha256") != user_scope_sha256
+        or evidence.get("consumer_eligible") is not False
+        or evidence.get("runtime_activation") is not False
+    ):
+        _fail("ordinary_trade_managed_semantic_review_evidence_invalid")
+    evidence_material = copy.deepcopy(dict(evidence))
+    evidence_sha256 = evidence_material.pop("evidence_sha256", None)
+    if evidence_sha256 != _sha256_json(evidence_material):
+        _fail("ordinary_trade_managed_semantic_review_evidence_invalid")
+    evidence_scope_ref = _managed_semantic_evidence_scope_ref(evidence_sha256)
+
+    options, proposal_ref, proposal_sha256 = _managed_semantic_proposal(
+        canonical=canonical,
+        canonical_binding=canonical_binding,
+        evidence=evidence,
+        evidence_scope_ref=evidence_scope_ref,
+        response=proposal_response,
+    )
+    reviews, critic_sha256 = _managed_semantic_critic(
+        options=options,
+        evidence_scope_ref=evidence_scope_ref,
+        proposal_ref=proposal_ref,
+        response=critic_response,
+    )
+    option_by_ref = {
+        option["option_ref"]: option
+        for table in options
+        for option in table["options"]
+    }
+    blockers = []
+    unresolved = []
+    for review in reviews:
+        if review["decision"] == "UNRESOLVED":
+            unresolved.append(
+                {
+                    "table_ref": review["table_ref"],
+                    "reason_code": "SEMANTIC_REVIEW_UNRESOLVED",
+                }
+            )
+        elif review["decision"] == "REJECT_FINANCIAL_RISK":
+            blockers.append(
+                {
+                    "table_ref": review["table_ref"],
+                    "reason_code": "FINANCIAL_RISK_REJECTED",
+                }
+            )
+        else:
+            selected = option_by_ref[review["selected_option_ref"]]
+            if selected["disposition"] == "UNSUPPORTED_FINANCIAL":
+                blockers.append(
+                    {
+                        "table_ref": review["table_ref"],
+                        "reason_code": "UNSUPPORTED_FINANCIAL_CONTENT",
+                    }
+                )
+    status = (
+        "BLOCKED"
+        if blockers
+        else "CLARIFICATION_REQUIRED"
+        if unresolved
+        else "REVIEWED_CANDIDATE"
+    )
+    material = {
+        "schema_version": MANAGED_DOCUMENT_SEMANTIC_REVIEW_SCHEMA_VERSION,
+        "review_status": status,
+        "representation_only": True,
+        "consumer_eligible": False,
+        "runtime_activation": False,
+        "publication_authorized": False,
+        "global_reuse": False,
+        "document_completeness_asserted": False,
+        "canonical_binding": copy.deepcopy(dict(canonical_binding)),
+        "user_scope_sha256": user_scope_sha256,
+        "evidence_sha256": evidence_sha256,
+        "evidence_scope_ref": evidence_scope_ref,
+        "proposal_ref": proposal_ref,
+        "proposal_sha256": proposal_sha256,
+        "critic_sha256": critic_sha256,
+        "table_options": options,
+        "table_reviews": reviews,
+        "blockers": blockers,
+        "unresolved": unresolved,
+        "record_candidates": [],
+    }
+    return {
+        **material,
+        "semantic_review_receipt_sha256": _sha256_json(material),
+    }
+
+
+def _managed_semantic_proposal(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    evidence: Mapping[str, Any],
+    evidence_scope_ref: str,
+    response: Any,
+) -> tuple[list[dict[str, Any]], str, str]:
+    if (
+        not isinstance(response, dict)
+        or set(response)
+        != {"schema_version", "evidence_scope_ref", "tables"}
+        or response.get("schema_version")
+        != MANAGED_DOCUMENT_SEMANTIC_PROPOSAL_SCHEMA_VERSION
+        or response.get("evidence_scope_ref") != evidence_scope_ref
+        or not isinstance(response.get("tables"), list)
+    ):
+        _fail("ordinary_trade_managed_semantic_proposal_invalid")
+    host_tables = evidence["host_ref_bindings"]["tables"]
+    model_tables = evidence["model_evidence"]["tables"]
+    table_by_ref = {
+        table["table_ref"]: (table, model)
+        for table, model in zip(host_tables, model_tables, strict=True)
+    }
+    submitted = response["tables"]
+    refs = [item.get("table_ref") for item in submitted if isinstance(item, dict)]
+    if (
+        len(refs) != len(submitted)
+        or len(refs) != len(table_by_ref)
+        or set(refs) != set(table_by_ref)
+        or len(refs) != len(set(refs))
+    ):
+        _fail("ordinary_trade_managed_semantic_proposal_coverage_invalid")
+    submitted_by_ref = {item["table_ref"]: item for item in submitted}
+    output = []
+    for table_ref in table_by_ref:
+        host, _model = table_by_ref[table_ref]
+        table_response = submitted_by_ref[table_ref]
+        if (
+            set(table_response) != {"table_ref", "options"}
+            or not isinstance(table_response.get("options"), list)
+            or not 1 <= len(table_response["options"]) <= 4
+        ):
+            _fail("ordinary_trade_managed_semantic_proposal_invalid")
+        normalized = []
+        seen_hashes = set()
+        for raw_option in table_response["options"]:
+            option = _managed_semantic_option(
+                canonical=canonical,
+                canonical_binding=canonical_binding,
+                host_table=host,
+                raw_option=raw_option,
+            )
+            option_hash = _sha256_json(
+                {
+                    "evidence_scope_ref": evidence_scope_ref,
+                    "table_ref": table_ref,
+                    "option": option,
+                }
+            )
+            if option_hash in seen_hashes:
+                _fail("ordinary_trade_managed_semantic_proposal_duplicate")
+            seen_hashes.add(option_hash)
+            normalized.append(
+                {
+                    "option_ref": "semantic_option_" + option_hash[:32],
+                    "option_sha256": option_hash,
+                    **option,
+                }
+            )
+        output.append({"table_ref": table_ref, "options": normalized})
+    proposal_ref = "semantic_proposal_" + _sha256_json(
+        {
+            "evidence_scope_ref": evidence_scope_ref,
+            "tables": output,
+        }
+    )[:32]
+    return output, proposal_ref, _sha256_json(response)
+
+
+def _managed_semantic_option(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    host_table: Mapping[str, Any],
+    raw_option: Any,
+) -> dict[str, Any]:
+    keys = {
+        "disposition",
+        "columns",
+        "amount_currency_bindings",
+        "side_values",
+    }
+    if (
+        not isinstance(raw_option, dict)
+        or set(raw_option) != keys
+        or raw_option.get("disposition") not in _REVIEW_DISPOSITIONS
+        or any(
+            not isinstance(raw_option.get(key), list)
+            for key in keys - {"disposition"}
+        )
+    ):
+        _fail("ordinary_trade_managed_semantic_option_invalid")
+    disposition = raw_option["disposition"]
+    if disposition != "SECURITY_TRADES":
+        if any(raw_option[key] for key in keys - {"disposition"}):
+            _fail("ordinary_trade_managed_semantic_option_invalid")
+        return {
+            "disposition": disposition,
+            "mapping_candidate": None,
+            "side_normalizations": [],
+        }
+
+    columns_by_ref = {
+        item["column_ref"]: item for item in host_table["column_bindings"]
+    }
+    decisions = raw_option["columns"]
+    decision_refs = [
+        item.get("column_ref") for item in decisions if isinstance(item, dict)
+    ]
+    if (
+        len(decision_refs) != len(columns_by_ref)
+        or set(decision_refs) != set(columns_by_ref)
+        or len(decision_refs) != len(set(decision_refs))
+        or any(
+            not isinstance(item, dict)
+            or set(item) != {"column_ref", "semantic_role"}
+            or item.get("semantic_role") not in _SEMANTIC_ROLES
+            for item in decisions
+        )
+    ):
+        _fail("ordinary_trade_managed_semantic_option_columns_invalid")
+    roles_by_ref = {item["column_ref"]: item["semantic_role"] for item in decisions}
+    model_decision = {
+        "columns": [
+            {
+                "column": binding["column"],
+                "semantic_role": roles_by_ref[column_ref],
+            }
+            for column_ref, binding in sorted(
+                columns_by_ref.items(), key=lambda item: item[1]["column"]
+            )
+        ],
+        "amount_currency_bindings": sorted(
+            [
+                {
+                    "amount_column": columns_by_ref[item["amount_column_ref"]][
+                        "column"
+                    ],
+                    "currency_column": columns_by_ref[
+                        item["currency_column_ref"]
+                    ]["column"],
+                }
+                for item in raw_option["amount_currency_bindings"]
+                if _semantic_amount_binding_valid(item, columns_by_ref)
+            ],
+            key=lambda item: (item["amount_column"], item["currency_column"]),
+        ),
+    }
+    if len(model_decision["amount_currency_bindings"]) != len(
+        raw_option["amount_currency_bindings"]
+    ):
+        _fail("ordinary_trade_managed_semantic_option_amount_invalid")
+    try:
+        candidate = compile_managed_header_case_mapping_candidate(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            table_node_id=host_table["table_node_id"],
+            model_decision=model_decision,
+        )
+    except OrdinaryTradeSemanticCompilerError:
+        _fail("ordinary_trade_managed_semantic_option_mapping_invalid")
+    side_column_refs = {
+        ref for ref, role in roles_by_ref.items() if role == "side"
+    }
+    if len(side_column_refs) != 1:
+        _fail("ordinary_trade_managed_semantic_option_side_invalid")
+    side_column_ref = next(iter(side_column_refs))
+    required_values = {
+        item["value_ref"]
+        for item in host_table["value_bindings"]
+        if item["column_ref"] == side_column_ref and item["used_in_data_row"]
+    }
+    side_values = raw_option["side_values"]
+    value_refs = [
+        item.get("value_ref") for item in side_values if isinstance(item, dict)
+    ]
+    if (
+        not required_values
+        or set(value_refs) != required_values
+        or len(value_refs) != len(set(value_refs))
+        or any(
+            not isinstance(item, dict)
+            or set(item) != {"value_ref", "normalized_value"}
+            or item.get("normalized_value") not in {"PURCHASE", "DISPOSAL"}
+            for item in side_values
+        )
+    ):
+        _fail("ordinary_trade_managed_semantic_option_side_invalid")
+    normalizations = sorted(
+        copy.deepcopy(side_values), key=lambda item: item["value_ref"]
+    )
+    return {
+        "disposition": disposition,
+        "mapping_candidate": candidate,
+        "side_normalizations": normalizations,
+    }
+
+
+def _semantic_amount_binding_valid(
+    item: Any,
+    columns_by_ref: Mapping[str, Mapping[str, Any]],
+) -> bool:
+    return (
+        isinstance(item, dict)
+        and set(item) == {"amount_column_ref", "currency_column_ref"}
+        and item.get("amount_column_ref") in columns_by_ref
+        and item.get("currency_column_ref") in columns_by_ref
+    )
+
+
+def _managed_semantic_critic(
+    *,
+    options: list[dict[str, Any]],
+    evidence_scope_ref: str,
+    proposal_ref: str,
+    response: Any,
+) -> tuple[list[dict[str, Any]], str]:
+    if (
+        not isinstance(response, dict)
+        or set(response)
+        != {
+            "schema_version",
+            "evidence_scope_ref",
+            "proposal_ref",
+            "tables",
+        }
+        or response.get("schema_version")
+        != MANAGED_DOCUMENT_SEMANTIC_CRITIC_SCHEMA_VERSION
+        or response.get("evidence_scope_ref") != evidence_scope_ref
+        or response.get("proposal_ref") != proposal_ref
+        or not isinstance(response.get("tables"), list)
+    ):
+        _fail("ordinary_trade_managed_semantic_critic_invalid")
+    option_refs = {
+        table["table_ref"]: {item["option_ref"] for item in table["options"]}
+        for table in options
+    }
+    submitted = response["tables"]
+    refs = [item.get("table_ref") for item in submitted if isinstance(item, dict)]
+    if (
+        len(refs) != len(submitted)
+        or len(refs) != len(option_refs)
+        or set(refs) != set(option_refs)
+        or len(refs) != len(set(refs))
+    ):
+        _fail("ordinary_trade_managed_semantic_critic_coverage_invalid")
+    submitted_by_ref = {item["table_ref"]: item for item in submitted}
+    reviews = []
+    for table_ref in option_refs:
+        item = submitted_by_ref[table_ref]
+        if (
+            set(item) != {"table_ref", "decision", "option_ref"}
+            or item.get("decision") not in _CRITIC_DECISIONS
+            or (
+                item["decision"] == "SELECT_OPTION"
+                and item.get("option_ref") not in option_refs[table_ref]
+            )
+            or (
+                item["decision"] != "SELECT_OPTION"
+                and item.get("option_ref") is not None
+            )
+            or (
+                item["decision"] == "UNRESOLVED"
+                and len(option_refs[table_ref]) < 2
+            )
+        ):
+            _fail("ordinary_trade_managed_semantic_critic_invalid")
+        reviews.append(
+            {
+                "table_ref": table_ref,
+                "decision": item["decision"],
+                "selected_option_ref": item["option_ref"],
+            }
+        )
+    return reviews, _sha256_json(response)
+
+
+def _managed_semantic_evidence_scope_ref(evidence_sha256: str) -> str:
+    return "semantic_evidence_scope_" + _sha256_json(
+        {
+            "schema_version": MANAGED_DOCUMENT_SEMANTIC_EVIDENCE_SCHEMA_VERSION,
+            "evidence_sha256": evidence_sha256,
+        }
+    )[:32]
+
+
 def _managed_context_literals(node: Mapping[str, Any]) -> list[str]:
     node_type = node.get("node_type")
     content = node.get("content")
@@ -2009,7 +2432,10 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "MANAGED_DOCUMENT_CANDIDATE_SCHEMA_VERSION",
+    "MANAGED_DOCUMENT_SEMANTIC_CRITIC_SCHEMA_VERSION",
     "MANAGED_DOCUMENT_SEMANTIC_EVIDENCE_SCHEMA_VERSION",
+    "MANAGED_DOCUMENT_SEMANTIC_PROPOSAL_SCHEMA_VERSION",
+    "MANAGED_DOCUMENT_SEMANTIC_REVIEW_SCHEMA_VERSION",
     "MAPPING_CASE_SCHEMA_VERSION",
     "MAPPING_RESPONSE_SCHEMA_VERSION",
     "OrdinaryTradeSemanticMapping",

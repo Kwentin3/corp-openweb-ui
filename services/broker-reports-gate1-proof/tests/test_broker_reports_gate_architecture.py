@@ -2157,7 +2157,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             ["canonical", "canonical_binding", "table_node_id"],
         )
 
-    def test_managed_case_mapping_v4_has_only_inactive_qualification_consumer(self):
+    def test_managed_case_mapping_v4_has_only_inactive_authority_consumers(self):
         module = "ordinary_trade_semantic_compiler"
         compiler = "compile_managed_header_case_mapping_candidate"
         validator = "validate_managed_header_case_mapping_candidate"
@@ -2174,7 +2174,13 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             if {compiler, validator} & _call_names(tree):
                 consumers.add(path.name)
-        self.assertEqual(consumers, {"ordinary_trade_qualified_mappings.py"})
+        self.assertEqual(
+            consumers,
+            {
+                "ordinary_trade_qualified_mappings.py",
+                "ordinary_trade_semantic_mapping.py",
+            },
+        )
 
     def test_managed_data_replay_has_only_inactive_qualification_consumer(self):
         seam = "ordinary_trade_canonical_managed_data_replay"
@@ -2502,7 +2508,13 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "managed_pdf_to_canonical.py"
             },
         )
-        self.assertEqual(public_consumers, set())
+        self.assertEqual(
+            public_consumers,
+            {
+                "services/broker-reports-gate1-proof/broker_reports_gate1/"
+                "managed_pdf_to_canonical.py"
+            },
+        )
         self.assertFalse(
             {
                 "canonical",
@@ -2520,6 +2532,83 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             }
             & {item.arg for item in method.args.kwonlyargs}
         )
+        self.assertEqual(
+            _local_imports(semantic_module)
+            & {
+                "artifact_store",
+                "canonical_store",
+                "gate2_model_requests",
+                "ordinary_trade_mapping_runtime",
+                "ordinary_trade_production_runtime",
+                "gate4_ordinary_trade_candidate",
+                "openwebui_actions",
+            },
+            set(),
+        )
+
+    def test_managed_semantic_review_contract_is_same_call_and_inactive(self):
+        semantic_module = "ordinary_trade_semantic_mapping"
+        coordinator_module = "managed_pdf_to_canonical"
+        method_name = "build_with_semantic_review_contract"
+        private_seam = "_review_owned_managed_document_semantic_evidence"
+        method = _method_node(
+            _tree(coordinator_module),
+            "_ManagedPdfToCanonicalBuilder",
+            method_name,
+        )
+        self.assertEqual(
+            [item.arg for item in method.args.kwonlyargs],
+            [
+                "tenant_id",
+                "artifact_version",
+                "source_artifact_ref",
+                "task_id",
+                "user_scope_sha256",
+                "proposal_response",
+                "critic_response",
+                "dpi",
+                "created_at",
+                "previous_version_ref",
+            ],
+        )
+        self.assertFalse(
+            {
+                "canonical",
+                "canonical_binding",
+                "managed_document",
+                "projection",
+                "ledger",
+                "evidence",
+                "receipt",
+                "options",
+                "model_client",
+                "provider",
+            }
+            & {item.arg for item in method.args.kwonlyargs}
+        )
+        self.assertEqual(
+            _call_owners(coordinator_module, private_seam),
+            {"_ManagedPdfToCanonicalBuilder.build_with_semantic_review_contract"},
+        )
+        option_calls = _call_names(
+            _function_node(_tree(semantic_module), "_managed_semantic_option")
+        )
+        self.assertIn("compile_managed_header_case_mapping_candidate", option_calls)
+        private_consumers = set()
+        public_consumers = set()
+        for path in _executable_repo_python_paths():
+            calls = _call_names(ast.parse(path.read_text(encoding="utf-8")))
+            relative = path.relative_to(REPOSITORY_ROOT).as_posix()
+            if private_seam in calls:
+                private_consumers.add(relative)
+            if method_name in calls:
+                public_consumers.add(relative)
+        coordinator = (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "managed_pdf_to_canonical.py"
+        )
+        self.assertEqual(private_consumers, {coordinator})
+        self.assertEqual(public_consumers, set())
         self.assertEqual(
             _local_imports(semantic_module)
             & {

@@ -13,7 +13,9 @@ from .managed_pdf_document_v2 import (
     ManagedPdfDocumentV2Factory,
 )
 from .ordinary_trade_semantic_mapping import (
+    OrdinaryTradeSemanticMappingError,
     _build_managed_document_semantic_evidence_from_owned_canonical,
+    _review_owned_managed_document_semantic_evidence,
 )
 
 
@@ -46,6 +48,14 @@ class ManagedPdfToCanonicalSemanticEvidenceBuildResult:
     status: str
     canonical_result: ManagedPdfToCanonicalBuildResult
     semantic_evidence: dict[str, Any] | None
+
+
+@dataclass(frozen=True)
+class ManagedPdfToCanonicalSemanticReviewContractBuildResult:
+    status: str
+    evidence_result: ManagedPdfToCanonicalSemanticEvidenceBuildResult
+    semantic_review_contract: dict[str, Any] | None
+    reason_code: str | None
 
 
 class ManagedPdfToCanonicalFactory:
@@ -208,6 +218,66 @@ class _ManagedPdfToCanonicalBuilder:
             status="COMPLETE",
             canonical_result=result,
             semantic_evidence=evidence,
+        )
+
+    def build_with_semantic_review_contract(
+        self,
+        content_bytes: bytes,
+        *,
+        tenant_id: str,
+        artifact_version: int,
+        source_artifact_ref: str,
+        task_id: str,
+        user_scope_sha256: str,
+        proposal_response: Any,
+        critic_response: Any,
+        dpi: int = 150,
+        created_at: str | None = None,
+        previous_version_ref: str | None = None,
+    ) -> ManagedPdfToCanonicalSemanticReviewContractBuildResult:
+        """Validate two raw inactive phases over one same-call evidence build."""
+
+        evidence_result = self.build_with_semantic_evidence(
+            content_bytes,
+            tenant_id=tenant_id,
+            artifact_version=artifact_version,
+            source_artifact_ref=source_artifact_ref,
+            task_id=task_id,
+            user_scope_sha256=user_scope_sha256,
+            dpi=dpi,
+            created_at=created_at,
+            previous_version_ref=previous_version_ref,
+        )
+        canonical = evidence_result.canonical_result.canonical_artifact
+        evidence = evidence_result.semantic_evidence
+        if evidence_result.status != "COMPLETE" or canonical is None or evidence is None:
+            return ManagedPdfToCanonicalSemanticReviewContractBuildResult(
+                status="BLOCKED",
+                evidence_result=evidence_result,
+                semantic_review_contract=None,
+                reason_code="SEMANTIC_EVIDENCE_NOT_READY",
+            )
+        try:
+            review = _review_owned_managed_document_semantic_evidence(
+                canonical=canonical,
+                canonical_binding=evidence["canonical_binding"],
+                user_scope_sha256=user_scope_sha256,
+                evidence=evidence,
+                proposal_response=proposal_response,
+                critic_response=critic_response,
+            )
+        except OrdinaryTradeSemanticMappingError:
+            return ManagedPdfToCanonicalSemanticReviewContractBuildResult(
+                status="BLOCKED",
+                evidence_result=evidence_result,
+                semantic_review_contract=None,
+                reason_code="SEMANTIC_REVIEW_RESPONSE_INVALID",
+            )
+        return ManagedPdfToCanonicalSemanticReviewContractBuildResult(
+            status=review["review_status"],
+            evidence_result=evidence_result,
+            semantic_review_contract=review,
+            reason_code=None,
         )
 
 
