@@ -30,6 +30,9 @@ ORDINARY_TRADE_MANAGED_HEADER_VIEW_SCHEMA_VERSION = (
 ORDINARY_TRADE_MANAGED_DATA_REPLAY_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_managed_data_replay_v1"
 )
+ORDINARY_TRADE_MANAGED_ROW_REPLAY_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_managed_row_replay_v1"
+)
 ORDINARY_TRADE_MANAGED_CASE_MAPPING_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_managed_case_mapping_v4"
 )
@@ -1552,21 +1555,21 @@ def ordinary_trade_canonical_managed_header_view(
     }
 
 
-def ordinary_trade_canonical_managed_data_replay(
+def ordinary_trade_canonical_managed_row_replay(
     *,
     canonical: Mapping[str, Any],
     canonical_binding: Mapping[str, str],
     table_node_id: str,
 ) -> dict[str, Any]:
-    """Replay exact Managed DATA cells for inactive qualification evidence."""
+    """Replay every exact Managed row and cell without semantic filtering."""
 
     if not isinstance(canonical, dict) or not validate_canonical_artifact(canonical)[
         "passed"
     ]:
-        _fail("ordinary_trade_canonical_managed_data_replay_canonical_invalid")
+        _fail("ordinary_trade_canonical_managed_row_replay_canonical_invalid")
     binding = _canonical_binding(canonical=canonical, value=canonical_binding)
     if not isinstance(table_node_id, str) or not table_node_id:
-        _fail("ordinary_trade_canonical_managed_data_replay_invalid")
+        _fail("ordinary_trade_canonical_managed_row_replay_invalid")
     matches = [
         node
         for node in canonical.get("nodes", [])
@@ -1575,7 +1578,7 @@ def ordinary_trade_canonical_managed_data_replay(
         and node.get("node_id") == table_node_id
     ]
     if len(matches) != 1:
-        _fail("ordinary_trade_canonical_managed_data_replay_invalid")
+        _fail("ordinary_trade_canonical_managed_row_replay_invalid")
     table = matches[0]
     rows = _table_rows(table)
     roles = _managed_contiguous_primary_header_row_roles(
@@ -1585,26 +1588,27 @@ def ordinary_trade_canonical_managed_data_replay(
         source=canonical.get("source"),
     )
     if not roles or "UNKNOWN" in roles.values():
-        _fail("ordinary_trade_canonical_managed_data_replay_roles_invalid")
+        _fail("ordinary_trade_canonical_managed_row_replay_roles_invalid")
     content = table.get("content")
     metadata = content.get("metadata") if isinstance(content, Mapping) else None
     sequence = metadata.get("managed_row_sequence") if isinstance(metadata, Mapping) else None
     if not isinstance(metadata, Mapping) or not isinstance(sequence, list):
-        _fail("ordinary_trade_canonical_managed_data_replay_invalid")
-    data_rows = []
+        _fail("ordinary_trade_canonical_managed_row_replay_invalid")
+    replay_rows = []
     for row_number, role in roles.items():
-        if role != "DATA":
-            continue
         row_id = sequence[row_number - 1]["row_id"]
-        data_rows.append(
+        replay_rows.append(
             {
                 "row": row_number,
                 "row_id": row_id,
+                "row_role": role,
                 "cells": [
                     {
                         "column": column,
                         "literal": _literal(cell),
-                        "source_coordinate": cell.get("source_coordinate"),
+                        "source_coordinate": copy.deepcopy(
+                            cell.get("source_coordinate")
+                        ),
                         "canonical_provenance_ref": cell["source_refs"][0],
                     }
                     for column, cell in sorted(rows[row_number].items())
@@ -1612,7 +1616,7 @@ def ordinary_trade_canonical_managed_data_replay(
             }
         )
     material = {
-        "schema_version": ORDINARY_TRADE_MANAGED_DATA_REPLAY_SCHEMA_VERSION,
+        "schema_version": ORDINARY_TRADE_MANAGED_ROW_REPLAY_SCHEMA_VERSION,
         "representation_only": True,
         "consumer_eligible": False,
         "table_node_id": table_node_id,
@@ -1630,6 +1634,55 @@ def ordinary_trade_canonical_managed_data_replay(
             ],
             "managed_table_id": metadata["managed_table_id"],
         },
+        "rows": replay_rows,
+    }
+    return {**material, "row_replay_sha256": _sha256_json(material)}
+
+
+def ordinary_trade_canonical_managed_data_replay(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    table_node_id: str,
+) -> dict[str, Any]:
+    """Filter exact DATA rows from the neutral Managed row replay."""
+
+    try:
+        replay = ordinary_trade_canonical_managed_row_replay(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            table_node_id=table_node_id,
+        )
+    except OrdinaryTradeSemanticCompilerError as exc:
+        _fail(
+            {
+                "ordinary_trade_canonical_managed_row_replay_canonical_invalid": (
+                    "ordinary_trade_canonical_managed_data_replay_canonical_invalid"
+                ),
+                "ordinary_trade_canonical_managed_row_replay_invalid": (
+                    "ordinary_trade_canonical_managed_data_replay_invalid"
+                ),
+                "ordinary_trade_canonical_managed_row_replay_roles_invalid": (
+                    "ordinary_trade_canonical_managed_data_replay_roles_invalid"
+                ),
+            }.get(exc.code, exc.code)
+        )
+    data_rows = [
+        {
+            "row": row["row"],
+            "row_id": row["row_id"],
+            "cells": copy.deepcopy(row["cells"]),
+        }
+        for row in replay["rows"]
+        if row["row_role"] == "DATA"
+    ]
+    material = {
+        "schema_version": ORDINARY_TRADE_MANAGED_DATA_REPLAY_SCHEMA_VERSION,
+        "representation_only": True,
+        "consumer_eligible": False,
+        "table_node_id": table_node_id,
+        "canonical_binding": copy.deepcopy(replay["canonical_binding"]),
+        "managed_binding": copy.deepcopy(replay["managed_binding"]),
         "data_rows": data_rows,
     }
     return {**material, "data_replay_sha256": _sha256_json(material)}
@@ -2871,6 +2924,7 @@ __all__ = [
     "ORDINARY_TRADE_MANAGED_CASE_MAPPING_SCHEMA_VERSION",
     "ORDINARY_TRADE_MANAGED_COMPILED_CASE_SCHEMA_VERSION",
     "ORDINARY_TRADE_MANAGED_DATA_REPLAY_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MANAGED_ROW_REPLAY_SCHEMA_VERSION",
     "ORDINARY_TRADE_MANAGED_HEADER_VIEW_SCHEMA_VERSION",
     "ORDINARY_TRADE_MAPPING_SCHEMA_VERSION",
     "ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION",
@@ -2881,6 +2935,7 @@ __all__ = [
     "compile_schema_mapping",
     "normalize_runtime_value",
     "ordinary_trade_canonical_managed_data_replay",
+    "ordinary_trade_canonical_managed_row_replay",
     "structural_fingerprint",
     "validate_managed_header_case_mapping_candidate",
     "validate_schema_mapping",

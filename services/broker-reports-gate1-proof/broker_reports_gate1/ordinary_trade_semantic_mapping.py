@@ -17,6 +17,7 @@ from .ordinary_trade_semantic_compiler import (
     OrdinaryTradeSemanticCompilerError,
     OrdinaryTradeSemanticCompilerFactory,
     ordinary_trade_canonical_managed_header_view,
+    ordinary_trade_canonical_managed_row_replay,
     ordinary_trade_canonical_table_rows,
     structural_fingerprint,
 )
@@ -31,6 +32,9 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
 MANAGED_DOCUMENT_CANDIDATE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_managed_document_candidate_v1"
+)
+MANAGED_DOCUMENT_SEMANTIC_EVIDENCE_SCHEMA_VERSION = (
+    "broker_reports_managed_document_semantic_evidence_v1"
 )
 MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v7"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
@@ -1397,6 +1401,377 @@ def _answer_response_schema() -> dict[str, Any]:
     }
 
 
+def _build_managed_document_semantic_evidence_from_owned_canonical(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    user_scope_sha256: str,
+) -> dict[str, Any]:
+    """Build evidence only for the coordinator's same-call Canonical."""
+
+    if (
+        not isinstance(canonical, Mapping)
+        or not isinstance(canonical_binding, Mapping)
+        or not isinstance(user_scope_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", user_scope_sha256) is None
+    ):
+        _fail("ordinary_trade_managed_semantic_review_input_invalid")
+    return _managed_document_semantic_evidence(
+        canonical=copy.deepcopy(dict(canonical)),
+        canonical_binding=copy.deepcopy(dict(canonical_binding)),
+        user_scope_sha256=user_scope_sha256,
+    )
+
+
+def _managed_document_semantic_evidence(
+    *,
+    canonical: dict[str, Any],
+    canonical_binding: dict[str, str],
+    user_scope_sha256: str,
+) -> dict[str, Any]:
+    nodes = canonical.get("nodes")
+    if not isinstance(nodes, list):
+        _fail("ordinary_trade_managed_semantic_evidence_invalid")
+    table_nodes = [
+        node
+        for node in nodes
+        if isinstance(node, Mapping) and node.get("node_type") == "TABLE"
+    ]
+    if not table_nodes or len(table_nodes) > _MAX_TABLES:
+        _fail("ordinary_trade_managed_semantic_evidence_invalid")
+
+    model_tables: list[dict[str, Any]] = []
+    host_tables: list[dict[str, Any]] = []
+    model_context: list[dict[str, Any]] = []
+    host_context: list[dict[str, Any]] = []
+    covered_cells: list[dict[str, Any]] = []
+    all_evidence_refs: set[str] = set()
+    row_counter = 0
+    cell_counter = 0
+    value_counter = 0
+    context_counter = 0
+    table_counter = 0
+
+    for node_ordinal, node in enumerate(nodes, start=1):
+        if not isinstance(node, Mapping):
+            _fail("ordinary_trade_managed_semantic_evidence_invalid")
+        if node.get("node_type") != "TABLE":
+            context_counter += 1
+            context_ref = f"context_{context_counter}"
+            literals = _managed_context_literals(node)
+            model_literals = []
+            bound_literals = []
+            for literal_ordinal, literal in enumerate(literals, start=1):
+                evidence_ref = f"evidence_context_{context_counter}_{literal_ordinal}"
+                model_literals.append(
+                    {
+                        "evidence_ref": evidence_ref,
+                        "source_literal": literal,
+                        "source_tag": "UNTRUSTED_SOURCE_DATA",
+                    }
+                )
+                bound_literals.append(
+                    {
+                        "evidence_ref": evidence_ref,
+                        "source_refs": copy.deepcopy(node.get("source_refs") or []),
+                    }
+                )
+                all_evidence_refs.add(evidence_ref)
+            model_context.append(
+                {
+                    "context_ref": context_ref,
+                    "ordinal": node_ordinal,
+                    "node_type": str(node.get("node_type") or ""),
+                    "source_literals": model_literals,
+                }
+            )
+            host_context.append(
+                {
+                    "context_ref": context_ref,
+                    "node_id": node.get("node_id"),
+                    "source_bindings": bound_literals,
+                }
+            )
+            continue
+
+        table_counter += 1
+        table_ref = f"table_{table_counter}"
+        node_id = node.get("node_id")
+        if not isinstance(node_id, str) or not node_id:
+            _fail("ordinary_trade_managed_semantic_evidence_invalid")
+        content = node.get("content")
+        metadata = content.get("metadata") if isinstance(content, Mapping) else None
+        if (
+            not isinstance(content, Mapping)
+            or not isinstance(metadata, Mapping)
+            or metadata.get("managed_table_completeness_status") != "COMPLETE"
+            or metadata.get(
+                "canonical_managed_whole_table_projection_connected"
+            )
+            is not True
+        ):
+            _fail("ordinary_trade_managed_semantic_evidence_not_ready")
+        header_view = ordinary_trade_canonical_managed_header_view(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            table_node_id=node_id,
+        )
+        try:
+            row_replay = ordinary_trade_canonical_managed_row_replay(
+                canonical=canonical,
+                canonical_binding=canonical_binding,
+                table_node_id=node_id,
+            )
+        except OrdinaryTradeSemanticCompilerError:
+            _fail("ordinary_trade_managed_semantic_evidence_not_ready")
+        replay_rows = row_replay.get("rows")
+        if (
+            not isinstance(replay_rows, list)
+            or not replay_rows
+            or len(replay_rows) > _MAX_ROWS_PER_TABLE
+        ):
+            _fail("ordinary_trade_managed_semantic_evidence_not_ready")
+
+        column_bindings = []
+        column_ref_by_number: dict[int, str] = {}
+        for column_ordinal, column in enumerate(
+            header_view["columns"], start=1
+        ):
+            column_number = int(column["column"])
+            column_ref = f"{table_ref}_column_{column_ordinal}"
+            column_ref_by_number[column_number] = column_ref
+            column_bindings.append(
+                {
+                    "column_ref": column_ref,
+                    "column": column_number,
+                }
+            )
+        if len(column_ref_by_number) != len(header_view["columns"]):
+            _fail("ordinary_trade_managed_semantic_evidence_not_ready")
+
+        value_ref_by_key: dict[tuple[int, str], str] = {}
+        value_bindings: list[dict[str, Any]] = []
+        value_binding_by_key: dict[tuple[int, str], dict[str, Any]] = {}
+        cell_ref_by_source: dict[tuple[int, str], str] = {}
+        table_evidence_refs: set[str] = set()
+        model_rows = []
+        for replay_row in replay_rows:
+            row_number = replay_row["row"]
+            row_id = replay_row["row_id"]
+            row_role = replay_row["row_role"]
+            row_counter += 1
+            row_ref = f"row_{row_counter}"
+            model_cells = []
+            for cell in replay_row["cells"]:
+                column_number = cell["column"]
+                column_ref = column_ref_by_number.get(column_number)
+                provenance_ref = cell["canonical_provenance_ref"]
+                if (
+                    column_ref is None
+                    or not isinstance(provenance_ref, str)
+                    or not provenance_ref
+                ):
+                    _fail("ordinary_trade_managed_semantic_evidence_not_ready")
+                literal = cell["literal"]
+                if not isinstance(literal, str):
+                    _fail("ordinary_trade_managed_semantic_evidence_not_ready")
+                cell_counter += 1
+                cell_ref = f"cell_{cell_counter}"
+                evidence_ref = f"evidence_{cell_ref}"
+                value_key = (column_number, literal)
+                value_ref = value_ref_by_key.get(value_key)
+                if value_ref is None:
+                    value_counter += 1
+                    value_ref = f"value_{value_counter}"
+                    value_ref_by_key[value_key] = value_ref
+                    value_bindings.append(
+                        {
+                            "value_ref": value_ref,
+                            "column_ref": column_ref,
+                            "evidence_refs": [],
+                            "used_in_data_row": row_role == "DATA",
+                        }
+                    )
+                    value_binding_by_key[value_key] = value_bindings[-1]
+                elif row_role == "DATA":
+                    value_binding_by_key[value_key]["used_in_data_row"] = True
+                value_binding_by_key[value_key]["evidence_refs"].append(
+                    evidence_ref
+                )
+                model_cells.append(
+                    {
+                        "cell_ref": cell_ref,
+                        "evidence_ref": evidence_ref,
+                        "column_ref": column_ref,
+                        "value_ref": value_ref,
+                        "source_literal": literal,
+                        "source_tag": "UNTRUSTED_SOURCE_DATA",
+                    }
+                )
+                cell_ref_by_source[(row_number, provenance_ref)] = evidence_ref
+                table_evidence_refs.add(evidence_ref)
+                all_evidence_refs.add(evidence_ref)
+                covered_cells.append(
+                    {
+                        "cell_ref": cell_ref,
+                        "evidence_ref": evidence_ref,
+                        "row_ref": row_ref,
+                        "managed_row_id": row_id,
+                        "column_ref": column_ref,
+                        "table_node_id": node_id,
+                        "row": row_number,
+                        "column": column_number,
+                        "source_coordinate": copy.deepcopy(
+                            cell["source_coordinate"]
+                        ),
+                        "source_ref": provenance_ref,
+                    }
+                )
+            model_rows.append(
+                {
+                    "row_ref": row_ref,
+                    "row_role": row_role,
+                    "cells": model_cells,
+                }
+            )
+
+        model_columns = []
+        for column, binding in zip(
+            header_view["columns"], column_bindings, strict=True
+        ):
+            header_path = []
+            for item in column["primary_header_path"]:
+                evidence_ref = cell_ref_by_source.get(
+                    (int(item["row"]), str(item["canonical_provenance_ref"]))
+                )
+                if evidence_ref is None:
+                    _fail("ordinary_trade_managed_semantic_evidence_not_ready")
+                header_path.append(
+                    {
+                        "evidence_ref": evidence_ref,
+                    }
+                )
+            model_columns.append(
+                {
+                    "column_ref": binding["column_ref"],
+                    "primary_header_path": header_path,
+                }
+            )
+
+        model_tables.append(
+            {
+                "table_ref": table_ref,
+                "ordinal": node_ordinal,
+                "columns": model_columns,
+                "rows": model_rows,
+            }
+        )
+        host_tables.append(
+            {
+                "table_ref": table_ref,
+                "table_node_id": node_id,
+                "managed_header_view_sha256": header_view[
+                    "header_view_sha256"
+                ],
+                "managed_binding": copy.deepcopy(header_view["managed_binding"]),
+                "column_bindings": column_bindings,
+                "value_bindings": value_bindings,
+                "source_evidence_refs": sorted(table_evidence_refs),
+            }
+        )
+
+    if cell_counter > _MAX_CELLS_TOTAL:
+        _fail("ordinary_trade_managed_semantic_evidence_context_limit")
+    if len(all_evidence_refs) != (
+        cell_counter
+        + sum(len(item["source_bindings"]) for item in host_context)
+    ):
+        _fail("ordinary_trade_managed_semantic_evidence_coverage_invalid")
+    model_evidence = {
+        "source_text_policy": "UNTRUSTED_SOURCE_DATA",
+        "context_nodes": model_context,
+        "tables": model_tables,
+    }
+    coverage = {
+        "coverage_status": "COMPLETE",
+        "canonical_nodes_total": len(nodes),
+        "table_nodes_total": table_counter,
+        "context_nodes_total": len(model_context),
+        "table_rows_total": row_counter,
+        "table_cells_total": cell_counter,
+        "table_title_rows_total": sum(
+            1
+            for table in model_tables
+            for row in table["rows"]
+            if row["row_role"] == "TABLE_TITLE"
+        ),
+        "table_note_rows_total": sum(
+            1
+            for table in model_tables
+            for row in table["rows"]
+            if row["row_role"] == "NOTE"
+        ),
+        "context_literals_total": sum(
+            len(item["source_literals"]) for item in model_context
+        ),
+        "covered_cells_sha256": _sha256_json(covered_cells),
+    }
+    material = {
+        "schema_version": MANAGED_DOCUMENT_SEMANTIC_EVIDENCE_SCHEMA_VERSION,
+        "representation_only": True,
+        "consumer_eligible": False,
+        "runtime_activation": False,
+        "canonical_binding": copy.deepcopy(canonical_binding),
+        "user_scope_sha256": user_scope_sha256,
+        "model_evidence": model_evidence,
+        "host_ref_bindings": {
+            "tables": host_tables,
+            "context_nodes": host_context,
+            "cells": covered_cells,
+        },
+        "coverage": coverage,
+    }
+    evidence_sha256 = _sha256_json(material)
+    if len(_canonical_json(model_evidence).encode("utf-8")) > _MAX_CONTEXT_BYTES:
+        _fail("ordinary_trade_managed_semantic_evidence_context_limit")
+    return {
+        **material,
+        "evidence_sha256": evidence_sha256,
+    }
+
+
+def _managed_context_literals(node: Mapping[str, Any]) -> list[str]:
+    node_type = node.get("node_type")
+    content = node.get("content")
+    if not isinstance(content, Mapping):
+        _fail("ordinary_trade_managed_semantic_evidence_invalid")
+    if node_type in {"HEADING", "TEXT", "NOTE"}:
+        value = content.get("text")
+        if not isinstance(value, str):
+            _fail("ordinary_trade_managed_semantic_evidence_invalid")
+        return [value]
+    if node_type == "LIST":
+        items = content.get("items")
+        if not isinstance(items, list):
+            _fail("ordinary_trade_managed_semantic_evidence_invalid")
+        values = []
+        for item in items:
+            if not isinstance(item, Mapping) or not isinstance(
+                item.get("text"), str
+            ):
+                _fail("ordinary_trade_managed_semantic_evidence_invalid")
+            values.append(item["text"])
+        return values
+    if node_type in {"CONFLICT", "AMBIGUITY"}:
+        value = content.get("summary")
+        if not isinstance(value, str):
+            _fail("ordinary_trade_managed_semantic_evidence_invalid")
+        return [value]
+    if node_type in {"PAGE_BREAK", "SHEET_BREAK"}:
+        return []
+    _fail("ordinary_trade_managed_semantic_evidence_invalid")
+
+
 def _managed_document_table_case(value: Mapping[str, Any]) -> dict[str, Any]:
     keys = {
         "table_node_id",
@@ -1634,6 +2009,7 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "MANAGED_DOCUMENT_CANDIDATE_SCHEMA_VERSION",
+    "MANAGED_DOCUMENT_SEMANTIC_EVIDENCE_SCHEMA_VERSION",
     "MAPPING_CASE_SCHEMA_VERSION",
     "MAPPING_RESPONSE_SCHEMA_VERSION",
     "OrdinaryTradeSemanticMapping",

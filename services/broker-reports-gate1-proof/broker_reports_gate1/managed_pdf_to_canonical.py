@@ -12,6 +12,9 @@ from .managed_pdf_document_v2 import (
     ManagedPdfDocumentV2AdjudicatedBuildResult,
     ManagedPdfDocumentV2Factory,
 )
+from .ordinary_trade_semantic_mapping import (
+    _build_managed_document_semantic_evidence_from_owned_canonical,
+)
 
 
 MANAGED_PDF_TO_CANONICAL_SCHEMA_VERSION = (
@@ -23,7 +26,8 @@ FACTORY_REQUIRED = (
 )
 FORBIDDEN = (
     "The route must not accept caller-supplied source payloads, source units, "
-    "Managed payloads, table projections, product routes, facts, stores or "
+    "Managed payloads, table projections, Canonical artifacts, bindings, "
+    "semantic evidence, ledgers, receipts, product routes, facts, stores or "
     "runtime publication callbacks"
 )
 
@@ -35,6 +39,13 @@ class ManagedPdfToCanonicalBuildResult:
     canonical_artifact: dict[str, Any] | None
     safe_diagnostics: dict[str, Any]
     private_diagnostics: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ManagedPdfToCanonicalSemanticEvidenceBuildResult:
+    status: str
+    canonical_result: ManagedPdfToCanonicalBuildResult
+    semantic_evidence: dict[str, Any] | None
 
 
 class ManagedPdfToCanonicalFactory:
@@ -141,6 +152,62 @@ class _ManagedPdfToCanonicalBuilder:
                 ),
                 "canonical_artifact_id": artifact["artifact_id"],
             },
+        )
+
+    def build_with_semantic_evidence(
+        self,
+        content_bytes: bytes,
+        *,
+        tenant_id: str,
+        artifact_version: int,
+        source_artifact_ref: str,
+        task_id: str,
+        user_scope_sha256: str,
+        dpi: int = 150,
+        created_at: str | None = None,
+        previous_version_ref: str | None = None,
+    ) -> ManagedPdfToCanonicalSemanticEvidenceBuildResult:
+        """Build inactive evidence before the same-call Canonical escapes."""
+
+        result = self.build(
+            content_bytes,
+            tenant_id=tenant_id,
+            artifact_version=artifact_version,
+            source_artifact_ref=source_artifact_ref,
+            task_id=task_id,
+            dpi=dpi,
+            created_at=created_at,
+            previous_version_ref=previous_version_ref,
+        )
+        artifact = result.canonical_artifact
+        managed_document = result.managed_result.managed_document
+        if (
+            result.status != "COMPLETE"
+            or artifact is None
+            or managed_document is None
+        ):
+            return ManagedPdfToCanonicalSemanticEvidenceBuildResult(
+                status="BLOCKED",
+                canonical_result=result,
+                semantic_evidence=None,
+            )
+        source = artifact["source"]
+        binding = {
+            "document_id": str(managed_document.payload["document_id"]),
+            "canonical_version_id": str(artifact["artifact_id"]),
+            "canonical_root_sha256": str(artifact["canonical_root_hash"]),
+            "source_artifact_ref": str(source["source_artifact_ref"]),
+            "source_sha256": str(source["source_sha256"]),
+        }
+        evidence = _build_managed_document_semantic_evidence_from_owned_canonical(
+            canonical=artifact,
+            canonical_binding=binding,
+            user_scope_sha256=user_scope_sha256,
+        )
+        return ManagedPdfToCanonicalSemanticEvidenceBuildResult(
+            status="COMPLETE",
+            canonical_result=result,
+            semantic_evidence=evidence,
         )
 
 
