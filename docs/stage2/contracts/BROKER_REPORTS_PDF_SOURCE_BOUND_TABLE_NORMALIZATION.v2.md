@@ -125,6 +125,44 @@ provider slice owns no coverage,
 adjudication, binding, continuation, Canonical, fact, intake, or product
 decision. Those consumers remain absent in this PR.
 
+## Inactive document-wide adjudication coordinator
+
+`PdfDocumentVisualAdjudicationFactory.create_with_connection` is the sole
+proposed coordinator entrypoint. It validates one whole FullSource payload,
+renders every page exactly once through `PdfTableRasterFactory`, and submits
+that same ordered raster set first to `PROPOSAL` and then to `CRITIC`. A
+successful run is therefore exactly two model generations and four provider
+HTTP calls, including the two exact-body token preflights.
+
+The coordinator accepts no provider response or ready source-bound receipt
+from its caller. It compares the two closed geometry observations, reuses
+`SourceBoundTableScopeFactory` to bind exact agreement to existing parser
+candidates, and passes only original geometry plus the whole source envelope
+to LogicalRow's same-call recovery entrypoint. LogicalRow alone decides table
+identity and continuation.
+
+The coordinator recomputes the provider owner's canonical document binding
+from the rendered PNG bytes and full raster manifests. Both phase receipts must
+contain that complete binding and hash, exact phase/attempt lineage, terminal
+adapter identity, and internally consistent generation/count-token hashes,
+budgets and call counters. Reported `4 HTTP / 2 generation` totals are summed
+only after both full receipts pass; they are never hardcoded from a claimed
+summary. The expected model is captured from the factory-created provider
+adapter configuration and must be a `models/...` identity present in that
+adapter profile's approved model set. Both attempts must report that exact
+non-empty requested and resolved identity; self-consistent caller-chosen model
+strings are rejected.
+
+Every FullSource page, first-pass observation, critic observation and parser
+candidate has one deterministic ledger entry. Missing, critic-only,
+overlapping, duplicate, non-unique or disagreeing regions are `PARTIAL`.
+Visual-only regions without a parser candidate also remain `PARTIAL`; no words
+are removed. `EMPTY_TEMPLATE`, `EXPLAINER`, no-table and one-pass `ABSENT`
+cannot improve authority. Even two-pass agreement on header absence remains
+non-authoritative here: only LogicalRow's independent source structure may
+prove that continuation. The coordinator terminal is coverage-only,
+publication is always forbidden, and no facts or Canonical values are emitted.
+
 ## Fragment-local continuation rule
 
 A right fragment may join one previous logical table only when all of the
