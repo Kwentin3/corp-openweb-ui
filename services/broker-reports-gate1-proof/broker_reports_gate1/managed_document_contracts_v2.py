@@ -23,7 +23,7 @@ SCHEMA_ID = (
     "broker_reports_managed_document_v2.schema.json"
 )
 SCHEMA_CANONICAL_SHA256 = (
-    "c626ea6c63d5d9dc0e410736abef6d38c209196139dd5e3a3be02ec0205f4bd3"
+    "02a60ac6d143bf6c2364c74a32a4eabc9d4852aaef5bd8b7bdc987ed81fb423a"
 )
 _STANDARD_METADATA_NAMES = {
     "document_type",
@@ -123,6 +123,14 @@ class ManagedDocumentContractV2Validator:
         return self.validate(payload)
 
     def validate(self, payload: Mapping[str, Any]) -> ManagedDocumentV2:
+        return self._validate(payload, expected_reviewed_source_bound=None)
+
+    def _validate(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        expected_reviewed_source_bound: tuple[Mapping[str, Any], ...] | None,
+    ) -> ManagedDocumentV2:
         candidate = copy.deepcopy(dict(payload))
         _reject_non_finite_numbers(candidate)
         try:
@@ -134,16 +142,48 @@ class ManagedDocumentContractV2Validator:
                 f"managed_document_v2_schema_validation_failed{suffix}"
             ) from exc
         _validate_semantic_invariants(candidate)
+        actual_reviewed = _reviewed_source_bound_inventory(candidate)
+        if expected_reviewed_source_bound is None:
+            if actual_reviewed:
+                _fail(
+                    "managed_document_v2_reviewed_source_bound_public_input_forbidden"
+                )
+        elif list(expected_reviewed_source_bound) != actual_reviewed:
+            _fail("managed_document_v2_reviewed_source_bound_plan_mismatch")
         return ManagedDocumentV2(payload=candidate)
 
     def seal(self, payload: Mapping[str, Any]) -> ManagedDocumentV2:
+        return self._seal(payload, expected_reviewed_source_bound=None)
+
+    def _seal_reviewed_source_bound(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        expected_reviewed_source_bound: tuple[Mapping[str, Any], ...],
+    ) -> ManagedDocumentV2:
+        if not expected_reviewed_source_bound:
+            _fail("managed_document_v2_reviewed_source_bound_plan_required")
+        return self._seal(
+            payload,
+            expected_reviewed_source_bound=expected_reviewed_source_bound,
+        )
+
+    def _seal(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        expected_reviewed_source_bound: tuple[Mapping[str, Any], ...] | None,
+    ) -> ManagedDocumentV2:
         candidate = copy.deepcopy(dict(payload))
         candidate.pop("integrity_sha256", None)
         _reject_non_finite_numbers(candidate)
         candidate["integrity_sha256"] = compute_document_integrity_sha256(
             candidate
         )
-        return self.validate(candidate)
+        return self._validate(
+            candidate,
+            expected_reviewed_source_bound=expected_reviewed_source_bound,
+        )
 
 
 def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -184,6 +224,50 @@ def _canonical_schema_sha256(schema: Mapping[str, Any]) -> str:
             "managed_document_v2_schema_invalid"
         ) from exc
     return hashlib.sha256(canonical).hexdigest()
+
+
+def _reviewed_source_bound_inventory(
+    payload: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    inventory: list[dict[str, Any]] = []
+    for block in payload.get("blocks") or []:
+        if block.get("block_type") != "TABLE":
+            continue
+        table = block["content"]
+        rows = table["ordered_rows"]
+        row_ordinal = {
+            str(row["row_id"]): index for index, row in enumerate(rows)
+        }
+        for part in table["source_parts"]:
+            evidence = part.get("reviewed_source_bound_evidence")
+            if not isinstance(evidence, dict):
+                continue
+            first = row_ordinal[str(part["first_row_id"])]
+            last = row_ordinal[str(part["last_row_id"])]
+            inventory.append(
+                {
+                    "table_id": table["table_id"],
+                    "source_part_id": part["source_part_id"],
+                    "evidence": copy.deepcopy(evidence),
+                    "reviewed_rows": [
+                        {
+                            "row_id": row["row_id"],
+                            "role": row["role"],
+                            "role_origin": row["role_origin"],
+                            "entries": [
+                                {
+                                    "entry_id": entry["entry_id"],
+                                    "origin": entry["origin"],
+                                }
+                                for entry in row["entries"]
+                            ],
+                        }
+                        for row in rows[first : last + 1]
+                        if row["role_origin"] == "REVIEWED_SOURCE_BOUND"
+                    ],
+                }
+            )
+    return inventory
 
 
 def _validate_semantic_invariants(payload: dict[str, Any]) -> None:
@@ -677,6 +761,7 @@ def _validate_table_content(
     row_ordinal = {item["row_id"]: item["ordinal"] for item in rows}
     expected_first = 0
     previous_page = 0
+    reviewed_evidence_by_row_ordinal: dict[int, dict[str, set[str]]] = {}
     for part in parts:
         _claim_id(
             part["source_part_id"],
@@ -703,6 +788,19 @@ def _validate_table_content(
         if part["page"] <= previous_page:
             _fail("managed_document_v2_table_source_part_page_order_invalid")
         previous_page = part["page"]
+        reviewed = part.get("reviewed_source_bound_evidence")
+        if reviewed is not None:
+            role_refs = {
+                "TABLE_TITLE": set(reviewed["title_word_refs"]),
+                "COLUMN_HEADER": set(reviewed["header_word_refs"]),
+                "DATA": set(reviewed["body_word_refs"]),
+            }
+            flattened = [ref for refs in role_refs.values() for ref in refs]
+            if not flattened or len(flattened) != len(set(flattened)):
+                _fail("managed_document_v2_reviewed_scope_word_refs_invalid")
+            if reviewed["binding_status"] == "BOUND":
+                for ordinal in range(first, last + 1):
+                    reviewed_evidence_by_row_ordinal[ordinal] = role_refs
         _require_refs(
             part["geometry_evidence_ids"],
             evidence_ids,
@@ -746,6 +844,33 @@ def _validate_table_content(
         _require_refs(part["issue_ids"], issue_ids, "source_part_issue")
     if expected_first != len(rows):
         _fail("managed_document_v2_table_source_part_tail_missing")
+
+    for row in rows:
+        row_origin = row["role_origin"]
+        role = str(row["role"])
+        row_word_refs = _anchor_source_block_refs(
+            row["source_anchor_ids"],
+            anchor_by_id=anchor_by_id,
+        )
+        reviewed_role_refs = reviewed_evidence_by_row_ordinal.get(
+            row["ordinal"], {}
+        ).get(role, set())
+        scope_supports_row = bool(
+            row_word_refs
+            and reviewed_role_refs
+            and row_word_refs <= reviewed_role_refs
+        )
+        if scope_supports_row:
+            if row_origin != "REVIEWED_SOURCE_BOUND" or any(
+                entry["origin"] != "REVIEWED_SOURCE_BOUND"
+                for entry in row["entries"]
+            ):
+                _fail("managed_document_v2_reviewed_scope_origin_laundered")
+        elif row_origin == "REVIEWED_SOURCE_BOUND" or any(
+            entry["origin"] == "REVIEWED_SOURCE_BOUND"
+            for entry in row["entries"]
+        ):
+            _fail("managed_document_v2_reviewed_scope_evidence_missing")
 
     statuses = [item["continuation_status"] for item in parts]
     if len(parts) == 1:
@@ -1109,6 +1234,19 @@ def _require_pdf_anchor_page(
             and anchor["locator"]["page"] != page
         ):
             _fail(f"managed_document_v2_{label}_page_mismatch")
+
+
+def _anchor_source_block_refs(
+    refs: list[str],
+    *,
+    anchor_by_id: Mapping[str, dict[str, Any]],
+) -> set[str]:
+    return {
+        str(anchor_by_id[anchor_id]["locator"]["source_block_ref"])
+        for anchor_id in refs
+        if anchor_by_id[anchor_id]["source_format"] == "PDF"
+        and anchor_by_id[anchor_id]["locator"].get("source_block_ref")
+    }
 
 
 def _fail(code: str) -> None:

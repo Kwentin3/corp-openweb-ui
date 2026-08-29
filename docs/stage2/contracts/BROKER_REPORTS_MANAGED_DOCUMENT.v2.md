@@ -59,11 +59,39 @@ The DOC6 contour is offline and inactive:
 `ManagedPdfDocumentV2Factory.create(schema)` returns the inactive builder. Its
 public `build(content_bytes, source_artifact_ref=...)` API accepts non-empty raw
 PDF bytes and a required `PRIVATE_SOURCE` artifact identity. The builder calls
-the injected `FullSourceArtifactFactory.create()` builder internally and
-consumes only its sole complete `pdf_text_layer_projection`. The recovery owner
-does not reread a path, run a parallel PDF parser, call a provider, or treat a
-preview slice as complete source authority. Raw PDF bytes and the supplied
-artifact ref remain inside the existing Gate 1 source boundary.
+the exact `FullSourceArtifactFactory.create()` builder exactly once and
+delegates to a private assembly seam. The additive
+`build_with_source_bound_scopes(...)` accepts the same original bytes/private
+artifact identity plus raw scope requests and also invokes FullSource exactly
+once. No public method accepts `FullSourceBuildResult`, profile, units, summary,
+ready receipt or ready reviewed evidence.
+The factory and builder expose no FullSource/recovery/validator dependency
+injection or mutable owner attributes; the private build call constructs both
+established source owners and the exact v2 validator as local variables. Tests may
+count the real owner call through a local monkeypatch, but no official builder
+path accepts a fake owner or validator.
+
+Only `build_with_source_bound_scopes(...)` accepts original
+`source_bound_scope_requests`; the legacy `build(...)` signature and behavior
+remain unchanged. The builder passes those requests to
+`LogicalRowTableFactory.recover_with_source_bound_scopes`, where the existing
+binder creates and consumes private receipts within the same owner call. No
+ready receipt or caller-created scope is accepted. The closed v2 document
+retains the resulting title/header rows, issues and exact word ownership; the
+receipt transport fields remain recovery-only and are not added to v2
+`source_parts`. An accepted `PRESENT` leading title/header/body partition keeps
+a narrow inspectable `reviewed_source_bound_evidence` record with the same-call
+scope receipt ref, proposal hash, raster-manifest hash and bound source-word
+refs. A bound `ABSENT`, `EMPTY`, `EXPLAINER` or partial receipt is audit-only:
+it may keep `source_bound_audit_evidence`, but it never relabels rows or entries
+as `REVIEWED_SOURCE_BOUND` and contributes nothing to the private reviewed
+plan.
+
+The builder consumes only the sole complete `pdf_text_layer_projection`. The
+recovery owner does not reread a path, run a parallel PDF parser, call a
+provider, or treat a preview slice as complete source authority. Raw PDF bytes
+and the supplied artifact ref remain inside the existing Gate 1 source
+boundary.
 
 The normative inactive flow is:
 
@@ -71,6 +99,7 @@ The normative inactive flow is:
 ManagedPdfDocumentV2Factory.create(schema)
 -> ManagedPdfDocumentV2Builder.build(content_bytes, source_artifact_ref=...)
 -> FullSourceArtifactFactory.create().build
+-> shared validated ManagedPdfDocumentV2 assembly seam
 -> LogicalRowTableFactory
 -> ManagedDocumentContractV2Validator
 -> broker_reports_managed_document_v2
@@ -97,10 +126,24 @@ recover a table, infer a row role, repair a candidate, render a view, write an
 artifact or call a model. Construction belongs to the factories above;
 acceptance belongs only to the validator.
 
+Public `validate`, `parse_json` and `seal` reject any
+`REVIEWED_SOURCE_BOUND` input. Only the Managed PDF builder's private sealing
+seam may provide the exact reviewed plan created from the same-call recovery;
+the validator compares receipt/proposal/raster/role refs and reviewed rows
+exactly before sealing. This is a call-graph boundary, not a token or a second
+public evidence contract.
+
+The legacy no-scope path rejects any returned `source_bound_*` transport,
+prebuilt reviewed record or reviewed row/entry origin before assembly. The
+scoped path permits promotion only when its own public call received non-empty
+raw requests and its local LogicalRow call produced the exact reviewed plan.
+The reviewed plan is non-empty only for an actually accepted `PRESENT` leading
+structure. Merely obtaining a `BOUND` receipt is not reviewed role authority.
+
 Schema identity is both the exact `$id` and the SHA-256 of canonical schema
 JSON (`ensure_ascii=false`, sorted keys, separators `(",", ":")`, finite
 numbers only). The pinned v2 schema hash is
-`c626ea6c63d5d9dc0e410736abef6d38c209196139dd5e3a3be02ec0205f4bd3`.
+`02a60ac6d143bf6c2364c74a32a4eabc9d4852aaef5bd8b7bdc987ed81fb423a`.
 A schema edit that preserves `$id` still fails closed. The validator receives
 the schema object explicitly; no factory or builder may weaken or replace this
 authority.
@@ -237,6 +280,12 @@ Roles describe observable document structure, not financial type or expected
 business meaning. `MODEL_PROPOSED` is forbidden for `role_origin`.
 `UNKNOWN` is valid only with an explicit issue.
 
+`REVIEWED_SOURCE_BOUND` is the honest origin for `TABLE_TITLE`,
+`COLUMN_HEADER` and `DATA` rows accepted through a same-call visual scope
+receipt. Their entries carry the same origin. The validator requires their
+anchor word refs in matching source-part evidence; relabeling them
+`DETERMINISTIC_DERIVED` fails closed.
+
 `nesting_level=null` requires an issue. A non-null parent:
 
 - resolves to an earlier row in the same TABLE;
@@ -319,6 +368,12 @@ synthetic empty entries for the columns it crosses.
 order. Part IDs are document-unique; ordinals are `0..n-1`; page numbers are
 strictly increasing; each region anchor resolves and matches its PDF page.
 Every part has private table-region geometry evidence.
+
+An affected part may additionally contain
+`reviewed_source_bound_evidence`: `origin=REVIEWED_SOURCE_BOUND`, receipt ref,
+proposal/raster-manifest SHA-256 values and separate title/header/body
+source-word refs. Ordinary anchors still preserve the direct source words;
+this reviewed record neither replaces nor invents their text.
 
 One part uses exactly:
 
