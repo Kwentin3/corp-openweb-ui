@@ -1018,6 +1018,10 @@ _LOGICAL_ROW_ROLE_TO_PROJECTION_ROLE = {
     "UNKNOWN": "unknown_row_role",
 }
 
+_RESEARCH_SOURCE_WORD_PARTITION_SCHEMA_VERSION = (
+    "logical_row_recovery_source_word_partition_research_v1"
+)
+
 
 def _research_logical_row_projection(
     *,
@@ -1250,6 +1254,41 @@ def _research_logical_row_projection(
     ):
         raise ValueError("logical_row_recovery_duplicate_source_value_ref")
 
+    paragraph_value = recovery.get("paragraph_owned_word_refs")
+    unowned_value = recovery.get("unowned_word_refs")
+    if not isinstance(paragraph_value, list) or not isinstance(unowned_value, list):
+        raise ValueError("logical_row_recovery_source_word_partition_missing")
+    paragraph_word_refs = [str(item or "") for item in paragraph_value]
+    unowned_word_refs = [str(item or "") for item in unowned_value]
+    if (
+        any(not item for item in paragraph_word_refs)
+        or len(paragraph_word_refs) != len(set(paragraph_word_refs))
+        or any(not item for item in unowned_word_refs)
+        or len(unowned_word_refs) != len(set(unowned_word_refs))
+    ):
+        raise ValueError("logical_row_recovery_source_word_partition_invalid")
+    all_word_refs = set(words)
+    table_word_refs = set(represented_word_refs)
+    paragraph_word_ref_set = set(paragraph_word_refs)
+    if unowned_word_refs:
+        raise ValueError("logical_row_recovery_unowned_source_words")
+    if (
+        table_word_refs.intersection(paragraph_word_ref_set)
+        or table_word_refs | paragraph_word_ref_set != all_word_refs
+    ):
+        raise ValueError("logical_row_recovery_source_word_partition_invalid")
+    source_payload_refs = [
+        str(payload.get("source_payload_ref") or "")
+        for payload in payloads
+        if isinstance(payload, dict)
+    ]
+    if (
+        len(source_payload_refs) != len(payloads)
+        or any(not item for item in source_payload_refs)
+        or len(source_payload_refs) != len(set(source_payload_refs))
+    ):
+        raise ValueError("logical_row_recovery_source_payload_refs_invalid")
+
     quality = _quality(
         rows=rows,
         cells=cells,
@@ -1301,6 +1340,19 @@ def _research_logical_row_projection(
             "product_reachability": False,
             "ordered_logical_rows_remain_authority": True,
             "rectangular_grid_is_canonical": False,
+            "private_source_word_partition": {
+                "information_class": "PRIVATE_SOURCE",
+                "schema_version": (
+                    _RESEARCH_SOURCE_WORD_PARTITION_SCHEMA_VERSION
+                ),
+                "source_payload_refs": sorted(source_payload_refs),
+                "all_source_object_refs": sorted(all_word_refs),
+                "table_owned_source_object_refs": sorted(table_word_refs),
+                "paragraph_owned_source_object_refs": sorted(
+                    paragraph_word_ref_set
+                ),
+                "unowned_source_object_refs": [],
+            },
         }
     )
     return _finish_projection(_apply_serialized_budget(projection, config)), source_unit

@@ -5618,6 +5618,24 @@ def test_research_projection_roundtrips_32_columns_into_new_canonical() -> None:
         "source_location": {"kind": "pdf_visual_page_render", "page": 1},
         "page_refs": [source_projection["page_inventory"][0]["page_ref"]],
     }
+    word_by_ref = {
+        str(item["word_ref"]): item for item in source_projection["word_inventory"]
+    }
+    paragraph_unit = {
+        "unit_ref": "unit_structural_paragraph_page_1",
+        "document_id": "document_structural_research",
+        "parent_payload_ref": payload["source_payload_ref"],
+        "normalization_run_id": "run_structural_research",
+        "source_location": {"kind": "pdf_text_layer", "page": 1, "line_start": 1},
+        "text": " ".join(
+            str(word_by_ref[word_ref].get("text") or "")
+            for word_ref in recovery.paragraph_owned_word_refs
+        ),
+        "coverage": {
+            "selected_source_refs": list(recovery.paragraph_owned_word_refs)
+        },
+    }
+    assert paragraph_unit["text"]
 
     projected = (
         NormalizedTableProjectionFactory()
@@ -5625,7 +5643,7 @@ def test_research_projection_roundtrips_32_columns_into_new_canonical() -> None:
         .build_research_projection_for_logical_row_recovery(
             recovery=recovery,
             payloads=[payload],
-            source_units=[visual_unit],
+            source_units=[visual_unit, paragraph_unit],
         )
     )
 
@@ -5647,9 +5665,6 @@ def test_research_projection_roundtrips_32_columns_into_new_canonical() -> None:
         "data_row",
     ]
     anchor_by_id = {str(item["anchor_id"]): item for item in recovery.anchors}
-    word_by_ref = {
-        str(item["word_ref"]): item for item in source_projection["word_inventory"]
-    }
     expected_word_refs = {
         str(
             anchor_by_id[str(item["source_anchor_id"])]["locator"][
@@ -5680,7 +5695,7 @@ def test_research_projection_roundtrips_32_columns_into_new_canonical() -> None:
         },
         source_artifact_ref="source-structural-research",
         source_payloads=[payload],
-        source_units=[visual_unit],
+        source_units=[visual_unit, paragraph_unit],
         table_projections=projected.projections,
     )
 
@@ -5702,7 +5717,7 @@ def test_research_projection_roundtrips_32_columns_into_new_canonical() -> None:
         },
         source_artifact_ref="source-structural-research",
         source_payloads=[payload],
-        source_units=[visual_unit],
+        source_units=[visual_unit, paragraph_unit],
         table_projections=projected.projections,
     )
     assert rebuilt["canonical_root_hash"] == canonical["canonical_root_hash"]
@@ -5725,6 +5740,58 @@ def test_research_projection_rejects_a_mutated_anchor_source_ref() -> None:
     owned_anchor["locator"]["source_block_ref"] = "mutated_word_ref"
 
     with pytest.raises(ValueError, match="logical_row_recovery_anchor_source_binding_invalid"):
+        (
+            NormalizedTableProjectionFactory()
+            .create()
+            .build_research_projection_for_logical_row_recovery(
+                recovery=recovery,
+                payloads=[
+                    {
+                        "source_payload_ref": "payload_structural_research",
+                        "pdf_text_layer_projection": source_projection,
+                    }
+                ],
+                source_units=[
+                    {
+                        "unit_ref": "unit_structural_visual_page_1",
+                        "document_id": "document_structural_research",
+                        "parent_payload_ref": "payload_structural_research",
+                        "pdf_unit_type": "pdf_visual_page_unit",
+                        "source_location": {"page": 1},
+                        "page_refs": [
+                            source_projection["page_inventory"][0]["page_ref"]
+                        ],
+                    }
+                ],
+            )
+        )
+
+
+def test_research_projection_rejects_one_word_owned_by_two_cells() -> None:
+    source_projection, proposal = _structural_proposal_fixture()
+    for ordinal, word in enumerate(source_projection["word_inventory"], start=1):
+        word["source_value_ref"] = f"sourcevalue_structural_{ordinal}"
+    recovery = LogicalRowTableFactory().create().recover(
+        source_projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        structural_proposal=proposal,
+    )
+    first_anchor_id = str(recovery.source_word_ownership[0]["source_anchor_id"])
+    second_anchor_id = str(recovery.source_word_ownership[1]["source_anchor_id"])
+    first_anchor = next(
+        item for item in recovery.anchors if item["anchor_id"] == first_anchor_id
+    )
+    second_anchor = next(
+        item for item in recovery.anchors if item["anchor_id"] == second_anchor_id
+    )
+    second_anchor["locator"]["source_block_ref"] = first_anchor["locator"][
+        "source_block_ref"
+    ]
+
+    with pytest.raises(
+        ValueError, match="logical_row_recovery_duplicate_source_word_owner"
+    ):
         (
             NormalizedTableProjectionFactory()
             .create()

@@ -124,7 +124,11 @@ class CanonicalNormalizer:
             source_artifact_ref=source_artifact_ref,
         )
         if source_format == "pdf":
-            self._validate_pdf_table_projections(table_projections)
+            self._validate_pdf_table_projections(
+                table_projections,
+                source_payloads=source_payloads,
+                source_units=source_units,
+            )
             self._adapt_pdf(
                 builder,
                 source_payloads,
@@ -208,6 +212,9 @@ class CanonicalNormalizer:
     @staticmethod
     def _validate_pdf_table_projections(
         table_projections: list[dict[str, Any]],
+        *,
+        source_payloads: list[dict[str, Any]],
+        source_units: list[dict[str, Any]],
     ) -> None:
         """Revalidate the inactive logical-row bridge before assembly.
 
@@ -231,25 +238,241 @@ class CanonicalNormalizer:
                 continue
             validation = validator.validate(projection)
             declared_status = str(projection.get("validator_status") or "")
-            if declared_status == "passed" and validation["passed"]:
-                continue
-            reason_codes = sorted(
-                {
-                    *(
-                        ["table_projection_validator_status_missing_or_failed"]
-                        if declared_status != "passed"
-                        else []
-                    ),
-                    *[
-                        str(item.get("code") or "")
-                        for item in validation["errors"]
-                    ],
-                }
-            )
             projection_ref = str(projection.get("table_projection_id") or ordinal)
+            if declared_status != "passed" or not validation["passed"]:
+                reason_codes = sorted(
+                    {
+                        *(
+                            ["table_projection_validator_status_missing_or_failed"]
+                            if declared_status != "passed"
+                            else []
+                        ),
+                        *[
+                            str(item.get("code") or "")
+                            for item in validation["errors"]
+                        ],
+                    }
+                )
+                raise CanonicalArtifactError(
+                    "canonical_table_projection_validation_failed",
+                    f"{projection_ref}:{','.join(reason_codes)}",
+                )
+            if (
+                projection.get("table_origin")
+                == "logical_row_recovery_research_representation"
+            ):
+                CanonicalNormalizer._validate_research_source_word_partition(
+                    projection,
+                    source_payloads=source_payloads,
+                    source_units=source_units,
+                    table_projections=table_projections,
+                )
+
+    @staticmethod
+    def _validate_research_source_word_partition(
+        projection: dict[str, Any],
+        *,
+        source_payloads: list[dict[str, Any]],
+        source_units: list[dict[str, Any]],
+        table_projections: list[dict[str, Any]],
+    ) -> None:
+        """Prove exact word ownership and paragraph emission before assembly."""
+
+        partition = projection.get("private_source_word_partition")
+        if not isinstance(partition, dict):
             raise CanonicalArtifactError(
-                "canonical_table_projection_validation_failed",
-                f"{projection_ref}:{','.join(reason_codes)}",
+                "canonical_research_source_word_partition_invalid",
+                "private_partition_missing",
+            )
+
+        def required_unique_strings(field: str) -> list[str]:
+            value = partition.get(field)
+            if (
+                not isinstance(value, list)
+                or any(not isinstance(item, str) or not item for item in value)
+                or len(value) != len(set(value))
+            ):
+                raise CanonicalArtifactError(
+                    "canonical_research_source_word_partition_invalid",
+                    f"{field}_invalid",
+                )
+            return list(value)
+
+        if (
+            partition.get("information_class") != "PRIVATE_SOURCE"
+            or partition.get("schema_version")
+            != "logical_row_recovery_source_word_partition_research_v1"
+        ):
+            raise CanonicalArtifactError(
+                "canonical_research_source_word_partition_invalid",
+                "private_partition_contract_invalid",
+            )
+
+        declared_payload_refs = required_unique_strings("source_payload_refs")
+        declared_all_refs = required_unique_strings("all_source_object_refs")
+        declared_table_refs = required_unique_strings(
+            "table_owned_source_object_refs"
+        )
+        declared_paragraph_refs = required_unique_strings(
+            "paragraph_owned_source_object_refs"
+        )
+        declared_unowned_refs = required_unique_strings(
+            "unowned_source_object_refs"
+        )
+
+        payload_refs: list[str] = []
+        full_source_word_refs: list[str] = []
+        for payload in source_payloads:
+            if not isinstance(payload, dict):
+                raise CanonicalArtifactError(
+                    "canonical_research_source_word_partition_invalid",
+                    "source_payload_not_an_object",
+                )
+            payload_ref = str(payload.get("source_payload_ref") or "")
+            word_inventory = (
+                (payload.get("pdf_text_layer_projection") or {}).get(
+                    "word_inventory"
+                )
+                if isinstance(payload.get("pdf_text_layer_projection"), dict)
+                else None
+            )
+            if not payload_ref or not isinstance(word_inventory, list):
+                raise CanonicalArtifactError(
+                    "canonical_research_source_word_partition_invalid",
+                    "full_source_word_inventory_missing",
+                )
+            payload_refs.append(payload_ref)
+            for word in word_inventory:
+                word_ref = (
+                    str(word.get("word_ref") or "")
+                    if isinstance(word, dict)
+                    else ""
+                )
+                if not word_ref:
+                    raise CanonicalArtifactError(
+                        "canonical_research_source_word_partition_invalid",
+                        "full_source_word_ref_invalid",
+                    )
+                full_source_word_refs.append(word_ref)
+        if (
+            len(payload_refs) != len(set(payload_refs))
+            or len(full_source_word_refs) != len(set(full_source_word_refs))
+            or set(declared_payload_refs) != set(payload_refs)
+            or set(declared_all_refs) != set(full_source_word_refs)
+        ):
+            raise CanonicalArtifactError(
+                "canonical_research_source_word_partition_invalid",
+                "full_source_inventory_mismatch",
+            )
+
+        source_index = projection.get("source_value_index")
+        if not isinstance(source_index, list):
+            raise CanonicalArtifactError(
+                "canonical_research_source_word_partition_invalid",
+                "source_value_index_missing",
+            )
+        table_refs = [
+            str(item.get("source_object_ref") or "")
+            if isinstance(item, dict)
+            else ""
+            for item in source_index
+        ]
+        table_ref_set = set(table_refs)
+        paragraph_ref_set = set(declared_paragraph_refs)
+        all_ref_set = set(full_source_word_refs)
+        if (
+            not table_refs
+            or any(not item for item in table_refs)
+            or len(table_refs) != len(table_ref_set)
+            or table_ref_set != set(declared_table_refs)
+            or declared_unowned_refs
+            or table_ref_set.intersection(paragraph_ref_set)
+            or table_ref_set | paragraph_ref_set != all_ref_set
+        ):
+            raise CanonicalArtifactError(
+                "canonical_research_source_word_partition_invalid",
+                "source_word_partition_not_exact_once",
+            )
+
+        projections_by_unit = {
+            str(item.get("source_unit_ref") or ""): item
+            for item in table_projections
+            if isinstance(item, dict) and item.get("source_unit_ref")
+        }
+        ordered_units = sorted(
+            (item for item in source_units if isinstance(item, dict)),
+            key=lambda item: (
+                int(
+                    _location(item).get("page")
+                    or _location(item).get("page_start")
+                    or 1
+                ),
+                int(_location(item).get("line_start") or 0),
+                str(item.get("unit_ref") or ""),
+            ),
+        )
+        seen_table_ids: set[str] = set()
+        emitted_paragraph_refs: list[str] = []
+        for unit in ordered_units:
+            if str(unit.get("atom_status") or "") in {
+                "CONFLICT_EVIDENCE",
+                "AMBIGUOUS_EVIDENCE",
+            }:
+                continue
+            unit_ref = str(unit.get("unit_ref") or "")
+            unit_projection = projections_by_unit.get(unit_ref)
+            table_id = str(
+                (unit_projection or {}).get("canonical_table_id")
+                or (unit_projection or {}).get("table_projection_id")
+                or ""
+            )
+            if (
+                unit_projection
+                and unit_projection.get("projection_status") == "ready"
+                and table_id not in seen_table_ids
+            ):
+                seen_table_ids.add(table_id)
+                continue
+            rows = unit.get("rows") or unit.get("cells")
+            if isinstance(rows, list) and rows:
+                continue
+            if not str(unit.get("text") or ""):
+                continue
+            coverage = unit.get("coverage")
+            selected = (
+                coverage.get("selected_source_refs")
+                if isinstance(coverage, dict)
+                else None
+            )
+            if (
+                not isinstance(selected, list)
+                or not selected
+                or any(not isinstance(item, str) or not item for item in selected)
+                or len(selected) != len(set(selected))
+            ):
+                raise CanonicalArtifactError(
+                    "canonical_research_paragraph_emission_unproven",
+                    f"{unit_ref or 'missing_unit_ref'}:word_coverage_invalid",
+                )
+            selected_set = set(selected)
+            if not selected_set <= all_ref_set:
+                raise CanonicalArtifactError(
+                    "canonical_research_paragraph_emission_unproven",
+                    f"{unit_ref or 'missing_unit_ref'}:word_coverage_out_of_scope",
+                )
+            if selected_set.intersection(table_ref_set):
+                raise CanonicalArtifactError(
+                    "canonical_research_paragraph_emission_unproven",
+                    f"{unit_ref or 'missing_unit_ref'}:table_word_duplicated_as_text",
+                )
+            emitted_paragraph_refs.extend(selected)
+        if (
+            len(emitted_paragraph_refs) != len(set(emitted_paragraph_refs))
+            or set(emitted_paragraph_refs) != paragraph_ref_set
+        ):
+            raise CanonicalArtifactError(
+                "canonical_research_paragraph_emission_unproven",
+                "paragraph_word_emission_not_exact_once",
             )
 
     def build_xlsx_streaming(
