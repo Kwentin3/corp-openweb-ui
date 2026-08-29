@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import inspect
 import json
+import math
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -15,8 +17,15 @@ from broker_reports_gate1.logical_row_table_recovery import (
     FACTORY_REQUIRED,
     FORBIDDEN,
     LogicalRowTableFactory,
+    LogicalRowTableRecoveryRuntime,
     logical_table_block_id,
 )
+from broker_reports_gate1.full_source import FullSourceArtifactFactory
+from broker_reports_gate1.pdf_table_raster import PdfTableRasterFactory
+from broker_reports_gate1.source_bound_table_scope import (
+    SOURCE_BOUND_TABLE_SCOPE_PROPOSAL_SCHEMA,
+)
+from tests.test_broker_reports_pdf_layout_slice2 import _pdf_bytes
 
 
 SOURCE_CHECKSUM = "a" * 64
@@ -1960,6 +1969,527 @@ def test_full_path_text_only_header_presence_is_partial_not_silent_boundary() ->
     assert len(result.source_word_ownership) == len(all_refs)
     assert result.paragraph_owned_word_refs == []
     assert result.unowned_word_refs == []
+
+
+def _source_bound_table_vectors(
+    *, y0: int, y1: int, horizontal_ys: tuple[int, ...]
+) -> list[str]:
+    return [
+        *[f"15 {y} m 300 {y} l S" for y in horizontal_ys],
+        f"15 {y0} m 15 {y1} l S",
+        f"180 {y0} m 180 {y1} l S",
+        f"300 {y0} m 300 {y1} l S",
+    ]
+
+
+def _source_bound_case(
+    *,
+    distinct_second_title: bool = False,
+    second_header_labels: tuple[str, str] | None = None,
+) -> tuple[bytes, str, dict]:
+    first_page = {
+        "texts": [
+            (25, 55, "Instrument"),
+            (200, 55, "Currency"),
+            (25, 38, "Cash"),
+            (200, 38, "RUB"),
+            (25, 22, "Bonds"),
+            (200, 22, "RUB"),
+        ],
+        "vectors": _source_bound_table_vectors(
+            y0=15,
+            y1=65,
+            horizontal_ys=(15, 30, 46, 65),
+        ),
+    }
+    if distinct_second_title:
+        second_page = {
+            "texts": [
+                (25, 310, "Completed position transfers"),
+                (25, 288, "Instrument"),
+                (200, 288, "Currency"),
+                (25, 270, "LKOH"),
+                (200, 270, "RUB"),
+                (25, 252, "ROSN"),
+                (200, 252, "RUB"),
+            ],
+            "vectors": _source_bound_table_vectors(
+                y0=244,
+                y1=298,
+                horizontal_ys=(244, 262, 280, 298),
+            ),
+        }
+    elif second_header_labels is not None:
+        second_page = {
+            "texts": [
+                (25, 305, second_header_labels[0]),
+                (200, 305, second_header_labels[1]),
+                (25, 288, "LKOH"),
+                (200, 288, "RUB"),
+                (25, 271, "ROSN"),
+                (200, 271, "RUB"),
+            ],
+            "vectors": _source_bound_table_vectors(
+                y0=260,
+                y1=315,
+                horizontal_ys=(260, 279, 296, 315),
+            ),
+        }
+    else:
+        second_page = {
+            "texts": [
+                (25, 305, "LKOH"),
+                (200, 305, "RUB"),
+                (25, 288, "ROSN"),
+                (200, 288, "RUB"),
+                (25, 271, "GAZP"),
+                (200, 271, "RUB"),
+            ],
+            "vectors": _source_bound_table_vectors(
+                y0=260,
+                y1=315,
+                horizontal_ys=(260, 279, 296, 315),
+            ),
+        }
+    pdf_bytes = _pdf_bytes([first_page, second_page])
+    source_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+    built = FullSourceArtifactFactory().create().build(
+        normalization_run_id="normrun_logical_source_bound",
+        document_id="brdoc_logical_source_bound",
+        profile_id="techprof_logical_source_bound",
+        container_format="pdf",
+        content_bytes=pdf_bytes,
+        source_checksum_sha256=source_sha256,
+    )
+    assert built.summary["parser_completeness_status"] == "complete"
+    assert built.summary["pdf_layout_projection_status"] == "complete"
+    return pdf_bytes, source_sha256, built.payloads[0]
+
+
+def _scope_box(projection: dict, refs: list[str]) -> list[int]:
+    word_by_ref = {
+        str(item["word_ref"]): item for item in projection["word_inventory"]
+    }
+    bbox_by_ref = {
+        str(item["bbox_ref"]): list(item["bbox"])
+        for item in projection["bbox_inventory"]
+    }
+    boxes = [bbox_by_ref[str(word_by_ref[ref]["bbox_ref"])] for ref in refs]
+    page = next(
+        item
+        for item in projection["page_inventory"]
+        if item["page_ref"] == word_by_ref[refs[0]]["page_ref"]
+    )
+    merged = _merge(boxes)
+    width = float(page["layout_page_width"])
+    height = float(page["layout_page_height"])
+    return [
+        max(0, math.floor(merged[1] * 1000 / height) - 3),
+        max(0, math.floor(merged[0] * 1000 / width) - 3),
+        min(1000, math.ceil(merged[3] * 1000 / height) + 3),
+        min(1000, math.ceil(merged[2] * 1000 / width) + 3),
+    ]
+
+
+def _scope_request(
+    *,
+    payload: dict,
+    pdf_bytes: bytes,
+    source_sha256: str,
+    page_number: int,
+    title_refs: list[str],
+    header_ref_groups: list[list[str]],
+    body_refs: list[str],
+    body_status: str = "HAS_DATA",
+) -> dict:
+    projection = payload["pdf_text_layer_projection"]
+    page = next(
+        item
+        for item in projection["page_inventory"]
+        if item["page_number"] == page_number
+    )
+    proposal = {
+        "schema_version": SOURCE_BOUND_TABLE_SCOPE_PROPOSAL_SCHEMA,
+        "tables": [
+            {
+                "title_status": "PRESENT" if title_refs else "ABSENT",
+                "title_boxes_2d": [_scope_box(projection, title_refs)]
+                if title_refs
+                else [],
+                "header_status": "PRESENT" if header_ref_groups else "ABSENT",
+                "header_boxes_2d": [
+                    _scope_box(projection, refs) for refs in header_ref_groups
+                ],
+                "body_status": body_status,
+                "body_anchor_boxes_2d": [_scope_box(projection, body_refs)],
+            }
+        ],
+    }
+    width = float(page["layout_page_width"])
+    height = float(page["layout_page_height"])
+    raster = PdfTableRasterFactory().create().render_full_page(
+        pdf_bytes=pdf_bytes,
+        pdf_sha256=source_sha256,
+        document_ref=payload["document_ref"],
+        page_ref=page["page_ref"],
+        page_number=page_number,
+        expected_page_bbox=[0.0, 0.0, width, height],
+        dpi=150,
+    )
+    return {
+        "proposal": proposal,
+        "page_ref": page["page_ref"],
+        "page_number": page_number,
+        "raster_manifest": raster["manifest"],
+    }
+
+
+def _page_candidate_refs(payload: dict, page_number: int) -> list[str]:
+    projection = payload["pdf_text_layer_projection"]
+    page_ref = next(
+        item["page_ref"]
+        for item in projection["page_inventory"]
+        if item["page_number"] == page_number
+    )
+    candidate = next(
+        item
+        for item in projection["table_candidate_inventory"]
+        if item["page_ref"] == page_ref
+    )
+    return list(candidate["contributing_word_refs"])
+
+
+def _same_call_recover(
+    payload: dict,
+    source_sha256: str,
+    requests: tuple[dict, ...],
+):
+    return LogicalRowTableFactory().create().recover_with_source_bound_scopes(
+        full_source_payload=payload,
+        source_checksum_sha256=source_sha256,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        source_bound_scope_requests=requests,
+    )
+
+
+def test_same_call_model_only_absent_header_remains_ambiguous() -> None:
+    pdf_bytes, source_sha256, payload = _source_bound_case()
+    first_refs = _page_candidate_refs(payload, 1)
+    second_refs = _page_candidate_refs(payload, 2)
+    requests = (
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=1,
+            title_refs=[],
+            header_ref_groups=[first_refs[:2]],
+            body_refs=first_refs[2:],
+        ),
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=2,
+            title_refs=[],
+            header_ref_groups=[],
+            body_refs=second_refs,
+        ),
+    )
+
+    result = _same_call_recover(payload, source_sha256, requests)
+
+    assert len(result.tables) == 2
+    assert any(table["completeness_status"] == "PARTIAL" for table in result.tables)
+    assert any(
+        issue["code"] == "logical_table_continuation_header_ambiguous"
+        for issue in result.issues
+    )
+    assert not any(
+        part.get("source_bound_header_status") == "ABSENT"
+        for table in result.tables
+        for part in table["source_parts"]
+    )
+    assert result.unowned_word_refs == []
+    assert "facts" not in result.as_dict()
+
+
+def test_same_call_exact_title_is_hard_boundary() -> None:
+    pdf_bytes, source_sha256, payload = _source_bound_case(
+        distinct_second_title=True
+    )
+    projection = payload["pdf_text_layer_projection"]
+    first_refs = _page_candidate_refs(payload, 1)
+    second_refs = _page_candidate_refs(payload, 2)
+    second_page_ref = next(
+        item["page_ref"]
+        for item in projection["page_inventory"]
+        if item["page_number"] == 2
+    )
+    title_refs = [
+        item["word_ref"]
+        for item in projection["word_inventory"]
+        if item["page_ref"] == second_page_ref
+        and item["word_ref"] not in set(second_refs)
+    ]
+    requests = (
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=1,
+            title_refs=[],
+            header_ref_groups=[first_refs[:2]],
+            body_refs=first_refs[2:],
+        ),
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=2,
+            title_refs=title_refs,
+            header_ref_groups=[second_refs[:2]],
+            body_refs=second_refs[2:],
+        ),
+    )
+
+    result = _same_call_recover(payload, source_sha256, requests)
+
+    assert len(result.tables) == 2
+    assert any(
+        row["role"] == "TABLE_TITLE"
+        and "Completed position transfers" in row["entries"][0]["text"]
+        for table in result.tables
+        for row in table["ordered_rows"]
+    )
+    assert result.unowned_word_refs == []
+
+
+@pytest.mark.parametrize(
+    "second_header_labels",
+    [
+        ("Instrument", "Currency"),
+        ("Security", "Market"),
+    ],
+    ids=["repeated-header", "different-header"],
+)
+def test_same_call_absent_cannot_erase_visible_header(
+    second_header_labels: tuple[str, str],
+) -> None:
+    pdf_bytes, source_sha256, payload = _source_bound_case(
+        second_header_labels=second_header_labels
+    )
+    first_refs = _page_candidate_refs(payload, 1)
+    second_refs = _page_candidate_refs(payload, 2)
+    requests = (
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=1,
+            title_refs=[],
+            header_ref_groups=[first_refs[:2]],
+            body_refs=first_refs[2:],
+        ),
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=2,
+            title_refs=[],
+            header_ref_groups=[],
+            body_refs=second_refs,
+        ),
+    )
+
+    result = _same_call_recover(payload, source_sha256, requests)
+
+    assert len(result.tables) == 2
+    assert any(table["completeness_status"] == "PARTIAL" for table in result.tables)
+    assert any(
+        issue["code"] == "logical_table_continuation_header_ambiguous"
+        for issue in result.issues
+    )
+    assert not any(
+        part.get("source_bound_header_status") == "ABSENT"
+        for table in result.tables
+        for part in table["source_parts"]
+        if part.get("page") == 2
+    )
+    assert len(result.source_word_ownership) == len(
+        payload["pdf_text_layer_projection"]["word_inventory"]
+    )
+    assert result.unowned_word_refs == []
+
+
+def test_same_call_present_requires_leading_header_stack() -> None:
+    pdf_bytes, source_sha256, payload = _source_bound_case(
+        second_header_labels=("Instrument", "Currency")
+    )
+    first_refs = _page_candidate_refs(payload, 1)
+    second_refs = _page_candidate_refs(payload, 2)
+    requests = (
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=1,
+            title_refs=[],
+            header_ref_groups=[first_refs[:2]],
+            body_refs=first_refs[2:],
+        ),
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=2,
+            title_refs=[],
+            header_ref_groups=[second_refs[2:4]],
+            body_refs=second_refs[4:],
+        ),
+    )
+
+    result = _same_call_recover(payload, source_sha256, requests)
+
+    assert len(result.tables) == 2
+    assert any(table["completeness_status"] == "PARTIAL" for table in result.tables)
+    assert any(
+        issue["code"] == "source_bound_table_scope_header_presence_conflict"
+        for issue in result.issues
+    )
+    assert not any(
+        part.get("source_bound_header_status") == "PRESENT"
+        for table in result.tables
+        for part in table["source_parts"]
+        if part.get("page") == 2
+    )
+    assert len(result.source_word_ownership) == len(
+        payload["pdf_text_layer_projection"]["word_inventory"]
+    )
+    assert result.unowned_word_refs == []
+
+
+def test_same_call_partial_scope_blocks_join_and_retains_all_words() -> None:
+    pdf_bytes, source_sha256, payload = _source_bound_case()
+    first_refs = _page_candidate_refs(payload, 1)
+    second_refs = _page_candidate_refs(payload, 2)
+    requests = (
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=1,
+            title_refs=[],
+            header_ref_groups=[first_refs[:2]],
+            body_refs=first_refs[2:],
+        ),
+        _scope_request(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+            page_number=2,
+            title_refs=[],
+            header_ref_groups=[],
+            body_refs=second_refs,
+            body_status="UNCERTAIN",
+        ),
+    )
+
+    result = _same_call_recover(payload, source_sha256, requests)
+
+    assert len(result.tables) == 2
+    assert any(table["completeness_status"] == "PARTIAL" for table in result.tables)
+    assert any(
+        issue["code"] == "source_bound_table_scope_uncertain"
+        for issue in result.issues
+    )
+    assert len(result.source_word_ownership) == len(
+        payload["pdf_text_layer_projection"]["word_inventory"]
+    )
+    assert result.unowned_word_refs == []
+
+
+def test_same_call_overlapping_requests_are_partial_and_do_not_join() -> None:
+    pdf_bytes, source_sha256, payload = _source_bound_case()
+    first_refs = _page_candidate_refs(payload, 1)
+    request = _scope_request(
+        payload=payload,
+        pdf_bytes=pdf_bytes,
+        source_sha256=source_sha256,
+        page_number=1,
+        title_refs=[],
+        header_ref_groups=[first_refs[:2]],
+        body_refs=first_refs[2:],
+    )
+
+    result = _same_call_recover(
+        payload,
+        source_sha256,
+        (request, copy.deepcopy(request)),
+    )
+
+    assert len(result.tables) == 2
+    assert all(table["completeness_status"] == "PARTIAL" for table in result.tables)
+    assert any(
+        issue["code"] == "source_bound_table_scope_overlap"
+        for issue in result.issues
+    )
+    assert result.unowned_word_refs == []
+
+
+def test_public_api_accepts_requests_not_ready_receipts() -> None:
+    runtime = LogicalRowTableFactory().create()
+    legacy_parameters = inspect.signature(runtime.recover).parameters
+    same_call_parameters = inspect.signature(
+        runtime.recover_with_source_bound_scopes
+    ).parameters
+
+    assert "source_bound_table_scopes" not in legacy_parameters
+    assert "source_bound_scope_receipts" not in same_call_parameters
+    assert "source_bound_scope_requests" in same_call_parameters
+    with pytest.raises(
+        recovery_module.LogicalRowTableRecoveryError,
+        match="logical_row_source_bound_scope_requests_invalid",
+    ):
+        runtime.recover_with_source_bound_scopes(
+            full_source_payload={},
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            source_bound_scope_requests=({"receipt": object()},),
+        )
+
+
+def test_legacy_recover_contract_and_output_remain_scope_free() -> None:
+    builder = ProjectionBuilder(ref_prefix="legacy_scope_free")
+    rows = [
+        builder.add_row(
+            page_number=1,
+            y=y,
+            entries=[(20, left, 70), (200, right, 60)],
+        )
+        for y, left, right in (
+            (100, "Instrument", "Currency"),
+            (116, "LKOH", "RUB"),
+            (132, "ROSN", "RUB"),
+        )
+    ]
+    builder.add_candidate(
+        page_number=1,
+        bbox=[15, 96, 290, 146],
+        word_refs=[ref for row in rows for ref in row],
+    )
+
+    first = _recover(builder)
+    second = _recover(builder)
+
+    assert first.as_dict() == second.as_dict()
+    assert "source_bound_scope_receipts_total" not in first.diagnostics
+    assert list(inspect.signature(LogicalRowTableRecoveryRuntime.recover).parameters) == [
+        "self",
+        "pdf_text_layer_projection",
+        "source_checksum_sha256",
+        "private_evidence_ref",
+    ]
 
 
 def test_three_page_edge_chain_uses_first_fragment_header() -> None:

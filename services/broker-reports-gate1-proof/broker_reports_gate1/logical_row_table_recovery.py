@@ -10,6 +10,11 @@ import unicodedata
 from dataclasses import dataclass, field as dataclass_field, replace
 from typing import Any, Mapping, Sequence
 
+from .source_bound_table_scope import (
+    SourceBoundTableScopeFactory,
+    SourceBoundTableScopeReceipt,
+)
+
 
 FACTORY_REQUIRED = (
     "LogicalRowTableFactory.create is the sole construction route for the "
@@ -312,6 +317,13 @@ class _Region:
     ruled_baseline_recovery_plan: _RuledBaselineRecoveryPlan | None = None
     released_non_table_word_refs: tuple[str, ...] = ()
     continuation_issue_codes: tuple[str, ...] = ()
+    source_bound_scope_ref: str | None = None
+    source_bound_title_word_refs: tuple[str, ...] = ()
+    source_bound_header_status: str | None = None
+    source_bound_header_word_ref_groups: tuple[tuple[str, ...], ...] = ()
+    source_bound_header_signatures: tuple[str, ...] = ()
+    source_bound_body_word_refs: tuple[str, ...] = ()
+    source_bound_issue_codes: tuple[str, ...] = ()
 
 
 @dataclass
@@ -419,6 +431,74 @@ class LogicalRowTableRecoveryRuntime:
         source_checksum_sha256: str,
         private_evidence_ref: str,
     ) -> LogicalRowTableRecoveryResult:
+        return self._recover(
+            pdf_text_layer_projection,
+            source_checksum_sha256=source_checksum_sha256,
+            private_evidence_ref=private_evidence_ref,
+            source_bound_scope_receipts=(),
+        )
+
+    def recover_with_source_bound_scopes(
+        self,
+        *,
+        full_source_payload: Mapping[str, Any],
+        source_checksum_sha256: str,
+        private_evidence_ref: str,
+        source_bound_scope_requests: tuple[Mapping[str, Any], ...],
+    ) -> LogicalRowTableRecoveryResult:
+        """Bind original geometry and recover inside one factory-routed call."""
+
+        if not isinstance(full_source_payload, dict) or not isinstance(
+            source_bound_scope_requests, tuple
+        ) or not source_bound_scope_requests:
+            raise LogicalRowTableRecoveryError(
+                "logical_row_source_bound_scope_requests_invalid"
+            )
+        payload = copy.deepcopy(full_source_payload)
+        receipts: list[SourceBoundTableScopeReceipt] = []
+        for request in source_bound_scope_requests:
+            if not isinstance(request, Mapping) or set(request) != {
+                "proposal",
+                "page_ref",
+                "page_number",
+                "raster_manifest",
+            }:
+                raise LogicalRowTableRecoveryError(
+                    "logical_row_source_bound_scope_requests_invalid"
+                )
+            bound = (
+                SourceBoundTableScopeFactory()
+                .create()
+                .bind(
+                    proposal=request["proposal"],
+                    full_source_payload=payload,
+                    source_checksum_sha256=source_checksum_sha256,
+                    page_ref=request["page_ref"],
+                    page_number=request["page_number"],
+                    raster_manifest=request["raster_manifest"],
+                )
+            )
+            receipts.extend(bound.scopes)
+        projection = payload.get("pdf_text_layer_projection")
+        if not isinstance(projection, Mapping):
+            raise LogicalRowTableRecoveryError(
+                "logical_row_source_bound_scope_requests_invalid"
+            )
+        return self._recover(
+            projection,
+            source_checksum_sha256=source_checksum_sha256,
+            private_evidence_ref=private_evidence_ref,
+            source_bound_scope_receipts=tuple(receipts),
+        )
+
+    def _recover(
+        self,
+        pdf_text_layer_projection: Mapping[str, Any],
+        *,
+        source_checksum_sha256: str,
+        private_evidence_ref: str,
+        source_bound_scope_receipts: tuple[SourceBoundTableScopeReceipt, ...],
+    ) -> LogicalRowTableRecoveryResult:
         projection = _projection_copy(pdf_text_layer_projection)
         _validate_recovery_inputs(
             projection,
@@ -504,6 +584,17 @@ class LogicalRowTableRecoveryRuntime:
             object_bboxes=object_bboxes,
             config=self.config,
         )
+        detached_scope_issue_codes: tuple[str, ...] = ()
+        if source_bound_scope_receipts:
+            regions, detached_scope_issue_codes = _apply_source_bound_table_scopes(
+                regions,
+                scopes=source_bound_scope_receipts,
+                projection=projection,
+                source_checksum_sha256=source_checksum_sha256,
+                pages=pages,
+                words=words,
+                config=self.config,
+            )
         accepted_retained_refs, accepted_released_refs = (
             _source_accounting_scope(regions)
         )
@@ -535,6 +626,13 @@ class LogicalRowTableRecoveryRuntime:
             private_evidence_ref=private_evidence_ref,
             bbox_by_ref=bbox_by_ref,
         )
+        for code in detached_scope_issue_codes:
+            state.add_issue(
+                code=code,
+                message=_source_bound_scope_issue_message(code),
+                anchor_ids=[],
+                block_ids=[],
+            )
         tables = [
             _materialize_logical_table(group, state=state, config=self.config)
             for group in groups
@@ -621,6 +719,20 @@ class LogicalRowTableRecoveryRuntime:
                 "visual_gold_reads": 0,
                 "pdf_layout_units_consumed": 0,
                 "grid_owner_calls": 0,
+                **(
+                    {
+                        "source_bound_scope_receipts_total": len(
+                            source_bound_scope_receipts
+                        ),
+                        "source_bound_scope_receipts_partial": sum(
+                            scope.binding_status == "PARTIAL"
+                            for scope in source_bound_scope_receipts
+                        )
+                        + len(detached_scope_issue_codes),
+                    }
+                    if source_bound_scope_receipts
+                    else {}
+                ),
             },
         )
 
@@ -6841,6 +6953,449 @@ def _materialize_scope_merge(
     return merged
 
 
+def _apply_source_bound_table_scopes(
+    regions: list[_Region],
+    *,
+    scopes: tuple[SourceBoundTableScopeReceipt, ...],
+    projection: dict[str, Any],
+    source_checksum_sha256: str,
+    pages: list[_Page],
+    words: list[_Word],
+    config: LogicalRowTableRecoveryConfig,
+) -> tuple[list[_Region], tuple[str, ...]]:
+    """Attach exact reviewed structure without deciding logical table identity."""
+
+    if not isinstance(scopes, tuple):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_source_bound_table_scopes_invalid"
+        )
+    page_by_ref = {page.page_ref: page for page in pages}
+    word_by_ref = {word.word_ref: word for word in words}
+    ordered_word_refs = tuple(
+        word.word_ref
+        for word in sorted(words, key=lambda item: (item.page_ref, item.order))
+    )
+    bbox_by_ref = _materialize_bboxes(projection)
+    candidate_by_ref = {
+        str(item.get("table_candidate_ref") or ""): item
+        for item in _dicts(projection["table_candidate_inventory"])
+    }
+    claimed_scope_refs: set[str] = set()
+    detached_issues: list[str] = []
+    result = copy.deepcopy(regions)
+
+    for scope in scopes:
+        _validate_source_bound_table_scope(
+            scope,
+            source_checksum_sha256=source_checksum_sha256,
+            page_by_ref=page_by_ref,
+            word_by_ref=word_by_ref,
+        )
+        if set(scope.scope_word_refs).intersection(claimed_scope_refs):
+            detached_issues.append("source_bound_table_scope_overlap")
+            overlap_refs = set(scope.scope_word_refs).intersection(claimed_scope_refs)
+            for region in result:
+                if overlap_refs.intersection(word.word_ref for word in region.words):
+                    region.source_bound_issue_codes = tuple(
+                        _unique(
+                            [
+                                *region.source_bound_issue_codes,
+                                "source_bound_table_scope_overlap",
+                            ]
+                        )
+                    )
+            continue
+        claimed_scope_refs.update(scope.scope_word_refs)
+
+        candidate_refs: set[str] = set()
+        if scope.locator_candidate_ref is not None:
+            raw_candidate = candidate_by_ref.get(scope.locator_candidate_ref)
+            if raw_candidate is None:
+                raise LogicalRowTableRecoveryError(
+                    "logical_row_source_bound_locator_stale"
+                )
+            candidate_refs = set(_strings(raw_candidate.get("contributing_word_refs")))
+            if (
+                raw_candidate.get("page_ref") != scope.page_ref
+                or raw_candidate.get("bbox_ref") != scope.locator_bbox_ref
+                or scope.locator_bbox_ref not in bbox_by_ref
+                or tuple(bbox_by_ref[scope.locator_bbox_ref])
+                != scope.locator_bbox_pdf_points
+                or not candidate_refs
+                or not candidate_refs.issubset(word_by_ref)
+            ):
+                raise LogicalRowTableRecoveryError(
+                    "logical_row_source_bound_locator_stale"
+                )
+            header_refs = {
+                ref for group in scope.header_word_ref_groups for ref in group
+            }
+            expected_body_refs = tuple(
+                ref
+                for ref in ordered_word_refs
+                if ref in candidate_refs
+                and ref not in set(scope.title_word_refs)
+                and ref not in header_refs
+            )
+            expected_scope_refs = tuple(
+                ref
+                for ref in ordered_word_refs
+                if ref in candidate_refs or ref in set(scope.title_word_refs)
+            )
+            if (
+                expected_body_refs != scope.body_word_refs
+                or expected_scope_refs != scope.scope_word_refs
+            ):
+                raise LogicalRowTableRecoveryError(
+                    "logical_row_source_bound_scope_partition_stale"
+                )
+
+        match_refs = set(scope.body_word_refs or scope.body_anchor_word_refs)
+        if not match_refs:
+            match_refs = {
+                *scope.title_word_refs,
+                *(
+                    ref
+                    for group in scope.header_word_ref_groups
+                    for ref in group
+                ),
+            }
+        matches = [
+            region
+            for region in result
+            if region.page.page_ref == scope.page_ref
+            and match_refs
+            and match_refs.issubset(
+                {word.word_ref for word in region.words}
+            )
+        ]
+        if scope.binding_status == "PARTIAL":
+            if len(matches) == 1:
+                matches[0].source_bound_scope_ref = scope.scope_ref
+                matches[0].source_bound_issue_codes = tuple(
+                    _unique(
+                        [
+                            *matches[0].source_bound_issue_codes,
+                            *scope.issue_codes,
+                        ]
+                    )
+                )
+            else:
+                detached_issues.extend(scope.issue_codes)
+            continue
+
+        required_refs = {
+            *scope.body_word_refs,
+            *(
+                ref
+                for group in scope.header_word_ref_groups
+                for ref in group
+            ),
+        }
+        matches = [
+            region
+            for region in result
+            if region.page.page_ref == scope.page_ref
+            and required_refs.issubset(
+                {word.word_ref for word in region.words}
+            )
+        ]
+        if len(matches) != 1:
+            detached_issues.append("source_bound_table_scope_region_ambiguous")
+            continue
+        region = matches[0]
+        existing_header = _stable_header_evidence(region, config=config)
+        if (
+            scope.header_status == "ABSENT"
+            and existing_header.signatures
+            and existing_header.source_proven
+            and existing_header.body_supported
+        ):
+            region.source_bound_scope_ref = scope.scope_ref
+            region.source_bound_issue_codes = tuple(
+                _unique(
+                    [
+                        *region.source_bound_issue_codes,
+                        "source_bound_table_scope_header_presence_conflict",
+                    ]
+                )
+            )
+            continue
+        title_refs = set(scope.title_word_refs)
+        conflicting_title_owners = [
+            other
+            for other in result
+            if other is not region
+            and title_refs.intersection(word.word_ref for word in other.words)
+        ]
+        if conflicting_title_owners:
+            region.source_bound_issue_codes = tuple(
+                _unique(
+                    [
+                        *region.source_bound_issue_codes,
+                        "source_bound_table_scope_title_owner_conflict",
+                    ]
+                )
+            )
+            continue
+
+        if title_refs:
+            title_words = [word_by_ref[ref] for ref in scope.title_word_refs]
+            existing_title_rows = [
+                row
+                for row in region.rows
+                if {word.word_ref for word in row.words}.issubset(title_refs)
+                and row.words
+            ]
+            existing_title_refs = {
+                word.word_ref for row in existing_title_rows for word in row.words
+            }
+            if existing_title_refs and existing_title_refs != title_refs:
+                region.source_bound_issue_codes = tuple(
+                    _unique(
+                        [
+                            *region.source_bound_issue_codes,
+                            "source_bound_table_scope_title_partition_conflict",
+                        ]
+                    )
+                )
+                continue
+            if not existing_title_rows:
+                existing_title_rows = _row_bands(title_words, config=config)
+                if not existing_title_rows:
+                    region.source_bound_issue_codes = tuple(
+                        _unique(
+                            [
+                                *region.source_bound_issue_codes,
+                                "source_bound_table_scope_title_partition_conflict",
+                            ]
+                        )
+                    )
+                    continue
+                region.rows = [*existing_title_rows, *region.rows]
+                region.words = sorted(
+                    [*title_words, *region.words],
+                    key=lambda item: (item.bbox[1], item.bbox[0], item.order),
+                )
+                region.bbox = _merge_bboxes([row.bbox for row in region.rows])
+                region.source_ref = _identifier(
+                    "source_bound_region",
+                    [region.source_ref, scope.scope_ref, *scope.scope_word_refs],
+                )
+                region.origin += "+SOURCE_BOUND_SCOPE"
+            for row in existing_title_rows:
+                row.external_title = True
+
+        if scope.header_status == "ABSENT":
+            region.source_bound_scope_ref = scope.scope_ref
+            region.source_bound_title_word_refs = scope.title_word_refs
+            region.source_bound_body_word_refs = scope.body_word_refs
+            continue
+
+        if scope.header_status == "PRESENT" and not _source_bound_header_is_leading(
+            region,
+            header_word_ref_groups=scope.header_word_ref_groups,
+            body_word_refs=scope.body_word_refs,
+            title_word_refs=scope.title_word_refs,
+        ):
+            region.source_bound_scope_ref = scope.scope_ref
+            region.source_bound_issue_codes = tuple(
+                _unique(
+                    [
+                        *region.source_bound_issue_codes,
+                        "source_bound_table_scope_header_presence_conflict",
+                    ]
+                )
+            )
+            continue
+
+        signatures: list[str] = []
+        for group in scope.header_word_ref_groups:
+            group_rows = _row_bands([word_by_ref[ref] for ref in group], config=config)
+            if not group_rows:
+                raise LogicalRowTableRecoveryError(
+                    "logical_row_source_bound_header_partition_invalid"
+                )
+            signatures.extend(_row_signature(row) for row in group_rows)
+            group_refs = set(group)
+            matching_rows = [
+                row
+                for row in region.rows
+                if row.words
+                and {word.word_ref for word in row.words}.issubset(group_refs)
+            ]
+            if {
+                word.word_ref for row in matching_rows for word in row.words
+            } != group_refs:
+                raise LogicalRowTableRecoveryError(
+                    "logical_row_source_bound_header_partition_invalid"
+                )
+            for row in matching_rows:
+                row.proven_leading_suffix_header = True
+
+        region.source_bound_scope_ref = scope.scope_ref
+        region.source_bound_title_word_refs = scope.title_word_refs
+        region.source_bound_header_status = scope.header_status
+        region.source_bound_header_word_ref_groups = scope.header_word_ref_groups
+        region.source_bound_header_signatures = tuple(signatures)
+        region.source_bound_body_word_refs = scope.body_word_refs
+
+    detached = tuple(_unique(detached_issues))
+    if detached:
+        for region in result:
+            region.source_bound_issue_codes = tuple(
+                _unique([*region.source_bound_issue_codes, *detached])
+            )
+    return result, detached
+
+
+def _source_bound_header_is_leading(
+    region: _Region,
+    *,
+    header_word_ref_groups: tuple[tuple[str, ...], ...],
+    body_word_refs: tuple[str, ...],
+    title_word_refs: tuple[str, ...],
+) -> bool:
+    header_refs = {
+        ref for group in header_word_ref_groups for ref in group
+    }
+    body_refs = set(body_word_refs)
+    title_refs = set(title_word_refs)
+    if not header_refs or not body_refs or header_refs.intersection(body_refs):
+        return False
+
+    header_indexes: list[int] = []
+    body_indexes: list[int] = []
+    prefix_indexes: list[int] = []
+    seen_header_refs: set[str] = set()
+    seen_body_refs: set[str] = set()
+    for index, row in enumerate(region.rows):
+        row_refs = {word.word_ref for word in row.words}
+        if row_refs and row_refs.issubset(title_refs):
+            prefix_indexes.append(index)
+        elif row_refs and row_refs.issubset(header_refs):
+            header_indexes.append(index)
+            seen_header_refs.update(row_refs)
+        elif row_refs and row_refs.issubset(body_refs):
+            body_indexes.append(index)
+            seen_body_refs.update(row_refs)
+
+    prefix_count = len(prefix_indexes)
+    return bool(
+        header_indexes
+        and body_indexes
+        and prefix_indexes == list(range(prefix_count))
+        and header_indexes
+        == list(range(prefix_count, prefix_count + len(header_indexes)))
+        and min(body_indexes) > max(header_indexes)
+        and seen_header_refs == header_refs
+        and seen_body_refs == body_refs
+    )
+
+
+def _validate_source_bound_table_scope(
+    scope: Any,
+    *,
+    source_checksum_sha256: str,
+    page_by_ref: dict[str, _Page],
+    word_by_ref: dict[str, _Word],
+) -> None:
+    if not isinstance(scope, SourceBoundTableScopeReceipt):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_source_bound_table_scopes_invalid"
+        )
+    page = page_by_ref.get(scope.page_ref)
+    all_groups = (
+        scope.title_word_refs,
+        *scope.header_word_ref_groups,
+        scope.body_anchor_word_refs,
+        scope.body_word_refs,
+    )
+    all_refs = [ref for group in all_groups for ref in group]
+    if (
+        scope.source_checksum_sha256 != source_checksum_sha256.lower()
+        or page is None
+        or page.page_number != scope.page_number
+        or not re.fullmatch(r"[0-9a-f]{64}", scope.raster_manifest_hash)
+        or not re.fullmatch(r"[0-9a-f]{64}", scope.proposal_sha256)
+        or not scope.scope_ref.startswith("tablescopereceipt_")
+        or scope.binding_status not in {"BOUND", "PARTIAL"}
+        or scope.title_status not in {"PRESENT", "ABSENT"}
+        or scope.header_status not in {"PRESENT", "ABSENT"}
+        or any(ref not in word_by_ref for ref in all_refs)
+        or any(word_by_ref[ref].page_ref != scope.page_ref for ref in all_refs)
+        or any(ref not in word_by_ref for ref in scope.scope_word_refs)
+        or len(scope.scope_word_refs) != len(set(scope.scope_word_refs))
+    ):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_source_bound_table_scopes_invalid"
+        )
+    title_refs = set(scope.title_word_refs)
+    header_refs = {
+        ref for group in scope.header_word_ref_groups for ref in group
+    }
+    body_anchor_refs = set(scope.body_anchor_word_refs)
+    if (
+        (scope.title_status == "PRESENT") != bool(title_refs)
+        or (scope.header_status == "PRESENT") != bool(header_refs)
+        or title_refs.intersection(header_refs | body_anchor_refs)
+        or header_refs.intersection(body_anchor_refs)
+        or len(header_refs)
+        != sum(len(group) for group in scope.header_word_ref_groups)
+        or not set(scope.body_word_refs).issubset(scope.scope_word_refs)
+        or not title_refs.issubset(scope.scope_word_refs)
+    ):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_source_bound_table_scopes_invalid"
+        )
+    if scope.binding_status == "BOUND" and (
+        scope.body_status != "HAS_DATA"
+        or scope.locator_candidate_ref is None
+        or not scope.body_word_refs
+        or scope.issue_codes
+    ):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_source_bound_table_scopes_invalid"
+        )
+    if scope.binding_status == "PARTIAL" and not scope.issue_codes:
+        raise LogicalRowTableRecoveryError(
+            "logical_row_source_bound_table_scopes_invalid"
+        )
+
+
+def _source_bound_scope_issue_message(code: str) -> str:
+    messages = {
+        "source_bound_table_scope_empty_template_partial": (
+            "The visible empty template is retained as unresolved structure."
+        ),
+        "source_bound_table_scope_explainer_non_authoritative": (
+            "The explainer label is non-authoritative and cannot exclude source words."
+        ),
+        "source_bound_table_scope_uncertain": (
+            "The reviewed table scope remains structurally uncertain."
+        ),
+        "source_bound_table_scope_locator_missing": (
+            "The body anchor does not identify an existing FullSource candidate."
+        ),
+        "source_bound_table_scope_locator_ambiguous": (
+            "The body anchor identifies more than one FullSource candidate."
+        ),
+        "source_bound_table_scope_region_ambiguous": (
+            "The exact scope cannot be attached to one recovered region."
+        ),
+        "source_bound_table_scope_title_owner_conflict": (
+            "Exact title words already belong to another recovered region."
+        ),
+        "source_bound_table_scope_title_partition_conflict": (
+            "Exact title words cannot be retained as one source-bound title."
+        ),
+        "source_bound_table_scope_header_presence_conflict": (
+            "Reviewed header presence conflicts with the source-proven leading stack."
+        ),
+    }
+    return messages.get(code, "The source-bound table scope remains partial.")
+
+
 def _group_continuations(
     regions: list[_Region],
     *,
@@ -6940,6 +7495,8 @@ def _continuation_decision(
 ) -> str:
     if right.page.page_number != left.page.page_number + 1:
         return "NO_MATCH"
+    if root.source_bound_issue_codes or right.source_bound_issue_codes:
+        return "AMBIGUOUS"
     # A source-bound title belongs to the following table scope.  Geometry or
     # a repeated header must never erase it to manufacture a continuation.
     if any(row.external_title for row in right.rows):
@@ -6980,6 +7537,16 @@ def _stable_header_evidence(
     *,
     config: LogicalRowTableRecoveryConfig,
 ) -> _StableHeaderEvidence:
+    if region.source_bound_header_status is not None:
+        return _StableHeaderEvidence(
+            signatures=(
+                region.source_bound_header_signatures
+                if region.source_bound_header_status == "PRESENT"
+                else ()
+            ),
+            body_supported=bool(region.source_bound_body_word_refs),
+            source_proven=True,
+        )
     probe = copy.copy(region)
     probe.rows = copy.deepcopy(region.rows)
     _classify_rows(probe.rows)
@@ -7023,6 +7590,27 @@ def _row_has_source_header_evidence(row: _RowBand) -> bool:
     )
 
 
+def _apply_source_bound_row_roles(region: _Region) -> None:
+    if region.source_bound_header_status is None:
+        return
+    title_refs = set(region.source_bound_title_word_refs)
+    header_refs = {
+        ref
+        for group in region.source_bound_header_word_ref_groups
+        for ref in group
+    }
+    body_refs = set(region.source_bound_body_word_refs)
+    for row in region.rows:
+        row_refs = {word.word_ref for word in row.words}
+        if row_refs and row_refs.issubset(title_refs):
+            row.external_title = True
+            row.role = "TABLE_TITLE"
+        elif row_refs and row_refs.issubset(header_refs):
+            row.role = "COLUMN_HEADER"
+        elif row_refs and row_refs.issubset(body_refs):
+            row.role = "DATA"
+
+
 def _materialize_logical_table(
     regions: list[_Region],
     *,
@@ -7042,6 +7630,7 @@ def _materialize_logical_table(
     for region in regions:
         _classify_rows(region.rows)
         _refine_leading_ruled_header_roles(region, config=config)
+        _apply_source_bound_row_roles(region)
     if len(regions) > 1:
         first_header = _header_signature(regions[0].rows)
         for region in regions[1:]:
@@ -7085,21 +7674,50 @@ def _materialize_logical_table(
                 "confidence": region.confidence,
                 "object_refs": region.object_refs,
                 "word_refs": [word.word_ref for word in region.words],
+                **(
+                    {
+                        "source_bound_scope_ref": region.source_bound_scope_ref,
+                        "source_bound_title_word_refs": list(
+                            region.source_bound_title_word_refs
+                        ),
+                        "source_bound_header_status": (
+                            region.source_bound_header_status
+                        ),
+                        "source_bound_header_word_ref_groups": [
+                            list(group)
+                            for group in region.source_bound_header_word_ref_groups
+                        ],
+                        "source_bound_body_word_refs": list(
+                            region.source_bound_body_word_refs
+                        ),
+                    }
+                    if region.source_bound_scope_ref is not None
+                    else {}
+                ),
             },
         )
 
     continuation_issue_ids_by_ref: dict[str, list[str]] = {}
     for region in regions:
         issue_ids = []
-        for code in region.continuation_issue_codes:
+        for code in _unique(
+            [
+                *region.continuation_issue_codes,
+                *region.source_bound_issue_codes,
+            ]
+        ):
             issue_id = state.add_issue(
                 code=code,
                 message=(
                     "The fragment has no source-bound header-presence evidence; "
                     "text-only rows cannot prove continuation."
                     if code == "logical_table_continuation_header_ambiguous"
-                    else "The fragment has more than one compatible predecessor; "
-                    "table continuation is not deterministic."
+                    else (
+                        "The fragment has more than one compatible predecessor; "
+                        "table continuation is not deterministic."
+                        if code == "logical_table_continuation_ambiguous"
+                        else _source_bound_scope_issue_message(code)
+                    )
                 ),
                 anchor_ids=[region_anchor_by_ref[region.source_ref]],
                 block_ids=[table_block_id],
@@ -7363,6 +7981,26 @@ def _materialize_logical_table(
                     ]
                 ),
                 "issue_ids": continuation_issue_ids_by_ref[region.source_ref],
+                **(
+                    {
+                        "source_bound_scope_ref": region.source_bound_scope_ref,
+                        "source_bound_title_word_refs": list(
+                            region.source_bound_title_word_refs
+                        ),
+                        "source_bound_header_status": (
+                            region.source_bound_header_status
+                        ),
+                        "source_bound_header_word_ref_groups": [
+                            list(group)
+                            for group in region.source_bound_header_word_ref_groups
+                        ],
+                        "source_bound_body_word_refs": list(
+                            region.source_bound_body_word_refs
+                        ),
+                    }
+                    if region.source_bound_scope_ref is not None
+                    else {}
+                ),
             }
         )
 
