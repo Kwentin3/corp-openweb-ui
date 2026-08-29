@@ -12,11 +12,14 @@ import copy
 import hashlib
 import json
 import re
-from typing import Any
+from typing import Any, Mapping
 
 from .ordinary_trade_semantic_compiler import (
+    compile_managed_header_case_mapping_candidate,
     compile_schema_mapping,
+    ordinary_trade_canonical_managed_data_replay,
     structural_fingerprint,
+    validate_managed_header_case_mapping_candidate,
     validate_schema_mapping,
 )
 
@@ -34,6 +37,12 @@ FORBIDDEN = (
 QUALIFICATION_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_qualification_v2"
 CASE_QUALIFICATION_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_case_mapping_qualification_v1"
+)
+MANAGED_CASE_QUALIFICATION_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_managed_case_mapping_qualification_v1"
+)
+MANAGED_CASE_SIDE_EVIDENCE_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_managed_side_evidence_v1"
 )
 _CONSUMER_CONTRACT = "Gate4FinancialCaseFactV2.amount_currency"
 _RELATION_BASES = {
@@ -806,6 +815,268 @@ def validate_case_qualified_mapping(
         raise RuntimeError("ordinary_trade_case_mapping_relation_coverage_invalid")
 
 
+def _managed_header_case_mapping_qualification(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    table_node_id: str,
+    model_mapping_decision: Mapping[str, Any],
+    user_scope_sha256: str,
+    model_side_normalization_decisions: list[Mapping[str, str]],
+    confirmed_understandings: list[Mapping[str, str]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if (
+        not isinstance(user_scope_sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", user_scope_sha256) is None
+    ):
+        raise RuntimeError("ordinary_trade_managed_case_user_scope_invalid")
+    candidate = compile_managed_header_case_mapping_candidate(
+        canonical=canonical,
+        canonical_binding=canonical_binding,
+        table_node_id=table_node_id,
+        model_decision=model_mapping_decision,
+    )
+    candidate = validate_managed_header_case_mapping_candidate(
+        value=candidate,
+        canonical=canonical,
+        canonical_binding=canonical_binding,
+        table_node_id=table_node_id,
+    )
+    data_replay = ordinary_trade_canonical_managed_data_replay(
+        canonical=canonical,
+        canonical_binding=canonical_binding,
+        table_node_id=table_node_id,
+    )
+    side_evidence = _managed_case_side_evidence(
+        data_replay=data_replay,
+        candidate=candidate,
+    )
+    side_normalizations = _managed_case_side_normalizations(
+        evidence=side_evidence,
+        decisions=model_side_normalization_decisions,
+    )
+    understandings = _managed_case_confirmed_understandings(
+        confirmed_understandings
+    )
+    candidate_binding = {
+        "schema_version": candidate["schema_version"],
+        "candidate_id": candidate["candidate_id"],
+        "candidate_sha256": _sha256_json(candidate),
+        "structural_fingerprint": candidate["structural_fingerprint"],
+        "header_view_binding": copy.deepcopy(
+            candidate["header_view_binding"]
+        ),
+        "columns": copy.deepcopy(candidate["columns"]),
+    }
+    header_binding = candidate["header_view_binding"]
+    semantic_scope = {
+        "columns": copy.deepcopy(candidate["columns"]),
+        "amount_currency_bindings": copy.deepcopy(
+            candidate["amount_currency_bindings"]
+        ),
+        "side_normalizations": side_normalizations,
+    }
+    material = {
+        "schema_version": MANAGED_CASE_QUALIFICATION_SCHEMA_VERSION,
+        "qualification_status": "QUALIFIED_CANDIDATE_ONLY",
+        "runtime_activation": False,
+        "global_reuse": False,
+        "candidate_binding": candidate_binding,
+        "case_binding": {
+            "canonical_binding": copy.deepcopy(
+                header_binding["canonical_binding"]
+            ),
+            "table_node_id": table_node_id,
+            "managed_binding": copy.deepcopy(
+                header_binding["managed_binding"]
+            ),
+        },
+        "user_scope_sha256": user_scope_sha256,
+        "side_evidence": side_evidence,
+        "side_normalizations": side_normalizations,
+        "amount_currency_bindings": copy.deepcopy(
+            candidate["amount_currency_bindings"]
+        ),
+        "semantic_scope_sha256": _sha256_json(semantic_scope),
+        "confirmed_understandings": understandings,
+        "consumer_contracts": [_CONSUMER_CONTRACT],
+    }
+    qualification_id = "otqual_" + _sha256_json(material)[:32]
+    receipt = {**material, "qualification_id": qualification_id}
+    receipt["receipt_sha256"] = _sha256_json(receipt)
+    return copy.deepcopy(candidate), receipt
+
+
+def _managed_case_side_evidence(
+    *,
+    data_replay: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+) -> dict[str, Any]:
+    side_columns = [
+        item for item in candidate["columns"] if item["semantic_role"] == "side"
+    ]
+    if len(side_columns) != 1:
+        raise RuntimeError("ordinary_trade_managed_case_side_column_invalid")
+    side_column = side_columns[0]
+    data_rows = data_replay.get("data_rows")
+    if (
+        data_replay.get("table_node_id")
+        != candidate["header_view_binding"]["table_node_id"]
+        or data_replay.get("canonical_binding")
+        != candidate["header_view_binding"]["canonical_binding"]
+        or data_replay.get("managed_binding")
+        != candidate["header_view_binding"]["managed_binding"]
+        or not isinstance(data_rows, list)
+    ):
+        raise RuntimeError("ordinary_trade_managed_case_side_evidence_invalid")
+    observations = []
+    column_number = int(side_column["column"])
+    for row in data_rows:
+        cells = row.get("cells") if isinstance(row, Mapping) else None
+        matches = [
+            cell
+            for cell in cells or []
+            if isinstance(cell, Mapping)
+            and cell.get("column") == column_number
+        ]
+        if len(matches) != 1:
+            raise RuntimeError(
+                "ordinary_trade_managed_case_side_evidence_incomplete"
+            )
+        cell = matches[0]
+        literal = cell.get("literal")
+        if (
+            not isinstance(literal, str)
+            or literal == ""
+            or not isinstance(row.get("row_id"), str)
+            or not row["row_id"]
+            or not isinstance(cell.get("canonical_provenance_ref"), str)
+            or not cell["canonical_provenance_ref"]
+            or not isinstance(cell.get("source_coordinate"), str)
+            or not cell["source_coordinate"]
+        ):
+            raise RuntimeError(
+                "ordinary_trade_managed_case_side_evidence_incomplete"
+            )
+        observations.append(
+            {
+                "row": row["row"],
+                "row_id": row["row_id"],
+                "literal": literal,
+                "canonical_provenance_ref": cell[
+                    "canonical_provenance_ref"
+                ],
+                "source_coordinate": cell["source_coordinate"],
+            }
+        )
+    if not observations:
+        raise RuntimeError("ordinary_trade_managed_case_side_evidence_incomplete")
+    by_literal: dict[str, list[dict[str, Any]]] = {}
+    for observation in observations:
+        by_literal.setdefault(observation["literal"], []).append(observation)
+    literals = []
+    header_view_sha256 = candidate["header_view_binding"][
+        "header_view_sha256"
+    ]
+    for literal, items in by_literal.items():
+        evidence_material = {
+            "header_view_sha256": header_view_sha256,
+            "side_column": column_number,
+            "logical_column_id": side_column["logical_column_id"],
+            "literal": literal,
+            "observations": copy.deepcopy(items),
+        }
+        literals.append(
+            {
+                "side_evidence_ref": "otsideevidence_"
+                + _sha256_json(evidence_material)[:24],
+                **evidence_material,
+            }
+        )
+    material = {
+        "schema_version": MANAGED_CASE_SIDE_EVIDENCE_SCHEMA_VERSION,
+        "data_replay_sha256": data_replay["data_replay_sha256"],
+        "header_view_sha256": header_view_sha256,
+        "side_column": column_number,
+        "logical_column_id": side_column["logical_column_id"],
+        "data_rows_total": len(observations),
+        "literals": literals,
+    }
+    return {**material, "side_evidence_sha256": _sha256_json(material)}
+
+
+def _managed_case_side_normalizations(
+    *,
+    evidence: Mapping[str, Any],
+    decisions: list[Mapping[str, str]],
+) -> list[dict[str, str]]:
+    literals = evidence["literals"]
+    if not isinstance(decisions, list) or len(decisions) != len(literals):
+        raise RuntimeError(
+            "ordinary_trade_managed_case_side_normalization_invalid"
+        )
+    by_literal: dict[str, str] = {}
+    for item in decisions:
+        if (
+            not isinstance(item, Mapping)
+            or set(item) != {"source_literal", "normalized_value"}
+            or not isinstance(item.get("source_literal"), str)
+            or item["source_literal"] == ""
+            or item.get("normalized_value") not in {"PURCHASE", "DISPOSAL"}
+            or item["source_literal"] in by_literal
+        ):
+            raise RuntimeError(
+                "ordinary_trade_managed_case_side_normalization_invalid"
+            )
+        by_literal[item["source_literal"]] = item["normalized_value"]
+    expected_literals = [item["literal"] for item in literals]
+    if set(by_literal) != set(expected_literals):
+        raise RuntimeError(
+            "ordinary_trade_managed_case_side_normalization_invalid"
+        )
+    return [
+        {
+            "side_evidence_ref": item["side_evidence_ref"],
+            "source_literal": item["literal"],
+            "normalized_value": by_literal[item["literal"]],
+        }
+        for item in literals
+    ]
+
+
+def _managed_case_confirmed_understandings(
+    value: list[Mapping[str, str]],
+) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        raise RuntimeError(
+            "ordinary_trade_managed_case_confirmation_invalid"
+        )
+    result = []
+    question_ids: set[str] = set()
+    for item in value:
+        if (
+            not isinstance(item, Mapping)
+            or set(item)
+            != {
+                "question_id",
+                "option_id",
+                "label_sha256",
+                "decision_sha256",
+            }
+            or not all(isinstance(item.get(key), str) and item[key] for key in item)
+            or re.fullmatch(r"[0-9a-f]{64}", item["label_sha256"]) is None
+            or re.fullmatch(r"[0-9a-f]{64}", item["decision_sha256"])
+            is None
+            or item["question_id"] in question_ids
+        ):
+            raise RuntimeError(
+                "ordinary_trade_managed_case_confirmation_invalid"
+            )
+        question_ids.add(item["question_id"])
+        result.append(copy.deepcopy(dict(item)))
+    return result
+
+
 _QUALIFIED_ENTRIES = tuple(
     _compile_qualified_entry(spec=spec, relation_claims=claims)
     for spec, claims in zip(_MAPPING_SPECS, _RELATION_CLAIMS, strict=True)
@@ -834,6 +1105,29 @@ class OrdinaryTradeQualifiedMappingAuthority:
     def qualify_case_mapping(self, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         return qualify_case_mapping(**kwargs)
 
+    def qualify_managed_header_case_mapping(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        table_node_id: str,
+        model_mapping_decision: Mapping[str, Any],
+        user_scope_sha256: str,
+        model_side_normalization_decisions: list[Mapping[str, str]],
+        confirmed_understandings: list[Mapping[str, str]],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        return _managed_header_case_mapping_qualification(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            table_node_id=table_node_id,
+            model_mapping_decision=model_mapping_decision,
+            user_scope_sha256=user_scope_sha256,
+            model_side_normalization_decisions=(
+                model_side_normalization_decisions
+            ),
+            confirmed_understandings=confirmed_understandings,
+        )
+
     def validate_case_mapping(
         self,
         *,
@@ -847,12 +1141,43 @@ class OrdinaryTradeQualifiedMappingAuthority:
             expected_case_scope=expected_case_scope,
         )
 
+    def validate_managed_header_case_mapping(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        table_node_id: str,
+        model_mapping_decision: Mapping[str, Any],
+        user_scope_sha256: str,
+        model_side_normalization_decisions: list[Mapping[str, str]],
+        confirmed_understandings: list[Mapping[str, str]],
+        receipt: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        candidate, expected = _managed_header_case_mapping_qualification(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            table_node_id=table_node_id,
+            model_mapping_decision=model_mapping_decision,
+            user_scope_sha256=user_scope_sha256,
+            model_side_normalization_decisions=(
+                model_side_normalization_decisions
+            ),
+            confirmed_understandings=confirmed_understandings,
+        )
+        if not isinstance(receipt, Mapping) or dict(receipt) != expected:
+            raise RuntimeError(
+                "ordinary_trade_managed_case_qualification_receipt_invalid"
+            )
+        return candidate, copy.deepcopy(expected)
+
 
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "QUALIFICATION_SCHEMA_VERSION",
     "CASE_QUALIFICATION_SCHEMA_VERSION",
+    "MANAGED_CASE_QUALIFICATION_SCHEMA_VERSION",
+    "MANAGED_CASE_SIDE_EVIDENCE_SCHEMA_VERSION",
     "OrdinaryTradeQualifiedMappingAuthority",
     "OrdinaryTradeQualifiedMappingAuthorityFactory",
     "validate_qualified_mapping",
