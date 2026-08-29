@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 
 import pytest
 
@@ -92,14 +93,14 @@ def _table_disposition_decision(disposition: str) -> dict:
     }
 
 
-def _complete_response(table, known):
+def _complete_response(table, known, *, header_row: int = 1):
     return {
         "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
         "status": "COMPLETE",
         "table_decisions": [
             {
                 "table_ref": "table_1",
-                "header_row": 1,
+                "header_row": header_row,
                 "disposition": "SECURITY_TRADES",
                 "columns": [
                     {
@@ -117,6 +118,515 @@ def _complete_response(table, known):
         "clarification": None,
         "message": "Структура сделок определена.",
     }
+
+
+def _managed_table_rows(
+    canonical: dict,
+    table: dict,
+    rows: tuple[tuple[str, int, tuple[str, ...] | None], ...],
+) -> None:
+    source_rows: dict[int, list[dict]] = {}
+    for cell in table["content"]["cells"]:
+        source_rows.setdefault(cell["row"], []).append(cell)
+    managed_cells = []
+    sequence = []
+    for target_row, (role, source_row, replacement) in enumerate(rows, start=1):
+        cells = sorted(source_rows[source_row], key=lambda item: item["column"])
+        values = replacement or tuple(cell["displayed_value"] for cell in cells)
+        assert len(values) == len(cells)
+        for cell, value in zip(cells, values, strict=True):
+            cloned = copy.deepcopy(cell)
+            cloned["row"] = target_row
+            cloned["value"] = value
+            cloned["raw_value"] = value
+            cloned["displayed_value"] = value
+            entry_id = f"entry_test_{target_row}_{cloned['column']}"
+            locator = {
+                "kind": "managed_whole_table_entry",
+                "managed_whole_table_projection_id": (
+                    "managedtableprojection_test"
+                ),
+                "managed_document_id": "document_pdf_test",
+                "managed_table_id": "table_test",
+                "managed_row_id": f"managed-row-{target_row}",
+                "managed_row_role": role,
+                "managed_entry_id": entry_id,
+            }
+            cloned["source_coordinate"] = (
+                f"managed-row-{target_row}:{entry_id}"
+            )
+            provenance_id = "prov_" + hashlib.sha256(
+                json.dumps(
+                    [canonical["source"]["source_sha256"], locator],
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()[:24]
+            cloned["source_refs"] = [provenance_id]
+            canonical["provenance"].append(
+                {
+                    "provenance_id": provenance_id,
+                    "source_ref": canonical["source"]["source_artifact_ref"],
+                    "source_locator": locator,
+                    "evidence_refs": [],
+                }
+            )
+            managed_cells.append(cloned)
+        sequence.append(
+            {
+                "row_id": f"managed-row-{target_row}",
+                "ordinal": target_row - 1,
+                "role": role,
+                "role_origin": "REVIEWED_SOURCE_BOUND",
+                "entry_texts": list(values),
+                "source_anchor_ids": [],
+            }
+        )
+    table["content"]["cells"] = managed_cells
+    table["content"]["metadata"] = {
+        "source_format": "pdf",
+        "source_representation_owner": "managed_document_v2",
+        "managed_whole_table_projection_id": "managedtableprojection_test",
+        "managed_whole_table_projection_schema_version": (
+            "broker_reports_managed_whole_table_projection_v2"
+        ),
+        "managed_document_id": "document_pdf_test",
+        "managed_document_integrity_sha256": "a" * 64,
+        "managed_table_id": "table_test",
+        "managed_table_completeness_status": "COMPLETE",
+        "managed_row_sequence": sequence,
+        "canonical_managed_whole_table_projection_connected": True,
+    }
+
+
+def _compile_canonical(canonical, binding, known):
+    return OrdinaryTradeSemanticCompilerFactory.create().compile(
+        canonical=canonical,
+        canonical_binding=binding,
+        mappings=[known],
+    )
+
+
+def test_managed_rows_give_mapper_and_compiler_one_financial_view(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    column_count = len(known["columns"])
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("TABLE_TITLE", 1, ("Trades", *("" for _ in range(column_count - 1)))),
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+            ("CONTINUATION_HEADER", 1, None),
+            ("NOTE", 2, None),
+            ("TOTAL", 2, None),
+            ("GROUP_HEADER", 2, None),
+            ("SUBTOTAL", 2, None),
+            ("DATA", 3, None),
+        ),
+    )
+
+    package = OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+    )
+    assert [row["row"] for row in package["case"]["tables"][0]["rows"]] == [
+        2,
+        3,
+        9,
+    ]
+    mapped = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=_complete_response(table, known, header_row=2),
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+    assert mapped["status"] == "COMPLETE"
+
+    projection = _compile_canonical(canonical, binding, known)
+    assert [
+        (item["row"], item["disposition"], item["reason_code"])
+        for item in projection["source_observations"]
+    ] == [
+        (3, "RUNTIME_READY", None),
+        (
+            4,
+            "SOURCE_RETAINED_NO_CONSUMER",
+            "MANAGED_STRUCTURAL_ROW_NO_FINANCIAL_CONSUMER",
+        ),
+        (
+            5,
+            "SOURCE_RETAINED_NO_CONSUMER",
+            "MANAGED_STRUCTURAL_ROW_NO_FINANCIAL_CONSUMER",
+        ),
+        (
+            6,
+            "SOURCE_RETAINED_NO_CONSUMER",
+            "MANAGED_STRUCTURAL_ROW_NO_FINANCIAL_CONSUMER",
+        ),
+        (
+            7,
+            "SOURCE_RETAINED_NO_CONSUMER",
+            "MANAGED_STRUCTURAL_ROW_NO_FINANCIAL_CONSUMER",
+        ),
+        (
+            8,
+            "SOURCE_RETAINED_NO_CONSUMER",
+            "MANAGED_STRUCTURAL_ROW_NO_FINANCIAL_CONSUMER",
+        ),
+        (9, "RUNTIME_READY", None),
+    ]
+    assert len(projection["runtime_records"]) == 4
+
+
+def test_managed_unknown_row_remains_relevant_and_blocks_completeness(
+    tmp_path,
+) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+            ("UNKNOWN", 3, None),
+        ),
+    )
+
+    package = OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+    )
+    assert [row["row"] for row in package["case"]["tables"][0]["rows"]] == [
+        1,
+        2,
+        3,
+    ]
+
+    projection = _compile_canonical(canonical, binding, known)
+    assert [
+        (item["row"], item["disposition"], item["reason_code"])
+        for item in projection["source_observations"]
+    ] == [
+        (2, "RUNTIME_READY", None),
+        (3, "RELEVANT_UNMAPPED", "MANAGED_ROW_ROLE_UNRESOLVED"),
+    ]
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+            response=_complete_response(table, known),
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256="a" * 64,
+        )
+    assert exc.value.code == "ordinary_trade_semantic_mapping_dry_run_incomplete"
+
+
+def test_two_managed_primary_headers_fail_closed(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 3, None),
+        ),
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as mapping_exc:
+        OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+            canonical=canonical,
+            confirmed_understandings=[],
+        )
+    assert (
+        mapping_exc.value.code
+        == "ordinary_trade_semantic_mapping_canonical_invalid"
+    )
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        _compile_canonical(canonical, binding, known)
+    assert exc.value.code == "ordinary_trade_canonical_managed_header_invalid"
+
+
+def test_managed_row_sequence_must_cover_every_canonical_cell_row(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+        ),
+    )
+    table["content"]["metadata"]["managed_row_sequence"].pop()
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as mapping_exc:
+        OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+            canonical=canonical,
+            confirmed_understandings=[],
+        )
+    assert (
+        mapping_exc.value.code
+        == "ordinary_trade_semantic_mapping_canonical_invalid"
+    )
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        _compile_canonical(canonical, binding, known)
+    assert exc.value.code == "ordinary_trade_canonical_managed_row_sequence_invalid"
+
+
+def test_managed_row_sequence_rejects_ghost_row(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+        ),
+    )
+    table["content"]["metadata"]["managed_row_sequence"].append(
+        {
+            "row_id": "managed-row-3",
+            "ordinal": 2,
+            "role": "NOTE",
+            "role_origin": "REVIEWED_SOURCE_BOUND",
+            "entry_texts": [],
+            "source_anchor_ids": [],
+        }
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        _compile_canonical(canonical, binding, known)
+    assert exc.value.code == "ordinary_trade_canonical_managed_row_sequence_invalid"
+
+
+def test_managed_role_must_match_cell_provenance(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+        ),
+    )
+    table["content"]["metadata"]["managed_row_sequence"][1]["role"] = "NOTE"
+
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        _compile_canonical(canonical, binding, known)
+    assert (
+        exc.value.code
+        == "ordinary_trade_canonical_managed_cell_provenance_invalid"
+    )
+
+
+def test_managed_roles_require_connected_canonical_authority(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+        ),
+    )
+    table["content"]["metadata"].pop(
+        "canonical_managed_whole_table_projection_connected"
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        _compile_canonical(canonical, binding, known)
+    assert exc.value.code == "ordinary_trade_canonical_managed_authority_invalid"
+
+
+def test_managed_data_before_primary_header_fails_closed(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("DATA", 2, None),
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 3, None),
+        ),
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as mapping_exc:
+        OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+            canonical=canonical,
+            confirmed_understandings=[],
+        )
+    assert (
+        mapping_exc.value.code
+        == "ordinary_trade_semantic_mapping_canonical_invalid"
+    )
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as compiler_exc:
+        _compile_canonical(canonical, binding, known)
+    assert (
+        compiler_exc.value.code
+        == "ordinary_trade_canonical_managed_header_order_invalid"
+    )
+
+
+def test_managed_markers_cannot_fall_back_to_legacy_owner(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+        ),
+    )
+    table["content"]["metadata"]["source_representation_owner"] = "legacy_pdf"
+
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        _compile_canonical(canonical, binding, known)
+    assert exc.value.code == "ordinary_trade_canonical_managed_authority_invalid"
+
+
+@pytest.mark.parametrize("replacement", [None, "missing"])
+def test_managed_provenance_cannot_fall_back_without_metadata(
+    tmp_path,
+    replacement,
+) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+            ("TOTAL", 3, None),
+        ),
+    )
+    if replacement == "missing":
+        table["content"].pop("metadata")
+    else:
+        table["content"]["metadata"] = replacement
+
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        _compile_canonical(canonical, binding, known)
+    assert exc.value.code == "ordinary_trade_canonical_managed_authority_invalid"
+
+
+def test_managed_cell_provenance_cannot_move_between_columns(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+        ),
+    )
+    row = [cell for cell in table["content"]["cells"] if cell["row"] == 2]
+    row[0]["source_refs"], row[1]["source_refs"] = (
+        row[1]["source_refs"],
+        row[0]["source_refs"],
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        _compile_canonical(canonical, binding, known)
+    assert (
+        exc.value.code
+        == "ordinary_trade_canonical_managed_cell_provenance_invalid"
+    )
+
+
+def test_managed_role_and_locator_relabel_breaks_provenance_id(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+        ),
+    )
+    table["content"]["metadata"]["managed_row_sequence"][1]["role"] = "NOTE"
+    row_refs = {
+        ref
+        for cell in table["content"]["cells"]
+        if cell["row"] == 2
+        for ref in cell["source_refs"]
+    }
+    for record in canonical["provenance"]:
+        if record["provenance_id"] in row_refs:
+            record["source_locator"]["managed_row_role"] = "NOTE"
+
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        _compile_canonical(canonical, binding, known)
+    assert (
+        exc.value.code
+        == "ordinary_trade_canonical_managed_cell_provenance_invalid"
+    )
+
+
+def test_managed_continuation_header_must_match_primary_header(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    column_count = len(known["columns"])
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("DATA", 2, None),
+            (
+                "CONTINUATION_HEADER",
+                1,
+                ("Different header", *("" for _ in range(column_count - 1))),
+            ),
+            ("DATA", 3, None),
+        ),
+    )
+
+    projection = _compile_canonical(canonical, binding, known)
+    assert [
+        (item["row"], item["disposition"], item["reason_code"])
+        for item in projection["source_observations"]
+    ] == [
+        (2, "RUNTIME_READY", None),
+        (3, "RELEVANT_UNMAPPED", "MANAGED_CONTINUATION_HEADER_MISMATCH"),
+        (4, "RUNTIME_READY", None),
+    ]
+
+
+def test_unknown_managed_table_never_hides_structural_rows(tmp_path) -> None:
+    _context, canonical, binding, table, _known = _canonical_case(tmp_path)
+    _managed_table_rows(
+        canonical,
+        table,
+        (
+            ("COLUMN_HEADER", 1, None),
+            ("NOTE", 2, None),
+            ("GROUP_HEADER", 3, None),
+        ),
+    )
+
+    projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+        canonical=canonical,
+        canonical_binding=binding,
+        mappings=[],
+    )
+    assert projection["runtime_records"] == []
+    assert [
+        (item["row"], item["disposition"], item["reason_code"])
+        for item in projection["source_observations"]
+    ] == [
+        (1, "RELEVANT_UNMAPPED", "UNKNOWN_STRUCTURAL_FINGERPRINT"),
+        (2, "RELEVANT_UNMAPPED", "UNKNOWN_STRUCTURAL_FINGERPRINT"),
+        (3, "RELEVANT_UNMAPPED", "UNKNOWN_STRUCTURAL_FINGERPRINT"),
+    ]
 
 
 def _property_enum_sets(schema: object, property_name: str) -> list[set[str]]:

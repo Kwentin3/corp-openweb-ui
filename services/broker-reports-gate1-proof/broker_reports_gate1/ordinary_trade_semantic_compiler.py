@@ -78,6 +78,32 @@ _DISPLAY_ONLY_NON_RECORD_ROLES = {
     "description",
     "unmapped",
 }
+_MANAGED_SOURCE_REPRESENTATION_OWNER = "managed_document_v2"
+_MANAGED_WHOLE_TABLE_PROJECTION_SCHEMA_VERSION = (
+    "broker_reports_managed_whole_table_projection_v2"
+)
+_MANAGED_ROW_ROLE_ORIGINS = {
+    "REVIEWED_SOURCE_BOUND",
+    "DETERMINISTIC_DERIVED",
+}
+_MANAGED_ROW_ROLES = {
+    "TABLE_TITLE",
+    "COLUMN_HEADER",
+    "GROUP_HEADER",
+    "DATA",
+    "SUBTOTAL",
+    "TOTAL",
+    "NOTE",
+    "CONTINUATION_HEADER",
+    "UNKNOWN",
+}
+_MANAGED_STRUCTURAL_ROW_ROLES = {
+    "TABLE_TITLE",
+    "COLUMN_HEADER",
+    "GROUP_HEADER",
+    "NOTE",
+    "CONTINUATION_HEADER",
+}
 _MAPPING_KEYS = {
     "schema_version",
     "mapping_id",
@@ -161,14 +187,24 @@ class OrdinaryTradeSemanticCompiler:
             if isinstance(item, dict) and item.get("node_type") == "TABLE"
         ]
         for table in table_nodes:
-            rows = _table_rows(table)
-            global_matches = _matching_mappings(rows=rows, mappings=accepted)
+            rows, managed_row_roles = ordinary_trade_canonical_table_rows(
+                table,
+                provenance=canonical.get("provenance"),
+                source=canonical.get("source"),
+            )
+            managed_header_rows = _managed_header_row_numbers(managed_row_roles)
+            global_matches = _matching_mappings(
+                rows=rows,
+                mappings=accepted,
+                candidate_header_rows=managed_header_rows,
+            )
             if len(global_matches) > 1:
                 _fail("ordinary_trade_table_mapping_ambiguous")
             scoped_matches = _matching_scoped_mappings(
                 table=table,
                 rows=rows,
                 mappings=accepted_scoped,
+                candidate_header_rows=managed_header_rows,
             )
             if len(scoped_matches) > 1:
                 _fail("ordinary_trade_case_mapping_scope_ambiguous")
@@ -185,29 +221,51 @@ class OrdinaryTradeSemanticCompiler:
                     _fail("ordinary_trade_table_resolution_ambiguous")
                 if resolutions:
                     resolution = resolutions[0]
+                    resolution_rows = _managed_unmapped_rows(
+                        rows=rows,
+                        managed_row_roles=managed_row_roles,
+                        after_row=resolution["header_row"],
+                    )
+                    no_consumer = (
+                        resolution["disposition"] == "NO_NAMED_CONSUMER"
+                    )
                     observations.extend(
                         _unmapped_table_rows(
                             binding=binding,
                             table=table,
                             rows={
                                 row: cells
-                                for row, cells in rows.items()
-                                if row > resolution["header_row"]
+                                for row, cells in resolution_rows.items()
+                                if not (
+                                    no_consumer
+                                    and managed_row_roles.get(row) == "UNKNOWN"
+                                )
                             },
                             reason=(
                                 "NO_NAMED_ORDINARY_TRADE_CONSUMER"
-                                if resolution["disposition"]
-                                == "NO_NAMED_CONSUMER"
+                                if no_consumer
                                 else "UNSUPPORTED_FINANCIAL_MEANING"
                             ),
                             disposition=(
                                 "SOURCE_RETAINED_NO_CONSUMER"
-                                if resolution["disposition"]
-                                == "NO_NAMED_CONSUMER"
+                                if no_consumer
                                 else "RELEVANT_UNMAPPED"
                             ),
                         )
                     )
+                    if no_consumer:
+                        observations.extend(
+                            _unmapped_table_rows(
+                                binding=binding,
+                                table=table,
+                                rows={
+                                    row: cells
+                                    for row, cells in resolution_rows.items()
+                                    if managed_row_roles.get(row) == "UNKNOWN"
+                                },
+                                reason="MANAGED_ROW_ROLE_UNRESOLVED",
+                            )
+                        )
                     continue
                 observations.extend(
                     _unmapped_table_rows(
@@ -220,8 +278,67 @@ class OrdinaryTradeSemanticCompiler:
                 continue
             mapping, header_row = matches[0]
             mapping_matches[mapping["mapping_id"]] += 1
-            numeric_convention = _table_numeric_convention(rows=rows, mapping=mapping)
-            for row_number in sorted(row for row in rows if row > header_row):
+            mapped_rows = _managed_mapped_data_rows(
+                rows=rows,
+                managed_row_roles=managed_row_roles,
+                after_row=header_row,
+            )
+            numeric_convention = _table_numeric_convention(
+                rows=mapped_rows,
+                mapping=mapping,
+            )
+            unresolved_rows = {
+                row: cells
+                for row, cells in rows.items()
+                if managed_row_roles.get(row) == "UNKNOWN"
+            }
+            retained_rows = {
+                row: cells
+                for row, cells in rows.items()
+                if managed_row_roles.get(row)
+                in {
+                    "GROUP_HEADER",
+                    "SUBTOTAL",
+                    "TOTAL",
+                    "NOTE",
+                    "CONTINUATION_HEADER",
+                }
+            }
+            for row_number in sorted(
+                {*mapped_rows, *unresolved_rows, *retained_rows}
+            ):
+                if row_number in unresolved_rows:
+                    observations.extend(
+                        _unmapped_table_rows(
+                            binding=binding,
+                            table=table,
+                            rows={row_number: unresolved_rows[row_number]},
+                            reason="MANAGED_ROW_ROLE_UNRESOLVED",
+                        )
+                    )
+                    continue
+                if row_number in retained_rows:
+                    reason = "MANAGED_STRUCTURAL_ROW_NO_FINANCIAL_CONSUMER"
+                    disposition = "SOURCE_RETAINED_NO_CONSUMER"
+                    if (
+                        managed_row_roles[row_number] == "CONTINUATION_HEADER"
+                        and not _same_row_literals(
+                            retained_rows[row_number],
+                            rows[header_row],
+                        )
+                    ):
+                        reason = "MANAGED_CONTINUATION_HEADER_MISMATCH"
+                        disposition = "RELEVANT_UNMAPPED"
+                    observations.extend(
+                        _unmapped_table_rows(
+                            binding=binding,
+                            table=table,
+                            rows={row_number: retained_rows[row_number]},
+                            reason=reason,
+                            disposition=disposition,
+                        )
+                    )
+                    continue
                 cells = rows[row_number]
                 if not any(_literal(cell) for cell in cells.values()):
                     continue
@@ -305,9 +422,17 @@ class OrdinaryTradeSemanticCompiler:
             node_id = table.get("node_id")
             if not isinstance(node_id, str) or not node_id:
                 _fail("ordinary_trade_table_node_id_invalid")
+            rows, managed_row_roles = ordinary_trade_canonical_table_rows(
+                table,
+                provenance=canonical.get("provenance"),
+                source=canonical.get("source"),
+            )
             matches = _matching_mappings(
-                rows=_table_rows(table),
+                rows=rows,
                 mappings=accepted,
+                candidate_header_rows=_managed_header_row_numbers(
+                    managed_row_roles
+                ),
             )
             if len(matches) > 1:
                 _fail("ordinary_trade_table_mapping_ambiguous")
@@ -637,8 +762,284 @@ def _table_rows(table: Mapping[str, Any]) -> dict[int, dict[int, dict[str, Any]]
     return rows
 
 
+def ordinary_trade_canonical_table_rows(
+    table: Mapping[str, Any],
+    *,
+    provenance: Any = None,
+    source: Any = None,
+) -> tuple[dict[int, dict[int, dict[str, Any]]], dict[int, str]]:
+    """Return one validated Canonical cell grid and its Managed row roles."""
+
+    rows = _table_rows(table)
+    return rows, _managed_row_roles_by_number(
+        table=table,
+        rows=rows,
+        provenance=provenance,
+        source=source,
+    )
+
+
+def _managed_row_roles_by_number(
+    *,
+    table: Mapping[str, Any],
+    rows: dict[int, dict[int, dict[str, Any]]],
+    provenance: Any,
+    source: Any,
+) -> dict[int, str]:
+    content = table.get("content")
+    if not isinstance(content, Mapping):
+        return {}
+    managed_provenance_present = _table_has_managed_cell_provenance(
+        rows=rows,
+        provenance=provenance,
+    )
+    metadata = content.get("metadata")
+    if not isinstance(metadata, Mapping):
+        if managed_provenance_present:
+            _fail("ordinary_trade_canonical_managed_authority_invalid")
+        return {}
+    owner_is_managed = (
+        metadata.get("source_representation_owner")
+        == _MANAGED_SOURCE_REPRESENTATION_OWNER
+    )
+    managed_markers_present = any(
+        str(key).startswith("managed_")
+        or key == "canonical_managed_whole_table_projection_connected"
+        for key in metadata
+    )
+    if not owner_is_managed:
+        if managed_markers_present or managed_provenance_present:
+            _fail("ordinary_trade_canonical_managed_authority_invalid")
+        return {}
+    if not _managed_metadata_connected(metadata):
+        _fail("ordinary_trade_canonical_managed_authority_invalid")
+    if not isinstance(provenance, list):
+        _fail("ordinary_trade_canonical_managed_authority_invalid")
+    if (
+        not isinstance(source, Mapping)
+        or not _sha256_text(source.get("source_sha256"))
+        or not isinstance(source.get("source_artifact_ref"), str)
+        or not source.get("source_artifact_ref")
+    ):
+        _fail("ordinary_trade_canonical_managed_authority_invalid")
+    provenance_by_id = {
+        item.get("provenance_id"): item
+        for item in provenance
+        if isinstance(item, Mapping)
+        and isinstance(item.get("provenance_id"), str)
+        and item.get("provenance_id")
+    }
+    if len(provenance_by_id) != len(provenance):
+        _fail("ordinary_trade_canonical_managed_authority_invalid")
+    sequence = metadata.get("managed_row_sequence")
+    if not isinstance(sequence, list) or not sequence:
+        _fail("ordinary_trade_canonical_managed_row_sequence_invalid")
+    roles: dict[int, str] = {}
+    row_ids: set[str] = set()
+    managed_provenance_refs: set[str] = set()
+    for row_number, item in enumerate(sequence, start=1):
+        if not isinstance(item, Mapping):
+            _fail("ordinary_trade_canonical_managed_row_sequence_invalid")
+        role = item.get("role")
+        role_origin = item.get("role_origin")
+        ordinal = item.get("ordinal")
+        row_id = item.get("row_id")
+        entry_texts = item.get("entry_texts")
+        if (
+            role not in _MANAGED_ROW_ROLES
+            or role_origin not in _MANAGED_ROW_ROLE_ORIGINS
+            or not isinstance(ordinal, int)
+            or isinstance(ordinal, bool)
+            or ordinal != row_number - 1
+            or not isinstance(row_id, str)
+            or not row_id
+            or row_id in row_ids
+            or not isinstance(entry_texts, list)
+            or any(not isinstance(value, str) for value in entry_texts)
+        ):
+            _fail("ordinary_trade_canonical_managed_row_sequence_invalid")
+        row_ids.add(row_id)
+        cells = rows.get(row_number, {})
+        if entry_texts != [
+            _literal(cell) for _, cell in sorted(cells.items())
+        ]:
+            _fail("ordinary_trade_canonical_managed_row_sequence_invalid")
+        _validate_managed_cell_provenance(
+            cells=cells,
+            row_id=row_id,
+            role=str(role),
+            metadata=metadata,
+            provenance_by_id=provenance_by_id,
+            seen_refs=managed_provenance_refs,
+            source=source,
+        )
+        roles[row_number] = str(role)
+    if set(rows) != set(roles):
+        _fail("ordinary_trade_canonical_managed_row_sequence_invalid")
+    header_rows = [
+        row for row, role in roles.items() if role == "COLUMN_HEADER"
+    ]
+    if len(header_rows) != 1:
+        _fail("ordinary_trade_canonical_managed_header_invalid")
+    if any(
+        row < header_rows[0] and role == "DATA"
+        for row, role in roles.items()
+    ):
+        _fail("ordinary_trade_canonical_managed_header_order_invalid")
+    return roles
+
+
+def _table_has_managed_cell_provenance(
+    *,
+    rows: Mapping[int, Mapping[int, Mapping[str, Any]]],
+    provenance: Any,
+) -> bool:
+    if not isinstance(provenance, list):
+        return False
+    table_provenance_refs = {
+        ref
+        for cells in rows.values()
+        for cell in cells.values()
+        for ref in (cell.get("source_refs") or [])
+        if isinstance(ref, str)
+    }
+    return any(
+        isinstance(item, Mapping)
+        and item.get("provenance_id") in table_provenance_refs
+        and isinstance(item.get("source_locator"), Mapping)
+        and item["source_locator"].get("kind") == "managed_whole_table_entry"
+        for item in provenance
+    )
+
+
+def _managed_metadata_connected(metadata: Mapping[str, Any]) -> bool:
+    return (
+        metadata.get("source_format") == "pdf"
+        and metadata.get("canonical_managed_whole_table_projection_connected")
+        is True
+        and metadata.get("managed_whole_table_projection_schema_version")
+        == _MANAGED_WHOLE_TABLE_PROJECTION_SCHEMA_VERSION
+        and metadata.get("managed_table_completeness_status") == "COMPLETE"
+        and _prefixed_text(
+            metadata.get("managed_whole_table_projection_id"),
+            "managedtableprojection_",
+        )
+        and _prefixed_text(metadata.get("managed_document_id"), "document_pdf_")
+        and _prefixed_text(metadata.get("managed_table_id"), "table_")
+        and _sha256_text(metadata.get("managed_document_integrity_sha256"))
+    )
+
+
+def _validate_managed_cell_provenance(
+    *,
+    cells: Mapping[int, Mapping[str, Any]],
+    row_id: str,
+    role: str,
+    metadata: Mapping[str, Any],
+    provenance_by_id: Mapping[str, Mapping[str, Any]],
+    seen_refs: set[str],
+    source: Mapping[str, Any],
+) -> None:
+    for cell in cells.values():
+        refs = cell.get("source_refs")
+        if (
+            not isinstance(refs, list)
+            or len(refs) != 1
+            or not isinstance(refs[0], str)
+            or refs[0] in seen_refs
+        ):
+            _fail("ordinary_trade_canonical_managed_cell_provenance_invalid")
+        seen_refs.add(refs[0])
+        record = provenance_by_id.get(refs[0])
+        locator = record.get("source_locator") if isinstance(record, Mapping) else None
+        if (
+            not isinstance(locator, Mapping)
+            or locator.get("kind") != "managed_whole_table_entry"
+            or locator.get("managed_row_id") != row_id
+            or locator.get("managed_row_role") != role
+            or locator.get("managed_whole_table_projection_id")
+            != metadata.get("managed_whole_table_projection_id")
+            or locator.get("managed_document_id")
+            != metadata.get("managed_document_id")
+            or locator.get("managed_table_id") != metadata.get("managed_table_id")
+            or not _prefixed_text(locator.get("managed_entry_id"), "entry_")
+            or cell.get("source_coordinate")
+            != f"{row_id}:{locator.get('managed_entry_id')}"
+            or record.get("source_ref") != source.get("source_artifact_ref")
+            or refs[0]
+            != "prov_"
+            + _sha256_json([source.get("source_sha256"), dict(locator)])[:24]
+        ):
+            _fail("ordinary_trade_canonical_managed_cell_provenance_invalid")
+
+
+def _prefixed_text(value: Any, prefix: str) -> bool:
+    return isinstance(value, str) and value.startswith(prefix) and len(value) > len(prefix)
+
+
+def _sha256_text(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _managed_header_row_numbers(
+    managed_row_roles: Mapping[int, str],
+) -> frozenset[int] | None:
+    if not managed_row_roles:
+        return None
+    return frozenset(
+        row for row, role in managed_row_roles.items() if role == "COLUMN_HEADER"
+    )
+
+
+def _managed_mapped_data_rows(
+    *,
+    rows: dict[int, dict[int, dict[str, Any]]],
+    managed_row_roles: Mapping[int, str],
+    after_row: int,
+) -> dict[int, dict[int, dict[str, Any]]]:
+    if not managed_row_roles:
+        return {row: cells for row, cells in rows.items() if row > after_row}
+    return {
+        row: cells
+        for row, cells in rows.items()
+        if row > after_row and managed_row_roles.get(row) == "DATA"
+    }
+
+
+def _managed_unmapped_rows(
+    *,
+    rows: dict[int, dict[int, dict[str, Any]]],
+    managed_row_roles: Mapping[int, str],
+    after_row: int = 0,
+) -> dict[int, dict[int, dict[str, Any]]]:
+    if not managed_row_roles:
+        return {row: cells for row, cells in rows.items() if row > after_row}
+    return {
+        row: cells
+        for row, cells in rows.items()
+        if row > after_row
+        and managed_row_roles.get(row) not in _MANAGED_STRUCTURAL_ROW_ROLES
+    }
+
+
+def _same_row_literals(
+    left: Mapping[int, Mapping[str, Any]],
+    right: Mapping[int, Mapping[str, Any]],
+) -> bool:
+    return set(left) == set(right) and all(
+        _literal(left[column]) == _literal(right[column]) for column in left
+    )
+
+
 def _matching_mappings(
-    *, rows: dict[int, dict[int, dict[str, Any]]], mappings: tuple[dict[str, Any], ...]
+    *,
+    rows: dict[int, dict[int, dict[str, Any]]],
+    mappings: tuple[dict[str, Any], ...],
+    candidate_header_rows: frozenset[int] | None = None,
 ) -> list[tuple[dict[str, Any], int]]:
     result = []
     for mapping in mappings:
@@ -648,7 +1049,8 @@ def _matching_mappings(
         row_matches = [
             row_number
             for row_number, cells in rows.items()
-            if set(cells) == set(expected)
+            if (candidate_header_rows is None or row_number in candidate_header_rows)
+            and set(cells) == set(expected)
             and all(
                 _literal(cells[column]) == literal
                 for column, literal in expected.items()
@@ -678,13 +1080,18 @@ def _matching_scoped_mappings(
     table: Mapping[str, Any],
     rows: dict[int, dict[int, dict[str, Any]]],
     mappings: tuple[dict[str, Any], ...],
+    candidate_header_rows: frozenset[int] | None = None,
 ) -> list[tuple[dict[str, Any], int]]:
     scoped = tuple(
         item["mapping"]
         for item in mappings
         if item["table_node_id"] == table.get("node_id")
     )
-    return _matching_mappings(rows=rows, mappings=scoped)
+    return _matching_mappings(
+        rows=rows,
+        mappings=scoped,
+        candidate_header_rows=candidate_header_rows,
+    )
 
 
 def _table_numeric_convention(

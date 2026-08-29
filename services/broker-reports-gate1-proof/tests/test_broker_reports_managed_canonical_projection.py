@@ -22,6 +22,10 @@ from broker_reports_gate1.managed_pdf_document_v2 import (
     ManagedPdfDocumentV2AdjudicatedBuildResult,
     ManagedPdfDocumentV2Factory,
 )
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    OrdinaryTradeSemanticMappingError,
+    OrdinaryTradeSemanticMappingFactory,
+)
 from tests.test_broker_reports_managed_pdf_document_v2 import (
     _GeminiBoundary,
     _managed_full_source,
@@ -233,6 +237,15 @@ def test_headerless_continuation_and_outside_paragraph_build_one_canonical_table
     assert receipt["table_node_count"] == 1
     assert receipt["managed_whole_table_projections_total"] == 1
     assert receipt["represented_managed_whole_table_projection_units_total"] == 2
+    mapping_package = (
+        OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+            canonical=artifact,
+            confirmed_understandings=[],
+        )
+    )
+    assert [
+        row["row"] for row in mapping_package["case"]["tables"][0]["rows"]
+    ] == [1, 2, 3, 4, 5, 6]
 
 
 def test_repeated_header_keeps_managed_role_and_is_not_data(
@@ -274,6 +287,12 @@ def test_repeated_header_keeps_managed_role_and_is_not_data(
         ["LKOH", "RUB"],
         ["ROSN", "RUB"],
     ]
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+            canonical=artifact,
+            confirmed_understandings=[],
+        )
+    assert exc.value.code == "ordinary_trade_semantic_mapping_canonical_invalid"
 
 
 def test_distinct_titled_similar_tables_build_two_canonical_tables(

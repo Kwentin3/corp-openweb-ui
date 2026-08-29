@@ -13,8 +13,12 @@ from .gate2_source_fact_contracts import Gate2ManagedPrompt
 from .ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
-from .ordinary_trade_semantic_compiler import structural_fingerprint
-from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFactory
+from .ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerError,
+    OrdinaryTradeSemanticCompilerFactory,
+    ordinary_trade_canonical_table_rows,
+    structural_fingerprint,
+)
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
@@ -516,30 +520,51 @@ def _table_surfaces(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
         if not isinstance(node, dict) or node.get("node_type") != "TABLE":
             continue
         node_id = node.get("node_id")
-        cells = (node.get("content") or {}).get("cells")
-        if not isinstance(node_id, str) or not node_id or not isinstance(cells, list):
+        if not isinstance(node_id, str) or not node_id:
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        try:
+            canonical_rows, managed_row_roles = ordinary_trade_canonical_table_rows(
+                node,
+                provenance=canonical.get("provenance"),
+                source=canonical.get("source"),
+            )
+        except OrdinaryTradeSemanticCompilerError:
             _fail("ordinary_trade_semantic_mapping_canonical_invalid")
         by_row: dict[int, list[dict[str, Any]]] = {}
-        for cell in cells:
-            if not isinstance(cell, dict):
-                _fail("ordinary_trade_semantic_mapping_canonical_invalid")
-            row = cell.get("row")
-            column = cell.get("column")
-            literal = cell.get("displayed_value")
-            if not isinstance(literal, str):
-                literal = cell.get("value")
+        for row_number, row_cells in canonical_rows.items():
             if (
-                not isinstance(row, int)
-                or row < 1
-                or not isinstance(column, int)
-                or column < 1
-                or not isinstance(literal, str)
+                managed_row_roles
+                and managed_row_roles.get(row_number)
+                in {
+                    "TABLE_TITLE",
+                    "GROUP_HEADER",
+                    "NOTE",
+                    "CONTINUATION_HEADER",
+                    "SUBTOTAL",
+                    "TOTAL",
+                }
             ):
-                _fail("ordinary_trade_semantic_mapping_canonical_invalid")
-            by_row.setdefault(row, []).append(
-                {"column": column, "literal": literal}
-            )
-            cells_total += 1
+                continue
+            for cell in row_cells.values():
+                if not isinstance(cell, dict):
+                    _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+                row = cell.get("row")
+                column = cell.get("column")
+                literal = cell.get("displayed_value")
+                if not isinstance(literal, str):
+                    literal = cell.get("value")
+                if (
+                    not isinstance(row, int)
+                    or row < 1
+                    or not isinstance(column, int)
+                    or column < 1
+                    or not isinstance(literal, str)
+                ):
+                    _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+                by_row.setdefault(row, []).append(
+                    {"column": column, "literal": literal}
+                )
+                cells_total += 1
         if len(by_row) > _MAX_ROWS_PER_TABLE:
             _fail("ordinary_trade_semantic_mapping_context_limit")
         rows = [
