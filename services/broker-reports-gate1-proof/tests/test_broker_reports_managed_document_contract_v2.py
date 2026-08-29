@@ -254,6 +254,8 @@ def test_schema_is_row_first_and_has_no_grid_core(
         "relations",
         "issues",
         "known_gap_ids",
+        "covered_source_atom_refs",
+        "covered_source_word_refs",
     }
     serialized = json.dumps(table, sort_keys=True)
     for forbidden in (

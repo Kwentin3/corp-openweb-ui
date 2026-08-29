@@ -6,6 +6,7 @@ import hashlib
 import inspect
 import json
 import threading
+from collections import Counter
 from dataclasses import FrozenInstanceError
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -34,12 +35,18 @@ from broker_reports_gate1.managed_document_contracts_v2 import (
     SCHEMA_CANONICAL_SHA256,
     ManagedDocumentContractV2Error,
     ManagedDocumentContractV2Validator,
+    _reviewed_source_bound_inventory,
+    _source_unit_ledger_inventory,
+)
+from broker_reports_gate1.managed_document_contracts import (
+    compute_document_integrity_sha256,
 )
 from broker_reports_gate1.managed_pdf_document_v2 import (
     FACTORY_REQUIRED,
     FORBIDDEN,
     ManagedPdfDocumentV2Error,
     ManagedPdfDocumentV2Factory,
+    _bind_source_unit_ledger,
     _managed_document_recovery_projection,
 )
 from broker_reports_gate1.pdf_document_visual_adjudication import (
@@ -51,6 +58,7 @@ from tests.test_broker_reports_logical_row_table_recovery import (
     _source_bound_case,
 )
 from tests.test_broker_reports_pdf_document_visual_adjudication import (
+    _numeric_headerless_case,
     _two_page_observations,
 )
 from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
@@ -257,8 +265,14 @@ def _count_real_full_source_calls(
         owner: FullSourceArtifactBuilder,
         **kwargs: Any,
     ) -> FullSourceBuildResult:
-        calls.append(copy.deepcopy(kwargs))
-        return original(owner, **kwargs)
+        result = original(owner, **kwargs)
+        calls.append(
+            {
+                "kwargs": copy.deepcopy(kwargs),
+                "result": copy.deepcopy(result),
+            }
+        )
+        return result
 
     monkeypatch.setattr(FullSourceArtifactBuilder, "build", counting_build)
     return calls
@@ -319,10 +333,11 @@ def test_adjudicated_route_uses_one_source_and_recovery_then_seals_reviewed(
         distinct_second_title=True
     )
     source_ref = "private_pdf_adjudicated_title"
-    payload = _managed_full_source(
+    original_full_source = _managed_full_source(
         pdf_bytes,
         source_artifact_ref=source_ref,
-    ).payloads[0]
+    )
+    payload = original_full_source.payloads[0]
     observations = _two_page_observations(
         payload,
         second_title=True,
@@ -421,6 +436,91 @@ def test_adjudicated_route_uses_one_source_and_recovery_then_seals_reviewed(
     assert result.safe_diagnostics["managed_document_created"] is True
     assert result.safe_diagnostics["canonical_artifacts_created"] == 0
     assert result.safe_diagnostics["facts_published"] == 0
+    document_coverage = result.managed_document.payload["source"][
+        "table_source_unit_coverage"
+    ]
+    records = [
+        unit
+        for table in tables
+        for part in table["source_parts"]
+        for unit in part["covered_source_units"]
+    ]
+    record_by_ref = {item["unit_ref"]: item for item in records}
+    exact_full_source = full_source_calls[0]["result"]
+    expected_units = {
+        unit["unit_ref"]: unit
+        for unit in exact_full_source.units
+        if (unit.get("pdf_layout_coverage") or {}).get("owned_word_refs")
+    }
+    assert len(records) == len(record_by_ref) == len(expected_units) == 3
+    assert Counter(
+        unit["pdf_unit_type"] for unit in expected_units.values()
+    ) == Counter(
+        {
+            "pdf_table_candidate_unit": 2,
+            "pdf_line_cluster_unit": 1,
+        }
+    )
+    title_unit = next(
+        unit
+        for unit in expected_units.values()
+        if unit["pdf_unit_type"] == "pdf_line_cluster_unit"
+    )
+    page_two_ref = next(
+        page["page_ref"]
+        for page in exact_full_source.payloads[0][
+            "pdf_text_layer_projection"
+        ]["page_inventory"]
+        if page["page_number"] == 2
+    )
+    assert title_unit["page_refs"] == [page_two_ref]
+    assert [
+        len(part["covered_source_units"])
+        for table in tables
+        for part in table["source_parts"]
+    ] == [1, 2]
+    assert document_coverage["covered_source_unit_refs"] == sorted(
+        expected_units
+    )
+    assert document_coverage["duplicate_source_unit_refs"] == []
+    assert document_coverage["duplicate_source_atom_refs"] == []
+    assert document_coverage["duplicate_source_word_refs"] == []
+    for unit_ref, source_unit in expected_units.items():
+        record = record_by_ref[unit_ref]
+        assert record["source_unit_checksum_ref"] == source_unit[
+            "source_unit_checksum_ref"
+        ]
+        assert record["parent_payload_ref"] == source_unit[
+            "parent_payload_ref"
+        ]
+        assert record["page_refs"] == sorted(source_unit["page_refs"])
+        assert record["selected_source_atom_refs"] == sorted(
+            source_unit["coverage"]["selected_source_refs"]
+        )
+        assert record["table_contributing_word_refs"] == sorted(
+            source_unit["pdf_layout_coverage"]["owned_word_refs"]
+        )
+    assert document_coverage["covered_source_atom_refs"] == sorted(
+        atom
+        for record in records
+        for atom in record["selected_source_atom_refs"]
+    )
+    assert document_coverage["covered_source_word_refs"] == sorted(
+        word
+        for record in records
+        for word in record["table_contributing_word_refs"]
+    )
+    assert len(document_coverage["covered_source_word_refs"]) == 15
+    ownership = result.managed_document.payload["source_word_ownership"]
+    assert len(ownership) == 15
+    anchor_by_id = {
+        anchor["anchor_id"]: anchor
+        for anchor in result.managed_document.payload["anchors"]
+    }
+    assert sorted(
+        anchor_by_id[item["source_anchor_id"]]["locator"]["source_block_ref"]
+        for item in ownership
+    ) == document_coverage["covered_source_word_refs"]
     with pytest.raises(
         ManagedDocumentContractV2Error,
         match="managed_document_v2_reviewed_source_bound_public_input_forbidden",
@@ -428,6 +528,105 @@ def test_adjudicated_route_uses_one_source_and_recovery_then_seals_reviewed(
         ManagedDocumentContractV2Validator(_schema()).seal(
             result.managed_document.payload
         )
+
+    validator = ManagedDocumentContractV2Validator(_schema())
+    reviewed_plan = tuple(
+        _reviewed_source_bound_inventory(result.managed_document.payload)
+    )
+    ledger_plan = tuple(
+        _source_unit_ledger_inventory(result.managed_document.payload)
+    )
+    checksum_mutation = copy.deepcopy(result.managed_document.payload)
+    checksum_mutation.pop("integrity_sha256")
+    checksum_mutation["blocks"][1]["content"]["source_parts"][0][
+        "covered_source_units"
+    ][0]["source_unit_checksum_ref"] = "srcunitchk_" + "0" * 24
+    with pytest.raises(
+        ManagedDocumentContractV2Error,
+        match="managed_document_v2_source_unit_ledger_plan_mismatch",
+    ):
+        validator._seal_adjudicated_source_unit_ledger(
+            checksum_mutation,
+            expected_reviewed_source_bound=reviewed_plan,
+            expected_source_unit_ledger=ledger_plan,
+        )
+
+    overlap_mutation = copy.deepcopy(result.managed_document.payload)
+    overlap_mutation.pop("integrity_sha256")
+    overlap_table = next(
+        block["content"]
+        for block in overlap_mutation["blocks"]
+        if block["block_type"] == "TABLE"
+    )
+    duplicated_unit = copy.deepcopy(
+        overlap_table["source_parts"][0]["covered_source_units"][0]
+    )
+    duplicated_unit["source_unit_checksum_ref"] = "srcunitchk_" + "f" * 24
+    overlap_table["source_parts"][0]["covered_source_units"].append(
+        duplicated_unit
+    )
+    with pytest.raises(
+        ManagedDocumentContractV2Error,
+        match="managed_document_v2_source_unit_part_word_partition_invalid",
+    ):
+        validator._seal_adjudicated_source_unit_ledger(
+            overlap_mutation,
+            expected_reviewed_source_bound=reviewed_plan,
+            expected_source_unit_ledger=ledger_plan,
+        )
+
+    partial_unit = copy.deepcopy(result.managed_document.payload)
+    partial_unit["source"].pop("table_source_unit_coverage")
+    first_table = next(
+        block["content"]
+        for block in partial_unit["blocks"]
+        if block["block_type"] == "TABLE"
+    )
+    first_table.pop("covered_source_atom_refs")
+    first_table.pop("covered_source_word_refs")
+    for part in first_table["source_parts"]:
+        part.pop("covered_source_units")
+    first_data_row = next(
+        row for row in first_table["ordered_rows"] if row["role"] == "DATA"
+    )
+    first_data_row["entries"] = first_data_row["entries"][1:]
+    with pytest.raises(
+        ManagedPdfDocumentV2Error,
+        match="managed_pdf_v2_source_unit_ledger_partial_unit_forbidden",
+    ):
+        _bind_source_unit_ledger(
+            candidate=partial_unit,
+            full_source=exact_full_source,
+            source_checksum_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+        )
+
+    public_payload = copy.deepcopy(result.managed_document.payload)
+    for table in [
+        block["content"]
+        for block in public_payload["blocks"]
+        if block["block_type"] == "TABLE"
+    ]:
+        for part in table["source_parts"]:
+            part.pop("reviewed_source_bound_evidence", None)
+        for row in table["ordered_rows"]:
+            if row["role_origin"] == "REVIEWED_SOURCE_BOUND":
+                row["role_origin"] = "DETERMINISTIC_DERIVED"
+            for entry in row["entries"]:
+                if entry["origin"] == "REVIEWED_SOURCE_BOUND":
+                    entry["origin"] = "DETERMINISTIC_DERIVED"
+    public_payload["integrity_sha256"] = compute_document_integrity_sha256(
+        public_payload
+    )
+    for operation in (
+        lambda: validator.validate(public_payload),
+        lambda: validator.parse_json(json.dumps(public_payload)),
+        lambda: validator.seal(public_payload),
+    ):
+        with pytest.raises(
+            ManagedDocumentContractV2Error,
+            match="managed_document_v2_source_unit_ledger_public_input_forbidden",
+        ):
+            operation()
 
 
 def test_adjudicated_partial_returns_zero_managed_canonical_and_facts(
@@ -477,6 +676,170 @@ def test_adjudicated_partial_returns_zero_managed_canonical_and_facts(
     assert result.safe_diagnostics["model_generation_calls"] == 2
     assert result.safe_diagnostics["count_tokens_http_calls"] == 2
     assert result.safe_diagnostics["same_raster_binding"] is True
+    assert result.safe_diagnostics["managed_document_created"] is False
+    assert result.safe_diagnostics["canonical_artifacts_created"] == 0
+    assert result.safe_diagnostics["facts_published"] == 0
+
+
+def test_adjudicated_headerless_continuation_seals_one_whole_unit_table(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pdf_bytes, _, source_payload = _numeric_headerless_case()
+    source_ref = "private_pdf_adjudicated_headerless"
+    exact_payload = _managed_full_source(
+        pdf_bytes,
+        source_artifact_ref=source_ref,
+    ).payloads[0]
+    observations = _two_page_observations(exact_payload)
+    full_source_calls = _count_real_full_source_calls(monkeypatch)
+    request = _openwebui_request()
+
+    with _GeminiBoundary([observations, observations]) as boundary:
+        _route_openwebui_resolver_to_boundary(
+            monkeypatch,
+            request=request,
+            boundary=boundary,
+        )
+        result = (
+            ManagedPdfDocumentV2Factory()
+            .create_adjudicated_for_openwebui(_schema(), request)
+            .build(
+                pdf_bytes,
+                source_artifact_ref=source_ref,
+                task_id="managed_document_headerless",
+            )
+        )
+
+    assert source_payload["parser_completeness_status"] == "complete"
+    assert result.status == "COMPLETE"
+    assert result.managed_document is not None
+    tables = [
+        block["content"]
+        for block in result.managed_document.payload["blocks"]
+        if block["block_type"] == "TABLE"
+    ]
+    assert len(tables) == 1
+    assert len(tables[0]["source_parts"]) == 2
+    records = [
+        unit
+        for part in tables[0]["source_parts"]
+        for unit in part["covered_source_units"]
+    ]
+    assert len(records) == 2
+    exact_units = full_source_calls[0]["result"].units
+    assert {
+        unit["pdf_unit_type"]
+        for unit in exact_units
+        if unit["unit_ref"] in {record["unit_ref"] for record in records}
+    } == {"pdf_table_candidate_unit"}
+    assert len(tables[0]["covered_source_word_refs"]) == 12
+    assert result.safe_diagnostics["canonical_artifacts_created"] == 0
+    assert result.safe_diagnostics["facts_published"] == 0
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_detail"),
+    [
+        (
+            "checksum",
+            "managed_pdf_v2_source_unit_ledger_unit_validation_failed",
+        ),
+        (
+            "atom",
+            "managed_pdf_v2_source_unit_ledger_unit_validation_failed",
+        ),
+        (
+            "missing",
+            "managed_pdf_v2_source_unit_ledger_unit_inventory_mismatch",
+        ),
+        (
+            "parent",
+            "managed_pdf_v2_source_unit_ledger_unit_validation_failed",
+        ),
+        (
+            "payload_checksum",
+            "managed_pdf_v2_source_unit_ledger_unit_validation_failed",
+        ),
+        (
+            "normalization_run",
+            "managed_pdf_v2_source_unit_ledger_unit_validation_failed",
+        ),
+        (
+            "page",
+            "managed_pdf_v2_source_unit_ledger_unit_validation_failed",
+        ),
+        (
+            "source_value",
+            "managed_pdf_v2_source_unit_ledger_unit_validation_failed",
+        ),
+    ],
+)
+def test_adjudicated_source_unit_mutation_returns_partial_without_managed(
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    expected_detail: str,
+) -> None:
+    pdf_bytes, _, _ = _source_bound_case(distinct_second_title=True)
+    source_ref = f"private_pdf_ledger_mutation_{mutation}"
+    payload = _managed_full_source(
+        pdf_bytes,
+        source_artifact_ref=source_ref,
+    ).payloads[0]
+    observations = _two_page_observations(payload, second_title=True)
+    original = FullSourceArtifactBuilder.build
+
+    def mutated_build(
+        owner: FullSourceArtifactBuilder,
+        **kwargs: Any,
+    ) -> FullSourceBuildResult:
+        built = copy.deepcopy(original(owner, **kwargs))
+        if mutation == "missing":
+            built.units.pop()
+        elif mutation == "checksum":
+            built.units[0]["source_unit_checksum_ref"] = (
+                "srcunitchk_" + "0" * 24
+            )
+        elif mutation == "atom":
+            built.units[0]["coverage"]["selected_source_refs"][0] = (
+                "textseg_" + "0" * 24
+            )
+        elif mutation == "parent":
+            built.units[0]["parent_payload_ref"] = "sourcepayload_forged"
+        elif mutation == "payload_checksum":
+            built.units[0]["payload_checksum_ref"] = (
+                "payloadchk_" + "0" * 24
+            )
+        elif mutation == "normalization_run":
+            built.units[0]["normalization_run_id"] = "normrun_forged"
+        elif mutation == "page":
+            built.units[0]["page_refs"] = list(built.units[1]["page_refs"])
+        else:
+            built.units[0]["pdf_layout_source_value_refs"][0] = (
+                "pdfvalue_forged"
+            )
+        return built
+
+    monkeypatch.setattr(FullSourceArtifactBuilder, "build", mutated_build)
+    request = _openwebui_request()
+    with _GeminiBoundary([observations, observations]) as boundary:
+        _route_openwebui_resolver_to_boundary(
+            monkeypatch,
+            request=request,
+            boundary=boundary,
+        )
+        result = (
+            ManagedPdfDocumentV2Factory()
+            .create_adjudicated_for_openwebui(_schema(), request)
+            .build(
+                pdf_bytes,
+                source_artifact_ref=source_ref,
+                task_id=f"ledger_mutation_{mutation}",
+            )
+        )
+
+    assert result.status == "PARTIAL"
+    assert result.managed_document is None
+    assert result.private_diagnostics["detail_code"] == expected_detail
     assert result.safe_diagnostics["managed_document_created"] is False
     assert result.safe_diagnostics["canonical_artifacts_created"] == 0
     assert result.safe_diagnostics["facts_published"] == 0

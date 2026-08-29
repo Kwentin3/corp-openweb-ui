@@ -23,7 +23,7 @@ SCHEMA_ID = (
     "broker_reports_managed_document_v2.schema.json"
 )
 SCHEMA_CANONICAL_SHA256 = (
-    "02a60ac6d143bf6c2364c74a32a4eabc9d4852aaef5bd8b7bdc987ed81fb423a"
+    "7f5765311e5b7f7332fecbd8edb3e239842d5e35b5da441bc5d51049f6eb6df1"
 )
 _STANDARD_METADATA_NAMES = {
     "document_type",
@@ -123,13 +123,18 @@ class ManagedDocumentContractV2Validator:
         return self.validate(payload)
 
     def validate(self, payload: Mapping[str, Any]) -> ManagedDocumentV2:
-        return self._validate(payload, expected_reviewed_source_bound=None)
+        return self._validate(
+            payload,
+            expected_reviewed_source_bound=None,
+            expected_source_unit_ledger=None,
+        )
 
     def _validate(
         self,
         payload: Mapping[str, Any],
         *,
         expected_reviewed_source_bound: tuple[Mapping[str, Any], ...] | None,
+        expected_source_unit_ledger: tuple[Mapping[str, Any], ...] | None,
     ) -> ManagedDocumentV2:
         candidate = copy.deepcopy(dict(payload))
         _reject_non_finite_numbers(candidate)
@@ -150,10 +155,20 @@ class ManagedDocumentContractV2Validator:
                 )
         elif list(expected_reviewed_source_bound) != actual_reviewed:
             _fail("managed_document_v2_reviewed_source_bound_plan_mismatch")
+        actual_ledger = _source_unit_ledger_inventory(candidate)
+        if expected_source_unit_ledger is None:
+            if actual_ledger:
+                _fail("managed_document_v2_source_unit_ledger_public_input_forbidden")
+        elif list(expected_source_unit_ledger) != actual_ledger:
+            _fail("managed_document_v2_source_unit_ledger_plan_mismatch")
         return ManagedDocumentV2(payload=candidate)
 
     def seal(self, payload: Mapping[str, Any]) -> ManagedDocumentV2:
-        return self._seal(payload, expected_reviewed_source_bound=None)
+        return self._seal(
+            payload,
+            expected_reviewed_source_bound=None,
+            expected_source_unit_ledger=None,
+        )
 
     def _seal_reviewed_source_bound(
         self,
@@ -166,6 +181,24 @@ class ManagedDocumentContractV2Validator:
         return self._seal(
             payload,
             expected_reviewed_source_bound=expected_reviewed_source_bound,
+            expected_source_unit_ledger=None,
+        )
+
+    def _seal_adjudicated_source_unit_ledger(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        expected_reviewed_source_bound: tuple[Mapping[str, Any], ...],
+        expected_source_unit_ledger: tuple[Mapping[str, Any], ...],
+    ) -> ManagedDocumentV2:
+        if not expected_reviewed_source_bound:
+            _fail("managed_document_v2_reviewed_source_bound_plan_required")
+        if not expected_source_unit_ledger:
+            _fail("managed_document_v2_source_unit_ledger_plan_required")
+        return self._seal(
+            payload,
+            expected_reviewed_source_bound=expected_reviewed_source_bound,
+            expected_source_unit_ledger=expected_source_unit_ledger,
         )
 
     def _seal(
@@ -173,6 +206,7 @@ class ManagedDocumentContractV2Validator:
         payload: Mapping[str, Any],
         *,
         expected_reviewed_source_bound: tuple[Mapping[str, Any], ...] | None,
+        expected_source_unit_ledger: tuple[Mapping[str, Any], ...] | None,
     ) -> ManagedDocumentV2:
         candidate = copy.deepcopy(dict(payload))
         candidate.pop("integrity_sha256", None)
@@ -183,6 +217,7 @@ class ManagedDocumentContractV2Validator:
         return self._validate(
             candidate,
             expected_reviewed_source_bound=expected_reviewed_source_bound,
+            expected_source_unit_ledger=expected_source_unit_ledger,
         )
 
 
@@ -267,6 +302,55 @@ def _reviewed_source_bound_inventory(
                     ],
                 }
             )
+    return inventory
+
+
+def _source_unit_ledger_inventory(
+    payload: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    inventory: list[dict[str, Any]] = []
+    source = payload.get("source")
+    if isinstance(source, Mapping) and source.get("table_source_unit_coverage") is not None:
+        inventory.append(
+            {
+                "scope": "DOCUMENT",
+                "coverage": copy.deepcopy(source["table_source_unit_coverage"]),
+            }
+        )
+    for block in payload.get("blocks") or []:
+        if not isinstance(block, Mapping) or block.get("block_type") != "TABLE":
+            continue
+        table = block.get("content")
+        if not isinstance(table, Mapping):
+            continue
+        if (
+            table.get("covered_source_atom_refs") is not None
+            or table.get("covered_source_word_refs") is not None
+        ):
+            inventory.append(
+                {
+                    "scope": "TABLE",
+                    "table_id": table.get("table_id"),
+                    "covered_source_atom_refs": copy.deepcopy(
+                        table.get("covered_source_atom_refs")
+                    ),
+                    "covered_source_word_refs": copy.deepcopy(
+                        table.get("covered_source_word_refs")
+                    ),
+                }
+            )
+        for part in table.get("source_parts") or []:
+            if isinstance(part, Mapping) and part.get("covered_source_units") is not None:
+                inventory.append(
+                    {
+                        "scope": "SOURCE_PART",
+                        "table_id": table.get("table_id"),
+                        "source_part_id": part.get("source_part_id"),
+                        "covered_source_units": copy.deepcopy(
+                            part.get("covered_source_units")
+                        ),
+                    }
+                )
     return inventory
 
 
@@ -486,6 +570,134 @@ def _validate_semantic_invariants(payload: dict[str, Any]) -> None:
         payload
     ):
         _fail("managed_document_v2_integrity_invalid")
+
+    _validate_source_unit_ledger(payload, anchor_by_id=anchor_by_id)
+
+
+def _validate_source_unit_ledger(
+    payload: dict[str, Any],
+    *,
+    anchor_by_id: dict[str, dict[str, Any]],
+) -> None:
+    source_coverage = payload["source"].get("table_source_unit_coverage")
+    tables = [
+        block["content"]
+        for block in payload["blocks"]
+        if block["block_type"] == "TABLE"
+    ]
+    ledger_present = source_coverage is not None or any(
+        table.get("covered_source_atom_refs") is not None
+        or table.get("covered_source_word_refs") is not None
+        or any(part.get("covered_source_units") is not None for part in table["source_parts"])
+        for table in tables
+    )
+    if not ledger_present:
+        return
+    if source_coverage is None:
+        _fail("managed_document_v2_source_unit_document_ledger_missing")
+
+    page_ref_by_number: dict[int, str] = {}
+    for block in payload["blocks"]:
+        if block["block_type"] != "BOUNDARY" or block["content"]["boundary_type"] != "PAGE":
+            continue
+        page = int(block["content"]["source_part_index"])
+        refs = {
+            str(anchor_by_id[ref]["locator"].get("source_block_ref") or "")
+            for ref in block["source_anchor_ids"]
+            if anchor_by_id[ref]["source_format"] == "PDF"
+        }
+        if len(refs) != 1 or "" in refs or page in page_ref_by_number:
+            _fail("managed_document_v2_source_unit_page_binding_invalid")
+        page_ref_by_number[page] = next(iter(refs))
+
+    document_units: list[str] = []
+    document_atoms: list[str] = []
+    document_words: list[str] = []
+    for table in tables:
+        table_atoms = table.get("covered_source_atom_refs")
+        table_words = table.get("covered_source_word_refs")
+        if not isinstance(table_atoms, list) or not isinstance(table_words, list):
+            _fail("managed_document_v2_source_unit_table_ledger_missing")
+        if table_atoms != sorted(table_atoms) or table_words != sorted(table_words):
+            _fail("managed_document_v2_source_unit_table_ledger_order_invalid")
+        table_unit_refs: list[str] = []
+        part_atoms: list[str] = []
+        part_words: list[str] = []
+        rows = table["ordered_rows"]
+        row_ordinal = {row["row_id"]: row["ordinal"] for row in rows}
+        for part in table["source_parts"]:
+            units = part.get("covered_source_units")
+            if not isinstance(units, list) or not units:
+                _fail("managed_document_v2_source_unit_part_ledger_missing")
+            if [unit["unit_ref"] for unit in units] != sorted(
+                unit["unit_ref"] for unit in units
+            ):
+                _fail("managed_document_v2_source_unit_record_order_invalid")
+            first = row_ordinal[part["first_row_id"]]
+            last = row_ordinal[part["last_row_id"]]
+            expected_words = sorted(
+                {
+                    str(anchor_by_id[anchor_id]["locator"].get("source_block_ref") or "")
+                    for row in rows[first : last + 1]
+                    for entry in row["entries"]
+                    for anchor_id in entry["source_anchor_ids"]
+                    if anchor_by_id[anchor_id]["source_format"] == "PDF"
+                }
+            )
+            covered_words: list[str] = []
+            for unit in units:
+                unit_ref = str(unit["unit_ref"])
+                atoms = unit["selected_source_atom_refs"]
+                words = unit["table_contributing_word_refs"]
+                if (
+                    atoms != sorted(atoms)
+                    or words != sorted(words)
+                    or unit["page_refs"] != sorted(unit["page_refs"])
+                ):
+                    _fail("managed_document_v2_source_unit_record_order_invalid")
+                if unit["page_refs"] != [page_ref_by_number[part["page"]]]:
+                    _fail("managed_document_v2_source_unit_page_binding_invalid")
+                table_unit_refs.append(unit_ref)
+                part_atoms.extend(atoms)
+                part_words.extend(words)
+                covered_words.extend(words)
+            if sorted(covered_words) != expected_words:
+                _fail("managed_document_v2_source_unit_part_word_partition_invalid")
+        if len(table_unit_refs) != len(set(table_unit_refs)):
+            _fail("managed_document_v2_source_unit_duplicate_unit_ref")
+        if len(part_atoms) != len(set(part_atoms)):
+            _fail("managed_document_v2_source_unit_duplicate_atom_ref")
+        if len(part_words) != len(set(part_words)):
+            _fail("managed_document_v2_source_unit_duplicate_word_ref")
+        if table_atoms != sorted(part_atoms):
+            _fail("managed_document_v2_source_unit_table_atom_union_invalid")
+        if table_words != sorted(part_words):
+            _fail("managed_document_v2_source_unit_table_word_union_invalid")
+        document_units.extend(table_unit_refs)
+        document_atoms.extend(table_atoms)
+        document_words.extend(table_words)
+
+    if len(document_units) != len(set(document_units)):
+        _fail("managed_document_v2_source_unit_duplicate_unit_ref")
+    if len(document_atoms) != len(set(document_atoms)):
+        _fail("managed_document_v2_source_unit_duplicate_atom_ref")
+    if len(document_words) != len(set(document_words)):
+        _fail("managed_document_v2_source_unit_duplicate_word_ref")
+    if source_coverage["covered_source_unit_refs"] != sorted(document_units):
+        _fail("managed_document_v2_source_unit_document_unit_union_invalid")
+    if source_coverage["covered_source_atom_refs"] != sorted(document_atoms):
+        _fail("managed_document_v2_source_unit_document_atom_union_invalid")
+    if source_coverage["covered_source_word_refs"] != sorted(document_words):
+        _fail("managed_document_v2_source_unit_document_word_union_invalid")
+    if any(
+        source_coverage[field]
+        for field in (
+            "duplicate_source_unit_refs",
+            "duplicate_source_atom_refs",
+            "duplicate_source_word_refs",
+        )
+    ):
+        _fail("managed_document_v2_source_unit_duplicate_inventory_not_empty")
 
 
 def _validate_table_content(

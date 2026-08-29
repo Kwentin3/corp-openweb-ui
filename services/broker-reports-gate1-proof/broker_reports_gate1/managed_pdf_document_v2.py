@@ -7,7 +7,7 @@ import math
 from dataclasses import dataclass, replace
 from typing import Any, Mapping, Sequence
 
-from .full_source import FullSourceArtifactFactory
+from .full_source import FullSourceArtifactFactory, validate_full_source_unit
 from .logical_row_table_recovery import (
     LogicalRowTableFactory,
     LogicalRowTableRecoveryResult,
@@ -20,6 +20,10 @@ from .managed_document_contracts_v2 import (
 from .pdf_document_visual_adjudication import (
     PdfDocumentVisualAdjudicationFactory,
     PdfDocumentVisualAdjudicationResult,
+)
+from .pdf_text_layer import (
+    validate_pdf_source_unit,
+    validate_pdf_text_layer_payload,
 )
 
 
@@ -255,11 +259,35 @@ class ManagedPdfDocumentV2Builder:
                 payload=payload,
                 detail_code="managed_pdf_v2_candidate_partial",
             )
+        source_unit_ledger_plan: tuple[dict[str, Any], ...] = ()
+        if adjudication is not None:
+            try:
+                source_unit_ledger_plan = _bind_source_unit_ledger(
+                    candidate=candidate,
+                    full_source=full_source,
+                    source_checksum_sha256=source_checksum,
+                )
+            except ManagedPdfDocumentV2Error as exc:
+                return _partial_adjudicated_result(
+                    adjudication=adjudication,
+                    document_id=document_id,
+                    source_checksum=source_checksum,
+                    private_ref=private_ref,
+                    full_source=full_source,
+                    payload=payload,
+                    detail_code=str(exc),
+                )
         validator = ManagedDocumentContractV2Validator(
             json.loads(self._schema_json.decode("utf-8"))
         )
         managed_document = (
-            validator._seal_reviewed_source_bound(
+            validator._seal_adjudicated_source_unit_ledger(
+                candidate,
+                expected_reviewed_source_bound=reviewed_plan,
+                expected_source_unit_ledger=source_unit_ledger_plan,
+            )
+            if adjudication is not None
+            else validator._seal_reviewed_source_bound(
                 candidate,
                 expected_reviewed_source_bound=reviewed_plan,
             )
@@ -743,6 +771,317 @@ def _row_word_refs(
         if isinstance(locator, Mapping) and locator.get("source_block_ref"):
             refs.add(str(locator["source_block_ref"]))
     return refs
+
+
+def _bind_source_unit_ledger(
+    *,
+    candidate: dict[str, Any],
+    full_source: Any,
+    source_checksum_sha256: str,
+) -> tuple[dict[str, Any], ...]:
+    """Bind sealed table words to whole FullSource units in the same call."""
+
+    units = getattr(full_source, "units", None)
+    if not isinstance(units, list):
+        raise ManagedPdfDocumentV2Error(
+            "managed_pdf_v2_source_unit_ledger_units_missing"
+        )
+    parent_payload = _sole_complete_pdf_payload(full_source)
+    parent_validation = validate_pdf_text_layer_payload(parent_payload)
+    if parent_validation.get("validator_status") != "passed":
+        raise ManagedPdfDocumentV2Error(
+            "managed_pdf_v2_source_unit_ledger_parent_payload_invalid"
+        )
+    document_id = str(candidate.get("document_id") or "")
+    if parent_payload.get("document_ref") != document_id:
+        raise ManagedPdfDocumentV2Error(
+            "managed_pdf_v2_source_unit_ledger_parent_document_mismatch"
+        )
+    expected_run_id = str(parent_payload.get("normalization_run_id") or "")
+    extraction_unit_refs = list(parent_payload.get("extraction_unit_refs") or [])
+    actual_unit_refs = [
+        str(unit.get("unit_ref") or "")
+        for unit in units
+        if isinstance(unit, dict)
+    ]
+    if (
+        not expected_run_id
+        or not extraction_unit_refs
+        or len(extraction_unit_refs) != len(set(extraction_unit_refs))
+        or actual_unit_refs != extraction_unit_refs
+    ):
+        raise ManagedPdfDocumentV2Error(
+            "managed_pdf_v2_source_unit_ledger_unit_inventory_mismatch"
+        )
+    parent_page_refs = {
+        str(page.get("page_ref") or "")
+        for page in parent_payload["pdf_text_layer_projection"].get(
+            "page_inventory"
+        )
+        or []
+        if isinstance(page, Mapping)
+    }
+    eligible: dict[str, dict[str, Any]] = {}
+    owners_by_word: dict[str, list[str]] = {}
+    for raw_unit in units:
+        if not isinstance(raw_unit, dict):
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_source_unit_ledger_unit_invalid"
+            )
+        layout_coverage = raw_unit.get("pdf_layout_coverage")
+        if not isinstance(layout_coverage, Mapping):
+            continue
+        owned_words = list(layout_coverage.get("owned_word_refs") or [])
+        if not owned_words:
+            continue
+        validation = validate_full_source_unit(
+            unit=raw_unit,
+            normalization_run_id=expected_run_id,
+            document_id=document_id,
+            source_checksum_sha256=source_checksum_sha256,
+        )
+        parent_errors = validate_pdf_source_unit(
+            raw_unit,
+            parent_payload=parent_payload,
+            parent_validation=parent_validation,
+            require_parent_payload=True,
+        )
+        if (
+            validation.get("validator_status") != "passed"
+            or parent_errors
+        ):
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_source_unit_ledger_unit_validation_failed"
+            )
+        unit_ref = str(raw_unit.get("unit_ref") or "")
+        if not unit_ref or unit_ref in eligible:
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_source_unit_ledger_unit_ref_invalid"
+            )
+        if (
+            len(owned_words) != len(set(owned_words))
+            or layout_coverage.get("all_selected_refs_accounted") is not True
+        ):
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_source_unit_ledger_word_coverage_invalid"
+            )
+        coverage = raw_unit.get("coverage")
+        selected_atoms = (
+            list(coverage.get("selected_source_refs") or [])
+            if isinstance(coverage, Mapping)
+            else []
+        )
+        if (
+            not selected_atoms
+            or len(selected_atoms) != len(set(selected_atoms))
+            or coverage.get("all_selected_refs_accounted") is not True
+        ):
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_source_unit_ledger_atom_coverage_invalid"
+            )
+        page_refs = list(raw_unit.get("page_refs") or [])
+        if (
+            len(page_refs) != 1
+            or len(page_refs) != len(set(page_refs))
+            or not set(page_refs) <= parent_page_refs
+        ):
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_source_unit_ledger_page_refs_invalid"
+            )
+        if not all(
+            isinstance(value, str) and value
+            for value in (
+                raw_unit.get("source_unit_checksum_ref"),
+                raw_unit.get("parent_payload_ref"),
+                *page_refs,
+                *selected_atoms,
+                *owned_words,
+            )
+        ):
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_source_unit_ledger_identity_invalid"
+            )
+        eligible[unit_ref] = raw_unit
+        for word_ref in owned_words:
+            owners_by_word.setdefault(str(word_ref), []).append(unit_ref)
+
+    anchor_by_id = {
+        str(item.get("anchor_id") or ""): item
+        for item in candidate.get("anchors") or []
+        if isinstance(item, Mapping)
+    }
+    document_unit_refs: list[str] = []
+    document_atom_refs: list[str] = []
+    document_word_refs: list[str] = []
+    ledger_tables: list[dict[str, Any]] = []
+    for block in candidate.get("blocks") or []:
+        if not isinstance(block, dict) or block.get("block_type") != "TABLE":
+            continue
+        table = block.get("content")
+        if not isinstance(table, dict):
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_source_unit_ledger_table_invalid"
+            )
+        rows = list(table.get("ordered_rows") or [])
+        row_ordinal = {
+            str(row.get("row_id") or ""): ordinal
+            for ordinal, row in enumerate(rows)
+            if isinstance(row, Mapping)
+        }
+        table_atoms: list[str] = []
+        table_words: list[str] = []
+        table_plan_parts: list[dict[str, Any]] = []
+        for part in table.get("source_parts") or []:
+            if not isinstance(part, dict):
+                raise ManagedPdfDocumentV2Error(
+                    "managed_pdf_v2_source_unit_ledger_source_part_invalid"
+                )
+            first = row_ordinal.get(str(part.get("first_row_id") or ""))
+            last = row_ordinal.get(str(part.get("last_row_id") or ""))
+            if first is None or last is None or first > last:
+                raise ManagedPdfDocumentV2Error(
+                    "managed_pdf_v2_source_unit_ledger_row_range_invalid"
+                )
+            part_words = sorted(
+                {
+                    str(locator["source_block_ref"])
+                    for row in rows[first : last + 1]
+                    for entry in row.get("entries") or []
+                    for anchor_id in entry.get("source_anchor_ids") or []
+                    for anchor in [anchor_by_id.get(str(anchor_id))]
+                    for locator in [
+                        anchor.get("locator")
+                        if isinstance(anchor, Mapping)
+                        else None
+                    ]
+                    if isinstance(locator, Mapping)
+                    and locator.get("kind") == "PDF"
+                    and locator.get("source_block_ref")
+                }
+            )
+            if not part_words:
+                raise ManagedPdfDocumentV2Error(
+                    "managed_pdf_v2_source_unit_ledger_part_words_missing"
+                )
+            owner_refs: set[str] = set()
+            for word_ref in part_words:
+                owners = owners_by_word.get(word_ref, [])
+                if len(owners) != 1:
+                    raise ManagedPdfDocumentV2Error(
+                        "managed_pdf_v2_source_unit_ledger_word_owner_nonunique"
+                    )
+                owner_refs.add(owners[0])
+            records: list[dict[str, Any]] = []
+            contributed: list[str] = []
+            for unit_ref in sorted(owner_refs):
+                unit = eligible[unit_ref]
+                owned_words = sorted(
+                    str(ref)
+                    for ref in unit["pdf_layout_coverage"]["owned_word_refs"]
+                )
+                if not set(owned_words) <= set(part_words):
+                    raise ManagedPdfDocumentV2Error(
+                        "managed_pdf_v2_source_unit_ledger_partial_unit_forbidden"
+                    )
+                atoms = sorted(
+                    str(ref)
+                    for ref in unit["coverage"]["selected_source_refs"]
+                )
+                record = {
+                    "unit_ref": unit_ref,
+                    "source_unit_checksum_ref": str(
+                        unit["source_unit_checksum_ref"]
+                    ),
+                    "parent_payload_ref": str(unit["parent_payload_ref"]),
+                    "page_refs": sorted(str(ref) for ref in unit["page_refs"]),
+                    "selected_source_atom_refs": atoms,
+                    "table_contributing_word_refs": owned_words,
+                }
+                records.append(record)
+                contributed.extend(owned_words)
+                table_atoms.extend(atoms)
+                document_unit_refs.append(unit_ref)
+            if sorted(contributed) != part_words:
+                raise ManagedPdfDocumentV2Error(
+                    "managed_pdf_v2_source_unit_ledger_part_partition_invalid"
+                )
+            part["covered_source_units"] = records
+            table_words.extend(part_words)
+            table_plan_parts.append(
+                {
+                    "source_part_id": str(part["source_part_id"]),
+                    "covered_source_units": copy.deepcopy(records),
+                }
+            )
+        if len(table_atoms) != len(set(table_atoms)):
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_source_unit_ledger_duplicate_atom_ref"
+            )
+        if len(table_words) != len(set(table_words)):
+            raise ManagedPdfDocumentV2Error(
+                "managed_pdf_v2_source_unit_ledger_duplicate_word_ref"
+            )
+        table["covered_source_atom_refs"] = sorted(table_atoms)
+        table["covered_source_word_refs"] = sorted(table_words)
+        document_atom_refs.extend(table_atoms)
+        document_word_refs.extend(table_words)
+        ledger_tables.append(
+            {
+                "table_id": str(table["table_id"]),
+                "covered_source_atom_refs": sorted(table_atoms),
+                "covered_source_word_refs": sorted(table_words),
+                "source_parts": table_plan_parts,
+            }
+        )
+    if (
+        len(document_unit_refs) != len(set(document_unit_refs))
+        or len(document_atom_refs) != len(set(document_atom_refs))
+        or len(document_word_refs) != len(set(document_word_refs))
+    ):
+        raise ManagedPdfDocumentV2Error(
+            "managed_pdf_v2_source_unit_ledger_document_overlap"
+        )
+    document_coverage = {
+        "schema_version": "broker_reports_managed_table_source_unit_coverage_v1",
+        "covered_source_unit_refs": sorted(document_unit_refs),
+        "covered_source_atom_refs": sorted(document_atom_refs),
+        "covered_source_word_refs": sorted(document_word_refs),
+        "duplicate_source_unit_refs": [],
+        "duplicate_source_atom_refs": [],
+        "duplicate_source_word_refs": [],
+    }
+    candidate["source"]["table_source_unit_coverage"] = document_coverage
+    return (
+        {
+            "scope": "DOCUMENT",
+            "coverage": copy.deepcopy(document_coverage),
+        },
+        *tuple(
+            item
+            for table in ledger_tables
+            for item in (
+                {
+                    "scope": "TABLE",
+                    "table_id": table["table_id"],
+                    "covered_source_atom_refs": table[
+                        "covered_source_atom_refs"
+                    ],
+                    "covered_source_word_refs": table[
+                        "covered_source_word_refs"
+                    ],
+                },
+                *(
+                    {
+                        "scope": "SOURCE_PART",
+                        "table_id": table["table_id"],
+                        "source_part_id": part["source_part_id"],
+                        "covered_source_units": part["covered_source_units"],
+                    }
+                    for part in table["source_parts"]
+                ),
+            )
+        ),
+    )
 
 
 def _sole_complete_pdf_payload(full_source: Any) -> dict[str, Any]:
