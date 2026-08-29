@@ -1706,6 +1706,69 @@ def test_cross_page_continuation_preserves_repeated_header_and_source_parts() ->
     _validate_v2_component_shapes(result)
 
 
+def test_continuation_header_literal_keeps_punctuation_distinct() -> None:
+    builder = ProjectionBuilder(
+        page_numbers=(1, 2),
+        ref_prefix="continuation_literal_punctuation",
+    )
+    page_one_refs = []
+    page_one_refs += builder.add_row(
+        page_number=1,
+        y=760,
+        entries=[(20, "Price, USD", 70), (200, "Amount", 50)],
+    )
+    page_one_refs += builder.add_row(
+        page_number=1,
+        y=776,
+        entries=[(20, "Cash", 50), (200, "10", 50)],
+    )
+    page_one_refs += builder.add_row(
+        page_number=1,
+        y=792,
+        entries=[(20, "Bonds", 50), (200, "20", 50)],
+    )
+    page_two_refs = []
+    page_two_refs += builder.add_row(
+        page_number=2,
+        y=8,
+        entries=[(20, "Price USD", 70), (200, "Amount", 50)],
+    )
+    page_two_refs += builder.add_row(
+        page_number=2,
+        y=24,
+        entries=[(20, "Funds", 50), (200, "30", 50)],
+    )
+    page_two_refs += builder.add_row(
+        page_number=2,
+        y=40,
+        entries=[(20, "Shares", 50), (200, "40", 50)],
+    )
+    builder.add_candidate(
+        page_number=1,
+        bbox=[15, 755, 260, 805],
+        word_refs=page_one_refs,
+    )
+    builder.add_candidate(
+        page_number=2,
+        bbox=[15, 0, 260, 55],
+        word_refs=page_two_refs,
+    )
+
+    result = _recover(builder)
+
+    assert len(result.tables) == 2
+    assert [
+        table["ordered_rows"][0]["entries"][0]["text"]
+        for table in result.tables
+    ] == ["Price, USD", "Price USD"]
+    assert not any(
+        row["role"] == "CONTINUATION_HEADER"
+        for table in result.tables
+        for row in table["ordered_rows"]
+    )
+    assert result.unowned_word_refs == []
+
+
 def _continuation_test_region(
     *,
     ref_prefix: str,

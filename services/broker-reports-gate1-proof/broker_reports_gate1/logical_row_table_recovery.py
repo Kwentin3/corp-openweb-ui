@@ -225,7 +225,7 @@ class _LeadingHeaderRolePlan:
 
 @dataclass(frozen=True)
 class _StableHeaderEvidence:
-    signatures: tuple[str, ...]
+    signatures: tuple[tuple[str, ...], ...]
     body_supported: bool
     source_proven: bool
 
@@ -328,7 +328,7 @@ class _Region:
     source_bound_title_word_refs: tuple[str, ...] = ()
     source_bound_header_status: str | None = None
     source_bound_header_word_ref_groups: tuple[tuple[str, ...], ...] = ()
-    source_bound_header_signatures: tuple[str, ...] = ()
+    source_bound_header_signatures: tuple[tuple[str, ...], ...] = ()
     source_bound_body_word_refs: tuple[str, ...] = ()
     source_bound_issue_codes: tuple[str, ...] = ()
 
@@ -7224,14 +7224,14 @@ def _apply_source_bound_table_scopes(
             )
             continue
 
-        signatures: list[str] = []
+        signatures: list[tuple[str, ...]] = []
         for group in scope.header_word_ref_groups:
             group_rows = _row_bands([word_by_ref[ref] for ref in group], config=config)
             if not group_rows:
                 raise LogicalRowTableRecoveryError(
                     "logical_row_source_bound_header_partition_invalid"
                 )
-            signatures.extend(_row_signature(row) for row in group_rows)
+            signatures.extend(_row_literal_signature(row) for row in group_rows)
             group_refs = set(group)
             matching_rows = [
                 row
@@ -7603,7 +7603,7 @@ def _stable_header_evidence(
     )
     return _StableHeaderEvidence(
         signatures=tuple(
-            _row_signature(probe.rows[header_index])
+            _row_literal_signature(probe.rows[header_index])
             for header_index in header_indexes
         ),
         body_supported=body_supported,
@@ -7667,14 +7667,14 @@ def _materialize_logical_table(
     if len(regions) > 1:
         first_header_stack = _leading_header_stack(regions[0].rows)
         first_header_signatures = tuple(
-            _row_signature(row) for row in first_header_stack
+            _row_literal_signature(row) for row in first_header_stack
         )
         for region in regions[1:]:
             repeated_header_stack = _leading_header_stack(region.rows)
             if (
                 first_header_signatures
                 and tuple(
-                    _row_signature(row) for row in repeated_header_stack
+                    _row_literal_signature(row) for row in repeated_header_stack
                 )
                 == first_header_signatures
             ):
@@ -12598,6 +12598,10 @@ def _leading_header_stack(rows: list[_RowBand]) -> list[_RowBand]:
         result.append(rows[index])
         index += 1
     return result
+
+
+def _row_literal_signature(row: _RowBand) -> tuple[str, ...]:
+    return tuple(entry.text for entry in row.entries)
 
 
 def _row_signature(row: _RowBand | None) -> str:
