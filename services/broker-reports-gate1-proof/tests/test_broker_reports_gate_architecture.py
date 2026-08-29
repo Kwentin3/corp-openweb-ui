@@ -2007,6 +2007,38 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             ["managed_pdf_document_v2.py"],
         )
 
+    def test_managed_whole_table_projection_private_seam_has_one_caller(self):
+        seam = "_project_sealed_adjudicated_managed_document"
+        callers = []
+        for path in PACKAGE.glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            callers.extend(
+                (path.name, node.lineno)
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and (
+                    isinstance(node.func, ast.Name)
+                    and node.func.id == seam
+                    or isinstance(node.func, ast.Attribute)
+                    and node.func.attr == seam
+                )
+            )
+
+        self.assertEqual(
+            [path for path, _line in callers],
+            ["managed_pdf_document_v2.py"],
+        )
+        self.assertEqual(
+            _local_imports("managed_whole_table_projection")
+            & {
+                "table_projection",
+                "canonical_artifact",
+                "gate2_financial_context",
+                "openwebui_actions",
+            },
+            set(),
+        )
+
 
 def _source(module_name: str) -> str:
     return (PACKAGE / f"{module_name}.py").read_text(encoding="utf-8")

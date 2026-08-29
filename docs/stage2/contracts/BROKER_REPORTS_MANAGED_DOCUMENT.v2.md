@@ -174,7 +174,19 @@ atom-mutated units make the adjudicated build `PARTIAL` before sealing and
 return no Managed document. The legacy builder emits no ledger and its frozen
 bytes remain unchanged. Public `parse_json`, `validate` and `seal` reject a
 caller-supplied ledger; only the same-call private sealing plan can admit it.
-This slice creates no projection, Canonical artifact or facts.
+The ledger slice itself creates no projection, Canonical artifact or facts.
+An additive inactive same-call seam may copy a privately sealed adjudicated
+Managed document into one whole-table projection per COMPLETE TABLE. That seam
+runs only after reviewed and source-unit ledger sealing, accepts no public
+payload/ledger/scope/receipt input, and compares the sealed payload to the same
+ledger plan that was just derived from FullSource in the current call. It
+deep-copies the sealed payload and preserves every ordered row, including
+`CONTINUATION_HEADER`, without collapsing or repairing it. Its projection copies
+the exact source parts, real unit refs, source atoms, contributing words and
+Managed integrity. Any incomplete status, missing ledger, plan mismatch, unknown
+anchor, overlap or internal coverage mismatch produces a typed `NOT_READY`
+result with zero projections. Canonical, product runtime, facts and generated
+bundles remain disconnected.
 
 Schema identity is both the exact `$id` and the SHA-256 of canonical schema
 JSON (`ensure_ascii=false`, sorted keys, separators `(",", ":")`, finite
