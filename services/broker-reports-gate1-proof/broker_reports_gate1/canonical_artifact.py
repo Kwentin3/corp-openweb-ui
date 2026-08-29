@@ -7,7 +7,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Mapping
 
 
 CANONICAL_ARTIFACT_SCHEMA_VERSION = "canonical_artifact_v1"
@@ -53,6 +53,9 @@ MANAGED_WHOLE_TABLE_PROJECTION_SCHEMA_VERSION = (
 )
 MANAGED_WHOLE_TABLE_PROJECTION_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_managed_whole_table_projection_receipt_v1"
+)
+MANAGED_ENTRY_BINDING_SCHEMA_VERSION = (
+    "broker_reports_canonical_managed_entry_binding_v1"
 )
 
 
@@ -1193,6 +1196,7 @@ def _validate_managed_whole_table_projection(
 
     rows = _dicts(projection.get("ordered_rows"))
     columns = _dicts(projection.get("logical_columns"))
+    column_ordinals = _managed_column_ordinals(projection)
     source_parts = _dicts(projection.get("source_parts"))
     source_anchors = _dicts(projection.get("source_anchors"))
     source_anchor_by_id = {
@@ -1204,6 +1208,8 @@ def _validate_managed_whole_table_projection(
     if (
         not rows
         or not columns
+        or len(column_ordinals) != len(columns)
+        or sorted(column_ordinals.values()) != list(range(1, len(columns) + 1))
         or not source_parts
         or not source_anchors
         or "" in source_anchor_by_id
@@ -1265,6 +1271,8 @@ def _validate_managed_whole_table_projection(
         raise CanonicalArtifactError(
             "canonical_managed_whole_table_projection_union_mismatch"
         )
+    entry_ids: set[str] = set()
+    expected_header_paths = {column_id: [] for column_id in column_ordinals}
     for row in rows:
         entries = _dicts(row.get("entries"))
         if (
@@ -1278,14 +1286,37 @@ def _validate_managed_whole_table_projection(
                 "canonical_managed_whole_table_projection_row_invalid"
             )
         for entry in entries:
+            entry_id = str(entry.get("entry_id") or "")
             if (
-                not str(entry.get("entry_id") or "")
+                not entry_id
+                or entry_id in entry_ids
                 or entry.get("ordinal") is None
                 or not _strings(entry.get("source_anchor_ids"))
             ):
                 raise CanonicalArtifactError(
                     "canonical_managed_whole_table_projection_entry_invalid"
                 )
+            entry_ids.add(entry_id)
+            binding = _managed_entry_column_binding(
+                entry,
+                column_ordinals=column_ordinals,
+            )
+            if (
+                row.get("role") in {"COLUMN_HEADER", "CONTINUATION_HEADER"}
+                and entry.get("kind") != "MARKER"
+                and binding["managed_column_binding_status"] == "BOUND"
+            ):
+                bound_columns = list(
+                    dict.fromkeys(
+                        [
+                            binding["managed_logical_column_id"],
+                            *binding["managed_covers_logical_column_ids"],
+                        ]
+                    )
+                )
+                for column_id in bound_columns:
+                    if column_id is not None:
+                        expected_header_paths[column_id].append(entry_id)
             if not _managed_entry_text_matches_source(
                 entry,
                 source_anchor_by_id=source_anchor_by_id,
@@ -1294,6 +1325,10 @@ def _validate_managed_whole_table_projection(
                 raise CanonicalArtifactError(
                     "canonical_managed_whole_table_projection_entry_text_mismatch"
                 )
+    _validate_managed_column_header_paths(
+        columns,
+        expected_header_paths=expected_header_paths,
+    )
 
 
 def _validate_managed_whole_table_projection_owner_binding(
@@ -1576,6 +1611,10 @@ def _managed_whole_table_cells(
                                 "source_anchor_ids": _strings(
                                     entry.get("source_anchor_ids")
                                 ),
+                                **_managed_entry_column_binding(
+                                    entry,
+                                    column_ordinals=column_ordinals,
+                                ),
                             }
                         )
                     ],
@@ -1592,6 +1631,80 @@ def _managed_column_ordinals(projection: dict[str, Any]) -> dict[str, int]:
         if column_id and isinstance(ordinal, int) and ordinal >= 0:
             result[column_id] = ordinal + 1
     return result
+
+
+def _managed_entry_column_binding(
+    entry: Mapping[str, Any],
+    *,
+    column_ordinals: Mapping[str, int],
+) -> dict[str, Any]:
+    """Copy one owner-issued binding without deriving or repairing it."""
+
+    if "column_binding_status" not in entry or (
+        "logical_column_id" not in entry or "covers_logical_column_ids" not in entry
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_entry_binding_invalid"
+        )
+    logical_column_id = entry.get("logical_column_id")
+    covers = entry.get("covers_logical_column_ids")
+    status = entry.get("column_binding_status")
+    expected_status = (
+        "BOUND" if logical_column_id is not None or covers else "NOT_APPLICABLE"
+    )
+    if (
+        logical_column_id is not None
+        and (
+            not isinstance(logical_column_id, str)
+            or logical_column_id not in column_ordinals
+        )
+    ) or (
+        not isinstance(covers, list)
+        or any(
+            not isinstance(column_id, str) or column_id not in column_ordinals
+            for column_id in covers
+        )
+        or len(covers) != len(set(covers))
+        or bool(covers) and len(covers) < 2
+        or covers
+        != sorted(covers, key=lambda column_id: column_ordinals[column_id])
+        or (
+            logical_column_id is not None
+            and covers
+            and covers[0] != logical_column_id
+        )
+        or status != expected_status
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_entry_binding_invalid"
+        )
+    result: dict[str, Any] = {
+        "managed_entry_binding_schema_version": MANAGED_ENTRY_BINDING_SCHEMA_VERSION,
+        "managed_column_binding_status": status,
+        "managed_logical_column_id": logical_column_id,
+        "managed_covers_logical_column_ids": copy.deepcopy(covers),
+    }
+    return result
+
+
+def _validate_managed_column_header_paths(
+    columns: list[dict[str, Any]],
+    *,
+    expected_header_paths: Mapping[str, list[str]],
+) -> None:
+    for column in columns:
+        column_id = str(column.get("column_id") or "")
+        header_path = column.get("header_path")
+        if (
+            not isinstance(header_path, list)
+            or not header_path
+            or any(not isinstance(entry_id, str) or not entry_id for entry_id in header_path)
+            or len(header_path) != len(set(header_path))
+            or header_path != expected_header_paths.get(column_id)
+        ):
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_header_path_invalid"
+            )
 
 
 def _managed_row_values(

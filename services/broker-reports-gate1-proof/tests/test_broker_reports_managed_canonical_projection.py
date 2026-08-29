@@ -14,9 +14,13 @@ from broker_reports_gate1.canonical_artifact import (
     CanonicalArtifactError,
     CanonicalNormalizerConfig,
     CanonicalNormalizerFactory,
+    MANAGED_ENTRY_BINDING_SCHEMA_VERSION,
 )
 from broker_reports_gate1.managed_pdf_to_canonical import (
     ManagedPdfToCanonicalFactory,
+)
+from broker_reports_gate1.managed_document_contracts import (
+    compute_document_integrity_sha256,
 )
 from broker_reports_gate1.managed_pdf_document_v2 import (
     ManagedPdfDocumentV2AdjudicatedBuildResult,
@@ -89,7 +93,13 @@ def _canonical_handoff(
         )
 
 
-def _canonical_from_handoff(handoff, *, source_ref: str) -> dict[str, Any]:
+def _canonical_from_handoff(
+    handoff,
+    *,
+    source_ref: str,
+    managed_payload: dict[str, Any] | None = None,
+    projections: tuple[dict[str, Any], ...] | None = None,
+) -> dict[str, Any]:
     assert handoff.result.managed_document is not None
     return (
         CanonicalNormalizerFactory(
@@ -103,8 +113,16 @@ def _canonical_from_handoff(handoff, *, source_ref: str) -> dict[str, Any]:
             source_artifact_ref=source_ref,
             source_payloads=list(handoff.source_payloads),
             source_units=list(handoff.source_units),
-            managed_document_payload=handoff.result.managed_document.payload,
-            managed_whole_table_projections=handoff.result.whole_table_projections,
+            managed_document_payload=(
+                handoff.result.managed_document.payload
+                if managed_payload is None
+                else managed_payload
+            ),
+            managed_whole_table_projections=(
+                handoff.result.whole_table_projections
+                if projections is None
+                else projections
+            ),
         )
     )
 
@@ -169,6 +187,15 @@ def _table_source_locator(
     return provenance_by_id[table["source_refs"][0]]["source_locator"]
 
 
+def _managed_entry_locators(artifact: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    locators = [
+        item["source_locator"]
+        for item in artifact["provenance"]
+        if item["source_locator"].get("kind") == "managed_whole_table_entry"
+    ]
+    return {str(locator["managed_entry_id"]): locator for locator in locators}
+
+
 def _reseal_projection(projection: dict[str, Any]) -> dict[str, Any]:
     result = copy.deepcopy(projection)
     result.pop("projection_integrity_sha256", None)
@@ -182,6 +209,50 @@ def _reseal_projection(projection: dict[str, Any]) -> dict[str, Any]:
         ).encode("utf-8")
     ).hexdigest()
     return result
+
+
+def _synchronized_table_mutation(
+    handoff,
+    mutator,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    assert handoff.result.managed_document is not None
+    managed_payload = copy.deepcopy(handoff.result.managed_document.payload)
+    projection = copy.deepcopy(handoff.result.whole_table_projections[0])
+    managed_table = next(
+        block["content"]
+        for block in managed_payload["blocks"]
+        if block["block_type"] == "TABLE"
+        and block["content"]["table_id"] == projection["table_id"]
+    )
+    mutator(managed_table)
+    mutator(projection)
+    managed_payload["integrity_sha256"] = compute_document_integrity_sha256(
+        managed_payload
+    )
+    projection["managed_document_integrity_sha256"] = managed_payload[
+        "integrity_sha256"
+    ]
+    return managed_payload, _reseal_projection(projection)
+
+
+def _binding_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    source_ref: str,
+):
+    pdf_bytes, _, _ = _source_bound_case(
+        second_header_labels=("Instrument", "Currency")
+    )
+    payload = _managed_full_source(
+        pdf_bytes,
+        source_artifact_ref=source_ref,
+    ).payloads[0]
+    return _canonical_handoff(
+        monkeypatch,
+        pdf_bytes=pdf_bytes,
+        source_ref=source_ref,
+        observations=_two_page_observations(payload, repeated_header=True),
+    )
 
 
 def test_headerless_continuation_and_outside_paragraph_build_one_canonical_table(
@@ -295,6 +366,146 @@ def test_repeated_header_keeps_managed_role_and_is_not_data(
     assert [
         row["row"] for row in mapping_package["case"]["tables"][0]["rows"]
     ] == [1, 2, 3, 5, 6]
+
+
+def test_canonical_provenance_preserves_direct_owner_column_bindings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_ref = "private_pdf_managed_canonical_direct_bindings"
+    handoff = _binding_handoff(monkeypatch, source_ref=source_ref)
+    artifact = _canonical_from_handoff(handoff, source_ref=source_ref)
+    projection = handoff.result.whole_table_projections[0]
+    locators = _managed_entry_locators(artifact)
+
+    for row in projection["ordered_rows"]:
+        for entry in row["entries"]:
+            locator = locators[entry["entry_id"]]
+            assert locator["managed_entry_binding_schema_version"] == (
+                MANAGED_ENTRY_BINDING_SCHEMA_VERSION
+            )
+            assert locator["managed_logical_column_id"] == entry[
+                "logical_column_id"
+            ]
+            assert locator["managed_covers_logical_column_ids"] == entry[
+                "covers_logical_column_ids"
+            ]
+            assert locator["managed_column_binding_status"] == entry[
+                "column_binding_status"
+            ]
+
+
+def test_canonical_provenance_preserves_owner_spanning_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_ref = "private_pdf_managed_canonical_spanning_binding"
+    handoff = _binding_handoff(monkeypatch, source_ref=source_ref)
+    original = handoff.result.whole_table_projections[0]
+    column_ids = [column["column_id"] for column in original["logical_columns"]]
+    entry_id = original["ordered_rows"][0]["entries"][0]["entry_id"]
+
+    def span(table: dict[str, Any]) -> None:
+        entry = table["ordered_rows"][0]["entries"][0]
+        entry["covers_logical_column_ids"] = list(column_ids)
+        entry["column_binding_status"] = "BOUND"
+        table["logical_columns"][1]["header_path"].insert(0, entry["entry_id"])
+
+    managed_payload, projection = _synchronized_table_mutation(handoff, span)
+    artifact = _canonical_from_handoff(
+        handoff,
+        source_ref=source_ref,
+        managed_payload=managed_payload,
+        projections=(projection,),
+    )
+    locator = _managed_entry_locators(artifact)[entry_id]
+    assert locator["managed_logical_column_id"] == column_ids[0]
+    assert locator["managed_covers_logical_column_ids"] == column_ids
+    assert locator["managed_column_binding_status"] == "BOUND"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    [
+        (
+            "missing_logical_id",
+            "canonical_managed_whole_table_projection_entry_binding_invalid",
+        ),
+        (
+            "missing_status",
+            "canonical_managed_whole_table_projection_entry_binding_invalid",
+        ),
+        (
+            "foreign",
+            "canonical_managed_whole_table_projection_entry_binding_invalid",
+        ),
+        (
+            "duplicate_covers",
+            "canonical_managed_whole_table_projection_entry_binding_invalid",
+        ),
+        (
+            "singleton_covers",
+            "canonical_managed_whole_table_projection_entry_binding_invalid",
+        ),
+        (
+            "reordered_covers",
+            "canonical_managed_whole_table_projection_entry_binding_invalid",
+        ),
+        (
+            "swapped_header_paths",
+            "canonical_managed_whole_table_projection_header_path_invalid",
+        ),
+        (
+            "empty_header_path",
+            "canonical_managed_whole_table_projection_header_path_invalid",
+        ),
+    ],
+)
+def test_self_consistent_invalid_owner_binding_blocks_canonical_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    expected_code: str,
+) -> None:
+    source_ref = f"private_pdf_managed_canonical_binding_{mutation}"
+    handoff = _binding_handoff(monkeypatch, source_ref=source_ref)
+
+    def mutate(table: dict[str, Any]) -> None:
+        entry = table["ordered_rows"][0]["entries"][0]
+        column_ids = [column["column_id"] for column in table["logical_columns"]]
+        if mutation == "missing_logical_id":
+            entry.pop("logical_column_id")
+        elif mutation == "missing_status":
+            entry.pop("column_binding_status")
+        elif mutation == "foreign":
+            entry["covers_logical_column_ids"] = ["column_foreign"]
+        elif mutation == "duplicate_covers":
+            entry["covers_logical_column_ids"] = [column_ids[0], column_ids[0]]
+        elif mutation == "singleton_covers":
+            entry["covers_logical_column_ids"] = [column_ids[0]]
+        elif mutation == "reordered_covers":
+            entry["covers_logical_column_ids"] = list(reversed(column_ids))
+        elif mutation == "swapped_header_paths":
+            first, second = table["logical_columns"][:2]
+            first["header_path"], second["header_path"] = (
+                second["header_path"],
+                first["header_path"],
+            )
+        else:
+            for row in table["ordered_rows"]:
+                if row["role"] in {"COLUMN_HEADER", "CONTINUATION_HEADER"}:
+                    header_entry = row["entries"][0]
+                    header_entry["logical_column_id"] = None
+                    header_entry["covers_logical_column_ids"] = []
+                    header_entry["column_binding_status"] = "NOT_APPLICABLE"
+            table["logical_columns"][0]["header_path"] = []
+
+    managed_payload, projection = _synchronized_table_mutation(handoff, mutate)
+    with pytest.raises(CanonicalArtifactError) as exc:
+        _canonical_from_handoff(
+            handoff,
+            source_ref=source_ref,
+            managed_payload=managed_payload,
+            projections=(projection,),
+        )
+    assert exc.value.code == expected_code
 
 
 def test_distinct_titled_similar_tables_build_two_canonical_tables(
