@@ -27,6 +27,9 @@ ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION = (
 ORDINARY_TRADE_MANAGED_HEADER_VIEW_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_managed_header_view_v1"
 )
+ORDINARY_TRADE_MANAGED_CASE_MAPPING_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_managed_case_mapping_v4"
+)
 SOURCE_OBSERVATION_SCHEMA_VERSION = "broker_reports_source_observation_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticCompilerFactory.create is the only production-candidate "
@@ -122,6 +125,18 @@ _MAPPING_KEYS = {
     "amount_currency_bindings",
     "side_values",
     "qualification_ref",
+}
+_MANAGED_CASE_MAPPING_KEYS = {
+    "schema_version",
+    "candidate_id",
+    "mapping_status",
+    "runtime_activation",
+    "global_reuse",
+    "table_type",
+    "header_view_binding",
+    "structural_fingerprint",
+    "columns",
+    "amount_currency_bindings",
 }
 _FORBIDDEN_PROFILE_KEYS = {"broker", "broker_id", "year", "filename", "profile"}
 _DMY_PREFIX = re.compile(r"^([0-9]{2})\.([0-9]{2})\.([0-9]{4})(?:\s|$)")
@@ -513,6 +528,226 @@ def compile_schema_mapping(
         "qualification_ref": material["qualification_ref"],
     }
     return _validated_mapping(mapping)
+
+
+def compile_managed_header_case_mapping_candidate(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    table_node_id: str,
+    model_decision: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Freeze one inactive case-only mapping over host-owned header paths."""
+
+    view = ordinary_trade_canonical_managed_header_view(
+        canonical=canonical,
+        canonical_binding=canonical_binding,
+        table_node_id=table_node_id,
+    )
+    if not isinstance(model_decision, Mapping) or set(model_decision) != {
+        "columns",
+        "amount_currency_bindings",
+    }:
+        _fail("ordinary_trade_managed_case_model_decision_invalid")
+    decisions = model_decision.get("columns")
+    if not isinstance(decisions, list) or len(decisions) != len(view["columns"]):
+        _fail("ordinary_trade_managed_case_model_columns_invalid")
+    columns = []
+    for host, decision in zip(view["columns"], decisions, strict=True):
+        if (
+            not isinstance(decision, Mapping)
+            or set(decision) != {"column", "semantic_role"}
+            or not isinstance(decision.get("column"), int)
+            or isinstance(decision.get("column"), bool)
+            or decision.get("column") != host["column"]
+            or decision.get("semantic_role") not in _ROLES
+        ):
+            _fail("ordinary_trade_managed_case_model_columns_invalid")
+        columns.append(
+            {
+                "column": host["column"],
+                "logical_column_id": host["logical_column_id"],
+                "header_path": copy.deepcopy(host["primary_header_path"]),
+                "semantic_role": decision["semantic_role"],
+            }
+        )
+    material = {
+        "schema_version": ORDINARY_TRADE_MANAGED_CASE_MAPPING_SCHEMA_VERSION,
+        "mapping_status": "CANDIDATE_ONLY",
+        "runtime_activation": False,
+        "global_reuse": False,
+        "table_type": _TABLE_TYPE,
+        "header_view_binding": _managed_header_view_binding(view),
+        "structural_fingerprint": _managed_header_structural_fingerprint(view),
+        "columns": columns,
+        "amount_currency_bindings": copy.deepcopy(
+            model_decision["amount_currency_bindings"]
+        ),
+    }
+    candidate = {
+        **material,
+        "candidate_id": "otmapcase_" + _sha256_json(material)[:32],
+    }
+    return _validated_managed_header_case_mapping_candidate(
+        candidate,
+        managed_header_view=view,
+    )
+
+
+def validate_managed_header_case_mapping_candidate(
+    *,
+    value: Mapping[str, Any],
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    table_node_id: str,
+) -> dict[str, Any]:
+    """Validate one v4 candidate against the exact host-owned header view."""
+
+    view = ordinary_trade_canonical_managed_header_view(
+        canonical=canonical,
+        canonical_binding=canonical_binding,
+        table_node_id=table_node_id,
+    )
+    return _validated_managed_header_case_mapping_candidate(
+        value,
+        managed_header_view=view,
+    )
+
+
+def _validated_managed_header_case_mapping_candidate(
+    value: Mapping[str, Any],
+    *,
+    managed_header_view: Mapping[str, Any],
+) -> dict[str, Any]:
+    view = managed_header_view
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != _MANAGED_CASE_MAPPING_KEYS
+        or value.get("schema_version")
+        != ORDINARY_TRADE_MANAGED_CASE_MAPPING_SCHEMA_VERSION
+        or value.get("mapping_status") != "CANDIDATE_ONLY"
+        or value.get("runtime_activation") is not False
+        or value.get("global_reuse") is not False
+        or value.get("table_type") != _TABLE_TYPE
+        or value.get("header_view_binding") != _managed_header_view_binding(view)
+    ):
+        _fail("ordinary_trade_managed_case_mapping_contract_invalid")
+    columns = value.get("columns")
+    if not isinstance(columns, list) or len(columns) != len(view["columns"]):
+        _fail("ordinary_trade_managed_case_mapping_columns_invalid")
+    for column, host in zip(columns, view["columns"], strict=True):
+        if (
+            not isinstance(column, Mapping)
+            or set(column)
+            != {
+                "column",
+                "logical_column_id",
+                "header_path",
+                "semantic_role",
+            }
+            or not isinstance(column.get("column"), int)
+            or isinstance(column.get("column"), bool)
+            or column.get("column") != host["column"]
+            or column.get("logical_column_id") != host["logical_column_id"]
+            or column.get("header_path") != host["primary_header_path"]
+            or column.get("semantic_role") not in _ROLES
+        ):
+            _fail("ordinary_trade_managed_case_mapping_columns_invalid")
+    if value.get("structural_fingerprint") != _managed_header_structural_fingerprint(
+        view
+    ):
+        _fail("ordinary_trade_managed_case_mapping_fingerprint_invalid")
+    _validate_managed_case_bounded_decisions(
+        columns=columns,
+        amount_currency_bindings=value.get("amount_currency_bindings"),
+    )
+    material = copy.deepcopy(dict(value))
+    candidate_id = material.pop("candidate_id", None)
+    if candidate_id != "otmapcase_" + _sha256_json(material)[:32]:
+        _fail("ordinary_trade_managed_case_mapping_identity_invalid")
+    return copy.deepcopy(dict(value))
+
+
+def _managed_header_structural_fingerprint(
+    view: Mapping[str, Any],
+) -> str:
+    primary_rows = view["primary_header_rows"]
+    row_ordinals = {
+        int(item["row"]): ordinal for ordinal, item in enumerate(primary_rows)
+    }
+    entry_shapes: dict[str, dict[str, Any]] = {}
+    ordered_entry_ids = []
+    for column in view["columns"]:
+        for item in column["primary_header_path"]:
+            entry_id = str(item["entry_id"])
+            if entry_id not in entry_shapes:
+                ordered_entry_ids.append(entry_id)
+                entry_shapes[entry_id] = {
+                    "primary_row_ordinal": row_ordinals[int(item["row"])],
+                    "literal": item["literal"],
+                    "columns": [],
+                }
+            entry_shapes[entry_id]["columns"].append(int(column["column"]))
+    rows = []
+    for row_ordinal in range(len(primary_rows)):
+        rows.append(
+            {
+                "primary_row_ordinal": row_ordinal,
+                "entries": [
+                    copy.deepcopy(entry_shapes[entry_id])
+                    for entry_id in ordered_entry_ids
+                    if entry_shapes[entry_id]["primary_row_ordinal"] == row_ordinal
+                ],
+            }
+        )
+    return _sha256_json({"table_type": _TABLE_TYPE, "primary_rows": rows})
+
+
+def _managed_header_view_binding(view: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": view["schema_version"],
+        "header_view_sha256": view["header_view_sha256"],
+        "table_node_id": view["table_node_id"],
+        "canonical_binding": copy.deepcopy(view["canonical_binding"]),
+        "managed_binding": copy.deepcopy(view["managed_binding"]),
+    }
+
+
+def _validate_managed_case_bounded_decisions(
+    *,
+    columns: list[Mapping[str, Any]],
+    amount_currency_bindings: Any,
+) -> None:
+    roles_by_column = {
+        int(item["column"]): str(item["semantic_role"]) for item in columns
+    }
+    if not _REQUIRED <= set(roles_by_column.values()):
+        _fail("ordinary_trade_managed_case_required_roles_missing")
+    amount_columns = {
+        column
+        for column, role in roles_by_column.items()
+        if role in {"gross_amount", "broker_commission", "exchange_commission"}
+    }
+    if not isinstance(amount_currency_bindings, list):
+        _fail("ordinary_trade_managed_case_amount_binding_invalid")
+    bound_amounts = []
+    for item in amount_currency_bindings:
+        if (
+            not isinstance(item, Mapping)
+            or set(item) != {"amount_column", "currency_column"}
+            or not isinstance(item.get("amount_column"), int)
+            or isinstance(item.get("amount_column"), bool)
+            or not isinstance(item.get("currency_column"), int)
+            or isinstance(item.get("currency_column"), bool)
+            or item["amount_column"] not in amount_columns
+            or roles_by_column.get(item["currency_column"]) != "currency"
+        ):
+            _fail("ordinary_trade_managed_case_amount_binding_invalid")
+        bound_amounts.append(item["amount_column"])
+    if set(bound_amounts) != amount_columns or len(bound_amounts) != len(
+        set(bound_amounts)
+    ):
+        _fail("ordinary_trade_managed_case_amount_binding_invalid")
 
 
 def structural_fingerprint(
@@ -2169,14 +2404,18 @@ def _fail(code: str) -> None:
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "ORDINARY_TRADE_MANAGED_CASE_MAPPING_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MANAGED_HEADER_VIEW_SCHEMA_VERSION",
     "ORDINARY_TRADE_MAPPING_SCHEMA_VERSION",
     "ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION",
     "OrdinaryTradeSemanticCompiler",
     "OrdinaryTradeSemanticCompilerError",
     "OrdinaryTradeSemanticCompilerFactory",
+    "compile_managed_header_case_mapping_candidate",
     "compile_schema_mapping",
     "normalize_runtime_value",
     "structural_fingerprint",
+    "validate_managed_header_case_mapping_candidate",
     "validate_schema_mapping",
     "validate_ordinary_trade_projection",
 ]

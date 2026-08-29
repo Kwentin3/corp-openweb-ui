@@ -2130,30 +2130,41 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertIn("canonical_artifacts_created", managed)
         self.assertIn("facts_published", managed)
 
-    def test_managed_header_view_has_no_package_consumer(self):
+    def test_managed_header_view_has_only_inactive_case_candidate_consumers(self):
         seam = "ordinary_trade_canonical_managed_header_view"
         function = _function_node(_tree("ordinary_trade_semantic_compiler"), seam)
-        callers = []
-        for path in PACKAGE.glob("*.py"):
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-            callers.extend(
-                (path.name, node.lineno)
-                for node in ast.walk(tree)
-                if isinstance(node, ast.Call)
-                and (
-                    isinstance(node.func, ast.Name)
-                    and node.func.id == seam
-                    or isinstance(node.func, ast.Attribute)
-                    and node.func.attr == seam
-                )
+        self.assertEqual(
+            _call_owners("ordinary_trade_semantic_compiler", seam),
+            {
+                "compile_managed_header_case_mapping_candidate",
+                "validate_managed_header_case_mapping_candidate",
+            },
+        )
+        self.assertFalse(
+            any(
+                seam in _call_names(ast.parse(path.read_text(encoding="utf-8")))
+                for path in PACKAGE.glob("*.py")
+                if path.name != "ordinary_trade_semantic_compiler.py"
             )
-
-        self.assertEqual(callers, [])
+        )
         self.assertEqual(function.args.args, [])
         self.assertEqual(
             [item.arg for item in function.args.kwonlyargs],
             ["canonical", "canonical_binding", "table_node_id"],
         )
+
+    def test_managed_case_mapping_v4_has_no_package_consumer(self):
+        module = "ordinary_trade_semantic_compiler"
+        compiler = "compile_managed_header_case_mapping_candidate"
+        validator = "validate_managed_header_case_mapping_candidate"
+
+        self.assertEqual(_call_owners(module, compiler), set())
+        self.assertEqual(_call_owners(module, validator), set())
+        for path in PACKAGE.glob("*.py"):
+            if path.name == f"{module}.py":
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            self.assertFalse({compiler, validator} & _call_names(tree), path.name)
 
 
 def _source(module_name: str) -> str:
