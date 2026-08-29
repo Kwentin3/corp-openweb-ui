@@ -73,6 +73,7 @@ from live_gate3_chunk_batch_labeling import (  # noqa: E402
     _url,
 )
 from visual_logical_column_live_research import (  # noqa: E402
+    _bind_response,
     _projection_parser_page,
 )
 
@@ -162,14 +163,10 @@ def _prepare(args: argparse.Namespace) -> int:
     prepared = logical_freeze.get("prepared_crop_scope")
     if not isinstance(prepared, dict):
         raise LiveTableScopedRoleError("table_scope_logical_freeze_invalid")
-    rebound_leaves = projector.bind_logical_column_proposal(
+    rebound_leaves = _bind_response(
+        projector=projector,
         provider_value=logical_result.get("provider_value"),
-        parser_page=parser_page,
-        bound_structure=prepared.get("bound_structure"),
-        expected_crop_manifest_hash=(prepared.get("crop_identity") or {}).get(
-            "manifest_hash"
-        ),
-        crop_identity=prepared.get("crop_identity"),
+        prepared=prepared,
     )
     proposal = LogicalRowStructuralProposal(
         source_checksum_sha256=source_sha256,
