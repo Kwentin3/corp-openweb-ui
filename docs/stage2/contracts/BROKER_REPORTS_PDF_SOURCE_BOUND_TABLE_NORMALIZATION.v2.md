@@ -127,7 +127,7 @@ decision. Those consumers remain absent in this PR.
 
 ## Inactive document-wide adjudication coordinator
 
-`PdfDocumentVisualAdjudicationFactory.create_with_connection` is the sole
+`PdfDocumentVisualAdjudicationFactory.create_for_openwebui` is the sole
 proposed coordinator entrypoint. It validates one whole FullSource payload,
 renders every page exactly once through `PdfTableRasterFactory`, and submits
 that same ordered raster set first to `PROPOSAL` and then to `CRITIC`. A
@@ -162,6 +162,45 @@ cannot improve authority. Even two-pass agreement on header absence remains
 non-authoritative here: only LogicalRow's independent source structure may
 prove that continuation. The coordinator terminal is coverage-only,
 publication is always forbidden, and no facts or Canonical values are emitted.
+
+## Inactive adjudicated Managed Document bridge
+
+`ManagedPdfDocumentV2Factory.create_adjudicated_for_openwebui(schema, request)` is the
+only proposed reviewed Managed entrypoint. It resolves the enabled OpenWebUI
+Admin provider and seals its authority binding before returning a builder.
+Local, ambiguous or later-mutated provider authority fails before FullSource.
+The builder accepts only original PDF bytes, a private source-artifact identity,
+task ID and DPI. It creates the exact FullSource owner once, passes that same
+payload and source checksum to the exact factory-created document adjudicator,
+and accepts no public raw connection,
+FullSource, recovery, adjudication result, receipt, reviewed plan or raw scope
+request.
+
+The adjudicator renders each page once, uses the exact same ordered rasters for
+`PROPOSAL` and `CRITIC`, and invokes LogicalRow recovery once. A `PARTIAL`
+terminal returns no Managed document and reaches no Canonical, fact or product
+owner. Only `COVERAGE_COMPLETE` may pass the adjudicator's local recovery to
+private Managed assembly and exact-plan sealing. Managed does not recompute
+admission and does not call LogicalRow again.
+
+The sealed v2 document carries recovered rows, issues and word ownership. Only
+an actually accepted `PRESENT` leading title/header/body partition adds a
+narrow reviewed evidence record containing the same-call scope receipt ref,
+proposal/raster hashes and bound source-word refs. Raw private receipt
+transport is not copied.
+
+Rows classified through that evidence use `REVIEWED_SOURCE_BOUND`, never
+`DETERMINISTIC_DERIVED` or `MODEL_PROPOSED`. Their direct text remains in the
+FullSource word anchors.
+
+A `BOUND` receipt alone is not role authority. `ABSENT`, `EMPTY`, `EXPLAINER`
+and partial outcomes remain audit-only, contribute no private reviewed plan and
+cannot relabel any title, header or data row. A model-only `ABSENT` remains an
+inspectable `PARTIAL` ambiguity until independent evidence resolves it.
+
+Public Managed v2 validation/sealing rejects invented reviewed evidence. The
+same Managed builder call alone passes its exact recovered evidence plan to a
+private sealing seam, which compares it before sealing.
 
 ## Fragment-local continuation rule
 
