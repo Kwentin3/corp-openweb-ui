@@ -28,6 +28,46 @@ geometrically compatible.
 Exact word accounting is necessary but does not by itself prove table identity.
 Every source word must still have exactly one table-entry or paragraph owner.
 
+## Inactive source-bound scope input
+
+The inactive `SourceBoundTableScopeFactory` produces a representation-only
+receipt. It does not call or accept values directly from a provider transport.
+The factory accepts a closed geometry-only proposal containing title boxes,
+complete header-band boxes and body-anchor boxes. The host envelope is a
+separate input. The binder first requires a whole FullSource payload accepted
+by `validate_pdf_text_layer_payload`, then binds boxes to exact existing word
+refs and to one existing table candidate through its contributing words.
+
+The model cannot return text, word refs, candidate refs, table IDs or a
+continuation decision. Runtime computes a receipt ref and the exact proposal
+hash. Title, header, body-anchor and cross-table word overlap is rejected. A
+missing or non-unique candidate remains inspectable `PARTIAL`; the successful
+receipt state is only `BOUND`, never `COMPLETE`, and array order never resolves
+ambiguity.
+
+`source_sha256`, page identity and the full raster manifest are the trusted host
+envelope. Normalized boxes are converted to PDF points only by
+`PdfTableLocatorProjectionFactory`, which validates the full-page identity,
+page bbox, rotation, resize flags and source-to-pixel transform. The binder
+also ties the supplied source SHA to the validated payload's source checksum
+ref and rejects duplicate or foreign projection refs.
+
+The full-page raster manifest is a trusted host-issued artifact at this seam.
+This binder does not recompute its `manifest_hash` or bind private PNG bytes;
+those proofs remain owned by `PdfTableRasterFactory` and the host artifact
+boundary. It does require the manifest's PDF SHA, document and page identity to
+match the validated FullSource input. It does not claim independent raster
+authenticity.
+
+The receipt has no `authoritative_structure` field and its checksum is not a
+consumer authority. A future continuation consumer must bind and consume this
+evidence within one owner call; accepting a caller-created ready scope or
+rehashing a dataclass is forbidden.
+
+`EMPTY_TEMPLATE`, `UNCERTAIN` and a proposed `EXPLAINER` classification are
+always non-authoritative `PARTIAL` observations. They cannot delete, release or
+exclude words. `EXPLAINER` does not decide financial relevance.
+
 ## Fragment-local continuation rule
 
 A right fragment may join one previous logical table only when all of the
