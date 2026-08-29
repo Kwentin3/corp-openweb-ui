@@ -1,0 +1,110 @@
+{
+  "schema_version": "broker_reports_canonical_table_role_mapping_rd_receipt_safe_v1",
+  "status": "HYPOTHESIS_REFUTED",
+  "scope": "research_only_no_production_integration",
+  "source_head": "e21547b06b17ab059f5803aaa79b82c5c64cfcfa",
+  "branch": "agent/rd-canonical-financial-role-mapping-kiss",
+  "freeze_sha256": "fbe6f10c2da64e6f7004a046e8de12bb3210d9aebe933b4b70bb2a82fd8cdfbd",
+  "selection_sha256": "a339ddbb262579eebd41f6e6dd03914e3c042c93f0bf3b7d7360469ca4a0b65e",
+  "selected_variant": "header_plus_profiles",
+  "prompt_version": "canonical_financial_role_mapping_research_prompt_v2",
+  "model_id": "models/gemini-3.5-flash",
+  "provider_profile_id": "google_gemini",
+  "model_policy": {
+    "calls_per_case_variant": 1,
+    "semantic_retry": false,
+    "best_of_n": false,
+    "manual_output_repair": false
+  },
+  "corpus_inventory": {
+    "documents": 43,
+    "tables": 288,
+    "rows": 3418,
+    "qualified_public_control_tables": 10,
+    "qualified_public_control_rows": 58,
+    "development_cases": 6,
+    "untouched_holdout_cases": 6
+  },
+  "development": [
+    {
+      "variant": "header_only",
+      "calls": 6,
+      "validated": 5,
+      "validator_failed": 1,
+      "input_tokens": 10463,
+      "visible_output_tokens": 1629,
+      "total_tokens": 20866,
+      "duration_ms": 50141,
+      "approx_cost_usd_standard_list": "0.109322"
+    },
+    {
+      "variant": "header_plus_profiles",
+      "calls": 6,
+      "validated": 6,
+      "validator_failed": 0,
+      "input_tokens": 28734,
+      "visible_output_tokens": 2019,
+      "total_tokens": 41534,
+      "duration_ms": 58875,
+      "approx_cost_usd_standard_list": "0.158301"
+    },
+    {
+      "variant": "full_table",
+      "calls": 6,
+      "validated": 5,
+      "validator_failed": 1,
+      "input_tokens": 54692,
+      "visible_output_tokens": 2328,
+      "total_tokens": 67120,
+      "duration_ms": 60718,
+      "approx_cost_usd_standard_list": "0.193890"
+    }
+  ],
+  "holdout": {
+    "variant": "header_plus_profiles",
+    "calls": 6,
+    "validated": 4,
+    "validator_failed": 2,
+    "input_tokens": 49126,
+    "visible_output_tokens": 1352,
+    "total_tokens": 60336,
+    "duration_ms": 61985,
+    "approx_cost_usd_standard_list": "0.174579",
+    "exact_executable_contracts_after_semantic_review": 1,
+    "cases_requiring_manual_or_document_specific_correction": 5
+  },
+  "all_live_calls": {
+    "calls": 24,
+    "input_tokens": 143015,
+    "visible_output_tokens": 7328,
+    "total_tokens": 189856,
+    "duration_ms": 231719,
+    "approx_cost_usd_standard_list": "0.636092"
+  },
+  "safety": {
+    "source_stores_unchanged": true,
+    "source_literals_unchanged_on_validated_applications": true,
+    "facts_created_by_model": 0,
+    "silent_publication_after_invalid_or_unsupported_table": 0,
+    "private_values_committed": false,
+    "broker_year_filename_routes": 0,
+    "production_mutations": 0
+  },
+  "verification": {
+    "focused_architecture_and_bundle_tests_passed": 62,
+    "ruff_passed": true,
+    "diff_check_passed": true,
+    "unrelated_baseline_architecture_tests_passed": 74,
+    "unrelated_baseline_architecture_tests_failed": 5,
+    "baseline_failure_files_changed_by_research": false
+  },
+  "first_divergence": "Canonical table nodes can begin with data or continue a prior header, while the frozen contract requires header_row to name an in-node row; the model returned header_row=0 and strict runtime validation correctly stopped.",
+  "principal_semantic_error": "The selected profile surface collapsed explicit adjacent price, trade, broker-commission and exchange-commission currency columns into one currency binding on the qualified control.",
+  "safe_evidence_file_sha256": {
+    "corpus_inventory": "9e058cf2d0b1be686d5d79f5b727e995c53e9809aa33aa5af8681a4fabe64f7f",
+    "control_inventory": "70f1b6af88a95e276aaa25de1ca2d6d9921468fde7a8726c0d58c09fb34ff702",
+    "freeze": "316388411099029c0bd8f4add488e2f7efe9efdbcf7d3cab9f286a3c10e84123",
+    "development": "2a9a175edd9a1aa2903230222135669e09e0b4b4958771dcc1e59628e9b18ef8",
+    "holdout": "4be23f84455fb1d4db22eae9cfb8921962448e8dbf3cc950f2ed0f7da3dfd2a2"
+  }
+}

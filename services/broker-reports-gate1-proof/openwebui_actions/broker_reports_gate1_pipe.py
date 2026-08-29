@@ -134,6 +134,7 @@ from broker_reports_gate1.gate2_model_requests import (
     GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
     ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
+    ORDINARY_TRADE_SEMANTIC_REVIEW_REQUEST_PROFILE,
 )
 from broker_reports_gate1.gate3_ndfl_workflow import (
     NDFL_PROVIDER_MODEL_ID,
@@ -1605,12 +1606,27 @@ class Pipe:
                 done=False,
             )
             mapping_client = None
+            review_client = None
             answer_client = None
             if self.valves.ordinary_trade_semantic_mapping_enabled:
                 mapping_client = Gate2StructuredModelClientFactory(
                     config=Gate2StructuredModelClientConfig(
                         request_profile=(
                             ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
+                        ),
+                        provider_profile_id=(
+                            self.valves.ordinary_trade_mapping_provider_profile_id
+                        ),
+                        capability_probe=False,
+                        economy_budget_enforcement=False,
+                    ),
+                    user=user,
+                    request=request,
+                ).create()
+                review_client = Gate2StructuredModelClientFactory(
+                    config=Gate2StructuredModelClientConfig(
+                        request_profile=(
+                            ORDINARY_TRADE_SEMANTIC_REVIEW_REQUEST_PROFILE
                         ),
                         provider_profile_id=(
                             self.valves.ordinary_trade_mapping_provider_profile_id
@@ -1640,6 +1656,7 @@ class Pipe:
                 read_enabled=True,
                 retention_policy=retention_policy,
                 mapping_model_client=mapping_client,
+                mapping_review_model_client=review_client,
                 mapping_answer_model_client=answer_client,
                 mapping_model_id=(
                     self.valves.ordinary_trade_mapping_model_id

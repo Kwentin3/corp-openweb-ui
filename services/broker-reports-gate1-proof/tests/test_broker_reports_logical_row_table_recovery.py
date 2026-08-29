@@ -15,8 +15,15 @@ from broker_reports_gate1.logical_row_table_recovery import (
     FACTORY_REQUIRED,
     FORBIDDEN,
     LogicalRowTableFactory,
+    LogicalRowStructuralProposal,
+    LogicalRowTableRecoveryError,
     logical_table_block_id,
 )
+from broker_reports_gate1.canonical_artifact import (
+    CanonicalNormalizerConfig,
+    CanonicalNormalizerFactory,
+)
+from broker_reports_gate1.table_projection import NormalizedTableProjectionFactory
 
 
 SOURCE_CHECKSUM = "a" * 64
@@ -145,6 +152,22 @@ class ProjectionBuilder:
         self.vectors.append(
             {
                 "object_ref": f"{self.ref_prefix}_vector_{len(self.vectors) + 1}",
+                "page_ref": page_ref,
+                "bbox_ref": self._add_bbox(page_ref=page_ref, bbox=bbox),
+            }
+        )
+
+
+    def add_rect(
+        self,
+        *,
+        page_number: int,
+        bbox: list[float],
+    ) -> None:
+        page_ref = self._page_ref(page_number)
+        self.rects.append(
+            {
+                "object_ref": f"{self.ref_prefix}_rect_{len(self.rects) + 1}",
                 "page_ref": page_ref,
                 "bbox_ref": self._add_bbox(page_ref=page_ref, bbox=bbox),
             }
@@ -5310,6 +5333,613 @@ def test_g1_release_ledger_closes_global_source_accounting() -> None:
     assert paragraph_refs == released_refs
     assert owned_refs | paragraph_refs == source_refs
     assert not owned_refs.intersection(paragraph_refs)
+
+
+def test_source_accounting_accepts_exact_geometry_partition_when_reading_order_drifts(
+) -> None:
+    builder = ProjectionBuilder(ref_prefix="accounting_reading_order_drift")
+    refs: list[str] = []
+    for y, left, right in (
+        (100, "Item", "Amount"),
+        (114, "Alpha", "10"),
+        (128, "Beta", "20"),
+        (142, "Gamma", "30"),
+    ):
+        refs += builder.add_row(
+            page_number=1,
+            y=y,
+            entries=[(20, left, 50), (200, right, 30)],
+        )
+    builder.add_candidate(
+        page_number=1,
+        bbox=[15, 95, 235, 152],
+        word_refs=refs,
+    )
+    projection = builder.projection()
+    projection["word_inventory"][0]["geometry_reading_order"] = 99
+
+    result = LogicalRowTableFactory().create().recover(
+        projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+    )
+
+    assert len(result.tables) == 1
+    assert _table_text(result.tables[0]) == [
+        ["Item", "Amount"],
+        ["Alpha", "10"],
+        ["Beta", "20"],
+        ["Gamma", "30"],
+    ]
+    assert len(result.source_word_ownership) == len(refs)
+    assert len(
+        {item["source_word_id"] for item in result.source_word_ownership}
+    ) == len(refs)
+    assert result.unowned_word_refs == []
+
+
+def _structural_proposal_fixture(
+    *, include_competing_body: bool = False
+) -> tuple[dict[str, Any], LogicalRowStructuralProposal]:
+    builder = ProjectionBuilder(
+        ref_prefix="structural_proposal",
+        width=1620.0,
+        height=500.0,
+    )
+    shared_refs = builder.add_row(
+        page_number=1,
+        y=18.0,
+        entries=[
+            (20.0, "Execution", 260.0),
+            (400.0, "Instrument", 260.0),
+            (800.0, "Amounts", 260.0),
+            (1200.0, "Settlement", 260.0),
+        ],
+    )
+    header_entries = [
+        (30.0 + ordinal * 48.0, f"H{ordinal + 1}", 20.0) for ordinal in range(32)
+    ]
+    header_refs = builder.add_row(
+        page_number=1,
+        y=34.0,
+        entries=header_entries,
+    )
+    builder.add_candidate(
+        page_number=1,
+        bbox=[20.0, 15.0, 1570.0, 45.0],
+        word_refs=[*shared_refs, *header_refs],
+    )
+
+    body_refs: list[str] = []
+    rule_y = [75.0 + ordinal * 30.0 for ordinal in range(6)]
+    for logical_row in range(5):
+        body_refs.extend(
+            builder.add_row(
+                page_number=1,
+                y=rule_y[logical_row] + 6.0,
+                entries=[
+                    (
+                        50.0 + column * 48.0,
+                        f"{logical_row + 1}.{column + 1}",
+                        20.0,
+                    )
+                    for column in range(32)
+                ],
+            )
+        )
+        body_refs.extend(
+            builder.add_row(
+                page_number=1,
+                y=rule_y[logical_row] + 17.0,
+                entries=[(30.0 + (logical_row % 4) * 48.0, "wrapped", 28.0)],
+            )
+        )
+    builder.add_candidate(
+        page_number=1,
+        bbox=[20.0, rule_y[0], 1570.0, rule_y[-1]],
+        word_refs=body_refs,
+    )
+    for y in rule_y[1:-1]:
+        builder.add_vector_line(
+            page_number=1,
+            bbox=[20.0, y, 1570.0, y + 0.2],
+        )
+    for y in (rule_y[0], rule_y[-1]):
+        builder.add_rect(
+            page_number=1,
+            bbox=[20.0, y - 1.0, 1570.0, y + 1.0],
+        )
+
+    if include_competing_body:
+        competing_refs = []
+        competing_rules = [285.0 + ordinal * 24.0 for ordinal in range(6)]
+        for logical_row in range(5):
+            competing_refs.extend(
+                builder.add_row(
+                    page_number=1,
+                    y=competing_rules[logical_row] + 6.0,
+                    entries=[
+                        (30.0, str(logical_row + 1), 20.0),
+                        (78.0, str(logical_row + 2), 20.0),
+                        (126.0, str(logical_row + 3), 20.0),
+                    ],
+                )
+            )
+        builder.add_candidate(
+            page_number=1,
+            bbox=[20.0, competing_rules[0], 1570.0, competing_rules[-1]],
+            word_refs=competing_refs,
+        )
+        for y in competing_rules[1:-1]:
+            builder.add_vector_line(
+                page_number=1,
+                bbox=[20.0, y, 1570.0, y + 0.2],
+            )
+        for y in (competing_rules[0], competing_rules[-1]):
+            builder.add_rect(
+                page_number=1,
+                bbox=[20.0, y - 1.0, 1570.0, y + 1.0],
+            )
+
+    proposal = LogicalRowStructuralProposal(
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        page_number=1,
+        page_leaf_box_pdf_points=tuple(
+            (x - 2.0, 32.0, x + 22.0, 44.0) for x, _, _ in header_entries
+        ),
+        header_word_refs=tuple(header_refs),
+        shared_header_word_refs=tuple(shared_refs),
+    )
+    return builder.projection(), proposal
+
+
+def test_optional_structural_proposal_recovers_32_columns_and_five_body_bands() -> None:
+    projection, proposal = _structural_proposal_fixture()
+
+    result = (
+        LogicalRowTableFactory()
+        .create()
+        .recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+    )
+
+    assert result.diagnostics["research_structural_proposal_applied"] == 1
+    assert len(result.tables) == 1
+    table = result.tables[0]
+    assert len(table["logical_columns"]) == 32
+    assert len(table["ordered_rows"]) == 6
+    assert [row["role"] for row in table["ordered_rows"]] == [
+        "COLUMN_HEADER",
+        "DATA",
+        "DATA",
+        "DATA",
+        "DATA",
+        "DATA",
+    ]
+    assert [len(row["entries"]) for row in table["ordered_rows"][-5:]] == [
+        32,
+        32,
+        32,
+        32,
+        32,
+    ]
+    assert any(
+        "wrapped" in entry["text"]
+        for row in table["ordered_rows"][-5:]
+        for entry in row["entries"]
+    )
+    assert result.unowned_word_refs == []
+    assert result.diagnostics["multiple_word_owners_total"] == 0
+    assert result.diagnostics["provider_calls"] == 0
+
+
+def test_structural_proposal_uses_leaf_box_seam_for_body_column_ownership() -> None:
+    projection, proposal = _structural_proposal_fixture()
+    boxes = list(proposal.page_leaf_box_pdf_points)
+    left = boxes[7]
+    right = boxes[8]
+    boxes[8] = (left[2], right[1], boxes[9][0], right[3])
+    proposal = replace(proposal, page_leaf_box_pdf_points=tuple(boxes))
+
+    old_center_midpoint = (
+        recovery_module._bbox_center_x(left)
+        + recovery_module._bbox_center_x(boxes[8])
+    ) / 2.0
+    shared_edge = left[2]
+    seam_word = next(
+        item for item in projection["word_inventory"] if item["text"] == "1.8"
+    )
+    bbox_by_ref = {
+        item["bbox_ref"]: item["bbox"] for item in projection["bbox_inventory"]
+    }
+    seam_word_center = recovery_module._bbox_center_x(
+        tuple(bbox_by_ref[seam_word["bbox_ref"]])
+    )
+    assert shared_edge < seam_word_center < old_center_midpoint
+
+    result = LogicalRowTableFactory().create().recover(
+        projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        structural_proposal=proposal,
+    )
+
+    table = result.tables[0]
+    right_column_id = table["logical_columns"][8]["column_id"]
+    seam_anchor = next(
+        item
+        for item in result.anchors
+        if item["locator"]["source_block_ref"] == seam_word["word_ref"]
+    )
+    owner = next(
+        item
+        for item in result.source_word_ownership
+        if item["source_anchor_id"] == seam_anchor["anchor_id"]
+    )
+    body_entry = next(
+        entry
+        for row in table["ordered_rows"]
+        if row["role"] == "DATA"
+        for entry in row["entries"]
+        if entry["entry_id"] == owner["owner_entry_id"]
+    )
+    assert body_entry["logical_column_id"] == right_column_id
+    assert "1.8" in body_entry["text"]
+    assert result.unowned_word_refs == []
+    assert result.diagnostics["multiple_word_owners_total"] == 0
+
+
+def test_research_projection_roundtrips_32_columns_into_new_canonical() -> None:
+    source_projection, proposal = _structural_proposal_fixture()
+    for ordinal, word in enumerate(source_projection["word_inventory"], start=1):
+        word["source_value_ref"] = f"sourcevalue_structural_{ordinal}"
+    recovery = LogicalRowTableFactory().create().recover(
+        source_projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        structural_proposal=proposal,
+    )
+    payload = {
+        "source_payload_ref": "payload_structural_research",
+        "parser_completeness_status": "complete",
+        "parser_completeness_reason_codes": [],
+        "pdf_text_layer_projection": source_projection,
+    }
+    visual_unit = {
+        "unit_ref": "unit_structural_visual_page_1",
+        "document_id": "document_structural_research",
+        "parent_payload_ref": payload["source_payload_ref"],
+        "normalization_run_id": "run_structural_research",
+        "pdf_unit_type": "pdf_visual_page_unit",
+        "source_location": {"kind": "pdf_visual_page_render", "page": 1},
+        "page_refs": [source_projection["page_inventory"][0]["page_ref"]],
+    }
+    word_by_ref = {
+        str(item["word_ref"]): item for item in source_projection["word_inventory"]
+    }
+    paragraph_unit = {
+        "unit_ref": "unit_structural_paragraph_page_1",
+        "document_id": "document_structural_research",
+        "parent_payload_ref": payload["source_payload_ref"],
+        "normalization_run_id": "run_structural_research",
+        "source_location": {"kind": "pdf_text_layer", "page": 1, "line_start": 1},
+        "text": " ".join(
+            str(word_by_ref[word_ref].get("text") or "")
+            for word_ref in recovery.paragraph_owned_word_refs
+        ),
+        "coverage": {
+            "selected_source_refs": list(recovery.paragraph_owned_word_refs)
+        },
+    }
+    assert paragraph_unit["text"]
+
+    projected = (
+        NormalizedTableProjectionFactory()
+        .create()
+        .build_research_projection_for_logical_row_recovery(
+            recovery=recovery,
+            payloads=[payload],
+            source_units=[visual_unit, paragraph_unit],
+        )
+    )
+
+    assert len(projected.projections) == 1
+    projection = projected.projections[0]
+    assert projection["validator_status"] == "passed"
+    assert projection["research_only"] is True
+    assert projection["product_reachability"] is False
+    assert projection["ordered_logical_rows_remain_authority"] is True
+    assert projection["rectangular_grid_is_canonical"] is False
+    assert projection["row_count"] == 6
+    assert projection["column_count"] == 32
+    assert [row["row_role"] for row in projection["rows"]] == [
+        "header_row",
+        "data_row",
+        "data_row",
+        "data_row",
+        "data_row",
+        "data_row",
+    ]
+    anchor_by_id = {str(item["anchor_id"]): item for item in recovery.anchors}
+    expected_word_refs = {
+        str(
+            anchor_by_id[str(item["source_anchor_id"])]["locator"][
+                "source_block_ref"
+            ]
+        )
+        for item in recovery.source_word_ownership
+    }
+    expected_source_value_refs = {
+        str(word_by_ref[word_ref]["source_value_ref"])
+        for word_ref in expected_word_refs
+    }
+    assert set(projection["source_value_refs"]) == expected_source_value_refs
+    assert {
+        str(item["source_object_ref"])
+        for item in projection["source_value_index"]
+    } == expected_word_refs
+
+    canonical = CanonicalNormalizerFactory(
+        CanonicalNormalizerConfig(normalizer_version="logical-row-research-test-v1")
+    ).create().build(
+        tenant_id="tenant-research",
+        artifact_version=1,
+        document={
+            "container_format": "pdf",
+            "sha256": SOURCE_CHECKSUM,
+            "declared_mime_type": "application/pdf",
+        },
+        source_artifact_ref="source-structural-research",
+        source_payloads=[payload],
+        source_units=[visual_unit, paragraph_unit],
+        table_projections=projected.projections,
+    )
+
+    tables = [node for node in canonical["nodes"] if node["node_type"] == "TABLE"]
+    assert len(tables) == 1
+    assert len(tables[0]["content"]["header"]) == 32
+    assert len(tables[0]["content"]["rows"]) == 5
+    assert {len(row) for row in tables[0]["content"]["rows"]} == {32}
+    assert canonical["status"] == "validated"
+    rebuilt = CanonicalNormalizerFactory(
+        CanonicalNormalizerConfig(normalizer_version="logical-row-research-test-v1")
+    ).create().build(
+        tenant_id="tenant-research",
+        artifact_version=1,
+        document={
+            "container_format": "pdf",
+            "sha256": SOURCE_CHECKSUM,
+            "declared_mime_type": "application/pdf",
+        },
+        source_artifact_ref="source-structural-research",
+        source_payloads=[payload],
+        source_units=[visual_unit, paragraph_unit],
+        table_projections=projected.projections,
+    )
+    assert rebuilt["canonical_root_hash"] == canonical["canonical_root_hash"]
+
+
+def test_research_projection_rejects_a_mutated_anchor_source_ref() -> None:
+    source_projection, proposal = _structural_proposal_fixture()
+    for ordinal, word in enumerate(source_projection["word_inventory"], start=1):
+        word["source_value_ref"] = f"sourcevalue_structural_{ordinal}"
+    recovery = LogicalRowTableFactory().create().recover(
+        source_projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        structural_proposal=proposal,
+    )
+    owned_anchor_id = str(recovery.source_word_ownership[0]["source_anchor_id"])
+    owned_anchor = next(
+        item for item in recovery.anchors if item["anchor_id"] == owned_anchor_id
+    )
+    owned_anchor["locator"]["source_block_ref"] = "mutated_word_ref"
+
+    with pytest.raises(ValueError, match="logical_row_recovery_anchor_source_binding_invalid"):
+        (
+            NormalizedTableProjectionFactory()
+            .create()
+            .build_research_projection_for_logical_row_recovery(
+                recovery=recovery,
+                payloads=[
+                    {
+                        "source_payload_ref": "payload_structural_research",
+                        "pdf_text_layer_projection": source_projection,
+                    }
+                ],
+                source_units=[
+                    {
+                        "unit_ref": "unit_structural_visual_page_1",
+                        "document_id": "document_structural_research",
+                        "parent_payload_ref": "payload_structural_research",
+                        "pdf_unit_type": "pdf_visual_page_unit",
+                        "source_location": {"page": 1},
+                        "page_refs": [
+                            source_projection["page_inventory"][0]["page_ref"]
+                        ],
+                    }
+                ],
+            )
+        )
+
+
+def test_research_projection_rejects_one_word_owned_by_two_cells() -> None:
+    source_projection, proposal = _structural_proposal_fixture()
+    for ordinal, word in enumerate(source_projection["word_inventory"], start=1):
+        word["source_value_ref"] = f"sourcevalue_structural_{ordinal}"
+    recovery = LogicalRowTableFactory().create().recover(
+        source_projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        structural_proposal=proposal,
+    )
+    first_anchor_id = str(recovery.source_word_ownership[0]["source_anchor_id"])
+    second_anchor_id = str(recovery.source_word_ownership[1]["source_anchor_id"])
+    first_anchor = next(
+        item for item in recovery.anchors if item["anchor_id"] == first_anchor_id
+    )
+    second_anchor = next(
+        item for item in recovery.anchors if item["anchor_id"] == second_anchor_id
+    )
+    second_anchor["locator"]["source_block_ref"] = first_anchor["locator"][
+        "source_block_ref"
+    ]
+
+    with pytest.raises(
+        ValueError, match="logical_row_recovery_duplicate_source_word_owner"
+    ):
+        (
+            NormalizedTableProjectionFactory()
+            .create()
+            .build_research_projection_for_logical_row_recovery(
+                recovery=recovery,
+                payloads=[
+                    {
+                        "source_payload_ref": "payload_structural_research",
+                        "pdf_text_layer_projection": source_projection,
+                    }
+                ],
+                source_units=[
+                    {
+                        "unit_ref": "unit_structural_visual_page_1",
+                        "document_id": "document_structural_research",
+                        "parent_payload_ref": "payload_structural_research",
+                        "pdf_unit_type": "pdf_visual_page_unit",
+                        "source_location": {"page": 1},
+                        "page_refs": [
+                            source_projection["page_inventory"][0]["page_ref"]
+                        ],
+                    }
+                ],
+            )
+        )
+
+
+def test_structural_proposal_default_none_is_byte_equivalent_baseline() -> None:
+    projection, _ = _structural_proposal_fixture()
+    runtime = LogicalRowTableFactory().create()
+
+    implicit = runtime.recover(
+        projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+    )
+    explicit = runtime.recover(
+        projection,
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        structural_proposal=None,
+    )
+
+    assert implicit.as_dict() == explicit.as_dict()
+    assert "research_structural_proposal_applied" not in implicit.diagnostics
+
+
+def test_structural_proposal_rejects_a_stale_header_ref_atomically() -> None:
+    projection, proposal = _structural_proposal_fixture()
+    proposal = replace(
+        proposal,
+        header_word_refs=("stale_word_ref", *proposal.header_word_refs[1:]),
+    )
+
+    with pytest.raises(LogicalRowTableRecoveryError) as exc_info:
+        LogicalRowTableFactory().create().recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+
+    assert str(exc_info.value) == "logical_row_structural_proposal_header_refs_stale"
+
+
+def test_structural_proposal_rejects_leaf_box_drift_atomically() -> None:
+    projection, proposal = _structural_proposal_fixture()
+    boxes = list(proposal.page_leaf_box_pdf_points)
+    boxes[0] = (boxes[0][0] + 24.0, *boxes[0][1:])
+    proposal = replace(proposal, page_leaf_box_pdf_points=tuple(boxes))
+
+    with pytest.raises(LogicalRowTableRecoveryError) as exc_info:
+        LogicalRowTableFactory().create().recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+
+    assert str(exc_info.value) == "logical_row_structural_proposal_leaf_boxes_invalid"
+
+
+def test_structural_proposal_rejects_missing_source_rule_atomically() -> None:
+    projection, proposal = _structural_proposal_fixture()
+    projection["vector_line_inventory"].pop()
+
+    with pytest.raises(LogicalRowTableRecoveryError) as exc_info:
+        LogicalRowTableFactory().create().recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+
+    assert (
+        str(exc_info.value) == "logical_row_structural_proposal_body_region_ambiguous"
+    )
+
+
+def test_structural_proposal_rejects_missing_outer_rect_rule_atomically() -> None:
+    projection, proposal = _structural_proposal_fixture()
+    projection["rect_inventory"].pop()
+
+    with pytest.raises(LogicalRowTableRecoveryError) as exc_info:
+        LogicalRowTableFactory().create().recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+
+    assert (
+        str(exc_info.value) == "logical_row_structural_proposal_body_region_ambiguous"
+    )
+
+
+def test_structural_proposal_rejects_two_five_band_body_regions() -> None:
+    projection, proposal = _structural_proposal_fixture(include_competing_body=True)
+
+    with pytest.raises(LogicalRowTableRecoveryError) as exc_info:
+        LogicalRowTableFactory().create().recover(
+            projection,
+            source_checksum_sha256=SOURCE_CHECKSUM,
+            private_evidence_ref=PRIVATE_EVIDENCE_REF,
+            structural_proposal=proposal,
+        )
+
+    assert (
+        str(exc_info.value) == "logical_row_structural_proposal_body_region_ambiguous"
+    )
+
+
+def test_source_accounting_order_relaxation_still_rejects_orphan_mutation(
+) -> None:
+    region = _internal_microtrack_region(
+        [
+            [[(20.0, 80.0, "Header")], [(200.0, 230.0, "Amount")]],
+            [[(20.0, 80.0, "Item")], [(200.0, 230.0, "10")]],
+        ],
+        ref_prefix="accounting_order_relaxation_orphan",
+    )
+    region.rows[0].entries[-1].words.pop()
+
+    with pytest.raises(
+        recovery_module.LogicalRowTableRecoveryError,
+        match="logical_row_source_accounting_partition_invalid",
+    ):
+        recovery_module._source_accounting_scope([region])
 
 
 def test_materialization_rejects_orphan_word_before_state_mutation() -> None:

@@ -15,6 +15,7 @@ from broker_reports_gate1.ordinary_trade_projection import (
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
+    SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingFactory,
 )
 
@@ -100,6 +101,120 @@ def _column_role_decision(column: int, semantic_role: str) -> dict:
     }
 
 
+def _gross_candidate_table_decisions(mapping, gross_column: int) -> list[dict]:
+    decision = copy.deepcopy(_complete({}, mapping)["table_decisions"][0])
+    by_column = {item["column"]: item for item in decision["columns"]}
+    prior_gross = next(
+        item["column"]
+        for item in decision["columns"]
+        if item["semantic_role"] == "gross_amount"
+    )
+    target_role = by_column[gross_column]["semantic_role"]
+    by_column[gross_column]["semantic_role"] = "gross_amount"
+    by_column[prior_gross]["semantic_role"] = target_role
+    currency_column = next(
+        item["column"]
+        for item in decision["columns"]
+        if item["semantic_role"] == "currency"
+    )
+    monetary_roles = {
+        "gross_amount",
+        "broker_commission",
+        "exchange_commission",
+    }
+    decision["amount_currency_bindings"] = [
+        {"amount_column": item["column"], "currency_column": currency_column}
+        for item in decision["columns"]
+        if item["semantic_role"] in monetary_roles
+    ]
+    return [decision]
+
+
+def _reviewed_outcome(
+    *,
+    semantic,
+    mapping_response,
+    mapping_outcome,
+    canonical,
+    canonical_binding,
+    user_scope_sha256,
+    target_table_node_ids=None,
+    frozen_mappings=(),
+):
+    mapping_package = semantic.build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+        target_table_node_ids=target_table_node_ids,
+    )
+    review_package = semantic.build_semantic_review_package(
+        mapping_package=mapping_package,
+        mapping_response=mapping_response,
+    )
+    if mapping_response["status"] == "COMPLETE":
+        decisions = mapping_response["table_decisions"]
+        verdict = "APPROVE_COMPLETE"
+    else:
+        decisions = mapping_response["clarification"]["options"][0][
+            "candidate_table_decisions"
+        ]
+        verdict = "IRREDUCIBLE_AMBIGUITY"
+    review_response = {
+        "schema_version": SEMANTIC_REVIEW_RESPONSE_SCHEMA_VERSION,
+        "verdict": verdict,
+        "selected_option_position": None,
+        "table_findings": [
+            {
+                "table_ref": item["table_ref"],
+                "finding": (
+                    "SUPPORTED_MAPPING_COMPLETE"
+                    if item["disposition"] == "SECURITY_TRADES"
+                    else "SAFE_NON_FINANCIAL_AUXILIARY"
+                ),
+            }
+            for item in decisions
+        ],
+    }
+    return semantic.validate_semantic_review(
+        response=review_response,
+        mapping_outcome=mapping_outcome,
+        mapping_response=mapping_response,
+        mapping_package=mapping_package,
+        review_package=review_package,
+        canonical=canonical,
+        canonical_binding=canonical_binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=user_scope_sha256,
+        target_table_node_ids=target_table_node_ids,
+        frozen_mappings=frozen_mappings,
+    )
+def _role_override_candidate_table_decisions(
+    mapping, column: int, semantic_role: str
+) -> list[dict]:
+    decision = copy.deepcopy(_complete({}, mapping)["table_decisions"][0])
+    next(
+        item for item in decision["columns"] if item["column"] == column
+    )["semantic_role"] = semantic_role
+    currency_columns = [
+        item["column"]
+        for item in decision["columns"]
+        if item["semantic_role"] == "currency"
+    ]
+    if len(currency_columns) == 1:
+        decision["amount_currency_bindings"] = [
+            {
+                "amount_column": item["column"],
+                "currency_column": currency_columns[0],
+            }
+            for item in decision["columns"]
+            if item["semantic_role"]
+            in {"gross_amount", "broker_commission", "exchange_commission"}
+        ]
+    return [decision]
+
+
 def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> None:
     store, context, document_id, canonical, binding, table, mapping = _unknown_case(
         tmp_path
@@ -111,14 +226,23 @@ def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> 
     actual_scope = cases.case_binding(
         document_id=document_id, context=context
     )["user_scope_sha256"]
+    mapping_response = _complete(table, mapping)
     outcome = semantic.validate_mapping_response(
-        response=_complete(table, mapping),
+        response=mapping_response,
         canonical=canonical,
         canonical_binding=binding,
         model_id="models/gemini-3.5-flash",
         provider_profile_id="google_gemini",
         execution_metadata=_metadata(),
         confirmed_understandings=[],
+        user_scope_sha256=actual_scope,
+    )
+    outcome = _reviewed_outcome(
+        semantic=semantic,
+        mapping_response=mapping_response,
+        mapping_outcome=outcome,
+        canonical=canonical,
+        canonical_binding=binding,
         user_scope_sha256=actual_scope,
     )
     record, payload = cases.save_mapping_outcome(
@@ -144,7 +268,7 @@ def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> 
 
 
 def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) -> None:
-    store, context, document_id, canonical, binding, table, _mapping = _unknown_case(
+    store, context, document_id, canonical, binding, table, mapping = _unknown_case(
         tmp_path
     )
     semantic = OrdinaryTradeSemanticMappingFactory.create()
@@ -164,16 +288,25 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
                     "option_id": "o_1",
                     "label": "Первая денежная колонка",
                     "decision": _column_role_decision(9, "gross_amount"),
+                    "candidate_table_decisions": _gross_candidate_table_decisions(
+                        mapping, 9
+                    ),
                 },
                 {
                     "option_id": "o_runtime_1",
                     "label": "Вторая денежная колонка",
                     "decision": _column_role_decision(10, "gross_amount"),
+                    "candidate_table_decisions": _gross_candidate_table_decisions(
+                        mapping, 10
+                    ),
                 },
             ],
         },
         "message": "Нужно уточнить назначение денежной колонки.",
     }
+    user_scope_sha256 = cases.case_binding(
+        document_id=document_id, context=context
+    )["user_scope_sha256"]
     outcome = semantic.validate_mapping_response(
         response=clarification,
         canonical=canonical,
@@ -182,9 +315,15 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
         provider_profile_id="google_gemini",
         execution_metadata=_metadata(),
         confirmed_understandings=[],
-        user_scope_sha256=cases.case_binding(
-            document_id=document_id, context=context
-        )["user_scope_sha256"],
+        user_scope_sha256=user_scope_sha256,
+    )
+    outcome = _reviewed_outcome(
+        semantic=semantic,
+        mapping_response=clarification,
+        mapping_outcome=outcome,
+        canonical=canonical,
+        canonical_binding=binding,
+        user_scope_sha256=user_scope_sha256,
     )
     cases.save_mapping_outcome(
         document_id=document_id,
@@ -222,7 +361,7 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
 
 
 def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
-    store, context, document_id, canonical, binding, table, _mapping = _unknown_case(
+    store, context, document_id, canonical, binding, table, mapping = _unknown_case(
         tmp_path
     )
     semantic = OrdinaryTradeSemanticMappingFactory.create()
@@ -238,22 +377,28 @@ def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
                 "option_id": "o_runtime_1",
                 "label": "Первая",
                 "decision": _column_role_decision(9, "gross_amount"),
+                "candidate_table_decisions": _gross_candidate_table_decisions(
+                    mapping, 9
+                ),
             },
             {
                 "option_id": "o_second",
                 "label": "Вторая",
                 "decision": _column_role_decision(10, "gross_amount"),
+                "candidate_table_decisions": _gross_candidate_table_decisions(
+                    mapping, 10
+                ),
             },
         ],
     }
     outcome = semantic.validate_mapping_response(
-        response={
+        response=(mapping_response := {
             "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
             "status": "CLARIFICATION_REQUIRED",
             "table_decisions": [],
             "clarification": question,
             "message": "Нужно уточнение.",
-        },
+        }),
         canonical=canonical,
         canonical_binding=binding,
         model_id="models/gemini-3.5-flash",
@@ -263,6 +408,17 @@ def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
         user_scope_sha256=cases.case_binding(
             document_id=document_id, context=context
         )["user_scope_sha256"],
+    )
+    user_scope_sha256 = cases.case_binding(
+        document_id=document_id, context=context
+    )["user_scope_sha256"]
+    outcome = _reviewed_outcome(
+        semantic=semantic,
+        mapping_response=mapping_response,
+        mapping_outcome=outcome,
+        canonical=canonical,
+        canonical_binding=binding,
+        user_scope_sha256=user_scope_sha256,
     )
     cases.save_mapping_outcome(
         document_id=document_id,

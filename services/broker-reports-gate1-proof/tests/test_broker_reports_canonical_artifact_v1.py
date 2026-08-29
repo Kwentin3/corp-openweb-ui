@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import tempfile
 import unittest
@@ -24,6 +25,8 @@ from broker_reports_gate1 import (
     build_retention_policy,
     persist_gate1_result,
 )
+from broker_reports_gate1.canonical_artifact import CanonicalArtifactError
+from broker_reports_gate1.table_projection import NormalizedTableProjectionFactory
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -34,6 +37,72 @@ SCHEMA_PATH = (
     / "contracts"
     / "BROKER_REPORTS_CANONICAL_ARTIFACT.v1.schema.json"
 )
+
+
+class _RecoveryProjectionFixture:
+
+    def __init__(self, value):
+        self.value = value
+
+    def as_dict(self):
+        return copy.deepcopy(self.value)
+
+def _valid_pdf_projection(
+    *,
+    prefix: str,
+    row_values: list[list[tuple[int, str]]],
+    column_count: int,
+    paragraph_values: tuple[str, ...] = (),
+):
+    page_ref = 'page_1'
+    payload_ref = f'{prefix}-payload'
+    unit = {'unit_ref': f'{prefix}-unit', 'document_id': f'{prefix}-document', 'parent_payload_ref': payload_ref, 'normalization_run_id': f'{prefix}-run', 'pdf_unit_type': 'pdf_visual_page_unit', 'source_location': {'kind': 'pdf_visual_page_render', 'page': 1}, 'page_refs': [page_ref]}
+    words = []
+    anchors = []
+    ownership = []
+    rows = []
+    for row_ordinal, values in enumerate(row_values, start=1):
+        entries = []
+        for entry_ordinal, (column_ordinal, value) in enumerate(values, start=1):
+            word_ref = f'{prefix}-word-{row_ordinal}-{entry_ordinal}'
+            source_value_ref = f'{prefix}-value-{row_ordinal}-{entry_ordinal}'
+            anchor_id = f'{prefix}-anchor-{row_ordinal}-{entry_ordinal}'
+            entry_id = f'{prefix}-entry-{row_ordinal}-{entry_ordinal}'
+            words.append({'word_ref': word_ref, 'page_ref': page_ref, 'text': value, 'source_value_ref': source_value_ref})
+            anchors.append({'anchor_id': anchor_id, 'locator': {'page': 1, 'source_block_ref': word_ref}})
+            ownership.append({'source_anchor_id': anchor_id, 'owner_entry_id': entry_id})
+            entries.append({'entry_id': entry_id, 'logical_column_id': f'{prefix}-column-{column_ordinal}', 'covers_logical_column_ids': [], 'source_anchor_ids': [anchor_id]})
+        rows.append({'row_id': f'{prefix}-row-{row_ordinal}', 'role': 'COLUMN_HEADER' if row_ordinal == 1 else 'DATA', 'entries': entries})
+    paragraph_refs = []
+    for ordinal, value in enumerate(paragraph_values, start=1):
+        word_ref = f'{prefix}-paragraph-word-{ordinal}'
+        paragraph_refs.append(word_ref)
+        words.append(
+            {
+                'word_ref': word_ref,
+                'page_ref': page_ref,
+                'text': value,
+            }
+        )
+    recovery = _RecoveryProjectionFixture({'schema_version': 'broker_reports_logical_row_table_recovery_v1', 'tables': [{'table_id': f'{prefix}-table', 'completeness_status': 'COMPLETE', 'source_parts': [{'page': 1}], 'logical_columns': [{'column_id': f'{prefix}-column-{ordinal}'} for ordinal in range(1, column_count + 1)], 'ordered_rows': rows}], 'anchors': anchors, 'source_word_ownership': ownership, 'paragraph_owned_word_refs': paragraph_refs, 'unowned_word_refs': []})
+    payload = {'source_payload_ref': payload_ref, 'parser_completeness_status': 'complete', 'parser_completeness_reason_codes': [], 'pdf_text_layer_projection': {'page_inventory': [{'page_ref': page_ref, 'page_number': 1}], 'line_inventory': [], 'word_inventory': words}}
+    paragraph_unit = None
+    if paragraph_refs:
+        paragraph_unit = {
+            'unit_ref': f'{prefix}-paragraph-unit',
+            'document_id': f'{prefix}-document',
+            'parent_payload_ref': payload_ref,
+            'normalization_run_id': f'{prefix}-run',
+            'source_location': {'page': 1, 'line_start': 2},
+            'text': ' '.join(paragraph_values),
+            'coverage': {'selected_source_refs': paragraph_refs},
+        }
+    source_units = [unit, *([paragraph_unit] if paragraph_unit else [])]
+    result = NormalizedTableProjectionFactory().create().build_research_projection_for_logical_row_recovery(recovery=recovery, payloads=[payload], source_units=source_units)
+    return (result.projections[0], payload, unit, paragraph_unit)
+
+def _build_pdf_canonical(*, projections, payload, source_units):
+    return CanonicalNormalizerFactory(CanonicalNormalizerConfig(normalizer_version='canonical-test-v1')).create().build(tenant_id='tenant', artifact_version=1, document={'container_format': 'pdf', 'sha256': 'f' * 64, 'declared_mime_type': 'application/pdf'}, source_artifact_ref='source-pdf', source_payloads=[payload], source_units=source_units, table_projections=projections)
 
 
 class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
@@ -235,252 +304,116 @@ class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
         self.assertEqual(formula["displayed_value"], "20")
         self.assertEqual(formula["merged_range"], "A2:B2")
 
-    def test_pdf_projection_replaces_its_source_unit_once_in_reading_order(self):
-        units = [
-            {
-                "unit_ref": "table-unit",
-                "source_location": {"page": 1, "line_start": 1},
-                "text": "A B 1 2",
-            },
-            {
-                "unit_ref": "line-unit",
-                "source_location": {"page": 1, "line_start": 2},
-                "text": "After table",
-            },
-        ]
-        projection = {
-            "projection_status": "ready",
-            "table_projection_id": "projection-1",
-            "source_unit_ref": "table-unit",
-            "row_count": 2,
-            "column_count": 2,
-            "cells": [
-                {"row_ordinal": 1, "column_ordinal": 1, "normalized_private_value_path": "v1"},
-                {"row_ordinal": 1, "column_ordinal": 2, "normalized_private_value_path": "v2"},
-                {"row_ordinal": 2, "column_ordinal": 1, "normalized_private_value_path": "v3"},
-                {"row_ordinal": 2, "column_ordinal": 2, "normalized_private_value_path": "v4"},
-            ],
-            "private_values": [
-                {"value_path_ref": "v1", "normalized_value": "A"},
-                {"value_path_ref": "v2", "normalized_value": "B"},
-                {"value_path_ref": "v3", "normalized_value": "1"},
-                {"value_path_ref": "v4", "normalized_value": "2"},
-            ],
+    def test_dense_pdf_projection_preserves_per_cell_locator_refs(self):
+        projection, payload, table_unit, paragraph_unit = _valid_pdf_projection(prefix='dense', row_values=[[(1, 'A'), (2, 'B')], [(1, '1'), (2, '2')]], column_count=2, paragraph_values=('After', 'table'))
+        units = [table_unit, paragraph_unit]
+        artifact = CanonicalNormalizerFactory(CanonicalNormalizerConfig(normalizer_version='canonical-test-v1')).create().build(tenant_id='tenant', artifact_version=1, document={'container_format': 'pdf', 'sha256': 'c' * 64, 'declared_mime_type': 'application/pdf'}, source_artifact_ref='source-pdf', source_payloads=[payload], source_units=units, table_projections=[projection])
+        self.assertEqual([item['node_type'] for item in artifact['nodes']], ['TABLE', 'TEXT'])
+        self.assertEqual(artifact['nodes'][0]['content']['header'], ['A', 'B'])
+        self.assertEqual(artifact['nodes'][0]['content']['rows'], [['1', '2']])
+        rectangular_cells = artifact['nodes'][0]['content']['cells']
+        self.assertEqual([(cell['row'], cell['column']) for cell in rectangular_cells], [(1, 1), (1, 2), (2, 1), (2, 2)])
+        self.assertEqual(len({cell['source_refs'][0] for cell in rectangular_cells}), 4)
+        provenance_by_id = {item['provenance_id']: item for item in artifact['provenance']}
+        locators = [provenance_by_id[cell['source_refs'][0]]['source_locator'] for cell in rectangular_cells]
+        self.assertTrue(all((locator['kind'] == 'pdf_table_projection_cell' for locator in locators)))
+        self.assertEqual([locator['source_value_refs'] for locator in locators], [[f'dense-value-{row}-{column}'] for row in (1, 2) for column in (1, 2)])
+        self.assertNotIn('private_source_word_partition', json.dumps(artifact))
+
+    def test_research_projection_requires_exact_paragraph_word_emission(self):
+        projection, payload, table_unit, paragraph_unit = _valid_pdf_projection(
+            prefix='partition',
+            row_values=[[(1, 'A'), (2, 'B')], [(1, '1'), (2, '2')]],
+            column_count=2,
+            paragraph_values=('Before', 'after'),
+        )
+        artifact = _build_pdf_canonical(
+            projections=[projection],
+            payload=payload,
+            source_units=[table_unit, paragraph_unit],
+        )
+        self.assertEqual(
+            [item['node_type'] for item in artifact['nodes']],
+            ['TABLE', 'TEXT'],
+        )
+        self.assertNotIn('private_source_word_partition', json.dumps(artifact))
+
+        paragraph_refs = list(
+            projection['private_source_word_partition'][
+                'paragraph_owned_source_object_refs'
+            ]
+        )
+        table_ref = projection['source_value_index'][0]['source_object_ref']
+        mutations = {
+            'table_word_duplicated_as_text': [*paragraph_refs, table_ref],
+            'paragraph_word_missing': paragraph_refs[:-1],
+            'paragraph_word_duplicated': [paragraph_refs[0], *paragraph_refs],
         }
-        artifact = CanonicalNormalizerFactory(
-            CanonicalNormalizerConfig(normalizer_version="canonical-test-v1")
-        ).create().build(
-            tenant_id="tenant",
-            artifact_version=1,
-            document={
-                "container_format": "pdf",
-                "sha256": "c" * 64,
-                "declared_mime_type": "application/pdf",
-            },
-            source_artifact_ref="source-pdf",
-            source_payloads=[
-                {
-                    "parser_completeness_status": "complete",
-                    "parser_completeness_reason_codes": [],
-                    "pdf_text_layer_projection": {
-                        "page_inventory": [{"page_number": 1}],
-                        "line_inventory": [],
-                    },
-                }
-            ],
-            source_units=units,
-            table_projections=[projection],
-        )
-        self.assertEqual(
-            [item["node_type"] for item in artifact["nodes"]],
-            ["TABLE", "TEXT"],
-        )
-        self.assertEqual(
-            artifact["nodes"][0]["content"]["rows"],
-            [["A", "B"], ["1", "2"]],
-        )
-        rectangular_cells = artifact["nodes"][0]["content"]["cells"]
-        self.assertEqual(
-            [cell["source_coordinate"] for cell in rectangular_cells],
-            ["R1C1", "R1C2", "R2C1", "R2C2"],
-        )
-        self.assertEqual(
-            len({cell["source_refs"][0] for cell in rectangular_cells}),
-            1,
-        )
+        for name, selected_refs in mutations.items():
+            with self.subTest(name=name):
+                mutated_unit = copy.deepcopy(paragraph_unit)
+                mutated_unit['coverage']['selected_source_refs'] = selected_refs
+                with self.assertRaises(CanonicalArtifactError) as rejected:
+                    _build_pdf_canonical(
+                        projections=[projection],
+                        payload=payload,
+                        source_units=[table_unit, mutated_unit],
+                    )
+                self.assertEqual(
+                    rejected.exception.code,
+                    'canonical_research_paragraph_emission_unproven',
+                )
 
     def test_pdf_projection_preserves_sparse_source_cells_and_cell_provenance(self):
-        units = [
-            {
-                "unit_ref": "sparse-table-unit",
-                "source_location": {"page": 1, "line_start": 1},
-                "text": "Section A B C",
-            }
-        ]
-        projection = {
-            "projection_status": "ready",
-            "table_projection_id": "sparse-projection-1",
-            "source_unit_ref": "sparse-table-unit",
-            "page_refs": ["page_1"],
-            "row_count": 2,
-            "column_count": 3,
-            "cells": [
-                {
-                    "cell_ref": "cell-1-1",
-                    "row_ordinal": 1,
-                    "column_ordinal": 1,
-                    "bbox_ref": "bbox-1-1",
-                    "source_value_refs": ["value-1-1"],
-                    "normalized_private_value_path": "v11",
-                },
-                *[
-                    {
-                        "cell_ref": f"cell-2-{column}",
-                        "row_ordinal": 2,
-                        "column_ordinal": column,
-                        "bbox_ref": f"bbox-2-{column}",
-                        "source_value_refs": [f"value-2-{column}"],
-                        "normalized_private_value_path": f"v2{column}",
-                    }
-                    for column in range(1, 4)
-                ],
-            ],
-            "private_values": [
-                {"value_path_ref": "v11", "normalized_value": "Section"},
-                {"value_path_ref": "v21", "normalized_value": "A"},
-                {"value_path_ref": "v22", "normalized_value": "B"},
-                {"value_path_ref": "v23", "normalized_value": "C"},
-            ],
-            "header_model": {"header_row_refs": []},
-        }
-        artifact = CanonicalNormalizerFactory(
-            CanonicalNormalizerConfig(normalizer_version="canonical-test-v1")
-        ).create().build(
-            tenant_id="tenant",
-            artifact_version=1,
-            document={
-                "container_format": "pdf",
-                "sha256": "d" * 64,
-                "declared_mime_type": "application/pdf",
-            },
-            source_artifact_ref="source-pdf",
-            source_payloads=[
-                {
-                    "parser_completeness_status": "complete",
-                    "parser_completeness_reason_codes": [],
-                    "pdf_text_layer_projection": {
-                        "page_inventory": [{"page_number": 1}],
-                        "line_inventory": [],
-                    },
-                }
-            ],
-            source_units=units,
-            table_projections=[projection],
-        )
-        table = next(node for node in artifact["nodes"] if node["node_type"] == "TABLE")
+        projection, payload, table_unit, _paragraph_unit = _valid_pdf_projection(prefix='sparse', row_values=[[(1, 'Section')], [(1, 'A'), (2, 'B'), (3, 'C')]], column_count=3)
+        artifact = CanonicalNormalizerFactory(CanonicalNormalizerConfig(normalizer_version='canonical-test-v1')).create().build(tenant_id='tenant', artifact_version=1, document={'container_format': 'pdf', 'sha256': 'd' * 64, 'declared_mime_type': 'application/pdf'}, source_artifact_ref='source-pdf', source_payloads=[payload], source_units=[table_unit], table_projections=[projection])
+        table = next((node for node in artifact['nodes'] if node['node_type'] == 'TABLE'))
+        self.assertEqual(len(table['content']['cells']), 4)
+        self.assertEqual([(cell['row'], cell['column']) for cell in table['content']['cells']], [(1, 1), (2, 1), (2, 2), (2, 3)])
+        provenance_by_id = {item['provenance_id']: item for item in artifact['provenance']}
+        cell_locators = [provenance_by_id[cell['source_refs'][0]]['source_locator'] for cell in table['content']['cells']]
+        self.assertTrue(all((locator['kind'] == 'pdf_table_projection_cell' for locator in cell_locators)))
+        self.assertEqual([(locator['row'], locator['column']) for locator in cell_locators], [(1, 1), (2, 1), (2, 2), (2, 3)])
+        self.assertEqual([len(locator['source_value_refs']) for locator in cell_locators], [1, 1, 1, 1])
 
-        self.assertEqual(len(table["content"]["cells"]), 4)
-        self.assertEqual(
-            [(cell["row"], cell["column"]) for cell in table["content"]["cells"]],
-            [(1, 1), (2, 1), (2, 2), (2, 3)],
-        )
-        provenance_by_id = {
-            item["provenance_id"]: item for item in artifact["provenance"]
-        }
-        cell_locators = [
-            provenance_by_id[cell["source_refs"][0]]["source_locator"]
-            for cell in table["content"]["cells"]
-        ]
-        self.assertTrue(
-            all(locator["kind"] == "pdf_table_projection_cell" for locator in cell_locators)
-        )
-        self.assertEqual(
-            [(locator["row"], locator["column"]) for locator in cell_locators],
-            [(1, 1), (2, 1), (2, 2), (2, 3)],
-        )
-        self.assertEqual(
-            [len(locator["source_value_refs"]) for locator in cell_locators],
-            [1, 1, 1, 1],
-        )
+    def test_pdf_projection_revalidation_rejects_missing_forged_and_tampered(self):
+        valid, payload, unit, _paragraph_unit = _valid_pdf_projection(prefix='revalidate', row_values=[[(1, 'A'), (2, 'B')], [(1, '1'), (2, '2')]], column_count=2)
+        mutations = {}
+        missing_status = copy.deepcopy(valid)
+        missing_status.pop('validator_status')
+        mutations['missing_status'] = missing_status
+        forged_status = copy.deepcopy(valid)
+        forged_status['schema_version'] = 'forged_schema'
+        forged_status['validator_status'] = 'passed'
+        mutations['forged_status'] = forged_status
+        tampered = copy.deepcopy(valid)
+        tampered['private_values'][0]['normalized_value'] = 'tampered'
+        mutations['tampered'] = tampered
+        for name, projection in mutations.items():
+            with self.subTest(name=name):
+                with self.assertRaises(CanonicalArtifactError) as rejected:
+                    _build_pdf_canonical(projections=[projection], payload=payload, source_units=[unit])
+                self.assertEqual(rejected.exception.code, 'canonical_table_projection_validation_failed')
+
+    def test_one_invalid_projection_blocks_the_whole_canonical_candidate(self):
+        first, payload, first_unit, _first_paragraph_unit = _valid_pdf_projection(prefix='multi-first', row_values=[[(1, 'A'), (2, 'B')], [(1, '1'), (2, '2')]], column_count=2)
+        second, _second_payload, second_unit, _second_paragraph_unit = _valid_pdf_projection(prefix='multi-second', row_values=[[(1, 'C'), (2, 'D')], [(1, '3'), (2, '4')]], column_count=2)
+        second['cells'][0]['source_value_refs'] = ['forged-source-value-ref']
+        with self.assertRaises(CanonicalArtifactError) as rejected:
+            _build_pdf_canonical(projections=[first, second], payload=payload, source_units=[first_unit, second_unit])
+        self.assertEqual(rejected.exception.code, 'canonical_table_projection_validation_failed')
 
     def test_source_bound_visual_projection_survives_without_parser_unit_alias(self):
-        projection = {
-            "projection_status": "ready",
-            "table_projection_id": "semantic-projection-1",
-            "canonical_table_id": "semantic-table-1",
-            "source_unit_ref": "visual-candidate-1",
-            "source_document_ref": "document-pdf",
-            "page_refs": ["page_1"],
-            "row_count": 2,
-            "column_count": 2,
-            "cells": [
-                {
-                    "logical_row_index": row,
-                    "logical_column_index": column,
-                    "normalized_private_value_path": f"v{row}{column}",
-                }
-                for row in range(2)
-                for column in range(2)
-            ],
-            "private_values": [
-                {"value_path_ref": "v00", "normalized_value": "Header A"},
-                {"value_path_ref": "v01", "normalized_value": "Header B"},
-                {"value_path_ref": "v10", "normalized_value": "Value A"},
-                {"value_path_ref": "v11", "normalized_value": "Value B"},
-            ],
-            "header_model": {"header_row_refs": []},
-            "table_candidate_status": "canonical_table_accepted",
-        }
-        artifact = CanonicalNormalizerFactory(
-            CanonicalNormalizerConfig(normalizer_version="canonical-test-v1")
-        ).create().build(
-            tenant_id="tenant",
-            artifact_version=1,
-            document={
-                "container_format": "pdf",
-                "sha256": "e" * 64,
-                "declared_mime_type": "application/pdf",
-            },
-            source_artifact_ref="source-pdf",
-            source_payloads=[
-                {
-                    "parser_completeness_status": "complete",
-                    "parser_completeness_reason_codes": [],
-                    "pdf_text_layer_projection": {
-                        "page_inventory": [{"page_number": 1}],
-                        "line_inventory": [],
-                    },
-                }
-            ],
-            source_units=[
-                {
-                    "unit_ref": "parser-page-1",
-                    "source_location": {"page": 1, "line_start": 1},
-                    "text": "Parser text remains independently preserved.",
-                }
-            ],
-            table_projections=[projection],
-        )
-
-        self.assertEqual(
-            [item["node_type"] for item in artifact["nodes"]],
-            ["TEXT", "TABLE"],
-        )
-        table = artifact["nodes"][1]
-        self.assertEqual(
-            table["content"]["rows"],
-            [["Header A", "Header B"], ["Value A", "Value B"]],
-        )
-        self.assertTrue(
-            table["content"]["metadata"]["standalone_source_bound_projection"]
-        )
-        receipt = next(
-            item
-            for item in artifact["containers"]
-            if item["container_type"] == "DOCUMENT"
-        )["metadata"]["pdf_completeness"]
-        self.assertEqual(receipt["table_node_count"], 1)
-        self.assertEqual(receipt["represented_ready_table_projections_total"], 1)
+        projection, payload, _visual_unit, paragraph_unit = _valid_pdf_projection(prefix='standalone', row_values=[[(1, 'Header A'), (2, 'Header B')], [(1, 'Value A'), (2, 'Value B')]], column_count=2, paragraph_values=('Parser', 'text', 'remains', 'independently', 'preserved.'))
+        artifact = CanonicalNormalizerFactory(CanonicalNormalizerConfig(normalizer_version='canonical-test-v1')).create().build(tenant_id='tenant', artifact_version=1, document={'container_format': 'pdf', 'sha256': 'e' * 64, 'declared_mime_type': 'application/pdf'}, source_artifact_ref='source-pdf', source_payloads=[payload], source_units=[paragraph_unit], table_projections=[projection])
+        self.assertEqual([item['node_type'] for item in artifact['nodes']], ['TEXT', 'TABLE'])
+        table = artifact['nodes'][1]
+        self.assertEqual(table['content']['header'], ['Header A', 'Header B'])
+        self.assertEqual(table['content']['rows'], [['Value A', 'Value B']])
+        self.assertTrue(table['content']['metadata']['standalone_source_bound_projection'])
+        receipt = next((item for item in artifact['containers'] if item['container_type'] == 'DOCUMENT'))['metadata']['pdf_completeness']
+        self.assertEqual(receipt['table_node_count'], 1)
+        self.assertEqual(receipt['represented_ready_table_projections_total'], 1)
 
     def test_csv_duplicate_headers_are_preserved_without_silent_repair(self):
         built = FullSourceArtifactFactory(

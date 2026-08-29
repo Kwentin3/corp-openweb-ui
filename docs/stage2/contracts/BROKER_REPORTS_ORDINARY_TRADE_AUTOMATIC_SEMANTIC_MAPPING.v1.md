@@ -2,21 +2,26 @@
 
 Status: `CURRENT AUTHORITY`
 
-Updated: 2026-08-27
+Updated: 2026-08-28
 
 ## Scope
 
 The active `ordinary_trade_automatic_semantic_mapping_v1` route keeps qualified
 exact mappings as a zero-call fast path. Only table nodes not covered by that
 frozen path enter the model package. An unknown Canonical table schema is
-not rejected merely because it is absent from that registry: one strict source
-adapter may propose the table disposition, column roles, side literals and
-consumer-required amount/currency bindings.
+not rejected merely because it is absent from that registry. One strict source
+adapter proposes the table disposition, column roles, side literals and
+consumer-required amount/currency bindings. A second bounded document-wide
+semantic review then checks every risky decision against the same Canonical
+evidence. Thus an undisputed unknown-schema success path uses two model calls.
+When that review rejects a mapper `COMPLETE`, one bounded adjudication pass sees
+the same evidence plus the first review; this disputed path uses three calls and
+never retries. Preserving one call is not an admission criterion.
 
 The model receives only bounded immutable Canonical table context. It does not
 author literals, source references, Canonical changes, facts or tax meaning.
-Broker, year and filename routing, fuzzy matching, retry, best-of-N, output
-repair and fallback to historical Gate 3 are forbidden.
+Broker, year and filename routing, header dictionaries, fuzzy matching, retry,
+best-of-N, output repair and fallback to historical Gate 3 are forbidden.
 
 ## Case lifecycle
 
@@ -26,11 +31,20 @@ workspace. Revisions are deterministic; stale or concurrent answers fail
 closed. A clarification is resumed in that same case. Free text is interpreted
 only against the current option identifiers by a strict Human Adapter.
 
-A candidate never becomes executable implicitly. Every clarification option
+A mapper proposal never becomes executable merely because it compiles. The
+independent reviewer receives the mapper's machine proposal, not its authored
+message, plus the exact same document-wide Canonical table package. It may
+approve a complete proposal, reject the entire document as unsafe, choose one
+clarification option when direct source evidence rules out all others, or
+certify that the ambiguity is irreducible. Its receipt binds both prompts,
+packages, responses, provider execution metadata and the Canonical root.
+
+Every surviving clarification option
 contains a validator-checked, machine-applicable decision bound to the exact
 table/header and column, literal, binding or disposition. Native OpenWebUI
 confirmation must append that decision and its digest. A final mapping that
-does not satisfy every confirmed decision fails closed. Only `COMPLETE` exposes mapping v3 and
+does not satisfy every confirmed decision fails closed. Only a reviewed
+`COMPLETE` exposes mapping v3 and
 `broker_reports_ordinary_trade_case_mapping_qualification_v1`; the receipt
 prohibits global reuse and seals the exact model response, execution metadata,
 confirmed decision and Canonical/table scope.
@@ -86,15 +100,32 @@ Every Canonical table receives exactly one disposition:
 
 - `SECURITY_TRADES` requires a complete validated mapping;
 - `NO_NAMED_CONSUMER` retains literal observations and provenance but emits no
-  Fact v2 only after an exact machine-applicable table-disposition decision was
-  explicitly confirmed; model output alone stops for specialist review;
+  Fact v2 only after the reviewer independently proves either truly
+  non-financial auxiliary content or an account-level aggregate/reference
+  summary whose rows are category totals, balances or references rather than
+  independently addressable financial events; those totals may summarize fees,
+  taxes, income, trades or cash activity, but a date or missing fields alone do
+  not prove aggregation;
 - `UNSUPPORTED_FINANCIAL_MEANING` stops with a typed owner blocker;
-- ambiguity produces one bounded clarification and no mapping admission.
+- unsupported, incomplete, damaged or unresolved financial content is
+  `REJECT_UNSAFE`, remains relevant/unmapped and blocks atomic publication;
+- only reviewer-certified irreducible ambiguity produces one bounded
+  clarification and no mapping admission.
 
 Until all relevant tables are confirmed and complete, Gate 4 publishes no
 partial Fact v2. Provider failure, invalid structured output, source-context
 limit, unsupported meaning and specialist-review need remain distinct typed
 states with no late mutation or silent repair.
+
+Technical compilation of two candidates proves only executability. The reviewer
+may autonomously select one only when source wording and rows rule out the other;
+otherwise it emits an inspectable irreducible-ambiguity receipt. Conversely,
+missing roles never authorize dropping an incomplete financial row.
+`SOURCE_MEANING_UNRESOLVED` may support that terminal only for the one disputed
+table; it is never evidence that another table is a safe auxiliary.
+Transaction-level security, quantity, unit-price, withheld-tax, payee,
+counterparty or transaction-id evidence keeps a row relevant unless Canonical
+affirmatively identifies it as an aggregate.
 
 `COMPLETE` additionally requires exact coverage of every literal in the chosen
 side column from the full Canonical and a deterministic compiler dry-run with
@@ -112,7 +143,8 @@ Fact v2 until the exact row contract is complete.
 ## Release boundary
 
 Package/bundle parity, tenant isolation, concurrency, adversarial inputs and the
-saved corpus matrix are required before release. The real OpenWebUI clean-room
-proof runs only after the dependency branch is transferred onto fresh
-`origin/main`; it must prove one unknown schema, one ambiguity dialogue, the
-known-schema zero-call fast path and unchanged Canonical identity.
+saved corpus matrix are required before release. The live proof must report the
+exact call count and prove autonomous T-Bank completion, safe auxiliary-table
+exclusion, dividend and incomplete-row fail-closed behavior, one genuine
+ambiguity dialogue, the known-schema zero-call fast path and unchanged Canonical
+identity.

@@ -132,6 +132,17 @@ class LogicalRowTableRecoveryResult:
 
 
 @dataclass(frozen=True)
+class LogicalRowStructuralProposal:
+    """Research-only source-bound geometry for one damaged table scope."""
+
+    source_checksum_sha256: str
+    page_number: int
+    page_leaf_box_pdf_points: tuple[tuple[float, float, float, float], ...]
+    header_word_refs: tuple[str, ...]
+    shared_header_word_refs: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class _Page:
     page_ref: str
     page_number: int
@@ -410,6 +421,7 @@ class LogicalRowTableRecoveryRuntime:
         *,
         source_checksum_sha256: str,
         private_evidence_ref: str,
+        structural_proposal: LogicalRowStructuralProposal | None = None,
     ) -> LogicalRowTableRecoveryResult:
         projection = _projection_copy(pdf_text_layer_projection)
         _validate_recovery_inputs(
@@ -479,6 +491,15 @@ class LogicalRowTableRecoveryRuntime:
             object_bboxes=object_bboxes,
             config=self.config,
         )
+        if structural_proposal is not None:
+            regions = _apply_research_structural_proposal(
+                regions,
+                proposal=structural_proposal,
+                source_checksum_sha256=source_checksum_sha256,
+                pages=pages,
+                words=words,
+                object_bboxes=object_bboxes,
+            )
         suffix_header_plan = _plan_unruled_leading_suffix_headers(
             regions,
             object_bboxes=object_bboxes,
@@ -613,6 +634,11 @@ class LogicalRowTableRecoveryRuntime:
                 "visual_gold_reads": 0,
                 "pdf_layout_units_consumed": 0,
                 "grid_owner_calls": 0,
+                **(
+                    {"research_structural_proposal_applied": 1}
+                    if structural_proposal is not None
+                    else {}
+                ),
             },
         )
 
@@ -6096,6 +6122,457 @@ def _unruled_suffix_header_row_material(row: _RowBand) -> dict[str, Any]:
     }
 
 
+def _apply_research_structural_proposal(
+    regions: list[_Region],
+    *,
+    proposal: LogicalRowStructuralProposal,
+    source_checksum_sha256: str,
+    pages: list[_Page],
+    words: list[_Word],
+    object_bboxes: list[_ObjectGeometry],
+) -> list[_Region]:
+    """Commit one source-bound structural repair or fail before mutation."""
+
+    page, leaf_boxes, leaf_refs, shared_refs = _validated_structural_proposal(
+        proposal,
+        source_checksum_sha256=source_checksum_sha256,
+        pages=pages,
+        words=words,
+    )
+    ordered = sorted(regions, key=_region_key)
+    header_refs = frozenset({*leaf_refs, *shared_refs})
+    header_matches = [
+        (index, region)
+        for index, region in enumerate(ordered)
+        if region.page.page_number == page.page_number
+        and header_refs == {word.word_ref for word in region.words}
+    ]
+    if len(header_matches) != 1:
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_header_region_ambiguous"
+        )
+    header_index, header = header_matches[0]
+    body_candidates = _structural_body_brackets(
+        ordered,
+        header_index=header_index,
+        header=header,
+        object_bboxes=object_bboxes,
+    )
+    if len(body_candidates) != 1:
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_body_region_ambiguous"
+        )
+    body_indexes, body, rule_tracks, rule_horizontal_scope = body_candidates[0]
+    if {word.word_ref for word in header.words}.intersection(
+        word.word_ref for word in body.words
+    ):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_word_overlap"
+        )
+
+    leaf_centers = tuple(_bbox_center_x(box) for box in leaf_boxes)
+    table_left, table_right = rule_horizontal_scope
+    if leaf_centers[0] <= table_left or leaf_centers[-1] >= table_right:
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_leaf_scope_invalid"
+        )
+    boundaries = (
+        table_left,
+        *tuple(
+            (left[2] + right[0]) / 2.0
+            for left, right in zip(leaf_boxes, leaf_boxes[1:])
+        ),
+        table_right,
+    )
+    column_bands = [(boundaries[index], boundaries[index + 1]) for index in range(32)]
+
+    word_by_ref = {word.word_ref: word for word in header.words}
+    leaf_ref_sets = []
+    for box in leaf_boxes:
+        selected = frozenset(
+            word_ref
+            for word_ref in leaf_refs
+            if _center_inside(word_by_ref[word_ref].bbox, box)
+        )
+        if not selected:
+            raise LogicalRowTableRecoveryError(
+                "logical_row_structural_proposal_leaf_header_empty"
+            )
+        leaf_ref_sets.append(selected)
+    if set().union(*leaf_ref_sets) != set(leaf_refs) or sum(
+        len(item) for item in leaf_ref_sets
+    ) != len(leaf_refs):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_leaf_header_ownership_invalid"
+        )
+
+    header_row = _RowBand(
+        page_ref=header.page.page_ref,
+        bbox=_merge_bboxes([word.bbox for word in header.words]),
+        words=sorted(header.words, key=lambda word: word.order),
+        entries=[],
+        row_coalescence_kind="SOURCE_BOUND_MULTIROW_HEADER",
+    )
+    rebuilt_header = _repartition_row_by_column_bands(
+        header_row,
+        column_bands=column_bands,
+    )
+    if rebuilt_header is None:
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_header_partition_invalid"
+        )
+    body_rows = _body_rows_from_rule_bands(
+        body,
+        rule_tracks=rule_tracks,
+        column_bands=column_bands,
+    )
+    if body_rows is None:
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_body_partition_invalid"
+        )
+    rebuilt_header.row_coalescence_kind = "SOURCE_BOUND_MULTIROW_HEADER"
+    rows = [rebuilt_header, *body_rows]
+    merged_words = sorted(
+        [*header.words, *body.words],
+        key=lambda word: (word.bbox[1], word.bbox[0], word.order),
+    )
+    merged = _Region(
+        source_ref="structural_proposal_"
+        + _sha256_json(
+            [
+                header.source_ref,
+                body.source_ref,
+                proposal.source_checksum_sha256.lower(),
+                proposal.page_number,
+                [list(box) for box in leaf_boxes],
+                list(leaf_refs),
+                list(shared_refs),
+            ]
+        )[:24],
+        page=page,
+        bbox=_merge_bboxes([header.bbox, body.bbox]),
+        words=merged_words,
+        rows=rows,
+        confidence=min(header.confidence, body.confidence),
+        origin=(f"{header.origin}+{body.origin}+RESEARCH_STRUCTURAL_PROPOSAL"),
+        object_refs=sorted({*header.object_refs, *body.object_refs}),
+        ruled_column_bands=column_bands,
+        released_non_table_word_refs=tuple(
+            sorted(
+                {
+                    *header.released_non_table_word_refs,
+                    *body.released_non_table_word_refs,
+                }
+            )
+        ),
+    )
+    if not _region_has_exact_row_word_partition(merged) or any(
+        not _row_has_exact_entry_word_partition(row) for row in rows
+    ):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_partition_invalid"
+        )
+    result = [
+        copy.deepcopy(region)
+        for index, region in enumerate(ordered)
+        if index != header_index and index not in body_indexes
+    ]
+    result.append(merged)
+    return sorted(result, key=_region_key)
+
+
+def _validated_structural_proposal(
+    proposal: Any,
+    *,
+    source_checksum_sha256: str,
+    pages: list[_Page],
+    words: list[_Word],
+) -> tuple[
+    _Page,
+    tuple[tuple[float, float, float, float], ...],
+    tuple[str, ...],
+    tuple[str, ...],
+]:
+    if not isinstance(proposal, LogicalRowStructuralProposal):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_type_invalid"
+        )
+    if (
+        not re.fullmatch(r"[0-9a-fA-F]{64}", proposal.source_checksum_sha256)
+        or proposal.source_checksum_sha256.lower() != source_checksum_sha256.lower()
+        or not isinstance(proposal.page_number, int)
+        or isinstance(proposal.page_number, bool)
+    ):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_source_binding_invalid"
+        )
+    page_matches = [page for page in pages if page.page_number == proposal.page_number]
+    if len(page_matches) != 1:
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_page_invalid"
+        )
+    page = page_matches[0]
+    if (
+        not isinstance(proposal.page_leaf_box_pdf_points, tuple)
+        or len(proposal.page_leaf_box_pdf_points) != 32
+    ):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_leaf_boxes_invalid"
+        )
+    try:
+        boxes = tuple(
+            _valid_bbox(list(value)) for value in proposal.page_leaf_box_pdf_points
+        )
+    except (TypeError, LogicalRowTableRecoveryError) as exc:
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_leaf_boxes_invalid"
+        ) from exc
+    if any(
+        box[0] < 0
+        or box[1] < 0
+        or box[2] > page.width
+        or box[3] > page.height
+        or _bbox_width(box) <= 0
+        or _bbox_height(box) <= 0
+        for box in boxes
+    ) or any(left[2] > right[0] for left, right in zip(boxes, boxes[1:])):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_leaf_boxes_invalid"
+        )
+    leaf_refs = proposal.header_word_refs
+    shared_refs = proposal.shared_header_word_refs
+    if (
+        not isinstance(leaf_refs, tuple)
+        or not isinstance(shared_refs, tuple)
+        or not leaf_refs
+        or any(
+            not isinstance(item, str) or not item for item in [*leaf_refs, *shared_refs]
+        )
+        or len(leaf_refs) != len(set(leaf_refs))
+        or len(shared_refs) != len(set(shared_refs))
+        or set(leaf_refs).intersection(shared_refs)
+    ):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_header_refs_invalid"
+        )
+    word_by_ref = {word.word_ref: word for word in words}
+    proposal_words = [
+        word_by_ref.get(word_ref) for word_ref in [*leaf_refs, *shared_refs]
+    ]
+    if any(word is None or word.page_ref != page.page_ref for word in proposal_words):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_header_refs_stale"
+        )
+    return page, boxes, leaf_refs, shared_refs
+
+
+def _five_body_band_rule_tracks(
+    region: _Region,
+    *,
+    object_bboxes: list[_ObjectGeometry],
+) -> tuple[tuple[float, ...], tuple[float, float]] | None:
+    width = _bbox_width(region.bbox)
+    if width <= 0:
+        return None
+    source_rules = sorted(
+        (
+            _bbox_center_y(item.bbox),
+            item.bbox,
+        )
+        for item in object_bboxes
+        if item.page_ref == region.page.page_ref
+        and item.object_kind in {"vector_line_inventory", "rect_inventory"}
+        and _bbox_width(item.bbox) >= width * 0.8
+        and _bbox_height(item.bbox) <= max(3.0, width * 0.01)
+    )
+    clusters: list[list[tuple[float, tuple[float, float, float, float]]]] = []
+    for source_rule in source_rules:
+        coordinate = source_rule[0]
+        if (
+            clusters
+            and coordinate - statistics.median(item[0] for item in clusters[-1]) <= 0.75
+        ):
+            clusters[-1].append(source_rule)
+        else:
+            clusters.append([source_rule])
+    tracks = tuple(
+        statistics.median(item[0] for item in cluster) for cluster in clusters
+    )
+    word_centers = [_bbox_center_y(word.bbox) for word in region.words]
+    windows = [
+        (window, cluster_window)
+        for start in range(max(0, len(tracks) - 5))
+        for window in [tracks[start : start + 6]]
+        for cluster_window in [clusters[start : start + 6]]
+        if len(window) == 6
+        and all(right - left > 1.0 for left, right in zip(window, window[1:]))
+        and all(window[0] < center < window[-1] for center in word_centers)
+        and all(
+            any(lower < center < upper for center in word_centers)
+            for lower, upper in zip(window, window[1:])
+        )
+    ]
+    if len(windows) != 1:
+        return None
+    window, cluster_window = windows[0]
+    rule_bboxes = [item[1] for cluster in cluster_window for item in cluster]
+    return window, (
+        min(bbox[0] for bbox in rule_bboxes),
+        max(bbox[2] for bbox in rule_bboxes),
+    )
+
+
+def _structural_body_brackets(
+    regions: list[_Region],
+    *,
+    header_index: int,
+    header: _Region,
+    object_bboxes: list[_ObjectGeometry],
+) -> list[
+    tuple[
+        frozenset[int],
+        _Region,
+        tuple[float, ...],
+        tuple[float, float],
+    ]
+]:
+    following = [
+        (index, region)
+        for index, region in enumerate(regions)
+        if index != header_index
+        and region.page.page_ref == header.page.page_ref
+        and region.bbox[1] >= header.bbox[3]
+        and region.rows
+    ]
+    if len(following) > 64:
+        raise LogicalRowTableRecoveryError(
+            "logical_row_structural_proposal_body_region_budget_exceeded"
+        )
+    results = []
+    for start in range(len(following)):
+        for end in range(start + 1, len(following) + 1):
+            participants = following[start:end]
+            participant_regions = [item[1] for item in participants]
+            word_refs = [
+                word.word_ref for region in participant_regions for word in region.words
+            ]
+            if len(word_refs) != len(set(word_refs)):
+                continue
+            combined_words = sorted(
+                [word for region in participant_regions for word in region.words],
+                key=lambda word: (word.bbox[1], word.bbox[0], word.order),
+            )
+            combined = _Region(
+                source_ref="structural_body_bracket_" + _sha256_json(word_refs)[:24],
+                page=header.page,
+                bbox=_merge_bboxes([region.bbox for region in participant_regions]),
+                words=combined_words,
+                rows=[row for region in participant_regions for row in region.rows],
+                confidence=min(region.confidence for region in participant_regions),
+                origin="+".join(region.origin for region in participant_regions),
+                object_refs=sorted(
+                    {
+                        object_ref
+                        for region in participant_regions
+                        for object_ref in region.object_refs
+                    }
+                ),
+                released_non_table_word_refs=tuple(
+                    sorted(
+                        {
+                            word_ref
+                            for region in participant_regions
+                            for word_ref in region.released_non_table_word_refs
+                        }
+                    )
+                ),
+            )
+            rule_geometry = _five_body_band_rule_tracks(
+                combined,
+                object_bboxes=object_bboxes,
+            )
+            if rule_geometry is not None:
+                tracks, horizontal_scope = rule_geometry
+                results.append(
+                    (
+                        frozenset(index for index, _ in participants),
+                        combined,
+                        tracks,
+                        horizontal_scope,
+                    )
+                )
+    return results
+
+
+def _repartition_row_by_column_bands(
+    row: _RowBand,
+    *,
+    column_bands: list[tuple[float, float]],
+) -> _RowBand | None:
+    words_by_column: dict[int, list[_Word]] = {}
+    for word in row.words:
+        owners = [
+            index
+            for index, band in enumerate(column_bands)
+            if band[0] <= _bbox_center_x(word.bbox) < band[1]
+            or (index == len(column_bands) - 1 and _bbox_center_x(word.bbox) == band[1])
+        ]
+        if len(owners) != 1:
+            return None
+        words_by_column.setdefault(owners[0], []).append(word)
+    entries = [
+        _entry_from_words(
+            column_words,
+            bbox=_merge_bboxes([word.bbox for word in column_words]),
+            geometry_column_ordinals=[column_index],
+        )
+        for column_index, column_words in sorted(words_by_column.items())
+    ]
+    rebuilt = copy.deepcopy(row)
+    rebuilt.words = sorted(row.words, key=lambda word: word.order)
+    rebuilt.entries = entries
+    rebuilt.bbox = _merge_bboxes([word.bbox for word in rebuilt.words])
+    return rebuilt if _row_has_exact_entry_word_partition(rebuilt) else None
+
+
+def _body_rows_from_rule_bands(
+    region: _Region,
+    *,
+    rule_tracks: tuple[float, ...],
+    column_bands: list[tuple[float, float]],
+) -> list[_RowBand] | None:
+    rows = []
+    accounted_refs: list[str] = []
+    for band_index, (lower, upper) in enumerate(zip(rule_tracks, rule_tracks[1:])):
+        selected = [
+            word for word in region.words if lower < _bbox_center_y(word.bbox) < upper
+        ]
+        if not selected:
+            return None
+        physical = _RowBand(
+            page_ref=region.page.page_ref,
+            bbox=_merge_bboxes([word.bbox for word in selected]),
+            words=sorted(selected, key=lambda word: word.order),
+            entries=[],
+            row_coalescence_kind="SOURCE_RULE_BODY_BAND",
+        )
+        rebuilt = _repartition_row_by_column_bands(
+            physical,
+            column_bands=column_bands,
+        )
+        if rebuilt is None:
+            return None
+        rebuilt.row_coalescence_kind = f"SOURCE_RULE_BODY_BAND_{band_index + 1}"
+        rows.append(rebuilt)
+        accounted_refs.extend(word.word_ref for word in selected)
+    region_refs = [word.word_ref for word in region.words]
+    if len(accounted_refs) != len(set(accounted_refs)) or set(accounted_refs) != set(
+        region_refs
+    ):
+        return None
+    return rows
+
+
 def _partition_region_words(
     regions: list[_Region],
     *,
@@ -6128,7 +6605,10 @@ def _source_accounting_scope(
     released_refs: list[str] = []
     for region in regions:
         if not _region_has_exact_row_word_partition(region) or any(
-            not _row_has_exact_entry_word_partition(row)
+            # Ownership accounting proves an exact set partition.  Parser
+            # reading order is separate evidence and may legitimately differ
+            # from left-to-right geometry inside one PDF row.
+            not _entry_bands_partition_words(row.entries, row.words)
             for row in region.rows
         ):
             raise LogicalRowTableRecoveryError(

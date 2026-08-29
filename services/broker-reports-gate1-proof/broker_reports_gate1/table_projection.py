@@ -230,6 +230,53 @@ class NormalizedTableProjectionService:
             safe_summary=summary,
         )
 
+    def build_research_projection_for_logical_row_recovery(
+        self,
+        *,
+        recovery: Any,
+        payloads: list[dict[str, Any]],
+        source_units: list[dict[str, Any]],
+    ) -> TableProjectionBuildResult:
+        """Project one inactive logical-row recovery through the table owner.
+
+        The DOC6 recovery module remains an inactive authority, so this seam
+        deliberately uses its immutable ``as_dict`` representation instead of
+        importing or activating that runtime.  It is a research-only view:
+        ordered logical rows remain authoritative and the rectangular matrix
+        is not promoted to semantic table truth.
+        """
+
+        recovery_value = recovery.as_dict() if callable(getattr(recovery, "as_dict", None)) else None
+        if not isinstance(recovery_value, dict):
+            raise ValueError("logical_row_recovery_result_required")
+        projection, source_unit = _research_logical_row_projection(
+            recovery=recovery_value,
+            payloads=payloads,
+            source_units=source_units,
+            config=self.config,
+        )
+        validation = self.validator.validate(projection)
+        projection["validator_status"] = validation["validator_status"]
+        projection["validator_reason_codes"] = sorted(
+            {str(item.get("code") or "") for item in validation["errors"]}
+        )
+        if validation["validator_status"] != "passed":
+            raise ValueError("logical_row_recovery_projection_validation_failed")
+        decision = _decision(
+            source_unit,
+            status="validated_source_bound_geometry",
+            reason_codes=[
+                "logical_row_recovery_represented_research_only",
+                "ordered_logical_rows_remain_authority",
+            ],
+            projection_ref=projection["table_projection_id"],
+        )
+        return TableProjectionBuildResult(
+            projections=[projection],
+            decisions=[decision],
+            safe_summary=_safe_summary([projection], [decision]),
+        )
+
 
 class _NativeTableProjectionBuilder:
     source_format = "unknown"
@@ -957,6 +1004,358 @@ def __getattr__(name: str):
     if name == "TABLE_GATE2_PACKAGE_SCHEMA_VERSION":
         return gate2_table_packages.PACKAGE_SCHEMA_VERSION
     return getattr(gate2_table_packages, name)
+
+
+_LOGICAL_ROW_ROLE_TO_PROJECTION_ROLE = {
+    "TABLE_TITLE": "layout_row",
+    "COLUMN_HEADER": "header_row",
+    "CONTINUATION_HEADER": "repeated_header_row",
+    "GROUP_HEADER": "layout_row",
+    "DATA": "data_row",
+    "SUBTOTAL": "subtotal_row",
+    "TOTAL": "summary_row",
+    "NOTE": "footer_row",
+    "UNKNOWN": "unknown_row_role",
+}
+
+_RESEARCH_SOURCE_WORD_PARTITION_SCHEMA_VERSION = (
+    "logical_row_recovery_source_word_partition_research_v1"
+)
+
+
+def _research_logical_row_projection(
+    *,
+    recovery: dict[str, Any],
+    payloads: list[dict[str, Any]],
+    source_units: list[dict[str, Any]],
+    config: NormalizedTableProjectionConfig,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if recovery.get("schema_version") != "broker_reports_logical_row_table_recovery_v1":
+        raise ValueError("logical_row_recovery_schema_invalid")
+    tables = _dicts(recovery.get("tables"))
+    if len(tables) != 1:
+        raise ValueError("logical_row_recovery_single_table_required")
+    table = tables[0]
+    if table.get("completeness_status") != "COMPLETE":
+        raise ValueError("logical_row_recovery_complete_table_required")
+
+    source_parts = _dicts(table.get("source_parts"))
+    page_numbers = sorted(
+        {int(item.get("page") or 0) for item in source_parts if item.get("page")}
+    )
+    if len(page_numbers) != 1:
+        raise ValueError("logical_row_recovery_single_page_required")
+    page_number = page_numbers[0]
+    visual_units = [
+        unit
+        for unit in source_units
+        if isinstance(unit, dict)
+        and unit.get("pdf_unit_type") == "pdf_visual_page_unit"
+        and int(_object(unit.get("source_location")).get("page") or 0)
+        == page_number
+    ]
+    if len(visual_units) != 1:
+        raise ValueError("logical_row_recovery_visual_source_unit_required")
+    source_unit = visual_units[0]
+
+    words: dict[str, dict[str, Any]] = {}
+    for payload in payloads:
+        projection = _object(_object(payload).get("pdf_text_layer_projection"))
+        for word in _dicts(projection.get("word_inventory")):
+            word_ref = str(word.get("word_ref") or "")
+            if not word_ref or word_ref in words:
+                raise ValueError("logical_row_recovery_word_inventory_invalid")
+            words[word_ref] = word
+    anchors = {
+        str(item.get("anchor_id") or ""): item
+        for item in _dicts(recovery.get("anchors"))
+        if item.get("anchor_id")
+    }
+    ownership = _dicts(recovery.get("source_word_ownership"))
+    owner_by_anchor = {
+        str(item.get("source_anchor_id") or ""): str(
+            item.get("owner_entry_id") or ""
+        )
+        for item in ownership
+        if item.get("source_anchor_id")
+    }
+    if len(owner_by_anchor) != len(ownership):
+        raise ValueError("logical_row_recovery_source_ownership_invalid")
+
+    logical_columns = _dicts(table.get("logical_columns"))
+    column_refs = [str(item.get("column_id") or "") for item in logical_columns]
+    if not column_refs or any(not ref for ref in column_refs) or len(column_refs) != len(set(column_refs)):
+        raise ValueError("logical_row_recovery_columns_invalid")
+    column_ordinal_by_ref = {
+        column_ref: ordinal
+        for ordinal, column_ref in enumerate(column_refs, start=1)
+    }
+    table_ref = str(table.get("table_id") or "")
+    if not table_ref:
+        raise ValueError("logical_row_recovery_table_id_required")
+    projection_id = "tableproj_" + stable_digest(
+        [
+            TABLE_PROJECTION_SCHEMA_VERSION,
+            "logical_row_recovery_research_only",
+            table_ref,
+            source_unit.get("unit_ref"),
+        ],
+        length=24,
+    )
+
+    rows: list[dict[str, Any]] = []
+    cells: list[dict[str, Any]] = []
+    private_values: list[dict[str, Any]] = []
+    source_value_index: list[dict[str, Any]] = []
+    represented_anchor_ids: list[str] = []
+    for row_ordinal, row in enumerate(_dicts(table.get("ordered_rows")), start=1):
+        row_ref = str(row.get("row_id") or "")
+        role = _LOGICAL_ROW_ROLE_TO_PROJECTION_ROLE.get(str(row.get("role") or ""))
+        if not row_ref or role is None:
+            raise ValueError("logical_row_recovery_row_invalid")
+        row_cell_refs: list[str] = []
+        occupied_ordinals: set[int] = set()
+        for entry in _dicts(row.get("entries")):
+            cell_ref = str(entry.get("entry_id") or "")
+            bound_refs = _strings(entry.get("covers_logical_column_ids"))
+            direct_ref = str(entry.get("logical_column_id") or "")
+            if direct_ref and direct_ref not in bound_refs:
+                bound_refs.insert(0, direct_ref)
+            bound_ordinals = sorted(
+                {column_ordinal_by_ref.get(ref, 0) for ref in bound_refs}
+            )
+            if (
+                not cell_ref
+                or not bound_ordinals
+                or bound_ordinals[0] <= 0
+                or bound_ordinals
+                != list(range(bound_ordinals[0], bound_ordinals[-1] + 1))
+                or occupied_ordinals.intersection(bound_ordinals)
+            ):
+                raise ValueError("logical_row_recovery_entry_column_binding_invalid")
+            occupied_ordinals.update(bound_ordinals)
+
+            anchor_ids = _strings(entry.get("source_anchor_ids"))
+            if not anchor_ids or len(anchor_ids) != len(set(anchor_ids)):
+                raise ValueError("logical_row_recovery_entry_anchors_invalid")
+            cell_words: list[dict[str, Any]] = []
+            for anchor_id in anchor_ids:
+                anchor = anchors.get(anchor_id)
+                locator = _object(_object(anchor).get("locator"))
+                word_ref = str(locator.get("source_block_ref") or "")
+                word = words.get(word_ref)
+                if (
+                    word is None
+                    or owner_by_anchor.get(anchor_id) != cell_ref
+                    or int(locator.get("page") or 0) != page_number
+                ):
+                    raise ValueError("logical_row_recovery_anchor_source_binding_invalid")
+                cell_words.append(word)
+            represented_anchor_ids.extend(anchor_ids)
+            source_value_refs = [
+                str(word.get("source_value_ref") or "") for word in cell_words
+            ]
+            if any(not ref for ref in source_value_refs):
+                raise ValueError("logical_row_recovery_source_value_ref_missing")
+            value = " ".join(str(word.get("text") or "") for word in cell_words)
+            value_checksum_ref = _checksum_ref("valuechk", value)
+            value_path_ref = "tablevaluepath_" + stable_digest(
+                [projection_id, cell_ref, *source_value_refs], length=24
+            )
+            cells.append(
+                {
+                    "cell_ref": cell_ref,
+                    "row_ref": row_ref,
+                    "column_ref": column_refs[bound_ordinals[0] - 1],
+                    "row_ordinal": row_ordinal,
+                    "column_ordinal": bound_ordinals[0],
+                    "source_value_refs": source_value_refs,
+                    "cell_value_ref": "cellval_"
+                    + stable_digest([cell_ref, value_checksum_ref], length=24),
+                    "normalized_private_value_path": value_path_ref,
+                    "value_checksum_ref": value_checksum_ref,
+                    "value_kind_hints": _value_kind_hints(value),
+                    "bbox_ref": None,
+                    "row_span": 1,
+                    "column_span": len(bound_ordinals),
+                    "merged_cell_group_ref": None,
+                    "split_cell_candidate": False,
+                    "multi_line_cell": False,
+                    "wrapped_text_cell": False,
+                    "ambiguous_cell_boundary": False,
+                    "empty_cell": not value.strip(),
+                    "confidence": "high",
+                    "reason_codes": [
+                        "logical_row_recovery_source_anchors_preserved"
+                    ],
+                }
+            )
+            private_values.append(
+                {
+                    "value_path_ref": value_path_ref,
+                    "normalized_value": value,
+                    "value_checksum_ref": value_checksum_ref,
+                    "source_value_refs": source_value_refs,
+                }
+            )
+            for word in cell_words:
+                word_ref = str(word.get("word_ref") or "")
+                source_value_ref = str(word.get("source_value_ref") or "")
+                word_value = str(word.get("text") or "")
+                word_value_checksum_ref = _checksum_ref("valuechk", word_value)
+                word_value_path_ref = "tablewordvaluepath_" + stable_digest(
+                    [projection_id, cell_ref, word_ref, source_value_ref], length=24
+                )
+                private_values.append(
+                    {
+                        "value_path_ref": word_value_path_ref,
+                        "normalized_value": word_value,
+                        "value_checksum_ref": word_value_checksum_ref,
+                        "source_value_refs": [source_value_ref],
+                        "source_object_ref": word_ref,
+                    }
+                )
+                source_value_index.append(
+                    {
+                        "source_value_ref": source_value_ref,
+                        "source_object_ref": word_ref,
+                        "cell_ref": cell_ref,
+                        "value_path": {
+                            "kind": "table_projection_private_value",
+                            "value_path_ref": word_value_path_ref,
+                        },
+                        "value_checksum_ref": word_value_checksum_ref,
+                    }
+                )
+            row_cell_refs.append(cell_ref)
+        rows.append(
+            {
+                "row_ref": row_ref,
+                "row_ordinal": row_ordinal,
+                "cell_refs": row_cell_refs,
+                "row_role": role,
+                "row_checksum_ref": _checksum_ref("rowchk", row_cell_refs),
+                "reason_codes": ["ordered_logical_row_preserved"],
+            }
+        )
+
+    if set(represented_anchor_ids) != set(owner_by_anchor) or len(
+        represented_anchor_ids
+    ) != len(owner_by_anchor):
+        raise ValueError("logical_row_recovery_source_ownership_not_preserved")
+    represented_word_refs = [
+        str(_object(anchors[anchor_id].get("locator")).get("source_block_ref") or "")
+        for anchor_id in represented_anchor_ids
+    ]
+    if len(represented_word_refs) != len(set(represented_word_refs)):
+        raise ValueError("logical_row_recovery_duplicate_source_word_owner")
+    if len(source_value_index) != len(
+        {str(item.get("source_value_ref") or "") for item in source_value_index}
+    ):
+        raise ValueError("logical_row_recovery_duplicate_source_value_ref")
+
+    paragraph_value = recovery.get("paragraph_owned_word_refs")
+    unowned_value = recovery.get("unowned_word_refs")
+    if not isinstance(paragraph_value, list) or not isinstance(unowned_value, list):
+        raise ValueError("logical_row_recovery_source_word_partition_missing")
+    paragraph_word_refs = [str(item or "") for item in paragraph_value]
+    unowned_word_refs = [str(item or "") for item in unowned_value]
+    if (
+        any(not item for item in paragraph_word_refs)
+        or len(paragraph_word_refs) != len(set(paragraph_word_refs))
+        or any(not item for item in unowned_word_refs)
+        or len(unowned_word_refs) != len(set(unowned_word_refs))
+    ):
+        raise ValueError("logical_row_recovery_source_word_partition_invalid")
+    all_word_refs = set(words)
+    table_word_refs = set(represented_word_refs)
+    paragraph_word_ref_set = set(paragraph_word_refs)
+    if unowned_word_refs:
+        raise ValueError("logical_row_recovery_unowned_source_words")
+    if (
+        table_word_refs.intersection(paragraph_word_ref_set)
+        or table_word_refs | paragraph_word_ref_set != all_word_refs
+    ):
+        raise ValueError("logical_row_recovery_source_word_partition_invalid")
+    source_payload_refs = [
+        str(payload.get("source_payload_ref") or "")
+        for payload in payloads
+        if isinstance(payload, dict)
+    ]
+    if (
+        len(source_payload_refs) != len(payloads)
+        or any(not item for item in source_payload_refs)
+        or len(source_payload_refs) != len(set(source_payload_refs))
+    ):
+        raise ValueError("logical_row_recovery_source_payload_refs_invalid")
+
+    quality = _quality(
+        rows=rows,
+        cells=cells,
+        coverage_complete=True,
+        geometry_confidence=None,
+        blocked=False,
+    )
+    projection = _base_projection(
+        projection_id=projection_id,
+        table_ref=table_ref,
+        source_format="pdf",
+        table_origin="logical_row_recovery_research_representation",
+        source_unit=source_unit,
+        row_refs=[str(item["row_ref"]) for item in rows],
+        column_refs=column_refs,
+        cells=cells,
+        rows=rows,
+        private_values=private_values,
+        source_value_index=source_value_index,
+        headers=_header_model(
+            rows=rows,
+            cells=cells,
+            private_values=private_values,
+            column_refs=column_refs,
+            pdf_candidate=True,
+        ),
+        coverage=_coverage(
+            projection_id=projection_id,
+            selected=represented_word_refs,
+            table_owned=represented_word_refs,
+        ),
+        quality=quality,
+        page_refs=_strings(source_unit.get("page_refs")),
+        sheet_refs=[],
+        section_refs=[],
+        table_bbox_ref=None,
+        table_candidate_status="validated_source_bound_geometry",
+        reconstruction_strategy="logical_row_recovery_research_representation_v1",
+        reconstruction_reason_codes=[
+            "logical_row_recovery_source_anchors_preserved",
+            "ordered_logical_rows_remain_authority",
+            "research_only_not_product_reachable",
+        ],
+    )
+    projection.update(
+        {
+            "source_logical_table_id": table_ref,
+            "research_only": True,
+            "product_reachability": False,
+            "ordered_logical_rows_remain_authority": True,
+            "rectangular_grid_is_canonical": False,
+            "private_source_word_partition": {
+                "information_class": "PRIVATE_SOURCE",
+                "schema_version": (
+                    _RESEARCH_SOURCE_WORD_PARTITION_SCHEMA_VERSION
+                ),
+                "source_payload_refs": sorted(source_payload_refs),
+                "all_source_object_refs": sorted(all_word_refs),
+                "table_owned_source_object_refs": sorted(table_word_refs),
+                "paragraph_owned_source_object_refs": sorted(
+                    paragraph_word_ref_set
+                ),
+                "unowned_source_object_refs": [],
+            },
+        }
+    )
+    return _finish_projection(_apply_serialized_budget(projection, config)), source_unit
 
 
 
