@@ -1706,6 +1706,69 @@ def test_cross_page_continuation_preserves_repeated_header_and_source_parts() ->
     _validate_v2_component_shapes(result)
 
 
+def test_continuation_header_literal_keeps_punctuation_distinct() -> None:
+    builder = ProjectionBuilder(
+        page_numbers=(1, 2),
+        ref_prefix="continuation_literal_punctuation",
+    )
+    page_one_refs = []
+    page_one_refs += builder.add_row(
+        page_number=1,
+        y=760,
+        entries=[(20, "Price, USD", 70), (200, "Amount", 50)],
+    )
+    page_one_refs += builder.add_row(
+        page_number=1,
+        y=776,
+        entries=[(20, "Cash", 50), (200, "10", 50)],
+    )
+    page_one_refs += builder.add_row(
+        page_number=1,
+        y=792,
+        entries=[(20, "Bonds", 50), (200, "20", 50)],
+    )
+    page_two_refs = []
+    page_two_refs += builder.add_row(
+        page_number=2,
+        y=8,
+        entries=[(20, "Price USD", 70), (200, "Amount", 50)],
+    )
+    page_two_refs += builder.add_row(
+        page_number=2,
+        y=24,
+        entries=[(20, "Funds", 50), (200, "30", 50)],
+    )
+    page_two_refs += builder.add_row(
+        page_number=2,
+        y=40,
+        entries=[(20, "Shares", 50), (200, "40", 50)],
+    )
+    builder.add_candidate(
+        page_number=1,
+        bbox=[15, 755, 260, 805],
+        word_refs=page_one_refs,
+    )
+    builder.add_candidate(
+        page_number=2,
+        bbox=[15, 0, 260, 55],
+        word_refs=page_two_refs,
+    )
+
+    result = _recover(builder)
+
+    assert len(result.tables) == 2
+    assert [
+        table["ordered_rows"][0]["entries"][0]["text"]
+        for table in result.tables
+    ] == ["Price, USD", "Price USD"]
+    assert not any(
+        row["role"] == "CONTINUATION_HEADER"
+        for table in result.tables
+        for row in table["ordered_rows"]
+    )
+    assert result.unowned_word_refs == []
+
+
 def _continuation_test_region(
     *,
     ref_prefix: str,
@@ -2066,6 +2129,62 @@ def _source_bound_case(
     return pdf_bytes, source_sha256, built.payloads[0]
 
 
+def _source_bound_multirow_header_case(
+    *, second_leaf_header: str
+) -> tuple[bytes, str, dict]:
+    pdf_bytes = _pdf_bytes(
+        [
+            {
+                "texts": [
+                    (25, 72, "Trade"),
+                    (200, 72, "Settlement"),
+                    (25, 55, "Date"),
+                    (200, 55, "Date"),
+                    (25, 38, "Cash"),
+                    (200, 38, "10"),
+                    (25, 22, "Bonds"),
+                    (200, 22, "20"),
+                ],
+                "vectors": _source_bound_table_vectors(
+                    y0=15,
+                    y1=82,
+                    horizontal_ys=(15, 30, 46, 63, 82),
+                ),
+            },
+            {
+                "texts": [
+                    (25, 305, "Trade"),
+                    (200, 305, "Settlement"),
+                    (25, 288, "Date"),
+                    (200, 288, second_leaf_header),
+                    (25, 270, "LKOH"),
+                    (200, 270, "30"),
+                    (25, 252, "ROSN"),
+                    (200, 252, "40"),
+                ],
+                "vectors": _source_bound_table_vectors(
+                    y0=244,
+                    y1=315,
+                    horizontal_ys=(244, 262, 280, 297, 315),
+                ),
+            },
+        ]
+    )
+    source_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+    built = FullSourceArtifactFactory().create().build(
+        normalization_run_id="normrun_logical_source_bound_multirow",
+        document_id="brdoc_logical_source_bound_multirow",
+        profile_id="techprof_logical_source_bound_multirow",
+        container_format="pdf",
+        content_bytes=pdf_bytes,
+        source_checksum_sha256=source_sha256,
+    )
+    assert built.summary["parser_completeness_status"] == "complete"
+    assert built.summary["pdf_layout_projection_status"] == "complete"
+    assert built.summary["pdf_table_candidates_total"] == 2
+    return pdf_bytes, source_sha256, built.payloads[0]
+
+
 def _scope_box(projection: dict, refs: list[str]) -> list[int]:
     word_by_ref = {
         str(item["word_ref"]): item for item in projection["word_inventory"]
@@ -2170,6 +2289,100 @@ def _same_call_recover(
         private_evidence_ref=PRIVATE_EVIDENCE_REF,
         source_bound_scope_requests=requests,
     )
+
+
+def _multirow_header_scope_requests(
+    *, payload: dict, pdf_bytes: bytes, source_sha256: str
+) -> tuple[dict, ...]:
+    result = []
+    for page_number in (1, 2):
+        refs = _page_candidate_refs(payload, page_number)
+        assert len(refs) == 8
+        result.append(
+            _scope_request(
+                payload=payload,
+                pdf_bytes=pdf_bytes,
+                source_sha256=source_sha256,
+                page_number=page_number,
+                title_refs=[],
+                header_ref_groups=[refs[:2], refs[2:4]],
+                body_refs=refs[4:],
+            )
+        )
+    return tuple(result)
+
+
+def test_same_call_exact_multirow_repeated_header_stack_is_continuation() -> None:
+    pdf_bytes, source_sha256, payload = _source_bound_multirow_header_case(
+        second_leaf_header="Date"
+    )
+
+    result = _same_call_recover(
+        payload,
+        source_sha256,
+        _multirow_header_scope_requests(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+        ),
+    )
+
+    assert len(result.tables) == 1
+    table = result.tables[0]
+    assert [row["role"] for row in table["ordered_rows"]] == [
+        "COLUMN_HEADER",
+        "COLUMN_HEADER",
+        "DATA",
+        "DATA",
+        "CONTINUATION_HEADER",
+        "CONTINUATION_HEADER",
+        "DATA",
+        "DATA",
+    ]
+    assert [part["continuation_status"] for part in table["source_parts"]] == [
+        "START",
+        "END",
+    ]
+    assert result.issues == []
+    assert len(result.source_word_ownership) == len(
+        payload["pdf_text_layer_projection"]["word_inventory"]
+    )
+    assert result.unowned_word_refs == []
+
+
+def test_same_call_multirow_header_difference_stays_independent() -> None:
+    pdf_bytes, source_sha256, payload = _source_bound_multirow_header_case(
+        second_leaf_header="Currency"
+    )
+
+    result = _same_call_recover(
+        payload,
+        source_sha256,
+        _multirow_header_scope_requests(
+            payload=payload,
+            pdf_bytes=pdf_bytes,
+            source_sha256=source_sha256,
+        ),
+    )
+
+    assert len(result.tables) == 2
+    assert [
+        [row["role"] for row in table["ordered_rows"]]
+        for table in result.tables
+    ] == [
+        ["COLUMN_HEADER", "COLUMN_HEADER", "DATA", "DATA"],
+        ["COLUMN_HEADER", "COLUMN_HEADER", "DATA", "DATA"],
+    ]
+    assert not any(
+        row["role"] == "CONTINUATION_HEADER"
+        for table in result.tables
+        for row in table["ordered_rows"]
+    )
+    assert result.issues == []
+    assert len(result.source_word_ownership) == len(
+        payload["pdf_text_layer_projection"]["word_inventory"]
+    )
+    assert result.unowned_word_refs == []
 
 
 def test_same_call_model_only_absent_header_remains_ambiguous() -> None:

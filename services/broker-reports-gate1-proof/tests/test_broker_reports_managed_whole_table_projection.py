@@ -225,9 +225,11 @@ def test_private_same_call_projection_preserves_managed_and_exact_ledger() -> No
         for row in table["ordered_rows"]
         if row["row_id"] == second_part["first_row_id"]
     )
-    assert repeated_header["role"] == "COLUMN_HEADER"
+    assert repeated_header["role"] == "CONTINUATION_HEADER"
     assert repeated_header in projection["ordered_rows"]
-    assert projection["continuation_header_row_refs"] == []
+    assert projection["continuation_header_row_refs"] == [
+        repeated_header["row_id"]
+    ]
     assert projection["receipt"]["continuation_headers_collapsed"] is False
     assert managed.canonical_json_bytes() == before_bytes
     assert managed.integrity_sha256 == before_integrity

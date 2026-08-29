@@ -444,6 +444,17 @@ def test_present_title_is_boundary_and_repeated_header_stays_logicalrow_owned(
     )
 
     assert len(result.recovery.tables) == (2 if distinct_title else 1)
+    if not distinct_title:
+        assert [
+            row["role"] for row in result.recovery.tables[0]["ordered_rows"]
+        ] == [
+            "COLUMN_HEADER",
+            "DATA",
+            "DATA",
+            "CONTINUATION_HEADER",
+            "DATA",
+            "DATA",
+        ]
     assert result.recovery.unowned_word_refs == []
     assert result.as_dict()["continuation_decided_by_coordinator"] is False
 
