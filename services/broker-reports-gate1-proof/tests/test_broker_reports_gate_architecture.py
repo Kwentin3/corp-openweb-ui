@@ -2159,7 +2159,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         validator = "validate_managed_header_case_mapping_candidate"
 
         self.assertEqual(_call_owners(module, compiler), set())
-        self.assertEqual(_call_owners(module, validator), set())
+        self.assertEqual(
+            _call_owners(module, validator),
+            {"_compile_managed_header_case_artifact"},
+        )
         consumers = set()
         for path in PACKAGE.glob("*.py"):
             if path.name == f"{module}.py":
@@ -2173,7 +2176,8 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         seam = "ordinary_trade_canonical_managed_data_replay"
         function = _function_node(_tree("ordinary_trade_semantic_compiler"), seam)
         self.assertEqual(
-            _call_owners("ordinary_trade_semantic_compiler", seam), set()
+            _call_owners("ordinary_trade_semantic_compiler", seam),
+            {"_compile_managed_header_case_artifact"},
         )
         self.assertEqual(function.args.args, [])
         self.assertEqual(
@@ -2217,6 +2221,83 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
             self.assertFalse({qualifier, validator} & _call_names(tree), path.name)
+
+    def test_managed_compiled_case_is_one_inactive_factory_owned_seam(self):
+        compiler_module = "ordinary_trade_semantic_compiler"
+        authority_module = "ordinary_trade_qualified_mappings"
+        compiler_seam = "_compile_managed_header_case_artifact"
+        artifact_validator = "_validate_managed_compiled_case_artifact"
+        public_method = "compile_managed_header_case"
+
+        self.assertEqual(_call_owners(compiler_module, compiler_seam), set())
+        self.assertEqual(
+            _call_owners(compiler_module, artifact_validator),
+            {compiler_seam},
+        )
+        seam_calls = _call_names(
+            _function_node(_tree(compiler_module), compiler_seam)
+        )
+        self.assertIn("validate_managed_header_case_mapping_candidate", seam_calls)
+        self.assertIn("ordinary_trade_canonical_managed_data_replay", seam_calls)
+        self.assertNotIn("ordinary_trade_canonical_table_rows", seam_calls)
+        consumers = set()
+        validator_consumers = set()
+        for path in PACKAGE.glob("*.py"):
+            if path.name == f"{compiler_module}.py":
+                continue
+            calls = _call_names(ast.parse(path.read_text(encoding="utf-8")))
+            if compiler_seam in calls:
+                consumers.add(path.name)
+            if artifact_validator in calls:
+                validator_consumers.add(path.name)
+        self.assertEqual(consumers, {f"{authority_module}.py"})
+        self.assertEqual(validator_consumers, set())
+
+        method = _method_node(
+            _tree(authority_module),
+            "OrdinaryTradeQualifiedMappingAuthority",
+            public_method,
+        )
+        self.assertEqual(method.args.args[0].arg, "self")
+        self.assertEqual(
+            [item.arg for item in method.args.kwonlyargs],
+            [
+                "canonical",
+                "canonical_binding",
+                "table_node_id",
+                "model_mapping_decision",
+                "user_scope_sha256",
+                "model_side_normalization_decisions",
+                "confirmed_understandings",
+                "receipt",
+            ],
+        )
+        calls = _call_names(method)
+        self.assertIn("validate_managed_header_case_mapping", calls)
+        self.assertIn(compiler_seam, calls)
+        self.assertFalse(
+            {
+                "candidate",
+                "header_view",
+                "data_replay",
+                "artifact",
+            }
+            & {item.arg for item in method.args.kwonlyargs}
+        )
+        for path in PACKAGE.glob("*.py"):
+            if path.name == f"{authority_module}.py":
+                continue
+            self.assertNotIn(
+                public_method,
+                _call_names(ast.parse(path.read_text(encoding="utf-8"))),
+                path.name,
+            )
+        active_compile = _method_node(
+            _tree(compiler_module),
+            "OrdinaryTradeSemanticCompiler",
+            "compile",
+        )
+        self.assertNotIn(compiler_seam, _call_names(active_compile))
 
 
 def _source(module_name: str) -> str:

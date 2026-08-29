@@ -15,6 +15,7 @@ import re
 from typing import Any, Mapping
 
 from .ordinary_trade_semantic_compiler import (
+    _compile_managed_header_case_artifact,
     compile_managed_header_case_mapping_candidate,
     compile_schema_mapping,
     ordinary_trade_canonical_managed_data_replay,
@@ -1077,6 +1078,30 @@ def _managed_case_confirmed_understandings(
     return result
 
 
+def _managed_case_compilation_plan(
+    *,
+    candidate: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+) -> dict[str, Any]:
+    case_binding = receipt["case_binding"]
+    candidate_binding = receipt["candidate_binding"]
+    return {
+        "qualification_id": receipt["qualification_id"],
+        "receipt_sha256": receipt["receipt_sha256"],
+        "candidate_id": candidate["candidate_id"],
+        "candidate_sha256": candidate_binding["candidate_sha256"],
+        "canonical_binding": copy.deepcopy(case_binding["canonical_binding"]),
+        "table_node_id": case_binding["table_node_id"],
+        "managed_binding": copy.deepcopy(case_binding["managed_binding"]),
+        "user_scope_sha256": receipt["user_scope_sha256"],
+        "semantic_scope_sha256": receipt["semantic_scope_sha256"],
+        "side_normalizations": copy.deepcopy(receipt["side_normalizations"]),
+        "amount_currency_bindings": copy.deepcopy(
+            receipt["amount_currency_bindings"]
+        ),
+    }
+
+
 _QUALIFIED_ENTRIES = tuple(
     _compile_qualified_entry(spec=spec, relation_claims=claims)
     for spec, claims in zip(_MAPPING_SPECS, _RELATION_CLAIMS, strict=True)
@@ -1169,6 +1194,43 @@ class OrdinaryTradeQualifiedMappingAuthority:
                 "ordinary_trade_managed_case_qualification_receipt_invalid"
             )
         return candidate, copy.deepcopy(expected)
+
+    def compile_managed_header_case(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        table_node_id: str,
+        model_mapping_decision: Mapping[str, Any],
+        user_scope_sha256: str,
+        model_side_normalization_decisions: list[Mapping[str, str]],
+        confirmed_understandings: list[Mapping[str, str]],
+        receipt: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Compile one exact v4 case without activating or publishing it."""
+
+        candidate, validated_receipt = self.validate_managed_header_case_mapping(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            table_node_id=table_node_id,
+            model_mapping_decision=model_mapping_decision,
+            user_scope_sha256=user_scope_sha256,
+            model_side_normalization_decisions=(
+                model_side_normalization_decisions
+            ),
+            confirmed_understandings=confirmed_understandings,
+            receipt=receipt,
+        )
+        return _compile_managed_header_case_artifact(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            table_node_id=table_node_id,
+            candidate=candidate,
+            qualification_plan=_managed_case_compilation_plan(
+                candidate=candidate,
+                receipt=validated_receipt,
+            ),
+        )
 
 
 __all__ = [
