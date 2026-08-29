@@ -16,6 +16,7 @@ from .ordinary_trade_qualified_mappings import (
 from .ordinary_trade_semantic_compiler import (
     OrdinaryTradeSemanticCompilerError,
     OrdinaryTradeSemanticCompilerFactory,
+    ordinary_trade_canonical_managed_header_view,
     ordinary_trade_canonical_table_rows,
     structural_fingerprint,
 )
@@ -28,6 +29,9 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
+MANAGED_DOCUMENT_CANDIDATE_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_managed_document_candidate_v1"
+)
 MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v7"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
 FACTORY_REQUIRED = (
@@ -232,6 +236,101 @@ class OrdinaryTradeSemanticMapping:
                 "user_message": message,
             },
         }
+
+    def compile_managed_document_candidate(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        user_scope_sha256: str,
+        table_cases: Iterable[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        """Compile exact cases against one frozen Canonical snapshot.
+
+        ``CANDIDATE_COMPLETE`` proves exact case coverage only for the supplied
+        frozen Canonical.  It does not prove source-document completeness;
+        ``document_completeness_asserted`` therefore always remains false.
+        """
+
+        if not isinstance(canonical, Mapping) or not isinstance(
+            canonical_binding, Mapping
+        ):
+            _fail("ordinary_trade_managed_document_input_invalid")
+        frozen_canonical = copy.deepcopy(dict(canonical))
+        frozen_binding = copy.deepcopy(dict(canonical_binding))
+        if re.fullmatch(r"[0-9a-f]{64}", user_scope_sha256) is None:
+            _fail("ordinary_trade_managed_document_user_scope_invalid")
+        table_nodes = [
+            node
+            for node in frozen_canonical.get("nodes", [])
+            if isinstance(node, Mapping) and node.get("node_type") == "TABLE"
+        ]
+        table_node_ids = [node.get("node_id") for node in table_nodes]
+        if (
+            not table_node_ids
+            or any(
+                not isinstance(table_node_id, str) or not table_node_id
+                for table_node_id in table_node_ids
+            )
+            or len(table_node_ids) != len(set(table_node_ids))
+        ):
+            _fail("ordinary_trade_managed_document_table_inventory_invalid")
+
+        inventory = []
+        for table_node_id in sorted(table_node_ids):
+            view = ordinary_trade_canonical_managed_header_view(
+                canonical=frozen_canonical,
+                canonical_binding=frozen_binding,
+                table_node_id=table_node_id,
+            )
+            inventory.append(
+                {
+                    "table_node_id": table_node_id,
+                    "managed_header_view_sha256": view["header_view_sha256"],
+                    "managed_binding": copy.deepcopy(
+                        view["managed_binding"]
+                    ),
+                }
+            )
+
+        normalized_cases = [
+            _managed_document_table_case(value) for value in table_cases
+        ]
+        submitted_ids = [item["table_node_id"] for item in normalized_cases]
+        if len(submitted_ids) != len(set(submitted_ids)):
+            _fail("ordinary_trade_managed_document_table_case_duplicate")
+        if not set(submitted_ids).issubset(set(table_node_ids)):
+            _fail("ordinary_trade_managed_document_table_case_foreign")
+        cases_by_table = {
+            item["table_node_id"]: item for item in normalized_cases
+        }
+
+        authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
+        compiled_by_table = {}
+        for table_node_id in sorted(submitted_ids):
+            case = cases_by_table[table_node_id]
+            compiled_by_table[table_node_id] = (
+                authority.compile_managed_header_case(
+                    canonical=frozen_canonical,
+                    canonical_binding=frozen_binding,
+                    table_node_id=table_node_id,
+                    model_mapping_decision=case["model_mapping_decision"],
+                    user_scope_sha256=user_scope_sha256,
+                    model_side_normalization_decisions=case[
+                        "model_side_normalization_decisions"
+                    ],
+                    confirmed_understandings=case[
+                        "confirmed_understandings"
+                    ],
+                    receipt=case["receipt"],
+                )
+            )
+        return _managed_document_candidate(
+            canonical_binding=frozen_binding,
+            user_scope_sha256=user_scope_sha256,
+            inventory=inventory,
+            compiled_by_table=compiled_by_table,
+        )
 
     def validate_mapping_response(
         self,
@@ -1298,6 +1397,220 @@ def _answer_response_schema() -> dict[str, Any]:
     }
 
 
+def _managed_document_table_case(value: Mapping[str, Any]) -> dict[str, Any]:
+    keys = {
+        "table_node_id",
+        "model_mapping_decision",
+        "model_side_normalization_decisions",
+        "confirmed_understandings",
+        "receipt",
+    }
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != keys
+        or not isinstance(value.get("table_node_id"), str)
+        or not value["table_node_id"]
+        or not isinstance(value.get("model_mapping_decision"), Mapping)
+        or not isinstance(
+            value.get("model_side_normalization_decisions"), list
+        )
+        or not isinstance(value.get("confirmed_understandings"), list)
+        or not isinstance(value.get("receipt"), Mapping)
+    ):
+        _fail("ordinary_trade_managed_document_table_case_invalid")
+    return copy.deepcopy(dict(value))
+
+
+def _managed_document_candidate(
+    *,
+    canonical_binding: Mapping[str, str],
+    user_scope_sha256: str,
+    inventory: list[dict[str, Any]],
+    compiled_by_table: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    outcomes = []
+    blockers = []
+    complete_candidates = []
+    row_compilation_ids: set[str] = set()
+    candidate_ids: set[str] = set()
+    for table_binding in inventory:
+        table_node_id = table_binding["table_node_id"]
+        compiled = compiled_by_table.get(table_node_id)
+        if compiled is None:
+            reason_code = "TABLE_CASE_UNCLASSIFIED"
+            outcomes.append(
+                {
+                    **copy.deepcopy(table_binding),
+                    "terminal": "UNCLASSIFIED",
+                    "reason_code": reason_code,
+                    "compiled_case_sha256": None,
+                    "qualification_binding": None,
+                    "data_replay_sha256": None,
+                    "row_compilations": [],
+                    "relevant_unmapped": [],
+                    "record_candidates_total": 0,
+                }
+            )
+            blockers.append(
+                {
+                    "table_node_id": table_node_id,
+                    "reason_code": reason_code,
+                }
+            )
+            continue
+
+        row_compilations = copy.deepcopy(compiled["row_compilations"])
+        current_row_ids = [
+            item.get("row_compilation_id") for item in row_compilations
+        ]
+        if (
+            any(not isinstance(item, str) or not item for item in current_row_ids)
+            or len(current_row_ids) != len(set(current_row_ids))
+            or row_compilation_ids.intersection(current_row_ids)
+        ):
+            _fail("ordinary_trade_managed_document_row_identity_invalid")
+        row_compilation_ids.update(current_row_ids)
+
+        table_candidates = copy.deepcopy(compiled["record_candidates"])
+        current_candidate_ids = [
+            item.get("record_candidate_id") for item in table_candidates
+        ]
+        if (
+            any(
+                not isinstance(item, str) or not item
+                for item in current_candidate_ids
+            )
+            or len(current_candidate_ids) != len(set(current_candidate_ids))
+            or candidate_ids.intersection(current_candidate_ids)
+            or any(
+                item.get("source_row_compilation_ref")
+                not in set(current_row_ids)
+                or (item.get("annotation_target") or {}).get("node_id")
+                != table_node_id
+                for item in table_candidates
+            )
+        ):
+            _fail("ordinary_trade_managed_document_candidate_identity_invalid")
+        candidate_ids.update(current_candidate_ids)
+
+        complete = compiled["compilation_status"] == "COMPLETE"
+        reason_code = None if complete else "TABLE_RELEVANT_PARTIAL"
+        outcomes.append(
+            {
+                **copy.deepcopy(table_binding),
+                "terminal": (
+                    "COMPILED_COMPLETE" if complete else "RELEVANT_PARTIAL"
+                ),
+                "reason_code": reason_code,
+                "compiled_case_sha256": compiled["compiled_case_sha256"],
+                "qualification_binding": copy.deepcopy(
+                    compiled["qualification_binding"]
+                ),
+                "data_replay_sha256": compiled["data_replay_sha256"],
+                "row_compilations": row_compilations,
+                "relevant_unmapped": copy.deepcopy(
+                    compiled["relevant_unmapped"]
+                ),
+                "record_candidates_total": len(table_candidates),
+            }
+        )
+        if complete:
+            complete_candidates.extend(table_candidates)
+        else:
+            blockers.append(
+                {
+                    "table_node_id": table_node_id,
+                    "reason_code": reason_code,
+                }
+            )
+
+    status = "BLOCKED" if blockers else "CANDIDATE_COMPLETE"
+    material = {
+        "schema_version": MANAGED_DOCUMENT_CANDIDATE_SCHEMA_VERSION,
+        "document_candidate_status": status,
+        "runtime_activation": False,
+        "publication_authorized": False,
+        "global_reuse": False,
+        "document_completeness_asserted": False,
+        "canonical_binding": copy.deepcopy(dict(canonical_binding)),
+        "user_scope_sha256": user_scope_sha256,
+        "table_inventory": copy.deepcopy(inventory),
+        "table_outcomes": outcomes,
+        "blockers": blockers,
+        "document_record_candidates": (
+            complete_candidates if status == "CANDIDATE_COMPLETE" else []
+        ),
+    }
+    result = {
+        **material,
+        "document_candidate_sha256": _sha256_json(material),
+    }
+    _validate_managed_document_candidate(result)
+    return result
+
+
+def _validate_managed_document_candidate(value: Mapping[str, Any]) -> None:
+    keys = {
+        "schema_version",
+        "document_candidate_status",
+        "runtime_activation",
+        "publication_authorized",
+        "global_reuse",
+        "document_completeness_asserted",
+        "canonical_binding",
+        "user_scope_sha256",
+        "table_inventory",
+        "table_outcomes",
+        "blockers",
+        "document_record_candidates",
+        "document_candidate_sha256",
+    }
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != keys
+        or value.get("schema_version")
+        != MANAGED_DOCUMENT_CANDIDATE_SCHEMA_VERSION
+        or value.get("document_candidate_status")
+        not in {"CANDIDATE_COMPLETE", "BLOCKED"}
+        or value.get("runtime_activation") is not False
+        or value.get("publication_authorized") is not False
+        or value.get("global_reuse") is not False
+        or value.get("document_completeness_asserted") is not False
+        or re.fullmatch(
+            r"[0-9a-f]{64}", str(value.get("user_scope_sha256") or "")
+        )
+        is None
+        or not isinstance(value.get("table_inventory"), list)
+        or not value["table_inventory"]
+        or not isinstance(value.get("table_outcomes"), list)
+        or not isinstance(value.get("blockers"), list)
+        or not isinstance(value.get("document_record_candidates"), list)
+    ):
+        _fail("ordinary_trade_managed_document_candidate_invalid")
+    inventory_ids = [
+        item.get("table_node_id") for item in value["table_inventory"]
+    ]
+    outcome_ids = [
+        item.get("table_node_id") for item in value["table_outcomes"]
+    ]
+    if (
+        inventory_ids != sorted(inventory_ids)
+        or len(inventory_ids) != len(set(inventory_ids))
+        or outcome_ids != inventory_ids
+        or value["document_candidate_status"]
+        != ("BLOCKED" if value["blockers"] else "CANDIDATE_COMPLETE")
+        or (
+            value["document_candidate_status"] == "BLOCKED"
+            and value["document_record_candidates"]
+        )
+    ):
+        _fail("ordinary_trade_managed_document_atomicity_invalid")
+    material = copy.deepcopy(dict(value))
+    expected = material.pop("document_candidate_sha256", None)
+    if expected != _sha256_json(material):
+        _fail("ordinary_trade_managed_document_candidate_hash_invalid")
+
+
 def _canonical_json(value: Any) -> str:
     return json.dumps(
         value,
@@ -1320,6 +1633,7 @@ __all__ = [
     "ANSWER_RESPONSE_SCHEMA_VERSION",
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "MANAGED_DOCUMENT_CANDIDATE_SCHEMA_VERSION",
     "MAPPING_CASE_SCHEMA_VERSION",
     "MAPPING_RESPONSE_SCHEMA_VERSION",
     "OrdinaryTradeSemanticMapping",
