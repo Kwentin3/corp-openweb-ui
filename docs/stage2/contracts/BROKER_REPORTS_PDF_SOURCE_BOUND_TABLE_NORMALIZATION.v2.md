@@ -92,6 +92,30 @@ below it. A conflict with independently proven header evidence is typed
 `source_bound_table_scope_header_presence_conflict`, remains `PARTIAL`, and
 does not authorize a join.
 
+`ManagedPdfDocumentV2Factory` may coordinate that same entrypoint only through
+its inactive additive `build_with_source_bound_scopes` method. The raw requests are
+still bound inside `LogicalRowTableFactory`; the ManagedDocument builder never
+accepts ready receipts. Both legacy `build` and the additive scoped method
+invoke the existing FullSource owner exactly once from original bytes; no
+public FullSource result input exists. The sealed v2 document carries recovered
+rows, issues and word ownership. Only an actually accepted `PRESENT` leading
+title/header/body partition adds a narrow reviewed evidence record containing
+the same-call scope receipt ref, proposal/raster hashes and bound source-word
+refs. Raw private receipt transport is not copied.
+
+Rows classified through that evidence use `REVIEWED_SOURCE_BOUND`, never
+`DETERMINISTIC_DERIVED` or `MODEL_PROPOSED`. Their direct text remains in the
+FullSource word anchors.
+
+A `BOUND` receipt alone is not role authority. `ABSENT`, `EMPTY`, `EXPLAINER`
+and partial outcomes remain audit-only, contribute no private reviewed plan and
+cannot relabel any title, header or data row. A model-only `ABSENT` remains an
+inspectable `PARTIAL` ambiguity until independent evidence resolves it.
+
+Public Managed v2 validation/sealing rejects invented reviewed evidence. The
+same Managed builder call alone passes its exact recovered evidence plan to a
+private sealing seam, which compares it before sealing.
+
 ## Fragment-local continuation rule
 
 A right fragment may join one previous logical table only when all of the

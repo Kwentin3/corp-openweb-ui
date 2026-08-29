@@ -105,6 +105,7 @@
       "enum": [
         "SOURCE_EXPLICIT",
         "DETERMINISTIC_DERIVED",
+        "REVIEWED_SOURCE_BOUND",
         "MODEL_PROPOSED",
         "OPERATOR_SUPPLIED",
         "UNKNOWN_ORIGIN"
@@ -2409,6 +2410,109 @@
             "$ref": "#/$defs/issueId"
           },
           "uniqueItems": true
+        },
+        "reviewed_source_bound_evidence": {
+          "$ref": "#/$defs/reviewedSourceBoundEvidence"
+        },
+        "source_bound_audit_evidence": {
+          "$ref": "#/$defs/sourceBoundAuditEvidence"
+        }
+      }
+    },
+    "reviewedSourceBoundEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "binding_status",
+        "scope_receipt_ref",
+        "proposal_sha256",
+        "raster_manifest_sha256",
+        "title_word_refs",
+        "header_word_refs",
+        "body_word_refs"
+      ],
+      "properties": {
+        "origin": {
+          "const": "REVIEWED_SOURCE_BOUND"
+        },
+        "binding_status": {
+          "enum": [
+            "BOUND",
+            "PARTIAL"
+          ]
+        },
+        "scope_receipt_ref": {
+          "type": "string",
+          "pattern": "^tablescopereceipt_[0-9a-f]{24}$"
+        },
+        "proposal_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "raster_manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "title_word_refs": {
+          "$ref": "#/$defs/sourceBoundWordRefs"
+        },
+        "header_word_refs": {
+          "$ref": "#/$defs/sourceBoundWordRefs"
+        },
+        "body_word_refs": {
+          "$ref": "#/$defs/sourceBoundWordRefs"
+        }
+      }
+    },
+    "sourceBoundWordRefs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "uniqueItems": true
+    },
+    "sourceBoundAuditEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "structural_authority",
+        "binding_status",
+        "scope_receipt_ref",
+        "proposal_sha256",
+        "raster_manifest_sha256",
+        "title_word_refs",
+        "header_word_refs",
+        "body_word_refs"
+      ],
+      "properties": {
+        "structural_authority": {
+          "const": false
+        },
+        "binding_status": {
+          "enum": [
+            "BOUND",
+            "PARTIAL"
+          ]
+        },
+        "scope_receipt_ref": {
+          "type": "string",
+          "pattern": "^tablescopereceipt_[0-9a-f]{24}$"
+        },
+        "proposal_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "raster_manifest_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "title_word_refs": {
+          "$ref": "#/$defs/sourceBoundWordRefs"
+        },
+        "header_word_refs": {
+          "$ref": "#/$defs/sourceBoundWordRefs"
+        },
+        "body_word_refs": {
+          "$ref": "#/$defs/sourceBoundWordRefs"
         }
       }
     }

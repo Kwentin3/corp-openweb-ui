@@ -318,6 +318,13 @@ class _Region:
     released_non_table_word_refs: tuple[str, ...] = ()
     continuation_issue_codes: tuple[str, ...] = ()
     source_bound_scope_ref: str | None = None
+    source_bound_binding_status: str | None = None
+    source_bound_structural_authority: bool = False
+    source_bound_proposal_sha256: str | None = None
+    source_bound_raster_manifest_hash: str | None = None
+    source_bound_receipt_title_word_refs: tuple[str, ...] = ()
+    source_bound_receipt_header_word_ref_groups: tuple[tuple[str, ...], ...] = ()
+    source_bound_receipt_body_word_refs: tuple[str, ...] = ()
     source_bound_title_word_refs: tuple[str, ...] = ()
     source_bound_header_status: str | None = None
     source_bound_header_word_ref_groups: tuple[tuple[str, ...], ...] = ()
@@ -7071,7 +7078,7 @@ def _apply_source_bound_table_scopes(
         ]
         if scope.binding_status == "PARTIAL":
             if len(matches) == 1:
-                matches[0].source_bound_scope_ref = scope.scope_ref
+                _attach_source_bound_receipt(matches[0], scope)
                 matches[0].source_bound_issue_codes = tuple(
                     _unique(
                         [
@@ -7111,7 +7118,7 @@ def _apply_source_bound_table_scopes(
             and existing_header.source_proven
             and existing_header.body_supported
         ):
-            region.source_bound_scope_ref = scope.scope_ref
+            _attach_source_bound_receipt(region, scope)
             region.source_bound_issue_codes = tuple(
                 _unique(
                     [
@@ -7187,9 +7194,17 @@ def _apply_source_bound_table_scopes(
                 row.external_title = True
 
         if scope.header_status == "ABSENT":
-            region.source_bound_scope_ref = scope.scope_ref
+            _attach_source_bound_receipt(region, scope)
             region.source_bound_title_word_refs = scope.title_word_refs
             region.source_bound_body_word_refs = scope.body_word_refs
+            region.source_bound_issue_codes = tuple(
+                _unique(
+                    [
+                        *region.source_bound_issue_codes,
+                        "logical_table_continuation_header_ambiguous",
+                    ]
+                )
+            )
             continue
 
         if scope.header_status == "PRESENT" and not _source_bound_header_is_leading(
@@ -7198,7 +7213,7 @@ def _apply_source_bound_table_scopes(
             body_word_refs=scope.body_word_refs,
             title_word_refs=scope.title_word_refs,
         ):
-            region.source_bound_scope_ref = scope.scope_ref
+            _attach_source_bound_receipt(region, scope)
             region.source_bound_issue_codes = tuple(
                 _unique(
                     [
@@ -7233,12 +7248,13 @@ def _apply_source_bound_table_scopes(
             for row in matching_rows:
                 row.proven_leading_suffix_header = True
 
-        region.source_bound_scope_ref = scope.scope_ref
+        _attach_source_bound_receipt(region, scope)
         region.source_bound_title_word_refs = scope.title_word_refs
         region.source_bound_header_status = scope.header_status
         region.source_bound_header_word_ref_groups = scope.header_word_ref_groups
         region.source_bound_header_signatures = tuple(signatures)
         region.source_bound_body_word_refs = scope.body_word_refs
+        region.source_bound_structural_authority = True
 
     detached = tuple(_unique(detached_issues))
     if detached:
@@ -7247,6 +7263,23 @@ def _apply_source_bound_table_scopes(
                 _unique([*region.source_bound_issue_codes, *detached])
             )
     return result, detached
+
+
+def _attach_source_bound_receipt(
+    region: _Region,
+    scope: SourceBoundTableScopeReceipt,
+) -> None:
+    """Retain the same-call receipt trace without granting table authority."""
+
+    region.source_bound_scope_ref = scope.scope_ref
+    region.source_bound_binding_status = scope.binding_status
+    region.source_bound_proposal_sha256 = scope.proposal_sha256
+    region.source_bound_raster_manifest_hash = scope.raster_manifest_hash
+    region.source_bound_receipt_title_word_refs = scope.title_word_refs
+    region.source_bound_receipt_header_word_ref_groups = (
+        scope.header_word_ref_groups
+    )
+    region.source_bound_receipt_body_word_refs = scope.body_word_refs
 
 
 def _source_bound_header_is_leading(
@@ -7677,6 +7710,30 @@ def _materialize_logical_table(
                 **(
                     {
                         "source_bound_scope_ref": region.source_bound_scope_ref,
+                        "source_bound_binding_status": (
+                            region.source_bound_binding_status
+                        ),
+                        "source_bound_structural_authority": (
+                            region.source_bound_structural_authority
+                        ),
+                        "source_bound_proposal_sha256": (
+                            region.source_bound_proposal_sha256
+                        ),
+                        "source_bound_raster_manifest_hash": (
+                            region.source_bound_raster_manifest_hash
+                        ),
+                        "source_bound_receipt_title_word_refs": list(
+                            region.source_bound_receipt_title_word_refs
+                        ),
+                        "source_bound_receipt_header_word_ref_groups": [
+                            list(group)
+                            for group in (
+                                region.source_bound_receipt_header_word_ref_groups
+                            )
+                        ],
+                        "source_bound_receipt_body_word_refs": list(
+                            region.source_bound_receipt_body_word_refs
+                        ),
                         "source_bound_title_word_refs": list(
                             region.source_bound_title_word_refs
                         ),
@@ -7984,6 +8041,30 @@ def _materialize_logical_table(
                 **(
                     {
                         "source_bound_scope_ref": region.source_bound_scope_ref,
+                        "source_bound_binding_status": (
+                            region.source_bound_binding_status
+                        ),
+                        "source_bound_structural_authority": (
+                            region.source_bound_structural_authority
+                        ),
+                        "source_bound_proposal_sha256": (
+                            region.source_bound_proposal_sha256
+                        ),
+                        "source_bound_raster_manifest_hash": (
+                            region.source_bound_raster_manifest_hash
+                        ),
+                        "source_bound_receipt_title_word_refs": list(
+                            region.source_bound_receipt_title_word_refs
+                        ),
+                        "source_bound_receipt_header_word_ref_groups": [
+                            list(group)
+                            for group in (
+                                region.source_bound_receipt_header_word_ref_groups
+                            )
+                        ],
+                        "source_bound_receipt_body_word_refs": list(
+                            region.source_bound_receipt_body_word_refs
+                        ),
                         "source_bound_title_word_refs": list(
                             region.source_bound_title_word_refs
                         ),
