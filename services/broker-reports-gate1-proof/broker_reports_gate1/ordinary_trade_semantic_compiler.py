@@ -15,12 +15,17 @@ import json
 import re
 from typing import Any, Iterable, Mapping
 
+from .canonical_artifact import validate_canonical_artifact
+
 
 ORDINARY_TRADE_MAPPING_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_schema_mapping_v3"
 )
 ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_runtime_projection_v5"
+)
+ORDINARY_TRADE_MANAGED_HEADER_VIEW_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_managed_header_view_v1"
 )
 SOURCE_OBSERVATION_SCHEMA_VERSION = "broker_reports_source_observation_v1"
 FACTORY_REQUIRED = (
@@ -81,6 +86,9 @@ _DISPLAY_ONLY_NON_RECORD_ROLES = {
 _MANAGED_SOURCE_REPRESENTATION_OWNER = "managed_document_v2"
 _MANAGED_WHOLE_TABLE_PROJECTION_SCHEMA_VERSION = (
     "broker_reports_managed_whole_table_projection_v2"
+)
+_MANAGED_ENTRY_BINDING_SCHEMA_VERSION = (
+    "broker_reports_canonical_managed_entry_binding_v1"
 )
 _MANAGED_ROW_ROLE_ORIGINS = {
     "REVIEWED_SOURCE_BOUND",
@@ -779,7 +787,216 @@ def ordinary_trade_canonical_table_rows(
     )
 
 
+def ordinary_trade_canonical_managed_header_view(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    table_node_id: str,
+) -> dict[str, Any]:
+    """Build one inactive source-bound primary-header representation."""
+
+    if not isinstance(canonical, dict) or not validate_canonical_artifact(canonical)[
+        "passed"
+    ]:
+        _fail("ordinary_trade_canonical_managed_header_view_canonical_invalid")
+    binding = _canonical_binding(canonical=canonical, value=canonical_binding)
+    if not isinstance(table_node_id, str) or not table_node_id:
+        _fail("ordinary_trade_canonical_managed_header_view_invalid")
+    matches = [
+        node
+        for node in canonical.get("nodes", [])
+        if isinstance(node, Mapping)
+        and node.get("node_type") == "TABLE"
+        and node.get("node_id") == table_node_id
+    ]
+    if len(matches) != 1:
+        _fail("ordinary_trade_canonical_managed_header_view_invalid")
+    table = matches[0]
+    rows = _table_rows(table)
+    roles = _managed_contiguous_primary_header_row_roles(
+        table=table,
+        rows=rows,
+        provenance=canonical.get("provenance"),
+        source=canonical.get("source"),
+    )
+    if not roles:
+        _fail("ordinary_trade_canonical_managed_header_view_invalid")
+    content = table.get("content")
+    metadata = content.get("metadata") if isinstance(content, Mapping) else None
+    if not isinstance(metadata, Mapping):
+        _fail("ordinary_trade_canonical_managed_header_view_invalid")
+    sequence = metadata.get("managed_row_sequence")
+    if not isinstance(sequence, list):
+        _fail("ordinary_trade_canonical_managed_header_view_invalid")
+    row_ids = {
+        row_number: str(item["row_id"])
+        for row_number, item in enumerate(sequence, start=1)
+    }
+    columns = _managed_header_view_columns(metadata.get("logical_columns"))
+    column_ordinals = {
+        str(column["column_id"]): int(column["ordinal"]) for column in columns
+    }
+    evidence = _managed_header_entry_evidence(
+        rows=rows,
+        roles=roles,
+        provenance=canonical.get("provenance"),
+        column_ordinals=column_ordinals,
+        row_ids=row_ids,
+    )
+    _validate_managed_continuation_header_runs(roles=roles, evidence=evidence)
+    expected_paths = {column_id: [] for column_id in column_ordinals}
+    primary_paths = {column_id: [] for column_id in column_ordinals}
+    continuation_paths = {column_id: [] for column_id in column_ordinals}
+    for item in evidence:
+        if item["role"] not in {"COLUMN_HEADER", "CONTINUATION_HEADER"}:
+            continue
+        binding_columns = list(
+            dict.fromkeys(
+                [
+                    item["logical_column_id"],
+                    *item["covers_logical_column_ids"],
+                ]
+            )
+        )
+        if item["column_binding_status"] != "BOUND" or not binding_columns:
+            if item["role"] == "COLUMN_HEADER":
+                _fail("ordinary_trade_canonical_managed_header_path_invalid")
+            continue
+        target = (
+            primary_paths
+            if item["role"] == "COLUMN_HEADER"
+            else continuation_paths
+        )
+        for column_id in binding_columns:
+            if column_id is None:
+                continue
+            expected_paths[column_id].append(item["entry_id"])
+            target[column_id].append(item)
+
+    output_columns = []
+    continuation_columns = []
+    for column in columns:
+        column_id = str(column["column_id"])
+        header_path = column.get("header_path")
+        if (
+            not isinstance(header_path, list)
+            or not header_path
+            or len(header_path) != len(set(header_path))
+            or header_path != expected_paths[column_id]
+            or not primary_paths[column_id]
+        ):
+            _fail("ordinary_trade_canonical_managed_header_path_invalid")
+        output_columns.append(
+            {
+                "column": int(column["ordinal"]) + 1,
+                "logical_column_id": column_id,
+                "primary_header_path": [
+                    _managed_header_path_item(item)
+                    for item in primary_paths[column_id]
+                ],
+            }
+        )
+        continuation_columns.append(
+            {
+                "logical_column_id": column_id,
+                "filtered_entry_refs": [
+                    str(item["entry_id"]) for item in continuation_paths[column_id]
+                ],
+            }
+        )
+    material = {
+        "schema_version": ORDINARY_TRADE_MANAGED_HEADER_VIEW_SCHEMA_VERSION,
+        "representation_only": True,
+        "consumer_eligible": False,
+        "table_node_id": table_node_id,
+        "canonical_binding": binding,
+        "managed_binding": {
+            "source_representation_owner": metadata[
+                "source_representation_owner"
+            ],
+            "managed_whole_table_projection_id": metadata[
+                "managed_whole_table_projection_id"
+            ],
+            "managed_document_id": metadata["managed_document_id"],
+            "managed_document_integrity_sha256": metadata[
+                "managed_document_integrity_sha256"
+            ],
+            "managed_table_id": metadata["managed_table_id"],
+        },
+        "primary_header_rows": [
+            {"row": row, "row_id": row_ids[row]}
+            for row, role in roles.items()
+            if role == "COLUMN_HEADER"
+        ],
+        "columns": output_columns,
+        "continuation_accounting": {
+            "filtered_from_primary_paths": True,
+            "rows": [
+                {"row": row, "row_id": row_ids[row]}
+                for row, role in roles.items()
+                if role == "CONTINUATION_HEADER"
+            ],
+            "filtered_entry_refs": [
+                str(item["entry_id"])
+                for item in evidence
+                if item["role"] == "CONTINUATION_HEADER"
+            ],
+            "columns": continuation_columns,
+        },
+    }
+    return {
+        **material,
+        "header_view_sha256": _sha256_json(material),
+    }
+
+
 def _managed_row_roles_by_number(
+    *,
+    table: Mapping[str, Any],
+    rows: dict[int, dict[int, dict[str, Any]]],
+    provenance: Any,
+    source: Any,
+) -> dict[int, str]:
+    roles = _validated_managed_row_roles_by_number(
+        table=table,
+        rows=rows,
+        provenance=provenance,
+        source=source,
+    )
+    if not roles:
+        return {}
+    header_rows = [row for row, role in roles.items() if role == "COLUMN_HEADER"]
+    if len(header_rows) != 1:
+        _fail("ordinary_trade_canonical_managed_header_invalid")
+    _validate_managed_primary_header_order(roles, first_header_row=header_rows[0])
+    return roles
+
+
+def _managed_contiguous_primary_header_row_roles(
+    *,
+    table: Mapping[str, Any],
+    rows: dict[int, dict[int, dict[str, Any]]],
+    provenance: Any,
+    source: Any,
+) -> dict[int, str]:
+    roles = _validated_managed_row_roles_by_number(
+        table=table,
+        rows=rows,
+        provenance=provenance,
+        source=source,
+    )
+    if not roles:
+        return {}
+    header_rows = [row for row, role in roles.items() if role == "COLUMN_HEADER"]
+    if not header_rows or header_rows != list(
+        range(header_rows[0], header_rows[-1] + 1)
+    ):
+        _fail("ordinary_trade_canonical_managed_header_invalid")
+    _validate_managed_primary_header_order(roles, first_header_row=header_rows[0])
+    return roles
+
+
+def _validated_managed_row_roles_by_number(
     *,
     table: Mapping[str, Any],
     rows: dict[int, dict[int, dict[str, Any]]],
@@ -876,17 +1093,19 @@ def _managed_row_roles_by_number(
         roles[row_number] = str(role)
     if set(rows) != set(roles):
         _fail("ordinary_trade_canonical_managed_row_sequence_invalid")
-    header_rows = [
-        row for row, role in roles.items() if role == "COLUMN_HEADER"
-    ]
-    if len(header_rows) != 1:
-        _fail("ordinary_trade_canonical_managed_header_invalid")
+    return roles
+
+
+def _validate_managed_primary_header_order(
+    roles: Mapping[int, str],
+    *,
+    first_header_row: int,
+) -> None:
     if any(
-        row < header_rows[0] and role == "DATA"
+        row < first_header_row and role == "DATA"
         for row, role in roles.items()
     ):
         _fail("ordinary_trade_canonical_managed_header_order_invalid")
-    return roles
 
 
 def _table_has_managed_cell_provenance(
@@ -971,6 +1190,191 @@ def _validate_managed_cell_provenance(
             + _sha256_json([source.get("source_sha256"), dict(locator)])[:24]
         ):
             _fail("ordinary_trade_canonical_managed_cell_provenance_invalid")
+
+
+def _managed_header_view_columns(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list) or not value:
+        _fail("ordinary_trade_canonical_managed_header_path_invalid")
+    result = []
+    column_ids: set[str] = set()
+    for expected_ordinal, column in enumerate(value):
+        if not isinstance(column, Mapping):
+            _fail("ordinary_trade_canonical_managed_header_path_invalid")
+        column_id = column.get("column_id")
+        if (
+            not isinstance(column_id, str)
+            or not column_id
+            or column_id in column_ids
+            or column.get("ordinal") != expected_ordinal
+        ):
+            _fail("ordinary_trade_canonical_managed_header_path_invalid")
+        column_ids.add(column_id)
+        result.append(copy.deepcopy(dict(column)))
+    return result
+
+
+def _managed_header_entry_evidence(
+    *,
+    rows: Mapping[int, Mapping[int, Mapping[str, Any]]],
+    roles: Mapping[int, str],
+    provenance: Any,
+    column_ordinals: Mapping[str, int],
+    row_ids: Mapping[int, str],
+) -> list[dict[str, Any]]:
+    if not isinstance(provenance, list):
+        _fail("ordinary_trade_canonical_managed_entry_binding_invalid")
+    provenance_by_id = {
+        item.get("provenance_id"): item
+        for item in provenance
+        if isinstance(item, Mapping)
+        and isinstance(item.get("provenance_id"), str)
+        and item.get("provenance_id")
+    }
+    if len(provenance_by_id) != len(provenance):
+        _fail("ordinary_trade_canonical_managed_entry_binding_invalid")
+    seen_entry_ids: set[str] = set()
+    result = []
+    for row_number, cells in sorted(rows.items()):
+        for column, cell in sorted(cells.items()):
+            refs = cell.get("source_refs")
+            record = (
+                provenance_by_id.get(refs[0])
+                if isinstance(refs, list) and len(refs) == 1
+                else None
+            )
+            locator = record.get("source_locator") if isinstance(record, Mapping) else None
+            if not isinstance(locator, Mapping):
+                _fail("ordinary_trade_canonical_managed_entry_binding_invalid")
+            entry_id = locator.get("managed_entry_id")
+            if (
+                not isinstance(entry_id, str)
+                or not entry_id
+                or entry_id in seen_entry_ids
+            ):
+                _fail("ordinary_trade_canonical_managed_entry_binding_invalid")
+            seen_entry_ids.add(entry_id)
+            binding = _managed_header_entry_binding(
+                locator,
+                column_ordinals=column_ordinals,
+            )
+            result.append(
+                {
+                    "row": row_number,
+                    "row_id": row_ids[row_number],
+                    "column": column,
+                    "role": roles[row_number],
+                    "entry_id": entry_id,
+                    "literal": _literal(cell),
+                    "source_refs": copy.deepcopy(refs),
+                    **binding,
+                }
+            )
+    return result
+
+
+def _validate_managed_continuation_header_runs(
+    *,
+    roles: Mapping[int, str],
+    evidence: Iterable[Mapping[str, Any]],
+) -> None:
+    primary_rows = [row for row, role in roles.items() if role == "COLUMN_HEADER"]
+    continuation_rows = [
+        row for row, role in roles.items() if role == "CONTINUATION_HEADER"
+    ]
+    if not continuation_rows:
+        return
+    if not primary_rows or any(row <= primary_rows[-1] for row in continuation_rows):
+        _fail("ordinary_trade_canonical_managed_continuation_header_invalid")
+
+    runs: list[list[int]] = []
+    for row in continuation_rows:
+        if not runs or row != runs[-1][-1] + 1:
+            runs.append([row])
+        else:
+            runs[-1].append(row)
+    by_row: dict[int, list[Mapping[str, Any]]] = {}
+    for item in evidence:
+        by_row.setdefault(int(item["row"]), []).append(item)
+    expected = [_managed_header_row_shape(by_row[row]) for row in primary_rows]
+    for run in runs:
+        if len(run) != len(primary_rows) or [
+            _managed_header_row_shape(by_row[row]) for row in run
+        ] != expected:
+            _fail("ordinary_trade_canonical_managed_continuation_header_invalid")
+
+
+def _managed_header_row_shape(
+    evidence: Iterable[Mapping[str, Any]],
+) -> list[tuple[Any, ...]]:
+    return [
+        (
+            int(item["column"]),
+            str(item["literal"]),
+            item["column_binding_status"],
+            item["logical_column_id"],
+            tuple(item["covers_logical_column_ids"]),
+        )
+        for item in evidence
+    ]
+
+
+def _managed_header_entry_binding(
+    locator: Mapping[str, Any],
+    *,
+    column_ordinals: Mapping[str, int],
+) -> dict[str, Any]:
+    if (
+        locator.get("managed_entry_binding_schema_version")
+        != _MANAGED_ENTRY_BINDING_SCHEMA_VERSION
+        or "managed_column_binding_status" not in locator
+        or "managed_logical_column_id" not in locator
+        or "managed_covers_logical_column_ids" not in locator
+    ):
+        _fail("ordinary_trade_canonical_managed_entry_binding_invalid")
+    status = locator.get("managed_column_binding_status")
+    logical_column_id = locator.get("managed_logical_column_id")
+    covers = locator.get("managed_covers_logical_column_ids")
+    expected_status = (
+        "BOUND" if logical_column_id is not None or covers else "NOT_APPLICABLE"
+    )
+    if (
+        logical_column_id is not None
+        and (
+            not isinstance(logical_column_id, str)
+            or logical_column_id not in column_ordinals
+        )
+    ) or (
+        not isinstance(covers, list)
+        or any(
+            not isinstance(column_id, str) or column_id not in column_ordinals
+            for column_id in covers
+        )
+        or len(covers) != len(set(covers))
+        or bool(covers) and len(covers) < 2
+        or covers
+        != sorted(covers, key=lambda column_id: column_ordinals[column_id])
+        or logical_column_id is not None
+        and covers
+        and covers[0] != logical_column_id
+        or status != expected_status
+    ):
+        _fail("ordinary_trade_canonical_managed_entry_binding_invalid")
+    return {
+        "column_binding_status": status,
+        "logical_column_id": logical_column_id,
+        "covers_logical_column_ids": copy.deepcopy(covers),
+    }
+
+
+def _managed_header_path_item(item: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "row": int(item["row"]),
+        "row_id": str(item["row_id"]),
+        "entry_id": str(item["entry_id"]),
+        "literal": str(item["literal"]),
+        "source_refs": copy.deepcopy(item["source_refs"]),
+        "canonical_provenance_ref": str(item["source_refs"][0]),
+    }
 
 
 def _prefixed_text(value: Any, prefix: str) -> bool:
