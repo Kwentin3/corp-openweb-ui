@@ -1990,6 +1990,24 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertEqual(violations, [])
 
 
+    def test_adjudicated_source_unit_ledger_private_seal_has_one_caller(self):
+        callers = []
+        for path in PACKAGE.glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            callers.extend(
+                (path.name, node.lineno)
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "_seal_adjudicated_source_unit_ledger"
+            )
+
+        self.assertEqual(
+            [path for path, _line in callers],
+            ["managed_pdf_document_v2.py"],
+        )
+
+
 def _source(module_name: str) -> str:
     return (PACKAGE / f"{module_name}.py").read_text(encoding="utf-8")
 

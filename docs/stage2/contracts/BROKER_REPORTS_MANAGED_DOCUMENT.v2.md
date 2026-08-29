@@ -159,10 +159,27 @@ produced the exact reviewed plan.
 The reviewed plan is non-empty only for an actually accepted `PRESENT` leading
 structure. Merely obtaining a `BOUND` receipt is not reviewed role authority.
 
+The adjudicated path additionally binds each table source part to complete
+units from that exact local `FullSourceBuildResult`. Every
+`covered_source_units` record copies the real unit ref, unit checksum, parent
+payload ref, page refs, selected source atoms and all table-contributing layout
+words. A unit is admitted only as a whole and admitted units must partition the
+part's entry word anchors exactly. Thus an external title line-cluster and its
+grid candidate remain two honest units instead of receiving a synthetic ID.
+
+Tables carry sorted atom and word unions. The source-level
+`table_source_unit_coverage` is their exact document union and has empty
+duplicate inventories. Missing, partial, non-unique, overlapping, checksum- or
+atom-mutated units make the adjudicated build `PARTIAL` before sealing and
+return no Managed document. The legacy builder emits no ledger and its frozen
+bytes remain unchanged. Public `parse_json`, `validate` and `seal` reject a
+caller-supplied ledger; only the same-call private sealing plan can admit it.
+This slice creates no projection, Canonical artifact or facts.
+
 Schema identity is both the exact `$id` and the SHA-256 of canonical schema
 JSON (`ensure_ascii=false`, sorted keys, separators `(",", ":")`, finite
 numbers only). The pinned v2 schema hash is
-`02a60ac6d143bf6c2364c74a32a4eabc9d4852aaef5bd8b7bdc987ed81fb423a`.
+`7f5765311e5b7f7332fecbd8edb3e239842d5e35b5da441bc5d51049f6eb6df1`.
 A schema edit that preserves `$id` still fails closed. The validator receives
 the schema object explicitly; no factory or builder may weaken or replace this
 authority.

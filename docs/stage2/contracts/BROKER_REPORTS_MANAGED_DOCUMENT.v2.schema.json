@@ -333,6 +333,9 @@
               "$ref": "#/$defs/unknownSourceDetails"
             }
           ]
+        },
+        "table_source_unit_coverage": {
+          "$ref": "#/$defs/documentTableSourceUnitCoverage"
         }
       },
       "allOf": [
@@ -1161,6 +1164,12 @@
             "$ref": "#/$defs/lossId"
           },
           "uniqueItems": true
+        },
+        "covered_source_atom_refs": {
+          "$ref": "#/$defs/sourceRefArray"
+        },
+        "covered_source_word_refs": {
+          "$ref": "#/$defs/sourceRefArray"
         }
       }
     },
@@ -2416,8 +2425,110 @@
         },
         "source_bound_audit_evidence": {
           "$ref": "#/$defs/sourceBoundAuditEvidence"
+        },
+        "covered_source_units": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/coveredSourceUnit"
+          }
         }
       }
+    },
+    "sourceRefArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "uniqueItems": true
+    },
+    "coveredSourceUnit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit_ref",
+        "source_unit_checksum_ref",
+        "parent_payload_ref",
+        "page_refs",
+        "selected_source_atom_refs",
+        "table_contributing_word_refs"
+      ],
+      "properties": {
+        "unit_ref": {
+          "type": "string",
+          "pattern": "^srcunit_[0-9a-f]{24}$"
+        },
+        "source_unit_checksum_ref": {
+          "type": "string",
+          "pattern": "^srcunitchk_[0-9a-f]{24}$"
+        },
+        "parent_payload_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "page_refs": {
+          "$ref": "#/$defs/sourceRefArray"
+        },
+        "selected_source_atom_refs": {
+          "$ref": "#/$defs/sourceRefArray"
+        },
+        "table_contributing_word_refs": {
+          "$ref": "#/$defs/sourceRefArray"
+        }
+      }
+    },
+    "documentTableSourceUnitCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "covered_source_unit_refs",
+        "covered_source_atom_refs",
+        "covered_source_word_refs",
+        "duplicate_source_unit_refs",
+        "duplicate_source_atom_refs",
+        "duplicate_source_word_refs"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "broker_reports_managed_table_source_unit_coverage_v1"
+        },
+        "covered_source_unit_refs": {
+          "$ref": "#/$defs/sourceRefArrayAllowEmpty"
+        },
+        "covered_source_atom_refs": {
+          "$ref": "#/$defs/sourceRefArrayAllowEmpty"
+        },
+        "covered_source_word_refs": {
+          "$ref": "#/$defs/sourceRefArrayAllowEmpty"
+        },
+        "duplicate_source_unit_refs": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "duplicate_source_atom_refs": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "duplicate_source_word_refs": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "sourceRefArrayAllowEmpty": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "uniqueItems": true
     },
     "reviewedSourceBoundEvidence": {
       "type": "object",
