@@ -7665,12 +7665,20 @@ def _materialize_logical_table(
         _refine_leading_ruled_header_roles(region, config=config)
         _apply_source_bound_row_roles(region)
     if len(regions) > 1:
-        first_header = _header_signature(regions[0].rows)
+        first_header_stack = _leading_header_stack(regions[0].rows)
+        first_header_signatures = tuple(
+            _row_signature(row) for row in first_header_stack
+        )
         for region in regions[1:]:
-            for row in region.rows:
-                if row.role != "COLUMN_HEADER":
-                    break
-                if _row_signature(row) == first_header:
+            repeated_header_stack = _leading_header_stack(region.rows)
+            if (
+                first_header_signatures
+                and tuple(
+                    _row_signature(row) for row in repeated_header_stack
+                )
+                == first_header_signatures
+            ):
+                for row in repeated_header_stack:
                     row.role = "CONTINUATION_HEADER"
 
     ordered_rows = [row for region in regions for row in region.rows]
@@ -12581,6 +12589,17 @@ def _header_signature(rows: list[_RowBand]) -> str:
     return _row_signature(header) if header is not None else ""
 
 
+def _leading_header_stack(rows: list[_RowBand]) -> list[_RowBand]:
+    index = 0
+    while index < len(rows) and rows[index].role in {"TABLE_TITLE", "NOTE"}:
+        index += 1
+    result = []
+    while index < len(rows) and rows[index].role == "COLUMN_HEADER":
+        result.append(rows[index])
+        index += 1
+    return result
+
+
 def _row_signature(row: _RowBand | None) -> str:
     if row is None:
         return ""
@@ -12709,8 +12728,9 @@ def _promote_and_bind_proven_suffix_headers(
     ):
         return
     for root in roots:
-        root.role = "COLUMN_HEADER"
-        row_payload_by_id[str(root.row_id)]["role"] = "COLUMN_HEADER"
+        if root.role != "CONTINUATION_HEADER":
+            root.role = "COLUMN_HEADER"
+            row_payload_by_id[str(root.row_id)]["role"] = "COLUMN_HEADER"
     for entry, payload, logical_column_id, covers in decisions:
         _set_entry_column_binding(
             entry,

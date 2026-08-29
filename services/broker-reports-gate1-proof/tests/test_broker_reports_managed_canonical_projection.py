@@ -23,7 +23,6 @@ from broker_reports_gate1.managed_pdf_document_v2 import (
     ManagedPdfDocumentV2Factory,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
-    OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
 from tests.test_broker_reports_managed_pdf_document_v2 import (
@@ -287,12 +286,15 @@ def test_repeated_header_keeps_managed_role_and_is_not_data(
         ["LKOH", "RUB"],
         ["ROSN", "RUB"],
     ]
-    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+    mapping_package = (
         OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
             canonical=artifact,
             confirmed_understandings=[],
         )
-    assert exc.value.code == "ordinary_trade_semantic_mapping_canonical_invalid"
+    )
+    assert [
+        row["row"] for row in mapping_package["case"]["tables"][0]["rows"]
+    ] == [1, 2, 3, 5, 6]
 
 
 def test_distinct_titled_similar_tables_build_two_canonical_tables(
