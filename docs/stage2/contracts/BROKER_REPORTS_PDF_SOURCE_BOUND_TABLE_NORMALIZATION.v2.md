@@ -68,6 +68,30 @@ rehashing a dataclass is forbidden.
 always non-authoritative `PARTIAL` observations. They cannot delete, release or
 exclude words. `EXPLAINER` does not decide financial relevance.
 
+## Inactive same-call recovery input
+
+`LogicalRowTableRecoveryRuntime.recover` retains its v1 signature and output.
+The separate inactive `recover_with_source_bound_scopes` entrypoint accepts
+only original geometry proposals plus the whole FullSource payload, source SHA,
+page identity and full raster manifests. It invokes
+`SourceBoundTableScopeFactory` itself and passes receipts only to private
+recovery logic within the same call. A caller cannot submit a ready receipt or
+scope dataclass.
+
+A `PARTIAL` receipt, overlapping requests or a receipt-to-region conflict is an
+inspectable issue and blocks continuation. It does not release source words or
+fall back to an unreviewed join. LogicalRow remains the only continuation owner.
+One model-authored `ABSENT` proposal is not proof of absence: exact refs prove
+what was selected, not that no header exists. This slice therefore does not
+install `ABSENT` as source-proven evidence and it cannot create a continuation
+match. The legacy structural owner may still prove the same continuation from
+independent evidence; otherwise the fragments remain inspectably ambiguous and
+separate. Promoting absence requires an independent critic/adjudication slice.
+`PRESENT` header groups must be the exact leading stack with retained body rows
+below it. A conflict with independently proven header evidence is typed
+`source_bound_table_scope_header_presence_conflict`, remains `PARTIAL`, and
+does not authorize a join.
+
 ## Fragment-local continuation rule
 
 A right fragment may join one previous logical table only when all of the
@@ -93,9 +117,9 @@ first text row. Existing row roles, proven header coalescence, column evidence,
 and body support may prove the stack. If a text-only fragment can be either a
 header stack or body data and no source-bound header-presence evidence exists,
 this inactive slice must not guess. It remains separate and `PARTIAL` with
-`logical_table_continuation_header_ambiguous`. Exact header-present/header-
-absent refs are deferred to the source-bound scope slice; they are required
-before such a fragment can join autonomously.
+`logical_table_continuation_header_ambiguous`. Exact `PRESENT` refs may prove a
+leading stack. Exact refs selected under a single `ABSENT` proposal cannot prove
+absence or authorize an autonomous join.
 
 For a chain of three or more pages, the first fragment remains the stable header
 authority. Each adjacent pair must independently satisfy the page-edge and grid
