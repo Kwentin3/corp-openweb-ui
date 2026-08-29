@@ -2196,7 +2196,37 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 ast.parse(path.read_text(encoding="utf-8"))
             ):
                 consumers.add(path.name)
-        self.assertEqual(consumers, {"ordinary_trade_qualified_mappings.py"})
+        self.assertEqual(
+            consumers,
+            {"ordinary_trade_qualified_mappings.py"},
+        )
+
+    def test_neutral_managed_row_replay_has_only_representation_consumers(self):
+        seam = "ordinary_trade_canonical_managed_row_replay"
+        module = "ordinary_trade_semantic_compiler"
+        function = _function_node(_tree(module), seam)
+        self.assertEqual(
+            _call_owners(module, seam),
+            {"ordinary_trade_canonical_managed_data_replay"},
+        )
+        self.assertEqual(function.args.args, [])
+        self.assertEqual(
+            [item.arg for item in function.args.kwonlyargs],
+            ["canonical", "canonical_binding", "table_node_id"],
+        )
+        consumers = set()
+        for path in _executable_repo_python_paths():
+            if path == PACKAGE / f"{module}.py":
+                continue
+            if seam in _call_names(ast.parse(path.read_text(encoding="utf-8"))):
+                consumers.add(path.relative_to(REPOSITORY_ROOT).as_posix())
+        self.assertEqual(
+            consumers,
+            {
+                "services/broker-reports-gate1-proof/broker_reports_gate1/"
+                "ordinary_trade_semantic_mapping.py"
+            },
+        )
 
     def test_managed_case_qualification_has_no_downstream_consumer(self):
         module = "ordinary_trade_qualified_mappings"
@@ -2400,6 +2430,110 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             set(),
         )
 
+    def test_managed_semantic_evidence_is_inactive_and_has_one_owner(self):
+        semantic_module = "ordinary_trade_semantic_mapping"
+        coordinator_module = "managed_pdf_to_canonical"
+        method_name = "build_with_semantic_evidence"
+        method = _method_node(
+            _tree(coordinator_module),
+            "_ManagedPdfToCanonicalBuilder",
+            method_name,
+        )
+        self.assertEqual(
+            [item.arg for item in method.args.kwonlyargs],
+            [
+                "tenant_id",
+                "artifact_version",
+                "source_artifact_ref",
+                "task_id",
+                "user_scope_sha256",
+                "dpi",
+                "created_at",
+                "previous_version_ref",
+            ],
+        )
+        self.assertEqual(
+            _call_owners(
+                coordinator_module,
+                "_build_managed_document_semantic_evidence_from_owned_canonical",
+            ),
+            {
+                "_ManagedPdfToCanonicalBuilder.build_with_semantic_evidence"
+            },
+        )
+        self.assertEqual(
+            _call_owners(
+                semantic_module,
+                "_managed_document_semantic_evidence",
+            ),
+            {"_build_managed_document_semantic_evidence_from_owned_canonical"},
+        )
+        semantic_tree = _tree(semantic_module)
+        semantic_class = next(
+            node
+            for node in semantic_tree.body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "OrdinaryTradeSemanticMapping"
+        )
+        self.assertNotIn(
+            "build_managed_document_semantic_evidence",
+            {
+                node.name
+                for node in semantic_class.body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            },
+        )
+        private_consumers = set()
+        public_consumers = set()
+        for path in _executable_repo_python_paths():
+            calls = _call_names(ast.parse(path.read_text(encoding="utf-8")))
+            relative = path.relative_to(REPOSITORY_ROOT).as_posix()
+            if (
+                "_build_managed_document_semantic_evidence_from_owned_canonical"
+                in calls
+            ):
+                private_consumers.add(relative)
+            if method_name in calls:
+                public_consumers.add(relative)
+        self.assertEqual(
+            private_consumers,
+            {
+                "services/broker-reports-gate1-proof/broker_reports_gate1/"
+                "managed_pdf_to_canonical.py"
+            },
+        )
+        self.assertEqual(public_consumers, set())
+        self.assertFalse(
+            {
+                "canonical",
+                "canonical_binding",
+                "managed_document",
+                "managed_document_payload",
+                "projection",
+                "ledger",
+                "proposal_response",
+                "critic_response",
+                "evidence",
+                "receipt",
+                "outcome_plan",
+                "model_client",
+            }
+            & {item.arg for item in method.args.kwonlyargs}
+        )
+        self.assertEqual(
+            _local_imports(semantic_module)
+            & {
+                "artifact_store",
+                "canonical_store",
+                "gate2_model_requests",
+                "ordinary_trade_mapping_runtime",
+                "ordinary_trade_production_runtime",
+                "gate4_ordinary_trade_candidate",
+                "openwebui_actions",
+            },
+            set(),
+        )
+
 
 def _source(module_name: str) -> str:
     return (PACKAGE / f"{module_name}.py").read_text(encoding="utf-8")
@@ -2436,6 +2570,23 @@ def _call_name(node: ast.AST) -> str | None:
     if isinstance(node, ast.Attribute):
         return node.attr
     return None
+
+
+def _executable_repo_python_paths() -> list[Path]:
+    paths = []
+    for path in REPOSITORY_ROOT.rglob("*.py"):
+        relative = path.relative_to(REPOSITORY_ROOT)
+        if (
+            {"tests", "__pycache__", ".git", ".pytest_cache"}
+            & set(relative.parts)
+            or (
+                "openwebui_actions" in relative.parts
+                and path.name.endswith("_bundled.py")
+            )
+        ):
+            continue
+        paths.append(path)
+    return sorted(paths)
 
 
 def _call_names(node: ast.AST) -> set[str]:
