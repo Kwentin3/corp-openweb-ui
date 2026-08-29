@@ -33,6 +33,9 @@ ORDINARY_TRADE_MANAGED_DATA_REPLAY_SCHEMA_VERSION = (
 ORDINARY_TRADE_MANAGED_CASE_MAPPING_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_managed_case_mapping_v4"
 )
+ORDINARY_TRADE_MANAGED_COMPILED_CASE_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_managed_compiled_case_v1"
+)
 SOURCE_OBSERVATION_SCHEMA_VERSION = "broker_reports_source_observation_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticCompilerFactory.create is the only production-candidate "
@@ -311,7 +314,7 @@ class OrdinaryTradeSemanticCompiler:
             )
             numeric_convention = _table_numeric_convention(
                 rows=mapped_rows,
-                mapping=mapping,
+                columns=mapping["columns"],
             )
             unresolved_rows = {
                 row: cells
@@ -373,13 +376,24 @@ class OrdinaryTradeSemanticCompiler:
                     table=table,
                     row=row_number,
                     cells=cells,
-                    mapping=mapping,
+                    mapping_id=mapping["mapping_id"],
+                    columns=mapping["columns"],
+                    amount_currency_bindings=mapping[
+                        "amount_currency_bindings"
+                    ],
+                    side_values=mapping["side_values"],
                     numeric_convention=numeric_convention,
                 )
                 observations.append(observation)
                 if observation["disposition"] == "RUNTIME_READY":
                     runtime_records.extend(
-                        _runtime_records(observation=observation, mapping=mapping)
+                        _runtime_records(
+                            observation=observation,
+                            amount_currency_bindings=mapping[
+                                "amount_currency_bindings"
+                            ],
+                            side_values=mapping["side_values"],
+                        )
                     )
 
         for scoped in accepted_scoped:
@@ -669,6 +683,356 @@ def _validated_managed_header_case_mapping_candidate(
     if candidate_id != "otmapcase_" + _sha256_json(material)[:32]:
         _fail("ordinary_trade_managed_case_mapping_identity_invalid")
     return copy.deepcopy(dict(value))
+
+
+def _compile_managed_header_case_artifact(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    table_node_id: str,
+    candidate: Mapping[str, Any],
+    qualification_plan: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compile one validated v4 table case without granting runtime authority."""
+
+    binding = _canonical_binding(canonical=canonical, value=canonical_binding)
+    validated_candidate = validate_managed_header_case_mapping_candidate(
+        value=candidate,
+        canonical=canonical,
+        canonical_binding=binding,
+        table_node_id=table_node_id,
+    )
+    plan = _validated_managed_case_qualification_plan(
+        qualification_plan,
+        candidate=validated_candidate,
+        canonical_binding=binding,
+        table_node_id=table_node_id,
+    )
+    matches = [
+        node
+        for node in canonical.get("nodes", [])
+        if isinstance(node, Mapping)
+        and node.get("node_type") == "TABLE"
+        and node.get("node_id") == table_node_id
+    ]
+    if len(matches) != 1:
+        _fail("ordinary_trade_managed_compiled_case_table_invalid")
+    table = matches[0]
+    rows = _table_rows(table)
+    replay = ordinary_trade_canonical_managed_data_replay(
+        canonical=canonical,
+        canonical_binding=binding,
+        table_node_id=table_node_id,
+    )
+    replay_rows = {
+        int(item["row"]): item for item in replay["data_rows"]
+    }
+    if not replay_rows or len(replay_rows) != len(replay["data_rows"]):
+        _fail("ordinary_trade_managed_compiled_case_data_invalid")
+    mapped_rows = {
+        row: rows[row]
+        for row in replay_rows
+        if row in rows
+    }
+    if set(mapped_rows) != set(replay_rows):
+        _fail("ordinary_trade_managed_compiled_case_data_invalid")
+    for row_number, replay_row in replay_rows.items():
+        cells = mapped_rows[row_number]
+        expected = [
+            {
+                "column": column,
+                "literal": _literal(cell),
+                "source_coordinate": cell.get("source_coordinate"),
+                "canonical_provenance_ref": cell["source_refs"][0],
+            }
+            for column, cell in sorted(cells.items())
+        ]
+        if replay_row.get("cells") != expected:
+            _fail("ordinary_trade_managed_compiled_case_data_invalid")
+
+    side_values = [
+        {
+            "source_literal": item["source_literal"],
+            "normalized_value": item["normalized_value"],
+        }
+        for item in plan["side_normalizations"]
+    ]
+    numeric_convention = _table_numeric_convention(
+        rows=mapped_rows,
+        columns=validated_candidate["columns"],
+    )
+    observations = [
+        _mapped_observation(
+            binding=binding,
+            table=table,
+            row=row_number,
+            cells=mapped_rows[row_number],
+            mapping_id=validated_candidate["candidate_id"],
+            columns=validated_candidate["columns"],
+            amount_currency_bindings=validated_candidate[
+                "amount_currency_bindings"
+            ],
+            side_values=side_values,
+            numeric_convention=numeric_convention,
+        )
+        for row_number in sorted(mapped_rows)
+    ]
+    row_ids = {
+        int(item["row"]): str(item["row_id"])
+        for item in replay["data_rows"]
+    }
+    row_compilations = [
+        _managed_row_compilation(
+            observation=observation,
+            row_id=row_ids[int(observation["row"])],
+            candidate_id=validated_candidate["candidate_id"],
+        )
+        for observation in observations
+    ]
+    relevant_unmapped = [
+        {
+            "row": item["row"],
+            "row_id": item["row_id"],
+            "reason_code": item["reason_code"],
+            "fields": copy.deepcopy(item["fields"]),
+        }
+        for item in row_compilations
+        if item["compilation_status"] != "MAPPED"
+    ]
+    record_candidates: list[dict[str, Any]] = []
+    status = "PARTIAL" if relevant_unmapped else "COMPLETE"
+    if status == "COMPLETE":
+        runtime_records = [
+            record
+            for observation in observations
+            for record in _runtime_records(
+                observation=observation,
+                amount_currency_bindings=validated_candidate[
+                    "amount_currency_bindings"
+                ],
+                side_values=side_values,
+            )
+        ]
+        _validate_projection_lineage(
+            observations=observations,
+            runtime_records=runtime_records,
+        )
+        compilation_refs = {
+            observation["observation_id"]: row_compilation["row_compilation_id"]
+            for observation, row_compilation in zip(
+                observations,
+                row_compilations,
+                strict=True,
+            )
+        }
+        record_candidates = [
+            _managed_record_candidate(
+                record,
+                source_row_compilation_ref=compilation_refs[
+                    record["source_observation_id"]
+                ],
+            )
+            for record in runtime_records
+        ]
+
+    material = {
+        "schema_version": ORDINARY_TRADE_MANAGED_COMPILED_CASE_SCHEMA_VERSION,
+        "compilation_status": status,
+        "runtime_activation": False,
+        "global_reuse": False,
+        "publication_authorized": False,
+        "document_completeness_asserted": False,
+        "scope": "EXACT_TABLE_ONLY",
+        "canonical_binding": binding,
+        "table_node_id": table_node_id,
+        "managed_binding": copy.deepcopy(plan["managed_binding"]),
+        "mapping_candidate_binding": {
+            "candidate_id": validated_candidate["candidate_id"],
+            "candidate_sha256": _sha256_json(validated_candidate),
+            "structural_fingerprint": validated_candidate[
+                "structural_fingerprint"
+            ],
+            "header_view_binding": copy.deepcopy(
+                validated_candidate["header_view_binding"]
+            ),
+        },
+        "qualification_binding": {
+            "qualification_id": plan["qualification_id"],
+            "receipt_sha256": plan["receipt_sha256"],
+            "user_scope_sha256": plan["user_scope_sha256"],
+            "semantic_scope_sha256": plan["semantic_scope_sha256"],
+        },
+        "semantic_scope": {
+            "columns": copy.deepcopy(validated_candidate["columns"]),
+            "amount_currency_bindings": copy.deepcopy(
+                plan["amount_currency_bindings"]
+            ),
+            "side_normalizations": copy.deepcopy(plan["side_normalizations"]),
+        },
+        "data_replay_sha256": replay["data_replay_sha256"],
+        "row_compilations": row_compilations,
+        "relevant_unmapped": relevant_unmapped,
+        "record_candidates": record_candidates,
+    }
+    artifact = {
+        **material,
+        "compiled_case_sha256": _sha256_json(material),
+    }
+    _validate_managed_compiled_case_artifact(artifact)
+    return artifact
+
+
+def _validated_managed_case_qualification_plan(
+    value: Mapping[str, Any],
+    *,
+    candidate: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    table_node_id: str,
+) -> dict[str, Any]:
+    keys = {
+        "qualification_id",
+        "receipt_sha256",
+        "candidate_id",
+        "candidate_sha256",
+        "canonical_binding",
+        "table_node_id",
+        "managed_binding",
+        "user_scope_sha256",
+        "semantic_scope_sha256",
+        "side_normalizations",
+        "amount_currency_bindings",
+    }
+    header_binding = candidate["header_view_binding"]
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != keys
+        or not _prefixed_text(value.get("qualification_id"), "otqual_")
+        or not _sha256_text(value.get("receipt_sha256"))
+        or value.get("candidate_id") != candidate["candidate_id"]
+        or value.get("candidate_sha256") != _sha256_json(candidate)
+        or value.get("canonical_binding") != canonical_binding
+        or value.get("table_node_id") != table_node_id
+        or value.get("managed_binding") != header_binding["managed_binding"]
+        or not _sha256_text(value.get("user_scope_sha256"))
+        or not _sha256_text(value.get("semantic_scope_sha256"))
+        or value.get("amount_currency_bindings")
+        != candidate["amount_currency_bindings"]
+    ):
+        _fail("ordinary_trade_managed_compiled_case_plan_invalid")
+    side_normalizations = value.get("side_normalizations")
+    if not isinstance(side_normalizations, list) or not side_normalizations:
+        _fail("ordinary_trade_managed_compiled_case_plan_invalid")
+    literals: set[str] = set()
+    for item in side_normalizations:
+        if (
+            not isinstance(item, Mapping)
+            or set(item)
+            != {"side_evidence_ref", "source_literal", "normalized_value"}
+            or not _prefixed_text(item.get("side_evidence_ref"), "otsideevidence_")
+            or not isinstance(item.get("source_literal"), str)
+            or not item["source_literal"]
+            or item["source_literal"] in literals
+            or item.get("normalized_value") not in {"PURCHASE", "DISPOSAL"}
+        ):
+            _fail("ordinary_trade_managed_compiled_case_plan_invalid")
+        literals.add(str(item["source_literal"]))
+    return copy.deepcopy(dict(value))
+
+
+def _managed_row_compilation(
+    *,
+    observation: Mapping[str, Any],
+    row_id: str,
+    candidate_id: str,
+) -> dict[str, Any]:
+    material = {
+        "table_node_id": observation["table_node_id"],
+        "row": observation["row"],
+        "row_id": row_id,
+        "mapping_candidate_id": candidate_id,
+        "numeric_convention": observation["numeric_convention"],
+        "compilation_status": (
+            "MAPPED"
+            if observation["disposition"] == "RUNTIME_READY"
+            else "RELEVANT_UNMAPPED"
+        ),
+        "reason_code": observation["reason_code"],
+        "fields": copy.deepcopy(observation["fields"]),
+    }
+    return {
+        **material,
+        "row_compilation_id": "otrowcomp_" + _sha256_json(material)[:32],
+    }
+
+
+def _managed_record_candidate(
+    value: Mapping[str, Any],
+    *,
+    source_row_compilation_ref: str,
+) -> dict[str, Any]:
+    material = {
+        "source_row_compilation_ref": source_row_compilation_ref,
+        "record_type": value["record_type"],
+        "annotation_target": copy.deepcopy(value["annotation_target"]),
+        "claim_refs": copy.deepcopy(value["claim_refs"]),
+        "roles": copy.deepcopy(value["roles"]),
+    }
+    return {
+        **material,
+        "record_candidate_id": "otrecordcandidate_"
+        + _sha256_json(material)[:32],
+    }
+
+
+def _validate_managed_compiled_case_artifact(value: Mapping[str, Any]) -> None:
+    keys = {
+        "schema_version",
+        "compilation_status",
+        "runtime_activation",
+        "global_reuse",
+        "publication_authorized",
+        "document_completeness_asserted",
+        "scope",
+        "canonical_binding",
+        "table_node_id",
+        "managed_binding",
+        "mapping_candidate_binding",
+        "qualification_binding",
+        "semantic_scope",
+        "data_replay_sha256",
+        "row_compilations",
+        "relevant_unmapped",
+        "record_candidates",
+        "compiled_case_sha256",
+    }
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != keys
+        or value.get("schema_version")
+        != ORDINARY_TRADE_MANAGED_COMPILED_CASE_SCHEMA_VERSION
+        or value.get("compilation_status") not in {"COMPLETE", "PARTIAL"}
+        or value.get("runtime_activation") is not False
+        or value.get("global_reuse") is not False
+        or value.get("publication_authorized") is not False
+        or value.get("document_completeness_asserted") is not False
+        or value.get("scope") != "EXACT_TABLE_ONLY"
+        or not isinstance(value.get("row_compilations"), list)
+        or not value["row_compilations"]
+        or not isinstance(value.get("relevant_unmapped"), list)
+        or not isinstance(value.get("record_candidates"), list)
+    ):
+        _fail("ordinary_trade_managed_compiled_case_contract_invalid")
+    complete = value["compilation_status"] == "COMPLETE"
+    if (
+        complete != (not value["relevant_unmapped"])
+        or (not complete and value["record_candidates"])
+        or any("runtime_record_id" in item for item in value["record_candidates"])
+    ):
+        _fail("ordinary_trade_managed_compiled_case_atomicity_invalid")
+    material = copy.deepcopy(dict(value))
+    expected = material.pop("compiled_case_sha256", None)
+    if expected != _sha256_json(material):
+        _fail("ordinary_trade_managed_compiled_case_hash_invalid")
 
 
 def _managed_header_structural_fingerprint(
@@ -1822,11 +2186,11 @@ def _matching_scoped_mappings(
 def _table_numeric_convention(
     *,
     rows: dict[int, dict[int, dict[str, Any]]],
-    mapping: dict[str, Any],
+    columns: Iterable[Mapping[str, Any]],
 ) -> str | None:
     numeric_columns = {
         item["column"]
-        for item in mapping["columns"]
+        for item in columns
         if item["semantic_role"]
         in {
             "quantity",
@@ -1864,7 +2228,10 @@ def _mapped_observation(
     table: Mapping[str, Any],
     row: int,
     cells: dict[int, dict[str, Any]],
-    mapping: dict[str, Any],
+    mapping_id: str,
+    columns: Iterable[Mapping[str, Any]],
+    amount_currency_bindings: Iterable[Mapping[str, Any]],
+    side_values: Iterable[Mapping[str, Any]],
     numeric_convention: str | None,
 ) -> dict[str, Any]:
     fields = [
@@ -1874,7 +2241,7 @@ def _mapped_observation(
             cell=cells[item["column"]],
             role=item["semantic_role"],
         )
-        for item in mapping["columns"]
+        for item in columns
         if item["column"] in cells
     ]
     by_role = _by_role(fields)
@@ -1895,12 +2262,12 @@ def _mapped_observation(
             fields=fields,
             disposition="SOURCE_RETAINED_NO_CONSUMER",
             reason="MAPPED_TABLE_NON_RECORD_ROW",
-            mapping_id=mapping["mapping_id"],
+            mapping_id=mapping_id,
             numeric_convention=numeric_convention,
         )
     side_literals = {
         item["source_literal"]: item["normalized_value"]
-        for item in mapping["side_values"]
+        for item in side_values
     }
     ready = all(
         _single_nonempty(by_role, role) is not None for role in _REQUIRED - {"currency"}
@@ -1908,14 +2275,16 @@ def _mapped_observation(
     gross = _single_nonempty(by_role, "gross_amount")
     ready = ready and gross is not None
     ready = ready and _currency_field_for_amount(
-        amount=gross, by_role=by_role, mapping=mapping
+        amount=gross,
+        by_role=by_role,
+        amount_currency_bindings=amount_currency_bindings,
     ) is not None
     side = _single_nonempty(by_role, "side")
     ready = ready and side is not None and side["literal"] in side_literals
     if ready:
         ready = _row_values_runtime_valid(
             by_role=by_role,
-            mapping=mapping,
+            amount_currency_bindings=amount_currency_bindings,
             numeric_convention=numeric_convention,
         )
     return _observation(
@@ -1925,7 +2294,7 @@ def _mapped_observation(
         fields=fields,
         disposition="RUNTIME_READY" if ready else "RELEVANT_UNMAPPED",
         reason=None if ready else "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE",
-        mapping_id=mapping["mapping_id"],
+        mapping_id=mapping_id,
         numeric_convention=numeric_convention,
     )
 
@@ -2111,21 +2480,26 @@ def _observation(
 
 
 def _runtime_records(
-    *, observation: dict[str, Any], mapping: dict[str, Any]
+    *,
+    observation: dict[str, Any],
+    amount_currency_bindings: Iterable[Mapping[str, Any]],
+    side_values: Iterable[Mapping[str, Any]],
 ) -> list[dict[str, Any]]:
     by_role = _by_role(observation["fields"])
     numeric_convention = observation.get("numeric_convention")
     side_field = _required_field(by_role, "side")
     sides = {
         item["source_literal"]: item["normalized_value"]
-        for item in mapping["side_values"]
+        for item in side_values
     }
     normalized_side = sides.get(side_field["literal"])
     if normalized_side not in {"PURCHASE", "DISPOSAL"}:
         _fail("ordinary_trade_side_unmapped")
     gross_amount = _required_field(by_role, "gross_amount")
     currency = _currency_field_for_amount(
-        amount=gross_amount, by_role=by_role, mapping=mapping
+        amount=gross_amount,
+        by_role=by_role,
+        amount_currency_bindings=amount_currency_bindings,
     )
     if currency is None:
         _fail("ordinary_trade_runtime_currency_ambiguous")
@@ -2166,7 +2540,9 @@ def _runtime_records(
         if not commission["literal"] or _is_zero(commission["literal"]):
             continue
         commission_currency = _currency_field_for_amount(
-            amount=commission, by_role=by_role, mapping=mapping
+            amount=commission,
+            by_role=by_role,
+            amount_currency_bindings=amount_currency_bindings,
         )
         if commission_currency is None:
             _fail("ordinary_trade_runtime_currency_binding_missing")
@@ -2388,12 +2764,12 @@ def _currency_field_for_amount(
     *,
     amount: dict[str, Any],
     by_role: dict[str, list[dict[str, Any]]],
-    mapping: dict[str, Any],
+    amount_currency_bindings: Iterable[Mapping[str, Any]],
 ) -> dict[str, Any] | None:
     amount_column = amount["canonical_cell"]["column"]
     bindings = [
         item
-        for item in mapping["amount_currency_bindings"]
+        for item in amount_currency_bindings
         if item["amount_column"] == amount_column
     ]
     if len(bindings) != 1:
@@ -2411,14 +2787,16 @@ def _currency_field_for_amount(
 def _row_values_runtime_valid(
     *,
     by_role: dict[str, list[dict[str, Any]]],
-    mapping: dict[str, Any],
+    amount_currency_bindings: Iterable[Mapping[str, Any]],
     numeric_convention: str | None,
 ) -> bool:
     gross = _single_nonempty(by_role, "gross_amount")
     if gross is None:
         return False
     currency = _currency_field_for_amount(
-        amount=gross, by_role=by_role, mapping=mapping
+        amount=gross,
+        by_role=by_role,
+        amount_currency_bindings=amount_currency_bindings,
     )
     if currency is None:
         return False
@@ -2491,6 +2869,7 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "ORDINARY_TRADE_MANAGED_CASE_MAPPING_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MANAGED_COMPILED_CASE_SCHEMA_VERSION",
     "ORDINARY_TRADE_MANAGED_DATA_REPLAY_SCHEMA_VERSION",
     "ORDINARY_TRADE_MANAGED_HEADER_VIEW_SCHEMA_VERSION",
     "ORDINARY_TRADE_MAPPING_SCHEMA_VERSION",
