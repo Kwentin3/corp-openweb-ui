@@ -2130,6 +2130,31 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertIn("canonical_artifacts_created", managed)
         self.assertIn("facts_published", managed)
 
+    def test_managed_header_view_has_no_package_consumer(self):
+        seam = "ordinary_trade_canonical_managed_header_view"
+        function = _function_node(_tree("ordinary_trade_semantic_compiler"), seam)
+        callers = []
+        for path in PACKAGE.glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            callers.extend(
+                (path.name, node.lineno)
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and (
+                    isinstance(node.func, ast.Name)
+                    and node.func.id == seam
+                    or isinstance(node.func, ast.Attribute)
+                    and node.func.attr == seam
+                )
+            )
+
+        self.assertEqual(callers, [])
+        self.assertEqual(function.args.args, [])
+        self.assertEqual(
+            [item.arg for item in function.args.kwonlyargs],
+            ["canonical", "canonical_binding", "table_node_id"],
+        )
+
 
 def _source(module_name: str) -> str:
     return (PACKAGE / f"{module_name}.py").read_text(encoding="utf-8")
