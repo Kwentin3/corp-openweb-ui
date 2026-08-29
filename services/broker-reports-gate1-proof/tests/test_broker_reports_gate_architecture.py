@@ -2140,12 +2140,16 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "validate_managed_header_case_mapping_candidate",
             },
         )
-        self.assertFalse(
-            any(
-                seam in _call_names(ast.parse(path.read_text(encoding="utf-8")))
-                for path in PACKAGE.glob("*.py")
-                if path.name != "ordinary_trade_semantic_compiler.py"
-            )
+        external_consumers = {
+            path.name
+            for path in PACKAGE.glob("*.py")
+            if path.name != "ordinary_trade_semantic_compiler.py"
+            and seam
+            in _call_names(ast.parse(path.read_text(encoding="utf-8")))
+        }
+        self.assertEqual(
+            external_consumers,
+            {"ordinary_trade_semantic_mapping.py"},
         )
         self.assertEqual(function.args.args, [])
         self.assertEqual(
@@ -2284,20 +2288,117 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             }
             & {item.arg for item in method.args.kwonlyargs}
         )
+        public_consumers = set()
         for path in PACKAGE.glob("*.py"):
             if path.name == f"{authority_module}.py":
                 continue
-            self.assertNotIn(
-                public_method,
-                _call_names(ast.parse(path.read_text(encoding="utf-8"))),
-                path.name,
-            )
+            if public_method in _call_names(
+                ast.parse(path.read_text(encoding="utf-8"))
+            ):
+                public_consumers.add(path.name)
+        self.assertEqual(
+            public_consumers,
+            {"ordinary_trade_semantic_mapping.py"},
+        )
         active_compile = _method_node(
             _tree(compiler_module),
             "OrdinaryTradeSemanticCompiler",
             "compile",
         )
         self.assertNotIn(compiler_seam, _call_names(active_compile))
+
+    def test_managed_document_candidate_is_inactive_and_has_no_ready_inputs(self):
+        module = "ordinary_trade_semantic_mapping"
+        method_name = "compile_managed_document_candidate"
+        method = _method_node(
+            _tree(module),
+            "OrdinaryTradeSemanticMapping",
+            method_name,
+        )
+        self.assertEqual(method.args.args[0].arg, "self")
+        self.assertEqual(
+            [item.arg for item in method.args.kwonlyargs],
+            [
+                "canonical",
+                "canonical_binding",
+                "user_scope_sha256",
+                "table_cases",
+            ],
+        )
+        self.assertTrue(
+            {
+                "ordinary_trade_canonical_managed_header_view",
+                "compile_managed_header_case",
+                "_managed_document_candidate",
+            }
+            <= _call_names(method)
+        )
+        self.assertFalse(
+            {
+                "candidate",
+                "compiled_artifact",
+                "compiled_case",
+                "ledger",
+                "model_client",
+                "safe_auxiliary",
+                "unsupported",
+                "ambiguity",
+            }
+            & {item.arg for item in method.args.kwonlyargs}
+        )
+        for path in PACKAGE.glob("*.py"):
+            if path.name == f"{module}.py":
+                continue
+            self.assertNotIn(
+                method_name,
+                _call_names(ast.parse(path.read_text(encoding="utf-8"))),
+                path.name,
+            )
+        active_mapping = _method_node(
+            _tree(module),
+            "OrdinaryTradeSemanticMapping",
+            "validate_mapping_response",
+        )
+        active_compiler = _method_node(
+            _tree("ordinary_trade_semantic_compiler"),
+            "OrdinaryTradeSemanticCompiler",
+            "compile",
+        )
+        self.assertNotIn(method_name, _call_names(active_mapping))
+        self.assertNotIn(method_name, _call_names(active_compiler))
+        self.assertEqual(
+            _call_owners(module, "_managed_document_candidate"),
+            {
+                "OrdinaryTradeSemanticMapping."
+                "compile_managed_document_candidate"
+            },
+        )
+        self.assertEqual(
+            _call_owners(module, "_validate_managed_document_candidate"),
+            {"_managed_document_candidate"},
+        )
+        for path in PACKAGE.glob("*.py"):
+            if path.name == f"{module}.py":
+                continue
+            calls = _call_names(ast.parse(path.read_text(encoding="utf-8")))
+            self.assertNotIn("_managed_document_candidate", calls, path.name)
+            self.assertNotIn(
+                "_validate_managed_document_candidate", calls, path.name
+            )
+        self.assertEqual(
+            _local_imports(module)
+            & {
+                "artifact_store",
+                "canonical_store",
+                "ordinary_trade_mapping_case",
+                "ordinary_trade_projection",
+                "ordinary_trade_mapping_runtime",
+                "ordinary_trade_production_runtime",
+                "gate4_ordinary_trade_candidate",
+                "openwebui_actions",
+            },
+            set(),
+        )
 
 
 def _source(module_name: str) -> str:
