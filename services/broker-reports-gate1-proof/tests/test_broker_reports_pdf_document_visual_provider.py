@@ -384,12 +384,19 @@ def test_provider_seam_is_factory_routed_closed_world_and_product_inactive() -> 
     assert "open_webui" not in provider_source
     assert "PdfTableLocatorProviderFactory" in DOCUMENT_VISUAL_FACTORY_REQUIRED
     assert "no product call site" in DOCUMENT_VISUAL_FORBIDDEN
+    allowed_inactive_consumer = "pdf_document_visual_adjudication.py"
     for path in PACKAGE.glob("*.py"):
-        if path.name == "pdf_table_locator_provider.py":
+        if path.name in {
+            "pdf_table_locator_provider.py",
+            allowed_inactive_consumer,
+        }:
             continue
         assert ".invoke_document_visual_geometry(" not in path.read_text(
             encoding="utf-8"
         )
+    assert ".invoke_document_visual_geometry(" in (
+        PACKAGE / allowed_inactive_consumer
+    ).read_text(encoding="utf-8")
     intake_source = (PACKAGE / "pdf_table_intake_runtime.py").read_text(
         encoding="utf-8"
     )
