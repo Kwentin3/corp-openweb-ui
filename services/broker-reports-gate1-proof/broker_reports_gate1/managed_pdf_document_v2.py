@@ -97,6 +97,15 @@ class ManagedPdfDocumentV2AdjudicatedBuildResult:
     whole_table_projection_diagnostics: dict[str, Any]
 
 
+@dataclass(frozen=True, slots=True)
+class _ManagedPdfDocumentV2CanonicalHandoff:
+    result: ManagedPdfDocumentV2AdjudicatedBuildResult
+    source_document: dict[str, Any] | None
+    source_payloads: tuple[dict[str, Any], ...]
+    source_units: tuple[dict[str, Any], ...]
+    source_artifact_ref: str
+
+
 class ManagedPdfDocumentV2Factory:
     """Compose the established FullSource, recovery and v2 contract owners."""
 
@@ -167,7 +176,8 @@ class ManagedPdfDocumentV2Builder:
         task_id: str,
         dpi: int,
         adjudicator: Any,
-    ) -> ManagedPdfDocumentV2AdjudicatedBuildResult:
+        return_canonical_handoff: bool = False,
+    ) -> ManagedPdfDocumentV2AdjudicatedBuildResult | _ManagedPdfDocumentV2CanonicalHandoff:
         adjudicator._assert_authority()
         return self._build_owned_source(
             content_bytes=content_bytes,
@@ -175,6 +185,7 @@ class ManagedPdfDocumentV2Builder:
             task_id=_adjudication_task_id(task_id),
             dpi=_adjudication_dpi(dpi),
             adjudicator=adjudicator,
+            return_canonical_handoff=return_canonical_handoff,
         )
 
     def _build_owned_source(
@@ -185,9 +196,11 @@ class ManagedPdfDocumentV2Builder:
         task_id: str | None = None,
         dpi: int = 150,
         adjudicator: Any = None,
+        return_canonical_handoff: bool = False,
     ) -> (
         ManagedPdfDocumentV2BuildResult
         | ManagedPdfDocumentV2AdjudicatedBuildResult
+        | _ManagedPdfDocumentV2CanonicalHandoff
     ):
         if not isinstance(content_bytes, bytes) or not content_bytes:
             raise ManagedPdfDocumentV2Error(
@@ -230,7 +243,7 @@ class ManagedPdfDocumentV2Builder:
                 dpi=dpi,
             )
             if adjudication.status != "COVERAGE_COMPLETE":
-                return _partial_adjudicated_result(
+                partial = _partial_adjudicated_result(
                     adjudication=adjudication,
                     document_id=document_id,
                     source_checksum=source_checksum,
@@ -238,6 +251,15 @@ class ManagedPdfDocumentV2Builder:
                     full_source=full_source,
                     payload=payload,
                 )
+                if return_canonical_handoff:
+                    return _canonical_handoff(
+                        result=partial,
+                        source_checksum=source_checksum,
+                        document_id=document_id,
+                        private_ref=private_ref,
+                        full_source=full_source,
+                    )
+                return partial
             recovered = adjudication.recovery
         recovered, reviewed_plan = _managed_document_recovery_projection(
             recovered,
@@ -256,7 +278,7 @@ class ManagedPdfDocumentV2Builder:
             adjudication is not None
             and candidate["quality"]["status"] != "COMPLETE"
         ):
-            return _partial_adjudicated_result(
+            partial = _partial_adjudicated_result(
                 adjudication=adjudication,
                 document_id=document_id,
                 source_checksum=source_checksum,
@@ -265,6 +287,15 @@ class ManagedPdfDocumentV2Builder:
                 payload=payload,
                 detail_code="managed_pdf_v2_candidate_partial",
             )
+            if return_canonical_handoff:
+                return _canonical_handoff(
+                    result=partial,
+                    source_checksum=source_checksum,
+                    document_id=document_id,
+                    private_ref=private_ref,
+                    full_source=full_source,
+                )
+            return partial
         source_unit_ledger_plan: tuple[dict[str, Any], ...] = ()
         if adjudication is not None:
             try:
@@ -274,7 +305,7 @@ class ManagedPdfDocumentV2Builder:
                     source_checksum_sha256=source_checksum,
                 )
             except ManagedPdfDocumentV2Error as exc:
-                return _partial_adjudicated_result(
+                partial = _partial_adjudicated_result(
                     adjudication=adjudication,
                     document_id=document_id,
                     source_checksum=source_checksum,
@@ -283,6 +314,15 @@ class ManagedPdfDocumentV2Builder:
                     payload=payload,
                     detail_code=str(exc),
                 )
+                if return_canonical_handoff:
+                    return _canonical_handoff(
+                        result=partial,
+                        source_checksum=source_checksum,
+                        document_id=document_id,
+                        private_ref=private_ref,
+                        full_source=full_source,
+                    )
+                return partial
         validator = ManagedDocumentContractV2Validator(
             json.loads(self._schema_json.decode("utf-8"))
         )
@@ -446,7 +486,7 @@ class ManagedPdfDocumentV2Builder:
             ),
         }
         if adjudication is not None:
-            return ManagedPdfDocumentV2AdjudicatedBuildResult(
+            result = ManagedPdfDocumentV2AdjudicatedBuildResult(
                 status=status,
                 managed_document=managed_document,
                 safe_diagnostics=safe_diagnostics,
@@ -457,6 +497,15 @@ class ManagedPdfDocumentV2Builder:
                     "issues": copy.deepcopy(list(whole_table_projection.issues)),
                 },
             )
+            if return_canonical_handoff:
+                return _canonical_handoff(
+                    result=result,
+                    source_checksum=source_checksum,
+                    document_id=document_id,
+                    private_ref=private_ref,
+                    full_source=full_source,
+                )
+            return result
         return ManagedPdfDocumentV2BuildResult(
             status=status,
             managed_document=managed_document,
@@ -488,6 +537,26 @@ class _ManagedPdfDocumentV2AdjudicatedBuilder:
             task_id=task_id,
             dpi=dpi,
             adjudicator=self._adjudicator,
+        )
+
+    def _build_owned_source_for_canonical(
+        self,
+        content_bytes: bytes,
+        *,
+        source_artifact_ref: str | None = None,
+        task_id: str,
+        dpi: int = 150,
+    ) -> _ManagedPdfDocumentV2CanonicalHandoff:
+        return ManagedPdfDocumentV2Builder(
+            config=self.config,
+            schema_json=self.schema_json,
+        )._build_adjudicated(
+            content_bytes,
+            source_artifact_ref=source_artifact_ref,
+            task_id=task_id,
+            dpi=dpi,
+            adjudicator=self._adjudicator,
+            return_canonical_handoff=True,
         )
 
 
@@ -602,6 +671,28 @@ def _partial_adjudicated_result(
                 {"code": "managed_whole_table_projection_managed_missing"}
             ],
         },
+    )
+
+
+def _canonical_handoff(
+    *,
+    result: ManagedPdfDocumentV2AdjudicatedBuildResult,
+    source_checksum: str,
+    document_id: str,
+    private_ref: str,
+    full_source: Any,
+) -> _ManagedPdfDocumentV2CanonicalHandoff:
+    return _ManagedPdfDocumentV2CanonicalHandoff(
+        result=result,
+        source_document={
+            "container_format": "pdf",
+            "sha256": source_checksum,
+            "declared_mime_type": "application/pdf",
+            "document_id": document_id,
+        },
+        source_payloads=tuple(copy.deepcopy(full_source.payloads)),
+        source_units=tuple(copy.deepcopy(full_source.units)),
+        source_artifact_ref=private_ref,
     )
 
 

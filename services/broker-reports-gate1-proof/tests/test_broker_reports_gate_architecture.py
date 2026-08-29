@@ -2039,6 +2039,97 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             set(),
         )
 
+    def test_managed_whole_table_to_canonical_seam_stays_private_inactive(self):
+        canonical = _source("canonical_artifact")
+        canonical_imports = _local_imports("canonical_artifact")
+        managed = _source("managed_pdf_document_v2")
+        bridge = _source("managed_pdf_to_canonical")
+        canonical_callers = []
+        handoff_callers = []
+        for path in PACKAGE.glob("*.py"):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            canonical_callers.extend(
+                (path.name, node.lineno)
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr
+                == "_build_pdf_from_managed_whole_table_projections"
+            )
+            handoff_callers.extend(
+                (path.name, node.lineno)
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "_build_owned_source_for_canonical"
+            )
+        public_build = next(
+            node
+            for node in ast.walk(_tree("canonical_artifact"))
+            if isinstance(node, ast.FunctionDef) and node.name == "build"
+        )
+        public_build_parameters = [
+            argument.arg
+            for argument in public_build.args.kwonlyargs
+        ]
+
+        self.assertIn(
+            "def _build_pdf_from_managed_whole_table_projections",
+            canonical,
+        )
+        self.assertEqual(
+            [path for path, _line in canonical_callers],
+            ["managed_pdf_to_canonical.py"],
+        )
+        self.assertEqual(
+            [path for path, _line in handoff_callers],
+            ["managed_pdf_to_canonical.py"],
+        )
+        self.assertEqual(
+            public_build_parameters,
+            [
+                "tenant_id",
+                "artifact_version",
+                "document",
+                "source_artifact_ref",
+                "source_payloads",
+                "source_units",
+                "table_projections",
+                "created_at",
+                "previous_version_ref",
+            ],
+        )
+        self.assertEqual(
+            canonical_imports
+            & {
+                "managed_pdf_document_v2",
+                "managed_whole_table_projection",
+                "pdf_document_visual_adjudication",
+                "gate2_handoff",
+                "canonical_store",
+                "ordinary_trade_production_runtime",
+                "gate4_ordinary_trade_candidate",
+            },
+            set(),
+        )
+        self.assertNotIn("put_candidate", canonical)
+        self.assertNotIn("openwebui_actions", canonical)
+        self.assertNotIn("canonical_artifact", _local_imports("managed_pdf_document_v2"))
+        self.assertNotIn("private_source_units:", managed)
+        self.assertIn("ManagedPdfToCanonicalFactory.create_for_openwebui", bridge)
+        self.assertEqual(
+            _local_imports("managed_pdf_to_canonical")
+            & {
+                "canonical_store",
+                "ordinary_trade_production_runtime",
+                "gate4_ordinary_trade_candidate",
+                "openwebui_actions",
+            },
+            set(),
+        )
+        self.assertIn("canonical_artifacts_created", managed)
+        self.assertIn("facts_published", managed)
+
 
 def _source(module_name: str) -> str:
     return (PACKAGE / f"{module_name}.py").read_text(encoding="utf-8")

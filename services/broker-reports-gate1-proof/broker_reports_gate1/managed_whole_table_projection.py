@@ -285,6 +285,11 @@ def _table_projection(
     managed_integrity: str,
 ) -> dict[str, Any]:
     source_parts = copy.deepcopy(_dicts(table.get("source_parts")))
+    source_anchor_ids = _table_source_anchor_ids(table)
+    anchor_by_id = {
+        str(anchor.get("anchor_id") or ""): anchor
+        for anchor in _dicts(payload.get("anchors"))
+    }
     unit_refs = sorted(
         str(unit["unit_ref"])
         for part in source_parts
@@ -303,6 +308,11 @@ def _table_projection(
         "logical_columns": copy.deepcopy(table["logical_columns"]),
         "source_parts": source_parts,
         "source_part_refs": [str(part["source_part_id"]) for part in source_parts],
+        "source_anchors": [
+            copy.deepcopy(anchor_by_id[anchor_id])
+            for anchor_id in sorted(source_anchor_ids)
+            if anchor_id in anchor_by_id
+        ],
         "covered_source_unit_refs": unit_refs,
         "covered_source_atom_refs": copy.deepcopy(
             table["covered_source_atom_refs"]
@@ -330,6 +340,19 @@ def _table_projection(
         _canonical_bytes(projection)
     ).hexdigest()
     return projection
+
+
+def _table_source_anchor_ids(table: dict[str, Any]) -> set[str]:
+    anchor_ids: set[str] = set()
+    for part in _dicts(table.get("source_parts")):
+        region_anchor_id = str(part.get("region_anchor_id") or "")
+        if region_anchor_id:
+            anchor_ids.add(region_anchor_id)
+    for row in _dicts(table.get("ordered_rows")):
+        anchor_ids.update(_strings(row.get("source_anchor_ids")))
+        for entry in _dicts(row.get("entries")):
+            anchor_ids.update(_strings(entry.get("source_anchor_ids")))
+    return anchor_ids
 
 
 def _not_ready(code: str) -> _ManagedWholeTableProjectionResult:

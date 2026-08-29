@@ -48,6 +48,12 @@ CANONICAL_ROOT_TYPE_BY_FORMAT = {
     "csv": "DATASET",
     "xlsx": "WORKBOOK",
 }
+MANAGED_WHOLE_TABLE_PROJECTION_SCHEMA_VERSION = (
+    "broker_reports_managed_whole_table_projection_v2"
+)
+MANAGED_WHOLE_TABLE_PROJECTION_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_managed_whole_table_projection_receipt_v1"
+)
 
 
 class CanonicalArtifactError(RuntimeError):
@@ -100,6 +106,71 @@ class CanonicalNormalizer:
         created_at: str | None = None,
         previous_version_ref: str | None = None,
     ) -> dict[str, Any]:
+        return self._build(
+            tenant_id=tenant_id,
+            artifact_version=artifact_version,
+            document=document,
+            source_artifact_ref=source_artifact_ref,
+            source_payloads=source_payloads,
+            source_units=source_units,
+            table_projections=table_projections,
+            managed_document_payload=None,
+            managed_whole_table_projections=(),
+            created_at=created_at,
+            previous_version_ref=previous_version_ref,
+        )
+
+    def _build_pdf_from_managed_whole_table_projections(
+        self,
+        *,
+        tenant_id: str,
+        artifact_version: int,
+        document: dict[str, Any],
+        source_artifact_ref: str,
+        source_payloads: list[dict[str, Any]],
+        source_units: list[dict[str, Any]],
+        managed_document_payload: dict[str, Any],
+        managed_whole_table_projections: tuple[dict[str, Any], ...],
+        created_at: str | None = None,
+        previous_version_ref: str | None = None,
+    ) -> dict[str, Any]:
+        if str(document.get("container_format") or "") != "pdf":
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_pdf_required"
+            )
+        if not managed_whole_table_projections:
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_missing"
+            )
+        return self._build(
+            tenant_id=tenant_id,
+            artifact_version=artifact_version,
+            document=document,
+            source_artifact_ref=source_artifact_ref,
+            source_payloads=source_payloads,
+            source_units=source_units,
+            table_projections=[],
+            managed_document_payload=managed_document_payload,
+            managed_whole_table_projections=managed_whole_table_projections,
+            created_at=created_at,
+            previous_version_ref=previous_version_ref,
+        )
+
+    def _build(
+        self,
+        *,
+        tenant_id: str,
+        artifact_version: int,
+        document: dict[str, Any],
+        source_artifact_ref: str,
+        source_payloads: list[dict[str, Any]],
+        source_units: list[dict[str, Any]],
+        table_projections: list[dict[str, Any]],
+        managed_document_payload: dict[str, Any] | None,
+        managed_whole_table_projections: tuple[dict[str, Any], ...],
+        created_at: str | None = None,
+        previous_version_ref: str | None = None,
+    ) -> dict[str, Any]:
         """Build and validate one ``CanonicalArtifactV1``.
 
         Format branching ends inside this method. Downstream code must observe
@@ -129,6 +200,8 @@ class CanonicalNormalizer:
                 source_payloads,
                 source_units,
                 table_projections,
+                managed_document_payload=managed_document_payload,
+                managed_whole_table_projections=managed_whole_table_projections,
             )
         elif source_format == "html_text":
             self._adapt_html(builder, source_payloads)
@@ -144,6 +217,7 @@ class CanonicalNormalizer:
                 source_payloads=source_payloads,
                 source_units=source_units,
                 table_projections=table_projections,
+                managed_whole_table_projections=managed_whole_table_projections,
             )
             if accounting["accounting_status"] != "passed":
                 raise CanonicalArtifactError(
@@ -247,6 +321,9 @@ class CanonicalNormalizer:
         source_payloads: list[dict[str, Any]],
         source_units: list[dict[str, Any]],
         table_projections: list[dict[str, Any]],
+        *,
+        managed_document_payload: dict[str, Any] | None = None,
+        managed_whole_table_projections: tuple[dict[str, Any], ...] = (),
     ) -> None:
         """Assemble PDF evidence without letting visual proposals become truth.
 
@@ -255,6 +332,18 @@ class CanonicalNormalizer:
         """
 
         root = builder.add_container("DOCUMENT", None, {})
+        managed_plan = _managed_whole_table_projection_plan(
+            managed_whole_table_projections,
+            managed_document_payload=managed_document_payload,
+            source_artifact_ref=builder.source_artifact_ref,
+            source_sha256=builder.source_sha256,
+            source_payloads=source_payloads,
+            source_units=source_units,
+        )
+        if managed_plan["projections"] and table_projections:
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_legacy_projection_forbidden"
+            )
         projections_by_unit: dict[str, dict[str, Any]] = {}
         standalone_projections: list[dict[str, Any]] = []
         for projection in table_projections:
@@ -296,6 +385,10 @@ class CanonicalNormalizer:
         for projection in standalone_projections:
             page = _projection_page(projection)
             page_locations.setdefault(page, _projection_location(projection))
+        for projection in managed_plan["projections"]:
+            location = _managed_whole_table_projection_location(projection)
+            page = int(location.get("page") or location.get("page_start") or 1)
+            page_locations.setdefault(page, location)
         page_containers: dict[int, str] = {}
         for page in sorted(page_locations):
             page_containers[page] = builder.add_container(
@@ -309,6 +402,7 @@ class CanonicalNormalizer:
                     page_locations[page],
                 )
         seen_tables: set[str] = set()
+        managed_seen_projection_ids: set[str] = set()
         for unit in ordered:
             location = _location(unit)
             page = int(location.get("page") or location.get("page_start") or 1)
@@ -356,6 +450,25 @@ class CanonicalNormalizer:
                     location,
                     issue_refs=[issue_ref],
                 )
+                continue
+            managed_projection = managed_plan["first_unit_to_projection"].get(unit_ref)
+            if managed_projection is not None:
+                managed_projection_id = str(managed_projection["projection_id"])
+                managed_seen_projection_ids.add(managed_projection_id)
+                _add_managed_whole_table(
+                    builder,
+                    page_containers[
+                        int(
+                            _managed_whole_table_projection_location(
+                                managed_projection
+                            ).get("page")
+                            or page
+                        )
+                    ],
+                    managed_projection,
+                )
+                continue
+            if unit_ref in managed_plan["covered_unit_refs"]:
                 continue
             projection = projections_by_unit.get(unit_ref)
             table_id = str(
@@ -515,6 +628,13 @@ class CanonicalNormalizer:
                     "pdf_source_units_unavailable",
                     {"source_state": "nonempty_or_unproved_pdf"},
                 )
+        if set(managed_seen_projection_ids) != {
+            str(projection["projection_id"])
+            for projection in managed_plan["projections"]
+        }:
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_start_unit_unseen"
+            )
         container_order = {
             str(item["container_id"]): index
             for index, item in enumerate(builder.containers)
@@ -919,12 +1039,812 @@ def _proved_empty_pdf(source_payloads: list[dict[str, Any]]) -> bool:
     )
 
 
+def _managed_whole_table_projection_plan(
+    projections: tuple[dict[str, Any], ...],
+    *,
+    managed_document_payload: dict[str, Any] | None,
+    source_artifact_ref: str,
+    source_sha256: str,
+    source_payloads: list[dict[str, Any]],
+    source_units: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not projections:
+        return {
+            "projections": (),
+            "covered_unit_refs": set(),
+            "first_unit_to_projection": {},
+            "unit_to_projection": {},
+    }
+    source_unit_by_ref = _source_unit_by_ref(source_units)
+    source_word_text_order_by_ref = _source_word_text_order_by_ref(
+        source_payloads
+    )
+    managed_table_by_id = _managed_document_table_by_id(
+        managed_document_payload,
+        source_artifact_ref=source_artifact_ref,
+        source_sha256=source_sha256,
+    )
+    source_unit_order = {
+        str(unit.get("unit_ref") or ""): index
+        for index, unit in enumerate(
+            sorted(
+                source_units,
+                key=lambda item: (
+                    int(
+                        _location(item).get("page")
+                        or _location(item).get("page_start")
+                        or 1
+                    ),
+                    int(_location(item).get("line_start") or 0),
+                    str(item.get("unit_ref") or ""),
+                ),
+            )
+        )
+        if unit.get("unit_ref")
+    }
+    seen_units: set[str] = set()
+    seen_atoms: set[str] = set()
+    seen_words: set[str] = set()
+    unit_to_projection: dict[str, dict[str, Any]] = {}
+    first_unit_to_projection: dict[str, dict[str, Any]] = {}
+    normalized: list[dict[str, Any]] = []
+
+    for projection in projections:
+        if not isinstance(projection, dict):
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_invalid"
+            )
+        _validate_managed_whole_table_projection(
+            projection,
+            managed_document_payload=managed_document_payload,
+            managed_table_by_id=managed_table_by_id,
+            source_unit_by_ref=source_unit_by_ref,
+            source_word_text_order_by_ref=source_word_text_order_by_ref,
+        )
+        unit_refs = _strings(projection.get("covered_source_unit_refs"))
+        atom_refs = _strings(projection.get("covered_source_atom_refs"))
+        word_refs = _strings(projection.get("covered_source_word_refs"))
+        if seen_units & set(unit_refs):
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_unit_overlap"
+            )
+        if seen_atoms & set(atom_refs):
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_atom_overlap"
+            )
+        if seen_words & set(word_refs):
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_word_overlap"
+            )
+        seen_units.update(unit_refs)
+        seen_atoms.update(atom_refs)
+        seen_words.update(word_refs)
+        for unit_ref in unit_refs:
+            unit_to_projection[unit_ref] = projection
+        first_unit_ref = min(
+            unit_refs,
+            key=lambda ref: source_unit_order.get(ref, 10**9),
+        )
+        first_unit_to_projection[first_unit_ref] = projection
+        normalized.append(projection)
+
+    uncovered_table_units = [
+        str(unit.get("unit_ref") or "")
+        for unit in source_units
+        if _source_unit_requires_managed_table_coverage(unit)
+        and str(unit.get("unit_ref") or "") not in seen_units
+    ]
+    if uncovered_table_units:
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_source_unit_uncovered",
+            ",".join(sorted(uncovered_table_units)),
+        )
+    return {
+        "projections": tuple(normalized),
+        "covered_unit_refs": seen_units,
+        "first_unit_to_projection": first_unit_to_projection,
+        "unit_to_projection": unit_to_projection,
+    }
+
+
+def _validate_managed_whole_table_projection(
+    projection: dict[str, Any],
+    *,
+    managed_document_payload: dict[str, Any] | None,
+    managed_table_by_id: dict[str, dict[str, Any]],
+    source_unit_by_ref: dict[str, dict[str, Any]],
+    source_word_text_order_by_ref: dict[str, tuple[int, str]],
+) -> None:
+    if (
+        projection.get("schema_version")
+        != MANAGED_WHOLE_TABLE_PROJECTION_SCHEMA_VERSION
+        or projection.get("completeness_status") != "COMPLETE"
+        or not str(projection.get("projection_id") or "")
+        or not str(projection.get("managed_document_integrity_sha256") or "")
+        or not str(projection.get("table_id") or "")
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_contract_invalid"
+        )
+    receipt = projection.get("receipt") or {}
+    if (
+        not isinstance(receipt, dict)
+        or receipt.get("schema_version")
+        != MANAGED_WHOLE_TABLE_PROJECTION_RECEIPT_SCHEMA_VERSION
+        or receipt.get("representation_only") is not True
+        or receipt.get("managed_rows_preserved") is not True
+        or receipt.get("continuation_headers_collapsed") is not False
+        or receipt.get("source_unit_refs_synthesized") is not False
+        or receipt.get("source_atom_refs_synthesized") is not False
+        or receipt.get("product_connected") is not False
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_receipt_invalid"
+        )
+    if not _projection_integrity_valid(projection):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_integrity_invalid"
+        )
+    _validate_managed_whole_table_projection_owner_binding(
+        projection,
+        managed_document_payload=managed_document_payload,
+        managed_table_by_id=managed_table_by_id,
+    )
+
+    rows = _dicts(projection.get("ordered_rows"))
+    columns = _dicts(projection.get("logical_columns"))
+    source_parts = _dicts(projection.get("source_parts"))
+    source_anchors = _dicts(projection.get("source_anchors"))
+    source_anchor_by_id = {
+        str(anchor.get("anchor_id") or ""): anchor for anchor in source_anchors
+    }
+    unit_refs = _strings(projection.get("covered_source_unit_refs"))
+    atom_refs = _strings(projection.get("covered_source_atom_refs"))
+    word_refs = _strings(projection.get("covered_source_word_refs"))
+    if (
+        not rows
+        or not columns
+        or not source_parts
+        or not source_anchors
+        or "" in source_anchor_by_id
+        or len(source_anchor_by_id) != len(source_anchors)
+        or not unit_refs
+        or not atom_refs
+        or not word_refs
+        or _has_duplicates(unit_refs)
+        or _has_duplicates(atom_refs)
+        or _has_duplicates(word_refs)
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_structure_invalid"
+        )
+    if set(word_refs) - set(source_word_text_order_by_ref):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_word_unknown"
+        )
+
+    part_units: list[str] = []
+    part_atoms: list[str] = []
+    part_words: list[str] = []
+    for expected_ordinal, source_part in enumerate(source_parts):
+        if source_part.get("ordinal") != expected_ordinal:
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_source_part_invalid"
+            )
+        region_anchor_id = str(source_part.get("region_anchor_id") or "")
+        if region_anchor_id and region_anchor_id not in source_anchor_by_id:
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_anchor_unknown"
+            )
+        covered_units = _dicts(source_part.get("covered_source_units"))
+        if not covered_units:
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_source_part_ledger_missing"
+            )
+        for record in covered_units:
+            unit_ref = str(record.get("unit_ref") or "")
+            source_unit = source_unit_by_ref.get(unit_ref)
+            if source_unit is None:
+                raise CanonicalArtifactError(
+                    "canonical_managed_whole_table_projection_unit_unknown",
+                    unit_ref,
+                )
+            if not _managed_source_unit_record_matches(source_unit, record):
+                raise CanonicalArtifactError(
+                    "canonical_managed_whole_table_projection_unit_mismatch",
+                    unit_ref,
+                )
+            part_units.append(unit_ref)
+            part_atoms.extend(_strings(record.get("selected_source_atom_refs")))
+            part_words.extend(_strings(record.get("table_contributing_word_refs")))
+    if (
+        sorted(part_units) != unit_refs
+        or sorted(part_atoms) != atom_refs
+        or sorted(part_words) != word_refs
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_union_mismatch"
+        )
+    for row in rows:
+        entries = _dicts(row.get("entries"))
+        if (
+            not str(row.get("row_id") or "")
+            or not str(row.get("role") or "")
+            or row.get("ordinal") is None
+            or not entries
+            or not _strings(row.get("source_anchor_ids"))
+        ):
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_row_invalid"
+            )
+        for entry in entries:
+            if (
+                not str(entry.get("entry_id") or "")
+                or entry.get("ordinal") is None
+                or not _strings(entry.get("source_anchor_ids"))
+            ):
+                raise CanonicalArtifactError(
+                    "canonical_managed_whole_table_projection_entry_invalid"
+                )
+            if not _managed_entry_text_matches_source(
+                entry,
+                source_anchor_by_id=source_anchor_by_id,
+                source_word_text_order_by_ref=source_word_text_order_by_ref,
+            ):
+                raise CanonicalArtifactError(
+                    "canonical_managed_whole_table_projection_entry_text_mismatch"
+                )
+
+
+def _validate_managed_whole_table_projection_owner_binding(
+    projection: dict[str, Any],
+    *,
+    managed_document_payload: dict[str, Any] | None,
+    managed_table_by_id: dict[str, dict[str, Any]],
+) -> None:
+    if not isinstance(managed_document_payload, dict):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_managed_document_missing"
+        )
+    managed_integrity = str(
+        managed_document_payload.get("integrity_sha256") or ""
+    )
+    table_id = str(projection.get("table_id") or "")
+    table = managed_table_by_id.get(table_id)
+    if (
+        not table
+        or projection.get("managed_document_id")
+        != managed_document_payload.get("document_id")
+        or projection.get("managed_document_integrity_sha256")
+        != managed_integrity
+        or projection.get("completeness_status")
+        != table.get("completeness_status")
+        or projection.get("ordered_rows") != table.get("ordered_rows")
+        or projection.get("logical_columns") != table.get("logical_columns")
+        or projection.get("source_parts") != table.get("source_parts")
+        or projection.get("covered_source_atom_refs")
+        != table.get("covered_source_atom_refs")
+        or projection.get("covered_source_word_refs")
+        != table.get("covered_source_word_refs")
+        or projection.get("source_part_refs")
+        != [
+            str(part.get("source_part_id") or "")
+            for part in _dicts(table.get("source_parts"))
+        ]
+        or projection.get("continuation_header_row_refs")
+        != [
+            str(row.get("row_id") or "")
+            for row in _dicts(table.get("ordered_rows"))
+            if row.get("role") == "CONTINUATION_HEADER"
+        ]
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_managed_mismatch",
+            table_id,
+        )
+    expected_anchor_by_id = _managed_document_source_anchor_by_id(
+        managed_document_payload
+    )
+    projection_anchor_by_id = {
+        str(anchor.get("anchor_id") or ""): anchor
+        for anchor in _dicts(projection.get("source_anchors"))
+    }
+    if (
+        set(projection_anchor_by_id) != _managed_table_source_anchor_ids(table)
+        or any(
+            projection_anchor_by_id[anchor_id]
+            != expected_anchor_by_id.get(anchor_id)
+            for anchor_id in projection_anchor_by_id
+        )
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_managed_mismatch",
+            table_id,
+        )
+
+
+def _managed_document_table_by_id(
+    managed_document_payload: dict[str, Any] | None,
+    *,
+    source_artifact_ref: str,
+    source_sha256: str,
+) -> dict[str, dict[str, Any]]:
+    if not isinstance(managed_document_payload, dict):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_managed_document_missing"
+        )
+    source_value = managed_document_payload.get("source") or {}
+    source = source_value if isinstance(source_value, dict) else {}
+    artifact = source.get("artifact")
+    if not isinstance(artifact, dict):
+        artifact = {}
+    if (
+        managed_document_payload.get("schema_version")
+        != "broker_reports_managed_document_v2"
+        or len(str(managed_document_payload.get("integrity_sha256") or ""))
+        != 64
+        or _managed_document_integrity_sha256(managed_document_payload)
+        != str(managed_document_payload.get("integrity_sha256") or "")
+        or source.get("format") != "PDF"
+        or source.get("checksum_sha256") != source_sha256
+        or artifact.get("ref") != source_artifact_ref
+        or artifact.get("checksum_sha256") != source_sha256
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_managed_source_mismatch"
+        )
+    tables: dict[str, dict[str, Any]] = {}
+    for block in _dicts(managed_document_payload.get("blocks")):
+        if block.get("block_type") != "TABLE":
+            continue
+        table = block.get("content") or {}
+        if not isinstance(table, dict):
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_managed_document_invalid"
+            )
+        table_id = str(table.get("table_id") or "")
+        if not table_id or table_id in tables:
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_managed_document_invalid"
+            )
+        tables[table_id] = table
+    if not tables:
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_managed_document_invalid"
+        )
+    return tables
+
+
+def _managed_document_integrity_sha256(payload: dict[str, Any]) -> str:
+    unsigned = copy.deepcopy(dict(payload))
+    unsigned.pop("integrity_sha256", None)
+    return hashlib.sha256(
+        json.dumps(
+            unsigned,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _managed_document_source_anchor_by_id(
+    managed_document_payload: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    anchors = _dicts(managed_document_payload.get("anchors"))
+    result = {str(anchor.get("anchor_id") or ""): anchor for anchor in anchors}
+    if "" in result or len(result) != len(anchors):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_managed_document_invalid"
+        )
+    return result
+
+
+def _managed_table_source_anchor_ids(table: dict[str, Any]) -> set[str]:
+    anchor_ids: set[str] = set()
+    for part in _dicts(table.get("source_parts")):
+        region_anchor_id = str(part.get("region_anchor_id") or "")
+        if region_anchor_id:
+            anchor_ids.add(region_anchor_id)
+    for row in _dicts(table.get("ordered_rows")):
+        anchor_ids.update(_strings(row.get("source_anchor_ids")))
+        for entry in _dicts(row.get("entries")):
+            anchor_ids.update(_strings(entry.get("source_anchor_ids")))
+    return anchor_ids
+
+
+def _add_managed_whole_table(
+    builder: "_LogicalBuilder",
+    container_ref: str,
+    projection: dict[str, Any],
+) -> str:
+    rows = _dicts(projection.get("ordered_rows"))
+    column_ordinals = _managed_column_ordinals(projection)
+    header = _first_managed_row_values(rows, {"COLUMN_HEADER"}, column_ordinals)
+    data_rows = [
+        _managed_row_values(row, column_ordinals)
+        for row in rows
+        if row.get("role") == "DATA"
+    ]
+    title = _first_managed_row_text(rows, "TABLE_TITLE")
+    notes = [
+        _managed_row_text(row) for row in rows if row.get("role") == "NOTE"
+    ]
+    source_locator = _managed_whole_table_projection_location(projection)
+    metadata = {
+        "source_format": "pdf",
+        "source_representation_owner": "managed_document_v2",
+        "managed_whole_table_projection_id": projection["projection_id"],
+        "managed_whole_table_projection_schema_version": projection[
+            "schema_version"
+        ],
+        "managed_document_id": projection["managed_document_id"],
+        "managed_document_integrity_sha256": projection[
+            "managed_document_integrity_sha256"
+        ],
+        "managed_table_id": projection["table_id"],
+        "managed_table_completeness_status": projection["completeness_status"],
+        "source_part_refs": copy.deepcopy(projection.get("source_part_refs") or []),
+        "source_parts": copy.deepcopy(projection.get("source_parts") or []),
+        "source_anchors": copy.deepcopy(projection.get("source_anchors") or []),
+        "covered_source_unit_refs": copy.deepcopy(
+            projection.get("covered_source_unit_refs") or []
+        ),
+        "covered_source_atom_refs": copy.deepcopy(
+            projection.get("covered_source_atom_refs") or []
+        ),
+        "covered_source_word_refs": copy.deepcopy(
+            projection.get("covered_source_word_refs") or []
+        ),
+        "logical_columns": copy.deepcopy(projection.get("logical_columns") or []),
+        "managed_row_sequence": _managed_row_sequence(rows),
+        "continuation_header_row_refs": copy.deepcopy(
+            projection.get("continuation_header_row_refs") or []
+        ),
+        "parser_duplicate_text_suppressed": True,
+        "canonical_managed_whole_table_projection_connected": True,
+    }
+    return builder.add_node(
+        container_ref,
+        "TABLE",
+        {
+            "title": title,
+            "header": header,
+            "rows": data_rows,
+            "notes": notes,
+            "cells": _managed_whole_table_cells(
+                builder,
+                projection,
+                column_ordinals,
+            ),
+            "metadata": metadata,
+        },
+        source_locator,
+    )
+
+
+def _managed_whole_table_cells(
+    builder: "_LogicalBuilder",
+    projection: dict[str, Any],
+    column_ordinals: dict[str, int],
+) -> list[dict[str, Any]]:
+    cells: list[dict[str, Any]] = []
+    for row_index, row in enumerate(_dicts(projection.get("ordered_rows")), start=1):
+        for entry in _dicts(row.get("entries")):
+            column = _managed_entry_column(entry, column_ordinals)
+            value = entry.get("text")
+            cell_type = (
+                "blank"
+                if value is None or value == ""
+                else "boolean"
+                if isinstance(value, bool)
+                else "number"
+                if isinstance(value, (int, float))
+                else "string"
+            )
+            cells.append(
+                {
+                    "row": row_index,
+                    "column": column,
+                    "value": value,
+                    "raw_value": value,
+                    "displayed_value": None if value is None else str(value),
+                    "cell_type": cell_type,
+                    "formula": None,
+                    "merged_range": None,
+                    "source_coordinate": ":".join(
+                        [
+                            str(row.get("row_id") or f"row_{row_index}"),
+                            str(entry.get("entry_id") or f"entry_{column}"),
+                        ]
+                    ),
+                    "hidden": False,
+                    "number_format_ref": None,
+                    "source_refs": [
+                        builder._provenance_ref(
+                            {
+                                **_managed_whole_table_projection_location(
+                                    projection
+                                ),
+                                "kind": "managed_whole_table_entry",
+                                "managed_row_id": str(row.get("row_id") or ""),
+                                "managed_row_role": str(row.get("role") or ""),
+                                "managed_entry_id": str(
+                                    entry.get("entry_id") or ""
+                                ),
+                                "source_anchor_ids": _strings(
+                                    entry.get("source_anchor_ids")
+                                ),
+                            }
+                        )
+                    ],
+                }
+            )
+    return cells
+
+
+def _managed_column_ordinals(projection: dict[str, Any]) -> dict[str, int]:
+    result: dict[str, int] = {}
+    for column in _dicts(projection.get("logical_columns")):
+        column_id = str(column.get("column_id") or "")
+        ordinal = column.get("ordinal")
+        if column_id and isinstance(ordinal, int) and ordinal >= 0:
+            result[column_id] = ordinal + 1
+    return result
+
+
+def _managed_row_values(
+    row: dict[str, Any],
+    column_ordinals: dict[str, int],
+) -> list[Any]:
+    entries = _dicts(row.get("entries"))
+    column_count = max(
+        [
+            *column_ordinals.values(),
+            *[_managed_entry_column(e, column_ordinals) for e in entries],
+        ],
+        default=0,
+    )
+    values: list[Any] = [None for _ in range(column_count)]
+    for entry in entries:
+        column = _managed_entry_column(entry, column_ordinals)
+        if column > len(values):
+            values.extend([None for _ in range(column - len(values))])
+        values[column - 1] = entry.get("text")
+    return values
+
+
+def _first_managed_row_values(
+    rows: list[dict[str, Any]],
+    roles: set[str],
+    column_ordinals: dict[str, int],
+) -> list[Any]:
+    for row in rows:
+        if str(row.get("role") or "") in roles:
+            return _managed_row_values(row, column_ordinals)
+    return []
+
+
+def _managed_entry_column(
+    entry: dict[str, Any],
+    column_ordinals: dict[str, int],
+) -> int:
+    column_id = str(entry.get("logical_column_id") or "")
+    if column_id in column_ordinals:
+        return column_ordinals[column_id]
+    try:
+        return max(1, int(entry.get("ordinal") or 0) + 1)
+    except (TypeError, ValueError):
+        return 1
+
+
+def _first_managed_row_text(rows: list[dict[str, Any]], role: str) -> str | None:
+    for row in rows:
+        if str(row.get("role") or "") == role:
+            return _managed_row_text(row)
+    return None
+
+
+def _managed_row_text(row: dict[str, Any]) -> str:
+    return " ".join(
+        str(entry.get("text") or "")
+        for entry in _dicts(row.get("entries"))
+        if entry.get("text") not in (None, "")
+    )
+
+
+def _managed_row_sequence(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "row_id": str(row.get("row_id") or ""),
+            "ordinal": int(row.get("ordinal") or 0),
+            "role": str(row.get("role") or ""),
+            "role_origin": str(row.get("role_origin") or ""),
+            "entry_texts": [
+                str(entry.get("text") or "") for entry in _dicts(row.get("entries"))
+            ],
+            "source_anchor_ids": _strings(row.get("source_anchor_ids")),
+        }
+        for row in rows
+    ]
+
+
+def _managed_whole_table_projection_location(
+    projection: dict[str, Any],
+) -> dict[str, Any]:
+    parts = _dicts(projection.get("source_parts"))
+    pages = [
+        int(part.get("page") or 0)
+        for part in parts
+        if int(part.get("page") or 0) > 0
+    ]
+    page_start = min(pages) if pages else 1
+    page_end = max(pages) if pages else page_start
+    return {
+        "kind": "managed_whole_table_projection",
+        "page": page_start,
+        "page_start": page_start,
+        "page_end": page_end,
+        "managed_whole_table_projection_id": str(
+            projection.get("projection_id") or ""
+        ),
+        "managed_document_id": str(projection.get("managed_document_id") or ""),
+        "managed_table_id": str(projection.get("table_id") or ""),
+        "source_part_refs": _strings(projection.get("source_part_refs")),
+        "source_unit_refs": _strings(projection.get("covered_source_unit_refs")),
+        "source_atom_refs": _strings(projection.get("covered_source_atom_refs")),
+        "source_word_refs": _strings(projection.get("covered_source_word_refs")),
+    }
+
+
+def _managed_source_unit_record_matches(
+    source_unit: dict[str, Any],
+    record: dict[str, Any],
+) -> bool:
+    return (
+        str(record.get("source_unit_checksum_ref") or "")
+        == str(source_unit.get("source_unit_checksum_ref") or "")
+        and str(record.get("parent_payload_ref") or "")
+        == str(source_unit.get("parent_payload_ref") or "")
+        and _strings(record.get("page_refs")) == _strings(source_unit.get("page_refs"))
+        and _strings(record.get("selected_source_atom_refs"))
+        == _source_unit_atom_refs(source_unit)
+    )
+
+
+def _source_unit_atom_refs(source_unit: dict[str, Any]) -> list[str]:
+    coverage = source_unit.get("coverage") or {}
+    if isinstance(coverage, dict):
+        selected = _strings(coverage.get("selected_source_refs"))
+        if selected:
+            return selected
+    return _strings(source_unit.get("text_segment_refs"))
+
+
+def _source_unit_by_ref(source_units: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    seen_atoms: set[str] = set()
+    for unit in source_units:
+        unit_ref = str(unit.get("unit_ref") or "")
+        if not unit_ref or unit_ref in result:
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_source_units_invalid"
+            )
+        atom_refs = _source_unit_atom_refs(unit)
+        if atom_refs and len(atom_refs) != len(set(atom_refs)):
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_source_atom_overlap"
+            )
+        if seen_atoms & set(atom_refs):
+            raise CanonicalArtifactError(
+                "canonical_managed_whole_table_projection_source_atom_overlap"
+            )
+        seen_atoms.update(atom_refs)
+        result[unit_ref] = unit
+    return result
+
+
+def _source_word_text_order_by_ref(
+    source_payloads: list[dict[str, Any]],
+) -> dict[str, tuple[int, str]]:
+    refs: dict[str, tuple[int, str]] = {}
+    ordinal = 0
+    for payload in source_payloads:
+        projection = payload.get("pdf_text_layer_projection") or {}
+        if not isinstance(projection, dict):
+            continue
+        for word in projection.get("word_inventory") or []:
+            if isinstance(word, dict) and word.get("word_ref"):
+                refs[str(word["word_ref"])] = (
+                    ordinal,
+                    str(word.get("text") or ""),
+                )
+                ordinal += 1
+    return refs
+
+
+def _managed_entry_text_matches_source(
+    entry: dict[str, Any],
+    *,
+    source_anchor_by_id: dict[str, dict[str, Any]],
+    source_word_text_order_by_ref: dict[str, tuple[int, str]],
+) -> bool:
+    source_words: list[tuple[int, str]] = []
+    for anchor_id in _ordered_strings(entry.get("source_anchor_ids")):
+        anchor = source_anchor_by_id.get(anchor_id)
+        if anchor is None:
+            return False
+        locator = anchor.get("locator") or {}
+        if not isinstance(locator, dict) or locator.get("kind") != "PDF":
+            return False
+        source_block_ref = str(locator.get("source_block_ref") or "")
+        if source_block_ref not in source_word_text_order_by_ref:
+            return False
+        source_words.append(source_word_text_order_by_ref[source_block_ref])
+    return " ".join(text for _order, text in sorted(source_words)) == str(
+        entry.get("text") or ""
+    )
+
+
+def _source_unit_requires_managed_table_coverage(unit: dict[str, Any]) -> bool:
+    rows = unit.get("rows") or unit.get("cells")
+    return (
+        unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
+        or isinstance(rows, list)
+        and bool(rows)
+    )
+
+
+def _projection_integrity_valid(projection: dict[str, Any]) -> bool:
+    expected = str(projection.get("projection_integrity_sha256") or "")
+    if len(expected) != 64:
+        return False
+    material = copy.deepcopy(projection)
+    material.pop("projection_integrity_sha256", None)
+    digest = hashlib.sha256(
+        json.dumps(
+            material,
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return digest == expected
+
+
+def _dicts(value: Any) -> list[dict[str, Any]]:
+    return [item for item in value or [] if isinstance(item, dict)]
+
+
+def _strings(value: Any) -> list[str]:
+    return sorted(str(item) for item in value or [] if item)
+
+
+def _ordered_strings(value: Any) -> list[str]:
+    return [str(item) for item in value or [] if item]
+
+
+def _has_duplicates(values: list[str]) -> bool:
+    return len(values) != len(set(values))
+
+
+def _locator_unit_refs(locator: dict[str, Any]) -> list[str]:
+    refs = _strings(locator.get("source_unit_refs"))
+    single = str(locator.get("source_unit_ref") or "")
+    if single:
+        refs.append(single)
+    return sorted(set(refs))
+
+
 def pdf_source_atom_accounting(
     logical: dict[str, Any],
     *,
     source_payloads: list[dict[str, Any]],
     source_units: list[dict[str, Any]],
     table_projections: list[dict[str, Any]],
+    managed_whole_table_projections: tuple[dict[str, Any], ...] = (),
 ) -> dict[str, Any]:
     """Classify every PDF source atom before a candidate can be validated.
 
@@ -941,17 +1861,27 @@ def pdf_source_atom_accounting(
         for item in table_projections
         if isinstance(item, dict) and item.get("source_unit_ref")
     }
+    managed_projection_by_unit = {
+        unit_ref: projection
+        for projection in managed_whole_table_projections
+        if isinstance(projection, dict)
+        for unit_ref in _strings(projection.get("covered_source_unit_refs"))
+    }
     table_projection_ids = {
         str(
             (node.get("content") or {}).get("metadata", {}).get("table_projection_id")
+            or (node.get("content") or {})
+            .get("metadata", {})
+            .get("managed_whole_table_projection_id")
             or ""
         )
         for node in nodes
         if node.get("node_type") == "TABLE"
     }
     provenance_unit_refs = {
-        str((item.get("source_locator") or {}).get("source_unit_ref") or "")
+        unit_ref
         for item in provenance
+        for unit_ref in _locator_unit_refs(item.get("source_locator") or {})
     }
     node_types_by_unit: dict[str, set[str]] = {}
     provenance_by_id = {
@@ -962,8 +1892,7 @@ def pdf_source_atom_accounting(
             locator = (provenance_by_id.get(str(source_ref)) or {}).get(
                 "source_locator"
             ) or {}
-            unit_ref = str(locator.get("source_unit_ref") or "")
-            if unit_ref:
+            for unit_ref in _locator_unit_refs(locator):
                 node_types_by_unit.setdefault(unit_ref, set()).add(
                     str(node.get("node_type") or "")
                 )
@@ -973,12 +1902,14 @@ def pdf_source_atom_accounting(
     reason_codes: set[str] = set()
     ready_projection_units: set[str] = set()
     terminal_projection_units: set[str] = set()
+    managed_ready_units: set[str] = set()
     ready_table_text_characters = 0
     ready_table_text_characters_emitted = 0
 
     for unit in source_units:
         unit_ref = str(unit.get("unit_ref") or "")
         projection = projection_by_unit.get(unit_ref)
+        managed_projection = managed_projection_by_unit.get(unit_ref)
         projection_status = str((projection or {}).get("projection_status") or "")
         atom_status = str(unit.get("atom_status") or "")
         text = str(unit.get("text") or "")
@@ -996,6 +1927,24 @@ def pdf_source_atom_accounting(
             category = "CONFLICT"
         elif atom_status == "AMBIGUOUS_EVIDENCE":
             category = "AMBIGUITY"
+        elif managed_projection is not None:
+            managed_ready_units.add(unit_ref)
+            ready_table_text_characters += len(text)
+            projection_id = str(managed_projection.get("projection_id") or "")
+            if (
+                projection_id
+                and projection_id in table_projection_ids
+                and "TABLE" in node_types_by_unit.get(unit_ref, set())
+            ):
+                category = "PRIMARY_TABLE_NODE"
+                if "TEXT" in node_types_by_unit.get(unit_ref, set()):
+                    ready_table_text_characters_emitted += len(text)
+                    reason_codes.add("pdf_ready_table_text_duplicated")
+            else:
+                category = "UNRESOLVED"
+                reason_codes.add(
+                    "pdf_managed_whole_table_projection_unrepresented"
+                )
         elif projection_status == "ready":
             ready_projection_units.add(unit_ref)
             projection_id = str(projection.get("table_projection_id") or "")
@@ -1141,6 +2090,15 @@ def pdf_source_atom_accounting(
         "ready_table_projections_total": len(ready_projection_units),
         "terminal_table_projections_total": len(terminal_projection_units),
         "represented_ready_table_projections_total": len(ready_projection_units),
+        "managed_whole_table_projections_total": len(
+            managed_whole_table_projections
+        ),
+        "ready_managed_whole_table_projection_units_total": len(
+            managed_projection_by_unit
+        ),
+        "represented_managed_whole_table_projection_units_total": len(
+            managed_ready_units
+        ),
         "duplicate_table_text_reduction_percent": duplicate_reduction,
         "empty_source_document": empty_source_document,
         "categories": counts,
