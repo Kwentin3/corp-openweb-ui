@@ -219,6 +219,13 @@ class _LeadingHeaderRolePlan:
 
 
 @dataclass(frozen=True)
+class _StableHeaderEvidence:
+    signatures: tuple[str, ...]
+    body_supported: bool
+    source_proven: bool
+
+
+@dataclass(frozen=True)
 class _UnruledSuffixHeaderEntryDecision:
     row_index: int
     entry_index: int
@@ -304,6 +311,7 @@ class _Region:
     mirrored_lane_seed: bool = False
     ruled_baseline_recovery_plan: _RuledBaselineRecoveryPlan | None = None
     released_non_table_word_refs: tuple[str, ...] = ()
+    continuation_issue_codes: tuple[str, ...] = ()
 
 
 @dataclass
@@ -1651,10 +1659,10 @@ def _candidate_regions(
         if (
             ruled_rows is not None
             and len(rows) >= 2
-            and any(_is_table_core_row(row) for row in rows)
         ):
             # A closed ruled region is already strong physical-boundary
-            # evidence. Preserve its ordered rows as one source part; do not
+            # evidence, including an all-text body. Preserve its ordered rows
+            # as one source part; do not require financial/value-like text or
             # manufacture multiple logical tables from sparse interior bands.
             segments = [rows]
         else:
@@ -6840,15 +6848,39 @@ def _group_continuations(
 ) -> list[list[_Region]]:
     groups: list[list[_Region]] = []
     for region in sorted(regions, key=_region_key):
-        matches = [
-            group
+        decisions = [
+            (
+                group,
+                _continuation_decision(
+                group[-1],
+                region,
+                root=group[0],
+                config=config,
+                ),
+            )
             for group in groups
-            if _continuation_match(group[-1], region, config=config)
         ]
-        if len(matches) == 1:
-            _drop_external_title(region)
+        matches = [group for group, decision in decisions if decision == "MATCH"]
+        uncertain = [
+            group for group, decision in decisions if decision == "AMBIGUOUS"
+        ]
+        if len(matches) == 1 and not uncertain:
             matches[0].append(region)
         else:
+            issue_code = None
+            if len(matches) > 1 or (matches and uncertain):
+                issue_code = "logical_table_continuation_ambiguous"
+            elif uncertain:
+                issue_code = "logical_table_continuation_header_ambiguous"
+            if issue_code is not None:
+                region.continuation_issue_codes = tuple(
+                    _unique(
+                        [
+                            *region.continuation_issue_codes,
+                            issue_code,
+                        ]
+                    )
+                )
             groups.append([region])
     return sorted(groups, key=lambda group: _region_key(group[0]))
 
@@ -6899,35 +6931,95 @@ def _drop_external_title(region: _Region) -> None:
     )
 
 
-def _continuation_match(
+def _continuation_decision(
     left: _Region,
     right: _Region,
     *,
+    root: _Region,
     config: LogicalRowTableRecoveryConfig,
-) -> bool:
+) -> str:
     if right.page.page_number != left.page.page_number + 1:
-        return False
+        return "NO_MATCH"
+    # A source-bound title belongs to the following table scope.  Geometry or
+    # a repeated header must never erase it to manufacture a continuation.
+    if any(row.external_title for row in right.rows):
+        return "NO_MATCH"
     if left.bbox[3] < left.page.height * config.continuation_bottom_ratio:
-        return False
+        return "NO_MATCH"
     if right.bbox[1] > right.page.height * config.continuation_top_ratio:
-        return False
+        return "NO_MATCH"
     left_centers = _region_alignment_signature(left)
     right_centers = _region_alignment_signature(right)
     if len(left_centers) < 2 or len(left_centers) != len(right_centers):
-        return False
+        return "NO_MATCH"
     if any(abs(a - b) > 0.055 for a, b in zip(left_centers, right_centers)):
-        return False
+        return "NO_MATCH"
     width_ratio = _bbox_width(left.bbox) / max(1.0, _bbox_width(right.bbox))
     if not 0.9 <= width_ratio <= 1.1:
-        return False
-    left_header = _header_signature(left.rows)
-    right_header = _header_signature(right.rows)
-    # A repeated header is sufficient, but not mandatory: some source tables
-    # continue directly with data. Exact multi-column alignment plus matching
-    # width and page-edge placement is the conservative no-header proof.
+        return "NO_MATCH"
+    root_header = _stable_header_evidence(root, config=config)
+    right_header = _stable_header_evidence(right, config=config)
+    if not root_header.signatures or not root_header.body_supported:
+        return "NO_MATCH"
+    if right_header.signatures:
+        if (
+            right_header.body_supported
+            and right_header.signatures == root_header.signatures
+        ):
+            return "MATCH"
+        if right_header.body_supported and right_header.source_proven:
+            return "NO_MATCH"
+        return "AMBIGUOUS"
+    if right_header.body_supported:
+        return "MATCH"
+    return "AMBIGUOUS"
+
+
+def _stable_header_evidence(
+    region: _Region,
+    *,
+    config: LogicalRowTableRecoveryConfig,
+) -> _StableHeaderEvidence:
+    probe = copy.copy(region)
+    probe.rows = copy.deepcopy(region.rows)
+    _classify_rows(probe.rows)
+    _refine_leading_ruled_header_roles(probe, config=config)
+    index = 0
+    while index < len(probe.rows) and probe.rows[index].role in {
+        "TABLE_TITLE",
+        "NOTE",
+    }:
+        index += 1
+    header_indexes = []
+    while index < len(probe.rows) and probe.rows[index].role == "COLUMN_HEADER":
+        header_indexes.append(index)
+        index += 1
+    body_supported = any(
+        row.role in {"DATA", "SUBTOTAL", "TOTAL"} for row in probe.rows[index:]
+    )
+    source_proven = bool(header_indexes) and all(
+        _row_has_source_header_evidence(region.rows[header_index])
+        for header_index in header_indexes
+    )
+    return _StableHeaderEvidence(
+        signatures=tuple(
+            _row_signature(probe.rows[header_index])
+            for header_index in header_indexes
+        ),
+        body_supported=body_supported,
+        source_proven=source_proven,
+    )
+
+
+def _row_has_source_header_evidence(row: _RowBand) -> bool:
     return bool(
-        (left_header and left_header == right_header)
-        or max(abs(a - b) for a, b in zip(left_centers, right_centers)) <= 0.055
+        row.role in {"COLUMN_HEADER", "CONTINUATION_HEADER"}
+        or row.row_coalescence_kind in _PROVEN_HEADER_COALESCENCE_KINDS
+        or row.proven_leading_suffix_header
+        or row.sequential_marker_header
+        or any(
+            entry.proven_header_coverage_bbox is not None for entry in row.entries
+        )
     )
 
 
@@ -6995,6 +7087,26 @@ def _materialize_logical_table(
                 "word_refs": [word.word_ref for word in region.words],
             },
         )
+
+    continuation_issue_ids_by_ref: dict[str, list[str]] = {}
+    for region in regions:
+        issue_ids = []
+        for code in region.continuation_issue_codes:
+            issue_id = state.add_issue(
+                code=code,
+                message=(
+                    "The fragment has no source-bound header-presence evidence; "
+                    "text-only rows cannot prove continuation."
+                    if code == "logical_table_continuation_header_ambiguous"
+                    else "The fragment has more than one compatible predecessor; "
+                    "table continuation is not deterministic."
+                ),
+                anchor_ids=[region_anchor_by_ref[region.source_ref]],
+                block_ids=[table_block_id],
+            )
+            issue_ids.append(issue_id)
+            table_issue_ids.append(issue_id)
+        continuation_issue_ids_by_ref[region.source_ref] = issue_ids
 
     row_payloads: list[dict[str, Any]] = []
     word_owner_entry: dict[str, str] = {}
@@ -7250,13 +7362,14 @@ def _materialize_logical_table(
                         ),
                     ]
                 ),
-                "issue_ids": [],
+                "issue_ids": continuation_issue_ids_by_ref[region.source_ref],
             }
         )
 
     completeness = (
         "PARTIAL"
-        if any(row["role"] == "UNKNOWN" for row in row_payloads)
+        if table_issue_ids
+        or any(row["role"] == "UNKNOWN" for row in row_payloads)
         or any(row["issue_ids"] for row in row_payloads)
         or any(not column["header_path"] for column in logical_columns)
         else "COMPLETE"

@@ -228,6 +228,77 @@ def _recover(builder: ProjectionBuilder):
     )
 
 
+def _mark_two_column_candidate_as_ruled(
+    builder: ProjectionBuilder,
+    *,
+    candidate_ref: str,
+    page_number: int,
+    row_refs: list[list[str]],
+) -> None:
+    candidate = next(
+        item
+        for item in builder.candidates
+        if item["table_candidate_ref"] == candidate_ref
+    )
+    page_ref = builder._page_ref(page_number)
+    table_bbox = builder._bbox_value(str(candidate["bbox_ref"]))
+    candidate.update(
+        table_strategy_ref="ruled_lines_v0",
+        columns_total=2,
+        rows_total=len(row_refs),
+        row_inventory=[
+            {
+                "row_ref": f"{candidate_ref}_row_{ordinal}",
+                "row_ordinal": ordinal,
+                "page_ref": page_ref,
+            }
+            for ordinal in range(1, len(row_refs) + 1)
+        ],
+    )
+    word_by_ref = {str(item["word_ref"]): item for item in builder.words}
+    cells = []
+    row_bounds = []
+    for row_ordinal, refs in enumerate(row_refs, start=1):
+        boxes = [
+            builder._bbox_value(str(word_by_ref[ref]["bbox_ref"])) for ref in refs
+        ]
+        top, bottom = min(box[1] for box in boxes) - 2, max(
+            box[3] for box in boxes
+        ) + 2
+        row_bounds.append((top, bottom))
+        for column_ordinal, (left, right, ref) in enumerate(
+            (
+                (table_bbox[0], 180.0, refs[0]),
+                (180.0, table_bbox[2], refs[1]),
+            ),
+            start=1,
+        ):
+            cells.append(
+                {
+                    "cell_ref": f"{candidate_ref}_cell_{row_ordinal}_{column_ordinal}",
+                    "row_ref": f"{candidate_ref}_row_{row_ordinal}",
+                    "page_ref": page_ref,
+                    "row_ordinal": row_ordinal,
+                    "column_ordinal": column_ordinal,
+                    "bbox_ref": builder._add_bbox(
+                        page_ref=page_ref,
+                        bbox=[left, top, right, bottom],
+                    ),
+                    "word_refs": [ref],
+                }
+            )
+    candidate["cell_inventory"] = cells
+    builder.add_vector_line(
+        page_number=page_number,
+        bbox=[180.0, table_bbox[1], 180.2, table_bbox[3]],
+    )
+    for y in [row_bounds[0][0], *[bottom for _, bottom in row_bounds]]:
+        builder.add_vector_line(
+            page_number=page_number,
+            bbox=[table_bbox[0], y, table_bbox[2], y + 0.2],
+        )
+
+
 def _table_text(table: dict[str, Any]) -> list[list[str]]:
     return [
         [str(entry["text"]) for entry in row["entries"]]
@@ -1624,6 +1695,381 @@ def test_cross_page_continuation_preserves_repeated_header_and_source_parts() ->
     assert [row["ordinal"] for row in table["ordered_rows"]] == list(range(6))
     assert result.diagnostics["continued_tables_total"] == 1
     _validate_v2_component_shapes(result)
+
+
+def _continuation_test_region(
+    *,
+    ref_prefix: str,
+    page_number: int,
+    row_ys: list[float],
+    header: bool,
+    title: str | None = None,
+) -> recovery_module._Region:
+    rows: list[list[list[tuple[float, float, str]]]] = []
+    if title is not None:
+        rows.append([[(20.0, 170.0, title)]])
+    if header:
+        rows.append(
+            [[(20.0, 70.0, "Item")], [(200.0, 250.0, "Amount")]]
+        )
+    while len(rows) < len(row_ys):
+        ordinal = len(rows) + 1
+        rows.append(
+            [
+                [(20.0, 70.0, f"Item {ordinal}")],
+                [(200.0, 250.0, str(ordinal))],
+            ]
+        )
+    region = _internal_microtrack_region(
+        rows,
+        ref_prefix=ref_prefix,
+        row_ys=row_ys,
+    )
+    region.page = replace(region.page, page_number=page_number)
+    if title is not None:
+        region.rows[0].external_title = True
+    return region
+
+
+def _continuation_groups(
+    *regions: recovery_module._Region,
+) -> list[list[recovery_module._Region]]:
+    return recovery_module._group_continuations(
+        list(regions),
+        config=recovery_module.LogicalRowTableRecoveryConfig(),
+    )
+
+
+def _materialize_continuation_group(
+    regions: list[recovery_module._Region],
+) -> tuple[dict[str, Any], recovery_module._RecoveryState]:
+    state = recovery_module._RecoveryState(
+        source_checksum_sha256=SOURCE_CHECKSUM,
+        private_evidence_ref=PRIVATE_EVIDENCE_REF,
+        bbox_by_ref={},
+    )
+    table = recovery_module._materialize_logical_table(
+        regions,
+        state=state,
+        config=recovery_module.LogicalRowTableRecoveryConfig(),
+    )
+    return table, state
+
+
+def test_headerless_next_page_joins_unique_predecessor() -> None:
+    left = _continuation_test_region(
+        ref_prefix="headerless_left",
+        page_number=1,
+        row_ys=[760.0, 774.0, 790.0],
+        header=True,
+    )
+    right = _continuation_test_region(
+        ref_prefix="headerless_right",
+        page_number=2,
+        row_ys=[4.0, 18.0, 32.0],
+        header=False,
+    )
+
+    groups = _continuation_groups(left, right)
+    table, state = _materialize_continuation_group(groups[0])
+
+    assert len(groups) == 1
+    assert [part["page"] for part in table["source_parts"]] == [1, 2]
+    assert [part["continuation_status"] for part in table["source_parts"]] == [
+        "START",
+        "END",
+    ]
+    assert set(state.word_ref_by_source_word_id.values()) == {
+        word.word_ref for region in (left, right) for word in region.words
+    }
+
+
+def test_distinct_title_breaks_same_grid_with_repeated_header() -> None:
+    left = _continuation_test_region(
+        ref_prefix="distinct_title_left",
+        page_number=1,
+        row_ys=[742.0, 758.0, 774.0, 790.0],
+        header=True,
+        title="Open position transfers",
+    )
+    right = _continuation_test_region(
+        ref_prefix="distinct_title_right",
+        page_number=2,
+        row_ys=[0.0, 16.0, 30.0, 44.0],
+        header=True,
+        title="Completed position transfers",
+    )
+
+    groups = _continuation_groups(left, right)
+    materialized = [_materialize_continuation_group(group) for group in groups]
+
+    assert len(groups) == 2
+    assert [
+        table["ordered_rows"][0]["entries"][0]["text"]
+        for table, _ in materialized
+    ] == ["Open position transfers", "Completed position transfers"]
+    for region, (table, state) in zip((left, right), materialized):
+        assert table["ordered_rows"][0]["role"] == "TABLE_TITLE"
+        assert table["ordered_rows"][1]["role"] == "COLUMN_HEADER"
+        bound_refs = set(state.word_ref_by_source_word_id.values())
+        assert {word.word_ref for word in region.rows[0].words} <= bound_refs
+        assert {word.word_ref for word in region.rows[1].words} <= bound_refs
+
+
+def test_full_path_detected_titles_break_same_grid_repeated_header() -> None:
+    builder = ProjectionBuilder(
+        page_numbers=(1, 2),
+        ref_prefix="full_path_distinct_titles",
+    )
+    all_refs = []
+    candidates = []
+    for page_number, title, ys, labels in (
+        (1, "Open position transfers", (742, 758, 774, 790), ("Cash", "Bonds")),
+        (
+            2,
+            "Completed position transfers",
+            (0, 16, 30, 44),
+            ("Funds", "Shares"),
+        ),
+    ):
+        all_refs += builder.add_row(
+            page_number=page_number,
+            y=ys[0],
+            entries=[(20, title, 170)],
+        )
+        table_rows = [
+            builder.add_row(
+                page_number=page_number,
+                y=ys[1],
+                entries=[(20, "Item", 50), (200, "Amount", 50)],
+            ),
+            builder.add_row(
+                page_number=page_number,
+                y=ys[2],
+                entries=[(20, labels[0], 50), (200, "10", 50)],
+            ),
+            builder.add_row(
+                page_number=page_number,
+                y=ys[3],
+                entries=[(20, labels[1], 50), (200, "20", 50)],
+            ),
+        ]
+        table_refs = [ref for row in table_rows for ref in row]
+        all_refs += table_refs
+        candidate_ref = builder.add_candidate(
+            page_number=page_number,
+            bbox=[15, 754, 260, 800] if page_number == 1 else [15, 12, 260, 56],
+            word_refs=table_refs,
+        )
+        _mark_two_column_candidate_as_ruled(
+            builder,
+            candidate_ref=candidate_ref,
+            page_number=page_number,
+            row_refs=table_rows,
+        )
+        candidates.append(candidate_ref)
+
+    result = _recover(builder)
+
+    assert len(result.tables) == 2
+    assert [
+        table["ordered_rows"][0]["entries"][0]["text"]
+        for table in result.tables
+    ] == ["Open position transfers", "Completed position transfers"]
+    assert all(
+        table["ordered_rows"][0]["role"] == "TABLE_TITLE"
+        and table["ordered_rows"][1]["role"] == "COLUMN_HEADER"
+        for table in result.tables
+    )
+    assert len(result.source_word_ownership) == len(all_refs)
+    assert result.paragraph_owned_word_refs == []
+    assert result.unowned_word_refs == []
+    assert len(candidates) == 2
+
+
+def test_full_path_text_only_header_presence_is_partial_not_silent_boundary() -> None:
+    builder = ProjectionBuilder(
+        page_numbers=(1, 2),
+        ref_prefix="full_path_text_only_continuation",
+    )
+    first_rows = [
+        builder.add_row(
+            page_number=1,
+            y=760,
+            entries=[(20, "Instrument", 70), (200, "Currency", 60)],
+        ),
+        builder.add_row(
+            page_number=1,
+            y=774,
+            entries=[(20, "Cash", 50), (200, "10", 50)],
+        ),
+        builder.add_row(
+            page_number=1,
+            y=790,
+            entries=[(20, "Bonds", 50), (200, "20", 50)],
+        ),
+    ]
+    second_rows = [
+        builder.add_row(
+            page_number=2,
+            y=y,
+            entries=[(20, instrument, 50), (200, "RUB", 50)],
+        )
+        for y, instrument in ((4, "LKOH"), (18, "ROSN"), (32, "GAZP"))
+    ]
+    all_refs = [ref for row in [*first_rows, *second_rows] for ref in row]
+    first_candidate_ref = builder.add_candidate(
+        page_number=1,
+        bbox=[15, 755, 260, 800],
+        word_refs=[ref for row in first_rows for ref in row],
+    )
+    second_candidate_ref = builder.add_candidate(
+        page_number=2,
+        bbox=[15, 0, 260, 50],
+        word_refs=[ref for row in second_rows for ref in row],
+    )
+    _mark_two_column_candidate_as_ruled(
+        builder,
+        candidate_ref=first_candidate_ref,
+        page_number=1,
+        row_refs=first_rows,
+    )
+    _mark_two_column_candidate_as_ruled(
+        builder,
+        candidate_ref=second_candidate_ref,
+        page_number=2,
+        row_refs=second_rows,
+    )
+
+    result = _recover(builder)
+    issues = [
+        issue
+        for issue in result.issues
+        if issue["code"] == "logical_table_continuation_header_ambiguous"
+    ]
+
+    assert len(result.tables) == 2
+    assert len(issues) == 1
+    affected = next(
+        table
+        for table in result.tables
+        if issues[0]["issue_id"] in table["issues"]
+    )
+    assert affected["completeness_status"] == "PARTIAL"
+    assert affected["source_parts"][0]["page"] == 2
+    assert len(result.source_word_ownership) == len(all_refs)
+    assert result.paragraph_owned_word_refs == []
+    assert result.unowned_word_refs == []
+
+
+def test_three_page_edge_chain_uses_first_fragment_header() -> None:
+    first = _continuation_test_region(
+        ref_prefix="chain_first",
+        page_number=1,
+        row_ys=[760.0, 774.0, 790.0],
+        header=True,
+    )
+    middle = _continuation_test_region(
+        ref_prefix="chain_middle",
+        page_number=2,
+        row_ys=[4.0, 24.0, 400.0, 790.0],
+        header=False,
+    )
+    last = _continuation_test_region(
+        ref_prefix="chain_last",
+        page_number=3,
+        row_ys=[4.0, 18.0, 32.0],
+        header=False,
+    )
+
+    groups = _continuation_groups(first, middle, last)
+    table, _ = _materialize_continuation_group(groups[0])
+
+    assert len(groups) == 1
+    assert [part["page"] for part in table["source_parts"]] == [1, 2, 3]
+    assert [part["continuation_status"] for part in table["source_parts"]] == [
+        "START",
+        "CONTINUATION",
+        "END",
+    ]
+
+
+def test_multiple_predecessors_emit_partial_continuation_terminal() -> None:
+    first = _continuation_test_region(
+        ref_prefix="ambiguous_first",
+        page_number=1,
+        row_ys=[760.0, 774.0, 790.0],
+        header=True,
+    )
+    second = _continuation_test_region(
+        ref_prefix="ambiguous_second",
+        page_number=1,
+        row_ys=[760.0, 774.0, 790.0],
+        header=True,
+    )
+    right = _continuation_test_region(
+        ref_prefix="ambiguous_right",
+        page_number=2,
+        row_ys=[4.0, 18.0, 32.0],
+        header=False,
+    )
+
+    groups = _continuation_groups(first, second, right)
+    table, state = _materialize_continuation_group(groups[-1])
+    issues = [
+        issue
+        for issue in state.issues
+        if issue["code"] == "logical_table_continuation_ambiguous"
+    ]
+
+    assert len(groups) == 3
+    assert right.continuation_issue_codes == (
+        "logical_table_continuation_ambiguous",
+    )
+    assert table["completeness_status"] == "PARTIAL"
+    assert len(issues) == 1
+    assert issues[0]["issue_id"] in table["issues"]
+
+
+def test_proven_multirow_header_mismatch_does_not_join() -> None:
+    def region(
+        *,
+        ref_prefix: str,
+        page_number: int,
+        second_header: str,
+        row_ys: list[float],
+    ) -> recovery_module._Region:
+        value = _internal_microtrack_region(
+            [
+                [[(20.0, 70.0, "Trade")], [(200.0, 250.0, "Settlement")]],
+                [[(20.0, 70.0, "Date")], [(200.0, 250.0, second_header)]],
+                [[(20.0, 70.0, "1")], [(200.0, 250.0, "2")]],
+            ],
+            ref_prefix=ref_prefix,
+            row_ys=row_ys,
+        )
+        value.page = replace(value.page, page_number=page_number)
+        for header in value.rows[:2]:
+            header.role = "COLUMN_HEADER"
+        return value
+
+    left = region(
+        ref_prefix="multirow_header_left",
+        page_number=1,
+        second_header="Date",
+        row_ys=[760.0, 774.0, 790.0],
+    )
+    right = region(
+        ref_prefix="multirow_header_right",
+        page_number=2,
+        second_header="Currency",
+        row_ys=[4.0, 18.0, 32.0],
+    )
+
+    groups = _continuation_groups(left, right)
+
+    assert len(groups) == 2
+    assert all(len(group) == 1 for group in groups)
 
 
 def test_every_table_word_has_one_entry_owner_and_no_paragraph_duplication() -> None:
