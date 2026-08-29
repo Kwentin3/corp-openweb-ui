@@ -2153,18 +2153,70 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             ["canonical", "canonical_binding", "table_node_id"],
         )
 
-    def test_managed_case_mapping_v4_has_no_package_consumer(self):
+    def test_managed_case_mapping_v4_has_only_inactive_qualification_consumer(self):
         module = "ordinary_trade_semantic_compiler"
         compiler = "compile_managed_header_case_mapping_candidate"
         validator = "validate_managed_header_case_mapping_candidate"
 
         self.assertEqual(_call_owners(module, compiler), set())
         self.assertEqual(_call_owners(module, validator), set())
+        consumers = set()
         for path in PACKAGE.glob("*.py"):
             if path.name == f"{module}.py":
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
-            self.assertFalse({compiler, validator} & _call_names(tree), path.name)
+            if {compiler, validator} & _call_names(tree):
+                consumers.add(path.name)
+        self.assertEqual(consumers, {"ordinary_trade_qualified_mappings.py"})
+
+    def test_managed_data_replay_has_only_inactive_qualification_consumer(self):
+        seam = "ordinary_trade_canonical_managed_data_replay"
+        function = _function_node(_tree("ordinary_trade_semantic_compiler"), seam)
+        self.assertEqual(
+            _call_owners("ordinary_trade_semantic_compiler", seam), set()
+        )
+        self.assertEqual(function.args.args, [])
+        self.assertEqual(
+            [item.arg for item in function.args.kwonlyargs],
+            ["canonical", "canonical_binding", "table_node_id"],
+        )
+        consumers = set()
+        for path in PACKAGE.glob("*.py"):
+            if path.name == "ordinary_trade_semantic_compiler.py":
+                continue
+            if seam in _call_names(
+                ast.parse(path.read_text(encoding="utf-8"))
+            ):
+                consumers.add(path.name)
+        self.assertEqual(consumers, {"ordinary_trade_qualified_mappings.py"})
+
+    def test_managed_case_qualification_has_no_downstream_consumer(self):
+        module = "ordinary_trade_qualified_mappings"
+        qualifier = "qualify_managed_header_case_mapping"
+        validator = "validate_managed_header_case_mapping"
+        qualifier_node = _method_node(
+            _tree(module),
+            "OrdinaryTradeQualifiedMappingAuthority",
+            qualifier,
+        )
+        self.assertEqual(qualifier_node.args.args[0].arg, "self")
+        self.assertEqual(
+            [item.arg for item in qualifier_node.args.kwonlyargs],
+            [
+                "canonical",
+                "canonical_binding",
+                "table_node_id",
+                "model_mapping_decision",
+                "user_scope_sha256",
+                "model_side_normalization_decisions",
+                "confirmed_understandings",
+            ],
+        )
+        for path in PACKAGE.glob("*.py"):
+            if path.name == f"{module}.py":
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            self.assertFalse({qualifier, validator} & _call_names(tree), path.name)
 
 
 def _source(module_name: str) -> str:

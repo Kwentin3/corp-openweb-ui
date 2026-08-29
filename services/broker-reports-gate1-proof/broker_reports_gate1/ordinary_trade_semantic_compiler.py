@@ -27,6 +27,9 @@ ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION = (
 ORDINARY_TRADE_MANAGED_HEADER_VIEW_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_managed_header_view_v1"
 )
+ORDINARY_TRADE_MANAGED_DATA_REPLAY_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_managed_data_replay_v1"
+)
 ORDINARY_TRADE_MANAGED_CASE_MAPPING_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_managed_case_mapping_v4"
 )
@@ -1183,6 +1186,89 @@ def ordinary_trade_canonical_managed_header_view(
         **material,
         "header_view_sha256": _sha256_json(material),
     }
+
+
+def ordinary_trade_canonical_managed_data_replay(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    table_node_id: str,
+) -> dict[str, Any]:
+    """Replay exact Managed DATA cells for inactive qualification evidence."""
+
+    if not isinstance(canonical, dict) or not validate_canonical_artifact(canonical)[
+        "passed"
+    ]:
+        _fail("ordinary_trade_canonical_managed_data_replay_canonical_invalid")
+    binding = _canonical_binding(canonical=canonical, value=canonical_binding)
+    if not isinstance(table_node_id, str) or not table_node_id:
+        _fail("ordinary_trade_canonical_managed_data_replay_invalid")
+    matches = [
+        node
+        for node in canonical.get("nodes", [])
+        if isinstance(node, Mapping)
+        and node.get("node_type") == "TABLE"
+        and node.get("node_id") == table_node_id
+    ]
+    if len(matches) != 1:
+        _fail("ordinary_trade_canonical_managed_data_replay_invalid")
+    table = matches[0]
+    rows = _table_rows(table)
+    roles = _managed_contiguous_primary_header_row_roles(
+        table=table,
+        rows=rows,
+        provenance=canonical.get("provenance"),
+        source=canonical.get("source"),
+    )
+    if not roles or "UNKNOWN" in roles.values():
+        _fail("ordinary_trade_canonical_managed_data_replay_roles_invalid")
+    content = table.get("content")
+    metadata = content.get("metadata") if isinstance(content, Mapping) else None
+    sequence = metadata.get("managed_row_sequence") if isinstance(metadata, Mapping) else None
+    if not isinstance(metadata, Mapping) or not isinstance(sequence, list):
+        _fail("ordinary_trade_canonical_managed_data_replay_invalid")
+    data_rows = []
+    for row_number, role in roles.items():
+        if role != "DATA":
+            continue
+        row_id = sequence[row_number - 1]["row_id"]
+        data_rows.append(
+            {
+                "row": row_number,
+                "row_id": row_id,
+                "cells": [
+                    {
+                        "column": column,
+                        "literal": _literal(cell),
+                        "source_coordinate": cell.get("source_coordinate"),
+                        "canonical_provenance_ref": cell["source_refs"][0],
+                    }
+                    for column, cell in sorted(rows[row_number].items())
+                ],
+            }
+        )
+    material = {
+        "schema_version": ORDINARY_TRADE_MANAGED_DATA_REPLAY_SCHEMA_VERSION,
+        "representation_only": True,
+        "consumer_eligible": False,
+        "table_node_id": table_node_id,
+        "canonical_binding": binding,
+        "managed_binding": {
+            "source_representation_owner": metadata[
+                "source_representation_owner"
+            ],
+            "managed_whole_table_projection_id": metadata[
+                "managed_whole_table_projection_id"
+            ],
+            "managed_document_id": metadata["managed_document_id"],
+            "managed_document_integrity_sha256": metadata[
+                "managed_document_integrity_sha256"
+            ],
+            "managed_table_id": metadata["managed_table_id"],
+        },
+        "data_rows": data_rows,
+    }
+    return {**material, "data_replay_sha256": _sha256_json(material)}
 
 
 def _managed_row_roles_by_number(
@@ -2405,6 +2491,7 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "ORDINARY_TRADE_MANAGED_CASE_MAPPING_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MANAGED_DATA_REPLAY_SCHEMA_VERSION",
     "ORDINARY_TRADE_MANAGED_HEADER_VIEW_SCHEMA_VERSION",
     "ORDINARY_TRADE_MAPPING_SCHEMA_VERSION",
     "ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION",
@@ -2414,6 +2501,7 @@ __all__ = [
     "compile_managed_header_case_mapping_candidate",
     "compile_schema_mapping",
     "normalize_runtime_value",
+    "ordinary_trade_canonical_managed_data_replay",
     "structural_fingerprint",
     "validate_managed_header_case_mapping_candidate",
     "validate_schema_mapping",
