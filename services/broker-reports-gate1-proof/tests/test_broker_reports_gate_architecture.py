@@ -2608,7 +2608,44 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 compiled_consumers.add(
                     path.relative_to(REPOSITORY_ROOT).as_posix()
                 )
-        self.assertEqual(compiled_consumers, set())
+        runner = (
+            "services/broker-reports-gate1-proof/scripts/"
+            "run_managed_semantic_candidate_local.py"
+        )
+        self.assertEqual(compiled_consumers, {runner})
+        runner_path = REPOSITORY_ROOT / runner
+        runner_tree = ast.parse(runner_path.read_text(encoding="utf-8"))
+        self.assertFalse(
+            any(
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "getattr"
+                and any(
+                    isinstance(argument, ast.Constant)
+                    and argument.value == compiled_method_name
+                    for argument in node.args
+                )
+                for node in ast.walk(runner_tree)
+            )
+        )
+        forbidden_surfaces = [
+            REPOSITORY_ROOT
+            / "services/broker-reports-gate1-proof/scripts/"
+            "build_openwebui_pipe_bundle.py",
+            REPOSITORY_ROOT
+            / "services/broker-reports-gate1-proof/openwebui_actions",
+            REPOSITORY_ROOT / "compose",
+            REPOSITORY_ROOT / "deploy",
+        ]
+        runner_name = runner_path.name
+        for surface in forbidden_surfaces:
+            files = [surface] if surface.is_file() else list(surface.rglob("*"))
+            for path in files:
+                if path.is_file():
+                    self.assertNotIn(
+                        runner_name,
+                        path.read_text(encoding="utf-8", errors="ignore"),
+                    )
 
     def test_managed_semantic_review_contract_is_same_call_and_inactive(self):
         semantic_module = "ordinary_trade_semantic_mapping"
