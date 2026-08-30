@@ -23,6 +23,15 @@ _PAGE_TEXT_LAYOUT_PARTITION_ALLOWED_REASONS = frozenset(
         "pdf_unknown_font_mapping",
     }
 )
+_PDFPLUMBER_LIGATURE_EXPANSIONS = {
+    "\ufb00": "ff",
+    "\ufb01": "fi",
+    "\ufb02": "fl",
+    "\ufb03": "ffi",
+    "\ufb04": "ffl",
+    "\ufb05": "st",
+    "\ufb06": "st",
+}
 
 
 @dataclass(frozen=True)
@@ -1521,6 +1530,32 @@ def pdf_layout_source_chain_page_receipt(
             or char_refs != expected_char_refs
         ):
             reasons.add("pdf_layout_source_chain_word_char_parser_binding_mismatch")
+        contributing_chars = [
+            chars_by_ref[char_ref]
+            for char_ref in char_refs
+            if char_ref in chars_by_ref
+        ]
+        expected_text = "".join(
+            _PDFPLUMBER_LIGATURE_EXPANSIONS.get(
+                str(char.get("text") or ""), str(char.get("text") or "")
+            )
+            for char in contributing_chars
+        )
+        if str(word.get("text") or "") != expected_text:
+            reasons.add("pdf_layout_source_chain_word_text_char_binding_mismatch")
+        contributing_bboxes = [
+            bboxes_by_ref.get(str(char.get("bbox_ref") or ""))
+            for char in contributing_chars
+        ]
+        contributing_bboxes = [
+            item for item in contributing_bboxes if item is not None
+        ]
+        word_bbox = bboxes_by_ref.get(str(word.get("bbox_ref") or ""))
+        if contributing_chars and (
+            len(contributing_bboxes) != len(contributing_chars)
+            or word_bbox != _merged_bbox(contributing_bboxes)
+        ):
+            reasons.add("pdf_layout_source_chain_word_bbox_char_binding_mismatch")
         if len(char_refs) != len(set(char_refs)):
             reasons.add("pdf_layout_source_chain_word_char_ref_duplicate")
         for char_ref in char_refs:

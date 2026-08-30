@@ -37,10 +37,12 @@ from broker_reports_gate1 import (
 from broker_reports_gate1.pdf_text_layer import (
     FACTORY_REQUIRED,
     FORBIDDEN,
+    _checksum_ref,
     pdf_layout_page_checksum_ref,
     pdf_payload_checksum_ref,
     resolve_pdf_payload_source_value,
 )
+from broker_reports_gate1.contracts import stable_digest
 from broker_reports_gate1.pdf_layout_units import (
     _page_text_supports_layout_partition,
     pdf_layout_source_chain_document_receipt,
@@ -570,6 +572,68 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         self.assertEqual("failed", result["validator_status"])
         self.assertIn(
             "pdf_layout_source_chain_bbox_identity_invalid",
+            {item["code"] for item in result["errors"]},
+        )
+
+    def test_shadow_source_chain_rejects_recomputed_char_literal_laundering(self):
+        payload = copy.deepcopy(self._build(_paragraph_pdf()).payloads[0])
+        projection = payload["pdf_text_layer_projection"]
+        word = projection["word_inventory"][0]
+        old_ref = word["char_refs"][0]
+        char = next(
+            item for item in projection["char_inventory"] if item["char_ref"] == old_ref
+        )
+        char["text"] = "X"
+        char["text_checksum_ref"] = _checksum_ref("pdfchartxtchk", "X")
+        char["char_ref"] = "pdfchar_" + stable_digest(
+            [
+                payload["source_checksum_ref"],
+                char["page_ref"],
+                projection["layout_parser_ref"],
+                char["parser_ordinal"],
+                char["text_checksum_ref"],
+            ],
+            length=24,
+        )
+        word["char_refs"][0] = char["char_ref"]
+        page = next(
+            item
+            for item in projection["page_inventory"]
+            if item["page_ref"] == char["page_ref"]
+        )
+        page["layout_char_refs"] = [
+            char["char_ref"] if item == old_ref else item
+            for item in page["layout_char_refs"]
+        ]
+        _reseal_layout_source_chain(payload)
+
+        result = validate_pdf_text_layer_payload(payload)
+        self.assertEqual("failed", result["validator_status"])
+        self.assertIn(
+            "pdf_layout_source_chain_parser_binding_invalid",
+            {item["code"] for item in result["errors"]},
+        )
+
+    def test_shadow_source_chain_rejects_recomputed_orphan_bbox(self):
+        payload = copy.deepcopy(self._build(_paragraph_pdf()).payloads[0])
+        projection = payload["pdf_text_layer_projection"]
+        orphan = copy.deepcopy(projection["bbox_inventory"][0])
+        orphan["bbox"] = [value + 100 for value in orphan["bbox"]]
+        orphan["bbox_ref"] = "pdfbbox_" + stable_digest(
+            [
+                orphan["page_ref"],
+                projection["layout_parser_ref"],
+                *orphan["bbox"],
+            ],
+            length=24,
+        )
+        projection["bbox_inventory"].append(orphan)
+        _reseal_layout_source_chain(payload)
+
+        result = validate_pdf_text_layer_payload(payload)
+        self.assertEqual("failed", result["validator_status"])
+        self.assertIn(
+            "pdf_layout_source_chain_bbox_inventory_orphaned",
             {item["code"] for item in result["errors"]},
         )
 

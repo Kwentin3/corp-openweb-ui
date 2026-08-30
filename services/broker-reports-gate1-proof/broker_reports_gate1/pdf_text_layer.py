@@ -766,6 +766,8 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         char_inventory = _dict_list(projection.get("char_inventory"))
         bbox_inventory = _dict_list(projection.get("bbox_inventory"))
         block_inventory = _dict_list(projection.get("block_inventory"))
+        vector_line_inventory = _dict_list(projection.get("vector_line_inventory"))
+        rect_inventory = _dict_list(projection.get("rect_inventory"))
         table_inventory = _dict_list(projection.get("table_candidate_inventory"))
         for inventory, ref_name, code in (
             (char_inventory, "char_ref", "pdf_layout_char_ref_invalid"),
@@ -786,6 +788,41 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 errors.append(_error(f"{code}_page_scope", payload_ref))
         word_refs = {str(item.get("word_ref") or "") for item in word_inventory}
         line_refs = {str(item.get("line_ref") or "") for item in line_inventory}
+        bbox_by_ref = {
+            str(item.get("bbox_ref") or ""): item for item in bbox_inventory
+        }
+        bbox_users = [
+            *char_inventory,
+            *word_inventory,
+            *line_inventory,
+            *block_inventory,
+            *vector_line_inventory,
+            *rect_inventory,
+            *table_inventory,
+            *[
+                cell
+                for candidate in table_inventory
+                for cell in _dict_list(candidate.get("cell_inventory"))
+            ],
+        ]
+        used_bbox_refs: set[str] = set()
+        for item in bbox_users:
+            bbox_ref = str(item.get("bbox_ref") or "")
+            bbox = bbox_by_ref.get(bbox_ref)
+            if (
+                not bbox_ref
+                or bbox is None
+                or bbox.get("page_ref") != item.get("page_ref")
+            ):
+                errors.append(
+                    _error("pdf_layout_source_chain_bbox_ownership_invalid", payload_ref)
+                )
+            else:
+                used_bbox_refs.add(bbox_ref)
+        if used_bbox_refs != set(bbox_by_ref):
+            errors.append(
+                _error("pdf_layout_source_chain_bbox_inventory_orphaned", payload_ref)
+            )
         source_checksum_ref = str(payload.get("source_checksum_ref") or "")
         for bbox in bbox_inventory:
             raw_bbox = bbox.get("bbox")
@@ -911,6 +948,8 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             if {
                 "pdf_layout_source_chain_word_char_parser_binding_mismatch",
                 "pdf_layout_source_chain_line_word_parser_binding_mismatch",
+                "pdf_layout_source_chain_word_text_char_binding_mismatch",
+                "pdf_layout_source_chain_word_bbox_char_binding_mismatch",
             } & set(expected_receipt.get("reason_codes") or []):
                 errors.append(
                     _error("pdf_layout_source_chain_parser_binding_invalid", page_ref)
