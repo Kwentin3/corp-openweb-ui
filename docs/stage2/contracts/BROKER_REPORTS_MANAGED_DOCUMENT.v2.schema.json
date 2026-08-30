@@ -1144,6 +1144,11 @@
             "$ref": "#/$defs/tableSourcePart"
           }
         },
+        "empty_grid_slots": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/emptyGridSlot"}
+        },
         "relations": {
           "type": "array",
           "items": {
@@ -2479,7 +2484,52 @@
         },
         "table_contributing_word_refs": {
           "$ref": "#/$defs/sourceRefArray"
+        },
+        "empty_grid_slots": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/sourceEmptyGridCell"}
         }
+      }
+    },
+    "sourceEmptyGridCell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cell_ref", "table_candidate_ref", "page_ref", "row_ordinal", "column_ordinal", "row_span", "column_span", "bbox_ref", "bbox", "word_refs", "table_cell_inventory_checksum_ref"],
+      "properties": {
+        "cell_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "table_candidate_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "page_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "row_ordinal": {"type": "integer", "minimum": 1},
+        "column_ordinal": {"type": "integer", "minimum": 1},
+        "row_span": {"const": 1},
+        "column_span": {"const": 1},
+        "bbox_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "bbox": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number"}},
+        "word_refs": {"type": "array", "maxItems": 0},
+        "table_cell_inventory_checksum_ref": {"type": "string", "pattern": "^pdftablecellinvchk_[0-9a-f]{24}$"}
+      }
+    },
+    "emptyGridSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slot_id", "source_cell_ref", "table_candidate_ref", "page", "page_ref", "source_row_ordinal", "source_column_ordinal", "row_span", "column_span", "bbox_ref", "bbox", "word_refs", "row_id", "logical_column_id", "table_cell_inventory_checksum_ref"],
+      "properties": {
+        "slot_id": {"type": "string", "pattern": "^empty_grid_slot_[a-z0-9][a-z0-9_-]{2,127}$"},
+        "source_cell_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "table_candidate_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "page": {"type": "integer", "minimum": 1},
+        "page_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "source_row_ordinal": {"type": "integer", "minimum": 1},
+        "source_column_ordinal": {"type": "integer", "minimum": 1},
+        "row_span": {"const": 1},
+        "column_span": {"const": 1},
+        "bbox_ref": {"type": "string", "minLength": 1, "maxLength": 256},
+        "bbox": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number"}},
+        "word_refs": {"type": "array", "maxItems": 0},
+        "row_id": {"$ref": "#/$defs/rowId"},
+        "logical_column_id": {"$ref": "#/$defs/columnId"},
+        "table_cell_inventory_checksum_ref": {"type": ["string", "null"], "pattern": "^pdftablecellinvchk_[0-9a-f]{24}$"}
       }
     },
     "documentTableSourceUnitCoverage": {

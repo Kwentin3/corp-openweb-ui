@@ -1232,6 +1232,8 @@ def _validate_managed_whole_table_projection(
     part_units: list[str] = []
     part_atoms: list[str] = []
     part_words: list[str] = []
+    part_empty_cells: list[str] = []
+    part_empty_cell_records: list[dict[str, Any]] = []
     for expected_ordinal, source_part in enumerate(source_parts):
         if source_part.get("ordinal") != expected_ordinal:
             raise CanonicalArtifactError(
@@ -1263,6 +1265,13 @@ def _validate_managed_whole_table_projection(
             part_units.append(unit_ref)
             part_atoms.extend(_strings(record.get("selected_source_atom_refs")))
             part_words.extend(_strings(record.get("table_contributing_word_refs")))
+            part_empty_cells.extend(
+                str(cell.get("cell_ref") or "")
+                for cell in _dicts(record.get("empty_grid_slots"))
+            )
+            part_empty_cell_records.extend(
+                copy.deepcopy(_dicts(record.get("empty_grid_slots")))
+            )
     if (
         sorted(part_units) != unit_refs
         or sorted(part_atoms) != atom_refs
@@ -1270,6 +1279,46 @@ def _validate_managed_whole_table_projection(
     ):
         raise CanonicalArtifactError(
             "canonical_managed_whole_table_projection_union_mismatch"
+        )
+    slots = _dicts(projection.get("empty_grid_slots"))
+    if (
+        "" in part_empty_cells
+        or _has_duplicates(part_empty_cells)
+        or sorted(part_empty_cells)
+        != sorted(str(slot.get("source_cell_ref") or "") for slot in slots)
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_empty_grid_slot_mismatch"
+        )
+    ledger_cell_by_ref = {
+        str(cell.get("cell_ref") or ""): cell
+        for cell in part_empty_cell_records
+    }
+    slot_by_ref = {
+        str(slot.get("source_cell_ref") or ""): slot for slot in slots
+    }
+    if len(ledger_cell_by_ref) != len(part_empty_cell_records) or any(
+        slot[key] != ledger_cell[source_key]
+        for cell_ref, slot in slot_by_ref.items()
+        for ledger_cell in [ledger_cell_by_ref[cell_ref]]
+        for key, source_key in (
+            ("table_candidate_ref", "table_candidate_ref"),
+            ("page_ref", "page_ref"),
+            ("source_row_ordinal", "row_ordinal"),
+            ("source_column_ordinal", "column_ordinal"),
+            ("row_span", "row_span"),
+            ("column_span", "column_span"),
+            ("bbox_ref", "bbox_ref"),
+            ("bbox", "bbox"),
+            ("word_refs", "word_refs"),
+            (
+                "table_cell_inventory_checksum_ref",
+                "table_cell_inventory_checksum_ref",
+            ),
+        )
+    ):
+        raise CanonicalArtifactError(
+            "canonical_managed_whole_table_projection_empty_grid_slot_mismatch"
         )
     entry_ids: set[str] = set()
     expected_header_paths = {column_id: [] for column_id in column_ordinals}
@@ -1356,6 +1405,8 @@ def _validate_managed_whole_table_projection_owner_binding(
         != table.get("completeness_status")
         or projection.get("ordered_rows") != table.get("ordered_rows")
         or projection.get("logical_columns") != table.get("logical_columns")
+        or (projection.get("empty_grid_slots") or [])
+        != (table.get("empty_grid_slots") or [])
         or projection.get("source_parts") != table.get("source_parts")
         or projection.get("covered_source_atom_refs")
         != table.get("covered_source_atom_refs")
@@ -1533,6 +1584,15 @@ def _add_managed_whole_table(
             projection.get("covered_source_word_refs") or []
         ),
         "logical_columns": copy.deepcopy(projection.get("logical_columns") or []),
+        **(
+            {
+                "empty_grid_slots": copy.deepcopy(
+                    projection.get("empty_grid_slots") or []
+                )
+            }
+            if projection.get("empty_grid_slots")
+            else {}
+        ),
         "managed_row_sequence": _managed_row_sequence(rows),
         "continuation_header_row_refs": copy.deepcopy(
             projection.get("continuation_header_row_refs") or []
@@ -1823,6 +1883,18 @@ def _managed_source_unit_record_matches(
         and _strings(record.get("page_refs")) == _strings(source_unit.get("page_refs"))
         and _strings(record.get("selected_source_atom_refs"))
         == _source_unit_atom_refs(source_unit)
+        and str(record.get("source_unit_checksum_ref") or "")
+        == str(source_unit.get("source_unit_checksum_ref") or "")
+        and all(
+            str(cell.get("table_cell_inventory_checksum_ref") or "")
+            == str(source_unit.get("table_cell_inventory_checksum_ref") or "")
+            and str(cell.get("cell_ref") or "")
+            in _strings(source_unit.get("table_cell_refs"))
+            and cell.get("word_refs") == []
+            and cell.get("row_span") == 1
+            and cell.get("column_span") == 1
+            for cell in _dicts(record.get("empty_grid_slots"))
+        )
     )
 
 

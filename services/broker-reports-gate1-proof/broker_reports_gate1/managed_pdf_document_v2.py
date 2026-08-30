@@ -954,6 +954,7 @@ def _bind_source_unit_ledger(
     }
     eligible: dict[str, dict[str, Any]] = {}
     owners_by_word: dict[str, list[str]] = {}
+    owners_by_cell: dict[str, list[str]] = {}
     for raw_unit in units:
         if not isinstance(raw_unit, dict):
             raise ManagedPdfDocumentV2Error(
@@ -1035,6 +1036,45 @@ def _bind_source_unit_ledger(
         eligible[unit_ref] = raw_unit
         for word_ref in owned_words:
             owners_by_word.setdefault(str(word_ref), []).append(unit_ref)
+        for cell_ref in raw_unit.get("table_cell_refs") or []:
+            owners_by_cell.setdefault(str(cell_ref), []).append(unit_ref)
+
+    projection = parent_payload["pdf_text_layer_projection"]
+    bbox_by_ref = {
+        str(item.get("bbox_ref") or ""): list(item.get("bbox") or [])
+        for item in projection.get("bbox_inventory") or []
+        if isinstance(item, Mapping)
+    }
+    source_cells: dict[str, dict[str, Any]] = {}
+    for table_candidate in projection.get("table_candidate_inventory") or []:
+        if not isinstance(table_candidate, Mapping):
+            continue
+        candidate_ref = str(table_candidate.get("table_candidate_ref") or "")
+        for cell in table_candidate.get("cell_inventory") or []:
+            if not isinstance(cell, Mapping):
+                continue
+            cell_ref = str(cell.get("cell_ref") or "")
+            bbox_ref = str(cell.get("bbox_ref") or "")
+            if (
+                not cell_ref
+                or cell_ref in source_cells
+                or bbox_ref not in bbox_by_ref
+            ):
+                raise ManagedPdfDocumentV2Error(
+                    "managed_pdf_v2_source_grid_cell_inventory_invalid"
+                )
+            source_cells[cell_ref] = {
+                "cell_ref": cell_ref,
+                "table_candidate_ref": candidate_ref,
+                "page_ref": str(cell.get("page_ref") or ""),
+                "row_ordinal": int(cell.get("row_ordinal") or 0),
+                "column_ordinal": int(cell.get("column_ordinal") or 0),
+                "row_span": int(cell.get("row_span") or 1),
+                "column_span": int(cell.get("column_span") or 1),
+                "bbox_ref": bbox_ref,
+                "bbox": bbox_by_ref[bbox_ref],
+                "word_refs": list(cell.get("word_refs") or []),
+            }
 
     anchor_by_id = {
         str(item.get("anchor_id") or ""): item
@@ -1090,6 +1130,27 @@ def _bind_source_unit_ledger(
                     and locator.get("source_block_ref")
                 }
             )
+            part_row_ids = {
+                str(row.get("row_id") or "")
+                for row in rows[first : last + 1]
+            }
+            part_slot_records = [
+                slot
+                for slot in table.get("empty_grid_slots") or []
+                if isinstance(slot, dict)
+                and str(slot.get("row_id") or "") in part_row_ids
+            ]
+            part_empty_cells = sorted(
+                str(slot.get("source_cell_ref") or "")
+                for slot in part_slot_records
+            )
+            if (
+                "" in part_empty_cells
+                or len(part_empty_cells) != len(set(part_empty_cells))
+            ):
+                raise ManagedPdfDocumentV2Error(
+                    "managed_pdf_v2_source_grid_cell_identity_invalid"
+                )
             if not part_words:
                 raise ManagedPdfDocumentV2Error(
                     "managed_pdf_v2_source_unit_ledger_part_words_missing"
@@ -1101,6 +1162,37 @@ def _bind_source_unit_ledger(
                     raise ManagedPdfDocumentV2Error(
                         "managed_pdf_v2_source_unit_ledger_word_owner_nonunique"
                     )
+                owner_refs.add(owners[0])
+            empty_cell_owner: dict[str, str] = {}
+            for cell_ref in part_empty_cells:
+                owners = owners_by_cell.get(cell_ref, [])
+                if len(owners) != 1:
+                    raise ManagedPdfDocumentV2Error(
+                        "managed_pdf_v2_source_grid_cell_owner_nonunique"
+                    )
+                source_cell = source_cells.get(cell_ref)
+                owner = eligible[owners[0]]
+                if (
+                    source_cell is None
+                    or source_cell["table_candidate_ref"]
+                    != owner.get("table_candidate_ref")
+                    or source_cell["page_ref"] not in owner.get("page_refs", [])
+                    or source_cell["row_span"] != 1
+                    or source_cell["column_span"] != 1
+                    or source_cell["word_refs"]
+                    or len(
+                        [
+                            slot
+                            for slot in part_slot_records
+                            if slot.get("source_cell_ref") == cell_ref
+                        ]
+                    )
+                    != 1
+                ):
+                    raise ManagedPdfDocumentV2Error(
+                        "managed_pdf_v2_source_grid_cell_not_proven_empty"
+                    )
+                empty_cell_owner[cell_ref] = owners[0]
                 owner_refs.add(owners[0])
             records: list[dict[str, Any]] = []
             contributed: list[str] = []
@@ -1127,6 +1219,16 @@ def _bind_source_unit_ledger(
                     "page_refs": sorted(str(ref) for ref in unit["page_refs"]),
                     "selected_source_atom_refs": atoms,
                     "table_contributing_word_refs": owned_words,
+                    "empty_grid_slots": [
+                        {
+                            **copy.deepcopy(source_cells[cell_ref]),
+                            "table_cell_inventory_checksum_ref": str(
+                                unit["table_cell_inventory_checksum_ref"]
+                            ),
+                        }
+                        for cell_ref in part_empty_cells
+                        if empty_cell_owner[cell_ref] == unit_ref
+                    ],
                 }
                 records.append(record)
                 contributed.extend(owned_words)
@@ -1135,6 +1237,32 @@ def _bind_source_unit_ledger(
             if sorted(contributed) != part_words:
                 raise ManagedPdfDocumentV2Error(
                     "managed_pdf_v2_source_unit_ledger_part_partition_invalid"
+                )
+            for slot in part_slot_records:
+                source_cell = source_cells[str(slot["source_cell_ref"])]
+                expected = {
+                    "source_cell_ref": source_cell["cell_ref"],
+                    "table_candidate_ref": source_cell["table_candidate_ref"],
+                    "page_ref": source_cell["page_ref"],
+                    "source_row_ordinal": source_cell["row_ordinal"],
+                    "source_column_ordinal": source_cell["column_ordinal"],
+                    "row_span": source_cell["row_span"],
+                    "column_span": source_cell["column_span"],
+                    "bbox_ref": source_cell["bbox_ref"],
+                    "bbox": source_cell["bbox"],
+                    "word_refs": source_cell["word_refs"],
+                }
+                if any(slot.get(key) != value for key, value in expected.items()):
+                    raise ManagedPdfDocumentV2Error(
+                        "managed_pdf_v2_source_grid_cell_binding_stale"
+                    )
+                owner = eligible[empty_cell_owner[str(slot["source_cell_ref"])]]
+                if slot.get("page") != part.get("page"):
+                    raise ManagedPdfDocumentV2Error(
+                        "managed_pdf_v2_source_grid_cell_page_mismatch"
+                    )
+                slot["table_cell_inventory_checksum_ref"] = str(
+                    owner["table_cell_inventory_checksum_ref"]
                 )
             part["covered_source_units"] = records
             table_words.extend(part_words)

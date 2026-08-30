@@ -1642,7 +1642,6 @@ def test_sparse_nested_multilevel_groups_and_totals_are_row_first() -> None:
     assert result.unowned_word_refs == []
     _validate_v2_component_shapes(result)
 
-
 def test_cross_page_continuation_preserves_repeated_header_and_source_parts() -> None:
     builder = ProjectionBuilder(
         page_numbers=(1, 2),
@@ -3035,7 +3034,10 @@ def test_ruled_geometry_merges_wrapped_bands_and_emits_no_empty_entries() -> Non
             [wrapped_top[0], wrapped_bottom[0]],
         ),
         cell(2, 2, [180, 112, 245, 132], [wrapped_top[1]]),
-        cell(3, 1, [15, 136, 245, 150], wide_groups),
+        {
+            **cell(3, 1, [15, 136, 245, 150], wide_groups),
+            "column_span": 2,
+        },
         cell(4, 1, [15, 150, 180, 164], sparse),
         cell(4, 2, [180, 150, 245, 164], []),
     ]
@@ -3057,12 +3059,85 @@ def test_ruled_geometry_merges_wrapped_bands_and_emits_no_empty_entries() -> Non
     assert [
         entry["text"] for entry in table["ordered_rows"][4]["entries"]
     ] == ["Sparse"]
+    assert table["empty_grid_slots"] == [
+        {
+            "slot_id": table["empty_grid_slots"][0]["slot_id"],
+            "source_cell_ref": "ruled_rows_cell_4_2",
+            "table_candidate_ref": candidate["table_candidate_ref"],
+            "page": 1,
+            "page_ref": page_ref,
+            "source_row_ordinal": 4,
+            "source_column_ordinal": 2,
+            "row_span": 1,
+            "column_span": 1,
+            "bbox_ref": candidate["cell_inventory"][-1]["bbox_ref"],
+            "bbox": [180.0, 150.0, 245.0, 164.0],
+            "word_refs": [],
+            "row_id": table["ordered_rows"][4]["row_id"],
+            "logical_column_id": table["logical_columns"][1]["column_id"],
+            "table_cell_inventory_checksum_ref": None,
+        }
+    ]
     assert len(table["logical_columns"]) == 2
     assert len(result.source_word_ownership) == len(
         {*title_refs, *candidate_refs}
     )
     assert result.unowned_word_refs == []
     _validate_v2_component_shapes(result)
+
+    baseline_cells = copy.deepcopy(candidate["cell_inventory"])
+    mutations = []
+
+    span_ambiguous = copy.deepcopy(baseline_cells)
+    span_ambiguous[-1]["row_span"] = 2
+    mutations.append(
+        (span_ambiguous, "logical_row_grid_cell_out_of_bounds")
+    )
+
+    duplicate_identity = copy.deepcopy(baseline_cells)
+    duplicate_identity[-1]["cell_ref"] = duplicate_identity[-2]["cell_ref"]
+    mutations.append(
+        (duplicate_identity, "logical_row_grid_cell_identity_ambiguous")
+    )
+
+    gap = copy.deepcopy([baseline_cells[0], *baseline_cells[2:]])
+    mutations.append((gap, "logical_row_grid_cell_inventory_not_closed"))
+
+    out_of_bounds = copy.deepcopy(baseline_cells)
+    out_of_bounds[-1]["column_ordinal"] = 3
+    mutations.append((out_of_bounds, "logical_row_grid_cell_out_of_bounds"))
+
+    overlap = copy.deepcopy(baseline_cells)
+    overlapping_cell = copy.deepcopy(overlap[-1])
+    overlapping_cell.update(
+        {
+            "cell_ref": "ruled_rows_cell_3_2_overlap",
+            "row_ref": "ruled_rows_row_3",
+            "row_ordinal": 3,
+            "column_ordinal": 2,
+            "word_refs": [],
+        }
+    )
+    overlap.append(overlapping_cell)
+    mutations.append((overlap, "logical_row_grid_cell_span_overlap"))
+
+    word_conflict = copy.deepcopy(baseline_cells)
+    word_conflict[-1]["word_refs"] = [sparse[0]]
+    mutations.append(
+        (
+            word_conflict,
+            "logical_row_grid_cell_word_ownership_ambiguous",
+        )
+    )
+
+    for cells, error_code in mutations:
+        candidate["cell_inventory"] = cells
+        with pytest.raises(
+            recovery_module.LogicalRowTableRecoveryError,
+            match=error_code,
+        ):
+            _recover(builder)
+    candidate["cell_inventory"] = baseline_cells
 
 
 def test_ruled_rows_require_dual_axis_grid_topology() -> None:

@@ -34,7 +34,14 @@ The following are not canonical v2 table state:
 - cells or cell coordinates;
 - a required equal-width grid;
 - merged-cell or span topology;
-- synthetic empty entries representing visually covered coordinates.
+- synthetic empty row entries representing visually covered coordinates.
+
+A source-explicit `empty_grid_slots` inventory is permitted only for a closed
+parser grid cell that has an exact source `cell_ref`, page, 1x1 span, bbox and
+an empty `word_refs` list. It is structural table state, not a row entry or a
+source word/value. The FullSource table-cell inventory checksum is copied into
+the slot by the source-unit ledger owner; a slot without that exact binding
+fails closed and cannot reach the whole-table projection.
 
 A later consumer may derive a rectangular view for a proven regular table, but
 that view cannot write back into v2 or become source authority. A visual span
@@ -191,7 +198,7 @@ bundles remain disconnected.
 Schema identity is both the exact `$id` and the SHA-256 of canonical schema
 JSON (`ensure_ascii=false`, sorted keys, separators `(",", ":")`, finite
 numbers only). The pinned v2 schema hash is
-`7f5765311e5b7f7332fecbd8edb3e239842d5e35b5da441bc5d51049f6eb6df1`.
+`ac019242f6514e153d251a86ba485eb27a4b2b7e1f7c90aa289f1d3d25a1750a`.
 A schema edit that preserves `$id` still fails closed. The validator receives
 the schema object explicitly; no factory or builder may weaken or replace this
 authority.

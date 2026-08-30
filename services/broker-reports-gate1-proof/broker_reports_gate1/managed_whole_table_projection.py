@@ -184,6 +184,7 @@ def _table_issue(
     table_units: list[str] = []
     table_atoms: list[str] = []
     table_words: list[str] = []
+    table_empty_cells: list[str] = []
     assigned_rows: list[str] = []
     for expected_ordinal, part in enumerate(parts):
         part_id = str(part.get("source_part_id") or "")
@@ -215,6 +216,11 @@ def _table_issue(
             for unit in units
             for ref in _strings(unit.get("table_contributing_word_refs"))
         ]
+        part_empty_cells = [
+            str(cell.get("cell_ref") or "")
+            for unit in units
+            for cell in _dicts(unit.get("empty_grid_slots"))
+        ]
         if (
             "" in part_units
             or any(
@@ -223,7 +229,10 @@ def _table_issue(
                 or not _strings(unit.get("page_refs"))
                 for unit in units
             )
-            or _has_duplicates(part_units + part_atoms + part_words)
+            or "" in part_empty_cells
+            or _has_duplicates(
+                part_units + part_atoms + part_words + part_empty_cells
+            )
         ):
             return "managed_whole_table_projection_source_unit_ledger_invalid"
         anchor_issue = _part_anchor_issue(
@@ -237,16 +246,24 @@ def _table_issue(
         table_units.extend(part_units)
         table_atoms.extend(part_atoms)
         table_words.extend(part_words)
+        table_empty_cells.extend(part_empty_cells)
 
     if assigned_rows != row_ids:
         return "managed_whole_table_projection_source_part_partition_invalid"
-    if _has_duplicates(table_units + table_atoms + table_words):
+    if _has_duplicates(
+        table_units + table_atoms + table_words + table_empty_cells
+    ):
         return "managed_whole_table_projection_table_overlap"
     if (
         sorted(table_atoms) != _strings(table.get("covered_source_atom_refs"))
         or sorted(table_words) != _strings(table.get("covered_source_word_refs"))
     ):
         return "managed_whole_table_projection_table_union_mismatch"
+    slots = _dicts(table.get("empty_grid_slots"))
+    if sorted(table_empty_cells) != sorted(
+        str(slot.get("source_cell_ref") or "") for slot in slots
+    ):
+        return "managed_whole_table_projection_empty_grid_slot_union_mismatch"
     return None
 
 
@@ -306,6 +323,15 @@ def _table_projection(
         "completeness_status": "COMPLETE",
         "ordered_rows": copy.deepcopy(table["ordered_rows"]),
         "logical_columns": copy.deepcopy(table["logical_columns"]),
+        **(
+            {
+                "empty_grid_slots": copy.deepcopy(
+                    table.get("empty_grid_slots") or []
+                )
+            }
+            if table.get("empty_grid_slots")
+            else {}
+        ),
         "source_parts": source_parts,
         "source_part_refs": [str(part["source_part_id"]) for part in source_parts],
         "source_anchors": [
