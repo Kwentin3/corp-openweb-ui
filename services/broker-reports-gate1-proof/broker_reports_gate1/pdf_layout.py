@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from io import BytesIO
 from typing import Any
 
+from .contracts import (
+    PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID,
+    PDF_TABLE_LOCATOR_PAGE_SCHEMA,
+)
 from .pdf_source_bound_grid import PdfSourceBoundGridError, reconstruct_mcid_grid
 
 from .contracts import stable_digest
@@ -371,7 +375,14 @@ class PdfPlumberLayoutAdapter:
                     "pdf_table_detection_preflight_budget_exceeded"
                 )
             else:
-                if locator_mode and (
+                locator_contract_invalid = locator_mode and locator_page is not None and (
+                    not _locator_page_contract_is_valid(locator_page)
+                )
+                if locator_contract_invalid:
+                    table_reason_codes.append(
+                        "pdf_table_locator_contract_version_failed"
+                    )
+                elif locator_mode and (
                     locator_page is None or locator_page.get("status") == "failed"
                 ):
                     table_reason_codes.append("pdf_table_locator_page_failed")
@@ -649,6 +660,11 @@ class PdfPlumberLayoutAdapter:
         reasons: list[str] = []
         locator_bboxes: list[list[float]] = []
         for ordinal, region in enumerate(locator_regions, 1):
+            strict_v2 = (
+                isinstance(region, dict)
+                and region.get("source_binding_policy")
+                == PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID
+            )
             locator_bbox = (
                 list(region.get("bbox_pdf_points") or [])
                 if isinstance(region, dict)
@@ -666,7 +682,11 @@ class PdfPlumberLayoutAdapter:
                 or locator_bbox[2] > page_bbox[2]
                 or locator_bbox[3] > page_bbox[3]
             ):
-                reasons.append("pdf_table_locator_region_invalid_rejected")
+                reasons.append(
+                    "pdf_table_locator_region_invalid_failed"
+                    if strict_v2
+                    else "pdf_table_locator_region_invalid_rejected"
+                )
                 continue
             bbox = [_number(value) for value in locator_bbox]
             minor_overlap_partitioned = False
@@ -680,7 +700,8 @@ class PdfPlumberLayoutAdapter:
                     previous[2] - previous[0], bbox[2] - bbox[0]
                 )
                 if (
-                    0.0 < vertical_overlap
+                    not strict_v2
+                    and 0.0 < vertical_overlap
                     <= self.config.locator_crop_margin_points * 2.0
                     and narrowest_width > 0.0
                     and shared_width / narrowest_width >= 0.8
@@ -689,10 +710,18 @@ class PdfPlumberLayoutAdapter:
                     bbox[1] = previous[3]
                     minor_overlap_partitioned = True
                 else:
-                    reasons.append("pdf_table_locator_region_invalid_rejected")
+                    reasons.append(
+                        "pdf_table_locator_region_overlap_failed"
+                        if strict_v2
+                        else "pdf_table_locator_region_invalid_rejected"
+                    )
                     continue
             if any(_bbox_overlap(bbox, other) for other in locator_bboxes):
-                reasons.append("pdf_table_locator_region_invalid_rejected")
+                reasons.append(
+                    "pdf_table_locator_region_overlap_failed"
+                    if strict_v2
+                    else "pdf_table_locator_region_invalid_rejected"
+                )
                 continue
             locator_bboxes.append(bbox)
             region_words = [
@@ -708,10 +737,14 @@ class PdfPlumberLayoutAdapter:
             tagged_source_present = any(
                 char.get("mcid") is not None for char in region_chars
             )
-            crop_bbox = _expanded_bbox(
-                bbox,
-                page_bbox=page_bbox,
-                margin=self.config.locator_crop_margin_points,
+            crop_bbox = (
+                bbox
+                if strict_v2
+                else _expanded_bbox(
+                    bbox,
+                    page_bbox=page_bbox,
+                    margin=self.config.locator_crop_margin_points,
+                )
             )
             region_lines = [
                 line
@@ -743,21 +776,28 @@ class PdfPlumberLayoutAdapter:
                 region_reasons = []
             except PdfSourceBoundGridError as tagged_error:
                 region_reasons = [str(tagged_error)]
+                if strict_v2:
+                    region_reasons.append("pdf_table_locator_source_grid_failed")
                 candidates = []
-            try:
-                crop = page.crop(tuple(crop_bbox), strict=False)
-                if not candidates and not tagged_source_present:
-                    candidates, native_reasons = self._find_unbounded_table_candidates(
-                        page=crop,
-                        words=region_words,
-                        vector_lines=region_lines,
-                        rects=region_rects,
-                        source_bound=True,
+            if not strict_v2:
+                try:
+                    crop = page.crop(tuple(crop_bbox), strict=False)
+                    if not candidates and not tagged_source_present:
+                        candidates, native_reasons = (
+                            self._find_unbounded_table_candidates(
+                                page=crop,
+                                words=region_words,
+                                vector_lines=region_lines,
+                                rects=region_rects,
+                                source_bound=True,
+                            )
+                        )
+                        region_reasons.extend(native_reasons)
+                except Exception:
+                    reasons.append(
+                        "pdf_table_locator_region_native_extraction_rejected"
                     )
-                    region_reasons.extend(native_reasons)
-            except Exception:
-                reasons.append("pdf_table_locator_region_native_extraction_rejected")
-                continue
+                    continue
             reasons.extend(region_reasons)
             if len(candidates) != 1:
                 reasons.append(
@@ -767,6 +807,40 @@ class PdfPlumberLayoutAdapter:
                 )
                 continue
             candidate = candidates[0]
+            if strict_v2:
+                title_bbox = region.get("title_bbox_pdf_points")
+                header_bbox = region.get("header_bbox_pdf_points")
+                title_chars = _source_items_in_optional_bbox(chars, title_bbox)
+                header_chars = _source_items_in_optional_bbox(chars, header_bbox)
+                if (title_bbox is not None and not title_chars) or (
+                    header_bbox is not None and not header_chars
+                ):
+                    reasons.append("pdf_table_locator_source_binding_failed")
+                    continue
+                if header_bbox is not None:
+                    header_ordinals = {
+                        int(item["parser_ordinal"]) for item in header_chars
+                    }
+                    cumulative: set[int] = set()
+                    valid_header_sets: list[set[int]] = []
+                    for row_ordinal in range(1, int(candidate["rows_total"]) + 1):
+                        cumulative.update(
+                            int(char_ordinal)
+                            for cell in candidate["cell_inventory"]
+                            if int(cell.get("row_ordinal") or 0) == row_ordinal
+                            for char_ordinal in cell.get("char_parser_ordinals") or []
+                        )
+                        if cumulative:
+                            valid_header_sets.append(set(cumulative))
+                    if header_ordinals not in valid_header_sets:
+                        reasons.append("pdf_table_locator_header_binding_failed")
+                        continue
+                candidate["source_title_char_parser_ordinals"] = [
+                    int(item["parser_ordinal"]) for item in title_chars
+                ]
+                candidate["source_header_char_parser_ordinals"] = [
+                    int(item["parser_ordinal"]) for item in header_chars
+                ]
             candidate["locator_region_ref"] = str(
                 region.get("region_ref") or f"locator_region_{ordinal}"
             )
@@ -779,7 +853,11 @@ class PdfPlumberLayoutAdapter:
             candidate["reconstruction_reason_codes"] = sorted(
                 {
                     *candidate.get("reconstruction_reason_codes", []),
-                    "locator_boundary_margin_applied",
+                    (
+                        "locator_exact_boundary_used"
+                        if strict_v2
+                        else "locator_boundary_margin_applied"
+                    ),
                     *(
                         ["locator_minor_overlap_partitioned"]
                         if minor_overlap_partitioned
@@ -1342,6 +1420,59 @@ def _bbox_overlap(left: list[float], right: list[float]) -> bool:
         or float(left[3]) <= float(right[1])
         or float(right[3]) <= float(left[1])
     )
+
+
+def _source_items_in_optional_bbox(
+    items: list[dict[str, Any]], bbox: Any
+) -> list[dict[str, Any]]:
+    if bbox is None:
+        return []
+    if (
+        not isinstance(bbox, list)
+        or len(bbox) != 4
+        or any(not isinstance(value, (int, float)) for value in bbox)
+    ):
+        return []
+    return [
+        item
+        for item in items
+        if _bbox_center_inside(item.get("bbox") or [], bbox)
+    ]
+
+
+def _locator_page_contract_is_valid(locator_page: dict[str, Any]) -> bool:
+    schema = locator_page.get("schema_version")
+    regions = locator_page.get("regions")
+    if not isinstance(regions, list) or any(
+        not isinstance(region, dict) for region in regions
+    ):
+        return False
+    page_policy = locator_page.get("source_binding_policy")
+    if schema == PDF_TABLE_LOCATOR_PAGE_SCHEMA:
+        if page_policy != PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID:
+            return False
+        required = {
+            "region_ref",
+            "bbox_pdf_points",
+            "title_bbox_pdf_points",
+            "header_bbox_pdf_points",
+            "source_binding_policy",
+            "model_values_used_as_source_literals",
+        }
+        return all(
+            required <= set(region)
+            and region.get("source_binding_policy")
+            == PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID
+            and region.get("model_values_used_as_source_literals") is False
+            for region in regions
+        )
+    return (
+        schema in {None, "broker_reports_pdf_table_locator_page_v1"}
+        and page_policy is None
+        and all(region.get("source_binding_policy") is None for region in regions)
+    )
+
+
 
 
 def _bbox_iou(left: list[float], right: list[float]) -> float:

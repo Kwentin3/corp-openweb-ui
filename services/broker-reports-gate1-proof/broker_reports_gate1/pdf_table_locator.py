@@ -5,12 +5,15 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from .contracts import stable_digest
+from .contracts import (
+    PDF_TABLE_LOCATOR_PAGE_SCHEMA as PDF_TABLE_LOCATOR_PAGE_SCHEMA,
+    PDF_TABLE_LOCATOR_RESPONSE_SCHEMA as PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
+    stable_digest,
+)
 
 
-PDF_TABLE_LOCATOR_RESPONSE_SCHEMA = "broker_reports_pdf_table_locator_response_v1"
-PDF_TABLE_LOCATOR_PROJECTION_SCHEMA = "broker_reports_pdf_table_locator_projection_v1"
-PDF_TABLE_LOCATOR_POLICY_VERSION = "pdf_table_locator_policy_v1"
+PDF_TABLE_LOCATOR_PROJECTION_SCHEMA = "broker_reports_pdf_table_locator_projection_v2"
+PDF_TABLE_LOCATOR_POLICY_VERSION = "pdf_table_locator_policy_v2"
 PDF_TABLE_LOCATOR_COORDINATE_CONTRACT = (
     "gemini_box_2d_ymin_xmin_ymax_xmax_normalized_0_1000"
 )
@@ -24,8 +27,8 @@ FORBIDDEN = (
 )
 
 
-PDF_TABLE_LOCATOR_PROMPT = """Detect every visible data table or table continuation in this one
-full-page PDF image. Return bounding boxes only, in top-to-bottom order.
+PDF_TABLE_LOCATOR_PROMPT = """Detect every visible physical table in this one full-page PDF
+image. Return bounding boxes only, in top-to-bottom order.
 
 Use Gemini's standard object-detection coordinate convention exactly:
 - box_2d is [ymin, xmin, ymax, xmax];
@@ -34,22 +37,22 @@ Use Gemini's standard object-detection coordinate convention exactly:
 - do not return image pixels or PDF points;
 - do not use a different axis order.
 
-Treat each visually independent data grid as a separate table instance. The
-image may contain zero, one, or multiple table instances. Return exactly one
-box per table instance. Never use one box that encloses two distinct grids or
-titled table sections. A distinct table title or column header together with a
-clear whitespace gap or a break in grid/row continuity starts a new table
-instance. Do not split one continuous grid merely because it contains internal
-section rows, repeated headers, or is a page continuation. A table continuation
-without its original header is still one table instance. A titled or ruled
-section that shows column headers but no visible data row is not a data table;
-do not return a box for that empty section. Background fill, top/bottom rules,
-a title, and one row of column labels still form an empty section when there is
-no separate body row containing visible cell values. Before returning each box,
-verify that at least one such body row is visibly present. Do not treat prose,
-lists, page furniture, illustrative screenshots without a data grid, or
-decorative lines as tables. Do not transcribe text, labels, dates, amounts,
-rows, columns, or cell values. If no visible data table exists, return
+Treat each visually independent grid or ruled table section as a separate table
+instance. Include every physical table, including header-only tables, tables
+with explicit empty rows, and explanatory tables. Never use one table_box_2d
+that encloses two distinct grids or titled table sections. Do not split one
+continuous grid merely because it contains internal section rows or repeated
+headers.
+
+For every table return exactly these three fields:
+- table_box_2d: the tight box around the physical grid;
+- title_box_2d: the tight box around its visible title, or null;
+- header_box_2d: the tight box around its visible column header, or null.
+
+Do not treat prose, lists, page furniture, illustrative screenshots without a
+data grid, or decorative lines as tables. Do not transcribe text, labels,
+dates, amounts, rows, columns, cell values, status, meaning, or continuation.
+Return no other fields. If no visible physical table exists, return
 {"tables": []}.
 """
 
@@ -65,9 +68,9 @@ PDF_TABLE_LOCATOR_OUTPUT_SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["box_2d"],
+                "required": ["table_box_2d", "title_box_2d", "header_box_2d"],
                 "properties": {
-                    "box_2d": {
+                    "table_box_2d": {
                         "type": "array",
                         "minItems": 4,
                         "maxItems": 4,
@@ -76,7 +79,37 @@ PDF_TABLE_LOCATOR_OUTPUT_SCHEMA: dict[str, Any] = {
                             "minimum": 0,
                             "maximum": 1000,
                         },
-                    }
+                    },
+                    "title_box_2d": {
+                        "anyOf": [
+                            {
+                                "type": "array",
+                                "minItems": 4,
+                                "maxItems": 4,
+                                "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 1000,
+                                },
+                            },
+                            {"type": "null"},
+                        ]
+                    },
+                    "header_box_2d": {
+                        "anyOf": [
+                            {
+                                "type": "array",
+                                "minItems": 4,
+                                "maxItems": 4,
+                                "items": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 1000,
+                                },
+                            },
+                            {"type": "null"},
+                        ]
+                    },
                 },
             },
         }
@@ -123,26 +156,46 @@ class PdfTableLocatorProjection:
     ) -> dict[str, Any]:
         page_bbox = _bbox(expected_page_bbox, "pdf_table_locator_page_bbox_invalid")
         transform = self._validated_transform(raster_manifest, page_bbox)
-        normalized_boxes = self._validated_provider_value(provider_value)
+        normalized_tables = self._validated_provider_value(provider_value)
         tables = []
-        for ordinal, box in enumerate(normalized_boxes, 1):
-            ymin, xmin, ymax, xmax = box
-            pdf_bbox = [
-                self._source_coordinate(
-                    xmin, transform["width"], transform["scale_x"], transform["translate_x"]
-                ),
-                self._source_coordinate(
-                    ymin, transform["height"], transform["scale_y"], transform["translate_y"]
-                ),
-                self._source_coordinate(
-                    xmax, transform["width"], transform["scale_x"], transform["translate_x"]
-                ),
-                self._source_coordinate(
-                    ymax, transform["height"], transform["scale_y"], transform["translate_y"]
-                ),
-            ]
-            pdf_bbox = [round(value, 6) for value in pdf_bbox]
+        accepted_table_bboxes: list[list[float]] = []
+        accepted_title_bboxes: list[list[float]] = []
+        for ordinal, table in enumerate(normalized_tables, 1):
+            table_box = table["table_box_2d"]
+            title_box = table["title_box_2d"]
+            header_box = table["header_box_2d"]
+            pdf_bbox = self._project_box(table_box, transform)
+            title_pdf_bbox = self._project_box(title_box, transform) if title_box else None
+            header_pdf_bbox = self._project_box(header_box, transform) if header_box else None
             _inside(pdf_bbox, page_bbox)
+            if title_pdf_bbox is not None:
+                _inside(title_pdf_bbox, page_bbox)
+                title_center_x = (title_pdf_bbox[0] + title_pdf_bbox[2]) / 2.0
+                if (
+                    _overlap(title_pdf_bbox, pdf_bbox)
+                    or title_pdf_bbox[3] > pdf_bbox[1]
+                    or not pdf_bbox[0] <= title_center_x <= pdf_bbox[2]
+                    or any(
+                        _overlap(title_pdf_bbox, other)
+                        for other in accepted_table_bboxes
+                    )
+                    or any(
+                        _overlap(title_pdf_bbox, other)
+                        for other in accepted_title_bboxes
+                    )
+                ):
+                    raise PdfTableLocatorError("pdf_table_locator_title_overlap_invalid")
+            if header_pdf_bbox is not None:
+                _inside(header_pdf_bbox, page_bbox)
+                if not _contains(pdf_bbox, header_pdf_bbox):
+                    raise PdfTableLocatorError("pdf_table_locator_header_outside_table")
+            if any(_overlap(pdf_bbox, other) for other in accepted_table_bboxes):
+                raise PdfTableLocatorError("pdf_table_locator_table_overlap_invalid")
+            if any(_overlap(pdf_bbox, other) for other in accepted_title_bboxes):
+                raise PdfTableLocatorError("pdf_table_locator_title_overlap_invalid")
+            accepted_table_bboxes.append(pdf_bbox)
+            if title_pdf_bbox is not None:
+                accepted_title_bboxes.append(title_pdf_bbox)
             tables.append(
                 {
                     "region_ref": "pdftableregion_"
@@ -151,14 +204,21 @@ class PdfTableLocatorProjection:
                             PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
                             raster_manifest.get("manifest_hash"),
                             ordinal,
-                            box,
+                            table_box,
+                            title_box,
+                            header_box,
                             pdf_bbox,
                         ],
                         length=24,
                     ),
                     "ordinal": ordinal,
-                    "box_2d_normalized": list(box),
+                    "box_2d_normalized": list(table_box),
+                    "table_box_2d_normalized": list(table_box),
+                    "title_box_2d_normalized": list(title_box) if title_box else None,
+                    "header_box_2d_normalized": list(header_box) if header_box else None,
                     "bbox_pdf_points": pdf_bbox,
+                    "title_bbox_pdf_points": title_pdf_bbox,
+                    "header_bbox_pdf_points": header_pdf_bbox,
                 }
             )
         return {
@@ -173,34 +233,71 @@ class PdfTableLocatorProjection:
             "table_structure_inferred": False,
         }
 
-    def _validated_provider_value(self, value: Any) -> list[list[int]]:
+    def _validated_provider_value(self, value: Any) -> list[dict[str, Any]]:
         if not isinstance(value, dict) or set(value) != {"tables"}:
             raise PdfTableLocatorError("pdf_table_locator_response_shape_invalid")
         tables = value.get("tables")
         if not isinstance(tables, list) or len(tables) > self.config.maximum_tables:
             raise PdfTableLocatorError("pdf_table_locator_tables_invalid")
-        boxes: list[list[int]] = []
+        normalized: list[dict[str, Any]] = []
         previous_ymin: int | None = None
         for table in tables:
-            if not isinstance(table, dict) or set(table) != {"box_2d"}:
+            if not isinstance(table, dict) or set(table) != {
+                "table_box_2d",
+                "title_box_2d",
+                "header_box_2d",
+            }:
                 raise PdfTableLocatorError("pdf_table_locator_table_shape_invalid")
-            box = table.get("box_2d")
-            if (
-                not isinstance(box, list)
-                or len(box) != 4
-                or any(not isinstance(item, int) or isinstance(item, bool) for item in box)
-            ):
-                raise PdfTableLocatorError("pdf_table_locator_box_invalid")
-            ymin, xmin, ymax, xmax = box
-            if any(item < 0 or item > self.config.coordinate_normalizer for item in box):
-                raise PdfTableLocatorError("pdf_table_locator_box_out_of_range")
-            if ymin >= ymax or xmin >= xmax:
-                raise PdfTableLocatorError("pdf_table_locator_box_order_invalid")
+            box = self._validated_box(table.get("table_box_2d"), nullable=False)
+            title_box = self._validated_box(table.get("title_box_2d"), nullable=True)
+            header_box = self._validated_box(table.get("header_box_2d"), nullable=True)
+            ymin = box[0]
             if previous_ymin is not None and ymin < previous_ymin:
                 raise PdfTableLocatorError("pdf_table_locator_boxes_not_ordered")
             previous_ymin = ymin
-            boxes.append(list(box))
-        return boxes
+            normalized.append(
+                {
+                    "table_box_2d": box,
+                    "title_box_2d": title_box,
+                    "header_box_2d": header_box,
+                }
+            )
+        return normalized
+
+    def _validated_box(self, value: Any, *, nullable: bool) -> list[int] | None:
+        if value is None and nullable:
+            return None
+        if (
+            not isinstance(value, list)
+            or len(value) != 4
+            or any(not isinstance(item, int) or isinstance(item, bool) for item in value)
+        ):
+            raise PdfTableLocatorError("pdf_table_locator_box_invalid")
+        ymin, xmin, ymax, xmax = value
+        if any(item < 0 or item > self.config.coordinate_normalizer for item in value):
+            raise PdfTableLocatorError("pdf_table_locator_box_out_of_range")
+        if ymin >= ymax or xmin >= xmax:
+            raise PdfTableLocatorError("pdf_table_locator_box_order_invalid")
+        return list(value)
+
+    def _project_box(
+        self, box: list[int], transform: dict[str, float]
+    ) -> list[float]:
+        ymin, xmin, ymax, xmax = box
+        return [
+            round(
+                self._source_coordinate(
+                    value, pixels, scale, translate
+                ),
+                6,
+            )
+            for value, pixels, scale, translate in (
+                (xmin, transform["width"], transform["scale_x"], transform["translate_x"]),
+                (ymin, transform["height"], transform["scale_y"], transform["translate_y"]),
+                (xmax, transform["width"], transform["scale_x"], transform["translate_x"]),
+                (ymax, transform["height"], transform["scale_y"], transform["translate_y"]),
+            )
+        ]
 
     @staticmethod
     def _validated_transform(
@@ -281,6 +378,22 @@ def _inside(value: list[float], outer: list[float]) -> None:
         or value[3] > outer[3] + epsilon
     ):
         raise PdfTableLocatorError("pdf_table_locator_bbox_outside_page")
+
+
+def _contains(outer: list[float], inner: list[float]) -> bool:
+    return (
+        outer[0] <= inner[0] < inner[2] <= outer[2]
+        and outer[1] <= inner[1] < inner[3] <= outer[3]
+    )
+
+
+def _overlap(left: list[float], right: list[float]) -> bool:
+    return not (
+        left[2] <= right[0]
+        or right[2] <= left[0]
+        or left[3] <= right[1]
+        or right[3] <= left[1]
+    )
 
 
 def _number(value: Any) -> float:

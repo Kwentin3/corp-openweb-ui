@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import os
 import shutil
 import sys
@@ -28,18 +29,30 @@ from broker_reports_gate1.canonical_artifact import (  # noqa: E402
 )
 from broker_reports_gate1.inputs import FileInput  # noqa: E402
 from broker_reports_gate1.gate2_handoff import persist_gate1_result  # noqa: E402
+from broker_reports_gate1.gate2_provider_adapters import (  # noqa: E402
+    Gate2OpenWebUIProviderConnection,
+)
 from broker_reports_gate1.normalizer import Gate1Normalizer  # noqa: E402
-from broker_reports_gate1.pdf_layout import PdfPlumberLayoutAdapter  # noqa: E402
+from broker_reports_gate1.pdf_layout import (  # noqa: E402
+    PdfLayoutParserConfig,
+    PdfPlumberLayoutAdapter,
+)
 from broker_reports_gate1.pdf_text_layer import (  # noqa: E402
     validate_pdf_source_unit_structure,
 )
 from broker_reports_gate1.pdf_table_intake_runtime import (  # noqa: E402
+    PDF_TABLE_LOCATOR_PAGE_SCHEMA,
     PdfTableIntakeConfig,
     PdfTableIntakeRuntimeFactory,
+    table_detection_output_schema,
 )
 from broker_reports_gate1.pdf_table_locator import (  # noqa: E402
     PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
     PDF_TABLE_LOCATOR_PROMPT,
+)
+from broker_reports_gate1.pdf_table_locator_provider import (  # noqa: E402
+    PdfTableLocatorProviderConfig,
+    PdfTableLocatorProviderFactory,
 )
 from broker_reports_gate1.table_projection import (  # noqa: E402
     TableProjectionValidator,
@@ -88,6 +101,30 @@ TBANK_VISUALLY_VERIFIED_REGIONS = {
         ("p3_table_4_4", [15.6, 92.4, 789.7, 123.4], (1, 2)),
         ("p3_table_5", [15.6, 147.3, 789.7, 187.3], (2, 2)),
         ("p3_table_6", [15.6, 225.1, 789.7, 529.1], (21, 2)),
+    ],
+    4: [],
+}
+TBANK_FROZEN_LOCATOR_V2 = {
+    1: [
+        ([264, 18, 544, 939], [236, 20, 252, 480], [264, 18, 333, 939]),
+        ([583, 18, 653, 939], [555, 20, 571, 405], [583, 18, 652, 939]),
+        ([692, 18, 762, 939], [664, 20, 680, 569], [692, 18, 761, 939]),
+        ([824, 18, 940, 939], [796, 20, 812, 386], [825, 18, 915, 939]),
+    ],
+    2: [
+        ([62, 18, 233, 939], [34, 20, 50, 328], [62, 18, 131, 939]),
+        ([264, 18, 387, 939], [241, 469, 254, 488], [265, 18, 316, 939]),
+        ([427, 18, 520, 939], [399, 20, 415, 259], [427, 18, 479, 939]),
+        ([559, 18, 613, 939], [531, 20, 547, 338], [560, 18, 611, 939]),
+        ([675, 18, 728, 939], [647, 20, 663, 561], [675, 18, 728, 939]),
+        ([767, 18, 858, 939], [739, 20, 755, 207], [768, 18, 819, 939]),
+        ([897, 18, 950, 939], [869, 20, 885, 477], [897, 18, 949, 939]),
+    ],
+    3: [
+        ([62, 18, 115, 939], [34, 20, 50, 342], [62, 18, 115, 939]),
+        ([155, 18, 208, 939], [126, 20, 143, 245], [155, 18, 207, 939]),
+        ([247, 18, 315, 939], [219, 20, 235, 228], [247, 18, 291, 939]),
+        ([378, 18, 889, 939], [350, 20, 366, 366], [378, 18, 421, 939]),
     ],
     4: [],
 }
@@ -190,6 +227,174 @@ def test_real_tbank_given_complete_locator_regions_preserves_all_15_grids() -> N
     )
 
 
+def _assert_canonical_blocked(normalized, tmp_path: Path, monkeypatch) -> None:
+    store = ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=tmp_path / "artifacts.sqlite3",
+            payload_root=tmp_path / "payloads",
+        )
+    ).create()
+    monkeypatch.setattr(
+        "broker_reports_gate1.canonical_store.shutil.disk_usage",
+        lambda _: shutil._ntuple_diskusage(
+            10_000_000_000, 1_000_000_000, 9_000_000_000
+        ),
+    )
+    run_id = normalized.package["normalization_run"]["run_id"]
+    context = ArtifactAccessContext(
+        user_id="u",
+        case_id="c",
+        chat_id="ch",
+        workspace_model_id="broker_reports_ndfl",
+        normalization_run_id=run_id,
+        allow_private=True,
+        require_source_available=True,
+    )
+    manifest = persist_gate1_result(
+        store=store,
+        result=normalized,
+        context=context,
+        retention_policy=build_retention_policy(mode="api_smoke"),
+    )
+    assert "broker_reports_canonical_artifact_v1" not in manifest.artifact_refs_by_type
+    assert "broker_reports_canonical_build_failure_v1" in manifest.artifact_refs_by_type
+
+
+def test_real_tbank_frozen_locator_v2_contract_reaches_all_strict_grids() -> None:
+    pdf_bytes, digest = _public_tbank_control()
+    provider = FrozenPageDetectorProvider(TBANK_FROZEN_LOCATOR_V2)
+    intake = (
+        PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
+        .create_with_provider(provider)
+        .run(
+            [
+                {
+                    "document_ref": "tbank-frozen-locator-v2",
+                    "pdf_bytes": pdf_bytes,
+                    "pdf_sha256": digest,
+                }
+            ]
+        )
+    )
+    # Frozen geometry exercises the active contract; it is not a real-call or
+    # autonomous-locator acceptance receipt. All page PNGs and table regions
+    # were independently inspected before freezing these boxes.
+    assert provider.invocations == 4
+    assert [len(page["regions"]) for page in intake.private_page_results] == [4, 7, 4, 0]
+    assert [page["status"] for page in intake.private_page_results] == [
+        "located",
+        "located",
+        "located",
+        "located_no_tables",
+    ]
+    import pdfminer
+    import pdfplumber
+
+    layout = PdfPlumberLayoutAdapter(
+        pdfplumber_module=pdfplumber,
+        pdfminer_module=pdfminer,
+        config=PdfLayoutParserConfig(),
+        requested_capability="table_candidates",
+    ).parse(pdf_bytes, table_locator_pages=intake.private_page_results)
+    title_claims: list[tuple[int, int]] = []
+    grid_claims: list[tuple[int, int]] = []
+    for page, locator_page in zip(
+        layout.pages, intake.private_page_results, strict=True
+    ):
+        candidates = page["table_candidate_inventory"]
+        assert len(candidates) == len(locator_page["regions"])
+        page_chars = page["char_inventory"]
+        for candidate, region in zip(
+            candidates, locator_page["regions"], strict=True
+        ):
+            title_bbox = region["title_bbox_pdf_points"]
+            header_bbox = region["header_bbox_pdf_points"]
+
+            def exact_ordinals(box):
+                if box is None:
+                    return []
+                return [
+                    int(char["parser_ordinal"])
+                    for char in page_chars
+                    if box[0]
+                    <= (char["bbox"][0] + char["bbox"][2]) / 2.0
+                    <= box[2]
+                    and box[1]
+                    <= (char["bbox"][1] + char["bbox"][3]) / 2.0
+                    <= box[3]
+                ]
+
+            title_refs = candidate["source_title_char_parser_ordinals"]
+            header_refs = candidate["source_header_char_parser_ordinals"]
+            assert title_refs == exact_ordinals(title_bbox)
+            assert header_refs == exact_ordinals(header_bbox)
+            assert title_refs and len(title_refs) == len(set(title_refs))
+            assert header_refs and len(header_refs) == len(set(header_refs))
+            own_grid = set(candidate["contributing_char_parser_ordinals"])
+            assert set(title_refs).isdisjoint(own_grid)
+            assert set(header_refs) <= own_grid
+            title_claims.extend(
+                (int(page["page_number"]), ordinal) for ordinal in title_refs
+            )
+            grid_claims.extend(
+                (int(page["page_number"]), ordinal) for ordinal in own_grid
+            )
+    assert len(title_claims) == len(set(title_claims))
+    assert len(grid_claims) == len(set(grid_claims))
+    assert set(title_claims).isdisjoint(grid_claims)
+    normalized = Gate1Normalizer().normalize(
+        [_tbank_input(pdf_bytes)],
+        pdf_table_locator_pages_by_sha256={digest: intake.private_page_results},
+    )
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    expected_shapes = [
+        shape
+        for regions in TBANK_VISUALLY_VERIFIED_REGIONS.values()
+        for _region_ref, _box, shape in regions
+    ]
+    assert [(item["row_count"], item["column_count"]) for item in projections] == expected_shapes
+    assert sum(item["row_count"] for item in projections) == 50
+    assert sum(item["cell_count"] for item in projections) == 485
+
+
+def test_real_tbank_wrong_neighbor_title_is_rejected() -> None:
+    pdf_bytes, digest = _public_tbank_control()
+    wrong_neighbor = copy.deepcopy(TBANK_FROZEN_LOCATOR_V2)
+    second_table, _second_title, second_header = wrong_neighbor[1][1]
+    wrong_neighbor[1][1] = (
+        second_table,
+        wrong_neighbor[1][0][1],
+        second_header,
+    )
+
+    intake = (
+        PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
+        .create_with_provider(FrozenPageDetectorProvider(wrong_neighbor))
+        .run(
+            [
+                {
+                    "document_ref": "tbank-wrong-neighbor-title",
+                    "pdf_bytes": pdf_bytes,
+                    "pdf_sha256": digest,
+                }
+            ]
+        )
+    )
+
+    assert intake.safe_summary["status"] == "failed"
+    assert intake.private_page_results[0]["status"] == "failed"
+    assert intake.private_page_results[0]["regions"] == []
+    assert (
+        intake.private_detection_attempts[0]["validation_error_code"]
+        == "pdf_table_locator_title_overlap_invalid"
+    )
+
+
 def test_real_tbank_only_table_1_1_with_unresolved_pages_blocks_canonical(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -227,35 +432,7 @@ def test_real_tbank_only_table_1_1_with_unresolved_pages_blocks_canonical(
         for item in normalized.package["normalization_blockers"]
     )
 
-    store = ArtifactStoreFactory(
-        ArtifactStoreConfig(
-            mode="sqlite",
-            sqlite_path=tmp_path / "artifacts.sqlite3",
-            payload_root=tmp_path / "payloads",
-        )
-    ).create()
-    monkeypatch.setattr(
-        "broker_reports_gate1.canonical_store.shutil.disk_usage",
-        lambda _: shutil._ntuple_diskusage(10_000_000_000, 1_000_000_000, 9_000_000_000),
-    )
-    run_id = normalized.package["normalization_run"]["run_id"]
-    context = ArtifactAccessContext(
-        user_id="u",
-        case_id="c",
-        chat_id="ch",
-        workspace_model_id="broker_reports_ndfl",
-        normalization_run_id=run_id,
-        allow_private=True,
-        require_source_available=True,
-    )
-    manifest = persist_gate1_result(
-        store=store,
-        result=normalized,
-        context=context,
-        retention_policy=build_retention_policy(mode="api_smoke"),
-    )
-    assert "broker_reports_canonical_artifact_v1" not in manifest.artifact_refs_by_type
-    assert "broker_reports_canonical_build_failure_v1" in manifest.artifact_refs_by_type
+    _assert_canonical_blocked(normalized, tmp_path, monkeypatch)
 
 
 def _header_only_table_pdf() -> bytes:
@@ -425,9 +602,16 @@ def _two_page_table_pdf(*, second_page_header: bool) -> bytes:
 
 
 class StaticDetectorProvider:
-    def __init__(self, boxes: list[list[int]], *, malformed: bool = False) -> None:
+    def __init__(
+        self,
+        boxes: list[list[int]],
+        *,
+        malformed: bool = False,
+        tables: list[dict] | None = None,
+    ) -> None:
         self.boxes = boxes
         self.malformed = malformed
+        self.tables = copy.deepcopy(tables)
         self.invocations = 0
 
     def qualify(self):
@@ -457,7 +641,18 @@ class StaticDetectorProvider:
 
     def invoke(self, **kwargs):
         self.invocations += 1
-        value = {"tables": [{"box_2d": box} for box in self.boxes]}
+        value = {
+            "tables": self.tables
+            if self.tables is not None
+            else [
+                {
+                    "table_box_2d": box,
+                    "title_box_2d": None,
+                    "header_box_2d": None,
+                }
+                for box in self.boxes
+            ]
+        }
         if self.malformed:
             value["semantic_summary"] = "forbidden"
         return {
@@ -476,6 +671,62 @@ class StaticDetectorProvider:
             "raw_private_response": {"test": True},
             "response_hash": "provider-response-hash",
         }
+
+
+class FrozenPageDetectorProvider(StaticDetectorProvider):
+    def __init__(self, pages: dict[int, list[tuple[list[int], list[int], list[int]]]]):
+        super().__init__([])
+        self.pages = copy.deepcopy(pages)
+
+    def invoke(self, **kwargs):
+        page_number = self.invocations + 1
+        self.tables = [
+            {
+                "table_box_2d": table,
+                "title_box_2d": title,
+                "header_box_2d": header,
+            }
+            for table, title, header in self.pages[page_number]
+        ]
+        return super().invoke(**kwargs)
+
+
+class _LocatorHttpResponse:
+    def __init__(self, payload: dict) -> None:
+        self.status = 200
+        self.payload = json.dumps(payload).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def read(self, _limit: int) -> bytes:
+        return self.payload
+
+
+class _LocatorHttpTransport:
+    def __init__(self) -> None:
+        self.requests = []
+
+    def __call__(self, request, timeout: int):
+        assert timeout == 240
+        self.requests.append(request)
+        if request.full_url.endswith(":countTokens"):
+            return _LocatorHttpResponse({"totalTokens": 17})
+        assert request.full_url.endswith(":generateContent")
+        return _LocatorHttpResponse(
+            {
+                "modelVersion": "gemini-3.5-flash",
+                "candidates": [
+                    {
+                        "finishReason": "STOP",
+                        "content": {"parts": [{"text": '{"tables":[]}'}]},
+                    }
+                ],
+            }
+        )
 
 
 def _run_intake(provider: StaticDetectorProvider):
@@ -497,6 +748,17 @@ def _run_intake(provider: StaticDetectorProvider):
     return pdf_bytes, digest, result
 
 
+def _legacy_locator_pages(result) -> list[dict]:
+    pages = copy.deepcopy(result.private_page_results)
+    for page in pages:
+        page["schema_version"] = "broker_reports_pdf_table_locator_page_v1"
+        page.pop("source_binding_policy", None)
+        for region in page.get("regions") or []:
+            region.pop("detector_contract_version", None)
+            region.pop("source_binding_policy", None)
+    return pages
+
+
 def test_locator_prompt_is_native_coordinates_and_locator_only() -> None:
     model_view = (
         PdfTableIntakeRuntimeFactory(PdfTableIntakeConfig(enabled=True))
@@ -505,10 +767,73 @@ def test_locator_prompt_is_native_coordinates_and_locator_only() -> None:
     )
     assert model_view["task"] == PDF_TABLE_LOCATOR_PROMPT
     assert "[ymin, xmin, ymax, xmax]" in model_view["task"]
-    assert "Never use one box that encloses two distinct grids" in model_view["task"]
-    assert "no visible data row is not a data table" in model_view["task"]
-    assert "verify that at least one such body row is visibly present" in model_view["task"]
+    assert "Never use one table_box_2d" in model_view["task"]
+    assert "header-only tables" in model_view["task"]
+    assert "explanatory tables" in model_view["task"]
     assert "Do not transcribe text" in model_view["task"]
+
+
+def test_maintained_gemini_adapter_sends_exact_v2_schema_once() -> None:
+    transport = _LocatorHttpTransport()
+    adapter = PdfTableLocatorProviderFactory(
+        PdfTableLocatorProviderConfig(maximum_counted_input_tokens=1000),
+        urlopen_fn=transport,
+    ).create_with_connection(
+        Gate2OpenWebUIProviderConnection(
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+            api_key="secret",
+        )
+    )
+    png = b"png"
+    png_hash = hashlib.sha256(png).hexdigest()
+    schema = table_detection_output_schema()
+
+    counted = adapter.count_tokens(
+        model_view={"task": PDF_TABLE_LOCATOR_PROMPT},
+        output_schema=schema,
+        png_bytes=png,
+        crop_sha256=png_hash,
+    )
+    result = adapter.invoke(
+        task_id="locator-v2",
+        model_view={"task": PDF_TABLE_LOCATOR_PROMPT},
+        output_schema=schema,
+        png_bytes=png,
+        crop_sha256=png_hash,
+        attempt_number=1,
+        attempt_lineage=[],
+    )
+
+    assert counted["total_tokens"] == 17
+    assert result["json_output"] == {"tables": []}
+    assert result["attempt"]["finish_reason"] == "STOP"
+    assert result["attempt"]["hidden_retry"] is False
+    generated_requests = [
+        request
+        for request in transport.requests
+        if request.full_url.endswith(":generateContent")
+    ]
+    assert len(generated_requests) == 1
+    request_body = json.loads(generated_requests[0].data.decode("utf-8"))
+    generation = request_body["generationConfig"]
+    assert generation["temperature"] == 0
+    assert generation["candidateCount"] == 1
+    adapted = generation["responseJsonSchema"]
+    item = adapted["properties"]["tables"]["items"]
+    assert item["additionalProperties"] is False
+    assert set(item["required"]) == {
+        "table_box_2d",
+        "title_box_2d",
+        "header_box_2d",
+    }
+    assert {branch["type"] for branch in item["properties"]["title_box_2d"]["anyOf"]} == {
+        "array",
+        "null",
+    }
+    assert {branch["type"] for branch in item["properties"]["header_box_2d"]["anyOf"]} == {
+        "array",
+        "null",
+    }
 
 
 def test_runtime_returns_pdf_regions_without_vlm_transcription_crops() -> None:
@@ -522,12 +847,67 @@ def test_runtime_returns_pdf_regions_without_vlm_transcription_crops() -> None:
     assert result.private_candidates == []
     assert len(result.private_page_results) == 1
     page = result.private_page_results[0]
+    assert page["schema_version"] == PDF_TABLE_LOCATOR_PAGE_SCHEMA
+    assert page["schema_version"] != "broker_reports_pdf_table_locator_page_v1"
     assert page["status"] == "located"
     assert page["pdf_sha256"] == digest
     assert len(page["regions"]) == 1
     assert page["regions"][0]["box_2d_normalized"] == [150, 100, 850, 900]
     assert page["model_values_used_as_source_literals"] is False
     assert page["pdfplumber_settings_selected_by_model"] is False
+
+
+def test_v1_injected_region_is_isolated_from_v2_emission() -> None:
+    pdf_bytes, _, result = _run_intake(
+        StaticDetectorProvider([[150, 100, 850, 900]])
+    )
+
+    emitted = result.private_page_results[0]
+    legacy = _legacy_locator_pages(result)[0]
+    assert emitted["schema_version"] == "broker_reports_pdf_table_locator_page_v2"
+    assert emitted["regions"][0]["detector_contract_version"].endswith("_v2")
+    assert emitted["source_binding_policy"] == "exact_one_grid_v1"
+    assert emitted["regions"][0]["source_binding_policy"] == "exact_one_grid_v1"
+    assert legacy["schema_version"] == "broker_reports_pdf_table_locator_page_v1"
+    assert "detector_contract_version" not in legacy["regions"][0]
+    assert "source_binding_policy" not in legacy
+    assert "source_binding_policy" not in legacy["regions"][0]
+
+    import pdfminer
+    import pdfplumber
+
+    downgraded = copy.deepcopy(result.private_page_results)
+    downgraded[0]["regions"][0].pop("source_binding_policy")
+    cross_version = copy.deepcopy(result.private_page_results)
+    cross_version[0]["schema_version"] = "broker_reports_pdf_table_locator_page_v1"
+    cross_version[0].pop("source_binding_policy")
+    both_policies_removed = copy.deepcopy(result.private_page_results)
+    both_policies_removed[0].pop("source_binding_policy")
+    both_policies_removed[0]["regions"][0].pop("source_binding_policy")
+    schema_only_downgraded = copy.deepcopy(result.private_page_results)
+    schema_only_downgraded[0]["schema_version"] = (
+        "broker_reports_pdf_table_locator_page_v1"
+    )
+    missing_geometry = copy.deepcopy(result.private_page_results)
+    missing_geometry[0]["regions"][0].pop("title_bbox_pdf_points")
+    missing_geometry[0]["regions"][0].pop("header_bbox_pdf_points")
+    for locator_pages in (
+        downgraded,
+        cross_version,
+        both_policies_removed,
+        schema_only_downgraded,
+        missing_geometry,
+    ):
+        parsed = PdfPlumberLayoutAdapter(
+            pdfplumber_module=pdfplumber,
+            pdfminer_module=pdfminer,
+            config=PdfLayoutParserConfig(),
+            requested_capability="table_candidates",
+        ).parse(pdf_bytes, table_locator_pages=locator_pages)
+        assert parsed.pages[0]["table_candidate_inventory"] == []
+        assert "pdf_table_locator_contract_version_failed" in parsed.pages[0][
+            "table_reason_codes"
+        ]
 
 
 def test_absent_table_page_is_a_valid_negative() -> None:
@@ -555,6 +935,134 @@ def test_invalid_locator_output_fails_closed_without_partial_region() -> None:
     )
 
 
+def test_locator_v2_rejects_legacy_or_extra_table_fields() -> None:
+    invalid_tables = [
+        {"box_2d": [150, 100, 850, 900]},
+        {
+            "table_box_2d": [150, 100, 850, 900],
+            "title_box_2d": None,
+            "header_box_2d": None,
+            "content": "forbidden",
+        },
+    ]
+    for table in invalid_tables:
+        _, _, result = _run_intake(
+            StaticDetectorProvider([], tables=[table])
+        )
+        assert result.safe_summary["status"] == "failed"
+        assert result.private_page_results[0]["status"] == "failed"
+        assert (
+            result.private_detection_attempts[0]["validation_error_code"]
+            == "pdf_table_locator_table_shape_invalid"
+        )
+
+
+def test_locator_v2_projects_table_title_and_header_geometry_only() -> None:
+    table = {
+        "table_box_2d": [250, 100, 800, 900],
+        "title_box_2d": [150, 100, 220, 500],
+        "header_box_2d": [250, 100, 400, 900],
+    }
+    _, _, result = _run_intake(StaticDetectorProvider([], tables=[table]))
+    region = result.private_page_results[0]["regions"][0]
+    assert region["table_box_2d_normalized"] == table["table_box_2d"]
+    assert region["title_box_2d_normalized"] == table["title_box_2d"]
+    assert region["header_box_2d_normalized"] == table["header_box_2d"]
+    assert region["bbox_pdf_points"]
+    assert region["title_bbox_pdf_points"]
+    assert region["header_bbox_pdf_points"]
+    assert not any(
+        key in region for key in ("text", "content", "continuation", "status")
+    )
+
+
+def test_locator_v2_rejects_overlap_and_header_outside_table() -> None:
+    invalid_cases = [
+        (
+            [
+                {
+                    "table_box_2d": [200, 100, 600, 900],
+                    "title_box_2d": None,
+                    "header_box_2d": None,
+                },
+                {
+                    "table_box_2d": [500, 100, 800, 900],
+                    "title_box_2d": None,
+                    "header_box_2d": None,
+                },
+            ],
+            "pdf_table_locator_table_overlap_invalid",
+        ),
+        (
+            [
+                {
+                    "table_box_2d": [100, 0, 500, 400],
+                    "title_box_2d": None,
+                    "header_box_2d": None,
+                },
+                {
+                    "table_box_2d": [200, 500, 300, 900],
+                    "title_box_2d": None,
+                    "header_box_2d": None,
+                },
+                {
+                    "table_box_2d": [400, 0, 600, 400],
+                    "title_box_2d": None,
+                    "header_box_2d": None,
+                },
+            ],
+            "pdf_table_locator_table_overlap_invalid",
+        ),
+        (
+            [
+                {
+                    "table_box_2d": [300, 100, 600, 400],
+                    "title_box_2d": None,
+                    "header_box_2d": None,
+                },
+                {
+                    "table_box_2d": [700, 100, 900, 400],
+                    "title_box_2d": [400, 100, 650, 400],
+                    "header_box_2d": None,
+                },
+            ],
+            "pdf_table_locator_title_overlap_invalid",
+        ),
+        (
+            [
+                {
+                    "table_box_2d": [350, 100, 600, 700],
+                    "title_box_2d": [100, 100, 300, 700],
+                    "header_box_2d": None,
+                },
+                {
+                    "table_box_2d": [650, 300, 900, 900],
+                    "title_box_2d": [200, 250, 500, 900],
+                    "header_box_2d": None,
+                },
+            ],
+            "pdf_table_locator_title_overlap_invalid",
+        ),
+        (
+            [
+                {
+                    "table_box_2d": [300, 100, 800, 900],
+                    "title_box_2d": None,
+                    "header_box_2d": [200, 100, 400, 900],
+                }
+            ],
+            "pdf_table_locator_header_outside_table",
+        ),
+    ]
+    for tables, expected_code in invalid_cases:
+        _, _, result = _run_intake(StaticDetectorProvider([], tables=tables))
+        assert result.safe_summary["status"] == "failed"
+        assert (
+            result.private_detection_attempts[0]["validation_error_code"]
+            == expected_code
+        )
+
+
 def test_normalizer_uses_locator_region_pdfplumber_structure_and_source_literals() -> None:
     pdf_bytes, digest, intake = _run_intake(
         StaticDetectorProvider([[180, 80, 820, 920]])
@@ -570,7 +1078,7 @@ def test_normalizer_uses_locator_region_pdfplumber_structure_and_source_literals
     )
     normalized = Gate1Normalizer().normalize(
         [file_input],
-        pdf_table_locator_pages_by_sha256={digest: intake.private_page_results},
+        pdf_table_locator_pages_by_sha256={digest: _legacy_locator_pages(intake)},
     )
     projections = [
         item
@@ -664,7 +1172,7 @@ def test_tight_source_bound_regions_persist_independent_of_fallback_lines(
 
     normalized = normalizer.normalize(
         [file_input],
-        pdf_table_locator_pages_by_sha256={digest: intake.private_page_results},
+        pdf_table_locator_pages_by_sha256={digest: _legacy_locator_pages(intake)},
         bounded_graph=graph,
     )
     table_units = [
@@ -763,7 +1271,7 @@ def test_rejected_locator_region_preserves_valid_tables_but_blocks_canonical(
             "canonical_gate2_read_enabled": True,
             "normalizer_version": "false-locator-region-terminal-test-v1",
         },
-        pdf_table_locator_pages_by_sha256={digest: intake.private_page_results},
+            pdf_table_locator_pages_by_sha256={digest: _legacy_locator_pages(intake)},
     )
     projections = [
         item
