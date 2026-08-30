@@ -642,6 +642,12 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         errors.append(
             _error("pdf_projection_encryption_acceptance_status_mismatch", payload_ref)
         )
+    if encryption_disposition == "not_evaluated" and payload.get(
+        "parser_completeness_status"
+    ) == "complete":
+        errors.append(
+            _error("pdf_projection_encryption_not_evaluated_status_mismatch", payload_ref)
+        )
     if payload.get("ocr_vlm_used") is not False or projection.get("ocr_vlm_used") is not False:
         errors.append(_error("pdf_projection_ocr_guard_failed", payload_ref))
     visual_status = str(projection.get("visual_fallback_status") or "not_required")

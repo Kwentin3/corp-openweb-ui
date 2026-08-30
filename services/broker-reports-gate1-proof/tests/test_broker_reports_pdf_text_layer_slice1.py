@@ -408,6 +408,26 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             "pdf_projection_encryption_receipt_invalid",
             {error["code"] for error in incoherent_validation["errors"]},
         )
+        impossible_complete_receipt = copy.deepcopy(empty_password_payload)
+        impossible_complete_receipt["pdf_text_layer_projection"][
+            "parser_diagnostics"
+        ].update(
+            {
+                "encryption_disposition": "not_evaluated",
+                "empty_password_decrypt_attempts": 0,
+            }
+        )
+        impossible_complete_receipt["payload_checksum_ref"] = pdf_payload_checksum_ref(
+            impossible_complete_receipt
+        )
+        impossible_validation = validate_pdf_text_layer_payload(
+            impossible_complete_receipt
+        )
+        self.assertEqual(impossible_validation["validator_status"], "failed")
+        self.assertIn(
+            "pdf_projection_encryption_not_evaluated_status_mismatch",
+            {error["code"] for error in impossible_validation["errors"]},
+        )
         self.assertEqual(
             validate_pdf_text_layer_payload(empty_password_payload)["validator_status"],
             "passed",
