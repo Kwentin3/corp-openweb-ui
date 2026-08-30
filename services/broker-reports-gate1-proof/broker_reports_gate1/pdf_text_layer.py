@@ -235,10 +235,15 @@ class PypdfParserAdapter:
                 ["pdf_corrupt_or_unreadable"],
             )
         if bool(getattr(reader, "is_encrypted", False)):
-            return self._terminal_result(
-                "blocked",
-                ["pdf_encrypted_without_key"],
-            )
+            try:
+                empty_password_accepted = bool(reader.decrypt(""))
+            except Exception:
+                empty_password_accepted = False
+            if not empty_password_accepted:
+                return self._terminal_result(
+                    "blocked",
+                    ["pdf_encrypted_without_key"],
+                )
         try:
             pages_total = len(reader.pages)
         except Exception:

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import tempfile
 import unittest
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject, NumberObject
@@ -101,7 +103,7 @@ def _add_image_only_page(writer: PdfWriter) -> None:
 def _pdf_bytes(
     *,
     pages: list[tuple[str, list[str]]],
-    encrypted: bool = False,
+    encryption_password: str | None = None,
 ) -> bytes:
     writer = PdfWriter()
     for kind, lines in pages:
@@ -113,8 +115,8 @@ def _pdf_bytes(
             _add_image_only_page(writer)
         else:
             raise AssertionError(f"unsupported synthetic page kind: {kind}")
-    if encrypted:
-        writer.encrypt("synthetic-secret")
+    if encryption_password is not None:
+        writer.encrypt(encryption_password)
     output = BytesIO()
     writer.write(output)
     return output.getvalue()
@@ -306,17 +308,17 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             "complete_with_visual_fallback",
         )
 
-        encrypted = self._build(
+        protected = self._build(
             _pdf_bytes(
                 pages=[("text", ["Encrypted synthetic text"])],
-                encrypted=True,
+                encryption_password="synthetic-secret",
             )
         )
-        self.assertEqual(encrypted.summary["parser_completeness_status"], "blocked")
-        self.assertEqual(encrypted.units, [])
+        self.assertEqual(protected.summary["parser_completeness_status"], "blocked")
+        self.assertEqual(protected.units, [])
         self.assertIn(
             "pdf_encrypted_without_key",
-            encrypted.summary["parser_completeness_reason_codes"],
+            protected.summary["parser_completeness_reason_codes"],
         )
 
         corrupt = self._build(b"%PDF-1.7\nnot-a-valid-object-graph\n%%EOF")
@@ -326,6 +328,81 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             "pdf_corrupt_or_unreadable",
             corrupt.summary["parser_completeness_reason_codes"],
         )
+
+    def test_empty_password_pdf_uses_normal_repeatable_source_extraction(self):
+        empty_password_content = _pdf_bytes(
+            pages=[("text", ["Empty password source text"])],
+            encryption_password="",
+        )
+        empty_password_sha256 = hashlib.sha256(empty_password_content).hexdigest()
+        first = self._build_with_source_checksum(
+            empty_password_content,
+            source_checksum_sha256=empty_password_sha256,
+        )
+        second = self._build_with_source_checksum(
+            empty_password_content,
+            source_checksum_sha256=empty_password_sha256,
+        )
+        self.assertEqual(first.summary["parser_completeness_status"], "complete")
+        self.assertEqual(first.summary["parser_completeness_reason_codes"], [])
+        self.assertEqual(first.payloads, second.payloads)
+        self.assertEqual(first.units, second.units)
+        empty_password_payload = first.payloads[0]
+        self.assertTrue(empty_password_payload["source_checksum_ref"].startswith("srcsum_"))
+        self.assertEqual(
+            validate_pdf_text_layer_payload(empty_password_payload)["validator_status"],
+            "passed",
+        )
+        empty_password_unit = next(
+            unit
+            for unit in first.units
+            if unit["pdf_unit_type"] == "pdf_page_text_unit"
+        )
+        self.assertEqual(
+            empty_password_unit["source_checksum_ref"],
+            empty_password_payload["source_checksum_ref"],
+        )
+        self.assertEqual(
+            resolve_source_value(
+                empty_password_unit,
+                empty_password_unit["source_value_refs"][0],
+            ),
+            "Empty password source text",
+        )
+        self.assertEqual(
+            validate_full_source_unit(
+                unit=empty_password_unit,
+                normalization_run_id="normrun_pdf_slice1",
+                document_id="brdoc_pdf_slice1",
+                source_checksum_sha256=empty_password_sha256,
+            )["validator_status"],
+            "passed",
+        )
+
+    def test_empty_password_attempt_exception_is_terminal_fail_closed(self):
+        parser = PdfTextLayerParserFactory().create()
+
+        class RaisingEncryptedReader:
+            is_encrypted = True
+            decrypt_attempts = 0
+
+            def decrypt(self, password: str):
+                self.decrypt_attempts += 1
+                self.attempted_password = password
+                raise RuntimeError("synthetic decrypt failure")
+
+        reader = RaisingEncryptedReader()
+        with patch.object(parser._pypdf, "PdfReader", return_value=reader):
+            result = parser.parse(b"%PDF-1.7\nsynthetic-encrypted-body")
+
+        self.assertEqual(result.parser_completeness_status, "blocked")
+        self.assertEqual(
+            result.parser_completeness_reason_codes,
+            ["pdf_encrypted_without_key"],
+        )
+        self.assertEqual(result.pages, [])
+        self.assertEqual(reader.decrypt_attempts, 1)
+        self.assertEqual(reader.attempted_password, "")
 
     def test_artifactstore_and_gate2_no_model_dry_run_use_complete_pdf_unit(self):
         content = _pdf_bytes(
@@ -541,6 +618,17 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
 
     @staticmethod
     def _build(content: bytes):
+        return BrokerReportsPdfTextLayerSlice1Test._build_with_source_checksum(
+            content,
+            source_checksum_sha256="a" * 64,
+        )
+
+    @staticmethod
+    def _build_with_source_checksum(
+        content: bytes,
+        *,
+        source_checksum_sha256: str,
+    ):
         return FullSourceArtifactFactory(
             FullSourceArtifactConfig(enable_pdf_layout_slice2=False)
         ).create().build(
@@ -549,7 +637,7 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             profile_id="techprof_pdf_slice1",
             container_format="pdf",
             content_bytes=content,
-            source_checksum_sha256="a" * 64,
+            source_checksum_sha256=source_checksum_sha256,
         )
 
 
