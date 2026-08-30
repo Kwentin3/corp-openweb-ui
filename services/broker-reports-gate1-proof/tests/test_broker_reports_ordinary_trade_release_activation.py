@@ -8,7 +8,18 @@ from pathlib import Path
 
 import pytest
 
-from broker_reports_gate1.canonical_store import CanonicalReaderFactory
+from broker_reports_gate1.artifact_lifecycle import lifecycle_for_visibility
+from broker_reports_gate1.artifact_models import ArtifactRecord
+from broker_reports_gate1.artifact_retention import build_retention_policy
+from broker_reports_gate1.canonical_artifact import (
+    CanonicalNormalizerConfig,
+    CanonicalNormalizerFactory,
+)
+from broker_reports_gate1.canonical_store import (
+    CanonicalArtifactStoreFactory,
+    CanonicalReaderFactory,
+    CanonicalStorageConfig,
+)
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     FORBIDDEN,
     ORDINARY_TRADE_PRODUCTION_ROUTE_ID,
@@ -182,6 +193,110 @@ def test_missing_canonical_stops_without_old_semantic_fallback(tmp_path: Path) -
     assert note["positions"] == []
     assert note["calculated_disposal_fact_ids"] == []
     assert note["filing_eligible"] is False
+
+
+def test_zero_observation_document_cannot_complete_case_coverage(
+    tmp_path: Path,
+) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path)
+    document_id = "paragraph-only-broker-document"
+    canonical = _activate_pdf_text_canonical(
+        store=store,
+        context=context,
+        document_id=document_id,
+        text="Readable document text without a recovered table.",
+    )
+    assert canonical.artifact_ref
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+
+    first = runtime.run(
+        canonical_artifact_refs=[canonical.artifact_ref],
+        context=context,
+    )
+    second = runtime.run(canonical_artifact_refs=[], context=context)
+    projection_runtime = OrdinaryTradeProjectionFactory(
+        store=store,
+        read_enabled=True,
+    ).create()
+    current = projection_runtime.current_case(context=context)
+    coverage = projection_runtime.current_case_coverage(context=context)
+
+    assert len(current) == 1
+    assert current[0][1]["source_observations"] == []
+    assert current[0][1]["runtime_records"] == []
+    assert coverage["status"] == "relevant_unmapped"
+    assert coverage["runtime_ready_observations"] == 0
+    assert coverage["relevant_unmapped_observations"] == 0
+    assert first["product"]["status"] == "PREPARATION_INCOMPLETE"
+    assert first["product"]["terminal"] == (
+        "ordinary_trade_declaration_canonical_relevant_unmapped"
+    )
+    assert first["product"]["declaration_ready"] is False
+    assert first["product"]["xml_created"] is False
+    assert first["product"]["gate4"]["facts_total"] == 0
+    assert first["provider_calls_total"] == 0
+    assert first["semantic_fallback_used"] is False
+    assert first["legacy_fallback_used"] is False
+    assert first["system_identity"] == second["system_identity"]
+    assert first["product"]["terminal"] == second["product"]["terminal"]
+
+
+def test_zero_observation_document_blocks_mixed_case_declaration(
+    tmp_path: Path,
+) -> None:
+    store, context = gate4_fixtures._store_context(tmp_path)
+    mapping = OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()[0]
+    trade = gate4_fixtures._activate_canonical(
+        store=store,
+        context=context,
+        document_id="mixed-case-qualified-trade",
+        artifact_version=1,
+        expected_previous_version_id=None,
+        table_rows=(
+            tuple(item["header_literal"] for item in mapping["columns"]),
+            tuple(
+                _literal_for_role(item["semantic_role"])
+                for item in mapping["columns"]
+            ),
+        ),
+    )
+    paragraph = _activate_pdf_text_canonical(
+        store=store,
+        context=context,
+        document_id="mixed-case-paragraph-only",
+        text="Additional readable content without a recovered table.",
+    )
+    assert trade.artifact_ref
+    assert paragraph.artifact_ref
+
+    result = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create().run(
+        canonical_artifact_refs=[trade.artifact_ref, paragraph.artifact_ref],
+        context=context,
+    )
+    coverage = OrdinaryTradeProjectionFactory(
+        store=store,
+        read_enabled=True,
+    ).create().current_case_coverage(context=context)
+
+    assert coverage["status"] == "relevant_unmapped"
+    assert len(coverage["document_scope"]) == 2
+    assert len(coverage["projections"]) == 2
+    assert result["product"]["status"] == "PREPARATION_INCOMPLETE"
+    assert result["product"]["terminal"] == (
+        "ordinary_trade_declaration_canonical_relevant_unmapped"
+    )
+    assert result["product"]["declaration_ready"] is False
+    assert result["product"]["xml_created"] is False
+    assert result["provider_calls_total"] == 0
+    # The guard blocks declaration publication. Existing Gate 4 persistence is
+    # intentionally unchanged and remains a separate atomicity task.
+    assert result["product"]["gate4"]["facts_total"] == 3
 
 
 def test_supported_table_survives_unknown_table_in_same_canonical(tmp_path: Path) -> None:
@@ -645,6 +760,88 @@ def test_historical_scope_marker_cannot_be_resealed_as_authority() -> None:
     assert rejected.value.args == (
         "ordinary_trade_mapping_relation_claim_invalid",
     )
+
+
+def _activate_pdf_text_canonical(*, store, context, document_id: str, text: str):
+    retention = build_retention_policy(mode="api_smoke")
+    source_ref = f"zero-observation-source-{document_id}"
+    store.put_record(
+        ArtifactRecord(
+            artifact_id=source_ref,
+            artifact_type="source_file_ref_v0",
+            case_id=context.case_id,
+            chat_id=None,
+            user_id=context.user_id,
+            workspace_model_id=context.workspace_model_id,
+            normalization_run_id=context.normalization_run_id,
+            document_id=document_id,
+            source_file_ref={"openwebui_file_id": f"file-{document_id}"},
+            visibility="private_case",
+            storage_backend="project_artifact_payload",
+            retention_policy=retention,
+            access_policy={"requires_user_id": True},
+            validation_status="validated",
+            lifecycle_status=lifecycle_for_visibility(
+                visibility="private_case",
+                validation_status="validated",
+            ),
+            payload={"synthetic": True},
+        )
+    )
+    artifact = CanonicalNormalizerFactory(
+        CanonicalNormalizerConfig(
+            normalizer_version="zero-observation-product-path-test-v1"
+        )
+    ).create().build(
+        tenant_id=context.user_id,
+        artifact_version=1,
+        document={
+            "container_format": "pdf",
+            "sha256": hashlib.sha256(document_id.encode("utf-8")).hexdigest(),
+            "declared_mime_type": "application/pdf",
+        },
+        source_artifact_ref=source_ref,
+        source_payloads=[
+            {
+                "parser_completeness_status": "complete",
+                "parser_completeness_reason_codes": [],
+                "pdf_text_layer_projection": {
+                    "page_inventory": [{"page_number": 1}],
+                    "line_inventory": [{"line_ref": f"line-{document_id}"}],
+                },
+            }
+        ],
+        source_units=[
+            {
+                "unit_ref": f"text-unit-{document_id}",
+                "pdf_unit_type": "pdf_page_text_unit",
+                "source_location": {"page": 1, "line_start": 1},
+                "coverage": {
+                    "selected_source_refs": [f"atom-{document_id}"],
+                    "all_selected_refs_accounted": True,
+                },
+                "text": text,
+            }
+        ],
+        table_projections=[],
+    )
+    persisted = CanonicalArtifactStoreFactory(
+        store=store,
+        config=CanonicalStorageConfig(capacity_check_enabled=False),
+    ).create().put_candidate(
+        artifact=artifact,
+        context=context,
+        retention_policy=retention,
+        compare_receipt=None,
+    )
+    CanonicalReaderFactory(store=store, read_enabled=True).create().activate(
+        canonical_version_id=persisted.canonical_version_id,
+        expected_previous_version_id=None,
+        context=context,
+        actor="zero-observation-product-path-test",
+        reason="prove PDF zero-observation coverage blocks declaration",
+    )
+    return persisted
 
 
 def _reseal_qualification_receipt(receipt: dict[str, object]) -> dict[str, object]:
