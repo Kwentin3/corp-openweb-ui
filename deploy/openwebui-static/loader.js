@@ -12,6 +12,10 @@
 	]);
 	const FILE_UPLOAD_PATH = '/api/v1/files/';
 	const BROKER_PRIVATE_INTAKE_PATH = '/api/v1/broker-reports/intake';
+	const DECLARATION_METADATA_INTAKE_PATH = '/api/v1/broker-reports/declaration-metadata-intake';
+	const DECLARATION_METADATA_RECEIPT_SCHEMA = 'broker_reports_declaration_metadata_receipt_v2';
+	const DECLARATION_METADATA_INTAKE_SLOT = 'DECLARATION_METADATA_INPUT';
+	const DECLARATION_METADATA_SLOT_OWNER = 'SERVER_FIXED_DECLARATION_METADATA_INTAKE_V2';
 	const CHAT_COMPLETION_PATH = '/api/chat/completions';
 	const CONFIG_URL = '/static/stage2-stt-normalization.json';
 	const TRANSCRIBE_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u0442\u044c';
@@ -19,6 +23,7 @@
 	const DONE_LABEL = '\u0413\u043e\u0442\u043e\u0432\u043e';
 	const BROKER_GATE1_LABEL = 'Broker Reports';
 	const BROKER_GATE1_RUNNING_LABEL = 'Broker Reports...';
+	const DECLARATION_METADATA_LABEL = '\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442 \u0441 \u0440\u0435\u043a\u0432\u0438\u0437\u0438\u0442\u0430\u043c\u0438';
 	const DOCX_LABEL = '\u0421\u043a\u0430\u0447\u0430\u0442\u044c DOCX';
 	const DOCX_RUNNING_LABEL = '...';
 	const DOCX_DONE_LABEL = '\u2713';
@@ -100,7 +105,7 @@
 		message_docx_access_denied: '\u041d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0430 \u043a DOCX-\u044d\u043a\u0441\u043f\u043e\u0440\u0442\u0443.',
 		message_docx_no_leak_check_failed: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442 DOCX \u043e\u0442\u043a\u043b\u043e\u043d\u0451\u043d \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u043e\u0439 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438.'
 	});
-	const DOCX_REMOVE_SELECTOR = 'button, svg, textarea, input, select, script, style, noscript, [data-stage2-docx-export], [data-stage2-stt-panel], [data-stage2-stt-status], [data-broker-gate1-panel], [data-broker-gate1-status]';
+	const DOCX_REMOVE_SELECTOR = 'button, svg, textarea, input, select, script, style, noscript, [data-stage2-docx-export], [data-stage2-stt-panel], [data-stage2-stt-status], [data-broker-gate1-panel], [data-broker-gate1-status], [data-declaration-metadata-panel], [data-declaration-metadata-status]';
 	const DOCX_ALLOWED_HTML_TAGS = new Set(['a', 'b', 'blockquote', 'br', 'code', 'div', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'li', 'ol', 'p', 'pre', 'span', 'strong', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul']);
 	const STATUS_TEXT = Object.freeze({
 		ready: '\u0413\u043e\u0442\u043e\u0432\u043e \u043a \u0442\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0430\u0446\u0438\u0438.',
@@ -116,7 +121,10 @@
 		action_prompt_ready: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0435\u0433\u043e \u0432 OpenWebUI.',
 		broker_gate1_ready: 'Broker Reports private intake accepted. Ready to verify.',
 		broker_gate1_running: 'Verifying Broker Reports private intake...',
-		broker_gate1_completed: 'Broker Reports source verified. Send the message to start processing.'
+		broker_gate1_completed: 'Broker Reports source verified. Send the message to start processing.',
+		declaration_metadata_empty: '\u0412 \u044d\u0442\u043e\u0439 \u0441\u0435\u0441\u0441\u0438\u0438 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442 \u0441 \u0440\u0435\u043a\u0432\u0438\u0437\u0438\u0442\u0430\u043c\u0438 \u043d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d.',
+		declaration_metadata_loading: '\u0414\u043e\u0431\u0430\u0432\u043b\u044f\u0435\u043c \u0434\u043e\u043a\u0443\u043c\u0435\u043d \u0441 \u0440\u0435\u043a\u0432\u0438\u0437\u0438\u0442\u0430\u043c\u0438...',
+		declaration_metadata_error: '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0434\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442 \u0441 \u0440\u0435\u043a\u0432\u0438\u0437\u0438\u0442\u0430\u043c\u0438.'
 	});
 	const state = {
 		filesById: new Map(),
@@ -136,7 +144,8 @@
 		progressStatus: null,
 		originalFetch: null,
 		scriptPromises: new Map(),
-		brokerIntakeIdempotencyKeys: new WeakMap()
+		brokerIntakeIdempotencyKeys: new WeakMap(),
+		declarationMetadataIdempotencyKeys: new WeakMap()
 	};
 
 	function extensionOf(filename) {
@@ -536,6 +545,19 @@
 		return key;
 	}
 
+	function declarationMetadataIdempotencyKey(file) {
+		const existing = state.declarationMetadataIdempotencyKeys.get(file);
+		if (existing) {
+			return existing;
+		}
+		const suffix = window.crypto && typeof window.crypto.randomUUID === 'function'
+			? window.crypto.randomUUID()
+			: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+		const key = `declaration-metadata-ui-${suffix}`;
+		state.declarationMetadataIdempotencyKeys.set(file, key);
+		return key;
+	}
+
 	function brokerPrivateIntakeRequest(input, init, file) {
 		const body = requestBody(input, init);
 		if (!(body instanceof FormData) || !file) {
@@ -556,6 +578,54 @@
 				headers,
 				body
 			}
+		};
+	}
+
+	function declarationMetadataIntakeRequest(file) {
+		if (!file) {
+			throw stageError(
+				'declaration_metadata_intake_failed',
+				'Declaration metadata intake requires an explicitly selected file.'
+			);
+		}
+		const body = new FormData();
+		body.append('file', file, file.name);
+		const headers = new Headers();
+		headers.set('Idempotency-Key', declarationMetadataIdempotencyKey(file));
+		return {
+			method: 'POST',
+			headers,
+			body
+		};
+	}
+
+	function normalizeDeclarationMetadataIntakeResponse(uploaded, fallbackFile) {
+		const sourceId = String(uploaded && (uploaded.source_id || uploaded.id) || '');
+		if (
+			!fallbackFile
+			|| !/^br-dm-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(sourceId)
+			|| uploaded.schema_version !== DECLARATION_METADATA_RECEIPT_SCHEMA
+			|| uploaded.intake_slot !== DECLARATION_METADATA_INTAKE_SLOT
+			|| uploaded.slot_owner !== DECLARATION_METADATA_SLOT_OWNER
+			|| !/^[0-9a-f]{64}$/.test(String(uploaded.source_sha256 || ''))
+			|| !/^[0-9a-f]{64}$/.test(String(uploaded.slot_checksum || ''))
+		) {
+			throw stageError(
+				'declaration_metadata_intake_failed',
+				'Declaration metadata intake receipt is invalid.'
+			);
+		}
+		return {
+			...uploaded,
+			id: sourceId,
+			source_id: sourceId,
+			filename: String(fallbackFile.name),
+			meta: {
+				content_type: String(fallbackFile.type || 'application/octet-stream'),
+				size: Number(uploaded.size_bytes || fallbackFile.size || 0),
+				declaration_metadata_intake: true
+			},
+			data: {}
 		};
 	}
 
@@ -645,6 +715,9 @@
 		}
 		const meta = record.meta || {};
 		const sourceId = String(record.id);
+		if (sourceId.startsWith('br-dm-')) {
+			return null;
+		}
 		if (!sourceId.startsWith('br-') && !meta.broker_reports_intake && meta.broker_reports_private_intake !== true) {
 			return null;
 		}
@@ -745,6 +818,7 @@
 			await refreshBrokerGate1Scope();
 			scanAttachmentCards();
 			scanBrokerGate1ComposerPanel();
+			scanDeclarationMetadataIntakePanel();
 			scanMessageDocxButtons();
 		});
 	}
@@ -895,6 +969,130 @@
 		panel.append(button, status);
 		const contentColumn = card.querySelector('.flex.flex-col.w-full') || card;
 		contentColumn.appendChild(panel);
+	}
+
+	function scanDeclarationMetadataIntakePanel() {
+		const root = document.querySelector('#message-input-container');
+		if (!root) {
+			return;
+		}
+		let panel = root.querySelector('[data-declaration-metadata-panel="1"]');
+		if (!state.brokerGate1Active) {
+			if (panel) {
+				panel.remove();
+			}
+			return;
+		}
+		if (panel) {
+			return;
+		}
+
+		panel = document.createElement('div');
+		panel.dataset.declarationMetadataPanel = '1';
+		panel.style.display = 'flex';
+		panel.style.flexDirection = 'column';
+		panel.style.alignItems = 'flex-start';
+		panel.style.gap = '0.25rem';
+		panel.style.margin = '0.35rem 0 0.15rem';
+		panel.style.width = '100%';
+
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.dataset.declarationMetadataAction = '1';
+		button.title = DECLARATION_METADATA_LABEL;
+		button.setAttribute('aria-label', DECLARATION_METADATA_LABEL);
+		button.setAttribute('aria-busy', 'false');
+		button.textContent = DECLARATION_METADATA_LABEL;
+		button.style.border = '1px solid rgba(14, 165, 233, 0.45)';
+		button.style.borderRadius = '0.5rem';
+		button.style.padding = '0.2rem 0.45rem';
+		button.style.fontSize = '0.75rem';
+		button.style.lineHeight = '1rem';
+		button.style.background = 'rgba(14, 165, 233, 0.10)';
+		button.style.color = 'inherit';
+		button.style.cursor = 'pointer';
+		button.addEventListener('focus', () => {
+			button.style.outline = '2px solid rgba(14, 165, 233, 0.75)';
+			button.style.outlineOffset = '2px';
+		});
+		button.addEventListener('blur', () => {
+			button.style.outline = 'none';
+			button.style.outlineOffset = '0';
+		});
+
+		const status = document.createElement('div');
+		status.dataset.declarationMetadataStatus = 'empty';
+		status.setAttribute('role', 'status');
+		status.setAttribute('aria-live', 'polite');
+		status.setAttribute('aria-atomic', 'true');
+		status.textContent = STATUS_TEXT.declaration_metadata_empty;
+		status.style.minHeight = '1rem';
+		status.style.fontSize = '0.7rem';
+		status.style.lineHeight = '1rem';
+		status.style.color = 'rgb(107, 114, 128)';
+		status.style.whiteSpace = 'normal';
+
+		button.addEventListener('click', (event) => {
+			event.preventDefault();
+			event.stopPropagation();
+			if (button.disabled) {
+				return;
+			}
+			const picker = document.createElement('input');
+			picker.type = 'file';
+			picker.accept = '.pdf,.csv,.xlsx,.xls,.doc,.docx,.png,.jpg,.jpeg,.webp';
+			picker.addEventListener('change', async () => {
+				const file = picker.files && picker.files[0];
+				if (!file) {
+					return;
+				}
+				button.disabled = true;
+				button.setAttribute('aria-busy', 'true');
+				button.style.opacity = '0.65';
+				button.style.cursor = 'wait';
+				status.dataset.declarationMetadataStatus = 'loading';
+				status.textContent = STATUS_TEXT.declaration_metadata_loading;
+				try {
+					if (!(await refreshBrokerGate1Scope())) {
+						throw stageError(
+							'declaration_metadata_intake_failed',
+							'Declaration metadata intake is available only in the NDFL workspace.'
+						);
+					}
+					const response = await window.fetch(
+						DECLARATION_METADATA_INTAKE_PATH,
+						declarationMetadataIntakeRequest(file)
+					);
+					const uploaded = await response.json().catch(() => null);
+					if (!response.ok || !uploaded) {
+						const detail = uploaded && uploaded.detail;
+						const message = detail && (detail.message || detail.code);
+						throw stageError(
+							'declaration_metadata_intake_failed',
+							message || STATUS_TEXT.declaration_metadata_error
+						);
+					}
+					normalizeDeclarationMetadataIntakeResponse(uploaded, file);
+					status.dataset.declarationMetadataStatus = 'success';
+					status.textContent = `\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d: ${file.name}`;
+				} catch (error) {
+					status.dataset.declarationMetadataStatus = 'error';
+					status.textContent = (error && error.message) || STATUS_TEXT.declaration_metadata_error;
+				} finally {
+					button.disabled = false;
+					button.setAttribute('aria-busy', 'false');
+					button.style.opacity = '1';
+					button.style.cursor = 'pointer';
+					if (button.isConnected) {
+						button.focus({ preventScroll: true });
+					}
+				}
+			}, { once: true });
+			picker.click();
+		});
+
+		panel.append(button, status);
+		root.appendChild(panel);
 	}
 
 	function scanBrokerGate1ComposerPanel() {
@@ -1058,7 +1256,7 @@
 	}
 
 	function removeBrokerGate1Ui(root) {
-		for (const panel of Array.from(root.querySelectorAll('[data-broker-gate1-panel="1"], [data-broker-gate1-composer-panel="1"]'))) {
+		for (const panel of Array.from(root.querySelectorAll('[data-broker-gate1-panel="1"], [data-broker-gate1-composer-panel="1"], [data-declaration-metadata-panel="1"]'))) {
 			panel.remove();
 		}
 		for (const card of Array.from(root.querySelectorAll('[data-broker-gate1-card="1"]'))) {

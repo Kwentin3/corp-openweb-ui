@@ -149,6 +149,95 @@ def test_loader_private_intake_request_has_server_route_and_idempotency():
     assert "broker_reports_private_intake: true" in intake_block
 
 
+def test_loader_has_explicit_fixed_declaration_metadata_intent():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function scanDeclarationMetadataIntakePanel")
+    end = source.index("function scanBrokerGate1ComposerPanel", start)
+    panel = source[start:end]
+
+    assert (
+        "const DECLARATION_METADATA_INTAKE_PATH = "
+        "'/api/v1/broker-reports/declaration-metadata-intake';"
+    ) in source
+    assert "if (!state.brokerGate1Active)" in panel
+    assert "button.type = 'button';" in panel
+    assert "button.dataset.declarationMetadataAction = '1';" in panel
+    assert "picker.type = 'file';" in panel
+    assert "picker.addEventListener('change', async () =>" in panel
+    assert "if (!file)" in panel
+    assert "if (!(await refreshBrokerGate1Scope()))" in panel
+    assert "DECLARATION_METADATA_INTAKE_PATH" in panel
+    assert "declarationMetadataIntakeRequest(file)" in panel
+
+
+def test_declaration_metadata_ui_covers_busy_success_error_and_accessibility():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function scanDeclarationMetadataIntakePanel")
+    end = source.index("function scanBrokerGate1ComposerPanel", start)
+    panel = source[start:end]
+
+    assert "button.disabled = true;" in panel
+    assert "button.disabled = false;" in panel
+    assert "button.setAttribute('aria-busy', 'true');" in panel
+    assert "button.setAttribute('aria-busy', 'false');" in panel
+    assert "status.setAttribute('role', 'status');" in panel
+    assert "status.setAttribute('aria-live', 'polite');" in panel
+    assert "status.setAttribute('aria-atomic', 'true');" in panel
+    assert "button.addEventListener('focus'" in panel
+    assert "button.style.outline = '2px solid" in panel
+    assert "declarationMetadataStatus = 'loading'" in panel
+    assert "declarationMetadataStatus = 'success'" in panel
+    assert "declarationMetadataStatus = 'error'" in panel
+
+
+def test_declaration_metadata_request_has_only_file_and_fixed_route_authority():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function declarationMetadataIntakeRequest")
+    end = source.index("function normalizeDeclarationMetadataIntakeResponse", start)
+    request = source[start:end]
+
+    assert "const body = new FormData();" in request
+    assert "body.append('file', file, file.name);" in request
+    assert "method: 'POST'" in request
+    assert "headers.set('Idempotency-Key'" in request
+    assert "role" not in request
+    assert "purpose" not in request
+    assert "source_policy" not in request
+
+
+def test_declaration_metadata_receipt_cannot_enter_ordinary_gate1_files():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    normalize_start = source.index("function normalizeBrokerGate1FileRecord")
+    normalize_end = source.index("function rememberFilesFromListPayload", normalize_start)
+    normalize = source[normalize_start:normalize_end]
+    patch_start = source.index("function patchFetch")
+    patch_end = source.index("function queueScan", patch_start)
+    patch = source[patch_start:patch_end]
+
+    assert "if (sourceId.startsWith('br-dm-'))" in normalize
+    assert "DECLARATION_METADATA_INTAKE_PATH" not in patch
+    panel_start = source.index("function scanDeclarationMetadataIntakePanel")
+    panel_end = source.index("function scanBrokerGate1ComposerPanel", panel_start)
+    panel = source[panel_start:panel_end]
+    assert "normalizeDeclarationMetadataIntakeResponse" in panel
+    assert "rememberFile" not in panel
+    assert "normalizeBrokerGate1UploadedFile" not in panel
+
+
+def test_declaration_metadata_success_requires_exact_server_receipt():
+    source = LOADER_PATH.read_text(encoding="utf-8")
+    start = source.index("function normalizeDeclarationMetadataIntakeResponse")
+    end = source.index("function normalizeBrokerPrivateIntakeResponse", start)
+    normalize = source[start:end]
+
+    assert "/^br-dm-" in normalize
+    assert "uploaded.schema_version !== DECLARATION_METADATA_RECEIPT_SCHEMA" in normalize
+    assert "uploaded.intake_slot !== DECLARATION_METADATA_INTAKE_SLOT" in normalize
+    assert "uploaded.slot_owner !== DECLARATION_METADATA_SLOT_OWNER" in normalize
+    assert "String(uploaded.source_sha256 || '')" in normalize
+    assert "String(uploaded.slot_checksum || '')" in normalize
+
+
 def test_loader_broker_action_uses_only_protected_private_intake_action():
     source = LOADER_PATH.read_text(encoding="utf-8")
 
