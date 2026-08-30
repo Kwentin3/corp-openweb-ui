@@ -251,6 +251,7 @@ def test_schema_is_row_first_and_has_no_grid_core(
         "ordered_rows",
         "logical_columns",
         "source_parts",
+        "empty_grid_slots",
         "relations",
         "issues",
         "known_gap_ids",

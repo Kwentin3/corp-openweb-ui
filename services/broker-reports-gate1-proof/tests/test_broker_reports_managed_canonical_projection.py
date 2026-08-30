@@ -41,6 +41,9 @@ from tests.test_broker_reports_managed_pdf_document_v2 import (
 from tests.test_broker_reports_managed_whole_table_projection import (
     _headerless_pdf_with_paragraph,
 )
+from tests.test_broker_reports_managed_semantic_product_path_counterexamples_v1 import (
+    _blank_grid_handoff,
+)
 
 
 def _adjudicated_result(
@@ -209,6 +212,28 @@ def _reseal_projection(projection: dict[str, Any]) -> dict[str, Any]:
         ).encode("utf-8")
     ).hexdigest()
     return result
+
+
+def test_relocated_empty_grid_slot_projection_fails_managed_owner_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handoff = _blank_grid_handoff(monkeypatch)
+    projection = copy.deepcopy(handoff.result.whole_table_projections[0])
+    assert projection["empty_grid_slots"]
+    projection["empty_grid_slots"][0]["row_id"] = projection[
+        "ordered_rows"
+    ][0]["row_id"]
+
+    with pytest.raises(CanonicalArtifactError) as exc:
+        _canonical_from_handoff(
+            handoff,
+            source_ref=handoff.source_artifact_ref,
+            projections=(_reseal_projection(projection),),
+        )
+    assert (
+        exc.value.code
+        == "canonical_managed_whole_table_projection_managed_mismatch"
+    )
 
 
 def _synchronized_table_mutation(

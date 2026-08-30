@@ -944,6 +944,28 @@ class PdfLayoutUnitBuilder:
         supplemental_refs = [
             str(item.get("source_value_ref") or "") for item in supplemental_index
         ]
+        candidate_cells = (
+            copy.deepcopy(candidate.get("cell_inventory") or [])
+            if candidate
+            else []
+        )
+        has_exact_wordless_grid_cell = any(
+            isinstance(cell, dict)
+            and int(cell.get("row_ordinal") or 0) > 0
+            and int(cell.get("column_ordinal") or 0) > 0
+            and int(cell.get("row_span") or 1) == 1
+            and int(cell.get("column_span") or 1) == 1
+            and not list(cell.get("word_refs") or [])
+            for cell in candidate_cells
+        )
+        table_cell_inventory_checksum_ref = (
+            _checksum_ref(
+                "pdftablecellinvchk",
+                candidate_cells,
+            )
+            if has_exact_wordless_grid_cell
+            else None
+        )
         layout_checksum = _checksum_ref(
             "pdflayoutunitchk",
             {
@@ -955,6 +977,15 @@ class PdfLayoutUnitBuilder:
                 "fallback_text_refs": layout_coverage["fallback_text_refs"],
                 "table_candidate_ref": (
                     candidate.get("table_candidate_ref") if candidate else None
+                ),
+                **(
+                    {
+                        "table_cell_inventory_checksum_ref": (
+                            table_cell_inventory_checksum_ref
+                        )
+                    }
+                    if table_cell_inventory_checksum_ref is not None
+                    else {}
                 ),
                 "text_checksum_ref": _checksum_ref("pdfunittextchk", text),
             },
@@ -1028,6 +1059,15 @@ class PdfLayoutUnitBuilder:
                 ),
                 "table_cell_refs": copy.deepcopy(
                     candidate.get("cell_refs") if candidate else []
+                ),
+                **(
+                    {
+                        "table_cell_inventory_checksum_ref": (
+                            table_cell_inventory_checksum_ref
+                        )
+                    }
+                    if table_cell_inventory_checksum_ref is not None
+                    else {}
                 ),
                 "table_contributing_word_refs": copy.deepcopy(
                     candidate.get("contributing_word_refs") if candidate else []

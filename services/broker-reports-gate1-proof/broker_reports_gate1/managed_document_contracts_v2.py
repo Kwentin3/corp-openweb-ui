@@ -23,7 +23,7 @@ SCHEMA_ID = (
     "broker_reports_managed_document_v2.schema.json"
 )
 SCHEMA_CANONICAL_SHA256 = (
-    "7f5765311e5b7f7332fecbd8edb3e239842d5e35b5da441bc5d51049f6eb6df1"
+    "ac019242f6514e153d251a86ba485eb27a4b2b7e1f7c90aa289f1d3d25a1750a"
 )
 _STANDARD_METADATA_NAMES = {
     "document_type",
@@ -592,6 +592,8 @@ def _validate_source_unit_ledger(
         for table in tables
     )
     if not ledger_present:
+        if any(table.get("empty_grid_slots") for table in tables):
+            _fail("managed_document_v2_empty_grid_slot_source_ledger_missing")
         return
     if source_coverage is None:
         _fail("managed_document_v2_source_unit_document_ledger_missing")
@@ -623,6 +625,7 @@ def _validate_source_unit_ledger(
         table_unit_refs: list[str] = []
         part_atoms: list[str] = []
         part_words: list[str] = []
+        part_empty_cells: list[str] = []
         rows = table["ordered_rows"]
         row_ordinal = {row["row_id"]: row["ordinal"] for row in rows}
         for part in table["source_parts"]:
@@ -645,10 +648,12 @@ def _validate_source_unit_ledger(
                 }
             )
             covered_words: list[str] = []
+            covered_empty_cells: list[str] = []
             for unit in units:
                 unit_ref = str(unit["unit_ref"])
                 atoms = unit["selected_source_atom_refs"]
                 words = unit["table_contributing_word_refs"]
+                empty_cells = unit.get("empty_grid_slots") or []
                 if (
                     atoms != sorted(atoms)
                     or words != sorted(words)
@@ -661,14 +666,65 @@ def _validate_source_unit_ledger(
                 part_atoms.extend(atoms)
                 part_words.extend(words)
                 covered_words.extend(words)
+                covered_empty_cells.extend(
+                    str(cell["cell_ref"]) for cell in empty_cells
+                )
             if sorted(covered_words) != expected_words:
                 _fail("managed_document_v2_source_unit_part_word_partition_invalid")
+            part_row_ids = {
+                row["row_id"] for row in rows[first : last + 1]
+            }
+            expected_slots = {
+                str(slot["source_cell_ref"]): slot
+                for slot in table.get("empty_grid_slots") or []
+                if slot["row_id"] in part_row_ids
+            }
+            if (
+                len(expected_slots)
+                != sum(
+                    slot["row_id"] in part_row_ids
+                    for slot in table.get("empty_grid_slots") or []
+                )
+                or sorted(covered_empty_cells) != sorted(expected_slots)
+            ):
+                _fail("managed_document_v2_empty_grid_slot_part_partition_invalid")
+            ledger_cells = {
+                str(cell["cell_ref"]): cell
+                for unit in units
+                for cell in unit.get("empty_grid_slots") or []
+            }
+            if len(ledger_cells) != len(covered_empty_cells):
+                _fail("managed_document_v2_empty_grid_slot_duplicate")
+            for cell_ref, slot in expected_slots.items():
+                cell = ledger_cells[cell_ref]
+                if any(
+                    slot[key] != cell[source_key]
+                    for key, source_key in (
+                        ("table_candidate_ref", "table_candidate_ref"),
+                        ("page_ref", "page_ref"),
+                        ("source_row_ordinal", "row_ordinal"),
+                        ("source_column_ordinal", "column_ordinal"),
+                        ("row_span", "row_span"),
+                        ("column_span", "column_span"),
+                        ("bbox_ref", "bbox_ref"),
+                        ("bbox", "bbox"),
+                        ("word_refs", "word_refs"),
+                        (
+                            "table_cell_inventory_checksum_ref",
+                            "table_cell_inventory_checksum_ref",
+                        ),
+                    )
+                ):
+                    _fail("managed_document_v2_empty_grid_slot_source_mismatch")
+            part_empty_cells.extend(covered_empty_cells)
         if len(table_unit_refs) != len(set(table_unit_refs)):
             _fail("managed_document_v2_source_unit_duplicate_unit_ref")
         if len(part_atoms) != len(set(part_atoms)):
             _fail("managed_document_v2_source_unit_duplicate_atom_ref")
         if len(part_words) != len(set(part_words)):
             _fail("managed_document_v2_source_unit_duplicate_word_ref")
+        if len(part_empty_cells) != len(set(part_empty_cells)):
+            _fail("managed_document_v2_empty_grid_slot_duplicate")
         if table_atoms != sorted(part_atoms):
             _fail("managed_document_v2_source_unit_table_atom_union_invalid")
         if table_words != sorted(part_words):
@@ -910,6 +966,39 @@ def _validate_table_content(
     column_order = {
         column["column_id"]: column["ordinal"] for column in columns
     }
+    empty_slots = content.get("empty_grid_slots") or []
+    slot_ids = [str(slot["slot_id"]) for slot in empty_slots]
+    source_cell_refs = [str(slot["source_cell_ref"]) for slot in empty_slots]
+    logical_positions = [
+        (str(slot["row_id"]), str(slot["logical_column_id"]))
+        for slot in empty_slots
+    ]
+    if (
+        len(slot_ids) != len(set(slot_ids))
+        or len(source_cell_refs) != len(set(source_cell_refs))
+        or len(logical_positions) != len(set(logical_positions))
+    ):
+        _fail("managed_document_v2_empty_grid_slot_duplicate")
+    for slot in empty_slots:
+        bbox = slot["bbox"]
+        row = row_by_id.get(slot["row_id"])
+        if (
+            row is None
+            or slot["logical_column_id"] not in table_column_ids
+            or slot["word_refs"]
+            or slot["row_span"] != 1
+            or slot["column_span"] != 1
+            or len(bbox) != 4
+            or bbox[2] < bbox[0]
+            or bbox[3] < bbox[1]
+            or any(
+                entry["logical_column_id"] == slot["logical_column_id"]
+                or slot["logical_column_id"]
+                in entry["covers_logical_column_ids"]
+                for entry in row["entries"]
+            )
+        ):
+            _fail("managed_document_v2_empty_grid_slot_invalid")
     for row in rows:
         for entry in row["entries"]:
             logical_column_id = entry["logical_column_id"]

@@ -173,6 +173,11 @@ class _EntryBand:
     covers_logical_column_ids: list[str] = dataclass_field(default_factory=list)
     column_binding_status: str = "NOT_APPLICABLE"
     geometry_column_ordinals: list[int] | None = None
+    source_grid_cell_ref: str | None = None
+    source_grid_candidate_ref: str | None = None
+    source_grid_bbox_ref: str | None = None
+    source_grid_row_ordinal: int | None = None
+    source_grid_column_ordinal: int | None = None
     # A source rule may prove a wider logical header scope than the glyph box.
     # This remains internal evidence: public bindings are still materialized
     # only after logical tracks have been proven independently.
@@ -1129,6 +1134,70 @@ def _ruled_candidate_rows(
     )
     if len(column_bands) != columns_total:
         return None, None
+    cell_refs = [str(cell.get("cell_ref") or "") for cell in raw_cells]
+    grid_positions = [
+        (
+            int(cell.get("row_ordinal") or 0),
+            int(cell.get("column_ordinal") or 0),
+        )
+        for cell in raw_cells
+    ]
+    if (
+        "" in cell_refs
+        or len(cell_refs) != len(set(cell_refs))
+        or any(row < 1 or column < 1 for row, column in grid_positions)
+        or len(grid_positions) != len(set(grid_positions))
+    ):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_grid_cell_identity_ambiguous"
+        )
+    if any(not _strings(cell.get("word_refs")) for cell in raw_cells):
+        row_ordinals = [int(row.get("row_ordinal") or 0) for row in raw_rows]
+        if row_ordinals != list(range(1, len(raw_rows) + 1)):
+            raise LogicalRowTableRecoveryError(
+                "logical_row_grid_row_inventory_not_closed"
+            )
+        covered_positions: set[tuple[int, int]] = set()
+        for cell in raw_cells:
+            row = int(cell.get("row_ordinal") or 0)
+            column = int(cell.get("column_ordinal") or 0)
+            row_span = int(cell.get("row_span") or 1)
+            column_span = int(cell.get("column_span") or 1)
+            if (
+                row_span < 1
+                or column_span < 1
+                or row + row_span - 1 > len(raw_rows)
+                or column + column_span - 1 > columns_total
+            ):
+                raise LogicalRowTableRecoveryError(
+                    "logical_row_grid_cell_out_of_bounds"
+                )
+            positions = {
+                (covered_row, covered_column)
+                for covered_row in range(row, row + row_span)
+                for covered_column in range(column, column + column_span)
+            }
+            if covered_positions.intersection(positions):
+                raise LogicalRowTableRecoveryError(
+                    "logical_row_grid_cell_span_overlap"
+                )
+            covered_positions.update(positions)
+        expected_positions = {
+            (row, column)
+            for row in range(1, len(raw_rows) + 1)
+            for column in range(1, columns_total + 1)
+        }
+        if covered_positions != expected_positions:
+            raise LogicalRowTableRecoveryError(
+                "logical_row_grid_cell_inventory_not_closed"
+            )
+    grid_word_refs = [
+        ref for cell in raw_cells for ref in _strings(cell.get("word_refs"))
+    ]
+    if len(grid_word_refs) != len(set(grid_word_refs)):
+        raise LogicalRowTableRecoveryError(
+            "logical_row_grid_cell_word_ownership_ambiguous"
+        )
     word_by_ref = {word.word_ref: word for word in selected_words}
     selected_refs = set(word_by_ref)
     owned_refs: list[str] = []
@@ -1161,6 +1230,38 @@ def _ruled_candidate_rows(
                 if ref in word_by_ref
             ]
             if not cell_words:
+                if _strings(cell.get("word_refs")):
+                    return None, None
+                if (
+                    int(cell.get("row_span") or 1) != 1
+                    or int(cell.get("column_span") or 1) != 1
+                ):
+                    raise LogicalRowTableRecoveryError(
+                        "logical_row_empty_grid_cell_span_ambiguous"
+                    )
+                occupied_bboxes.append(cell_bbox)
+                entries.append(
+                    _EntryBand(
+                        words=[],
+                        bbox=cell_bbox,
+                        text="",
+                        anchor_ids=[],
+                        geometry_column_ordinals=[
+                            int(cell.get("column_ordinal") or 0) - 1
+                        ],
+                        source_grid_cell_ref=str(cell.get("cell_ref") or ""),
+                        source_grid_candidate_ref=str(
+                            candidate.get("table_candidate_ref") or ""
+                        ),
+                        source_grid_bbox_ref=str(cell.get("bbox_ref") or ""),
+                        source_grid_row_ordinal=int(
+                            cell.get("row_ordinal") or 0
+                        ),
+                        source_grid_column_ordinal=int(
+                            cell.get("column_ordinal") or 0
+                        ),
+                    )
+                )
                 continue
             if len(cell_words) != len(_strings(cell.get("word_refs"))):
                 return None, None
@@ -1213,6 +1314,10 @@ def _ruled_candidate_rows(
                 )
         if not entries:
             continue
+        if not row_words:
+            raise LogicalRowTableRecoveryError(
+                "logical_row_empty_grid_row_without_source_words"
+            )
         row_words = sorted(
             row_words,
             key=lambda word: (word.bbox[1], word.bbox[0], word.order),
@@ -7845,21 +7950,36 @@ def _materialize_logical_table(
             )
             entry.entry_id = _identifier(
                 "entry",
-                [row.row_id, entry_ordinal, *[word.word_ref for word in entry.words]],
+                [
+                    row.row_id,
+                    entry_ordinal,
+                    *(
+                        [entry.source_grid_cell_ref]
+                        if entry.source_grid_cell_ref is not None
+                        else []
+                    ),
+                    *[word.word_ref for word in entry.words],
+                ],
             )
             entry.anchor_ids = [
-                state.anchor_for_word(word, page_number=region.page.page_number)
+                state.anchor_for_word(
+                    word, page_number=region.page.page_number
+                )
                 for word in entry.words
             ]
-            entry.geometry_evidence_id = state.add_geometry(
-                kind="ENTRY_REGION",
-                key=[table_id, row.row_id, entry.entry_id],
-                anchor_ids=entry.anchor_ids,
-                material={
-                    "page_ref": region.page.page_ref,
-                    "bbox": list(entry.bbox),
-                    "word_refs": [word.word_ref for word in entry.words],
-                },
+            entry.geometry_evidence_id = (
+                None
+                if entry.source_grid_cell_ref is not None
+                else state.add_geometry(
+                    kind="ENTRY_REGION",
+                    key=[table_id, row.row_id, entry.entry_id],
+                    anchor_ids=entry.anchor_ids,
+                    material={
+                        "page_ref": region.page.page_ref,
+                        "bbox": list(entry.bbox),
+                        "word_refs": [word.word_ref for word in entry.words],
+                    },
+                )
             )
             for word in entry.words:
                 if word.word_ref in word_owner_entry:
@@ -7880,7 +8000,11 @@ def _materialize_logical_table(
                         entry.covers_logical_column_ids
                     ),
                     "source_anchor_ids": _unique(entry.anchor_ids),
-                    "geometry_evidence_ids": [entry.geometry_evidence_id],
+                    "geometry_evidence_ids": (
+                        []
+                        if entry.geometry_evidence_id is None
+                        else [entry.geometry_evidence_id]
+                    ),
                     "issue_ids": [],
                 }
             )
@@ -7925,6 +8049,53 @@ def _materialize_logical_table(
         table_id=table_id,
     )
     table_issue_ids.extend(finalized_column_issue_ids)
+    empty_grid_slots: list[dict[str, Any]] = []
+    for row, row_payload in zip(ordered_rows, row_payloads):
+        retained_entries = []
+        for entry, entry_payload in zip(row.entries, row_payload["entries"]):
+            if entry.source_grid_cell_ref is None:
+                retained_entries.append(entry_payload)
+                continue
+            logical_column_id = entry_payload.get("logical_column_id")
+            if (
+                entry_payload.get("column_binding_status") != "BOUND"
+                or not isinstance(logical_column_id, str)
+                or not logical_column_id
+                or entry_payload.get("covers_logical_column_ids")
+                or not entry.source_grid_candidate_ref
+                or not entry.source_grid_bbox_ref
+                or not entry.source_grid_row_ordinal
+                or not entry.source_grid_column_ordinal
+            ):
+                raise LogicalRowTableRecoveryError(
+                    "logical_row_empty_grid_slot_binding_ambiguous"
+                )
+            region = row_region[str(row.row_id)]
+            empty_grid_slots.append(
+                {
+                    "slot_id": _identifier(
+                        "empty_grid_slot",
+                        [table_id, row.row_id, entry.source_grid_cell_ref],
+                    ),
+                    "source_cell_ref": entry.source_grid_cell_ref,
+                    "table_candidate_ref": entry.source_grid_candidate_ref,
+                    "page": region.page.page_number,
+                    "page_ref": region.page.page_ref,
+                    "source_row_ordinal": entry.source_grid_row_ordinal,
+                    "source_column_ordinal": entry.source_grid_column_ordinal,
+                    "row_span": 1,
+                    "column_span": 1,
+                    "bbox_ref": entry.source_grid_bbox_ref,
+                    "bbox": list(entry.bbox),
+                    "word_refs": [],
+                    "row_id": row.row_id,
+                    "logical_column_id": logical_column_id,
+                    "table_cell_inventory_checksum_ref": None,
+                }
+            )
+        for ordinal, entry_payload in enumerate(retained_entries):
+            entry_payload["ordinal"] = ordinal
+        row_payload["entries"] = retained_entries
     entry_payload_by_id = {
         entry["entry_id"]: entry
         for row in row_payloads
@@ -8108,6 +8279,11 @@ def _materialize_logical_table(
         "ordered_rows": row_payloads,
         "logical_columns": logical_columns,
         "source_parts": source_parts,
+        **(
+            {"empty_grid_slots": empty_grid_slots}
+            if empty_grid_slots
+            else {}
+        ),
         "relations": [],
         "issues": _unique(table_issue_ids),
         "known_gap_ids": [],

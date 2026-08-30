@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import re
 from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Any
@@ -912,6 +913,16 @@ def validate_pdf_source_unit_structure(
                     errors.append(_error("pdf_table_source_unit_field_missing", f"{unit_ref}:{field}"))
             if not list(unit.get("table_contributing_word_refs") or []):
                 errors.append(_error("pdf_table_source_unit_words_missing", unit_ref))
+            table_cell_refs = list(unit.get("table_cell_refs") or [])
+            if not table_cell_refs or len(table_cell_refs) != len(set(table_cell_refs)):
+                errors.append(_error("pdf_table_source_unit_cell_refs_invalid", unit_ref))
+            cell_checksum = unit.get("table_cell_inventory_checksum_ref")
+            if cell_checksum is not None and not re.fullmatch(
+                r"pdftablecellinvchk_[0-9a-f]{24}", str(cell_checksum)
+            ):
+                errors.append(
+                    _error("pdf_table_source_unit_cell_inventory_checksum_invalid", unit_ref)
+                )
             source_bound = unit.get("table_locator_scope_status") == "source_bound"
             locator_bbox = unit.get("table_locator_bbox_pdf_points")
             locator_bbox_valid = (
@@ -1013,6 +1024,57 @@ def validate_pdf_source_unit_parent_linkage(
                     errors.append(
                         _error("pdf_layout_source_unit_parent_value_mismatch", source_value_ref)
                     )
+            if unit_type == "pdf_table_candidate_unit":
+                candidates = [
+                    item
+                    for item in _dict_list(parent_projection.get("table_candidate_inventory"))
+                    if item.get("table_candidate_ref") == unit.get("table_candidate_ref")
+                ]
+                if len(candidates) != 1:
+                    errors.append(
+                        _error("pdf_table_source_unit_parent_candidate_not_unique", unit_ref)
+                    )
+                else:
+                    candidate = candidates[0]
+                    cells = _dict_list(candidate.get("cell_inventory"))
+                    expected_refs = [str(item.get("cell_ref") or "") for item in cells]
+                    if (
+                        not expected_refs
+                        or "" in expected_refs
+                        or len(expected_refs) != len(set(expected_refs))
+                        or list(unit.get("table_cell_refs") or []) != expected_refs
+                    ):
+                        errors.append(
+                            _error("pdf_table_source_unit_parent_cells_mismatch", unit_ref)
+                        )
+                    expected_checksum = _checksum_ref(
+                        "pdftablecellinvchk", cells
+                    )
+                    requires_checksum = any(
+                        int(cell.get("row_ordinal") or 0) > 0
+                        and int(cell.get("column_ordinal") or 0) > 0
+                        and int(cell.get("row_span") or 1) == 1
+                        and int(cell.get("column_span") or 1) == 1
+                        and not list(cell.get("word_refs") or [])
+                        for cell in cells
+                    )
+                    actual_checksum = unit.get(
+                        "table_cell_inventory_checksum_ref"
+                    )
+                    if requires_checksum and actual_checksum != expected_checksum:
+                        errors.append(
+                            _error(
+                                "pdf_table_source_unit_parent_cell_inventory_checksum_mismatch",
+                                unit_ref,
+                            )
+                        )
+                    if not requires_checksum and actual_checksum is not None:
+                        errors.append(
+                            _error(
+                                "pdf_table_source_unit_parent_cell_inventory_checksum_unexpected",
+                                unit_ref,
+                            )
+                        )
     return errors
 
 

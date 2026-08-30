@@ -7,6 +7,11 @@ from types import SimpleNamespace
 import pytest
 
 from broker_reports_gate1.gate2_model_clients import Gate2OpenWebUIStructuredModelClient
+from broker_reports_gate1.managed_pdf_document_v2 import (
+    ManagedPdfDocumentV2Error,
+    ManagedPdfDocumentV2Factory,
+    _bind_source_unit_ledger,
+)
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MANAGED_DOCUMENT_SEMANTIC_CRITIC_SCHEMA_VERSION,
     MANAGED_DOCUMENT_SEMANTIC_PROPOSAL_SCHEMA_VERSION,
@@ -17,6 +22,7 @@ from tests.test_broker_reports_managed_pdf_document_v2 import (
     _managed_full_source,
     _openwebui_request,
     _route_openwebui_resolver_to_boundary,
+    _schema,
 )
 from tests.test_broker_reports_managed_semantic_provider_review_v1 import (
     MODEL_ID,
@@ -406,6 +412,120 @@ async def _run(monkeypatch, pages: list[dict], widths: tuple[int, ...], *, cross
     return result, semantic
 
 
+def _blank_grid_handoff(monkeypatch: pytest.MonkeyPatch):
+    pdf_bytes = _pdf_bytes([_trade_page(blank_first_asset_currency=True)])
+    source_ref = "private_pdf_empty_grid_binding_mutation"
+    payload = _managed_full_source(
+        pdf_bytes, source_artifact_ref=source_ref
+    ).payloads[0]
+    observations = _observations(payload, (8,))
+    request = _openwebui_request()
+    with _GeminiBoundary([observations, observations]) as visual:
+        _route_openwebui_resolver_to_boundary(
+            monkeypatch, request=request, boundary=visual
+        )
+        handoff = (
+            ManagedPdfDocumentV2Factory()
+            .create_adjudicated_for_openwebui(_schema(), request)
+            ._build_owned_source_for_canonical(
+                pdf_bytes,
+                source_artifact_ref=source_ref,
+                task_id="empty_grid_binding_mutation",
+            )
+        )
+    assert handoff.result.managed_document is not None
+    return handoff
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_code"),
+    [
+        (
+            "foreign_candidate",
+            "managed_pdf_v2_source_grid_cell_binding_stale",
+        ),
+        ("stale_bbox", "managed_pdf_v2_source_grid_cell_binding_stale"),
+        (
+            "missing_owner",
+            "managed_pdf_v2_source_grid_cell_owner_nonunique",
+        ),
+        (
+            "duplicate_binding",
+            "managed_pdf_v2_source_grid_cell_identity_invalid",
+        ),
+    ],
+)
+def test_empty_grid_slot_source_binding_mutations_fail_closed(
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    expected_code: str,
+) -> None:
+    handoff = _blank_grid_handoff(monkeypatch)
+    candidate = copy.deepcopy(handoff.result.managed_document.payload)
+    table = next(
+        block["content"]
+        for block in candidate["blocks"]
+        if block["block_type"] == "TABLE"
+    )
+    slots = table["empty_grid_slots"]
+    if mutation == "foreign_candidate":
+        slots[0]["table_candidate_ref"] = "pdftable_foreign"
+    elif mutation == "stale_bbox":
+        slots[0]["bbox"][0] += 1.0
+    elif mutation == "missing_owner":
+        slots[0]["source_cell_ref"] = "pdftablecell_missing"
+    else:
+        slots.append(copy.deepcopy(slots[0]))
+
+    full_source = SimpleNamespace(
+        units=copy.deepcopy(list(handoff.source_units)),
+        payloads=copy.deepcopy(list(handoff.source_payloads)),
+    )
+    with pytest.raises(ManagedPdfDocumentV2Error, match=expected_code):
+        _bind_source_unit_ledger(
+            candidate=candidate,
+            full_source=full_source,
+            source_checksum_sha256=candidate["source"]["checksum_sha256"],
+        )
+
+
+def test_empty_grid_slots_do_not_change_source_word_ledger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handoff = _blank_grid_handoff(monkeypatch)
+    payload = handoff.result.managed_document.payload
+    table = next(
+        block["content"]
+        for block in payload["blocks"]
+        if block["block_type"] == "TABLE"
+    )
+    covered_unit_refs = {
+        unit["unit_ref"]
+        for part in table["source_parts"]
+        for unit in part["covered_source_units"]
+    }
+    source_words = sorted(
+        str(ref)
+        for unit in handoff.source_units
+        if unit["unit_ref"] in covered_unit_refs
+        for ref in unit["pdf_layout_coverage"]["owned_word_refs"]
+    )
+    anchor_by_id = {
+        anchor["anchor_id"]: anchor for anchor in payload["anchors"]
+    }
+    managed_owned_words = sorted(
+        str(anchor_by_id[item["source_anchor_id"]]["locator"]["source_block_ref"])
+        for item in payload["source_word_ownership"]
+        if item["table_id"] == table["table_id"]
+    )
+    assert source_words == table["covered_source_word_refs"]
+    assert managed_owned_words == source_words
+    assert len(managed_owned_words) == len(set(managed_owned_words))
+    assert {
+        slot["source_cell_ref"] for slot in table["empty_grid_slots"]
+    }.isdisjoint(managed_owned_words)
+
+
 def _recursive_keys(value) -> set[str]:
     if isinstance(value, dict):
         return set(value).union(*(_recursive_keys(item) for item in value.values()))
@@ -445,8 +565,38 @@ async def test_trade_plus_actual_dividend_blocks_whole_document(monkeypatch) -> 
 
 @pytest.mark.asyncio
 async def test_actual_blank_instrument_and_currency_blocks_atomically(monkeypatch) -> None:
-    result, _ = await _run(monkeypatch, [_trade_page(blank_first_asset_currency=True)], (8,))
+    result, boundary = await _run(
+        monkeypatch,
+        [_trade_page(blank_first_asset_currency=True)],
+        (8,),
+    )
     assert result.evidence_result.canonical_result.safe_diagnostics["status"] == "COMPLETE"
+    managed_result = result.evidence_result.canonical_result.managed_result
+    assert managed_result.managed_document is not None
+    managed_tables = [
+        block["content"]
+        for block in managed_result.managed_document.payload["blocks"]
+        if block["block_type"] == "TABLE"
+    ]
+    slots = managed_tables[0]["empty_grid_slots"]
+    assert len(slots) == 2
+    assert len({slot["source_cell_ref"] for slot in slots}) == 2
+    assert all(
+        slot["word_refs"] == []
+        and slot["row_span"] == 1
+        and slot["column_span"] == 1
+        and slot["table_cell_inventory_checksum_ref"].startswith(
+            "pdftablecellinvchk_"
+        )
+        for slot in slots
+    )
+    assert managed_result.whole_table_projections[0]["empty_grid_slots"] == slots
+    canonical = result.evidence_result.canonical_result.canonical_artifact
+    assert canonical is not None
+    canonical_tables = [
+        node for node in canonical["nodes"] if node["node_type"] == "TABLE"
+    ]
+    assert canonical_tables[0]["content"]["metadata"]["empty_grid_slots"] == slots
     assert result.status == "BLOCKED"
     assert result.document_candidate is not None
     assert result.document_candidate["document_record_candidates"] == []
@@ -455,6 +605,9 @@ async def test_actual_blank_instrument_and_currency_blocks_atomically(monkeypatc
     relevant = result.document_candidate["table_outcomes"][0]["relevant_unmapped"]
     assert len(relevant) == 1
     assert relevant[0]["reason_code"] == "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE"
+    assert result.execution_receipt["provider_submissions"] == 2
+    assert len(boundary.calls) == 2
+    assert {"facts", "runtime_records"}.isdisjoint(_recursive_keys(result.__dict__))
     retained_roles = {item["semantic_role"] for item in relevant[0]["fields"]}
     assert {"asset_name", "currency"}.isdisjoint(retained_roles)
     assert all(
