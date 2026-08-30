@@ -1,5 +1,6 @@
 # CI-only dependencies for the pull-request gate documented in the root README.
 fastapi==0.121.0
+alembic==1.18.4
 httpx==0.28.1
 jsonschema==4.25.1
 lxml==6.0.2

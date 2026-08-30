@@ -10,10 +10,15 @@ RUN python /usr/local/bin/apply_native_web_stt_patch.py --root /app/build/_app/i
 
 COPY deploy/openwebui-broker-reports-intake/broker_reports_intake_contract.py /app/backend/open_webui/routers/broker_reports_intake_contract.py
 COPY deploy/openwebui-broker-reports-intake/broker_reports_intake.py /app/backend/open_webui/routers/broker_reports_intake.py
+COPY deploy/openwebui-broker-reports-intake/declaration_metadata_attachment_capability.py /app/backend/open_webui/routers/declaration_metadata_attachment_capability.py
+COPY deploy/openwebui-broker-reports-intake/migrations/c7a9b21d4e63_add_declaration_metadata_attachment_capability.py /app/backend/open_webui/migrations/versions/c7a9b21d4e63_add_declaration_metadata_attachment_capability.py
 COPY deploy/openwebui-broker-reports-intake/apply_broker_reports_intake_patch.py /usr/local/bin/apply_broker_reports_intake_patch.py
 RUN python /usr/local/bin/apply_broker_reports_intake_patch.py --backend-root /app/backend/open_webui \
+    && test "$(cd /app/backend/open_webui && alembic heads)" = "c7a9b21d4e63 (head)" \
     && python -m py_compile \
         /app/backend/open_webui/routers/broker_reports_intake_contract.py \
         /app/backend/open_webui/routers/broker_reports_intake.py \
+        /app/backend/open_webui/routers/declaration_metadata_attachment_capability.py \
+        /app/backend/open_webui/migrations/versions/c7a9b21d4e63_add_declaration_metadata_attachment_capability.py \
         /app/backend/open_webui/main.py \
         /app/backend/open_webui/routers/retrieval.py
