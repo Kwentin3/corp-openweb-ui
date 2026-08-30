@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import hashlib
+import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -293,6 +296,96 @@ class BrokerReportsCanonicalStorageLifecycleV1Test(unittest.TestCase):
             self.assertIsNone(store.get_record_unchecked("atomic-component-1"))
             self.assertIsNone(store.get_record_unchecked("atomic-component-2"))
 
+    def test_direct_table_read_rejects_mutated_component_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = self._store(temp_dir)
+            context = self._context("run-component-file-mutation")
+            published = self._publish(
+                store,
+                context=context,
+                source_ref="source-component-file-mutation",
+                amount="10",
+                chunked=True,
+                capacity_check_enabled=False,
+            )
+            component = next(
+                item
+                for item in store.list_canonical_components(
+                    context=context,
+                    canonical_version_id=published.canonical_version_id,
+                )
+                if item["component_kind"] == "table"
+            )
+            record = store.get_record_unchecked(str(component["artifact_ref"]))
+            self.assertIsNotNone(record)
+            assert record is not None and record.payload_ref
+            (store.payload_root / record.payload_ref).write_text(
+                '{"node":{"node_type":"TABLE","tampered":true}}',
+                encoding="utf-8",
+            )
+            reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
+
+            with self.assertRaises(ArtifactStoreError) as blocked:
+                reader.read_table(
+                    "document-1",
+                    str(component["component_key"]),
+                    context,
+                    canonical_version_id=published.canonical_version_id,
+                )
+
+            self.assertEqual(blocked.exception.code, "canonical_chunk_hash_mismatch")
+
+    def test_canonical_descriptor_rejects_payload_resealed_in_artifact_row(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = self._store(temp_dir)
+            context = self._context("run-component-resealed")
+            published = self._publish(
+                store,
+                context=context,
+                source_ref="source-component-resealed",
+                amount="10",
+                chunked=True,
+                capacity_check_enabled=False,
+            )
+            component = next(
+                item
+                for item in store.list_canonical_components(
+                    context=context,
+                    canonical_version_id=published.canonical_version_id,
+                )
+                if item["component_kind"] == "table"
+            )
+            record = store.get_record_unchecked(str(component["artifact_ref"]))
+            self.assertIsNotNone(record)
+            assert record is not None and record.payload_ref
+            tampered = b'{"node":{"node_type":"TABLE","resealed":true}}'
+            (store.payload_root / record.payload_ref).write_bytes(tampered)
+            with closing(sqlite3.connect(store.sqlite_path)) as conn:
+                conn.execute(
+                    """
+                    UPDATE artifact_records
+                    SET checksum_sha256 = ?, payload_size_bytes = ?
+                    WHERE artifact_id = ?
+                    """,
+                    (
+                        hashlib.sha256(tampered).hexdigest(),
+                        len(tampered),
+                        record.artifact_id,
+                    ),
+                )
+                conn.commit()
+            reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
+
+            with self.assertRaises(ArtifactStoreError) as blocked:
+                reader.read_table(
+                    "document-1",
+                    str(component["component_key"]),
+                    context,
+                    canonical_version_id=published.canonical_version_id,
+                )
+
+            self.assertEqual(blocked.exception.code, "canonical_chunk_hash_mismatch")
+
     def _publish(
         self,
         store,
@@ -302,6 +395,7 @@ class BrokerReportsCanonicalStorageLifecycleV1Test(unittest.TestCase):
         amount: str,
         chunked: bool,
         document_id: str = "document-1",
+        capacity_check_enabled: bool = True,
     ):
         retention = build_retention_policy(mode="api_smoke")
         store.put_record(
@@ -357,6 +451,7 @@ class BrokerReportsCanonicalStorageLifecycleV1Test(unittest.TestCase):
         config = CanonicalStorageConfig(
             small_payload_max_bytes=1 if chunked else 10_000_000,
             large_table_cell_threshold=1 if chunked else 10_000_000,
+            capacity_check_enabled=capacity_check_enabled,
         )
         return CanonicalArtifactStoreFactory(
             store=store, config=config
