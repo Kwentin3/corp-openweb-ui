@@ -32,7 +32,7 @@ FORBIDDEN = (
 
 PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION = "pdf_text_layer_projection_v0"
 PDF_TEXT_LAYER_COVERAGE_SCHEMA_VERSION = "pdf_text_layer_coverage_v0"
-PDF_PARSER_POLICY_VERSION = "pypdf_page_text_policy_v0"
+PDF_PARSER_POLICY_VERSION = "pypdf_page_text_policy_v1_empty_password"
 PYPDF_PINNED_VERSION = "6.7.5"
 SUPPORTED_PDF_CAPABILITY = "page_text"
 SUPPORTED_PDF_CAPABILITIES = frozenset(
@@ -234,11 +234,22 @@ class PypdfParserAdapter:
                 "blocked",
                 ["pdf_corrupt_or_unreadable"],
             )
+        encryption_disposition = "not_encrypted"
+        empty_password_decrypt_attempts = 0
         if bool(getattr(reader, "is_encrypted", False)):
-            return self._terminal_result(
-                "blocked",
-                ["pdf_encrypted_without_key"],
-            )
+            empty_password_decrypt_attempts = 1
+            try:
+                empty_password_accepted = bool(reader.decrypt(""))
+            except Exception:
+                empty_password_accepted = False
+            if not empty_password_accepted:
+                return self._terminal_result(
+                    "blocked",
+                    ["pdf_encrypted_without_key"],
+                    encryption_disposition="password_required_or_decrypt_failed",
+                    empty_password_decrypt_attempts=empty_password_decrypt_attempts,
+                )
+            encryption_disposition = "empty_password_accepted"
         try:
             pages_total = len(reader.pages)
         except Exception:
@@ -318,6 +329,8 @@ class PypdfParserAdapter:
                     int(page.get("unknown_font_fragments_total") or 0) for page in pages
                 ),
                 "embedded_attachments_total": embedded_attachments_total,
+                "encryption_disposition": encryption_disposition,
+                "empty_password_decrypt_attempts": empty_password_decrypt_attempts,
             },
         )
 
@@ -431,6 +444,9 @@ class PypdfParserAdapter:
         self,
         status: str,
         reasons: list[str],
+        *,
+        encryption_disposition: str = "not_evaluated",
+        empty_password_decrypt_attempts: int = 0,
     ) -> PdfTextLayerParseResult:
         return PdfTextLayerParseResult(
             parser_engine="pypdf",
@@ -457,6 +473,8 @@ class PypdfParserAdapter:
                 "replacement_characters_total": 0,
                 "unknown_font_fragments_total": 0,
                 "embedded_attachments_total": 0,
+                "encryption_disposition": encryption_disposition,
+                "empty_password_decrypt_attempts": empty_password_decrypt_attempts,
             },
         )
 
@@ -522,6 +540,7 @@ def pdf_layout_page_checksum_ref(page: dict[str, Any], layout_parser_ref: str) -
 
 def pdf_payload_checksum_ref(payload: dict[str, Any]) -> str:
     projection = _object(payload.get("pdf_text_layer_projection"))
+    parser_diagnostics = _object(projection.get("parser_diagnostics"))
     return _checksum_ref(
         "srcpayloadchk",
         {
@@ -532,6 +551,12 @@ def pdf_payload_checksum_ref(payload: dict[str, Any]) -> str:
             "parser_engine_version": projection.get("parser_engine_version"),
             "parser_config_ref": projection.get("parser_config_ref"),
             "projection_policy_ref": projection.get("projection_policy_ref"),
+            "encryption_disposition": parser_diagnostics.get(
+                "encryption_disposition"
+            ),
+            "empty_password_decrypt_attempts": parser_diagnostics.get(
+                "empty_password_decrypt_attempts"
+            ),
             "parser_completeness_status": payload.get("parser_completeness_status"),
             "parser_completeness_reason_codes": list(
                 payload.get("parser_completeness_reason_codes") or []
@@ -588,6 +613,41 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         errors.append(_error("pdf_projection_engine_mismatch", payload_ref))
     if projection.get("parser_engine_version") != PYPDF_PINNED_VERSION:
         errors.append(_error("pdf_projection_engine_version_mismatch", payload_ref))
+    parser_diagnostics = _object(projection.get("parser_diagnostics"))
+    encryption_disposition = parser_diagnostics.get("encryption_disposition")
+    empty_password_decrypt_attempts = parser_diagnostics.get(
+        "empty_password_decrypt_attempts"
+    )
+    if (
+        encryption_disposition,
+        empty_password_decrypt_attempts,
+    ) not in {
+        ("not_evaluated", 0),
+        ("not_encrypted", 0),
+        ("empty_password_accepted", 1),
+        ("password_required_or_decrypt_failed", 1),
+    }:
+        errors.append(_error("pdf_projection_encryption_receipt_invalid", payload_ref))
+    if encryption_disposition == "password_required_or_decrypt_failed" and (
+        payload.get("parser_completeness_status") != "blocked"
+        or "pdf_encrypted_without_key"
+        not in set(payload.get("parser_completeness_reason_codes") or [])
+    ):
+        errors.append(
+            _error("pdf_projection_encryption_terminal_mismatch", payload_ref)
+        )
+    if encryption_disposition == "empty_password_accepted" and payload.get(
+        "parser_completeness_status"
+    ) == "blocked":
+        errors.append(
+            _error("pdf_projection_encryption_acceptance_status_mismatch", payload_ref)
+        )
+    if encryption_disposition == "not_evaluated" and payload.get(
+        "parser_completeness_status"
+    ) == "complete":
+        errors.append(
+            _error("pdf_projection_encryption_not_evaluated_status_mismatch", payload_ref)
+        )
     if payload.get("ocr_vlm_used") is not False or projection.get("ocr_vlm_used") is not False:
         errors.append(_error("pdf_projection_ocr_guard_failed", payload_ref))
     visual_status = str(projection.get("visual_fallback_status") or "not_required")
