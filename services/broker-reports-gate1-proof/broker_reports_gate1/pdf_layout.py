@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import statistics
 import time
+from collections import Counter
 from dataclasses import dataclass
 from io import BytesIO
 from typing import Any
+
+from .pdf_source_bound_grid import PdfSourceBoundGridError, reconstruct_mcid_grid
 
 from .contracts import stable_digest
 
@@ -326,10 +329,15 @@ class PdfPlumberLayoutAdapter:
                 split_at_punctuation=False,
                 return_chars=True,
             )
-            words = [
-                _sanitize_word(item, index)
-                for index, item in enumerate(raw_words or [], 1)
-            ]
+            words = _sanitize_words(raw_words or [], raw_chars=raw_chars)
+        except ValueError as exc:
+            words = []
+            code = str(exc)
+            layout_reasons.append(
+                code
+                if code.startswith("pdf_layout_tagged_word_")
+                else "pdf_layout_word_extraction_failed"
+            )
         except Exception:
             words = []
             layout_reasons.append("pdf_layout_word_extraction_failed")
@@ -371,6 +379,7 @@ class PdfPlumberLayoutAdapter:
                     try:
                         table_candidates, table_reason_codes = self._find_table_candidates(
                             page=page,
+                            chars=chars,
                             words=words,
                             vector_lines=vector_lines,
                             rects=rects,
@@ -458,6 +467,7 @@ class PdfPlumberLayoutAdapter:
         self,
         *,
         page: Any,
+        chars: list[dict[str, Any]],
         words: list[dict[str, Any]],
         vector_lines: list[dict[str, Any]],
         rects: list[dict[str, Any]],
@@ -466,6 +476,7 @@ class PdfPlumberLayoutAdapter:
         if locator_regions is not None:
             return self._find_locator_scoped_table_candidates(
                 page=page,
+                chars=chars,
                 words=words,
                 vector_lines=vector_lines,
                 rects=rects,
@@ -627,6 +638,7 @@ class PdfPlumberLayoutAdapter:
         self,
         *,
         page: Any,
+        chars: list[dict[str, Any]],
         words: list[dict[str, Any]],
         vector_lines: list[dict[str, Any]],
         rects: list[dict[str, Any]],
@@ -688,6 +700,14 @@ class PdfPlumberLayoutAdapter:
                 for word in words
                 if _bbox_center_inside(word.get("bbox") or [], bbox)
             ]
+            region_chars = [
+                char
+                for char in chars
+                if _bbox_center_inside(char.get("bbox") or [], bbox)
+            ]
+            tagged_source_present = any(
+                char.get("mcid") is not None for char in region_chars
+            )
             crop_bbox = _expanded_bbox(
                 bbox,
                 page_bbox=page_bbox,
@@ -704,14 +724,37 @@ class PdfPlumberLayoutAdapter:
                 if _bbox_overlap(rect.get("bbox") or [], crop_bbox)
             ]
             try:
-                crop = page.crop(tuple(crop_bbox), strict=False)
-                candidates, region_reasons = self._find_unbounded_table_candidates(
-                    page=crop,
-                    words=region_words,
+                candidate = reconstruct_mcid_grid(
+                    chars=region_chars,
                     vector_lines=region_lines,
                     rects=region_rects,
-                    source_bound=True,
+                    region_bbox=bbox,
                 )
+                for cell in candidate["cell_inventory"]:
+                    cell["word_parser_ordinals"] = [
+                        int(word["parser_ordinal"])
+                        for word in region_words
+                        if _bbox_center_inside(word.get("bbox") or [], cell["bbox"])
+                    ]
+                candidate["contributing_word_parser_ordinals"] = [
+                    int(word["parser_ordinal"]) for word in region_words
+                ]
+                candidates = [candidate]
+                region_reasons = []
+            except PdfSourceBoundGridError as tagged_error:
+                region_reasons = [str(tagged_error)]
+                candidates = []
+            try:
+                crop = page.crop(tuple(crop_bbox), strict=False)
+                if not candidates and not tagged_source_present:
+                    candidates, native_reasons = self._find_unbounded_table_candidates(
+                        page=crop,
+                        words=region_words,
+                        vector_lines=region_lines,
+                        rects=region_rects,
+                        source_bound=True,
+                    )
+                    region_reasons.extend(native_reasons)
             except Exception:
                 reasons.append("pdf_table_locator_region_native_extraction_rejected")
                 continue
@@ -822,6 +865,8 @@ def _sanitize_char(item: dict[str, Any], ordinal: int) -> dict[str, Any]:
         "size": _number(item.get("size")),
         "upright": bool(item.get("upright", True)),
         "direction": str(item.get("direction") or ""),
+        "mcid": item.get("mcid"),
+        "tag": str(item.get("tag") or ""),
         "duplicate_of_parser_ordinal": None,
     }
 
@@ -836,6 +881,81 @@ def _sanitize_word(item: dict[str, Any], ordinal: int) -> dict[str, Any]:
         "upright": all(bool(char.get("upright", True)) for char in chars if isinstance(char, dict)),
         "char_parser_ordinals": [],
     }
+
+
+def _sanitize_words(
+    raw_words: list[dict[str, Any]], *, raw_chars: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    source_char_ids = {id(char) for char in raw_chars}
+    if len(source_char_ids) != len(raw_chars):
+        raise ValueError("pdf_layout_source_char_identity_ambiguous")
+    claimed_char_ids: set[int] = set()
+    for raw_word in raw_words:
+        for char in raw_word.get("chars") or []:
+            if not isinstance(char, dict) or id(char) not in source_char_ids:
+                raise ValueError("pdf_layout_tagged_word_source_char_missing")
+            if id(char) in claimed_char_ids:
+                raise ValueError("pdf_layout_word_source_char_duplicate_claim")
+            claimed_char_ids.add(id(char))
+    required_tagged_char_ids = {
+        id(char)
+        for char in raw_chars
+        if char.get("mcid") is not None and str(char.get("text") or "").strip()
+    }
+    if not required_tagged_char_ids.issubset(claimed_char_ids):
+        raise ValueError("pdf_layout_tagged_word_source_char_unclaimed")
+
+    source_signatures = Counter(_raw_char_signature(char) for char in raw_chars)
+    result: list[dict[str, Any]] = []
+    for raw_word in raw_words:
+        word_chars = [item for item in raw_word.get("chars") or [] if isinstance(item, dict)]
+        mcid_runs: list[list[dict[str, Any]]] = []
+        for char in word_chars:
+            mcid = char.get("mcid")
+            if not mcid_runs or mcid_runs[-1][0].get("mcid") != mcid:
+                mcid_runs.append([char])
+            else:
+                mcid_runs[-1].append(char)
+        mcids = [run[0].get("mcid") for run in mcid_runs]
+        tagged_mcids = [value for value in mcids if value is not None]
+        if tagged_mcids and len(tagged_mcids) != len(mcids):
+            raise ValueError("pdf_layout_tagged_word_mcid_missing")
+        if len(set(tagged_mcids)) <= 1:
+            result.append(_sanitize_word(raw_word, len(result) + 1))
+            continue
+        if len(tagged_mcids) != len(set(tagged_mcids)):
+            raise ValueError("pdf_layout_tagged_word_mcid_noncontiguous")
+        word_signatures = Counter(_raw_char_signature(char) for char in word_chars)
+        if any(count > source_signatures[signature] for signature, count in word_signatures.items()):
+            raise ValueError("pdf_layout_tagged_word_source_char_missing")
+        if "".join(str(char.get("text") or "") for char in word_chars) != str(raw_word.get("text") or ""):
+            raise ValueError("pdf_layout_tagged_word_literal_mismatch")
+        for run in mcid_runs:
+            bbox = _merge_bboxes([_bbox(char) for char in run])
+            result.append(
+                {
+                    "parser_ordinal": len(result) + 1,
+                    "text": "".join(str(char.get("text") or "") for char in run),
+                    "bbox": bbox,
+                    "direction": str(raw_word.get("direction") or ""),
+                    "upright": all(bool(char.get("upright", True)) for char in run),
+                    "char_parser_ordinals": [],
+                    "mcid_refs": [str(run[0].get("mcid"))],
+                    "source_char_signatures": [list(_raw_char_signature(char)) for char in run],
+                }
+            )
+    return result
+
+
+def _raw_char_signature(item: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        str(item.get("text") or ""),
+        *_bbox(item),
+        str(item.get("fontname") or ""),
+        _number(item.get("size")),
+        item.get("mcid"),
+        str(item.get("tag") or ""),
+    )
 
 
 def _sanitize_vector(
