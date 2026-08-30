@@ -144,6 +144,7 @@ jobs:
           tests/test_broker_reports_gate2_financial_semantic_v6_totality.py
           tests/test_broker_reports_declaration_metadata_intake.py
           tests/test_broker_reports_declaration_metadata_intake_http.py
+          tests/test_declaration_metadata_attachment_capability.py
           tests/test_live_verify_declaration_metadata_intake_ui.py
           tests/test_repository_privacy_guard.py
           --tb=short
