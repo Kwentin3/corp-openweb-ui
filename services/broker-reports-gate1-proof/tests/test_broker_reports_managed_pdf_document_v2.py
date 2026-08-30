@@ -94,10 +94,10 @@ PR3_LEGACY_CANONICAL_SHA256 = (
     "15f0446b2e7755ad1997e292bcacaba88f6f57ba41fc8d7c1931c4283b5bad05"
 )
 SOURCE_CHAIN_AUTHORITY_INTEGRITY_SHA256 = (
-    "933dfcbf052c0bd820c1db627170aea5748f3577087ad03bab274892d923de1d"
+    "dbc78ba3314eeece841dece22fa735d86929fe9851ca7ce100b2a5e4ed70b70f"
 )
 SOURCE_CHAIN_AUTHORITY_CANONICAL_SHA256 = (
-    "c397d842fa59debb9279595656e75ed044366e84939321ccb86eeaa53ce616ba"
+    "62d75d2a6f7a5f12ffe1b143b2c5331bdb1efd0667069d32d055fd80a7b4dd50"
 )
 PR3_LEGACY_LAYOUT_CONFIG_REF = "pdflayoutcfg_552ad5c15996174bb154a2a0"
 
@@ -325,7 +325,10 @@ def test_policy_identity_migration_preserves_frozen_pr3_structure(
 
     assert len(calls) == 1
     assert result.status == "COMPLETE"
-    assert PDF_LAYOUT_POLICY_VERSION == "pdfplumber_layout_policy_v3_table_terminals"
+    assert (
+        PDF_LAYOUT_POLICY_VERSION
+        == "pdfplumber_layout_policy_v4_mixed_table_terminal"
+    )
     assert PdfLayoutParserConfig().config_ref != PR3_LEGACY_LAYOUT_CONFIG_REF
     assert result.managed_document.integrity_sha256 != PR3_LEGACY_INTEGRITY_SHA256
     assert result.managed_document.integrity_sha256 == (

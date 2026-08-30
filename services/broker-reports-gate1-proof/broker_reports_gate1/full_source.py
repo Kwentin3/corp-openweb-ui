@@ -88,6 +88,8 @@ class FullSourceArtifactConfig:
     max_pdf_layout_table_detection_words_per_page: int = 5_000
     max_pdf_layout_table_detection_vector_objects_per_page: int = 5_000
     max_pdf_layout_seconds_per_page: float = 30.0
+    pdf_layout_aligned_table_min_rows: int = 3
+    pdf_layout_aligned_table_min_columns: int = 2
     max_pdf_layout_lines_per_cluster: int = 24
     max_pdf_layout_words_per_cluster: int = 400
     max_pdf_layout_characters_per_cluster: int = 6_000
@@ -176,6 +178,14 @@ class FullSourceArtifactFactory:
                     "full_source_pdf_layout_time_budget_invalid",
                 ),
                 (
+                    self.config.pdf_layout_aligned_table_min_rows,
+                    "full_source_pdf_layout_aligned_row_minimum_invalid",
+                ),
+                (
+                    self.config.pdf_layout_aligned_table_min_columns,
+                    "full_source_pdf_layout_aligned_column_minimum_invalid",
+                ),
+                (
                     self.config.max_pdf_layout_lines_per_cluster,
                     "full_source_pdf_layout_cluster_line_budget_invalid",
                 ),
@@ -232,6 +242,10 @@ class FullSourceArtifactBuilder:
                     max_table_detection_words_per_page=config.max_pdf_layout_table_detection_words_per_page,
                     max_table_detection_vector_objects_per_page=config.max_pdf_layout_table_detection_vector_objects_per_page,
                     max_seconds_per_page=config.max_pdf_layout_seconds_per_page,
+                    aligned_table_min_rows=config.pdf_layout_aligned_table_min_rows,
+                    aligned_table_min_columns=(
+                        config.pdf_layout_aligned_table_min_columns
+                    ),
                 ),
             )
         )
@@ -1215,6 +1229,13 @@ class FullSourceArtifactBuilder:
                 layout_coverage = layout_build.coverage
                 layout_unit_diagnostics = layout_build.diagnostics
                 layout_source_chain = layout_build.source_chain
+                if table_candidate_status in {
+                    "blocked",
+                    "rejected",
+                    "candidate_with_rejections",
+                }:
+                    status = "partial"
+                    reasons.append("pdf_table_candidate_admission_incomplete")
             for page in page_inventory:
                 page["page_layout_checksum_ref"] = pdf_layout_page_checksum_ref(
                     page, str(layout_parser_ref or "")

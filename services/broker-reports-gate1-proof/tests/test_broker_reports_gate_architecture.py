@@ -161,6 +161,20 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertIn(
             "source_chain_complete = all(", source_modules["pdf_layout_units"]
         )
+        self.assertIn(
+            "_materialized_page_matches_raw_layout(",
+            source_modules["pdf_layout_units"],
+        )
+        self.assertLess(
+            source_modules["pdf_layout_units"].index(
+                "owner_binding_complete = _materialized_page_matches_raw_layout("
+            ),
+            source_modules["pdf_layout_units"].index("raw_layout.clear()"),
+        )
+        self.assertIn(
+            "Validate serialized structural consistency, not PDF-byte authenticity",
+            source_modules["pdf_text_layer"],
+        )
         self.assertNotIn(
             "_page_text_supports_layout_partition", source_modules["pdf_layout_units"]
         )

@@ -613,6 +613,13 @@ def pdf_payload_checksum_ref(payload: dict[str, Any]) -> str:
 
 
 def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate serialized structural consistency, not PDF-byte authenticity.
+
+    Geometry authenticity is established only inside FullSource while the raw
+    PDF and trusted pdfplumber result coexist. No self-recomputable payload
+    receipt can prove that relationship after serialization.
+    """
+
     errors: list[dict[str, str]] = []
     payload_ref = str(payload.get("source_payload_ref") or "")
     projection = _object(payload.get("pdf_text_layer_projection"))
@@ -974,6 +981,13 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             errors.append(
                 _error("pdf_layout_complete_source_chain_incomplete", payload_ref)
             )
+        owner_binding_status = _object(
+            projection.get("layout_unit_diagnostics")
+        ).get("source_owner_binding_status")
+        if layout_status == "complete" and owner_binding_status != "complete":
+            errors.append(
+                _error("pdf_layout_complete_source_owner_unbound", payload_ref)
+            )
         for page in pages:
             page_chain_status = _object(
                 page.get("layout_source_chain_receipt")
@@ -984,6 +998,13 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             ):
                 errors.append(
                     _error("pdf_layout_page_complete_source_chain_incomplete", page.get("page_ref"))
+                )
+            if (
+                page.get("layout_projection_status") == "complete"
+                and page.get("layout_source_owner_binding_status") != "complete"
+            ):
+                errors.append(
+                    _error("pdf_layout_page_complete_source_owner_unbound", page.get("page_ref"))
                 )
             if {
                 "pdf_layout_word_page_text_mismatch",
@@ -1044,6 +1065,7 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         table_status = projection.get("table_candidate_status")
         if table_status not in {
             "candidate",
+            "candidate_with_rejections",
             "rejected",
             "blocked",
             "none_detected",
@@ -1054,6 +1076,30 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 errors.append(_error("pdf_table_candidate_inventory_empty", payload_ref))
             if projection.get("semantic_reconstruction_status") != "candidate":
                 errors.append(_error("pdf_table_semantic_candidate_status_mismatch", payload_ref))
+        page_table_statuses = [
+            str(page.get("table_candidate_status") or "none_detected")
+            for page in pages
+        ]
+        terminal_counts = _object(
+            _object(projection.get("layout_unit_diagnostics")).get(
+                "table_terminal_counts"
+            )
+        )
+        expected_terminal_counts = {
+            "candidate_pages_total": page_table_statuses.count("candidate"),
+            "rejected_pages_total": page_table_statuses.count("rejected"),
+            "blocked_pages_total": page_table_statuses.count("blocked"),
+            "none_detected_pages_total": page_table_statuses.count("none_detected"),
+        }
+        if terminal_counts != expected_terminal_counts:
+            errors.append(_error("pdf_table_terminal_counts_mismatch", payload_ref))
+        if table_status == "candidate_with_rejections":
+            if not table_inventory:
+                errors.append(_error("pdf_table_candidate_inventory_empty", payload_ref))
+            if not {"candidate", "rejected"} <= set(page_table_statuses):
+                errors.append(_error("pdf_table_mixed_terminal_evidence_missing", payload_ref))
+            if projection.get("semantic_reconstruction_status") != "not_claimed":
+                errors.append(_error("pdf_table_mixed_semantic_status_invalid", payload_ref))
         if table_status == "none_detected" and table_inventory:
             errors.append(
                 _error("pdf_table_terminal_status_has_candidate_inventory", payload_ref)
