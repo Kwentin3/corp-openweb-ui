@@ -12,7 +12,7 @@ from .contracts import stable_digest
 from .source_provenance import NormalizedSliceProvenanceFactory
 
 
-PDF_LAYOUT_UNIT_POLICY_VERSION = "pdf_layout_unit_partition_policy_v1_source_chain"
+PDF_LAYOUT_UNIT_POLICY_VERSION = "pdf_layout_unit_partition_policy_v2_exact_word_cell"
 PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION = "pdf_layout_unit_coverage_v0"
 PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION = "pdf_layout_document_coverage_v0"
 PDF_LAYOUT_SOURCE_CHAIN_SCHEMA_VERSION = "pdf_layout_source_chain_v0"
@@ -612,12 +612,22 @@ class PdfLayoutUnitBuilder:
         for candidate_ordinal, raw in enumerate(
             _dicts(raw_layout.get("table_candidate_inventory")), 1
         ):
+            partition_reasons: list[str] = []
+            contributing_ordinals = [
+                int(value)
+                for value in raw.get("contributing_word_parser_ordinals") or []
+            ]
+            if len(contributing_ordinals) != len(set(contributing_ordinals)):
+                partition_reasons.append(
+                    "pdf_table_word_cell_contributing_word_duplicate"
+                )
+            if any(ordinal not in word_by_ordinal for ordinal in contributing_ordinals):
+                partition_reasons.append(
+                    "pdf_table_word_cell_contributing_word_missing_or_foreign"
+                )
             contributing_words = [
                 word_by_ordinal[item]
-                for item in [
-                    int(value)
-                    for value in raw.get("contributing_word_parser_ordinals") or []
-                ]
+                for item in contributing_ordinals
                 if item in word_by_ordinal
             ]
             contributing_word_refs = [
@@ -651,14 +661,24 @@ class PdfLayoutUnitBuilder:
                 ],
                 length=24,
             )
-            row_inventory, cell_inventory = _materialize_candidate_cells(
+            row_inventory, cell_inventory, cell_partition_reasons = (
+                _materialize_candidate_cells(
                 table_ref=table_ref,
                 page_ref=page_ref,
                 raw_cells=_dicts(raw.get("cell_inventory")),
                 rows_total=int(raw.get("rows_total") or 0),
+                columns_total=int(raw.get("columns_total") or 0),
                 word_by_ordinal=word_by_ordinal,
+                contributing_word_ordinals=contributing_ordinals,
+                char_by_ref={
+                    str(item.get("char_ref") or ""): item for item in chars
+                },
                 bbox_ref=bbox_ref,
+                )
             )
+            partition_reasons.extend(cell_partition_reasons)
+            partition_reasons = sorted(set(partition_reasons))
+            partition_status = "complete" if not partition_reasons else "blocked"
             candidate = {
                 **copy.deepcopy(raw),
                 "parser_ordinal": candidate_ordinal,
@@ -685,8 +705,19 @@ class PdfLayoutUnitBuilder:
                     else "medium"
                 ),
                 "semantic_table_truth_claimed": False,
+                "word_cell_partition_status": partition_status,
+                "word_cell_partition_reason_codes": partition_reasons,
+                "table_reconstruction_status": (
+                    "candidate" if partition_status == "complete" else "blocked"
+                ),
             }
             candidates.append(candidate)
+
+        if any(
+            candidate.get("word_cell_partition_status") == "blocked"
+            for candidate in candidates
+        ):
+            table_reasons.append("pdf_table_word_cell_partition_blocked")
 
         source_chain_status = str(source_chain_receipt.get("status") or "partial")
         if source_chain_status != "complete":
@@ -706,7 +737,12 @@ class PdfLayoutUnitBuilder:
                 ),
                 "layout_confidence": raw_layout.get("layout_confidence"),
                 "table_candidate_status": (
-                    "candidate"
+                    "blocked"
+                    if any(
+                        candidate.get("word_cell_partition_status") == "blocked"
+                        for candidate in candidates
+                    )
+                    else "candidate"
                     if candidates
                     else str(
                         raw_layout.get("table_candidate_status") or "none_detected"
@@ -848,6 +884,11 @@ class PdfLayoutUnitBuilder:
         table_units: list[dict[str, Any]] = []
         accepted_candidate_word_refs: set[str] = set()
         reasons: list[str] = []
+        if any(
+            candidate.get("word_cell_partition_status") == "blocked"
+            for candidate in candidates
+        ):
+            return [], ["pdf_table_word_cell_partition_blocked"]
         for candidate in candidates:
             word_refs = _strings(candidate.get("contributing_word_refs"))
             if len(word_refs) > self.config.max_words_per_table_candidate_unit:
@@ -1321,78 +1362,170 @@ def _materialize_candidate_cells(
     page_ref: str,
     raw_cells: list[dict[str, Any]],
     rows_total: int,
+    columns_total: int,
     word_by_ordinal: dict[int, dict[str, Any]],
+    contributing_word_ordinals: list[int],
+    char_by_ref: dict[str, dict[str, Any]],
     bbox_ref,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    grid_addressed = bool(raw_cells) and all(
-        int(cell.get("row_ordinal") or 0) > 0
-        and int(cell.get("column_ordinal") or 0) > 0
-        for cell in raw_cells
-    )
-    if grid_addressed:
-        ordered = sorted(
-            raw_cells,
-            key=lambda cell: (
-                int(cell.get("row_ordinal") or 0),
-                int(cell.get("column_ordinal") or 0),
-            ),
-        )
-        row_groups = [
-            [
-                cell
-                for cell in ordered
-                if int(cell.get("row_ordinal") or 0) == row_ordinal
-            ]
-            for row_ordinal in range(
-                1,
-                max(rows_total, max(int(cell["row_ordinal"]) for cell in ordered)) + 1,
-            )
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    reasons: list[str] = []
+    if rows_total <= 0 or columns_total <= 0:
+        reasons.append("pdf_table_word_cell_grid_dimensions_invalid")
+    if not raw_cells:
+        reasons.append("pdf_table_word_cell_source_cells_missing")
+
+    addressed: list[tuple[dict[str, Any], int, int, int, int]] = []
+    occupied_addresses: dict[tuple[int, int], int] = {}
+    source_claim_owners: dict[int, int] = {}
+    for cell_index, raw in enumerate(raw_cells, 1):
+        row_ordinal = int(raw.get("row_ordinal") or 0)
+        column_ordinal = int(raw.get("column_ordinal") or 0)
+        row_span = int(raw.get("row_span") or 0)
+        column_span = int(raw.get("column_span") or 0)
+        if row_ordinal <= 0 or column_ordinal <= 0:
+            reasons.append("pdf_table_word_cell_grid_address_missing")
+        if row_span <= 0 or column_span <= 0:
+            reasons.append("pdf_table_word_cell_grid_span_invalid")
+        if (
+            row_ordinal + max(row_span, 1) - 1 > rows_total
+            or column_ordinal + max(column_span, 1) - 1 > columns_total
+        ):
+            reasons.append("pdf_table_word_cell_grid_address_out_of_bounds")
+        for row_address in range(row_ordinal, row_ordinal + max(row_span, 1)):
+            for column_address in range(
+                column_ordinal, column_ordinal + max(column_span, 1)
+            ):
+                address = (row_address, column_address)
+                if address in occupied_addresses:
+                    reasons.append("pdf_table_word_cell_grid_address_overlap")
+                occupied_addresses[address] = cell_index
+        claimed_ordinals = [
+            int(value) for value in raw.get("word_parser_ordinals") or []
         ]
-    else:
-        ordered = sorted(raw_cells, key=_geometry_key)
-        row_groups = []
-        for cell in ordered:
-            top = float((_bbox(cell.get("bbox")))[1])
-            target = next(
-                (
-                    group
-                    for group in reversed(row_groups)
-                    if abs(top - float(_bbox(group[0].get("bbox"))[1])) <= 2.0
-                ),
-                None,
+        if len(claimed_ordinals) != len(set(claimed_ordinals)):
+            reasons.append("pdf_table_word_cell_source_word_duplicate")
+        for word_ordinal in claimed_ordinals:
+            if word_ordinal not in word_by_ordinal:
+                reasons.append("pdf_table_word_cell_source_word_missing_or_foreign")
+            if word_ordinal in source_claim_owners:
+                reasons.append("pdf_table_word_cell_source_word_multiple_cells")
+            source_claim_owners[word_ordinal] = cell_index
+        addressed.append(
+            (raw, row_ordinal, column_ordinal, max(row_span, 1), max(column_span, 1))
+        )
+
+    expected_addresses = {
+        (row, column)
+        for row in range(1, rows_total + 1)
+        for column in range(1, columns_total + 1)
+    }
+    if set(occupied_addresses) != expected_addresses:
+        reasons.append("pdf_table_word_cell_grid_address_gap")
+
+    for left_index, (left, *_rest) in enumerate(addressed):
+        left_bbox = _bbox(left.get("bbox"))
+        if left_bbox[2] <= left_bbox[0] or left_bbox[3] <= left_bbox[1]:
+            reasons.append("pdf_table_word_cell_bbox_invalid")
+        for right, *_ in addressed[left_index + 1 :]:
+            right_bbox = _bbox(right.get("bbox"))
+            overlap_width = min(left_bbox[2], right_bbox[2]) - max(
+                left_bbox[0], right_bbox[0]
             )
-            if target is None:
-                row_groups.append([cell])
+            overlap_height = min(left_bbox[3], right_bbox[3]) - max(
+                left_bbox[1], right_bbox[1]
+            )
+            if overlap_width > 0 and overlap_height > 0:
+                reasons.append("pdf_table_word_cell_bbox_overlap")
+
+    derived_words_by_cell: dict[int, list[str]] = {
+        cell_index: [] for cell_index in range(1, len(addressed) + 1)
+    }
+    derived_cell_by_word_ordinal: dict[int, int] = {}
+    contributing_set = set(contributing_word_ordinals)
+    for word_ordinal in contributing_word_ordinals:
+        word = word_by_ordinal.get(word_ordinal)
+        if word is None:
+            continue
+        char_refs = _strings(word.get("char_refs"))
+        if not char_refs:
+            reasons.append("pdf_table_word_cell_word_chars_missing")
+            continue
+        resolved_cells: set[int] = set()
+        word_failed = False
+        for char_ref in char_refs:
+            char = char_by_ref.get(char_ref)
+            if char is None:
+                reasons.append("pdf_table_word_cell_word_char_foreign")
+                word_failed = True
+                continue
+            char_bbox = _bbox(char.get("bbox"))
+            center = (
+                (char_bbox[0] + char_bbox[2]) / 2.0,
+                (char_bbox[1] + char_bbox[3]) / 2.0,
+            )
+            matching_cells = [
+                cell_index
+                for cell_index, (raw, *_rest) in enumerate(addressed, 1)
+                if _point_in_bbox(center, _bbox(raw.get("bbox")))
+            ]
+            if not matching_cells:
+                reasons.append("pdf_table_word_cell_char_center_gap")
+                word_failed = True
+            elif len(matching_cells) > 1:
+                reasons.append("pdf_table_word_cell_char_center_ambiguous")
+                word_failed = True
             else:
-                target.append(cell)
+                resolved_cells.add(matching_cells[0])
+        if word_failed:
+            continue
+        if len(resolved_cells) != 1:
+            reasons.append("pdf_table_word_cell_word_crosses_cells")
+            continue
+        cell_index = next(iter(resolved_cells))
+        derived_cell_by_word_ordinal[word_ordinal] = cell_index
+        derived_words_by_cell[cell_index].append(
+            str(word.get("word_ref") or "")
+        )
+
+    if set(source_claim_owners) != contributing_set:
+        reasons.append("pdf_table_word_cell_source_claim_partition_mismatch")
+    if any(
+        source_claim_owners.get(word_ordinal)
+        != derived_cell_by_word_ordinal.get(word_ordinal)
+        for word_ordinal in contributing_set
+    ):
+        reasons.append("pdf_table_word_cell_source_claim_geometry_mismatch")
+    if set(derived_cell_by_word_ordinal) != contributing_set:
+        reasons.append("pdf_table_word_cell_contributing_partition_incomplete")
+
     rows: list[dict[str, Any]] = []
     cells: list[dict[str, Any]] = []
-    for row_ordinal, group in enumerate(row_groups, 1):
+    all_row_ordinals = sorted(
+        set(range(1, rows_total + 1)) | {item[1] for item in addressed}
+    )
+    raw_cells_by_row = {
+        row_ordinal: [
+            item
+            for item in addressed
+            if item[1] == row_ordinal
+        ]
+        for row_ordinal in all_row_ordinals
+    }
+    cell_index_by_identity = {
+        id(item[0]): index for index, item in enumerate(addressed, 1)
+    }
+    for row_ordinal in all_row_ordinals:
         row_ref = "pdftablerow_" + stable_digest([table_ref, row_ordinal], length=24)
         row_cell_refs = []
-        ordered_group = (
-            sorted(group, key=lambda value: int(value.get("column_ordinal") or 0))
-            if grid_addressed
-            else sorted(group, key=lambda value: float(_bbox(value.get("bbox"))[0]))
-        )
-        for fallback_column_ordinal, raw in enumerate(ordered_group, 1):
-            column_ordinal = (
-                int(raw.get("column_ordinal") or 0)
-                if grid_addressed
-                else fallback_column_ordinal
-            )
-            row_span = max(1, int(raw.get("row_span") or 1))
-            column_span = max(1, int(raw.get("column_span") or 1))
+        ordered_group = sorted(raw_cells_by_row[row_ordinal], key=lambda item: item[2])
+        for raw, _row, column_ordinal, row_span, column_span in ordered_group:
+            cell_index = cell_index_by_identity[id(raw)]
             cell_ref = "pdftablecell_" + stable_digest(
                 [table_ref, row_ordinal, column_ordinal, raw.get("bbox")], length=24
             )
-            word_refs = [
-                str(word_by_ordinal[item].get("word_ref") or "")
-                for item in [
-                    int(value) for value in raw.get("word_parser_ordinals") or []
-                ]
-                if item in word_by_ordinal
-            ]
+            word_refs = derived_words_by_cell[cell_index]
+            if not word_refs and (row_span != 1 or column_span != 1):
+                reasons.append("pdf_table_word_cell_wordless_span_unsupported")
             cells.append(
                 {
                     "cell_ref": cell_ref,
@@ -1419,6 +1552,10 @@ def _materialize_candidate_cells(
                     ),
                     "bbox_ref": bbox_ref(raw.get("bbox")),
                     "word_refs": word_refs,
+                    "source_word_parser_ordinals": [
+                        int(value)
+                        for value in raw.get("word_parser_ordinals") or []
+                    ],
                     "semantic_role": "not_claimed",
                 }
             )
@@ -1432,7 +1569,20 @@ def _materialize_candidate_cells(
                 "semantic_role": "not_claimed",
             }
         )
-    return rows, cells
+    cell_word_refs = [
+        ref for cell in cells for ref in _strings(cell.get("word_refs"))
+    ]
+    contributing_word_refs = [
+        str(word_by_ordinal[ordinal].get("word_ref") or "")
+        for ordinal in contributing_word_ordinals
+        if ordinal in word_by_ordinal
+    ]
+    if (
+        len(cell_word_refs) != len(set(cell_word_refs))
+        or sorted(cell_word_refs) != sorted(contributing_word_refs)
+    ):
+        reasons.append("pdf_table_word_cell_exact_partition_failed")
+    return rows, cells, sorted(set(reasons))
 
 
 def _materialized_page_matches_raw_layout(
@@ -1841,6 +1991,15 @@ def _bbox_overlap(left: Any, right: Any) -> bool:
         or right_bbox[2] <= left_bbox[0]
         or left_bbox[3] <= right_bbox[1]
         or right_bbox[3] <= left_bbox[1]
+    )
+
+
+def _point_in_bbox(
+    point: tuple[float, float], bbox: list[float]
+) -> bool:
+    return (
+        bbox[0] <= point[0] <= bbox[2]
+        and bbox[1] <= point[1] <= bbox[3]
     )
 
 
