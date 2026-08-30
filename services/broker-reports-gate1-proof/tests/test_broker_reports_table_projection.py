@@ -28,7 +28,13 @@ from broker_reports_gate1 import (
     resolve_source_values,
     validate_gate2_table_package,
 )
-from broker_reports_gate1.table_projection import FACTORY_REQUIRED, FORBIDDEN
+from broker_reports_gate1.table_projection import (
+    FACTORY_REQUIRED,
+    FORBIDDEN,
+    _checksum_ref,
+    _coverage,
+    _finish_projection,
+)
 from tests.test_broker_reports_gate1_backend_contract import (
     BrokerReportsGate1BackendContractTest,
 )
@@ -152,7 +158,141 @@ def _ruled_table_with_full_width_structural_row_pdf() -> bytes:
     return _pdf_bytes([{"texts": texts, "vectors": vectors}])
 
 
+def _generic_bound_projection(*, header_rows: int, with_title: bool) -> dict:
+    result = Gate1Normalizer().normalize(
+        [
+            FileInput.from_bytes(
+                private_ref="generic-bound-table",
+                filename="generic.csv",
+                content=b"Top A,Top B\nSub A,Sub B\n1,2\n",
+                mime_type="text/csv",
+            )
+        ]
+    )
+    projection = copy.deepcopy(
+        result.package["private_normalized_table_projections"][0]
+    )
+    for row in projection["rows"]:
+        row["row_role"] = (
+            "header_row" if row["row_ordinal"] <= header_rows else "data_row"
+        )
+    header_refs = [row["row_ref"] for row in projection["rows"][:header_rows]]
+    header_source_refs = [
+        ref
+        for cell in projection["cells"]
+        if cell["row_ref"] in set(header_refs)
+        for ref in cell["source_value_refs"]
+    ]
+    projection["bound_header_row_count"] = header_rows
+    projection["header_model"].update(
+        {
+            "header_row_refs": header_refs,
+            "multi_row_header": header_rows > 1,
+            "source_value_refs": header_source_refs,
+            "source_checksum_ref": _checksum_ref(
+                "pdfheaderchk",
+                {"row_refs": header_refs, "source_value_refs": header_source_refs},
+            ),
+        }
+    )
+    projection["table_title_binding"] = None
+    if with_title:
+        private_value = projection["private_values"][0]
+        title_source_refs = list(private_value["source_value_refs"])
+        title_source_ref = title_source_refs[0]
+        next(
+            item
+            for item in projection["source_value_index"]
+            if item["source_value_ref"] == title_source_ref
+        )["source_object_ref"] = "word-title"
+        coverage = projection["coverage"]
+        projection["coverage"] = _coverage(
+            projection_id=projection["table_projection_id"],
+            selected=[
+                *coverage["selected_source_refs"],
+                "word-title",
+                "line-title",
+            ],
+            table_owned=[
+                *coverage["table_owned_refs"],
+                "word-title",
+                "line-title",
+            ],
+        )
+        title = {
+            "value": private_value["normalized_value"],
+            "word_refs": ["word-title"],
+            "line_refs": ["line-title"],
+            "source_value_refs": title_source_refs,
+        }
+        title["checksum_ref"] = _checksum_ref("pdftitlechk", title)
+        projection["table_title_binding"] = title
+    return _finish_projection(projection)
+
+
 class BrokerReportsTableProjectionTest(unittest.TestCase):
+    def test_bound_multirow_header_and_null_bindings_are_generic(self):
+        multirow = _generic_bound_projection(header_rows=2, with_title=True)
+        self.assertEqual(
+            TableProjectionValidator().validate(multirow)["validator_status"],
+            "passed",
+        )
+        self.assertEqual(multirow["header_model"]["header_row_refs"], multirow["row_refs"][:2])
+        self.assertTrue(multirow["header_model"]["multi_row_header"])
+
+        null_binding = _generic_bound_projection(header_rows=0, with_title=False)
+        self.assertEqual(
+            TableProjectionValidator().validate(null_binding)["validator_status"],
+            "passed",
+        )
+        self.assertIsNone(null_binding["table_title_binding"])
+        self.assertEqual(null_binding["header_model"]["header_row_refs"], [])
+
+    def test_bound_projection_mutations_fail_closed(self):
+        ref_mutations = [
+            ("foreign_word_ref", "word_refs", "word-foreign"),
+            ("foreign_line_ref", "line_refs", "line-foreign"),
+            ("foreign_source_value_ref", "source_value_refs", "srcval-foreign"),
+            ("duplicate_word_ref", "word_refs", None),
+            ("duplicate_line_ref", "line_refs", None),
+            ("duplicate_source_value_ref", "source_value_refs", None),
+        ]
+        for name, field, foreign_ref in ref_mutations:
+            with self.subTest(name=name):
+                projection = _generic_bound_projection(header_rows=2, with_title=True)
+                binding = projection["table_title_binding"]
+                binding[field].append(foreign_ref or binding[field][0])
+                material = {
+                    key: value
+                    for key, value in binding.items()
+                    if key != "checksum_ref"
+                }
+                binding["checksum_ref"] = _checksum_ref("pdftitlechk", material)
+                projection = _finish_projection(projection)
+                validation = TableProjectionValidator().validate(projection)
+                self.assertEqual(validation["validator_status"], "failed")
+                self.assertTrue(validation["errors"])
+
+        mutations = {
+            "title_checksum_drift": lambda item: item["table_title_binding"].update(
+                {"checksum_ref": "pdftitlechk-foreign"}
+            ),
+            "invalid_header_count": lambda item: item.update(
+                {"bound_header_row_count": len(item["rows"]) + 1}
+            ),
+            "nonprefix_header_model": lambda item: item["header_model"].update(
+                {"header_row_refs": [item["row_refs"][1], item["row_refs"][0]]}
+            ),
+        }
+        for name, mutate in mutations.items():
+            with self.subTest(name=name):
+                projection = _generic_bound_projection(header_rows=2, with_title=True)
+                mutate(projection)
+                projection = _finish_projection(projection)
+                validation = TableProjectionValidator().validate(projection)
+                self.assertEqual(validation["validator_status"], "failed")
+                self.assertTrue(validation["errors"])
+
     def test_native_projection_resolves_all_cells_with_single_index_and_row_scan(self):
         content = (
             "Date,Amount,Note\n"

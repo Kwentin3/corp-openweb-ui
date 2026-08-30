@@ -15,6 +15,10 @@ from .broker_pdf_neutral_tables import (
     validate_canonical_neutral_projection,
 )
 from .contracts import stable_digest
+from .pdf_text_layer import (
+    validate_pdf_source_unit,
+    validate_pdf_text_layer_payload,
+)
 from .source_provenance import resolve_source_values, validate_source_value_refs
 
 
@@ -452,6 +456,10 @@ class PdfTableCandidateProjectionBuilder:
             str(item.get("word_ref") or ""): item
             for item in _dicts(parent_projection.get("word_inventory"))
         }
+        lines = {
+            str(item.get("line_ref") or ""): item
+            for item in _dicts(parent_projection.get("line_inventory"))
+        }
         bboxes = {
             str(item.get("bbox_ref") or ""): item
             for item in _dicts(parent_projection.get("bbox_inventory"))
@@ -465,6 +473,26 @@ class PdfTableCandidateProjectionBuilder:
             vector_line_contract_present="vector_line_inventory" in parent_projection,
             min_confidence=self.config.min_pdf_geometry_confidence,
         )
+        if candidate is not None and "source_title_binding" in candidate:
+            parent_validation = validate_pdf_text_layer_payload(
+                _object(parent_payload)
+            )
+            reasons.extend(
+                str(item.get("code") or "")
+                for item in validate_pdf_source_unit(
+                    source_unit,
+                    parent_payload=_object(parent_payload),
+                    parent_validation=parent_validation,
+                    require_parent_payload=True,
+                )
+            )
+        source_binding, binding_reasons = _pdf_source_binding(
+            source_unit=source_unit,
+            candidate=candidate,
+            words=words,
+            lines=lines,
+        )
+        reasons.extend(binding_reasons)
         candidate_rows = _dicts(_object(candidate).get("row_inventory"))
         candidate_cells = _dicts(_object(candidate).get("cell_inventory"))
         budget_reasons = _budget_reasons(
@@ -637,12 +665,71 @@ class PdfTableCandidateProjectionBuilder:
                         "value_checksum_ref": word_value_checksum_ref,
                     }
                 )
+        title_binding = _object(source_binding.get("title_binding"))
+        header_row_count = int(source_binding.get("header_row_count") or 0)
+        title_word_refs = _strings(title_binding.get("word_refs"))
+        title_words = [words[ref] for ref in title_word_refs]
+        title_source_value_refs = _strings(
+            title_binding.get("source_value_refs")
+        )
+        if title_source_value_refs:
+            title_value_path_ref = "tabletitlevaluepath_" + stable_digest(
+                [projection_id, *title_source_value_refs], length=24
+            )
+            private_values.append(
+                {
+                    "value_path_ref": title_value_path_ref,
+                    "normalized_value": title_binding.get("value"),
+                    "value_checksum_ref": _checksum_ref(
+                        "valuechk", title_binding.get("value")
+                    ),
+                    "source_value_refs": title_source_value_refs,
+                }
+            )
+            for word in title_words:
+                word_value = str(word.get("text") or "")
+                word_source_value_ref = str(word.get("source_value_ref") or "")
+                word_value_path_ref = "tabletitlewordvaluepath_" + stable_digest(
+                    [projection_id, word.get("word_ref"), word_source_value_ref],
+                    length=24,
+                )
+                private_values.append(
+                    {
+                        "value_path_ref": word_value_path_ref,
+                        "normalized_value": word_value,
+                        "value_checksum_ref": _checksum_ref("valuechk", word_value),
+                        "source_value_refs": [word_source_value_ref],
+                        "source_object_ref": word.get("word_ref"),
+                    }
+                )
+                source_value_index.append(
+                    {
+                        "source_value_ref": word_source_value_ref,
+                        "source_object_ref": word.get("word_ref"),
+                        "value_path": {
+                            "kind": "table_projection_private_value",
+                            "value_path_ref": word_value_path_ref,
+                        },
+                        "value_checksum_ref": _checksum_ref("valuechk", word_value),
+                    }
+                )
         roles = _classify_rows(
             row_provenance=candidate_rows,
             cells=cells,
             private_values=private_values,
             require_structural_header_evidence=True,
         )
+        if source_binding.get("present"):
+            bound_header_rows = set(
+                str(row.get("row_ref") or "")
+                for row in candidate_rows[:header_row_count]
+            )
+            for row in candidate_rows:
+                row_ref = str(row.get("row_ref") or "")
+                if row_ref in bound_header_rows:
+                    roles[row_ref] = "header_row"
+                elif roles.get(row_ref) == "header_row":
+                    roles[row_ref] = "data_row"
         normalized_rows = [
             {
                 "row_ref": item.get("row_ref"),
@@ -666,6 +753,30 @@ class PdfTableCandidateProjectionBuilder:
             geometry_confidence=float(source_unit.get("geometry_confidence") or 0.0),
             blocked=False,
         )
+        header_model = _header_model(
+            rows=normalized_rows,
+            cells=cells,
+            private_values=private_values,
+            column_refs=column_refs,
+            pdf_candidate=True,
+        )
+        if source_binding.get("present"):
+            header_row_refs = _strings(header_model.get("header_row_refs"))
+            header_source_refs = [
+                ref
+                for cell in cells
+                if str(cell.get("row_ref") or "") in set(header_row_refs)
+                for ref in _strings(cell.get("source_value_refs"))
+            ]
+            header_model.update(
+                {
+                    "source_value_refs": header_source_refs,
+                    "source_checksum_ref": _checksum_ref(
+                        "pdfheaderchk",
+                        {"row_refs": header_row_refs, "source_value_refs": header_source_refs},
+                    ),
+                }
+            )
         projection = _base_projection(
             projection_id=projection_id,
             table_ref=candidate_ref,
@@ -682,17 +793,15 @@ class PdfTableCandidateProjectionBuilder:
             rows=normalized_rows,
             private_values=private_values,
             source_value_index=source_value_index,
-            headers=_header_model(
-                rows=normalized_rows,
-                cells=cells,
-                private_values=private_values,
-                column_refs=column_refs,
-                pdf_candidate=True,
-            ),
+            headers=header_model,
             coverage=_coverage(
                 projection_id=projection_id,
                 selected=selected,
-                table_owned=contributing_words,
+                table_owned=[
+                    *contributing_words,
+                    *_strings(title_binding.get("word_refs")),
+                    *_strings(title_binding.get("line_refs")),
+                ],
                 fallback=fallback_text_refs,
             ),
             quality=quality,
@@ -736,7 +845,84 @@ class PdfTableCandidateProjectionBuilder:
             "model_values_used_as_source_literals": False,
             "pdfplumber_settings_selected_by_model": False,
         }
+        if source_binding.get("present"):
+            projection.update(
+                {
+                    "table_title_binding": copy.deepcopy(
+                        source_binding.get("title_binding")
+                    ),
+                    "bound_header_row_count": header_row_count,
+                }
+            )
         return _finish_projection(_apply_serialized_budget(projection, self.config))
+
+
+def _pdf_source_binding(
+    *,
+    source_unit: dict[str, Any],
+    candidate: dict[str, Any] | None,
+    words: dict[str, dict[str, Any]],
+    lines: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], list[str]]:
+    candidate = _object(candidate)
+    present = "source_title_binding" in candidate
+    if not present:
+        unexpected = "table_title_binding" in source_unit or "bound_header_row_count" in source_unit
+        return {"present": False}, (["pdf_table_source_binding_unexpected"] if unexpected else [])
+
+    reasons: list[str] = []
+    source = candidate.get("source_title_binding")
+    unit_binding = source_unit.get("table_title_binding")
+    unit_expected = None
+    projection_binding = None
+    if source is None:
+        if unit_binding is not None:
+            reasons.append("pdf_table_source_binding_null_mismatch")
+    else:
+        source = _object(source)
+        word_refs = _strings(source.get("word_refs"))
+        line_refs = _strings(source.get("line_refs"))
+        if any(ref not in words for ref in word_refs) or any(
+            ref not in lines for ref in line_refs
+        ):
+            reasons.append("pdf_table_source_binding_parent_ref_missing")
+        else:
+            unit_expected = {
+                "char_refs": _strings(source.get("char_refs")),
+                "word_refs": word_refs,
+                "line_refs": line_refs,
+                "source_value_refs": [
+                    str(words[ref].get("source_value_ref") or "") for ref in word_refs
+                ],
+            }
+            unit_expected["value"] = "\n".join(
+                str(lines[ref].get("text") or "") for ref in line_refs
+            )
+            unit_expected["checksum_ref"] = _checksum_ref(
+                "pdftitlechk", unit_expected
+            )
+            projection_binding = {
+                key: copy.deepcopy(value)
+                for key, value in unit_expected.items()
+                if key not in {"char_refs", "checksum_ref"}
+            }
+            projection_binding["checksum_ref"] = _checksum_ref(
+                "pdftitlechk", projection_binding
+            )
+        if unit_binding != unit_expected:
+            reasons.append("pdf_table_title_binding_mismatch")
+    header_rows = int(source_unit.get("bound_header_row_count") or 0)
+    if header_rows != int(candidate.get("bound_header_row_count") or 0) or not 0 <= header_rows <= len(_dicts(candidate.get("row_inventory"))):
+        reasons.append("pdf_table_header_row_prefix_invalid")
+    if not source_unit.get("source_unit_checksum_ref") or not source_unit.get(
+        "pdf_layout_unit_checksum_ref"
+    ):
+        reasons.append("pdf_table_source_unit_checksum_missing")
+    return {
+        "present": True,
+        "title_binding": projection_binding,
+        "header_row_count": header_rows,
+    }, sorted(set(reasons))
 
 
 class TableProjectionValidator:
@@ -804,6 +990,8 @@ class TableProjectionValidator:
             errors.append(_error("table_projection_source_value_index_mismatch", projection_id))
         else:
             errors.extend(validate_source_value_refs(projection, source_index_refs))
+        if "table_title_binding" in projection:
+            errors.extend(_pdf_source_projection_errors(projection, projection_id))
         coverage = _object(projection.get("coverage"))
         if coverage.get("schema_version") != TABLE_COVERAGE_SCHEMA_VERSION:
             errors.append(_error("table_projection_coverage_schema_mismatch", projection_id))
@@ -889,6 +1077,109 @@ class TableProjectionValidator:
             "errors_count": len(errors),
             "errors": errors,
         }
+
+
+def _pdf_source_projection_errors(
+    projection: dict[str, Any], projection_id: str
+) -> list[dict[str, str]]:
+    errors: list[dict[str, str]] = []
+    title = projection.get("table_title_binding")
+    header_model = _object(projection.get("header_model"))
+    source_value_refs = set(_strings(projection.get("source_value_refs")))
+    coverage = _object(projection.get("coverage"))
+    selected_refs = set(_strings(coverage.get("selected_source_refs")))
+    owned_counts = Counter(
+        [
+            *_strings(coverage.get("table_owned_refs")),
+            *_strings(coverage.get("fallback_text_refs")),
+            *_strings(coverage.get("non_table_refs")),
+            *_strings(coverage.get("rejected_refs")),
+        ]
+    )
+    if title is not None:
+        binding = _object(title)
+        expected_keys = {
+            "value",
+            "word_refs",
+            "line_refs",
+            "source_value_refs",
+            "checksum_ref",
+        }
+        if set(binding) != expected_keys:
+            errors.append(_error("table_projection_title_binding_shape_invalid", projection_id))
+        for field in ("word_refs", "line_refs", "source_value_refs"):
+            refs = _strings(binding.get(field))
+            if not refs or len(refs) != len(set(refs)):
+                errors.append(_error("table_projection_title_binding_ref_invalid", field))
+        title_coverage_refs = [
+            *_strings(binding.get("word_refs")),
+            *_strings(binding.get("line_refs")),
+        ]
+        if any(
+            ref not in selected_refs or owned_counts[ref] != 1
+            for ref in title_coverage_refs
+        ):
+            errors.append(
+                _error("table_projection_title_coverage_invalid", projection_id)
+            )
+        material = {key: value for key, value in binding.items() if key != "checksum_ref"}
+        if binding.get("checksum_ref") != _checksum_ref("pdftitlechk", material):
+            errors.append(_error("table_projection_title_binding_checksum_mismatch", projection_id))
+        title_source_refs = _strings(binding.get("source_value_refs"))
+        if not set(title_source_refs) <= source_value_refs:
+            errors.append(_error("table_projection_title_value_out_of_scope", projection_id))
+        title_word_refs = _strings(binding.get("word_refs"))
+        indexed_title_refs = [
+            str(item.get("source_value_ref") or "")
+            for word_ref in title_word_refs
+            for item in _dicts(projection.get("source_value_index"))
+            if item.get("source_object_ref") == word_ref
+        ]
+        if (
+            len(indexed_title_refs) != len(title_word_refs)
+            or indexed_title_refs != title_source_refs
+        ):
+            errors.append(
+                _error("table_projection_title_value_ownership_invalid", projection_id)
+            )
+        title_values = [
+            item
+            for item in _dicts(projection.get("private_values"))
+            if _strings(item.get("source_value_refs")) == title_source_refs
+            and not item.get("source_object_ref")
+            and item.get("normalized_value") == binding.get("value")
+            and item.get("value_checksum_ref")
+            == _checksum_ref("valuechk", binding.get("value"))
+        ]
+        if len(title_values) != 1:
+            errors.append(_error("table_projection_title_literal_unresolved", projection_id))
+
+    header_count = int(projection.get("bound_header_row_count") or 0)
+    ordered_rows = sorted(
+        _dicts(projection.get("rows")),
+        key=lambda item: int(item.get("row_ordinal") or 0),
+    )
+    header_row_refs = [str(row.get("row_ref") or "") for row in ordered_rows[:header_count]]
+    if header_count < 0 or header_count > len(ordered_rows) or any(
+        row.get("row_role") != "header_row" for row in ordered_rows[:header_count]
+    ):
+        errors.append(_error("table_projection_header_prefix_invalid", projection_id))
+    if any(
+        row.get("row_role") == "header_row" for row in ordered_rows[header_count:]
+    ):
+        errors.append(_error("table_projection_header_nonprefix_invalid", projection_id))
+    header_cell_source_refs = [
+        ref
+        for cell in _dicts(projection.get("cells"))
+        if str(cell.get("row_ref") or "") in set(header_row_refs)
+        for ref in _strings(cell.get("source_value_refs"))
+    ]
+    if header_model.get("header_row_refs") != header_row_refs:
+        errors.append(_error("table_projection_header_model_binding_mismatch", projection_id))
+    header_material = {"row_refs": header_row_refs, "source_value_refs": header_cell_source_refs}
+    if _strings(header_model.get("source_value_refs")) != header_cell_source_refs or header_model.get("source_checksum_ref") != _checksum_ref("pdfheaderchk", header_material):
+        errors.append(_error("table_projection_header_model_binding_mismatch", "source"))
+    return errors
 
 
 def _pdf_continuation_errors(
@@ -989,8 +1280,10 @@ def _base_projection(
     source_value_refs = sorted(
         {
             ref
-            for item in cells
+            for item in [*cells, *source_value_index]
             for ref in _strings(item.get("source_value_refs"))
+            or [str(item.get("source_value_ref") or "")]
+            if ref
         }
     )
     return {
