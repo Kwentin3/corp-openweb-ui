@@ -25,6 +25,7 @@ from broker_reports_gate1 import (
     PDFMINER_PINNED_VERSION,
     PDFPLUMBER_PINNED_VERSION,
     PdfLayoutParserConfig,
+    PdfLayoutUnitBuilder,
     PdfParserCapabilityRequest,
     PdfTextLayerParserConfig,
     PdfTextLayerParserError,
@@ -40,6 +41,7 @@ from broker_reports_gate1.pdf_text_layer import (
     FACTORY_REQUIRED,
     FORBIDDEN,
     _checksum_ref,
+    _table_word_cell_partition_reasons,
     pdf_layout_page_checksum_ref,
     pdf_payload_checksum_ref,
     resolve_pdf_payload_source_value,
@@ -187,6 +189,80 @@ def _ruled_table_pdf() -> bytes:
         "300 155 m 300 230 l S",
     ]
     return _pdf_bytes([{"texts": texts, "vectors": vectors}])
+
+
+def _two_ruled_table_pdf() -> bytes:
+    texts = [
+        (30, 220, "Date"),
+        (125, 220, "Amount"),
+        (225, 220, "Currency"),
+        (30, 195, "2026-01-01"),
+        (125, 195, "10.00"),
+        (225, 195, "USD"),
+        (30, 170, "2026-01-02"),
+        (125, 170, "20.00"),
+        (225, 170, "EUR"),
+    ]
+    vectors = [
+        "20 155 m 300 155 l S",
+        "20 180 m 300 180 l S",
+        "20 205 m 300 205 l S",
+        "20 230 m 300 230 l S",
+        "20 155 m 20 230 l S",
+        "110 155 m 110 230 l S",
+        "210 155 m 210 230 l S",
+        "300 155 m 300 230 l S",
+    ]
+    return _pdf_bytes(
+        [
+            {"texts": texts, "vectors": vectors},
+            {"texts": texts, "vectors": vectors},
+        ]
+    )
+
+
+def _ruled_table_with_empty_slot_pdf() -> bytes:
+    return _pdf_bytes(
+        [
+            {
+                "texts": [
+                    (35, 220, "Header A"),
+                    (160, 220, "Header B"),
+                    (35, 190, "Value A"),
+                ],
+                "vectors": [
+                    "20 175 m 300 175 l S",
+                    "20 205 m 300 205 l S",
+                    "20 235 m 300 235 l S",
+                    "20 175 m 20 235 l S",
+                    "140 175 m 140 235 l S",
+                    "300 175 m 300 235 l S",
+                ],
+            }
+        ]
+    )
+
+
+def _ruled_table_with_merged_header_pdf() -> bytes:
+    return _pdf_bytes(
+        [
+            {
+                "texts": [
+                    (35, 220, "Merged Header"),
+                    (35, 190, "Value A"),
+                    (160, 190, "Value B"),
+                ],
+                "vectors": [
+                    "20 175 m 300 175 l S",
+                    "20 205 m 300 205 l S",
+                    "20 235 m 300 235 l S",
+                    "20 175 m 20 235 l S",
+                    "300 175 m 300 235 l S",
+                    "140 175 m 140 205 l S",
+                ],
+            }
+        ]
+    )
 
 
 def _ruled_table_with_cross_boundary_line_pdf() -> bytes:
@@ -849,6 +925,198 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
             )
         )
 
+    def test_exact_word_cell_partition_preserves_wordless_one_by_one_slot(self):
+        built = self._build(_ruled_table_with_empty_slot_pdf())
+        payload = built.payloads[0]
+        candidate = payload["pdf_text_layer_projection"][
+            "table_candidate_inventory"
+        ][0]
+        cells = candidate["cell_inventory"]
+        wordless = [cell for cell in cells if not cell["word_refs"]]
+
+        self.assertEqual("complete", candidate["word_cell_partition_status"])
+        self.assertEqual([], candidate["word_cell_partition_reason_codes"])
+        self.assertEqual(1, len(wordless))
+        self.assertEqual((1, 1), (wordless[0]["row_span"], wordless[0]["column_span"]))
+        self.assertEqual("candidate", built.summary["pdf_table_candidate_status"])
+        self.assertEqual(
+            "passed", validate_pdf_text_layer_payload(payload)["validator_status"]
+        )
+
+    def test_exact_word_cell_partition_preserves_merged_multirow_grid(self):
+        built = self._build(_ruled_table_with_merged_header_pdf())
+        payload = built.payloads[0]
+        candidate = payload["pdf_text_layer_projection"][
+            "table_candidate_inventory"
+        ][0]
+        cells = candidate["cell_inventory"]
+        owned_word_refs = [
+            word_ref for cell in cells for word_ref in cell["word_refs"]
+        ]
+
+        self.assertEqual((2, 2), (candidate["rows_total"], candidate["columns_total"]))
+        self.assertEqual("complete", candidate["word_cell_partition_status"])
+        self.assertEqual(
+            [(1, 1, 1, 2), (2, 1, 1, 1), (2, 2, 1, 1)],
+            [
+                (
+                    cell["row_ordinal"],
+                    cell["column_ordinal"],
+                    cell["row_span"],
+                    cell["column_span"],
+                )
+                for cell in cells
+            ],
+        )
+        self.assertEqual(
+            sorted(candidate["contributing_word_refs"]), sorted(owned_word_refs)
+        )
+        self.assertEqual(len(owned_word_refs), len(set(owned_word_refs)))
+        self.assertEqual("candidate", built.summary["pdf_table_candidate_status"])
+        self.assertEqual(
+            "passed", validate_pdf_text_layer_payload(payload)["validator_status"]
+        )
+
+    def test_exact_word_cell_partition_blocks_real_parser_mutations_atomically(self):
+        mutations = {
+            "duplicate_address": lambda candidate: candidate["cell_inventory"][1].update(
+                {
+                    "row_ordinal": candidate["cell_inventory"][0]["row_ordinal"],
+                    "column_ordinal": candidate["cell_inventory"][0]["column_ordinal"],
+                }
+            ),
+            "out_of_bounds": lambda candidate: candidate["cell_inventory"][0].update(
+                {"row_ordinal": int(candidate["rows_total"]) + 1}
+            ),
+            "overlap": lambda candidate: candidate["cell_inventory"][1].update(
+                {"bbox": copy.deepcopy(candidate["cell_inventory"][0]["bbox"])}
+            ),
+            "gap": lambda candidate: candidate["cell_inventory"].pop(),
+            "foreign_cell_word": lambda candidate: candidate["cell_inventory"][0][
+                "word_parser_ordinals"
+            ].append(999_999),
+            "foreign_contributing_word": lambda candidate: candidate[
+                "contributing_word_parser_ordinals"
+            ].append(999_999),
+        }
+
+        for name, mutation in mutations.items():
+            with self.subTest(name=name):
+                built = self._build_mutated_layout(_ruled_table_pdf(), mutation)
+                candidate = built.table_candidate_inventory[0]
+                self.assertEqual("blocked", candidate["word_cell_partition_status"])
+                self.assertTrue(candidate["word_cell_partition_reason_codes"])
+                self.assertEqual("blocked", built.table_candidate_status)
+                self.assertEqual("partial", built.layout_projection_status)
+                self.assertEqual([], built.units)
+
+        crossing = self._build_mutated_layout(
+            _ruled_table_pdf(),
+            lambda candidate: None,
+            mutate_page=self._move_one_owned_char_into_adjacent_cell,
+        )
+        crossing_candidate = crossing.table_candidate_inventory[0]
+        self.assertEqual("blocked", crossing_candidate["word_cell_partition_status"])
+        self.assertIn(
+            "pdf_table_word_cell_word_crosses_cells",
+            crossing_candidate["word_cell_partition_reason_codes"],
+        )
+        self.assertEqual([], crossing.units)
+
+    def test_exact_word_cell_partition_validator_rejects_fully_resealed_mutations(self):
+        original = self._build(_ruled_table_pdf()).payloads[0]
+
+        def duplicate_address(candidate: dict) -> None:
+            candidate["cell_inventory"][1].update(
+                {
+                    "row_ordinal": candidate["cell_inventory"][0]["row_ordinal"],
+                    "column_ordinal": candidate["cell_inventory"][0][
+                        "column_ordinal"
+                    ],
+                }
+            )
+
+        def duplicate_owned_word(candidate: dict) -> None:
+            candidate["cell_inventory"][1]["word_refs"].append(
+                candidate["cell_inventory"][0]["word_refs"][0]
+            )
+
+        def foreign_source_ordinal(candidate: dict) -> None:
+            candidate["cell_inventory"][0]["source_word_parser_ordinals"].append(
+                999_999
+            )
+
+        for name, mutation in {
+            "duplicate_address": duplicate_address,
+            "duplicate_owned_word": duplicate_owned_word,
+            "foreign_source_ordinal": foreign_source_ordinal,
+        }.items():
+            with self.subTest(name=name):
+                payload = copy.deepcopy(original)
+                candidate = payload["pdf_text_layer_projection"][
+                    "table_candidate_inventory"
+                ][0]
+                mutation(candidate)
+                _reseal_layout_source_chain(payload)
+
+                result = validate_pdf_text_layer_payload(payload)
+
+                self.assertEqual("failed", result["validator_status"])
+                self.assertTrue(
+                    any(
+                        "pdf_table_word_cell_partition" in error["code"]
+                        for error in result["errors"]
+                    )
+                )
+
+        laundered = copy.deepcopy(original)
+        projection = laundered["pdf_text_layer_projection"]
+        candidate = projection["table_candidate_inventory"][0]
+        duplicate_address(candidate)
+        candidate["word_cell_partition_reason_codes"] = (
+            _table_word_cell_partition_reasons(
+                candidate=candidate,
+                char_inventory=projection["char_inventory"],
+                word_inventory=projection["word_inventory"],
+                bbox_by_ref={
+                    item["bbox_ref"]: item for item in projection["bbox_inventory"]
+                },
+            )
+        )
+        candidate["word_cell_partition_status"] = "blocked"
+        candidate["table_reconstruction_status"] = "blocked"
+        _reseal_layout_source_chain(laundered)
+
+        laundering_result = validate_pdf_text_layer_payload(laundered)
+
+        self.assertEqual("failed", laundering_result["validator_status"])
+        self.assertTrue(
+            {
+                "pdf_table_blocked_partition_page_status_mismatch",
+                "pdf_table_blocked_partition_document_status_mismatch",
+                "pdf_table_candidate_contains_blocked_partition",
+            }
+            <= {error["code"] for error in laundering_result["errors"]}
+        )
+
+    def test_exact_word_cell_partition_blocks_mixed_candidates_atomically(self):
+        built = self._build_mutated_layout(
+            _two_ruled_table_pdf(),
+            lambda candidate: candidate["cell_inventory"].pop(),
+            page_index=1,
+        )
+
+        self.assertEqual(
+            ["complete", "blocked"],
+            [
+                candidate["word_cell_partition_status"]
+                for candidate in built.table_candidate_inventory
+            ],
+        )
+        self.assertEqual("blocked", built.table_candidate_status)
+        self.assertEqual("partial", built.layout_projection_status)
+        self.assertEqual([], built.units)
+
     def test_table_terminals_distinguish_none_rejected_candidate_and_blocked(self):
         request = PdfParserCapabilityRequest(capability="table_candidates")
         default_parser = PdfTextLayerParserFactory().create(request)
@@ -1221,6 +1489,67 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
                 ArtifactStoreError, "Artifact payload does not match"
             ):
                 store.read_payload(payload_record)
+
+    @staticmethod
+    def _build_mutated_layout(
+        content: bytes, mutate_candidate, *, mutate_page=None, page_index: int = 0
+    ):
+        baseline = FullSourceArtifactFactory().create().build(
+            normalization_run_id="normrun_pdf_layout_mutation_baseline",
+            document_id="brdoc_pdf_layout_mutation",
+            profile_id="techprof_pdf_layout_mutation",
+            container_format="pdf",
+            content_bytes=content,
+            source_checksum_sha256="c" * 64,
+        )
+        projection = baseline.payloads[0]["pdf_text_layer_projection"]
+        parsed = PdfTextLayerParserFactory().create(
+            PdfParserCapabilityRequest(capability="table_candidates")
+        ).parse(content)
+        mutate_candidate(
+            parsed.pages[page_index]["table_candidate_inventory"][0]
+        )
+        if mutate_page is not None:
+            mutate_page(parsed.pages[page_index])
+        return PdfLayoutUnitBuilder().build(
+            normalization_run_id="normrun_pdf_layout_mutation",
+            document_id="brdoc_pdf_layout_mutation",
+            profile_id="techprof_pdf_layout_mutation",
+            source_checksum_sha256="c" * 64,
+            source_checksum_ref="srcsum_pdf_layout_mutation",
+            payload_ref="srcpayload_pdf_layout_mutation",
+            layout_parser_ref=str(projection["layout_parser_ref"]),
+            layout_parser_label="pdfplumber_layout_mutation",
+            layout_parser_config_ref=parsed.parser_config_ref,
+            layout_pages=copy.deepcopy(parsed.pages),
+            page_inventory=copy.deepcopy(projection["page_inventory"]),
+        )
+
+    @staticmethod
+    def _move_one_owned_char_into_adjacent_cell(page: dict) -> None:
+        candidate = page["table_candidate_inventory"][0]
+        left_cell, right_cell = candidate["cell_inventory"][:2]
+        word_ordinal = left_cell["word_parser_ordinals"][0]
+        word = next(
+            item
+            for item in page["word_inventory"]
+            if item["parser_ordinal"] == word_ordinal
+        )
+        moved_char_ordinal = word["char_parser_ordinals"][-1]
+        moved_char = next(
+            item
+            for item in page["char_inventory"]
+            if item["parser_ordinal"] == moved_char_ordinal
+        )
+        x0, top, x1, bottom = right_cell["bbox"]
+        center_x = (x0 + x1) / 2
+        center_y = (top + bottom) / 2
+        moved_char["bbox"] = [
+            center_x - 1,
+            center_y - 1,
+            center_x + 1,
+            center_y + 1,
+        ]
 
     @staticmethod
     def _build(content: bytes):

@@ -1014,7 +1014,10 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
                     _error("pdf_layout_page_text_compatibility_became_authority", page.get("page_ref"))
                 )
         for candidate in table_inventory:
-            if candidate.get("table_reconstruction_status") != "candidate":
+            if candidate.get("table_reconstruction_status") not in {
+                "candidate",
+                "blocked",
+            }:
                 errors.append(_error("pdf_table_candidate_status_invalid", payload_ref))
             if candidate.get("semantic_table_truth_claimed") is not False:
                 errors.append(_error("pdf_table_candidate_semantic_truth_claimed", payload_ref))
@@ -1029,6 +1032,33 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             ) <= line_refs:
                 errors.append(
                     _error("pdf_table_candidate_fallback_ref_out_of_scope", payload_ref)
+                )
+            expected_partition_reasons = _table_word_cell_partition_reasons(
+                candidate=candidate,
+                char_inventory=char_inventory,
+                word_inventory=word_inventory,
+                bbox_by_ref=bbox_by_ref,
+            )
+            declared_partition_reasons = sorted(
+                set(candidate.get("word_cell_partition_reason_codes") or [])
+            )
+            if declared_partition_reasons != expected_partition_reasons:
+                errors.append(
+                    _error("pdf_table_word_cell_partition_reasons_mismatch", payload_ref)
+                )
+            expected_partition_status = (
+                "complete" if not expected_partition_reasons else "blocked"
+            )
+            if candidate.get("word_cell_partition_status") != expected_partition_status:
+                errors.append(
+                    _error("pdf_table_word_cell_partition_status_mismatch", payload_ref)
+                )
+            expected_reconstruction_status = (
+                "candidate" if expected_partition_status == "complete" else "blocked"
+            )
+            if candidate.get("table_reconstruction_status") != expected_reconstruction_status:
+                errors.append(
+                    _error("pdf_table_word_cell_reconstruction_status_mismatch", payload_ref)
                 )
         layout_coverage = _object(projection.get("layout_coverage"))
         if (
@@ -1080,6 +1110,31 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             str(page.get("table_candidate_status") or "none_detected")
             for page in pages
         ]
+        blocked_candidate_page_refs = {
+            str(candidate.get("page_ref") or "")
+            for candidate in table_inventory
+            if candidate.get("word_cell_partition_status") == "blocked"
+        }
+        for page in pages:
+            page_ref = str(page.get("page_ref") or "")
+            if (
+                page_ref in blocked_candidate_page_refs
+                and page.get("table_candidate_status") != "blocked"
+            ):
+                errors.append(
+                    _error("pdf_table_blocked_partition_page_status_mismatch", page_ref)
+                )
+        if blocked_candidate_page_refs and table_status != "blocked":
+            errors.append(
+                _error("pdf_table_blocked_partition_document_status_mismatch", payload_ref)
+            )
+        if table_status in {"candidate", "candidate_with_rejections"} and any(
+            candidate.get("word_cell_partition_status") != "complete"
+            for candidate in table_inventory
+        ):
+            errors.append(
+                _error("pdf_table_candidate_contains_blocked_partition", payload_ref)
+            )
         terminal_counts = _object(
             _object(projection.get("layout_unit_diagnostics")).get(
                 "table_terminal_counts"
@@ -1563,6 +1618,204 @@ def _finite_number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return round(number, 6) if number == number and abs(number) != float("inf") else None
+
+
+def _table_word_cell_partition_reasons(
+    *,
+    candidate: dict[str, Any],
+    char_inventory: list[dict[str, Any]],
+    word_inventory: list[dict[str, Any]],
+    bbox_by_ref: dict[str, dict[str, Any]],
+) -> list[str]:
+    reasons: set[str] = set()
+    page_ref = str(candidate.get("page_ref") or "")
+    rows_total = int(candidate.get("rows_total") or 0)
+    columns_total = int(candidate.get("columns_total") or 0)
+    if rows_total <= 0 or columns_total <= 0:
+        reasons.add("pdf_table_word_cell_grid_dimensions_invalid")
+    cells = _dict_list(candidate.get("cell_inventory"))
+    if not cells:
+        reasons.add("pdf_table_word_cell_source_cells_missing")
+    char_by_ref = {
+        str(item.get("char_ref") or ""): item for item in char_inventory
+    }
+    word_by_ref = {
+        str(item.get("word_ref") or ""): item for item in word_inventory
+    }
+    word_ref_by_parser_ordinal = {
+        int(item.get("parser_ordinal") or 0): str(item.get("word_ref") or "")
+        for item in word_inventory
+        if str(item.get("page_ref") or "") == page_ref
+    }
+    contributing_refs = [
+        str(ref) for ref in candidate.get("contributing_word_refs") or []
+    ]
+    contributing_ordinals = [
+        int(value)
+        for value in candidate.get("contributing_word_parser_ordinals") or []
+    ]
+    if len(contributing_refs) != len(set(contributing_refs)):
+        reasons.add("pdf_table_word_cell_contributing_word_duplicate")
+    if (
+        len(contributing_ordinals) != len(set(contributing_ordinals))
+        or any(ordinal not in word_ref_by_parser_ordinal for ordinal in contributing_ordinals)
+    ):
+        reasons.add("pdf_table_word_cell_contributing_word_missing_or_foreign")
+    if [word_ref_by_parser_ordinal.get(value, "") for value in contributing_ordinals] != contributing_refs:
+        reasons.add("pdf_table_word_cell_contributing_partition_incomplete")
+
+    occupied_addresses: set[tuple[int, int]] = set()
+    cell_bboxes: list[list[float] | None] = []
+    cell_word_refs: list[str] = []
+    source_claim_owner: dict[int, int] = {}
+    for cell_index, cell in enumerate(cells, 1):
+        row = int(cell.get("row_ordinal") or 0)
+        column = int(cell.get("column_ordinal") or 0)
+        row_span = int(cell.get("row_span") or 0)
+        column_span = int(cell.get("column_span") or 0)
+        if row <= 0 or column <= 0:
+            reasons.add("pdf_table_word_cell_grid_address_missing")
+        if row_span <= 0 or column_span <= 0:
+            reasons.add("pdf_table_word_cell_grid_span_invalid")
+        if (
+            row + max(row_span, 1) - 1 > rows_total
+            or column + max(column_span, 1) - 1 > columns_total
+        ):
+            reasons.add("pdf_table_word_cell_grid_address_out_of_bounds")
+        for row_address in range(row, row + max(row_span, 1)):
+            for column_address in range(column, column + max(column_span, 1)):
+                address = (row_address, column_address)
+                if address in occupied_addresses:
+                    reasons.add("pdf_table_word_cell_grid_address_overlap")
+                occupied_addresses.add(address)
+        bbox = _validated_layout_bbox(
+            _object(bbox_by_ref.get(str(cell.get("bbox_ref") or ""))).get("bbox")
+        )
+        if bbox is None:
+            reasons.add("pdf_table_word_cell_bbox_invalid")
+        cell_bboxes.append(bbox)
+        word_refs = [str(ref) for ref in cell.get("word_refs") or []]
+        cell_word_refs.extend(word_refs)
+        if not word_refs and (row_span != 1 or column_span != 1):
+            reasons.add("pdf_table_word_cell_wordless_span_unsupported")
+        source_ordinals = [
+            int(value) for value in cell.get("source_word_parser_ordinals") or []
+        ]
+        if len(source_ordinals) != len(set(source_ordinals)):
+            reasons.add("pdf_table_word_cell_source_word_duplicate")
+        for ordinal in source_ordinals:
+            if ordinal not in word_ref_by_parser_ordinal:
+                reasons.add("pdf_table_word_cell_source_word_missing_or_foreign")
+            if ordinal in source_claim_owner:
+                reasons.add("pdf_table_word_cell_source_word_multiple_cells")
+            source_claim_owner[ordinal] = cell_index
+
+    expected_addresses = {
+        (row, column)
+        for row in range(1, rows_total + 1)
+        for column in range(1, columns_total + 1)
+    }
+    if occupied_addresses != expected_addresses:
+        reasons.add("pdf_table_word_cell_grid_address_gap")
+    for left_index, left in enumerate(cell_bboxes):
+        if left is None:
+            continue
+        for right in cell_bboxes[left_index + 1 :]:
+            if right is None:
+                continue
+            if (
+                min(left[2], right[2]) - max(left[0], right[0]) > 0
+                and min(left[3], right[3]) - max(left[1], right[1]) > 0
+            ):
+                reasons.add("pdf_table_word_cell_bbox_overlap")
+
+    derived_owner: dict[str, int] = {}
+    for word_ref in contributing_refs:
+        word = word_by_ref.get(word_ref)
+        if word is None:
+            reasons.add("pdf_table_word_cell_contributing_word_missing_or_foreign")
+            continue
+        char_refs = [str(ref) for ref in word.get("char_refs") or []]
+        if not char_refs:
+            reasons.add("pdf_table_word_cell_word_chars_missing")
+            continue
+        resolved_cells: set[int] = set()
+        word_failed = False
+        for char_ref in char_refs:
+            char = char_by_ref.get(char_ref)
+            if char is None:
+                reasons.add("pdf_table_word_cell_word_char_foreign")
+                word_failed = True
+                continue
+            char_bbox = _validated_layout_bbox(
+                _object(
+                    bbox_by_ref.get(str(char.get("bbox_ref") or ""))
+                ).get("bbox")
+            )
+            if char_bbox is None:
+                reasons.add("pdf_table_word_cell_word_char_foreign")
+                word_failed = True
+                continue
+            center = (
+                (char_bbox[0] + char_bbox[2]) / 2.0,
+                (char_bbox[1] + char_bbox[3]) / 2.0,
+            )
+            matches = [
+                index
+                for index, cell_bbox in enumerate(cell_bboxes, 1)
+                if cell_bbox is not None
+                and cell_bbox[0] <= center[0] <= cell_bbox[2]
+                and cell_bbox[1] <= center[1] <= cell_bbox[3]
+            ]
+            if not matches:
+                reasons.add("pdf_table_word_cell_char_center_gap")
+                word_failed = True
+            elif len(matches) > 1:
+                reasons.add("pdf_table_word_cell_char_center_ambiguous")
+                word_failed = True
+            else:
+                resolved_cells.add(matches[0])
+        if word_failed:
+            continue
+        if len(resolved_cells) != 1:
+            reasons.add("pdf_table_word_cell_word_crosses_cells")
+            continue
+        derived_owner[word_ref] = next(iter(resolved_cells))
+
+    if (
+        len(cell_word_refs) != len(set(cell_word_refs))
+        or sorted(cell_word_refs) != sorted(contributing_refs)
+    ):
+        reasons.add("pdf_table_word_cell_exact_partition_failed")
+    if set(source_claim_owner) != set(contributing_ordinals):
+        reasons.add("pdf_table_word_cell_source_claim_partition_mismatch")
+    if any(
+        source_claim_owner.get(ordinal)
+        != derived_owner.get(word_ref_by_parser_ordinal.get(ordinal, ""))
+        for ordinal in contributing_ordinals
+    ):
+        reasons.add("pdf_table_word_cell_source_claim_geometry_mismatch")
+    if set(derived_owner) != set(contributing_refs):
+        reasons.add("pdf_table_word_cell_contributing_partition_incomplete")
+    if any(
+        derived_owner.get(word_ref) != cell_index
+        for cell_index, cell in enumerate(cells, 1)
+        for word_ref in [str(ref) for ref in cell.get("word_refs") or []]
+    ):
+        reasons.add("pdf_table_word_cell_exact_partition_failed")
+    return sorted(reasons)
+
+
+def _validated_layout_bbox(value: Any) -> list[float] | None:
+    if not isinstance(value, list) or len(value) != 4:
+        return None
+    try:
+        bbox = [float(item) for item in value]
+    except (TypeError, ValueError):
+        return None
+    if bbox[2] <= bbox[0] or bbox[3] <= bbox[1]:
+        return None
+    return bbox
 
 
 def _checksum_ref(prefix: str, value: Any) -> str:

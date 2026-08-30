@@ -155,8 +155,20 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             "id(item): index", source_modules["pdf_layout"]
         )
         self.assertIn(
-            "pdf_layout_unit_partition_policy_v1_source_chain",
+            "pdf_layout_unit_partition_policy_v2_exact_word_cell",
             source_modules["pdf_layout_units"],
+        )
+        self.assertIn(
+            "pdf_table_word_cell_word_crosses_cells",
+            source_modules["pdf_layout_units"],
+        )
+        self.assertIn(
+            "return [], [\"pdf_table_word_cell_partition_blocked\"]",
+            source_modules["pdf_layout_units"],
+        )
+        self.assertIn(
+            "_table_word_cell_partition_reasons(",
+            source_modules["pdf_text_layer"],
         )
         self.assertIn(
             "source_chain_complete = all(", source_modules["pdf_layout_units"]
