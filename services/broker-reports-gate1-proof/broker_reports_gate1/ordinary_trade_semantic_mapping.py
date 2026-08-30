@@ -290,38 +290,11 @@ class OrdinaryTradeSemanticMapping:
         frozen_binding = copy.deepcopy(dict(canonical_binding))
         if re.fullmatch(r"[0-9a-f]{64}", user_scope_sha256) is None:
             _fail("ordinary_trade_managed_document_user_scope_invalid")
-        table_nodes = [
-            node
-            for node in frozen_canonical.get("nodes", [])
-            if isinstance(node, Mapping) and node.get("node_type") == "TABLE"
-        ]
-        table_node_ids = [node.get("node_id") for node in table_nodes]
-        if (
-            not table_node_ids
-            or any(
-                not isinstance(table_node_id, str) or not table_node_id
-                for table_node_id in table_node_ids
-            )
-            or len(table_node_ids) != len(set(table_node_ids))
-        ):
-            _fail("ordinary_trade_managed_document_table_inventory_invalid")
-
-        inventory = []
-        for table_node_id in sorted(table_node_ids):
-            view = ordinary_trade_canonical_managed_header_view(
-                canonical=frozen_canonical,
-                canonical_binding=frozen_binding,
-                table_node_id=table_node_id,
-            )
-            inventory.append(
-                {
-                    "table_node_id": table_node_id,
-                    "managed_header_view_sha256": view["header_view_sha256"],
-                    "managed_binding": copy.deepcopy(
-                        view["managed_binding"]
-                    ),
-                }
-            )
+        inventory = _managed_document_inventory(
+            canonical=frozen_canonical,
+            canonical_binding=frozen_binding,
+        )
+        table_node_ids = [item["table_node_id"] for item in inventory]
 
         normalized_cases = [
             _managed_document_table_case(value) for value in table_cases
@@ -2492,13 +2465,259 @@ def _managed_document_table_case(value: Mapping[str, Any]) -> dict[str, Any]:
     return copy.deepcopy(dict(value))
 
 
+def _compile_owned_managed_semantic_review_document_candidate(
+    *,
+    canonical: Mapping[str, Any],
+    canonical_binding: Mapping[str, str],
+    user_scope_sha256: str,
+    evidence: Mapping[str, Any],
+    semantic_review: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Compile one same-call reviewed document through existing authorities."""
+
+    if semantic_review.get("review_status") != "REVIEWED_CANDIDATE":
+        _fail("ordinary_trade_managed_semantic_review_not_compilable")
+    review_material = copy.deepcopy(dict(semantic_review))
+    review_sha256 = review_material.pop("semantic_review_receipt_sha256", None)
+    if (
+        review_sha256 != _sha256_json(review_material)
+        or semantic_review.get("canonical_binding") != canonical_binding
+        or semantic_review.get("user_scope_sha256") != user_scope_sha256
+        or semantic_review.get("evidence_sha256") != evidence.get("evidence_sha256")
+    ):
+        _fail("ordinary_trade_managed_semantic_review_binding_invalid")
+    inventory = _managed_document_inventory(
+        canonical=canonical,
+        canonical_binding=canonical_binding,
+    )
+    host_tables = evidence["host_ref_bindings"]["tables"]
+    table_refs = [item.get("table_ref") for item in host_tables]
+    if len(table_refs) != len(set(table_refs)):
+        _fail("ordinary_trade_managed_semantic_review_coverage_invalid")
+    table_id_by_ref = {
+        item["table_ref"]: item["table_node_id"] for item in host_tables
+    }
+    option_pairs = [
+        (option.get("option_ref"), table.get("table_ref"), option)
+        for table in semantic_review["table_options"]
+        for option in table["options"]
+    ]
+    option_refs = [item[0] for item in option_pairs]
+    if (
+        any(not isinstance(ref, str) or not ref for ref in option_refs)
+        or len(option_refs) != len(set(option_refs))
+    ):
+        _fail("ordinary_trade_managed_semantic_review_selection_invalid")
+    options_by_ref = {ref: (table_ref, option) for ref, table_ref, option in option_pairs}
+    reviews = semantic_review.get("table_reviews")
+    if (
+        not isinstance(reviews, list)
+        or len(reviews) != len(table_id_by_ref)
+        or {item.get("table_ref") for item in reviews} != set(table_id_by_ref)
+        or any(item.get("decision") != "SELECT_OPTION" for item in reviews)
+    ):
+        _fail("ordinary_trade_managed_semantic_review_coverage_invalid")
+
+    value_literals: dict[str, set[str]] = {}
+    for cell in (
+        cell
+        for table in evidence["model_evidence"]["tables"]
+        for row in table["rows"]
+        for cell in row["cells"]
+    ):
+        value_literals.setdefault(cell["value_ref"], set()).add(
+            cell["source_literal"]
+        )
+    if any(len(literals) != 1 for literals in value_literals.values()):
+        _fail("ordinary_trade_managed_semantic_review_value_binding_invalid")
+    model_cells = {ref: next(iter(literals)) for ref, literals in value_literals.items()}
+    authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
+    compiled_by_table = {}
+    safe_table_ids = set()
+    for review in reviews:
+        table_ref = review["table_ref"]
+        selected = options_by_ref.get(review.get("selected_option_ref"))
+        if selected is None or selected[0] != table_ref:
+            _fail("ordinary_trade_managed_semantic_review_selection_invalid")
+        table_node_id = table_id_by_ref[table_ref]
+        option = selected[1]
+        if option["disposition"] == "SAFE_AUXILIARY":
+            safe_table_ids.add(table_node_id)
+            continue
+        if option["disposition"] != "SECURITY_TRADES":
+            _fail("ordinary_trade_managed_semantic_review_not_compilable")
+        candidate = option.get("mapping_candidate")
+        if not isinstance(candidate, Mapping):
+            _fail("ordinary_trade_managed_semantic_review_mapping_invalid")
+        model_mapping_decision = {
+            "columns": [
+                {
+                    "column": item["column"],
+                    "semantic_role": item["semantic_role"],
+                }
+                for item in candidate["columns"]
+            ],
+            "amount_currency_bindings": copy.deepcopy(
+                candidate["amount_currency_bindings"]
+            ),
+        }
+        side_decisions = []
+        for item in option["side_normalizations"]:
+            literal = model_cells.get(item.get("value_ref"))
+            if literal is None:
+                _fail("ordinary_trade_managed_semantic_review_value_binding_invalid")
+            side_decisions.append(
+                {
+                    "source_literal": literal,
+                    "normalized_value": item["normalized_value"],
+                }
+            )
+        _qualified, receipt = authority.qualify_managed_header_case_mapping(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            table_node_id=table_node_id,
+            model_mapping_decision=model_mapping_decision,
+            user_scope_sha256=user_scope_sha256,
+            model_side_normalization_decisions=side_decisions,
+            confirmed_understandings=[],
+        )
+        compiled_by_table[table_node_id] = authority.compile_managed_header_case(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            table_node_id=table_node_id,
+            model_mapping_decision=model_mapping_decision,
+            user_scope_sha256=user_scope_sha256,
+            model_side_normalization_decisions=side_decisions,
+            confirmed_understandings=[],
+            receipt=receipt,
+        )
+    inventory_ids = {item["table_node_id"] for item in inventory}
+    if set(compiled_by_table) | safe_table_ids != inventory_ids:
+        _fail("ordinary_trade_managed_semantic_review_coverage_invalid")
+    candidate = _managed_document_candidate(
+        canonical_binding=canonical_binding,
+        user_scope_sha256=user_scope_sha256,
+        inventory=inventory,
+        compiled_by_table=compiled_by_table,
+        safe_auxiliary_table_ids=safe_table_ids,
+    )
+    binding_material = {
+        "authority_scope": "SAME_CALL_COMPOSITION_ONLY",
+        "consumer_eligible": False,
+        "independent_derivation_proven": False,
+        "runtime_activation": False,
+        "semantic_review_receipt_sha256": review_sha256,
+        "evidence_sha256": evidence["evidence_sha256"],
+        "document_candidate_sha256": candidate["document_candidate_sha256"],
+        "canonical_binding": copy.deepcopy(dict(canonical_binding)),
+        "user_scope_sha256": user_scope_sha256,
+    }
+    binding = {
+        **binding_material,
+        "binding_sha256": _sha256_json(binding_material),
+    }
+    _validate_semantic_review_candidate_binding(
+        binding=binding,
+        semantic_review=semantic_review,
+        document_candidate=candidate,
+    )
+    return candidate, binding
+
+
+def _managed_document_inventory(
+    *, canonical: Mapping[str, Any], canonical_binding: Mapping[str, str]
+) -> list[dict[str, Any]]:
+    table_node_ids = [
+        node.get("node_id")
+        for node in canonical.get("nodes", [])
+        if isinstance(node, Mapping) and node.get("node_type") == "TABLE"
+    ]
+    if (
+        not table_node_ids
+        or any(not isinstance(item, str) or not item for item in table_node_ids)
+        or len(table_node_ids) != len(set(table_node_ids))
+    ):
+        _fail("ordinary_trade_managed_document_table_inventory_invalid")
+    inventory = []
+    for table_node_id in sorted(table_node_ids):
+        view = ordinary_trade_canonical_managed_header_view(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            table_node_id=table_node_id,
+        )
+        inventory.append(
+            {
+                "table_node_id": table_node_id,
+                "managed_header_view_sha256": view["header_view_sha256"],
+                "managed_binding": copy.deepcopy(view["managed_binding"]),
+            }
+        )
+    return inventory
+
+
+def _validate_semantic_review_candidate_binding(
+    *,
+    binding: Mapping[str, Any],
+    semantic_review: Mapping[str, Any],
+    document_candidate: Mapping[str, Any],
+) -> None:
+    review_material = copy.deepcopy(dict(semantic_review))
+    review_digest = review_material.pop(
+        "semantic_review_receipt_sha256", None
+    )
+    if review_digest != _sha256_json(review_material):
+        _fail("ordinary_trade_managed_semantic_candidate_binding_invalid")
+    _validate_managed_document_candidate(document_candidate)
+    material = copy.deepcopy(dict(binding))
+    digest = material.pop("binding_sha256", None)
+    if (
+        set(binding)
+        != {
+            "authority_scope",
+            "consumer_eligible",
+            "independent_derivation_proven",
+            "runtime_activation",
+            "semantic_review_receipt_sha256",
+            "evidence_sha256",
+            "document_candidate_sha256",
+            "canonical_binding",
+            "user_scope_sha256",
+            "binding_sha256",
+        }
+        or binding.get("authority_scope") != "SAME_CALL_COMPOSITION_ONLY"
+        or binding.get("consumer_eligible") is not False
+        or binding.get("independent_derivation_proven") is not False
+        or binding.get("runtime_activation") is not False
+        or digest != _sha256_json(material)
+        or binding.get("semantic_review_receipt_sha256")
+        != semantic_review.get("semantic_review_receipt_sha256")
+        or binding.get("evidence_sha256") != semantic_review.get("evidence_sha256")
+        or binding.get("document_candidate_sha256")
+        != document_candidate.get("document_candidate_sha256")
+        or binding.get("canonical_binding") != document_candidate.get("canonical_binding")
+        or binding.get("canonical_binding") != semantic_review.get("canonical_binding")
+        or binding.get("user_scope_sha256")
+        != document_candidate.get("user_scope_sha256")
+        or binding.get("user_scope_sha256")
+        != semantic_review.get("user_scope_sha256")
+    ):
+        _fail("ordinary_trade_managed_semantic_candidate_binding_invalid")
+
+
 def _managed_document_candidate(
     *,
     canonical_binding: Mapping[str, str],
     user_scope_sha256: str,
     inventory: list[dict[str, Any]],
     compiled_by_table: Mapping[str, Mapping[str, Any]],
+    safe_auxiliary_table_ids: set[str] | frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
+    inventory_ids = {item["table_node_id"] for item in inventory}
+    if (
+        not set(safe_auxiliary_table_ids).issubset(inventory_ids)
+        or set(safe_auxiliary_table_ids).intersection(compiled_by_table)
+    ):
+        _fail("ordinary_trade_managed_document_safe_auxiliary_invalid")
     outcomes = []
     blockers = []
     complete_candidates = []
@@ -2506,6 +2725,21 @@ def _managed_document_candidate(
     candidate_ids: set[str] = set()
     for table_binding in inventory:
         table_node_id = table_binding["table_node_id"]
+        if table_node_id in safe_auxiliary_table_ids:
+            outcomes.append(
+                {
+                    **copy.deepcopy(table_binding),
+                    "terminal": "SOURCE_RETAINED_NO_CONSUMER",
+                    "reason_code": None,
+                    "compiled_case_sha256": None,
+                    "qualification_binding": None,
+                    "data_replay_sha256": None,
+                    "row_compilations": [],
+                    "relevant_unmapped": [],
+                    "record_candidates_total": 0,
+                }
+            )
+            continue
         compiled = compiled_by_table.get(table_node_id)
         if compiled is None:
             reason_code = "TABLE_CASE_UNCLASSIFIED"

@@ -2234,7 +2234,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             },
         )
 
-    def test_managed_case_qualification_has_no_downstream_consumer(self):
+    def test_managed_case_qualification_has_only_private_review_consumer(self):
         module = "ordinary_trade_qualified_mappings"
         qualifier = "qualify_managed_header_case_mapping"
         validator = "validate_managed_header_case_mapping"
@@ -2256,11 +2256,25 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 "confirmed_understandings",
             ],
         )
+        external_consumers = set()
         for path in PACKAGE.glob("*.py"):
             if path.name == f"{module}.py":
                 continue
             tree = ast.parse(path.read_text(encoding="utf-8"))
-            self.assertFalse({qualifier, validator} & _call_names(tree), path.name)
+            if {qualifier, validator} & _call_names(tree):
+                external_consumers.add(path.name)
+        self.assertEqual(
+            external_consumers,
+            {"ordinary_trade_semantic_mapping.py"},
+        )
+        self.assertEqual(
+            _call_owners("ordinary_trade_semantic_mapping", qualifier),
+            {"_compile_owned_managed_semantic_review_document_candidate"},
+        )
+        self.assertNotIn(
+            validator,
+            _call_names(_tree("ordinary_trade_semantic_mapping")),
+        )
 
     def test_managed_compiled_case_is_one_inactive_factory_owned_seam(self):
         compiler_module = "ordinary_trade_semantic_compiler"
@@ -2363,7 +2377,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
         self.assertTrue(
             {
-                "ordinary_trade_canonical_managed_header_view",
+                "_managed_document_inventory",
                 "compile_managed_header_case",
                 "_managed_document_candidate",
             }
@@ -2406,12 +2420,30 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             _call_owners(module, "_managed_document_candidate"),
             {
                 "OrdinaryTradeSemanticMapping."
-                "compile_managed_document_candidate"
+                "compile_managed_document_candidate",
+                "_compile_owned_managed_semantic_review_document_candidate",
             },
         )
         self.assertEqual(
+            _call_owners(module, "_managed_document_inventory"),
+            {
+                "OrdinaryTradeSemanticMapping."
+                "compile_managed_document_candidate",
+                "_compile_owned_managed_semantic_review_document_candidate",
+            },
+        )
+        inventory_calls = _call_names(
+            _function_node(_tree(module), "_managed_document_inventory")
+        )
+        self.assertIn(
+            "ordinary_trade_canonical_managed_header_view", inventory_calls
+        )
+        self.assertEqual(
             _call_owners(module, "_validate_managed_document_candidate"),
-            {"_managed_document_candidate"},
+            {
+                "_managed_document_candidate",
+                "_validate_semantic_review_candidate_binding",
+            },
         )
         for path in PACKAGE.glob("*.py"):
             if path.name == f"{module}.py":
@@ -2545,6 +2577,38 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             },
             set(),
         )
+        compiled_method_name = "build_with_semantic_compiled_document_candidate"
+        compile_seam = (
+            "_compile_owned_managed_semantic_review_document_candidate"
+        )
+        compiled_method = _method_node(
+            _tree(coordinator_module),
+            "_ManagedPdfSemanticReviewProviderBuilder",
+            compiled_method_name,
+        )
+        self.assertFalse(
+            {
+                "canonical", "evidence", "semantic_review", "options",
+                "receipt", "document_candidate", "model_client", "provider",
+            }
+            & {item.arg for item in compiled_method.args.kwonlyargs}
+        )
+        self.assertEqual(
+            _call_owners(coordinator_module, compile_seam),
+            {
+                "_ManagedPdfSemanticReviewProviderBuilder."
+                "build_with_semantic_compiled_document_candidate"
+            },
+        )
+        compiled_consumers = set()
+        for path in _executable_repo_python_paths():
+            if compiled_method_name in _call_names(
+                ast.parse(path.read_text(encoding="utf-8"))
+            ):
+                compiled_consumers.add(
+                    path.relative_to(REPOSITORY_ROOT).as_posix()
+                )
+        self.assertEqual(compiled_consumers, set())
 
     def test_managed_semantic_review_contract_is_same_call_and_inactive(self):
         semantic_module = "ordinary_trade_semantic_mapping"
@@ -2636,7 +2700,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 coordinator_module,
                 "build_with_semantic_provider_review",
             ),
-            set(),
+            {
+                "_ManagedPdfSemanticReviewProviderBuilder."
+                "build_with_semantic_compiled_document_candidate"
+            },
         )
         self.assertNotIn(
             "ordinary_trade_mapping_runtime",
