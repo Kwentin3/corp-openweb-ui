@@ -412,6 +412,19 @@ class PdfLayoutUnitBuilder:
                 "source_value_ref": source_value_ref,
                 "canonical_page_text_match_status": match_status,
             }
+            char_ordinals = [
+                int(value) for value in raw.get("char_parser_ordinals") or []
+            ]
+            if char_ordinals:
+                if (
+                    len(char_ordinals) != len(set(char_ordinals))
+                    or any(ordinal not in char_by_ordinal for ordinal in char_ordinals)
+                ):
+                    reasons.append("pdf_layout_word_source_char_binding_invalid")
+                else:
+                    item["source_char_refs"] = [
+                        char_by_ordinal[ordinal] for ordinal in char_ordinals
+                    ]
             words.append(item)
             word_by_ordinal[ordinal] = item
             source_value_refs.append(source_value_ref)
@@ -523,6 +536,7 @@ class PdfLayoutUnitBuilder:
         )
 
         candidates: list[dict[str, Any]] = []
+        source_binding_failed = False
         for candidate_ordinal, raw in enumerate(
             _dicts(raw_layout.get("table_candidate_inventory")), 1
         ):
@@ -600,7 +614,30 @@ class PdfLayoutUnitBuilder:
                 ),
                 "semantic_table_truth_claimed": False,
             }
+            try:
+                candidate.update(
+                    _materialize_locator_source_bindings(
+                        raw=raw,
+                        words=words,
+                        lines=lines,
+                        rows=row_inventory,
+                        cells=cell_inventory,
+                        char_by_ordinal=char_by_ordinal,
+                        char_text_by_ref={
+                            str(item["char_ref"]): str(item.get("text") or "")
+                            for item in chars
+                        },
+                    )
+                )
+            except ValueError as exc:
+                reasons.append(str(exc))
+                source_binding_failed = True
+                continue
             candidates.append(candidate)
+
+        if source_binding_failed:
+            candidates = []
+            table_reasons.append("pdf_table_locator_source_binding_failed")
 
         layout_status = str(raw_layout.get("layout_projection_status") or "partial")
         if any(reason.endswith("_mismatch") for reason in reasons):
@@ -755,7 +792,13 @@ class PdfLayoutUnitBuilder:
         accepted_candidate_word_refs: set[str] = set()
         reasons: list[str] = []
         for candidate in candidates:
-            word_refs = _strings(candidate.get("contributing_word_refs"))
+            grid_word_refs = _strings(candidate.get("contributing_word_refs"))
+            title_word_refs = _strings(
+                _object(candidate.get("source_title_binding")).get("word_refs")
+            )
+            word_refs = [*grid_word_refs, *title_word_refs]
+            if len(word_refs) != len(set(word_refs)):
+                return [], ["pdf_table_candidate_title_word_ownership_duplicate"]
             if len(word_refs) > self.config.max_words_per_table_candidate_unit:
                 reasons.append("pdf_table_candidate_unit_word_budget_exceeded")
                 continue
@@ -870,6 +913,15 @@ class PdfLayoutUnitBuilder:
             page_words=_dicts(page.get("_layout_words")),
         )
         owned_refs = [*owned_word_refs, *owned_line_refs]
+        source_binding_present = bool(
+            candidate is not None and "source_title_binding" in candidate
+        )
+        title_binding = copy.deepcopy(
+            candidate.get("source_title_binding") if candidate else None
+        )
+        header_rows = int(
+            candidate.get("bound_header_row_count") or 0 if candidate else 0
+        )
         page_ref = str(page.get("page_ref") or "")
         slice_id = "fullsrc_" + stable_digest(
             [payload_ref, unit_type, page_ref, *owned_refs], length=24
@@ -944,21 +996,6 @@ class PdfLayoutUnitBuilder:
         supplemental_refs = [
             str(item.get("source_value_ref") or "") for item in supplemental_index
         ]
-        layout_checksum = _checksum_ref(
-            "pdflayoutunitchk",
-            {
-                "unit_ref": unit_ref,
-                "unit_type": unit_type,
-                "layout_parser_ref": layout_parser_ref,
-                "layout_parser_config_ref": layout_parser_config_ref,
-                "owned_refs": owned_refs,
-                "fallback_text_refs": layout_coverage["fallback_text_refs"],
-                "table_candidate_ref": (
-                    candidate.get("table_candidate_ref") if candidate else None
-                ),
-                "text_checksum_ref": _checksum_ref("pdfunittextchk", text),
-            },
-        )
         unit.update(
             {
                 "schema_version": "private_normalized_source_unit_v0",
@@ -967,7 +1004,7 @@ class PdfLayoutUnitBuilder:
                 "parent_payload_ref": payload_ref,
                 "payload_checksum_ref": None,
                 "source_unit_checksum_ref": None,
-                "pdf_layout_unit_checksum_ref": layout_checksum,
+                "pdf_layout_unit_checksum_ref": None,
                 "parser_completeness_status": "complete",
                 "declared_range_complete": True,
                 "coverage_scope": "complete_pdf_layout_partition",
@@ -1032,6 +1069,14 @@ class PdfLayoutUnitBuilder:
                 "table_contributing_word_refs": copy.deepcopy(
                     candidate.get("contributing_word_refs") if candidate else []
                 ),
+                **(
+                    {
+                        "table_title_binding": title_binding,
+                        "bound_header_row_count": header_rows,
+                    }
+                    if source_binding_present
+                    else {}
+                ),
                 "table_fallback_text_refs": copy.deepcopy(
                     candidate.get("fallback_text_refs") if candidate else []
                 ),
@@ -1057,6 +1102,7 @@ class PdfLayoutUnitBuilder:
                 "page_rendering_used_for_extraction": False,
             }
         )
+        unit["pdf_layout_unit_checksum_ref"] = pdf_layout_unit_checksum_ref(unit)
         return unit
 
 
@@ -1064,6 +1110,40 @@ def resolve_pdf_layout_unit_source_value(
     unit: dict[str, Any], source_value_ref: str
 ) -> str:
     return _PdfLayoutUnitSourceValueResolver(unit).resolve(source_value_ref)
+
+
+def pdf_layout_unit_checksum_ref(unit: dict[str, Any]) -> str:
+    coverage = _object(unit.get("pdf_layout_coverage"))
+    source_binding_present = (
+        "table_title_binding" in unit or "bound_header_row_count" in unit
+    )
+    return _checksum_ref(
+        "pdflayoutunitchk",
+        {
+            "unit_ref": unit.get("unit_ref"),
+            "unit_type": unit.get("pdf_unit_type"),
+            "layout_parser_ref": unit.get("layout_parser_ref"),
+            "layout_parser_config_ref": unit.get("layout_parser_config_ref"),
+            "owned_refs": _strings(coverage.get("selected_source_refs")),
+            "fallback_text_refs": _strings(coverage.get("fallback_text_refs")),
+            "table_candidate_ref": unit.get("table_candidate_ref"),
+            "text_checksum_ref": _checksum_ref(
+                "pdfunittextchk", str(unit.get("text") or "")
+            ),
+            **(
+                {
+                    "table_title_binding": copy.deepcopy(
+                        unit.get("table_title_binding")
+                    ),
+                    "bound_header_row_count": int(
+                        unit.get("bound_header_row_count") or 0
+                    ),
+                }
+                if source_binding_present
+                else {}
+            ),
+        },
+    )
 
 
 def resolve_pdf_layout_unit_source_values(
@@ -1179,6 +1259,105 @@ def _unit_text_and_source_values(
                 }
             )
     return "".join(chunks), index
+
+
+def _materialize_locator_source_bindings(
+    *,
+    raw: dict[str, Any],
+    words: list[dict[str, Any]],
+    lines: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+    cells: list[dict[str, Any]],
+    char_by_ordinal: dict[int, str],
+    char_text_by_ref: dict[str, str],
+) -> dict[str, Any]:
+    title_key = "source_title_char_parser_ordinals"
+    if title_key not in raw:
+        return {}
+
+    def bound_char_refs(field: str) -> list[str]:
+        ordinals = [int(value) for value in raw.get(field) or []]
+        if (
+            len(ordinals) != len(set(ordinals))
+            or any(ordinal not in char_by_ordinal for ordinal in ordinals)
+        ):
+            raise ValueError("pdf_table_locator_source_char_binding_invalid")
+        return [char_by_ordinal[ordinal] for ordinal in ordinals]
+
+    title_char_refs = bound_char_refs(title_key)
+    title_char_set = set(title_char_refs)
+    word_by_ref = {str(word.get("word_ref") or ""): word for word in words}
+    grid_word_refs = [
+        ref for cell in cells for ref in _strings(cell.get("word_refs"))
+    ]
+    grid_char_set = {
+        ref
+        for word_ref in grid_word_refs
+        for ref in _strings(word_by_ref[word_ref].get("source_char_refs"))
+    }
+    if title_char_set & grid_char_set:
+        raise ValueError("pdf_table_locator_title_grid_source_overlap")
+
+    title_words = [
+        word
+        for word in words
+        if set(_strings(word.get("source_char_refs"))) & title_char_set
+    ]
+    title_word_char_refs = [
+        ref
+        for word in title_words
+        for ref in _strings(word.get("source_char_refs"))
+    ]
+    if title_char_refs and (
+        any(
+            not set(_strings(word.get("source_char_refs"))) <= title_char_set
+            for word in title_words
+        )
+        or len(title_word_char_refs) != len(set(title_word_char_refs))
+        or set(title_word_char_refs)
+        != {ref for ref in title_char_refs if char_text_by_ref[ref].strip()}
+    ):
+        raise ValueError("pdf_table_locator_title_word_partition_invalid")
+    title_word_refs = [str(word.get("word_ref") or "") for word in title_words]
+    title_word_set = set(title_word_refs)
+    title_lines = [
+        line
+        for line in lines
+        if set(_strings(line.get("word_refs"))) & title_word_set
+    ]
+    title_line_word_refs = [
+        ref for line in title_lines for ref in _strings(line.get("word_refs"))
+    ]
+    if title_word_refs and (
+        any(
+            not set(_strings(line.get("word_refs"))) <= title_word_set
+            for line in title_lines
+        )
+        or len(title_line_word_refs) != len(set(title_line_word_refs))
+        or set(title_line_word_refs) != title_word_set
+    ):
+        raise ValueError("pdf_table_locator_title_line_partition_invalid")
+
+    title_binding = None
+    if title_char_refs:
+        title_binding = {
+            "value": "\n".join(str(line.get("text") or "") for line in title_lines),
+            "char_refs": title_char_refs,
+            "word_refs": title_word_refs,
+            "line_refs": [str(line.get("line_ref") or "") for line in title_lines],
+            "source_value_refs": [
+                str(word_by_ref[ref].get("source_value_ref") or "")
+                for ref in title_word_refs
+            ],
+        }
+        title_binding["checksum_ref"] = _checksum_ref("pdftitlechk", title_binding)
+    header_rows = int(raw.get("bound_header_row_count") or 0)
+    if header_rows < 0 or header_rows > len(rows):
+        raise ValueError("pdf_table_locator_header_row_prefix_invalid")
+    return {
+        "source_title_binding": title_binding,
+        "bound_header_row_count": header_rows,
+    }
 
 
 def _materialize_candidate_cells(

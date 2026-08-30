@@ -233,6 +233,10 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertFalse(retired_product_modules & set(module._BUNDLED_MODULES))
         bundled_order = module._BUNDLED_MODULE_ORDER
         self.assertLess(
+            bundled_order.index("pdf_text_layer"),
+            bundled_order.index("table_projection"),
+        )
+        self.assertLess(
             bundled_order.index("pdf_table_locator_provider"),
             bundled_order.index("pdf_table_intake_runtime"),
         )
@@ -268,6 +272,31 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertFalse(hasattr(bundled_package, "PdfDualVlmRuntimeFactory"))
         self.assertFalse(hasattr(bundled_package, "SemanticVisualTableMigrationFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfLayoutUnitBuilder"))
+
+        text_layer = sys.modules["broker_reports_gate1.pdf_text_layer"]
+        layout_units = sys.modules["broker_reports_gate1.pdf_layout_units"]
+        unit = {
+            "pdf_unit_type": "pdf_table_candidate_unit",
+            "pdf_layout_coverage": {
+                "selected_source_refs": ["word-1", "line-1"],
+                "fallback_text_refs": [],
+            },
+            "table_candidate_ref": "candidate-1",
+            "layout_parser_ref": "parser-1",
+            "layout_parser_config_ref": "config-1",
+            "text": "Title",
+            "table_title_binding": {"value": "Title"},
+            "bound_header_row_count": 1,
+        }
+        unit["pdf_layout_unit_checksum_ref"] = (
+            layout_units.pdf_layout_unit_checksum_ref(unit)
+        )
+        unit["table_title_binding"] = {"value": "Changed"}
+        checksum_errors = text_layer.validate_pdf_source_unit_structure(unit)
+        self.assertIn(
+            "pdf_layout_source_unit_checksum_mismatch",
+            {item["code"] for item in checksum_errors},
+        )
         self.assertFalse(hasattr(bundled_package, "PdfStructuralRowWindowFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfCompactCanonicalFactory"))
         self.assertTrue(hasattr(bundled_package, "PdfNormalizationAcceptanceFactory"))

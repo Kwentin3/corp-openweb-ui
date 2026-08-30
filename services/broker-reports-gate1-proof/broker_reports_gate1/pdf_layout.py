@@ -333,7 +333,15 @@ class PdfPlumberLayoutAdapter:
                 split_at_punctuation=False,
                 return_chars=True,
             )
-            words = _sanitize_words(raw_words or [], raw_chars=raw_chars)
+            words = _sanitize_words(
+                raw_words or [],
+                raw_chars=raw_chars,
+                bind_source_chars=bool(
+                    locator_page
+                    and locator_page.get("source_binding_policy")
+                    == PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID
+                ),
+            )
         except ValueError as exc:
             words = []
             code = str(exc)
@@ -822,7 +830,7 @@ class PdfPlumberLayoutAdapter:
                         int(item["parser_ordinal"]) for item in header_chars
                     }
                     cumulative: set[int] = set()
-                    valid_header_sets: list[set[int]] = []
+                    valid_header_sets: list[tuple[int, set[int]]] = []
                     for row_ordinal in range(1, int(candidate["rows_total"]) + 1):
                         cumulative.update(
                             int(char_ordinal)
@@ -831,10 +839,17 @@ class PdfPlumberLayoutAdapter:
                             for char_ordinal in cell.get("char_parser_ordinals") or []
                         )
                         if cumulative:
-                            valid_header_sets.append(set(cumulative))
-                    if header_ordinals not in valid_header_sets:
+                            valid_header_sets.append((row_ordinal, set(cumulative)))
+                    matching_prefixes = [
+                        count for count, ordinals in valid_header_sets
+                        if ordinals == header_ordinals
+                    ]
+                    if not matching_prefixes:
                         reasons.append("pdf_table_locator_header_binding_failed")
                         continue
+                    candidate["bound_header_row_count"] = matching_prefixes[0]
+                else:
+                    candidate["bound_header_row_count"] = 0
                 candidate["source_title_char_parser_ordinals"] = [
                     int(item["parser_ordinal"]) for item in title_chars
                 ]
@@ -962,7 +977,10 @@ def _sanitize_word(item: dict[str, Any], ordinal: int) -> dict[str, Any]:
 
 
 def _sanitize_words(
-    raw_words: list[dict[str, Any]], *, raw_chars: list[dict[str, Any]]
+    raw_words: list[dict[str, Any]],
+    *,
+    raw_chars: list[dict[str, Any]],
+    bind_source_chars: bool = False,
 ) -> list[dict[str, Any]]:
     source_char_ids = {id(char) for char in raw_chars}
     if len(source_char_ids) != len(raw_chars):
@@ -983,6 +1001,10 @@ def _sanitize_words(
     if not required_tagged_char_ids.issubset(claimed_char_ids):
         raise ValueError("pdf_layout_tagged_word_source_char_unclaimed")
 
+    char_ordinal_by_id = {
+        id(char): ordinal for ordinal, char in enumerate(raw_chars, 1)
+    }
+
     source_signatures = Counter(_raw_char_signature(char) for char in raw_chars)
     result: list[dict[str, Any]] = []
     for raw_word in raw_words:
@@ -999,7 +1021,12 @@ def _sanitize_words(
         if tagged_mcids and len(tagged_mcids) != len(mcids):
             raise ValueError("pdf_layout_tagged_word_mcid_missing")
         if len(set(tagged_mcids)) <= 1:
-            result.append(_sanitize_word(raw_word, len(result) + 1))
+            word = _sanitize_word(raw_word, len(result) + 1)
+            if bind_source_chars:
+                word["char_parser_ordinals"] = [
+                    char_ordinal_by_id[id(char)] for char in word_chars
+                ]
+            result.append(word)
             continue
         if len(tagged_mcids) != len(set(tagged_mcids)):
             raise ValueError("pdf_layout_tagged_word_mcid_noncontiguous")
@@ -1017,7 +1044,11 @@ def _sanitize_words(
                     "bbox": bbox,
                     "direction": str(raw_word.get("direction") or ""),
                     "upright": all(bool(char.get("upright", True)) for char in run),
-                    "char_parser_ordinals": [],
+                    "char_parser_ordinals": (
+                        [char_ordinal_by_id[id(char)] for char in run]
+                        if bind_source_chars
+                        else []
+                    ),
                     "mcid_refs": [str(run[0].get("mcid"))],
                     "source_char_signatures": [list(_raw_char_signature(char)) for char in run],
                 }

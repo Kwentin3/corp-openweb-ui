@@ -18,6 +18,7 @@ from .pdf_layout import (
 from .pdf_layout_units import (
     PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION,
     PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION,
+    pdf_layout_unit_checksum_ref,
     resolve_pdf_layout_unit_source_value_results,
 )
 
@@ -874,6 +875,12 @@ def validate_pdf_source_unit_structure(
         errors.append(_error("pdf_source_unit_coverage_incomplete", unit_ref))
     unit_type = unit.get("pdf_unit_type")
     if unit_type in {"pdf_line_cluster_unit", "pdf_table_candidate_unit"}:
+        if unit.get("pdf_layout_unit_checksum_ref") != pdf_layout_unit_checksum_ref(
+            unit
+        ):
+            errors.append(
+                _error("pdf_layout_source_unit_checksum_mismatch", unit_ref)
+            )
         if unit.get("layout_projection_status") != "complete":
             errors.append(_error("pdf_layout_source_unit_projection_not_complete", unit_ref))
         layout_coverage = _object(unit.get("pdf_layout_coverage"))

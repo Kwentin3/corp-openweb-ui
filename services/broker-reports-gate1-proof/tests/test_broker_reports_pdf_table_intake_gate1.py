@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import fitz
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -37,6 +38,9 @@ from broker_reports_gate1.pdf_layout import (  # noqa: E402
     PdfLayoutParserConfig,
     PdfPlumberLayoutAdapter,
 )
+from broker_reports_gate1.pdf_layout_units import (  # noqa: E402
+    _materialize_locator_source_bindings,
+)
 from broker_reports_gate1.pdf_text_layer import (  # noqa: E402
     validate_pdf_source_unit_structure,
 )
@@ -55,7 +59,9 @@ from broker_reports_gate1.pdf_table_locator_provider import (  # noqa: E402
     PdfTableLocatorProviderFactory,
 )
 from broker_reports_gate1.table_projection import (  # noqa: E402
+    NormalizedTableProjectionFactory,
     TableProjectionValidator,
+    _checksum_ref,
 )
 
 
@@ -360,6 +366,164 @@ def test_real_tbank_frozen_locator_v2_contract_reaches_all_strict_grids() -> Non
     assert [(item["row_count"], item["column_count"]) for item in projections] == expected_shapes
     assert sum(item["row_count"] for item in projections) == 50
     assert sum(item["cell_count"] for item in projections) == 485
+    assert all(
+        item["projection_status"] == "ready"
+        and item["validator_status"] == "passed"
+        for item in projections
+    )
+    units = {
+        item["unit_ref"]: item
+        for item in normalized.package["private_normalized_source_units"]
+    }
+    paragraph_word_refs = {
+        ref
+        for unit in units.values()
+        if unit.get("pdf_unit_type") == "pdf_line_cluster_unit"
+        for ref in unit.get("layout_word_refs") or []
+    }
+    paragraph_line_refs = {
+        ref
+        for unit in units.values()
+        if unit.get("pdf_unit_type") == "pdf_line_cluster_unit"
+        for ref in unit.get("layout_line_refs") or []
+    }
+    titles = []
+    for projection in projections:
+        title = projection["table_title_binding"]
+        unit = units[projection["source_unit_ref"]]
+        unit_title = unit["table_title_binding"]
+        titles.append(title["value"])
+        assert "char_refs" not in title
+        assert {
+            key: value
+            for key, value in unit_title.items()
+            if key not in {"char_refs", "checksum_ref"}
+        } == {
+            key: value for key, value in title.items() if key != "checksum_ref"
+        }
+        assert unit_title["char_refs"] and len(unit_title["char_refs"]) == len(
+            set(unit_title["char_refs"])
+        )
+        assert set(title["word_refs"]).isdisjoint(
+            unit["table_contributing_word_refs"]
+        )
+        assert set(title["word_refs"]).isdisjoint(paragraph_word_refs)
+        assert set(title["line_refs"]).isdisjoint(paragraph_line_refs)
+        assert projection["bound_header_row_count"] == len(
+            projection["header_model"]["header_row_refs"]
+        )
+        assert projection["header_model"]["source_value_refs"]
+        assert projection["header_model"]["source_checksum_ref"]
+    assert len(titles) == 15 and all(titles)
+    assert "RUB" in titles
+
+    rebuilt = NormalizedTableProjectionFactory().create().build_for_document(
+        source_format="pdf",
+        payloads=normalized.package["private_normalized_source_payloads"],
+        source_units=normalized.package["private_normalized_source_units"],
+    )
+    assert len(rebuilt.projections) == 15
+    assert all(item["validator_status"] == "passed" for item in rebuilt.projections)
+
+    forged_payloads = copy.deepcopy(
+        normalized.package["private_normalized_source_payloads"]
+    )
+    forged_units = copy.deepcopy(
+        normalized.package["private_normalized_source_units"]
+    )
+    forged_unit = next(item for item in forged_units if item.get("table_title_binding"))
+    forged_payload = next(
+        item
+        for item in forged_payloads
+        if item["source_payload_ref"] == forged_unit["parent_payload_ref"]
+    )
+    forged_projection = forged_payload["pdf_text_layer_projection"]
+    forged_candidate = next(
+        item
+        for item in forged_projection["table_candidate_inventory"]
+        if item["table_candidate_ref"] == forged_unit["table_candidate_ref"]
+    )
+    forged_line = next(
+        item
+        for item in forged_projection["line_inventory"]
+        if item["line_ref"] == forged_unit["table_title_binding"]["line_refs"][0]
+    )
+    forged_line["text"] = "FORGED TITLE"
+    forged_binding = copy.deepcopy(forged_unit["table_title_binding"])
+    forged_binding["value"] = forged_line["text"]
+    forged_binding["char_refs"][0] = "pdfchar-foreign"
+    forged_binding["checksum_ref"] = _checksum_ref(
+        "pdftitlechk",
+        {
+            key: value
+            for key, value in forged_binding.items()
+            if key != "checksum_ref"
+        },
+    )
+    forged_candidate["source_title_binding"] = copy.deepcopy(forged_binding)
+    forged_unit["table_title_binding"] = copy.deepcopy(forged_binding)
+    forged_result = (
+        NormalizedTableProjectionFactory().create().build_for_document(
+            source_format="pdf",
+            payloads=forged_payloads,
+            source_units=forged_units,
+        )
+    )
+    rejected = next(
+        item
+        for item in forged_result.projections
+        if item["source_unit_ref"] == forged_unit["unit_ref"]
+    )
+    assert rejected["projection_status"] == "blocked"
+    assert {
+        "pdf_layout_source_unit_checksum_mismatch",
+        "pdf_source_unit_parent_payload_invalid",
+    } <= set(rejected["reconstruction_reason_codes"])
+
+
+@pytest.mark.parametrize(
+    ("title_ordinals", "line_word_refs", "reason"),
+    [
+        ([1, 1], ["word-title"], "source_char_binding_invalid"),
+        ([99], ["word-title"], "source_char_binding_invalid"),
+        ([1], ["word-title"], "title_word_partition_invalid"),
+        ([1, 2], ["word-title", "word-grid"], "title_line_partition_invalid"),
+        ([1, 2], ["word-title", "word-title"], "title_line_partition_invalid"),
+    ],
+)
+def test_title_binding_partial_word_or_line_fails_closed(
+    title_ordinals, line_word_refs, reason
+) -> None:
+    with pytest.raises(ValueError, match=reason):
+        _materialize_locator_source_bindings(
+            raw={
+                "source_title_char_parser_ordinals": title_ordinals,
+                "bound_header_row_count": 0,
+            },
+            words=[
+                {
+                    "word_ref": "word-title",
+                    "source_char_refs": ["char-1", "char-2"],
+                    "source_value_ref": "src-title",
+                },
+                {
+                    "word_ref": "word-grid",
+                    "source_char_refs": ["char-3"],
+                    "source_value_ref": "src-grid",
+                },
+            ],
+            lines=[
+                {
+                    "line_ref": "line-title",
+                    "word_refs": line_word_refs,
+                    "text": "Title",
+                }
+            ],
+            rows=[{"row_ref": "row-1", "row_ordinal": 1, "cell_refs": ["cell-1"]}],
+            cells=[{"cell_ref": "cell-1", "word_refs": ["word-grid"]}],
+            char_by_ordinal={1: "char-1", 2: "char-2", 3: "char-3"},
+            char_text_by_ref={"char-1": "T", "char-2": "i", "char-3": "1"},
+        )
 
 
 def test_real_tbank_wrong_neighbor_title_is_rejected() -> None:
