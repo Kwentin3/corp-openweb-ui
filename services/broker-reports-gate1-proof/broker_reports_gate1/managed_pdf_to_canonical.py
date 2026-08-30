@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Mapping
 
 from .canonical_artifact import (
@@ -24,6 +24,7 @@ from .gate2_model_requests import (
 from .ordinary_trade_semantic_mapping import (
     OrdinaryTradeSemanticMappingError,
     _build_managed_document_semantic_evidence_from_owned_canonical,
+    _compile_owned_managed_semantic_review_document_candidate,
     _managed_semantic_critic_model_request,
     _managed_semantic_evidence_scope_ref,
     _managed_semantic_proposal,
@@ -78,6 +79,8 @@ class ManagedPdfToCanonicalSemanticProviderReviewBuildResult:
     semantic_review_contract: dict[str, Any] | None
     execution_receipt: dict[str, Any]
     reason_code: str | None
+    document_candidate: dict[str, Any] | None = None
+    semantic_review_candidate_binding: dict[str, Any] | None = None
 
 
 class ManagedPdfToCanonicalFactory:
@@ -478,6 +481,70 @@ class _ManagedPdfSemanticReviewProviderBuilder:
             accounting=accounting,
             executions=executions,
             review=review,
+        )
+
+    async def build_with_semantic_compiled_document_candidate(
+        self,
+        content_bytes: bytes,
+        *,
+        tenant_id: str,
+        artifact_version: int,
+        source_artifact_ref: str,
+        task_id: str,
+        user_scope_sha256: str,
+        proposal_model_id: str,
+        critic_model_id: str,
+        dpi: int = 150,
+        created_at: str | None = None,
+        previous_version_ref: str | None = None,
+    ) -> ManagedPdfToCanonicalSemanticProviderReviewBuildResult:
+        """Compile only one exact same-call reviewed semantic document."""
+
+        result = await self.build_with_semantic_provider_review(
+            content_bytes,
+            tenant_id=tenant_id,
+            artifact_version=artifact_version,
+            source_artifact_ref=source_artifact_ref,
+            task_id=task_id,
+            user_scope_sha256=user_scope_sha256,
+            proposal_model_id=proposal_model_id,
+            critic_model_id=critic_model_id,
+            dpi=dpi,
+            created_at=created_at,
+            previous_version_ref=previous_version_ref,
+        )
+        review = result.semantic_review_contract
+        evidence = result.evidence_result.semantic_evidence
+        canonical = result.evidence_result.canonical_result.canonical_artifact
+        if (
+            result.status != "REVIEWED_CANDIDATE"
+            or review is None
+            or evidence is None
+            or canonical is None
+        ):
+            return result
+        try:
+            candidate, binding = (
+                _compile_owned_managed_semantic_review_document_candidate(
+                    canonical=canonical,
+                    canonical_binding=evidence["canonical_binding"],
+                    user_scope_sha256=user_scope_sha256,
+                    evidence=evidence,
+                    semantic_review=review,
+                )
+            )
+        except (OrdinaryTradeSemanticMappingError, RuntimeError):
+            return replace(
+                result,
+                status="BLOCKED",
+                reason_code="SEMANTIC_DOCUMENT_COMPILATION_BLOCKED",
+                semantic_review_contract=review,
+            )
+        return replace(
+            result,
+            status=candidate["document_candidate_status"],
+            document_candidate=candidate,
+            semantic_review_candidate_binding=binding,
         )
 
     def _client(self, request_profile: str):
