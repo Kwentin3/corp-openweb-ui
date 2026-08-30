@@ -2760,6 +2760,69 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             set(),
         )
 
+    def test_workflow_document_role_receipt_is_fixed_owned_and_inactive(self):
+        module_name = "ordinary_trade_document_role_receipt"
+        module_path = PACKAGE / f"{module_name}.py"
+        source = module_path.read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        registration = _method_node(
+            tree,
+            "OrdinaryTradeDocumentRoleReceiptRuntime",
+            "register_declaration_metadata_input",
+        )
+        keyword_inputs = {item.arg for item in registration.args.kwonlyargs}
+        self.assertEqual(
+            keyword_inputs,
+            {"canonical_artifact_ref", "context"},
+        )
+        self.assertNotIn("assign_role", source)
+        self.assertNotIn("classify", _call_names(registration))
+        self.assertFalse(
+            {
+                "role",
+                "source_format",
+                "content",
+                "title",
+                "headers",
+                "model_client",
+                "provider",
+                "transport",
+            }
+            & keyword_inputs
+        )
+        self.assertEqual(
+            _local_imports(module_name),
+            {
+                "artifact_lifecycle",
+                "artifact_models",
+                "artifact_resolver",
+                "canonical_store",
+            },
+        )
+        external_consumers = set()
+        for path in _executable_repo_python_paths():
+            if path == module_path:
+                continue
+            text = path.read_text(encoding="utf-8")
+            if (
+                module_name in text
+                or "register_declaration_metadata_input" in text
+                or "OrdinaryTradeDocumentRoleReceiptRuntimeFactory" in text
+            ):
+                external_consumers.add(
+                    path.relative_to(REPOSITORY_ROOT).as_posix()
+                )
+        self.assertEqual(external_consumers, set())
+        for bundle_path in GENERATED_BUNDLES:
+            modules = _bundled_modules(bundle_path)
+            self.assertNotIn(module_name, modules)
+            bundle_source = bundle_path.read_text(encoding="utf-8")
+            self.assertNotIn("register_declaration_metadata_input", bundle_source)
+            self.assertNotIn(
+                "OrdinaryTradeDocumentRoleReceiptRuntimeFactory",
+                bundle_source,
+            )
+
 
 def _source(module_name: str) -> str:
     return (PACKAGE / f"{module_name}.py").read_text(encoding="utf-8")
