@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import tempfile
 import unittest
@@ -37,6 +38,7 @@ from broker_reports_gate1.pdf_text_layer import (
     FACTORY_REQUIRED,
     FORBIDDEN,
     PYPDF_PINNED_VERSION,
+    pdf_payload_checksum_ref,
 )
 
 
@@ -379,6 +381,32 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
         self.assertEqual(
             empty_password_diagnostics["empty_password_decrypt_attempts"],
             1,
+        )
+        tampered_receipt = copy.deepcopy(empty_password_payload)
+        tampered_receipt["pdf_text_layer_projection"]["parser_diagnostics"].update(
+            {
+                "encryption_disposition": "not_encrypted",
+                "empty_password_decrypt_attempts": 0,
+            }
+        )
+        tampered_validation = validate_pdf_text_layer_payload(tampered_receipt)
+        self.assertEqual(tampered_validation["validator_status"], "failed")
+        self.assertIn(
+            "pdf_projection_payload_checksum_mismatch",
+            {error["code"] for error in tampered_validation["errors"]},
+        )
+        incoherent_receipt = copy.deepcopy(empty_password_payload)
+        incoherent_receipt["pdf_text_layer_projection"]["parser_diagnostics"][
+            "empty_password_decrypt_attempts"
+        ] = 0
+        incoherent_receipt["payload_checksum_ref"] = pdf_payload_checksum_ref(
+            incoherent_receipt
+        )
+        incoherent_validation = validate_pdf_text_layer_payload(incoherent_receipt)
+        self.assertEqual(incoherent_validation["validator_status"], "failed")
+        self.assertIn(
+            "pdf_projection_encryption_receipt_invalid",
+            {error["code"] for error in incoherent_validation["errors"]},
         )
         self.assertEqual(
             validate_pdf_text_layer_payload(empty_password_payload)["validator_status"],

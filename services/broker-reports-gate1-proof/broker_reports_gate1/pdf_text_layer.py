@@ -540,6 +540,7 @@ def pdf_layout_page_checksum_ref(page: dict[str, Any], layout_parser_ref: str) -
 
 def pdf_payload_checksum_ref(payload: dict[str, Any]) -> str:
     projection = _object(payload.get("pdf_text_layer_projection"))
+    parser_diagnostics = _object(projection.get("parser_diagnostics"))
     return _checksum_ref(
         "srcpayloadchk",
         {
@@ -550,6 +551,12 @@ def pdf_payload_checksum_ref(payload: dict[str, Any]) -> str:
             "parser_engine_version": projection.get("parser_engine_version"),
             "parser_config_ref": projection.get("parser_config_ref"),
             "projection_policy_ref": projection.get("projection_policy_ref"),
+            "encryption_disposition": parser_diagnostics.get(
+                "encryption_disposition"
+            ),
+            "empty_password_decrypt_attempts": parser_diagnostics.get(
+                "empty_password_decrypt_attempts"
+            ),
             "parser_completeness_status": payload.get("parser_completeness_status"),
             "parser_completeness_reason_codes": list(
                 payload.get("parser_completeness_reason_codes") or []
@@ -606,6 +613,35 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         errors.append(_error("pdf_projection_engine_mismatch", payload_ref))
     if projection.get("parser_engine_version") != PYPDF_PINNED_VERSION:
         errors.append(_error("pdf_projection_engine_version_mismatch", payload_ref))
+    parser_diagnostics = _object(projection.get("parser_diagnostics"))
+    encryption_disposition = parser_diagnostics.get("encryption_disposition")
+    empty_password_decrypt_attempts = parser_diagnostics.get(
+        "empty_password_decrypt_attempts"
+    )
+    if (
+        encryption_disposition,
+        empty_password_decrypt_attempts,
+    ) not in {
+        ("not_evaluated", 0),
+        ("not_encrypted", 0),
+        ("empty_password_accepted", 1),
+        ("password_required_or_decrypt_failed", 1),
+    }:
+        errors.append(_error("pdf_projection_encryption_receipt_invalid", payload_ref))
+    if encryption_disposition == "password_required_or_decrypt_failed" and (
+        payload.get("parser_completeness_status") != "blocked"
+        or "pdf_encrypted_without_key"
+        not in set(payload.get("parser_completeness_reason_codes") or [])
+    ):
+        errors.append(
+            _error("pdf_projection_encryption_terminal_mismatch", payload_ref)
+        )
+    if encryption_disposition == "empty_password_accepted" and payload.get(
+        "parser_completeness_status"
+    ) == "blocked":
+        errors.append(
+            _error("pdf_projection_encryption_acceptance_status_mismatch", payload_ref)
+        )
     if payload.get("ocr_vlm_used") is not False or projection.get("ocr_vlm_used") is not False:
         errors.append(_error("pdf_projection_ocr_guard_failed", payload_ref))
     visual_status = str(projection.get("visual_fallback_status") or "not_required")
