@@ -2588,7 +2588,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
         self.assertEqual(
             _call_owners(coordinator_module, private_seam),
-            {"_ManagedPdfToCanonicalBuilder.build_with_semantic_review_contract"},
+            {
+                "_ManagedPdfToCanonicalBuilder.build_with_semantic_review_contract",
+                "_ManagedPdfSemanticReviewProviderBuilder.build_with_semantic_provider_review",
+            },
         )
         option_calls = _call_names(
             _function_node(_tree(semantic_module), "_managed_semantic_option")
@@ -2609,6 +2612,36 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
         self.assertEqual(private_consumers, {coordinator})
         self.assertEqual(public_consumers, set())
+        provider_method = _method_node(
+            _tree(coordinator_module),
+            "_ManagedPdfSemanticReviewProviderBuilder",
+            "build_with_semantic_provider_review",
+        )
+        provider_inputs = {item.arg for item in provider_method.args.kwonlyargs}
+        self.assertFalse(
+            {
+                "client",
+                "endpoint",
+                "resolver",
+                "canonical",
+                "evidence",
+                "proposal_response",
+                "critic_response",
+                "receipt",
+            }
+            & provider_inputs
+        )
+        self.assertEqual(
+            _call_owners(
+                coordinator_module,
+                "build_with_semantic_provider_review",
+            ),
+            set(),
+        )
+        self.assertNotIn(
+            "ordinary_trade_mapping_runtime",
+            _local_imports(coordinator_module),
+        )
         self.assertEqual(
             _local_imports(semantic_module)
             & {

@@ -47,6 +47,12 @@ ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE = (
 ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE = (
     "ordinary_trade_mapping_answer_v1"
 )
+MANAGED_DOCUMENT_SEMANTIC_PROPOSAL_REQUEST_PROFILE = (
+    "managed_document_semantic_proposal_v1"
+)
+MANAGED_DOCUMENT_SEMANTIC_CRITIC_REQUEST_PROFILE = (
+    "managed_document_semantic_critic_v1"
+)
 FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_context_lint_receipt_v1"
 )
@@ -78,6 +84,8 @@ _SUPPORTED_REQUEST_PROFILES = (
     GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE,
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
     ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
+    MANAGED_DOCUMENT_SEMANTIC_PROPOSAL_REQUEST_PROFILE,
+    MANAGED_DOCUMENT_SEMANTIC_CRITIC_REQUEST_PROFILE,
 )
 
 
@@ -337,6 +345,16 @@ class Gate2OpenWebUIRequestBuilder:
                 model_id=model_id,
                 response_format=response_format,
             )
+        if self.request_profile in {
+            MANAGED_DOCUMENT_SEMANTIC_PROPOSAL_REQUEST_PROFILE,
+            MANAGED_DOCUMENT_SEMANTIC_CRITIC_REQUEST_PROFILE,
+        }:
+            return self._build_managed_document_semantic_review_request(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
         if (
             self.request_profile
             == FINANCIAL_SEMANTIC_V6_CONTEXT_V2_1_LOCAL_PROOF_REQUEST_PROFILE
@@ -422,6 +440,83 @@ class Gate2OpenWebUIRequestBuilder:
                     "semantic_mapping": True,
                     "phase": expected_phase,
                     "case_scope": "authenticated_private_case",
+                    "structured_output_mode": (
+                        "openwebui_response_format_json_schema"
+                    ),
+                    "prompt_ref": getattr(prompt, "prompt_ref", None),
+                    "prompt_hash": getattr(prompt, "hash", None),
+                    "knowledge_rag_used": False,
+                    "vectorization_performed": False,
+                }
+            },
+        }
+
+    def _build_managed_document_semantic_review_request(
+        self,
+        *,
+        prompt,
+        package: dict[str, Any],
+        model_id: str,
+        response_format: dict[str, Any],
+    ) -> dict[str, Any]:
+        expected_phase = (
+            "managed_semantic_proposal"
+            if self.request_profile
+            == MANAGED_DOCUMENT_SEMANTIC_PROPOSAL_REQUEST_PROFILE
+            else "managed_semantic_critic"
+        )
+        json_schema = (
+            response_format.get("json_schema")
+            if isinstance(response_format, dict)
+            else None
+        )
+        if (
+            not isinstance(package, dict)
+            or package.get("phase") != expected_phase
+            or not isinstance(package.get("evidence"), dict)
+            or not isinstance(package.get("evidence_scope_ref"), str)
+            or not package["evidence_scope_ref"]
+            or (
+                expected_phase == "managed_semantic_critic"
+                and (
+                    not isinstance(package.get("proposal_ref"), str)
+                    or not package["proposal_ref"]
+                    or not isinstance(package.get("host_options"), list)
+                )
+            )
+            or not isinstance(getattr(prompt, "content", None), str)
+            or not prompt.content
+            or not isinstance(model_id, str)
+            or not model_id
+            or not isinstance(json_schema, dict)
+            or response_format.get("type") != "json_schema"
+            or set(json_schema) != {"name", "strict", "schema"}
+            or json_schema.get("strict") is not True
+            or not isinstance(json_schema.get("schema"), dict)
+        ):
+            raise Gate2SourceFactRuntimeError(
+                "managed_document_semantic_model_request_invalid",
+                "Managed-document semantic request is not closed and strict",
+            )
+        return {
+            "model": model_id,
+            "messages": [
+                {"role": "system", "content": prompt.content},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        package,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    ),
+                },
+            ],
+            "stream": False,
+            "response_format": copy.deepcopy(response_format),
+            "metadata": {
+                "broker_reports_managed_semantic_review": {
+                    "phase": expected_phase,
                     "structured_output_mode": (
                         "openwebui_response_format_json_schema"
                     ),

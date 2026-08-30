@@ -12,9 +12,22 @@ from .managed_pdf_document_v2 import (
     ManagedPdfDocumentV2AdjudicatedBuildResult,
     ManagedPdfDocumentV2Factory,
 )
+from .gate2_model_clients import Gate2StructuredModelClientFactory
+from .gate2_model_contracts import (
+    Gate2SourceFactRuntimeError,
+    Gate2StructuredModelClientConfig,
+)
+from .gate2_model_requests import (
+    MANAGED_DOCUMENT_SEMANTIC_CRITIC_REQUEST_PROFILE,
+    MANAGED_DOCUMENT_SEMANTIC_PROPOSAL_REQUEST_PROFILE,
+)
 from .ordinary_trade_semantic_mapping import (
     OrdinaryTradeSemanticMappingError,
     _build_managed_document_semantic_evidence_from_owned_canonical,
+    _managed_semantic_critic_model_request,
+    _managed_semantic_evidence_scope_ref,
+    _managed_semantic_proposal,
+    _managed_semantic_proposal_model_request,
     _review_owned_managed_document_semantic_evidence,
 )
 
@@ -58,6 +71,15 @@ class ManagedPdfToCanonicalSemanticReviewContractBuildResult:
     reason_code: str | None
 
 
+@dataclass(frozen=True)
+class ManagedPdfToCanonicalSemanticProviderReviewBuildResult:
+    status: str
+    evidence_result: ManagedPdfToCanonicalSemanticEvidenceBuildResult
+    semantic_review_contract: dict[str, Any] | None
+    execution_receipt: dict[str, Any]
+    reason_code: str | None
+
+
 class ManagedPdfToCanonicalFactory:
     def create_for_openwebui(
         self,
@@ -70,6 +92,27 @@ class ManagedPdfToCanonicalFactory:
             schema=dict(schema),
             request=request,
             normalizer_config=normalizer_config,
+        )
+
+    def create_semantic_review_for_openwebui(
+        self,
+        schema: Mapping[str, Any],
+        request: Any,
+        user: Any,
+        *,
+        normalizer_config: CanonicalNormalizerConfig,
+        provider_profile_id: str,
+    ) -> "_ManagedPdfSemanticReviewProviderBuilder":
+        base = self.create_for_openwebui(
+            schema,
+            request,
+            normalizer_config=normalizer_config,
+        )
+        return _ManagedPdfSemanticReviewProviderBuilder(
+            base_builder=base,
+            request=request,
+            user=user,
+            provider_profile_id=provider_profile_id,
         )
 
 
@@ -279,6 +322,268 @@ class _ManagedPdfToCanonicalBuilder:
             semantic_review_contract=review,
             reason_code=None,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class _ManagedPdfSemanticReviewProviderBuilder:
+    base_builder: _ManagedPdfToCanonicalBuilder
+    request: Any
+    user: Any
+    provider_profile_id: str
+
+    async def build_with_semantic_provider_review(
+        self,
+        content_bytes: bytes,
+        *,
+        tenant_id: str,
+        artifact_version: int,
+        source_artifact_ref: str,
+        task_id: str,
+        user_scope_sha256: str,
+        proposal_model_id: str,
+        critic_model_id: str,
+        dpi: int = 150,
+        created_at: str | None = None,
+        previous_version_ref: str | None = None,
+    ) -> ManagedPdfToCanonicalSemanticProviderReviewBuildResult:
+        """Run exactly one proposal and one critic over same-call PDF evidence."""
+
+        evidence_result = self.base_builder.build_with_semantic_evidence(
+            content_bytes,
+            tenant_id=tenant_id,
+            artifact_version=artifact_version,
+            source_artifact_ref=source_artifact_ref,
+            task_id=task_id,
+            user_scope_sha256=user_scope_sha256,
+            dpi=dpi,
+            created_at=created_at,
+            previous_version_ref=previous_version_ref,
+        )
+        canonical = evidence_result.canonical_result.canonical_artifact
+        evidence = evidence_result.semantic_evidence
+        accounting = {
+            "local_invocations": 0,
+            "provider_submissions": 0,
+            "provider_responses": 0,
+        }
+        executions: list[dict[str, Any]] = []
+        if evidence_result.status != "COMPLETE" or canonical is None or evidence is None:
+            return _semantic_provider_result(
+                evidence_result=evidence_result,
+                status="BLOCKED",
+                reason_code="SEMANTIC_EVIDENCE_NOT_READY",
+                accounting=accounting,
+                executions=executions,
+            )
+
+        proposal_client = self._client(MANAGED_DOCUMENT_SEMANTIC_PROPOSAL_REQUEST_PROFILE)
+        prompt, package, response_format = _managed_semantic_proposal_model_request(
+            evidence
+        )
+        proposal_raw, failure = await self._call_once(
+            client=proposal_client,
+            phase="PROPOSAL",
+            prompt=prompt,
+            package=package,
+            model_id=proposal_model_id,
+            response_format=response_format,
+            accounting=accounting,
+            executions=executions,
+        )
+        if failure is not None:
+            return _semantic_provider_result(
+                evidence_result=evidence_result,
+                status="BLOCKED",
+                reason_code=failure,
+                accounting=accounting,
+                executions=executions,
+            )
+        try:
+            scope_ref = _managed_semantic_evidence_scope_ref(
+                evidence["evidence_sha256"]
+            )
+            options, proposal_ref, _ = _managed_semantic_proposal(
+                canonical=canonical,
+                canonical_binding=evidence["canonical_binding"],
+                evidence=evidence,
+                evidence_scope_ref=scope_ref,
+                response=proposal_raw,
+            )
+        except OrdinaryTradeSemanticMappingError:
+            return _semantic_provider_result(
+                evidence_result=evidence_result,
+                status="BLOCKED",
+                reason_code="PROPOSAL_RESPONSE_INVALID",
+                accounting=accounting,
+                executions=executions,
+            )
+
+        critic_client = self._client(MANAGED_DOCUMENT_SEMANTIC_CRITIC_REQUEST_PROFILE)
+        prompt, package, response_format = _managed_semantic_critic_model_request(
+            evidence=evidence,
+            options=options,
+            proposal_ref=proposal_ref,
+        )
+        critic_raw, failure = await self._call_once(
+            client=critic_client,
+            phase="CRITIC",
+            prompt=prompt,
+            package=package,
+            model_id=critic_model_id,
+            response_format=response_format,
+            accounting=accounting,
+            executions=executions,
+        )
+        if failure is not None:
+            return _semantic_provider_result(
+                evidence_result=evidence_result,
+                status="BLOCKED",
+                reason_code=failure,
+                accounting=accounting,
+                executions=executions,
+            )
+        try:
+            review = _review_owned_managed_document_semantic_evidence(
+                canonical=canonical,
+                canonical_binding=evidence["canonical_binding"],
+                user_scope_sha256=user_scope_sha256,
+                evidence=evidence,
+                proposal_response=proposal_raw,
+                critic_response=critic_raw,
+            )
+        except OrdinaryTradeSemanticMappingError:
+            return _semantic_provider_result(
+                evidence_result=evidence_result,
+                status="BLOCKED",
+                reason_code="CRITIC_RESPONSE_INVALID",
+                accounting=accounting,
+                executions=executions,
+            )
+        if accounting != {
+            "local_invocations": 2,
+            "provider_submissions": 2,
+            "provider_responses": 2,
+        }:
+            return _semantic_provider_result(
+                evidence_result=evidence_result,
+                status="BLOCKED",
+                reason_code="SEMANTIC_PROVIDER_ACCOUNTING_INVALID",
+                accounting=accounting,
+                executions=executions,
+            )
+        return _semantic_provider_result(
+            evidence_result=evidence_result,
+            status=review["review_status"],
+            reason_code=None,
+            accounting=accounting,
+            executions=executions,
+            review=review,
+        )
+
+    def _client(self, request_profile: str):
+        return Gate2StructuredModelClientFactory(
+            config=Gate2StructuredModelClientConfig(
+                request_profile=request_profile,
+                provider_profile_id=self.provider_profile_id,
+            ),
+            user=self.user,
+            request=self.request,
+        ).create()
+
+    @staticmethod
+    async def _call_once(
+        *, client, phase, prompt, package, model_id, response_format,
+        accounting, executions,
+    ) -> tuple[Any, str | None]:
+        before = client.qualification_lifecycle_snapshot()
+        try:
+            result = await client.extract(
+                prompt=prompt,
+                package=package,
+                model_id=model_id,
+                response_format=response_format,
+            )
+        except Gate2SourceFactRuntimeError:
+            after = client.qualification_lifecycle_snapshot()
+            _merge_semantic_lifecycle(accounting, before, after)
+            return None, f"{phase}_PROVIDER_FAILED"
+        after = client.qualification_lifecycle_snapshot()
+        delta = _merge_semantic_lifecycle(accounting, before, after)
+        if delta != {
+            "local_invocations": 1,
+            "provider_submissions": 1,
+            "provider_responses": 1,
+        }:
+            return None, f"{phase}_PROVIDER_FAILED"
+        metadata = result.execution_metadata
+        if (
+            metadata is None
+            or result.structured_output_mode
+            not in {
+                "openwebui_response_format_json_schema",
+                "openwebui_anthropic_output_config_json_schema",
+            }
+            or result.response_format_type != "json_schema"
+            or result.response_format_schema_mode != "strict_json_schema"
+            or result.fallback_used is not False
+            or result.repair_attempt_count != 0
+        ):
+            return None, f"{phase}_PROVIDER_FAILED"
+        executions.append(
+            {
+                "phase": phase,
+                "fallback_used": False,
+                "repair_attempt_count": 0,
+                "provider_execution": metadata.snapshot(),
+            }
+        )
+        return copy.deepcopy(result.content), None
+
+
+def _merge_semantic_lifecycle(
+    accounting: dict[str, int], before: Mapping[str, int], after: Mapping[str, int]
+) -> dict[str, int]:
+    keys = {
+        "local_invocations": "local_invocations_total",
+        "provider_submissions": "provider_submissions_total",
+        "provider_responses": "provider_responses_total",
+    }
+    delta_by_target = {}
+    for target, source in keys.items():
+        delta = after[source] - before[source]
+        if delta not in {0, 1}:
+            raise RuntimeError("managed_semantic_provider_accounting_invalid")
+        accounting[target] += delta
+        delta_by_target[target] = delta
+    if not (
+        accounting["provider_responses"]
+        <= accounting["provider_submissions"]
+        <= accounting["local_invocations"]
+        <= 2
+    ):
+        raise RuntimeError("managed_semantic_provider_accounting_invalid")
+    return delta_by_target
+
+
+def _semantic_provider_result(
+    *, evidence_result, status, reason_code, accounting, executions, review=None
+) -> ManagedPdfToCanonicalSemanticProviderReviewBuildResult:
+    receipt = {
+        "schema_version": "managed_document_semantic_provider_execution_v1",
+        "semantic_calls_limit": 2,
+        "retry_count": 0,
+        **copy.deepcopy(accounting),
+        "executions": copy.deepcopy(executions),
+        "facts_published": 0,
+        "record_candidates_created": 0,
+    }
+    return ManagedPdfToCanonicalSemanticProviderReviewBuildResult(
+        status=status,
+        evidence_result=evidence_result,
+        semantic_review_contract=copy.deepcopy(review),
+        execution_receipt=receipt,
+        reason_code=reason_code,
+    )
 
 
 def _blocked_result(
