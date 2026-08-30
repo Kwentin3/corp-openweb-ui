@@ -12,7 +12,7 @@ from .contracts import stable_digest
 from .source_provenance import NormalizedSliceProvenanceFactory
 
 
-PDF_LAYOUT_UNIT_POLICY_VERSION = "pdf_layout_unit_partition_policy_v2_exact_word_cell"
+PDF_LAYOUT_UNIT_POLICY_VERSION = "pdf_layout_unit_partition_policy_v3_unresolved_regions"
 PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION = "pdf_layout_unit_coverage_v0"
 PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION = "pdf_layout_document_coverage_v0"
 PDF_LAYOUT_SOURCE_CHAIN_SCHEMA_VERSION = "pdf_layout_source_chain_v0"
@@ -62,6 +62,7 @@ class PdfLayoutBuildResult:
     vector_line_inventory: list[dict[str, Any]]
     rect_inventory: list[dict[str, Any]]
     table_candidate_inventory: list[dict[str, Any]]
+    unresolved_table_region_inventory: list[dict[str, Any]]
     units: list[dict[str, Any]]
     source_value_refs: list[str]
     source_value_index: list[dict[str, Any]]
@@ -116,6 +117,7 @@ class PdfLayoutUnitBuilder:
         vector_lines: list[dict[str, Any]] = []
         rects: list[dict[str, Any]] = []
         candidates: list[dict[str, Any]] = []
+        unresolved_regions: list[dict[str, Any]] = []
         source_value_refs: list[str] = []
         source_value_index: list[dict[str, Any]] = []
         source_chain_page_receipts: list[dict[str, Any]] = []
@@ -171,6 +173,7 @@ class PdfLayoutUnitBuilder:
             vector_lines.extend(materialized["vector_lines"])
             rects.extend(materialized["rects"])
             candidates.extend(materialized["candidates"])
+            unresolved_regions.extend(materialized["unresolved_regions"])
             source_value_refs.extend(materialized["source_value_refs"])
             source_value_index.extend(materialized["source_value_index"])
             source_chain_page_receipts.append(materialized["source_chain_receipt"])
@@ -250,6 +253,7 @@ class PdfLayoutUnitBuilder:
                 page.get("table_candidate_status") == "blocked"
                 for page in page_inventory
             )
+            or bool(unresolved_regions)
             or (bool(candidates) and not source_chain_complete)
             or (bool(candidates) and bool(unit_reasons) and not candidate_units)
             else (
@@ -317,6 +321,7 @@ class PdfLayoutUnitBuilder:
             page.pop("_layout_words", None)
             page.pop("_layout_lines", None)
             page.pop("_layout_candidates", None)
+            page.pop("_layout_unresolved_table_regions", None)
         for item in [
             *chars,
             *words,
@@ -325,6 +330,7 @@ class PdfLayoutUnitBuilder:
             *vector_lines,
             *rects,
             *candidates,
+            *unresolved_regions,
         ]:
             item.pop("bbox", None)
         for candidate in candidates:
@@ -340,6 +346,7 @@ class PdfLayoutUnitBuilder:
             vector_line_inventory=vector_lines,
             rect_inventory=rects,
             table_candidate_inventory=candidates,
+            unresolved_table_region_inventory=unresolved_regions,
             units=units if layout_complete else [],
             source_value_refs=source_value_refs,
             source_value_index=source_value_index,
@@ -357,6 +364,7 @@ class PdfLayoutUnitBuilder:
                 "lines_total": len(lines),
                 "blocks_total": len(blocks),
                 "table_candidates_total": len(candidates),
+                "unresolved_table_regions_total": len(unresolved_regions),
                 "line_cluster_units_total": sum(
                     1
                     for unit in units
@@ -713,6 +721,66 @@ class PdfLayoutUnitBuilder:
             }
             candidates.append(candidate)
 
+        unresolved_regions: list[dict[str, Any]] = []
+        for region_ordinal, raw in enumerate(
+            _dicts(raw_layout.get("unresolved_table_region_inventory")), 1
+        ):
+            contributing_ordinals = [
+                int(value)
+                for value in raw.get("contributing_word_parser_ordinals") or []
+            ]
+            contributing_words = [
+                word_by_ordinal[ordinal]
+                for ordinal in contributing_ordinals
+                if ordinal in word_by_ordinal
+            ]
+            word_refs = [
+                str(word.get("word_ref") or "") for word in contributing_words
+            ]
+            region_ref = "pdftableunresolved_" + stable_digest(
+                [
+                    source_checksum_ref,
+                    page_ref,
+                    layout_parser_ref,
+                    raw.get("table_strategy_ref"),
+                    region_ordinal,
+                    raw.get("bbox"),
+                    *word_refs,
+                ],
+                length=24,
+            )
+            reason_codes = sorted(
+                {
+                    *[str(value) for value in raw.get("reason_codes") or []],
+                    *(
+                        ["pdf_table_unresolved_region_word_missing_or_foreign"]
+                        if len(contributing_words) != len(contributing_ordinals)
+                        else []
+                    ),
+                }
+            )
+            unresolved_regions.append(
+                {
+                    **copy.deepcopy(raw),
+                    "parser_ordinal": region_ordinal,
+                    "unresolved_table_region_ref": region_ref,
+                    "page_ref": page_ref,
+                    "bbox_ref": bbox_ref(raw.get("bbox")),
+                    "contributing_word_refs": word_refs,
+                    "contributing_source_value_refs": [
+                        str(word.get("source_value_ref") or "")
+                        for word in contributing_words
+                    ],
+                    "reason_codes": reason_codes,
+                    "region_status": "unresolved",
+                    "semantic_table_truth_claimed": False,
+                }
+            )
+            table_reasons.extend(reason_codes)
+
+        if unresolved_regions:
+            table_reasons.append("pdf_table_unresolved_region_blocks_admission")
+
         if any(
             candidate.get("word_cell_partition_status") == "blocked"
             for candidate in candidates
@@ -738,7 +806,8 @@ class PdfLayoutUnitBuilder:
                 "layout_confidence": raw_layout.get("layout_confidence"),
                 "table_candidate_status": (
                     "blocked"
-                    if any(
+                    if unresolved_regions
+                    or any(
                         candidate.get("word_cell_partition_status") == "blocked"
                         for candidate in candidates
                     )
@@ -755,6 +824,10 @@ class PdfLayoutUnitBuilder:
                 "layout_block_refs": [str(item["block_ref"]) for item in blocks],
                 "table_candidate_refs": [
                     str(item["table_candidate_ref"]) for item in candidates
+                ],
+                "unresolved_table_region_refs": [
+                    str(item["unresolved_table_region_ref"])
+                    for item in unresolved_regions
                 ],
                 "parser_order_word_refs": [
                     str(item["word_ref"])
@@ -789,6 +862,7 @@ class PdfLayoutUnitBuilder:
                 "_layout_words": words,
                 "_layout_lines": lines,
                 "_layout_candidates": candidates,
+                "_layout_unresolved_table_regions": unresolved_regions,
             }
         )
         return {
@@ -800,6 +874,7 @@ class PdfLayoutUnitBuilder:
             "vector_lines": vector_lines,
             "rects": rects,
             "candidates": candidates,
+            "unresolved_regions": unresolved_regions,
             "source_value_refs": source_value_refs,
             "source_value_index": source_value_index,
             "source_chain_receipt": source_chain_receipt,
@@ -881,6 +956,8 @@ class PdfLayoutUnitBuilder:
         candidates = _dicts(page.get("_layout_candidates"))
         if not words and not lines:
             return [], []
+        if _dicts(page.get("_layout_unresolved_table_regions")):
+            return [], ["pdf_table_unresolved_region_blocks_admission"]
         table_units: list[dict[str, Any]] = []
         accepted_candidate_word_refs: set[str] = set()
         reasons: list[str] = []
@@ -1617,6 +1694,20 @@ def _materialized_page_matches_raw_layout(
             if any(actual.get(key) != value for key, value in raw.items()):
                 return False
 
+    raw_regions = _dicts(raw_layout.get("unresolved_table_region_inventory"))
+    actual_regions = _dicts(materialized.get("unresolved_regions"))
+    if len(raw_regions) != len(actual_regions):
+        return False
+    for ordinal, (raw, actual) in enumerate(zip(raw_regions, actual_regions), 1):
+        if int(actual.get("parser_ordinal") or 0) != ordinal:
+            return False
+        if any(
+            actual.get(key) != value
+            for key, value in raw.items()
+            if key != "parser_ordinal"
+        ):
+            return False
+
     expected_bboxes: set[tuple[float, ...]] = set()
     for key in (
         "char_inventory",
@@ -1626,6 +1717,7 @@ def _materialized_page_matches_raw_layout(
         "vector_line_inventory",
         "rect_inventory",
         "table_candidate_inventory",
+        "unresolved_table_region_inventory",
     ):
         for item in _dicts(raw_layout.get(key)):
             expected_bboxes.add(tuple(_bbox(item.get("bbox"))))

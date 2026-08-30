@@ -530,6 +530,9 @@ def pdf_layout_page_checksum_ref(page: dict[str, Any], layout_parser_ref: str) -
             "layout_line_refs": list(page.get("layout_line_refs") or []),
             "layout_block_refs": list(page.get("layout_block_refs") or []),
             "table_candidate_refs": list(page.get("table_candidate_refs") or []),
+            "unresolved_table_region_refs": list(
+                page.get("unresolved_table_region_refs") or []
+            ),
             "parser_order_word_refs": list(page.get("parser_order_word_refs") or []),
             "geometry_reading_order_refs": list(
                 page.get("geometry_reading_order_refs") or []
@@ -733,6 +736,7 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             ):
                 errors.append(_error("pdf_visual_page_inventory_mismatch", page_number))
 
+    unresolved_region_inventory: list[dict[str, Any]] = []
     layout_requested = projection.get("layout_requested_capability")
     if layout_requested is not None:
         if layout_requested not in PDF_LAYOUT_CAPABILITIES:
@@ -776,6 +780,9 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         vector_line_inventory = _dict_list(projection.get("vector_line_inventory"))
         rect_inventory = _dict_list(projection.get("rect_inventory"))
         table_inventory = _dict_list(projection.get("table_candidate_inventory"))
+        unresolved_region_inventory = _dict_list(
+            projection.get("unresolved_table_region_inventory")
+        )
         for inventory, ref_name, code in (
             (char_inventory, "char_ref", "pdf_layout_char_ref_invalid"),
             (word_inventory, "word_ref", "pdf_layout_word_ref_invalid"),
@@ -786,6 +793,11 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 table_inventory,
                 "table_candidate_ref",
                 "pdf_layout_table_candidate_ref_invalid",
+            ),
+            (
+                unresolved_region_inventory,
+                "unresolved_table_region_ref",
+                "pdf_layout_unresolved_table_region_ref_invalid",
             ),
         ):
             refs = [str(item.get(ref_name) or "") for item in inventory]
@@ -806,6 +818,7 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             *vector_line_inventory,
             *rect_inventory,
             *table_inventory,
+            *unresolved_region_inventory,
             *[
                 cell
                 for candidate in table_inventory
@@ -1060,6 +1073,39 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 errors.append(
                     _error("pdf_table_word_cell_reconstruction_status_mismatch", payload_ref)
                 )
+        for region in unresolved_region_inventory:
+            if (
+                region.get("region_status") != "unresolved"
+                or region.get("semantic_table_truth_claimed") is not False
+                or not region.get("reason_codes")
+            ):
+                errors.append(
+                    _error("pdf_table_unresolved_region_contract_invalid", payload_ref)
+                )
+            if not set(str(ref) for ref in region.get("contributing_word_refs") or []) <= word_refs:
+                errors.append(
+                    _error("pdf_table_unresolved_region_word_ref_out_of_scope", payload_ref)
+                )
+            region_page_ref = str(region.get("page_ref") or "")
+            region_word_refs = [
+                str(ref) for ref in region.get("contributing_word_refs") or []
+            ]
+            expected_region_ref = "pdftableunresolved_" + stable_digest(
+                [
+                    str(payload.get("source_checksum_ref") or ""),
+                    region_page_ref,
+                    str(projection.get("layout_parser_ref") or ""),
+                    region.get("table_strategy_ref"),
+                    int(region.get("parser_ordinal") or 0),
+                    list(bbox_by_ref.get(str(region.get("bbox_ref") or ""), {}).get("bbox") or []),
+                    *region_word_refs,
+                ],
+                length=24,
+            )
+            if region.get("unresolved_table_region_ref") != expected_region_ref:
+                errors.append(
+                    _error("pdf_table_unresolved_region_ref_mismatch", payload_ref)
+                )
         layout_coverage = _object(projection.get("layout_coverage"))
         if (
             layout_coverage.get("schema_version")
@@ -1110,6 +1156,34 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             str(page.get("table_candidate_status") or "none_detected")
             for page in pages
         ]
+        unresolved_page_refs = {
+            str(region.get("page_ref") or "")
+            for region in unresolved_region_inventory
+        }
+        for page in pages:
+            page_ref = str(page.get("page_ref") or "")
+            expected_region_refs = [
+                str(region.get("unresolved_table_region_ref") or "")
+                for region in unresolved_region_inventory
+                if str(region.get("page_ref") or "") == page_ref
+            ]
+            if list(page.get("unresolved_table_region_refs") or []) != expected_region_refs:
+                errors.append(
+                    _error("pdf_table_unresolved_region_page_inventory_mismatch", page_ref)
+                )
+            if page_ref in unresolved_page_refs and page.get("table_candidate_status") != "blocked":
+                errors.append(
+                    _error("pdf_table_unresolved_region_page_status_mismatch", page_ref)
+                )
+        if unresolved_region_inventory:
+            if table_status != "blocked":
+                errors.append(
+                    _error("pdf_table_unresolved_region_document_status_mismatch", payload_ref)
+                )
+            if projection.get("layout_projection_status") != "partial":
+                errors.append(
+                    _error("pdf_table_unresolved_region_layout_status_mismatch", payload_ref)
+                )
         blocked_candidate_page_refs = {
             str(candidate.get("page_ref") or "")
             for candidate in table_inventory
@@ -1155,7 +1229,9 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 errors.append(_error("pdf_table_mixed_terminal_evidence_missing", payload_ref))
             if projection.get("semantic_reconstruction_status") != "not_claimed":
                 errors.append(_error("pdf_table_mixed_semantic_status_invalid", payload_ref))
-        if table_status == "none_detected" and table_inventory:
+        if table_status == "none_detected" and (
+            table_inventory or unresolved_region_inventory
+        ):
             errors.append(
                 _error("pdf_table_terminal_status_has_candidate_inventory", payload_ref)
             )
@@ -1190,6 +1266,13 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         errors.append(_error("pdf_projection_selected_accounted_mismatch", payload_ref))
     if coverage.get("all_selected_refs_accounted") is not True:
         errors.append(_error("pdf_projection_selected_coverage_incomplete", payload_ref))
+    if list(coverage.get("unresolved_table_region_refs") or []) != [
+        str(region.get("unresolved_table_region_ref") or "")
+        for region in unresolved_region_inventory
+    ]:
+        errors.append(
+            _error("pdf_table_unresolved_region_coverage_mismatch", payload_ref)
+        )
 
     source_value_refs = list(payload.get("source_value_refs") or [])
     source_value_index = _dict_list(payload.get("source_value_index"))

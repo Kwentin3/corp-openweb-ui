@@ -220,7 +220,29 @@ class ManagedPdfDocumentV2Builder:
             content_bytes=content_bytes,
             source_checksum_sha256=source_checksum,
         )
-        payload = _sole_complete_pdf_payload(full_source)
+        try:
+            payload = _sole_complete_pdf_payload(full_source)
+        except ManagedPdfDocumentV2Error as exc:
+            if task_id is None or str(exc) != "managed_pdf_v2_full_source_projection_incomplete":
+                raise
+            payloads = getattr(full_source, "payloads", None)
+            payload = payloads[0] if isinstance(payloads, list) and len(payloads) == 1 else {}
+            partial = _partial_source_result(
+                document_id=document_id,
+                source_checksum=source_checksum,
+                private_ref=private_ref,
+                full_source=full_source,
+                payload=payload,
+            )
+            if return_canonical_handoff:
+                return _canonical_handoff(
+                    result=partial,
+                    source_checksum=source_checksum,
+                    document_id=document_id,
+                    private_ref=private_ref,
+                    full_source=full_source,
+                )
+            return partial
         projection = payload.get("pdf_text_layer_projection")
         if not isinstance(projection, Mapping):
             raise ManagedPdfDocumentV2Error(
@@ -670,6 +692,73 @@ def _partial_adjudicated_result(
             "issues": [
                 {"code": "managed_whole_table_projection_managed_missing"}
             ],
+        },
+    )
+
+
+def _partial_source_result(
+    *,
+    document_id: str,
+    source_checksum: str,
+    private_ref: str,
+    full_source: Any,
+    payload: Mapping[str, Any],
+) -> ManagedPdfDocumentV2AdjudicatedBuildResult:
+    projection = payload.get("pdf_text_layer_projection")
+    projection = projection if isinstance(projection, Mapping) else {}
+    unresolved = [
+        item
+        for item in projection.get("unresolved_table_region_inventory") or []
+        if isinstance(item, Mapping)
+    ]
+    detail_code = (
+        "managed_pdf_v2_source_table_region_unresolved"
+        if unresolved
+        else "managed_pdf_v2_full_source_projection_incomplete"
+    )
+    return ManagedPdfDocumentV2AdjudicatedBuildResult(
+        status="PARTIAL",
+        managed_document=None,
+        safe_diagnostics={
+            "schema_version": SAFE_BUILD_DIAGNOSTICS_SCHEMA_VERSION,
+            "builder_version": MANAGED_PDF_V2_BUILDER_VERSION,
+            "status": "PARTIAL",
+            "factory_route": [
+                "ManagedPdfDocumentV2Factory.create_adjudicated_for_openwebui",
+                "FullSourceArtifactFactory.create",
+            ],
+            "provider_calls_total": 0,
+            "provider_http_calls": 0,
+            "model_generation_calls": 0,
+            "count_tokens_http_calls": 0,
+            "same_raster_binding": False,
+            "managed_document_created": False,
+            "whole_table_projection_status": "NOT_READY",
+            "whole_table_projections_total": 0,
+            "canonical_artifacts_created": 0,
+            "facts_published": 0,
+            "product_route_connected": False,
+            "generated_bundle_connected": False,
+            "private_values_included": False,
+        },
+        private_diagnostics={
+            "schema_version": PRIVATE_BUILD_DIAGNOSTICS_SCHEMA_VERSION,
+            "builder_version": MANAGED_PDF_V2_BUILDER_VERSION,
+            "document_id": document_id,
+            "source_checksum_sha256": source_checksum,
+            "private_source_ref": private_ref,
+            "full_source_payload_ref": payload.get("source_payload_ref"),
+            "full_source_summary": copy.deepcopy(getattr(full_source, "summary", {})),
+            "detail_code": detail_code,
+            "unresolved_table_region_refs": [
+                str(item.get("unresolved_table_region_ref") or "")
+                for item in unresolved
+            ],
+        },
+        whole_table_projections=(),
+        whole_table_projection_diagnostics={
+            "status": "NOT_READY",
+            "issues": [{"code": detail_code}],
         },
     )
 
