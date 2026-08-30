@@ -53,6 +53,10 @@ from broker_reports_gate1.pdf_document_visual_adjudication import (
     PdfDocumentVisualAdjudicationError,
     PdfDocumentVisualAdjudicationFactory,
 )
+from broker_reports_gate1.pdf_layout import (
+    PDF_LAYOUT_POLICY_VERSION,
+    PdfLayoutParserConfig,
+)
 from broker_reports_gate1.pdf_table_raster import PdfTableRasterFactory
 from tests.test_broker_reports_logical_row_table_recovery import (
     _source_bound_case,
@@ -89,6 +93,13 @@ PR3_LEGACY_INTEGRITY_SHA256 = (
 PR3_LEGACY_CANONICAL_SHA256 = (
     "15f0446b2e7755ad1997e292bcacaba88f6f57ba41fc8d7c1931c4283b5bad05"
 )
+SOURCE_CHAIN_AUTHORITY_INTEGRITY_SHA256 = (
+    "dbc78ba3314eeece841dece22fa735d86929fe9851ca7ce100b2a5e4ed70b70f"
+)
+SOURCE_CHAIN_AUTHORITY_CANONICAL_SHA256 = (
+    "62d75d2a6f7a5f12ffe1b143b2c5331bdb1efd0667069d32d055fd80a7b4dd50"
+)
+PR3_LEGACY_LAYOUT_CONFIG_REF = "pdflayoutcfg_552ad5c15996174bb154a2a0"
 
 
 class _GeminiBoundary:
@@ -300,7 +311,7 @@ def _count_real_recovery_calls(
     return calls
 
 
-def test_legacy_real_owner_matches_frozen_pr3_output(
+def test_policy_identity_migration_preserves_frozen_pr3_structure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pdf_bytes = _ruled_table_pdf()
@@ -314,10 +325,22 @@ def test_legacy_real_owner_matches_frozen_pr3_output(
 
     assert len(calls) == 1
     assert result.status == "COMPLETE"
-    assert result.managed_document.integrity_sha256 == PR3_LEGACY_INTEGRITY_SHA256
+    assert (
+        PDF_LAYOUT_POLICY_VERSION
+        == "pdfplumber_layout_policy_v4_mixed_table_terminal"
+    )
+    assert PdfLayoutParserConfig().config_ref != PR3_LEGACY_LAYOUT_CONFIG_REF
+    assert result.managed_document.integrity_sha256 != PR3_LEGACY_INTEGRITY_SHA256
+    assert result.managed_document.integrity_sha256 == (
+        SOURCE_CHAIN_AUTHORITY_INTEGRITY_SHA256
+    )
     assert (
         hashlib.sha256(result.managed_document.canonical_json_bytes()).hexdigest()
-        == PR3_LEGACY_CANONICAL_SHA256
+        != PR3_LEGACY_CANONICAL_SHA256
+    )
+    assert (
+        hashlib.sha256(result.managed_document.canonical_json_bytes()).hexdigest()
+        == SOURCE_CHAIN_AUTHORITY_CANONICAL_SHA256
     )
     assert result.safe_diagnostics["logical_tables_total"] == 1
     assert result.safe_diagnostics["logical_rows_total"] == 3

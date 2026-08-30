@@ -143,7 +143,7 @@ GATE3_CURRENT_EVIDENCE_DEMAND_PORT = "gate3_evidence_demand_port"
 
 
 class BrokerReportsGateArchitectureTest(unittest.TestCase):
-    def test_pdf_layout_source_chain_stays_shadow_and_source_owned(self):
+    def test_pdf_layout_source_chain_stays_source_owned(self):
         source_modules = {
             name: (PACKAGE / f"{name}.py").read_text(encoding="utf-8")
             for name in ("pdf_layout", "pdf_layout_units", "pdf_text_layer", "full_source")
@@ -154,6 +154,31 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertIn(
             "id(item): index", source_modules["pdf_layout"]
         )
+        self.assertIn(
+            "pdf_layout_unit_partition_policy_v1_source_chain",
+            source_modules["pdf_layout_units"],
+        )
+        self.assertIn(
+            "source_chain_complete = all(", source_modules["pdf_layout_units"]
+        )
+        self.assertIn(
+            "_materialized_page_matches_raw_layout(",
+            source_modules["pdf_layout_units"],
+        )
+        self.assertLess(
+            source_modules["pdf_layout_units"].index(
+                "owner_binding_complete = _materialized_page_matches_raw_layout("
+            ),
+            source_modules["pdf_layout_units"].index("raw_layout.clear()"),
+        )
+        self.assertIn(
+            "Validate serialized structural consistency, not PDF-byte authenticity",
+            source_modules["pdf_text_layer"],
+        )
+        self.assertNotIn(
+            "_page_text_supports_layout_partition", source_modules["pdf_layout_units"]
+        )
+        self.assertNotIn("source_bound_table_units", source_modules["full_source"])
         for name in (
             "canonical_artifact",
             "ordinary_trade_semantic_mapping",

@@ -12,17 +12,11 @@ from .contracts import stable_digest
 from .source_provenance import NormalizedSliceProvenanceFactory
 
 
-PDF_LAYOUT_UNIT_POLICY_VERSION = "pdf_layout_unit_partition_policy_v0"
+PDF_LAYOUT_UNIT_POLICY_VERSION = "pdf_layout_unit_partition_policy_v1_source_chain"
 PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION = "pdf_layout_unit_coverage_v0"
 PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION = "pdf_layout_document_coverage_v0"
 PDF_LAYOUT_SOURCE_CHAIN_SCHEMA_VERSION = "pdf_layout_source_chain_v0"
 PDF_LAYOUT_SOURCE_CHAIN_POLICY_VERSION = "pdfplumber_exact_char_identity_v0"
-_PAGE_TEXT_LAYOUT_PARTITION_ALLOWED_REASONS = frozenset(
-    {
-        "pdf_page_projection_reconciliation_failed",
-        "pdf_unknown_font_mapping",
-    }
-)
 _PDFPLUMBER_LIGATURE_EXPANSIONS = {
     "\ufb00": "ff",
     "\ufb01": "fi",
@@ -125,14 +119,17 @@ class PdfLayoutUnitBuilder:
         source_value_refs: list[str] = []
         source_value_index: list[dict[str, Any]] = []
         source_chain_page_receipts: list[dict[str, Any]] = []
+        source_owner_binding_complete = True
 
         for page in page_inventory:
             page_number = int(page.get("page_number") or 0)
             raw_layout = page_by_number.get(page_number)
             if raw_layout is None:
+                source_owner_binding_complete = False
                 page["layout_projection_status"] = "partial"
                 page["layout_reason_codes"] = ["pdf_layout_page_missing"]
                 page["table_candidate_status"] = "blocked"
+                page["layout_source_owner_binding_status"] = "partial"
                 receipt = pdf_layout_source_chain_page_receipt(
                     page=page,
                     chars=[],
@@ -150,6 +147,22 @@ class PdfLayoutUnitBuilder:
                 source_checksum_ref=source_checksum_ref,
                 layout_parser_ref=layout_parser_ref,
             )
+            owner_binding_complete = _materialized_page_matches_raw_layout(
+                raw_layout=raw_layout,
+                materialized=materialized,
+            )
+            page["layout_source_owner_binding_status"] = (
+                "complete" if owner_binding_complete else "partial"
+            )
+            if not owner_binding_complete:
+                source_owner_binding_complete = False
+                page["layout_projection_status"] = "partial"
+                page["layout_reason_codes"] = sorted(
+                    {
+                        *page.get("layout_reason_codes", []),
+                        "pdf_layout_source_owner_binding_failed",
+                    }
+                )
             chars.extend(materialized["chars"])
             words.extend(materialized["words"])
             lines.extend(materialized["lines"])
@@ -168,18 +181,14 @@ class PdfLayoutUnitBuilder:
             page.get("layout_projection_status") == "complete"
             for page in page_inventory
         )
-        page_text_complete = all(
-            _page_text_supports_layout_partition(page) for page in page_inventory
-        )
-        source_bound_table_mode = bool(candidates) and all(
-            candidate.get("locator_scope_status") == "source_bound"
-            and candidate.get("model_values_used_as_source_literals") is False
-            and candidate.get("pdfplumber_settings_selected_by_model") is False
-            for candidate in candidates
-        )
+        source_chain_complete = all(
+            _object(page.get("layout_source_chain_receipt")).get("status")
+            == "complete"
+            for page in page_inventory
+        ) and source_owner_binding_complete
         units: list[dict[str, Any]] = []
         unit_reasons: list[str] = []
-        if (page_layout_complete and page_text_complete) or source_bound_table_mode:
+        if page_layout_complete and source_chain_complete:
             units, unit_reasons = self._build_units(
                 normalization_run_id=normalization_run_id,
                 document_id=document_id,
@@ -191,14 +200,6 @@ class PdfLayoutUnitBuilder:
                 layout_parser_config_ref=layout_parser_config_ref,
                 pages=page_inventory,
             )
-            if source_bound_table_mode and not (
-                page_layout_complete and page_text_complete
-            ):
-                units = [
-                    unit
-                    for unit in units
-                    if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
-                ]
             reasons.extend(unit_reasons)
 
         selected_refs = [
@@ -221,7 +222,7 @@ class PdfLayoutUnitBuilder:
         unexpected = sorted(set(ownership) - set(selected_refs))
         layout_complete = (
             page_layout_complete
-            and page_text_complete
+            and source_chain_complete
             and bool(units or not selected_refs)
             and not unit_reasons
             and not duplicate_owned
@@ -244,12 +245,28 @@ class PdfLayoutUnitBuilder:
             if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
         ]
         table_status = (
-            "candidate"
-            if candidate_units
+            "blocked"
+            if any(
+                page.get("table_candidate_status") == "blocked"
+                for page in page_inventory
+            )
+            or (bool(candidates) and not source_chain_complete)
+            or (bool(candidates) and bool(unit_reasons) and not candidate_units)
             else (
-                "blocked"
-                if any(page.get("table_candidate_status") == "blocked" for page in page_inventory)
-                else "not_claimed"
+                "candidate_with_rejections"
+                if candidate_units
+                and any(
+                    page.get("table_candidate_status") == "rejected"
+                    for page in page_inventory
+                )
+                else (
+                    "rejected"
+                    if any(
+                        page.get("table_candidate_status") == "rejected"
+                        for page in page_inventory
+                    )
+                    else ("candidate" if candidate_units else "none_detected")
+                )
             )
         )
         coverage = {
@@ -323,11 +340,7 @@ class PdfLayoutUnitBuilder:
             vector_line_inventory=vector_lines,
             rect_inventory=rects,
             table_candidate_inventory=candidates,
-            units=(
-                units
-                if layout_complete or source_bound_table_mode
-                else []
-            ),
+            units=units if layout_complete else [],
             source_value_refs=source_value_refs,
             source_value_index=source_value_index,
             layout_projection_status=layout_status,
@@ -351,6 +364,10 @@ class PdfLayoutUnitBuilder:
                 ),
                 "table_candidate_units_total": len(candidate_units),
                 "unit_config_ref": self.config.config_ref,
+                "source_owner_binding_status": (
+                    "complete" if source_owner_binding_complete else "partial"
+                ),
+                "table_terminal_counts": _table_terminal_counts(page_inventory),
             },
         )
 
@@ -366,6 +383,7 @@ class PdfLayoutUnitBuilder:
         page_text = str(page.get("text") or "")
         text_match_status = _page_text_matcher(page_text)
         reasons = list(raw_layout.get("layout_reason_codes") or [])
+        compatibility_reasons: list[str] = []
         table_reasons = list(raw_layout.get("table_reason_codes") or [])
         bbox_by_value: dict[tuple[float, ...], dict[str, Any]] = {}
 
@@ -428,7 +446,7 @@ class PdfLayoutUnitBuilder:
             )
             match_status = text_match_status(text)
             if text and match_status == "mismatch":
-                reasons.append("pdf_layout_word_page_text_mismatch")
+                compatibility_reasons.append("pdf_layout_word_page_text_mismatch")
             item = {
                 **copy.deepcopy(raw),
                 "word_ref": word_ref,
@@ -513,7 +531,7 @@ class PdfLayoutUnitBuilder:
             ):
                 match_status = "resolved_via_word_refs"
             if text and match_status == "mismatch":
-                reasons.append("pdf_layout_line_page_text_mismatch")
+                compatibility_reasons.append("pdf_layout_line_page_text_mismatch")
             item = {
                 **copy.deepcopy(raw),
                 "line_ref": line_ref,
@@ -670,21 +688,28 @@ class PdfLayoutUnitBuilder:
             }
             candidates.append(candidate)
 
-        layout_status = str(raw_layout.get("layout_projection_status") or "partial")
-        if any(reason.endswith("_mismatch") for reason in reasons):
-            layout_status = "partial"
+        source_chain_status = str(source_chain_receipt.get("status") or "partial")
+        if source_chain_status != "complete":
+            reasons.extend(source_chain_receipt.get("reason_codes") or [])
+        layout_status = (
+            "complete"
+            if raw_layout.get("layout_projection_status") == "complete"
+            and source_chain_status == "complete"
+            else "partial"
+        )
         page.update(
             {
                 "layout_projection_status": layout_status,
                 "layout_reason_codes": sorted(set(reasons)),
+                "page_text_compatibility_reason_codes": sorted(
+                    set(compatibility_reasons)
+                ),
                 "layout_confidence": raw_layout.get("layout_confidence"),
                 "table_candidate_status": (
                     "candidate"
                     if candidates
-                    else (
-                        "blocked"
-                        if raw_layout.get("table_candidate_status") == "blocked"
-                        else "not_claimed"
+                    else str(
+                        raw_layout.get("table_candidate_status") or "none_detected"
                     )
                 ),
                 "table_reason_codes": sorted(set(table_reasons)),
@@ -1410,6 +1435,75 @@ def _materialize_candidate_cells(
     return rows, cells
 
 
+def _materialized_page_matches_raw_layout(
+    *,
+    raw_layout: dict[str, Any],
+    materialized: dict[str, Any],
+) -> bool:
+    """Owner-bound comparison while trusted parser objects are still live.
+
+    This is deliberately not a serialized receipt. A payload-only validator
+    cannot prove that geometry came from PDF bytes after all internal hashes
+    have been recomputed.
+    """
+
+    for raw_key, materialized_key in (
+        ("char_inventory", "chars"),
+        ("word_inventory", "words"),
+        ("line_inventory", "lines"),
+    ):
+        raw_by_ordinal = {
+            int(item.get("parser_ordinal") or 0): item
+            for item in _dicts(raw_layout.get(raw_key))
+        }
+        actual_by_ordinal = {
+            int(item.get("parser_ordinal") or 0): item
+            for item in _dicts(materialized.get(materialized_key))
+        }
+        if set(raw_by_ordinal) != set(actual_by_ordinal):
+            return False
+        for ordinal, raw in raw_by_ordinal.items():
+            actual = actual_by_ordinal[ordinal]
+            if any(actual.get(key) != value for key, value in raw.items()):
+                return False
+
+    expected_bboxes: set[tuple[float, ...]] = set()
+    for key in (
+        "char_inventory",
+        "word_inventory",
+        "line_inventory",
+        "block_inventory",
+        "vector_line_inventory",
+        "rect_inventory",
+        "table_candidate_inventory",
+    ):
+        for item in _dicts(raw_layout.get(key)):
+            expected_bboxes.add(tuple(_bbox(item.get("bbox"))))
+            if key == "table_candidate_inventory":
+                expected_bboxes.update(
+                    tuple(_bbox(cell.get("bbox")))
+                    for cell in _dicts(item.get("cell_inventory"))
+                )
+    actual_bboxes = {
+        tuple(_bbox(item.get("bbox")))
+        for item in _dicts(materialized.get("bboxes"))
+    }
+    return actual_bboxes == expected_bboxes
+
+
+def _table_terminal_counts(pages: list[dict[str, Any]]) -> dict[str, int]:
+    counts = Counter(
+        str(page.get("table_candidate_status") or "none_detected")
+        for page in pages
+    )
+    return {
+        "candidate_pages_total": counts["candidate"],
+        "rejected_pages_total": counts["rejected"],
+        "blocked_pages_total": counts["blocked"],
+        "none_detected_pages_total": counts["none_detected"],
+    }
+
+
 def _page_text_matcher(page_text: str):
     normalized_page = _canonical_match_text(page_text)
 
@@ -1424,24 +1518,6 @@ def _page_text_matcher(page_text: str):
         return "mismatch"
 
     return match
-
-
-def _page_text_supports_layout_partition(page: dict[str, Any]) -> bool:
-    if page.get("page_projection_status") == "complete":
-        return True
-    reasons = set(_strings(page.get("reason_codes")))
-    layout_words = _dicts(page.get("_layout_words"))
-    return bool(
-        str(page.get("text") or "").strip()
-        and reasons
-        and reasons <= _PAGE_TEXT_LAYOUT_PARTITION_ALLOWED_REASONS
-        and page.get("layout_projection_status") == "complete"
-        and layout_words
-        and all(
-            word.get("canonical_page_text_match_status") != "mismatch"
-            for word in layout_words
-        )
-    )
 
 
 def _canonical_match_text(value: str) -> str:
@@ -1463,10 +1539,12 @@ def pdf_layout_source_chain_page_receipt(
     bboxes: list[dict[str, Any]],
     unresolved_word_char_links_total: int = 0,
 ) -> dict[str, Any]:
-    """Derive a shadow receipt from exact pdfplumber object identities.
+    """Derive a structural receipt from exact pdfplumber object identities.
 
-    This receipt does not participate in active layout admission.  It proves
-    only the page-scoped char -> word -> line ownership represented here.
+    This receipt participates in admission by proving page-scoped char -> word
+    -> line ownership, but it is not a source-authenticity proof and is not
+    sufficient without the owner-bound raw-parser comparison. Owner binding is
+    likewise insufficient without this structural receipt and its validator.
     """
 
     page_ref = str(page.get("page_ref") or "")
