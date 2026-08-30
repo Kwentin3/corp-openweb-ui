@@ -32,7 +32,7 @@ FORBIDDEN = (
 
 PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION = "pdf_text_layer_projection_v0"
 PDF_TEXT_LAYER_COVERAGE_SCHEMA_VERSION = "pdf_text_layer_coverage_v0"
-PDF_PARSER_POLICY_VERSION = "pypdf_page_text_policy_v0"
+PDF_PARSER_POLICY_VERSION = "pypdf_page_text_policy_v1_empty_password"
 PYPDF_PINNED_VERSION = "6.7.5"
 SUPPORTED_PDF_CAPABILITY = "page_text"
 SUPPORTED_PDF_CAPABILITIES = frozenset(
@@ -234,7 +234,10 @@ class PypdfParserAdapter:
                 "blocked",
                 ["pdf_corrupt_or_unreadable"],
             )
+        encryption_disposition = "not_encrypted"
+        empty_password_decrypt_attempts = 0
         if bool(getattr(reader, "is_encrypted", False)):
+            empty_password_decrypt_attempts = 1
             try:
                 empty_password_accepted = bool(reader.decrypt(""))
             except Exception:
@@ -243,7 +246,10 @@ class PypdfParserAdapter:
                 return self._terminal_result(
                     "blocked",
                     ["pdf_encrypted_without_key"],
+                    encryption_disposition="password_required_or_decrypt_failed",
+                    empty_password_decrypt_attempts=empty_password_decrypt_attempts,
                 )
+            encryption_disposition = "empty_password_accepted"
         try:
             pages_total = len(reader.pages)
         except Exception:
@@ -323,6 +329,8 @@ class PypdfParserAdapter:
                     int(page.get("unknown_font_fragments_total") or 0) for page in pages
                 ),
                 "embedded_attachments_total": embedded_attachments_total,
+                "encryption_disposition": encryption_disposition,
+                "empty_password_decrypt_attempts": empty_password_decrypt_attempts,
             },
         )
 
@@ -436,6 +444,9 @@ class PypdfParserAdapter:
         self,
         status: str,
         reasons: list[str],
+        *,
+        encryption_disposition: str = "not_evaluated",
+        empty_password_decrypt_attempts: int = 0,
     ) -> PdfTextLayerParseResult:
         return PdfTextLayerParseResult(
             parser_engine="pypdf",
@@ -462,6 +473,8 @@ class PypdfParserAdapter:
                 "replacement_characters_total": 0,
                 "unknown_font_fragments_total": 0,
                 "embedded_attachments_total": 0,
+                "encryption_disposition": encryption_disposition,
+                "empty_password_decrypt_attempts": empty_password_decrypt_attempts,
             },
         )
 

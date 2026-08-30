@@ -187,6 +187,18 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
         )
         self.assertEqual(payload["text_layer_projection_status"], "complete")
         self.assertEqual(payload["semantic_reconstruction_status"], "not_claimed")
+        self.assertEqual(
+            payload["pdf_text_layer_projection"]["parser_diagnostics"][
+                "encryption_disposition"
+            ],
+            "not_encrypted",
+        )
+        self.assertEqual(
+            payload["pdf_text_layer_projection"]["parser_diagnostics"][
+                "empty_password_decrypt_attempts"
+            ],
+            0,
+        )
         self.assertFalse(payload["ocr_vlm_used"])
         self.assertTrue(payload["page_rendering_used_for_extraction"])
         self.assertEqual(
@@ -320,6 +332,14 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             "pdf_encrypted_without_key",
             protected.summary["parser_completeness_reason_codes"],
         )
+        protected_diagnostics = protected.payloads[0]["pdf_text_layer_projection"][
+            "parser_diagnostics"
+        ]
+        self.assertEqual(
+            protected_diagnostics["encryption_disposition"],
+            "password_required_or_decrypt_failed",
+        )
+        self.assertEqual(protected_diagnostics["empty_password_decrypt_attempts"], 1)
 
         corrupt = self._build(b"%PDF-1.7\nnot-a-valid-object-graph\n%%EOF")
         self.assertEqual(corrupt.summary["parser_completeness_status"], "blocked")
@@ -349,6 +369,17 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
         self.assertEqual(first.units, second.units)
         empty_password_payload = first.payloads[0]
         self.assertTrue(empty_password_payload["source_checksum_ref"].startswith("srcsum_"))
+        empty_password_diagnostics = empty_password_payload[
+            "pdf_text_layer_projection"
+        ]["parser_diagnostics"]
+        self.assertEqual(
+            empty_password_diagnostics["encryption_disposition"],
+            "empty_password_accepted",
+        )
+        self.assertEqual(
+            empty_password_diagnostics["empty_password_decrypt_attempts"],
+            1,
+        )
         self.assertEqual(
             validate_pdf_text_layer_payload(empty_password_payload)["validator_status"],
             "passed",
@@ -379,6 +410,29 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             "passed",
         )
 
+        default_route = FullSourceArtifactFactory().create().build(
+            normalization_run_id="normrun_pdf_slice1_default_layout",
+            document_id="brdoc_pdf_slice1_default_layout",
+            profile_id="techprof_pdf_slice1_default_layout",
+            container_format="pdf",
+            content_bytes=empty_password_content,
+            source_checksum_sha256=empty_password_sha256,
+        )
+        self.assertEqual(default_route.summary["parser_completeness_status"], "complete")
+        self.assertEqual(default_route.summary["pdf_layout_projection_status"], "complete")
+        self.assertGreater(default_route.summary["pdf_line_cluster_units_total"], 0)
+        self.assertGreater(len(default_route.units), 0)
+        self.assertEqual(
+            validate_pdf_text_layer_payload(default_route.payloads[0])["validator_status"],
+            "passed",
+        )
+        self.assertEqual(
+            default_route.payloads[0]["pdf_text_layer_projection"][
+                "parser_diagnostics"
+            ]["encryption_disposition"],
+            "empty_password_accepted",
+        )
+
     def test_empty_password_attempt_exception_is_terminal_fail_closed(self):
         parser = PdfTextLayerParserFactory().create()
 
@@ -401,6 +455,11 @@ class BrokerReportsPdfTextLayerSlice1Test(unittest.TestCase):
             ["pdf_encrypted_without_key"],
         )
         self.assertEqual(result.pages, [])
+        self.assertEqual(
+            result.diagnostics["encryption_disposition"],
+            "password_required_or_decrypt_failed",
+        )
+        self.assertEqual(result.diagnostics["empty_password_decrypt_attempts"], 1)
         self.assertEqual(reader.decrypt_attempts, 1)
         self.assertEqual(reader.attempted_password, "")
 
