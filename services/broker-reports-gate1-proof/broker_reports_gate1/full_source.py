@@ -41,7 +41,11 @@ from .pdf_layout import (
     PDFPLUMBER_PINNED_VERSION,
     PdfLayoutParserConfig,
 )
-from .pdf_layout_units import PdfLayoutUnitBuilder, PdfLayoutUnitConfig
+from .pdf_layout_units import (
+    PdfLayoutUnitBuilder,
+    PdfLayoutUnitConfig,
+    pdf_layout_source_chain_document_receipt,
+)
 from .profilers_csv_txt import decode_text_bytes
 from .source_provenance import NormalizedSliceProvenanceFactory
 from .xml_source import XmlNeutralMemoryError, XmlNeutralMemoryFactory
@@ -1149,6 +1153,11 @@ class FullSourceArtifactBuilder:
             "blank_page_refs": [],
         }
         layout_unit_diagnostics: dict[str, Any] = {}
+        layout_source_chain = (
+            pdf_layout_source_chain_document_receipt([])
+            if self.config.enable_pdf_layout_slice2
+            else {}
+        )
         if self.config.enable_pdf_layout_slice2:
             layout_parser_engine = layout_parser_engine or "pdfplumber"
             layout_parser_version = (
@@ -1205,6 +1214,7 @@ class FullSourceArtifactBuilder:
                 layout_semantic_status = layout_build.semantic_reconstruction_status
                 layout_coverage = layout_build.coverage
                 layout_unit_diagnostics = layout_build.diagnostics
+                layout_source_chain = layout_build.source_chain
             for page in page_inventory:
                 page["page_layout_checksum_ref"] = pdf_layout_page_checksum_ref(
                     page, str(layout_parser_ref or "")
@@ -1348,6 +1358,7 @@ class FullSourceArtifactBuilder:
             if self.config.enable_pdf_layout_slice2
             else [],
             "layout_coverage": layout_coverage,
+            "layout_source_chain": layout_source_chain,
             "coverage": coverage,
             "completeness": {
                 "text_layer_projection_status": text_layer_status,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -18,7 +19,11 @@ from .pdf_layout import (
 )
 from .pdf_layout_units import (
     PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION,
+    PDF_LAYOUT_SOURCE_CHAIN_POLICY_VERSION,
+    PDF_LAYOUT_SOURCE_CHAIN_SCHEMA_VERSION,
     PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION,
+    pdf_layout_source_chain_document_receipt,
+    pdf_layout_source_chain_page_receipt,
     resolve_pdf_layout_unit_source_value_results,
 )
 
@@ -534,6 +539,9 @@ def pdf_layout_page_checksum_ref(page: dict[str, Any], layout_parser_ref: str) -
             "layout_page_width": page.get("layout_page_width"),
             "layout_page_height": page.get("layout_page_height"),
             "layout_page_rotation": page.get("layout_page_rotation"),
+            "layout_source_chain_receipt_ref": _object(
+                page.get("layout_source_chain_receipt")
+            ).get("receipt_ref"),
         },
     )
 
@@ -592,6 +600,9 @@ def pdf_payload_checksum_ref(payload: dict[str, Any]) -> str:
                 projection.get("layout_coverage")
             ).get("coverage_ref"),
             "layout_unit_config_ref": projection.get("layout_unit_config_ref"),
+            "layout_source_chain_checksum_ref": _object(
+                projection.get("layout_source_chain")
+            ).get("checksum_ref"),
             "visual_fallback_status": projection.get("visual_fallback_status"),
             "visual_page_refs": [
                 str(item.get("visual_page_ref") or "")
@@ -753,12 +764,16 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         word_inventory = _dict_list(projection.get("word_inventory"))
         line_inventory = _dict_list(projection.get("line_inventory"))
         char_inventory = _dict_list(projection.get("char_inventory"))
+        bbox_inventory = _dict_list(projection.get("bbox_inventory"))
         block_inventory = _dict_list(projection.get("block_inventory"))
+        vector_line_inventory = _dict_list(projection.get("vector_line_inventory"))
+        rect_inventory = _dict_list(projection.get("rect_inventory"))
         table_inventory = _dict_list(projection.get("table_candidate_inventory"))
         for inventory, ref_name, code in (
             (char_inventory, "char_ref", "pdf_layout_char_ref_invalid"),
             (word_inventory, "word_ref", "pdf_layout_word_ref_invalid"),
             (line_inventory, "line_ref", "pdf_layout_line_ref_invalid"),
+            (bbox_inventory, "bbox_ref", "pdf_layout_bbox_ref_invalid"),
             (block_inventory, "block_ref", "pdf_layout_block_ref_invalid"),
             (
                 table_inventory,
@@ -773,9 +788,187 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 errors.append(_error(f"{code}_page_scope", payload_ref))
         word_refs = {str(item.get("word_ref") or "") for item in word_inventory}
         line_refs = {str(item.get("line_ref") or "") for item in line_inventory}
+        bbox_by_ref = {
+            str(item.get("bbox_ref") or ""): item for item in bbox_inventory
+        }
+        bbox_users = [
+            *char_inventory,
+            *word_inventory,
+            *line_inventory,
+            *block_inventory,
+            *vector_line_inventory,
+            *rect_inventory,
+            *table_inventory,
+            *[
+                cell
+                for candidate in table_inventory
+                for cell in _dict_list(candidate.get("cell_inventory"))
+            ],
+        ]
+        used_bbox_refs: set[str] = set()
+        for item in bbox_users:
+            bbox_ref = str(item.get("bbox_ref") or "")
+            bbox = bbox_by_ref.get(bbox_ref)
+            if (
+                not bbox_ref
+                or bbox is None
+                or bbox.get("page_ref") != item.get("page_ref")
+            ):
+                errors.append(
+                    _error("pdf_layout_source_chain_bbox_ownership_invalid", payload_ref)
+                )
+            else:
+                used_bbox_refs.add(bbox_ref)
+        if used_bbox_refs != set(bbox_by_ref):
+            errors.append(
+                _error("pdf_layout_source_chain_bbox_inventory_orphaned", payload_ref)
+            )
+        source_checksum_ref = str(payload.get("source_checksum_ref") or "")
+        for bbox in bbox_inventory:
+            raw_bbox = bbox.get("bbox")
+            try:
+                normalized_bbox = [round(float(value), 4) for value in raw_bbox]
+            except (TypeError, ValueError):
+                normalized_bbox = []
+            if not all(math.isfinite(value) for value in normalized_bbox):
+                normalized_bbox = []
+            expected_ref = "pdfbbox_" + stable_digest(
+                [bbox.get("page_ref"), layout_parser_ref, *normalized_bbox],
+                length=24,
+            )
+            if (
+                not isinstance(raw_bbox, list)
+                or len(normalized_bbox) != 4
+                or raw_bbox != normalized_bbox
+                or bbox.get("coordinate_space")
+                != "pdfplumber_top_origin_points"
+                or bbox.get("bbox_ref") != expected_ref
+            ):
+                errors.append(
+                    _error("pdf_layout_source_chain_bbox_identity_invalid", payload_ref)
+                )
+        for char in char_inventory:
+            text_checksum = _checksum_ref(
+                "pdfchartxtchk", str(char.get("text") or "")
+            )
+            expected_ref = "pdfchar_" + stable_digest(
+                [
+                    source_checksum_ref,
+                    char.get("page_ref"),
+                    layout_parser_ref,
+                    int(char.get("parser_ordinal") or 0),
+                    text_checksum,
+                ],
+                length=24,
+            )
+            if (
+                char.get("text_checksum_ref") != text_checksum
+                or char.get("char_ref") != expected_ref
+            ):
+                errors.append(
+                    _error("pdf_layout_source_chain_char_identity_invalid", payload_ref)
+                )
+        for word in word_inventory:
+            text_checksum = _checksum_ref(
+                "pdfwordtxtchk", str(word.get("text") or "")
+            )
+            expected_ref = "pdfword_" + stable_digest(
+                [
+                    source_checksum_ref,
+                    word.get("page_ref"),
+                    layout_parser_ref,
+                    int(word.get("parser_ordinal") or 0),
+                    text_checksum,
+                ],
+                length=24,
+            )
+            if (
+                word.get("text_checksum_ref") != text_checksum
+                or word.get("word_ref") != expected_ref
+            ):
+                errors.append(
+                    _error("pdf_layout_source_chain_word_identity_invalid", payload_ref)
+                )
+        for line in line_inventory:
+            text_checksum = _checksum_ref(
+                "pdflinetxtchk", str(line.get("text") or "")
+            )
+            expected_ref = "pdfline_" + stable_digest(
+                [
+                    source_checksum_ref,
+                    line.get("page_ref"),
+                    layout_parser_ref,
+                    int(line.get("parser_ordinal") or 0),
+                    text_checksum,
+                ],
+                length=24,
+            )
+            if (
+                line.get("text_checksum_ref") != text_checksum
+                or line.get("line_ref") != expected_ref
+            ):
+                errors.append(
+                    _error("pdf_layout_source_chain_line_identity_invalid", payload_ref)
+                )
         for line in line_inventory:
             if not set(str(ref) for ref in line.get("word_refs") or []) <= word_refs:
                 errors.append(_error("pdf_layout_line_word_ref_out_of_scope", payload_ref))
+        chars_by_page: dict[str, list[dict[str, Any]]] = {}
+        words_by_page: dict[str, list[dict[str, Any]]] = {}
+        lines_by_page: dict[str, list[dict[str, Any]]] = {}
+        bboxes_by_page: dict[str, list[dict[str, Any]]] = {}
+        for inventory, index in (
+            (char_inventory, chars_by_page),
+            (word_inventory, words_by_page),
+            (line_inventory, lines_by_page),
+            (bbox_inventory, bboxes_by_page),
+        ):
+            for item in inventory:
+                index.setdefault(str(item.get("page_ref") or ""), []).append(item)
+        expected_source_chain_page_receipts = []
+        for page in pages:
+            page_ref = str(page.get("page_ref") or "")
+            page_words = words_by_page.get(page_ref, [])
+            expected_receipt = pdf_layout_source_chain_page_receipt(
+                page=page,
+                chars=chars_by_page.get(page_ref, []),
+                words=page_words,
+                lines=lines_by_page.get(page_ref, []),
+                bboxes=bboxes_by_page.get(page_ref, []),
+                unresolved_word_char_links_total=sum(
+                    int(item.get("unresolved_char_identity_links_total") or 0)
+                    for item in page_words
+                ),
+            )
+            expected_source_chain_page_receipts.append(expected_receipt)
+            if page.get("layout_source_chain_receipt") != expected_receipt:
+                errors.append(
+                    _error("pdf_layout_source_chain_page_receipt_mismatch", page_ref)
+                )
+            if {
+                "pdf_layout_source_chain_word_char_parser_binding_mismatch",
+                "pdf_layout_source_chain_line_word_parser_binding_mismatch",
+                "pdf_layout_source_chain_word_text_char_binding_mismatch",
+                "pdf_layout_source_chain_word_bbox_char_binding_mismatch",
+            } & set(expected_receipt.get("reason_codes") or []):
+                errors.append(
+                    _error("pdf_layout_source_chain_parser_binding_invalid", page_ref)
+                )
+        source_chain = _object(projection.get("layout_source_chain"))
+        expected_source_chain = pdf_layout_source_chain_document_receipt(
+            expected_source_chain_page_receipts
+        )
+        if source_chain != expected_source_chain:
+            errors.append(
+                _error("pdf_layout_source_chain_document_receipt_mismatch", payload_ref)
+            )
+        if (
+            source_chain.get("schema_version")
+            != PDF_LAYOUT_SOURCE_CHAIN_SCHEMA_VERSION
+            or source_chain.get("policy_ref")
+            != PDF_LAYOUT_SOURCE_CHAIN_POLICY_VERSION
+        ):
+            errors.append(_error("pdf_layout_source_chain_policy_mismatch", payload_ref))
         for candidate in table_inventory:
             if candidate.get("table_reconstruction_status") != "candidate":
                 errors.append(_error("pdf_table_candidate_status_invalid", payload_ref))
