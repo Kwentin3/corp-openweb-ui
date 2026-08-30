@@ -1253,16 +1253,8 @@ class FullSourceArtifactBuilder:
             reasons.append("pdf_no_text_layer")
         reasons = sorted(set(reasons))
         if status == "complete":
-            source_bound_table_units = [
-                unit
-                for unit in layout_units
-                if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
-                and unit.get("table_locator_scope_status") == "source_bound"
-            ]
             if layout_status == "complete" and layout_units:
                 textual_units = layout_units
-            elif source_bound_table_units:
-                textual_units = [*provisional_units, *source_bound_table_units]
             else:
                 textual_units = provisional_units
             extraction_units = [*textual_units, *visual_units]

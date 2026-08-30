@@ -11,7 +11,7 @@ from .contracts import stable_digest
 
 PDFPLUMBER_PINNED_VERSION = "0.11.10"
 PDFMINER_PINNED_VERSION = "20260107"
-PDF_LAYOUT_POLICY_VERSION = "pdfplumber_layout_policy_v2"
+PDF_LAYOUT_POLICY_VERSION = "pdfplumber_layout_policy_v3_table_terminals"
 PDF_LAYOUT_CAPABILITIES = frozenset(
     {"layout_words", "layout_lines", "table_candidates"}
 )
@@ -217,8 +217,12 @@ class PdfPlumberLayoutAdapter:
         }
         if "blocked" in table_statuses:
             table_status = "blocked"
+        elif "rejected" in table_statuses:
+            table_status = "rejected"
         elif "candidate" in table_statuses:
             table_status = "candidate"
+        elif "none_detected" in table_statuses:
+            table_status = "none_detected"
         else:
             table_status = "not_claimed"
         return PdfLayoutParseResult(
@@ -399,8 +403,10 @@ class PdfPlumberLayoutAdapter:
             table_status = "blocked"
         elif table_candidates:
             table_status = "candidate"
+        elif any(reason.endswith("_rejected") for reason in table_reason_codes):
+            table_status = "rejected"
         else:
-            table_status = "not_claimed"
+            table_status = "none_detected"
 
         locator_regions_total = (
             len(locator_page.get("regions") or [])

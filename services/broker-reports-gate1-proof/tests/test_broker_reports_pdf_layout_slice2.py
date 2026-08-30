@@ -44,7 +44,6 @@ from broker_reports_gate1.pdf_text_layer import (
 )
 from broker_reports_gate1.contracts import stable_digest
 from broker_reports_gate1.pdf_layout_units import (
-    _page_text_supports_layout_partition,
     pdf_layout_source_chain_document_receipt,
     pdf_layout_source_chain_page_receipt,
 )
@@ -375,31 +374,6 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
             PdfLayoutParserConfig().max_inventory_objects_per_document,
         )
 
-    def test_matching_layout_can_partition_bounded_text_layer_diagnostics(self):
-        page = {
-            "page_projection_status": "partial",
-            "reason_codes": [
-                "pdf_page_projection_reconciliation_failed",
-                "pdf_unknown_font_mapping",
-            ],
-            "text": "Synthetic source text",
-            "layout_projection_status": "complete",
-            "_layout_words": [
-                {"canonical_page_text_match_status": "exact"},
-                {"canonical_page_text_match_status": "normalized_whitespace"},
-            ],
-        }
-
-        self.assertTrue(_page_text_supports_layout_partition(page))
-        failed_parse = copy.deepcopy(page)
-        failed_parse["reason_codes"].append("pdf_page_parse_failed")
-        self.assertFalse(_page_text_supports_layout_partition(failed_parse))
-        mismatched_layout = copy.deepcopy(page)
-        mismatched_layout["_layout_words"][0][
-            "canonical_page_text_match_status"
-        ] = "mismatch"
-        self.assertFalse(_page_text_supports_layout_partition(mismatched_layout))
-
     def test_factory_pins_layout_backend_and_never_downgrades(self):
         self.assertIn("PdfTextLayerParserFactory.create", FACTORY_REQUIRED)
         self.assertIn("must not instantiate PypdfParserAdapter directly", FORBIDDEN)
@@ -426,7 +400,7 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         result = self._build(_duplicate_text_pdf())
         payload = result.payloads[0]
         projection = payload["pdf_text_layer_projection"]
-        self.assertEqual(payload["layout_projection_status"], "partial")
+        self.assertEqual(payload["layout_projection_status"], "complete")
         self.assertGreater(
             sum(page.get("duplicate_chars_total", 0) for page in projection["page_inventory"]),
             0,
@@ -434,12 +408,18 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         self.assertTrue(
             any(item.get("duplicate_of_char_ref") for item in projection["char_inventory"])
         )
-        self.assertFalse(projection["layout_coverage"]["all_selected_refs_accounted"])
+        self.assertTrue(projection["layout_coverage"]["all_selected_refs_accounted"])
         self.assertEqual(
             set(projection["layout_coverage"]["selected_source_refs"]),
-            set(projection["layout_coverage"]["unaccounted_refs"]),
+            set(projection["layout_coverage"]["accounted_source_refs"]),
         )
         self.assertIn(
+            "pdf_layout_word_page_text_mismatch",
+            projection["page_inventory"][0][
+                "page_text_compatibility_reason_codes"
+            ],
+        )
+        self.assertNotIn(
             "pdf_layout_word_page_text_mismatch",
             projection["page_inventory"][0]["layout_reason_codes"],
         )
@@ -496,7 +476,7 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         payload = self._build(_rotated_text_pdf()).payloads[0]
         projection = payload["pdf_text_layer_projection"]
 
-        self.assertNotIn(
+        self.assertIn(
             "pdf_layout_source_chain_rotated_text_unsupported",
             projection["layout_reason_codes"],
         )
@@ -507,6 +487,34 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         )
         self.assertEqual(
             "passed", validate_pdf_text_layer_payload(payload)["validator_status"]
+        )
+
+    def test_active_layout_complete_cannot_launder_partial_source_chain(self):
+        payload = copy.deepcopy(self._build(_rotated_text_pdf()).payloads[0])
+        projection = payload["pdf_text_layer_projection"]
+        projection["layout_projection_status"] = "complete"
+        projection["layout_reason_codes"] = []
+        coverage = projection["layout_coverage"]
+        coverage["accounted_source_refs"] = list(
+            coverage["selected_source_refs"]
+        )
+        coverage["accounted_total"] = coverage["selected_total"]
+        coverage["unaccounted_refs"] = []
+        coverage["all_selected_refs_accounted"] = True
+        for page in projection["page_inventory"]:
+            page["layout_projection_status"] = "complete"
+            page["layout_reason_codes"] = []
+        _reseal_layout_source_chain(payload)
+
+        result = validate_pdf_text_layer_payload(payload)
+
+        self.assertEqual("failed", result["validator_status"])
+        self.assertTrue(
+            {
+                "pdf_layout_complete_source_chain_incomplete",
+                "pdf_layout_page_complete_source_chain_incomplete",
+            }
+            <= {item["code"] for item in result["errors"]}
         )
 
     def test_shadow_source_chain_validator_rejects_char_and_line_mutations(self):
@@ -788,6 +796,36 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
                 for unit in ambiguous.units
             )
         )
+
+    def test_table_terminals_distinguish_none_rejected_candidate_and_blocked(self):
+        request = PdfParserCapabilityRequest(capability="table_candidates")
+        default_parser = PdfTextLayerParserFactory().create(request)
+        none_detected = default_parser.parse(_paragraph_pdf())
+        candidate = default_parser.parse(_aligned_table_pdf())
+        rejected = PdfTextLayerParserFactory(
+            PdfTextLayerParserConfig(
+                layout=PdfLayoutParserConfig(aligned_table_min_rows=100)
+            )
+        ).create(request).parse(_aligned_table_pdf())
+        blocked = PdfTextLayerParserFactory(
+            PdfTextLayerParserConfig(
+                layout=PdfLayoutParserConfig(
+                    max_table_detection_words_per_page=1
+                )
+            )
+        ).create(request).parse(_paragraph_pdf())
+
+        self.assertEqual("none_detected", none_detected.table_candidate_status)
+        self.assertEqual("candidate", candidate.table_candidate_status)
+        self.assertEqual("rejected", rejected.table_candidate_status)
+        self.assertTrue(
+            any(
+                reason.endswith("_rejected")
+                for page in rejected.pages
+                for reason in page["table_reason_codes"]
+            )
+        )
+        self.assertEqual("blocked", blocked.table_candidate_status)
 
     def test_cross_boundary_line_is_partitioned_without_losing_table(self):
         built = self._build(_ruled_table_with_cross_boundary_line_pdf())

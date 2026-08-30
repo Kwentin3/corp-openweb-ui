@@ -969,6 +969,29 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             != PDF_LAYOUT_SOURCE_CHAIN_POLICY_VERSION
         ):
             errors.append(_error("pdf_layout_source_chain_policy_mismatch", payload_ref))
+        layout_status = projection.get("layout_projection_status")
+        if layout_status == "complete" and source_chain.get("status") != "complete":
+            errors.append(
+                _error("pdf_layout_complete_source_chain_incomplete", payload_ref)
+            )
+        for page in pages:
+            page_chain_status = _object(
+                page.get("layout_source_chain_receipt")
+            ).get("status")
+            if (
+                page.get("layout_projection_status") == "complete"
+                and page_chain_status != "complete"
+            ):
+                errors.append(
+                    _error("pdf_layout_page_complete_source_chain_incomplete", page.get("page_ref"))
+                )
+            if {
+                "pdf_layout_word_page_text_mismatch",
+                "pdf_layout_line_page_text_mismatch",
+            } & set(page.get("layout_reason_codes") or []):
+                errors.append(
+                    _error("pdf_layout_page_text_compatibility_became_authority", page.get("page_ref"))
+                )
         for candidate in table_inventory:
             if candidate.get("table_reconstruction_status") != "candidate":
                 errors.append(_error("pdf_table_candidate_status_invalid", payload_ref))
@@ -1000,7 +1023,6 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         ]
         if layout_selected != expected_layout_selected:
             errors.append(_error("pdf_layout_selected_refs_mismatch", payload_ref))
-        layout_status = projection.get("layout_projection_status")
         if len(layout_accounted) != len(set(layout_accounted)):
             errors.append(_error("pdf_layout_coverage_duplicate_ref", payload_ref))
         if layout_status == "complete":
@@ -1019,11 +1041,31 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
                 set(layout_selected) - set(layout_accounted)
             ):
                 errors.append(_error("pdf_layout_partial_unaccounted_refs_mismatch", payload_ref))
-        if projection.get("table_candidate_status") == "candidate":
+        table_status = projection.get("table_candidate_status")
+        if table_status not in {
+            "candidate",
+            "rejected",
+            "blocked",
+            "none_detected",
+        }:
+            errors.append(_error("pdf_table_candidate_status_invalid", payload_ref))
+        if table_status == "candidate":
             if not table_inventory:
                 errors.append(_error("pdf_table_candidate_inventory_empty", payload_ref))
             if projection.get("semantic_reconstruction_status") != "candidate":
                 errors.append(_error("pdf_table_semantic_candidate_status_mismatch", payload_ref))
+        if table_status == "none_detected" and table_inventory:
+            errors.append(
+                _error("pdf_table_terminal_status_has_candidate_inventory", payload_ref)
+            )
+        if table_status == "none_detected" and any(
+            str(reason).endswith("_rejected")
+            for page in pages
+            for reason in page.get("table_reason_codes") or []
+        ):
+            errors.append(
+                _error("pdf_table_rejection_silently_not_detected", payload_ref)
+            )
 
     coverage = _object(projection.get("coverage"))
     if coverage.get("schema_version") != PDF_TEXT_LAYER_COVERAGE_SCHEMA_VERSION:
