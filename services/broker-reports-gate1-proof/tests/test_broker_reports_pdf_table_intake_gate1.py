@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -63,6 +65,197 @@ def _single_page_pdf() -> bytes:
     data = document.tobytes(deflate=True)
     document.close()
     return data
+
+
+TBANK_VISUALLY_VERIFIED_REGIONS = {
+    1: [
+        ("p1_table_1_1", [15.6, 157.4, 789.7, 323.3], (6, 32)),
+        ("p1_table_1_2", [15.6, 347.2, 789.7, 388.2], (1, 32)),
+        ("p1_table_1_3", [15.6, 412.1, 789.7, 453.1], (1, 32)),
+        ("p1_table_1_4", [15.6, 491.0, 789.7, 559.0], (2, 28)),
+    ],
+    2: [
+        ("p2_cash_balances", [15.6, 37.4, 789.7, 138.5], (4, 7)),
+        ("p2_rub_cash_ops", [15.6, 157.5, 789.7, 229.9], (4, 7)),
+        ("p2_table_3_1", [15.6, 254.3, 789.7, 309.3], (2, 12)),
+        ("p2_table_3_2", [15.6, 333.3, 789.7, 364.3], (1, 8)),
+        ("p2_table_3_3", [15.6, 402.2, 789.7, 433.2], (1, 7)),
+        ("p2_table_4_1", [15.6, 457.1, 789.7, 510.2], (2, 8)),
+        ("p2_table_4_2", [15.6, 534.1, 789.7, 565.1], (1, 8)),
+    ],
+    3: [
+        ("p3_table_4_3", [15.6, 37.4, 789.7, 68.4], (1, 6)),
+        ("p3_table_4_4", [15.6, 92.4, 789.7, 123.4], (1, 2)),
+        ("p3_table_5", [15.6, 147.3, 789.7, 187.3], (2, 2)),
+        ("p3_table_6", [15.6, 225.1, 789.7, 529.1], (21, 2)),
+    ],
+    4: [],
+}
+TBANK_TRADE_IDS = [
+    "5586419352",
+    "5586419351",
+    "5586419350",
+    "5586423274",
+    "5586423273",
+]
+
+
+def _public_tbank_control() -> tuple[bytes, str]:
+    source = os.environ.get("BROKER_REPORTS_TBANK_CONTROL_PDF")
+    if not source:
+        controls = list(Path("C:/Users").glob("*/AppData/Local/Temp/1/issue317-tbank-*/tbank-control.pdf"))
+        source = str(controls[0]) if controls else None
+    assert source, "BROKER_REPORTS_TBANK_CONTROL_PDF must name the pinned public control"
+    pdf_bytes = Path(source).read_bytes()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    assert digest == "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67"
+    return pdf_bytes, digest
+
+
+def _tbank_input(pdf_bytes: bytes) -> FileInput:
+    return FileInput(
+        private_ref="tbank-control",
+        original_filename_private="control.pdf",
+        mime_type="application/pdf",
+        source_kind="unit_test",
+        declared_size_bytes=len(pdf_bytes),
+        bytes_provider=lambda: pdf_bytes,
+        provider_label="unit_test",
+    )
+
+
+def _complete_tbank_locator_pages() -> list[dict]:
+    # These regions and shapes are upstream evidence from visual inspection of
+    # the four page PNGs and all 15 crops.  They do not prove an autonomous
+    # locator or recovery of table titles outside the supplied boxes.
+    return [
+        {
+            "page_number": page_number,
+            "status": "located" if regions else "located_no_tables",
+            "regions": [
+                {"region_ref": region_ref, "bbox_pdf_points": list(box)}
+                for region_ref, box, _shape in regions
+            ],
+        }
+        for page_number, regions in TBANK_VISUALLY_VERIFIED_REGIONS.items()
+    ]
+
+
+def test_real_tbank_given_complete_locator_regions_preserves_all_15_grids() -> None:
+    pdf_bytes, digest = _public_tbank_control()
+    normalized = Gate1Normalizer().normalize(
+        [_tbank_input(pdf_bytes)],
+        pdf_table_locator_pages_by_sha256={digest: _complete_tbank_locator_pages()},
+    )
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    expected_shapes = [
+        shape
+        for regions in TBANK_VISUALLY_VERIFIED_REGIONS.values()
+        for _region_ref, _box, shape in regions
+    ]
+    assert len(projections) == 15
+    assert [(item["row_count"], item["column_count"]) for item in projections] == (
+        expected_shapes
+    )
+    assert sum(item["row_count"] for item in projections) == 50
+    assert sum(item["cell_count"] for item in projections) == 485
+    cells = [cell for projection in projections for cell in projection["cells"]]
+    assert sum(not cell["empty_cell"] for cell in cells) == 424
+    assert sum(cell["empty_cell"] for cell in cells) == 61
+
+    first = projections[0]
+    values = {
+        item["value_path_ref"]: item["normalized_value"]
+        for item in first["private_values"]
+    }
+    first_column = [
+        values[cell["normalized_private_value_path"]]
+        for cell in first["cells"]
+        if cell["row_ordinal"] > 1 and cell["column_ordinal"] == 1
+    ]
+    assert first_column == TBANK_TRADE_IDS
+    quantities = [
+        int(values[cell["normalized_private_value_path"]])
+        for cell in first["cells"]
+        if cell["row_ordinal"] > 1 and cell["column_ordinal"] == 13
+    ]
+    assert sum(quantities) == 7
+    assert not any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        for item in normalized.package["normalization_blockers"]
+    )
+
+
+def test_real_tbank_only_table_1_1_with_unresolved_pages_blocks_canonical(
+    tmp_path: Path, monkeypatch
+) -> None:
+    pdf_bytes, digest = _public_tbank_control()
+    locator_pages = [
+        {
+            "page_number": 1,
+            "status": "located",
+            "regions": [
+                {
+                    "region_ref": "p1_table_1_1",
+                    "bbox_pdf_points": [15.6, 157.4, 789.7, 323.3],
+                }
+            ],
+        },
+        {"page_number": 2, "status": "failed", "regions": []},
+        {"page_number": 3, "status": "failed", "regions": []},
+        {"page_number": 4, "status": "located_no_tables", "regions": []},
+    ]
+    normalized = Gate1Normalizer().normalize(
+        [_tbank_input(pdf_bytes)],
+        input_context={"canonical_gate2_write_enabled": True, "canonical_gate2_read_enabled": True},
+        pdf_table_locator_pages_by_sha256={digest: locator_pages},
+    )
+    projections = [
+        item
+        for item in normalized.package["private_normalized_table_projections"]
+        if item.get("source_format") == "pdf"
+    ]
+    assert len(projections) == 1
+    assert (projections[0]["row_count"], projections[0]["column_count"]) == (6, 32)
+    assert any(
+        item.get("code") == "pdf_table_normalization_incomplete"
+        and item.get("blocks_next_gate") is True
+        for item in normalized.package["normalization_blockers"]
+    )
+
+    store = ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=tmp_path / "artifacts.sqlite3",
+            payload_root=tmp_path / "payloads",
+        )
+    ).create()
+    monkeypatch.setattr(
+        "broker_reports_gate1.canonical_store.shutil.disk_usage",
+        lambda _: shutil._ntuple_diskusage(10_000_000_000, 1_000_000_000, 9_000_000_000),
+    )
+    run_id = normalized.package["normalization_run"]["run_id"]
+    context = ArtifactAccessContext(
+        user_id="u",
+        case_id="c",
+        chat_id="ch",
+        workspace_model_id="broker_reports_ndfl",
+        normalization_run_id=run_id,
+        allow_private=True,
+        require_source_available=True,
+    )
+    manifest = persist_gate1_result(
+        store=store,
+        result=normalized,
+        context=context,
+        retention_policy=build_retention_policy(mode="api_smoke"),
+    )
+    assert "broker_reports_canonical_artifact_v1" not in manifest.artifact_refs_by_type
+    assert "broker_reports_canonical_build_failure_v1" in manifest.artifact_refs_by_type
 
 
 def _header_only_table_pdf() -> bytes:

@@ -93,6 +93,7 @@ MODULE_ORDER = [
     "xml_source",
     "profilers_xml",
     "profilers_zip",
+    "pdf_source_bound_grid",
     "pdf_layout",
     "pdf_layout_units",
     "pdf_text_layer",

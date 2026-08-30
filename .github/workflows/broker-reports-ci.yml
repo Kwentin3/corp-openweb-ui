@@ -2,8 +2,6 @@ name: Broker Reports CI
 
 on:
   pull_request:
-    branches:
-      - main
   push:
     branches:
       - main
@@ -25,6 +23,7 @@ jobs:
         shell: bash
         working-directory: services/broker-reports-gate1-proof
     env:
+      BROKER_REPORTS_TBANK_CONTROL_PDF: ${{ github.workspace }}/.ci-controls/tbank-public-control.pdf
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUTF8: "1"
@@ -56,6 +55,15 @@ jobs:
 
       - name: Install Broker Reports CI dependencies
         run: python -m pip install -r requirements-ci.txt
+
+      - name: Download pinned public T-Bank control
+        working-directory: .
+        run: |
+          mkdir -p .ci-controls
+          curl --fail --location --silent --show-error \
+            --output "$BROKER_REPORTS_TBANK_CONTROL_PDF" \
+            https://cdn.tbank.ru/static/documents/7b9ccdee-5a02-4ed6-9499-c76082cd8d30.pdf
+          echo "25c3b0606ce86852f6ac8fdf6feccbefedb609bcffc5c1581dc95b9b81c5da67  $BROKER_REPORTS_TBANK_CONTROL_PDF" | sha256sum --check --strict
 
       - name: Check generated managed assets
         run: |
@@ -126,6 +134,7 @@ jobs:
           tests/test_broker_reports_kt2_same_source_type_first_proof.py
           tests/test_broker_reports_gate1_pipe_bundle.py
           tests/test_broker_reports_pdf_table_intake_gate1.py
+          tests/test_broker_reports_pdf_source_bound_grid.py
           tests/test_broker_reports_pdf_layout_slice2.py
           tests/test_broker_reports_table_projection.py
           tests/test_broker_reports_atomic_stage_release.py
