@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import math
 import re
 from dataclasses import dataclass, field
 from io import BytesIO
@@ -770,6 +771,7 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
             (char_inventory, "char_ref", "pdf_layout_char_ref_invalid"),
             (word_inventory, "word_ref", "pdf_layout_word_ref_invalid"),
             (line_inventory, "line_ref", "pdf_layout_line_ref_invalid"),
+            (bbox_inventory, "bbox_ref", "pdf_layout_bbox_ref_invalid"),
             (block_inventory, "block_ref", "pdf_layout_block_ref_invalid"),
             (
                 table_inventory,
@@ -785,6 +787,29 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         word_refs = {str(item.get("word_ref") or "") for item in word_inventory}
         line_refs = {str(item.get("line_ref") or "") for item in line_inventory}
         source_checksum_ref = str(payload.get("source_checksum_ref") or "")
+        for bbox in bbox_inventory:
+            raw_bbox = bbox.get("bbox")
+            try:
+                normalized_bbox = [round(float(value), 4) for value in raw_bbox]
+            except (TypeError, ValueError):
+                normalized_bbox = []
+            if not all(math.isfinite(value) for value in normalized_bbox):
+                normalized_bbox = []
+            expected_ref = "pdfbbox_" + stable_digest(
+                [bbox.get("page_ref"), layout_parser_ref, *normalized_bbox],
+                length=24,
+            )
+            if (
+                not isinstance(raw_bbox, list)
+                or len(normalized_bbox) != 4
+                or raw_bbox != normalized_bbox
+                or bbox.get("coordinate_space")
+                != "pdfplumber_top_origin_points"
+                or bbox.get("bbox_ref") != expected_ref
+            ):
+                errors.append(
+                    _error("pdf_layout_source_chain_bbox_identity_invalid", payload_ref)
+                )
         for char in char_inventory:
             text_checksum = _checksum_ref(
                 "pdfchartxtchk", str(char.get("text") or "")

@@ -266,6 +266,53 @@ def _layout_inventory_objects(page: dict) -> int:
     )
 
 
+def _reseal_layout_source_chain(payload: dict) -> None:
+    projection = payload["pdf_text_layer_projection"]
+    page_receipts = []
+    for page in projection["page_inventory"]:
+        page_ref = page["page_ref"]
+        page_words = [
+            item
+            for item in projection["word_inventory"]
+            if item["page_ref"] == page_ref
+        ]
+        receipt = pdf_layout_source_chain_page_receipt(
+            page=page,
+            chars=[
+                item
+                for item in projection["char_inventory"]
+                if item["page_ref"] == page_ref
+            ],
+            words=page_words,
+            lines=[
+                item
+                for item in projection["line_inventory"]
+                if item["page_ref"] == page_ref
+            ],
+            bboxes=[
+                item
+                for item in projection["bbox_inventory"]
+                if item["page_ref"] == page_ref
+            ],
+            unresolved_word_char_links_total=sum(
+                int(item.get("unresolved_char_identity_links_total") or 0)
+                for item in page_words
+            ),
+        )
+        page["layout_source_chain_receipt"] = receipt
+        page["page_layout_checksum_ref"] = pdf_layout_page_checksum_ref(
+            page, projection["layout_parser_ref"]
+        )
+        page_receipts.append(receipt)
+    projection["layout_source_chain"] = (
+        pdf_layout_source_chain_document_receipt(page_receipts)
+    )
+    projection["layout_page_checksum_refs"] = [
+        page["page_layout_checksum_ref"] for page in projection["page_inventory"]
+    ]
+    payload["payload_checksum_ref"] = pdf_payload_checksum_ref(payload)
+
+
 class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
     def test_layout_source_value_batch_indexes_once_and_preserves_failures(self):
         built = self._build(_ruled_table_pdf())
@@ -503,53 +550,26 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         for char in projection["char_inventory"]:
             char["source_chain_word_refs"] = owners[char["char_ref"]]
 
-        page_receipts = []
-        for page in projection["page_inventory"]:
-            page_ref = page["page_ref"]
-            page_words = [
-                item for item in words if item["page_ref"] == page_ref
-            ]
-            receipt = pdf_layout_source_chain_page_receipt(
-                page=page,
-                chars=[
-                    item
-                    for item in projection["char_inventory"]
-                    if item["page_ref"] == page_ref
-                ],
-                words=page_words,
-                lines=[
-                    item
-                    for item in projection["line_inventory"]
-                    if item["page_ref"] == page_ref
-                ],
-                bboxes=[
-                    item
-                    for item in projection["bbox_inventory"]
-                    if item["page_ref"] == page_ref
-                ],
-                unresolved_word_char_links_total=sum(
-                    int(item.get("unresolved_char_identity_links_total") or 0)
-                    for item in page_words
-                ),
-            )
-            page["layout_source_chain_receipt"] = receipt
-            page["page_layout_checksum_ref"] = pdf_layout_page_checksum_ref(
-                page, projection["layout_parser_ref"]
-            )
-            page_receipts.append(receipt)
-        projection["layout_source_chain"] = (
-            pdf_layout_source_chain_document_receipt(page_receipts)
-        )
-        projection["layout_page_checksum_refs"] = [
-            page["page_layout_checksum_ref"]
-            for page in projection["page_inventory"]
-        ]
-        payload["payload_checksum_ref"] = pdf_payload_checksum_ref(payload)
+        _reseal_layout_source_chain(payload)
 
         result = validate_pdf_text_layer_payload(payload)
         self.assertEqual("failed", result["validator_status"])
         self.assertIn(
             "pdf_layout_source_chain_parser_binding_invalid",
+            {item["code"] for item in result["errors"]},
+        )
+
+    def test_shadow_source_chain_rejects_recomputed_bbox_laundering(self):
+        payload = copy.deepcopy(self._build(_paragraph_pdf()).payloads[0])
+        projection = payload["pdf_text_layer_projection"]
+        for bbox in projection["bbox_inventory"]:
+            bbox["bbox"] = [value + 1 for value in bbox["bbox"]]
+        _reseal_layout_source_chain(payload)
+
+        result = validate_pdf_text_layer_payload(payload)
+        self.assertEqual("failed", result["validator_status"])
+        self.assertIn(
+            "pdf_layout_source_chain_bbox_identity_invalid",
             {item["code"] for item in result["errors"]},
         )
 
