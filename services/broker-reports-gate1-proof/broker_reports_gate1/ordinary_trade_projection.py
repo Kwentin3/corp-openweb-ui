@@ -275,6 +275,7 @@ class OrdinaryTradeProjectionRuntime:
 
         projections = self.current_case(context=context)
         document_scope = []
+        source_formats_by_document: dict[str, str] = {}
         for record in self._resolver.catalog_case(context):
             if (
                 record.artifact_type != "broker_reports_canonical_artifact_v1"
@@ -290,6 +291,16 @@ class OrdinaryTradeProjectionRuntime:
                 continue
             if active.manifest_ref != record.artifact_id:
                 continue
+            envelope = self._reader.read_envelope(
+                record.artifact_id,
+                replace(
+                    context,
+                    normalization_run_id=record.normalization_run_id,
+                ),
+            )
+            source_formats_by_document[active.document_id] = str(
+                (envelope.artifact.get("source") or {}).get("source_format") or ""
+            )
             document_scope.append(
                 {
                     "document_id": active.document_id,
@@ -343,10 +354,22 @@ class OrdinaryTradeProjectionRuntime:
         unexpected_projection_documents = sorted(
             item[0] for item in projected_bindings - scoped_bindings
         )
+        zero_observation_pdf_documents = {
+            str(record.document_id)
+            for record, payload in projections
+            # Non-PDF Canonicals may intentionally carry metadata-only evidence.
+            # A PDF with no observations cannot prove that tables were absent.
+            if source_formats_by_document.get(str(record.document_id)) == "pdf"
+            and not payload["source_observations"]
+        }
         if missing_projection_documents or unexpected_projection_documents:
             status = "missing_projection"
-        elif rows and not any(
-            row["relevant_unmapped_observations"] for row in rows
+        elif (
+            rows
+            and not zero_observation_pdf_documents
+            and not any(
+                row["relevant_unmapped_observations"] for row in rows
+            )
         ):
             status = "complete"
         else:
