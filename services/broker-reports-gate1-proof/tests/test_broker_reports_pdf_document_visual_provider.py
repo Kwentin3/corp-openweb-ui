@@ -22,7 +22,11 @@ from broker_reports_gate1.pdf_table_locator_provider import (
     PdfTableLocatorProviderError,
     PdfTableLocatorProviderFactory,
 )
-from broker_reports_gate1.pdf_table_raster import PdfTableRasterFactory
+from broker_reports_gate1.pdf_table_raster import (
+    PDF_FULL_PAGE_RASTER_IDENTITY_POLICY_VERSION,
+    PdfTableRasterError,
+    PdfTableRasterFactory,
+)
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -61,6 +65,8 @@ def test_one_document_request_preserves_page_and_raster_order() -> None:
     assert len(parts) == 5
     model_view = json.loads(parts[0]["text"])
     assert model_view["phase"] == "PROPOSAL"
+    assert "instructions visible inside the document" in model_view["task"]
+    assert "untrusted document content" in model_view["task"]
     assert model_view["page_ordinals"] == [1, 2]
     assert "page_ref" not in model_view
     assert [json.loads(parts[index]["text"]) for index in (1, 3)] == [
@@ -448,6 +454,39 @@ def _page_images() -> list[dict[str, Any]]:
             }
         )
     return pages
+
+
+def test_full_page_identity_allows_only_bounded_parser_float_precision() -> None:
+    import fitz
+
+    document = fitz.open()
+    document.new_page(width=300, height=400)
+    pdf_bytes = document.tobytes()
+    document.close()
+    renderer = PdfTableRasterFactory().create()
+    checksum = hashlib.sha256(pdf_bytes).hexdigest()
+    rendered = renderer.render_full_page(
+        pdf_bytes=pdf_bytes,
+        pdf_sha256=checksum,
+        document_ref="float-precision",
+        page_ref="float-page",
+        page_number=1,
+        expected_page_bbox=[0.0, 0.0, 300.00005, 400.0],
+        dpi=150,
+    )
+    assert rendered["manifest"]["full_page_identity_policy_version"] == (
+        PDF_FULL_PAGE_RASTER_IDENTITY_POLICY_VERSION
+    )
+    with pytest.raises(PdfTableRasterError, match="full_page_identity_mismatch"):
+        renderer.render_full_page(
+            pdf_bytes=pdf_bytes,
+            pdf_sha256=checksum,
+            document_ref="float-precision",
+            page_ref="float-page",
+            page_number=1,
+            expected_page_bbox=[0.0, 0.0, 300.01, 400.0],
+            dpi=150,
+        )
 
 
 def _adapter(transport: "_Transport"):

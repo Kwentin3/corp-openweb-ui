@@ -13,9 +13,10 @@ from .logical_row_table_recovery import (
 )
 from .pdf_table_locator_provider import (
     PDF_DOCUMENT_VISUAL_PROVIDER_ADAPTER_VERSION,
+    PdfGridProviderError,
     PdfTableLocatorProviderFactory,
 )
-from .pdf_table_raster import PdfTableRasterFactory
+from .pdf_table_raster import PdfTableRasterError, PdfTableRasterFactory
 from .pdf_text_layer import (
     PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION,
     validate_pdf_text_layer_payload,
@@ -32,6 +33,9 @@ DOCUMENT_VISUAL_ADJUDICATION_SCHEMA = (
 )
 DOCUMENT_VISUAL_ADJUDICATION_POLICY = (
     "pdf_document_visual_adjudication_policy_v1_proposed_inactive"
+)
+DOCUMENT_UNRESOLVED_VISUAL_POLICY = (
+    "pdf_document_unresolved_visual_localization_policy_v1_inactive"
 )
 FACTORY_REQUIRED = (
     "PdfDocumentVisualAdjudicationFactory.create_for_openwebui is the only "
@@ -81,6 +85,38 @@ class PdfDocumentVisualAdjudicationResult:
                 "table_identity_assigned_by_coordinator": False,
                 "continuation_decided_by_coordinator": False,
                 "ready_scope_receipt_public_input": False,
+                "product_reachability": False,
+            }
+        )
+
+
+@dataclass(frozen=True)
+class PdfDocumentUnresolvedVisualResult:
+    status: str
+    unresolved_table_region_refs: tuple[str, ...]
+    localization: dict[str, Any] | None
+    issues: tuple[dict[str, Any], ...]
+    provider_accounting: dict[str, Any]
+
+    def as_dict(self) -> dict[str, Any]:
+        return copy.deepcopy(
+            {
+                "schema_version": (
+                    "broker_reports_pdf_document_unresolved_visual_v1"
+                ),
+                "policy_version": DOCUMENT_UNRESOLVED_VISUAL_POLICY,
+                "status": self.status,
+                "unresolved_table_region_refs": list(
+                    self.unresolved_table_region_refs
+                ),
+                "localization": self.localization,
+                "issues": list(self.issues),
+                "provider_accounting": self.provider_accounting,
+                "publication_allowed": False,
+                "document_complete": False,
+                "recovery_performed": False,
+                "table_identity_assigned": False,
+                "continuation_decided": False,
                 "product_reachability": False,
             }
         )
@@ -255,6 +291,150 @@ class _PdfDocumentVisualAdjudicationRuntime:
             },
         )
 
+    def localize_unresolved_regions(
+        self,
+        *,
+        task_id: str,
+        pdf_bytes: bytes,
+        full_source_payload: Mapping[str, Any],
+        source_checksum_sha256: str,
+        dpi: int = 150,
+    ) -> PdfDocumentUnresolvedVisualResult:
+        """Observe D1 unresolved regions once; never repair or publish them."""
+
+        self._assert_authority()
+        payload, projection, pages = _validated_input(
+            pdf_bytes=pdf_bytes,
+            full_source_payload=full_source_payload,
+            source_checksum_sha256=source_checksum_sha256,
+        )
+        unresolved = [
+            item
+            for item in projection.get("unresolved_table_region_inventory") or []
+            if isinstance(item, dict)
+        ]
+        unresolved_refs = tuple(
+            str(item.get("unresolved_table_region_ref") or "")
+            for item in unresolved
+        )
+        if not unresolved:
+            return PdfDocumentUnresolvedVisualResult(
+                status="NOT_APPLICABLE",
+                unresolved_table_region_refs=(),
+                localization=None,
+                issues=(),
+                provider_accounting={
+                    "provider_http_calls": 0,
+                    "model_generation_calls": 0,
+                    "count_tokens_http_calls": 0,
+                    "same_raster_binding": False,
+                },
+            )
+        if any(not ref for ref in unresolved_refs) or len(unresolved_refs) != len(
+            set(unresolved_refs)
+        ):
+            raise PdfDocumentVisualAdjudicationError(
+                "document_unresolved_visual_inventory_invalid"
+            )
+        try:
+            page_images, manifests = self._render_pages(
+                pdf_bytes=pdf_bytes,
+                source_checksum_sha256=source_checksum_sha256,
+                document_ref=payload["document_ref"],
+                pages=pages,
+                dpi=dpi,
+            )
+        except PdfTableRasterError as exc:
+            return PdfDocumentUnresolvedVisualResult(
+                status="BLOCKED",
+                unresolved_table_region_refs=unresolved_refs,
+                localization=None,
+                issues=({"code": exc.code},),
+                provider_accounting={
+                    "provider_http_calls": 0,
+                    "model_generation_calls": 0,
+                    "count_tokens_http_calls": 0,
+                    "same_raster_binding": False,
+                },
+            )
+        document_binding = _document_binding(page_images)
+        provider_result: Mapping[str, Any] | None = None
+        try:
+            provider_result = self._provider.invoke_document_visual_geometry(
+                task_id=f"{task_id}_unresolved_visual",
+                phase="PROPOSAL",
+                page_images=page_images,
+                first_geometry_proposal=None,
+                attempt_number=1,
+                attempt_lineage=[],
+            )
+            provider_value = _terminal_output(provider_result, "proposal")
+            attempt = _attempt(provider_result, "proposal")
+            accounting = _validate_single_provider_accounting(
+                attempt,
+                expected_document_binding=document_binding,
+                expected_model_id=self._expected_model_id,
+                task_id=f"{task_id}_unresolved_visual",
+            )
+        except (PdfGridProviderError, PdfDocumentVisualAdjudicationError) as exc:
+            code = getattr(exc, "code", str(exc))
+            failed_attempt = (
+                provider_result.get("attempt")
+                if isinstance(provider_result, Mapping)
+                and isinstance(provider_result.get("attempt"), Mapping)
+                else {}
+            )
+            safe_details = getattr(exc, "safe_details", {})
+
+            return PdfDocumentUnresolvedVisualResult(
+                status="BLOCKED",
+                unresolved_table_region_refs=unresolved_refs,
+                localization=None,
+                issues=({"code": str(code)},),
+                provider_accounting={
+                    "provider_http_calls": _observed_count(
+                        failed_attempt, safe_details, "provider_http_calls"
+                    ),
+                    "model_generation_calls": _observed_count(
+                        failed_attempt,
+                        safe_details,
+                        "model_generation_calls"
+                    ),
+                    "count_tokens_http_calls": _observed_count(
+                        failed_attempt,
+                        safe_details,
+                        "count_tokens_http_calls"
+                    ),
+                    "same_raster_binding": False,
+                },
+            )
+        self._assert_authority()
+        try:
+            localization = self._scope_binder.bind_unresolved_observations(
+                provider_value=provider_value,
+                full_source_payload=payload,
+                source_checksum_sha256=source_checksum_sha256,
+                raster_manifests=manifests,
+            )
+        except SourceBoundTableScopeError as exc:
+            return PdfDocumentUnresolvedVisualResult(
+                status="BLOCKED",
+                unresolved_table_region_refs=unresolved_refs,
+                localization=None,
+                issues=({"code": exc.code},),
+                provider_accounting=accounting,
+            )
+        return PdfDocumentUnresolvedVisualResult(
+            status="BLOCKED",
+            unresolved_table_region_refs=unresolved_refs,
+            localization=localization,
+            issues=tuple(copy.deepcopy(localization.get("issues") or [])),
+            provider_accounting={
+                **accounting,
+                "proposal_attempt_id": attempt["attempt_id"],
+                "proposal_sha256": sha256_json(provider_value),
+            },
+        )
     def _render_pages(
         self,
         *,
@@ -518,6 +698,19 @@ class _PdfDocumentVisualAdjudicationRuntime:
         }
 
 
+def _observed_count(
+    failed_attempt: Mapping[str, Any], safe_details: Mapping[str, Any], key: str
+) -> int:
+    value = failed_attempt.get(key, safe_details.get(key, 0))
+    return (
+        int(value)
+        if isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= 2
+        else 0
+    )
+
+
 def _validated_input(
     *,
     pdf_bytes: bytes,
@@ -752,6 +945,73 @@ def _validate_provider_accounting(
             for attempt in (proposal, critic)
         ),
         "same_raster_binding": same_raster_binding,
+        "document_binding_sha256": binding_sha256,
+    }
+
+
+def _validate_single_provider_accounting(
+    attempt: Mapping[str, Any],
+    *,
+    expected_document_binding: Mapping[str, Any],
+    expected_model_id: str,
+    task_id: str,
+) -> dict[str, Any]:
+    binding = copy.deepcopy(dict(expected_document_binding))
+    binding_sha256 = sha256_json(binding)
+    request_hash = attempt.get("request_hash")
+    counted_tokens = attempt.get("counted_input_tokens")
+    maximum_tokens = attempt.get("maximum_counted_input_tokens")
+    if (
+        attempt.get("task_id") != task_id
+        or attempt.get("attempt_id") != f"{task_id}_a1"
+        or attempt.get("attempt_number") != 1
+        or attempt.get("attempt_lineage") != []
+        or attempt.get("phase") != "PROPOSAL"
+        or attempt.get("document_binding") != binding
+        or attempt.get("document_binding_sha256") != binding_sha256
+        or attempt.get("adapter_identity")
+        != PDF_DOCUMENT_VISUAL_PROVIDER_ADAPTER_VERSION
+        or attempt.get("transport_identity") != _DOCUMENT_VISUAL_TRANSPORT_IDENTITY
+        or attempt.get("provider_calls") != 2
+        or attempt.get("provider_http_calls") != 2
+        or attempt.get("count_tokens_http_calls") != 1
+        or attempt.get("model_generation_calls") != 1
+        or attempt.get("http_status") not in range(200, 300)
+        or attempt.get("finish_reason") != "STOP"
+        or attempt.get("parse_result") != "parsed_object"
+        or attempt.get("terminal_failure_class") is not None
+        or attempt.get("hidden_retry") is not False
+        or attempt.get("provider_failover") is not False
+        or attempt.get("model_values_used_as_source_literals") is not False
+        or attempt.get("table_identity_assigned") is not False
+        or attempt.get("continuation_decided") is not False
+        or attempt.get("product_reachability") is not False
+        or not _sha256(request_hash)
+        or attempt.get("generation_request_hash") != request_hash
+        or attempt.get("counted_generation_body_hash") != request_hash
+        or not _sha256(attempt.get("count_tokens_request_hash"))
+        or not _sha256(attempt.get("count_tokens_response_hash"))
+        or not _positive_int(attempt.get("generation_request_bytes"))
+        or not _positive_int(attempt.get("count_tokens_request_bytes"))
+        or not isinstance(counted_tokens, int)
+        or isinstance(counted_tokens, bool)
+        or counted_tokens < 0
+        or not _positive_int(maximum_tokens)
+        or counted_tokens > maximum_tokens
+        or attempt.get("count_tokens_within_hard_guard") is not True
+        or not _sha256(attempt.get("canonical_schema_hash"))
+        or not _sha256(attempt.get("adapted_schema_hash"))
+        or attempt.get("model_requested") != expected_model_id
+        or attempt.get("model_resolved") != expected_model_id
+    ):
+        raise PdfDocumentVisualAdjudicationError(
+            "document_visual_provider_accounting_invalid"
+        )
+    return {
+        "provider_http_calls": 2,
+        "model_generation_calls": 1,
+        "count_tokens_http_calls": 1,
+        "same_raster_binding": True,
         "document_binding_sha256": binding_sha256,
     }
 

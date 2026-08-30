@@ -306,6 +306,21 @@ def test_rejects_raster_page_dimensions_not_owned_by_fullsource_page() -> None:
         _bind(raster_manifest=manifest)
 
 
+def test_legacy_scope_keeps_exact_page_dimension_tolerance() -> None:
+    manifest = _raster_manifest()
+    manifest["actual_page_bbox"] = [0.0, 0.0, 320.00005, 320.0]
+    manifest["rendered_bbox"] = [0.0, 0.0, 320.00005, 320.0]
+    manifest["source_to_pixel_transform"]["scale_x"] = (
+        manifest["width"] / 320.00005
+    )
+
+    with pytest.raises(
+        SourceBoundTableScopeError,
+        match="source_bound_table_scope_raster_page_mismatch",
+    ):
+        _bind(raster_manifest=manifest)
+
+
 @pytest.mark.parametrize(
     ("body_status", "issue_code"),
     [
