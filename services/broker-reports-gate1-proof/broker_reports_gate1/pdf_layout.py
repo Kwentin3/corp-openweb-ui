@@ -312,6 +312,9 @@ class PdfPlumberLayoutAdapter:
             layout_reasons.append("pdf_layout_vector_object_budget_exceeded")
 
         chars = [_sanitize_char(item, index) for index, item in enumerate(raw_chars, 1)]
+        char_ordinal_by_identity = {
+            id(item): index for index, item in enumerate(raw_chars, 1)
+        }
         duplicate_chars_total = _mark_duplicate_chars(chars)
         rotated_chars_total = sum(1 for item in chars if item.get("upright") is False)
 
@@ -327,7 +330,7 @@ class PdfPlumberLayoutAdapter:
                 return_chars=True,
             )
             words = [
-                _sanitize_word(item, index)
+                _sanitize_word(item, index, char_ordinal_by_identity)
                 for index, item in enumerate(raw_words or [], 1)
             ]
         except Exception:
@@ -435,6 +438,10 @@ class PdfPlumberLayoutAdapter:
             ],
             "duplicate_chars_total": duplicate_chars_total,
             "rotated_chars_total": rotated_chars_total,
+            "source_chain_unresolved_word_char_links_total": sum(
+                int(item.get("unresolved_char_identity_links_total") or 0)
+                for item in words
+            ),
             "hidden_text_diagnostics_status": "not_available",
             "elapsed_milliseconds": elapsed_ms,
             "page_rendering_used_for_extraction": False,
@@ -826,15 +833,29 @@ def _sanitize_char(item: dict[str, Any], ordinal: int) -> dict[str, Any]:
     }
 
 
-def _sanitize_word(item: dict[str, Any], ordinal: int) -> dict[str, Any]:
+def _sanitize_word(
+    item: dict[str, Any],
+    ordinal: int,
+    char_ordinal_by_identity: dict[int, int],
+) -> dict[str, Any]:
     chars = item.get("chars") if isinstance(item.get("chars"), list) else []
+    char_ordinals = [
+        char_ordinal_by_identity[id(char)]
+        for char in chars
+        if isinstance(char, dict) and id(char) in char_ordinal_by_identity
+    ]
     return {
         "parser_ordinal": ordinal,
         "text": str(item.get("text") or ""),
         "bbox": _bbox(item),
         "direction": str(item.get("direction") or ""),
         "upright": all(bool(char.get("upright", True)) for char in chars if isinstance(char, dict)),
-        "char_parser_ordinals": [],
+        "char_parser_ordinals": char_ordinals,
+        "unresolved_char_identity_links_total": sum(
+            1
+            for char in chars
+            if not isinstance(char, dict) or id(char) not in char_ordinal_by_identity
+        ),
     }
 
 

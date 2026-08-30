@@ -15,6 +15,8 @@ from .source_provenance import NormalizedSliceProvenanceFactory
 PDF_LAYOUT_UNIT_POLICY_VERSION = "pdf_layout_unit_partition_policy_v0"
 PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION = "pdf_layout_unit_coverage_v0"
 PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION = "pdf_layout_document_coverage_v0"
+PDF_LAYOUT_SOURCE_CHAIN_SCHEMA_VERSION = "pdf_layout_source_chain_v0"
+PDF_LAYOUT_SOURCE_CHAIN_POLICY_VERSION = "pdfplumber_exact_char_identity_v0"
 _PAGE_TEXT_LAYOUT_PARTITION_ALLOWED_REASONS = frozenset(
     {
         "pdf_page_projection_reconciliation_failed",
@@ -65,6 +67,7 @@ class PdfLayoutBuildResult:
     table_candidate_status: str
     semantic_reconstruction_status: str
     coverage: dict[str, Any]
+    source_chain: dict[str, Any]
     diagnostics: dict[str, Any]
 
 
@@ -112,6 +115,7 @@ class PdfLayoutUnitBuilder:
         candidates: list[dict[str, Any]] = []
         source_value_refs: list[str] = []
         source_value_index: list[dict[str, Any]] = []
+        source_chain_page_receipts: list[dict[str, Any]] = []
 
         for page in page_inventory:
             page_number = int(page.get("page_number") or 0)
@@ -120,6 +124,15 @@ class PdfLayoutUnitBuilder:
                 page["layout_projection_status"] = "partial"
                 page["layout_reason_codes"] = ["pdf_layout_page_missing"]
                 page["table_candidate_status"] = "blocked"
+                receipt = pdf_layout_source_chain_page_receipt(
+                    page=page,
+                    chars=[],
+                    words=[],
+                    lines=[],
+                    bboxes=[],
+                )
+                page["layout_source_chain_receipt"] = copy.deepcopy(receipt)
+                source_chain_page_receipts.append(receipt)
                 reasons.append("pdf_layout_page_missing")
                 continue
             materialized = self._materialize_page(
@@ -138,6 +151,7 @@ class PdfLayoutUnitBuilder:
             candidates.extend(materialized["candidates"])
             source_value_refs.extend(materialized["source_value_refs"])
             source_value_index.extend(materialized["source_value_index"])
+            source_chain_page_receipts.append(materialized["source_chain_receipt"])
             reasons.extend(page.get("layout_reason_codes") or [])
             raw_layout.clear()
 
@@ -270,6 +284,9 @@ class PdfLayoutUnitBuilder:
                 if page.get("page_content_kind") == "blank"
             ],
         }
+        source_chain = pdf_layout_source_chain_document_receipt(
+            source_chain_page_receipts
+        )
         for page in page_inventory:
             page.pop("_layout_words", None)
             page.pop("_layout_lines", None)
@@ -311,6 +328,7 @@ class PdfLayoutUnitBuilder:
                 "candidate" if table_status == "candidate" else "not_claimed"
             ),
             coverage=coverage,
+            source_chain=source_chain,
             diagnostics={
                 "chars_total": len(chars),
                 "words_total": len(words),
@@ -411,6 +429,14 @@ class PdfLayoutUnitBuilder:
                 "text_checksum_ref": text_checksum,
                 "source_value_ref": source_value_ref,
                 "canonical_page_text_match_status": match_status,
+                "char_refs": [
+                    char_by_ordinal[item]
+                    for item in [
+                        int(value)
+                        for value in raw.get("char_parser_ordinals") or []
+                    ]
+                    if item in char_by_ordinal
+                ],
             }
             words.append(item)
             word_by_ordinal[ordinal] = item
@@ -426,6 +452,27 @@ class PdfLayoutUnitBuilder:
                     "value_checksum_ref": _checksum_ref("valuechk", text),
                 }
             )
+
+        char_owners: dict[str, list[str]] = {
+            str(item.get("char_ref") or ""): [] for item in chars
+        }
+        for word in words:
+            for char_ref in _strings(word.get("char_refs")):
+                if char_ref in char_owners:
+                    char_owners[char_ref].append(str(word.get("word_ref") or ""))
+        for char in chars:
+            char_ref = str(char.get("char_ref") or "")
+            owners = char_owners.get(char_ref, [])
+            char["source_chain_word_refs"] = owners
+            if char.get("duplicate_of_char_ref"):
+                disposition = "duplicate_overlay"
+            elif not str(char.get("text") or "").strip() and not owners:
+                disposition = "blank_unassigned"
+            elif len(owners) == 1:
+                disposition = "word_owned"
+            else:
+                disposition = "unresolved"
+            char["source_chain_disposition"] = disposition
 
         lines: list[dict[str, Any]] = []
         line_by_ordinal: dict[int, dict[str, Any]] = {}
@@ -504,6 +551,18 @@ class PdfLayoutUnitBuilder:
                     "line_refs": line_refs,
                 }
             )
+
+        source_chain_receipt = pdf_layout_source_chain_page_receipt(
+            page=page,
+            chars=chars,
+            words=words,
+            lines=lines,
+            bboxes=list(bbox_by_value.values()),
+            unresolved_word_char_links_total=int(
+                raw_layout.get("source_chain_unresolved_word_char_links_total") or 0
+            ),
+        )
+        page["layout_source_chain_receipt"] = copy.deepcopy(source_chain_receipt)
 
         vector_lines = self._materialize_vectors(
             raw_layout.get("vector_line_inventory"),
@@ -673,6 +732,7 @@ class PdfLayoutUnitBuilder:
             "candidates": candidates,
             "source_value_refs": source_value_refs,
             "source_value_index": source_value_index,
+            "source_chain_receipt": source_chain_receipt,
         }
 
     def _materialize_vectors(
@@ -1382,6 +1442,226 @@ def _canonical_match_text(value: str) -> str:
         for character in normalized
         if not character.isspace()
         and unicodedata.category(character) not in {"Cf", "Cc"}
+    )
+
+
+def pdf_layout_source_chain_page_receipt(
+    *,
+    page: dict[str, Any],
+    chars: list[dict[str, Any]],
+    words: list[dict[str, Any]],
+    lines: list[dict[str, Any]],
+    bboxes: list[dict[str, Any]],
+    unresolved_word_char_links_total: int = 0,
+) -> dict[str, Any]:
+    """Derive a shadow receipt from exact pdfplumber object identities.
+
+    This receipt does not participate in active layout admission.  It proves
+    only the page-scoped char -> word -> line ownership represented here.
+    """
+
+    page_ref = str(page.get("page_ref") or "")
+    reasons: set[str] = set()
+    if "pdf_layout_page_missing" in set(page.get("layout_reason_codes") or []):
+        reasons.add("pdf_layout_source_chain_page_missing")
+    chars_by_ref = {
+        str(item.get("char_ref") or ""): item
+        for item in chars
+        if str(item.get("page_ref") or "") == page_ref
+    }
+    words_by_ref = {
+        str(item.get("word_ref") or ""): item
+        for item in words
+        if str(item.get("page_ref") or "") == page_ref
+    }
+    for inventory, ordinal_reason in (
+        (chars_by_ref.values(), "pdf_layout_source_chain_char_ordinal_invalid"),
+        (words_by_ref.values(), "pdf_layout_source_chain_word_ordinal_invalid"),
+        (
+            [
+                item
+                for item in lines
+                if str(item.get("page_ref") or "") == page_ref
+            ],
+            "pdf_layout_source_chain_line_ordinal_invalid",
+        ),
+    ):
+        ordinals = sorted(int(item.get("parser_ordinal") or 0) for item in inventory)
+        if ordinals != list(range(1, len(ordinals) + 1)):
+            reasons.add(ordinal_reason)
+    bboxes_by_ref = {
+        str(item.get("bbox_ref") or ""): _bbox(item.get("bbox"))
+        for item in bboxes
+        if str(item.get("page_ref") or "") == page_ref
+    }
+    char_owners: Counter[str] = Counter()
+    char_owner_refs: dict[str, list[str]] = {
+        char_ref: [] for char_ref in chars_by_ref
+    }
+    for word in words_by_ref.values():
+        char_refs = _strings(word.get("char_refs"))
+        if len(char_refs) != len(set(char_refs)):
+            reasons.add("pdf_layout_source_chain_word_char_ref_duplicate")
+        for char_ref in char_refs:
+            if char_ref not in chars_by_ref:
+                reasons.add("pdf_layout_source_chain_word_char_ref_out_of_scope")
+            else:
+                char_owners[char_ref] += 1
+                char_owner_refs[char_ref].append(str(word.get("word_ref") or ""))
+
+    primary_refs: list[str] = []
+    blank_refs: list[str] = []
+    duplicate_refs: list[str] = []
+    disposition_counts: Counter[str] = Counter()
+    duplicate_identity_seen: dict[tuple[Any, ...], str] = {}
+    for char_ref, char in sorted(
+        chars_by_ref.items(), key=lambda item: int(item[1].get("parser_ordinal") or 0)
+    ):
+        owner_count = char_owners[char_ref]
+        duplicate_ref = str(char.get("duplicate_of_char_ref") or "")
+        duplicate_key = (
+            str(char.get("text") or ""),
+            tuple(bboxes_by_ref.get(str(char.get("bbox_ref") or ""), [])),
+            str(char.get("fontname") or ""),
+            char.get("size"),
+            char.get("upright"),
+        )
+        expected_duplicate_ref = duplicate_identity_seen.get(duplicate_key, "")
+        if duplicate_ref != expected_duplicate_ref:
+            reasons.add("pdf_layout_source_chain_duplicate_disposition_invalid")
+        if expected_duplicate_ref:
+            duplicate_refs.append(char_ref)
+            duplicate = chars_by_ref.get(expected_duplicate_ref)
+            if (
+                duplicate is None
+                or int(duplicate.get("parser_ordinal") or 0)
+                >= int(char.get("parser_ordinal") or 0)
+            ):
+                reasons.add("pdf_layout_source_chain_duplicate_ref_invalid")
+            expected_disposition = "duplicate_overlay"
+        elif not str(char.get("text") or "").strip():
+            blank_refs.append(char_ref)
+            if owner_count:
+                reasons.add("pdf_layout_source_chain_blank_char_owned")
+            expected_disposition = (
+                "blank_unassigned" if owner_count == 0 else "unresolved"
+            )
+        else:
+            primary_refs.append(char_ref)
+            if owner_count == 0:
+                reasons.add("pdf_layout_source_chain_primary_char_unowned")
+            elif owner_count > 1:
+                reasons.add("pdf_layout_source_chain_primary_char_multiply_owned")
+            expected_disposition = "word_owned" if owner_count == 1 else "unresolved"
+        disposition_counts[expected_disposition] += 1
+        if char.get("source_chain_disposition") != expected_disposition:
+            reasons.add("pdf_layout_source_chain_char_disposition_mismatch")
+        if _strings(char.get("source_chain_word_refs")) != char_owner_refs[char_ref]:
+            reasons.add("pdf_layout_source_chain_char_owner_inventory_mismatch")
+        duplicate_identity_seen.setdefault(duplicate_key, char_ref)
+
+    word_line_owners: Counter[str] = Counter()
+    for line in lines:
+        if str(line.get("page_ref") or "") != page_ref:
+            continue
+        line_word_refs = _strings(line.get("word_refs"))
+        if len(line_word_refs) != len(set(line_word_refs)):
+            reasons.add("pdf_layout_source_chain_line_word_ref_duplicate")
+        contributing_words = []
+        for word_ref in line_word_refs:
+            word = words_by_ref.get(word_ref)
+            if word is None:
+                reasons.add("pdf_layout_source_chain_line_word_ref_out_of_scope")
+                continue
+            word_line_owners[word_ref] += 1
+            contributing_words.append(word)
+        expected_text = " ".join(
+            str(item.get("text") or "") for item in contributing_words
+        ).strip()
+        if str(line.get("text") or "") != expected_text:
+            reasons.add("pdf_layout_source_chain_line_text_mismatch")
+        contributing_bboxes = [
+            bboxes_by_ref.get(str(item.get("bbox_ref") or ""))
+            for item in contributing_words
+        ]
+        contributing_bboxes = [item for item in contributing_bboxes if item is not None]
+        line_bbox = bboxes_by_ref.get(str(line.get("bbox_ref") or ""))
+        if contributing_words and (
+            len(contributing_bboxes) != len(contributing_words)
+            or line_bbox != _merged_bbox(contributing_bboxes)
+        ):
+            reasons.add("pdf_layout_source_chain_line_bbox_mismatch")
+    for word_ref in words_by_ref:
+        if word_line_owners[word_ref] == 0:
+            reasons.add("pdf_layout_source_chain_word_line_unowned")
+        elif word_line_owners[word_ref] > 1:
+            reasons.add("pdf_layout_source_chain_word_line_multiply_owned")
+
+    if unresolved_word_char_links_total:
+        reasons.add("pdf_layout_source_chain_word_char_identity_unresolved")
+    rotated_total = sum(item.get("upright") is False for item in chars_by_ref.values())
+    if rotated_total:
+        reasons.add("pdf_layout_source_chain_rotated_text_unsupported")
+    reason_codes = sorted(reasons)
+    core = {
+        "schema_version": PDF_LAYOUT_SOURCE_CHAIN_SCHEMA_VERSION,
+        "policy_ref": PDF_LAYOUT_SOURCE_CHAIN_POLICY_VERSION,
+        "page_ref": page_ref,
+        "status": "complete" if not reason_codes else "partial",
+        "reason_codes": reason_codes,
+        "chars_total": len(chars_by_ref),
+        "primary_chars_total": len(primary_refs),
+        "blank_chars_total": len(blank_refs),
+        "duplicate_chars_total": len(duplicate_refs),
+        "words_total": len(words_by_ref),
+        "lines_total": sum(
+            str(item.get("page_ref") or "") == page_ref for item in lines
+        ),
+        "unresolved_word_char_links_total": unresolved_word_char_links_total,
+        "disposition_counts": dict(sorted(disposition_counts.items())),
+    }
+    return {
+        **core,
+        "receipt_ref": _checksum_ref("pdflayoutchainpage", core),
+    }
+
+
+def pdf_layout_source_chain_document_receipt(
+    page_receipts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    reasons = sorted(
+        {
+            str(reason)
+            for receipt in page_receipts
+            for reason in receipt.get("reason_codes") or []
+        }
+    )
+    core = {
+        "schema_version": PDF_LAYOUT_SOURCE_CHAIN_SCHEMA_VERSION,
+        "policy_ref": PDF_LAYOUT_SOURCE_CHAIN_POLICY_VERSION,
+        "status": "complete" if not reasons else "partial",
+        "reason_codes": reasons,
+        "page_receipt_refs": [
+            str(receipt.get("receipt_ref") or "") for receipt in page_receipts
+        ],
+        "pages_total": len(page_receipts),
+        "complete_pages_total": sum(
+            receipt.get("status") == "complete" for receipt in page_receipts
+        ),
+    }
+    return {**core, "checksum_ref": _checksum_ref("pdflayoutchainchk", core)}
+
+
+def _merged_bbox(values: list[list[float]]) -> list[float]:
+    if not values:
+        return [0.0, 0.0, 0.0, 0.0]
+    return _bbox(
+        [
+            min(item[0] for item in values),
+            min(item[1] for item in values),
+            max(item[2] for item in values),
+            max(item[3] for item in values),
+        ]
     )
 
 

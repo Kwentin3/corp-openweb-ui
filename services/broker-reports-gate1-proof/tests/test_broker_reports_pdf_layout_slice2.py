@@ -142,6 +142,19 @@ def _duplicate_text_pdf() -> bytes:
     )
 
 
+def _rotated_text_pdf() -> bytes:
+    return _pdf_bytes(
+        [
+            {
+                "texts": [(20, 250, "Normal")],
+                "vectors": [
+                    "BT /F1 10 Tf 0 1 -1 0 250 50 Tm (ROTATED) Tj ET"
+                ],
+            }
+        ]
+    )
+
+
 def _ruled_table_pdf() -> bytes:
     texts = [
         (30, 260, "Synthetic Table"),
@@ -379,6 +392,93 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         )
         self.assertEqual(
             validate_pdf_text_layer_payload(payload)["validator_status"], "passed"
+        )
+
+    def test_shadow_source_chain_exactly_partitions_chars_words_and_lines(self):
+        payload = self._build(_paragraph_pdf()).payloads[0]
+        projection = payload["pdf_text_layer_projection"]
+        receipt = projection["layout_source_chain"]
+
+        self.assertEqual("complete", receipt["status"])
+        self.assertEqual([], receipt["reason_codes"])
+        self.assertEqual(
+            len(projection["page_inventory"]), receipt["complete_pages_total"]
+        )
+        self.assertTrue(
+            all(word.get("char_refs") for word in projection["word_inventory"])
+        )
+        self.assertEqual(
+            {"blank_unassigned", "word_owned"},
+            {
+                char["source_chain_disposition"]
+                for char in projection["char_inventory"]
+            },
+        )
+        self.assertEqual(
+            "passed", validate_pdf_text_layer_payload(payload)["validator_status"]
+        )
+
+    def test_shadow_source_chain_accounts_for_duplicate_overlay_chars(self):
+        payload = self._build(_duplicate_text_pdf()).payloads[0]
+        projection = payload["pdf_text_layer_projection"]
+        duplicate_chars = [
+            item
+            for item in projection["char_inventory"]
+            if item.get("duplicate_of_char_ref")
+        ]
+
+        self.assertTrue(duplicate_chars)
+        self.assertTrue(
+            all(
+                item.get("source_chain_disposition") == "duplicate_overlay"
+                for item in duplicate_chars
+            )
+        )
+        self.assertEqual("complete", projection["layout_source_chain"]["status"])
+        self.assertEqual(
+            "passed", validate_pdf_text_layer_payload(payload)["validator_status"]
+        )
+
+    def test_shadow_source_chain_fails_rotation_explicitly_without_changing_layout(self):
+        payload = self._build(_rotated_text_pdf()).payloads[0]
+        projection = payload["pdf_text_layer_projection"]
+
+        self.assertNotIn(
+            "pdf_layout_source_chain_rotated_text_unsupported",
+            projection["layout_reason_codes"],
+        )
+        self.assertEqual("partial", projection["layout_source_chain"]["status"])
+        self.assertEqual(
+            ["pdf_layout_source_chain_rotated_text_unsupported"],
+            projection["layout_source_chain"]["reason_codes"],
+        )
+        self.assertEqual(
+            "passed", validate_pdf_text_layer_payload(payload)["validator_status"]
+        )
+
+    def test_shadow_source_chain_validator_rejects_char_and_line_mutations(self):
+        payload = self._build(_paragraph_pdf()).payloads[0]
+
+        char_mutation = copy.deepcopy(payload)
+        char_mutation["pdf_text_layer_projection"]["word_inventory"][0][
+            "char_refs"
+        ] = []
+        char_result = validate_pdf_text_layer_payload(char_mutation)
+        self.assertEqual("failed", char_result["validator_status"])
+        self.assertIn(
+            "pdf_layout_source_chain_page_receipt_mismatch",
+            {item["code"] for item in char_result["errors"]},
+        )
+
+        line_mutation = copy.deepcopy(payload)
+        line_mutation["pdf_text_layer_projection"]["line_inventory"][0][
+            "word_refs"
+        ] = []
+        line_result = validate_pdf_text_layer_payload(line_mutation)
+        self.assertEqual("failed", line_result["validator_status"])
+        self.assertIn(
+            "pdf_layout_source_chain_page_receipt_mismatch",
+            {item["code"] for item in line_result["errors"]},
         )
 
     def test_words_lines_geometry_refs_checksums_and_coverage_are_stable(self):

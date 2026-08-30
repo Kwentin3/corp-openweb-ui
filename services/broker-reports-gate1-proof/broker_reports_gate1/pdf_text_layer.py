@@ -18,7 +18,11 @@ from .pdf_layout import (
 )
 from .pdf_layout_units import (
     PDF_LAYOUT_DOCUMENT_COVERAGE_SCHEMA_VERSION,
+    PDF_LAYOUT_SOURCE_CHAIN_POLICY_VERSION,
+    PDF_LAYOUT_SOURCE_CHAIN_SCHEMA_VERSION,
     PDF_LAYOUT_UNIT_COVERAGE_SCHEMA_VERSION,
+    pdf_layout_source_chain_document_receipt,
+    pdf_layout_source_chain_page_receipt,
     resolve_pdf_layout_unit_source_value_results,
 )
 
@@ -534,6 +538,9 @@ def pdf_layout_page_checksum_ref(page: dict[str, Any], layout_parser_ref: str) -
             "layout_page_width": page.get("layout_page_width"),
             "layout_page_height": page.get("layout_page_height"),
             "layout_page_rotation": page.get("layout_page_rotation"),
+            "layout_source_chain_receipt_ref": _object(
+                page.get("layout_source_chain_receipt")
+            ).get("receipt_ref"),
         },
     )
 
@@ -592,6 +599,9 @@ def pdf_payload_checksum_ref(payload: dict[str, Any]) -> str:
                 projection.get("layout_coverage")
             ).get("coverage_ref"),
             "layout_unit_config_ref": projection.get("layout_unit_config_ref"),
+            "layout_source_chain_checksum_ref": _object(
+                projection.get("layout_source_chain")
+            ).get("checksum_ref"),
             "visual_fallback_status": projection.get("visual_fallback_status"),
             "visual_page_refs": [
                 str(item.get("visual_page_ref") or "")
@@ -753,6 +763,7 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         word_inventory = _dict_list(projection.get("word_inventory"))
         line_inventory = _dict_list(projection.get("line_inventory"))
         char_inventory = _dict_list(projection.get("char_inventory"))
+        bbox_inventory = _dict_list(projection.get("bbox_inventory"))
         block_inventory = _dict_list(projection.get("block_inventory"))
         table_inventory = _dict_list(projection.get("table_candidate_inventory"))
         for inventory, ref_name, code in (
@@ -776,6 +787,57 @@ def validate_pdf_text_layer_payload(payload: dict[str, Any]) -> dict[str, Any]:
         for line in line_inventory:
             if not set(str(ref) for ref in line.get("word_refs") or []) <= word_refs:
                 errors.append(_error("pdf_layout_line_word_ref_out_of_scope", payload_ref))
+        expected_source_chain_page_receipts = []
+        for page in pages:
+            page_ref = str(page.get("page_ref") or "")
+            expected_receipt = pdf_layout_source_chain_page_receipt(
+                page=page,
+                chars=[
+                    item
+                    for item in char_inventory
+                    if str(item.get("page_ref") or "") == page_ref
+                ],
+                words=[
+                    item
+                    for item in word_inventory
+                    if str(item.get("page_ref") or "") == page_ref
+                ],
+                lines=[
+                    item
+                    for item in line_inventory
+                    if str(item.get("page_ref") or "") == page_ref
+                ],
+                bboxes=[
+                    item
+                    for item in bbox_inventory
+                    if str(item.get("page_ref") or "") == page_ref
+                ],
+                unresolved_word_char_links_total=sum(
+                    int(item.get("unresolved_char_identity_links_total") or 0)
+                    for item in word_inventory
+                    if str(item.get("page_ref") or "") == page_ref
+                ),
+            )
+            expected_source_chain_page_receipts.append(expected_receipt)
+            if page.get("layout_source_chain_receipt") != expected_receipt:
+                errors.append(
+                    _error("pdf_layout_source_chain_page_receipt_mismatch", page_ref)
+                )
+        source_chain = _object(projection.get("layout_source_chain"))
+        expected_source_chain = pdf_layout_source_chain_document_receipt(
+            expected_source_chain_page_receipts
+        )
+        if source_chain != expected_source_chain:
+            errors.append(
+                _error("pdf_layout_source_chain_document_receipt_mismatch", payload_ref)
+            )
+        if (
+            source_chain.get("schema_version")
+            != PDF_LAYOUT_SOURCE_CHAIN_SCHEMA_VERSION
+            or source_chain.get("policy_ref")
+            != PDF_LAYOUT_SOURCE_CHAIN_POLICY_VERSION
+        ):
+            errors.append(_error("pdf_layout_source_chain_policy_mismatch", payload_ref))
         for candidate in table_inventory:
             if candidate.get("table_reconstruction_status") != "candidate":
                 errors.append(_error("pdf_table_candidate_status_invalid", payload_ref))

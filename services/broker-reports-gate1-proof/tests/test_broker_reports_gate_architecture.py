@@ -143,6 +143,25 @@ GATE3_CURRENT_EVIDENCE_DEMAND_PORT = "gate3_evidence_demand_port"
 
 
 class BrokerReportsGateArchitectureTest(unittest.TestCase):
+    def test_pdf_layout_source_chain_stays_shadow_and_source_owned(self):
+        source_modules = {
+            name: (PACKAGE / f"{name}.py").read_text(encoding="utf-8")
+            for name in ("pdf_layout", "pdf_layout_units", "pdf_text_layer", "full_source")
+        }
+        self.assertIn(
+            "pdfplumber_exact_char_identity_v0", source_modules["pdf_layout_units"]
+        )
+        self.assertIn(
+            "id(item): index", source_modules["pdf_layout"]
+        )
+        for name in (
+            "canonical_artifact",
+            "ordinary_trade_semantic_mapping",
+            "ordinary_trade_production_runtime",
+        ):
+            text = (PACKAGE / f"{name}.py").read_text(encoding="utf-8")
+            self.assertNotIn("layout_source_chain", text)
+
     def test_pdf_table_context_keeps_existing_domain_owners_separate(self):
         normalizer = (PACKAGE / "normalizer.py").read_text(encoding="utf-8")
         locator = (PACKAGE / "pdf_table_locator.py").read_text(encoding="utf-8")
