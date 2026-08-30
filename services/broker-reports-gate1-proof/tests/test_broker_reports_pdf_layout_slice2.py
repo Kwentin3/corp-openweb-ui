@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import tempfile
 import unittest
 from io import BytesIO
@@ -12,6 +13,7 @@ from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from broker_reports_gate1 import (
     ArtifactAccessContext,
     ArtifactStoreConfig,
+    ArtifactStoreError,
     ArtifactStoreFactory,
     FileInput,
     FullSourceArtifactConfig,
@@ -329,6 +331,39 @@ def _reseal_layout_source_chain(payload: dict) -> None:
         page["page_layout_checksum_ref"] for page in projection["page_inventory"]
     ]
     payload["payload_checksum_ref"] = pdf_payload_checksum_ref(payload)
+
+
+def _shift_all_layout_geometry_and_reseal(payload: dict) -> dict:
+    shifted = copy.deepcopy(payload)
+    projection = shifted["pdf_text_layer_projection"]
+    replacements: dict[str, str] = {}
+    for bbox in projection["bbox_inventory"]:
+        old_ref = bbox["bbox_ref"]
+        bbox["bbox"] = [value + 1 for value in bbox["bbox"]]
+        bbox["bbox_ref"] = "pdfbbox_" + stable_digest(
+            [
+                bbox["page_ref"],
+                projection["layout_parser_ref"],
+                *bbox["bbox"],
+            ],
+            length=24,
+        )
+        replacements[old_ref] = bbox["bbox_ref"]
+
+    def replace_refs(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                value[key] = replace_refs(item)
+            return value
+        if isinstance(value, list):
+            return [replace_refs(item) for item in value]
+        if isinstance(value, str):
+            return replacements.get(value, value)
+        return value
+
+    replace_refs(projection)
+    _reseal_layout_source_chain(shifted)
+    return shifted
 
 
 class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
@@ -1168,6 +1203,24 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
                     for record in store.list_by_run(run_id)
                 )
             )
+            payload_record = store.list_by_type(
+                run_id, "private_normalized_source_payload_v0"
+            )[0]
+            stored_payload = store.read_payload(payload_record)
+            shifted_payload = _shift_all_layout_geometry_and_reseal(stored_payload)
+            self.assertEqual(
+                "passed",
+                validate_pdf_text_layer_payload(shifted_payload)["validator_status"],
+            )
+            payload_path = root / "payloads" / str(payload_record.payload_ref)
+            payload_path.write_text(
+                json.dumps(shifted_payload, ensure_ascii=False, sort_keys=True),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                ArtifactStoreError, "Artifact payload does not match"
+            ):
+                store.read_payload(payload_record)
 
     @staticmethod
     def _build(content: bytes):
