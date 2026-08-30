@@ -25,8 +25,10 @@ from broker_reports_gate1.bounded_graph import (  # noqa: E402
     Gate1BoundedGraphFactory,
 )
 from broker_reports_gate1.canonical_artifact import (  # noqa: E402
+    CanonicalArtifactError,
     CanonicalNormalizerConfig,
     CanonicalNormalizerFactory,
+    validate_canonical_artifact,
 )
 from broker_reports_gate1.inputs import FileInput  # noqa: E402
 from broker_reports_gate1.gate2_handoff import persist_gate1_result  # noqa: E402
@@ -62,6 +64,7 @@ from broker_reports_gate1.table_projection import (  # noqa: E402
     NormalizedTableProjectionFactory,
     TableProjectionValidator,
     _checksum_ref,
+    _finish_projection,
 )
 
 
@@ -424,6 +427,104 @@ def test_real_tbank_frozen_locator_v2_contract_reaches_all_strict_grids() -> Non
     )
     assert len(rebuilt.projections) == 15
     assert all(item["validator_status"] == "passed" for item in rebuilt.projections)
+
+    # This reuses the frozen, visually reviewed locator response above. It
+    # proves the B1 projection -> Canonical handoff, not a live model call.
+    def build_canonical(*, table_projections=projections, source_units=None):
+        return CanonicalNormalizerFactory(
+            CanonicalNormalizerConfig(normalizer_version="tbank-frozen-b2")
+        ).create().build(
+            tenant_id="tenant",
+            artifact_version=1,
+            document=normalized.package["document_inventory"]["documents"][0],
+            source_artifact_ref="tbank-frozen-source",
+            source_payloads=normalized.package["private_normalized_source_payloads"],
+            source_units=source_units
+            or normalized.package["private_normalized_source_units"],
+            table_projections=table_projections,
+        )
+
+    canonical = build_canonical()
+    tables = [node for node in canonical["nodes"] if node["node_type"] == "TABLE"]
+    provenance = {
+        item["provenance_id"]: item["source_locator"]
+        for item in canonical["provenance"]
+    }
+    assert len(tables) == 15
+    assert [table["content"]["title"] for table in tables] == titles
+    assert "RUB" in titles
+    assert sum(len(table["content"]["cells"]) for table in tables) == 485
+    text_values = {
+        node["content"].get("text")
+        for node in canonical["nodes"]
+        if node["node_type"] in {"HEADING", "TEXT", "NOTE"}
+    }
+    for projection, table in zip(projections, tables, strict=True):
+        locator = provenance[table["source_refs"][0]]
+        assert locator["table_title_binding"]["value"] == table["content"]["title"]
+        assert locator["table_projection_checksum_ref"]
+        header_count = projection["bound_header_row_count"]
+        assert len(table["content"]["header"]) == projection["column_count"]
+        assert len(table["content"]["rows"]) == projection["row_count"] - header_count
+        assert table["content"]["title"] not in text_values
+        assert table["content"]["title"] not in {
+            cell["value"] for cell in table["content"]["cells"]
+        }
+        cell_locators = [
+            provenance[cell["source_refs"][0]]
+            for cell in table["content"]["cells"]
+        ]
+        assert all(
+            item["cell_ref"] and isinstance(item["source_value_refs"], list)
+            for item in cell_locators
+        )
+        header_cells = [
+            item for item in cell_locators if item["row"] <= header_count
+        ]
+        assert header_cells
+        assert {
+            item["row_ref"] for item in header_cells
+        } == set(locator["table_header_binding"]["header_row_refs"])
+
+    # The standalone Canonical validator catches stale structure/root bytes. It
+    # does not replace the builder-time B1 source-custody check above.
+    stale_artifact = copy.deepcopy(canonical)
+    next(
+        node for node in stale_artifact["nodes"] if node["node_type"] == "TABLE"
+    )["content"]["title"] = "forged"
+    assert not validate_canonical_artifact(stale_artifact)["passed"]
+
+    for field, forged_value in (
+        ("value", "forged"),
+        ("source_value_refs", ["srcval_foreign"]),
+    ):
+        forged_projections = copy.deepcopy(projections)
+        binding = forged_projections[0]["table_title_binding"]
+        binding[field] = forged_value
+        binding["checksum_ref"] = _checksum_ref(
+            "pdftitlechk",
+            {key: value for key, value in binding.items() if key != "checksum_ref"},
+        )
+        forged_projections[0] = _finish_projection(forged_projections[0])
+        forged_projections[0]["validator_status"] = "passed"
+        with pytest.raises(
+            CanonicalArtifactError,
+            match="canonical_pdf_table_projection_custody_invalid",
+        ):
+            build_canonical(table_projections=forged_projections)
+
+    forged_units_for_canonical = copy.deepcopy(
+        normalized.package["private_normalized_source_units"]
+    )
+    forged_unit_for_canonical = next(
+        item for item in forged_units_for_canonical if item.get("table_title_binding")
+    )
+    forged_unit_for_canonical["table_title_binding"]["value"] = "forged"
+    with pytest.raises(
+        CanonicalArtifactError,
+        match="canonical_pdf_table_projection_custody_invalid",
+    ):
+        build_canonical(source_units=forged_units_for_canonical)
 
     forged_payloads = copy.deepcopy(
         normalized.package["private_normalized_source_payloads"]
