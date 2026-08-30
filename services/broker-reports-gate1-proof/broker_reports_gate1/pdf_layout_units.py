@@ -1541,8 +1541,10 @@ def pdf_layout_source_chain_page_receipt(
 ) -> dict[str, Any]:
     """Derive a structural receipt from exact pdfplumber object identities.
 
-    This receipt does not participate in active layout admission.  It proves
-    only the page-scoped char -> word -> line ownership represented here.
+    This receipt participates in admission by proving page-scoped char -> word
+    -> line ownership, but it is not a source-authenticity proof and is not
+    sufficient without the owner-bound raw-parser comparison. Owner binding is
+    likewise insufficient without this structural receipt and its validator.
     """
 
     page_ref = str(page.get("page_ref") or "")
