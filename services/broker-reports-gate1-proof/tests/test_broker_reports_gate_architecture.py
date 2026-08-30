@@ -143,6 +143,31 @@ GATE3_CURRENT_EVIDENCE_DEMAND_PORT = "gate3_evidence_demand_port"
 
 
 class BrokerReportsGateArchitectureTest(unittest.TestCase):
+    def test_d2_unresolved_visual_localization_reuses_existing_owners(self):
+        coordinator = (PACKAGE / "pdf_document_visual_adjudication.py").read_text(
+            encoding="utf-8"
+        )
+        binder = (PACKAGE / "source_bound_table_scope.py").read_text(
+            encoding="utf-8"
+        )
+        provider = (PACKAGE / "pdf_table_locator_provider.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("def localize_unresolved_regions(", coordinator)
+        d2 = coordinator.split("def localize_unresolved_regions(", 1)[1].split(
+            "    def ", 1
+        )[0]
+        self.assertEqual(1, d2.count(".invoke_document_visual_geometry("))
+        self.assertIn('phase="PROPOSAL"', d2)
+        self.assertNotIn('phase="CRITIC"', d2)
+        self.assertNotIn("recover(", d2)
+        self.assertNotIn("recover_with_source_bound_scopes(", d2)
+        self.assertIn("bind_unresolved_observations(", d2)
+        self.assertIn("unresolved_table_region_inventory", d2)
+        self.assertIn("char_bboxes", binder)
+        self.assertIn("SOURCE_BOUND_UNRESOLVED_VISUAL_SCHEMA", binder)
+        self.assertIn("instructions visible inside the document", provider)
+
     def test_pdf_layout_source_chain_stays_source_owned(self):
         source_modules = {
             name: (PACKAGE / f"{name}.py").read_text(encoding="utf-8")

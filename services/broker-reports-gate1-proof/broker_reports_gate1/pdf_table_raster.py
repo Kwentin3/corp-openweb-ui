@@ -13,6 +13,9 @@ from .contracts import sha256_json, stable_digest
 
 PDF_TABLE_CROP_SCHEMA = "broker_reports_pdf_table_crop_v1"
 PDF_TABLE_RASTER_POLICY_VERSION = "pdf_table_raster_policy_v1"
+PDF_FULL_PAGE_RASTER_IDENTITY_POLICY_VERSION = (
+    "pdf_full_page_raster_identity_policy_v2_float_tolerance"
+)
 PDF_TABLE_CANDIDATE_SCHEMA = "broker_reports_pdf_table_candidate_v1"
 PDF_TABLE_CANDIDATE_RASTER_POLICY_VERSION = "pdf_table_candidate_raster_policy_v4"
 CANONICAL_TABLE_REGION_SCHEMA = "broker_reports_canonical_table_region_v1"
@@ -651,7 +654,10 @@ class PdfTableRasterRenderer:
             page = document[page_number - 1]
             actual_bbox = [round(float(value), 6) for value in page.rect]
             expected_bbox = [round(float(value), 6) for value in expected_page_bbox]
-            if expected_bbox != actual_bbox:
+            if not all(
+                math.isclose(expected, actual, rel_tol=0.0, abs_tol=0.0001)
+                for expected, actual in zip(expected_bbox, actual_bbox, strict=True)
+            ):
                 raise PdfTableRasterError(
                     "pdf_table_raster_full_page_identity_mismatch"
                 )
@@ -675,6 +681,9 @@ class PdfTableRasterRenderer:
                 "render_scope": "full_page",
                 "actual_page_bbox": actual_bbox,
                 "full_page_identity_verified": True,
+                "full_page_identity_policy_version": (
+                    PDF_FULL_PAGE_RASTER_IDENTITY_POLICY_VERSION
+                ),
             }
         )
         manifest.pop("manifest_hash", None)
