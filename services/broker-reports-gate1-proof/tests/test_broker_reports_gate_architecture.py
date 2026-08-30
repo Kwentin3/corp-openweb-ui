@@ -155,8 +155,16 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             "id(item): index", source_modules["pdf_layout"]
         )
         self.assertIn(
-            "pdf_layout_unit_partition_policy_v2_exact_word_cell",
+            "pdf_layout_unit_partition_policy_v3_unresolved_regions",
             source_modules["pdf_layout_units"],
+        )
+        self.assertIn(
+            "pdf_table_unresolved_region_blocks_admission",
+            source_modules["pdf_layout_units"],
+        )
+        self.assertIn(
+            "unresolved_table_region_inventory",
+            source_modules["full_source"],
         )
         self.assertIn(
             "pdf_table_word_cell_word_crosses_cells",

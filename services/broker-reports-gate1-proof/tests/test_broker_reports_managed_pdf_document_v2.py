@@ -65,7 +65,10 @@ from tests.test_broker_reports_pdf_document_visual_adjudication import (
     _numeric_headerless_case,
     _two_page_observations,
 )
-from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
+from tests.test_broker_reports_pdf_layout_slice2 import (
+    _aligned_table_pdf,
+    _ruled_table_pdf,
+)
 
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -98,6 +101,12 @@ SOURCE_CHAIN_AUTHORITY_INTEGRITY_SHA256 = (
 )
 SOURCE_CHAIN_AUTHORITY_CANONICAL_SHA256 = (
     "62d75d2a6f7a5f12ffe1b143b2c5331bdb1efd0667069d32d055fd80a7b4dd50"
+)
+UNRESOLVED_REGION_AUTHORITY_INTEGRITY_SHA256 = (
+    "fd09a87841254caa8c4b5a30491e4bb1e7f67f619dc9418d0fcd3871a2789c23"
+)
+UNRESOLVED_REGION_AUTHORITY_CANONICAL_SHA256 = (
+    "6a17073f38618907bb38d60277c7935157a3ca1131fcbc9be8778a7fd89bc3c0"
 )
 PR3_LEGACY_LAYOUT_CONFIG_REF = "pdflayoutcfg_552ad5c15996174bb154a2a0"
 
@@ -327,12 +336,14 @@ def test_policy_identity_migration_preserves_frozen_pr3_structure(
     assert result.status == "COMPLETE"
     assert (
         PDF_LAYOUT_POLICY_VERSION
-        == "pdfplumber_layout_policy_v4_mixed_table_terminal"
+        == "pdfplumber_layout_policy_v5_unresolved_table_regions"
     )
     assert PdfLayoutParserConfig().config_ref != PR3_LEGACY_LAYOUT_CONFIG_REF
     assert result.managed_document.integrity_sha256 != PR3_LEGACY_INTEGRITY_SHA256
-    assert result.managed_document.integrity_sha256 == (
-        SOURCE_CHAIN_AUTHORITY_INTEGRITY_SHA256
+    assert result.managed_document.integrity_sha256 != SOURCE_CHAIN_AUTHORITY_INTEGRITY_SHA256
+    assert (
+        result.managed_document.integrity_sha256
+        == UNRESOLVED_REGION_AUTHORITY_INTEGRITY_SHA256
     )
     assert (
         hashlib.sha256(result.managed_document.canonical_json_bytes()).hexdigest()
@@ -340,7 +351,11 @@ def test_policy_identity_migration_preserves_frozen_pr3_structure(
     )
     assert (
         hashlib.sha256(result.managed_document.canonical_json_bytes()).hexdigest()
-        == SOURCE_CHAIN_AUTHORITY_CANONICAL_SHA256
+        != SOURCE_CHAIN_AUTHORITY_CANONICAL_SHA256
+    )
+    assert (
+        hashlib.sha256(result.managed_document.canonical_json_bytes()).hexdigest()
+        == UNRESOLVED_REGION_AUTHORITY_CANONICAL_SHA256
     )
     assert result.safe_diagnostics["logical_tables_total"] == 1
     assert result.safe_diagnostics["logical_rows_total"] == 3
@@ -1222,3 +1237,36 @@ def test_inactive_v2_builder_has_no_product_or_bundle_reachability() -> None:
         )
     ]
     assert adjudicator_consumers == ["managed_pdf_document_v2.py"]
+
+
+def test_unresolved_source_region_stops_managed_before_provider_or_canonical() -> None:
+    content = _aligned_table_pdf()
+    legacy = ManagedPdfDocumentV2Factory().create(_schema())
+    with pytest.raises(
+        ManagedPdfDocumentV2Error,
+        match="managed_pdf_v2_full_source_projection_incomplete",
+    ):
+        legacy.build(content, source_artifact_ref="artifact_unresolved_legacy")
+
+    result = (
+        ManagedPdfDocumentV2Factory()
+        .create_adjudicated_for_openwebui(_schema(), _openwebui_request())
+        .build(
+            content,
+            source_artifact_ref="artifact_unresolved_product",
+            task_id="task_unresolved_product",
+        )
+    )
+
+    assert result.status == "PARTIAL"
+    assert result.managed_document is None
+    assert result.safe_diagnostics["provider_calls_total"] == 0
+    assert result.safe_diagnostics["model_generation_calls"] == 0
+    assert result.safe_diagnostics["canonical_artifacts_created"] == 0
+    assert result.safe_diagnostics["facts_published"] == 0
+    assert result.safe_diagnostics["whole_table_projection_status"] == "NOT_READY"
+    assert (
+        result.private_diagnostics["detail_code"]
+        == "managed_pdf_v2_source_table_region_unresolved"
+    )
+    assert len(result.private_diagnostics["unresolved_table_region_refs"]) == 1

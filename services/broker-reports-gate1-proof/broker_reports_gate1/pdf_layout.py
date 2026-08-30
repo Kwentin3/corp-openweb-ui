@@ -11,7 +11,7 @@ from .contracts import stable_digest
 
 PDFPLUMBER_PINNED_VERSION = "0.11.10"
 PDFMINER_PINNED_VERSION = "20260107"
-PDF_LAYOUT_POLICY_VERSION = "pdfplumber_layout_policy_v4_mixed_table_terminal"
+PDF_LAYOUT_POLICY_VERSION = "pdfplumber_layout_policy_v5_unresolved_table_regions"
 PDF_LAYOUT_CAPABILITIES = frozenset(
     {"layout_words", "layout_lines", "table_candidates"}
 )
@@ -178,6 +178,7 @@ class PdfPlumberLayoutAdapter:
                         "vector_line_inventory",
                         "rect_inventory",
                         "table_candidate_inventory",
+                        "unresolved_table_region_inventory",
                     )
                 )
                 inventory_objects_would_be_total = (
@@ -295,6 +296,10 @@ class PdfPlumberLayoutAdapter:
                     len(page.get("table_candidate_inventory") or [])
                     for page in pages
                 ),
+                "unresolved_table_regions_total": sum(
+                    len(page.get("unresolved_table_region_inventory") or [])
+                    for page in pages
+                ),
                 "duplicate_chars_total": sum(
                     int(page.get("duplicate_chars_total") or 0) for page in pages
                 ),
@@ -380,6 +385,7 @@ class PdfPlumberLayoutAdapter:
         ]
 
         table_candidates: list[dict[str, Any]] = []
+        unresolved_table_regions: list[dict[str, Any]] = []
         if self.requested_capability == "table_candidates" and not layout_reasons:
             if (
                 len(words) > self.config.max_table_detection_words_per_page
@@ -396,7 +402,11 @@ class PdfPlumberLayoutAdapter:
                     table_reason_codes.append("pdf_table_locator_page_failed")
                 else:
                     try:
-                        table_candidates, table_reason_codes = self._find_table_candidates(
+                        (
+                            table_candidates,
+                            unresolved_table_regions,
+                            table_reason_codes,
+                        ) = self._find_table_candidates(
                             page=page,
                             words=words,
                             vector_lines=vector_lines,
@@ -409,8 +419,12 @@ class PdfPlumberLayoutAdapter:
                         )
                     except Exception:
                         table_reason_codes.append("pdf_table_candidate_detection_failed")
-        if len(table_candidates) > self.config.max_table_candidates_per_page:
+        if (
+            len(table_candidates) + len(unresolved_table_regions)
+            > self.config.max_table_candidates_per_page
+        ):
             table_candidates = []
+            unresolved_table_regions = []
             table_reason_codes.append("pdf_table_candidate_budget_exceeded")
 
         elapsed_ms = round((time.monotonic() - started) * 1000.0, 3)
@@ -420,6 +434,8 @@ class PdfPlumberLayoutAdapter:
         if self.requested_capability != "table_candidates":
             table_status = "not_claimed"
         elif any(reason.endswith("_failed") or reason.endswith("_budget_exceeded") for reason in table_reason_codes):
+            table_status = "blocked"
+        elif unresolved_table_regions:
             table_status = "blocked"
         elif table_candidates:
             table_status = "candidate"
@@ -455,6 +471,7 @@ class PdfPlumberLayoutAdapter:
             "vector_line_inventory": vector_lines,
             "rect_inventory": rects,
             "table_candidate_inventory": table_candidates,
+            "unresolved_table_region_inventory": unresolved_table_regions,
             "parser_order_word_ordinals": [
                 int(item["parser_ordinal"]) for item in words
             ],
@@ -495,7 +512,7 @@ class PdfPlumberLayoutAdapter:
         vector_lines: list[dict[str, Any]],
         rects: list[dict[str, Any]],
         locator_regions: list[dict[str, Any]] | None = None,
-    ) -> tuple[list[dict[str, Any]], list[str]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
         if locator_regions is not None:
             return self._find_locator_scoped_table_candidates(
                 page=page,
@@ -519,8 +536,9 @@ class PdfPlumberLayoutAdapter:
         vector_lines: list[dict[str, Any]],
         rects: list[dict[str, Any]],
         source_bound: bool = False,
-    ) -> tuple[list[dict[str, Any]], list[str]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
         raw_candidates: list[dict[str, Any]] = []
+        unresolved_regions: list[dict[str, Any]] = []
         reasons: list[str] = []
         strategies = []
         if len(vector_lines) + len(rects) >= 4:
@@ -581,7 +599,32 @@ class PdfPlumberLayoutAdapter:
                     rects=rects,
                 )
                 if candidate is None:
-                    reasons.append(f"pdf_table_{strategy_ref}_low_confidence_rejected")
+                    if strategy_ref == "aligned_text_v0":
+                        unresolved_regions.append(
+                            _unresolved_table_region_from_pdfplumber_table(
+                                table=table,
+                                strategy_ref=strategy_ref,
+                                words=words,
+                                reason_code=(
+                                    "pdf_table_source_bound_aligned_region_"
+                                    "unproved_grid_unresolved"
+                                    if source_bound
+                                    else "pdf_table_unbounded_aligned_region_"
+                                    "unproved_grid_unresolved"
+                                ),
+                            )
+                        )
+                        reasons.append(
+                            "pdf_table_source_bound_aligned_region_"
+                            "unproved_grid_unresolved"
+                            if source_bound
+                            else "pdf_table_unbounded_aligned_region_"
+                            "unproved_grid_unresolved"
+                        )
+                    else:
+                        reasons.append(
+                            f"pdf_table_{strategy_ref}_low_confidence_rejected"
+                        )
                     continue
                 if (
                     strategy_ref == "aligned_text_v0"
@@ -592,9 +635,31 @@ class PdfPlumberLayoutAdapter:
                         < self.config.aligned_table_min_columns
                     )
                 ):
-                    reasons.append("pdf_table_aligned_text_low_confidence_rejected")
+                    threshold_reason = (
+                        "pdf_table_source_bound_aligned_region_"
+                        "below_admission_threshold_unresolved"
+                        if source_bound
+                        else "pdf_table_unbounded_aligned_region_"
+                        "below_admission_threshold_unresolved"
+                    )
+                    unresolved_regions.append(
+                        _unresolved_table_region_from_candidate(
+                            candidate,
+                            reason_code=threshold_reason,
+                        )
+                    )
+                    reasons.append(threshold_reason)
                     continue
-                raw_candidates.append(candidate)
+                if strategy_ref == "aligned_text_v0" and not source_bound:
+                    unresolved_regions.append(
+                        _unresolved_table_region_from_candidate(
+                            candidate,
+                            reason_code="pdf_table_unbounded_aligned_region_unresolved",
+                        )
+                    )
+                    reasons.append("pdf_table_unbounded_aligned_region_unresolved")
+                else:
+                    raw_candidates.append(candidate)
 
         if (
             source_bound
@@ -627,8 +692,37 @@ class PdfPlumberLayoutAdapter:
                     vector_lines=vector_lines,
                     rects=rects,
                 )
-                if candidate is None or candidate["columns_total"] < 2:
-                    reasons.append("pdf_table_aligned_text_low_confidence_rejected")
+                if candidate is None:
+                    unresolved_regions.append(
+                        _unresolved_table_region_from_pdfplumber_table(
+                            table=table,
+                            strategy_ref="aligned_text_v0",
+                            words=words,
+                            reason_code=(
+                                "pdf_table_source_bound_aligned_region_"
+                                "unproved_grid_unresolved"
+                            ),
+                        )
+                    )
+                    reasons.append(
+                        "pdf_table_source_bound_aligned_region_"
+                        "unproved_grid_unresolved"
+                    )
+                    continue
+                if candidate["columns_total"] < 2:
+                    unresolved_regions.append(
+                        _unresolved_table_region_from_candidate(
+                            candidate,
+                            reason_code=(
+                                "pdf_table_source_bound_aligned_region_"
+                                "below_admission_threshold_unresolved"
+                            ),
+                        )
+                    )
+                    reasons.append(
+                        "pdf_table_source_bound_aligned_region_"
+                        "below_admission_threshold_unresolved"
+                    )
                     continue
                 candidate["reconstruction_reason_codes"] = sorted(
                     {
@@ -654,7 +748,31 @@ class PdfPlumberLayoutAdapter:
                 reasons.append("pdf_table_candidate_conflicting_geometry_rejected")
                 continue
             accepted.append(candidate)
-        return accepted, sorted(set(reasons))
+        independently_unresolved = []
+        for region in unresolved_regions:
+            region_words = set(region.get("contributing_word_parser_ordinals") or [])
+            duplicate_ruled_evidence = any(
+                _bbox_overlap_over_smaller_area(
+                    region.get("bbox") or [], candidate.get("bbox") or []
+                )
+                >= 0.6
+                and len(
+                    region_words
+                    & set(candidate.get("contributing_word_parser_ordinals") or [])
+                )
+                >= max(1, len(region_words) // 2)
+                for candidate in accepted
+            )
+            if duplicate_ruled_evidence:
+                reasons.append(
+                    "pdf_table_aligned_duplicate_ruled_evidence_not_promoted"
+                )
+            else:
+                independently_unresolved.append(region)
+        unresolved_regions = independently_unresolved
+        for ordinal, region in enumerate(unresolved_regions, 1):
+            region["parser_ordinal"] = ordinal
+        return accepted, unresolved_regions, sorted(set(reasons))
 
     def _find_locator_scoped_table_candidates(
         self,
@@ -664,9 +782,10 @@ class PdfPlumberLayoutAdapter:
         vector_lines: list[dict[str, Any]],
         rects: list[dict[str, Any]],
         locator_regions: list[dict[str, Any]],
-    ) -> tuple[list[dict[str, Any]], list[str]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
         page_bbox = [_number(value) for value in list(page.bbox)]
         selected: list[dict[str, Any]] = []
+        unresolved: list[dict[str, Any]] = []
         reasons: list[str] = []
         locator_bboxes: list[list[float]] = []
         for ordinal, region in enumerate(locator_regions, 1):
@@ -738,7 +857,7 @@ class PdfPlumberLayoutAdapter:
             ]
             try:
                 crop = page.crop(tuple(crop_bbox), strict=False)
-                candidates, region_reasons = self._find_unbounded_table_candidates(
+                candidates, region_unresolved, region_reasons = self._find_unbounded_table_candidates(
                     page=crop,
                     words=region_words,
                     vector_lines=region_lines,
@@ -749,6 +868,7 @@ class PdfPlumberLayoutAdapter:
                 reasons.append("pdf_table_locator_region_native_extraction_rejected")
                 continue
             reasons.extend(region_reasons)
+            unresolved.extend(region_unresolved)
             if len(candidates) != 1:
                 reasons.append(
                     "pdf_table_locator_region_native_table_not_found_rejected"
@@ -779,7 +899,7 @@ class PdfPlumberLayoutAdapter:
                 }
             )
             selected.append(candidate)
-        return selected, sorted(set(reasons))
+        return selected, unresolved, sorted(set(reasons))
 
     def _provided_capabilities(self) -> list[str]:
         ordered = ["layout_words", "layout_lines", "table_candidates"]
@@ -804,6 +924,7 @@ class PdfPlumberLayoutAdapter:
             "vector_line_inventory": [],
             "rect_inventory": [],
             "table_candidate_inventory": [],
+            "unresolved_table_region_inventory": [],
             "parser_order_word_ordinals": [],
             "geometry_reading_order_word_ordinals": [],
             "duplicate_chars_total": 0,
@@ -1099,6 +1220,63 @@ def _table_candidate_from_pdfplumber(
     }
 
 
+def _unresolved_table_region_from_candidate(
+    candidate: dict[str, Any], *, reason_code: str
+) -> dict[str, Any]:
+    """Keep exact parser evidence without promoting an unproved grid."""
+
+    return {
+        "parser_ordinal": 0,
+        "table_strategy_ref": str(candidate.get("table_strategy_ref") or ""),
+        "region_status": "unresolved",
+        "bbox": list(candidate.get("bbox") or []),
+        "rows_total": int(candidate.get("rows_total") or 0),
+        "columns_total": int(candidate.get("columns_total") or 0),
+        "cells_total": int(candidate.get("cells_total") or 0),
+        "contributing_word_parser_ordinals": [
+            int(value)
+            for value in candidate.get("contributing_word_parser_ordinals") or []
+        ],
+        "source_candidate_parser_ordinal": int(
+            candidate.get("parser_ordinal") or 0
+        ),
+        "reason_codes": [reason_code],
+        "semantic_table_truth_claimed": False,
+    }
+
+
+def _unresolved_table_region_from_pdfplumber_table(
+    *,
+    table: Any,
+    strategy_ref: str,
+    words: list[dict[str, Any]],
+    reason_code: str,
+) -> dict[str, Any]:
+    """Preserve a parser-found region even when its grid cannot be admitted."""
+
+    bbox = [_number(value) for value in list(getattr(table, "bbox", []) or [])]
+    rows = list(getattr(table, "rows", []) or [])
+    columns = list(getattr(table, "columns", []) or [])
+    cells = list(getattr(table, "cells", []) or [])
+    return {
+        "parser_ordinal": 0,
+        "table_strategy_ref": strategy_ref,
+        "region_status": "unresolved",
+        "bbox": bbox,
+        "rows_total": len(rows),
+        "columns_total": len(columns),
+        "cells_total": len(cells),
+        "contributing_word_parser_ordinals": [
+            int(word.get("parser_ordinal") or 0)
+            for word in words
+            if _bbox_center_inside(word.get("bbox") or [], bbox)
+        ],
+        "source_candidate_parser_ordinal": 0,
+        "reason_codes": [reason_code],
+        "semantic_table_truth_claimed": False,
+    }
+
+
 def _axis_span(edges: list[float], start: float, end: float) -> int:
     if len(edges) < 2:
         return 1
@@ -1281,6 +1459,20 @@ def _bbox_iou(left: list[float], right: list[float]) -> float:
     right_area = max(0.0, right[2] - right[0]) * max(0.0, right[3] - right[1])
     union = left_area + right_area - intersection
     return intersection / union if union else 0.0
+
+
+def _bbox_overlap_over_smaller_area(
+    left: list[float], right: list[float]
+) -> float:
+    if len(left) != 4 or len(right) != 4:
+        return 0.0
+    intersection_width = max(0.0, min(left[2], right[2]) - max(left[0], right[0]))
+    intersection_height = max(0.0, min(left[3], right[3]) - max(left[1], right[1]))
+    intersection = intersection_width * intersection_height
+    left_area = max(0.0, left[2] - left[0]) * max(0.0, left[3] - left[1])
+    right_area = max(0.0, right[2] - right[0]) * max(0.0, right[3] - right[1])
+    smaller = min(left_area, right_area)
+    return intersection / smaller if smaller else 0.0
 
 
 def _number(value: Any) -> float:

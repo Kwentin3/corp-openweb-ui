@@ -1149,6 +1149,7 @@ class FullSourceArtifactBuilder:
         layout_vector_line_inventory: list[dict[str, Any]] = []
         layout_rect_inventory: list[dict[str, Any]] = []
         layout_table_candidate_inventory: list[dict[str, Any]] = []
+        layout_unresolved_table_region_inventory: list[dict[str, Any]] = []
         layout_units: list[dict[str, Any]] = []
         layout_coverage: dict[str, Any] = {
             "schema_version": "pdf_layout_document_coverage_v0",
@@ -1212,6 +1213,9 @@ class FullSourceArtifactBuilder:
                 layout_table_candidate_inventory = (
                     layout_build.table_candidate_inventory
                 )
+                layout_unresolved_table_region_inventory = (
+                    layout_build.unresolved_table_region_inventory
+                )
                 layout_units = layout_build.units
                 payload_source_value_refs.extend(layout_build.source_value_refs)
                 payload_source_value_index.extend(layout_build.source_value_index)
@@ -1243,6 +1247,10 @@ class FullSourceArtifactBuilder:
             coverage["table_candidate_refs"] = [
                 str(item.get("table_candidate_ref") or "")
                 for item in layout_table_candidate_inventory
+            ]
+            coverage["unresolved_table_region_refs"] = [
+                str(item.get("unresolved_table_region_ref") or "")
+                for item in layout_unresolved_table_region_inventory
             ]
             coverage["table_fallback_text_refs"] = sorted(
                 {
@@ -1336,6 +1344,9 @@ class FullSourceArtifactBuilder:
             "vector_line_inventory": layout_vector_line_inventory,
             "rect_inventory": layout_rect_inventory,
             "table_candidate_inventory": layout_table_candidate_inventory,
+            "unresolved_table_region_inventory": (
+                layout_unresolved_table_region_inventory
+            ),
             "page_checksum_refs": [
                 str(page.get("page_text_checksum_ref") or "") for page in page_inventory
             ],
@@ -1572,6 +1583,9 @@ class FullSourceArtifactBuilder:
             "pdf_layout_words_total": len(layout_word_inventory),
             "pdf_layout_lines_total": len(layout_line_inventory),
             "pdf_table_candidates_total": len(layout_table_candidate_inventory),
+            "pdf_unresolved_table_regions_total": len(
+                layout_unresolved_table_region_inventory
+            ),
             "pdf_line_cluster_units_total": sum(
                 1
                 for unit in extraction_units

@@ -328,6 +328,39 @@ def _mixed_candidate_rejected_pdf() -> bytes:
     return _pdf_bytes([page(6), page(3)])
 
 
+def _mixed_ruled_and_aligned_pdf() -> bytes:
+    ruled_texts = [
+        (35, 220, "Merged Header"),
+        (35, 190, "Value A"),
+        (160, 190, "Value B"),
+    ]
+    ruled_vectors = [
+        "20 175 m 300 175 l S",
+        "20 205 m 300 205 l S",
+        "20 235 m 300 235 l S",
+        "20 175 m 20 235 l S",
+        "300 175 m 300 235 l S",
+        "140 175 m 140 205 l S",
+    ]
+    aligned_rows = [
+        (250, "Date", "Amount", "Currency"),
+        (225, "2026-01-01", "10.00", "USD"),
+        (200, "2026-01-02", "20.00", "EUR"),
+        (175, "2026-01-03", "30.00", "GBP"),
+    ]
+    aligned_texts = [
+        item
+        for y, left, middle, right in aligned_rows
+        for item in ((25, y, left), (130, y, middle), (235, y, right))
+    ]
+    return _pdf_bytes(
+        [
+            {"texts": ruled_texts, "vectors": ruled_vectors},
+            {"texts": aligned_texts},
+        ]
+    )
+
+
 def _inventory_overflow_pdf() -> bytes:
     table_rows = [
         (250, "Date", "Amount", "Currency"),
@@ -358,6 +391,7 @@ def _layout_inventory_objects(page: dict) -> int:
             "vector_line_inventory",
             "rect_inventory",
             "table_candidate_inventory",
+            "unresolved_table_region_inventory",
         )
     )
 
@@ -907,10 +941,12 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
             any(
                 item.get("table_strategy_ref") == "aligned_text_v0"
                 for item in aligned.payloads[0]["pdf_text_layer_projection"][
-                    "table_candidate_inventory"
+                    "unresolved_table_region_inventory"
                 ]
             )
         )
+        self.assertEqual("blocked", aligned.summary["pdf_table_candidate_status"])
+        self.assertEqual([], aligned.units)
         ambiguous = self._build(_aligned_table_pdf(ambiguous=True))
         self.assertFalse(
             any(
@@ -1117,12 +1153,13 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         self.assertEqual("partial", built.layout_projection_status)
         self.assertEqual([], built.units)
 
-    def test_table_terminals_distinguish_none_rejected_candidate_and_blocked(self):
+    def test_table_terminals_distinguish_none_candidate_and_blocked(self):
         request = PdfParserCapabilityRequest(capability="table_candidates")
         default_parser = PdfTextLayerParserFactory().create(request)
         none_detected = default_parser.parse(_paragraph_pdf())
-        candidate = default_parser.parse(_aligned_table_pdf())
-        rejected = PdfTextLayerParserFactory(
+        candidate = default_parser.parse(_ruled_table_with_merged_header_pdf())
+        unresolved = default_parser.parse(_aligned_table_pdf())
+        below_threshold = PdfTextLayerParserFactory(
             PdfTextLayerParserConfig(
                 layout=PdfLayoutParserConfig(aligned_table_min_rows=100)
             )
@@ -1137,11 +1174,16 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
 
         self.assertEqual("none_detected", none_detected.table_candidate_status)
         self.assertEqual("candidate", candidate.table_candidate_status)
-        self.assertEqual("rejected", rejected.table_candidate_status)
+        self.assertEqual("blocked", unresolved.table_candidate_status)
+        self.assertEqual(
+            1,
+            len(unresolved.pages[0]["unresolved_table_region_inventory"]),
+        )
+        self.assertEqual("blocked", below_threshold.table_candidate_status)
         self.assertTrue(
             any(
-                reason.endswith("_rejected")
-                for page in rejected.pages
+                reason.endswith("_unresolved")
+                for page in below_threshold.pages
                 for reason in page["table_reason_codes"]
             )
         )
@@ -1163,22 +1205,22 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         projection = payload["pdf_text_layer_projection"]
 
         self.assertEqual(
-            ["candidate", "rejected"],
+            ["blocked", "blocked"],
             [page["table_candidate_status"] for page in projection["page_inventory"]],
         )
         self.assertEqual(
-            "candidate_with_rejections", projection["table_candidate_status"]
+            "blocked", projection["table_candidate_status"]
         )
         self.assertEqual(
             {
-                "candidate_pages_total": 1,
-                "rejected_pages_total": 1,
-                "blocked_pages_total": 0,
+                "candidate_pages_total": 0,
+                "rejected_pages_total": 0,
+                "blocked_pages_total": 2,
                 "none_detected_pages_total": 0,
             },
             projection["layout_unit_diagnostics"]["table_terminal_counts"],
         )
-        self.assertTrue(projection["table_candidate_inventory"])
+        self.assertTrue(projection["unresolved_table_region_inventory"])
         self.assertEqual("partial", payload["parser_completeness_status"])
         self.assertIn(
             "pdf_table_candidate_admission_incomplete",
@@ -1188,6 +1230,56 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         self.assertEqual(
             "passed", validate_pdf_text_layer_payload(payload)["validator_status"]
         )
+
+    def test_mixed_ruled_candidate_and_unresolved_region_blocks_atomically(self):
+        result = self._build(_mixed_ruled_and_aligned_pdf())
+        payload = result.payloads[0]
+        projection = payload["pdf_text_layer_projection"]
+
+        self.assertEqual(
+            ["candidate", "blocked"],
+            [page["table_candidate_status"] for page in projection["page_inventory"]],
+        )
+        self.assertEqual(1, len(projection["table_candidate_inventory"]))
+        self.assertEqual(1, len(projection["unresolved_table_region_inventory"]))
+        self.assertEqual("blocked", projection["table_candidate_status"])
+        self.assertEqual("partial", payload["parser_completeness_status"])
+        self.assertEqual([], payload["extraction_unit_refs"])
+        self.assertEqual([], result.units)
+        self.assertEqual(
+            "passed", validate_pdf_text_layer_payload(payload)["validator_status"]
+        )
+
+    def test_unresolved_region_validator_rejects_fully_resealed_mutations(self):
+        original = self._build(_aligned_table_pdf()).payloads[0]
+
+        for name, mutation in {
+            "status": lambda region: region.update({"region_status": "complete"}),
+            "semantic_claim": lambda region: region.update(
+                {"semantic_table_truth_claimed": True}
+            ),
+            "foreign_word": lambda region: region["contributing_word_refs"].append(
+                "pdfword_foreign"
+            ),
+            "missing_reason": lambda region: region.update({"reason_codes": []}),
+        }.items():
+            with self.subTest(name=name):
+                payload = copy.deepcopy(original)
+                region = payload["pdf_text_layer_projection"][
+                    "unresolved_table_region_inventory"
+                ][0]
+                mutation(region)
+                _reseal_layout_source_chain(payload)
+
+                validation = validate_pdf_text_layer_payload(payload)
+
+                self.assertEqual("failed", validation["validator_status"])
+                self.assertTrue(
+                    any(
+                        error["code"].startswith("pdf_table_unresolved_region")
+                        for error in validation["errors"]
+                    )
+                )
 
     def test_cross_boundary_line_is_partitioned_without_losing_table(self):
         built = self._build(_ruled_table_with_cross_boundary_line_pdf())
@@ -1274,10 +1366,12 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         baseline = PdfTextLayerParserFactory().create(request).parse(content)
         first_page_objects = _layout_inventory_objects(baseline.pages[0])
         second_page_objects = _layout_inventory_objects(baseline.pages[1])
-        first_page_candidates = baseline.pages[0]["table_candidate_inventory"]
+        first_page_regions = baseline.pages[0][
+            "unresolved_table_region_inventory"
+        ]
         self.assertGreater(first_page_objects, 0)
         self.assertGreater(second_page_objects, 0)
-        self.assertTrue(first_page_candidates)
+        self.assertTrue(first_page_regions)
 
         limited_parser = PdfTextLayerParserFactory(
             PdfTextLayerParserConfig(
@@ -1295,10 +1389,13 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         )
         self.assertEqual(2, len(limited.pages))
         self.assertEqual(
-            first_page_candidates,
-            limited.pages[0]["table_candidate_inventory"],
+            first_page_regions,
+            limited.pages[0]["unresolved_table_region_inventory"],
         )
         self.assertEqual([], limited.pages[1]["table_candidate_inventory"])
+        self.assertEqual(
+            [], limited.pages[1]["unresolved_table_region_inventory"]
+        )
         self.assertIn(
             "pdf_layout_page_not_processed_document_inventory_budget",
             limited.pages[1]["layout_reason_codes"],
@@ -1341,16 +1438,16 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
         )
         payload = result.payloads[0]
         projection = payload["pdf_text_layer_projection"]
-        retained_candidates = projection["table_candidate_inventory"]
+        retained_regions = projection["unresolved_table_region_inventory"]
         retained_word_refs = {
             item["word_ref"] for item in projection["word_inventory"]
         }
         self.assertEqual("partial", projection["layout_projection_status"])
-        self.assertTrue(retained_candidates)
+        self.assertTrue(retained_regions)
         self.assertTrue(
             all(
                 set(candidate["contributing_word_refs"]) <= retained_word_refs
-                for candidate in retained_candidates
+                for candidate in retained_regions
             )
         )
         self.assertIn(
