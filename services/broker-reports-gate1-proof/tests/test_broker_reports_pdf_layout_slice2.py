@@ -37,10 +37,14 @@ from broker_reports_gate1 import (
 from broker_reports_gate1.pdf_text_layer import (
     FACTORY_REQUIRED,
     FORBIDDEN,
+    pdf_layout_page_checksum_ref,
+    pdf_payload_checksum_ref,
     resolve_pdf_payload_source_value,
 )
 from broker_reports_gate1.pdf_layout_units import (
     _page_text_supports_layout_partition,
+    pdf_layout_source_chain_document_receipt,
+    pdf_layout_source_chain_page_receipt,
 )
 
 
@@ -480,6 +484,107 @@ class BrokerReportsPdfLayoutSlice2Test(unittest.TestCase):
             "pdf_layout_source_chain_page_receipt_mismatch",
             {item["code"] for item in line_result["errors"]},
         )
+
+    def test_shadow_source_chain_rejects_recomputed_binding_laundering(self):
+        payload = copy.deepcopy(self._build(_paragraph_pdf()).payloads[0])
+        projection = payload["pdf_text_layer_projection"]
+        words = projection["word_inventory"]
+        first_ref = words[0]["char_refs"][0]
+        second_ref = words[1]["char_refs"][0]
+        words[0]["char_refs"][0] = second_ref
+        words[1]["char_refs"][0] = first_ref
+
+        owners = {
+            item["char_ref"]: [] for item in projection["char_inventory"]
+        }
+        for word in words:
+            for char_ref in word["char_refs"]:
+                owners[char_ref].append(word["word_ref"])
+        for char in projection["char_inventory"]:
+            char["source_chain_word_refs"] = owners[char["char_ref"]]
+
+        page_receipts = []
+        for page in projection["page_inventory"]:
+            page_ref = page["page_ref"]
+            page_words = [
+                item for item in words if item["page_ref"] == page_ref
+            ]
+            receipt = pdf_layout_source_chain_page_receipt(
+                page=page,
+                chars=[
+                    item
+                    for item in projection["char_inventory"]
+                    if item["page_ref"] == page_ref
+                ],
+                words=page_words,
+                lines=[
+                    item
+                    for item in projection["line_inventory"]
+                    if item["page_ref"] == page_ref
+                ],
+                bboxes=[
+                    item
+                    for item in projection["bbox_inventory"]
+                    if item["page_ref"] == page_ref
+                ],
+                unresolved_word_char_links_total=sum(
+                    int(item.get("unresolved_char_identity_links_total") or 0)
+                    for item in page_words
+                ),
+            )
+            page["layout_source_chain_receipt"] = receipt
+            page["page_layout_checksum_ref"] = pdf_layout_page_checksum_ref(
+                page, projection["layout_parser_ref"]
+            )
+            page_receipts.append(receipt)
+        projection["layout_source_chain"] = (
+            pdf_layout_source_chain_document_receipt(page_receipts)
+        )
+        projection["layout_page_checksum_refs"] = [
+            page["page_layout_checksum_ref"]
+            for page in projection["page_inventory"]
+        ]
+        payload["payload_checksum_ref"] = pdf_payload_checksum_ref(payload)
+
+        result = validate_pdf_text_layer_payload(payload)
+        self.assertEqual("failed", result["validator_status"])
+        self.assertIn(
+            "pdf_layout_source_chain_parser_binding_invalid",
+            {item["code"] for item in result["errors"]},
+        )
+
+    def test_shadow_source_chain_validator_inventory_scans_are_document_bounded(self):
+        payload = copy.deepcopy(
+            self._build(
+                _pdf_bytes(
+                    [
+                        {"texts": [(20, 250, f"Page {page_number} text")]}
+                        for page_number in range(1, 9)
+                    ]
+                )
+            ).payloads[0]
+        )
+        projection = payload["pdf_text_layer_projection"]
+
+        class CountingList(list):
+            def __init__(self, values):
+                super().__init__(values)
+                self.iterations = 0
+
+            def __iter__(self):
+                self.iterations += 1
+                return super().__iter__()
+
+        inventories = []
+        for key in ("char_inventory", "word_inventory", "line_inventory", "bbox_inventory"):
+            inventory = CountingList(projection[key])
+            projection[key] = inventory
+            inventories.append(inventory)
+
+        self.assertEqual(
+            "passed", validate_pdf_text_layer_payload(payload)["validator_status"]
+        )
+        self.assertEqual([1, 2, 2, 1], [item.iterations for item in inventories])
 
     def test_words_lines_geometry_refs_checksums_and_coverage_are_stable(self):
         first = self._build(_paragraph_pdf())

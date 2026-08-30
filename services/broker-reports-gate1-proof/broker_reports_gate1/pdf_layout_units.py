@@ -1494,12 +1494,33 @@ def pdf_layout_source_chain_page_receipt(
         for item in bboxes
         if str(item.get("page_ref") or "") == page_ref
     }
+    char_ref_by_ordinal = {
+        int(item.get("parser_ordinal") or 0): char_ref
+        for char_ref, item in chars_by_ref.items()
+    }
+    word_ref_by_ordinal = {
+        int(item.get("parser_ordinal") or 0): word_ref
+        for word_ref, item in words_by_ref.items()
+    }
     char_owners: Counter[str] = Counter()
     char_owner_refs: dict[str, list[str]] = {
         char_ref: [] for char_ref in chars_by_ref
     }
     for word in words_by_ref.values():
         char_refs = _strings(word.get("char_refs"))
+        parser_ordinals = [
+            int(value) for value in word.get("char_parser_ordinals") or []
+        ]
+        expected_char_refs = [
+            char_ref_by_ordinal[ordinal]
+            for ordinal in parser_ordinals
+            if ordinal in char_ref_by_ordinal
+        ]
+        if (
+            len(expected_char_refs) != len(parser_ordinals)
+            or char_refs != expected_char_refs
+        ):
+            reasons.add("pdf_layout_source_chain_word_char_parser_binding_mismatch")
         if len(char_refs) != len(set(char_refs)):
             reasons.add("pdf_layout_source_chain_word_char_ref_duplicate")
         for char_ref in char_refs:
@@ -1565,6 +1586,19 @@ def pdf_layout_source_chain_page_receipt(
         if str(line.get("page_ref") or "") != page_ref:
             continue
         line_word_refs = _strings(line.get("word_refs"))
+        parser_ordinals = [
+            int(value) for value in line.get("word_parser_ordinals") or []
+        ]
+        expected_word_refs = [
+            word_ref_by_ordinal[ordinal]
+            for ordinal in parser_ordinals
+            if ordinal in word_ref_by_ordinal
+        ]
+        if (
+            len(expected_word_refs) != len(parser_ordinals)
+            or line_word_refs != expected_word_refs
+        ):
+            reasons.add("pdf_layout_source_chain_line_word_parser_binding_mismatch")
         if len(line_word_refs) != len(set(line_word_refs)):
             reasons.add("pdf_layout_source_chain_line_word_ref_duplicate")
         contributing_words = []
