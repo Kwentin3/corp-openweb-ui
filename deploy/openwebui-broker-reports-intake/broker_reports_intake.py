@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from open_webui.routers.broker_reports_intake_contract import (
     ACTION_ATTESTATION_KEY,
+    DECLARATION_METADATA_INTAKE_SCHEMA_VERSION,
     INTAKE_SCHEMA_VERSION,
     PROCESS_NATIVE,
     PROTECTED_ACTION_ID,
@@ -37,6 +38,7 @@ from open_webui.routers.broker_reports_intake_contract import (
     StoredSource,
     action_attestation,
     assert_native_processing_allowed as assert_contract_native_processing_allowed,
+    declaration_metadata_override_fields,
     resolve_receipts,
     validate_receipt,
 )
@@ -228,6 +230,17 @@ def _http_error(error: IntakeContractError) -> HTTPException:
     )
 
 
+async def _declaration_metadata_override_fields(request: Request) -> list[str]:
+    """Reject client-controlled purpose fields and non-file multipart items."""
+
+    form_items = list((await request.form()).multi_items())
+    return declaration_metadata_override_fields(
+        query_fields=list(request.query_params.keys()),
+        header_fields=list(request.headers.keys()),
+        multipart_fields=[str(key) for key, _value in form_items],
+    )
+
+
 @router.post("/intake")
 async def accept_private_source(
     request: Request,
@@ -259,6 +272,47 @@ async def accept_private_source(
         )
         response = result.public_dict()
         response["intake_schema_version"] = INTAKE_SCHEMA_VERSION
+        response["process"] = PROCESS_NATIVE
+        return response
+    except IntakeContractError as error:
+        raise _http_error(error) from error
+
+
+@router.post("/declaration-metadata-intake")
+async def accept_declaration_metadata_input(
+    request: Request,
+    file: UploadFile = File(...),
+    idempotency_key: str = Header(..., alias="Idempotency-Key"),
+    user=Depends(get_verified_user),
+    db: AsyncSession = Depends(get_async_session),
+):
+    """Accept bytes into the one fixed, server-owned declaration metadata slot."""
+
+    overrides = await _declaration_metadata_override_fields(request)
+    if overrides:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "broker_reports_declaration_metadata_override_denied",
+                "fields": overrides,
+            },
+        )
+
+    payload = await file.read()
+    try:
+        result = await build_broker_reports_intake_service(
+            db
+        ).accept_declaration_metadata_input(
+            actor=IntakeActor(user_id=user.id),
+            idempotency_key=idempotency_key,
+            filename=file.filename or "",
+            content_type=file.content_type,
+            payload=payload,
+        )
+        response = result.public_dict()
+        response["intake_schema_version"] = (
+            DECLARATION_METADATA_INTAKE_SCHEMA_VERSION
+        )
         response["process"] = PROCESS_NATIVE
         return response
     except IntakeContractError as error:

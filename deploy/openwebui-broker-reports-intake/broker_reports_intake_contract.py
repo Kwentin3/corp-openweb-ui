@@ -18,6 +18,14 @@ from typing import Any, Callable, Mapping, Protocol
 
 INTAKE_SCHEMA_VERSION = "broker_reports_private_source_intake_v1"
 RECEIPT_SCHEMA_VERSION = "broker_reports_private_source_receipt_v1"
+DECLARATION_METADATA_INTAKE_SCHEMA_VERSION = (
+    "broker_reports_declaration_metadata_intake_v2"
+)
+DECLARATION_METADATA_RECEIPT_SCHEMA_VERSION = (
+    "broker_reports_declaration_metadata_receipt_v2"
+)
+DECLARATION_METADATA_INPUT_SLOT = "DECLARATION_METADATA_INPUT"
+DECLARATION_METADATA_SLOT_OWNER = "SERVER_FIXED_DECLARATION_METADATA_INTAKE_V2"
 ACTION_ATTESTATION_SCHEMA_VERSION = "broker_reports_action_intake_attestation_v2"
 RECEIPT_META_KEY = "broker_reports_intake"
 ACTION_ATTESTATION_KEY = "broker_reports_server_intake_attestation"
@@ -45,10 +53,17 @@ EMBEDDINGS_ALLOWED = False
 VECTORIZATION_ALLOWED = False
 
 _SOURCE_ID_NAMESPACE = uuid.UUID("75355f89-3ed8-4eb8-815c-909f3276aeb1")
+_DECLARATION_METADATA_SOURCE_ID_NAMESPACE = uuid.UUID(
+    "09965d67-0775-47f9-90a4-969b1991502b"
+)
 _IDEMPOTENCY_KEY_RE = re.compile(r"^[A-Za-z0-9._:-]{8,128}$")
 _BROKER_REPORTS_ID_PREFIX = "br-"
 _BROKER_REPORTS_ID_RE = re.compile(
     r"^br-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+)
+_DECLARATION_METADATA_ID_PREFIX = "br-dm-"
+_DECLARATION_METADATA_ID_RE = re.compile(
+    r"^br-dm-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 )
 _HEX_32_RE = re.compile(r"^[0-9a-f]{32}$")
 _HEX_64_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -87,6 +102,17 @@ _FORBIDDEN_NATIVE_META_KEYS = frozenset(
         "embedding_model",
         "knowledge_id",
         "vector_collection",
+    }
+)
+_DECLARATION_METADATA_OVERRIDE_FIELDS = frozenset(
+    {
+        "collection_name",
+        "knowledge_id",
+        "process",
+        "process_in_background",
+        "purpose",
+        "role",
+        "source_policy",
     }
 )
 
@@ -153,11 +179,15 @@ class VerifiedReceipt:
     receipt_id: str
     source_sha256: str
     size_bytes: int
+    receipt_schema_version: str = RECEIPT_SCHEMA_VERSION
+    intake_slot: str | None = None
+    owner_user_id: str | None = None
+    slot_checksum: str | None = None
     replayed: bool = False
 
     def public_dict(self) -> dict[str, Any]:
-        return {
-            "schema_version": RECEIPT_SCHEMA_VERSION,
+        result = {
+            "schema_version": self.receipt_schema_version,
             "source_id": self.source_id,
             "receipt_id": self.receipt_id,
             "size_bytes": self.size_bytes,
@@ -170,6 +200,13 @@ class VerifiedReceipt:
             "eligible": True,
             "replayed": self.replayed,
         }
+        if self.receipt_schema_version == DECLARATION_METADATA_RECEIPT_SCHEMA_VERSION:
+            result["intake_slot"] = self.intake_slot
+            result["slot_owner"] = DECLARATION_METADATA_SLOT_OWNER
+            result["owner_user_id"] = self.owner_user_id
+            result["source_sha256"] = self.source_sha256
+            result["slot_checksum"] = self.slot_checksum
+        return result
 
 
 class IntakeRepository(Protocol):
@@ -210,6 +247,36 @@ def validate_idempotency_key(value: str) -> str:
     return key
 
 
+def declaration_metadata_override_fields(
+    *,
+    query_fields: list[str],
+    header_fields: list[str],
+    multipart_fields: list[str],
+) -> list[str]:
+    """Validate the fixed endpoint shape without parsing transport payloads here."""
+
+    def normalized(value: str) -> str:
+        return str(value).lower().replace("-", "_")
+
+    rejected = {
+        str(key)
+        for key in query_fields
+        if normalized(key) in _DECLARATION_METADATA_OVERRIDE_FIELDS
+    }
+    rejected.update(
+        f"header:{key}"
+        for key in header_fields
+        if normalized(key) in _DECLARATION_METADATA_OVERRIDE_FIELDS
+    )
+    if multipart_fields != ["file"]:
+        rejected.update(
+            f"multipart:{key}" for key in multipart_fields if key != "file"
+        )
+        if multipart_fields.count("file") != 1:
+            rejected.add("multipart:file_count")
+    return sorted(rejected)
+
+
 def sanitize_filename(value: str) -> str:
     name = str(value or "").replace("\\", "/").split("/")[-1].strip()
     if (
@@ -231,6 +298,20 @@ def deterministic_source_id(owner_user_id: str, idempotency_key: str) -> str:
     key = validate_idempotency_key(idempotency_key)
     scoped = f"{INTAKE_SCHEMA_VERSION}\x00{owner}\x00{key}"
     return f"{_BROKER_REPORTS_ID_PREFIX}{uuid.uuid5(_SOURCE_ID_NAMESPACE, scoped)}"
+
+
+def deterministic_declaration_metadata_source_id(
+    owner_user_id: str, idempotency_key: str
+) -> str:
+    owner = str(owner_user_id or "").strip()
+    if not owner:
+        raise InvalidIntakeRequest("Authenticated user identity is required.")
+    key = validate_idempotency_key(idempotency_key)
+    scoped = f"{DECLARATION_METADATA_INTAKE_SCHEMA_VERSION}\x00{owner}\x00{key}"
+    return (
+        f"{_DECLARATION_METADATA_ID_PREFIX}"
+        f"{uuid.uuid5(_DECLARATION_METADATA_SOURCE_ID_NAMESPACE, scoped)}"
+    )
 
 
 def idempotency_fingerprint(owner_user_id: str, idempotency_key: str) -> str:
@@ -259,15 +340,53 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
+def _receipt_profile(source_id: str) -> tuple[str, str | None, str | None]:
+    if _BROKER_REPORTS_ID_RE.fullmatch(source_id):
+        return RECEIPT_SCHEMA_VERSION, None, None
+    if _DECLARATION_METADATA_ID_RE.fullmatch(source_id):
+        return (
+            DECLARATION_METADATA_RECEIPT_SCHEMA_VERSION,
+            DECLARATION_METADATA_INPUT_SLOT,
+            DECLARATION_METADATA_SLOT_OWNER,
+        )
+    raise IneligibleSource("Source id is outside the Broker Reports reserved family.")
+
+
+def _receipt_id(
+    receipt_schema_version: str,
+    source_id: str,
+    source_sha256: str,
+) -> str:
+    return hashlib.sha256(
+        f"{receipt_schema_version}\x00{source_id}\x00{source_sha256}".encode("utf-8")
+    ).hexdigest()
+
+
+def _declaration_metadata_slot_checksum(
+    *, source_id: str, owner_user_id: str, source_sha256: str, size_bytes: int
+) -> str:
+    material = "\x00".join(
+        (
+            DECLARATION_METADATA_RECEIPT_SCHEMA_VERSION,
+            source_id,
+            owner_user_id,
+            source_sha256,
+            str(size_bytes),
+            DECLARATION_METADATA_INPUT_SLOT,
+            DECLARATION_METADATA_SLOT_OWNER,
+        )
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
 def validate_receipt(source: StoredSource, owner_user_id: str) -> VerifiedReceipt:
     if source.user_id != owner_user_id:
         raise IneligibleSource("Source is not owned by the authenticated user.")
-    if not source.id.startswith(_BROKER_REPORTS_ID_PREFIX):
-        raise IneligibleSource("Source id is outside the Broker Reports reserved family.")
+    receipt_schema_version, expected_slot, expected_slot_owner = _receipt_profile(source.id)
 
     meta = _mapping(source.meta)
     receipt = _mapping(meta.get(RECEIPT_META_KEY))
-    if receipt.get("schema_version") != RECEIPT_SCHEMA_VERSION:
+    if receipt.get("schema_version") != receipt_schema_version:
         raise IneligibleSource("Server-persisted Broker Reports receipt is absent or invalid.")
 
     expected_pairs = {
@@ -284,6 +403,14 @@ def validate_receipt(source: StoredSource, owner_user_id: str) -> VerifiedReceip
     for key, expected in expected_pairs.items():
         if receipt.get(key) != expected:
             raise IneligibleSource(f"Receipt invariant failed: {key}.")
+
+    if expected_slot is not None:
+        if receipt.get("intake_slot") != expected_slot:
+            raise IneligibleSource("Receipt invariant failed: intake_slot.")
+        if receipt.get("slot_owner") != expected_slot_owner:
+            raise IneligibleSource("Receipt invariant failed: slot_owner.")
+    elif "intake_slot" in receipt or "slot_owner" in receipt or "slot_checksum" in receipt:
+        raise IneligibleSource("Ordinary intake receipt contains declaration slot fields.")
 
     source_sha256 = str(receipt.get("source_sha256") or "")
     meta_hash = str(meta.get("file_hash") or "")
@@ -306,9 +433,9 @@ def validate_receipt(source: StoredSource, owner_user_id: str) -> VerifiedReceip
         raise IneligibleSource("Client metadata attempts to select native processing.")
 
     receipt_id = str(receipt.get("receipt_id") or "")
-    expected_receipt_id = hashlib.sha256(
-        f"{RECEIPT_SCHEMA_VERSION}\x00{source.id}\x00{source_sha256}".encode("utf-8")
-    ).hexdigest()
+    expected_receipt_id = _receipt_id(
+        receipt_schema_version, source.id, source_sha256
+    )
     if not hmac.compare_digest(receipt_id, expected_receipt_id):
         raise IneligibleSource("Receipt identity does not match persisted provenance.")
 
@@ -318,6 +445,16 @@ def validate_receipt(source: StoredSource, owner_user_id: str) -> VerifiedReceip
         raise IneligibleSource("Receipt size is invalid.") from exc
     if size_bytes <= 0 or meta.get("size") != size_bytes:
         raise IneligibleSource("Receipt size does not match the persisted file metadata.")
+    if expected_slot is not None:
+        slot_checksum = str(receipt.get("slot_checksum") or "")
+        expected_slot_checksum = _declaration_metadata_slot_checksum(
+            source_id=source.id,
+            owner_user_id=owner_user_id,
+            source_sha256=source_sha256,
+            size_bytes=size_bytes,
+        )
+        if not hmac.compare_digest(slot_checksum, expected_slot_checksum):
+            raise IneligibleSource("Declaration metadata slot checksum is invalid.")
     if not source.path:
         raise IneligibleSource("Private source storage path is absent.")
     if receipt.get("created_at") != source.created_at:
@@ -333,6 +470,12 @@ def validate_receipt(source: StoredSource, owner_user_id: str) -> VerifiedReceip
         receipt_id=receipt_id,
         source_sha256=source_sha256,
         size_bytes=size_bytes,
+        receipt_schema_version=receipt_schema_version,
+        intake_slot=expected_slot,
+        owner_user_id=owner_user_id if expected_slot is not None else None,
+        slot_checksum=(
+            str(receipt.get("slot_checksum")) if expected_slot is not None else None
+        ),
     )
 
 
@@ -361,6 +504,45 @@ class BrokerReportsIntakeService:
         content_type: str | None,
         payload: bytes,
     ) -> VerifiedReceipt:
+        return await self._accept(
+            actor=actor,
+            idempotency_key=idempotency_key,
+            filename=filename,
+            content_type=content_type,
+            payload=payload,
+            declaration_metadata=False,
+        )
+
+    async def accept_declaration_metadata_input(
+        self,
+        *,
+        actor: IntakeActor,
+        idempotency_key: str,
+        filename: str,
+        content_type: str | None,
+        payload: bytes,
+    ) -> VerifiedReceipt:
+        """Accept one file into the server-owned declaration metadata slot."""
+
+        return await self._accept(
+            actor=actor,
+            idempotency_key=idempotency_key,
+            filename=filename,
+            content_type=content_type,
+            payload=payload,
+            declaration_metadata=True,
+        )
+
+    async def _accept(
+        self,
+        *,
+        actor: IntakeActor,
+        idempotency_key: str,
+        filename: str,
+        content_type: str | None,
+        payload: bytes,
+        declaration_metadata: bool,
+    ) -> VerifiedReceipt:
         if not isinstance(payload, bytes) or not payload:
             raise InvalidIntakeRequest("Broker Reports source must contain bytes.")
 
@@ -369,7 +551,14 @@ class BrokerReportsIntakeService:
         if safe_content_type and len(safe_content_type) > 255:
             raise InvalidIntakeRequest("Content-Type is longer than 255 characters.")
 
-        source_id = deterministic_source_id(actor.user_id, idempotency_key)
+        if declaration_metadata:
+            source_id = deterministic_declaration_metadata_source_id(
+                actor.user_id, idempotency_key
+            )
+            receipt_schema_version = DECLARATION_METADATA_RECEIPT_SCHEMA_VERSION
+        else:
+            source_id = deterministic_source_id(actor.user_id, idempotency_key)
+            receipt_schema_version = RECEIPT_SCHEMA_VERSION
         source_sha256 = hashlib.sha256(payload).hexdigest()
         existing = await self._repository.get_owned(source_id, actor.user_id)
         if existing is not None:
@@ -382,16 +571,14 @@ class BrokerReportsIntakeService:
             {
                 "OpenWebUI-User-Id": actor.user_id,
                 "OpenWebUI-File-Id": source_id,
-                "Broker-Reports-Intake": RECEIPT_SCHEMA_VERSION,
+                "Broker-Reports-Intake": receipt_schema_version,
             },
         )
 
         created_at = self._clock()
-        receipt_id = hashlib.sha256(
-            f"{RECEIPT_SCHEMA_VERSION}\x00{source_id}\x00{source_sha256}".encode("utf-8")
-        ).hexdigest()
+        receipt_id = _receipt_id(receipt_schema_version, source_id, source_sha256)
         receipt = {
-            "schema_version": RECEIPT_SCHEMA_VERSION,
+            "schema_version": receipt_schema_version,
             "receipt_id": receipt_id,
             "source_id": source_id,
             "owner_user_id": actor.user_id,
@@ -409,6 +596,19 @@ class BrokerReportsIntakeService:
             "vectorization_allowed": VECTORIZATION_ALLOWED,
             "created_at": created_at,
         }
+        if declaration_metadata:
+            receipt.update(
+                {
+                    "intake_slot": DECLARATION_METADATA_INPUT_SLOT,
+                    "slot_owner": DECLARATION_METADATA_SLOT_OWNER,
+                    "slot_checksum": _declaration_metadata_slot_checksum(
+                        source_id=source_id,
+                        owner_user_id=actor.user_id,
+                        source_sha256=source_sha256,
+                        size_bytes=len(payload),
+                    ),
+                }
+            )
         source = StoredSource(
             id=source_id,
             user_id=actor.user_id,
@@ -470,6 +670,10 @@ class BrokerReportsIntakeService:
             receipt_id=receipt.receipt_id,
             source_sha256=receipt.source_sha256,
             size_bytes=receipt.size_bytes,
+            receipt_schema_version=receipt.receipt_schema_version,
+            intake_slot=receipt.intake_slot,
+            owner_user_id=receipt.owner_user_id,
+            slot_checksum=receipt.slot_checksum,
             replayed=True,
         )
 
@@ -498,7 +702,12 @@ async def resolve_receipts(
             raise IneligibleSource(
                 "Generic, missing or cross-owner file reference is not eligible."
             )
-        receipts.append(validate_receipt(source, actor.user_id))
+        receipt = validate_receipt(source, actor.user_id)
+        if receipt.receipt_schema_version != RECEIPT_SCHEMA_VERSION:
+            raise IneligibleSource(
+                "Declaration metadata intake is not an ordinary Broker Reports source."
+            )
+        receipts.append(receipt)
     return receipts
 
 
