@@ -349,26 +349,88 @@ class SqliteArtifactStoreAdapter:
         ]
 
     def read_payload(self, record: ArtifactRecord) -> Any:
-        if record.purge_status == "purged" or record.lifecycle_status == "purged":
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM artifact_records WHERE artifact_id = ?",
+                (record.artifact_id,),
+            ).fetchone()
+        if row is None:
+            raise ArtifactStoreError("artifact_not_found", "Artifact ref was not found")
+        return self._read_payload_row(row)
+
+    def _read_payload_row(self, row: sqlite3.Row) -> Any:
+        """Read the authoritative stored bytes and verify their persisted seal."""
+
+        purge_status = str(row["purge_status"])
+        lifecycle_status = str(row["lifecycle_status"])
+        if purge_status == "purged" or lifecycle_status == "purged":
             raise ArtifactStoreError("artifact_purged", "Artifact payload was purged")
         if (
-            record.purge_status == "purge_pending"
-            or record.lifecycle_status == "purge_pending"
+            purge_status == "purge_pending"
+            or lifecycle_status == "purge_pending"
         ):
             raise ArtifactStoreError(
                 "artifact_purge_pending",
                 "Artifact payload purge is pending",
             )
-        if record.purge_status == "expired" or record.lifecycle_status == "expired":
+        if purge_status == "expired" or lifecycle_status == "expired":
             raise ArtifactStoreError("artifact_expired", "Artifact payload expired")
-        if record.payload is not None:
-            return record.payload
-        if not record.payload_ref:
+        self._validate_stored_payload_locator(row)
+        payload_inline_json = row["payload_inline_json"]
+        payload_ref = row["payload_ref"]
+        if payload_inline_json is not None:
+            payload_bytes = str(payload_inline_json).encode("utf-8")
+        elif payload_ref:
+            payload_path = self._payload_path_from_ref(str(payload_ref))
+            if not payload_path.exists():
+                raise ArtifactStoreError(
+                    "artifact_payload_unavailable", "Artifact payload file is missing"
+                )
+            try:
+                payload_bytes = payload_path.read_bytes()
+            except OSError as exc:
+                raise ArtifactStoreError(
+                    "artifact_payload_unavailable", "Artifact payload file is unreadable"
+                ) from exc
+        else:
+            if row["checksum_sha256"] is not None or row["payload_size_bytes"] is not None:
+                raise ArtifactStoreError(
+                    "artifact_payload_checksum_mismatch",
+                    "Artifact payload does not match its stored checksum",
+                )
             return None
-        payload_path = self._payload_path_from_ref(record.payload_ref)
-        if not payload_path.exists():
-            raise ArtifactStoreError("artifact_payload_unavailable", "Artifact payload file is missing")
-        return json.loads(payload_path.read_text(encoding="utf-8"))
+        expected_size = row["payload_size_bytes"]
+        checksum_value = row["checksum_sha256"]
+        expected_checksum = str(checksum_value or "")
+        legacy_unsealed = expected_size is None and checksum_value is None
+        if not legacy_unsealed and (expected_size is None or not expected_checksum):
+            raise ArtifactStoreError(
+                "artifact_payload_checksum_mismatch",
+                "Artifact payload integrity seal is incomplete",
+            )
+        if not legacy_unsealed:
+            try:
+                size_matches = len(payload_bytes) == int(expected_size)
+            except (TypeError, ValueError, OverflowError):
+                size_matches = False
+            if not size_matches:
+                raise ArtifactStoreError(
+                    "artifact_payload_checksum_mismatch",
+                    "Artifact payload does not match its stored checksum",
+                )
+        if not legacy_unsealed and (
+            hashlib.sha256(payload_bytes).hexdigest() != expected_checksum
+        ):
+            raise ArtifactStoreError(
+                "artifact_payload_checksum_mismatch",
+                "Artifact payload does not match its stored checksum",
+            )
+        try:
+            return json.loads(payload_bytes)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ArtifactStoreError(
+                "artifact_payload_unavailable", "Artifact payload JSON is invalid"
+            ) from exc
 
     def reserve_canonical_version(
         self,
@@ -1042,7 +1104,15 @@ class SqliteArtifactStoreAdapter:
                 "canonical_chunk_hash_mismatch",
                 "Canonical component checksum changed",
             )
-        return self.read_payload(record)
+        try:
+            return self._read_payload_row(row)
+        except ArtifactStoreError as exc:
+            if exc.code == "artifact_payload_checksum_mismatch":
+                raise ArtifactStoreError(
+                    "canonical_chunk_hash_mismatch",
+                    "Canonical component payload checksum changed",
+                ) from exc
+            raise
 
     def expire_run(
         self,
@@ -2009,9 +2079,8 @@ class SqliteArtifactStoreAdapter:
         )
 
     def _write_payload(self, artifact_id: str, payload_bytes: bytes) -> str:
-        if "/" in artifact_id or "\\" in artifact_id:
-            raise ArtifactStoreError("artifact_not_found", "Artifact id is malformed")
-        target = (self.payload_root / f"{artifact_id}.json").resolve()
+        payload_ref = self._canonical_payload_ref(artifact_id)
+        target = (self.payload_root / payload_ref).resolve()
         root = self.payload_root.resolve()
         if root not in target.parents:
             raise ArtifactStoreError("artifact_payload_unavailable", "Payload path escaped root")
@@ -2035,11 +2104,48 @@ class SqliteArtifactStoreAdapter:
         return target
 
     def _delete_payload(self, record: ArtifactRecord) -> None:
+        if record.storage_backend == "project_artifact_payload":
+            locator_matches = record.payload is None and (
+                record.payload_ref is None
+                or record.payload_ref == self._canonical_payload_ref(record.artifact_id)
+            )
+        else:
+            locator_matches = record.payload_ref is None
+        if not locator_matches:
+            raise ArtifactStoreError(
+                "artifact_payload_checksum_mismatch",
+                "Artifact payload locator does not match its artifact identity",
+            )
         if not record.payload_ref:
             return
         payload_path = self._payload_path_from_ref(record.payload_ref)
         if payload_path.exists():
             payload_path.unlink()
+
+    @staticmethod
+    def _canonical_payload_ref(artifact_id: str) -> str:
+        if "/" in artifact_id or "\\" in artifact_id:
+            raise ArtifactStoreError("artifact_not_found", "Artifact id is malformed")
+        return f"{artifact_id}.json"
+
+    def _validate_stored_payload_locator(self, row: sqlite3.Row) -> None:
+        artifact_id = str(row["artifact_id"])
+        storage_backend = str(row["storage_backend"])
+        payload_ref = row["payload_ref"]
+        payload_inline_json = row["payload_inline_json"]
+        locator_matches = True
+        if storage_backend == "project_artifact_payload":
+            locator_matches = payload_inline_json is None and (
+                payload_ref is None
+                or str(payload_ref) == self._canonical_payload_ref(artifact_id)
+            )
+        else:
+            locator_matches = payload_ref is None
+        if not locator_matches:
+            raise ArtifactStoreError(
+                "artifact_payload_checksum_mismatch",
+                "Artifact payload locator does not match its storage policy",
+            )
 
 def _row_to_record(row: sqlite3.Row) -> ArtifactRecord:
     retention_policy = RetentionPolicy.from_dict(json.loads(str(row["retention_policy_json"])))
