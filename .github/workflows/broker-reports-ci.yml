@@ -201,6 +201,7 @@ jobs:
           tests/test_broker_reports_issue312_semantic_mapping_contract.py
           tests/test_broker_reports_issue312_mapping_case.py
           tests/test_broker_reports_issue312_mapping_runtime.py
+          tests/test_broker_reports_issue317_active_semantic_critic.py
           tests/test_broker_reports_ndfl_product_pipe.py
           tests/test_broker_reports_workload_authority.py
           tests/test_broker_reports_ndfl_workspace_model.py
