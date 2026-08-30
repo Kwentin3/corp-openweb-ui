@@ -44,6 +44,9 @@ GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE = "gate5_single_input_hitl_v0"
 ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE = (
     "ordinary_trade_semantic_mapping_v1"
 )
+ORDINARY_TRADE_SEMANTIC_CRITIC_REQUEST_PROFILE = (
+    "ordinary_trade_semantic_critic_v1"
+)
 ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE = (
     "ordinary_trade_mapping_answer_v1"
 )
@@ -77,6 +80,7 @@ _SUPPORTED_REQUEST_PROFILES = (
     GATE3_LLM_METADATA_REQUEST_PROFILE,
     GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE,
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
+    ORDINARY_TRADE_SEMANTIC_CRITIC_REQUEST_PROFILE,
     ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
 )
 
@@ -329,6 +333,7 @@ class Gate2OpenWebUIRequestBuilder:
             )
         if self.request_profile in {
             ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
+            ORDINARY_TRADE_SEMANTIC_CRITIC_REQUEST_PROFILE,
             ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
         }:
             return self._build_ordinary_trade_semantic_request(
@@ -378,11 +383,11 @@ class Gate2OpenWebUIRequestBuilder:
             if isinstance(response_format, dict)
             else None
         )
-        expected_phase = (
-            "map"
-            if self.request_profile == ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
-            else "interpret_answer"
-        )
+        expected_phase = {
+            ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE: "map",
+            ORDINARY_TRADE_SEMANTIC_CRITIC_REQUEST_PROFILE: "critic",
+            ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE: "interpret_answer",
+        }[self.request_profile]
         if (
             not isinstance(package, dict)
             or package.get("phase") != expected_phase

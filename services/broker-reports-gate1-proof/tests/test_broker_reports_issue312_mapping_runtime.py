@@ -34,6 +34,7 @@ from broker_reports_gate1.ordinary_trade_semantic_compiler import (
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
+    CRITIC_RESPONSE_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingFactory,
 )
@@ -59,11 +60,31 @@ class BoundaryModelClient:
         )
 
 
+class ApprovingCriticClient:
+    def __init__(self, proposal_client):
+        self.proposal_client = proposal_client
+        self.calls = []
+
+    async def extract(self, **kwargs):
+        self.calls.append(kwargs)
+        reviewed_response = kwargs["package"]["proposal"]
+        return Gate2StructuredModelResult(
+            content={
+                "schema_version": CRITIC_RESPONSE_SCHEMA_VERSION,
+                "verdict": "APPROVE",
+                "reviewed_response": reviewed_response,
+                "message": "Independent review approved the proposal.",
+            },
+            execution_metadata=case_fixtures._metadata(),
+        )
+
+
 def _runtime(store, client):
     return OrdinaryTradeAutomaticMappingRuntimeFactory(
         store=store,
         read_enabled=True,
         model_client=client,
+        critic_model_client=ApprovingCriticClient(client),
         model_id="models/gemini-3.5-flash",
         provider_profile_id="google_gemini",
     ).create()
@@ -125,7 +146,7 @@ async def _one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
     )
 
     assert result["status"] == "COMPLETE"
-    assert result["provider_calls_this_turn"] == 1
+    assert result["provider_calls_this_turn"] == 2
     assert len(client.calls) == 1
     assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
 
@@ -473,6 +494,7 @@ async def _production_composition_maps_unknown_then_publishes_facts(tmp_path) ->
         store=store,
         read_enabled=True,
         mapping_model_client=mapping_client,
+        mapping_critic_model_client=ApprovingCriticClient(mapping_client),
         mapping_answer_model_client=answer_client,
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
@@ -487,7 +509,7 @@ async def _production_composition_maps_unknown_then_publishes_facts(tmp_path) ->
     )
 
     assert result["semantic_mapping"]["status"] == "COMPLETE"
-    assert result["provider_calls_total"] == 1
+    assert result["provider_calls_total"] == 2
     assert result["product"]["gate4"]["security_facts_total"] == 2
     assert result["product"]["gate4"]["transaction_charge_facts_total"] == 2
     assert result["product"]["terminal"] != (
@@ -518,6 +540,7 @@ async def _sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
         store=store,
         read_enabled=True,
         mapping_model_client=mapping_client,
+        mapping_critic_model_client=ApprovingCriticClient(mapping_client),
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
@@ -532,7 +555,7 @@ async def _sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
     )
 
     assert result["semantic_mapping"]["status"] == "COMPLETE"
-    assert result["provider_calls_total"] == 1
+    assert result["provider_calls_total"] == 2
     assert result["product"]["gate4"]["security_facts_total"] == 2
     assert result["product"]["gate4"]["transaction_charge_facts_total"] == 2
     assert result["product"]["terminal"] != (
@@ -548,6 +571,7 @@ async def _known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
         store=store,
         read_enabled=True,
         mapping_model_client=mapping_client,
+        mapping_critic_model_client=ApprovingCriticClient(mapping_client),
         mapping_answer_model_client=answer_client,
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
@@ -581,6 +605,7 @@ async def _mixed_known_and_unknown_tables_reach_gate4_facts(tmp_path) -> None:
         store=store,
         read_enabled=True,
         mapping_model_client=client,
+        mapping_critic_model_client=ApprovingCriticClient(client),
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
@@ -591,7 +616,7 @@ async def _mixed_known_and_unknown_tables_reach_gate4_facts(tmp_path) -> None:
     )
 
     assert result["semantic_mapping"]["status"] == "COMPLETE"
-    assert result["provider_calls_total"] == 1
+    assert result["provider_calls_total"] == 2
     assert len(client.calls) == 1
     assert len(client.calls[0]["package"]["case"]["tables"]) == 1
     assert result["product"]["gate4"]["facts_total"] == 8
@@ -614,6 +639,7 @@ async def _identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> Non
         store=store,
         read_enabled=True,
         mapping_model_client=client,
+        mapping_critic_model_client=ApprovingCriticClient(client),
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
@@ -658,6 +684,7 @@ async def _identical_known_table_nodes_use_zero_call_fast_path(tmp_path) -> None
         store=store,
         read_enabled=True,
         mapping_model_client=client,
+        mapping_critic_model_client=ApprovingCriticClient(client),
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
@@ -812,6 +839,7 @@ async def _row_classification_reaches_product_terminal(tmp_path, *, row, blocked
         store=store,
         read_enabled=True,
         mapping_model_client=client,
+        mapping_critic_model_client=ApprovingCriticClient(client),
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
@@ -887,6 +915,7 @@ async def _unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
         store=store,
         read_enabled=True,
         mapping_model_client=client,
+        mapping_critic_model_client=ApprovingCriticClient(client),
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
@@ -960,6 +989,7 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
         store=store,
         read_enabled=True,
         mapping_model_client=mapping_client,
+        mapping_critic_model_client=ApprovingCriticClient(mapping_client),
         mapping_answer_model_client=answer_client,
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
@@ -1112,6 +1142,22 @@ async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -
         store=store,
         read_enabled=True,
         mapping_model_client=client,
+        mapping_critic_model_client=BoundaryModelClient(
+            [
+                {
+                    "schema_version": CRITIC_RESPONSE_SCHEMA_VERSION,
+                    "verdict": "REJECT_UNSAFE",
+                    "reviewed_response": {
+                        "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                        "status": "SPECIALIST_REVIEW_REQUIRED",
+                        "table_decisions": [],
+                        "clarification": None,
+                        "message": "Financial table cannot be safely excluded.",
+                    },
+                    "message": "The proposed exclusion drops financial rows.",
+                }
+            ]
+        ),
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",

@@ -2,16 +2,18 @@
 
 Status: `CURRENT AUTHORITY`
 
-Updated: 2026-08-27
+Updated: 2026-08-30
 
 ## Scope
 
 The active `ordinary_trade_automatic_semantic_mapping_v1` route keeps qualified
 exact mappings as a zero-call fast path. Only table nodes not covered by that
 frozen path enter the model package. An unknown Canonical table schema is
-not rejected merely because it is absent from that registry: one strict source
-adapter may propose the table disposition, column roles, side literals and
-consumer-required amount/currency bindings.
+not rejected merely because it is absent from that registry. One strict source
+adapter proposes the table disposition, column roles, side literals and
+consumer-required amount/currency bindings. A separate strict critic then sees
+the same bounded Canonical evidence plus that proposal. Only the critic-reviewed
+response may enter the existing mapping case and qualification authority.
 
 The model receives only bounded immutable Canonical table context. It does not
 author literals, source references, Canonical changes, facts or tax meaning.
@@ -86,8 +88,8 @@ Every Canonical table receives exactly one disposition:
 
 - `SECURITY_TRADES` requires a complete validated mapping;
 - `NO_NAMED_CONSUMER` retains literal observations and provenance but emits no
-  Fact v2 only after an exact machine-applicable table-disposition decision was
-  explicitly confirmed; model output alone stops for specialist review;
+  Fact v2 only after the independent critic confirms that the same Canonical
+  evidence contains no supported or unsupported financial rows;
 - `UNSUPPORTED_FINANCIAL_MEANING` stops with a typed owner blocker;
 - ambiguity produces one bounded clarification and no mapping admission.
 
@@ -115,4 +117,6 @@ Package/bundle parity, tenant isolation, concurrency, adversarial inputs and the
 saved corpus matrix are required before release. The real OpenWebUI clean-room
 proof runs only after the dependency branch is transferred onto fresh
 `origin/main`; it must prove one unknown schema, one ambiguity dialogue, the
-known-schema zero-call fast path and unchanged Canonical identity.
+known-schema zero-call fast path and unchanged Canonical identity. Unknown
+schemas make exactly one proposal and one critic call; a failed critic never
+persists the proposal.
