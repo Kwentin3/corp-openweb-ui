@@ -7,7 +7,11 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from .contracts import sha256_json, stable_digest
+from .contracts import (
+    PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID,
+    sha256_json,
+    stable_digest,
+)
 from .pdf_table_locator_provider import (
     PdfTableLocatorProviderConfig,
     PdfTableLocatorProviderError,
@@ -16,6 +20,7 @@ from .pdf_table_locator_provider import (
 from .pdf_table_locator import (
     PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
     PDF_TABLE_LOCATOR_OUTPUT_SCHEMA,
+    PDF_TABLE_LOCATOR_PAGE_SCHEMA,
     PDF_TABLE_LOCATOR_POLICY_VERSION,
     PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
     PDF_TABLE_LOCATOR_PROMPT,
@@ -231,12 +236,15 @@ class PdfTableIntakeRuntime:
                     )
                     page_results.append(
                         {
-                            "schema_version": "broker_reports_pdf_table_locator_page_v1",
+                            "schema_version": PDF_TABLE_LOCATOR_PAGE_SCHEMA,
                             "document_ref": document["document_ref"],
                             "pdf_sha256": document["pdf_sha256"],
                             "page_number": page_number,
                             "status": "failed",
                             "failure_code": str(code),
+                            "source_binding_policy": (
+                                PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID
+                            ),
                             "regions": [],
                         }
                     )
@@ -377,6 +385,7 @@ class PdfTableIntakeRuntime:
                 "page_ref": page_ref,
                 "detector_identity": copy.deepcopy(detector_identity),
                 "detector_contract_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
+                "source_binding_policy": PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID,
                 "model_values_used_as_source_literals": False,
             }
             for region in projection["tables"]
@@ -405,13 +414,14 @@ class PdfTableIntakeRuntime:
             "provider_failover": False,
         }
         page_result = {
-            "schema_version": "broker_reports_pdf_table_locator_page_v1",
+            "schema_version": PDF_TABLE_LOCATOR_PAGE_SCHEMA,
             "policy_version": PDF_TABLE_LOCATOR_POLICY_VERSION,
             "document_ref": document["document_ref"],
             "pdf_sha256": document["pdf_sha256"],
             "page_number": page_number,
             "page_ref": page_ref,
             "status": "located" if regions else "located_no_tables",
+            "source_binding_policy": PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID,
             "page_bbox_pdf_points": list(page_bbox),
             "regions": regions,
             "model_values_used_as_source_literals": False,

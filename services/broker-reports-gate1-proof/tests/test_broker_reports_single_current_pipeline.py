@@ -57,5 +57,5 @@ def test_current_gate1_contract_does_not_advertise_retired_table_routes() -> Non
         for contract in SUPPORTED_CONTRACTS
         for fragment in retired_fragments
     )
-    assert "broker_reports_pdf_table_locator_response_v1" in SUPPORTED_CONTRACTS
+    assert "broker_reports_pdf_table_locator_response_v2" in SUPPORTED_CONTRACTS
     assert "broker_reports_pdf_table_intake_run_v1" in SUPPORTED_CONTRACTS
