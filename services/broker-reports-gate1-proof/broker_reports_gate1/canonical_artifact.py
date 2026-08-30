@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from .table_projection import NormalizedTableProjectionFactory
+
 
 CANONICAL_ARTIFACT_SCHEMA_VERSION = "canonical_artifact_v1"
 CANONICAL_NORMALIZER_POLICY_VERSION = "canonical_normalizer_v1"
@@ -254,6 +256,9 @@ class CanonicalNormalizer:
         accounted before the shared completeness validator can admit output.
         """
 
+        _validate_bound_projection_inputs(
+            source_payloads, source_units, table_projections
+        )
         root = builder.add_container("DOCUMENT", None, {})
         projections_by_unit: dict[str, dict[str, Any]] = {}
         standalone_projections: list[dict[str, Any]] = []
@@ -370,11 +375,13 @@ class CanonicalNormalizer:
                 and table_id not in seen_tables
             ):
                 seen_tables.add(table_id)
-                rows = _projection_matrix(projection)
+                rows, table_location, title, header_present = (
+                    _projection_table_material(projection, location)
+                )
                 builder.add_table(
                     container,
                     rows,
-                    location,
+                    table_location,
                     metadata={
                         "source_format": "pdf",
                         "source_unit_ref": unit_ref,
@@ -398,12 +405,11 @@ class CanonicalNormalizer:
                         ),
                     },
                     canonical_cells=_projection_canonical_cells(
-                        builder, projection, location
+                        builder, projection, table_location
                     ),
                     canonical_cell_source_refs_resolved=True,
-                    header_present=bool(
-                        (projection.get("header_model") or {}).get("header_row_refs")
-                    ),
+                    header_present=header_present,
+                    title=title,
                     issue_refs=issue_refs,
                 )
                 continue
@@ -465,10 +471,15 @@ class CanonicalNormalizer:
                 continue
             seen_tables.add(table_id)
             page = _projection_page(projection)
+            rows, table_location, title, header_present = (
+                _projection_table_material(
+                    projection, _projection_location(projection)
+                )
+            )
             builder.add_table(
                 page_containers[page],
-                _projection_matrix(projection),
-                _projection_location(projection),
+                rows,
+                table_location,
                 metadata={
                     "source_format": "pdf",
                     "source_unit_ref": projection.get("source_unit_ref"),
@@ -493,12 +504,11 @@ class CanonicalNormalizer:
                 canonical_cells=_projection_canonical_cells(
                     builder,
                     projection,
-                    _projection_location(projection),
+                    table_location,
                 ),
                 canonical_cell_source_refs_resolved=True,
-                header_present=bool(
-                    (projection.get("header_model") or {}).get("header_row_refs")
-                ),
+                header_present=header_present,
+                title=title,
             )
         if not ordered and not standalone_projections:
             if _proved_empty_pdf(source_payloads):
@@ -1282,6 +1292,9 @@ def validate_canonical_artifact(artifact: dict[str, Any]) -> dict[str, Any]:
     container_ids = [str(item.get("container_id") or "") for item in containers]
     node_ids = [str(item.get("node_id") or "") for item in nodes]
     provenance_ids = {str(item.get("provenance_id") or "") for item in provenance}
+    provenance_by_id = {
+        str(item.get("provenance_id") or ""): item for item in provenance
+    }
     issue_ids = {str(item.get("issue_id") or "") for item in issues}
     root_ref = str(artifact.get("root_container_ref") or "")
     root = next(
@@ -1380,6 +1393,25 @@ def validate_canonical_artifact(artifact: dict[str, Any]) -> dict[str, Any]:
                     str(ref) not in provenance_ids for ref in cell_refs
                 ):
                     errors.append("canonical_table_cell_source_ref_unresolved")
+            node_source_refs = [str(ref) for ref in node.get("source_refs") or []]
+            node_source_locator = (
+                (provenance_by_id.get(node_source_refs[0]) or {}).get(
+                    "source_locator"
+                )
+                if len(node_source_refs) == 1
+                else None
+            )
+            if isinstance(node_source_locator, dict) and (
+                "table_title_binding" in node_source_locator
+                or "table_header_binding" in node_source_locator
+            ):
+                errors.extend(
+                    _canonical_table_source_binding_errors(
+                        content=content,
+                        source_locator=node_source_locator,
+                        provenance_by_id=provenance_by_id,
+                    )
+                )
         elif node_type in {"PAGE_BREAK", "SHEET_BREAK"} and not str(
             content.get("boundary_ref") or ""
         ):
@@ -1604,6 +1636,130 @@ def _projection_matrix(projection: dict[str, Any]) -> list[list[Any]]:
     return matrix
 
 
+def _validate_bound_projection_inputs(
+    source_payloads: list[dict[str, Any]],
+    source_units: list[dict[str, Any]],
+    table_projections: list[dict[str, Any]],
+) -> None:
+    """Rebuild B1 custody before promotion; persisted Canonical has no source ledger."""
+
+    bound = [
+        item
+        for item in table_projections
+        if "table_title_binding" in item or "bound_header_row_count" in item
+    ]
+    if not bound:
+        return
+    rebuilt = NormalizedTableProjectionFactory().create().build_for_document(
+        source_format="pdf",
+        payloads=source_payloads,
+        source_units=source_units,
+    )
+    rebuilt_by_id = {
+        str(item.get("table_projection_id") or ""): item
+        for item in rebuilt.projections
+    }
+    if any(
+        rebuilt_by_id.get(str(item.get("table_projection_id") or "")) != item
+        or item.get("validator_status") != "passed"
+        for item in bound
+    ):
+        raise CanonicalArtifactError("canonical_pdf_table_projection_custody_invalid")
+
+
+def _projection_table_material(
+    projection: dict[str, Any], source_location: dict[str, Any]
+) -> tuple[list[list[Any]], dict[str, Any], Any, bool]:
+    matrix = _projection_matrix(projection)
+    location = {
+        **source_location,
+        "source_unit_ref": str(projection.get("source_unit_ref") or ""),
+        "table_projection_id": str(projection.get("table_projection_id") or ""),
+        "source_kind": "source_bound_table_projection",
+    }
+    if not {
+        "table_title_binding",
+        "bound_header_row_count",
+    } <= set(projection):
+        return (
+            matrix,
+            location,
+            None,
+            bool((projection.get("header_model") or {}).get("header_row_refs")),
+        )
+    if projection.get("validator_status") != "passed":
+        raise CanonicalArtifactError("canonical_pdf_table_source_binding_not_validated")
+    title_binding = copy.deepcopy(projection.get("table_title_binding"))
+    if _title_binding_error(title_binding, (title_binding or {}).get("value")):
+        raise CanonicalArtifactError("canonical_pdf_table_title_binding_invalid")
+    try:
+        header_count = int(projection.get("bound_header_row_count") or 0)
+    except (TypeError, ValueError) as exc:
+        raise CanonicalArtifactError("canonical_pdf_table_header_binding_invalid") from exc
+    projection_rows = sorted(
+        [item for item in projection.get("rows") or [] if isinstance(item, dict)],
+        key=lambda item: int(item.get("row_ordinal") or 0),
+    )
+    if header_count < 0 or header_count > len(matrix):
+        raise CanonicalArtifactError("canonical_pdf_table_header_binding_invalid")
+    expected_header_row_refs = [
+        str(item.get("row_ref") or "") for item in projection_rows[:header_count]
+    ]
+    header_model = projection.get("header_model") or {}
+    header_row_ref_set = set(expected_header_row_refs)
+    header_source_refs = [
+        str(ref)
+        for cell in projection.get("cells") or []
+        if isinstance(cell, dict)
+        and str(cell.get("row_ref") or "") in header_row_ref_set
+        for ref in cell.get("source_value_refs") or []
+    ]
+    header_material = {"row_refs": expected_header_row_refs, "source_value_refs": header_source_refs}
+    if (
+        any(not ref for ref in expected_header_row_refs)
+        or list(header_model.get("header_row_refs") or []) != expected_header_row_refs
+        or list(header_model.get("source_value_refs") or []) != header_source_refs
+        or header_model.get("source_checksum_ref") != _checksum_ref("pdfheaderchk", header_material)
+    ):
+        raise CanonicalArtifactError("canonical_pdf_table_header_binding_invalid")
+    location.update({
+        "table_title_binding": title_binding,
+        "table_header_binding": {
+            "bound_header_row_count": header_count,
+            "header_row_refs": expected_header_row_refs,
+            "source_value_refs": header_source_refs,
+            "source_checksum_ref": header_model.get("source_checksum_ref"),
+        },
+        "table_projection_checksum_ref": projection.get(
+            "table_projection_checksum_ref"
+        ),
+    })
+    header, body = _spanned_table_view(
+        _projection_span_entries(projection),
+        row_count=int(projection.get("row_count") or 0),
+        column_count=int(projection.get("column_count") or 0),
+        header_row_count=header_count,
+    )
+    rows = [header, *body] if header_count else matrix
+    return rows, location, (title_binding or {}).get("value"), bool(header_count)
+
+
+def _projection_span_entries(projection: dict[str, Any]) -> list[dict[str, Any]]:
+    values = {str(item.get("value_path_ref") or ""): item.get("normalized_value") for item in projection.get("private_values") or [] if isinstance(item, dict)}
+    return [
+        {
+            "cell_ref": str(cell.get("cell_ref") or ""),
+            "row": int(cell.get("row_ordinal") or 0),
+            "column": int(cell.get("column_ordinal") or 0),
+            "row_span": max(1, int(cell.get("row_span") or 1)),
+            "column_span": max(1, int(cell.get("column_span") or 1)),
+            "value": values.get(str(cell.get("normalized_private_value_path") or "")),
+        }
+        for cell in projection.get("cells") or []
+        if isinstance(cell, dict)
+    ]
+
+
 def _projection_canonical_cells(
     builder: "_LogicalBuilder",
     projection: dict[str, Any],
@@ -1612,11 +1768,23 @@ def _projection_canonical_cells(
     projection_cells = [
         cell for cell in projection.get("cells") or [] if isinstance(cell, dict)
     ]
+    exact_ref_contract = any(
+        "cell_ref" in cell or "source_value_refs" in cell
+        for cell in projection_cells
+    )
     rectangular_cell_count = int(projection.get("row_count") or 0) * int(
         projection.get("column_count") or 0
     )
-    if len(projection_cells) >= rectangular_cell_count:
+    if not exact_ref_contract and len(projection_cells) >= rectangular_cell_count:
         return None
+    if exact_ref_contract and any(
+        not str(cell.get("cell_ref") or "")
+        or not isinstance(cell.get("source_value_refs"), list)
+        for cell in projection_cells
+    ):
+        raise CanonicalArtifactError(
+            "canonical_pdf_table_projection_cell_refs_incomplete"
+        )
     values = {
         str(item.get("value_path_ref") or ""): item.get("normalized_value")
         for item in projection.get("private_values") or []
@@ -1645,8 +1813,11 @@ def _projection_canonical_cells(
                 projection.get("table_projection_id") or ""
             ),
             "cell_ref": str(cell.get("cell_ref") or ""),
+            "row_ref": str(cell.get("row_ref") or ""),
             "row": row,
             "column": column,
+            "row_span": max(1, int(cell.get("row_span") or 1)),
+            "column_span": max(1, int(cell.get("column_span") or 1)),
             "bbox_ref": cell.get("bbox_ref"),
             "source_value_refs": [
                 str(item) for item in cell.get("source_value_refs") or []
@@ -1686,6 +1857,195 @@ def _projection_canonical_cells(
             }
         )
     return result
+
+
+def _canonical_table_source_binding_errors(
+    *,
+    content: dict[str, Any],
+    source_locator: dict[str, Any],
+    provenance_by_id: dict[str, dict[str, Any]],
+) -> list[str]:
+    errors: list[str] = []
+    if set(source_locator) >= {"table_title_binding", "table_header_binding"}:
+        title_binding = source_locator.get("table_title_binding")
+        if _title_binding_error(title_binding, content.get("title")):
+            errors.append("canonical_table_title_binding_mismatch")
+
+        header_binding = source_locator.get("table_header_binding")
+        if not isinstance(header_binding, dict) or set(header_binding) != {
+            "bound_header_row_count",
+            "header_row_refs",
+            "source_value_refs",
+            "source_checksum_ref",
+        }:
+            errors.append("canonical_table_header_binding_invalid")
+            return errors
+        try:
+            header_count = int(header_binding.get("bound_header_row_count") or 0)
+        except (TypeError, ValueError):
+            errors.append("canonical_table_header_binding_invalid")
+            return errors
+        header_row_refs = [str(ref) for ref in header_binding.get("header_row_refs") or []]
+        header_source_refs = [
+            str(ref) for ref in header_binding.get("source_value_refs") or []
+        ]
+        header_material = {
+            "row_refs": header_row_refs,
+            "source_value_refs": header_source_refs,
+        }
+        if (
+            header_count < 0
+            or len(header_row_refs) != header_count
+            or len(header_row_refs) != len(set(header_row_refs))
+            or len(header_source_refs) != len(set(header_source_refs))
+            or header_binding.get("source_checksum_ref")
+            != _checksum_ref("pdfheaderchk", header_material)
+        ):
+            errors.append("canonical_table_header_binding_invalid")
+
+        resolved_cells: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for cell in content.get("cells") or []:
+            refs = [str(ref) for ref in cell.get("source_refs") or []]
+            locator = (
+                (provenance_by_id.get(refs[0]) or {}).get("source_locator")
+                if len(refs) == 1
+                else None
+            )
+            if not isinstance(locator, dict) or locator.get("kind") != "pdf_table_projection_cell":
+                errors.append("canonical_table_binding_cell_provenance_invalid")
+                continue
+            resolved_cells.append((cell, locator))
+        resolved_cells.sort(key=lambda item: (int(item[1].get("row") or 0), int(item[1].get("column") or 0)))
+        header_cells = [
+            item
+            for item in resolved_cells
+            if 1 <= int(item[1].get("row") or 0) <= header_count
+        ]
+        derived_row_refs: list[str] = []
+        for row in range(1, header_count + 1):
+            row_refs = {
+                str(locator.get("row_ref") or "")
+                for _cell, locator in header_cells
+                if int(locator.get("row") or 0) == row
+            }
+            if len(row_refs) != 1 or "" in row_refs:
+                errors.append("canonical_table_header_row_refs_invalid")
+                continue
+            derived_row_refs.append(next(iter(row_refs)))
+        derived_source_refs = [str(ref) for _cell, locator in header_cells for ref in locator.get("source_value_refs") or []]
+        if derived_row_refs != header_row_refs or derived_source_refs != header_source_refs:
+            errors.append("canonical_table_header_source_binding_mismatch")
+        try:
+            derived_header, derived_body = _canonical_bound_table_view(
+                resolved_cells, header_count
+            )
+        except (CanonicalArtifactError, TypeError, ValueError):
+            errors.append("canonical_table_binding_cell_geometry_invalid")
+            return errors
+        if content.get("header") != derived_header:
+            errors.append("canonical_table_header_vector_mismatch")
+        if content.get("rows") != derived_body:
+            errors.append("canonical_table_body_rows_mismatch")
+    else:
+        errors.append("canonical_table_source_binding_pair_incomplete")
+    return errors
+
+
+def _canonical_bound_table_view(
+    resolved_cells: list[tuple[dict[str, Any], dict[str, Any]]],
+    header_row_count: int,
+) -> tuple[list[Any], list[list[Any]]]:
+    entries = [
+        {
+            "cell_ref": str(locator.get("cell_ref") or ""),
+            "row": int(locator.get("row") or 0),
+            "column": int(locator.get("column") or 0),
+            "row_span": max(1, int(locator.get("row_span") or 1)),
+            "column_span": max(1, int(locator.get("column_span") or 1)),
+            "value": cell.get("value"),
+        }
+        for cell, locator in resolved_cells
+    ]
+    return _spanned_table_view(
+        entries,
+        row_count=max(
+            (item["row"] + item["row_span"] - 1 for item in entries), default=0
+        ),
+        column_count=max(
+            (
+                item["column"] + item["column_span"] - 1
+                for item in entries
+            ),
+            default=0,
+        ),
+        header_row_count=header_row_count,
+    )
+
+
+def _spanned_table_view(
+    entries: list[dict[str, Any]],
+    *,
+    row_count: int,
+    column_count: int,
+    header_row_count: int,
+) -> tuple[list[Any], list[list[Any]]]:
+    matrix: list[list[Any]] = [
+        [None for _ in range(column_count)] for _ in range(row_count)
+    ]
+    for item in entries:
+        row, column = int(item["row"]), int(item["column"])
+        if 1 <= row <= row_count and 1 <= column <= column_count:
+            matrix[row - 1][column - 1] = item.get("value")
+    if header_row_count == 0:
+        return [], matrix
+    header: list[Any] = []
+    for column in range(1, column_count + 1):
+        parts: list[str] = []
+        seen: set[str] = set()
+        for row in range(1, header_row_count + 1):
+            covering = [
+                item
+                for item in entries
+                if item["row"] <= row < item["row"] + item["row_span"]
+                and item["column"]
+                <= column
+                < item["column"] + item["column_span"]
+            ]
+            if len(covering) > 1:
+                raise CanonicalArtifactError(
+                    "canonical_pdf_table_header_cell_overlap"
+                )
+            if not covering or covering[0]["cell_ref"] in seen:
+                continue
+            item = covering[0]
+            seen.add(item["cell_ref"])
+            if item.get("value") not in (None, ""):
+                parts.append(str(item["value"]))
+        header.append("\n".join(parts) if parts else None)
+    return header, matrix[header_row_count:]
+
+
+def _unique_nonempty_strings(value: Any) -> bool:
+    refs = [str(item) for item in value or []] if isinstance(value, list) else []
+    return bool(refs) and all(refs) and len(refs) == len(set(refs))
+
+
+def _title_binding_error(binding: Any, title: Any) -> bool:
+    if binding is None:
+        return title is not None
+    keys = {"value", "word_refs", "line_refs", "source_value_refs", "checksum_ref"}
+    return (
+        not isinstance(binding, dict)
+        or set(binding) != keys
+        or title != binding.get("value")
+        or not isinstance(binding.get("value"), str)
+        or any(not _unique_nonempty_strings(binding.get(field)) for field in ("word_refs", "line_refs", "source_value_refs"))
+        or binding.get("checksum_ref") != _checksum_ref("pdftitlechk", {key: value for key, value in binding.items() if key != "checksum_ref"})
+    )
+
+
+def _checksum_ref(prefix: str, value: Any) -> str:
+    return f"{prefix}_{_sha256(value)[:24]}"
 
 
 def _projection_page(projection: dict[str, Any]) -> int:

@@ -24,6 +24,8 @@ from broker_reports_gate1 import (
     build_retention_policy,
     persist_gate1_result,
 )
+from broker_reports_gate1.canonical_artifact import _projection_table_material
+from tests.test_broker_reports_table_projection import _generic_bound_projection
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -37,6 +39,36 @@ SCHEMA_PATH = (
 
 
 class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
+    def test_bound_projection_sets_title_and_flattens_two_header_rows(self):
+        projection = _generic_bound_projection(header_rows=2, with_title=True)
+        rows, location, title, header_present = _projection_table_material(
+            projection, {"page": 1}
+        )
+
+        self.assertEqual(title, "Top A")
+        self.assertTrue(header_present)
+        self.assertEqual(rows, [["Top A\nSub A", "Top B\nSub B"], ["1", "2"]])
+        self.assertEqual(location["table_header_binding"]["bound_header_row_count"], 2)
+
+    def test_null_and_legacy_projection_bindings_remain_compatible(self):
+        null_projection = _generic_bound_projection(header_rows=0, with_title=False)
+        null_rows, _location, null_title, null_header = _projection_table_material(
+            null_projection, {"page": 1}
+        )
+        self.assertIsNone(null_title)
+        self.assertFalse(null_header)
+        self.assertEqual(null_rows[0], ["Top A", "Top B"])
+
+        legacy_projection = dict(null_projection)
+        legacy_projection.pop("table_title_binding")
+        legacy_projection.pop("bound_header_row_count")
+        legacy_rows, _location, legacy_title, legacy_header = (
+            _projection_table_material(legacy_projection, {"page": 1})
+        )
+        self.assertIsNone(legacy_title)
+        self.assertFalse(legacy_header)
+        self.assertEqual(legacy_rows, null_rows)
+
     def test_flags_off_do_not_add_canonical_projection_or_artifacts(self):
         result = self._normalize_csv({})
         self.assertNotIn(
