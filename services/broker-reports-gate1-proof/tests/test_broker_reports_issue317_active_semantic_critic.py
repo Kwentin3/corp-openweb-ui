@@ -8,6 +8,7 @@ from broker_reports_gate1.ordinary_trade_production_runtime import (
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     CRITIC_RESPONSE_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingFactory,
 )
 
 import test_broker_reports_issue312_mapping_case as case_fixtures
@@ -79,6 +80,52 @@ def _disposition_response(disposition: str, *, status: str = "COMPLETE") -> dict
         ],
         "clarification": None,
         "message": "Reviewed table disposition.",
+    }
+
+
+def test_critic_prompt_keeps_retained_charge_scope_narrow() -> None:
+    prompt = OrdinaryTradeSemanticMappingFactory.create().critic_prompt().content
+    assert "source-stated monetary charge" in prompt
+    assert "otherwise complete ordinary security trade row" in prompt
+    assert "not income, tax withholding" in prompt
+    assert "incomplete or damaged field" in prompt
+    assert "unsupported financial operation" in prompt
+
+
+def _trade_with_retained_response() -> dict:
+    roles = (
+        "asset_name",
+        "trade_date",
+        "side",
+        "quantity",
+        "unit_price",
+        "currency",
+        "gross_amount",
+        "retained_transaction_charge",
+        "currency",
+    )
+    return {
+        "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+        "status": "COMPLETE",
+        "table_decisions": [
+            {
+                "table_ref": "table_1",
+                "disposition": "SECURITY_TRADES",
+                "columns": [
+                    {"column": column, "semantic_role": role}
+                    for column, role in enumerate(roles, start=1)
+                ],
+                "amount_currency_bindings": [
+                    {"amount_column": 7, "currency_column": 6},
+                    {"amount_column": 8, "currency_column": 9},
+                ],
+                "side_values": [
+                    {"source_literal": "Buy", "normalized_value": "PURCHASE"}
+                ],
+            }
+        ],
+        "clarification": None,
+        "message": "Proposed complete ordinary trade mapping.",
     }
 
 
@@ -213,6 +260,97 @@ async def _dividend_table_cannot_be_silently_excluded(tmp_path) -> None:
     assert result["product"]["gate4"]["facts_total"] == 0
 
 
+async def _unsupported_amount_cannot_be_laundered_as_retained_charge(
+    tmp_path,
+) -> None:
+    store, context, _document_id, canonical_ref = _document_with_rows(
+        tmp_path,
+        (
+            (
+                "Asset",
+                "Trade date",
+                "Side",
+                "Quantity",
+                "Unit price",
+                "Currency",
+                "Gross amount",
+                "Tax withheld",
+                "Withholding currency",
+            ),
+            ("ACME", "15.01.2025", "Buy", "10", "100", "RUB", "1000", "130", "RUB"),
+        ),
+    )
+    proposal = _trade_with_retained_response()
+    rejected = _disposition_response(
+        "UNSUPPORTED_FINANCIAL_MEANING", status="UNSUPPORTED"
+    )
+    runtime, proposal_client, critic_client = _runtime(
+        store,
+        proposal,
+        _critic("REJECT_UNSAFE", rejected),
+    )
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+
+    assert result["semantic_mapping"]["status"] == "UNSUPPORTED"
+    assert result["provider_calls_total"] == 2
+    assert result["product"]["gate4"]["facts_total"] == 0
+    assert critic_client.calls[0]["package"]["proposal"] == proposal
+    assert critic_client.calls[0]["package"]["case"] == (
+        proposal_client.calls[0]["package"]["case"]
+    )
+
+
+async def _retained_charge_row_fails_closed(
+    tmp_path, *, asset: str, retained_currency: str
+) -> None:
+    store, context, _document_id, canonical_ref = _document_with_rows(
+        tmp_path,
+        (
+            (
+                "Asset",
+                "Trade date",
+                "Side",
+                "Quantity",
+                "Unit price",
+                "Currency",
+                "Gross amount",
+                "Retained transaction charge",
+                "Retained charge currency",
+            ),
+            (
+                asset,
+                "15.01.2025",
+                "Buy",
+                "10",
+                "100",
+                "RUB",
+                "1000",
+                "0.20",
+                retained_currency,
+            ),
+        ),
+    )
+    proposal = _trade_with_retained_response()
+    runtime, _proposal_client, _critic_client = _runtime(
+        store,
+        proposal,
+        _critic("APPROVE", proposal),
+    )
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+
+    assert result["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["documents"][0]["runtime_ready_observations"] == 0
+    assert result["documents"][0]["relevant_unmapped_observations"] > 0
+    assert result["product"]["status"] == "PREPARATION_INCOMPLETE"
+    assert result["product"]["gate4"]["facts_total"] == 0
+
+
 async def _truncated_no_consumer_evidence_fails_closed(
     tmp_path, *, body_rows: int
 ) -> None:
@@ -261,6 +399,34 @@ def test_safe_auxiliary_table_is_excluded_after_review(tmp_path) -> None:
 
 def test_dividend_table_cannot_be_silently_excluded(tmp_path) -> None:
     asyncio.run(_dividend_table_cannot_be_silently_excluded(tmp_path))
+
+
+def test_unsupported_amount_cannot_be_laundered_as_retained_charge(
+    tmp_path,
+) -> None:
+    asyncio.run(_unsupported_amount_cannot_be_laundered_as_retained_charge(tmp_path))
+
+
+def test_retained_charge_does_not_hide_incomplete_trade_row(tmp_path) -> None:
+    asyncio.run(
+        _retained_charge_row_fails_closed(
+            tmp_path,
+            asset=" ",
+            retained_currency="RUB",
+        )
+    )
+
+
+def test_retained_charge_requires_nonempty_bound_currency_in_each_row(
+    tmp_path,
+) -> None:
+    asyncio.run(
+        _retained_charge_row_fails_closed(
+            tmp_path,
+            asset="ACME",
+            retained_currency=" ",
+        )
+    )
 
 
 def test_rows_truncated_no_consumer_evidence_fails_closed(tmp_path) -> None:

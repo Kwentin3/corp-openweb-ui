@@ -60,6 +60,7 @@ _SEMANTIC_ROLES = {
     "gross_amount",
     "broker_commission",
     "exchange_commission",
+    "retained_transaction_charge",
     "settlement_date",
     "trade_time",
     "security_code",
@@ -122,9 +123,13 @@ class OrdinaryTradeSemanticMapping:
             "Classify every table exactly once. SECURITY_TRADES requires a complete "
             "column mapping and exact side enum. amount_currency_bindings must contain "
             "exactly one entry, sorted by amount_column, for every column mapped as "
-            "gross_amount, broker_commission or exchange_commission; each entry must "
+            "gross_amount, broker_commission or exchange_commission. The same exact "
+            "binding is required for every retained_transaction_charge column. Each entry must "
             "point to the column mapped as currency. Do not add bindings for unit_price, "
             "accrued_interest or any other role. "
+            "retained_transaction_charge is a monetary charge retained from the "
+            "transaction that has no current Fact consumer. Preserve it as source "
+            "evidence; do not relabel it as broker_commission or exchange_commission. "
             "Rows may be sampled; column_distinct_values is derived from the full "
             "Canonical and must be used to cover every exact side literal. "
             "NO_NAMED_CONSUMER is for content with no current ordinary-trade Fact v2 "
@@ -175,7 +180,11 @@ class OrdinaryTradeSemanticMapping:
             "header, distinct value, required role, amount/currency relation and side "
             "literal. Do not approve NO_NAMED_CONSUMER when the table may contain a "
             "financial transaction, income, an incomplete trade, or damaged financial "
-            "content. Resolve a technically possible but semantically false ambiguity "
+            "content. retained_transaction_charge is only a source-stated monetary "
+            "charge attached to an otherwise complete ordinary security trade row. It "
+            "is not income, tax withholding, an incomplete or damaged field, or an "
+            "unsupported financial operation. Reject any proposal that uses the retained "
+            "role to hide one of those meanings. Resolve a technically possible but semantically false ambiguity "
             "from the same evidence. Preserve CLARIFICATION_REQUIRED only when the "
             "evidence genuinely cannot distinguish the options. Return APPROVE only "
             "with an exact copy of the proposal. Return REPLACE with a complete corrected "
@@ -893,6 +902,7 @@ _ROLE_LABELS = {
     "gross_amount": "общая сумма сделки",
     "broker_commission": "комиссия брокера",
     "exchange_commission": "комиссия биржи",
+    "retained_transaction_charge": "удержанный сбор по сделке без текущего потребителя",
     "settlement_date": "дата расчётов",
     "trade_time": "время сделки",
     "security_code": "код ценной бумаги",

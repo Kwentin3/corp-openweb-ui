@@ -134,6 +134,17 @@ non-empty mapped date, side, quantity, price, currency, amount, commission,
 accrued-interest or settlement value remains `RELEVANT_UNMAPPED`; it emits zero
 Fact v2 until the exact row contract is complete.
 
+`retained_transaction_charge` is the bounded exception for a source-stated
+monetary charge attached to an otherwise complete ordinary security-trade row
+when no current Fact consumer owns that charge. It requires one exact
+amount-to-currency binding. The compiler retains its literal, Canonical cell and
+source provenance only in `broker_reports_source_observation_v1`; it never puts
+that source ref into a runtime record, claim ref or Fact v2. Income, tax
+withholding, incomplete or damaged fields and unsupported financial operations
+cannot use this role. The independent critic must reject that laundering.
+Missing required trade values or a missing/invalid bound currency leave the row
+`RELEVANT_UNMAPPED`, and document atomicity publishes zero facts.
+
 ## Release boundary
 
 Package/bundle parity, tenant isolation, concurrency, adversarial inputs and the
