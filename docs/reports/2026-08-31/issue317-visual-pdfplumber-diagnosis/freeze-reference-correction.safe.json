@@ -1,0 +1,28 @@
+{
+  "schema_version": "issue317_visual_review_freeze_reference_correction_v1",
+  "recorded_at_date": "2026-08-31",
+  "current_run_verdict": "DIAGNOSTIC_ONLY_NOT_RETROACTIVELY_QUALIFIED",
+  "stale_reference": {
+    "visual_review_freeze_file_sha256": "ff529dd1d99d7dd53d55126ce5a73164dc7ddd8871a41a29246672de0ebe9a31",
+    "referenced_manifest_file_sha256": "cebc07b1c9c0db645836ac6549620558d3a16c8542260a07bbff0c7fb0524467"
+  },
+  "actual_run_manifest": {
+    "file_sha256": "9825aa38ada0864ab819c590215bb3584adbc72e05b9ee26d4cc7218361db5b2",
+    "internal_manifest_sha256": "4125bb01507a93ca46edf302805c2f5821d7217efdd525248bad3052c0f257c9"
+  },
+  "completed_run_evidence": {
+    "run_terminal_sha256": "5aa6f6084a1fe29c691daf6a653171ea076328cb0e810051644ef8e39b229646",
+    "score_sha256": "26b6983bfd57d78bb3016c158d004b5ac564177e2a6943ec3732327c176735a8"
+  },
+  "correction_rule": "The old freeze remains unchanged as evidence of the timing error. This correction does not retroactively qualify the completed run.",
+  "next_formal_qualification_rule": [
+    "Finalize the exact selection manifest, prompt, schema, parser evidence and harness.",
+    "Freeze visual review against that exact manifest file hash and internal hash.",
+    "Verify zero provider responses and no run terminal.",
+    "Obtain independent pre-run freeze validation.",
+    "Only then start provider calls; never rewrite either freeze afterward."
+  ],
+  "production_mutation": false,
+  "provider_calls_created": 0,
+  "financial_facts_created": 0
+}
