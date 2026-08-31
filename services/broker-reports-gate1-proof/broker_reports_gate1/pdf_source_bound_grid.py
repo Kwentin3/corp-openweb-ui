@@ -9,7 +9,7 @@ class PdfSourceBoundGridError(RuntimeError):
     pass
 
 
-PDF_SOURCE_GRID_POLICY_VERSION = "pdf_source_grid_policy_v1"
+PDF_SOURCE_GRID_POLICY_VERSION = "pdf_source_grid_policy_v2"
 _EDGE_TOLERANCE = 2.25
 _BBOX_SLACK = 0.4
 

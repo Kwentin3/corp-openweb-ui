@@ -19,6 +19,7 @@ from broker_reports_gate1.pdf_layout import (
     _sanitize_char,
     _sanitize_word,
     _sanitize_words,
+    _source_grid_raster_reason,
 )
 from broker_reports_gate1.pdf_source_bound_grid import (
     PDF_SOURCE_GRID_POLICY_VERSION,
@@ -303,6 +304,249 @@ def test_source_frame_ignores_shifted_neighbor_rules() -> None:
         vector_lines=[],
         rects=[*aligned, *neighbor],
     )
+
+
+class _ImagePage:
+    def __init__(self, images: list[dict]) -> None:
+        self.images = images
+
+
+class _UnavailableImagePage:
+    @property
+    def images(self):
+        raise RuntimeError("image inventory unavailable")
+
+
+@pytest.mark.parametrize(
+    ("image", "expected_code"),
+    [
+        (
+            {"srcsize": (2, 2), "x0": 20, "top": 0, "x1": 30, "bottom": 10},
+            None,
+        ),
+        (
+            {"srcsize": (2, 2), "x0": 10, "top": 0, "x1": 20, "bottom": 10},
+            None,
+        ),
+        (
+            {"srcsize": (2, 2), "x0": 9, "top": 0, "x1": 20, "bottom": 10},
+            "pdf_source_grid_raster_image_intersection_unsupported",
+        ),
+        (
+            {
+                "srcsize": (2, 2),
+                "x0": 1,
+                "top": 1,
+                "x1": 1.01,
+                "bottom": 1.01,
+            },
+            "pdf_source_grid_raster_image_intersection_unsupported",
+        ),
+        (
+            {"srcsize": (1, 1), "x0": 0, "top": 0, "x1": 10, "bottom": 10},
+            None,
+        ),
+        (
+            {"srcsize": [1, 1], "x0": 0, "top": 0, "x1": 10, "bottom": 10},
+            None,
+        ),
+        (
+            {"srcsize": (2, 2), "x0": 1, "top": 1, "x1": 1, "bottom": 2},
+            "pdf_source_grid_image_bbox_invalid",
+        ),
+    ],
+)
+def test_v3_raster_capability_is_exact_and_fail_closed(
+    image: dict, expected_code: str | None
+) -> None:
+    code = _source_grid_raster_reason(
+        page=_ImagePage([image]),
+        regions=[{"region_ref": "region-1", "bbox_pdf_points": [0, 0, 10, 10]}],
+    )
+    assert code == expected_code
+
+
+def test_v3_raster_capability_bypasses_no_table_and_types_unavailable() -> None:
+    page = _UnavailableImagePage()
+    assert _source_grid_raster_reason(page=page, regions=[]) is None
+    code = _source_grid_raster_reason(
+        page=page,
+        regions=[{"region_ref": "region-1", "bbox_pdf_points": [0, 0, 10, 10]}],
+    )
+    assert code == "pdf_source_grid_image_inventory_unavailable"
+    assert _source_grid_raster_reason(
+        page=_ImagePage([]),
+        regions=[{"region_ref": "region-1", "bbox_pdf_points": [0, 0, 0, 10]}],
+    ) == "pdf_source_grid_instance_hint_invalid"
+
+
+@pytest.mark.parametrize(
+    ("image_rect", "srcsize"),
+    [
+        ((20, 0, 30, 10), (2, 2)),
+        ((10, 0, 20, 10), (2, 2)),
+        ((0, 0, 10, 10), (1, 1)),
+    ],
+)
+def test_v3_adapter_allows_outside_edge_touch_and_exact_1x1(
+    image_rect: tuple[int, int, int, int], srcsize: tuple[int, int]
+) -> None:
+    import fitz
+    import pdfminer
+    import pdfplumber
+
+    document = fitz.open()
+    page = document.new_page(width=100, height=100)
+    pixels = fitz.Pixmap(
+        fitz.csRGB,
+        fitz.IRect(0, 0, srcsize[0], srcsize[1]),
+        False,
+    )
+    pixels.clear_with(255)
+    page.insert_image(fitz.Rect(*image_rect), pixmap=pixels)
+    page.insert_text((1, 8), "A B")
+    pdf_bytes = document.tobytes()
+    document.close()
+    result = PdfPlumberLayoutAdapter(
+        pdfplumber_module=pdfplumber,
+        pdfminer_module=pdfminer,
+        config=PdfLayoutParserConfig(),
+        requested_capability="table_candidates",
+    ).parse(
+        pdf_bytes,
+        table_locator_pages=[
+            {
+                "schema_version": PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3,
+                "page_number": 1,
+                "status": "located",
+                "regions": [
+                    {
+                        "region_ref": "allow-region-1",
+                        "bbox_pdf_points": [0, 0, 10, 10],
+                        "title_bbox_pdf_points": None,
+                        "header_bbox_pdf_points": [0, 0, 10, 10],
+                    }
+                ],
+            }
+        ],
+    )
+    assert "pdf_source_grid_raster_image_intersection_unsupported" not in (
+        result.pages[0]["table_reason_codes"]
+    )
+    assert "pdf_source_grid_image_bbox_invalid" not in (
+        result.pages[0]["table_reason_codes"]
+    )
+
+
+def test_intersecting_raster_reaches_existing_gate1_terminal() -> None:
+    import fitz
+
+    document = fitz.open()
+    page = document.new_page(width=100, height=100)
+    pixels = fitz.Pixmap(fitz.csRGB, fitz.IRect(0, 0, 2, 2), False)
+    pixels.clear_with(255)
+    page.insert_image(fitz.Rect(0, 0, 100, 100), pixmap=pixels)
+    page.insert_text((10, 20), "A B")
+    pdf_bytes = document.tobytes()
+    document.close()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    normalized = Gate1Normalizer().normalize(
+        [
+            FileInput(
+                private_ref="source-grid-raster-terminal",
+                original_filename_private="source-grid-raster-terminal.pdf",
+                mime_type="application/pdf",
+                source_kind="unit_test",
+                declared_size_bytes=len(pdf_bytes),
+                bytes_provider=lambda: pdf_bytes,
+                provider_label="unit_test",
+            )
+        ],
+        pdf_table_locator_pages_by_sha256={
+            digest: [
+                {
+                    "schema_version": PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3,
+                    "page_number": 1,
+                    "status": "located",
+                    "regions": [
+                        {
+                            "region_ref": "raster-region-1",
+                            "bbox_pdf_points": [0, 0, 100, 100],
+                            "title_bbox_pdf_points": None,
+                            "header_bbox_pdf_points": [0, 0, 100, 20],
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+    blocker = next(
+        item
+        for item in normalized.package["normalization_blockers"]
+        if item.get("code") == "pdf_table_normalization_incomplete"
+    )
+    assert (
+        "pdf_source_grid_raster_image_intersection_unsupported"
+        in blocker["reason_code"]
+    )
+    assert blocker["blocks_next_gate"] is True
+    assert normalized.package["gate2_handoff"]["gate2_handoff_status"] == "blocked"
+    assert "canonical_artifact" not in normalized.package
+    assert "financial_facts" not in normalized.package
+
+
+def test_real_frozen_moomoo_and_morgan_raster_objects_fail_closed() -> None:
+    source = os.environ.get("BROKER_REPORTS_ISSUE317_GEOMETRY_C_DIR")
+    if not source:
+        pytest.skip("BROKER_REPORTS_ISSUE317_GEOMETRY_C_DIR is required")
+    import pdfplumber
+
+    root = Path(source)
+    manifest = json.loads(
+        (root / "frozen-manifest.private.json").read_text(encoding="utf-8")
+    )
+    documents = {
+        item["document_id"]: item for item in manifest["corpus"]["documents"]
+    }
+    cases = [
+        ("moomoo_annual_2025", 14),
+        ("moomoo_midyear_2025", 10),
+        *(
+            ("morgan_statement_public_slice", page_number)
+            for page_number in range(12, 18)
+        ),
+    ]
+    for document_id, page_number in cases:
+        with pdfplumber.open(documents[document_id]["source_path"]) as document:
+            page = document.pages[page_number - 1]
+            wrapper = json.loads(
+                (
+                    root
+                    / "responses"
+                    / f"{document_id}__p{page_number:03}.json"
+                ).read_text(encoding="utf-8")
+            )
+            response = wrapper["response"]
+            if isinstance(response, str):
+                response = json.loads(response)
+            regions = []
+            for ordinal, table in enumerate(response["tables"], 1):
+                ymin, xmin, ymax, xmax = table["table_box_2d"]
+                regions.append(
+                    {
+                        "region_ref": f"{document_id}:{page_number}:{ordinal}",
+                        "bbox_pdf_points": [
+                            xmin / 1000 * page.width,
+                            ymin / 1000 * page.height,
+                            xmax / 1000 * page.width,
+                            ymax / 1000 * page.height,
+                        ],
+                    }
+                )
+            code = _source_grid_raster_reason(
+                page=page, regions=regions
+            )
+        assert code == "pdf_source_grid_raster_image_intersection_unsupported"
 
 
 def test_source_grid_policy_is_frozen_in_v3_config_identity(monkeypatch) -> None:
