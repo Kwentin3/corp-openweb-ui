@@ -400,6 +400,17 @@ class Gate1Normalizer:
                         page.get("table_candidate_status") == "blocked"
                         for page in layout_pages
                     )
+                    source_grid_reason_codes = sorted(
+                        {
+                            str(reason)
+                            for page in layout_pages
+                            for reason in (
+                                list(page.get("layout_reason_codes") or [])
+                                + list(page.get("table_reason_codes") or [])
+                            )
+                            if str(reason).startswith("pdf_source_grid_")
+                        }
+                    )
                     if (
                         len(locator_pages) != expected_pages
                         or failed_pages
@@ -418,7 +429,9 @@ class Gate1Normalizer:
                             f"accepted_regions={accepted_regions};"
                             f"rejected_regions={rejected_regions};"
                             f"blocked_table_pages={blocked_table_pages};"
-                            f"ready_projections={ready_projections}"
+                            f"ready_projections={ready_projections};"
+                            "source_grid_reason_codes="
+                            + ",".join(source_grid_reason_codes)
                         )
                         blocker = blocker_factory.pdf_table_normalization_incomplete(
                             run_id,

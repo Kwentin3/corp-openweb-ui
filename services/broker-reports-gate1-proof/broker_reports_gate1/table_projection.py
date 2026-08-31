@@ -1580,6 +1580,7 @@ def _pdf_geometry_reasons(
         "aligned_text_v0",
         "mixed_geometry_v0",
         "repeated_x_columns_v0",
+        "source_tagged_grid_v1",
     }:
         reasons.append("pdf_table_reconstruction_strategy_unsupported")
     return sorted(set(reasons))
@@ -1686,6 +1687,7 @@ def _pdf_strategy(source_unit: dict[str, Any]) -> str:
         "aligned_text_v0": "aligned_words",
         "mixed_geometry_v0": "mixed_geometry",
         "repeated_x_columns_v0": "repeated_x_columns",
+        "source_tagged_grid_v1": "source_tagged_grid",
     }.get(str(source_unit.get("table_strategy_ref") or ""), "fallback_line_cluster")
 
 

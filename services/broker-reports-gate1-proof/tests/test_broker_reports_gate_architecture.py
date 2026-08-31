@@ -100,6 +100,7 @@ GATE1_PRIVATE_IMPLEMENTATIONS = {
     "bounded_graph",
     "document_memory",
     "full_source",
+    "pdf_source_bound_grid",
     "pdf_layout_units",
     "pdf_text_layer",
     "source_provenance",
