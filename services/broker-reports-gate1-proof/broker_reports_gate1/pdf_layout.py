@@ -7,6 +7,11 @@ from io import BytesIO
 from typing import Any
 
 from .contracts import PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3, stable_digest
+from .pdf_source_bound_grid import (
+    PDF_SOURCE_GRID_POLICY_VERSION,
+    PdfSourceBoundGridError,
+    reconstruct_page_source_grids,
+)
 
 
 PDFPLUMBER_PINNED_VERSION = "0.11.10"
@@ -143,6 +148,7 @@ class PdfPlumberLayoutAdapter:
         first_missing_page_number: int | None = None
         inventory_objects_total = 0
         inventory_objects_would_be_total = 0
+        source_grid_v3_active = False
         try:
             pages_total = len(pdf.pages)
             source_pages_total = pages_total
@@ -160,6 +166,10 @@ class PdfPlumberLayoutAdapter:
                 if isinstance(item, dict)
             }
             locator_mode = table_locator_pages is not None
+            source_grid_v3_active = any(
+                item.get("schema_version") == PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3
+                for item in locator_by_page.values()
+            )
             for page_number, page in enumerate(pdf.pages, start=1):
                 page_result = self._parse_page(
                     page=page,
@@ -226,7 +236,15 @@ class PdfPlumberLayoutAdapter:
             parser_engine_version=self.config.expected_pdfplumber_version,
             underlying_engine="pdfminer.six",
             underlying_engine_version=self.config.expected_pdfminer_version,
-            parser_config_ref=self.config.config_ref,
+            parser_config_ref=(
+                "pdflayoutcfg_"
+                + stable_digest(
+                    [self.config.config_ref, PDF_SOURCE_GRID_POLICY_VERSION],
+                    length=24,
+                )
+                if source_grid_v3_active
+                else self.config.config_ref
+            ),
             requested_capability=self.requested_capability,
             provided_capabilities=self._provided_capabilities(),
             layout_projection_status=layout_status,
@@ -245,6 +263,15 @@ class PdfPlumberLayoutAdapter:
                 "inventory_objects_retained_total": inventory_objects_total,
                 "inventory_objects_would_be_total": inventory_objects_would_be_total,
                 "inventory_objects_limit": self.config.max_inventory_objects_per_document,
+                **(
+                    {
+                        "source_grid_policy_version": (
+                            PDF_SOURCE_GRID_POLICY_VERSION
+                        )
+                    }
+                    if source_grid_v3_active
+                    else {}
+                ),
                 "layout_complete_pages": sum(
                     1
                     for page in pages
@@ -311,7 +338,19 @@ class PdfPlumberLayoutAdapter:
         if vector_objects_total > self.config.max_vector_objects_per_page:
             layout_reasons.append("pdf_layout_vector_object_budget_exceeded")
 
-        chars = [_sanitize_char(item, index) for index, item in enumerate(raw_chars, 1)]
+        source_grid_v3 = bool(
+            locator_mode
+            and locator_page is not None
+            and locator_page.get("schema_version") == PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3
+        )
+        chars = [
+            _sanitize_char(
+                item,
+                index,
+                preserve_source_tags=source_grid_v3,
+            )
+            for index, item in enumerate(raw_chars, 1)
+        ]
         duplicate_chars_total = _mark_duplicate_chars(chars)
         rotated_chars_total = sum(1 for item in chars if item.get("upright") is False)
 
@@ -326,10 +365,24 @@ class PdfPlumberLayoutAdapter:
                 split_at_punctuation=False,
                 return_chars=True,
             )
-            words = [
-                _sanitize_word(item, index)
-                for index, item in enumerate(raw_words or [], 1)
-            ]
+            words = _sanitize_words(
+                raw_words or [],
+                raw_chars=raw_chars,
+                preserve_source_tags=source_grid_v3,
+            )
+        except ValueError as exc:
+            words = []
+            code = str(exc)
+            layout_reasons.append(
+                code
+                if code.startswith("pdf_layout_tagged_word_")
+                or code.startswith("pdf_layout_word_source_")
+                else "pdf_layout_word_extraction_failed"
+            )
+            if source_grid_v3:
+                table_reason_codes.append(
+                    "pdf_source_grid_tagged_source_incomplete"
+                )
         except Exception:
             words = []
             layout_reasons.append("pdf_layout_word_extraction_failed")
@@ -363,16 +416,7 @@ class PdfPlumberLayoutAdapter:
                     "pdf_table_detection_preflight_budget_exceeded"
                 )
             else:
-                if (
-                    locator_mode
-                    and locator_page is not None
-                    and locator_page.get("schema_version")
-                    == PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3
-                ):
-                    table_reason_codes.append(
-                        "pdf_table_locator_contract_version_unsupported"
-                    )
-                elif locator_mode and (
+                if locator_mode and (
                     locator_page is None or locator_page.get("status") == "failed"
                 ):
                     table_reason_codes.append("pdf_table_locator_page_failed")
@@ -380,6 +424,7 @@ class PdfPlumberLayoutAdapter:
                     try:
                         table_candidates, table_reason_codes = self._find_table_candidates(
                             page=page,
+                            chars=chars,
                             words=words,
                             vector_lines=vector_lines,
                             rects=rects,
@@ -387,6 +432,12 @@ class PdfPlumberLayoutAdapter:
                                 list(locator_page.get("regions") or [])
                                 if locator_mode and locator_page is not None
                                 else None
+                            ),
+                            locator_contract_v3=(
+                                locator_mode
+                                and locator_page is not None
+                                and locator_page.get("schema_version")
+                                == PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3
                             ),
                         )
                     except Exception:
@@ -404,7 +455,7 @@ class PdfPlumberLayoutAdapter:
         elif any(
             reason.endswith("_failed")
             or reason.endswith("_budget_exceeded")
-            or reason == "pdf_table_locator_contract_version_unsupported"
+            or reason.startswith("pdf_source_grid_")
             for reason in table_reason_codes
         ):
             table_status = "blocked"
@@ -472,12 +523,23 @@ class PdfPlumberLayoutAdapter:
         self,
         *,
         page: Any,
+        chars: list[dict[str, Any]],
         words: list[dict[str, Any]],
         vector_lines: list[dict[str, Any]],
         rects: list[dict[str, Any]],
         locator_regions: list[dict[str, Any]] | None = None,
+        locator_contract_v3: bool = False,
     ) -> tuple[list[dict[str, Any]], list[str]]:
         if locator_regions is not None:
+            if locator_contract_v3:
+                return self._find_v3_source_grid_candidates(
+                    page=page,
+                    chars=chars,
+                    words=words,
+                    vector_lines=vector_lines,
+                    rects=rects,
+                    locator_regions=locator_regions,
+                )
             return self._find_locator_scoped_table_candidates(
                 page=page,
                 words=words,
@@ -491,6 +553,48 @@ class PdfPlumberLayoutAdapter:
             vector_lines=vector_lines,
             rects=rects,
         )
+
+    def _find_v3_source_grid_candidates(
+        self,
+        *,
+        page: Any,
+        chars: list[dict[str, Any]],
+        words: list[dict[str, Any]],
+        vector_lines: list[dict[str, Any]],
+        rects: list[dict[str, Any]],
+        locator_regions: list[dict[str, Any]],
+    ) -> tuple[list[dict[str, Any]], list[str]]:
+        try:
+            candidates = reconstruct_page_source_grids(
+                chars=chars,
+                words=words,
+                vector_lines=vector_lines,
+                rects=rects,
+                regions=locator_regions,
+                page_bbox=[_number(value) for value in list(page.bbox)],
+            )
+        except PdfSourceBoundGridError as exc:
+            return [], [str(exc)]
+        for ordinal, (candidate, region) in enumerate(
+            zip(candidates, locator_regions, strict=True), 1
+        ):
+            candidate["locator_region_ref"] = str(
+                region.get("region_ref") or f"locator_region_{ordinal}"
+            )
+            candidate["locator_bbox_pdf_points"] = [
+                round(_number(value), 6)
+                for value in list(region.get("bbox_pdf_points") or [])
+            ]
+            candidate["locator_scope_status"] = "source_bound"
+            candidate["model_values_used_as_source_literals"] = False
+            candidate["pdfplumber_settings_selected_by_model"] = False
+            candidate["title_bbox_pdf_points"] = region.get(
+                "title_bbox_pdf_points"
+            )
+            candidate["header_bbox_pdf_points"] = region.get(
+                "header_bbox_pdf_points"
+            )
+        return candidates, []
 
     def _find_unbounded_table_candidates(
         self,
@@ -827,8 +931,10 @@ class PdfPlumberLayoutAdapter:
         )
 
 
-def _sanitize_char(item: dict[str, Any], ordinal: int) -> dict[str, Any]:
-    return {
+def _sanitize_char(
+    item: dict[str, Any], ordinal: int, *, preserve_source_tags: bool = False
+) -> dict[str, Any]:
+    result = {
         "parser_ordinal": ordinal,
         "text": str(item.get("text") or ""),
         "bbox": _bbox(item),
@@ -838,6 +944,12 @@ def _sanitize_char(item: dict[str, Any], ordinal: int) -> dict[str, Any]:
         "direction": str(item.get("direction") or ""),
         "duplicate_of_parser_ordinal": None,
     }
+    if preserve_source_tags and (
+        item.get("mcid") is not None or item.get("tag") is not None
+    ):
+        result["mcid"] = item.get("mcid")
+        result["tag"] = str(item.get("tag") or "")
+    return result
 
 
 def _sanitize_word(item: dict[str, Any], ordinal: int) -> dict[str, Any]:
@@ -850,6 +962,81 @@ def _sanitize_word(item: dict[str, Any], ordinal: int) -> dict[str, Any]:
         "upright": all(bool(char.get("upright", True)) for char in chars if isinstance(char, dict)),
         "char_parser_ordinals": [],
     }
+
+
+def _sanitize_words(
+    raw_words: list[dict[str, Any]],
+    *,
+    raw_chars: list[dict[str, Any]],
+    preserve_source_tags: bool = False,
+) -> list[dict[str, Any]]:
+    # Keep the established v1 bytes for ordinary untagged PDFs.
+    if not preserve_source_tags:
+        return [
+            _sanitize_word(item, index) for index, item in enumerate(raw_words, 1)
+        ]
+
+    source_ordinal_by_identity = {
+        id(char): ordinal for ordinal, char in enumerate(raw_chars, 1)
+    }
+    if len(source_ordinal_by_identity) != len(raw_chars):
+        raise ValueError("pdf_layout_word_source_char_identity_ambiguous")
+    claimed_identities: set[int] = set()
+    result: list[dict[str, Any]] = []
+    for raw_word in raw_words:
+        word_chars = [
+            char
+            for char in raw_word.get("chars") or []
+            if isinstance(char, dict)
+        ]
+        if not word_chars:
+            raise ValueError("pdf_layout_tagged_word_source_char_missing")
+        for char in word_chars:
+            identity = id(char)
+            if identity not in source_ordinal_by_identity:
+                raise ValueError("pdf_layout_tagged_word_source_char_missing")
+            if identity in claimed_identities:
+                raise ValueError("pdf_layout_word_source_char_duplicate_claim")
+            claimed_identities.add(identity)
+        literal = "".join(str(char.get("text") or "") for char in word_chars)
+        if literal != str(raw_word.get("text") or ""):
+            raise ValueError("pdf_layout_tagged_word_literal_mismatch")
+
+        runs: list[list[dict[str, Any]]] = []
+        run_keys: list[tuple[Any, str]] = []
+        for char in word_chars:
+            key = (char.get("mcid"), str(char.get("tag") or ""))
+            if key[0] is None:
+                raise ValueError("pdf_layout_tagged_word_mcid_missing")
+            if not run_keys or run_keys[-1] != key:
+                run_keys.append(key)
+                runs.append([char])
+            else:
+                runs[-1].append(char)
+        if len(run_keys) != len(set(run_keys)):
+            raise ValueError("pdf_layout_tagged_word_mcid_noncontiguous")
+        for key, run in zip(run_keys, runs, strict=True):
+            result.append(
+                {
+                    "parser_ordinal": len(result) + 1,
+                    "text": "".join(str(char.get("text") or "") for char in run),
+                    "bbox": _merge_bboxes([_bbox(char) for char in run]),
+                    "direction": str(raw_word.get("direction") or ""),
+                    "upright": all(bool(char.get("upright", True)) for char in run),
+                    "char_parser_ordinals": [
+                        source_ordinal_by_identity[id(char)] for char in run
+                    ],
+                    "mcid_refs": [str(key[0])],
+                }
+            )
+    required_tagged_identities = {
+        id(char)
+        for char in raw_chars
+        if char.get("mcid") is not None and str(char.get("text") or "").strip()
+    }
+    if not required_tagged_identities.issubset(claimed_identities):
+        raise ValueError("pdf_layout_tagged_word_source_char_unclaimed")
+    return result
 
 
 def _sanitize_vector(

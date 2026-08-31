@@ -481,7 +481,7 @@ def test_v3_projection_rejects_impossible_boundary_and_unordered_instances(
     assert raised.value.code == expected_code
 
 
-def test_current_layout_rejects_v3_pages_without_legacy_fallback() -> None:
+def test_current_layout_rejects_v3_pages_without_source_header_or_legacy_fallback() -> None:
     pdf_bytes = _two_page_pdf()
     locator_pages = [
         {
@@ -508,7 +508,7 @@ def test_current_layout_rejects_v3_pages_without_legacy_fallback() -> None:
     assert all(page["table_candidate_status"] == "blocked" for page in result.pages)
     assert all(
         page["table_reason_codes"]
-        == ["pdf_table_locator_contract_version_unsupported"]
+        == ["pdf_source_grid_tagged_source_incomplete"]
         for page in result.pages
     )
 
