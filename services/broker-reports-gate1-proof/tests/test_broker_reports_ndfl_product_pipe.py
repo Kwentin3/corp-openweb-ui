@@ -821,22 +821,32 @@ def test_public_file_turn_explains_non_filing_position_routes(
             },
         )
     )
-    assert pipe.last_artifact_manifest["ndfl_gate3"]["product"]["status"] == (
-        "INPUT_REQUIRED"
-    )
-    assert "За какой налоговый период" in first_content
-    content = asyncio.run(
-        pipe.pipe(
-            {"messages": [{"role": "user", "content": "2025"}]},
-            __user__={"id": "issue310-position-user", "email": "", "name": ""},
-            __metadata__={
-                "chat_id": "issue310-" + fixture.stem,
-                "case_id": "issue310-" + fixture.stem,
-                "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
-            },
+    first_result = pipe.last_artifact_manifest["ndfl_gate3"]
+    if expected_status == "OPEN_POSITION_RETAINED":
+        assert first_result["product"]["status"] == expected_status
+        assert "За какой налоговый период" not in first_content
+        assert first_result["public_dialogue"]["context"]["current_question"] is None
+        content = first_content
+        result = first_result
+    else:
+        assert first_result["product"]["status"] == "INPUT_REQUIRED"
+        assert "За какой налоговый период" in first_content
+        content = asyncio.run(
+            pipe.pipe(
+                {"messages": [{"role": "user", "content": "2025"}]},
+                __user__={
+                    "id": "issue310-position-user",
+                    "email": "",
+                    "name": "",
+                },
+                __metadata__={
+                    "chat_id": "issue310-" + fixture.stem,
+                    "case_id": "issue310-" + fixture.stem,
+                    "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+                },
+            )
         )
-    )
-    result = pipe.last_artifact_manifest["ndfl_gate3"]
+        result = pipe.last_artifact_manifest["ndfl_gate3"]
 
     assert result["product"]["status"] == expected_status
     for marker in visible_markers:
