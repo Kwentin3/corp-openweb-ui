@@ -371,6 +371,27 @@ class OrdinaryTradeDeclarationMvpRuntime:
             ],
         )
         actions = case_inputs["human_fact_publication"]["actions"]
+        security_groups = source_assembly["security_groups"]
+        if (
+            security_groups
+            and all(
+                group["position_scope"]["state"] == "OPEN_LONG_PROVEN"
+                and group["position_scope"]["tax_activation_status"]
+                == "NOT_ACTIVATED_NO_DISPOSAL"
+                for group in security_groups
+            )
+            and not source_assembly["blockers"]
+            and not source_assembly["fifo_calculations"]
+        ):
+            return self._with_case_summary(
+                result=_preparation_state(
+                    status="OPEN_POSITION_RETAINED",
+                    actions=[],
+                    internal_blockers=[],
+                ),
+                case_inputs=case_inputs,
+                source_assembly=source_assembly,
+            )
         if case_inputs.get("tax_period") is None:
             result = _preparation_state(
                 status="INPUT_REQUIRED",
@@ -453,16 +474,6 @@ class OrdinaryTradeDeclarationMvpRuntime:
                     status=status,
                     actions=[],
                     internal_blockers=source_assembly["blockers"],
-                ),
-                case_inputs=case_inputs,
-                source_assembly=source_assembly,
-            )
-        if not source_assembly["fifo_calculations"]:
-            return self._with_case_summary(
-                result=_preparation_state(
-                    status="OPEN_POSITION_RETAINED",
-                    actions=[],
-                    internal_blockers=[],
                 ),
                 case_inputs=case_inputs,
                 source_assembly=source_assembly,

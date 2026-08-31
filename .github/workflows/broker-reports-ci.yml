@@ -136,6 +136,7 @@ jobs:
           tests/test_broker_reports_kt2_same_source_type_first_proof.py
           tests/test_broker_reports_gate1_pipe_bundle.py
           tests/test_broker_reports_pdf_table_intake_gate1.py
+          tests/test_broker_reports_issue317_tbank_pipe_product.py
           tests/test_broker_reports_pdf_source_bound_grid.py
           tests/test_broker_reports_pdf_layout_slice2.py
           tests/test_broker_reports_table_projection.py
