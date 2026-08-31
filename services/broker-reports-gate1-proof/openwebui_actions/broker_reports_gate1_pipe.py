@@ -133,6 +133,7 @@ from broker_reports_gate1.gate2_model_contracts import (
 from broker_reports_gate1.gate2_model_requests import (
     GATE3_BOUNDED_LABELING_REQUEST_PROFILE,
     ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
+    ORDINARY_TRADE_SEMANTIC_CRITIC_REQUEST_PROFILE,
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
 )
 from broker_reports_gate1.gate3_ndfl_workflow import (
@@ -251,8 +252,8 @@ class Pipe:
         ordinary_trade_semantic_mapping_enabled: bool = Field(
             default=True,
             description=(
-                "Resolve unknown schemas through one strict case-scoped semantic "
-                "mapping call; known exact schemas remain zero-call."
+                "Resolve unknown schemas through one strict proposal and one "
+                "independent critic call; known exact schemas remain zero-call."
             ),
         )
         ordinary_trade_mapping_provider_profile_id: str = Field(
@@ -1605,6 +1606,7 @@ class Pipe:
                 done=False,
             )
             mapping_client = None
+            critic_client = None
             answer_client = None
             if self.valves.ordinary_trade_semantic_mapping_enabled:
                 mapping_client = Gate2StructuredModelClientFactory(
@@ -1635,11 +1637,26 @@ class Pipe:
                     user=user,
                     request=request,
                 ).create()
+                critic_client = Gate2StructuredModelClientFactory(
+                    config=Gate2StructuredModelClientConfig(
+                        request_profile=(
+                            ORDINARY_TRADE_SEMANTIC_CRITIC_REQUEST_PROFILE
+                        ),
+                        provider_profile_id=(
+                            self.valves.ordinary_trade_mapping_provider_profile_id
+                        ),
+                        capability_probe=False,
+                        economy_budget_enforcement=False,
+                    ),
+                    user=user,
+                    request=request,
+                ).create()
             runtime = OrdinaryTradeProductionRuntimeFactory(
                 store=store,
                 read_enabled=True,
                 retention_policy=retention_policy,
                 mapping_model_client=mapping_client,
+                mapping_critic_model_client=critic_client,
                 mapping_answer_model_client=answer_client,
                 mapping_model_id=(
                     self.valves.ordinary_trade_mapping_model_id

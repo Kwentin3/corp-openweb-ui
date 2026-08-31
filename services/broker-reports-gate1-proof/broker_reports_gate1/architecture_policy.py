@@ -14,7 +14,7 @@ from .pdf_table_locator import (
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v24"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v25"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -54,6 +54,13 @@ ACTIVE_PRODUCT_ROUTES = {
             "+OrdinaryTradeSemanticCompilerFactory.create"
         ),
         "mapping_contract": "broker_reports_ordinary_trade_schema_mapping_v3",
+        "mapping_case_contract": (
+            "broker_reports_ordinary_trade_mapping_case_v3"
+            "|broker_reports_ordinary_trade_mapping_case_v2_read_compatibility"
+        ),
+        "semantic_review_contract": (
+            "proposal_then_independent_critic_same_canonical_evidence"
+        ),
         "qualification_contract": (
             "broker_reports_ordinary_trade_mapping_qualification_v2"
             "|broker_reports_ordinary_trade_case_mapping_qualification_v1"
@@ -215,6 +222,11 @@ PROVIDER_CALL_SITE_CLASSIFICATIONS = {
         "SOURCE_ADAPTER",
         "external_table_semantics_and_column_roles",
         "broker_reports_ordinary_trade_semantic_mapping_response_v2",
+    ),
+    "ordinary_trade_semantic_critic": (
+        "SOURCE_ADAPTER",
+        "independent_same_evidence_mapping_safety_review",
+        "broker_reports_ordinary_trade_semantic_critic_response_v1",
     ),
     "ordinary_trade_mapping_answer": (
         "HUMAN_ADAPTER",
