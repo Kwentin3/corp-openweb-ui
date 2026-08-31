@@ -149,13 +149,17 @@ class GeminiGridExperimentAdapter:
         output_schema: dict[str, Any],
         png_bytes: bytes,
         crop_sha256: str,
+        previous_png_bytes: bytes | None = None,
+        previous_png_sha256: str | None = None,
     ) -> dict[str, Any]:
         self._validate_crop(png_bytes, crop_sha256)
+        self._validate_previous(previous_png_bytes, previous_png_sha256)
         body, canonical_schema_hash, adapted_schema_hash, transforms = (
             self._generate_body(
                 model_view=model_view,
                 output_schema=output_schema,
                 png_bytes=png_bytes,
+                previous_png_bytes=previous_png_bytes,
             )
         )
         model = self.config.model_id.removeprefix("models/")
@@ -210,6 +214,8 @@ class GeminiGridExperimentAdapter:
         output_schema: dict[str, Any],
         png_bytes: bytes,
         crop_sha256: str,
+        previous_png_bytes: bytes | None = None,
+        previous_png_sha256: str | None = None,
         attempt_number: int,
         attempt_lineage: list[str],
     ) -> dict[str, Any]:
@@ -218,11 +224,13 @@ class GeminiGridExperimentAdapter:
                 "pdf_grid_attempt_lineage_invalid", "attempt_policy"
             )
         self._validate_crop(png_bytes, crop_sha256)
+        self._validate_previous(previous_png_bytes, previous_png_sha256)
         body, canonical_schema_hash, adapted_schema_hash, transforms = (
             self._generate_body(
                 model_view=model_view,
                 output_schema=output_schema,
                 png_bytes=png_bytes,
+                previous_png_bytes=previous_png_bytes,
             )
         )
         model = self.config.model_id.removeprefix("models/")
@@ -332,6 +340,8 @@ class GeminiGridExperimentAdapter:
             "hidden_retry": False,
             "provider_failover": False,
         }
+        if "image_order" in model_view:
+            attempt["previous_page_png_sha256"] = previous_png_sha256
         return {
             "attempt": attempt,
             "json_output": value if failure_class is None else None,
@@ -351,7 +361,9 @@ class GeminiGridExperimentAdapter:
         model_view: dict[str, Any],
         output_schema: dict[str, Any],
         png_bytes: bytes,
+        previous_png_bytes: bytes | None = None,
     ) -> tuple[dict[str, Any], str, str, int]:
+        self._validate_image_order(model_view, previous_png_bytes)
         canonical = copy.deepcopy(output_schema)
         adapted, transforms = project_gemini_schema(canonical)
         body = {
@@ -367,6 +379,26 @@ class GeminiGridExperimentAdapter:
                                 sort_keys=True,
                             )
                         },
+                        *(
+                            [
+                                {"text": "PREVIOUS full page"},
+                                {
+                                    "inlineData": {
+                                        "mimeType": "image/png",
+                                        "data": base64.b64encode(
+                                            previous_png_bytes
+                                        ).decode("ascii"),
+                                    }
+                                },
+                            ]
+                            if previous_png_bytes is not None
+                            else []
+                        ),
+                        *(
+                            [{"text": "CURRENT full page"}]
+                            if "image_order" in model_view
+                            else []
+                        ),
                         {
                             "inlineData": {
                                 "mimeType": "image/png",
@@ -392,6 +424,40 @@ class GeminiGridExperimentAdapter:
         if hashlib.sha256(png_bytes).hexdigest() != crop_sha256:
             raise PdfGridProviderError(
                 "pdf_grid_provider_crop_hash_mismatch", "request_validation"
+            )
+
+    @classmethod
+    def _validate_previous(
+        cls, png_bytes: bytes | None, png_sha256: str | None
+    ) -> None:
+        if (png_bytes is None) != (png_sha256 is None):
+            raise PdfGridProviderError(
+                "pdf_grid_provider_previous_page_pair_invalid",
+                "request_validation",
+            )
+        if png_bytes is not None:
+            cls._validate_crop(png_bytes, str(png_sha256))
+
+    @staticmethod
+    def _validate_image_order(
+        model_view: dict[str, Any], previous_png_bytes: bytes | None
+    ) -> None:
+        if not isinstance(model_view, dict):
+            raise PdfGridProviderError(
+                "pdf_grid_provider_model_view_invalid", "request_validation"
+            )
+        declared = model_view.get("image_order")
+        if declared is None:
+            valid = previous_png_bytes is None
+        elif declared == ["CURRENT"]:
+            valid = previous_png_bytes is None
+        elif declared == ["PREVIOUS", "CURRENT"]:
+            valid = previous_png_bytes is not None
+        else:
+            valid = False
+        if not valid:
+            raise PdfGridProviderError(
+                "pdf_grid_provider_image_order_mismatch", "request_validation"
             )
 
     def _request(

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from io import BytesIO
 from typing import Any
 
-from .contracts import stable_digest
+from .contracts import PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3, stable_digest
 
 
 PDFPLUMBER_PINNED_VERSION = "0.11.10"
@@ -363,7 +363,16 @@ class PdfPlumberLayoutAdapter:
                     "pdf_table_detection_preflight_budget_exceeded"
                 )
             else:
-                if locator_mode and (
+                if (
+                    locator_mode
+                    and locator_page is not None
+                    and locator_page.get("schema_version")
+                    == PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3
+                ):
+                    table_reason_codes.append(
+                        "pdf_table_locator_contract_version_unsupported"
+                    )
+                elif locator_mode and (
                     locator_page is None or locator_page.get("status") == "failed"
                 ):
                     table_reason_codes.append("pdf_table_locator_page_failed")
@@ -392,7 +401,12 @@ class PdfPlumberLayoutAdapter:
         layout_status = "complete" if not layout_reasons else "partial"
         if self.requested_capability != "table_candidates":
             table_status = "not_claimed"
-        elif any(reason.endswith("_failed") or reason.endswith("_budget_exceeded") for reason in table_reason_codes):
+        elif any(
+            reason.endswith("_failed")
+            or reason.endswith("_budget_exceeded")
+            or reason == "pdf_table_locator_contract_version_unsupported"
+            for reason in table_reason_codes
+        ):
             table_status = "blocked"
         elif table_candidates:
             table_status = "candidate"

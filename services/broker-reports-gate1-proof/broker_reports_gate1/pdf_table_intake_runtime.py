@@ -16,10 +16,16 @@ from .pdf_table_locator_provider import (
 from .pdf_table_locator import (
     PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
     PDF_TABLE_LOCATOR_OUTPUT_SCHEMA,
+    PDF_TABLE_LOCATOR_OUTPUT_SCHEMA_V3,
     PDF_TABLE_LOCATOR_POLICY_VERSION,
     PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
     PDF_TABLE_LOCATOR_PROMPT,
+    PDF_TABLE_LOCATOR_PROMPT_V3,
     PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
+    PDF_TABLE_LOCATOR_RESPONSE_SCHEMA_V3,
+    PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3,
+    PDF_TABLE_LOCATOR_POLICY_VERSION_V3,
+    PDF_TABLE_LOCATOR_PROJECTION_SCHEMA_V3,
     PdfTableLocatorError,
     PdfTableLocatorProjectionConfig,
     PdfTableLocatorProjectionFactory,
@@ -36,6 +42,10 @@ PDF_TABLE_DETECTION_RESPONSE_SCHEMA = PDF_TABLE_LOCATOR_RESPONSE_SCHEMA
 PDF_TABLE_DETECTION_ATTEMPT_SCHEMA = "broker_reports_pdf_table_detection_attempt_v1"
 PDF_TABLE_INTAKE_RUN_SCHEMA = "broker_reports_pdf_table_intake_run_v1"
 PDF_TABLE_INTAKE_POLICY_VERSION = "pdf_table_intake_policy_v6"
+PDF_TABLE_DETECTION_REQUEST_SCHEMA_V3 = "broker_reports_pdf_table_detection_request_v5"
+PDF_TABLE_DETECTION_ATTEMPT_SCHEMA_V3 = "broker_reports_pdf_table_detection_attempt_v2"
+PDF_TABLE_INTAKE_RUN_SCHEMA_V3 = "broker_reports_pdf_table_intake_run_v2"
+PDF_TABLE_INTAKE_POLICY_VERSION_V3 = "pdf_table_intake_policy_v7"
 FACTORY_REQUIRED = (
     "PdfTableIntakeRuntimeFactory.create_for_openwebui is the only supported "
     "live PDF table detection and crop entrypoint"
@@ -68,6 +78,7 @@ class PdfTableIntakeConfig:
     maximum_candidates_per_page: int = 32
     horizontal_padding_fraction: float = 0.08
     vertical_padding_fraction: float = 0.08
+    visual_locator_v3_enabled: bool = False
 
 
 @dataclass(frozen=True)
@@ -106,7 +117,8 @@ class PdfTableIntakeRuntimeFactory:
         ).create()
         locator = PdfTableLocatorProjectionFactory(
             PdfTableLocatorProjectionConfig(
-                maximum_tables=self.config.maximum_candidates_per_page
+                maximum_tables=self.config.maximum_candidates_per_page,
+                visual_contract_v3_enabled=self.config.visual_locator_v3_enabled,
             )
         ).create()
         return PdfTableIntakeRuntime(self.config, provider, raster, locator)
@@ -190,16 +202,28 @@ class PdfTableIntakeRuntime:
             pages_total += page_count
             if pages_total > self.config.maximum_pages:
                 raise PdfTableIntakeError("pdf_table_intake_page_budget_exceeded")
+            previous_png_bytes: bytes | None = None
+            previous_png_sha256: str | None = None
+            previous_page_result: dict[str, Any] | None = None
             for page_number in range(1, page_count + 1):
                 try:
-                    page_result, attempt = self._run_page(
+                    page_result, attempt, current_png_bytes = self._run_page(
                         document=document,
                         page_number=page_number,
                         qualification=qualification,
+                        previous_png_bytes=previous_png_bytes,
+                        previous_png_sha256=previous_png_sha256,
+                        previous_page_result=previous_page_result,
                     )
                     candidates.extend(page_result["regions"])
                     page_results.append(page_result)
                     attempts.append(attempt)
+                    if self.config.visual_locator_v3_enabled:
+                        previous_png_bytes = current_png_bytes
+                        previous_png_sha256 = str(
+                            attempt.get("current_page_png_sha256") or ""
+                        )
+                        previous_page_result = page_result
                     rejected_total = int(attempt.get("rejected_regions_total") or 0)
                     if rejected_total:
                         rejected_regions.append(
@@ -231,7 +255,11 @@ class PdfTableIntakeRuntime:
                     )
                     page_results.append(
                         {
-                            "schema_version": "broker_reports_pdf_table_locator_page_v1",
+                            "schema_version": (
+                                PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3
+                                if self.config.visual_locator_v3_enabled
+                                else "broker_reports_pdf_table_locator_page_v1"
+                            ),
                             "document_ref": document["document_ref"],
                             "pdf_sha256": document["pdf_sha256"],
                             "page_number": page_number,
@@ -240,14 +268,20 @@ class PdfTableIntakeRuntime:
                             "regions": [],
                         }
                     )
+                    if self.config.visual_locator_v3_enabled:
+                        break
 
         status = (
             "failed"
             if failures
             else (
-                "completed_with_rejected_regions"
-                if rejected_regions
-                else "completed"
+                "blocked_unsupported_next_stage"
+                if self.config.visual_locator_v3_enabled
+                else (
+                    "completed_with_rejected_regions"
+                    if rejected_regions
+                    else "completed"
+                )
             )
         )
         return PdfTableIntakeResult(
@@ -272,18 +306,32 @@ class PdfTableIntakeRuntime:
         document: dict[str, Any],
         page_number: int,
         qualification: dict[str, Any],
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        previous_png_bytes: bytes | None,
+        previous_png_sha256: str | None,
+        previous_page_result: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], bytes]:
         page_ref = "pdfpage_" + stable_digest(
             [document["pdf_sha256"], page_number], length=24
         )
         request_id = "pdftabledetect_" + stable_digest(
-            [
-                PDF_TABLE_DETECTION_REQUEST_SCHEMA,
-                document["pdf_sha256"],
-                page_number,
-                self.config.detector_provider_profile,
-                self.config.detector_model_id,
-            ],
+            (
+                [
+                    self._request_schema(),
+                    document["pdf_sha256"],
+                    page_number,
+                    previous_png_sha256,
+                    self.config.detector_provider_profile,
+                    self.config.detector_model_id,
+                ]
+                if self.config.visual_locator_v3_enabled
+                else [
+                    PDF_TABLE_DETECTION_REQUEST_SCHEMA,
+                    document["pdf_sha256"],
+                    page_number,
+                    self.config.detector_provider_profile,
+                    self.config.detector_model_id,
+                ]
+            ),
             length=24,
         )
         page_bbox = self._page_bbox(document["pdf_bytes"], page_number)
@@ -300,13 +348,32 @@ class PdfTableIntakeRuntime:
             page_raster["private_png_base64"].encode("ascii"), validate=True
         )
         page_png_sha256 = hashlib.sha256(png_bytes).hexdigest()
-        model_view = self._model_view(request_id=request_id, page_number=page_number)
-        output_schema = table_detection_output_schema()
+        model_view = self._model_view(
+            request_id=request_id,
+            page_number=page_number,
+            has_previous_page=(
+                self.config.visual_locator_v3_enabled
+                and previous_page_result is not None
+            ),
+            visual_locator_v3_enabled=self.config.visual_locator_v3_enabled,
+        )
+        output_schema = table_detection_output_schema(
+            visual_locator_v3_enabled=self.config.visual_locator_v3_enabled
+        )
+        provider_image_kwargs = (
+            {
+                "previous_png_bytes": previous_png_bytes,
+                "previous_png_sha256": previous_png_sha256,
+            }
+            if self.config.visual_locator_v3_enabled
+            else {}
+        )
         token_count = self.provider.count_tokens(
             model_view=model_view,
             output_schema=output_schema,
             png_bytes=png_bytes,
             crop_sha256=page_png_sha256,
+            **provider_image_kwargs,
         )
         task_id = "pdf_table_detection_" + stable_digest(
             [request_id, page_png_sha256], length=24
@@ -317,6 +384,7 @@ class PdfTableIntakeRuntime:
             output_schema=output_schema,
             png_bytes=png_bytes,
             crop_sha256=page_png_sha256,
+            **provider_image_kwargs,
             attempt_number=1,
             attempt_lineage=[],
         )
@@ -328,12 +396,19 @@ class PdfTableIntakeRuntime:
                 provider_value=response.get("json_output"),
                 raster_manifest=page_raster["manifest"],
                 expected_page_bbox=page_bbox,
+                has_previous_page=(
+                    self.config.visual_locator_v3_enabled
+                    and previous_page_result is not None
+                ),
+                previous_page_has_tables=bool(
+                    (previous_page_result or {}).get("regions")
+                ),
             )
         except PdfTableLocatorError as exc:
             raise PdfTableIntakeError(
                 exc.code,
                 private_attempt={
-                    "schema_version": PDF_TABLE_DETECTION_ATTEMPT_SCHEMA,
+                    "schema_version": self._attempt_schema(),
                     "request_id": request_id,
                     "document_ref": document["document_ref"],
                     "pdf_sha256": document["pdf_sha256"],
@@ -376,13 +451,13 @@ class PdfTableIntakeRuntime:
                 "page_number": page_number,
                 "page_ref": page_ref,
                 "detector_identity": copy.deepcopy(detector_identity),
-                "detector_contract_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
+                "detector_contract_version": self._response_schema(),
                 "model_values_used_as_source_literals": False,
             }
             for region in projection["tables"]
         ]
         private_attempt = {
-            "schema_version": PDF_TABLE_DETECTION_ATTEMPT_SCHEMA,
+            "schema_version": self._attempt_schema(),
             "request_id": request_id,
             "document_ref": document["document_ref"],
             "pdf_sha256": document["pdf_sha256"],
@@ -404,9 +479,20 @@ class PdfTableIntakeRuntime:
             "hidden_retry": False,
             "provider_failover": False,
         }
+        if self.config.visual_locator_v3_enabled:
+            private_attempt["current_page_png_sha256"] = page_png_sha256
+            private_attempt["previous_page_png_sha256"] = previous_png_sha256
         page_result = {
-            "schema_version": "broker_reports_pdf_table_locator_page_v1",
-            "policy_version": PDF_TABLE_LOCATOR_POLICY_VERSION,
+            "schema_version": (
+                PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3
+                if self.config.visual_locator_v3_enabled
+                else "broker_reports_pdf_table_locator_page_v1"
+            ),
+            "policy_version": (
+                PDF_TABLE_LOCATOR_POLICY_VERSION_V3
+                if self.config.visual_locator_v3_enabled
+                else PDF_TABLE_LOCATOR_POLICY_VERSION
+            ),
             "document_ref": document["document_ref"],
             "pdf_sha256": document["pdf_sha256"],
             "page_number": page_number,
@@ -417,7 +503,14 @@ class PdfTableIntakeRuntime:
             "model_values_used_as_source_literals": False,
             "pdfplumber_settings_selected_by_model": False,
         }
-        return page_result, private_attempt
+        if self.config.visual_locator_v3_enabled:
+            page_result["boundary_from_previous"] = copy.deepcopy(
+                projection["boundary_from_previous"]
+            )
+            page_result["next_stage_status"] = (
+                "blocked_source_grid_v2_required" if regions else "not_required"
+            )
+        return page_result, private_attempt, png_bytes
 
     def _summary(
         self,
@@ -451,8 +544,8 @@ class PdfTableIntakeRuntime:
                 )
             }
         payload = {
-            "schema_version": PDF_TABLE_INTAKE_RUN_SCHEMA,
-            "policy_version": PDF_TABLE_INTAKE_POLICY_VERSION,
+            "schema_version": self._run_schema(),
+            "policy_version": self._intake_policy_version(),
             "enabled": self.config.enabled,
             "status": status,
             "documents_total": documents_total,
@@ -471,9 +564,17 @@ class PdfTableIntakeRuntime:
                 if failed_pages or rejected_regions
                 else "complete"
             ),
-            "detector_contract_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-            "locator_policy_version": PDF_TABLE_LOCATOR_POLICY_VERSION,
-            "locator_projection_schema": PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
+            "detector_contract_version": self._response_schema(),
+            "locator_policy_version": (
+                PDF_TABLE_LOCATOR_POLICY_VERSION_V3
+                if self.config.visual_locator_v3_enabled
+                else PDF_TABLE_LOCATOR_POLICY_VERSION
+            ),
+            "locator_projection_schema": (
+                PDF_TABLE_LOCATOR_PROJECTION_SCHEMA_V3
+                if self.config.visual_locator_v3_enabled
+                else PDF_TABLE_LOCATOR_PROJECTION_SCHEMA
+            ),
             "coordinate_contract": PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
             "detector_provider_profile": self.config.detector_provider_profile,
             "detector_model_id": self.config.detector_model_id,
@@ -483,13 +584,21 @@ class PdfTableIntakeRuntime:
             "padding_basis": "legacy_configuration_retained_not_applied",
             "crop_boundary_basis": "locator_region_pdf_points",
             "detector_qualification": safe_qualification,
-            "gate2_boundary_ready": status == "completed",
+            "gate2_boundary_ready": (
+                status == "completed" and not self.config.visual_locator_v3_enabled
+            ),
             "legacy_vlm_transcription_route_active": False,
             "model_values_used_as_source_literals": False,
             "pdfplumber_settings_selected_by_model": False,
             "rows_columns_cells_inferred": False,
             "financial_semantics_inferred": False,
         }
+        if self.config.visual_locator_v3_enabled:
+            payload["next_stage_status"] = (
+                "blocked_source_grid_v2_required"
+                if candidates_total
+                else "not_required"
+            )
         payload["configuration_hash"] = sha256_json(
             {
                 key: payload[key]
@@ -565,14 +674,80 @@ class PdfTableIntakeRuntime:
             document.close()
 
     @staticmethod
-    def _model_view(*, request_id: str, page_number: int) -> dict[str, Any]:
+    def _model_view(
+        *,
+        request_id: str,
+        page_number: int,
+        has_previous_page: bool = False,
+        visual_locator_v3_enabled: bool = False,
+    ) -> dict[str, Any]:
         return {
-            "schema_version": PDF_TABLE_DETECTION_REQUEST_SCHEMA,
+            "schema_version": (
+                PDF_TABLE_DETECTION_REQUEST_SCHEMA_V3
+                if visual_locator_v3_enabled
+                else PDF_TABLE_DETECTION_REQUEST_SCHEMA
+            ),
             "request_id": request_id,
             "page_number": page_number,
-            "task": PDF_TABLE_LOCATOR_PROMPT,
+            **(
+                {
+                    "image_order": (
+                        ["PREVIOUS", "CURRENT"]
+                        if has_previous_page
+                        else ["CURRENT"]
+                    )
+                }
+                if visual_locator_v3_enabled
+                else {}
+            ),
+            "task": (
+                PDF_TABLE_LOCATOR_PROMPT_V3
+                if visual_locator_v3_enabled
+                else PDF_TABLE_LOCATOR_PROMPT
+            ),
         }
 
+    def _response_schema(self) -> str:
+        return (
+            PDF_TABLE_LOCATOR_RESPONSE_SCHEMA_V3
+            if self.config.visual_locator_v3_enabled
+            else PDF_TABLE_LOCATOR_RESPONSE_SCHEMA
+        )
 
-def table_detection_output_schema() -> dict[str, Any]:
-    return copy.deepcopy(PDF_TABLE_LOCATOR_OUTPUT_SCHEMA)
+    def _request_schema(self) -> str:
+        return (
+            PDF_TABLE_DETECTION_REQUEST_SCHEMA_V3
+            if self.config.visual_locator_v3_enabled
+            else PDF_TABLE_DETECTION_REQUEST_SCHEMA
+        )
+
+    def _attempt_schema(self) -> str:
+        return (
+            PDF_TABLE_DETECTION_ATTEMPT_SCHEMA_V3
+            if self.config.visual_locator_v3_enabled
+            else PDF_TABLE_DETECTION_ATTEMPT_SCHEMA
+        )
+
+    def _run_schema(self) -> str:
+        return (
+            PDF_TABLE_INTAKE_RUN_SCHEMA_V3
+            if self.config.visual_locator_v3_enabled
+            else PDF_TABLE_INTAKE_RUN_SCHEMA
+        )
+
+    def _intake_policy_version(self) -> str:
+        return (
+            PDF_TABLE_INTAKE_POLICY_VERSION_V3
+            if self.config.visual_locator_v3_enabled
+            else PDF_TABLE_INTAKE_POLICY_VERSION
+        )
+
+
+def table_detection_output_schema(
+    *, visual_locator_v3_enabled: bool = False
+) -> dict[str, Any]:
+    return copy.deepcopy(
+        PDF_TABLE_LOCATOR_OUTPUT_SCHEMA_V3
+        if visual_locator_v3_enabled
+        else PDF_TABLE_LOCATOR_OUTPUT_SCHEMA
+    )
