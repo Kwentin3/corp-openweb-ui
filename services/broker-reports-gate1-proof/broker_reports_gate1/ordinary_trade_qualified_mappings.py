@@ -36,6 +36,9 @@ CASE_QUALIFICATION_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_case_mapping_qualification_v1"
 )
 _CONSUMER_CONTRACT = "Gate4FinancialCaseFactV2.amount_currency"
+_RETAINED_AMOUNT_CURRENCY_CONSUMER_CONTRACT = (
+    "broker_reports_source_observation_v1.retained_amount_currency"
+)
 _RELATION_BASES = {
     "EXPLICIT_DENOMINATION_HEADER",
     "REVIEWED_SCHEMA_SCOPE",
@@ -398,6 +401,34 @@ def _semantic_scope(spec: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _relation_consumer_contract(
+    *, mapping: dict[str, Any], amount_column: int
+) -> str:
+    roles_by_column = {
+        item["column"]: item["semantic_role"] for item in mapping["columns"]
+    }
+    if roles_by_column.get(amount_column) == "retained_transaction_charge":
+        return _RETAINED_AMOUNT_CURRENCY_CONSUMER_CONTRACT
+    return _CONSUMER_CONTRACT
+
+
+def _consumer_contracts(mapping: dict[str, Any]) -> list[str]:
+    contracts = {
+        _relation_consumer_contract(
+            mapping=mapping, amount_column=item["amount_column"]
+        )
+        for item in mapping["amount_currency_bindings"]
+    }
+    return [
+        contract
+        for contract in (
+            _CONSUMER_CONTRACT,
+            _RETAINED_AMOUNT_CURRENCY_CONSUMER_CONTRACT,
+        )
+        if contract in contracts
+    ]
+
+
 def _freeze_receipt(
     *, spec: dict[str, Any], relation_claims: tuple[dict[str, Any], ...]
 ) -> dict[str, Any]:
@@ -478,7 +509,7 @@ def _validate_qualification(
         or receipt.get("status") != "QUALIFIED"
         or receipt.get("structural_fingerprint") != mapping["structural_fingerprint"]
         or receipt.get("supporting_decision_scope") != ["columns", "side_values"]
-        or receipt.get("consumer_contracts") != [_CONSUMER_CONTRACT]
+        or receipt.get("consumer_contracts") != _consumer_contracts(mapping)
     ):
         raise RuntimeError("ordinary_trade_mapping_qualification_invalid")
     frozen = copy.deepcopy(receipt)
@@ -554,7 +585,10 @@ def _validate_qualification(
             not isinstance(claim, dict)
             or set(claim) != claim_keys
             or evidence_basis not in _RELATION_BASES
-            or claim.get("consumer_contract") != _CONSUMER_CONTRACT
+            or claim.get("consumer_contract")
+            != _relation_consumer_contract(
+                mapping=mapping, amount_column=claim.get("amount_column")
+            )
             or headers.get(claim.get("amount_column"))
             != claim.get("amount_header_literal")
             or headers.get(claim.get("currency_column"))
@@ -654,13 +688,16 @@ def qualify_case_mapping(
                 "amount_header_literal": headers_by_column[item["amount_column"]],
                 "currency_header_literal": headers_by_column[item["currency_column"]],
                 "evidence_basis": "MODEL_PROPOSED_CASE_SCOPE",
-                "consumer_contract": _CONSUMER_CONTRACT,
+                "consumer_contract": _relation_consumer_contract(
+                    mapping=provisional,
+                    amount_column=item["amount_column"],
+                ),
             }
             for item in provisional["amount_currency_bindings"]
         ],
         "model_decision": copy.deepcopy(model_decision),
         "confirmed_understandings": copy.deepcopy(confirmed_understandings),
-        "consumer_contracts": [_CONSUMER_CONTRACT],
+        "consumer_contracts": _consumer_contracts(provisional),
         "global_reuse_allowed": False,
     }
     qualification_id = "otqual_" + _sha256_json(material)[:32]
@@ -717,7 +754,7 @@ def validate_case_qualified_mapping(
         or receipt.get("case_scope") != expected_case_scope
         or receipt.get("structural_fingerprint")
         != mapping["structural_fingerprint"]
-        or receipt.get("consumer_contracts") != [_CONSUMER_CONTRACT]
+        or receipt.get("consumer_contracts") != _consumer_contracts(mapping)
         or receipt.get("global_reuse_allowed") is not False
     ):
         raise RuntimeError("ordinary_trade_case_mapping_qualification_invalid")
@@ -798,7 +835,10 @@ def validate_case_qualified_mapping(
             "amount_header_literal": headers_by_column[item["amount_column"]],
             "currency_header_literal": headers_by_column[item["currency_column"]],
             "evidence_basis": "MODEL_PROPOSED_CASE_SCOPE",
-            "consumer_contract": _CONSUMER_CONTRACT,
+            "consumer_contract": _relation_consumer_contract(
+                mapping=mapping,
+                amount_column=item["amount_column"],
+            ),
         }
         for item in mapping["amount_currency_bindings"]
     ]

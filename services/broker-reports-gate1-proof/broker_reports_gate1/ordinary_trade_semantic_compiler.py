@@ -48,6 +48,7 @@ _ROLES = {
     "gross_amount",
     "broker_commission",
     "exchange_commission",
+    "retained_transaction_charge",
     "settlement_date",
     "trade_time",
     "security_code",
@@ -602,7 +603,13 @@ def _validated_amount_currency_bindings(
     amount_columns = {
         column
         for column, role in roles_by_column.items()
-        if role in {"gross_amount", "broker_commission", "exchange_commission"}
+        if role
+        in {
+            "gross_amount",
+            "broker_commission",
+            "exchange_commission",
+            "retained_transaction_charge",
+        }
     }
     bound_amount_columns: list[int] = []
     for item in bindings:
@@ -1420,6 +1427,24 @@ def _row_values_runtime_valid(
             normalize_runtime_value(
                 role,
                 field["literal"],
+                numeric_convention=numeric_convention,
+            )
+        for retained in by_role.get("retained_transaction_charge", []):
+            if not retained["literal"]:
+                continue
+            retained_currency = _currency_field_for_amount(
+                amount=retained, by_role=by_role, mapping=mapping
+            )
+            if retained_currency is None:
+                return False
+            normalize_runtime_value(
+                "amount",
+                retained["literal"],
+                numeric_convention=numeric_convention,
+            )
+            normalize_runtime_value(
+                "currency",
+                retained_currency["literal"],
                 numeric_convention=numeric_convention,
             )
     except OrdinaryTradeSemanticCompilerError:
