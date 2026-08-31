@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import statistics
 import time
 from dataclasses import dataclass
@@ -343,6 +344,18 @@ class PdfPlumberLayoutAdapter:
             and locator_page is not None
             and locator_page.get("schema_version") == PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3
         )
+        locator_regions = (
+            list(locator_page.get("regions") or [])
+            if locator_mode and locator_page is not None
+            else []
+        )
+        if source_grid_v3 and locator_regions:
+            image_reason = _source_grid_raster_reason(
+                page=page,
+                regions=locator_regions,
+            )
+            if image_reason:
+                table_reason_codes.append(image_reason)
         chars = [
             _sanitize_char(
                 item,
@@ -406,7 +419,11 @@ class PdfPlumberLayoutAdapter:
         ]
 
         table_candidates: list[dict[str, Any]] = []
-        if self.requested_capability == "table_candidates" and not layout_reasons:
+        if (
+            self.requested_capability == "table_candidates"
+            and not layout_reasons
+            and not table_reason_codes
+        ):
             if (
                 len(words) > self.config.max_table_detection_words_per_page
                 or len(vector_lines) + len(rects)
@@ -429,9 +446,7 @@ class PdfPlumberLayoutAdapter:
                             vector_lines=vector_lines,
                             rects=rects,
                             locator_regions=(
-                                list(locator_page.get("regions") or [])
-                                if locator_mode and locator_page is not None
-                                else None
+                                locator_regions if locator_mode else None
                             ),
                             locator_contract_v3=(
                                 locator_mode
@@ -929,6 +944,74 @@ class PdfPlumberLayoutAdapter:
                 "elapsed_milliseconds_total": 0.0,
             },
         )
+
+
+def _source_grid_raster_reason(
+    *, page: Any, regions: list[dict[str, Any]]
+) -> str | None:
+    if not regions:
+        return None
+    region_bboxes: list[list[float]] = []
+    for region in regions:
+        region_bbox = _strict_bbox_values(region.get("bbox_pdf_points"))
+        if region_bbox is None:
+            return "pdf_source_grid_instance_hint_invalid"
+        region_bboxes.append(region_bbox)
+    try:
+        images = list(page.images or [])
+    except Exception:
+        return "pdf_source_grid_image_inventory_unavailable"
+
+    for image in images:
+        srcsize = image.get("srcsize") if isinstance(image, dict) else None
+        if (
+            isinstance(srcsize, (list, tuple))
+            and len(srcsize) == 2
+            and all(
+                isinstance(value, (int, float))
+                and not isinstance(value, bool)
+                and float(value) == 1.0
+                for value in srcsize
+            )
+        ):
+            continue
+        bbox = _strict_image_bbox(image)
+        if bbox is None:
+            return "pdf_source_grid_image_bbox_invalid"
+        if any(
+            _positive_area_intersection(bbox, region_bbox)
+            for region_bbox in region_bboxes
+        ):
+            return "pdf_source_grid_raster_image_intersection_unsupported"
+    return None
+
+
+def _strict_image_bbox(image: Any) -> list[float] | None:
+    if not isinstance(image, dict):
+        return None
+    return _strict_bbox_values(
+        [image.get(key) for key in ("x0", "top", "x1", "bottom")]
+    )
+
+
+def _strict_bbox_values(values: Any) -> list[float] | None:
+    if not isinstance(values, list) or len(values) != 4:
+        return None
+    if any(
+        not isinstance(value, (int, float))
+        or isinstance(value, bool)
+        or not math.isfinite(float(value))
+        for value in values
+    ):
+        return None
+    bbox = [float(value) for value in values]
+    return bbox if bbox[0] < bbox[2] and bbox[1] < bbox[3] else None
+
+
+def _positive_area_intersection(left: Any, right: Any) -> bool:
+    return max(left[0], right[0]) < min(left[2], right[2]) and max(
+        left[1], right[1]
+    ) < min(left[3], right[3])
 
 
 def _sanitize_char(
