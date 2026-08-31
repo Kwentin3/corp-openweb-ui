@@ -162,10 +162,13 @@ class OrdinaryTradeSemanticCompiler:
         ]
         for table in table_nodes:
             rows = _table_rows(table)
-            global_matches = _matching_mappings(rows=rows, mappings=accepted)
+            global_matches = _matching_mappings(
+                canonical=canonical, table=table, rows=rows, mappings=accepted
+            )
             if len(global_matches) > 1:
                 _fail("ordinary_trade_table_mapping_ambiguous")
             scoped_matches = _matching_scoped_mappings(
+                canonical=canonical,
                 table=table,
                 rows=rows,
                 mappings=accepted_scoped,
@@ -177,6 +180,7 @@ class OrdinaryTradeSemanticCompiler:
             matches = global_matches or scoped_matches
             if not matches:
                 resolutions = _matching_table_resolutions(
+                    canonical=canonical,
                     table=table,
                     rows=rows,
                     resolutions=accepted_resolutions,
@@ -306,6 +310,8 @@ class OrdinaryTradeSemanticCompiler:
             if not isinstance(node_id, str) or not node_id:
                 _fail("ordinary_trade_table_node_id_invalid")
             matches = _matching_mappings(
+                canonical=canonical,
+                table=table,
                 rows=_table_rows(table),
                 mappings=accepted,
             )
@@ -638,6 +644,96 @@ def _table_rows(table: Mapping[str, Any]) -> dict[int, dict[int, dict[str, Any]]
 
 
 def _matching_mappings(
+    *,
+    canonical: Mapping[str, Any],
+    table: Mapping[str, Any],
+    rows: dict[int, dict[int, dict[str, Any]]],
+    mappings: tuple[dict[str, Any], ...],
+) -> list[tuple[dict[str, Any], int]]:
+    header_binding = _table_header_binding(canonical=canonical, table=table)
+    if header_binding is None:
+        return _matching_mappings_legacy(rows=rows, mappings=mappings)
+    title, canonical_header, header_row_count = _bound_canonical_table_header(
+        table=table, rows=rows, header_binding=header_binding
+    )
+    if not canonical_header or header_row_count < 1:
+        return []
+    result = []
+    for mapping in mappings:
+        expected = {
+            item["column"]: item["header_literal"] for item in mapping["columns"]
+        }
+        if canonical_header != expected:
+            continue
+        expected_title = mapping["title_literal"]
+        if expected_title is not None and title != expected_title:
+            continue
+        result.append((mapping, header_row_count))
+    return result
+
+
+def _bound_canonical_table_header(
+    *,
+    table: Mapping[str, Any],
+    rows: dict[int, dict[int, dict[str, Any]]],
+    header_binding: Mapping[str, Any],
+) -> tuple[str | None, dict[int, str], int]:
+    content = table.get("content")
+    if not isinstance(content, Mapping):
+        _fail("ordinary_trade_canonical_table_invalid")
+    title = content.get("title")
+    header = content.get("header")
+    body = content.get("rows")
+    if (
+        not isinstance(title, (str, type(None)))
+        or not isinstance(header, list)
+        or not isinstance(body, list)
+        or any(not isinstance(item, (str, type(None))) for item in header)
+    ):
+        _fail("ordinary_trade_canonical_table_invalid")
+    header_row_count = header_binding.get("bound_header_row_count")
+    if (
+        not isinstance(header_row_count, int)
+        or isinstance(header_row_count, bool)
+        or header_row_count < 0
+        or max(rows, default=0) != header_row_count + len(body)
+    ):
+        _fail("ordinary_trade_canonical_table_invalid")
+    if not header or header_row_count < 1:
+        return title, {}, header_row_count
+    canonical_header = {
+        column: str(literal or "")
+        for column, literal in enumerate(header, start=1)
+    }
+    return title, canonical_header, header_row_count
+
+
+def _table_header_binding(
+    *, canonical: Mapping[str, Any], table: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    refs = table.get("source_refs")
+    provenance = canonical.get("provenance")
+    if not isinstance(refs, list) or not isinstance(provenance, list):
+        _fail("ordinary_trade_canonical_table_invalid")
+    locators = {
+        item.get("provenance_id"): item.get("source_locator")
+        for item in provenance
+        if isinstance(item, dict)
+        and isinstance(item.get("provenance_id"), str)
+        and isinstance(item.get("source_locator"), dict)
+    }
+    bindings = [
+        locators[ref]["table_header_binding"]
+        for ref in refs
+        if ref in locators
+        and isinstance(locators[ref].get("table_header_binding"), dict)
+    ]
+    if len(bindings) > 1:
+        _fail("ordinary_trade_canonical_table_invalid")
+    return copy.deepcopy(bindings[0]) if bindings else None
+
+
+def _matching_mappings_legacy(
     *, rows: dict[int, dict[int, dict[str, Any]]], mappings: tuple[dict[str, Any], ...]
 ) -> list[tuple[dict[str, Any], int]]:
     result = []
@@ -675,6 +771,7 @@ def _matching_mappings(
 
 def _matching_scoped_mappings(
     *,
+    canonical: Mapping[str, Any],
     table: Mapping[str, Any],
     rows: dict[int, dict[int, dict[str, Any]]],
     mappings: tuple[dict[str, Any], ...],
@@ -684,7 +781,9 @@ def _matching_scoped_mappings(
         for item in mappings
         if item["table_node_id"] == table.get("node_id")
     )
-    return _matching_mappings(rows=rows, mappings=scoped)
+    return _matching_mappings(
+        canonical=canonical, table=table, rows=rows, mappings=scoped
+    )
 
 
 def _table_numeric_convention(
@@ -885,6 +984,7 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
 
 def _matching_table_resolutions(
     *,
+    canonical: Mapping[str, Any],
     table: Mapping[str, Any],
     rows: dict[int, dict[int, dict[str, Any]]],
     resolutions: tuple[dict[str, Any], ...],
@@ -893,19 +993,34 @@ def _matching_table_resolutions(
     for resolution in resolutions:
         if resolution["table_node_id"] != table.get("node_id"):
             continue
-        cells = rows.get(resolution["header_row"])
         expected = {
             item["column"]: item["literal"]
             for item in resolution["evidence_surface"]["headers"]
         }
-        if (
-            cells is None
-            or set(cells) != set(expected)
-            or any(
-                _literal(cells[column]) != literal
-                for column, literal in expected.items()
+        header_binding = _table_header_binding(canonical=canonical, table=table)
+        if header_binding is not None:
+            _title, canonical_header, header_row_count = (
+                _bound_canonical_table_header(
+                    table=table,
+                    rows=rows,
+                    header_binding=header_binding,
+                )
             )
-        ):
+            stale = (
+                header_row_count != resolution["header_row"]
+                or canonical_header != expected
+            )
+        else:
+            cells = rows.get(resolution["header_row"])
+            stale = (
+                cells is None
+                or set(cells) != set(expected)
+                or any(
+                    _literal(cells[column]) != literal
+                    for column, literal in expected.items()
+                )
+            )
+        if stale:
             _fail("ordinary_trade_table_resolution_surface_stale")
         result.append(resolution)
     return result

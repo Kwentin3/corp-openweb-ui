@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from dataclasses import replace
 from typing import Any
 
@@ -22,6 +23,7 @@ from .ordinary_trade_semantic_mapping import (
 
 
 MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
+LEGACY_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeMappingCaseFactory.create is the only mapping-case state "
     "persistence and continuation entrypoint"
@@ -111,7 +113,11 @@ class OrdinaryTradeMappingCaseRuntime:
         records: list[tuple[ArtifactRecord, dict[str, Any]]] = []
         for record in self._resolver.catalog_case(context):
             if (
-                record.artifact_type != MAPPING_CASE_ARTIFACT_TYPE
+                record.artifact_type
+                not in {
+                    MAPPING_CASE_ARTIFACT_TYPE,
+                    LEGACY_MAPPING_CASE_ARTIFACT_TYPE,
+                }
                 or record.document_id != document_id
             ):
                 continue
@@ -120,7 +126,10 @@ class OrdinaryTradeMappingCaseRuntime:
             )
             resolved = self._resolver.resolve(record.artifact_id, record_context)
             payload = resolved["payload"]
-            _validate_payload(payload, authority=self._authority)
+            if record.artifact_type == LEGACY_MAPPING_CASE_ARTIFACT_TYPE:
+                _validate_payload_v2(payload, authority=self._authority)
+            else:
+                _validate_payload(payload, authority=self._authority)
             if payload["case_id"] != binding["case_id"]:
                 continue
             records.append((record, payload))
@@ -188,6 +197,7 @@ class OrdinaryTradeMappingCaseRuntime:
             execution_metadata_sha256=outcome.get(
                 "execution_metadata_sha256"
             ),
+            semantic_evidence_sha256=outcome.get("semantic_evidence_sha256"),
             reason_code=None,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
@@ -493,6 +503,7 @@ class OrdinaryTradeMappingCaseRuntime:
             "provider_calls_total": values["provider_calls_total"],
             "model_response_sha256": values["model_response_sha256"],
             "execution_metadata_sha256": values["execution_metadata_sha256"],
+            "semantic_evidence_sha256": values.get("semantic_evidence_sha256"),
             "reason_code": values["reason_code"],
         }
         payload["integrity_sha256"] = _sha256_json(payload)
@@ -582,6 +593,7 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         "provider_calls_total",
         "model_response_sha256",
         "execution_metadata_sha256",
+        "semantic_evidence_sha256",
         "reason_code",
         "integrity_sha256",
     }
@@ -597,12 +609,86 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         or not isinstance(payload.get("message"), str)
         or not isinstance(payload.get("provider_calls_total"), int)
         or payload["provider_calls_total"] < 0
+        or (
+            payload.get("semantic_evidence_sha256") is not None
+            and re.fullmatch(
+                r"[0-9a-f]{64}", str(payload["semantic_evidence_sha256"])
+            )
+            is None
+        )
     ):
         _fail("ordinary_trade_mapping_case_invalid")
     frozen = copy.deepcopy(payload)
     digest = frozen.pop("integrity_sha256", None)
     if digest != _sha256_json(frozen):
         _fail("ordinary_trade_mapping_case_integrity_invalid")
+    decision_hashes = (
+        payload.get("model_response_sha256"),
+        payload.get("execution_metadata_sha256"),
+    )
+    if (
+        (decision_hashes[0] is None) != (decision_hashes[1] is None)
+        or any(
+            value is not None
+            and re.fullmatch(r"[0-9a-f]{64}", str(value)) is None
+            for value in decision_hashes
+        )
+        or (
+            decision_hashes[0] is not None
+            and payload.get("semantic_evidence_sha256") is None
+        )
+        or (
+            decision_hashes[0] is None
+            and payload.get("semantic_evidence_sha256") is not None
+        )
+    ):
+        _fail("ordinary_trade_mapping_case_model_binding_invalid")
+    _validate_payload_material(payload, authority=authority)
+
+
+def _validate_payload_v2(payload: Any, *, authority: Any) -> None:
+    expected_keys = {
+        "schema_version",
+        "case_id",
+        "revision",
+        "predecessor_sha256",
+        "case_binding",
+        "status",
+        "message",
+        "question",
+        "pending_candidate",
+        "confirmed_understandings",
+        "qualified_mappings",
+        "qualification_receipts",
+        "table_resolutions",
+        "provider_calls_total",
+        "model_response_sha256",
+        "execution_metadata_sha256",
+        "reason_code",
+        "integrity_sha256",
+    }
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != expected_keys
+        or payload.get("schema_version") != LEGACY_MAPPING_CASE_ARTIFACT_TYPE
+        or not isinstance(payload.get("case_id"), str)
+        or not payload["case_id"].startswith("otcase_")
+        or not isinstance(payload.get("revision"), int)
+        or payload["revision"] < 1
+        or payload.get("status") not in _STATUSES
+        or not isinstance(payload.get("message"), str)
+        or not isinstance(payload.get("provider_calls_total"), int)
+        or payload["provider_calls_total"] < 0
+    ):
+        _fail("ordinary_trade_mapping_case_invalid")
+    frozen = copy.deepcopy(payload)
+    digest = frozen.pop("integrity_sha256", None)
+    if digest != _sha256_json(frozen):
+        _fail("ordinary_trade_mapping_case_integrity_invalid")
+    _validate_payload_material(payload, authority=authority)
+
+
+def _validate_payload_material(payload: dict[str, Any], *, authority: Any) -> None:
     binding = payload.get("case_binding")
     if (
         not isinstance(binding, dict)
@@ -730,6 +816,7 @@ def _fail(code: str) -> None:
 __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "LEGACY_MAPPING_CASE_ARTIFACT_TYPE",
     "MAPPING_CASE_ARTIFACT_TYPE",
     "OrdinaryTradeMappingCaseError",
     "OrdinaryTradeMappingCaseFactory",

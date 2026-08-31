@@ -4,7 +4,7 @@ Status: `CURRENT`
 
 Classification: `CURRENT AUTHORITY`
 
-Updated: 2026-08-27 (automatic case-scoped semantic mapping)
+Updated: 2026-08-31 (source-bound semantic proposal and independent critic)
 
 ```text
 CURRENT_PIPELINE_AUTHORITY = ONE
@@ -38,6 +38,7 @@ broker_reports_gate1_pipe
   -> immutable active CanonicalArtifactV1
   -> OrdinaryTradeProductionRuntimeFactory.create
   -> exact qualified mapping fast path OR OrdinaryTradeSemanticMappingFactory.create
+  -> independent critic over the byte-identical Canonical semantic case
   -> OrdinaryTradeMappingCaseFactory.create and explicit user confirmation
   -> OrdinaryTradeQualifiedMappingAuthorityFactory.create
   -> OrdinaryTradeSemanticCompilerFactory.create
@@ -316,6 +317,7 @@ transcription fallback. Exact rules are in
 | Entrypoint / artifact | Status | Authority boundary |
 | --- | --- | --- |
 | `OrdinaryTradeProductionRuntimeFactory.create` | `PRODUCT/NORMATIVE` | sole active ordinary-trade and bounded declaration-product composition root; current Canonical/source owner + current Human Facts + pinned methodology -> `INPUT_REQUIRED | DRAFT_READY | DECLARATION_XML_READY`; deterministic Gate 5 and private XML delivery, zero FNS transport |
+| `OrdinaryTradeSemanticMappingFactory.create` | `PRODUCT/NORMATIVE` | code-built Canonical title + flattened header + body view; proposal and independent critic receive the same evidence bytes; runtime owns header-count binding; only the reviewed response may reach the compiler; truncated no-consumer evidence fails closed |
 | `OrdinaryTradeQualifiedMappingAuthorityFactory.create` | `PRODUCT/NORMATIVE` | frozen exact schema/enum meaning plus explicit amount-column to currency-column bindings; no row values, broker/year/filename routing or fuzzy reuse |
 | `OrdinaryTradeSemanticCompilerFactory.create` | `PRODUCT/NORMATIVE` | Canonical-bound Source Observations and deterministic runtime records; executes qualified bindings and never derives them from adjacency; unknown content remains unmapped |
 | `Gate4OrdinaryTradeCandidateRuntimeFactory.create` | `PRODUCT/NORMATIVE` | validates candidate projection into the existing Fact v2 boundary without SQL or Gate 3 execution |

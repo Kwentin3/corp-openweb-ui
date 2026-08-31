@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import pytest
 
+from broker_reports_gate1.artifact_lifecycle import lifecycle_for_visibility
+from broker_reports_gate1.artifact_models import ArtifactRecord
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.gate2_model_contracts import Gate2ProviderExecutionMetadata
 from broker_reports_gate1.ordinary_trade_mapping_case import (
+    LEGACY_MAPPING_CASE_ARTIFACT_TYPE,
+    MAPPING_CASE_ARTIFACT_TYPE,
     OrdinaryTradeMappingCaseError,
     OrdinaryTradeMappingCaseFactory,
 )
@@ -19,6 +25,18 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
 )
 
 import test_broker_reports_ordinary_trade_production_candidate as candidate
+
+
+def _sha256_json(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 def _unknown_case(tmp_path, *, source_header_injection: str | None = None):
@@ -65,7 +83,6 @@ def _complete(table, mapping):
         "table_decisions": [
             {
                 "table_ref": "table_1",
-                "header_row": 1,
                 "disposition": "SECURITY_TRADES",
                 "columns": [
                     {
@@ -89,7 +106,6 @@ def _column_role_decision(column: int, semantic_role: str) -> dict:
     return {
         "decision_kind": "COLUMN_ROLE",
         "table_ref": "table_1",
-        "header_row": 1,
         "column": column,
         "semantic_role": semantic_role,
         "amount_column": None,
@@ -121,6 +137,7 @@ def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> 
         confirmed_understandings=[],
         user_scope_sha256=actual_scope,
     )
+    outcome["semantic_evidence_sha256"] = "e" * 64
     record, payload = cases.save_mapping_outcome(
         document_id=document_id,
         context=context,
@@ -186,6 +203,7 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
             document_id=document_id, context=context
         )["user_scope_sha256"],
     )
+    outcome["semantic_evidence_sha256"] = "e" * 64
     cases.save_mapping_outcome(
         document_id=document_id,
         context=context,
@@ -264,6 +282,7 @@ def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
             document_id=document_id, context=context
         )["user_scope_sha256"],
     )
+    outcome["semantic_evidence_sha256"] = "e" * 64
     cases.save_mapping_outcome(
         document_id=document_id,
         context=context,
@@ -291,3 +310,90 @@ def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
         )
     assert exc.value.code == "ordinary_trade_mapping_case_concurrent_answer"
     assert candidate_payload["confirmed_understandings"] == []
+
+
+def test_in_progress_v2_case_resumes_as_v3_with_hash_continuity(tmp_path) -> None:
+    store, context, document_id, *_rest = _unknown_case(tmp_path)
+    cases = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create()
+    binding = cases.case_binding(document_id=document_id, context=context)
+    legacy_payload = {
+        "schema_version": LEGACY_MAPPING_CASE_ARTIFACT_TYPE,
+        "case_id": binding["case_id"],
+        "revision": 1,
+        "predecessor_sha256": None,
+        "case_binding": {
+            "canonical_binding": copy.deepcopy(binding["canonical_binding"]),
+            "user_scope_sha256": binding["user_scope_sha256"],
+            "case_binding_sha256": binding["case_binding_sha256"],
+        },
+        "status": "MAPPING_REQUIRED",
+        "message": "Legacy mapping remains in progress.",
+        "question": None,
+        "pending_candidate": None,
+        "confirmed_understandings": [],
+        "qualified_mappings": [],
+        "qualification_receipts": [],
+        "table_resolutions": [],
+        "provider_calls_total": 1,
+        "model_response_sha256": None,
+        "execution_metadata_sha256": None,
+        "reason_code": None,
+    }
+    legacy_payload["integrity_sha256"] = _sha256_json(legacy_payload)
+    active = store.get_active_canonical_version(
+        context=context, document_id=document_id
+    )
+    manifest = store.get_record_unchecked(active.manifest_ref)
+    assert manifest is not None
+    store.put_record(
+        ArtifactRecord(
+            artifact_id="art_otmapcase_legacy_0001",
+            artifact_type=LEGACY_MAPPING_CASE_ARTIFACT_TYPE,
+            case_id=context.case_id,
+            chat_id=context.chat_id,
+            user_id=context.user_id,
+            workspace_model_id=context.workspace_model_id,
+            normalization_run_id=context.normalization_run_id,
+            document_id=document_id,
+            source_file_ref=copy.deepcopy(manifest.source_file_ref),
+            visibility="private_case",
+            storage_backend="project_artifact_payload",
+            retention_policy=manifest.retention_policy,
+            access_policy={
+                "requires_user_id": True,
+                "requires_case_or_chat": True,
+                "requires_workspace_model_id_when_present": bool(
+                    context.workspace_model_id
+                ),
+                "ordinary_trade_mapping_case_only": True,
+            },
+            validation_status="validated",
+            lifecycle_status=lifecycle_for_visibility(
+                visibility="private_case", validation_status="validated"
+            ),
+            payload_kind="json_file",
+            payload=legacy_payload,
+        )
+    )
+
+    current = cases.current(document_id=document_id, context=context)
+    assert current is not None
+    assert current[0].artifact_type == LEGACY_MAPPING_CASE_ARTIFACT_TYPE
+    assert current[1] == legacy_payload
+
+    successor_record, successor = cases.save_provider_terminal(
+        document_id=document_id,
+        context=context,
+        status="PROVIDER_UNAVAILABLE",
+        reason_code="provider_unavailable",
+        message="Retry remains possible.",
+        provider_calls_total=1,
+    )
+
+    assert successor_record.artifact_type == MAPPING_CASE_ARTIFACT_TYPE
+    assert successor["schema_version"] == MAPPING_CASE_ARTIFACT_TYPE
+    assert successor["revision"] == 2
+    assert successor["predecessor_sha256"] == legacy_payload["integrity_sha256"]
+    assert successor["provider_calls_total"] == 2

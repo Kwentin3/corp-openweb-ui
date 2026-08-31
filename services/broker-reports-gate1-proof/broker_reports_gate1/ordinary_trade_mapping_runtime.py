@@ -1,7 +1,10 @@
-"""One-attempt source-semantic coordinator for unknown ordinary-trade schemas."""
+"""Two-phase source-semantic coordinator for unknown ordinary-trade schemas."""
 
 from __future__ import annotations
 
+import hashlib
+import json
+from dataclasses import asdict, is_dataclass
 from typing import Any
 
 from .artifact_models import ArtifactAccessContext
@@ -44,6 +47,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         store: Any,
         read_enabled: bool,
         model_client: Any,
+        critic_model_client: Any,
         answer_model_client: Any | None = None,
         model_id: str,
         provider_profile_id: str,
@@ -51,6 +55,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         self._store = store
         self._read_enabled = read_enabled
         self._model_client = model_client
+        self._critic_model_client = critic_model_client
         self._answer_model_client = answer_model_client or model_client
         self._model_id = model_id
         self._provider_profile_id = provider_profile_id
@@ -58,6 +63,8 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
     def create(self) -> "OrdinaryTradeAutomaticMappingRuntime":
         if (
             self._model_client is None
+            or self._critic_model_client is None
+            or self._critic_model_client is self._model_client
             or not isinstance(self._model_id, str)
             or not self._model_id
             or not isinstance(self._provider_profile_id, str)
@@ -73,6 +80,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
             ).create(),
             semantic=OrdinaryTradeSemanticMappingFactory.create(),
             model_client=self._model_client,
+            critic_model_client=self._critic_model_client,
             answer_model_client=self._answer_model_client,
             model_id=self._model_id,
             provider_profile_id=self._provider_profile_id,
@@ -90,6 +98,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         cases: Any,
         semantic: Any,
         model_client: Any,
+        critic_model_client: Any,
         answer_model_client: Any,
         model_id: str,
         provider_profile_id: str,
@@ -99,6 +108,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         self._cases = cases
         self._semantic = semantic
         self._model_client = model_client
+        self._critic_model_client = critic_model_client
         self._answer_model_client = answer_model_client
         self._model_id = model_id
         self._provider_profile_id = provider_profile_id
@@ -233,7 +243,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=saved, context=context, provider_calls_this_turn=0
             )
         try:
-            response = await self._model_client.extract(
+            proposal_response = await self._model_client.extract(
                 prompt=self._semantic.mapping_prompt(),
                 package=package,
                 model_id=self._model_id,
@@ -255,20 +265,71 @@ class OrdinaryTradeAutomaticMappingRuntime:
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
             )
+        provider_calls = 1
         try:
-            _strict_result(response)
+            _strict_result(proposal_response)
+            critic_package = self._semantic.build_critic_package(
+                mapping_package=package,
+                proposal_response=proposal_response,
+            )
+            semantic_evidence_sha256 = _sha256_json(package["case"])
+            if _sha256_json(critic_package["case"]) != semantic_evidence_sha256:
+                raise OrdinaryTradeAutomaticMappingError(
+                    "ordinary_trade_semantic_critic_evidence_mismatch"
+                )
+            provider_calls = 2
+            try:
+                critic_response = await self._critic_model_client.extract(
+                    prompt=self._semantic.critic_prompt(),
+                    package=critic_package,
+                    model_id=self._model_id,
+                    response_format=self._semantic.critic_response_format(),
+                )
+            except Exception as exc:
+                code = getattr(
+                    exc, "code", "ordinary_trade_mapping_critic_provider_failed"
+                )
+                saved = self._cases.save_provider_terminal(
+                    document_id=document_id,
+                    context=context,
+                    status="PROVIDER_UNAVAILABLE",
+                    reason_code=str(code),
+                    message=(
+                        "Independent semantic review is unavailable. The proposal "
+                        "was not persisted and no facts were published."
+                    ),
+                    provider_calls_total=provider_calls,
+                )
+                return self._result(
+                    current=saved,
+                    context=context,
+                    provider_calls_this_turn=provider_calls,
+                )
+            _strict_result(critic_response)
+            review = self._semantic.validate_critic_response(
+                proposal_response=proposal_response,
+                critic_response=critic_response,
+            )
+            response_binding, execution_binding = _review_bindings(
+                proposal_response=proposal_response,
+                critic_response=critic_response,
+            )
             outcome = self._semantic.validate_mapping_response(
-                response=response,
+                response=review["reviewed_response"],
                 canonical=binding["canonical"],
                 canonical_binding=binding["canonical_binding"],
                 model_id=self._model_id,
                 provider_profile_id=self._provider_profile_id,
-                execution_metadata=response.execution_metadata,
+                execution_metadata=critic_response.execution_metadata,
                 confirmed_understandings=confirmed,
                 user_scope_sha256=binding["user_scope_sha256"],
                 target_table_node_ids=target_table_node_ids,
                 frozen_mappings=self._frozen_mappings,
+                independent_review_confirmed=True,
+                decision_response_sha256=response_binding,
+                decision_execution_metadata_sha256=execution_binding,
             )
+            outcome["semantic_evidence_sha256"] = semantic_evidence_sha256
         except Exception as exc:
             code = getattr(
                 exc, "code", "ordinary_trade_semantic_mapping_output_invalid"
@@ -294,19 +355,23 @@ class OrdinaryTradeAutomaticMappingRuntime:
                         "Факты не опубликованы; требуется проверка специалиста."
                     )
                 ),
-                provider_calls_total=1,
+                provider_calls_total=provider_calls,
             )
             return self._result(
-                current=saved, context=context, provider_calls_this_turn=1
+                current=saved,
+                context=context,
+                provider_calls_this_turn=provider_calls,
             )
         saved = self._cases.save_mapping_outcome(
             document_id=document_id,
             context=context,
             outcome=outcome,
-            provider_calls_total=1,
+            provider_calls_total=provider_calls,
         )
         return self._result(
-            current=saved, context=context, provider_calls_this_turn=1
+            current=saved,
+            context=context,
+            provider_calls_this_turn=provider_calls,
         )
 
     async def _interpret_answer(
@@ -414,6 +479,41 @@ def _strict_result(response: Any) -> None:
             "ordinary_trade_mapping_strict_output_required",
             "Semantic mapping requires one strict output without repair",
         )
+
+
+def _review_bindings(*, proposal_response: Any, critic_response: Any) -> tuple[str, str]:
+    response_material = {
+        "proposal": getattr(proposal_response, "content", None),
+        "critic": getattr(critic_response, "content", None),
+    }
+    execution_material = {
+        "proposal": _metadata_snapshot(proposal_response.execution_metadata),
+        "critic": _metadata_snapshot(critic_response.execution_metadata),
+    }
+    return _sha256_json(response_material), _sha256_json(execution_material)
+
+
+def _metadata_snapshot(value: Any) -> dict[str, Any]:
+    if hasattr(value, "snapshot"):
+        value = value.snapshot()
+    elif is_dataclass(value):
+        value = asdict(value)
+    if not isinstance(value, dict):
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_mapping_execution_metadata_missing"
+        )
+    return value
+
+
+def _sha256_json(value: Any) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 __all__ = [
