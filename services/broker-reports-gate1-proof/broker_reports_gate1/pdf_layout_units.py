@@ -1095,6 +1095,9 @@ class PdfLayoutUnitBuilder:
                 "table_locator_scope_status": (
                     candidate.get("locator_scope_status") if candidate else None
                 ),
+                "boundary_from_previous": copy.deepcopy(
+                    candidate.get("boundary_from_previous") if candidate else None
+                ),
                 "model_values_used_as_source_literals": False,
                 "pdfplumber_settings_selected_by_model": False,
                 "semantic_table_truth_claimed": False,
@@ -1127,6 +1130,9 @@ def pdf_layout_unit_checksum_ref(unit: dict[str, Any]) -> str:
             "owned_refs": _strings(coverage.get("selected_source_refs")),
             "fallback_text_refs": _strings(coverage.get("fallback_text_refs")),
             "table_candidate_ref": unit.get("table_candidate_ref"),
+            "boundary_from_previous": copy.deepcopy(
+                unit.get("boundary_from_previous")
+            ),
             "text_checksum_ref": _checksum_ref(
                 "pdfunittextchk", str(unit.get("text") or "")
             ),

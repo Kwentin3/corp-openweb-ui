@@ -263,9 +263,12 @@ class CanonicalNormalizer:
         projections_by_unit: dict[str, dict[str, Any]] = {}
         standalone_projections: list[dict[str, Any]] = []
         for projection in table_projections:
-            ref = str(projection.get("source_unit_ref") or "")
-            if ref:
-                projections_by_unit[ref] = projection
+            refs = list(projection.get("source_unit_refs") or []) or [
+                projection.get("source_unit_ref")
+            ]
+            for ref in refs:
+                if ref:
+                    projections_by_unit[str(ref)] = projection
         ordered = sorted(
             source_units,
             key=lambda item: (
@@ -412,6 +415,8 @@ class CanonicalNormalizer:
                     title=title,
                     issue_refs=issue_refs,
                 )
+                continue
+            if projection and projection_status == "ready" and table_id in seen_tables:
                 continue
             if projection and projection_status != "ready":
                 issue_refs.append(
@@ -1807,10 +1812,14 @@ def _projection_canonical_cells(
         value = values.get(str(cell.get("normalized_private_value_path") or ""))
         locator = {
             "kind": "pdf_table_projection_cell",
-            "page": int(source_location.get("page") or 0),
-            "source_unit_ref": str(projection.get("source_unit_ref") or ""),
+            "page": int(cell.get("source_page") or 0),
+            "page_ref": str(cell.get("page_ref") or ""),
+            "source_unit_ref": str(cell.get("source_unit_ref") or ""),
             "table_projection_id": str(
                 projection.get("table_projection_id") or ""
+            ),
+            "physical_table_projection_ref": str(
+                cell.get("physical_table_projection_ref") or ""
             ),
             "cell_ref": str(cell.get("cell_ref") or ""),
             "row_ref": str(cell.get("row_ref") or ""),

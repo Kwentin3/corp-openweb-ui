@@ -743,9 +743,6 @@ class Pipe:
                 "retention_policy_mode": retention_policy.mode,
                 "retention_policy_explicit": retention_policy.explicit,
                 "clarification_criticality_refinement_enabled": criticality_refinement_enabled,
-                # The current PDF route always promotes source-bound pdfplumber
-                # projections through the deterministic neutral-table contract.
-                "broker_pdf_neutral_table_profile_v1_enabled": True,
                 "pdf_compact_canonical_dual_write": bool(
                     self.valves.pdf_compact_canonical_dual_write
                 ),

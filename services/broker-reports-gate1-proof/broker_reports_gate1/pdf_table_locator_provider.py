@@ -149,13 +149,17 @@ class GeminiGridExperimentAdapter:
         output_schema: dict[str, Any],
         png_bytes: bytes,
         crop_sha256: str,
+        previous_png_bytes: bytes | None = None,
+        previous_png_sha256: str | None = None,
     ) -> dict[str, Any]:
         self._validate_crop(png_bytes, crop_sha256)
+        self._validate_previous(previous_png_bytes, previous_png_sha256)
         body, canonical_schema_hash, adapted_schema_hash, transforms = (
             self._generate_body(
                 model_view=model_view,
                 output_schema=output_schema,
                 png_bytes=png_bytes,
+                previous_png_bytes=previous_png_bytes,
             )
         )
         model = self.config.model_id.removeprefix("models/")
@@ -210,6 +214,8 @@ class GeminiGridExperimentAdapter:
         output_schema: dict[str, Any],
         png_bytes: bytes,
         crop_sha256: str,
+        previous_png_bytes: bytes | None = None,
+        previous_png_sha256: str | None = None,
         attempt_number: int,
         attempt_lineage: list[str],
     ) -> dict[str, Any]:
@@ -218,11 +224,13 @@ class GeminiGridExperimentAdapter:
                 "pdf_grid_attempt_lineage_invalid", "attempt_policy"
             )
         self._validate_crop(png_bytes, crop_sha256)
+        self._validate_previous(previous_png_bytes, previous_png_sha256)
         body, canonical_schema_hash, adapted_schema_hash, transforms = (
             self._generate_body(
                 model_view=model_view,
                 output_schema=output_schema,
                 png_bytes=png_bytes,
+                previous_png_bytes=previous_png_bytes,
             )
         )
         model = self.config.model_id.removeprefix("models/")
@@ -311,6 +319,7 @@ class GeminiGridExperimentAdapter:
             "transport_identity": "gemini_generate_content_native_table_crop_json_schema",
             "request_hash": sha256_json(body),
             "crop_sha256": crop_sha256,
+            "previous_page_png_sha256": previous_png_sha256,
             "model_view_hash": sha256_json(model_view),
             "canonical_schema_hash": canonical_schema_hash,
             "adapted_schema_hash": adapted_schema_hash,
@@ -351,6 +360,7 @@ class GeminiGridExperimentAdapter:
         model_view: dict[str, Any],
         output_schema: dict[str, Any],
         png_bytes: bytes,
+        previous_png_bytes: bytes | None = None,
     ) -> tuple[dict[str, Any], str, str, int]:
         canonical = copy.deepcopy(output_schema)
         adapted, transforms = project_gemini_schema(canonical)
@@ -367,6 +377,22 @@ class GeminiGridExperimentAdapter:
                                 sort_keys=True,
                             )
                         },
+                        *(
+                            [
+                                {"text": "PREVIOUS full page"},
+                                {
+                                    "inlineData": {
+                                        "mimeType": "image/png",
+                                        "data": base64.b64encode(
+                                            previous_png_bytes
+                                        ).decode("ascii"),
+                                    }
+                                },
+                            ]
+                            if previous_png_bytes is not None
+                            else []
+                        ),
+                        {"text": "CURRENT full page"},
                         {
                             "inlineData": {
                                 "mimeType": "image/png",
@@ -393,6 +419,18 @@ class GeminiGridExperimentAdapter:
             raise PdfGridProviderError(
                 "pdf_grid_provider_crop_hash_mismatch", "request_validation"
             )
+
+    @classmethod
+    def _validate_previous(
+        cls, png_bytes: bytes | None, png_sha256: str | None
+    ) -> None:
+        if (png_bytes is None) != (png_sha256 is None):
+            raise PdfGridProviderError(
+                "pdf_grid_provider_previous_page_pair_invalid",
+                "request_validation",
+            )
+        if png_bytes is not None:
+            cls._validate_crop(png_bytes, str(png_sha256))
 
     def _request(
         self, method: str, url: str, body: dict[str, Any] | None

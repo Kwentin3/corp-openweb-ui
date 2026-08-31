@@ -35,7 +35,6 @@ from .profilers_zip import profile_zip
 from .safe_report import render_privacy_failed_report, render_safe_report
 from .source_provenance import NormalizedSliceProvenanceFactory
 from .table_projection import (
-    NormalizedTableProjectionConfig,
     NormalizedTableProjectionFactory,
 )
 from .taxonomy import classify_document
@@ -140,16 +139,7 @@ class Gate1Normalizer:
                 ),
             )
         ).create()
-        table_projection_builder = NormalizedTableProjectionFactory(
-            NormalizedTableProjectionConfig(
-                broker_pdf_neutral_table_profile_v1_enabled=(
-                    (input_context or {}).get(
-                        "broker_pdf_neutral_table_profile_v1_enabled"
-                    )
-                    is True
-                )
-            )
-        ).create()
+        table_projection_builder = NormalizedTableProjectionFactory().create()
         archive_intake = Gate1ArchiveIntakeFactory().create()
         source_policy_context = self._source_policy_context(input_context or {})
 
@@ -384,13 +374,21 @@ class Gate1Normalizer:
                         int(page.get("table_locator_regions_rejected_total") or 0)
                         for page in layout_pages
                     )
-                    ready_projections = sum(
-                        projection.get("projection_status") == "ready"
-                        and projection.get("validator_status") == "passed"
+                    ready_physical_region_refs = [
+                        ref
                         for projection in table_projection_result.projections
                         if isinstance(projection, dict)
                         and projection.get("source_format") == "pdf"
-                    )
+                        and projection.get("projection_status") == "ready"
+                        and projection.get("validator_status") == "passed"
+                        for ref in (
+                            (projection.get("continuation") or {}).get(
+                                "physical_table_projection_refs"
+                            )
+                            or [projection.get("table_projection_id")]
+                        )
+                        if ref
+                    ]
                     failed_pages = sum(
                         not isinstance(page, dict)
                         or page.get("status") == "failed"
@@ -407,7 +405,9 @@ class Gate1Normalizer:
                         or blocked_table_pages
                         or accepted_regions + rejected_regions != located_regions
                         or rejected_regions
-                        or ready_projections != accepted_regions
+                        or len(ready_physical_region_refs) != accepted_regions
+                        or len(ready_physical_region_refs)
+                        != len(set(ready_physical_region_refs))
                     ):
                         reason = (
                             "locator_pages_or_native_table_count_mismatch:"
@@ -418,7 +418,8 @@ class Gate1Normalizer:
                             f"accepted_regions={accepted_regions};"
                             f"rejected_regions={rejected_regions};"
                             f"blocked_table_pages={blocked_table_pages};"
-                            f"ready_projections={ready_projections}"
+                            "ready_physical_regions="
+                            f"{len(ready_physical_region_refs)}"
                         )
                         blocker = blocker_factory.pdf_table_normalization_incomplete(
                             run_id,

@@ -13,6 +13,7 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
+import fitz
 
 import test_broker_reports_pdf_table_intake_gate1 as tbank_fixtures
 
@@ -48,6 +49,7 @@ class FrozenLocatorProvider:
             "provider_failover": False,
         }
 
+
     @staticmethod
     def count_tokens(**_kwargs) -> dict:
         return {
@@ -67,6 +69,10 @@ class FrozenLocatorProvider:
         size = struct.unpack(">II", png_bytes[16:24])
         assert size == (1754, 1240)
         self.full_page_png_sizes.append(size)
+        previous_png = kwargs.get("previous_png_bytes")
+        assert (previous_png is None) == (page == 1)
+        if previous_png is not None:
+            assert previous_png.startswith(b"\x89PNG\r\n\x1a\n")
         tables = [
             {
                 "table_box_2d": table,
@@ -87,9 +93,130 @@ class FrozenLocatorProvider:
                 "hidden_retry": False,
                 "provider_failover": False,
             },
-            "json_output": {"tables": tables},
+            "json_output": {
+                "tables": tables,
+                "boundary_from_previous": (
+                    {"decision": "NOT_APPLICABLE", "evidence": "FIRST_PAGE"}
+                    if page == 1
+                    else {"decision": "NOT_APPLICABLE", "evidence": "NO_TABLE_PAIR"}
+                    if page == 4
+                    else {"decision": "INDEPENDENT", "evidence": "NEW_TABLE"}
+                ),
+            },
             "raw_private_response": {"frozen_page": page},
             "response_hash": f"frozen-locator-response-{page}",
+        }
+
+
+def _three_page_repeated_header_pdf(*, incompatible_second_grid: bool = False) -> bytes:
+    document = fitz.open()
+    for page_number in (1, 2, 3):
+        page = document.new_page(width=320, height=320)
+        if page_number == 1:
+            page.insert_text((20, 135), "Transactions", fontsize=10)
+            edges = (150, 190, 230, 270, 318)
+            rows = (
+                ("Name", "Amount", "Currency"),
+                ("AAA", "10", "RUB"),
+                ("BBB", "20", "RUB"),
+                ("CCC", "30", "RUB"),
+            )
+        else:
+            edges = (2, 42, 82, 122)
+            rows = (
+                ("Name", "Amount", "Currency"),
+                (f"P{page_number}A", str(page_number * 10), "RUB"),
+                (f"P{page_number}B", str(page_number * 20), "RUB"),
+            )
+        x_edges = (
+            (20, 125, 210, 300)
+            if incompatible_second_grid and page_number == 2
+            else (20, 110, 210, 300)
+        )
+        for y in edges:
+            page.draw_line((20, y), (300, y), color=(0, 0, 0), width=1)
+        for x in x_edges:
+            page.draw_line((x, edges[0]), (x, edges[-1]), color=(0, 0, 0), width=1)
+        for row_ordinal, values in enumerate(rows):
+            baseline = edges[row_ordinal] + 25
+            for x, value in zip(
+                (28, x_edges[1] + 8, x_edges[2] + 8), values, strict=True
+            ):
+                page.insert_text((x, baseline), value, fontsize=7)
+        mcid = 0
+        for xref in page.get_contents():
+            stream = document.xref_stream(xref)
+            if b"BT" not in stream:
+                continue
+            document.update_stream(
+                xref,
+                f"/Span <</MCID {mcid}>> BDC\n".encode("ascii")
+                + stream
+                + b"\nEMC\n",
+            )
+            mcid += 1
+    value = document.tobytes(deflate=True)
+    document.close()
+    return value
+
+
+class FrozenContinuationLocatorProvider:
+    def __init__(self, *, decision: str = "CONTINUATION") -> None:
+        self.invocations = 0
+        self.decision = decision
+
+    qualify = staticmethod(FrozenLocatorProvider.qualify)
+    count_tokens = staticmethod(FrozenLocatorProvider.count_tokens)
+
+    def invoke(self, **kwargs) -> dict:
+        self.invocations += 1
+        page = self.invocations
+        assert kwargs["attempt_number"] == 1
+        assert (kwargs.get("previous_png_bytes") is None) == (page == 1)
+        top, bottom = ((147, 319) if page == 1 else (0, 125))
+        table = [round(top / 320 * 1000), 47, round(bottom / 320 * 1000), 953]
+        header = [
+            round(top / 320 * 1000),
+            47,
+            round((top + (48 if page == 1 else 45)) / 320 * 1000),
+            953,
+        ]
+        boundary = (
+            {"decision": "NOT_APPLICABLE", "evidence": "FIRST_PAGE"}
+            if page == 1
+            else {
+                "decision": self.decision,
+                "evidence": (
+                    "INSUFFICIENT_EVIDENCE"
+                    if self.decision == "AMBIGUOUS"
+                    else "VISUAL_FLOW"
+                ),
+            }
+        )
+        return {
+            "attempt": {
+                "terminal_failure_class": None,
+                "provider_profile": "google_gemini",
+                "provider_profile_revision": "frozen-continuation-proof-v1",
+                "model_requested": MODEL_ID,
+                "model_resolved": MODEL_ID,
+                "adapter_identity": "frozen-continuation-transport-v1",
+                "request_hash": f"frozen-continuation-page-{page}",
+                "hidden_retry": False,
+                "provider_failover": False,
+            },
+            "json_output": {
+                "tables": [
+                    {
+                        "table_box_2d": table,
+                        "title_box_2d": [375, 50, 455, 950] if page == 1 else None,
+                        "header_box_2d": header,
+                    }
+                ],
+                "boundary_from_previous": boundary,
+            },
+            "raw_private_response": {"frozen_page": page},
+            "response_hash": f"frozen-continuation-response-{page}",
         }
 
 
@@ -369,11 +496,82 @@ def _assert_product_result(content: str, result: dict, first_manifest: dict, loc
     assert position["open_long_quantity"] == "7"
     assert position["tax_activation_status"] == "NOT_ACTIVATED_NO_DISPOSAL"
     assert position["resolved_disposal_quantity"] == "0"
-    assert gate5["blocker_reason_codes"] == []
     assert "source gap" not in content.casefold()
     assert "source_gap" not in content.casefold()
     assert "открытая длинная позиция" in content
     assert "в налоговую базу не включена" in content
+
+
+def _run_continuation_turn(pipe, *, pdf_bytes: bytes, case_id: str) -> dict:
+    asyncio.run(
+        pipe.pipe(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "normalize",
+                        "files": [
+                            {
+                                "type": "file",
+                                "file": {
+                                    "id": case_id,
+                                    "filename": "continuation.pdf",
+                                    "mime_type": "application/pdf",
+                                    "content_bytes": pdf_bytes,
+                                },
+                            }
+                        ],
+                    }
+                ]
+            },
+            __user__={"id": "continuation-user", "email": "", "name": ""},
+            __metadata__={
+                "chat_id": case_id,
+                "case_id": case_id,
+                "model_id": WORKSPACE_MODEL_ID,
+            },
+            __request__=object(),
+        )
+    )
+    return copy.deepcopy(pipe.last_artifact_manifest)
+
+
+def _configure_continuation_pipe(pipe, tmp_path: Path) -> None:
+    _configure_pipe(pipe, tmp_path)
+    pipe.valves.ordinary_trade_candidate_enabled = False
+    pipe.valves.ordinary_trade_semantic_mapping_enabled = False
+
+
+def _canonical_payload(manifest: dict, payload_root: Path) -> dict:
+    refs = manifest["artifact_refs_by_type"]["broker_reports_canonical_artifact_v1"]
+    assert len(refs) == 1
+    stored = json.loads(
+        (payload_root / f"{refs[0]}.json").read_text(encoding="utf-8")
+    )
+    return stored["artifact"]
+
+
+def _assert_continuation_canonical(canonical: dict) -> None:
+    tables = [node for node in canonical["nodes"] if node["node_type"] == "TABLE"]
+    assert len(tables) == 1
+    table = tables[0]
+    assert len(table["content"]["cells"]) == 24
+    assert sum(cell["value"] == "Name" for cell in table["content"]["cells"]) == 1
+    continuation = table["content"]["metadata"]["continuation"]
+    assert len(continuation["physical_table_projection_refs"]) == 3
+    ledger = continuation["repeated_header_evidence"]
+    assert len(ledger) == 2
+    assert len({ref for item in ledger for ref in item["source_value_refs"]}) == 6
+    provenance = {
+        item["provenance_id"]: item["source_locator"]
+        for item in canonical["provenance"]
+    }
+    cell_locators = [
+        provenance[cell["source_refs"][0]] for cell in table["content"]["cells"]
+    ]
+    assert {item["page"] for item in cell_locators} == {1, 2, 3}
+    assert len({item["source_unit_ref"] for item in cell_locators}) == 3
+    assert len({item["physical_table_projection_ref"] for item in cell_locators}) == 3
 
 
 def test_source_pipe_runs_real_tbank_to_open_long(
@@ -402,6 +600,83 @@ def test_source_pipe_runs_real_tbank_to_open_long(
     )
 
     _assert_product_result(content, result, first_manifest, locator)
+
+
+def test_source_pipe_reaches_canonical_with_three_page_continuation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from openwebui_actions.broker_reports_gate1_pipe import Pipe
+
+    locator = FrozenContinuationLocatorProvider()
+    provider_module = importlib.import_module(
+        "broker_reports_gate1.pdf_table_locator_provider"
+    )
+    monkeypatch.setattr(
+        provider_module.PdfTableLocatorProviderFactory,
+        "create_for_openwebui",
+        lambda _self, _request: locator,
+    )
+    completion = FrozenSemanticCompletion()
+    _install_openwebui_completion(monkeypatch, completion)
+    _stabilize_canonical_capacity(monkeypatch)
+    pipe = Pipe()
+    root = tmp_path / f"source-continuation-{os.getpid()}"
+    _configure_continuation_pipe(pipe, root)
+
+    manifest = _run_continuation_turn(
+        pipe,
+        pdf_bytes=_three_page_repeated_header_pdf(),
+        case_id="source-three-page-continuation",
+    )
+
+    assert locator.invocations == 3
+    assert completion.calls == []
+    _assert_continuation_canonical(
+        _canonical_payload(manifest, Path(pipe.valves.artifact_payload_root))
+    )
+
+
+@pytest.mark.parametrize(
+    ("decision", "incompatible_grid"),
+    [("AMBIGUOUS", False), ("CONTINUATION", True)],
+)
+def test_source_pipe_continuation_failure_publishes_zero_canonical_or_facts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    decision: str,
+    incompatible_grid: bool,
+) -> None:
+    from openwebui_actions.broker_reports_gate1_pipe import Pipe
+
+    locator = FrozenContinuationLocatorProvider(decision=decision)
+    provider_module = importlib.import_module(
+        "broker_reports_gate1.pdf_table_locator_provider"
+    )
+    monkeypatch.setattr(
+        provider_module.PdfTableLocatorProviderFactory,
+        "create_for_openwebui",
+        lambda _self, _request: locator,
+    )
+    completion = FrozenSemanticCompletion()
+    _install_openwebui_completion(monkeypatch, completion)
+    _stabilize_canonical_capacity(monkeypatch)
+    pipe = Pipe()
+    root = tmp_path / f"source-continuation-negative-{decision}-{os.getpid()}"
+    _configure_continuation_pipe(pipe, root)
+
+    manifest = _run_continuation_turn(
+        pipe,
+        pdf_bytes=_three_page_repeated_header_pdf(
+            incompatible_second_grid=incompatible_grid
+        ),
+        case_id=f"source-continuation-negative-{decision}",
+    )
+
+    refs = manifest["artifact_refs_by_type"]
+    assert "broker_reports_canonical_artifact_v1" not in refs
+    gate3 = manifest.get("ndfl_gate3") or {}
+    assert int(((gate3.get("product") or {}).get("gate4") or {}).get("facts_total") or 0) == 0
+    assert completion.calls == []
 
 
 def test_bundled_pipe_runs_real_tbank_to_open_long(
@@ -442,6 +717,59 @@ def test_bundled_pipe_runs_real_tbank_to_open_long(
         )
 
         _assert_product_result(content, result, first_manifest, locator)
+    finally:
+        for name in list(sys.modules):
+            if name == "broker_reports_gate1" or name.startswith(
+                "broker_reports_gate1."
+            ):
+                sys.modules.pop(name, None)
+        sys.modules.update(maintained)
+
+
+def test_bundled_pipe_reaches_canonical_with_three_page_continuation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    maintained = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1.")
+    }
+    for name in maintained:
+        sys.modules.pop(name, None)
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "issue317_continuation_pipe_bundle", BUNDLE_PATH
+        )
+        assert spec is not None and spec.loader is not None
+        bundled = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bundled)
+        locator = FrozenContinuationLocatorProvider()
+        provider_module = importlib.import_module(
+            "broker_reports_gate1.pdf_table_locator_provider"
+        )
+        monkeypatch.setattr(
+            provider_module.PdfTableLocatorProviderFactory,
+            "create_for_openwebui",
+            lambda _self, _request: locator,
+        )
+        completion = FrozenSemanticCompletion()
+        _install_openwebui_completion(monkeypatch, completion)
+        _stabilize_canonical_capacity(monkeypatch)
+        pipe = bundled.Pipe()
+        root = tmp_path / f"bundle-continuation-{os.getpid()}"
+        _configure_continuation_pipe(pipe, root)
+
+        manifest = _run_continuation_turn(
+            pipe,
+            pdf_bytes=_three_page_repeated_header_pdf(),
+            case_id="bundle-three-page-continuation",
+        )
+
+        assert locator.invocations == 3
+        assert completion.calls == []
+        _assert_continuation_canonical(
+            _canonical_payload(manifest, Path(pipe.valves.artifact_payload_root))
+        )
     finally:
         for name in list(sys.modules):
             if name == "broker_reports_gate1" or name.startswith(

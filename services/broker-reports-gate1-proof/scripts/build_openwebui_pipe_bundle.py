@@ -96,6 +96,7 @@ MODULE_ORDER = [
     "pdf_layout",
     "pdf_layout_units",
     "pdf_text_layer",
+    "pdf_source_bound_table_assembler",
     "table_projection",
     "pdf_visual_memory",
     "full_source",

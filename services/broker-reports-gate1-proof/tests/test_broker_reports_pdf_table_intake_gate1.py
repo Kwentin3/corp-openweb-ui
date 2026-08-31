@@ -62,7 +62,6 @@ from broker_reports_gate1.pdf_table_locator_provider import (  # noqa: E402
 )
 from broker_reports_gate1.table_projection import (  # noqa: E402
     NormalizedTableProjectionFactory,
-    TableProjectionValidator,
     _checksum_ref,
     _finish_projection,
 )
@@ -878,6 +877,7 @@ class StaticDetectorProvider:
         self.malformed = malformed
         self.tables = copy.deepcopy(tables)
         self.invocations = 0
+        self.previous_had_tables = False
 
     def qualify(self):
         return {
@@ -920,6 +920,15 @@ class StaticDetectorProvider:
         }
         if self.malformed:
             value["semantic_summary"] = "forbidden"
+        current_had_tables = bool(value["tables"])
+        if kwargs.get("previous_png_bytes") is None:
+            boundary = {"decision": "NOT_APPLICABLE", "evidence": "FIRST_PAGE"}
+        elif not self.previous_had_tables or not current_had_tables:
+            boundary = {"decision": "NOT_APPLICABLE", "evidence": "NO_TABLE_PAIR"}
+        else:
+            boundary = {"decision": "INDEPENDENT", "evidence": "NEW_TABLE"}
+        value["boundary_from_previous"] = boundary
+        self.previous_had_tables = current_had_tables
         return {
             "attempt": {
                 "terminal_failure_class": None,
@@ -987,7 +996,13 @@ class _LocatorHttpTransport:
                 "candidates": [
                     {
                         "finishReason": "STOP",
-                        "content": {"parts": [{"text": '{"tables":[]}'}]},
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": '{"tables":[],"boundary_from_previous":{"decision":"NOT_APPLICABLE","evidence":"NO_TABLE_PAIR"}}'
+                                }
+                            ]
+                        },
                     }
                 ],
             }
@@ -1038,7 +1053,7 @@ def test_locator_prompt_is_native_coordinates_and_locator_only() -> None:
     assert "Do not transcribe text" in model_view["task"]
 
 
-def test_maintained_gemini_adapter_sends_exact_v2_schema_once() -> None:
+def test_maintained_gemini_adapter_sends_previous_then_current_full_pages_once() -> None:
     transport = _LocatorHttpTransport()
     adapter = PdfTableLocatorProviderFactory(
         PdfTableLocatorProviderConfig(maximum_counted_input_tokens=1000),
@@ -1051,6 +1066,8 @@ def test_maintained_gemini_adapter_sends_exact_v2_schema_once() -> None:
     )
     png = b"png"
     png_hash = hashlib.sha256(png).hexdigest()
+    previous_png = b"previous-png"
+    previous_png_hash = hashlib.sha256(previous_png).hexdigest()
     schema = table_detection_output_schema()
 
     counted = adapter.count_tokens(
@@ -1058,6 +1075,8 @@ def test_maintained_gemini_adapter_sends_exact_v2_schema_once() -> None:
         output_schema=schema,
         png_bytes=png,
         crop_sha256=png_hash,
+        previous_png_bytes=previous_png,
+        previous_png_sha256=previous_png_hash,
     )
     result = adapter.invoke(
         task_id="locator-v2",
@@ -1065,12 +1084,14 @@ def test_maintained_gemini_adapter_sends_exact_v2_schema_once() -> None:
         output_schema=schema,
         png_bytes=png,
         crop_sha256=png_hash,
+        previous_png_bytes=previous_png,
+        previous_png_sha256=previous_png_hash,
         attempt_number=1,
         attempt_lineage=[],
     )
 
     assert counted["total_tokens"] == 17
-    assert result["json_output"] == {"tables": []}
+    assert result["json_output"]["tables"] == []
     assert result["attempt"]["finish_reason"] == "STOP"
     assert result["attempt"]["hidden_retry"] is False
     generated_requests = [
@@ -1080,6 +1101,12 @@ def test_maintained_gemini_adapter_sends_exact_v2_schema_once() -> None:
     ]
     assert len(generated_requests) == 1
     request_body = json.loads(generated_requests[0].data.decode("utf-8"))
+    parts = request_body["contents"][0]["parts"]
+    assert [item.get("text") for item in parts if "text" in item][-2:] == [
+        "PREVIOUS full page",
+        "CURRENT full page",
+    ]
+    assert len([item for item in parts if "inlineData" in item]) == 2
     generation = request_body["generationConfig"]
     assert generation["temperature"] == 0
     assert generation["candidateCount"] == 1
@@ -1129,8 +1156,8 @@ def test_v1_injected_region_is_isolated_from_v2_emission() -> None:
 
     emitted = result.private_page_results[0]
     legacy = _legacy_locator_pages(result)[0]
-    assert emitted["schema_version"] == "broker_reports_pdf_table_locator_page_v2"
-    assert emitted["regions"][0]["detector_contract_version"].endswith("_v2")
+    assert emitted["schema_version"] == "broker_reports_pdf_table_locator_page_v3"
+    assert emitted["regions"][0]["detector_contract_version"].endswith("_v3")
     assert emitted["source_binding_policy"] == "exact_one_grid_v1"
     assert emitted["regions"][0]["source_binding_policy"] == "exact_one_grid_v1"
     assert legacy["schema_version"] == "broker_reports_pdf_table_locator_page_v1"
@@ -1239,6 +1266,36 @@ def test_locator_v2_projects_table_title_and_header_geometry_only() -> None:
     assert not any(
         key in region for key in ("text", "content", "continuation", "status")
     )
+
+
+def test_reversed_provider_tables_are_sorted_before_boundary_binds_current_first() -> None:
+    from broker_reports_gate1.pdf_layout import _locator_regions_with_boundary
+
+    lower = {
+        "table_box_2d": [600, 100, 850, 900],
+        "title_box_2d": None,
+        "header_box_2d": [600, 100, 650, 900],
+    }
+    upper = {
+        "table_box_2d": [200, 100, 450, 900],
+        "title_box_2d": None,
+        "header_box_2d": [200, 100, 250, 900],
+    }
+    _, _, result = _run_intake(
+        StaticDetectorProvider([], tables=[lower, upper])
+    )
+    page = result.private_page_results[0]
+    regions = _locator_regions_with_boundary(page)
+
+    assert [item["table_box_2d_normalized"] for item in regions] == [
+        upper["table_box_2d"],
+        lower["table_box_2d"],
+    ]
+    assert regions[0]["boundary_from_previous"] == {
+        "decision": "NOT_APPLICABLE",
+        "evidence": "FIRST_PAGE",
+    }
+    assert "boundary_from_previous" not in regions[1]
 
 
 def test_locator_v2_rejects_overlap_and_header_outside_table() -> None:
@@ -1868,7 +1925,7 @@ def test_tight_locator_margin_and_merged_grid_survive_into_canonical() -> None:
     assert {"R1C1:R2C1", "R1C2:R1C3"} <= merged_ranges
 
 
-def test_cross_page_table_segments_get_only_strict_structural_link() -> None:
+def test_legacy_locator_pages_cannot_author_cross_page_identity() -> None:
     def normalize(second_page_header: bool):
         pdf_bytes = _two_page_table_pdf(second_page_header=second_page_header)
         digest = hashlib.sha256(pdf_bytes).hexdigest()
@@ -1886,25 +1943,25 @@ def test_cross_page_table_segments_get_only_strict_structural_link() -> None:
             ],
             pdf_table_locator_pages_by_sha256={
                 digest: [
-                    {
-                        "page_number": 1,
-                        "status": "located",
-                        "regions": [
-                            {
-                                "region_ref": "continuation-start",
-                                "bbox_pdf_points": [19.5, 219.5, 299.5, 318.5],
+                        {
+                            "page_number": 1,
+                            "status": "located",
+                            "regions": [
+                                {
+                                    "region_ref": "continuation-start",
+                                    "bbox_pdf_points": [19.5, 219.5, 299.5, 318.5],
                                 "model_values_used_as_source_literals": False,
                                 "pdfplumber_settings_selected_by_model": False,
                             }
                         ],
                     },
-                    {
-                        "page_number": 2,
-                        "status": "located",
-                        "regions": [
-                            {
-                                "region_ref": "continuation-end",
-                                "bbox_pdf_points": [19.5, 1.5, 299.5, 77.5],
+                        {
+                            "page_number": 2,
+                            "status": "located",
+                            "regions": [
+                                {
+                                    "region_ref": "continuation-end",
+                                    "bbox_pdf_points": [19.5, 1.5, 299.5, 77.5],
                                 "model_values_used_as_source_literals": False,
                                 "pdfplumber_settings_selected_by_model": False,
                             }
@@ -1921,49 +1978,8 @@ def test_cross_page_table_segments_get_only_strict_structural_link() -> None:
         if item.get("source_format") == "pdf"
     ]
     assert len(projections) == 2
-    assert {item["projection_status"] for item in projections} == {"ready"}
-    assert len({item.get("logical_table_id") for item in projections}) == 1
-    assert None not in {item.get("logical_table_id") for item in projections}
-    assert [item["continuation"]["role"] for item in projections] == [
-        "start",
-        "end",
-    ]
-    assert (
-        projections[0]["continuation"]["next_table_projection_ref"]
-        == projections[1]["table_projection_id"]
-    )
-    assert (
-        projections[1]["continuation"]["previous_table_projection_ref"]
-        == projections[0]["table_projection_id"]
-    )
-    broken_link = copy.deepcopy(projections[0])
-    broken_link["continuation"]["next_table_projection_ref"] = None
-    assert "pdf_table_continuation_role_refs_invalid" in {
-        item["code"]
-        for item in TableProjectionValidator().validate(broken_link)["errors"]
-    }
-
-    document = linked.package["document_inventory"]["documents"][0]
-    canonical = (
-        CanonicalNormalizerFactory(
-            CanonicalNormalizerConfig(normalizer_version="continuation-test-v1")
-        )
-        .create()
-        .build(
-            tenant_id="tenant",
-            artifact_version=1,
-            document=document,
-            source_artifact_ref="source-continuation",
-            source_payloads=linked.package["private_normalized_source_payloads"],
-            source_units=linked.package["private_normalized_source_units"],
-            table_projections=projections,
-        )
-    )
-    tables = [item for item in canonical["nodes"] if item["node_type"] == "TABLE"]
-    assert len(tables) == 2
-    assert {item["content"]["metadata"]["logical_table_id"] for item in tables} == {
-        projections[0]["logical_table_id"]
-    }
+    assert all("logical_table_id" not in item for item in projections)
+    assert all("continuation" not in item for item in projections)
 
     independently_headed = normalize(True)
     independent_projections = [

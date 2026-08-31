@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import statistics
 import time
 from collections import Counter
@@ -403,7 +404,7 @@ class PdfPlumberLayoutAdapter:
                             vector_lines=vector_lines,
                             rects=rects,
                             locator_regions=(
-                                list(locator_page.get("regions") or [])
+                                _locator_regions_with_boundary(locator_page)
                                 if locator_mode and locator_page is not None
                                 else None
                             ),
@@ -863,6 +864,12 @@ class PdfPlumberLayoutAdapter:
                 round(_number(value), 6) for value in locator_bbox
             ]
             candidate["locator_scope_status"] = "source_bound"
+            if ordinal == 1 and isinstance(
+                region.get("boundary_from_previous"), dict
+            ):
+                candidate["boundary_from_previous"] = copy.deepcopy(
+                    region["boundary_from_previous"]
+                )
             candidate["model_values_used_as_source_literals"] = False
             candidate["pdfplumber_settings_selected_by_model"] = False
             candidate["reconstruction_reason_codes"] = sorted(
@@ -1490,18 +1497,40 @@ def _locator_page_contract_is_valid(locator_page: dict[str, Any]) -> bool:
             "source_binding_policy",
             "model_values_used_as_source_literals",
         }
-        return all(
+        boundary = locator_page.get("boundary_from_previous")
+        return (
+            isinstance(boundary, dict)
+            and set(boundary) == {"decision", "evidence"}
+            and all(
             required <= set(region)
             and region.get("source_binding_policy")
             == PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID
             and region.get("model_values_used_as_source_literals") is False
             for region in regions
+            )
         )
     return (
         schema in {None, "broker_reports_pdf_table_locator_page_v1"}
         and page_policy is None
         and all(region.get("source_binding_policy") is None for region in regions)
     )
+
+
+def _locator_regions_with_boundary(
+    locator_page: dict[str, Any]
+) -> list[dict[str, Any]]:
+    regions = sorted(
+        [copy.deepcopy(item) for item in locator_page.get("regions") or []],
+        key=lambda item: (
+            float((item.get("bbox_pdf_points") or [0.0, 0.0])[1]),
+            str(item.get("region_ref") or ""),
+        ),
+    )
+    if regions:
+        regions[0]["boundary_from_previous"] = copy.deepcopy(
+            locator_page.get("boundary_from_previous")
+        )
+    return regions
 
 
 
