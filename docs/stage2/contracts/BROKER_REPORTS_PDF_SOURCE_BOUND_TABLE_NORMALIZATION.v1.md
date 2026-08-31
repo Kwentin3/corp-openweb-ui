@@ -11,8 +11,8 @@ amounts, dates or symbols. Neither side may replace the other.
 ## One product route
 
 ```text
-one full PDF page image
-  -> VLM returns one box_2d per visible table
+current full PDF page image, plus the previous full page after page 1
+  -> one VLM call returns current-page title/header/table boxes and one boundary decision
   -> deterministic normalized-coordinate to PDF-point projection
   -> pdfplumber reconstructs rows, cells and original PDF literals at each box
   -> existing NormalizedTableProjection validator
@@ -23,16 +23,18 @@ The maintained entrypoints are
 `PdfTableIntakeRuntimeFactory.create_for_openwebui`,
 `PdfTableLocatorProjectionFactory.create`, the existing
 `PdfTextLayerParserFactory`/`PdfPlumberLayoutAdapter`, and
-`Gate1Normalizer.normalize`. The OpenWebUI Pipe and the server release stand
+`PdfSourceBoundTableAssemblerFactory.create`, then `Gate1Normalizer.normalize`.
+The OpenWebUI Pipe and the server release stand
 must use these owners. A smoke script may call the Pipe or those same factories;
 it may not recreate the algorithm.
 
 ## VLM contract
 
-The model receives exactly one full-page lossless render and returns only:
+Page 1 receives its unmodified full-page PNG. Page N receives the unmodified
+full-page PNGs for N-1 and N, in that order. The same single page call returns:
 
 ```json
-{"tables": [{"box_2d": [0, 0, 1000, 1000]}]}
+{"tables": [{"table_box_2d": [0, 0, 1000, 1000], "title_box_2d": null, "header_box_2d": null}], "boundary_from_previous": {"decision": "NOT_APPLICABLE", "evidence": "FIRST_PAGE"}}
 ```
 
 Coordinates are integers in Gemini native order
@@ -40,7 +42,10 @@ Coordinates are integers in Gemini native order
 Every visually independent grid gets one box. Zero tables is a valid result.
 
 The model must not return or choose text, values, rows, columns, cells,
-financial meaning, PDF points, pixels, or pdfplumber settings. There is one
+financial meaning, PDF points, pixels, or pdfplumber settings. The boundary
+decision can only be `CONTINUATION`, `INDEPENDENT`, `AMBIGUOUS`, or
+`NOT_APPLICABLE`; runtime binds it only to previous-last and current-first.
+There is one
 call per page, with no hidden retry, best-of-N, provider merge or transcription
 fallback.
 
@@ -65,18 +70,19 @@ the only publisher; the locator creates no parallel canonical schema.
 
 ## Adjacent-page continuation
 
-Physical table segments remain separate projections and separate Canonical
-`TABLE` nodes. They receive a shared `logical_table_id` and a versioned
-`continuation` link only when all of these conditions hold:
+The source-bound locator is the only identity owner. A `CONTINUATION` decision
+connects only the previous page's last validated table to the current page's
+first validated table. The assembler verifies adjacent pages and compatible
+atomic column edges, then emits one logical projection per connected component
+before Canonical. Repeated continuation headers are removed from the logical
+body only through their validated source-bound header refs. Their original
+values remain exactly once in the existing `source_value_refs`,
+`private_values`, and `source_value_index` custody containers. Canonical and
+the semantic mapper do not repair the table.
 
-- the previous segment is the last table near the bottom of page N;
-- the following segment is the first table near the top of page N+1;
-- the previous segment has a header and the following segment does not;
-- normalized atomic column edges match exactly within the fixed tolerance.
-
-The link is structural, bidirectional and validator-checked. It does not merge
-rows or values and keeps `semantic_table_truth_claimed=false`. If any condition
-is absent, the segments remain independent.
+`INDEPENDENT` leaves both tables separate. `AMBIGUOUS`, a provider/schema
+failure, or a `CONTINUATION` with an incompatible grid blocks the whole
+document before Canonical and facts.
 
 ## Fail closed
 

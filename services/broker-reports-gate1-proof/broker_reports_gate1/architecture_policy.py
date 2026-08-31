@@ -14,7 +14,7 @@ from .pdf_table_locator import (
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v26"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v27"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -254,14 +254,16 @@ VISUAL_RECOVERY_INPUT_SCOPES = frozenset({"declared_page", "table_crop"})
 WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED = False
 LOCAL_OCR_PRODUCTION_ALLOWED = False
 LOCAL_OCR_WORKER_POOL_ALLOWED = False
-PROVIDER_OUTPUT_AUTHORITY = "table_region_location_only"
+PROVIDER_OUTPUT_AUTHORITY = "table_region_location_and_cross_page_identity_only"
 CANONICAL_PROMOTION_AUTHORITY = (
     "deterministic_pdfplumber_source_projection_else_fail_closed"
 )
 MODEL_CANONICAL_AUTHORITY = 0
 
 VISUAL_TABLE_MODEL_FACING_CONTRACT = PDF_TABLE_LOCATOR_RESPONSE_SCHEMA
-VISUAL_TABLE_MODEL_RESPONSE_FIELDS = frozenset({"tables"})
+VISUAL_TABLE_MODEL_RESPONSE_FIELDS = frozenset(
+    {"tables", "boundary_from_previous"}
+)
 VISUAL_TABLE_MASTER_PROVIDER_PROFILE = "google_gemini"
 VISUAL_TABLE_OPENAI_ROLE = "none_in_current_pipeline"
 VISUAL_TABLE_PROVIDER_CONSENSUS_REQUIRED = False
@@ -285,7 +287,7 @@ WORKLOAD_PRIMARY_WALL_TIMEOUT = None
 
 COMPONENT_RUNTIME_STATUSES = {
     "visual_table_vlm": "research_only",
-    "visual_neutral_tables": "maintained_qualified_default_on",
+    "visual_neutral_tables": "compatibility_only",
     "visual_review_boundary": "research_only",
     "visual_recovery_handoff": "research_only",
     "gate1_bounded_graph": "maintained",
@@ -314,7 +316,8 @@ NON_PRODUCTION_RUNTIME_STATUSES = frozenset(
 
 FACTORY_REQUIRED = (
     "Maintained Broker Reports entrypoints must route PDF table location through "
-    "PdfTableIntakeRuntimeFactory and deterministic pdfplumber projection; "
+    "PdfTableIntakeRuntimeFactory, PdfSourceBoundTableAssemblerFactory, and "
+    "deterministic pdfplumber projection; "
     "heavy Gate 1 runs must route storage through Gate1BoundedGraphFactory.create; "
     "all production workloads must route through WorkloadAuthorityFactory.create; "
     "consumer evidence demand must route through Gate3EvidenceDemandPortFactory.create"

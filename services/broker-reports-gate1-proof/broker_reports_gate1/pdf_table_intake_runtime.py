@@ -195,16 +195,27 @@ class PdfTableIntakeRuntime:
             pages_total += page_count
             if pages_total > self.config.maximum_pages:
                 raise PdfTableIntakeError("pdf_table_intake_page_budget_exceeded")
+            previous_png_bytes: bytes | None = None
+            previous_png_sha256: str | None = None
+            previous_page_result: dict[str, Any] | None = None
             for page_number in range(1, page_count + 1):
                 try:
-                    page_result, attempt = self._run_page(
+                    page_result, attempt, current_png_bytes = self._run_page(
                         document=document,
                         page_number=page_number,
                         qualification=qualification,
+                        previous_png_bytes=previous_png_bytes,
+                        previous_png_sha256=previous_png_sha256,
+                        previous_page_result=previous_page_result,
                     )
                     candidates.extend(page_result["regions"])
                     page_results.append(page_result)
                     attempts.append(attempt)
+                    previous_png_bytes = current_png_bytes
+                    previous_png_sha256 = str(
+                        attempt.get("current_page_png_sha256") or ""
+                    )
+                    previous_page_result = page_result
                     rejected_total = int(attempt.get("rejected_regions_total") or 0)
                     if rejected_total:
                         rejected_regions.append(
@@ -248,6 +259,7 @@ class PdfTableIntakeRuntime:
                             "regions": [],
                         }
                     )
+                    break
 
         status = (
             "failed"
@@ -280,7 +292,10 @@ class PdfTableIntakeRuntime:
         document: dict[str, Any],
         page_number: int,
         qualification: dict[str, Any],
-    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        previous_png_bytes: bytes | None,
+        previous_png_sha256: str | None,
+        previous_page_result: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any], bytes]:
         page_ref = "pdfpage_" + stable_digest(
             [document["pdf_sha256"], page_number], length=24
         )
@@ -289,6 +304,7 @@ class PdfTableIntakeRuntime:
                 PDF_TABLE_DETECTION_REQUEST_SCHEMA,
                 document["pdf_sha256"],
                 page_number,
+                previous_png_sha256,
                 self.config.detector_provider_profile,
                 self.config.detector_model_id,
             ],
@@ -308,16 +324,22 @@ class PdfTableIntakeRuntime:
             page_raster["private_png_base64"].encode("ascii"), validate=True
         )
         page_png_sha256 = hashlib.sha256(png_bytes).hexdigest()
-        model_view = self._model_view(request_id=request_id, page_number=page_number)
+        model_view = self._model_view(
+            request_id=request_id,
+            page_number=page_number,
+            has_previous_page=previous_page_result is not None,
+        )
         output_schema = table_detection_output_schema()
         token_count = self.provider.count_tokens(
             model_view=model_view,
             output_schema=output_schema,
             png_bytes=png_bytes,
             crop_sha256=page_png_sha256,
+            previous_png_bytes=previous_png_bytes,
+            previous_png_sha256=previous_png_sha256,
         )
         task_id = "pdf_table_detection_" + stable_digest(
-            [request_id, page_png_sha256], length=24
+            [request_id, previous_png_sha256, page_png_sha256], length=24
         )
         response = self.provider.invoke(
             task_id=task_id,
@@ -325,6 +347,8 @@ class PdfTableIntakeRuntime:
             output_schema=output_schema,
             png_bytes=png_bytes,
             crop_sha256=page_png_sha256,
+            previous_png_bytes=previous_png_bytes,
+            previous_png_sha256=previous_png_sha256,
             attempt_number=1,
             attempt_lineage=[],
         )
@@ -336,6 +360,10 @@ class PdfTableIntakeRuntime:
                 provider_value=response.get("json_output"),
                 raster_manifest=page_raster["manifest"],
                 expected_page_bbox=page_bbox,
+                has_previous_page=previous_page_result is not None,
+                previous_page_has_tables=bool(
+                    (previous_page_result or {}).get("regions")
+                ),
             )
         except PdfTableLocatorError as exc:
             raise PdfTableIntakeError(
@@ -366,6 +394,9 @@ class PdfTableIntakeRuntime:
                     "provider_failover": False,
                 },
             ) from exc
+        boundary = copy.deepcopy(projection["boundary_from_previous"])
+        if boundary.get("decision") == "AMBIGUOUS":
+            raise PdfTableIntakeError("pdf_table_continuation_ambiguous")
         detector_identity = {
             "provider_profile": attempt.get("provider_profile"),
             "provider_profile_revision": attempt.get("provider_profile_revision"),
@@ -398,6 +429,8 @@ class PdfTableIntakeRuntime:
             "page_number": page_number,
             "page_ref": page_ref,
             "page_raster_manifest": page_raster["manifest"],
+            "current_page_png_sha256": page_png_sha256,
+            "previous_page_png_sha256": previous_png_sha256,
             "model_view_hash": sha256_json(model_view),
             "output_schema_hash": sha256_json(output_schema),
             "token_count": token_count,
@@ -424,10 +457,11 @@ class PdfTableIntakeRuntime:
             "source_binding_policy": PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID,
             "page_bbox_pdf_points": list(page_bbox),
             "regions": regions,
+            "boundary_from_previous": boundary,
             "model_values_used_as_source_literals": False,
             "pdfplumber_settings_selected_by_model": False,
         }
-        return page_result, private_attempt
+        return page_result, private_attempt, png_bytes
 
     def _summary(
         self,
@@ -575,11 +609,16 @@ class PdfTableIntakeRuntime:
             document.close()
 
     @staticmethod
-    def _model_view(*, request_id: str, page_number: int) -> dict[str, Any]:
+    def _model_view(
+        *, request_id: str, page_number: int, has_previous_page: bool = False
+    ) -> dict[str, Any]:
         return {
             "schema_version": PDF_TABLE_DETECTION_REQUEST_SCHEMA,
             "request_id": request_id,
             "page_number": page_number,
+            "image_order": (
+                ["PREVIOUS", "CURRENT"] if has_previous_page else ["CURRENT"]
+            ),
             "task": PDF_TABLE_LOCATOR_PROMPT,
         }
 

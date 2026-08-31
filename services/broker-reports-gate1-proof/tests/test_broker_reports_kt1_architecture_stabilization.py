@@ -816,6 +816,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     allowed_support_modules = {
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_source_bound_table_assembler.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "pdf_source_bound_grid.py"
         ),
         (

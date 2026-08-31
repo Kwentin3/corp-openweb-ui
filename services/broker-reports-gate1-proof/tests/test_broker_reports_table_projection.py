@@ -931,36 +931,15 @@ class BrokerReportsTableProjectionTest(unittest.TestCase):
                 )
             )
 
-    def test_gate2_table_package_requires_eligible_quality_and_complete_coverage(self):
+    def test_inactive_neutral_pdf_profile_cannot_enter_gate2(self):
         projection = self._project_pdf(
             _broker_profile_ruled_table_pdf()
         ).projections[0]
-        package = Gate2TablePackageFactory().create().build(
-            projection=projection,
-            case_id="table-eligibility-case",
-        )
-
-        low_quality = copy.deepcopy(projection)
-        low_quality["reconstruction_quality"] = "low"
-        low_quality["quality"]["reconstruction_quality"] = "low"
-        with self.assertRaisesRegex(
-            ValueError, "gate2_table_projection_quality_not_eligible"
-        ):
-            validate_gate2_table_package(package, low_quality)
-
-        incomplete_coverage = copy.deepcopy(projection)
-        incomplete_coverage["coverage"]["coverage_status"] = "partial"
-        with self.assertRaisesRegex(
-            ValueError, "gate2_table_projection_coverage_not_eligible"
-        ):
-            validate_gate2_table_package(package, incomplete_coverage)
-
-        geometry_only = self._project_pdf(_ruled_table_pdf()).projections[0]
         with self.assertRaisesRegex(
             ValueError, "gate2_pdf_canonical_table_not_validated"
         ):
             Gate2TablePackageFactory().create().build(
-                projection=geometry_only,
+                projection=projection,
                 case_id="table-eligibility-case",
             )
 
@@ -1009,11 +988,7 @@ class BrokerReportsTableProjectionTest(unittest.TestCase):
             content_bytes=content,
             source_checksum_sha256="a" * 64,
         )
-        return NormalizedTableProjectionFactory(
-            NormalizedTableProjectionConfig(
-                broker_pdf_neutral_table_profile_v1_enabled=True
-            )
-        ).create().build_for_document(
+        return NormalizedTableProjectionFactory().create().build_for_document(
             source_format="pdf",
             payloads=built.payloads,
             source_units=built.units,

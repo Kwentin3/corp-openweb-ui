@@ -201,6 +201,39 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             [],
         )
 
+    def test_one_active_pdf_table_identity_owner(self):
+        projection = (PACKAGE / "table_projection.py").read_text(encoding="utf-8")
+        pipe = (OPENWEBUI_ACTIONS / "broker_reports_gate1_pipe.py").read_text(
+            encoding="utf-8"
+        )
+        assembler = (
+            PACKAGE / "pdf_source_bound_table_assembler.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("PdfSourceBoundTableAssemblerFactory().create()", projection)
+        self.assertNotIn("BrokerPdfNeutralTableFactory().create()", projection)
+        self.assertNotIn("broker_pdf_neutral_tables", projection)
+        self.assertNotIn("broker_pdf_neutral_table_profile_v1_enabled", projection)
+        self.assertNotIn("_link_pdf_page_continuations(", projection)
+        self.assertNotIn("_retired_mechanical_pdf_page_continuation_replay", projection)
+        tree = ast.parse(projection)
+        forbidden_writes = []
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign)):
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                if (
+                    isinstance(target, ast.Subscript)
+                    and isinstance(target.slice, ast.Constant)
+                    and target.slice.value in {"logical_table_id", "continuation"}
+                ):
+                    forbidden_writes.append(target.slice.value)
+        self.assertEqual(forbidden_writes, [])
+        self.assertNotIn(
+            '"broker_pdf_neutral_table_profile_v1_enabled": True', pipe
+        )
+        self.assertIn("source_bound_visual_table_locator", assembler)
+
     def test_active_ordinary_trade_route_has_one_documented_factory_chain(self):
         pipeline = ARCHITECTURE_DOCUMENT.read_text(encoding="utf-8")
         owners = IMPLEMENTATION_AUTHORITY_DOCUMENT.read_text(encoding="utf-8")
@@ -290,7 +323,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v26",
+            "broker_reports_architecture_policy_v27",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -481,7 +514,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertFalse(WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED)
         self.assertFalse(LOCAL_OCR_PRODUCTION_ALLOWED)
         self.assertFalse(LOCAL_OCR_WORKER_POOL_ALLOWED)
-        self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "table_region_location_only")
+        self.assertEqual(
+            PROVIDER_OUTPUT_AUTHORITY,
+            "table_region_location_and_cross_page_identity_only",
+        )
         self.assertEqual(
             CANONICAL_PROMOTION_AUTHORITY,
             "deterministic_pdfplumber_source_projection_else_fail_closed",
@@ -550,7 +586,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_visual_components_are_explicitly_classified(self):
         expected = {
             "visual_table_vlm": "research_only",
-            "visual_neutral_tables": "maintained_qualified_default_on",
+            "visual_neutral_tables": "compatibility_only",
             "visual_review_boundary": "research_only",
             "visual_recovery_handoff": "research_only",
             "pdf_table_locator_provider": "maintained_current",

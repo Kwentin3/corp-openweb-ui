@@ -7,8 +7,8 @@ from typing import Any, Iterable
 
 SAFE_REPORT_SCHEMA = "broker_reports_chat_visible_normalization_report_v0"
 NORMALIZER_VERSION = "gate1_normalized_table_projection_v0"
-PDF_TABLE_LOCATOR_RESPONSE_SCHEMA = "broker_reports_pdf_table_locator_response_v2"
-PDF_TABLE_LOCATOR_PAGE_SCHEMA = "broker_reports_pdf_table_locator_page_v2"
+PDF_TABLE_LOCATOR_RESPONSE_SCHEMA = "broker_reports_pdf_table_locator_response_v3"
+PDF_TABLE_LOCATOR_PAGE_SCHEMA = "broker_reports_pdf_table_locator_page_v3"
 PDF_SOURCE_BINDING_POLICY_EXACT_ONE_GRID = "exact_one_grid_v1"
 SOURCE_FACT_STITCH_RESULT_SCHEMA_VERSION = (
     "broker_reports_source_fact_stitch_result_v0"

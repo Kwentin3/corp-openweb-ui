@@ -12,8 +12,8 @@ from .contracts import (
 )
 
 
-PDF_TABLE_LOCATOR_PROJECTION_SCHEMA = "broker_reports_pdf_table_locator_projection_v2"
-PDF_TABLE_LOCATOR_POLICY_VERSION = "pdf_table_locator_policy_v2"
+PDF_TABLE_LOCATOR_PROJECTION_SCHEMA = "broker_reports_pdf_table_locator_projection_v3"
+PDF_TABLE_LOCATOR_POLICY_VERSION = "pdf_table_locator_policy_v3"
 PDF_TABLE_LOCATOR_COORDINATE_CONTRACT = (
     "gemini_box_2d_ymin_xmin_ymax_xmax_normalized_0_1000"
 )
@@ -27,8 +27,10 @@ FORBIDDEN = (
 )
 
 
-PDF_TABLE_LOCATOR_PROMPT = """Detect every visible physical table in this one full-page PDF
-image. Return bounding boxes only, in top-to-bottom order.
+PDF_TABLE_LOCATOR_PROMPT = """Detect every visible physical table in the CURRENT full-page PDF
+image. Return current-page bounding boxes in top-to-bottom order. On page 1 you
+receive only CURRENT. On later pages you receive PREVIOUS first and CURRENT
+second. Both are unmodified full-page images.
 
 Use Gemini's standard object-detection coordinate convention exactly:
 - box_2d is [ymin, xmin, ymax, xmax];
@@ -44,24 +46,60 @@ that encloses two distinct grids or titled table sections. Do not split one
 continuous grid merely because it contains internal section rows or repeated
 headers.
 
-For every table return exactly these three fields:
+For every CURRENT-page table return exactly these three fields:
 - table_box_2d: the tight box around the physical grid;
 - title_box_2d: the tight box around its visible title, or null;
 - header_box_2d: the tight box around its visible column header, or null.
 
 Do not treat prose, lists, page furniture, illustrative screenshots without a
 data grid, or decorative lines as tables. Do not transcribe text, labels,
-dates, amounts, rows, columns, cell values, status, meaning, or continuation.
-Return no other fields. If no visible physical table exists, return
-{"tables": []}.
+dates, amounts, rows, columns, or cell values.
+
+Also return exactly one boundary_from_previous object:
+- decision is CONTINUATION when the last table on PREVIOUS and first table on
+  CURRENT are visibly the same whole table;
+- decision is INDEPENDENT when they are visibly different tables;
+- decision is AMBIGUOUS when the original pages do not prove either answer;
+- decision is NOT_APPLICABLE on page 1 or when either page has no table.
+- evidence is FIRST_PAGE, NO_TABLE_PAIR, EXPLICIT_CONTINUATION, VISUAL_FLOW,
+  NEW_TABLE, or INSUFFICIENT_EVIDENCE.
+
+Do not use table text as a transcription output. Return no other fields.
 """
 
 
 PDF_TABLE_LOCATOR_OUTPUT_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["tables"],
+    "required": ["tables", "boundary_from_previous"],
     "properties": {
+        "boundary_from_previous": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["decision", "evidence"],
+            "properties": {
+                "decision": {
+                    "type": "string",
+                    "enum": [
+                        "CONTINUATION",
+                        "INDEPENDENT",
+                        "AMBIGUOUS",
+                        "NOT_APPLICABLE",
+                    ],
+                },
+                "evidence": {
+                    "type": "string",
+                    "enum": [
+                        "FIRST_PAGE",
+                        "NO_TABLE_PAIR",
+                        "EXPLICIT_CONTINUATION",
+                        "VISUAL_FLOW",
+                        "NEW_TABLE",
+                        "INSUFFICIENT_EVIDENCE",
+                    ],
+                },
+            },
+        },
         "tables": {
             "type": "array",
             "maxItems": 32,
@@ -153,10 +191,18 @@ class PdfTableLocatorProjection:
         provider_value: Any,
         raster_manifest: dict[str, Any],
         expected_page_bbox: list[float],
+        has_previous_page: bool,
+        previous_page_has_tables: bool,
     ) -> dict[str, Any]:
         page_bbox = _bbox(expected_page_bbox, "pdf_table_locator_page_bbox_invalid")
         transform = self._validated_transform(raster_manifest, page_bbox)
-        normalized_tables = self._validated_provider_value(provider_value)
+        normalized_tables, boundary = self._validated_provider_value(provider_value)
+        self._validate_boundary(
+            boundary,
+            has_previous_page=has_previous_page,
+            previous_page_has_tables=previous_page_has_tables,
+            current_page_has_tables=bool(normalized_tables),
+        )
         tables = []
         accepted_table_bboxes: list[list[float]] = []
         accepted_title_bboxes: list[list[float]] = []
@@ -229,18 +275,23 @@ class PdfTableLocatorProjection:
             "input_raster_manifest_hash": raster_manifest.get("manifest_hash"),
             "page_bbox_pdf_points": page_bbox,
             "tables": tables,
+            "boundary_from_previous": copy.deepcopy(boundary),
             "model_values_used_as_source_literals": False,
             "table_structure_inferred": False,
         }
 
-    def _validated_provider_value(self, value: Any) -> list[dict[str, Any]]:
-        if not isinstance(value, dict) or set(value) != {"tables"}:
+    def _validated_provider_value(
+        self, value: Any
+    ) -> tuple[list[dict[str, Any]], dict[str, str]]:
+        if not isinstance(value, dict) or set(value) != {
+            "tables",
+            "boundary_from_previous",
+        }:
             raise PdfTableLocatorError("pdf_table_locator_response_shape_invalid")
         tables = value.get("tables")
         if not isinstance(tables, list) or len(tables) > self.config.maximum_tables:
             raise PdfTableLocatorError("pdf_table_locator_tables_invalid")
         normalized: list[dict[str, Any]] = []
-        previous_ymin: int | None = None
         for table in tables:
             if not isinstance(table, dict) or set(table) != {
                 "table_box_2d",
@@ -251,10 +302,6 @@ class PdfTableLocatorProjection:
             box = self._validated_box(table.get("table_box_2d"), nullable=False)
             title_box = self._validated_box(table.get("title_box_2d"), nullable=True)
             header_box = self._validated_box(table.get("header_box_2d"), nullable=True)
-            ymin = box[0]
-            if previous_ymin is not None and ymin < previous_ymin:
-                raise PdfTableLocatorError("pdf_table_locator_boxes_not_ordered")
-            previous_ymin = ymin
             normalized.append(
                 {
                     "table_box_2d": box,
@@ -262,7 +309,46 @@ class PdfTableLocatorProjection:
                     "header_box_2d": header_box,
                 }
             )
-        return normalized
+        normalized.sort(key=lambda item: (item["table_box_2d"][0], item["table_box_2d"][1]))
+        boundary = value.get("boundary_from_previous")
+        if not isinstance(boundary, dict) or set(boundary) != {"decision", "evidence"}:
+            raise PdfTableLocatorError("pdf_table_locator_boundary_shape_invalid")
+        decision = boundary.get("decision")
+        evidence = boundary.get("evidence")
+        if decision not in {
+            "CONTINUATION", "INDEPENDENT", "AMBIGUOUS", "NOT_APPLICABLE"
+        } or evidence not in {
+            "FIRST_PAGE", "NO_TABLE_PAIR", "EXPLICIT_CONTINUATION", "VISUAL_FLOW",
+            "NEW_TABLE", "INSUFFICIENT_EVIDENCE",
+        }:
+            raise PdfTableLocatorError("pdf_table_locator_boundary_value_invalid")
+        return normalized, {"decision": decision, "evidence": evidence}
+
+    @staticmethod
+    def _validate_boundary(
+        boundary: dict[str, str],
+        *,
+        has_previous_page: bool,
+        previous_page_has_tables: bool,
+        current_page_has_tables: bool,
+    ) -> None:
+        decision = boundary["decision"]
+        evidence = boundary["evidence"]
+        if not has_previous_page:
+            if (decision, evidence) != ("NOT_APPLICABLE", "FIRST_PAGE"):
+                raise PdfTableLocatorError("pdf_table_locator_first_page_boundary_invalid")
+            return
+        if not previous_page_has_tables or not current_page_has_tables:
+            if (decision, evidence) != ("NOT_APPLICABLE", "NO_TABLE_PAIR"):
+                raise PdfTableLocatorError("pdf_table_locator_no_pair_boundary_invalid")
+            return
+        allowed = {
+            "CONTINUATION": {"EXPLICIT_CONTINUATION", "VISUAL_FLOW"},
+            "INDEPENDENT": {"NEW_TABLE"},
+            "AMBIGUOUS": {"INSUFFICIENT_EVIDENCE"},
+        }
+        if decision not in allowed or evidence not in allowed[decision]:
+            raise PdfTableLocatorError("pdf_table_locator_table_pair_boundary_invalid")
 
     def _validated_box(self, value: Any, *, nullable: bool) -> list[int] | None:
         if value is None and nullable:
