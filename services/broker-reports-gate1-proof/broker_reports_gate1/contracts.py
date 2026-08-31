@@ -7,6 +7,7 @@ from typing import Any, Iterable
 
 SAFE_REPORT_SCHEMA = "broker_reports_chat_visible_normalization_report_v0"
 NORMALIZER_VERSION = "gate1_normalized_table_projection_v0"
+PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3 = "broker_reports_pdf_table_locator_page_v3"
 SOURCE_FACT_STITCH_RESULT_SCHEMA_VERSION = (
     "broker_reports_source_fact_stitch_result_v0"
 )
@@ -57,6 +58,12 @@ SUPPORTED_CONTRACTS = [
     "broker_reports_pdf_table_classification_v1",
     "broker_reports_pdf_table_locator_response_v1",
     "broker_reports_pdf_table_locator_projection_v1",
+    "broker_reports_pdf_table_locator_response_v3",
+    "broker_reports_pdf_table_locator_projection_v3",
+    PDF_TABLE_LOCATOR_PAGE_SCHEMA_V3,
+    "broker_reports_pdf_table_detection_request_v5",
+    "broker_reports_pdf_table_detection_attempt_v2",
+    "broker_reports_pdf_table_intake_run_v2",
     "broker_reports_pdf_table_crop_v1",
     "broker_reports_pdf_table_candidate_v1",
     "broker_reports_pdf_table_detection_request_v4",
