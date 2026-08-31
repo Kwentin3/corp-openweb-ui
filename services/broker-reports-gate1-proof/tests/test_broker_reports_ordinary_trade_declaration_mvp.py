@@ -893,6 +893,8 @@ def test_tax_period_is_explicitly_selected_after_detected_year_is_shown(
     action = preparation["user_actions"][0]
 
     assert result["product"]["status"] == "INPUT_REQUIRED"
+    assert result["product"]["gate5"]["execution_status"] == "completed"
+    assert result["product"]["gate5"]["fifo_calculations"]
     assert action["fact_key"] == "selected_tax_period"
     assert action["semantic_request_key"] == "human_fact:selected_tax_period"
     assert preparation["period_profile"]["selected_tax_period"] is None
@@ -1258,7 +1260,7 @@ def test_same_case_profile_mode_can_be_changed_by_owner_successor(
     assert stale_mode.value.code == "gate5_gap_request_stale"
 
 
-def test_purchase_only_2022_keeps_open_position_separate_from_profile_choice(
+def test_purchase_only_2022_does_not_ask_for_an_unused_tax_period(
     tmp_path: Path,
 ) -> None:
     bridge = assembly_fixtures.bridge_fixtures
@@ -1279,7 +1281,7 @@ def test_purchase_only_2022_keeps_open_position_separate_from_profile_choice(
     first_preparation = first["product"]["preparation"]
     group = first["product"]["gate5"]["security_groups"][0]
 
-    assert first["product"]["status"] == "INPUT_REQUIRED"
+    assert first["product"]["status"] == "OPEN_POSITION_RETAINED"
     assert first["product"]["gate5"]["execution_status"] == (
         "open_position_not_tax_activated"
     )
@@ -1288,32 +1290,32 @@ def test_purchase_only_2022_keeps_open_position_separate_from_profile_choice(
     assert first_preparation["final_note"]["detected_operation_years"] == [
         "2022"
     ]
-    period_action = first_preparation["user_actions"][0]
-    assert period_action["fact_key"] == "selected_tax_period"
-    runtime.normalize_declaration_action(
-        request_publication_ref=period_action["request_publication_ref"],
-        answer={"kind": "code", "value": "2022"},
-        context=context,
-    )
-
-    mismatch = runtime.run(canonical_artifact_refs=[], context=context)
-    mode_action = mismatch["product"]["preparation"]["user_actions"][0]
-    assert mode_action["fact_key"] == "profile_mismatch_mode"
-    runtime.normalize_declaration_action(
-        request_publication_ref=mode_action["request_publication_ref"],
-        answer={"kind": "code", "value": "ANALYSIS_ONLY"},
-        context=context,
-    )
-
-    final = runtime.run(canonical_artifact_refs=[], context=context)
-    note = final["product"]["preparation"]["final_note"]
-    assert final["product"]["status"] == "ANALYSIS_ONLY_READY"
-    assert note["selected_tax_period"] == "2022"
-    assert note["profile"]["support"] == "UNSUPPORTED_EXACT_YEAR_PROFILE"
+    assert first_preparation["user_actions"] == []
+    note = first_preparation["final_note"]
+    assert note["selected_tax_period"] is None
     assert note["positions"][0]["state"] == "OPEN_LONG_PROVEN"
     assert note["calculated_disposal_fact_ids"] == []
     assert note["filing_eligible"] is False
-    assert final["product"]["xml_created"] is False
+    assert first["product"]["xml_created"] is False
+
+
+def test_no_security_facts_cannot_claim_an_open_position(
+    tmp_path: Path,
+) -> None:
+    bridge = assembly_fixtures.bridge_fixtures
+    runtime, context, _providers = _case(
+        tmp_path,
+        proceeds="60.00",
+        publish_human_facts=False,
+        publish_tax_period=False,
+        financial_rows=(bridge._HEADERS,),
+    )
+
+    result = runtime.run(canonical_artifact_refs=[], context=context)
+
+    assert result["product"]["gate4"]["security_facts_total"] == 0
+    assert result["product"]["gate5"]["security_groups"] == []
+    assert result["product"]["status"] != "OPEN_POSITION_RETAINED"
 
 
 def test_sale_only_supported_period_retains_exact_evidence_horizon_blocker(
@@ -1358,13 +1360,18 @@ def test_same_case_operation_year_successor_stales_old_period_choice(
         trade_date="10.01.2022 10:00:00",
         settlement_date="13.01.2022",
     )
+    disposal_2022 = bridge._with_roles(
+        bridge._row(side=bridge._DISPOSAL_SIDE, charges=False),
+        trade_date="10.02.2022 10:00:00",
+        settlement_date="13.02.2022",
+    )
     runtime, context, _providers, store = _case(
         tmp_path,
         proceeds="60.00",
         include_store=True,
         publish_human_facts=False,
         publish_tax_period=False,
-        financial_rows=(bridge._HEADERS, purchase_2022),
+        financial_rows=(bridge._HEADERS, purchase_2022, disposal_2022),
     )
     first = runtime.run(canonical_artifact_refs=[], context=context)
     old_action = first["product"]["preparation"]["user_actions"][0]
@@ -1413,17 +1420,12 @@ def test_same_case_operation_year_successor_stales_old_period_choice(
     )
     changed_preparation = changed["product"]["preparation"]
 
-    assert changed["product"]["status"] == "INPUT_REQUIRED"
+    assert changed["product"]["status"] == "OPEN_POSITION_RETAINED"
     assert changed_preparation["period_profile"]["detected_operation_years"] == [
         "2024"
     ]
     assert changed_preparation["period_profile"]["selected_tax_period"] is None
-    assert changed_preparation["user_actions"][0]["semantic_request_key"] == (
-        old_action["semantic_request_key"]
-    )
-    assert changed_preparation["user_actions"][0]["request_publication_ref"] != (
-        old_action["request_publication_ref"]
-    )
+    assert changed_preparation["user_actions"] == []
     with pytest.raises(Exception) as stale:
         runtime.normalize_declaration_action(
             request_publication_ref=old_action["request_publication_ref"],
