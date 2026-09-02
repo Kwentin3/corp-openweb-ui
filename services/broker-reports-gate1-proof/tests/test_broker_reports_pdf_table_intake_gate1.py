@@ -4,8 +4,10 @@ import copy
 import hashlib
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import fitz
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -33,11 +35,17 @@ from broker_reports_gate1.pdf_text_layer import (  # noqa: E402
 )
 from broker_reports_gate1.pdf_table_intake_runtime import (  # noqa: E402
     PdfTableIntakeConfig,
+    PdfTableIntakeError,
     PdfTableIntakeRuntimeFactory,
+    validate_source_bound_localization_scope,
 )
+from broker_reports_gate1.contracts import sha256_json  # noqa: E402
 from broker_reports_gate1.pdf_table_locator import (  # noqa: E402
     PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
     PDF_TABLE_LOCATOR_PROMPT,
+)
+from broker_reports_gate1.pdf_table_region_admission import (  # noqa: E402
+    build_region_admission_request,
 )
 from broker_reports_gate1.table_projection import (  # noqa: E402
     TableProjectionValidator,
@@ -274,8 +282,16 @@ class StaticDetectorProvider:
                 "provider_profile_revision": "test-profile-v1",
                 "model_requested": "models/gemini-3.5-flash",
                 "model_resolved": "models/gemini-3.5-flash",
-                "adapter_identity": "test-detector-adapter-v1",
+                "adapter_identity": "gemini_native_table_crop_compact_json_v1",
                 "request_hash": "provider-request-hash",
+                "attempt_number": 1,
+                "attempt_lineage": [],
+                "finish_reason": "STOP",
+                "crop_sha256": kwargs["crop_sha256"],
+                "model_view_hash": sha256_json(kwargs["model_view"]),
+                "canonical_schema_hash": sha256_json(kwargs["output_schema"]),
+                "adapted_schema_hash": "adapted-schema-hash",
+                "parse_result": "parsed_object",
                 "hidden_retry": False,
                 "provider_failover": False,
             },
@@ -302,6 +318,194 @@ def _run_intake(provider: StaticDetectorProvider):
         )
     )
     return pdf_bytes, digest, result
+
+
+def _run_source_bound_intake(provider: StaticDetectorProvider):
+    pdf_bytes = _single_page_pdf()
+    digest = hashlib.sha256(pdf_bytes).hexdigest()
+    factory = PdfTableIntakeRuntimeFactory(
+            PdfTableIntakeConfig(
+                enabled=True,
+                source_bound_localization_enabled=True,
+            )
+        )
+    with patch(
+        "broker_reports_gate1.pdf_table_intake_runtime."
+        "PdfTableLocatorProviderFactory.create_for_openwebui",
+        return_value=provider,
+    ):
+        result = factory.create_for_openwebui(object()).run(
+            [
+                {
+                    "document_ref": "pdfsource_bound_test",
+                    "pdf_bytes": pdf_bytes,
+                    "pdf_sha256": digest,
+                }
+            ]
+        )
+    return digest, result
+
+
+def test_source_bound_localization_projects_exact_pr1_boundary() -> None:
+    digest, result = _run_source_bound_intake(
+        StaticDetectorProvider(
+            [[150, 100, 450, 900], [500, 100, 850, 900]]
+        )
+    )
+    assert result.safe_summary["status"] == "localized_pending_admission"
+    assert result.safe_summary["gate2_boundary_ready"] is False
+    assert result.safe_summary["visual_completeness_claimed"] is False
+    page = result.private_page_results[0]
+    attempt = result.private_detection_attempts[0]
+    projection = validate_source_bound_localization_scope(
+        page_result=page,
+        detection_attempt=attempt,
+        expected_provider_profile="google_gemini",
+        expected_model_id="models/gemini-3.5-flash",
+    )
+    assert list(projection) == [
+        {
+            "region_ref": region["region_ref"],
+            "bbox_pdf_points": region["bbox_pdf_points"],
+        }
+        for region in page["regions"]
+    ]
+    scope = page["source_bound_localization_scope"]
+    assert scope["source_pdf_sha256"] == digest
+    assert scope["full_page_png_sha256"] == attempt["full_page_png_sha256"]
+    assert scope["attempt_number"] == 1
+    assert scope["attempt_lineage"] == []
+    assert scope["finish_reason"] == "STOP"
+    assert scope["hidden_retry"] is False
+    assert scope["provider_failover"] is False
+    assert scope["visual_completeness_claimed"] is False
+    request = build_region_admission_request(
+        source_pdf_sha256=digest,
+        page_number=1,
+        regions=list(projection),
+    )
+    assert request["region_refs"] == scope["ordered_region_refs"]
+
+
+def test_source_bound_located_no_tables_needs_no_admission_request() -> None:
+    _, result = _run_source_bound_intake(StaticDetectorProvider([]))
+    page = result.private_page_results[0]
+    projection = validate_source_bound_localization_scope(
+        page_result=page,
+        detection_attempt=result.private_detection_attempts[0],
+        expected_provider_profile="google_gemini",
+        expected_model_id="models/gemini-3.5-flash",
+    )
+    assert page["status"] == "located_no_tables"
+    assert projection == ()
+    assert page["source_bound_localization_scope"]["admission_request_status"] == (
+        "NOT_REQUIRED_NO_REGIONS"
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "reorder",
+        "drop",
+        "duplicate",
+        "duplicate_bbox",
+        "foreign_page",
+        "raster",
+        "raster_body_old_hash",
+        "raster_forged_wrapper",
+        "non_stop",
+        "provider_profile",
+        "model",
+        "adapter",
+        "schema",
+        "crop",
+    ),
+)
+def test_source_bound_localization_rejects_scope_mutation(mutation: str) -> None:
+    _, result = _run_source_bound_intake(
+        StaticDetectorProvider(
+            [[150, 100, 450, 900], [500, 100, 850, 900]]
+        )
+    )
+    page = result.private_page_results[0]
+    attempt = result.private_detection_attempts[0]
+    if mutation == "reorder":
+        page["regions"].reverse()
+    elif mutation == "drop":
+        page["regions"].pop()
+    elif mutation == "duplicate":
+        page["regions"][1] = copy.deepcopy(page["regions"][0])
+        attempt["validated_regions"] = copy.deepcopy(page["regions"])
+    elif mutation == "duplicate_bbox":
+        page["regions"][1]["bbox_pdf_points"] = copy.deepcopy(
+            page["regions"][0]["bbox_pdf_points"]
+        )
+        attempt["validated_regions"] = copy.deepcopy(page["regions"])
+    elif mutation == "foreign_page":
+        page["page_number"] = 2
+        attempt["page_number"] = 2
+    elif mutation == "raster":
+        attempt["page_raster_manifest"]["manifest_hash"] = "foreign"
+    elif mutation in {"raster_body_old_hash", "raster_forged_wrapper"}:
+        manifest = attempt["page_raster_manifest"]
+        manifest["document_ref"] = "foreign-document"
+        if mutation == "raster_forged_wrapper":
+            unsigned = copy.deepcopy(manifest)
+            unsigned.pop("manifest_hash")
+            manifest["manifest_hash"] = sha256_json(unsigned)
+    else:
+        provider_attempt = attempt["provider_attempt"]
+        if mutation == "non_stop":
+            provider_attempt["finish_reason"] = "MAX_TOKENS"
+        elif mutation == "provider_profile":
+            provider_attempt["provider_profile"] = "foreign"
+        elif mutation == "model":
+            provider_attempt["model_resolved"] = "models/foreign"
+        elif mutation == "adapter":
+            provider_attempt["adapter_identity"] = "foreign"
+        elif mutation == "schema":
+            provider_attempt["canonical_schema_hash"] = "foreign"
+        else:
+            provider_attempt["crop_sha256"] = "0" * 64
+    with pytest.raises(PdfTableIntakeError):
+        validate_source_bound_localization_scope(
+            page_result=page,
+            detection_attempt=attempt,
+            expected_provider_profile="google_gemini",
+            expected_model_id="models/gemini-3.5-flash",
+        )
+
+
+def test_serialized_localization_scope_has_no_process_authority() -> None:
+    _, result = _run_source_bound_intake(
+        StaticDetectorProvider([[150, 100, 850, 900]])
+    )
+    page = copy.deepcopy(result.private_page_results[0])
+    with pytest.raises(PdfTableIntakeError):
+        validate_source_bound_localization_scope(
+            page_result=page,
+            detection_attempt=copy.deepcopy(result.private_detection_attempts[0]),
+            expected_provider_profile="google_gemini",
+            expected_model_id="models/gemini-3.5-flash",
+        )
+
+
+def test_source_bound_opt_in_rejects_injected_provider_factory_seam() -> None:
+    factory = PdfTableIntakeRuntimeFactory(
+        PdfTableIntakeConfig(enabled=True, source_bound_localization_enabled=True)
+    )
+    with pytest.raises(
+        PdfTableIntakeError,
+        match="pdf_table_source_bound_canonical_factory_required",
+    ):
+        factory.create_with_provider(StaticDetectorProvider([]))
+    runtime = factory._create(StaticDetectorProvider([]))
+    with pytest.raises(
+        PdfTableIntakeError,
+        match="pdf_table_source_bound_canonical_factory_required",
+    ):
+        runtime.run([])
 
 
 def test_locator_prompt_is_native_coordinates_and_locator_only() -> None:
@@ -335,6 +539,11 @@ def test_runtime_returns_pdf_regions_without_vlm_transcription_crops() -> None:
     assert page["regions"][0]["box_2d_normalized"] == [150, 100, 850, 900]
     assert page["model_values_used_as_source_literals"] is False
     assert page["pdfplumber_settings_selected_by_model"] is False
+    assert "source_bound_localization_scope" not in page
+    assert "full_page_png_sha256" not in result.private_detection_attempts[0]
+    assert "source_bound_localization_enabled" not in result.safe_summary
+    assert "source_bound_localization_status" not in result.safe_summary
+    assert "visual_completeness_claimed" not in result.safe_summary
 
 
 def test_absent_table_page_is_a_valid_negative() -> None:
