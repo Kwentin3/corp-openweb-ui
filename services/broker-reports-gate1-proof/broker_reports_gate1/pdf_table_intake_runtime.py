@@ -4,11 +4,13 @@ import base64
 import copy
 import hashlib
 import math
+import weakref
 from dataclasses import dataclass
 from typing import Any
 
 from .contracts import sha256_json, stable_digest
 from .pdf_table_locator_provider import (
+    PDF_GRID_PROVIDER_ADAPTER_VERSION,
     PdfTableLocatorProviderConfig,
     PdfTableLocatorProviderError,
     PdfTableLocatorProviderFactory,
@@ -36,6 +38,43 @@ PDF_TABLE_DETECTION_RESPONSE_SCHEMA = PDF_TABLE_LOCATOR_RESPONSE_SCHEMA
 PDF_TABLE_DETECTION_ATTEMPT_SCHEMA = "broker_reports_pdf_table_detection_attempt_v1"
 PDF_TABLE_INTAKE_RUN_SCHEMA = "broker_reports_pdf_table_intake_run_v1"
 PDF_TABLE_INTAKE_POLICY_VERSION = "pdf_table_intake_policy_v6"
+PDF_TABLE_SOURCE_BOUND_LOCALIZATION_SCHEMA = (
+    "broker_reports_pdf_table_source_bound_localization_v1"
+)
+
+_SOURCE_BOUND_FACTORY_CAPABILITY = object()
+
+
+class SourceBoundLocalizationScope(dict):
+    """Process-local owner-minted scope; serialization carries no authority."""
+
+    __slots__ = ("__weakref__",)
+
+
+def _scope_registry():
+    entries: dict[int, tuple[weakref.ReferenceType[SourceBoundLocalizationScope], str]] = {}
+
+    def mint(value: dict[str, Any]) -> SourceBoundLocalizationScope:
+        scope = SourceBoundLocalizationScope(copy.deepcopy(value))
+        identity = id(scope)
+
+        def cleanup(reference: weakref.ReferenceType[SourceBoundLocalizationScope]) -> None:
+            current = entries.get(identity)
+            if current is not None and current[0] is reference:
+                entries.pop(identity, None)
+
+        reference = weakref.ref(scope, cleanup)
+        entries[identity] = (reference, sha256_json(value))
+        return scope
+
+    def fingerprint(value: object) -> str | None:
+        entry = entries.get(id(value))
+        return entry[1] if entry is not None and entry[0]() is value else None
+
+    return mint, fingerprint
+
+
+_mint_localization_scope, _localization_scope_fingerprint = _scope_registry()
 FACTORY_REQUIRED = (
     "PdfTableIntakeRuntimeFactory.create_for_openwebui is the only supported "
     "live PDF table detection and crop entrypoint"
@@ -61,6 +100,7 @@ class PdfTableIntakeError(RuntimeError):
 @dataclass(frozen=True)
 class PdfTableIntakeConfig:
     enabled: bool = False
+    source_bound_localization_enabled: bool = False
     detector_provider_profile: str = "google_gemini"
     detector_model_id: str = "models/gemini-3.5-flash"
     dpi: int = 150
@@ -90,14 +130,18 @@ class PdfTableIntakeRuntimeFactory:
                 model_id=self.config.detector_model_id,
             )
         ).create_for_openwebui(request)
-        return self._create(provider)
+        return self._create(provider, capability=_SOURCE_BOUND_FACTORY_CAPABILITY)
 
     def create_with_provider(self, provider: Any) -> "PdfTableIntakeRuntime":
         """Explicit external-provider seam for deterministic contract tests."""
 
+        if self.config.source_bound_localization_enabled:
+            raise PdfTableIntakeError(
+                "pdf_table_source_bound_canonical_factory_required"
+            )
         return self._create(provider)
 
-    def _create(self, provider: Any) -> "PdfTableIntakeRuntime":
+    def _create(self, provider: Any, *, capability: object | None = None) -> "PdfTableIntakeRuntime":
         raster = PdfTableRasterFactory(
             PdfTableRasterConfig(
                 horizontal_padding_fraction=(self.config.horizontal_padding_fraction),
@@ -109,7 +153,13 @@ class PdfTableIntakeRuntimeFactory:
                 maximum_tables=self.config.maximum_candidates_per_page
             )
         ).create()
-        return PdfTableIntakeRuntime(self.config, provider, raster, locator)
+        return PdfTableIntakeRuntime(
+            self.config,
+            provider,
+            raster,
+            locator,
+            _source_bound_capability=capability,
+        )
 
     def _validate_config(self) -> None:
         if self.config.dpi != 150:
@@ -131,14 +181,28 @@ class PdfTableIntakeRuntimeFactory:
 
 class PdfTableIntakeRuntime:
     def __init__(
-        self, config: PdfTableIntakeConfig, provider: Any, raster: Any, locator: Any
+        self,
+        config: PdfTableIntakeConfig,
+        provider: Any,
+        raster: Any,
+        locator: Any,
+        *,
+        _source_bound_capability: object | None = None,
     ) -> None:
         self.config = config
         self.provider = provider
         self.raster = raster
         self.locator = locator
+        self._source_bound_authorized = (
+            _source_bound_capability is _SOURCE_BOUND_FACTORY_CAPABILITY
+        )
 
     def run(self, documents: list[dict[str, Any]]) -> PdfTableIntakeResult:
+        if (
+            self.config.source_bound_localization_enabled
+            and not self._source_bound_authorized
+        ):
+            raise PdfTableIntakeError("pdf_table_source_bound_canonical_factory_required")
         if not self.config.enabled:
             return PdfTableIntakeResult(
                 safe_summary=self._summary(
@@ -247,7 +311,11 @@ class PdfTableIntakeRuntime:
             else (
                 "completed_with_rejected_regions"
                 if rejected_regions
-                else "completed"
+                else (
+                    "localized_pending_admission"
+                    if self.config.source_bound_localization_enabled
+                    else "completed"
+                )
             )
         )
         return PdfTableIntakeResult(
@@ -417,6 +485,19 @@ class PdfTableIntakeRuntime:
             "model_values_used_as_source_literals": False,
             "pdfplumber_settings_selected_by_model": False,
         }
+        if self.config.source_bound_localization_enabled:
+            private_attempt["full_page_png_sha256"] = page_png_sha256
+        if self.config.source_bound_localization_enabled:
+            page_result["source_bound_localization_scope"] = (
+                _mint_localization_scope(
+                    _build_source_bound_localization_scope(
+                        page_result=page_result,
+                        detection_attempt=private_attempt,
+                        expected_provider_profile=self.config.detector_provider_profile,
+                        expected_model_id=self.config.detector_model_id,
+                    )
+                )
+            )
         return page_result, private_attempt
 
     def _summary(
@@ -490,24 +571,35 @@ class PdfTableIntakeRuntime:
             "rows_columns_cells_inferred": False,
             "financial_semantics_inferred": False,
         }
+        configuration_keys = [
+            "policy_version",
+            "detector_contract_version",
+            "locator_policy_version",
+            "locator_projection_schema",
+            "coordinate_contract",
+            "detector_provider_profile",
+            "detector_model_id",
+            "dpi",
+            "horizontal_padding_fraction",
+            "vertical_padding_fraction",
+            "padding_basis",
+            "crop_boundary_basis",
+        ]
+        if self.config.source_bound_localization_enabled:
+            payload.update(
+                {
+                    "source_bound_localization_enabled": True,
+                    "source_bound_localization_status": (
+                        "BOUND_PENDING_ADMISSION"
+                        if status == "localized_pending_admission"
+                        else "BLOCKED"
+                    ),
+                    "visual_completeness_claimed": False,
+                }
+            )
+            configuration_keys.append("source_bound_localization_enabled")
         payload["configuration_hash"] = sha256_json(
-            {
-                key: payload[key]
-                for key in (
-                    "policy_version",
-                    "detector_contract_version",
-                    "locator_policy_version",
-                    "locator_projection_schema",
-                    "coordinate_contract",
-                    "detector_provider_profile",
-                    "detector_model_id",
-                    "dpi",
-                    "horizontal_padding_fraction",
-                    "vertical_padding_fraction",
-                    "padding_basis",
-                    "crop_boundary_basis",
-                )
-            }
+            {key: payload[key] for key in configuration_keys}
         )
         return payload
 
@@ -576,3 +668,183 @@ class PdfTableIntakeRuntime:
 
 def table_detection_output_schema() -> dict[str, Any]:
     return copy.deepcopy(PDF_TABLE_LOCATOR_OUTPUT_SCHEMA)
+
+
+def validate_source_bound_localization_scope(
+    *,
+    page_result: Any,
+    detection_attempt: Any,
+    expected_provider_profile: str,
+    expected_model_id: str,
+) -> tuple[dict[str, Any], ...]:
+    """Validate the inactive locator-to-admission boundary projection.
+
+    This proves source/provider binding and exact ordered region coverage.  It
+    deliberately does not prove that a locator bbox contains a complete table.
+    """
+
+    expected = _build_source_bound_localization_scope(
+        page_result=page_result,
+        detection_attempt=detection_attempt,
+        expected_provider_profile=expected_provider_profile,
+        expected_model_id=expected_model_id,
+    )
+    observed = page_result.get("source_bound_localization_scope")
+    if (
+        not isinstance(observed, SourceBoundLocalizationScope)
+        or _localization_scope_fingerprint(observed) != sha256_json(expected)
+        or sha256_json(observed) != sha256_json(expected)
+        or observed != expected
+    ):
+        raise PdfTableIntakeError("pdf_table_source_bound_localization_invalid")
+    return tuple(copy.deepcopy(expected["region_admission_projection"]))
+
+
+def _build_source_bound_localization_scope(
+    *,
+    page_result: Any,
+    detection_attempt: Any,
+    expected_provider_profile: str,
+    expected_model_id: str,
+) -> dict[str, Any]:
+    if not isinstance(page_result, dict) or not isinstance(detection_attempt, dict):
+        raise PdfTableIntakeError("pdf_table_source_bound_localization_invalid")
+    regions = page_result.get("regions")
+    attempt_regions = detection_attempt.get("validated_regions")
+    raster = detection_attempt.get("page_raster_manifest")
+    provider_attempt = detection_attempt.get("provider_attempt")
+    if (
+        page_result.get("status") not in {"located", "located_no_tables"}
+        or not isinstance(regions, list)
+        or not isinstance(attempt_regions, list)
+        or regions != attempt_regions
+        or not isinstance(raster, dict)
+        or not isinstance(provider_attempt, dict)
+        or detection_attempt.get("terminal_status") != "validated"
+        or detection_attempt.get("document_ref") != page_result.get("document_ref")
+        or detection_attempt.get("pdf_sha256") != page_result.get("pdf_sha256")
+        or detection_attempt.get("page_number") != page_result.get("page_number")
+        or detection_attempt.get("page_ref") != page_result.get("page_ref")
+    ):
+        raise PdfTableIntakeError("pdf_table_source_bound_localization_invalid")
+    projection: list[dict[str, Any]] = []
+    for region in regions:
+        if not isinstance(region, dict):
+            raise PdfTableIntakeError("pdf_table_source_bound_localization_invalid")
+        region_ref = region.get("region_ref")
+        bbox = region.get("bbox_pdf_points")
+        if (
+            not isinstance(region_ref, str)
+            or not region_ref
+            or not isinstance(bbox, list)
+            or len(bbox) != 4
+        ):
+            raise PdfTableIntakeError("pdf_table_source_bound_localization_invalid")
+        projection.append(
+            {"region_ref": region_ref, "bbox_pdf_points": copy.deepcopy(bbox)}
+        )
+    region_refs = [item["region_ref"] for item in projection]
+    bbox_keys = [tuple(item["bbox_pdf_points"]) for item in projection]
+    if (
+        len(region_refs) != len(set(region_refs))
+        or len(bbox_keys) != len(set(bbox_keys))
+    ):
+        raise PdfTableIntakeError("pdf_table_source_bound_localization_invalid")
+    required_provider = {
+        "attempt_number": 1,
+        "attempt_lineage": [],
+        "terminal_failure_class": None,
+        "finish_reason": "STOP",
+        "parse_result": "parsed_object",
+        "hidden_retry": False,
+        "provider_failover": False,
+        "crop_sha256": detection_attempt.get("full_page_png_sha256"),
+        "model_view_hash": detection_attempt.get("model_view_hash"),
+    }
+    if any(provider_attempt.get(key) != value for key, value in required_provider.items()):
+        raise PdfTableIntakeError("pdf_table_source_bound_provider_invalid")
+    for key in (
+        "provider_profile",
+        "provider_profile_revision",
+        "model_requested",
+        "model_resolved",
+        "request_hash",
+        "canonical_schema_hash",
+        "adapted_schema_hash",
+        "adapter_identity",
+    ):
+        if not isinstance(provider_attempt.get(key), str) or not provider_attempt[key]:
+            raise PdfTableIntakeError("pdf_table_source_bound_provider_invalid")
+    if provider_attempt["model_requested"] != provider_attempt["model_resolved"]:
+        raise PdfTableIntakeError("pdf_table_source_bound_provider_invalid")
+    if (
+        provider_attempt["provider_profile"] != expected_provider_profile
+        or provider_attempt["model_requested"] != expected_model_id
+        or provider_attempt["model_resolved"] != expected_model_id
+        or provider_attempt["adapter_identity"] != PDF_GRID_PROVIDER_ADAPTER_VERSION
+    ):
+        raise PdfTableIntakeError("pdf_table_source_bound_provider_invalid")
+    if provider_attempt["canonical_schema_hash"] != detection_attempt.get(
+        "output_schema_hash"
+    ):
+        raise PdfTableIntakeError("pdf_table_source_bound_provider_invalid")
+    for key in ("manifest_hash",):
+        if not isinstance(raster.get(key), str) or not raster[key]:
+            raise PdfTableIntakeError("pdf_table_source_bound_raster_invalid")
+    manifest_unsigned = copy.deepcopy(raster)
+    manifest_hash = manifest_unsigned.pop("manifest_hash", None)
+    if manifest_hash != sha256_json(manifest_unsigned):
+        raise PdfTableIntakeError("pdf_table_source_bound_raster_invalid")
+    for key in ("request_hash", "response_hash"):
+        if not isinstance(detection_attempt.get("token_count", {}).get(key), str):
+            raise PdfTableIntakeError("pdf_table_source_bound_provider_invalid")
+    if detection_attempt.get("token_count", {}).get("within_hard_guard") is not True:
+        raise PdfTableIntakeError("pdf_table_source_bound_provider_invalid")
+    response_hash = detection_attempt.get("provider_response_hash")
+    png_hash = detection_attempt.get("full_page_png_sha256")
+    if not isinstance(response_hash, str) or not response_hash or not isinstance(png_hash, str) or len(png_hash) != 64:
+        raise PdfTableIntakeError("pdf_table_source_bound_provider_invalid")
+    if (
+        raster.get("pdf_sha256") != page_result.get("pdf_sha256")
+        or raster.get("document_ref") != page_result.get("document_ref")
+        or raster.get("page_number") != page_result.get("page_number")
+        or raster.get("page_ref") != page_result.get("page_ref")
+        or raster.get("png_sha256") != png_hash
+        or raster.get("render_scope") != "full_page"
+        or raster.get("full_page_identity_verified") is not True
+        or raster.get("actual_page_bbox") != page_result.get("page_bbox_pdf_points")
+    ):
+        raise PdfTableIntakeError("pdf_table_source_bound_raster_invalid")
+    unsigned = {
+        "schema_version": PDF_TABLE_SOURCE_BOUND_LOCALIZATION_SCHEMA,
+        "source_pdf_sha256": page_result["pdf_sha256"],
+        "page_number": page_result["page_number"],
+        "page_ref": page_result["page_ref"],
+        "page_bbox_pdf_points": copy.deepcopy(page_result["page_bbox_pdf_points"]),
+        "full_page_raster_manifest_hash": raster["manifest_hash"],
+        "full_page_png_sha256": png_hash,
+        "provider_profile": provider_attempt["provider_profile"],
+        "provider_reported_profile_revision": provider_attempt["provider_profile_revision"],
+        "model_requested": provider_attempt["model_requested"],
+        "model_resolved": provider_attempt["model_resolved"],
+        "provider_reported_request_hash": provider_attempt["request_hash"],
+        "provider_response_hash": response_hash,
+        "model_view_hash": detection_attempt["model_view_hash"],
+        "canonical_schema_hash": provider_attempt["canonical_schema_hash"],
+        "provider_reported_adapted_schema_hash": provider_attempt["adapted_schema_hash"],
+        "adapter_identity": provider_attempt["adapter_identity"],
+        "count_request_hash": detection_attempt["token_count"]["request_hash"],
+        "count_response_hash": detection_attempt["token_count"]["response_hash"],
+        "attempt_number": 1,
+        "attempt_lineage": [],
+        "finish_reason": "STOP",
+        "hidden_retry": False,
+        "provider_failover": False,
+        "ordered_region_refs": region_refs,
+        "region_admission_projection": projection,
+        "admission_request_status": (
+            "READY_FOR_PR1_BUILDER" if projection else "NOT_REQUIRED_NO_REGIONS"
+        ),
+        "visual_completeness_claimed": False,
+    }
+    return {**unsigned, "scope_checksum": sha256_json(unsigned)}
