@@ -33,6 +33,7 @@
       "observation_id": "MISTRAL_DRIVEWEALTH_PUBLIC_2026_09_02",
       "qualification_status": "NON_QUALIFYING_MANUAL_PLAYGROUND_OBSERVATION",
       "source_alias": "drivewealth_institutional_financial_condition_2024",
+      "source_url": "https://legal.drivewealth.com/s/DWI-LLC-Financial-Statements-Short-Final-2024-1.pdf",
       "source_sha256": "738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57",
       "export_sha256": "384245df67e772df1cc1d8c0a06430721fab8bbe4e5b2d8a64b012d059eae399",
       "pages": 12,
@@ -125,11 +126,32 @@
   "privacy": {
     "customer_bytes_in_git": false,
     "customer_literals_in_git": false,
-    "source_pdf_in_git": false,
-    "full_markdown_export_in_git": false,
+    "public_source_pdf_in_git": true,
+    "public_full_markdown_export_in_git": true,
     "raw_provider_payload_in_git": false,
     "local_paths_in_git": false,
     "secret_or_connection_metadata_in_git": false
+  },
+  "public_artifacts": {
+    "index": "docs/reports/2026-09-02/artifacts/mistral-public-pairs/README.md",
+    "drivewealth": {
+      "source_pdf": "docs/reports/2026-09-02/artifacts/mistral-public-pairs/drivewealth/source.pdf",
+      "mistral_markdown": "docs/reports/2026-09-02/artifacts/mistral-public-pairs/drivewealth/mistral-markdown.md"
+    },
+    "fidelity": {
+      "source_pdf": "docs/reports/2026-09-02/artifacts/mistral-public-pairs/fidelity/source.pdf",
+      "mistral_markdown": "docs/reports/2026-09-02/artifacts/mistral-public-pairs/fidelity/mistral-markdown.md",
+      "linked_images": {
+        "img-0.jpeg": "1b669fc6f1d25f31511b3de2b69a2e16359340f0509115be59f07499b6b08f9b",
+        "img-1.jpeg": "471d69e259ed61018654fb9f4e46a55a70bff2019a10d901b5be913ac778bf83",
+        "img-2.jpeg": "20038d0abdbd9377a33961f8d3cca668ec9548d49c3986bece2446d2891fedf9",
+        "img-3.jpeg": "d3f4c9f2871cb6d82e2a9ff96044a4d2a3a16760b073d4ab0d3bafbeb6e95878",
+        "img-4.jpeg": "7f3c2dc4bfb5573915d32ab011c6325df9bcc1aac7331de66a3b0ed249ae5723",
+        "img-5.jpeg": "a8470376c926d1e6141718ad9a429cc75319ecb20a4f6588dc211af1a05fc44b",
+        "img-6.jpeg": "a8470376c926d1e6141718ad9a429cc75319ecb20a4f6588dc211af1a05fc44b",
+        "img-7.jpeg": "a8470376c926d1e6141718ad9a429cc75319ecb20a4f6588dc211af1a05fc44b"
+      }
+    }
   },
   "links": {
     "issue_317": "https://github.com/Kwentin3/corp-openweb-ui/issues/317",
