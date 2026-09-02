@@ -1,0 +1,141 @@
+{
+  "schema_version": "broker_reports_issue317_pdf_table_rnd_synthesis_safe_v1",
+  "created_on": "2026-09-02",
+  "status": "RESEARCH_HANDOFF_ONLY",
+  "decision": "PROFILE_DRIVEN_PDFPLUMBER_NOT_PORTABLE",
+  "working_hypothesis": "DOCUMENT_AI_STRUCTURE_PROPOSAL_WITH_NATIVE_PDF_LITERAL_BINDING",
+  "baseline": {
+    "goal": "G5.100",
+    "pinned_runtime": {
+      "pdfplumber": "0.11.10",
+      "pdfminer.six": "20260107"
+    },
+    "development_pages": 9,
+    "expected_visual_tables": 9,
+    "pages_with_exact_presence_and_count": 9,
+    "fully_correct_tables_extracted": 0,
+    "invented_source_literals": 0,
+    "decision": "VLM_NATIVE_TABLE_PLAN_UNSAFE"
+  },
+  "geometry_vnext": {
+    "development_pages": 17,
+    "expected_physical_tables": 35,
+    "proposed_tables": 33,
+    "safely_retained_tables": 32,
+    "visual_pass_pages": 11,
+    "missed_tables": 2,
+    "visible_continuations_correct": 5,
+    "visible_continuations_total": 5,
+    "accepted": false
+  },
+  "manual_document_ai_observations": [
+    {
+      "observation_id": "MISTRAL_DRIVEWEALTH_PUBLIC_2026_09_02",
+      "qualification_status": "NON_QUALIFYING_MANUAL_PLAYGROUND_OBSERVATION",
+      "source_alias": "drivewealth_institutional_financial_condition_2024",
+      "source_sha256": "738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57",
+      "export_sha256": "384245df67e772df1cc1d8c0a06430721fab8bbe4e5b2d8a64b012d059eae399",
+      "pages": 12,
+      "markdown_table_blocks": 10,
+      "financial_tables_visually_complete": 4,
+      "missing_financial_rows_observed": 0,
+      "invented_financial_values_observed": 0,
+      "whole_document_verdict": "PARTIAL",
+      "limits": [
+        "page_identity_missing_in_joined_markdown",
+        "cell_provenance_missing",
+        "physical_grid_simplified",
+        "raster_form_pages_present"
+      ]
+    },
+    {
+      "observation_id": "MISTRAL_FIDELITY_PUBLIC_SAMPLE_2026_09_02",
+      "qualification_status": "NON_QUALIFYING_MANUAL_PLAYGROUND_OBSERVATION",
+      "source_alias": "fidelity_sample_statement",
+      "source_url": "https://www.fidelity.com/bin-public/060_www_fidelity_com/documents/sample-new-fidelity-acnt-stmt.pdf",
+      "source_sha256": "36a166a5a13e6d6d86b391233023f83f6f7b4d268a4a23fbae01cb81290e3b96",
+      "export_sha256": "2cb67d36948f9177e633c82369b33a8f6398d204add6295b320211ff22720f5f",
+      "pages": 28,
+      "metadata_blocks": 408,
+      "table_blocks": 59,
+      "markdown_table_rows": 405,
+      "broad_missing_financial_section_observed": false,
+      "logical_continuation_relations_present": false,
+      "two_panel_table_handling_consistent": false,
+      "whole_document_verdict": "PARTIAL",
+      "page_2_literal_recheck": {
+        "pdf_literal": "$88,0853.95",
+        "export_literal": "$88,0853.95",
+        "verdict": "EXACT_SOURCE_PRESERVATION_NOT_OCR_ERROR"
+      },
+      "limits": [
+        "sample_not_real_customer_holdout",
+        "typed_continuation_missing",
+        "cell_to_native_word_binding_missing",
+        "provider_model_config_usage_unknown"
+      ]
+    }
+  ],
+  "rejected_or_bounded_hypotheses": [
+    "headerless_means_continuation_without_independent_evidence",
+    "mcid_required_for_text_table_recovery",
+    "correct_bbox_implies_correct_table",
+    "one_combined_geometry_and_continuation_model_response",
+    "more_pdfplumber_tolerance_profiles",
+    "deepseek_as_exact_geometry_or_literal_authority"
+  ],
+  "boundary": {
+    "single_owner": "pdf_table_reconstruction",
+    "single_owner_scope": "physical_table_structure_and_logical_table_identity",
+    "document_ai_internal_step": "proposes_document_and_table_structure_only",
+    "pdf_source_reader_internal_step": "reads_native_words_chars_and_coordinates",
+    "source_binder_internal_step": "requires_exact_complete_non_duplicate_binding",
+    "continuation_validator_internal_step": "validates_logical_continuation_identity",
+    "canonical": "accepts_complete_verified_structure_and_does_not_repair_pdf",
+    "financial_mapper": "assigns_roles_only_after_structural_completeness",
+    "compiler": "sole_owner_of_financial_fact_publication"
+  },
+  "next_test": {
+    "customer_report_aliases": [
+      "C14",
+      "C33",
+      "C65"
+    ],
+    "external_upload_authorized": false,
+    "dimensions_kept_separate": [
+      "structure",
+      "literal_binding",
+      "financial_result"
+    ]
+  },
+  "provider_receipt_limits": {
+    "exact_model_known": false,
+    "exact_parameters_known": false,
+    "usage_known": false,
+    "retry_behavior_known": false,
+    "transport_receipt_available": false
+  },
+  "scope": {
+    "production_code_changed": false,
+    "authority_contract_changed": false,
+    "provider_activated": false,
+    "canonical_published": false,
+    "financial_facts_published": false
+  },
+  "privacy": {
+    "customer_bytes_in_git": false,
+    "customer_literals_in_git": false,
+    "source_pdf_in_git": false,
+    "full_markdown_export_in_git": false,
+    "raw_provider_payload_in_git": false,
+    "local_paths_in_git": false,
+    "secret_or_connection_metadata_in_git": false
+  },
+  "links": {
+    "issue_317": "https://github.com/Kwentin3/corp-openweb-ui/issues/317",
+    "pr_364": "https://github.com/Kwentin3/corp-openweb-ui/pull/364",
+    "visual_diagnosis": "https://github.com/Kwentin3/corp-openweb-ui/issues/317#issuecomment-5475385955",
+    "geometry_completion": "https://github.com/Kwentin3/corp-openweb-ui/issues/317#issuecomment-5490710740",
+    "geometry_vnext": "https://github.com/Kwentin3/corp-openweb-ui/pull/364#issuecomment-5512768907"
+  }
+}
