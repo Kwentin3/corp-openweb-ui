@@ -1,8 +1,8 @@
 # Broker Reports Gate 2 Route Status v1
 
-Status: `HISTORICAL_PRE_GATE3_REACHABILITY_SNAPSHOT`
+Status: `CURRENT_WITH_HISTORICAL_NON_PDF_APPENDIX`
 
-Effective date: 2026-07-31
+Effective date: 2026-09-03
 
 This is the Gate 2 route snapshot at its effective date. It does not define
 current Gate 3 status or the NDFL product topology. Start from
@@ -37,28 +37,21 @@ Presence of code does not equal product reachability.
 
 Historical execution does not equal current product activation.
 
-## 1. Semantic Visual Table route
+## 1. PDF Document AI route
 
-<!-- route_id=semantic_visual_table;status=ACTIVE_PRODUCT -->
+<!-- route_id=pdf_document_ai;status=ACTIVE_FAIL_CLOSED -->
 
-- **Entrypoint:** `PdfTableIntakeRuntimeFactory` ->
-  `PdfDualVlmRuntimeFactory.create_for_openwebui` ->
-  `SemanticVisualTableMaterializationFactory.create`.
-- **Imports:** the Gate 1 Pipe imports the maintained intake, VLM, validator,
-  migration, and materialization factories.
-- **Valve:** semantic visual table processing is repository-enabled by the
-  released Pipe policy; KT1.5 verified the exact live copy.
-- **Production reachability:** `true` in the committed product route.
-- **Provider reachability:** `true` only for one bounded table crop under the
-  visual VLM policy.
-- **Exact consumer:** deterministic semantic visual-table materialization,
-  ArtifactStore, then `Gate2TablePackageFactory`.
-- **Evidence:** PRs #12, #13, #16, #18, and #19; maintained bundle tests and
-  semantic visual materialization tests.
-- **Rollback/historical purpose:** previous structural/review paths remain
-  available as explicit terminal alternatives, not silent semantic fallback.
-- **Forbidden actions:** financial classification, fact-type selection,
-  canonical record creation, whole-document model upload.
+- **Entrypoint:** Gate 1 Pipe -> shared custody/preflight ->
+  `PdfDocumentExtractorFactory.create` -> `PdfDocumentExtractor`.
+- **Production reachability:** `true`, but fail-closed with
+  `PDF_DOCUMENT_AI_NOT_CONFIGURED` until a separately qualified adapter exists.
+- **Provider reachability:** `false`; provider calls and production activation
+  are zero in Issue #372.
+- **Exact consumer after qualification:** existing Full Source / Canonical
+  downstream receives only `PdfDocumentExtraction`.
+- **Forbidden actions:** injected envelope input, automatic engine selection,
+  parser/VLM fallback, semantic repair, financial classification or Canonical
+  mutation by the adapter.
 
 ## 2. Current broad canonical source-facts route
 

@@ -339,8 +339,8 @@ bash scripts/smoke-test.sh --strict-tls
   [docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md](docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md)
 - Broker Reports superseded architecture context:
   [docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md](docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md)
-- Broker Reports PDF Table Intake child capability:
-  [docs/stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md](docs/stage2/blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
+- Broker Reports CURRENT PDF Document AI boundary:
+  [docs/stage2/adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md](docs/stage2/adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md)
 - Stage 2 roadmap: [docs/stage2/ROADMAP.md](docs/stage2/ROADMAP.md)
 - Stage 2 context index: [docs/stage2/CONTEXT_INDEX.md](docs/stage2/CONTEXT_INDEX.md)
 - Stage 2 context usage rules:

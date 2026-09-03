@@ -7,13 +7,20 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
-
-
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
 BUNDLE = ROOT / "openwebui_actions" / "broker_reports_gate1_pipe_bundled.py"
 FIXTURES = REPO / "docs" / "stage2" / "testdata" / "broker_reports_gate1_normalization"
+PUBLIC_PDF = (
+    REPO
+    / "docs"
+    / "reports"
+    / "2026-09-02"
+    / "artifacts"
+    / "mistral-public-pairs"
+    / "drivewealth"
+    / "source.pdf"
+)
 
 
 def run_pipe(pipe, body: dict, **kwargs) -> str:
@@ -86,7 +93,7 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertIn("_BUNDLED_MODULES", source)
         self.assertNotIn("pipe_stub", source)
         self.assertIn(
-            "requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107",
+            "requirements: pydantic,pypdf==6.7.5,lxml==6.1.1",
             source,
         )
         module = load_bundle_module()
@@ -182,15 +189,8 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
             "gate2_financial_evidence_registry",
             module._BUNDLED_MODULES,
         )
-        self.assertIn("pdf_layout", module._BUNDLED_MODULES)
-        self.assertIn("pdf_layout_units", module._BUNDLED_MODULES)
-        self.assertIn("pdf_text_layer", module._BUNDLED_MODULES)
-        self.assertIn("pdf_compact_canonical", module._BUNDLED_MODULES)
-        self.assertIn("pdf_compact_gate2_adapter", module._BUNDLED_MODULES)
-        self.assertIn("pdf_normalization_acceptance", module._BUNDLED_MODULES)
+        self.assertIn("pdf_document_ai", module._BUNDLED_MODULES)
         self.assertNotIn("visual_table_review_contracts", module._BUNDLED_MODULES)
-        self.assertIn("pdf_table_locator_provider", module._BUNDLED_MODULES)
-        self.assertIn("pdf_table_intake_runtime", module._BUNDLED_MODULES)
         self.assertIn("gate3_metadata_source_facts", module._BUNDLED_MODULES)
         self.assertIn("gate5_evidence_intake", module._BUNDLED_MODULES)
         self.assertIn("gate5_client_evidence_review", module._BUNDLED_MODULES)
@@ -233,8 +233,8 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertFalse(retired_product_modules & set(module._BUNDLED_MODULES))
         bundled_order = module._BUNDLED_MODULE_ORDER
         self.assertLess(
-            bundled_order.index("pdf_table_locator_provider"),
-            bundled_order.index("pdf_table_intake_runtime"),
+            bundled_order.index("pdf_document_ai"),
+            bundled_order.index("full_source"),
         )
         self.assertLess(
             bundled_order.index("gate3_metadata_source_facts"),
@@ -263,23 +263,17 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertTrue(hasattr(bundled_package, "Gate2SourceFactRuntimeFactory"))
         self.assertTrue(hasattr(bundled_package, "Gate2StructuredModelClientFactory"))
         self.assertTrue(hasattr(bundled_package, "WorkloadAuthorityFactory"))
-        self.assertTrue(hasattr(bundled_package, "PdfTextLayerParserFactory"))
-        self.assertTrue(hasattr(bundled_package, "PdfTableIntakeRuntimeFactory"))
+        self.assertTrue(hasattr(bundled_package, "PdfDocumentExtractorFactory"))
+        self.assertTrue(hasattr(bundled_package, "PdfDocumentExtraction"))
         self.assertFalse(hasattr(bundled_package, "PdfDualVlmRuntimeFactory"))
         self.assertFalse(hasattr(bundled_package, "SemanticVisualTableMigrationFactory"))
-        self.assertTrue(hasattr(bundled_package, "PdfLayoutUnitBuilder"))
         self.assertFalse(hasattr(bundled_package, "PdfStructuralRowWindowFactory"))
-        self.assertTrue(hasattr(bundled_package, "PdfCompactCanonicalFactory"))
-        self.assertTrue(hasattr(bundled_package, "PdfNormalizationAcceptanceFactory"))
-        self.assertTrue(hasattr(bundled_package, "PdfCompactGate2AdapterFactory"))
         self.assertTrue(
             hasattr(
                 bundled_package,
                 "Gate5DeterministicSourceFactConsumptionRuntimeFactory",
             )
         )
-        self.assertEqual(bundled_package.PDFPLUMBER_PINNED_VERSION, "0.11.10")
-        self.assertEqual(bundled_package.PDFMINER_PINNED_VERSION, "20260107")
         pipe = module.Pipe()
         root = Path(self._tmp.name)
         pipe.valves.artifact_store_path = str(root / "artifacts.sqlite3")
@@ -360,26 +354,20 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
         self.assertNotIn('"rows"', content)
         self.assertNotIn('"text"', content)
 
-    def test_bundled_pipe_defaults_to_source_bound_table_intake(self):
+    def test_bundled_pipe_fails_closed_for_pdf_without_document_ai(self):
         module = load_bundle_module()
         pipe = module.Pipe()
         root = Path(self._tmp.name)
         pipe.valves.artifact_store_path = str(root / "compact.sqlite3")
         pipe.valves.artifact_payload_root = str(root / "compact-payloads")
-        self.assertFalse(pipe.valves.pdf_compact_canonical_dual_write)
-        self.assertTrue(pipe.valves.pdf_table_intake_enabled)
         self.assertFalse(hasattr(pipe.valves, "pdf_dual_vlm_enabled"))
         self.assertFalse(
             hasattr(pipe.valves, "pdf_semantic_visual_table_downstream_enabled")
         )
-        self.assertEqual(0.08, pipe.valves.pdf_table_intake_horizontal_padding_fraction)
-        self.assertEqual(0.08, pipe.valves.pdf_table_intake_vertical_padding_fraction)
         self.assertFalse(hasattr(pipe.valves, "pdf_hybrid_shadow_enabled"))
         self.assertFalse(hasattr(pipe.valves, "pdf_structural_repair_shadow_enabled"))
         self.assertFalse(hasattr(pipe.valves, "pdf_vlm_guided_intake_shadow_enabled"))
         self.assertFalse(hasattr(pipe.valves, "pdf_semantic_header_shadow_enabled"))
-        pipe.valves.pdf_compact_canonical_dual_write = True
-
         content = run_pipe(
             pipe,
             {
@@ -392,23 +380,19 @@ class BrokerReportsGate1PipeBundleTest(unittest.TestCase):
                                 "bundle-pdf-compact-1",
                                 "synthetic-table.pdf",
                                 "application/pdf",
-                                _ruled_table_pdf(),
+                                PUBLIC_PDF.read_bytes(),
                             )
                         ],
                     }
                 ]
             },
         )
-        refs = pipe.last_artifact_manifest["artifact_refs_by_type"]
-        self.assertEqual(
-            len(refs["broker_reports_pdf_compact_canonical_document_v1"]), 1
-        )
-        self.assertEqual(len(refs["broker_reports_pdf_normalization_acceptance_v1"]), 1)
-        self.assertNotIn("pdf_hybrid_shadow", pipe.last_artifact_manifest)
-        self.assertNotIn("pdf_structural_repair_shadow", pipe.last_artifact_manifest)
-        self.assertNotIn("pdf_semantic_header_shadow", pipe.last_artifact_manifest)
-        self.assertFalse(any("pdf_hybrid" in artifact_type for artifact_type in refs))
-        self.assertNotIn("Synthetic Table", content)
+        self.assertIn("gate2_blocked_no_eligible_sources", content)
+        self.assertIsNotNone(pipe.last_artifact_manifest)
+        artifact_types = set(pipe.last_artifact_manifest["artifact_refs_by_type"])
+        self.assertNotIn("full_source_v0", artifact_types)
+        self.assertNotIn("canonical_artifact_v1", artifact_types)
+        self.assertNotIn("normalized_source_facts_v0", artifact_types)
 
 
 if __name__ == "__main__":

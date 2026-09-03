@@ -169,17 +169,11 @@ Exit signal:
 
 ## Phase 3. Implementation planning
 
-Delivered bounded capability, 2026-07-17: the local PDF Table Intake Gate 1
-child capability inside global Broker Reports Gate 1 now has a
-versioned native Function contract for table-region detection and deterministic
-PNG crops with global `8 %` X/Y page-relative padding. This closes only the
-local raster-candidate boundary; its 2026-07-17 stage proof is accepted and
-recorded in the dated closure report. Canonical table JSON, global source
-eligibility, dual-VLM comparison and financial semantics remain later slices.
-Start with the
-[architecture and gate mapping](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md),
-then the
-[runtime/data contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md).
+Issue #372 retired the local PDF engine experiments. The current boundary is
+the fail-closed, provider-neutral
+[PDF Document AI ADR](adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
+The only PDF successor is a separate Mistral transport and qualification issue
+after a key and explicit test-data authorization are available.
 
 Status: after ADRs and runtime/customer blockers.
 

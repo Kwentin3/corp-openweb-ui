@@ -19,7 +19,6 @@ import requests
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
-REQUIRED_FITZ_VERSION = "1.26.5"
 
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
@@ -57,13 +56,8 @@ FUNCTION_CONTRACTS = (
             "Gate2StructuredModelClientFactory",
             "Gate2ProviderAdapterFactory",
             "gate2_provider_execution_metadata_v1",
-            "PdfTableLocatorProviderFactory",
-            "PdfTableIntakeRuntimeFactory",
-            "PdfTableLocatorProjectionFactory",
-            "broker_reports_pdf_table_locator_response_v1",
-            "broker_reports_pdf_table_locator_projection_v1",
-            "vlm_located_pdfplumber_source_bound",
-            "pdf_table_normalization_incomplete",
+            "PdfDocumentExtractorFactory",
+            "PDF_DOCUMENT_AI_NOT_CONFIGURED",
             "Gate2TablePackageFactory",
             "Gate5DeclarationPreparationRuntimeFactory",
             "broker_reports_current_pipeline_result_v1",
@@ -136,11 +130,7 @@ def main() -> int:
         base_url,
         gate1_update.FUNCTION_ID,
     )
-    fitz_version = _read_live_fitz_version(ssh_target)
-    gate1_operational_state = evaluate_gate1_operational_state(
-        valves=gate1_valves,
-        fitz_version=fitz_version,
-    )
+    gate1_operational_state = evaluate_gate1_operational_state(valves=gate1_valves)
     repository_boundary = repository_factory_boundary_checks()
     provider_profile_ids = sorted(
         profile.profile_id for profile in GATE2_PROVIDER_PROFILES
@@ -204,26 +194,8 @@ def main() -> int:
         "gate1_retired_table_valves_absent": gate1_operational_state[
             "retired_table_valves_absent"
         ],
-        "gate1_structural_runtime_dependency_ready": gate1_operational_state[
-            "fitz_version_match"
-        ],
-        "gate1_pdf_table_intake_default_on": gate1_operational_state[
-            "table_intake_enabled"
-        ],
-        "gate1_pdf_table_intake_provider_configured": gate1_operational_state[
-            "table_intake_provider_configured"
-        ],
-        "gate1_pdf_table_intake_model_configured": gate1_operational_state[
-            "table_intake_model_configured"
-        ],
-        "gate1_pdf_table_intake_dpi_configured": gate1_operational_state[
-            "table_intake_dpi_configured"
-        ],
-        "gate1_pdf_table_intake_padding_configured": gate1_operational_state[
-            "table_intake_padding_configured"
-        ],
-        "gate1_pdf_table_intake_bounds_configured": gate1_operational_state[
-            "table_intake_bounds_configured"
+        "gate1_pdf_document_ai_unconfigured": gate1_operational_state[
+            "pdf_document_ai_unconfigured"
         ],
     }
     output = {
@@ -363,43 +335,11 @@ def _is_active_function(value: Any) -> bool:
 def evaluate_gate1_operational_state(
     *,
     valves: dict[str, Any],
-    fitz_version: str,
 ) -> dict[str, Any]:
-    table_intake_enabled = valves.get("pdf_table_intake_enabled", False)
-    table_intake_provider = valves.get("pdf_table_intake_provider_profile")
-    table_intake_model = valves.get("pdf_table_intake_model_id")
-    table_intake_dpi = valves.get("pdf_table_intake_dpi")
-    table_intake_horizontal_padding = valves.get(
-        "pdf_table_intake_horizontal_padding_fraction"
-    )
-    table_intake_vertical_padding = valves.get(
-        "pdf_table_intake_vertical_padding_fraction"
-    )
-    table_intake_maximum_pages = valves.get("pdf_table_intake_maximum_pages")
-    table_intake_maximum_candidates = valves.get(
-        "pdf_table_intake_maximum_candidates_per_page"
-    )
+    retired_absent = all(key not in valves for key in GATE1_RETIRED_VALVE_KEYS)
     return {
-        "retired_table_valves_absent": all(
-            key not in valves for key in GATE1_RETIRED_VALVE_KEYS
-        ),
-        "table_intake_enabled": table_intake_enabled is True,
-        "table_intake_provider_configured": table_intake_provider
-        == "google_gemini",
-        "table_intake_model_configured": table_intake_model
-        == "models/gemini-3.5-flash",
-        "table_intake_dpi_configured": table_intake_dpi == 150,
-        "table_intake_padding_configured": (
-            table_intake_horizontal_padding == 0.08
-            and table_intake_vertical_padding == 0.08
-        ),
-        "table_intake_bounds_configured": (
-            table_intake_maximum_pages == 64
-            and table_intake_maximum_candidates == 32
-        ),
-        "fitz_version": fitz_version,
-        "required_fitz_version": REQUIRED_FITZ_VERSION,
-        "fitz_version_match": fitz_version == REQUIRED_FITZ_VERSION,
+        "retired_table_valves_absent": retired_absent,
+        "pdf_document_ai_unconfigured": retired_absent,
     }
 
 
@@ -758,11 +698,11 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
     gate1_pipe = (
         SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe.py"
     ).read_text(encoding="utf-8")
-    table_intake_runtime = (
-        SERVICE_ROOT / "broker_reports_gate1/pdf_table_intake_runtime.py"
+    normalizer = (
+        SERVICE_ROOT / "broker_reports_gate1/normalizer.py"
     ).read_text(encoding="utf-8")
-    table_intake_operator = (
-        SERVICE_ROOT / "scripts/live_pdf_table_intake_gate1_operator_proof.py"
+    pdf_document_ai = (
+        SERVICE_ROOT / "broker_reports_gate1/pdf_document_ai.py"
     ).read_text(encoding="utf-8")
     source_pipe = (
         SERVICE_ROOT / "openwebui_actions/broker_reports_gate2_source_fact_pipe.py"
@@ -805,29 +745,17 @@ def repository_factory_boundary_checks() -> dict[str, bool]:
         "production_python_has_no_paddle_or_local_ocr_import": (
             _production_python_has_no_heavy_local_ocr_import()
         ),
-        "gate1_pipe_uses_pdf_table_intake_factory": (
-            "PdfTableIntakeRuntimeFactory(config)" in gate1_pipe
+        "gate1_uses_pdf_document_extractor_factory": (
+            "PdfDocumentExtractorFactory.create()" in normalizer
+            and "PdfDocumentExtractorFactory" not in gate1_pipe
         ),
         "gate1_pipe_does_not_construct_detector_adapter": (
             "GeminiGridExperimentAdapter(" not in gate1_pipe
         ),
-        "pdf_table_intake_runtime_declares_factory_boundary": (
-            "FACTORY_REQUIRED" in table_intake_runtime
-            and "FORBIDDEN" in table_intake_runtime
-        ),
-        "pdf_table_intake_operator_uses_function_boundary": (
-            "workspace_model.get(\"base_model_id\") != FUNCTION_ID"
-            in table_intake_operator
-            and '"/api/chat/completions"' in table_intake_operator
-        ),
-        "pdf_table_intake_operator_does_not_call_provider": all(
-            marker not in table_intake_operator
-            for marker in (
-                "PdfGridExperimentProviderFactory",
-                "GeminiGridExperimentAdapter",
-                "generate_chat_completion",
-                "generate_chat_completions",
-            )
+        "pdf_document_ai_declares_factory_boundary": (
+            "FACTORY_REQUIRED" in pdf_document_ai
+            and "FORBIDDEN" in pdf_document_ai
+            and "UnconfiguredPdfDocumentExtractor" in pdf_document_ai
         ),
         "source_pipe_uses_factory": "Gate2StructuredModelClientFactory(" in source_pipe,
         "domain_pipe_uses_factory": "Gate2StructuredModelClientFactory(" in domain_pipe,
@@ -958,40 +886,6 @@ def _get_live_function_valves(
     return value
 
 
-def _read_live_fitz_version(ssh_target: str) -> str:
-    remote_code = (
-        "import fitz, json; "
-        "print(json.dumps({'version': fitz.__version__}, sort_keys=True))"
-    )
-    completed = subprocess.run(
-        [
-            "ssh",
-            "-o",
-            "BatchMode=yes",
-            "-o",
-            "ConnectTimeout=10",
-            "-o",
-            "StrictHostKeyChecking=yes",
-            ssh_target,
-            "docker",
-            "exec",
-            "-i",
-            "openwebui",
-            "python",
-            "-",
-        ],
-        cwd=ROOT,
-        input=remote_code,
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        timeout=90,
-    )
-    value = json.loads(completed.stdout)
-    if not isinstance(value, dict):
-        raise RuntimeError("stage2_delivery_fitz_response_invalid")
-    return str(value.get("version") or "")
 
 
 def _read_live_prompt_state(

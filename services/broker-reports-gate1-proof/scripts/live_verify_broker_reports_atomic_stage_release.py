@@ -177,8 +177,6 @@ def evaluate_remote_runtime(
         and image.get("restart_count") == 0,
         "loader_hash_exact": runtime.get("loader_sha256")
         == expected_manifest["loader"]["content_sha256"],
-        "fitz_version_exact": runtime.get("fitz_version")
-        == expected_manifest["runtime"]["fitz_version"],
         "workload_quiescent": workload.get("release_blocking_jobs") == 0,
         "parked_reviews_safe": workload.get("unsafe_review_jobs") == 0,
         "workload_temp_clean": workload.get("owned_temp_entries") == 0,
@@ -212,31 +210,25 @@ def evaluate_route_activation(
 ) -> dict[str, bool]:
     runtime = dict(expected_manifest.get("runtime") or {})
     provider_policy = dict(expected_manifest.get("provider_policy") or {})
-    source_bound = dict(provider_policy.get("source_bound_table_contract") or {})
+    document_ai = dict(provider_policy.get("pdf_document_ai_contract") or {})
     functions = list(expected_manifest.get("functions") or [])
     gate1_retired = set((functions[0] if functions else {}).get("retired_valve_keys") or [])
     return {
-        "source_bound_table_route_default_on": (
-            gate1_valves.get("pdf_table_intake_enabled") is True
-            and all(key not in gate1_valves for key in gate1_retired)
+        "pdf_document_ai_fail_closed": (
+            all(key not in gate1_valves for key in gate1_retired)
             and gate1_valves.get("canonical_gate2_write_enabled") is True
             and gate1_valves.get("canonical_gate2_read_enabled") is True
             and gate1_valves.get("ordinary_trade_candidate_enabled") is True
             and gate1_valves.get("ndfl_gate3_enabled") is False
         ),
-        "source_bound_contract_identity_exact": (
-            source_bound.get("active_for_new_writes") is True
-            and source_bound.get("table_structure_authority") == "pdfplumber"
-            and source_bound.get("source_literal_authority") == "original_pdf"
-            and source_bound.get("model_values_used_as_source_literals") is False
-            and runtime.get("source_bound_table_normalization_default_enabled")
-            is True
+        "pdf_document_ai_contract_identity_exact": (
+            document_ai.get("configured") is False
+            and document_ai.get("composition_owner")
+            == "PdfDocumentExtractorFactory"
+            and document_ai.get("terminal_blocker")
+            == "PDF_DOCUMENT_AI_NOT_CONFIGURED"
+            and runtime.get("pdf_document_ai_configured") is False
             and runtime.get("legacy_table_route_available") is False
-        ),
-        "vlm_bounded_input_configured": (
-            gate1_valves.get("pdf_table_intake_maximum_pages") == 64
-            and gate1_valves.get("pdf_table_intake_maximum_candidates_per_page")
-            == 32
         ),
     }
 
@@ -353,9 +345,6 @@ staging_entries = (
     sum(1 for item in staging.iterdir() if item.is_dir())
     if staging.is_dir() else 0
 )
-fitz_version = run([
-    "docker", "exec", "openwebui", "python", "-c",
-    "import fitz; print(fitz.__version__)"]).strip()
 print(json.dumps({
     "image": {
         "configured_image": container.get("Config", {}).get("Image"),
@@ -367,7 +356,6 @@ print(json.dumps({
             "ai.alpha-soft.broker-reports-private-intake"),
     },
     "loader_sha256": hashlib.sha256(loader.read_bytes()).hexdigest(),
-    "fitz_version": fitz_version,
     "workload": {
         "state_counts": state_counts,
         "nonterminal_jobs": nonterminal,

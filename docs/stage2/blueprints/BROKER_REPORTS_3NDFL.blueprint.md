@@ -51,12 +51,8 @@ prompt/template, получает structured draft, видит warnings and unce
 
 ## 6. Integration / custom implementation path
 
-- Supported local PDF Table Intake Gate 1 child capability through the native OpenWebUI Function:
-  page rasterization, configured VLM region detection, strict validation and
-  deterministic private PNG candidates. See the
-  [architecture and gate mapping](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
-  and
-  [versioned contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md).
+- PDF understanding is isolated behind the fail-closed, provider-neutral
+  [Document AI boundary](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 - Deterministic normalized-table projection for supported native tables and
   mechanically accepted PDF text-layer candidates.
 - Bounded candidate/value relations, narrow domain binding and strict
@@ -75,8 +71,7 @@ policy. Manual anonymization may be required until future masking subsystem exis
 ## 8. Dependencies
 
 - [Canonical global gate architecture](BROKER_REPORTS_GATE_ARCHITECTURE.md)
-- [PDF Table Intake architecture and gate mapping](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md)
-- [PDF Table Intake runtime/data contract](../contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md)
+- [PDF Document AI boundary](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md)
 - [DOCUMENTS_OCR_EXCEL](DOCUMENTS_OCR_EXCEL.blueprint.md)
 - [Gate 2 source-fact extraction](BROKER_REPORTS_GATE2_SOURCE_FACT_EXTRACTION.blueprint.md)
 - [Normalized table projection](../contracts/BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md)

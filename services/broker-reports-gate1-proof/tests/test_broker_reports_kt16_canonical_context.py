@@ -16,7 +16,7 @@ CURRENT_STATE_GUIDE_PATH = DOC_ROOT / "BROKER_REPORTS_CURRENT_STATE.v1.md"
 DEBT_REGISTER_PATH = DOC_ROOT / "BROKER_REPORTS_DEBT_REGISTER.v1.json"
 SKIP_AUDIT_PATH = DOC_ROOT / "BROKER_REPORTS_SKIP_AUDIT.v1.json"
 EVIDENCE_INDEX_PATH = DOC_ROOT / "BROKER_REPORTS_EVIDENCE_INDEX.v1.md"
-BENCHMARK_TEST_PATH = (
+RETIRED_BENCHMARK_TEST_PATH = (
     SERVICE_ROOT / "tests" / "test_broker_reports_pdf_table_strategy_benchmark.py"
 )
 
@@ -120,11 +120,11 @@ def test_all_original_skips_are_classified_and_remove_now_is_fixed() -> None:
     records = audit["records"]
 
     assert audit["integrity_sha256"] == _canonical_integrity(audit)
-    assert len(records) == summary["original_skips_total"] == 23
-    assert len({record["test"] for record in records}) == 23
-    assert summary["remove_now_total"] == 18
-    assert summary["remove_now_fixed_total"] == 18
-    assert summary["final_skips_total"] == 5
+    assert len(records) == summary["original_skips_total"] == 3
+    assert len({record["test"] for record in records}) == 3
+    assert summary["remove_now_total"] == 0
+    assert summary["remove_now_fixed_total"] == 0
+    assert summary["final_skips_total"] == 3
     assert summary["new_skips_total"] == 0
     assert summary["unclassified_skips_total"] == 0
     assert summary["unjustified_kt2_blocking_skips_total"] == 0
@@ -148,31 +148,8 @@ def test_all_original_skips_are_classified_and_remove_now_is_fixed() -> None:
             assert record["final_state"] == "RUNS_UNCONDITIONALLY"
 
 
-def test_private_reference_skip_is_narrowed_to_two_methods() -> None:
-    tree = ast.parse(BENCHMARK_TEST_PATH.read_text(encoding="utf-8"))
-    test_class = next(
-        node
-        for node in tree.body
-        if isinstance(node, ast.ClassDef)
-        and node.name == "BrokerReportsPdfTableStrategyBenchmarkTests"
-    )
-    assert test_class.decorator_list == []
-
-    skipped_methods = {
-        node.name
-        for node in test_class.body
-        if isinstance(node, ast.FunctionDef)
-        and any(
-            isinstance(decorator, ast.Call)
-            and isinstance(decorator.func, ast.Attribute)
-            and decorator.func.attr == "skipUnless"
-            for decorator in node.decorator_list
-        )
-    }
-    assert skipped_methods == {
-        "test_frozen_manifest_and_reference_have_exact_scope_and_hash_binding",
-        "test_scorer_minimal_smoke_uses_tracked_reference_after_seal",
-    }
+def test_retired_pdf_strategy_benchmark_is_absent() -> None:
+    assert not RETIRED_BENCHMARK_TEST_PATH.exists()
 
 
 def test_historical_evidence_is_present_and_receipts_are_intact() -> None:

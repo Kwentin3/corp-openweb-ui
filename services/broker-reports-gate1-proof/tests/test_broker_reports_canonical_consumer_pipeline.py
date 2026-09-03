@@ -44,7 +44,7 @@ def test_current_contracts_bind_the_frozen_inventory_and_read_boundary() -> None
         CONTRACT_ROOT / "BROKER_REPORTS_ARCHITECTURE_AUTHORITIES.md"
     )
 
-    assert len(FROZEN_CONSUMER_SURFACES) == 16
+    assert len(FROZEN_CONSUMER_SURFACES) == 13
     assert all(
         surface.migration_wave != "WAVE_1_INTERNAL_READ_ONLY"
         for surface in FROZEN_CONSUMER_SURFACES
@@ -58,8 +58,8 @@ def test_current_contracts_bind_the_frozen_inventory_and_read_boundary() -> None
 
 
 def test_compatibility_contracts_are_explicit_and_consumer_scoped() -> None:
-    assert len(WAVE0_MAPPINGS) == 3
-    assert len({mapping.feature_flag for mapping in WAVE0_MAPPINGS}) == 3
+    assert len(WAVE0_MAPPINGS) == 1
+    assert len({mapping.feature_flag for mapping in WAVE0_MAPPINGS}) == 1
     assert all(
         mapping.feature_flag.startswith("CANONICAL_READ_")
         for mapping in WAVE0_MAPPINGS

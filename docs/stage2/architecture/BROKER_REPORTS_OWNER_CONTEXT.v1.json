@@ -1,7 +1,7 @@
 {
   "schema_version": "broker_reports_owner_context_v1",
   "owner_context_policy": "SIDECAR_OWNER_METADATA",
-  "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+  "related_adr": "docs/stage2/adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md",
   "program_owner_decisions": {
     "preferred_option": "A",
     "reserve_option": "B_IF_DISTINCT_DOMAIN_IS_PROVEN",
@@ -29,140 +29,51 @@
   ],
   "owners": [
     {
-      "owner_id": "pdf_vlm_visual_execution",
-      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_dual_vlm_runtime.py",
+      "owner_id": "pdf_document_extraction",
+      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/pdf_document_ai.py",
       "symbols": [
-        "PdfDualVlmRuntimeFactory"
+        "PdfDocumentExtractor",
+        "PdfDocumentExtraction",
+        "PdfDocumentExtractorFactory",
+        "UnconfiguredPdfDocumentExtractor"
       ],
-      "domain": "Semantic visual table transcription",
-      "runtime_status": "ACTIVE_PRODUCT",
+      "domain": "Source normalization / PDF Document AI",
+      "runtime_status": "ACTIVE_FAIL_CLOSED",
       "input_contracts": [
-        "docs/stage2/contracts/BROKER_REPORTS_PDF_SEMANTIC_VLM_TABLE_RUNTIME.v1.md",
-        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_TRANSCRIPTION.v1.md"
+        "docs/stage2/adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md"
       ],
       "output_contracts": [
-        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_VALIDATOR.v1.md"
+        "docs/stage2/adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md"
       ],
       "owns": [
-        "one_bounded_crop_visual_execution",
-        "terminal_visual_provider_outcome",
-        "visual_execution_evidence"
+        "pdf_understanding_port",
+        "provider_neutral_extraction_envelope",
+        "single_explicit_adapter_selection"
       ],
       "does_not_own": [
-        "financial_classification",
-        "canonical_fact_promotion",
-        "whole_document_upload"
+        "source_custody",
+        "canonical_semantics",
+        "financial_mapping",
+        "gate4_or_gate5"
       ],
       "allowed_consumers": [
-        "SemanticVisualTableValidatorFactory",
-        "SemanticVisualTableMaterializationFactory"
+        "broker_reports_gate1_pipe",
+        "FullSourceArtifactFactory",
+        "CanonicalNormalizerFactory"
       ],
       "forbidden_consumers": [
-        "financial_semantic_model",
-        "gate4_calculation"
+        "user_injected_extraction",
+        "automatic_provider_fallback"
       ],
-      "historical_routes_nearby": [
-        "reviewed_visual_table",
-        "structural_pdf_recovery"
-      ],
-      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
+      "related_adr": "docs/stage2/adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md",
       "related_contract_tests": [
-        "services/broker-reports-gate1-proof/tests/test_broker_reports_pdf_dual_vlm_runtime.py"
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_pdf_document_ai_boundary.py",
+        "services/broker-reports-gate1-proof/tests/test_mistral_public_pairs_integrity.py"
       ],
       "change_requires": [
-        "visual_runtime_contract_update",
-        "bundle_parity",
-        "bounded_provider_evidence"
-      ]
-    },
-    {
-      "owner_id": "semantic_visual_validation",
-      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/semantic_visual_table_validator.py",
-      "symbols": [
-        "SemanticVisualTableValidatorFactory"
-      ],
-      "domain": "Semantic visual table transcription",
-      "runtime_status": "ACTIVE_PRODUCT",
-      "input_contracts": [
-        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_TRANSCRIPTION.v1.md"
-      ],
-      "output_contracts": [
-        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_VALIDATOR.v1.md"
-      ],
-      "owns": [
-        "semantic_transcription_validation",
-        "description_and_rows_boundary"
-      ],
-      "does_not_own": [
-        "provider_transport",
-        "financial_classification",
-        "logical_grid_identity"
-      ],
-      "allowed_consumers": [
-        "PdfDualVlmRuntimeFactory",
-        "SemanticVisualTableMaterializationFactory"
-      ],
-      "forbidden_consumers": [
-        "financial_materializer"
-      ],
-      "historical_routes_nearby": [
-        "reviewed_visual_table"
-      ],
-      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
-      "related_contract_tests": [
-        "services/broker-reports-gate1-proof/tests/test_broker_reports_semantic_visual_table_validator.py",
-        "services/broker-reports-gate1-proof/tests/test_broker_reports_semantic_visual_table_contract_authority.py"
-      ],
-      "change_requires": [
-        "transcription_contract_update",
-        "producer_and_consumer_tests"
-      ]
-    },
-    {
-      "owner_id": "logical_table_materialization",
-      "module": "services/broker-reports-gate1-proof/broker_reports_gate1/semantic_visual_table_materialization.py",
-      "symbols": [
-        "SemanticVisualTableMaterializationFactory"
-      ],
-      "domain": "Deterministic logical table materialization",
-      "runtime_status": "ACTIVE_PRODUCT",
-      "input_contracts": [
-        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_VALIDATOR.v1.md"
-      ],
-      "output_contracts": [
-        "docs/stage2/contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_MATERIALIZATION.v1.md",
-        "docs/stage2/contracts/BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md"
-      ],
-      "owns": [
-        "deterministic_table_ids",
-        "logical_indexes",
-        "logical_grid_materialization"
-      ],
-      "does_not_own": [
-        "visual_inference",
-        "financial_classification",
-        "gate2_fact_acceptance"
-      ],
-      "allowed_consumers": [
-        "ArtifactStoreFactory",
-        "Gate2TablePackageFactory",
-        "AnswerContextSelectionFactory"
-      ],
-      "forbidden_consumers": [
-        "provider_adapter"
-      ],
-      "historical_routes_nearby": [
-        "reviewed_visual_table_materialization"
-      ],
-      "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
-      "related_contract_tests": [
-        "services/broker-reports-gate1-proof/tests/test_broker_reports_semantic_visual_table_materialization.py",
-        "services/broker-reports-gate1-proof/tests/test_broker_reports_semantic_visual_table_downstream.py"
-      ],
-      "change_requires": [
-        "materialization_contract_update",
-        "bundle_parity",
-        "deterministic_replay"
+        "separate_transport_issue",
+        "qualification",
+        "explicit_product_decision"
       ]
     },
     {
@@ -200,7 +111,7 @@
       ],
       "related_adr": "docs/stage2/adr/BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.v1.md",
       "related_contract_tests": [
-        "services/broker-reports-gate1-proof/tests/test_broker_reports_semantic_visual_table_downstream.py",
+        "services/broker-reports-gate1-proof/tests/test_broker_reports_table_projection.py",
         "services/broker-reports-gate1-proof/tests/test_broker_reports_gate_architecture.py"
       ],
       "change_requires": [

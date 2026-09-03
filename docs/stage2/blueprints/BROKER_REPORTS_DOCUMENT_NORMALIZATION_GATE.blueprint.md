@@ -7,8 +7,8 @@ Scope: Stage 2 Broker Reports / XLS NDFL, Gate 1 "Document Intake & Normalizatio
 Authority note: this early decision blueprint is preserved for architecture
 history. It is superseded for current routing by the
 [global Gate 1 Normalization Pipeline](BROKER_REPORTS_GATE1_NORMALIZATION_PIPELINE.blueprint.md)
-and, for the supported PDF child capability, by
-[PDF Table Intake](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md). Open questions,
+and, for PDF understanding, by the
+[Document AI boundary](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md). Open questions,
 trigger recommendations and readiness markers below are historical and do not
 govern current runtime behavior.
 

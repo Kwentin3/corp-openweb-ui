@@ -23,7 +23,6 @@ from broker_reports_gate1 import ManagedPrompt
 from broker_reports_gate1.private_intake_bytes import PrivateIntakeBytesError
 from broker_reports_gate1.document_passport import document_metadata_passport_schema_hash, prompt_hash
 from openwebui_actions.broker_reports_gate1_pipe import NORMALIZER_VERSION, SAFETY_STATEMENT, Pipe
-from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
 
 
 def run_pipe(pipe: Pipe, body: dict, **kwargs) -> str:

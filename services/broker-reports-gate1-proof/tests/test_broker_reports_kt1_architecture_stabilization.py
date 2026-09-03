@@ -25,9 +25,7 @@ CONVERGENCE_ADR = DOC_ROOT / "adr" / "BROKER_REPORTS_GATE2_SEMANTIC_CONVERGENCE.
 COMMENT_POLICY = DOC_ROOT / "agent" / "BROKER_REPORTS_CODE_COMMENT_POLICY.v1.md"
 
 EXPECTED_OWNER_IDS = {
-    "pdf_vlm_visual_execution",
-    "semantic_visual_validation",
-    "logical_table_materialization",
+    "pdf_document_extraction",
     "gate2_table_package",
     "current_source_fact_orchestration",
     "historical_source_fact_selection",
@@ -61,6 +59,7 @@ REQUIRED_OWNER_FIELDS = {
 }
 
 ALLOWED_RUNTIME_STATUSES = {
+    "ACTIVE_FAIL_CLOSED",
     "ACTIVE_PRODUCT",
     "HISTORICAL_READ_ONLY",
     "PROOF_ONLY",
@@ -68,8 +67,7 @@ ALLOWED_RUNTIME_STATUSES = {
 }
 
 ALLOWED_DOMAINS = {
-    "Semantic visual table transcription",
-    "Deterministic logical table materialization",
+    "Source normalization / PDF Document AI",
     "Gate 2 table package",
     "Source-fact extraction",
     "Historical and compatibility routes",
@@ -83,8 +81,7 @@ ALLOWED_DOMAINS = {
 }
 
 PRODUCTION_OWNER_FILES = (
-    PACKAGE_ROOT / "semantic_visual_table_contracts.py",
-    PACKAGE_ROOT / "semantic_visual_table_materialization.py",
+    PACKAGE_ROOT / "pdf_document_ai.py",
     PACKAGE_ROOT / "gate2_table_packages.py",
     PACKAGE_ROOT / "gate2_domain_runtime.py",
     PACKAGE_ROOT / "gate2_source_fact_selection.py",
@@ -174,10 +171,13 @@ def test_01_owner_metadata_exists_and_is_versioned() -> None:
 def test_02_all_key_owners_have_complete_metadata_entries() -> None:
     owners = _owners()
     assert set(owners) == EXPECTED_OWNER_IDS
-    assert len(owners) == 15
+    assert len(owners) == 13
     for owner_id, owner in owners.items():
-        assert REQUIRED_OWNER_FIELDS <= owner.keys(), owner_id
-        assert all(owner[field] for field in REQUIRED_OWNER_FIELDS), owner_id
+        required_fields = REQUIRED_OWNER_FIELDS
+        if owner_id == "pdf_document_extraction":
+            required_fields = required_fields - {"historical_routes_nearby"}
+        assert required_fields <= owner.keys(), owner_id
+        assert all(owner[field] for field in required_fields), owner_id
 
 
 def test_03_metadata_symbols_exist_in_maintained_code() -> None:
@@ -198,7 +198,10 @@ def test_04_metadata_domains_statuses_and_adr_references_are_valid() -> None:
         assert owner["domain"] in ALLOWED_DOMAINS, owner_id
         assert owner["runtime_status"] in ALLOWED_RUNTIME_STATUSES, owner_id
         adr = REPO_ROOT / owner["related_adr"]
-        assert adr == CONVERGENCE_ADR
+        if owner_id == "pdf_document_extraction":
+            assert adr.name == "BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md"
+        else:
+            assert adr == CONVERGENCE_ADR
         assert adr.is_file()
         for field in (
             "input_contracts",
@@ -210,10 +213,9 @@ def test_04_metadata_domains_statuses_and_adr_references_are_valid() -> None:
 
 def test_05_sole_owner_matrix_is_consistent_with_metadata() -> None:
     matrix = _read(OWNER_MATRIX)
+    current_authorities = _read(ARCHITECTURE_AUTHORITIES)
     required_matrix_markers = {
-        "pdf_vlm_visual_execution": ("PdfDualVlmRuntimeFactory",),
-        "semantic_visual_validation": ("SemanticVisualTableValidatorFactory",),
-        "logical_table_materialization": ("SemanticVisualTableMaterializationFactory",),
+        "pdf_document_extraction": ("PdfDocumentExtractorFactory",),
         "gate2_table_package": ("Gate2TablePackageFactory",),
         "current_source_fact_orchestration": ("Gate2DomainSourceFactRuntimeFactory",),
         "historical_source_fact_selection": ("source_fact_selection_v3",),
@@ -244,7 +246,12 @@ def test_05_sole_owner_matrix_is_consistent_with_metadata() -> None:
     }
     assert set(required_matrix_markers) == set(_owners())
     for owner_id, markers in required_matrix_markers.items():
-        assert all(marker in matrix for marker in markers), owner_id
+        authority = (
+            current_authorities
+            if owner_id == "pdf_document_extraction"
+            else matrix
+        )
+        assert all(marker in authority for marker in markers), owner_id
 
 
 def test_06_historical_route_is_read_only() -> None:
@@ -820,15 +827,15 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_document_ai.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gemini_normalized_table_boxes.py"
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "pdf_native_navigation_overlay.py"
-        ),
-        (
-            "services/broker-reports-gate1-proof/broker_reports_gate1/"
-            "visual_pdfplumber_table_plan.py"
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
@@ -1038,11 +1045,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ):
             assert path.is_file()
         authority_map = _read(ARCHITECTURE_AUTHORITIES)
-        for owner in (
-            "Gate1ArtifactStoreCanonicalAdapterFactory",
-            "PdfCompactCanonicalAdapterFactory",
-            "LocalPdfCompactResearchCanonicalAdapterFactory",
-        ):
+        for owner in ("Gate1ArtifactStoreCanonicalAdapterFactory",):
             assert owner in authority_map
         module = REPO_ROOT / doc27_authority
         source = _read(module)
@@ -1159,13 +1162,12 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         assert "def main(" not in source
         assert "openwebui_actions" not in _imports(module)
     workflow = _read(REPO_ROOT / ".github" / "workflows" / "broker-reports-ci.yml")
-    for doc6_suite in (
-        "tests/test_broker_reports_managed_document_contract_v2.py",
-        "tests/test_broker_reports_logical_row_table_recovery.py",
-        "tests/test_broker_reports_managed_pdf_document_v2.py",
-        "tests/test_broker_reports_managed_document_llm_view_v2.py",
+    for document_ai_suite in (
+        "tests/test_broker_reports_pdf_document_ai_boundary.py",
+        "tests/test_retired_pdf_engines_absent.py",
+        "tests/test_mistral_public_pairs_integrity.py",
     ):
-        assert doc6_suite in workflow
+        assert document_ai_suite in workflow
     for gate3_suite in (
         "tests/test_broker_reports_gate3_minimal_labeling_contract.py",
         "tests/test_broker_reports_gate3_projection.py",
@@ -1182,89 +1184,3 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     ):
         assert gate3_suite in workflow
     assert DOMAIN_MAP.is_file()
-
-
-def test_18_doc6_runtime_is_inactive_and_factory_routed() -> None:
-    doc6_modules = {
-        "managed_document_contracts_v2",
-        "logical_row_table_recovery",
-        "managed_pdf_document_v2",
-        "managed_document_llm_view_v2",
-        "managed_document_llm_view_audit_v2",
-        "managed_document_llm_view_parity_v2",
-    }
-    allowed_import_edges = {
-        (
-            PACKAGE_ROOT / "managed_pdf_document_v2.py",
-            "managed_document_contracts_v2",
-        ),
-        (
-            PACKAGE_ROOT / "managed_pdf_document_v2.py",
-            "logical_row_table_recovery",
-        ),
-        (
-            PACKAGE_ROOT / "managed_document_llm_view_v2.py",
-            "managed_document_contracts_v2",
-        ),
-        (
-            PACKAGE_ROOT / "managed_document_llm_view_parity_v2.py",
-            "managed_document_llm_view_audit_v2",
-        ),
-    }
-    factory_internal_constructors = {
-        "LogicalRowTableRecoveryRuntime": (
-            PACKAGE_ROOT / "logical_row_table_recovery.py"
-        ),
-        "ManagedPdfDocumentV2Builder": (PACKAGE_ROOT / "managed_pdf_document_v2.py"),
-        "_ManagedDocumentLlmViewV2Renderer": (
-            PACKAGE_ROOT / "managed_document_llm_view_v2.py"
-        ),
-    }
-    import_violations: list[str] = []
-    constructor_violations: list[str] = []
-
-    roots = (
-        PACKAGE_ROOT,
-        SERVICE_ROOT / "scripts",
-        SERVICE_ROOT / "openwebui_actions",
-    )
-    for root in roots:
-        for path in root.glob("*.py"):
-            tree = ast.parse(_read(path), filename=str(path))
-            imported_candidates: set[str] = set()
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    imported_candidates.update(alias.name for alias in node.names)
-                elif isinstance(node, ast.ImportFrom):
-                    module = node.module or ""
-                    if module:
-                        imported_candidates.add(module)
-                    imported_candidates.update(
-                        f"{module}.{alias.name}" if module else alias.name
-                        for alias in node.names
-                    )
-                elif isinstance(node, ast.Call) and isinstance(
-                    node.func,
-                    ast.Name,
-                ):
-                    allowed_path = factory_internal_constructors.get(node.func.id)
-                    if allowed_path is not None and path != allowed_path:
-                        constructor_violations.append(
-                            f"{path.relative_to(SERVICE_ROOT).as_posix()}:"
-                            f"{node.lineno}:{node.func.id}"
-                        )
-
-            imported_doc6 = {
-                part
-                for candidate in imported_candidates
-                for part in candidate.split(".")
-                if part in doc6_modules
-            }
-            for target_module in imported_doc6:
-                if (path, target_module) not in allowed_import_edges:
-                    import_violations.append(
-                        f"{path.relative_to(SERVICE_ROOT).as_posix()}->{target_module}"
-                    )
-
-    assert sorted(import_violations) == []
-    assert sorted(constructor_violations) == []

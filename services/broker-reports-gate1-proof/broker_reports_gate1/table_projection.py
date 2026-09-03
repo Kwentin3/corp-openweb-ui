@@ -8,12 +8,6 @@ from collections import Counter
 from dataclasses import dataclass
 from typing import Any
 
-from .broker_pdf_neutral_tables import (
-    PROFILE_ID as BROKER_PDF_NEUTRAL_PROFILE_ID,
-    BrokerPdfNeutralTableFactory,
-    validate_canonical_integrity,
-    validate_canonical_neutral_projection,
-)
 from .contracts import stable_digest
 from .source_provenance import resolve_source_values, validate_source_value_refs
 
@@ -22,16 +16,12 @@ FACTORY_REQUIRED = (
     "NormalizedTableProjectionFactory.create is the only production normalized-table projection entrypoint"
 )
 FORBIDDEN = (
-    "Normalizers, Gate 2 callers and smoke scripts must not mint replacement row, cell or source-value refs or treat PDF geometry as semantic table truth"
+    "Normalizers, Gate 2 callers and smoke scripts must not mint replacement row, cell or source-value refs"
 )
 
 TABLE_PROJECTION_SCHEMA_VERSION = "broker_reports_normalized_table_projection_v0"
 TABLE_COVERAGE_SCHEMA_VERSION = "broker_reports_table_projection_coverage_v0"
 TABLE_QUALITY_SCHEMA_VERSION = "broker_reports_table_reconstruction_quality_v0"
-PDF_TABLE_CONTINUATION_SCHEMA_VERSION = (
-    "broker_reports_pdf_table_continuation_v1"
-)
-
 SOURCE_FORMATS = {"csv", "html", "xlsx", "pdf", "xml", "txt", "unknown"}
 ROW_ROLES = {
     "header_row",
@@ -44,24 +34,11 @@ ROW_ROLES = {
     "layout_row",
     "unknown_row_role",
 }
-PDF_STATUSES = {
-    "candidate",
-    "canonical_table_accepted",
-    "validated_geometry",
-    "validated_source_bound_geometry",
-    "rejected_to_line_cluster",
-    "partial",
-    "blocked",
-}
-
-
 @dataclass(frozen=True)
 class NormalizedTableProjectionConfig:
     max_rows: int = 10_000
     max_cells: int = 100_000
     max_payload_bytes: int = 20_000_000
-    min_pdf_geometry_confidence: float = 0.80
-    broker_pdf_neutral_table_profile_v1_enabled: bool = False
 
 
 @dataclass(frozen=True)
@@ -84,8 +61,6 @@ class NormalizedTableProjectionFactory:
             raise ValueError("table_projection_cell_budget_invalid")
         if self.config.max_payload_bytes <= 0:
             raise ValueError("table_projection_payload_budget_invalid")
-        if not 0.0 <= self.config.min_pdf_geometry_confidence <= 1.0:
-            raise ValueError("table_projection_pdf_confidence_invalid")
         return NormalizedTableProjectionService(self.config)
 
 
@@ -98,12 +73,6 @@ class NormalizedTableProjectionService:
             "xlsx": XlsxTableProjectionBuilder(config),
             "xml": XmlTableProjectionBuilder(config),
         }
-        self.pdf_builder = PdfTableCandidateProjectionBuilder(config)
-        self.broker_pdf_neutral_builder = (
-            BrokerPdfNeutralTableFactory().create()
-            if config.broker_pdf_neutral_table_profile_v1_enabled
-            else None
-        )
         self.validator = TableProjectionValidator()
 
     def build_for_document(
@@ -116,37 +85,11 @@ class NormalizedTableProjectionService:
         normalized_format = "html" if source_format == "html_text" else source_format
         projections: list[dict[str, Any]] = []
         decisions: list[dict[str, Any]] = []
-        payload_by_ref = {
-            str(item.get("source_payload_ref") or ""): item
-            for item in payloads
-            if isinstance(item, dict) and item.get("source_payload_ref")
-        }
-        broker_profile = (
-            self.broker_pdf_neutral_builder.build_for_document(
-                payloads=payloads,
-                source_units=source_units,
-            )
-            if normalized_format == "pdf"
-            and self.broker_pdf_neutral_builder is not None
-            else None
-        )
+        del payloads
         for unit in source_units:
             if not isinstance(unit, dict):
                 continue
-            if unit.get("pdf_unit_type") == "pdf_table_candidate_unit":
-                unit_ref = str(unit.get("unit_ref") or "")
-                if broker_profile and unit_ref in broker_profile.projections_by_unit_ref:
-                    projection = _finish_projection(
-                        broker_profile.projections_by_unit_ref[unit_ref]
-                    )
-                else:
-                    projection = self.pdf_builder.build(
-                        source_unit=unit,
-                        parent_payload=payload_by_ref.get(
-                            str(unit.get("parent_payload_ref") or "")
-                        ),
-                    )
-            elif unit.get("slice_type") == "table_rows":
+            if unit.get("slice_type") == "table_rows":
                 builder = self.native_builders.get(normalized_format)
                 if builder is None:
                     decisions.append(
@@ -166,63 +109,19 @@ class NormalizedTableProjectionService:
                 {str(item.get("code") or "") for item in validation["errors"]}
             )
             projections.append(projection)
-            unit_ref = str(unit.get("unit_ref") or "")
-            if broker_profile and unit_ref in broker_profile.decisions_by_unit_ref:
-                decision = copy.deepcopy(broker_profile.decisions_by_unit_ref[unit_ref])
-                if validation["validator_status"] != "passed":
-                    decision["status"] = "blocked"
-                    decision["reason_codes"] = sorted(
-                        set(
-                            list(decision.get("reason_codes") or [])
-                            + list(projection.get("validator_reason_codes") or [])
-                        )
-                    )
-                decisions.append(decision)
-            else:
-                decisions.append(
-                    _decision(
-                        unit,
-                        status=(
-                            str(projection.get("table_candidate_status") or "ready")
-                        ),
-                        reason_codes=[
-                            *list(projection.get("reconstruction_reason_codes") or []),
-                            *list(projection.get("validator_reason_codes") or []),
-                        ],
-                        projection_ref=projection.get("table_projection_id"),
-                    )
-                )
-        if normalized_format == "pdf":
-            linked_projection_refs = _link_pdf_page_continuations(
-                projections=projections,
-                source_units=source_units,
-                payload_by_ref=payload_by_ref,
-            )
-            for projection in projections:
-                projection_ref = str(projection.get("table_projection_id") or "")
-                if projection_ref not in linked_projection_refs:
-                    continue
-                _finish_projection(projection)
-                validation = self.validator.validate(projection)
-                projection["validator_status"] = validation["validator_status"]
-                projection["validator_reason_codes"] = sorted(
-                    {str(item.get("code") or "") for item in validation["errors"]}
-                )
-                decision = next(
-                    (
-                        item
-                        for item in decisions
-                        if item.get("table_projection_ref") == projection_ref
+            decisions.append(
+                _decision(
+                    unit,
+                    status=(
+                        str(projection.get("table_candidate_status") or "ready")
                     ),
-                    None,
+                    reason_codes=[
+                        *list(projection.get("reconstruction_reason_codes") or []),
+                        *list(projection.get("validator_reason_codes") or []),
+                    ],
+                    projection_ref=projection.get("table_projection_id"),
                 )
-                if decision is not None:
-                    decision["reason_codes"] = sorted(
-                        {
-                            *list(decision.get("reason_codes") or []),
-                            "pdf_cross_page_continuation_mechanically_linked",
-                        }
-                    )
+            )
         summary = _safe_summary(projections, decisions)
         return TableProjectionBuildResult(
             projections=projections,
@@ -354,7 +253,6 @@ class _NativeTableProjectionBuilder:
             cells=cells,
             private_values=private_values,
             column_refs=column_refs,
-            pdf_candidate=False,
         )
         source_selected = _strings(
             _object(source_unit.get("coverage")).get("selected_source_refs")
@@ -413,330 +311,6 @@ class XlsxTableProjectionBuilder(_NativeTableProjectionBuilder):
 
 class XmlTableProjectionBuilder(_NativeTableProjectionBuilder):
     source_format = "xml"
-
-
-class PdfTableCandidateProjectionBuilder:
-    def __init__(self, config: NormalizedTableProjectionConfig) -> None:
-        self.config = config
-
-    def build(
-        self,
-        *,
-        source_unit: dict[str, Any],
-        parent_payload: dict[str, Any] | None,
-    ) -> dict[str, Any]:
-        candidate_ref = str(source_unit.get("table_candidate_ref") or "")
-        projection_id = "tableproj_" + stable_digest(
-            [
-                TABLE_PROJECTION_SCHEMA_VERSION,
-                source_unit.get("unit_ref"),
-                candidate_ref,
-                source_unit.get("pdf_layout_unit_checksum_ref"),
-                source_unit.get("table_locator_region_ref"),
-            ],
-            length=24,
-        )
-        parent_projection = _object(
-            _object(parent_payload).get("pdf_text_layer_projection")
-        )
-        candidates = _dicts(parent_projection.get("table_candidate_inventory"))
-        candidate = next(
-            (
-                item
-                for item in candidates
-                if str(item.get("table_candidate_ref") or "") == candidate_ref
-            ),
-            None,
-        )
-        words = {
-            str(item.get("word_ref") or ""): item
-            for item in _dicts(parent_projection.get("word_inventory"))
-        }
-        bboxes = {
-            str(item.get("bbox_ref") or ""): item
-            for item in _dicts(parent_projection.get("bbox_inventory"))
-        }
-        reasons = _pdf_geometry_reasons(
-            source_unit=source_unit,
-            candidate=candidate,
-            words=words,
-            bboxes=bboxes,
-            vector_lines=_dicts(parent_projection.get("vector_line_inventory")),
-            vector_line_contract_present="vector_line_inventory" in parent_projection,
-            min_confidence=self.config.min_pdf_geometry_confidence,
-        )
-        candidate_rows = _dicts(_object(candidate).get("row_inventory"))
-        candidate_cells = _dicts(_object(candidate).get("cell_inventory"))
-        budget_reasons = _budget_reasons(
-            rows=len(candidate_rows),
-            cells=len(candidate_cells),
-            payload_bytes=len(_canonical_bytes(candidate or {})),
-            config=self.config,
-        )
-        reasons = sorted(set([*reasons, *budget_reasons]))
-        selected = _strings(
-            _object(source_unit.get("pdf_layout_coverage")).get(
-                "selected_source_refs"
-            )
-        )
-        fallback_text_refs = _strings(source_unit.get("table_fallback_text_refs"))
-        if reasons:
-            in_scope_fallback_text_refs = sorted(
-                set(selected) & set(fallback_text_refs)
-            )
-            rejected_refs = sorted(set(selected) - set(in_scope_fallback_text_refs))
-            projection = _base_projection(
-                projection_id=projection_id,
-                table_ref=candidate_ref,
-                source_format="pdf",
-                table_origin="geometry_candidate",
-                source_unit=source_unit,
-                row_refs=[],
-                column_refs=[],
-                cells=[],
-                rows=[],
-                private_values=[],
-                source_value_index=[],
-                headers=_empty_header_model("candidate_rejected"),
-                coverage=_coverage(
-                    projection_id=projection_id,
-                    selected=selected,
-                    table_owned=[],
-                    fallback=in_scope_fallback_text_refs,
-                    rejected=rejected_refs,
-                ),
-                quality=_quality(
-                    rows=[],
-                    cells=[],
-                    coverage_complete=True,
-                    geometry_confidence=float(
-                        source_unit.get("geometry_confidence") or 0.0
-                    ),
-                    blocked=True,
-                ),
-                page_refs=_strings(source_unit.get("page_refs")),
-                sheet_refs=[],
-                section_refs=[],
-                table_bbox_ref=source_unit.get("table_bbox_ref"),
-                table_candidate_status="rejected_to_line_cluster",
-                reconstruction_strategy=_pdf_strategy(source_unit),
-                reconstruction_reason_codes=reasons,
-            )
-            projection["projection_status"] = "blocked"
-            projection["reconstruction_quality"] = "blocked"
-            return _finish_projection(_apply_serialized_budget(projection, self.config))
-
-        max_columns = max(
-            (
-                int(item.get("column_ordinal") or 0)
-                + max(1, int(item.get("column_span") or 1))
-                - 1
-                for item in candidate_cells
-            ),
-            default=0,
-        )
-        column_refs = [
-            "tablecol_" + stable_digest([candidate_ref, ordinal], length=24)
-            for ordinal in range(1, max_columns + 1)
-        ]
-        cells: list[dict[str, Any]] = []
-        private_values: list[dict[str, Any]] = []
-        source_value_index: list[dict[str, Any]] = []
-        for item in candidate_cells:
-            cell_ref = str(item.get("cell_ref") or "")
-            word_refs = _strings(item.get("word_refs"))
-            cell_words = [words[ref] for ref in word_refs]
-            source_value_refs = [
-                str(word.get("source_value_ref") or "") for word in cell_words
-            ]
-            value = " ".join(str(word.get("text") or "") for word in cell_words)
-            word_lines = {
-                round(
-                    float(
-                        (
-                            _object(bboxes.get(str(word.get("bbox_ref") or ""))).get(
-                                "bbox"
-                            )
-                            or [0.0, 0.0, 0.0, 0.0]
-                        )[1]
-                    ),
-                    2,
-                )
-                for word in cell_words
-            }
-            multi_line = len(word_lines) > 1
-            checksum = _checksum_ref("valuechk", value)
-            value_path_ref = "tablevaluepath_" + stable_digest(
-                [projection_id, cell_ref, *source_value_refs], length=24
-            )
-            cells.append(
-                {
-                    "cell_ref": cell_ref,
-                    "row_ref": item.get("row_ref"),
-                    "column_ref": column_refs[int(item.get("column_ordinal") or 1) - 1],
-                    "row_ordinal": int(item.get("row_ordinal") or 0),
-                    "column_ordinal": int(item.get("column_ordinal") or 0),
-                    "source_value_refs": source_value_refs,
-                    "cell_value_ref": "cellval_"
-                    + stable_digest([cell_ref, checksum], length=24),
-                    "normalized_private_value_path": value_path_ref,
-                    "value_checksum_ref": checksum,
-                    "value_kind_hints": _value_kind_hints(value),
-                    "bbox_ref": item.get("bbox_ref"),
-                    "row_span": int(item.get("row_span") or 1),
-                    "column_span": int(item.get("column_span") or 1),
-                    "merged_cell_group_ref": item.get("merged_cell_group_ref"),
-                    "split_cell_candidate": bool(item.get("split_cell_candidate")),
-                    "multi_line_cell": multi_line,
-                    "wrapped_text_cell": bool(item.get("wrapped_text_cell"))
-                    or multi_line,
-                    "ambiguous_cell_boundary": False,
-                    "empty_cell": not value.strip(),
-                    "confidence": "high",
-                    "reason_codes": ["pdf_geometry_mechanically_validated"],
-                }
-            )
-            private_values.append(
-                {
-                    "value_path_ref": value_path_ref,
-                    "normalized_value": value,
-                    "value_checksum_ref": checksum,
-                    "source_value_refs": source_value_refs,
-                }
-            )
-            for word in cell_words:
-                word_value = str(word.get("text") or "")
-                word_value_checksum_ref = _checksum_ref("valuechk", word_value)
-                word_value_path_ref = "tablewordvaluepath_" + stable_digest(
-                    [
-                        projection_id,
-                        cell_ref,
-                        word.get("word_ref"),
-                        word.get("source_value_ref"),
-                    ],
-                    length=24,
-                )
-                private_values.append(
-                    {
-                        "value_path_ref": word_value_path_ref,
-                        "normalized_value": word_value,
-                        "value_checksum_ref": word_value_checksum_ref,
-                        "source_value_refs": [word.get("source_value_ref")],
-                        "source_object_ref": word.get("word_ref"),
-                    }
-                )
-                source_value_index.append(
-                    {
-                        "source_value_ref": word.get("source_value_ref"),
-                        "source_object_ref": word.get("word_ref"),
-                        "cell_ref": cell_ref,
-                        "value_path": {
-                            "kind": "table_projection_private_value",
-                            "value_path_ref": word_value_path_ref,
-                        },
-                        "value_checksum_ref": word_value_checksum_ref,
-                    }
-                )
-        roles = _classify_rows(
-            row_provenance=candidate_rows,
-            cells=cells,
-            private_values=private_values,
-            require_structural_header_evidence=True,
-        )
-        normalized_rows = [
-            {
-                "row_ref": item.get("row_ref"),
-                "row_ordinal": int(item.get("row_ordinal") or 0),
-                "cell_refs": _strings(item.get("cell_refs")),
-                "row_role": roles.get(
-                    str(item.get("row_ref") or ""), "unknown_row_role"
-                ),
-                "row_checksum_ref": _checksum_ref(
-                    "rowchk", _strings(item.get("cell_refs"))
-                ),
-                "reason_codes": ["pdf_geometry_mechanically_validated"],
-            }
-            for item in candidate_rows
-        ]
-        contributing_words = _strings(source_unit.get("table_contributing_word_refs"))
-        quality = _quality(
-            rows=normalized_rows,
-            cells=cells,
-            coverage_complete=True,
-            geometry_confidence=float(source_unit.get("geometry_confidence") or 0.0),
-            blocked=False,
-        )
-        projection = _base_projection(
-            projection_id=projection_id,
-            table_ref=candidate_ref,
-            source_format="pdf",
-            table_origin=(
-                "vlm_located_pdfplumber_source_bound"
-                if source_unit.get("table_locator_scope_status") == "source_bound"
-                else "reconstructed_candidate"
-            ),
-            source_unit=source_unit,
-            row_refs=[str(item.get("row_ref") or "") for item in normalized_rows],
-            column_refs=column_refs,
-            cells=cells,
-            rows=normalized_rows,
-            private_values=private_values,
-            source_value_index=source_value_index,
-            headers=_header_model(
-                rows=normalized_rows,
-                cells=cells,
-                private_values=private_values,
-                column_refs=column_refs,
-                pdf_candidate=True,
-            ),
-            coverage=_coverage(
-                projection_id=projection_id,
-                selected=selected,
-                table_owned=contributing_words,
-                fallback=fallback_text_refs,
-            ),
-            quality=quality,
-            page_refs=_strings(source_unit.get("page_refs")),
-            sheet_refs=[],
-            section_refs=[],
-            table_bbox_ref=source_unit.get("table_bbox_ref"),
-            table_candidate_status=(
-                "validated_source_bound_geometry"
-                if source_unit.get("table_locator_scope_status") == "source_bound"
-                else "validated_geometry"
-            ),
-            reconstruction_strategy=_pdf_strategy(source_unit),
-            reconstruction_reason_codes=[
-                "pdf_geometry_mechanically_validated",
-                *_strings(
-                    source_unit.get("table_reconstruction_reason_codes")
-                ),
-            ],
-        )
-        projection["geometry"] = {
-            "table_strategy_ref": source_unit.get("table_strategy_ref"),
-            "geometry_confidence": source_unit.get("geometry_confidence"),
-            "contributing_word_refs": contributing_words,
-            "contributing_line_refs": _strings(source_unit.get("layout_line_refs")),
-            "fallback_text_refs": fallback_text_refs,
-            "fallback_source_value_refs": _strings(
-                source_unit.get("table_fallback_source_value_refs")
-            ),
-            "duplicate_ownership_refs": [],
-            "unaccounted_ownership_refs": [],
-            "table_locator_region_ref": source_unit.get(
-                "table_locator_region_ref"
-            ),
-            "table_locator_bbox_pdf_points": copy.deepcopy(
-                source_unit.get("table_locator_bbox_pdf_points")
-            ),
-            "table_locator_scope_status": source_unit.get(
-                "table_locator_scope_status"
-            ),
-            "model_values_used_as_source_literals": False,
-            "pdfplumber_settings_selected_by_model": False,
-        }
-        return _finish_projection(_apply_serialized_budget(projection, self.config))
 
 
 class TableProjectionValidator:
@@ -834,50 +408,6 @@ class TableProjectionValidator:
             errors.append(_error("table_projection_column_count_mismatch", projection_id))
         if projection.get("cell_count") != len(cells):
             errors.append(_error("table_projection_cell_count_mismatch", projection_id))
-        if projection.get("source_format") == "pdf":
-            if projection.get("table_candidate_status") not in PDF_STATUSES:
-                errors.append(_error("table_projection_pdf_status_invalid", projection_id))
-            if projection.get("semantic_table_truth_claimed") is not False:
-                errors.append(_error("table_projection_pdf_semantic_truth_forbidden", projection_id))
-            errors.extend(_pdf_continuation_errors(projection, projection_id))
-            canonical_profile_id = projection.get("canonical_profile_id")
-            if canonical_profile_id == BROKER_PDF_NEUTRAL_PROFILE_ID:
-                canonical_validation = validate_canonical_neutral_projection(projection)
-                errors.extend(
-                    _error(code, projection_id)
-                    for code in canonical_validation["reason_codes"]
-                )
-                if not validate_canonical_integrity(projection):
-                    errors.append(
-                        _error("canonical_neutral_table_integrity_mismatch", projection_id)
-                    )
-            elif canonical_profile_id == "semantic_visual_logical_table_v1":
-                # Historical research artifacts remain reproducible from the
-                # source tree, but the product bundle intentionally omits this
-                # validator and therefore rejects the profile fail-closed.
-                try:
-                    from .semantic_visual_table_projection_contracts import (
-                        validate_semantic_visual_table_projection,
-                    )
-                except ImportError:
-                    errors.append(
-                        _error(
-                            "table_projection_canonical_profile_unsupported",
-                            projection_id,
-                        )
-                    )
-                else:
-                    semantic_validation = validate_semantic_visual_table_projection(
-                        projection
-                    )
-                    errors.extend(
-                        _error(code, projection_id)
-                        for code in semantic_validation["reason_codes"]
-                    )
-            elif canonical_profile_id:
-                errors.append(
-                    _error("table_projection_canonical_profile_unsupported", projection_id)
-                )
         expected_checksum = _projection_checksum(projection)
         if projection.get("table_projection_checksum_ref") != expected_checksum:
             errors.append(_error("table_projection_checksum_mismatch", projection_id))
@@ -889,53 +419,6 @@ class TableProjectionValidator:
             "errors_count": len(errors),
             "errors": errors,
         }
-
-
-def _pdf_continuation_errors(
-    projection: dict[str, Any], projection_id: str
-) -> list[dict[str, str]]:
-    logical_table_id = str(projection.get("logical_table_id") or "")
-    continuation = _object(projection.get("continuation"))
-    owned_contract = (
-        projection.get("table_origin") == "vlm_located_pdfplumber_source_bound"
-        or continuation.get("schema_version") == PDF_TABLE_CONTINUATION_SCHEMA_VERSION
-    )
-    if not owned_contract:
-        return []
-    if not logical_table_id and not continuation:
-        return []
-    errors: list[dict[str, str]] = []
-    if not logical_table_id or not continuation:
-        return [_error("pdf_table_continuation_pair_incomplete", projection_id)]
-    if projection.get("table_origin") != "vlm_located_pdfplumber_source_bound":
-        errors.append(_error("pdf_table_continuation_origin_invalid", projection_id))
-    if continuation.get("schema_version") != PDF_TABLE_CONTINUATION_SCHEMA_VERSION:
-        errors.append(_error("pdf_table_continuation_schema_invalid", projection_id))
-    if continuation.get("status") != "mechanically_linked":
-        errors.append(_error("pdf_table_continuation_status_invalid", projection_id))
-    if continuation.get("semantic_table_truth_claimed") is not False:
-        errors.append(
-            _error("pdf_table_continuation_semantic_truth_forbidden", projection_id)
-        )
-    if set(_strings(continuation.get("reason_codes"))) != {
-        "adjacent_page_edge_tables",
-        "column_grid_match",
-        "headerless_following_segment",
-    }:
-        errors.append(_error("pdf_table_continuation_reasons_invalid", projection_id))
-    role = str(continuation.get("role") or "")
-    previous_ref = str(continuation.get("previous_table_projection_ref") or "")
-    next_ref = str(continuation.get("next_table_projection_ref") or "")
-    valid_role_refs = (
-        (role == "start" and not previous_ref and bool(next_ref))
-        or (role == "middle" and bool(previous_ref) and bool(next_ref))
-        or (role == "end" and bool(previous_ref) and not next_ref)
-    )
-    if not valid_role_refs:
-        errors.append(_error("pdf_table_continuation_role_refs_invalid", projection_id))
-    if projection_id in {previous_ref, next_ref}:
-        errors.append(_error("pdf_table_continuation_self_ref_invalid", projection_id))
-    return errors
 
 
 _GATE2_TABLE_PACKAGE_COMPAT_EXPORTS = {
@@ -1047,174 +530,6 @@ def _base_projection(
         "ocr_vlm_used": False,
         "page_rendering_used_for_extraction": False,
     }
-
-
-def _link_pdf_page_continuations(
-    *,
-    projections: list[dict[str, Any]],
-    source_units: list[dict[str, Any]],
-    payload_by_ref: dict[str, dict[str, Any]],
-) -> set[str]:
-    unit_by_ref = {
-        str(item.get("unit_ref") or ""): item
-        for item in source_units
-        if isinstance(item, dict) and item.get("unit_ref")
-    }
-    facts: list[dict[str, Any]] = []
-    for projection in projections:
-        if (
-            projection.get("projection_status") != "ready"
-            or projection.get("table_origin") != "vlm_located_pdfplumber_source_bound"
-        ):
-            continue
-        unit = unit_by_ref.get(str(projection.get("source_unit_ref") or ""))
-        parent = payload_by_ref.get(str(_object(unit).get("parent_payload_ref") or ""))
-        parent_projection = _object(_object(parent).get("pdf_text_layer_projection"))
-        page_refs = _strings(projection.get("page_refs"))
-        if len(page_refs) != 1:
-            continue
-        page = next(
-            (
-                item
-                for item in _dicts(parent_projection.get("page_inventory"))
-                if item.get("page_ref") == page_refs[0]
-            ),
-            None,
-        )
-        locator_bbox = _object(projection.get("geometry")).get(
-            "table_locator_bbox_pdf_points"
-        )
-        if page is None or not isinstance(locator_bbox, list) or len(locator_bbox) != 4:
-            continue
-        bbox_by_ref = {
-            str(item.get("bbox_ref") or ""): item.get("bbox")
-            for item in _dicts(parent_projection.get("bbox_inventory"))
-        }
-        width = float(page.get("layout_page_width") or 0.0)
-        height = float(page.get("layout_page_height") or 0.0)
-        x_edges = sorted(
-            {
-                round(float(value) / width, 6)
-                for cell in _dicts(projection.get("cells"))
-                for bbox in [bbox_by_ref.get(str(cell.get("bbox_ref") or ""))]
-                if isinstance(bbox, list) and len(bbox) == 4 and width > 0.0
-                for value in (bbox[0], bbox[2])
-            }
-        )
-        if (
-            height <= 0.0
-            or len(x_edges) != int(projection.get("column_count") or 0) + 1
-        ):
-            continue
-        facts.append(
-            {
-                "projection": projection,
-                "projection_ref": str(projection.get("table_projection_id") or ""),
-                "page_number": int(page.get("page_number") or 0),
-                "page_height": height,
-                "locator_bbox": [float(value) for value in locator_bbox],
-                "x_edges": x_edges,
-                "column_count": int(projection.get("column_count") or 0),
-                "has_header": bool(
-                    _object(projection.get("header_model")).get("header_row_refs")
-                ),
-            }
-        )
-    by_page: dict[int, list[dict[str, Any]]] = {}
-    for fact in facts:
-        by_page.setdefault(int(fact["page_number"]), []).append(fact)
-    for page_facts in by_page.values():
-        page_facts.sort(
-            key=lambda item: (item["locator_bbox"][1], item["projection_ref"])
-        )
-
-    edges: list[tuple[dict[str, Any], dict[str, Any]]] = []
-    for page_number in sorted(by_page):
-        if page_number + 1 not in by_page:
-            continue
-        previous = by_page[page_number][-1]
-        following = by_page[page_number + 1][0]
-        edge_band = max(36.0, float(previous["page_height"]) * 0.06)
-        same_grid = (
-            previous["column_count"] == following["column_count"]
-            and len(previous["x_edges"]) == len(following["x_edges"])
-            and max(
-                (
-                    abs(left - right)
-                    for left, right in zip(
-                        previous["x_edges"], following["x_edges"], strict=True
-                    )
-                ),
-                default=1.0,
-            )
-            <= 0.001
-        )
-        if (
-            previous["page_height"] - previous["locator_bbox"][3] <= edge_band
-            and following["locator_bbox"][1] <= edge_band
-            and previous["has_header"]
-            and not following["has_header"]
-            and same_grid
-        ):
-            edges.append((previous, following))
-    if not edges:
-        return set()
-
-    next_by_ref = {left["projection_ref"]: right for left, right in edges}
-    previous_by_ref = {right["projection_ref"]: left for left, right in edges}
-    linked_refs = set(next_by_ref) | set(previous_by_ref)
-    starts = [
-        fact
-        for fact in facts
-        if fact["projection_ref"] in linked_refs
-        and fact["projection_ref"] not in previous_by_ref
-    ]
-    for start in starts:
-        chain = [start]
-        while chain[-1]["projection_ref"] in next_by_ref:
-            chain.append(next_by_ref[chain[-1]["projection_ref"]])
-        logical_table_id = "logicaltable_" + stable_digest(
-            [
-                TABLE_PROJECTION_SCHEMA_VERSION,
-                *[item["projection_ref"] for item in chain],
-            ],
-            length=24,
-        )
-        for index, fact in enumerate(chain):
-            projection = fact["projection"]
-            projection["logical_table_id"] = logical_table_id
-            projection["continuation"] = {
-                "schema_version": PDF_TABLE_CONTINUATION_SCHEMA_VERSION,
-                "status": "mechanically_linked",
-                "role": (
-                    "start"
-                    if index == 0
-                    else "end"
-                    if index == len(chain) - 1
-                    else "middle"
-                ),
-                "previous_table_projection_ref": (
-                    chain[index - 1]["projection_ref"] if index > 0 else None
-                ),
-                "next_table_projection_ref": (
-                    chain[index + 1]["projection_ref"]
-                    if index + 1 < len(chain)
-                    else None
-                ),
-                "reason_codes": [
-                    "adjacent_page_edge_tables",
-                    "column_grid_match",
-                    "headerless_following_segment",
-                ],
-                "semantic_table_truth_claimed": False,
-            }
-            projection["reconstruction_reason_codes"] = sorted(
-                {
-                    *list(projection.get("reconstruction_reason_codes") or []),
-                    "pdf_cross_page_continuation_mechanically_linked",
-                }
-            )
-    return linked_refs
 
 
 def _finish_projection(projection: dict[str, Any]) -> dict[str, Any]:
@@ -1429,7 +744,6 @@ def _header_model(
     cells: list[dict[str, Any]],
     private_values: list[dict[str, Any]],
     column_refs: list[str],
-    pdf_candidate: bool,
 ) -> dict[str, Any]:
     header_rows = [
         row
@@ -1461,7 +775,7 @@ def _header_model(
                     "cell_ref": cell_ref,
                     "source_value_refs": _strings(cell.get("source_value_refs")),
                     "normalized_label": label,
-                    "header_confidence": "high" if not pdf_candidate else "medium",
+                    "header_confidence": "high",
                     "mapping_status": "mapped",
                 }
             )
@@ -1488,7 +802,6 @@ def _header_model(
         > 1,
         "column_labels": labels,
         "header_to_column_mapping_status": status,
-        "pdf_header_candidate": pdf_candidate,
         "semantic_header_truth_claimed": False,
     }
 
@@ -1500,193 +813,8 @@ def _empty_header_model(status: str) -> dict[str, Any]:
         "multi_row_header": False,
         "column_labels": [],
         "header_to_column_mapping_status": status,
-        "pdf_header_candidate": True,
         "semantic_header_truth_claimed": False,
     }
-
-
-def _pdf_geometry_reasons(
-    *,
-    source_unit: dict[str, Any],
-    candidate: dict[str, Any] | None,
-    words: dict[str, dict[str, Any]],
-    bboxes: dict[str, dict[str, Any]],
-    vector_lines: list[dict[str, Any]],
-    vector_line_contract_present: bool,
-    min_confidence: float,
-) -> list[str]:
-    reasons = []
-    if candidate is None:
-        return ["pdf_table_candidate_inventory_missing"]
-    if source_unit.get("table_locator_scope_status") == "source_bound":
-        if (
-            not source_unit.get("table_locator_region_ref")
-            or source_unit.get("table_locator_region_ref")
-            != candidate.get("locator_region_ref")
-            or source_unit.get("table_locator_bbox_pdf_points")
-            != candidate.get("locator_bbox_pdf_points")
-            or source_unit.get("model_values_used_as_source_literals") is not False
-            or source_unit.get("pdfplumber_settings_selected_by_model") is not False
-        ):
-            reasons.append("pdf_table_source_bound_locator_contract_invalid")
-    confidence = float(source_unit.get("geometry_confidence") or 0.0)
-    if confidence < min_confidence:
-        reasons.append("pdf_table_geometry_confidence_below_threshold")
-    rows = _dicts(candidate.get("row_inventory"))
-    cells = _dicts(candidate.get("cell_inventory"))
-    source_bound = source_unit.get("table_locator_scope_status") == "source_bound"
-    minimum_rows = 1 if source_bound else 2
-    minimum_cells = 2 if source_bound else 4
-    if len(rows) < minimum_rows or len(cells) < minimum_cells:
-        reasons.append("pdf_table_geometry_insufficient_structure")
-    row_cell_counts = Counter(int(item.get("row_ordinal") or 0) for item in cells)
-    if not row_cell_counts or max(row_cell_counts.values(), default=0) < 2:
-        reasons.append("pdf_table_geometry_column_structure_insufficient")
-    if (
-        not source_bound
-        and vector_line_contract_present
-        and source_unit.get("table_strategy_ref") == "ruled_lines_v0"
-        and not (
-        _has_repeated_axis_aligned_rulings(
-            candidate=candidate,
-            vector_lines=vector_lines,
-            bboxes=bboxes,
-        )
-        )
-    ):
-        reasons.append("pdf_table_geometry_parallel_ruling_family_missing")
-    if (
-        not source_bound
-        and source_unit.get("table_strategy_ref") == "aligned_text_v0"
-        and not (
-        _has_stable_aligned_column_pattern(candidate)
-        )
-    ):
-        reasons.append("pdf_table_aligned_text_stable_column_pattern_missing")
-    owned = [
-        ref for cell in cells for ref in _strings(cell.get("word_refs"))
-    ]
-    contributing = _strings(source_unit.get("table_contributing_word_refs"))
-    if len(owned) != len(set(owned)):
-        reasons.append("pdf_table_geometry_duplicate_word_owner")
-    if set(owned) != set(contributing):
-        reasons.append("pdf_table_geometry_word_coverage_mismatch")
-    if not set(owned) <= set(words):
-        reasons.append("pdf_table_geometry_word_ref_out_of_scope")
-    if any(not cell.get("bbox_ref") for cell in cells):
-        reasons.append("pdf_table_geometry_cell_bbox_missing")
-    if source_unit.get("table_strategy_ref") not in {
-        "ruled_lines_v0",
-        "aligned_text_v0",
-        "mixed_geometry_v0",
-        "repeated_x_columns_v0",
-    }:
-        reasons.append("pdf_table_reconstruction_strategy_unsupported")
-    return sorted(set(reasons))
-
-
-def _has_repeated_axis_aligned_rulings(
-    *,
-    candidate: dict[str, Any],
-    vector_lines: list[dict[str, Any]],
-    bboxes: dict[str, dict[str, Any]],
-) -> bool:
-    # A ruled table needs a family of boundaries. One isolated line, or any
-    # number of text/decoration rectangles, cannot establish such a family.
-    minimum_distinct_parallel_rulings = 2
-    axis_tolerance_points = 0.5
-    candidate_bbox = _bbox_coordinates(
-        bboxes.get(str(candidate.get("bbox_ref") or ""))
-    )
-    candidate_page_ref = str(candidate.get("page_ref") or "")
-    if candidate_bbox is None or not candidate_page_ref:
-        return False
-
-    horizontal_positions: set[int] = set()
-    vertical_positions: set[int] = set()
-    for line in vector_lines:
-        if str(line.get("page_ref") or "") != candidate_page_ref:
-            continue
-        line_bbox = _bbox_coordinates(
-            bboxes.get(str(line.get("bbox_ref") or ""))
-        )
-        if line_bbox is None or not _bbox_overlaps(line_bbox, candidate_bbox):
-            continue
-        width = abs(line_bbox[2] - line_bbox[0])
-        height = abs(line_bbox[3] - line_bbox[1])
-        if width > axis_tolerance_points and height <= axis_tolerance_points:
-            position = (line_bbox[1] + line_bbox[3]) / 2.0
-            horizontal_positions.add(round(position / axis_tolerance_points))
-        elif height > axis_tolerance_points and width <= axis_tolerance_points:
-            position = (line_bbox[0] + line_bbox[2]) / 2.0
-            vertical_positions.add(round(position / axis_tolerance_points))
-
-    return max(len(horizontal_positions), len(vertical_positions)) >= (
-        minimum_distinct_parallel_rulings
-    )
-
-
-def _has_stable_aligned_column_pattern(candidate: dict[str, Any]) -> bool:
-    # Text-only table geometry needs repeated records, not merely repeated word
-    # starts. Ignore pdfplumber's empty spacer rows, then require one multi-
-    # column occupancy pattern to describe a strict majority of content rows.
-    rows = _dicts(candidate.get("row_inventory"))
-    cells_by_ref = {
-        str(item.get("cell_ref") or ""): item
-        for item in _dicts(candidate.get("cell_inventory"))
-    }
-    content_patterns: list[tuple[int, ...]] = []
-    for row in rows:
-        occupied_columns = tuple(
-            sorted(
-                {
-                    int(cell.get("column_ordinal") or 0)
-                    for cell_ref in _strings(row.get("cell_refs"))
-                    if (cell := cells_by_ref.get(cell_ref)) is not None
-                    and _strings(cell.get("word_refs"))
-                    and int(cell.get("column_ordinal") or 0) > 0
-                }
-            )
-        )
-        if occupied_columns:
-            content_patterns.append(occupied_columns)
-
-    if len(content_patterns) < 3:
-        return False
-    dominant_pattern, dominant_rows = Counter(content_patterns).most_common(1)[0]
-    return len(dominant_pattern) >= 2 and dominant_rows * 2 > len(content_patterns)
-
-
-def _bbox_coordinates(value: Any) -> tuple[float, float, float, float] | None:
-    raw = _object(value).get("bbox")
-    if not isinstance(raw, list) or len(raw) != 4:
-        return None
-    try:
-        result = tuple(float(item) for item in raw)
-    except (TypeError, ValueError):
-        return None
-    if result[2] < result[0] or result[3] < result[1]:
-        return None
-    return result
-
-
-def _bbox_overlaps(
-    left: tuple[float, float, float, float],
-    right: tuple[float, float, float, float],
-) -> bool:
-    return (
-        max(left[0], right[0]) <= min(left[2], right[2])
-        and max(left[1], right[1]) <= min(left[3], right[3])
-    )
-
-
-def _pdf_strategy(source_unit: dict[str, Any]) -> str:
-    return {
-        "ruled_lines_v0": "ruled_lines",
-        "aligned_text_v0": "aligned_words",
-        "mixed_geometry_v0": "mixed_geometry",
-        "repeated_x_columns_v0": "repeated_x_columns",
-    }.get(str(source_unit.get("table_strategy_ref") or ""), "fallback_line_cluster")
 
 
 def _rows_from_unit(unit: dict[str, Any]) -> list[list[str]]:

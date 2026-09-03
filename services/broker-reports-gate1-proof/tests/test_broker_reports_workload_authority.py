@@ -948,9 +948,6 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
             / "openwebui_actions"
             / "broker_reports_gate2_domain_source_fact_pipe.py"
         ).read_text(encoding="utf-8")
-        dual_runtime = (
-            service_root / "broker_reports_gate1" / "pdf_dual_vlm_runtime.py"
-        ).read_text(encoding="utf-8")
         gate2_source_runtime = (
             service_root / "broker_reports_gate1" / "gate2_source_fact_runtime.py"
         ).read_text(encoding="utf-8")
@@ -967,16 +964,12 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
             ),
             gate2_domain.index("workload_session = None"),
         )
+        self.assertIn("self._normalizer.normalize(", gate1_pipe)
         self.assertIn(
-            "factory.create_for_openwebui(request).run(documents)", gate1_pipe
+            "workload_checkpoint=self._workload_checkpoint", gate1_pipe
         )
-        self.assertIn("resume_state=WorkloadState.NORMALIZING", gate1_pipe)
         self.assertIn("provider_slot_async", gate2_source)
         self.assertIn("provider_slot_async", gate2_domain)
-        self.assertGreaterEqual(
-            dual_runtime.count("with self._provider_budget_context(provider_name)"),
-            2,
-        )
         self.assertIn('terminal_metadata["workload_job_id"]', gate2_source_runtime)
         self.assertIn('terminal_metadata["workload_job_id"]', gate2_domain_runtime)
         self.assertIn('"workload_authority"', bundle_builder)

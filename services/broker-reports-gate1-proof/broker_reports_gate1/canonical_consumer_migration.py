@@ -257,53 +257,6 @@ class Gate1ArtifactStoreCanonicalAdapter(_CanonicalCompatibilityAdapter):
         }
 
 
-class PdfCompactCanonicalAdapter(_CanonicalCompatibilityAdapter):
-    mapping: CompatibilityMapping
-
-    def _project(self, envelope: CanonicalReadEnvelope) -> dict[str, Any]:
-        artifact = envelope.artifact
-        if (artifact.get("source") or {}).get("source_format") != "pdf":
-            raise _ProjectionIncomplete("pdf_canonical_source_required")
-        summary = _summary(artifact)
-        return {
-            "schema_version": self.mapping.output_contract_version,
-            "source_format": "pdf",
-            "page_count": sum(
-                item.get("container_type") == "PAGE"
-                for item in artifact.get("containers") or []
-            ),
-            "coverage_status": (
-                "complete" if summary["provenance_available"] else "incomplete"
-            ),
-            **summary,
-        }
-
-
-class LocalPdfCompactResearchCanonicalAdapter(PdfCompactCanonicalAdapter):
-    mapping: CompatibilityMapping
-
-    def _project(self, envelope: CanonicalReadEnvelope) -> dict[str, Any]:
-        output = super()._project(envelope)
-        generic_projection = render_neutral_canonical_projection(envelope.artifact)
-        if not generic_projection.strip():
-            raise _ProjectionIncomplete("canonical_pdf_projection_empty")
-        output.update(
-            {
-                "schema_version": self.mapping.output_contract_version,
-                "proof_status": "passed",
-                "canonical_root_sha256": envelope.canonical_root_sha256,
-                "canonical_version_number": envelope.canonical_version_number,
-                "physical_layout": envelope.physical_layout,
-                "generic_projection": generic_projection,
-                "generic_projection_sha256": hashlib.sha256(
-                    generic_projection.encode("utf-8")
-                ).hexdigest(),
-                "generic_projection_characters": len(generic_projection),
-            }
-        )
-        return output
-
-
 def render_neutral_canonical_projection(artifact: dict[str, Any]) -> str:
     """Render a validated CanonicalArtifactV1 without reopening source evidence.
 
@@ -487,63 +440,12 @@ GATE1_ARTIFACT_STORE_MAPPING = CompatibilityMapping(
     canonical_queries=("read_active_envelope", "read manifest"),
 )
 
-PDF_COMPACT_CANONICAL_MAPPING = CompatibilityMapping(
-    consumer_id="pdf_compact_canonical_test",
-    source_file="tests/test_broker_reports_pdf_compact_canonical.py",
-    migration_wave="WAVE_0_TEST",
-    feature_flag="CANONICAL_READ_PDF_COMPACT_CANONICAL_TEST",
-    legacy_contract_version="gate2_handoff_v0",
-    canonical_contract_version=CANONICAL_ARTIFACT_SCHEMA_VERSION,
-    compatibility_adapter_version="pdf_compact_canonical_adapter_v1",
-    output_contract_version="pdf_compact_compatibility_output_v1",
-    canonical_queries=(
-        "read_active_envelope",
-        "read ordered containers",
-        "read ordered nodes",
-        "read provenance",
-        "read issues",
-    ),
-)
-
-LOCAL_PDF_COMPACT_RESEARCH_MAPPING = CompatibilityMapping(
-    consumer_id="local_pdf_compact_canonical_proof",
-    source_file="scripts/local_pdf_compact_canonical_proof.py",
-    migration_wave="WAVE_0_RESEARCH",
-    feature_flag="CANONICAL_READ_LOCAL_PDF_COMPACT_CANONICAL_PROOF",
-    legacy_contract_version="broker_reports_pdf_compact_canonical_controlled_proof_v1",
-    canonical_contract_version=CANONICAL_ARTIFACT_SCHEMA_VERSION,
-    compatibility_adapter_version="local_pdf_compact_research_canonical_adapter_v2",
-    output_contract_version="local_pdf_compact_research_output_v2",
-    canonical_queries=(
-        "read_active_envelope",
-        "read ordered containers",
-        "read ordered nodes",
-        "read provenance",
-        "read issues",
-    ),
-)
-
-
 class Gate1ArtifactStoreCanonicalAdapterFactory(_ConsumerAdapterFactory):
     adapter_type = Gate1ArtifactStoreCanonicalAdapter
     mapping = GATE1_ARTIFACT_STORE_MAPPING
 
 
-class PdfCompactCanonicalAdapterFactory(_ConsumerAdapterFactory):
-    adapter_type = PdfCompactCanonicalAdapter
-    mapping = PDF_COMPACT_CANONICAL_MAPPING
-
-
-class LocalPdfCompactResearchCanonicalAdapterFactory(_ConsumerAdapterFactory):
-    adapter_type = LocalPdfCompactResearchCanonicalAdapter
-    mapping = LOCAL_PDF_COMPACT_RESEARCH_MAPPING
-
-
-WAVE0_MAPPINGS = (
-    GATE1_ARTIFACT_STORE_MAPPING,
-    PDF_COMPACT_CANONICAL_MAPPING,
-    LOCAL_PDF_COMPACT_RESEARCH_MAPPING,
-)
+WAVE0_MAPPINGS = (GATE1_ARTIFACT_STORE_MAPPING,)
 
 
 def _surface(
@@ -717,18 +619,6 @@ FROZEN_CONSUMER_SURFACES = (
         ("operator process-false proof",),
     ),
     _surface(
-        "live_pdf_table_operator",
-        "scripts/live_pdf_table_intake_gate1_operator_proof.py",
-        "WAVE_2_BACKGROUND_PRODUCT",
-        "operator PDF table proof",
-        ("legacy handoff presence",),
-        ("upload, chat, download, write and delete",),
-        "live operator session",
-        ("canonical partial table/provenance reads",),
-        None,
-        ("operator PDF proof",),
-    ),
-    _surface(
         "live_private_intake_smoke",
         "scripts/live_process_false_private_intake_smoke.py",
         "WAVE_2_BACKGROUND_PRODUCT",
@@ -739,18 +629,6 @@ FROZEN_CONSUMER_SURFACES = (
         ("canonical manifest and access behavior",),
         None,
         ("operator private-intake proof",),
-    ),
-    _surface(
-        "local_pdf_compact_canonical_proof",
-        "scripts/local_pdf_compact_canonical_proof.py",
-        "WAVE_0_RESEARCH",
-        "local non-product PDF proof",
-        ("legacy handoff payload",),
-        ("writes only ignored local research evidence",),
-        "explicit local trusted context",
-        ("active PDF canonical artifact summary",),
-        "LocalPdfCompactResearchCanonicalAdapterFactory",
-        ("test_broker_reports_canonical_consumer_compatibility.py",),
     ),
     _surface(
         "gate1_artifact_store_test",
@@ -764,21 +642,6 @@ FROZEN_CONSUMER_SURFACES = (
         "Gate1ArtifactStoreCanonicalAdapterFactory",
         (
             "test_broker_reports_gate1_artifact_store.py",
-            "test_broker_reports_canonical_consumer_compatibility.py",
-        ),
-    ),
-    _surface(
-        "pdf_compact_canonical_test",
-        "tests/test_broker_reports_pdf_compact_canonical.py",
-        "WAVE_0_TEST",
-        "PDF compact compatibility regression",
-        ("legacy authority assertion",),
-        ("isolated temporary store only",),
-        "isolated synthetic test context",
-        ("active PDF containers/nodes/tables/provenance",),
-        "PdfCompactCanonicalAdapterFactory",
-        (
-            "test_broker_reports_pdf_compact_canonical.py",
             "test_broker_reports_canonical_consumer_compatibility.py",
         ),
     ),

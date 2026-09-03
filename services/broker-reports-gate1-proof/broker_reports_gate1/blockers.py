@@ -96,22 +96,16 @@ def raster_requires_review(run_id: str, document_id: str) -> dict:
     )
 
 
-def pdf_table_normalization_incomplete(
-    run_id: str, document_id: str, reason: str
-) -> dict:
+def pdf_document_ai_not_configured(run_id: str, document_id: str) -> dict:
     return make_blocker(
         run_id=run_id,
         document_id=document_id,
-        code="pdf_table_normalization_incomplete",
+        code="PDF_DOCUMENT_AI_NOT_CONFIGURED",
         severity="error",
         blocks_next_gate=True,
-        created_by_step="pdf_source_bound_table_normalization",
-        safe_message=(
-            "One or more PDF table pages could not be normalized from parser-owned "
-            "source values and require review."
-        ),
-        review_action="review_pdf_table_page_or_retry_locator",
-        reason=reason,
+        created_by_step="pdf_document_extraction",
+        safe_message="PDF Document AI is not configured for this deployment.",
+        review_action="configure_and_qualify_pdf_document_ai_adapter",
     )
 
 

@@ -141,6 +141,12 @@ _REASON_POLICIES: dict[tuple[str, str], _ReasonPolicy] = {
         "Не удалось разобрать структуру файла. Повторите попытку или передайте файл на проверку.",
         frozenset({"parsing", "document_profiling", "table_detection"}),
     ),
+    ("failed", "PDF_DOCUMENT_AI_NOT_CONFIGURED"): _ReasonPolicy(
+        False,
+        "contact_operator",
+        "PDF Document AI is not configured. Contact the administrator.",
+        frozenset({"document_profiling"}),
+    ),
     ("partial", "atom_budget_exceeded"): _ReasonPolicy(
         True,
         "use_partial_result",

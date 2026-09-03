@@ -25,6 +25,14 @@ from .eligibility import build_document_source_eligibility
 from .file_processing_outcomes import FileProcessingOutcomeFactory
 from .full_source import FullSourceArtifactConfig, FullSourceArtifactFactory
 from .inputs import FileInput
+from .pdf_document_ai import (
+    PDF_DOCUMENT_AI_NOT_CONFIGURED,
+    PdfDocumentExtractionError,
+    PdfDocumentExtractor,
+    PdfDocumentExtractorFactory,
+    PdfSourceContext,
+    validate_extraction_source,
+)
 from .profilers_csv_txt import profile_csv, profile_txt
 from .profilers_docx import profile_docx
 from .profilers_image import profile_image
@@ -55,6 +63,16 @@ class NormalizationResult:
 
 
 class Gate1Normalizer:
+    def __init__(
+        self,
+        *,
+        _pdf_document_extractor: PdfDocumentExtractor | None = None,
+    ) -> None:
+        """Compose the production boundary; the private override is test-only."""
+        self._pdf_document_extractor = (
+            _pdf_document_extractor or PdfDocumentExtractorFactory.create()
+        )
+
     def plan_run_id(self, file_inputs: list[FileInput]) -> str:
         return normalization_run_id([self._input_summary(item) for item in file_inputs])
 
@@ -66,9 +84,6 @@ class Gate1Normalizer:
         trigger_type: str = "backend_core",
         input_context: dict | None = None,
         extra_private_markers: list[str] | None = None,
-        pdf_table_locator_pages_by_sha256: (
-            dict[str, list[dict[str, Any]]] | None
-        ) = None,
         bounded_graph=None,
         workload_checkpoint: Callable[[], Any] | None = None,
         workload_progress: Callable[[str, dict[str, Any]], Any] | None = None,
@@ -131,25 +146,13 @@ class Gate1Normalizer:
         slice_provenance = NormalizedSliceProvenanceFactory().create()
         full_source_builder = FullSourceArtifactFactory(
             FullSourceArtifactConfig(
-                enable_pdf_layout_slice2=(
-                    (input_context or {}).get("pdf_layout_slice2_enabled") is not False
-                ),
                 enable_canonical_artifact_v1_shadow=(
                     (input_context or {}).get("canonical_gate2_write_enabled")
                     is True
                 ),
             )
         ).create()
-        table_projection_builder = NormalizedTableProjectionFactory(
-            NormalizedTableProjectionConfig(
-                broker_pdf_neutral_table_profile_v1_enabled=(
-                    (input_context or {}).get(
-                        "broker_pdf_neutral_table_profile_v1_enabled"
-                    )
-                    is True
-                )
-            )
-        ).create()
+        table_projection_builder = NormalizedTableProjectionFactory().create()
         archive_intake = Gate1ArchiveIntakeFactory().create()
         source_policy_context = self._source_policy_context(input_context or {})
 
@@ -291,6 +294,43 @@ class Gate1Normalizer:
                     )
 
             doc_blockers.extend(profile_blockers)
+            pdf_extraction = None
+            if (
+                container == "pdf"
+                and content_bytes is not None
+                and content_sha256 is not None
+                and not profile_blockers
+            ):
+                try:
+                    source_context = PdfSourceContext(
+                        document_ref=doc_id,
+                        expected_pdf_sha256=content_sha256,
+                        preflight_page_count=int((profile or {}).get("pages_count") or 0),
+                    )
+                    pdf_extraction = self._pdf_document_extractor.extract(
+                        content_bytes,
+                        source_context,
+                    )
+                    validate_extraction_source(
+                        pdf_extraction,
+                        pdf_bytes=content_bytes,
+                        source_context=source_context,
+                    )
+                except PdfDocumentExtractionError as exc:
+                    pdf_extraction = None
+                    if exc.code == PDF_DOCUMENT_AI_NOT_CONFIGURED:
+                        doc_blockers.append(
+                            blocker_factory.pdf_document_ai_not_configured(run_id, doc_id)
+                        )
+                    else:
+                        doc_blockers.append(
+                            blocker_factory.parser_failed(run_id, doc_id, exc.code)
+                        )
+                except ValueError as exc:
+                    pdf_extraction = None
+                    doc_blockers.append(
+                        blocker_factory.parser_failed(run_id, doc_id, str(exc))
+                    )
             blockers.extend(doc_blockers)
             if new_slices:
                 new_slices = slice_provenance.enrich_slices(
@@ -307,7 +347,19 @@ class Gate1Normalizer:
                 profiles.append(profile)
             full_source_result = None
             table_projection_result = None
-            if content_bytes is not None and content_sha256 and container != "zip":
+            if pdf_extraction is not None and content_sha256:
+                full_source_result = full_source_builder.build_document_extraction(
+                    normalization_run_id=run_id,
+                    document_id=doc_id,
+                    profile_id=profile["profile_id"] if profile else profile_id(doc_id),
+                    extraction=pdf_extraction,
+                )
+                full_source_document_summaries.append(full_source_result.summary)
+            elif (
+                content_bytes is not None
+                and content_sha256
+                and container not in {"zip", "pdf"}
+            ):
                 full_source_result = full_source_builder.build(
                     normalization_run_id=run_id,
                     document_id=doc_id,
@@ -315,16 +367,9 @@ class Gate1Normalizer:
                     container_format=container,
                     content_bytes=content_bytes,
                     source_checksum_sha256=content_sha256,
-                    pdf_table_locator_pages=(
-                        (pdf_table_locator_pages_by_sha256 or {}).get(
-                            content_sha256, []
-                        )
-                        if container == "pdf"
-                        and pdf_table_locator_pages_by_sha256 is not None
-                        else None
-                    ),
                 )
                 full_source_document_summaries.append(full_source_result.summary)
+            if full_source_result is not None:
                 table_projection_started = time.perf_counter()
                 table_projection_result = table_projection_builder.build_for_document(
                     source_format=container,
@@ -339,94 +384,6 @@ class Gate1Normalizer:
                     table_projection_runtime_seconds_max,
                     table_projection_elapsed,
                 )
-                if (
-                    container == "pdf"
-                    and pdf_table_locator_pages_by_sha256 is not None
-                ):
-                    locator_pages = (
-                        pdf_table_locator_pages_by_sha256.get(content_sha256, [])
-                    )
-                    expected_pages = sum(
-                        len(
-                            (
-                                payload.get("pdf_text_layer_projection")
-                                if isinstance(payload, dict)
-                                else {}
-                            ).get("page_inventory", [])
-                        )
-                        for payload in full_source_result.payloads
-                        if isinstance(
-                            payload.get("pdf_text_layer_projection"), dict
-                        )
-                    )
-                    located_regions = sum(
-                        len(page.get("regions") or [])
-                        for page in locator_pages
-                        if isinstance(page, dict)
-                    )
-                    layout_pages = [
-                        page
-                        for payload in full_source_result.payloads
-                        if isinstance(payload, dict)
-                        and isinstance(
-                            payload.get("pdf_text_layer_projection"), dict
-                        )
-                        for page in payload["pdf_text_layer_projection"].get(
-                            "page_inventory", []
-                        )
-                        if isinstance(page, dict)
-                    ]
-                    accepted_regions = sum(
-                        int(page.get("table_locator_regions_accepted_total") or 0)
-                        for page in layout_pages
-                    )
-                    rejected_regions = sum(
-                        int(page.get("table_locator_regions_rejected_total") or 0)
-                        for page in layout_pages
-                    )
-                    ready_projections = sum(
-                        projection.get("projection_status") == "ready"
-                        and projection.get("validator_status") == "passed"
-                        for projection in table_projection_result.projections
-                        if isinstance(projection, dict)
-                        and projection.get("source_format") == "pdf"
-                    )
-                    failed_pages = sum(
-                        not isinstance(page, dict)
-                        or page.get("status") == "failed"
-                        for page in locator_pages
-                    )
-                    blocked_table_pages = sum(
-                        page.get("table_candidate_status") == "blocked"
-                        for page in layout_pages
-                    )
-                    if (
-                        len(locator_pages) != expected_pages
-                        or failed_pages
-                        or len(layout_pages) != expected_pages
-                        or blocked_table_pages
-                        or accepted_regions + rejected_regions != located_regions
-                        or rejected_regions
-                        or ready_projections != accepted_regions
-                    ):
-                        reason = (
-                            "locator_pages_or_native_table_count_mismatch:"
-                            f"expected_pages={expected_pages};"
-                            f"locator_pages={len(locator_pages)};"
-                            f"failed_pages={failed_pages};"
-                            f"located_regions={located_regions};"
-                            f"accepted_regions={accepted_regions};"
-                            f"rejected_regions={rejected_regions};"
-                            f"blocked_table_pages={blocked_table_pages};"
-                            f"ready_projections={ready_projections}"
-                        )
-                        blocker = blocker_factory.pdf_table_normalization_incomplete(
-                            run_id,
-                            doc_id,
-                            reason,
-                        )
-                        doc_blockers.append(blocker)
-                        blockers.append(blocker)
             elif container == "zip" and archive_manifest is not None:
                 archive_complete = (
                     archive_manifest.get("terminal_status") == "complete"
@@ -509,6 +466,13 @@ class Gate1Normalizer:
             documents.append(document)
 
             doc_blocker_codes = {item["code"] for item in doc_blockers}
+            if PDF_DOCUMENT_AI_NOT_CONFIGURED in doc_blocker_codes:
+                if bounded_graph is not None:
+                    bounded_graph.register_document(document)
+                private_slices.extend(new_slices)
+                del full_source_result, table_projection_result, new_slices, content_bytes
+                checkpoint()
+                continue
             taxonomy_candidate = classify_document(
                 document=document,
                 profile=profile,
@@ -671,12 +635,26 @@ class Gate1Normalizer:
                 file_inputs, blockers, gate2_handoff
             ),
         }
+        pdf_document_ai_blocked_documents = {
+            str(blocker.get("document_id") or "")
+            for blocker in blockers
+            if blocker.get("code") == PDF_DOCUMENT_AI_NOT_CONFIGURED
+        }
+        terminal_pdf_document_ai_request = bool(
+            pdf_document_ai_blocked_documents
+        ) and all(
+            str(document.get("document_id") or "")
+            in pdf_document_ai_blocked_documents
+            or document.get("container_format") == "zip"
+            for document in documents
+        )
         if bounded_graph is not None:
             bounded_graph.seal()
-        package = apply_domain_ingestion_artifacts(
-            package,
-            copy_package=bounded_graph is None,
-        )
+        if not terminal_pdf_document_ai_request:
+            package = apply_domain_ingestion_artifacts(
+                package,
+                copy_package=bounded_graph is None,
+            )
         progress(
             "validating",
             {
@@ -892,6 +870,13 @@ class Gate1Normalizer:
     def _run_status(self, file_inputs: list[FileInput], blockers: list[dict]) -> str:
         if not file_inputs:
             return "failed_safe"
+        blocked_document_refs = {
+            str(blocker.get("document_id") or "")
+            for blocker in blockers
+            if blocker.get("code") == PDF_DOCUMENT_AI_NOT_CONFIGURED
+        }
+        if blocked_document_refs and len(blocked_document_refs) == len(file_inputs):
+            return "failed_safe"
         blocking = any(blocker.get("blocks_gate2") for blocker in blockers)
         return "completed_with_blockers" if blocking or blockers else "completed"
 
@@ -919,6 +904,7 @@ class Gate1Normalizer:
             ("corrupt_file", "parsing"),
             ("parser_failed", "parsing"),
             ("unsupported_format", "container_detection"),
+            (PDF_DOCUMENT_AI_NOT_CONFIGURED, "document_profiling"),
         )
         partial_codes = {
             "raster_requires_ocr_or_review",
@@ -967,6 +953,8 @@ class Gate1Normalizer:
             return "attach_synthetic_files_and_retry"
         if "bytes_unavailable" in codes:
             return "verify_pipe_byte_access_boundary"
+        if PDF_DOCUMENT_AI_NOT_CONFIGURED in codes:
+            return "configure_pdf_document_ai"
         mode = gate2_handoff.get("handoff_mode")
         if mode == "reduced_subset_ready_for_gate2":
             return "continue_with_reduced_gate2_subset_after_specialist_confirmation"

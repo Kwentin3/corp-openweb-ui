@@ -69,12 +69,6 @@ WAVE2_SHADOW_CONTRACTS = (
         "process_false",
     ),
     Wave2ShadowContract(
-        "live_pdf_table_operator",
-        "scripts/live_pdf_table_intake_gate1_operator_proof.py",
-        "live_pdf_table_operator_canonical_shadow_v1",
-        "table_operator",
-    ),
-    Wave2ShadowContract(
         "live_private_intake_smoke",
         "scripts/live_process_false_private_intake_smoke.py",
         "live_private_intake_canonical_shadow_v1",

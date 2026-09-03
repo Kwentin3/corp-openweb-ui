@@ -31,8 +31,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
-from pypdf import PdfWriter
-from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 try:
     import psutil
@@ -327,7 +325,6 @@ def _function_probes(metrics: MetricBook) -> Iterator[None]:
     import broker_reports_gate1.gate2_input_readiness as readiness_module
     import broker_reports_gate1.gate2_model_clients as model_clients_module
     import broker_reports_gate1.gate2_table_packages as table_packages_module
-    import broker_reports_gate1.pdf_text_layer as pdf_text_module
     import broker_reports_gate1.source_provenance as provenance_module
     import broker_reports_gate1.table_projection as table_projection_module
 
@@ -336,16 +333,6 @@ def _function_probes(metrics: MetricBook) -> Iterator[None]:
         (resolver_module.ArtifactResolver, "resolve", "resolver.resolve"),
         (readiness_module, "validate_document_memory_manifest", "validation.document_memory"),
         (readiness_module, "validate_full_source_unit", "validation.full_source_unit"),
-        (
-            readiness_module,
-            "validate_pdf_source_unit_parent_linkage",
-            "validation.pdf_source_unit_parent_linkage",
-        ),
-        (
-            readiness_module,
-            "validate_pdf_text_layer_payload",
-            "validation.pdf_parent_payload_gate2",
-        ),
         (readiness_module, "validate_normalized_slice_provenance", "validation.legacy_slice_provenance"),
         (readiness_module, "validate_dry_run_source_fact_package", "validation.source_fact_package"),
         (readiness_module, "_build_dry_run_package", "construction.source_fact_package"),
@@ -353,29 +340,12 @@ def _function_probes(metrics: MetricBook) -> Iterator[None]:
         (readiness_module, "_build_issue_context", "construction.issue_context"),
         (readiness_module, "_render_safe_report", "serialization.safe_report"),
         (readiness_module, "resolve_source_values", "validation.resolve_source_values"),
-        (
-            readiness_module,
-            "resolve_pdf_layout_unit_source_values",
-            "validation.resolve_pdf_values_input_batch",
-        ),
         (readiness_module, "validate_gate2_table_package", "validation.table_package_outer"),
         (readiness_module, "stable_digest", "hash.stable_digest_readiness"),
         (provenance_module, "validate_normalized_slice_provenance", "validation.slice_provenance"),
         (provenance_module.NormalizedSliceProvenanceEnricher, "enrich_slice", "validation.rebuild_provenance"),
         (provenance_module, "_checksum_ref", "hash.provenance_checksum"),
-        (
-            full_source_module,
-            "validate_pdf_source_unit_structure",
-            "validation.pdf_source_unit_structure",
-        ),
         (full_source_module, "_checksum_ref", "hash.full_source_checksum"),
-        (pdf_text_module, "validate_pdf_text_layer_payload", "validation.pdf_parent_payload"),
-        (
-            pdf_text_module,
-            "resolve_pdf_layout_unit_source_value_results",
-            "validation.resolve_pdf_values_inner_batch",
-        ),
-        (pdf_text_module, "_checksum_ref", "hash.pdf_checksum"),
         (table_projection_module.TableProjectionValidator, "validate", "validation.table_projection"),
         (table_projection_module, "_projection_checksum", "hash.table_projection_checksum"),
         (table_packages_module.Gate2TablePackageBuilder, "build", "construction.table_package"),
@@ -858,7 +828,6 @@ def _synthetic_inputs(workload: str, *, documents: int, csv_rows: int) -> list[F
         "csv": _csv_input,
         "csv_scale": _csv_input,
         "html": _html_input,
-        "pdf": _pdf_input,
         "xml": _xml_input,
         "zip": _zip_input,
         "review_visual": _review_visual_input,
@@ -870,7 +839,6 @@ def _synthetic_inputs(workload: str, *, documents: int, csv_rows: int) -> list[F
     sequence = [
         _csv_input,
         _html_input,
-        _pdf_input,
         _xml_input,
         _zip_input,
         _review_visual_input,
@@ -912,16 +880,6 @@ def _html_input(index: int, rows: int) -> FileInput:
     )
 
 
-def _pdf_input(index: int, rows: int) -> FileInput:
-    return FileInput.from_bytes(
-        private_ref=f"synthetic-pdf-{index}",
-        filename=f"synthetic-{index}.pdf",
-        content=_ruled_table_pdf(index),
-        mime_type="application/pdf",
-        source_kind="synthetic_performance_probe",
-    )
-
-
 def _xml_input(index: int, rows: int) -> FileInput:
     events = "".join(
         f"<operation ordinal='{row + 1}' amount='{index * rows + row + 1}.00' currency='USD'/>"
@@ -941,7 +899,7 @@ def _zip_input(index: int, rows: int) -> FileInput:
     xml_bytes = _xml_input(index, rows).read_bytes().content_bytes or b""
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("payload.xml", xml_bytes)
-        archive.writestr("statement.pdf", _ruled_table_pdf(index))
+        archive.writestr("statement.csv", _csv_input(index, rows).read_bytes().content_bytes)
         archive.writestr("signature.p7s", b"synthetic-signature")
     return FileInput.from_bytes(
         private_ref=f"synthetic-zip-{index}",
@@ -969,53 +927,6 @@ def _review_visual_input(index: int, rows: int) -> FileInput:
         mime_type="text/html",
         source_kind="synthetic_performance_probe",
     )
-
-
-def _ruled_table_pdf(index: int) -> bytes:
-    writer = PdfWriter()
-    page = writer.add_blank_page(width=320, height=320)
-    font = DictionaryObject(
-        {
-            NameObject("/Type"): NameObject("/Font"),
-            NameObject("/Subtype"): NameObject("/Type1"),
-            NameObject("/BaseFont"): NameObject("/Helvetica"),
-        }
-    )
-    font_ref = writer._add_object(font)
-    page[NameObject("/Resources")] = DictionaryObject(
-        {NameObject("/Font"): DictionaryObject({NameObject("/F1"): font_ref})}
-    )
-    texts = [
-        (30, 260, f"Synthetic Table {index}"),
-        (30, 220, "Date"),
-        (125, 220, "Amount"),
-        (225, 220, "Currency"),
-        (30, 195, "2026-01-01"),
-        (125, 195, "10.00"),
-        (225, 195, "USD"),
-        (30, 170, "2026-01-02"),
-        (125, 170, "20.00"),
-        (225, 170, "EUR"),
-    ]
-    commands = [f"BT /F1 10 Tf {x} {y} Td ({text}) Tj ET" for x, y, text in texts]
-    commands.extend(
-        [
-            "20 155 m 300 155 l S",
-            "20 180 m 300 180 l S",
-            "20 205 m 300 205 l S",
-            "20 230 m 300 230 l S",
-            "20 155 m 20 230 l S",
-            "110 155 m 110 230 l S",
-            "210 155 m 210 230 l S",
-            "300 155 m 300 230 l S",
-        ]
-    )
-    stream = DecodedStreamObject()
-    stream.set_data("\n".join(commands).encode("latin-1"))
-    page[NameObject("/Contents")] = writer._add_object(stream)
-    output = io.BytesIO()
-    writer.write(output)
-    return output.getvalue()
 
 
 def _database_inventory(database: Path) -> dict[str, Any]:
@@ -1105,7 +1016,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--workload",
-        choices=("actual_latest", "csv", "csv_scale", "html", "pdf", "xml", "zip", "review_visual", "mixed"),
+        choices=("actual_latest", "csv", "csv_scale", "html", "xml", "zip", "review_visual", "mixed"),
         default="actual_latest",
     )
     parser.add_argument("--documents", type=int, default=1)

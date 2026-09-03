@@ -31,6 +31,16 @@ from broker_reports_gate1.artifact_store import FACTORY_REQUIRED, FORBIDDEN, new
 
 
 FIXTURES = REPO / "docs" / "stage2" / "testdata" / "broker_reports_gate1_normalization"
+PUBLIC_PDF = (
+    REPO
+    / "docs"
+    / "reports"
+    / "2026-09-02"
+    / "artifacts"
+    / "mistral-public-pairs"
+    / "fidelity"
+    / "source.pdf"
+)
 
 
 def fixture_bytes(name: str) -> bytes:
@@ -506,7 +516,7 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
                 FileInput.from_bytes(
                     private_ref="reduced-raster-1",
                     filename="synthetic_raster.pdf",
-                    content=self._synthetic_raster_pdf_bytes(),
+                    content=PUBLIC_PDF.read_bytes(),
                     mime_type="application/pdf",
                     source_kind="openwebui_pipe",
                 ),
@@ -550,8 +560,15 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertEqual(len(handoff["included_document_refs"]), 1)
         self.assertEqual(len(handoff["pending_review_refs"]), 1)
         self.assertEqual(len(handoff["source_policy_review_refs"]), 0)
-        self.assertEqual(len(handoff["ocr_required_refs"]), 1)
-        self.assertEqual(len(handoff["excluded_document_refs"]), 1)
+        self.assertEqual(len(handoff["ocr_required_refs"]), 0)
+        self.assertEqual(len(handoff["excluded_document_refs"]), 2)
+        self.assertIn(
+            "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+            {
+                item["code"]
+                for item in result.package["normalization_blockers"]
+            },
+        )
         self.assertEqual(eligibility["schema_version"], "document_source_eligibility_v0")
         self.assertEqual(len(eligibility["entries"]), 4)
         self.assertTrue(handoff["issue_ledger_ref"])
@@ -689,17 +706,6 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
             retention_policy=build_retention_policy(mode="api_smoke"),
         )
         return result, context, manifest
-
-    def _synthetic_raster_pdf_bytes(self) -> bytes:
-        return (
-            b"%PDF-1.4\n"
-            b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
-            b"2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj\n"
-            b"3 0 obj << /Type /Page /Parent 2 0 R /Resources << /XObject << /Im1 5 0 R >> >> /Contents 4 0 R >> endobj\n"
-            b"4 0 obj << /Length 0 >> stream\nendstream endobj\n"
-            b"5 0 obj << /Type /XObject /Subtype /Image /Width 10 /Height 10 >> endobj\n"
-            b"%%EOF"
-        )
 
     def _assert_resolve_error(self, resolver: ArtifactResolver, artifact_id: str, context: ArtifactAccessContext, code: str) -> None:
         with self.assertRaises(ArtifactStoreError) as raised:

@@ -8,8 +8,8 @@ Authority note: this document defines the broader global Broker Reports Gate 1.
 Its placement inside the complete product sequence is defined by the
 [canonical global gate architecture](BROKER_REPORTS_GATE_ARCHITECTURE.md).
 The narrower
-[PDF Table Intake](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md) is a child
-capability inside it. Original implementation slices and 2026-07-07 readiness
+[PDF Document AI boundary](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md)
+governs PDF understanding. Original implementation slices and 2026-07-07 readiness
 language are retained as design history; current runtime behavior is governed
 by versioned contracts, not by those planning markers.
 
@@ -171,14 +171,11 @@ Collect:
 - page-level bounded text-slice refs;
 - OCR-needed blocker.
 
-Preferred candidates: `pypdf` for basic page/text proof or `PyMuPDF` for stronger text-layer/raster signals. `pdfplumber` is optional if table fidelity becomes a proof requirement.
-
-General OCR is not implicit in global Gate 1. A separate supported child path,
-[PDF Table Intake](BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md), may rasterize
-PDF pages and use a qualified VLM only to detect table regions. It produces
-private raster candidates; it does not read cells or perform source-fact
-extraction. Other raster content continues to create
-`raster_requires_ocr_or_review` unless another approved contract applies.
+Safe PDF preflight may establish only validity, encryption and bounded page
+count. PDF text/table/image understanding belongs exclusively to
+`PdfDocumentExtractor`. Until a separately qualified adapter exists, the route
+returns `PDF_DOCUMENT_AI_NOT_CONFIGURED`; no local parser or VLM fallback is
+allowed.
 
 ### HTML and TXT
 

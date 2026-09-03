@@ -144,7 +144,7 @@ class BrokerReportsGate1FullSourceResliceTest(unittest.TestCase):
                 )
             )
 
-    def test_invalid_pdf_full_source_projection_fails_closed_without_ocr(self):
+    def test_full_source_rejects_direct_pdf_bytes_without_document_ai_envelope(self):
         result = FullSourceArtifactFactory().create().build(
             normalization_run_id="normrun_pdf_partial",
             document_id="brdoc_001_pdfpartial",
@@ -153,11 +153,12 @@ class BrokerReportsGate1FullSourceResliceTest(unittest.TestCase):
             content_bytes=b"%PDF-1.4\n1 0 obj <<>> stream\nBT (Visible text) Tj ET\nendstream\n%%EOF",
             source_checksum_sha256="a" * 64,
         )
-        self.assertIn(result.summary["parser_completeness_status"], {"partial", "blocked"})
+        self.assertEqual(result.summary["parser_completeness_status"], "blocked")
         self.assertFalse(result.summary["full_coverage_available"])
+        self.assertEqual(result.payloads, [])
         self.assertEqual(result.units, [])
         self.assertIn(
-            "pdf_corrupt_or_unreadable",
+            "format_not_supported_for_full_source",
             result.summary["parser_completeness_reason_codes"],
         )
 

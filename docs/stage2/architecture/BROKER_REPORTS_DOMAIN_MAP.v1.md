@@ -1,8 +1,8 @@
 # Broker Reports Domain Map v1
 
-Status: `SUPERSEDED_FOR_GATE_PLACEMENT_AND_GATE3_STATUS`
+Status: `HISTORICAL_DOMAIN_MAP_WITH_CURRENT_PDF_BOUNDARY`
 
-Effective date: 2026-07-31
+Effective date: 2026-09-03
 
 Scope: Broker Reports / NDFL, Gate 1 through Gate 4
 
@@ -27,9 +27,18 @@ status, adjacent historical routes, and change gates are maintained in
 Python comments are not an architecture authority and are not required for
 owner discovery.
 
-The intended information flow is:
+The current PDF information flow is:
 
-`document bytes -> bounded source/crop -> deterministic or semantic visual table -> Gate 2 package -> source facts -> financial decision -> canonical materialization -> ArtifactStore -> AnswerContext / Gate 3 manifest -> future Gate 4`
+`authenticated bytes -> source custody / safe preflight -> PdfDocumentExtractor -> PdfDocumentExtraction -> existing Full Source / Canonical downstream`
+
+Until an adapter is separately integrated and qualified,
+`PdfDocumentExtractorFactory` selects the unconfigured implementation and
+returns `PDF_DOCUMENT_AI_NOT_CONFIGURED`. This source-normalization owner is
+not a second Canonical or financial-semantic owner. No engine fallback exists.
+
+The current non-PDF information flow is:
+
+`document bytes -> deterministic normalization -> Gate 2 package -> source facts -> financial decision -> canonical materialization -> ArtifactStore -> AnswerContext / Gate 3 manifest -> future Gate 4`
 
 Provider output is always a proposal. It never becomes canonical authority by
 transport success alone.
@@ -41,101 +50,46 @@ transport success alone.
 - **Business meaning:** a document and its recoverable regions exist; nothing
   has yet been classified as an income, trade, fee, or tax fact.
 - **Inputs:** immutable file bytes, declared file metadata, access context.
-- **Outputs:** source artifacts, passports, source units, table candidates,
-  bounded crop manifests.
+- **Outputs:** source artifacts, passports, source units and supported non-PDF
+  table projections.
 - **Current sole owner:** `Gate1Normalizer` and format-specific factories;
-  `PdfTableIntakeRuntimeFactory` for PDF table intake.
-- **Allowed consumers:** Gate 1 recovery, source provenance, visual-table
-  transcription.
+  `PdfDocumentExtractor` for PDF understanding after shared custody/preflight.
+- **Allowed consumers:** source provenance and declared downstream contracts.
 - **Forbidden knowledge:** financial type choice, NDFL calculation, declaration
   fields, Gate 2 canonical facts.
 - **Runtime status:** `ACTIVE_PRODUCT`.
 - **Evidence:** terminal Gate 1 outcomes, source/candidate manifests, safe
   receipts, ArtifactStore references.
 - **Open debt:** none for live bundle parity; KT1.5 closed exact parity.
-- **Adjacent domains:** structural recovery, OpenWebUI Pipe boundary,
-  ArtifactStore.
+- **Adjacent domains:** PDF Document AI, OpenWebUI Pipe boundary, ArtifactStore.
 - **Completion criterion:** every admitted byte range has a terminal,
   reproducible source outcome or an explicit fail-closed reason.
 
-## 2. Structural PDF table recovery
+## 2. PDF Document AI boundary
 
-- **Purpose:** recover the visible structure of PDF tables before semantic
-  transcription.
-- **Business meaning:** rows, cells, continuation groups, and geometry are
-  structural observations, not financial assertions.
-- **Inputs:** PDF source units, bounded page regions, deterministic parser and
-  renderer outputs.
-- **Outputs:** table candidates, row windows, continuation materialization,
-  canonical structural projections or review-required outcomes.
-- **Current sole owner:** `PdfTableIntakeRuntimeFactory` with the maintained PDF
-  structural factories named by the architecture authority map.
-- **Allowed consumers:** semantic visual transcription, reviewed visual-table
-  promotion, Gate 2 table packaging.
-- **Forbidden knowledge:** source-fact type assignment, financial roles,
-  plausibility choice, tax treatment.
-- **Runtime status:** `ACTIVE_PRODUCT`.
-- **Evidence:** crop hash, candidate manifest, row-window and repair receipts.
-- **Open debt:** customer-shape generalization remains bounded by the released
-  profiles.
-- **Adjacent domains:** intake, semantic visual transcription, logical-table
-  materialization.
-- **Completion criterion:** the bounded region has a deterministic projection,
-  a valid crop candidate, or a terminal review/failure outcome.
+- **Purpose:** isolate all PDF understanding behind one replaceable port.
+- **Inputs:** authenticated PDF bytes and shared source context after custody
+  and safe preflight.
+- **Output:** immutable provider-neutral `PdfDocumentExtraction`, or a typed
+  fail-closed outcome.
+- **Current sole owner:** `PdfDocumentExtractor`; selection belongs only to
+  `PdfDocumentExtractorFactory`.
+- **Allowed consumers:** existing Full Source / Canonical downstream through
+  the provider-neutral envelope.
+- **Forbidden knowledge outside adapter/composition:** provider schema/model,
+  OCR options, bbox/crop/DPI, raw response, table reconstruction, retry or
+  fallback.
+- **Runtime status:** `ACTIVE_FAIL_CLOSED`; no live adapter is configured.
+- **Completion criterion:** `PDF_DOCUMENT_AI_NOT_CONFIGURED` before network, or
+  one qualified adapter returns a contract-valid envelope.
 
-## 3. Semantic visual table transcription
-
-- **Purpose:** transcribe one immutable table crop into only `description` and
-  `rows`.
-- **Business meaning:** the model may describe and transcribe what is visible;
-  it may not decide financial semantics.
-- **Inputs:** one bounded PNG crop and the contract-owned transcription prompt.
-- **Outputs:** a provider proposal conforming to
-  `broker_reports_semantic_table_transcription_v1`.
-- **Current sole owner:** `PdfDualVlmRuntimeFactory` for execution and
-  `SemanticVisualTableValidatorFactory` for the response boundary.
-- **Allowed consumers:** deterministic semantic visual-table materialization.
-- **Forbidden knowledge:** fact types, financial roles, canonical IDs, source
-  ownership, retention, NDFL or declaration policy.
-- **Runtime status:** `ACTIVE_PRODUCT`; repository and live bundle parity are
-  verified by the KT1.5 closure evidence.
-- **Evidence:** bounded execution metadata, response validation result, crop and
-  response hashes.
-- **Open debt:** none for live bundle parity.
-- **Adjacent domains:** structural recovery, logical-table materialization,
-  model/provider boundary.
-- **Completion criterion:** exactly one proposal is accepted by deterministic
-  validation, or the crop receives a terminal non-canonical outcome.
-
-## 4. Deterministic logical table materialization
-
-- **Purpose:** turn a validated visual transcription into a stable envelope and
-  logical grid.
-- **Business meaning:** code assigns table identity, indexes, empty-cell
-  semantics, hashes, and lineage without inventing financial meaning.
-- **Inputs:** validated `description + rows`, crop lineage, execution decision.
-- **Outputs:** semantic visual-table envelope and logical-table projection.
-- **Current sole owner:** `SemanticVisualTableMaterializationFactory.create`.
-- **Allowed consumers:** ArtifactStore, Gate 2 table package, AnswerContext
-  provenance.
-- **Forbidden knowledge:** financial classification, candidate selection,
-  provider repair, Gate 4 calculations.
-- **Runtime status:** `ACTIVE_PRODUCT`.
-- **Evidence:** deterministic materialization receipt, envelope hash, projection
-  validation.
-- **Open debt:** live bundle parity only.
-- **Adjacent domains:** semantic transcription, Gate 2 package, ArtifactStore.
-- **Completion criterion:** the same validated inputs reproduce byte-equivalent
-  canonical structures and identifiers.
-
-## 5. Gate 2 table package
+## 3. Gate 2 table package
 
 - **Purpose:** project accepted Gate 1 tables into the bounded input contract
   consumed by Gate 2 extraction.
 - **Business meaning:** a table is ready for source-fact analysis; it has not
   itself become a financial fact.
-- **Inputs:** validated deterministic, reviewed, or semantic visual table
-  projection plus source lineage.
+- **Inputs:** validated supported non-PDF table projection plus source lineage.
 - **Outputs:** `broker_reports_gate2_table_package_v1` packages.
 - **Current sole owner:** `Gate2TablePackageFactory.create`.
 - **Allowed consumers:** Gate 2 input-readiness, segmentation, routing,
@@ -145,12 +99,12 @@ transport success alone.
 - **Runtime status:** `ACTIVE_PRODUCT`.
 - **Evidence:** package validation, source accounting, ArtifactStore refs.
 - **Open debt:** none created by KT1.
-- **Adjacent domains:** logical-table materialization, source-fact extraction,
+- **Adjacent domains:** source normalization, source-fact extraction,
   ArtifactStore.
 - **Completion criterion:** each package validates and points to one
   reproducible source projection.
 
-## 6. Source-fact extraction
+## 4. Source-fact extraction
 
 - **Purpose:** extract source-local candidate facts, validate them against
   visible evidence, and stitch accepted facts.
@@ -177,7 +131,7 @@ transport success alone.
 - **Completion criterion:** every package is accounted for by an accepted,
   unclassified, unsupported, no-fact, or failed terminal disposition.
 
-## 7. Financial semantic decision
+## 5. Financial semantic decision
 
 - **Purpose:** select or reject a bounded financial interpretation from
   code-owned candidates.
@@ -205,7 +159,7 @@ transport success alone.
 - **Completion criterion:** exactly one allowed terminal disposition is
   deterministically expanded and independently reproducible.
 
-## 8. Canonical financial materialization
+## 6. Canonical financial materialization
 
 - **Purpose:** validate a financial decision against authoritative source
   values and create canonical financial evidence.
@@ -229,7 +183,7 @@ transport success alone.
 - **Completion criterion:** all accepted decisions materialize through this
   authority or fail closed without partial canonical output.
 
-## 9. Artifact persistence
+## 7. Artifact persistence
 
 - **Purpose:** persist immutable artifacts and resolve them under access and
   retention policy.
@@ -251,7 +205,7 @@ transport success alone.
 - **Completion criterion:** persisted artifacts are independently resolvable and
   hash-verifiable under the same access context.
 
-## 10. Replay and comparators
+## 8. Replay and comparators
 
 - **Purpose:** reconstruct prior decisions and compare the exact governed
   authorities without calling providers.
@@ -275,7 +229,7 @@ transport success alone.
 - **Completion criterion:** reconstructed outputs and all governed request,
   choice, validation, and materialization identities compare exactly.
 
-## 11. AnswerContext
+## 9. AnswerContext
 
 - **Purpose:** select the bounded evidence view presented after a completed
   Gate 2 run.
@@ -295,7 +249,7 @@ transport success alone.
 - **Completion criterion:** one representation per evidence group is selected
   only after Gate 2 reaches a completed terminal state.
 
-## 12. Gate 3 context manifest
+## 10. Gate 3 context manifest
 
 - **Purpose:** seal the declared Gate 2 exit artifacts consumed by future or
   present Gate 3 readers.
@@ -315,7 +269,7 @@ transport success alone.
 - **Completion criterion:** manifest validation independently proves the
   complete allowed input set and rejects undeclared descendants.
 
-## 13. Gate 4 calculation and declaration
+## 11. Gate 4 calculation and declaration
 
 - **Purpose:** calculate and assemble tax/declaration outputs from accepted
   upstream domain facts.
@@ -335,7 +289,7 @@ transport success alone.
 - **Completion criterion:** a separate approved contract names one owner,
   inputs, outputs, rollback, and independent verification.
 
-## 14. OpenWebUI adapter and Pipe boundary
+## 12. OpenWebUI adapter and Pipe boundary
 
 - **Purpose:** adapt chat/file requests to maintained Broker Reports factories
   without moving business logic into OpenWebUI.
@@ -361,7 +315,7 @@ transport success alone.
 - **Completion criterion:** every product action routes through a named factory,
   generated bundles match maintained inputs, and no OpenWebUI core fork exists.
 
-## 15. Model and provider boundary
+## 13. Model and provider boundary
 
 - **Purpose:** project a canonical request to a provider and normalize one
   terminal response.
@@ -370,8 +324,9 @@ transport success alone.
 - **Inputs:** sealed request, provider profile, budget authorization.
 - **Outputs:** normalized terminal model result and execution metadata.
 - **Current sole owner:** `Gate2OpenWebUIRequestBuilder`,
-  `Gate2ProviderAdapterFactory`, `Gate2StructuredModelClientFactory`; visual
-  crop execution remains under `PdfDualVlmRuntimeFactory`.
+  `Gate2ProviderAdapterFactory`, `Gate2StructuredModelClientFactory` for
+  semantic mapping. Future PDF transport belongs only inside the separately
+  authorized Document AI adapter.
 - **Allowed consumers:** explicitly admitted Gate 1/Gate 2 runtimes and bounded
   qualification harnesses.
 - **Forbidden knowledge:** canonical promotion, source ownership, financial
@@ -386,7 +341,7 @@ transport success alone.
 - **Completion criterion:** one sealed request produces one terminal normalized
   outcome with exact provider identity and no hidden retry.
 
-## 16. Release and parity verification
+## 14. Release and parity verification
 
 - **Purpose:** prove repository, generated bundles, staged Function state, and
   readback agree before release claims.
@@ -411,7 +366,7 @@ transport success alone.
 - **Completion criterion:** exact committed head, generated assets, live state,
   rollback and independent readback all pass the governing release contract.
 
-## 17. Historical and compatibility routes
+## 15. Historical and compatibility routes
 
 - **Purpose:** preserve reproducibility and narrow compatibility without
   competing with current product owners.

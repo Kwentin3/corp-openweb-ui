@@ -20,6 +20,7 @@ import broker_reports_atomic_stage_remote as remote  # noqa: E402
 import live_release_broker_reports_atomic_stage as driver  # noqa: E402
 from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
     FUNCTION_CONTRACTS,
+    GATE1_RETIRED_VALVE_KEYS,
     RELEASE_QUIESCENT_WORKLOAD_STATES,
     RETIRED_FUNCTION_IDS,
     SCHEMA_VERSION,
@@ -244,32 +245,24 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             [contract.function_id for contract in FUNCTION_CONTRACTS],
             [item["function_id"] for item in manifest["functions"]],
         )
-        self.assertTrue(manifest["runtime"]["vlm_default_enabled"])
-        self.assertTrue(
-            manifest["runtime"][
-                "source_bound_table_normalization_default_enabled"
-            ]
-        )
+        self.assertFalse(manifest["runtime"]["pdf_document_ai_configured"])
         self.assertFalse(manifest["runtime"]["legacy_table_route_available"])
         self.assertNotIn(
             "semantic_visual_table_contract", manifest["provider_policy"]
         )
-        source_bound = manifest["provider_policy"]["source_bound_table_contract"]
-        self.assertTrue(source_bound["active_for_new_writes"])
-        self.assertEqual("pdfplumber", source_bound["table_structure_authority"])
-        self.assertEqual("original_pdf", source_bound["source_literal_authority"])
-        self.assertFalse(source_bound["model_values_used_as_source_literals"])
-        self.assertFalse(source_bound["pdfplumber_settings_selected_by_model"])
+        document_ai = manifest["provider_policy"]["pdf_document_ai_contract"]
+        self.assertFalse(document_ai["configured"])
+        self.assertEqual("PdfDocumentExtractorFactory", document_ai["composition_owner"])
+        self.assertEqual("PDF_DOCUMENT_AI_NOT_CONFIGURED", document_ai["terminal_blocker"])
+        self.assertFalse(document_ai["automatic_fallback"])
         self.assertEqual(
             {
-                "architecture_policy_version": "broker_reports_architecture_policy_v23",
+                "architecture_policy_version": "broker_reports_architecture_policy_v24",
                 "knowledge_rag_vectorization_allowed": False,
                 "local_ocr_production_allowed": False,
                 "local_ocr_worker_pool_allowed": False,
-                "native_openwebui_document_processing_allowed": False,
-                "whole_document_provider_upload_allowed": False,
             },
-            source_bound["runtime_boundary"],
+            document_ai["runtime_boundary"],
         )
         self.assertNotIn(
             "financial_evidence_registry", manifest["provider_policy"]
@@ -289,25 +282,25 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
     def test_manifest_digest_tampering_fails_closed(self):
         manifest = _manifest()
-        manifest["runtime"]["vlm_default_enabled"] = False
+        manifest["runtime"]["pdf_document_ai_configured"] = True
 
         with self.assertRaisesRegex(ValueError, "manifest_digest_mismatch"):
             validate_manifest(manifest)
 
-    def test_release_valves_enable_only_source_bound_table_route(self):
+    def test_release_valves_remove_retired_pdf_routes(self):
         function_id = FUNCTION_CONTRACTS[0].function_id
         valves = merged_valves(
             function_id,
             {
                 "unrelated_operator_setting": "preserved",
-                "pdf_table_intake_enabled": False,
+                GATE1_RETIRED_VALVE_KEYS[0]: False,
                 "canonical_gate2_compare_enabled": True,
                 "pdf_dual_vlm_enabled": False,
             },
         )
 
         self.assertEqual("preserved", valves["unrelated_operator_setting"])
-        self.assertTrue(valves["pdf_table_intake_enabled"])
+        self.assertNotIn(GATE1_RETIRED_VALVE_KEYS[0], valves)
         self.assertNotIn("canonical_gate2_compare_enabled", valves)
         self.assertNotIn("pdf_dual_vlm_enabled", valves)
         self.assertNotIn("pdf_semantic_visual_table_downstream_enabled", valves)
@@ -318,7 +311,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertFalse(valves["ndfl_gate3_enabled"])
         self.assertTrue(valves["ordinary_trade_candidate_enabled"])
         self.assertTrue(valves_match(function_id, valves))
-        self.assertEqual(64, valves["pdf_table_intake_maximum_pages"])
+        self.assertTrue(all(key not in valves for key in GATE1_RETIRED_VALVE_KEYS))
 
     def test_quiescence_counts_every_nonterminal_state(self):
         state_counts = {
@@ -400,7 +393,6 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 "restart_count": 0,
             },
             "loader_sha256": manifest["loader"]["content_sha256"],
-            "fitz_version": manifest["runtime"]["fitz_version"],
             "workload": {
                 "nonterminal_jobs": 5,
                 "release_blocking_jobs": 0,
@@ -486,7 +478,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 }
             )
 
-    def test_verifier_requires_only_source_bound_table_route_active(self):
+    def test_verifier_requires_fail_closed_pdf_document_ai_route(self):
         manifest = _manifest()
         checks = evaluate_route_activation(
             expected_manifest=manifest,
@@ -500,7 +492,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             expected_manifest=manifest,
             gate1_valves=drifted,
         )
-        self.assertFalse(failed["source_bound_table_route_default_on"])
+        self.assertFalse(failed["pdf_document_ai_fail_closed"])
 
     def test_local_driver_surfaces_only_typed_safe_remote_error(self):
         completed = subprocess.CompletedProcess(
@@ -701,7 +693,6 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 "loader": {
                     "content_sha256": remote._sha256_bytes(prior),
                 },
-                "fitz_version": manifest["runtime"]["fitz_version"],
             }
 
             remote._assert_static_contracts(
@@ -780,7 +771,6 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 "image": {},
                 "action": {},
                 "managed_prompts": [],
-                "fitz_version": manifest["runtime"]["fitz_version"],
                 "workload": {},
                 "counters": {},
             }

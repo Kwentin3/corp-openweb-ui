@@ -21,8 +21,6 @@ SERVICE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = SERVICE_ROOT.parents[1]
 sys.path.insert(0, str(SERVICE_ROOT))
 
-from pypdf import PdfReader  # noqa: E402
-
 from broker_reports_gate1 import (  # noqa: E402
     ArtifactAccessContext,
     ArtifactResolver,
@@ -789,7 +787,7 @@ def _direct_review(
         "begin_middle_end_order_accounted": True,
         "declared_pages_tables_sections_members_accounted": True,
         "material_table_values_and_order_accounted": True,
-        "pdf_page_and_layout_provenance_accounted": True,
+        "pdf_document_ai_boundary_accounted": True,
         "archive_member_lineage_accounted": True,
         "unresolved_content_explicit": (
             assessment["terminal_status"] != "review_required"
@@ -839,41 +837,17 @@ def _direct_review(
             parsed.embedded_media_checksums == normalized_media
         )
     elif container == "pdf":
-        reader = PdfReader(io.BytesIO(content))
-        projection = payloads[0]["pdf_text_layer_projection"]
-        inventory = list(projection["page_inventory"])
-        visual_pages = {
-            int(unit.get("page_number") or 0)
-            for unit in units
-            if unit.get("pdf_unit_type") == "pdf_visual_page_unit"
-        }
-        direct_text = [page.extract_text() or "" for page in reader.pages]
-        text_matches = all(
-            _normalize_text(source) == _normalize_text(str(item.get("text") or ""))
-            for source, item in zip(direct_text, inventory)
+        fail_closed = (
+            not payloads
+            and not units
+            and not projections
+            and assessment["terminal_status"] == "blocked"
+            and assessment["gate2_memory_status"] == "blocked"
         )
-        visual_required = {
-            index
-            for index, (source, item) in enumerate(zip(direct_text, inventory), start=1)
-            if not _normalize_text(source)
-            or int(item.get("image_objects_total") or 0) > 0
-        }
-        page_count_matches = len(reader.pages) == len(inventory)
-        base["begin_middle_end_order_accounted"] = page_count_matches and text_matches
-        base["declared_pages_tables_sections_members_accounted"] = (
-            page_count_matches and visual_required <= visual_pages
-        )
-        base["material_table_values_and_order_accounted"] = all(
-            item.get("validator_status") == "passed" for item in projections
-        ) and (
-            scope["canonical_table_scope"] == "ready_validated_projection_only"
-            or "canonical_financial_table_not_available" in scope["restrictions"]
-        )
-        base["pdf_page_and_layout_provenance_accounted"] = (
-            page_count_matches
-            and len(projection.get("page_checksum_refs") or []) == len(reader.pages)
-            and projection.get("layout_projection_status") in {"complete", "partial"}
-        )
+        base["begin_middle_end_order_accounted"] = fail_closed
+        base["declared_pages_tables_sections_members_accounted"] = fail_closed
+        base["material_table_values_and_order_accounted"] = fail_closed
+        base["pdf_document_ai_boundary_accounted"] = fail_closed
     elif container == "xml":
         root = ElementTree.fromstring(content)
         source_tokens = []

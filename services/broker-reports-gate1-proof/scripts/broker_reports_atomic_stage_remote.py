@@ -407,15 +407,6 @@ def _image_state() -> dict[str, Any]:
     }
 
 
-def _fitz_version() -> str:
-    code = "import fitz; print(fitz.__version__)"
-    completed = _run(
-        ["docker", "exec", CONTAINER, "python", "-c", code],
-        timeout=60,
-    )
-    return completed.stdout.strip()
-
-
 def _loader_state() -> dict[str, Any]:
     if not LOADER_PATH.is_file():
         raise StageReleaseError("stage_release_loader_missing")
@@ -534,7 +525,6 @@ def _live_state(
         "managed_prompts": _prompt_states(db_path, manifest),
         "image": _image_state(),
         "loader": _loader_state(),
-        "fitz_version": _fitz_version(),
         "workload": _workload_state(data_root),
         "counters": _database_counters(db_path, data_root),
     }
@@ -578,8 +568,6 @@ def _assert_static_contracts(
         manifest.get("loader") or {}
     ).get("content_sha256"):
         raise StageReleaseError("stage_release_loader_contract_mismatch")
-    if state.get("fitz_version") != manifest["runtime"]["fitz_version"]:
-        raise StageReleaseError("stage_release_runtime_dependency_mismatch")
 
 
 def _assert_prompt_set_present(
@@ -1271,7 +1259,6 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
                 "action": before["action"],
                 "loader": before["loader"],
                 "managed_prompts": before["managed_prompts"],
-                "fitz_version": before["fitz_version"],
             },
             "workload": before["workload"],
             "counters": before["counters"],
@@ -1441,7 +1428,6 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         "workload": candidate["workload"],
         "counters_before": before["counters"],
         "counters_after": candidate["counters"],
-        "fitz_version": candidate["fitz_version"],
         "staging_removed": True,
     }
 

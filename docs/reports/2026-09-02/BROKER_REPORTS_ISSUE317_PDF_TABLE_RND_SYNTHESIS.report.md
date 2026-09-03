@@ -1,6 +1,12 @@
 # Broker Reports: почему гонка профилей PDFPlumber зашла в тупик
 
 Дата: 2026-09-02
+
+> **Superseded owner decision (2026-09-03):** Issue #372 retired the local
+> PDFPlumber/VLM reconstruction families and assigned PDF understanding to the
+> single `PdfDocumentExtractor` boundary. This report remains historical
+> research evidence; it is not a current architecture contract or
+> qualification receipt.
 Статус: исследовательский handoff, без production-активации
 
 ## Короткий вывод
@@ -206,8 +212,6 @@ presence/count сочеталось с 0 из 9 полностью восста�
 - [Пары PDF → Mistral Markdown](./artifacts/mistral-public-pairs/README.md) — единая точка для визуального сравнения двух публичных примеров.
 - [Issue #317](https://github.com/Kwentin3/corp-openweb-ui/issues/317) — основной журнал исследования.
 - [PR #364](https://github.com/Kwentin3/corp-openweb-ui/pull/364) — исследовательский контекст продолжений и geometry-only.
-- [G5.100: VLM → minimal native PDFPlumber](../2026-08-18/BROKER_REPORTS_G5100_MINIMAL_NATIVE_PDFPLUMBER.report.md) — 9/9 presence/count и 0/9 полностью корректных таблиц.
-- [Safe receipt этого handoff](./BROKER_REPORTS_ISSUE317_PDF_TABLE_RND_SYNTHESIS.receipt.safe.json) — агрегаты и hashes; рядом сохранены только два публичных исследовательских примера.
 - [Визуальная диагностика 17 страниц / 35 таблиц](https://github.com/Kwentin3/corp-openweb-ui/issues/317#issuecomment-5475385955).
 - [Geometry completion](https://github.com/Kwentin3/corp-openweb-ui/issues/317#issuecomment-5490710740).
 - [Geometry vNext one-box](https://github.com/Kwentin3/corp-openweb-ui/pull/364#issuecomment-5512768907).

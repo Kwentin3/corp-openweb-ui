@@ -1,12 +1,24 @@
 # Broker Reports Current State v1
 
-Status: `HISTORICAL_SNAPSHOT_SUPERSEDED_FOR_CURRENT_ROUTING`
+Status: `CURRENT_WITH_HISTORICAL_APPENDIX`
 
-Effective date: 2026-08-03
+Effective date: 2026-09-03
 
-This is the DOC6-era state snapshot, not the current Broker Reports entrypoint.
-Start from
-[Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) and the
+[Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) is the
+current normative route authority. Issue #372 replaces the PDF portion of the older state inventory. PDF source
+custody and safe preflight remain active. PDF understanding is isolated behind
+the single `PdfDocumentExtractor` port and one composition factory. No live
+adapter is configured, so production PDF intake terminates with typed
+`PDF_DOCUMENT_AI_NOT_CONFIGURED` before network access and before Canonical or
+Source Facts publication. Mistral is the selected first future adapter but its
+transport, exact model and qualification are not implemented. PDFPlumber,
+pdfminer, PyMuPDF, Camelot, Docling, VLM/bbox, hybrid, dual-engine and repair
+routes are retired with no fallback. CSV, TXT, HTML, XML, XLSX, DOCX,
+archive/ZIP and image boundaries retain their existing status.
+
+The material below is the DOC6-era historical appendix, not the current Broker
+Reports entrypoint.
+For downstream boundaries, continue with the
 [Gate 3 handoff](contracts/BROKER_REPORTS_GATE3_HANDOFF.v1.md). Statements below
 remain evidence of their dated scope and cannot override current Gate 3 status.
 
@@ -137,10 +149,9 @@ The normative owner inventory is
 `architecture/BROKER_REPORTS_OWNER_CONTEXT.v1.json`; the responsibility matrix
 is `contracts/BROKER_REPORTS_SOLE_OWNER_MATRIX.v1.md`. Load-bearing owners are:
 
-- visual execution and validation: `PdfDualVlmRuntimeFactory` and
-  `SemanticVisualTableValidatorFactory`;
-- logical table and Gate 2 package: `SemanticVisualTableMaterializationFactory`
-  and `Gate2TablePackageFactory`;
+- PDF understanding: `PdfDocumentExtractor`, selected only by
+  `PdfDocumentExtractorFactory` and fail-closed while unconfigured;
+- provider-neutral non-PDF table package: `Gate2TablePackageFactory`;
 - product source facts: `Gate2DomainSourceFactRuntimeFactory`;
 - Pack/type authority: `Gate2FinancialSemanticContractFactory`;
 - choice/expansion: existing V6 Choice, Packet, and Expansion factories;
@@ -213,9 +224,8 @@ bounded single-crop numeric profile and has explicit document-context,
 header-hierarchy, footnote and cross-page gaps. DOC0 made no runtime, bundle,
 prompt, valve, admission or live change. The canonical audit artifacts are
 `BROKER_REPORTS_DOCUMENT_PIPELINE_MAP.v1.md`,
-`BROKER_REPORTS_CONTEXT_LOSS_MATRIX.v1.json`,
-`BROKER_REPORTS_LEGACY_AND_REUSABLE_TOOLING.v1.json` and
-`BROKER_REPORTS_LOGICAL_TABLE_FORMAT_AUDIT.v1.md`.
+`BROKER_REPORTS_CONTEXT_LOSS_MATRIX.v1.json` and
+`BROKER_REPORTS_LEGACY_AND_REUSABLE_TOOLING.v1.json`.
 
 ## 12.2 DOC1 managed document contract
 

@@ -16,14 +16,17 @@ from broker_reports_gate1.architecture_policy import (
     LOCAL_OCR_WORKER_POOL_ALLOWED,
     LOCAL_OCR_PRODUCTION_ALLOWED,
     MODEL_CANONICAL_AUTHORITY,
-    NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED,
+    PDF_DOCUMENT_EXTRACTION_AUTOMATIC_FALLBACK_ALLOWED,
+    PDF_DOCUMENT_EXTRACTION_COMPOSITION_ROOT,
+    PDF_DOCUMENT_EXTRACTION_DEFAULT,
+    PDF_DOCUMENT_EXTRACTION_ENVELOPE,
+    PDF_DOCUMENT_EXTRACTION_PORT,
+    PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED,
+    PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE,
     PROVIDER_OUTPUT_AUTHORITY,
     WORKLOAD_ADMISSION,
     WORKLOAD_AUTHORITY,
     WORKLOAD_PRIMARY_WALL_TIMEOUT,
-    VISUAL_RECOVERY_INPUT_SCOPES,
-    VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES,
-    WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED,
 )
 from broker_reports_gate1 import architecture_policy
 from broker_reports_gate1.gate2_financial_evidence_registry import (
@@ -100,11 +103,9 @@ GATE1_PRIVATE_IMPLEMENTATIONS = {
     "bounded_graph",
     "document_memory",
     "full_source",
-    "pdf_layout_units",
-    "pdf_text_layer",
+    "pdf_document_ai",
     "source_provenance",
     "table_projection",
-    "visual_table_review_contracts",
 }
 PLATFORM_IMPLEMENTATIONS = {"artifact_store"}
 PROVIDER_TRANSPORT_MODULES = {"gate2_model_clients", "gate2_provider_adapters"}
@@ -143,39 +144,33 @@ GATE3_CURRENT_EVIDENCE_DEMAND_PORT = "gate3_evidence_demand_port"
 
 
 class BrokerReportsGateArchitectureTest(unittest.TestCase):
-    def test_pdf_table_context_keeps_existing_domain_owners_separate(self):
+    def test_pdf_document_ai_boundary_keeps_existing_domain_owners_separate(self):
         normalizer = (PACKAGE / "normalizer.py").read_text(encoding="utf-8")
-        locator = (PACKAGE / "pdf_table_locator.py").read_text(encoding="utf-8")
-        layout = (PACKAGE / "pdf_layout.py").read_text(encoding="utf-8")
+        boundary = (PACKAGE / "pdf_document_ai.py").read_text(encoding="utf-8")
         projection = (PACKAGE / "table_projection.py").read_text(
             encoding="utf-8"
         )
         canonical = (PACKAGE / "canonical_artifact.py").read_text(
             encoding="utf-8"
         )
-        locator_imports = {
+        boundary_imports = {
             str(node.module or "")
-            for node in ast.walk(ast.parse(locator))
-            if isinstance(node, ast.ImportFrom)
-        }
-        layout_imports = {
-            str(node.module or "")
-            for node in ast.walk(ast.parse(layout))
+            for node in ast.walk(ast.parse(boundary))
             if isinstance(node, ast.ImportFrom)
         }
 
-        self.assertIn("NormalizedTableProjectionFactory(", normalizer)
-        self.assertIn("PdfTableLocatorProjectionFactory", locator)
+        self.assertIn("class PdfDocumentExtractor", boundary)
+        self.assertIn("class PdfDocumentExtraction", boundary)
+        self.assertIn("class PdfDocumentExtractorFactory", boundary)
         self.assertFalse(
-            {"pdf_layout", "pdf_layout_units", "table_projection"}
-            & locator_imports
+            {"normalizer", "full_source", "canonical_artifact", "table_projection"}
+            & boundary_imports
         )
-        self.assertIn("class PdfPlumberLayoutAdapter", layout)
-        self.assertNotIn("pdf_table_locator", layout_imports)
         self.assertIn("class TableProjectionValidator", projection)
         self.assertNotIn("CanonicalNormalizerFactory", projection)
         self.assertIn("class CanonicalNormalizerFactory", canonical)
-        self.assertNotIn("PdfTableIntakeRuntimeFactory", canonical)
+        self.assertNotIn("PdfDocumentExtractorFactory", canonical)
+        self.assertIn("PdfDocumentExtractorFactory.create()", normalizer)
 
     def test_canonical_architecture_contains_runtime_authority_markers(self):
         authority = ARCHITECTURE_DOCUMENT.read_text(encoding="utf-8")
@@ -289,7 +284,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v23",
+            "broker_reports_architecture_policy_v24",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -450,23 +445,29 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         )
 
     def test_machine_readable_policy_is_fail_closed(self):
-        self.assertFalse(NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED)
         self.assertFalse(KNOWLEDGE_RAG_VECTORIZATION_ALLOWED)
+        self.assertEqual(PDF_DOCUMENT_EXTRACTION_PORT, "PdfDocumentExtractor")
+        self.assertEqual(PDF_DOCUMENT_EXTRACTION_ENVELOPE, "PdfDocumentExtraction")
         self.assertEqual(
-            VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES,
-            frozenset({"google_gemini"}),
+            PDF_DOCUMENT_EXTRACTION_COMPOSITION_ROOT,
+            "PdfDocumentExtractorFactory.create",
         )
         self.assertEqual(
-            VISUAL_RECOVERY_INPUT_SCOPES,
-            frozenset({"declared_page", "table_crop"}),
+            PDF_DOCUMENT_EXTRACTION_DEFAULT,
+            "UnconfiguredPdfDocumentExtractor",
         )
-        self.assertFalse(WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED)
+        self.assertEqual(
+            PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE,
+            "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+        )
+        self.assertFalse(PDF_DOCUMENT_EXTRACTION_AUTOMATIC_FALLBACK_ALLOWED)
+        self.assertFalse(PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED)
         self.assertFalse(LOCAL_OCR_PRODUCTION_ALLOWED)
         self.assertFalse(LOCAL_OCR_WORKER_POOL_ALLOWED)
-        self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "table_region_location_only")
+        self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "document_ai_representation_only")
         self.assertEqual(
             CANONICAL_PROMOTION_AUTHORITY,
-            "deterministic_pdfplumber_source_projection_else_fail_closed",
+            "existing_canonical_downstream_only",
         )
         self.assertEqual(MODEL_CANONICAL_AUTHORITY, 0)
         self.assertFalse(GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED)
@@ -529,21 +530,8 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                         violations.append(f"{path.name}:{name}")
         self.assertEqual(violations, [])
 
-    def test_visual_components_are_explicitly_classified(self):
-        expected = {
-            "visual_table_vlm": "research_only",
-            "visual_neutral_tables": "maintained_qualified_default_on",
-            "visual_review_boundary": "research_only",
-            "visual_recovery_handoff": "research_only",
-            "pdf_table_locator_provider": "maintained_current",
-            "pdf_csv_experiment_provider": "proof_only",
-            "pdf_grid_experiment_provider": "compatibility_only",
-            "pdf_hybrid_provider": "research_only",
-            "pdf_dual_vlm_fact_providers": "research_only",
-            "pdf_dual_vlm_canonical_table": "research_only",
-            "pdf_dual_vlm_runtime": "research_only",
-            "prove_visual_neutral_tables_actual_corpus": "offline_only",
-        }
+    def test_pdf_document_ai_component_is_explicitly_classified(self):
+        expected = {"pdf_document_ai": "unconfigured_fail_closed"}
         self.assertEqual(
             {key: COMPONENT_RUNTIME_STATUSES.get(key) for key in expected},
             expected,

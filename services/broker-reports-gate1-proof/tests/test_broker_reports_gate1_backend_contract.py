@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import socket
 import sys
 import tempfile
 import unittest
 import zipfile
-import zlib
 from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
+
+from pypdf import PdfWriter
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
@@ -18,6 +21,7 @@ from broker_reports_gate1 import (
     FileInput,
     Gate1Normalizer,
     NORMALIZER_VERSION,
+    PDF_DOCUMENT_AI_NOT_CONFIGURED,
     apply_domain_ingestion_artifacts,
     render_chat_content,
 )
@@ -43,6 +47,16 @@ def normalize(inputs: list[FileInput], input_context: dict | None = None):
         entrypoint="backend_contract_test",
         trigger_type="backend_core",
     )
+
+
+def normalize_without_network(
+    inputs: list[FileInput], input_context: dict | None = None
+):
+    with (
+        patch.object(socket, "create_connection", side_effect=AssertionError("network")),
+        patch.object(socket.socket, "connect", side_effect=AssertionError("network")),
+    ):
+        return normalize(inputs, input_context=input_context)
 
 
 class BrokerReportsGate1BackendContractTest(unittest.TestCase):
@@ -369,75 +383,39 @@ class BrokerReportsGate1BackendContractTest(unittest.TestCase):
         self.assertNotIn("HiddenPrivateSheet", safe_content)
         self.assertNotIn("SYNTH-X", safe_content)
 
-    def test_text_layer_pdf_profile_detects_page_count_text_layer_and_private_text_slice(self):
-        result = normalize(
-            [
-                FileInput.from_bytes(
-                    private_ref="pdf-text-1",
-                    filename="synthetic_text_layer.pdf",
-                    content=self._synthetic_text_pdf_bytes(),
-                    mime_type="application/pdf",
-                )
-            ]
+    def test_pdf_preflight_counts_pages_then_document_ai_fails_closed(self):
+        result = self._normalize_unconfigured_pdf(
+            private_ref="pdf-preflight-1",
+            filename="synthetic_two_page.pdf",
+            content=self._synthetic_pdf_bytes(page_count=2),
+            expected_pages=2,
+        )
+
+        safe_content = render_chat_content(result.safe_report)
+        self.assertNotIn("synthetic_two_page.pdf", safe_content)
+
+    def test_pdf_preflight_does_not_extract_text_or_route_to_ocr(self):
+        result = self._normalize_unconfigured_pdf(
+            private_ref="pdf-no-local-extraction-1",
+            filename="synthetic_no_local_extraction.pdf",
+            content=self._synthetic_pdf_bytes(),
         )
 
         profile = result.package["technical_readability_profiles"][0]
-        private_slice = result.package["private_normalized_slices"][0]
         safe_content = render_chat_content(result.safe_report)
-        self.assertEqual(profile["container_format"], "pdf")
-        self.assertEqual(profile["pages_count"], 1)
-        self.assertEqual(profile["text_layer"], "yes")
-        self.assertTrue(profile["has_text_layer"])
-        self.assertEqual(profile["raster_or_scan_likelihood"], "low")
-        eligibility = result.safe_report["document_source_eligibility"]["entries"][0]
-        self.assertEqual(eligibility["source_eligibility"], "accepted_for_gate2")
-        self.assertTrue(eligibility["included_in_reduced_subset"])
-        self.assertEqual(result.safe_report["gate2_handoff_mode"], "full_package_ready_for_gate2")
-        self.assertIn("source_role_policy_uncertainty", self._issue_types(result.safe_report))
-        self.assertEqual(private_slice["profile_id"], profile["profile_id"])
-        self.assertNotIn("Synthetic Broker PDF Report", safe_content)
-        self.assertNotIn("synthetic_text_layer.pdf", safe_content)
+        self.assertEqual(profile["text_layer"], "not_inspected")
+        self.assertIsNone(profile["has_text_layer"])
+        self.assertEqual(profile["pdf_content_kind"], "not_inspected")
+        self.assertEqual(profile["text_chunks_count"], 0)
+        self.assertEqual(profile["extracted_text_chars"], 0)
+        self.assertEqual(profile["raster_or_scan_likelihood"], "not_inspected")
+        self.assertNotIn("synthetic_no_local_extraction.pdf", safe_content)
 
-    def test_compressed_text_pdf_with_images_is_not_routed_to_ocr(self):
-        result = normalize(
-            [
-                FileInput.from_bytes(
-                    private_ref="pdf-compressed-text-1",
-                    filename="synthetic_compressed_text_layer.pdf",
-                    content=self._synthetic_compressed_text_pdf_bytes(),
-                    mime_type="application/pdf",
-                )
-            ]
-        )
-
-        profile = result.package["technical_readability_profiles"][0]
-        codes = {item["code"] for item in result.safe_report["blockers"]}
-        eligibility = result.safe_report["document_source_eligibility"]["entries"][0]
-        safe_content = render_chat_content(result.safe_report)
-        self.assertEqual(profile["container_format"], "pdf")
-        self.assertEqual(profile["text_layer"], "yes")
-        self.assertTrue(profile["has_text_layer"])
-        self.assertEqual(profile["pdf_content_kind"], "mixed_pdf_with_text")
-        self.assertGreater(profile["flate_streams_decoded_count"], 0)
-        self.assertGreater(profile["text_chunks_count"], 0)
-        self.assertEqual(profile["raster_or_scan_likelihood"], "low")
-        self.assertNotIn("raster_requires_ocr_or_review", codes)
-        self.assertEqual(eligibility["source_eligibility"], "accepted_for_gate2")
-        self.assertTrue(eligibility["included_in_reduced_subset"])
-        self.assertEqual(eligibility["source_role_policy_status"], "context_issue")
-        self.assertIn("source_role_policy_uncertainty", self._issue_types(result.safe_report))
-        self.assertNotIn("Compressed Synthetic Broker PDF Report", safe_content)
-
-    def test_explicit_pdf_html_source_policy_can_classify_source_role(self):
-        result = normalize(
-            [
-                FileInput.from_bytes(
-                    private_ref="pdf-source-policy-approved-1",
-                    filename="synthetic_text_layer.pdf",
-                    content=self._synthetic_text_pdf_bytes(),
-                    mime_type="application/pdf",
-                )
-            ],
+    def test_explicit_pdf_source_policy_cannot_override_document_ai_blocker(self):
+        result = self._normalize_unconfigured_pdf(
+            private_ref="pdf-source-policy-approved-1",
+            filename="synthetic_source_policy.pdf",
+            content=self._synthetic_pdf_bytes(),
             input_context={
                 "source_policy": {
                     "mode": "customer_approved_private_registry",
@@ -450,39 +428,33 @@ class BrokerReportsGate1BackendContractTest(unittest.TestCase):
         )
 
         eligibility = result.safe_report["document_source_eligibility"]["entries"][0]
-        taxonomy = result.safe_report["taxonomy_candidates"][0]
-        self.assertEqual(eligibility["source_eligibility"], "accepted_for_gate2")
-        self.assertTrue(eligibility["included_in_reduced_subset"])
-        self.assertEqual(taxonomy["source_role_policy_status"], "approved")
-        self.assertEqual(result.safe_report["gate2_handoff_mode"], "full_package_ready_for_gate2")
+        self.assertEqual(eligibility["source_eligibility"], "excluded_from_gate2")
+        self.assertFalse(eligibility["included_in_reduced_subset"])
+        self.assertEqual(result.safe_report["taxonomy_candidates"], [])
+        self.assertEqual(result.safe_report["gate2_handoff_mode"], "gate2_blocked_no_eligible_sources")
 
-    def test_raster_like_pdf_creates_ocr_review_blocker_without_ocr(self):
-        result = normalize(
-            [
-                FileInput.from_bytes(
-                    private_ref="pdf-raster-1",
-                    filename="synthetic_raster.pdf",
-                    content=self._synthetic_raster_pdf_bytes(),
-                    mime_type="application/pdf",
-                )
-            ]
+    def test_pdf_document_ai_blocker_does_not_become_legacy_ocr_requirement(self):
+        result = self._normalize_unconfigured_pdf(
+            private_ref="pdf-no-ocr-fallback-1",
+            filename="synthetic_no_ocr_fallback.pdf",
+            content=self._synthetic_pdf_bytes(),
         )
 
         profile = result.package["technical_readability_profiles"][0]
         codes = {item["code"] for item in result.safe_report["blockers"]}
-        self.assertEqual(profile["text_layer"], "no")
-        self.assertEqual(profile["raster_or_scan_likelihood"], "high")
+        self.assertEqual(profile["text_layer"], "not_inspected")
+        self.assertEqual(profile["raster_or_scan_likelihood"], "not_inspected")
         self.assertFalse(profile["ocr_performed"])
-        self.assertIn("raster_requires_ocr_or_review", codes)
+        self.assertNotIn("raster_requires_ocr_or_review", codes)
         self.assertEqual(result.safe_report["gate2_handoff_status"], "blocked")
-        self.assertEqual(result.safe_report["gate2_handoff_mode"], "gate2_blocked_requires_ocr")
+        self.assertEqual(result.safe_report["gate2_handoff_mode"], "gate2_blocked_no_eligible_sources")
         eligibility = result.safe_report["document_source_eligibility"]["entries"][0]
-        self.assertEqual(eligibility["source_eligibility"], "requires_ocr_before_gate2")
-        self.assertEqual(eligibility["ocr_policy_status"], "required-before-gate2")
+        self.assertEqual(eligibility["source_eligibility"], "excluded_from_gate2")
+        self.assertEqual(eligibility["ocr_policy_status"], "disabled")
         self.assertFalse(eligibility["included_in_reduced_subset"])
 
     def test_corrupt_pdf_creates_typed_corrupt_blocker(self):
-        result = normalize(
+        result = normalize_without_network(
             [
                 FileInput.from_bytes(
                     private_ref="pdf-corrupt-1",
@@ -496,12 +468,12 @@ class BrokerReportsGate1BackendContractTest(unittest.TestCase):
         self.assertIn("corrupt_file", {item["code"] for item in result.safe_report["blockers"]})
 
     def test_encrypted_pdf_creates_typed_encrypted_blocker(self):
-        result = normalize(
+        result = normalize_without_network(
             [
                 FileInput.from_bytes(
                     private_ref="pdf-encrypted-1",
                     filename="synthetic_encrypted.pdf",
-                    content=b"%PDF-1.4\n1 0 obj << /Encrypt 2 0 R >> endobj\n%%EOF",
+                    content=self._synthetic_pdf_bytes(encrypted=True),
                     mime_type="application/pdf",
                 )
             ]
@@ -567,7 +539,7 @@ class BrokerReportsGate1BackendContractTest(unittest.TestCase):
         self.assertIn("raster_requires_ocr_or_review", codes)
 
     def test_full_synthetic_package_validation_passes_with_profiles_and_typed_blockers(self):
-        result = normalize(
+        result = normalize_without_network(
             [
                 FileInput.from_bytes(
                     private_ref="full-csv",
@@ -595,8 +567,8 @@ class BrokerReportsGate1BackendContractTest(unittest.TestCase):
                 ),
                 FileInput.from_bytes(
                     private_ref="full-pdf",
-                    filename="synthetic_text_layer.pdf",
-                    content=self._synthetic_text_pdf_bytes(),
+                    filename="synthetic_document_ai.pdf",
+                    content=self._synthetic_pdf_bytes(),
                     mime_type="application/pdf",
                 ),
                 FileInput.from_bytes(
@@ -653,10 +625,34 @@ class BrokerReportsGate1BackendContractTest(unittest.TestCase):
         self.assertFalse(report["safety_flags"]["declaration_generated"])
         self.assertFalse(report["safety_flags"]["xlsx_generated"])
         self.assertFalse(report["safety_flags"]["ocr_performed"])
+        pdf_document_id = next(
+            document["document_id"]
+            for document in result.package["document_inventory"]["documents"]
+            if document["container_format"] == "pdf"
+        )
+        pdf_eligibility = next(
+            entry
+            for entry in report["document_source_eligibility"]["entries"]
+            if entry["document_id"] == pdf_document_id
+        )
+        self.assertEqual(pdf_eligibility["source_eligibility"], "excluded_from_gate2")
+        self.assertIn(PDF_DOCUMENT_AI_NOT_CONFIGURED, pdf_eligibility["reason_codes"])
+        self.assertTrue(
+            all(
+                artifact.get("document_id") != pdf_document_id
+                for key in (
+                    "private_normalized_slices",
+                    "private_normalized_source_payloads",
+                    "private_normalized_source_units",
+                    "private_normalized_table_projections",
+                )
+                for artifact in result.package[key]
+            )
+        )
 
     def test_mixed_package_creates_document_source_eligibility_and_reduced_handoff(self):
         csv_content = fixture_bytes("synthetic_operations.csv")
-        result = normalize(
+        result = normalize_without_network(
             [
                 FileInput.from_bytes(
                     private_ref="eligible-csv-1",
@@ -683,9 +679,9 @@ class BrokerReportsGate1BackendContractTest(unittest.TestCase):
                     mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 ),
                 FileInput.from_bytes(
-                    private_ref="raster-pdf-1",
-                    filename="synthetic_raster.pdf",
-                    content=self._synthetic_raster_pdf_bytes(),
+                    private_ref="unconfigured-pdf-1",
+                    filename="synthetic_document_ai.pdf",
+                    content=self._synthetic_pdf_bytes(),
                     mime_type="application/pdf",
                 ),
             ]
@@ -703,25 +699,25 @@ class BrokerReportsGate1BackendContractTest(unittest.TestCase):
         self.assertEqual(report["gate2_handoff_mode"], "reduced_subset_ready_for_gate2")
         self.assertEqual(summary["accepted_for_gate2"], 1)
         self.assertEqual(summary["included_in_reduced_subset"], 1)
-        self.assertEqual(summary["excluded_from_gate2"], 1)
-        self.assertEqual(summary["ocr_required_before_gate2"], 1)
+        self.assertEqual(summary["excluded_from_gate2"], 2)
+        self.assertEqual(summary["ocr_required_before_gate2"], 0)
         self.assertEqual(summary["pending_review"], 2)
         self.assertEqual(summary["source_policy_review"], 0)
         self.assertEqual(summary["duplicate_review"], 1)
         self.assertIn("accepted_for_gate2", statuses)
         self.assertIn("methodology_or_output_artifact", statuses)
-        self.assertIn("requires_ocr_before_gate2", statuses)
+        self.assertIn("excluded_from_gate2", statuses)
         self.assertIn("metadata_review_required", statuses)
         self.assertIn("duplicate_needs_canonical_choice", statuses)
         self.assertEqual(len(handoff["included_document_ids"]), 1)
-        self.assertEqual(len(handoff["excluded_document_ids"]), 1)
-        self.assertEqual(len(handoff["ocr_required_document_ids"]), 1)
+        self.assertEqual(len(handoff["excluded_document_ids"]), 2)
+        self.assertEqual(len(handoff["ocr_required_document_ids"]), 0)
         self.assertEqual(len(handoff["pending_review_document_ids"]), 2)
         self.assertEqual(len(handoff["duplicate_review_document_ids"]), 1)
         self.assertTrue(handoff["reduced_subset_validated"])
         self.assertIn("Итог Gate 1: пакет поглощен", safe_content)
         self.assertIn("Поглощено как источник: 1", safe_content)
-        self.assertIn("Нужен OCR до извлечения: 1", safe_content)
+        self.assertIn("Нужен OCR до извлечения: 0", safe_content)
         self.assertIn("Неясность source-роли поедет дальше: 0", safe_content)
         self.assertIn("Дубли: нужен canonical choice перед сверкой: 1", safe_content)
         self.assertIn("Контекст домена:", safe_content)
@@ -1109,48 +1105,66 @@ class BrokerReportsGate1BackendContractTest(unittest.TestCase):
             archive.writestr("xl/worksheets/sheet3.xml", sheet3)
         return payload.getvalue()
 
-    def _synthetic_text_pdf_bytes(self) -> bytes:
-        return (
-            b"%PDF-1.4\n"
-            b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
-            b"2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj\n"
-            b"3 0 obj << /Type /Page /Parent 2 0 R /Contents 4 0 R >> endobj\n"
-            b"4 0 obj << /Length 80 >> stream\n"
-            b"BT /F1 12 Tf 72 720 Td (Synthetic Broker PDF Report) Tj ET\n"
-            b"endstream endobj\n"
-            b"%%EOF"
+    def _normalize_unconfigured_pdf(
+        self,
+        *,
+        private_ref: str,
+        filename: str,
+        content: bytes,
+        expected_pages: int = 1,
+        input_context: dict | None = None,
+    ):
+        result = normalize_without_network(
+            [
+                FileInput.from_bytes(
+                    private_ref=private_ref,
+                    filename=filename,
+                    content=content,
+                    mime_type="application/pdf",
+                )
+            ],
+            input_context=input_context,
         )
 
-    def _synthetic_compressed_text_pdf_bytes(self) -> bytes:
-        stream = zlib.compress(
-            b"BT /F1 12 Tf 72 720 Td "
-            b"(Compressed Synthetic Broker PDF Report) Tj "
-            b"(Account summary with dividends and commissions) Tj ET"
-        )
-        return (
-            b"%PDF-1.4\n"
-            b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
-            b"2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj\n"
-            b"3 0 obj << /Type /Page /Parent 2 0 R /Resources << /XObject << /Im1 5 0 R >> >> /Contents 4 0 R >> endobj\n"
-            + b"4 0 obj << /Length "
-            + str(len(stream)).encode("ascii")
-            + b" /Filter /FlateDecode >> stream\n"
-            + stream
-            + b"\nendstream endobj\n"
-            b"5 0 obj << /Type /XObject /Subtype /Image /Width 10 /Height 10 >> endobj\n"
-            b"%%EOF"
-        )
+        package = result.package
+        profile = package["technical_readability_profiles"][0]
+        blocker_codes = {item["code"] for item in package["normalization_blockers"]}
+        eligibility = package["document_source_eligibility"]["entries"][0]
+        self.assertEqual(profile["container_format"], "pdf")
+        self.assertEqual(profile["parser"], "pypdf_preflight_only")
+        self.assertEqual(profile["profile_status"], "preflight_passed")
+        self.assertEqual(profile["pages_count"], expected_pages)
+        self.assertFalse(profile["content_extraction_performed"])
+        self.assertFalse(profile["ocr_performed"])
+        self.assertEqual(profile["normalized_slice_refs"], [])
+        self.assertIn(PDF_DOCUMENT_AI_NOT_CONFIGURED, blocker_codes)
+        self.assertEqual(eligibility["source_eligibility"], "excluded_from_gate2")
+        self.assertFalse(eligibility["can_enter_gate2"])
+        self.assertFalse(eligibility["included_in_reduced_subset"])
+        self.assertIn(PDF_DOCUMENT_AI_NOT_CONFIGURED, eligibility["reason_codes"])
+        self.assertEqual(package["source_eligibility_summary"]["ocr_required_before_gate2"], 0)
+        self.assertEqual(package["gate2_handoff"]["gate2_handoff_status"], "blocked")
+        self.assertEqual(package["gate2_handoff"]["included_document_ids"], [])
+        self.assertEqual(package["private_normalized_slices"], [])
+        self.assertEqual(package["private_normalized_source_payloads"], [])
+        self.assertEqual(package["private_normalized_source_units"], [])
+        self.assertEqual(package["private_normalized_table_projections"], [])
+        self.assertNotIn("canonical_artifacts", package)
+        self.assertNotIn("source_facts", package)
+        self.assertFalse(result.safe_report["safety_flags"]["source_fact_extraction_performed"])
+        self.assertFalse(result.safe_report["safety_flags"]["ocr_performed"])
+        return result
 
-    def _synthetic_raster_pdf_bytes(self) -> bytes:
-        return (
-            b"%PDF-1.4\n"
-            b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
-            b"2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj\n"
-            b"3 0 obj << /Type /Page /Parent 2 0 R /Resources << /XObject << /Im1 5 0 R >> >> /Contents 4 0 R >> endobj\n"
-            b"4 0 obj << /Length 0 >> stream\nendstream endobj\n"
-            b"5 0 obj << /Type /XObject /Subtype /Image /Width 10 /Height 10 >> endobj\n"
-            b"%%EOF"
-        )
+    @staticmethod
+    def _synthetic_pdf_bytes(*, page_count: int = 1, encrypted: bool = False) -> bytes:
+        writer = PdfWriter()
+        for _ in range(page_count):
+            writer.add_blank_page(width=72, height=72)
+        if encrypted:
+            writer.encrypt("synthetic-password")
+        payload = BytesIO()
+        writer.write(payload)
+        return payload.getvalue()
 
     def _synthetic_docx_bytes(self) -> bytes:
         document = """<?xml version="1.0" encoding="UTF-8"?>

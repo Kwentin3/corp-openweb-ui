@@ -914,7 +914,10 @@ PDF_LAYOUT_ARTIFACTSTORE_BOUNDARY_UNCHANGED
 
 ## 20. Unified normalized table projection (2026-07-11)
 
-`broker_reports_normalized_table_projection_v0` is now the canonical structural table artifact above native table units and validated PDF geometry candidates. The authoritative contract is [BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md](./BROKER_REPORTS_NORMALIZED_TABLE_PROJECTION.v0.md); deterministic quality rules are in [BROKER_REPORTS_TABLE_RECONSTRUCTION_QUALITY.v0.md](./BROKER_REPORTS_TABLE_RECONSTRUCTION_QUALITY.v0.md).
+`broker_reports_normalized_table_projection_v0` is the surviving
+provider-neutral table artifact for non-retired format consumers. It is not a
+PDF extraction or reconstruction fallback. PDF understanding is governed by
+the [Document AI boundary](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 
 The projection is a new private immutable artifact; legacy slices and full-source units are not mutated. It reuses their provenance refs, persists through `project_artifact_payload`, remains resolver-gated/retention-controlled/purgeable, and is forbidden in Knowledge/RAG/vector storage. Safe output is limited to aggregate counts, statuses and reason codes.
 
