@@ -1,0 +1,46 @@
+# Пары PDF → Mistral Markdown
+
+Это визуальный материал к исследованию восстановления таблиц. Для каждого
+примера рядом лежат точные байты исходного публичного PDF и точный Markdown,
+скачанный из Mistral Document AI playground.
+
+## DriveWealth
+
+- [Публичный источник](https://legal.drivewealth.com/s/DWI-LLC-Financial-Statements-Short-Final-2024-1.pdf)
+- [Исходный PDF](./drivewealth/source.pdf)
+- [Markdown Mistral](./drivewealth/mistral-markdown.md)
+
+Контрольные суммы:
+
+- PDF: `738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57`
+- Markdown: `384245df67e772df1cc1d8c0a06430721fab8bbe4e5b2d8a64b012d059eae399`
+
+## Fidelity
+
+- [Исходный PDF](./fidelity/source.pdf)
+- [Markdown Mistral](./fidelity/mistral-markdown.md)
+
+Контрольные суммы:
+
+- PDF: `36a166a5a13e6d6d86b391233023f83f6f7b4d268a4a23fbae01cb81290e3b96`
+- Markdown: `2cb67d36948f9177e633c82369b33a8f6398d204add6295b320211ff22720f5f`
+
+Рядом с Fidelity Markdown сохранены восемь `img-*.jpeg`, на которые он
+ссылается. Поэтому GitHub-страница Markdown должна открываться без битых
+изображений. Это точные файлы из той же выгрузки playground.
+
+## Как смотреть
+
+Откройте PDF и Markdown рядом и сравнивайте:
+
+- название таблицы;
+- многострочную шапку;
+- строки и колонки;
+- пустые ячейки;
+- продолжения между страницами;
+- границу между соседними таблицами;
+- буквальные числа, знаки и сноски.
+
+Это два публичных исследовательских примера, а не квалификация production.
+Точная модель, параметры, повторы и стоимость ручного playground-вызова не
+зафиксированы. Клиентских документов в этой папке нет.

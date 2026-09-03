@@ -306,47 +306,17 @@ Finding:
   [short Gate 4 -> Gate 5 handoff](contracts/BROKER_REPORTS_GATE4_HANDOFF.v1.md);
   the next allowed boundary is Gate 5 design. The
   older global gate architecture is superseded for current gate meaning.
-- OpenWebUI has extraction engines.
-- Broker-report PDFs with a text layer now have a bounded deterministic
-  normalization/table path; corpus-wide acceptance still waits for customer
-  samples.
-- A separate supported local PDF Table Intake Gate 1 child capability now performs page rasterization,
-  VLM region-only detection and deterministic candidate crops with global
-  `8 %` page-width/page-height padding per side. It persists versioned private
-  PNG candidates and exposes only their refs to the downstream table normalizer;
-  it does not infer rows, cells or financial meaning. Start with the
-  [architecture and gate mapping](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md),
-  then use the
-  [runtime/data contract](contracts/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1.v1.md),
-  [operator runbook](operations/BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_RUNBOOK.md)
-  and [closure evidence](../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_CLOSURE.report.md).
-- The PDF intake/physical-table and semantic-header shadows remain default-off
-  and non-authoritative. Intake separates detection, technical processability
-  and holdout selection; inventory overflow preserves the completed parser
-  prefix; bounded candidate/page proposals cannot replace exact parser atoms as
-  source authority. The sealed 2026-07-15 development gate ran and failed: two
-  exact regions were accepted against a required minimum of four, while false
-  acceptances remained zero. Fresh holdout and live canary are `NOT_RUN`, and
-  production authority is `DISABLED`. See the
-  [intake contract](contracts/BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE.v1.md),
-  [shadow runbook](operations/BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_SHADOW_RUNBOOK.md),
-  [current E2E closeout](../reports/2026-07-15/OPENWEBUI_BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_E2E_CLOSEOUT.report.md),
-  and the
-  [historical refactor report](../reports/2026-07-15/OPENWEBUI_BROKER_REPORTS_PDF_VLM_GUIDED_INTAKE_REFACTOR.report.md).
-- OCR remains a separate unproven path for scanned/image-only pages and is not
-  the default PDF route.
-- VL OCR is promising but unproven.
-- Corrected VL OCR API provider shortlist V2 now recommends first synthetic
-  benchmark candidates: Alibaba Qwen-OCR/Qwen-VL, Datalab Chandra and a
-  hosted PaddleOCR-VL path. Mistral OCR, Azure Document Intelligence and other
-  classic Document AI/OCR services are baseline-only, not the main OCR-VL path.
-- `ST2-US-013` is paused as user-story proof until OCR / VL OCR infrastructure
-  epic defines provider shortlist, input/output contracts and benchmark plan.
+- Broker-report PDF understanding now has one provider-neutral
+  `PdfDocumentExtractor` boundary. The current production selection is
+  unconfigured and returns `PDF_DOCUMENT_AI_NOT_CONFIGURED` before network or
+  Canonical publication. Mistral is the first intended future adapter, but
+  transport, exact model and qualification remain unimplemented. See the
+  [current ADR](adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 
 Next action:
 
-- Prepare OCR / VL OCR synthetic benchmark plan and `DocumentExtractionResultV1`
-  adapter contract; do not run benchmark or provider API yet.
+- Open a separate Mistral transport and qualification issue only after a key
+  and explicit authorization for test data are available.
 
 ### Providers / model catalog
 

@@ -20,13 +20,10 @@ from .gate1_public_contracts import (
     SOURCE_UNIT_SCHEMA_VERSION,
     TABLE_PROJECTION_SCHEMA_VERSION,
     TableProjectionValidator,
-    resolve_pdf_layout_unit_source_values,
     resolve_source_values,
     validate_full_source_unit,
     validate_document_memory_manifest,
     validate_normalized_slice_provenance,
-    validate_pdf_source_unit_parent_linkage,
-    validate_pdf_text_layer_payload,
 )
 from .gate2_source_fact_contracts import PACKAGE_SCHEMA_VERSION
 from .gate2_fns_2ndfl_adapter import (
@@ -35,10 +32,6 @@ from .gate2_fns_2ndfl_adapter import (
     is_fns_2ndfl_neutral_event_source_unit,
 )
 from .gate2_fns_2ndfl_contracts import validate_fns_2ndfl_typed_output
-from .gate2_fns_2ndfl_parity import (
-    Gate2Fns2NdflParityError,
-    Gate2Fns2NdflParityFactory,
-)
 from .gate2_table_packages import (
     Gate2TablePackageFactory,
     validate_gate2_table_package,
@@ -132,7 +125,6 @@ class Gate2InputReadinessService:
         self.provenance = NormalizedSliceProvenanceFactory().create()
         self.table_package_builder = Gate2TablePackageFactory().create()
         self.fns_2ndfl_adapter = Gate2Fns2NdflAdapterFactory().create()
-        self.fns_2ndfl_parity = Gate2Fns2NdflParityFactory().create()
 
     def audit_and_build(
         self,
@@ -256,19 +248,6 @@ class Gate2InputReadinessService:
             for entry in _entries(duc)
             if entry.get("document_ref")
         }
-        paired_withholding_groups = _paired_withholding_groups(
-            memory_by_document=memory_by_document,
-            usage_by_document=usage_by_document,
-        )
-        paired_pdf_candidate_units = self._resolve_paired_pdf_candidate_units(
-            records=records,
-            paired_pdf_document_refs={
-                item["pdf_document_ref"] for item in paired_withholding_groups
-            },
-            context=context,
-            resolved_scope_records=resolved_scope_records,
-            errors=errors,
-        )
         issues_by_id = {
             str(entry.get("issue_id")): entry
             for entry in _entries(issue_ledger)
@@ -316,10 +295,10 @@ class Gate2InputReadinessService:
                         }
                     )
                     continue
-                if (
-                    private_slice.get("pdf_unit_type") == "pdf_visual_page_unit"
-                    or private_slice.get("slice_type") == "visual_media"
-                ):
+                if private_slice.get("slice_type") in {
+                    "visual_page",
+                    "visual_media",
+                }:
                     warning = _error(
                         "gate2_visual_unit_restricted_requires_visual_consumer",
                         str(private_slice.get("unit_ref") or document_ref),
@@ -481,76 +460,6 @@ class Gate2InputReadinessService:
             else:
                 unpackageable_document_refs.add(document_ref)
 
-        representation_reconciliations: list[dict[str, Any]] = []
-        packages_by_document: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        for package in packages:
-            packages_by_document[str(package.get("document_ref") or "")].append(
-                package
-            )
-        for pair in paired_withholding_groups:
-            xml_document_ref = pair["xml_document_ref"]
-            pdf_document_ref = pair["pdf_document_ref"]
-            xml_packages = [
-                package
-                for package in packages_by_document.get(xml_document_ref, [])
-                if isinstance(package.get("typed_source_facts"), dict)
-            ]
-            pdf_packages = packages_by_document.get(pdf_document_ref, [])
-            pdf_candidate_units = paired_pdf_candidate_units.get(
-                pdf_document_ref, []
-            )
-            if len(xml_packages) != 1 or not pdf_candidate_units:
-                errors.append(
-                    _error(
-                        "gate2_fns_2ndfl_paired_representation_input_incomplete",
-                        stable_digest([pair.get("archive_parent_ref")], length=20),
-                    )
-                )
-                continue
-            try:
-                parity = self.fns_2ndfl_parity.reconcile(
-                    typed_xml_output=_object(
-                        xml_packages[0].get("typed_source_facts")
-                    ),
-                    paired_pdf_document_ref=pdf_document_ref,
-                    pdf_source_units=pdf_candidate_units,
-                )
-            except Gate2Fns2NdflParityError as exc:
-                errors.append(
-                    _error(
-                        exc.code,
-                        stable_digest([pair.get("archive_parent_ref")], length=20),
-                    )
-                )
-                continue
-            representation_reconciliations.append(parity)
-            xml_packages[0]["paired_representation_parity"] = parity
-            for package in pdf_packages:
-                source_unit = _object(package.get("source_unit"))
-                candidate_ref = str(source_unit.get("unit_id") or "")
-                is_candidate = source_unit.get("unit_kind") == "pdf_table_candidate"
-                package["representation_satisfaction"] = {
-                    "schema_version": "broker_reports_representation_satisfaction_v1",
-                    "parity_id": parity.get("parity_id"),
-                    "workflow": "withholding_source_evidence",
-                    "selected_representation": "typed_fns_2ndfl_xml",
-                    "typed_xml_document_ref": xml_document_ref,
-                    "pdf_source_identity_preserved": True,
-                    "pdf_candidate_ref": candidate_ref if is_candidate else None,
-                    "pdf_candidate_preserved": is_candidate,
-                    "pdf_candidate_canonicalized": False,
-                    "pdf_recovery_status": (
-                        "recovery_deferred_validated_paired_xml_coverage"
-                        if is_candidate
-                        else "independent_pdf_representation_preserved"
-                    ),
-                    "named_workflow_blocked": False,
-                    "source_identities_merged_or_deleted": False,
-                }
-                package.setdefault("document_context", {})[
-                    "withholding_workflow_readiness"
-                ] = "satisfied_by_validated_paired_typed_xml"
-
         if set(source_ready_refs) != packageable_document_refs | unpackageable_document_refs:
             errors.append(_error("gate2_source_ready_decision_coverage_incomplete", "dcp"))
         if unpackageable_document_refs:
@@ -603,13 +512,6 @@ class Gate2InputReadinessService:
             "fns_2ndfl_typed_packages_total": sum(
                 1 for item in packages if isinstance(item.get("typed_source_facts"), dict)
             ),
-            "fns_2ndfl_paired_representations_reconciled": len(
-                representation_reconciliations
-            ),
-            "fns_2ndfl_pdf_candidates_recovery_deferred": sum(
-                len(item.get("pdf_candidate_refs") or [])
-                for item in representation_reconciliations
-            ),
             "resolved_scope_records_total": len(set(resolved_scope_records)),
             "artifactstore_unchanged": store_unchanged,
             "knowledge_records": knowledge_records,
@@ -638,51 +540,6 @@ class Gate2InputReadinessService:
             validation=validation,
             safe_report=safe_report,
         )
-
-    def _resolve_paired_pdf_candidate_units(
-        self,
-        *,
-        records: list[ArtifactRecord],
-        paired_pdf_document_refs: set[str],
-        context: ArtifactAccessContext,
-        resolved_scope_records: list[str],
-        errors: list[dict[str, str]],
-    ) -> dict[str, list[dict[str, Any]]]:
-        result: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        if not paired_pdf_document_refs:
-            return result
-        for record in records:
-            document_ref = str(record.document_id or "")
-            if (
-                record.artifact_type != SOURCE_UNIT_SCHEMA_VERSION
-                or document_ref not in paired_pdf_document_refs
-                or record.safe_metadata.get("pdf_unit_type")
-                != "pdf_table_candidate_unit"
-            ):
-                continue
-            try:
-                resolved = self.resolver.resolve(record.artifact_id, context)
-            except ArtifactStoreError as exc:
-                errors.append(
-                    _error(f"gate2_{exc.code}", record.artifact_id)
-                )
-                continue
-            payload = _object(resolved.get("payload"))
-            checksum = str(
-                (record.source_file_ref or {}).get("file_hash_sha256") or ""
-            )
-            validation = validate_full_source_unit(
-                unit=payload,
-                normalization_run_id=context.normalization_run_id,
-                document_id=document_ref,
-                source_checksum_sha256=checksum,
-            )
-            if validation.get("validator_status") != "passed":
-                errors.extend(copy.deepcopy(validation.get("errors") or []))
-                continue
-            result[document_ref].append(payload)
-            resolved_scope_records.append(record.artifact_id)
-        return result
 
     def _resolve_single_payload(
         self,
@@ -755,13 +612,6 @@ class Gate2InputReadinessService:
         full_source_unit_full_validation_total = 0
         legacy_slice_full_validation_total = 0
         table_projection_full_validation_total = 0
-        parent_payloads_by_ref: dict[
-            str, tuple[ArtifactRecord, dict[str, Any]]
-        ] = {}
-        parent_validation_cache: dict[tuple[str, str], dict[str, Any]] = {}
-        pdf_parent_full_validation_total = 0
-        pdf_parent_validation_cache_hit_total = 0
-        pdf_unit_parent_linkage_validation_total = 0
         selected_scope_counts: Counter[str] = Counter()
         unselected_scope_reason_counts: Counter[str] = Counter()
 
@@ -808,21 +658,6 @@ class Gate2InputReadinessService:
                         projection_id or "missing",
                     )
                 )
-        canonical_pdf_projection_anchor_unit_refs = {
-            str(record.safe_metadata.get("source_unit_ref") or "")
-            for record in projection_records
-            if record.validation_status == "validated"
-            and record.safe_metadata.get("source_format") == "pdf"
-            and record.safe_metadata.get("projection_status") == "ready"
-            and record.safe_metadata.get("reconstruction_quality")
-            in {"high", "medium"}
-            and record.safe_metadata.get("coverage_status") == "complete"
-            and record.safe_metadata.get("canonical_table_scope")
-            == "ready_validated_projection_only"
-            and record.safe_metadata.get("canonical_validation_status") == "passed"
-            and projection_scope_allowed(record)
-            and record.safe_metadata.get("source_unit_ref")
-        }
         full_unit_documents = {
             str(record.document_id or "") for record in full_unit_records
         }
@@ -840,16 +675,6 @@ class Gate2InputReadinessService:
             allowed, _scope, reason = _gate2_record_scope_decision(
                 record, memory_by_document.get(str(record.document_id or "")) or {}
             )
-            if (
-                not allowed
-                and reason == "gate2_noncanonical_table_candidate_scope_blocked"
-                and (
-                    self.config.prefer_table_projections
-                    or str(record.safe_metadata.get("unit_ref") or "")
-                    in canonical_pdf_projection_anchor_unit_refs
-                )
-            ):
-                allowed = True
             if allowed:
                 selected_full_unit_records.append(record)
             else:
@@ -880,27 +705,13 @@ class Gate2InputReadinessService:
             and record.safe_metadata.get("reconstruction_quality")
             in {"high", "medium"}
             and record.safe_metadata.get("coverage_status") == "complete"
-            and (
-                record.safe_metadata.get("source_format") != "pdf"
-                or (
-                    record.safe_metadata.get("canonical_table_scope")
-                    == "ready_validated_projection_only"
-                    and record.safe_metadata.get("canonical_validation_status")
-                    == "passed"
-                )
-            )
             and str(record.safe_metadata.get("source_unit_ref") or "")
             in selected_full_unit_refs
             and projection_scope_allowed(record)
         ]
         selected_projection_records_by_unit: dict[str, ArtifactRecord] = {}
         for record in eligible_projection_records:
-            if (
-                self.config.prefer_table_projections
-                or record.safe_metadata.get("source_format") == "pdf"
-                and record.safe_metadata.get("canonical_table_scope")
-                == "ready_validated_projection_only"
-            ):
+            if self.config.prefer_table_projections:
                 source_unit_ref = str(
                     record.safe_metadata.get("source_unit_ref") or ""
                 )
@@ -917,26 +728,6 @@ class Gate2InputReadinessService:
             record.artifact_id
             for record in selected_projection_records_by_unit.values()
         }
-        needed_parent_document_refs = {
-            str(record.document_id or "")
-            for record in selected_full_unit_records
-            if record.safe_metadata.get("pdf_unit_type")
-        }
-        for record in records:
-            if record.artifact_type != "private_normalized_source_payload_v0":
-                continue
-            if str(record.document_id or "") not in needed_parent_document_refs:
-                continue
-            try:
-                resolved = self.resolver.resolve(record.artifact_id, context)
-            except ArtifactStoreError as exc:
-                errors.append(_error(f"gate2_{exc.code}", record.artifact_id))
-                continue
-            payload = _object(resolved.get("payload"))
-            payload_ref = str(payload.get("source_payload_ref") or "")
-            if payload_ref:
-                parent_payloads_by_ref[payload_ref] = (record, payload)
-                resolved_scope_records.append(record.artifact_id)
         table_validator = TableProjectionValidator()
         for record in records:
             if record.artifact_id not in selected_projection_record_ids:
@@ -990,14 +781,6 @@ class Gate2InputReadinessService:
                 payload,
                 memory_by_document.get(document_id) or {},
             )
-            if (
-                not allowed
-                and reason == "gate2_noncanonical_table_candidate_scope_blocked"
-                and str(payload.get("unit_ref") or "")
-                in selected_projection_records_by_unit
-            ):
-                allowed = True
-                selected_scope = "canonical_projection_anchor"
             if not allowed:
                 unselected_scope_reason_counts[reason] += 1
                 resolved_scope_records.append(record.artifact_id)
@@ -1011,47 +794,6 @@ class Gate2InputReadinessService:
                     source_checksum_sha256=checksum,
                 )
                 full_source_unit_full_validation_total += 1
-                if payload.get("pdf_unit_type"):
-                    parent_entry = parent_payloads_by_ref.get(
-                        str(payload.get("parent_payload_ref") or "")
-                    )
-                    parent_payload = parent_entry[1] if parent_entry else None
-                    parent_validation = None
-                    if parent_entry:
-                        parent_record, parent_payload = parent_entry
-                        parent_cache_key = (
-                            parent_record.artifact_id,
-                            str(parent_payload.get("payload_checksum_ref") or ""),
-                        )
-                        parent_validation = parent_validation_cache.get(parent_cache_key)
-                        if parent_validation is None:
-                            parent_validation = validate_pdf_text_layer_payload(
-                                parent_payload
-                            )
-                            parent_validation_cache[parent_cache_key] = parent_validation
-                            pdf_parent_full_validation_total += 1
-                        else:
-                            pdf_parent_validation_cache_hit_total += 1
-                    pdf_errors = validate_pdf_source_unit_parent_linkage(
-                        payload,
-                        parent_payload=parent_payload,
-                        parent_validation=parent_validation,
-                        require_parent_payload=True,
-                    )
-                    pdf_unit_parent_linkage_validation_total += 1
-                    if pdf_errors:
-                        provenance_validation = {
-                            **provenance_validation,
-                            "validator_status": "failed",
-                            "passed": False,
-                            "errors": [
-                                *copy.deepcopy(provenance_validation.get("errors") or []),
-                                *pdf_errors,
-                            ],
-                        }
-                        provenance_validation["errors_count"] = len(
-                            provenance_validation["errors"]
-                        )
             else:
                 legacy = payload.get("source_unit_schema_version") != "source_unit_provenance_v0"
                 if legacy:
@@ -1101,12 +843,7 @@ class Gate2InputReadinessService:
                     for _record, payload, _validation in [item]
                     if payload.get("projection_status") == "ready"
                     and _validation.get("validator_status") == "passed"
-                    and (
-                        self.config.prefer_table_projections
-                        or payload.get("source_format") == "pdf"
-                        and payload.get("canonical_table_scope")
-                        == "ready_validated_projection_only"
-                    )
+                    and self.config.prefer_table_projections
                 }
                 selected = []
                 for item in full_units:
@@ -1153,21 +890,12 @@ class Gate2InputReadinessService:
             "unselected_scope_reason_counts": dict(
                 sorted(unselected_scope_reason_counts.items())
             ),
-            "pdf_parent_payloads_resolved_total": len(parent_payloads_by_ref),
-            "pdf_parent_full_validation_total": pdf_parent_full_validation_total,
-            "pdf_parent_validation_cache_hit_total": pdf_parent_validation_cache_hit_total,
-            "pdf_parent_validation_cache_entries_total": len(parent_validation_cache),
-            "pdf_unit_parent_linkage_validation_total": pdf_unit_parent_linkage_validation_total,
             "full_source_documents_total": full_source_documents_total,
             "legacy_fallback_documents_total": legacy_fallback_documents_total,
             "input_priority": (
                 "normalized_table_projection_then_full_source_unit_then_legacy_preview"
                 if self.config.prefer_table_projections
-                else (
-                    "validated_pdf_canonical_projection_then_full_source_unit_then_legacy_preview"
-                    if canonical_pdf_projection_anchor_unit_refs
-                    else "full_source_unit_then_legacy_preview"
-                )
+                else "full_source_unit_then_legacy_preview"
             ),
             "legacy_provenance_upgrade_total": legacy_upgrade_total,
         }
@@ -1260,19 +988,13 @@ def validate_dry_run_source_fact_package(
     allowed_evidence_refs = set(_string_list(package.get("allowed_evidence_refs")))
     allowed_source_value_refs = set(_string_list(package.get("allowed_source_value_refs")))
     generic_source_value_refs = set(_string_list(private_slice.get("source_value_refs")))
-    layout_source_value_refs = set(
-        _string_list(private_slice.get("pdf_layout_source_value_refs"))
-    )
-    expected_source_value_refs = generic_source_value_refs | layout_source_value_refs
+    expected_source_value_refs = generic_source_value_refs
     if not allowed_evidence_refs or not allowed_evidence_refs <= unit_refs:
         errors.append(_error("gate2_package_evidence_ref_out_of_scope", package_id))
     if allowed_source_value_refs != expected_source_value_refs:
         errors.append(_error("gate2_package_source_value_refs_mismatch", package_id))
     try:
         resolve_source_values(private_slice, sorted(generic_source_value_refs))
-        resolve_pdf_layout_unit_source_values(
-            private_slice, sorted(layout_source_value_refs)
-        )
     except ValueError as exc:
         errors.append(_error(str(exc), package_id))
 
@@ -1287,15 +1009,7 @@ def validate_dry_run_source_fact_package(
         errors.append(_error("gate2_package_issue_ref_out_of_scope", package_id))
 
     coverage_expectation = _object(package.get("coverage_expectation"))
-    layout_unit = private_slice.get("pdf_unit_type") in {
-        "pdf_line_cluster_unit",
-        "pdf_table_candidate_unit",
-    }
-    coverage = _object(
-        private_slice.get("pdf_layout_coverage")
-        if layout_unit
-        else private_slice.get("coverage")
-    )
+    coverage = _object(private_slice.get("coverage"))
     if coverage_expectation.get("selected_source_refs") != coverage.get("selected_source_refs"):
         errors.append(_error("gate2_package_coverage_refs_mismatch", package_id))
     if coverage.get("all_selected_refs_accounted") is not True:
@@ -1309,43 +1023,6 @@ def validate_dry_run_source_fact_package(
             errors.append(_error("gate2_full_source_unit_parent_remainder_pending", package_id))
         if expansion_readiness.get("limited_primary_expansion_ready") is not True:
             errors.append(_error("gate2_full_source_unit_expansion_readiness_false", package_id))
-        if source_unit.get("pdf_unit_type"):
-            if source_unit.get("text_layer_projection_status") != "complete":
-                errors.append(_error("gate2_pdf_text_layer_projection_not_complete", package_id))
-            if source_unit.get("ocr_vlm_used") is not False:
-                errors.append(_error("gate2_pdf_ocr_guard_failed", package_id))
-            if source_unit.get("page_rendering_used_for_extraction") is not False:
-                errors.append(_error("gate2_pdf_rendering_guard_failed", package_id))
-            if layout_unit:
-                if source_unit.get("layout_projection_status") != "complete":
-                    errors.append(_error("gate2_pdf_layout_projection_not_complete", package_id))
-                if source_unit.get("pdf_layout_coverage") != private_slice.get(
-                    "pdf_layout_coverage"
-                ):
-                    errors.append(_error("gate2_pdf_layout_coverage_not_preserved", package_id))
-                if source_unit.get("pdf_layout_source_value_refs") != _string_list(
-                    private_slice.get("pdf_layout_source_value_refs")
-                ):
-                    errors.append(_error("gate2_pdf_layout_value_refs_not_preserved", package_id))
-                if private_slice.get("pdf_unit_type") == "pdf_table_candidate_unit":
-                    for field in (
-                        "table_candidate_ref",
-                        "table_strategy_ref",
-                        "geometry_confidence",
-                        "table_bbox_ref",
-                        "table_row_refs",
-                        "table_cell_refs",
-                        "table_contributing_word_refs",
-                        "table_fallback_text_refs",
-                        "table_fallback_source_value_refs",
-                        "table_reconstruction_reason_codes",
-                    ):
-                        if source_unit.get(field) != private_slice.get(field):
-                            errors.append(
-                                _error("gate2_pdf_table_candidate_metadata_not_preserved", field)
-                            )
-                    if source_unit.get("table_reconstruction_status") != "candidate":
-                        errors.append(_error("gate2_pdf_table_candidate_status_invalid", package_id))
     elif source_input_mode == "legacy_bounded_preview_fallback":
         if expansion_readiness.get("limited_primary_expansion_ready") is not False:
             errors.append(_error("gate2_legacy_preview_claims_expansion_readiness", package_id))
@@ -1414,28 +1091,12 @@ def _build_dry_run_package(
     slice_ref = str(private_slice.get("slice_id") or "")
     full_source_input = private_slice.get("schema_version") == SOURCE_UNIT_SCHEMA_VERSION
     package_id = f"sfpkg_{stable_digest([context.normalization_run_id, document_ref, slice_ref], length=20)}"
-    pdf_unit_type = private_slice.get("pdf_unit_type")
-    layout_unit = pdf_unit_type in {
-        "pdf_line_cluster_unit",
-        "pdf_table_candidate_unit",
-    }
-    coverage = _object(
-        private_slice.get("pdf_layout_coverage")
-        if layout_unit
-        else private_slice.get("coverage")
+    coverage = _object(private_slice.get("coverage"))
+    unit_kind = (
+        "table_row_window"
+        if private_slice.get("slice_type") == "table_rows"
+        else "text_slice"
     )
-    if pdf_unit_type == "pdf_line_cluster_unit":
-        unit_kind = "pdf_line_cluster"
-    elif pdf_unit_type == "pdf_table_candidate_unit":
-        unit_kind = "pdf_table_candidate"
-    elif pdf_unit_type == "pdf_page_text_unit":
-        unit_kind = "pdf_page_text"
-    else:
-        unit_kind = (
-            "table_row_window"
-            if private_slice.get("slice_type") == "table_rows"
-            else "text_slice"
-        )
     unit_payload = {
         "cells": copy.deepcopy(private_slice.get("cells") or [])
     } if unit_kind == "table_row_window" else {
@@ -1508,63 +1169,7 @@ def _build_dry_run_package(
         ),
         "remaining_unit_refs": _string_list(private_slice.get("remaining_unit_refs")),
         "next_unit_refs": _string_list(private_slice.get("next_unit_refs")),
-        "pdf_unit_type": private_slice.get("pdf_unit_type"),
-        "pdf_projection_schema_version": private_slice.get(
-            "pdf_projection_schema_version"
-        ),
         "declared_page_refs": _string_list(private_slice.get("declared_page_refs")),
-        "pdf_text_fragment_refs": _string_list(
-            private_slice.get("pdf_text_fragment_refs")
-        ),
-        "layout_word_refs": _string_list(private_slice.get("layout_word_refs")),
-        "layout_line_refs": _string_list(private_slice.get("layout_line_refs")),
-        "layout_bbox_refs": _string_list(private_slice.get("layout_bbox_refs")),
-        "layout_parser_ref": private_slice.get("layout_parser_ref"),
-        "layout_parser_config_ref": private_slice.get("layout_parser_config_ref"),
-        "layout_projection_status": private_slice.get("layout_projection_status"),
-        "pdf_layout_coverage": copy.deepcopy(
-            private_slice.get("pdf_layout_coverage") or {}
-        ),
-        "pdf_layout_source_value_refs": _string_list(
-            private_slice.get("pdf_layout_source_value_refs")
-        ),
-        "pdf_layout_source_value_index": copy.deepcopy(
-            private_slice.get("pdf_layout_source_value_index") or []
-        ),
-        "table_reconstruction_status": private_slice.get(
-            "table_reconstruction_status"
-        ),
-        "table_candidate_ref": private_slice.get("table_candidate_ref"),
-        "table_strategy_ref": private_slice.get("table_strategy_ref"),
-        "geometry_confidence": private_slice.get("geometry_confidence"),
-        "confidence_bucket": private_slice.get("confidence_bucket"),
-        "table_bbox_ref": private_slice.get("table_bbox_ref"),
-        "table_row_refs": _string_list(private_slice.get("table_row_refs")),
-        "table_cell_refs": _string_list(private_slice.get("table_cell_refs")),
-        "table_contributing_word_refs": _string_list(
-            private_slice.get("table_contributing_word_refs")
-        ),
-        "table_fallback_text_refs": _string_list(
-            private_slice.get("table_fallback_text_refs")
-        ),
-        "table_fallback_source_value_refs": _string_list(
-            private_slice.get("table_fallback_source_value_refs")
-        ),
-        "table_reconstruction_reason_codes": _string_list(
-            private_slice.get("table_reconstruction_reason_codes")
-        ),
-        "semantic_table_truth_claimed": private_slice.get(
-            "semantic_table_truth_claimed", False
-        ),
-        "text_layer_projection_status": private_slice.get(
-            "text_layer_projection_status"
-        ),
-        "visible_content_coverage_status": private_slice.get(
-            "visible_content_coverage_status"
-        ),
-        "semantic_reconstruction_status": private_slice.get(
-            "semantic_reconstruction_status"
-        ),
         "ocr_vlm_used": private_slice.get("ocr_vlm_used", False),
         "page_rendering_used_for_extraction": private_slice.get(
             "page_rendering_used_for_extraction", False
@@ -1601,10 +1206,9 @@ def _build_dry_run_package(
         },
         "source_unit": source_unit,
         "allowed_evidence_refs": sorted(_source_unit_refs(private_slice)),
-        "allowed_source_value_refs": [
-            *_string_list(private_slice.get("source_value_refs")),
-            *_string_list(private_slice.get("pdf_layout_source_value_refs")),
-        ],
+        "allowed_source_value_refs": _string_list(
+            private_slice.get("source_value_refs")
+        ),
         "issue_context": issue_context,
         "allowed_issue_refs": sorted(
             str(item.get("issue_ref"))
@@ -1642,10 +1246,7 @@ def _build_dry_run_package(
             "coverage_policy_id": "gate2_source_unit_coverage_v0",
             "source_input_mode": source_unit["source_input_mode"],
             "whole_parent_source_coverage_claimed": (
-                full_source_input and not layout_unit
-            ),
-            "collective_parent_layout_coverage_ref": (
-                coverage.get("coverage_ref") if layout_unit else None
+                full_source_input
             ),
         },
         "expansion_readiness": {
@@ -1656,9 +1257,7 @@ def _build_dry_run_package(
                 == "not_applicable_parent_complete"
             ),
             "reason_code": (
-                "complete_bounded_pdf_layout_unit"
-                if layout_unit
-                else "complete_full_source_unit"
+                "complete_full_source_unit"
                 if full_source_input
                 else "legacy_bounded_preview_fallback"
             ),
@@ -1690,52 +1289,6 @@ def _build_model_source_projection(
     private_slice: dict[str, Any],
     unit_kind: str,
 ) -> dict[str, Any]:
-    if unit_kind in {"pdf_line_cluster", "pdf_table_candidate"}:
-        selected_refs = set(
-            _string_list(
-                _object(private_slice.get("pdf_layout_coverage")).get(
-                    "selected_source_refs"
-                )
-            )
-        )
-        selected_entries = [
-            item
-            for item in _dict_list(private_slice.get("pdf_layout_source_value_index"))
-            if str(item.get("source_object_ref") or "") in selected_refs
-            and item.get("source_value_ref")
-        ]
-        resolved_values = resolve_pdf_layout_unit_source_values(
-            private_slice,
-            [str(item.get("source_value_ref") or "") for item in selected_entries],
-        )
-        segments = []
-        for item in selected_entries:
-            source_ref = str(item.get("source_object_ref") or "")
-            source_value_ref = str(item.get("source_value_ref") or "")
-            segments.append(
-                {
-                    "text_segment_ref": source_ref,
-                    "segment_kind": (
-                        "pdf_layout_word"
-                        if source_ref.startswith("pdfword_")
-                        else "pdf_layout_line"
-                    ),
-                    "page_ref": (_string_list(private_slice.get("page_refs")) or [None])[0],
-                    "source_value_ref": source_value_ref,
-                    "value": resolved_values[source_value_ref],
-                    "table_candidate_ref": private_slice.get("table_candidate_ref"),
-                    "semantic_role": "not_claimed",
-                }
-            )
-        return {
-            "schema_version": "gate2_model_pdf_layout_projection_v0",
-            "projection_kind": unit_kind,
-            "segments": segments,
-            "table_reconstruction_status": private_slice.get(
-                "table_reconstruction_status"
-            ),
-            "semantic_table_truth_claimed": False,
-        }
     if unit_kind == "table_row_window":
         cells = private_slice.get("cells")
         cells = cells if isinstance(cells, list) else []
@@ -1987,11 +1540,6 @@ def _render_safe_report(
         len(_object(package.get("typed_source_facts")).get("facts") or [])
         for package in fns_typed_packages
     )
-    paired_reconciliations = [
-        _object(package.get("paired_representation_parity"))
-        for package in packages
-        if isinstance(package.get("paired_representation_parity"), dict)
-    ]
     coverage_selected_total = sum(
         int(_object(package.get("coverage_expectation")).get("required_accounting_total") or 0)
         for package in packages
@@ -2035,13 +1583,6 @@ def _render_safe_report(
         "fns_2ndfl_typed_packages_total": len(fns_typed_packages),
         "fns_2ndfl_typed_facts_total": fns_typed_facts_total,
         "fns_2ndfl_provider_calls": 0,
-        "fns_2ndfl_paired_representations_reconciled": len(
-            paired_reconciliations
-        ),
-        "fns_2ndfl_pdf_candidates_recovery_deferred": sum(
-            len(item.get("pdf_candidate_refs") or [])
-            for item in paired_reconciliations
-        ),
         "coverage_selected_total": coverage_selected_total,
         "row_segment_coverage_ready": validation.get("validator_status") == "passed",
         "issue_scope_counts": dict(sorted(issue_scope_counts.items())),
@@ -2094,63 +1635,9 @@ def _source_unit_refs(private_slice: dict[str, Any]) -> set[str]:
         "page_refs",
         "character_span_refs",
         "safe_coverage_refs",
-        "layout_word_refs",
-        "layout_line_refs",
-        "layout_bbox_refs",
-        "pdf_layout_source_value_refs",
-        "table_row_refs",
-        "table_cell_refs",
-        "table_contributing_word_refs",
-        "table_fallback_text_refs",
-        "table_fallback_source_value_refs",
     ):
         refs.update(_string_list(private_slice.get(key)))
-    refs.update(
-        {
-            str(private_slice.get("layout_parser_ref") or ""),
-            str(private_slice.get("layout_parser_config_ref") or ""),
-            str(private_slice.get("pdf_layout_unit_checksum_ref") or ""),
-            str(private_slice.get("table_candidate_ref") or ""),
-            str(private_slice.get("table_strategy_ref") or ""),
-            str(private_slice.get("table_bbox_ref") or ""),
-            str(_object(private_slice.get("pdf_layout_coverage")).get("coverage_ref") or ""),
-        }
-    )
     return {ref for ref in refs if ref}
-
-
-def _paired_withholding_groups(
-    *,
-    memory_by_document: dict[str, dict[str, Any]],
-    usage_by_document: dict[str, dict[str, Any]],
-) -> list[dict[str, str]]:
-    grouped: dict[str, dict[str, str]] = defaultdict(dict)
-    for document_ref, memory in memory_by_document.items():
-        parent_ref = str(
-            _object(memory.get("source_lineage")).get(
-                "archive_parent_source_ref"
-            )
-            or ""
-        )
-        container_format = str(memory.get("container_format") or "")
-        inferred_role = str(
-            _object(usage_by_document.get(document_ref)).get("inferred_role") or ""
-        )
-        if (
-            parent_ref
-            and container_format in {"pdf", "xml"}
-            and inferred_role == "withholding_report"
-        ):
-            grouped[parent_ref][container_format] = document_ref
-    return [
-        {
-            "archive_parent_ref": parent_ref,
-            "pdf_document_ref": members["pdf"],
-            "xml_document_ref": members["xml"],
-        }
-        for parent_ref, members in sorted(grouped.items())
-        if set(members) == {"pdf", "xml"}
-    ]
 
 
 def _gate2_record_scope_decision(
@@ -2172,12 +1659,6 @@ def _gate2_record_scope_decision(
             memory_entry=memory_entry,
             slice_type="text_excerpt",
         )
-    pdf_unit_type = str(record.safe_metadata.get("pdf_unit_type") or "")
-    if pdf_unit_type:
-        return _gate2_scope_decision(
-            memory_entry=memory_entry,
-            pdf_unit_type=pdf_unit_type,
-        )
     return _gate2_scope_decision(memory_entry=memory_entry)
 
 
@@ -2189,7 +1670,6 @@ def _gate2_private_slice_scope_decision(
         memory_entry=memory_entry,
         schema_version=str(private_slice.get("schema_version") or ""),
         slice_type=str(private_slice.get("slice_type") or ""),
-        pdf_unit_type=str(private_slice.get("pdf_unit_type") or ""),
     )
 
 
@@ -2198,7 +1678,6 @@ def _gate2_scope_decision(
     memory_entry: dict[str, Any],
     schema_version: str = "",
     slice_type: str = "",
-    pdf_unit_type: str = "",
 ) -> tuple[bool, str, str]:
     memory_status = str(memory_entry.get("gate2_memory_status") or "")
     if memory_status not in {"ready", "ready_with_restrictions"}:
@@ -2208,19 +1687,13 @@ def _gate2_scope_decision(
         if readiness.get("canonical_table_scope") == "ready_validated_projection_only":
             return True, "canonical_table", "ready"
         return False, "blocked", "gate2_canonical_table_scope_blocked"
-    if pdf_unit_type == "pdf_visual_page_unit" or slice_type in {
+    if slice_type in {
         "visual_page",
         "visual_media",
     }:
         if readiness.get("visual_scope") == "ready":
             return False, "visual", "gate2_visual_consumer_unavailable"
         return False, "blocked", "gate2_visual_scope_blocked"
-    if pdf_unit_type == "pdf_table_candidate_unit":
-        return (
-            False,
-            "noncanonical_table_candidate",
-            "gate2_noncanonical_table_candidate_scope_blocked",
-        )
     if slice_type == "table_rows":
         if (
             memory_entry.get("container_format") == "xml"
@@ -2230,10 +1703,7 @@ def _gate2_scope_decision(
         if readiness.get("canonical_table_scope") == "ready_validated_projection_only":
             return True, "canonical_table", "ready"
         return False, "blocked", "gate2_canonical_table_scope_blocked"
-    if slice_type == "text_excerpt" or pdf_unit_type in {
-        "pdf_page_text_unit",
-        "pdf_line_cluster_unit",
-    }:
+    if slice_type == "text_excerpt":
         if readiness.get("text_scope") == "ready":
             return True, "text", "ready"
         return False, "blocked", "gate2_text_scope_blocked"

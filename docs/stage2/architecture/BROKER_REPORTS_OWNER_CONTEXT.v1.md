@@ -1,6 +1,6 @@
 # Broker Reports Owner Context v1
 
-Status: `HISTORICAL_PRE_GATE3_OWNER_SNAPSHOT`
+Status: `CURRENT_WITH_HISTORICAL_NON_PDF_APPENDIX`
 
 This companion and its JSON describe the owner inventory at their dated
 checkpoint. They do not own current gate placement or Gate 3 status. Use
@@ -53,9 +53,7 @@ Pack, validator, materializer, and replay authorities.
 
 | Owner ID | Primary module | Domain | Runtime status |
 | --- | --- | --- | --- |
-| `pdf_vlm_visual_execution` | `pdf_dual_vlm_runtime.py` | Semantic visual table transcription | `ACTIVE_PRODUCT` |
-| `semantic_visual_validation` | `semantic_visual_table_validator.py` | Semantic visual table transcription | `ACTIVE_PRODUCT` |
-| `logical_table_materialization` | `semantic_visual_table_materialization.py` | Deterministic logical table materialization | `ACTIVE_PRODUCT` |
+| `pdf_document_extraction` | `pdf_document_ai.py` | Source normalization / PDF Document AI | `ACTIVE_FAIL_CLOSED` |
 | `gate2_table_package` | `gate2_table_packages.py` | Gate 2 table package | `ACTIVE_PRODUCT` |
 | `current_source_fact_orchestration` | `gate2_domain_runtime.py` | Source-fact extraction | `ACTIVE_PRODUCT` |
 | `historical_source_fact_selection` | `gate2_source_fact_selection.py` | Historical and compatibility routes | `HISTORICAL_READ_ONLY` |

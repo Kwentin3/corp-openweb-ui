@@ -16,32 +16,7 @@ from zipfile import BadZipFile, ZipFile
 
 from .contracts import stable_digest
 from .csv_profile import CsvSupportedProfileError, CsvSupportedProfileFactory
-from .pdf_text_layer import (
-    PDF_TEXT_LAYER_COVERAGE_SCHEMA_VERSION,
-    PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION,
-    PDF_PARSER_POLICY_VERSION,
-    PYPDF_PINNED_VERSION,
-    PdfParserCapabilityRequest,
-    PdfTextLayerParserConfig,
-    PdfTextLayerParserError,
-    PdfTextLayerParserFactory,
-    pdf_page_checksum_ref,
-    pdf_layout_page_checksum_ref,
-    pdf_payload_checksum_ref,
-    validate_pdf_source_unit_structure,
-    validate_pdf_text_layer_payload,
-)
-from .pdf_visual_memory import (
-    PdfVisualMemoryError,
-    PdfVisualMemoryFactory,
-)
-from .pdf_layout import (
-    PDF_LAYOUT_POLICY_VERSION,
-    PDFMINER_PINNED_VERSION,
-    PDFPLUMBER_PINNED_VERSION,
-    PdfLayoutParserConfig,
-)
-from .pdf_layout_units import PdfLayoutUnitBuilder, PdfLayoutUnitConfig
+from .pdf_document_ai import PdfDocumentExtraction
 from .profilers_csv_txt import decode_text_bytes
 from .source_provenance import NormalizedSliceProvenanceFactory
 from .xml_source import XmlNeutralMemoryError, XmlNeutralMemoryFactory
@@ -68,27 +43,6 @@ class FullSourceArtifactConfig:
     max_html_embedded_media_items: int = 16
     max_html_embedded_media_bytes_per_item: int = 2_000_000
     max_html_embedded_media_bytes_per_document: int = 10_000_000
-    max_pdf_document_bytes: int = 50_000_000
-    max_pdf_pages: int = 2_000
-    max_pdf_page_content_stream_bytes: int = 10_000_000
-    expected_pypdf_version: str = PYPDF_PINNED_VERSION
-    enable_pdf_layout_slice2: bool = True
-    expected_pdfplumber_version: str = PDFPLUMBER_PINNED_VERSION
-    expected_pdfminer_version: str = PDFMINER_PINNED_VERSION
-    max_pdf_layout_chars_per_page: int = 50_000
-    max_pdf_layout_words_per_page: int = 10_000
-    max_pdf_layout_lines_per_page: int = 2_000
-    max_pdf_layout_vector_objects_per_page: int = 5_000
-    max_pdf_layout_inventory_objects_per_document: int = 400_000
-    max_pdf_layout_table_candidates_per_page: int = 20
-    max_pdf_layout_table_detection_words_per_page: int = 5_000
-    max_pdf_layout_table_detection_vector_objects_per_page: int = 5_000
-    max_pdf_layout_seconds_per_page: float = 30.0
-    max_pdf_layout_lines_per_cluster: int = 24
-    max_pdf_layout_words_per_cluster: int = 400
-    max_pdf_layout_characters_per_cluster: int = 6_000
-    max_pdf_layout_words_per_table_unit: int = 5_000
-    max_pdf_layout_units_per_document: int = 5_000
     enable_canonical_artifact_v1_shadow: bool = False
 
 
@@ -125,79 +79,6 @@ class FullSourceArtifactFactory:
             raise ValueError("full_source_html_media_item_budget_invalid")
         if self.config.max_html_embedded_media_bytes_per_document <= 0:
             raise ValueError("full_source_html_media_document_budget_invalid")
-        if self.config.max_pdf_document_bytes <= 0:
-            raise ValueError("full_source_pdf_document_budget_invalid")
-        if self.config.max_pdf_pages <= 0:
-            raise ValueError("full_source_pdf_page_budget_invalid")
-        if self.config.max_pdf_page_content_stream_bytes <= 0:
-            raise ValueError("full_source_pdf_page_stream_budget_invalid")
-        if not self.config.expected_pypdf_version:
-            raise ValueError("full_source_pypdf_version_required")
-        if self.config.enable_pdf_layout_slice2:
-            for value, code in (
-                (
-                    self.config.max_pdf_layout_chars_per_page,
-                    "full_source_pdf_layout_char_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_words_per_page,
-                    "full_source_pdf_layout_word_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_lines_per_page,
-                    "full_source_pdf_layout_line_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_vector_objects_per_page,
-                    "full_source_pdf_layout_vector_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_inventory_objects_per_document,
-                    "full_source_pdf_layout_document_inventory_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_table_candidates_per_page,
-                    "full_source_pdf_layout_table_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_table_detection_words_per_page,
-                    "full_source_pdf_layout_table_detection_word_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_table_detection_vector_objects_per_page,
-                    "full_source_pdf_layout_table_detection_vector_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_seconds_per_page,
-                    "full_source_pdf_layout_time_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_lines_per_cluster,
-                    "full_source_pdf_layout_cluster_line_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_words_per_cluster,
-                    "full_source_pdf_layout_cluster_word_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_characters_per_cluster,
-                    "full_source_pdf_layout_cluster_char_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_words_per_table_unit,
-                    "full_source_pdf_layout_table_unit_budget_invalid",
-                ),
-                (
-                    self.config.max_pdf_layout_units_per_document,
-                    "full_source_pdf_layout_document_unit_budget_invalid",
-                ),
-            ):
-                if value <= 0:
-                    raise ValueError(code)
-            if not self.config.expected_pdfplumber_version:
-                raise ValueError("full_source_pdfplumber_version_required")
-            if not self.config.expected_pdfminer_version:
-                raise ValueError("full_source_pdfminer_version_required")
         return FullSourceArtifactBuilder(self.config)
 
 
@@ -207,40 +88,6 @@ class FullSourceArtifactBuilder:
     def __init__(self, config: FullSourceArtifactConfig) -> None:
         self.config = config
         self.provenance = NormalizedSliceProvenanceFactory().create()
-        self.pdf_parser_factory = PdfTextLayerParserFactory(
-            PdfTextLayerParserConfig(
-                expected_pypdf_version=config.expected_pypdf_version,
-                max_document_bytes=config.max_pdf_document_bytes,
-                max_pages=config.max_pdf_pages,
-                max_page_content_stream_bytes=config.max_pdf_page_content_stream_bytes,
-                max_page_text_characters=config.max_text_characters_per_logical_unit,
-                layout=PdfLayoutParserConfig(
-                    expected_pdfplumber_version=config.expected_pdfplumber_version,
-                    expected_pdfminer_version=config.expected_pdfminer_version,
-                    max_document_bytes=config.max_pdf_document_bytes,
-                    max_pages=config.max_pdf_pages,
-                    max_chars_per_page=config.max_pdf_layout_chars_per_page,
-                    max_words_per_page=config.max_pdf_layout_words_per_page,
-                    max_lines_per_page=config.max_pdf_layout_lines_per_page,
-                    max_vector_objects_per_page=config.max_pdf_layout_vector_objects_per_page,
-                    max_inventory_objects_per_document=config.max_pdf_layout_inventory_objects_per_document,
-                    max_table_candidates_per_page=config.max_pdf_layout_table_candidates_per_page,
-                    max_table_detection_words_per_page=config.max_pdf_layout_table_detection_words_per_page,
-                    max_table_detection_vector_objects_per_page=config.max_pdf_layout_table_detection_vector_objects_per_page,
-                    max_seconds_per_page=config.max_pdf_layout_seconds_per_page,
-                ),
-            )
-        )
-        self.pdf_layout_unit_builder = PdfLayoutUnitBuilder(
-            PdfLayoutUnitConfig(
-                max_lines_per_cluster=config.max_pdf_layout_lines_per_cluster,
-                max_words_per_cluster=config.max_pdf_layout_words_per_cluster,
-                max_characters_per_cluster=config.max_pdf_layout_characters_per_cluster,
-                max_words_per_table_candidate_unit=config.max_pdf_layout_words_per_table_unit,
-                max_units_per_document=config.max_pdf_layout_units_per_document,
-            )
-        )
-        self.pdf_visual_renderer = PdfVisualMemoryFactory().create()
 
     def build(
         self,
@@ -251,19 +98,9 @@ class FullSourceArtifactBuilder:
         container_format: str,
         content_bytes: bytes,
         source_checksum_sha256: str,
-        pdf_table_locator_pages: list[dict[str, Any]] | None = None,
     ) -> FullSourceBuildResult:
         if not normalization_run_id or not document_id or not source_checksum_sha256:
             raise ValueError("full_source_scope_required")
-        if container_format == "pdf":
-            return self._build_pdf_document(
-                normalization_run_id=normalization_run_id,
-                document_id=document_id,
-                profile_id=profile_id,
-                content_bytes=content_bytes,
-                source_checksum_sha256=source_checksum_sha256,
-                pdf_table_locator_pages=pdf_table_locator_pages,
-            )
         descriptors, document_reasons = self._extract(
             container_format=container_format,
             content_bytes=content_bytes,
@@ -344,6 +181,79 @@ class FullSourceArtifactBuilder:
         }
         return FullSourceBuildResult(payloads=payloads, units=units, summary=summary)
 
+    def build_document_extraction(
+        self,
+        *,
+        normalization_run_id: str,
+        document_id: str,
+        profile_id: str,
+        extraction: PdfDocumentExtraction,
+    ) -> FullSourceBuildResult:
+        """Carry exact extraction output as one private representation-only unit."""
+        text = extraction.markdown_bytes.decode("utf-8", errors="strict")
+        descriptor = {
+            "logical_identity": "document_ai_markdown_001",
+            "slice_type": "text_excerpt",
+            "parser": "document_ai_extraction_envelope",
+            "parser_version": extraction.schema_version,
+            "parser_completeness_status": "complete",
+            "parser_completeness_reason_codes": [],
+            "format_reason_codes": ["document_ai_content_not_semantically_parsed"],
+            "format_structural_inventory": {
+                "pages_count": extraction.usage_page_count,
+                "images_count": len(extraction.image_refs),
+                "markdown_bytes": len(extraction.markdown_bytes),
+            },
+            "source_location": {
+                "kind": "document_ai_extraction",
+                "page_numbers": list(extraction.page_numbers),
+            },
+            "text": text,
+        }
+        payload, unit = self._build_descriptor(
+            normalization_run_id=normalization_run_id,
+            document_id=document_id,
+            profile_id=profile_id,
+            source_checksum_sha256=extraction.source_pdf_sha256,
+            container_format="pdf",
+            ordinal=1,
+            descriptor=descriptor,
+        )
+        provenance = {
+            "provider_id": extraction.provider_id,
+            "model_id": extraction.model_id,
+            "adapter_id": extraction.adapter_id,
+            "qualification_status": extraction.qualification_status,
+        }
+        payload["document_ai_provenance"] = provenance
+        payload["document_ai_markdown_sha256"] = extraction.markdown_sha256
+        payload["document_ai_image_refs"] = [
+            {"local_ref": item.local_ref, "sha256": item.sha256}
+            for item in extraction.image_refs
+        ]
+        units = [unit] if unit is not None else []
+        return FullSourceBuildResult(
+            payloads=[payload],
+            units=units,
+            summary={
+                "schema_version": "full_source_coverage_summary_v0",
+                "document_ref": document_id,
+                "container_format": "pdf",
+                "parser_completeness_status": "complete",
+                "parser_completeness_reason_codes": [],
+                "payloads_total": 1,
+                "extraction_units_total": len(units),
+                "rows_total": 0,
+                "cells_total": 0,
+                "text_characters_total": len(text),
+                "text_segments_total": 0,
+                "full_coverage_available": bool(units),
+                "preview_artifacts_are_coverage_authority": False,
+                "knowledge_rag_used": False,
+                "vectorization_performed": False,
+            },
+        )
+
     def _extract(
         self, *, container_format: str, content_bytes: bytes, document_id: str
     ) -> tuple[list[dict[str, Any]], list[str]]:
@@ -359,8 +269,6 @@ class FullSourceArtifactBuilder:
             return self._extract_xlsx(content_bytes, document_id)
         if container_format == "docx":
             return self._extract_docx(content_bytes)
-        if container_format == "pdf":
-            return self._extract_pdf(content_bytes)
         return [], ["format_not_supported_for_full_source"]
 
     def _extract_xml(
@@ -741,991 +649,6 @@ class FullSourceArtifactBuilder:
         }
         return [descriptor], sorted(set(reasons))
 
-    def _build_pdf_document(
-        self,
-        *,
-        normalization_run_id: str,
-        document_id: str,
-        profile_id: str,
-        content_bytes: bytes,
-        source_checksum_sha256: str,
-        pdf_table_locator_pages: list[dict[str, Any]] | None = None,
-    ) -> FullSourceBuildResult:
-        logical_identity = "pdf_text_layer_001"
-        source_checksum_ref = (
-            f"srcsum_{stable_digest([document_id, source_checksum_sha256], length=24)}"
-        )
-        page_parser_config_ref = self.pdf_parser_factory.config.config_ref
-        layout_parser_config_ref = self.pdf_parser_factory.config.layout.config_ref
-        payload_ref = (
-            "srcpayload_"
-            + stable_digest(
-                [
-                    normalization_run_id,
-                    document_id,
-                    logical_identity,
-                    source_checksum_sha256,
-                    page_parser_config_ref,
-                    (
-                        layout_parser_config_ref
-                        if self.config.enable_pdf_layout_slice2
-                        else "layout_not_requested"
-                    ),
-                ],
-                length=24,
-            )
-        )
-        try:
-            parser = self.pdf_parser_factory.create(
-                PdfParserCapabilityRequest(capability="page_text")
-            )
-            parsed = parser.parse(content_bytes)
-            parser_engine = parsed.parser_engine
-            parser_version = parsed.parser_engine_version
-            parser_config_ref = parsed.parser_config_ref
-            status = parsed.parser_completeness_status
-            reasons = list(parsed.parser_completeness_reason_codes)
-            pdf_content_kind = parsed.pdf_content_kind
-            text_layer_status = parsed.text_layer_projection_status
-            visible_content_status = parsed.visible_content_coverage_status
-            semantic_status = parsed.semantic_reconstruction_status
-            parsed_pages = copy.deepcopy(parsed.pages)
-            parser_diagnostics = copy.deepcopy(parsed.diagnostics)
-        except PdfTextLayerParserError as exc:
-            parser_engine = "pypdf"
-            parser_version = self.config.expected_pypdf_version
-            parser_config_ref = self.pdf_parser_factory.config.config_ref
-            status = exc.status
-            reasons = [exc.code]
-            pdf_content_kind = "parser_partial_pdf"
-            text_layer_status = exc.status
-            visible_content_status = "unknown"
-            semantic_status = "not_claimed"
-            parsed_pages = []
-            parser_diagnostics = {
-                "pages_total": 0,
-                "pages_with_text": 0,
-                "pages_without_text": 0,
-                "pages_with_images": 0,
-                "mixed_text_image_pages": 0,
-                "page_parse_errors": 0,
-                "text_fragments_total": 0,
-                "text_characters_total": 0,
-                "replacement_characters_total": 0,
-                "unknown_font_fragments_total": 0,
-                "embedded_attachments_total": 0,
-            }
-
-        layout_requested_capability = (
-            "table_candidates" if self.config.enable_pdf_layout_slice2 else None
-        )
-        layout_pages: list[dict[str, Any]] = []
-        layout_parser_engine = None
-        layout_parser_version = None
-        layout_underlying_engine = None
-        layout_underlying_version = None
-        layout_status = "not_requested"
-        layout_reasons: list[str] = []
-        table_candidate_status = "not_claimed"
-        layout_semantic_status = "not_claimed"
-        layout_diagnostics: dict[str, Any] = {}
-        if self.config.enable_pdf_layout_slice2 and parsed_pages:
-            try:
-                layout_parser = self.pdf_parser_factory.create(
-                    PdfParserCapabilityRequest(capability="table_candidates")
-                )
-                layout_parsed = layout_parser.parse(
-                    content_bytes,
-                    table_locator_pages=pdf_table_locator_pages,
-                )
-                layout_parser_engine = layout_parsed.parser_engine
-                layout_parser_version = layout_parsed.parser_engine_version
-                layout_underlying_engine = layout_parsed.underlying_engine
-                layout_underlying_version = layout_parsed.underlying_engine_version
-                layout_parser_config_ref = layout_parsed.parser_config_ref
-                layout_status = layout_parsed.layout_projection_status
-                layout_reasons = list(layout_parsed.layout_reason_codes)
-                table_candidate_status = layout_parsed.table_candidate_status
-                layout_semantic_status = layout_parsed.semantic_reconstruction_status
-                layout_pages = copy.deepcopy(layout_parsed.pages)
-                layout_diagnostics = copy.deepcopy(layout_parsed.diagnostics)
-            except PdfTextLayerParserError as exc:
-                layout_parser_engine = "pdfplumber"
-                layout_parser_version = self.config.expected_pdfplumber_version
-                layout_underlying_engine = "pdfminer.six"
-                layout_underlying_version = self.config.expected_pdfminer_version
-                layout_status = exc.status
-                layout_reasons = [exc.code]
-                table_candidate_status = "blocked"
-                layout_semantic_status = "not_claimed"
-                layout_diagnostics = {
-                    "pages_total": 0,
-                    "layout_complete_pages": 0,
-                    "layout_partial_pages": len(parsed_pages),
-                    "chars_total": 0,
-                    "words_total": 0,
-                    "lines_total": 0,
-                    "blocks_total": 0,
-                    "table_candidates_total": 0,
-                    "duplicate_chars_total": 0,
-                    "rotated_chars_total": 0,
-                    "elapsed_milliseconds_total": 0.0,
-                }
-
-        page_parser_label = f"pypdf_page_text_{parser_version.replace('.', '_')}"
-        page_parser_ref = f"parser_{stable_digest([page_parser_label, profile_id, page_parser_config_ref], length=20)}"
-        layout_parser_label = (
-            f"pdfplumber_layout_{str(layout_parser_version or self.config.expected_pdfplumber_version).replace('.', '_')}"
-        )
-        layout_parser_ref = (
-            f"parser_{stable_digest([layout_parser_label, profile_id, layout_parser_config_ref], length=20)}"
-            if self.config.enable_pdf_layout_slice2
-            else None
-        )
-        parser_label = (
-            f"{page_parser_label}__{layout_parser_label}"
-            if self.config.enable_pdf_layout_slice2
-            else page_parser_label
-        )
-        parser_ref = f"parser_{stable_digest([page_parser_ref, layout_parser_ref or 'layout_not_requested'], length=20)}"
-        page_inventory: list[dict[str, Any]] = []
-        provisional_units: list[dict[str, Any]] = []
-        text_segment_inventory: list[dict[str, Any]] = []
-        text_fragment_inventory: list[dict[str, Any]] = []
-        payload_source_value_refs: list[str] = []
-        payload_source_value_index: list[dict[str, Any]] = []
-
-        for parsed_page in parsed_pages:
-            page_number = int(parsed_page.get("page_number") or 0)
-            page_ref = f"page_{stable_digest((source_checksum_ref, page_number), length=20)}"
-            page = copy.deepcopy(parsed_page)
-            page["page_ref"] = page_ref
-            page["parser_stream_order_refs"] = []
-            page["geometry_reading_order_refs"] = []
-            for fragment in page.get("parser_fragments") or []:
-                fragment_ref = f"pdftextfrag_{stable_digest([page_ref, fragment.get('parser_ordinal'), fragment.get('raw_text_checksum_ref')], length=24)}"
-                fragment["text_fragment_ref"] = fragment_ref
-                fragment["page_ref"] = page_ref
-                page["parser_stream_order_refs"].append(fragment_ref)
-                text_fragment_inventory.append(copy.deepcopy(fragment))
-            page["text_fragment_refs"] = list(page["parser_stream_order_refs"])
-
-            text = str(page.get("text") or "")
-            if text:
-                source_location = {
-                    "kind": "pdf_page_text",
-                    "page": page_number,
-                    "page_start": page_number,
-                    "page_end": page_number,
-                    "character_start": 0,
-                    "character_end": len(text),
-                }
-                slice_id = f"fullsrc_{stable_digest([payload_ref, page_ref], length=24)}"
-                private_slice = {
-                    "slice_id": slice_id,
-                    "document_id": document_id,
-                    "profile_id": profile_id,
-                    "slice_type": "text_excerpt",
-                    "source_location": source_location,
-                    "location": copy.deepcopy(source_location),
-                    "bounded": True,
-                    "truncated": False,
-                    "parser": parser_label,
-                    "created_for_gate": "gate1_pdf_text_layer_slice1",
-                    "characters_in_slice": len(text),
-                    "chars_count": len(text),
-                    "text": text,
-                }
-                unit = self.provenance.enrich_slice(
-                    normalization_run_id=normalization_run_id,
-                    document_id=document_id,
-                    source_checksum_sha256=source_checksum_sha256,
-                    private_slice=private_slice,
-                )
-                page["text_segment_refs"] = list(unit.get("text_segment_refs") or [])
-                page["section_refs"] = list(unit.get("section_refs") or [])
-                page["character_span_refs"] = list(
-                    unit.get("character_span_refs") or []
-                )
-                page["source_value_refs"] = list(unit.get("source_value_refs") or [])
-                page["segment_provenance"] = copy.deepcopy(
-                    unit.get("segment_provenance") or []
-                )
-                text_segment_inventory.extend(
-                    copy.deepcopy(unit.get("segment_provenance") or [])
-                )
-                payload_source_value_refs.extend(page["source_value_refs"])
-                for entry in unit.get("source_value_index") or []:
-                    rebased = copy.deepcopy(entry)
-                    span = rebased.get("value_path") or {}
-                    rebased["value_path"] = {
-                        "kind": "pdf_page_text_span",
-                        "page_number": page_number,
-                        "character_start": int(span.get("character_start") or 0),
-                        "character_end": int(span.get("character_end") or 0),
-                    }
-                    payload_source_value_index.append(rebased)
-
-                unit_ref = f"srcunit_{stable_digest([payload_ref, unit.get('slice_payload_checksum_ref'), unit.get('coverage', {}).get('coverage_ref')], length=24)}"
-                unit.update(
-                    {
-                        "schema_version": SOURCE_UNIT_SCHEMA_VERSION,
-                        "unit_ref": unit_ref,
-                        "unit_id": unit_ref,
-                        "parent_payload_ref": payload_ref,
-                        "payload_checksum_ref": None,
-                        "source_unit_checksum_ref": None,
-                        "parser_completeness_status": "complete",
-                        "declared_range_complete": True,
-                        "coverage_scope": "complete_pdf_page_text_projection",
-                        "source_slice_truncated": False,
-                        "parent_source_slice_truncated": False,
-                        "parent_remainder_status": "not_applicable_parent_complete",
-                        "remaining_unit_refs": [],
-                        "next_unit_refs": [],
-                        "visibility": "private_case",
-                        "knowledge_rag_used": False,
-                        "vectorization_performed": False,
-                        "pdf_unit_type": "pdf_page_text_unit",
-                        "pdf_projection_schema_version": PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION,
-                        "declared_page_refs": [page_ref],
-                        "pdf_text_fragment_refs": list(page["text_fragment_refs"]),
-                        "text_layer_projection_status": "complete",
-                        "visible_content_coverage_status": visible_content_status,
-                        "semantic_reconstruction_status": "not_claimed",
-                        "ocr_vlm_used": False,
-                        "page_rendering_used_for_extraction": False,
-                    }
-                )
-                provisional_units.append(unit)
-            else:
-                page["text_segment_refs"] = []
-                page["section_refs"] = []
-                page["character_span_refs"] = []
-                page["source_value_refs"] = []
-                page["segment_provenance"] = []
-            page["visible_content_coverage_status"] = visible_content_status
-            page["page_text_checksum_ref"] = pdf_page_checksum_ref(
-                page, page_parser_ref
-            )
-            page_inventory.append(page)
-
-        selected_refs: list[str] = []
-        text_candidate_refs: list[str] = []
-        blank_or_layout_refs: list[str] = []
-        non_text_page_refs: list[str] = []
-        partial_or_rejected_refs: list[str] = []
-        for page in page_inventory:
-            segment_refs = list(page.get("text_segment_refs") or [])
-            if page.get("page_projection_status") != "complete" and segment_refs:
-                selected_refs.extend(segment_refs)
-                partial_or_rejected_refs.extend(segment_refs)
-            elif segment_refs:
-                selected_refs.extend(segment_refs)
-                text_candidate_refs.extend(segment_refs)
-            elif page.get("page_content_kind") == "blank":
-                selected_refs.append(str(page["page_ref"]))
-                blank_or_layout_refs.append(str(page["page_ref"]))
-            elif page.get("page_content_kind") == "image_only":
-                selected_refs.append(str(page["page_ref"]))
-                non_text_page_refs.append(str(page["page_ref"]))
-            else:
-                selected_refs.append(str(page["page_ref"]))
-                partial_or_rejected_refs.append(str(page["page_ref"]))
-        accounted_refs = [
-            *text_candidate_refs,
-            *blank_or_layout_refs,
-            *non_text_page_refs,
-            *partial_or_rejected_refs,
-        ]
-        page_refs = [str(page.get("page_ref") or "") for page in page_inventory]
-        coverage = {
-            "schema_version": PDF_TEXT_LAYER_COVERAGE_SCHEMA_VERSION,
-            "coverage_ref": f"pdfcoverage_{stable_digest([source_checksum_ref, *selected_refs], length=24)}",
-            "declared_page_refs": page_refs,
-            "accounted_page_refs": list(page_refs),
-            "selected_text_refs": selected_refs,
-            "text_candidate_refs": text_candidate_refs,
-            "blank_or_layout_refs": blank_or_layout_refs,
-            "non_text_page_refs": non_text_page_refs,
-            "table_candidate_refs": [],
-            "table_fallback_text_refs": [],
-            "partial_or_rejected_refs": partial_or_rejected_refs,
-            "selected_total": len(selected_refs),
-            "accounted_total": len(accounted_refs),
-            "all_declared_pages_accounted": len(page_refs) == len(set(page_refs)),
-            "all_selected_refs_accounted": (
-                sorted(selected_refs) == sorted(accounted_refs)
-                and len(accounted_refs) == len(set(accounted_refs))
-            ),
-            "duplicate_accounted_refs": sorted(
-                {ref for ref in accounted_refs if accounted_refs.count(ref) > 1}
-            ),
-            "unaccounted_refs": sorted(set(selected_refs) - set(accounted_refs)),
-        }
-
-        visual_page_numbers = [
-            int(page.get("page_number") or 0)
-            for page in page_inventory
-            if int(page.get("page_number") or 0) > 0
-            and (
-                not str(page.get("text") or "").strip()
-                or int(page.get("image_objects_total") or 0) > 0
-                or page.get("page_projection_status") != "complete"
-                or int(page.get("unknown_font_fragments_total") or 0) > 0
-                or int(page.get("replacement_characters_total") or 0) > 0
-            )
-        ]
-        visual_units: list[dict[str, Any]] = []
-        visual_page_inventory: list[dict[str, Any]] = []
-        visual_fallback_status = "not_required"
-        visual_reason_codes: list[str] = []
-        if visual_page_numbers:
-            try:
-                visual_units, visual_page_inventory = self._build_pdf_visual_units(
-                    normalization_run_id=normalization_run_id,
-                    document_id=document_id,
-                    profile_id=profile_id,
-                    source_checksum_sha256=source_checksum_sha256,
-                    payload_ref=payload_ref,
-                    content_bytes=content_bytes,
-                    page_numbers=visual_page_numbers,
-                )
-                visual_fallback_status = (
-                    "complete"
-                    if len(visual_units) == len(set(visual_page_numbers))
-                    else "partial"
-                )
-            except PdfVisualMemoryError as exc:
-                visual_fallback_status = "partial"
-                visual_reason_codes.append(exc.code)
-        visual_by_page = {
-            int(item.get("page_number") or 0): item
-            for item in visual_page_inventory
-        }
-        for page in page_inventory:
-            visual = visual_by_page.get(int(page.get("page_number") or 0))
-            if visual:
-                page["visual_page_ref"] = visual.get("visual_page_ref")
-                page["visual_media_ref"] = visual.get("media_ref")
-                page["visual_media_checksum_ref"] = visual.get(
-                    "media_checksum_ref"
-                )
-                page["visual_width_pixels"] = visual.get("width_pixels")
-                page["visual_height_pixels"] = visual.get("height_pixels")
-                page["page_rendering_used_for_extraction"] = True
-            page["page_text_checksum_ref"] = pdf_page_checksum_ref(
-                page, page_parser_ref
-            )
-        coverage["visual_page_refs"] = [
-            str(item.get("visual_page_ref") or "")
-            for item in visual_page_inventory
-            if item.get("visual_page_ref")
-        ]
-
-        layout_char_inventory: list[dict[str, Any]] = []
-        layout_word_inventory: list[dict[str, Any]] = []
-        layout_line_inventory: list[dict[str, Any]] = []
-        layout_block_inventory: list[dict[str, Any]] = []
-        layout_bbox_inventory: list[dict[str, Any]] = []
-        layout_vector_line_inventory: list[dict[str, Any]] = []
-        layout_rect_inventory: list[dict[str, Any]] = []
-        layout_table_candidate_inventory: list[dict[str, Any]] = []
-        layout_units: list[dict[str, Any]] = []
-        layout_coverage: dict[str, Any] = {
-            "schema_version": "pdf_layout_document_coverage_v0",
-            "coverage_ref": f"pdflayoutcoverage_{stable_digest([source_checksum_ref, layout_parser_ref or 'not_requested'], length=24)}",
-            "selected_source_refs": [],
-            "accounted_source_refs": [],
-            "selected_total": 0,
-            "accounted_total": 0,
-            "duplicate_accounted_refs": [],
-            "unaccounted_refs": [],
-            "unexpected_accounted_refs": [],
-            "all_selected_refs_accounted": layout_status == "not_requested",
-            "unit_refs": [],
-            "line_cluster_unit_refs": [],
-            "table_candidate_unit_refs": [],
-            "blank_page_refs": [],
-        }
-        layout_unit_diagnostics: dict[str, Any] = {}
-        if self.config.enable_pdf_layout_slice2:
-            layout_parser_engine = layout_parser_engine or "pdfplumber"
-            layout_parser_version = (
-                layout_parser_version or self.config.expected_pdfplumber_version
-            )
-            layout_underlying_engine = layout_underlying_engine or "pdfminer.six"
-            layout_underlying_version = (
-                layout_underlying_version or self.config.expected_pdfminer_version
-            )
-            if not page_inventory:
-                layout_status = "blocked"
-                layout_reasons = sorted(
-                    {*layout_reasons, "pdf_layout_not_run_page_text_unavailable"}
-                )
-                table_candidate_status = "blocked"
-            else:
-                layout_build = self.pdf_layout_unit_builder.build(
-                    normalization_run_id=normalization_run_id,
-                    document_id=document_id,
-                    profile_id=profile_id,
-                    source_checksum_sha256=source_checksum_sha256,
-                    source_checksum_ref=source_checksum_ref,
-                    payload_ref=payload_ref,
-                    layout_parser_ref=str(layout_parser_ref or ""),
-                    layout_parser_label=layout_parser_label,
-                    layout_parser_config_ref=layout_parser_config_ref,
-                    layout_pages=layout_pages,
-                    page_inventory=page_inventory,
-                )
-                page_inventory = layout_build.pages
-                layout_char_inventory = layout_build.char_inventory
-                layout_word_inventory = layout_build.word_inventory
-                layout_line_inventory = layout_build.line_inventory
-                layout_block_inventory = layout_build.block_inventory
-                layout_bbox_inventory = layout_build.bbox_inventory
-                layout_vector_line_inventory = layout_build.vector_line_inventory
-                layout_rect_inventory = layout_build.rect_inventory
-                layout_table_candidate_inventory = (
-                    layout_build.table_candidate_inventory
-                )
-                layout_units = layout_build.units
-                payload_source_value_refs.extend(layout_build.source_value_refs)
-                payload_source_value_index.extend(layout_build.source_value_index)
-                layout_reasons = sorted(
-                    {*layout_reasons, *layout_build.layout_reason_codes}
-                )
-                layout_status = (
-                    "complete"
-                    if layout_status == "complete"
-                    and layout_build.layout_projection_status == "complete"
-                    else "partial"
-                )
-                table_candidate_status = layout_build.table_candidate_status
-                layout_semantic_status = layout_build.semantic_reconstruction_status
-                layout_coverage = layout_build.coverage
-                layout_unit_diagnostics = layout_build.diagnostics
-            for page in page_inventory:
-                page["page_layout_checksum_ref"] = pdf_layout_page_checksum_ref(
-                    page, str(layout_parser_ref or "")
-                )
-            coverage["table_candidate_refs"] = [
-                str(item.get("table_candidate_ref") or "")
-                for item in layout_table_candidate_inventory
-            ]
-            coverage["table_fallback_text_refs"] = sorted(
-                {
-                    str(ref)
-                    for item in layout_table_candidate_inventory
-                    for ref in item.get("fallback_text_refs") or []
-                    if ref
-                }
-            )
-        reasons.extend(visual_reason_codes)
-        if visual_fallback_status == "complete":
-            reasons = [
-                reason
-                for reason in reasons
-                if reason
-                not in {
-                    "pdf_image_only_no_text_layer",
-                    "pdf_no_text_layer",
-                    "pdf_page_projection_reconciliation_failed",
-                    "pdf_unknown_font_mapping",
-                }
-            ]
-            if not reasons:
-                status = "complete"
-            visible_content_status = "complete_with_visual_fallback"
-        if status == "complete" and not provisional_units and not visual_units:
-            status = "partial"
-            text_layer_status = "partial"
-            reasons.append("pdf_no_text_layer")
-        reasons = sorted(set(reasons))
-        if status == "complete":
-            source_bound_table_units = [
-                unit
-                for unit in layout_units
-                if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
-                and unit.get("table_locator_scope_status") == "source_bound"
-            ]
-            if layout_status == "complete" and layout_units:
-                textual_units = layout_units
-            elif source_bound_table_units:
-                textual_units = [*provisional_units, *source_bound_table_units]
-            else:
-                textual_units = provisional_units
-            extraction_units = [*textual_units, *visual_units]
-        else:
-            extraction_units = []
-        projection = {
-            "schema_version": PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION,
-            "projection_policy_ref": PDF_PARSER_POLICY_VERSION,
-            "parser_engine": parser_engine,
-            "parser_engine_version": parser_version,
-            "parser_config_ref": parser_config_ref,
-            "requested_capability": "page_text",
-            "provided_capabilities": [
-                *(["page_text"] if page_inventory else []),
-                *(
-                    ["visual_page_fallback"]
-                    if visual_fallback_status == "complete"
-                    else []
-                ),
-                *(
-                    ["layout_words", "layout_lines", "table_candidates"]
-                    if layout_status == "complete"
-                    else []
-                ),
-                *(
-                    ["source_bound_table_candidates"]
-                    if any(
-                        unit.get("table_locator_scope_status") == "source_bound"
-                        for unit in layout_units
-                    )
-                    else []
-                ),
-            ],
-            "pdf_content_kind": pdf_content_kind,
-            "declared_page_range": {
-                "page_start": 1 if page_inventory else 0,
-                "page_end": len(page_inventory),
-                "pages_total": len(page_inventory),
-            },
-            "page_inventory": page_inventory,
-            "visual_page_inventory": visual_page_inventory,
-            "visual_fallback_status": visual_fallback_status,
-            "visual_reason_codes": sorted(set(visual_reason_codes)),
-            "text_fragment_inventory": text_fragment_inventory,
-            "char_inventory": layout_char_inventory,
-            "bbox_inventory": layout_bbox_inventory,
-            "block_inventory": (
-                layout_block_inventory
-                if self.config.enable_pdf_layout_slice2
-                else []
-            ),
-            "line_inventory": (
-                layout_line_inventory
-                if self.config.enable_pdf_layout_slice2
-                else copy.deepcopy(text_segment_inventory)
-            ),
-            "word_inventory": layout_word_inventory,
-            "vector_line_inventory": layout_vector_line_inventory,
-            "rect_inventory": layout_rect_inventory,
-            "table_candidate_inventory": layout_table_candidate_inventory,
-            "page_checksum_refs": [
-                str(page.get("page_text_checksum_ref") or "") for page in page_inventory
-            ],
-            "page_text_parser_ref": page_parser_ref,
-            "layout_requested_capability": layout_requested_capability,
-            "layout_parser_ref": layout_parser_ref,
-            "layout_projection_policy_ref": (
-                PDF_LAYOUT_POLICY_VERSION
-                if self.config.enable_pdf_layout_slice2
-                else None
-            ),
-            "layout_parser_engine": layout_parser_engine,
-            "layout_parser_engine_version": layout_parser_version,
-            "layout_underlying_engine": layout_underlying_engine,
-            "layout_underlying_engine_version": layout_underlying_version,
-            "layout_parser_config_ref": (
-                layout_parser_config_ref
-                if self.config.enable_pdf_layout_slice2
-                else None
-            ),
-            "layout_unit_config_ref": (
-                self.pdf_layout_unit_builder.config.config_ref
-                if self.config.enable_pdf_layout_slice2
-                else None
-            ),
-            "layout_projection_status": layout_status,
-            "layout_reason_codes": layout_reasons,
-            "table_candidate_status": table_candidate_status,
-            "layout_page_checksum_refs": [
-                str(page.get("page_layout_checksum_ref") or "")
-                for page in page_inventory
-            ]
-            if self.config.enable_pdf_layout_slice2
-            else [],
-            "layout_coverage": layout_coverage,
-            "coverage": coverage,
-            "completeness": {
-                "text_layer_projection_status": text_layer_status,
-                "visible_content_coverage_status": visible_content_status,
-                "semantic_reconstruction_status": (
-                    layout_semantic_status
-                    if self.config.enable_pdf_layout_slice2
-                    else semantic_status
-                ),
-                "layout_projection_status": layout_status,
-                "table_candidate_status": table_candidate_status,
-                "reason_codes": reasons,
-                "layout_reason_codes": layout_reasons,
-            },
-            "text_layer_projection_status": text_layer_status,
-            "visible_content_coverage_status": visible_content_status,
-            "semantic_reconstruction_status": (
-                layout_semantic_status
-                if self.config.enable_pdf_layout_slice2
-                else semantic_status
-            ),
-            "parser_diagnostics": parser_diagnostics,
-            "layout_parser_diagnostics": layout_diagnostics,
-            "layout_unit_diagnostics": layout_unit_diagnostics,
-            "ocr_vlm_used": False,
-            "page_rendering_used_for_extraction": bool(visual_units),
-        }
-        budget_omitted = not page_inventory and any(
-            reason.endswith("_budget_exceeded") for reason in reasons
-        )
-        payload = {
-            "schema_version": SOURCE_PAYLOAD_SCHEMA_VERSION,
-            "source_payload_ref": payload_ref,
-            "normalization_run_id": normalization_run_id,
-            "document_ref": document_id,
-            "profile_ref": profile_id,
-            "container_format": "pdf",
-            "logical_identity": logical_identity,
-            "parser": parser_label,
-            "parser_version": parser_version,
-            "parser_ref": parser_ref,
-            "source_checksum_ref": source_checksum_ref,
-            "payload_checksum_ref": None,
-            "parser_completeness_status": status,
-            "parser_completeness_reason_codes": reasons,
-            "normalized_projection": {
-                "kind": "pdf_text_layer_projection",
-                "projection_schema_version": PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION,
-            }
-            if not budget_omitted
-            else {},
-            "normalized_projection_status": (
-                "omitted_budget_exceeded" if budget_omitted else "materialized"
-            ),
-            "source_location": {
-                "kind": "pdf_text_layer_pages",
-                "page_start": 1 if page_inventory else 0,
-                "page_end": len(page_inventory),
-            },
-            "rows_total": 0,
-            "cells_total": 0,
-            "text_characters_total": sum(
-                len(str(page.get("text") or "")) for page in page_inventory
-            ),
-            "row_inventory": [],
-            "cell_inventory": [],
-            "text_segment_inventory": text_segment_inventory,
-            "text_fragment_refs": [
-                str(item.get("text_fragment_ref") or "")
-                for item in text_fragment_inventory
-            ],
-            "page_refs": page_refs,
-            "source_value_refs": payload_source_value_refs,
-            "source_value_index": payload_source_value_index,
-            "coverage_index": {
-                **copy.deepcopy(coverage),
-                "full_source_coverage_available": status == "complete"
-                and bool(extraction_units),
-                "coverage_scope": "complete_pdf_text_layer_projection"
-                if status == "complete"
-                else "partial_pdf_text_layer_projection",
-                "reason_codes": reasons,
-            },
-            "extraction_unit_refs": [
-                str(unit.get("unit_ref") or "") for unit in extraction_units
-            ],
-            "pdf_text_layer_projection": projection,
-            "text_layer_projection_status": text_layer_status,
-            "layout_projection_status": layout_status,
-            "table_candidate_status": table_candidate_status,
-            "visible_content_coverage_status": visible_content_status,
-            "semantic_reconstruction_status": (
-                layout_semantic_status
-                if self.config.enable_pdf_layout_slice2
-                else semantic_status
-            ),
-            "visual_fallback_status": visual_fallback_status,
-            "visual_page_refs": [
-                str(item.get("visual_page_ref") or "")
-                for item in visual_page_inventory
-                if item.get("visual_page_ref")
-            ],
-            "ocr_vlm_used": False,
-            "page_rendering_used_for_extraction": bool(visual_units),
-            "visibility": "private_case",
-            "knowledge_rag_used": False,
-            "vectorization_performed": False,
-        }
-        payload["payload_checksum_ref"] = pdf_payload_checksum_ref(payload)
-        unit_refs = [str(unit.get("unit_ref") or "") for unit in extraction_units]
-        for index, unit in enumerate(extraction_units):
-            unit["payload_checksum_ref"] = payload["payload_checksum_ref"]
-            unit["source_unit_checksum_ref"] = _checksum_ref(
-                "srcunitchk",
-                {
-                    "unit_ref": unit.get("unit_ref"),
-                    "payload_checksum_ref": unit.get("payload_checksum_ref"),
-                    "slice_payload_checksum_ref": unit.get(
-                        "slice_payload_checksum_ref"
-                    ),
-                    "coverage_ref": (unit.get("coverage") or {}).get("coverage_ref"),
-                    **(
-                        {
-                            "pdf_layout_unit_checksum_ref": unit.get(
-                                "pdf_layout_unit_checksum_ref"
-                            )
-                        }
-                        if unit.get("pdf_layout_unit_checksum_ref")
-                        else {}
-                    ),
-                },
-            )
-            unit["remaining_unit_refs"] = unit_refs[index + 1 :]
-            unit["next_unit_refs"] = unit_refs[index + 1 : index + 2]
-
-        payload_validation = validate_pdf_text_layer_payload(payload)
-        if status == "complete" and payload_validation.get("validator_status") != "passed":
-            status = "partial"
-            text_layer_status = "partial"
-            reasons = sorted(
-                {
-                    *reasons,
-                    *(
-                        str(error.get("code") or "pdf_projection_validation_failed")
-                        for error in payload_validation.get("errors") or []
-                    ),
-                }
-            )
-            extraction_units = []
-            payload["parser_completeness_status"] = status
-            payload["parser_completeness_reason_codes"] = reasons
-            payload["text_layer_projection_status"] = text_layer_status
-            projection["text_layer_projection_status"] = text_layer_status
-            projection["completeness"]["text_layer_projection_status"] = text_layer_status
-            projection["completeness"]["reason_codes"] = reasons
-            payload["extraction_unit_refs"] = []
-            payload["coverage_index"]["full_source_coverage_available"] = False
-            payload["coverage_index"]["coverage_scope"] = (
-                "partial_pdf_text_layer_projection"
-            )
-            payload["coverage_index"]["reason_codes"] = reasons
-            payload["payload_checksum_ref"] = pdf_payload_checksum_ref(payload)
-
-        summary = {
-            "schema_version": "full_source_coverage_summary_v0",
-            "document_ref": document_id,
-            "container_format": "pdf",
-            "parser_completeness_status": status,
-            "parser_completeness_reason_codes": reasons,
-            "payloads_total": 1,
-            "extraction_units_total": len(extraction_units),
-            "rows_total": 0,
-            "cells_total": 0,
-            "text_characters_total": int(payload.get("text_characters_total") or 0),
-            "text_segments_total": len(text_segment_inventory),
-            "full_coverage_available": status == "complete" and bool(extraction_units),
-            "preview_artifacts_are_coverage_authority": False,
-            "pdf_pages_total": len(page_inventory),
-            "pdf_pages_with_text": sum(
-                1 for page in page_inventory if str(page.get("text") or "").strip()
-            ),
-            "pdf_pages_without_text": sum(
-                1 for page in page_inventory if not str(page.get("text") or "").strip()
-            ),
-            "pdf_source_value_refs_total": len(payload_source_value_refs),
-            "pdf_text_layer_projection_status": text_layer_status,
-            "pdf_layout_projection_status": layout_status,
-            "pdf_layout_complete_pages": sum(
-                1
-                for page in page_inventory
-                if page.get("layout_projection_status") == "complete"
-            ),
-            "pdf_layout_partial_pages": sum(
-                1
-                for page in page_inventory
-                if page.get("layout_projection_status") not in {None, "complete"}
-            ),
-            "pdf_layout_words_total": len(layout_word_inventory),
-            "pdf_layout_lines_total": len(layout_line_inventory),
-            "pdf_table_candidates_total": len(layout_table_candidate_inventory),
-            "pdf_line_cluster_units_total": sum(
-                1
-                for unit in extraction_units
-                if unit.get("pdf_unit_type") == "pdf_line_cluster_unit"
-            ),
-            "pdf_table_candidate_units_total": sum(
-                1
-                for unit in extraction_units
-                if unit.get("pdf_unit_type") == "pdf_table_candidate_unit"
-            ),
-            "pdf_table_candidate_status": table_candidate_status,
-            "pdf_embedded_attachments_total": int(
-                parser_diagnostics.get("embedded_attachments_total") or 0
-            ),
-            "pdf_visible_content_coverage_status": visible_content_status,
-            "pdf_visual_fallback_status": visual_fallback_status,
-            "pdf_visual_pages_total": len(visual_units),
-            "pdf_visual_requested_pages_total": len(set(visual_page_numbers)),
-            "pdf_semantic_reconstruction_status": (
-                layout_semantic_status
-                if self.config.enable_pdf_layout_slice2
-                else semantic_status
-            ),
-            "ocr_vlm_used": False,
-            "page_rendering_used_for_extraction": bool(visual_units),
-            "knowledge_rag_used": False,
-            "vectorization_performed": False,
-        }
-        return FullSourceBuildResult(
-            payloads=[payload],
-            units=extraction_units,
-            summary=summary,
-        )
-
-    def _build_pdf_visual_units(
-        self,
-        *,
-        normalization_run_id: str,
-        document_id: str,
-        profile_id: str,
-        source_checksum_sha256: str,
-        payload_ref: str,
-        content_bytes: bytes,
-        page_numbers: list[int],
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-        rendered_pages = self.pdf_visual_renderer.render_pages(
-            content_bytes=content_bytes,
-            page_numbers=page_numbers,
-        )
-        units: list[dict[str, Any]] = []
-        inventory: list[dict[str, Any]] = []
-        for rendered in rendered_pages:
-            page_number = int(rendered.page_number)
-            slice_id = "fullsrc_" + stable_digest(
-                [payload_ref, "visual_page", page_number, rendered.png_sha256],
-                length=24,
-            )
-            source_location = {
-                "kind": "pdf_visual_page_render",
-                "page": page_number,
-                "page_start": page_number,
-                "page_end": page_number,
-                "dpi": 144,
-            }
-            private_slice = {
-                "slice_id": slice_id,
-                "document_id": document_id,
-                "profile_id": profile_id,
-                "slice_type": "visual_page",
-                "source_location": source_location,
-                "location": copy.deepcopy(source_location),
-                "bounded": True,
-                "truncated": False,
-                "parser": "pymupdf_visual_page_1_26_5",
-                "created_for_gate": "gate1_pdf_visual_fallback_v1",
-                "media_type": "image/png",
-                "private_media_sha256": rendered.png_sha256,
-                "private_media_base64": rendered.private_png_base64,
-                "width_pixels": rendered.width_pixels,
-                "height_pixels": rendered.height_pixels,
-            }
-            unit = self.provenance.enrich_slice(
-                normalization_run_id=normalization_run_id,
-                document_id=document_id,
-                source_checksum_sha256=source_checksum_sha256,
-                private_slice=private_slice,
-            )
-            unit_ref = "srcunit_" + stable_digest(
-                [
-                    payload_ref,
-                    unit.get("slice_payload_checksum_ref"),
-                    (
-                        unit.get("coverage").get("coverage_ref")
-                        if isinstance(unit.get("coverage"), dict)
-                        else None
-                    ),
-                ],
-                length=24,
-            )
-            unit.update(
-                {
-                    "schema_version": SOURCE_UNIT_SCHEMA_VERSION,
-                    "unit_ref": unit_ref,
-                    "unit_id": unit_ref,
-                    "parent_payload_ref": payload_ref,
-                    "payload_checksum_ref": None,
-                    "source_unit_checksum_ref": None,
-                    "parser_completeness_status": "complete",
-                    "declared_range_complete": True,
-                    "coverage_scope": "complete_pdf_visual_page_projection",
-                    "source_slice_truncated": False,
-                    "parent_source_slice_truncated": False,
-                    "parent_remainder_status": "not_applicable_parent_complete",
-                    "remaining_unit_refs": [],
-                    "next_unit_refs": [],
-                    "visibility": "private_case",
-                    "knowledge_rag_used": False,
-                    "vectorization_performed": False,
-                    "pdf_unit_type": "pdf_visual_page_unit",
-                    "pdf_projection_schema_version": PDF_TEXT_LAYER_PROJECTION_SCHEMA_VERSION,
-                    "declared_page_refs": list(unit.get("page_refs") or []),
-                    "pdf_text_fragment_refs": [],
-                    "text_segment_refs": [],
-                    "text_layer_projection_status": "unavailable_visual_only",
-                    "layout_projection_status": "not_claimed",
-                    "visible_content_coverage_status": "complete_visual_fallback",
-                    "semantic_reconstruction_status": "not_claimed",
-                    "ocr_vlm_used": False,
-                    "page_rendering_used_for_extraction": True,
-                    "financial_interpretation_restricted": True,
-                    "canonical_table_scope": "unavailable",
-                    "page_number": page_number,
-                }
-            )
-            units.append(unit)
-            inventory.append(
-                {
-                    "page_number": page_number,
-                    "visual_page_ref": (unit.get("page_refs") or [None])[0],
-                    "media_ref": unit.get("media_ref"),
-                    "media_checksum_ref": unit.get("media_checksum_ref"),
-                    "source_unit_ref": unit_ref,
-                    "width_pixels": rendered.width_pixels,
-                    "height_pixels": rendered.height_pixels,
-                    "dpi": 144,
-                    "media_type": "image/png",
-                    "private_media_embedded_in_inventory": False,
-                }
-            )
-        return units, inventory
-
-    def _extract_pdf(self, content_bytes: bytes) -> tuple[list[dict[str, Any]], list[str]]:
-        if not content_bytes.startswith(b"%PDF-"):
-            return [self._blocked_descriptor("text_excerpt", "python_stdlib_pdf_heuristic", "pdf_header_missing")], []
-        # Compatibility fallback only. Production PDF builds are routed above
-        # through PdfTextLayerParserFactory and never reach this heuristic.
-        # The legacy profiler remains a bounded preview and cannot mint units.
-        text = ""
-        reasons = [
-            "pdf_heuristic_parser_not_full_coverage",
-            "pdf_full_text_not_reparsed_for_partial_payload",
-        ]
-        descriptor = {
-            "logical_identity": "pdf_heuristic_text_001",
-            "slice_type": "text_excerpt",
-            "parser": "python_stdlib_pdf_heuristic",
-            "parser_version": "1",
-            "parser_completeness_status": "partial",
-            "parser_completeness_reason_codes": reasons,
-            "source_location": {
-                "kind": "pdf_heuristic_text_projection",
-                "page_start": 1,
-                "page_end": max(1, len(re.findall(rb"/Type\s*/Page(?!s)", content_bytes))),
-            },
-            "text": text,
-        }
-        return [descriptor], reasons
-
     def _build_descriptor(
         self,
         *,
@@ -1980,21 +903,10 @@ def validate_full_source_unit(
             "payload_checksum_ref": unit.get("payload_checksum_ref"),
             "slice_payload_checksum_ref": unit.get("slice_payload_checksum_ref"),
             "coverage_ref": (unit.get("coverage") or {}).get("coverage_ref"),
-            **(
-                {
-                    "pdf_layout_unit_checksum_ref": unit.get(
-                        "pdf_layout_unit_checksum_ref"
-                    )
-                }
-                if unit.get("pdf_layout_unit_checksum_ref")
-                else {}
-            ),
         },
     )
     if unit.get("source_unit_checksum_ref") != expected_unit_checksum:
         errors.append({"code": "full_source_unit_checksum_mismatch", "subject": str(unit.get("unit_ref") or "")})
-    if unit.get("pdf_unit_type"):
-        errors.extend(validate_pdf_source_unit_structure(unit))
     provenance = validate_normalized_slice_provenance(
         private_slice=unit,
         normalization_run_id=normalization_run_id,

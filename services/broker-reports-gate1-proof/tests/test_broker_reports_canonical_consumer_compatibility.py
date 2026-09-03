@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import copy
-import importlib.util
 import json
 import tempfile
-from argparse import Namespace
 from dataclasses import asdict
 from pathlib import Path
 
@@ -23,8 +21,6 @@ from broker_reports_gate1 import (
     CanonicalStorageConfig,
     FROZEN_CONSUMER_SURFACES,
     Gate1ArtifactStoreCanonicalAdapterFactory,
-    LocalPdfCompactResearchCanonicalAdapterFactory,
-    PdfCompactCanonicalAdapterFactory,
     WAVE0_MAPPINGS,
     build_retention_policy,
 )
@@ -216,19 +212,19 @@ def _publish(
     return store, context, document_id, artifact, published
 
 
-def test_01_frozen_inventory_accounts_all_16_surfaces_once() -> None:
-    assert len(FROZEN_CONSUMER_SURFACES) == 16
-    assert len({item.consumer_id for item in FROZEN_CONSUMER_SURFACES}) == 16
-    assert len({item.source_file for item in FROZEN_CONSUMER_SURFACES}) == 16
+def test_01_frozen_inventory_accounts_all_13_surviving_surfaces_once() -> None:
+    assert len(FROZEN_CONSUMER_SURFACES) == 13
+    assert len({item.consumer_id for item in FROZEN_CONSUMER_SURFACES}) == 13
+    assert len({item.source_file for item in FROZEN_CONSUMER_SURFACES}) == 13
     assert all(item.consumer_class != "UNRESOLVED" for item in FROZEN_CONSUMER_SURFACES)
-    assert sum(item.consumer_class == "WAVE_0_TEST" for item in FROZEN_CONSUMER_SURFACES) == 2
-    assert sum(item.consumer_class == "WAVE_0_RESEARCH" for item in FROZEN_CONSUMER_SURFACES) == 1
+    assert sum(item.consumer_class == "WAVE_0_TEST" for item in FROZEN_CONSUMER_SURFACES) == 1
+    assert sum(item.consumer_class == "WAVE_0_RESEARCH" for item in FROZEN_CONSUMER_SURFACES) == 0
     assert sum(item.consumer_class == "WAVE_1_INTERNAL_READ_ONLY" for item in FROZEN_CONSUMER_SURFACES) == 0
     assert sum(
         item.legacy_status
         == "DEPRECATED_FOR_CONSUMER_READ_RETAINED_FOR_REGRESSION"
         for item in FROZEN_CONSUMER_SURFACES
-    ) == 2
+    ) == 1
     assert not any(
         item.consumer_class == "WAVE_3_PRIMARY_PRODUCT"
         and item.migration_wave.startswith("WAVE_0")
@@ -239,8 +235,8 @@ def test_01_frozen_inventory_accounts_all_16_surfaces_once() -> None:
 
 
 def test_02_wave0_mappings_are_explicit_versioned_and_consumer_specific() -> None:
-    assert len(WAVE0_MAPPINGS) == 3
-    assert len({item.feature_flag for item in WAVE0_MAPPINGS}) == 3
+    assert len(WAVE0_MAPPINGS) == 1
+    assert len({item.feature_flag for item in WAVE0_MAPPINGS}) == 1
     assert all(item.feature_flag.startswith("CANONICAL_READ_") for item in WAVE0_MAPPINGS)
     assert all(item.canonical_contract_version == "canonical_artifact_v1" for item in WAVE0_MAPPINGS)
     versions = {
@@ -250,38 +246,27 @@ def test_02_wave0_mappings_are_explicit_versioned_and_consumer_specific() -> Non
         )
         for item in WAVE0_MAPPINGS
     }
-    assert versions["local_pdf_compact_canonical_proof"] == (
-        "local_pdf_compact_research_canonical_adapter_v2",
-        "local_pdf_compact_research_output_v2",
-    )
-    assert all(
-        adapter.endswith("_v1") and output.endswith("_v1")
-        for consumer, (adapter, output) in versions.items()
-        if consumer != "local_pdf_compact_canonical_proof"
-    )
+    assert versions == {
+        "gate1_artifact_store_test": (
+            "gate1_artifact_store_canonical_adapter_v1",
+            "gate1_artifact_store_compatibility_output_v1",
+        )
+    }
     assert all("read_active_envelope" in item.canonical_queries for item in WAVE0_MAPPINGS)
 
 
-@pytest.mark.parametrize(
-    "factory_type",
-    (
-        Gate1ArtifactStoreCanonicalAdapterFactory,
-        PdfCompactCanonicalAdapterFactory,
-        LocalPdfCompactResearchCanonicalAdapterFactory,
-    ),
-)
 @pytest.mark.parametrize("force_chunked", (False, True))
-def test_03_wave0_adapters_read_single_and_chunked_active_artifacts(
-    factory_type, force_chunked: bool
+def test_03_surviving_wave0_adapter_reads_single_and_chunked_active_artifacts(
+    force_chunked: bool,
 ) -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         store, context, document_id, _, _ = _publish(
             Path(temp_dir), force_chunked=force_chunked
         )
         ledger = CanonicalReadLedger()
-        result = factory_type(store=store, enabled=True, ledger=ledger).create().read_active(
-            document_id=document_id, context=context
-        )
+        result = Gate1ArtifactStoreCanonicalAdapterFactory(
+            store=store, enabled=True, ledger=ledger
+        ).create().read_active(document_id=document_id, context=context)
         assert result.compatibility_status == CANONICAL_OK
         assert result.error_code is None
         assert result.output
@@ -417,7 +402,7 @@ def test_07_active_pointer_cas_version_and_flag_rollbacks_are_independent() -> N
             reason="cohort promotion",
         )
         assert reader.read_active(document_id, context)["normalizer_version"] == "doc27-consumer-v2"
-        disabled = PdfCompactCanonicalAdapterFactory(
+        disabled = Gate1ArtifactStoreCanonicalAdapterFactory(
             store=store, enabled=False
         ).create().read_active(document_id=document_id, context=context)
         assert disabled.error_code == "canonical_read_disabled"
@@ -460,34 +445,7 @@ def test_09_inventory_serialization_contains_no_unresolved_or_private_values() -
     assert str(REPO_ROOT).lower() not in rendered.lower()
 
 
-def test_10_research_consumer_stops_without_active_store_and_never_falls_back() -> None:
-    script_path = SERVICE_ROOT / "scripts/local_pdf_compact_canonical_proof.py"
-    spec = importlib.util.spec_from_file_location("doc27_local_pdf_proof", script_path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    with tempfile.TemporaryDirectory() as temp_dir:
-        root = Path(temp_dir)
-        output = root / "blocked.safe.json"
-        exit_code = module._run_canonical(
-            Namespace(
-                canonical_store_root=str(root / "missing-store"),
-                output=str(output),
-                canonical_user_id="doc27-user",
-                canonical_run_id="doc27-run",
-                canonical_case_id="doc27-case",
-                document_id="doc27-document",
-            )
-        )
-        payload = json.loads(output.read_text(encoding="utf-8"))
-        assert exit_code == 2
-        assert payload["cutover_status"] == "BLOCKED"
-        assert payload["error_code"] == "canonical_store_unavailable"
-        assert payload["silent_fallback"] is False
-        assert payload["legacy_read_attempted"] is False
-
-
-def test_11_wave0_consumer_observable_shadow_has_no_regression() -> None:
+def test_10_surviving_wave0_consumer_observable_shadow_has_no_regression() -> None:
     expected_common = {
         "documents_returned": 1,
         "tables_returned": 1,
@@ -496,36 +454,27 @@ def test_11_wave0_consumer_observable_shadow_has_no_regression() -> None:
         "conflicts_total": 0,
         "ambiguities_total": 0,
     }
-    factories = (
-        Gate1ArtifactStoreCanonicalAdapterFactory,
-        PdfCompactCanonicalAdapterFactory,
-        LocalPdfCompactResearchCanonicalAdapterFactory,
-    )
     with tempfile.TemporaryDirectory() as temp_dir:
         store, context, document_id, _, _ = _publish(Path(temp_dir))
         comparisons = []
-        for factory_type in factories:
-            result = factory_type(store=store, enabled=True).create().read_active(
-                document_id=document_id,
-                context=context,
-            )
-            assert result.compatibility_status == CANONICAL_OK
-            observed = {
-                key: result.output[key] for key in expected_common
+        result = Gate1ArtifactStoreCanonicalAdapterFactory(
+            store=store, enabled=True
+        ).create().read_active(document_id=document_id, context=context)
+        assert result.compatibility_status == CANONICAL_OK
+        observed = {key: result.output[key] for key in expected_common}
+        comparisons.append(
+            {
+                "consumer_id": result.consumer_id,
+                "observable_behavior": (
+                    "EQUIVALENT"
+                    if observed == expected_common
+                    else "CANONICAL_REGRESSION"
+                ),
+                "schema_difference": "EXPECTED_SCHEMA_DIFFERENCE",
             }
-            comparisons.append(
-                {
-                    "consumer_id": result.consumer_id,
-                    "observable_behavior": (
-                        "EQUIVALENT"
-                        if observed == expected_common
-                        else "CANONICAL_REGRESSION"
-                    ),
-                    "schema_difference": "EXPECTED_SCHEMA_DIFFERENCE",
-                }
-            )
+        )
 
-    assert len(comparisons) == 3
+    assert len(comparisons) == 1
     assert all(
         item["observable_behavior"] == "EQUIVALENT"
         for item in comparisons

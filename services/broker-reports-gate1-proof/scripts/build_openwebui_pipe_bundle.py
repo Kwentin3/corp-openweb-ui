@@ -73,13 +73,12 @@ GATE1_RESOURCE_NAMES = (
 
 MODULE_ORDER = [
     "contracts",
-    "pdf_table_locator",
     "architecture_policy",
     "workload_authority",
     "source_provenance",
-    "broker_pdf_neutral_tables",
     "table_projection",
     "blockers",
+    "pdf_document_ai",
     "file_processing_outcomes",
     "inputs",
     "archive_intake",
@@ -93,10 +92,6 @@ MODULE_ORDER = [
     "xml_source",
     "profilers_xml",
     "profilers_zip",
-    "pdf_layout",
-    "pdf_layout_units",
-    "pdf_text_layer",
-    "pdf_visual_memory",
     "full_source",
     "canonical_artifact",
     "artifact_models",
@@ -104,9 +99,6 @@ MODULE_ORDER = [
     "artifact_retention",
     "artifact_store",
     "bounded_graph",
-    "pdf_compact_canonical",
-    "pdf_compact_gate2_adapter",
-    "pdf_normalization_acceptance",
     "taxonomy",
     "criticality",
     "eligibility",
@@ -154,18 +146,13 @@ MODULE_ORDER = [
     "__init__",
 ]
 
-GATE1_PDF_TABLE_MODULES = [
-    "private_intake_bytes",
-    "pdf_table_raster",
-    "pdf_table_locator_provider",
-    "pdf_table_intake_runtime",
-]
+GATE1_INPUT_MODULES = ["private_intake_bytes"]
 
-_GATE1_PDF_TABLE_INSERT_AT = MODULE_ORDER.index("gate2_provider_adapters") + 1
+_GATE1_INPUT_INSERT_AT = MODULE_ORDER.index("inputs") + 1
 GATE1_MODULE_ORDER = [
-    *MODULE_ORDER[:_GATE1_PDF_TABLE_INSERT_AT],
-    *GATE1_PDF_TABLE_MODULES,
-    *MODULE_ORDER[_GATE1_PDF_TABLE_INSERT_AT:],
+    *MODULE_ORDER[:_GATE1_INPUT_INSERT_AT],
+    *GATE1_INPUT_MODULES,
+    *MODULE_ORDER[_GATE1_INPUT_INSERT_AT:],
 ]
 GATE1_NDFL_GATE3_MODULES = [
     "gate3_financial_label_dictionary",
@@ -316,7 +303,7 @@ def main() -> None:
         name: (PACKAGE_ROOT / f"{name}.py").read_text(encoding="utf-8")
         for name in sorted(
             set(MODULE_ORDER)
-            | set(GATE1_PDF_TABLE_MODULES)
+            | set(GATE1_INPUT_MODULES)
             | set(GATE1_NDFL_GATE3_MODULES)
             | set(GATE1_GATE5_MODULES)
             | set(GATE1_ORDINARY_TRADE_MODULES)
@@ -345,7 +332,7 @@ def main() -> None:
             version="0.39.0-ordinary-trade-production-bundled",
             package_version="gate1_ordinary_trade_production_v9",
             source_label="openwebui_actions/broker_reports_gate1_pipe.py",
-            requirements="pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1",
+            requirements="pydantic,pypdf==6.7.5,lxml==6.1.1",
         )
         BUNDLE_PATH.write_text(bundle, encoding="utf-8", newline="\n")
         print(str(BUNDLE_PATH))

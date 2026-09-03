@@ -13,8 +13,6 @@ from broker_reports_gate1 import (
     validate_document_memory_manifest,
 )
 from broker_reports_gate1.validators import validate_artifacts
-from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
-from tests.test_broker_reports_pdf_text_layer_slice1 import _pdf_bytes
 from tests.test_broker_reports_gate2_fns_2ndfl_adapter import _xml as _fns_2ndfl_xml
 
 
@@ -85,11 +83,11 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
             scope["scope_readiness"]["restrictions"],
         )
 
-    def test_zip_promotes_pdf_and_xml_and_accounts_signature_sidecar(self):
+    def test_zip_promotes_xml_members_and_accounts_signature_sidecar(self):
         content = _zip_bytes(
             [
                 ("payload.xml", _fns_2ndfl_xml()),
-                ("statement.pdf", _ruled_table_pdf()),
+                ("statement.xml", b"<statement><amount>10.00</amount></statement>"),
                 ("signature.p7s", b"synthetic-signature"),
             ]
         )
@@ -125,7 +123,7 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
         promoted_member_refs = {
             item["source_file_ref"]
             for item in document_memory["documents"]
-            if item["container_format"] in {"pdf", "xml"}
+            if item["container_format"] == "xml"
         }
         by_format = {item["container_format"]: item for item in assessments}
 
@@ -141,7 +139,6 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
         self.assertEqual(
             by_format["xml"]["gate2_memory_status"], "ready_with_restrictions"
         )
-        self.assertEqual(by_format["pdf"]["terminal_status"], "complete")
         self.assertEqual(
             usage_by_format["zip"]["readiness_by_stage"]["source_fact_extraction"],
             "not_applicable_lineage_only",
@@ -171,7 +168,7 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
         )
         safe_text = str(result.safe_report)
         self.assertNotIn("payload.xml", safe_text)
-        self.assertNotIn("statement.pdf", safe_text)
+        self.assertNotIn("statement.xml", safe_text)
         self.assertNotIn("synthetic-signature", safe_text)
 
         tampered = copy.deepcopy(result.package)
@@ -222,88 +219,6 @@ class BrokerReportsGate1ArchiveXmlVisualV1Test(unittest.TestCase):
             "zip_nested_archive_forbidden",
             result.manifest["reason_codes"],
         )
-
-    def test_image_only_pdf_becomes_visual_memory_with_explicit_restrictions(self):
-        result = Gate1Normalizer().normalize(
-            [
-                FileInput.from_bytes(
-                    private_ref="visual-pdf",
-                    filename="scan.pdf",
-                    content=_pdf_bytes(pages=[("image", [])]),
-                    mime_type="application/pdf",
-                )
-            ]
-        )
-
-        assessment = result.package["gate1_supported_profile_assessment"][
-            "entries"
-        ][0]
-        units = result.package["private_normalized_source_units"]
-        scope = result.package["document_memory_manifest"]["documents"][0][
-            "source_scope"
-        ]["scope_readiness"]
-        document_ref = result.package["document_inventory"]["documents"][0][
-            "document_id"
-        ]
-        usage = result.package["document_usage_classification"]["entries"][0]
-        next_stage_refs = result.package["domain_context_packet"]["next_stage_refs"]
-
-        self.assertEqual(result.package["validation_result"]["status"], "passed")
-        self.assertEqual(assessment["terminal_status"], "review_required")
-        self.assertEqual(assessment["zero_silent_loss"], "passed")
-        self.assertEqual(len(units), 1)
-        self.assertEqual(units[0]["slice_type"], "visual_page")
-        self.assertEqual(units[0]["pdf_unit_type"], "pdf_visual_page_unit")
-        self.assertFalse(units[0]["ocr_vlm_used"])
-        self.assertTrue(units[0]["page_rendering_used_for_extraction"])
-        self.assertEqual(units[0]["canonical_table_scope"], "unavailable")
-        self.assertEqual(scope["visual_scope"], "ready")
-        self.assertEqual(scope["text_scope"], "unavailable_visual_scope_only")
-        self.assertIn("visual_units_require_visual_consumer", scope["restrictions"])
-        self.assertEqual(
-            usage["readiness_by_stage"]["source_fact_extraction"],
-            "review_required_visual_consumer",
-        )
-        self.assertIn("visual_review_candidate", usage["usage_modes"])
-        self.assertEqual(next_stage_refs["visual_review_refs"], [document_ref])
-        self.assertNotIn(document_ref, next_stage_refs["source_fact_ready_refs"])
-
-        tampered = copy.deepcopy(result.package)
-        tampered_usage = tampered["document_usage_classification"]["entries"][0]
-        tampered_usage["readiness_by_stage"]["source_fact_extraction"] = "ready"
-        tampered["domain_context_packet"]["next_stage_refs"][
-            "source_fact_ready_refs"
-        ].append(document_ref)
-        tamper_codes = {
-            item["code"] for item in validate_artifacts(tampered)["errors"]
-        }
-        self.assertIn("usage_visual_only_source_fact_status_invalid", tamper_codes)
-        self.assertIn("domain_packet_visual_only_declared_source_ready", tamper_codes)
-
-    def test_scope_readiness_tamper_is_rejected(self):
-        result = Gate1Normalizer().normalize(
-            [
-                FileInput.from_bytes(
-                    private_ref="scope-pdf",
-                    filename="scan.pdf",
-                    content=_pdf_bytes(pages=[("image", [])]),
-                    mime_type="application/pdf",
-                )
-            ]
-        )
-        manifest = copy.deepcopy(result.package["document_memory_manifest"])
-        manifest["documents"][0]["source_scope"]["scope_readiness"][
-            "canonical_table_scope"
-        ] = "ready"
-
-        validation = validate_document_memory_manifest(manifest)
-
-        self.assertEqual(validation["validator_status"], "failed")
-        self.assertIn(
-            "document_memory_integrity_mismatch",
-            {item["code"] for item in validation["errors"]},
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

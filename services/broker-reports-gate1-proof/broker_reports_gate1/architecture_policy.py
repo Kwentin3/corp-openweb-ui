@@ -1,20 +1,16 @@
 """Machine-readable anchors for the current Broker Reports architecture.
 
-Pipeline Gates v1 is the sole current gate-placement authority. Provider
-output only locates table regions at an external-variability boundary; it is
-never source-literal, canonical, financial, or tax authority.
+Pipeline Gates v1 is the sole current gate-placement authority. Document AI
+output crosses one provider-neutral source-normalization boundary and is never
+itself canonical, financial, or tax authority.
 """
 
 from __future__ import annotations
 
-from .pdf_table_locator import (
-    PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
-)
-
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v23"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v24"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -233,31 +229,18 @@ COMPATIBILITY_ONLY_CROSS_DOMAIN_MODULES = {
     )
 }
 
-VISUAL_RECOVERY_PRODUCTION_PROVIDER_PROFILES = frozenset({"google_gemini"})
-VISUAL_RECOVERY_INPUT_SCOPES = frozenset({"declared_page", "table_crop"})
-WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED = False
+PDF_DOCUMENT_EXTRACTION_PORT = "PdfDocumentExtractor"
+PDF_DOCUMENT_EXTRACTION_ENVELOPE = "PdfDocumentExtraction"
+PDF_DOCUMENT_EXTRACTION_COMPOSITION_ROOT = "PdfDocumentExtractorFactory.create"
+PDF_DOCUMENT_EXTRACTION_DEFAULT = "UnconfiguredPdfDocumentExtractor"
+PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
+PDF_DOCUMENT_EXTRACTION_AUTOMATIC_FALLBACK_ALLOWED = False
+PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED = False
 LOCAL_OCR_PRODUCTION_ALLOWED = False
 LOCAL_OCR_WORKER_POOL_ALLOWED = False
-PROVIDER_OUTPUT_AUTHORITY = "table_region_location_only"
-CANONICAL_PROMOTION_AUTHORITY = (
-    "deterministic_pdfplumber_source_projection_else_fail_closed"
-)
+PROVIDER_OUTPUT_AUTHORITY = "document_ai_representation_only"
+CANONICAL_PROMOTION_AUTHORITY = "existing_canonical_downstream_only"
 MODEL_CANONICAL_AUTHORITY = 0
-
-VISUAL_TABLE_MODEL_FACING_CONTRACT = PDF_TABLE_LOCATOR_RESPONSE_SCHEMA
-VISUAL_TABLE_MODEL_RESPONSE_FIELDS = frozenset({"tables"})
-VISUAL_TABLE_MASTER_PROVIDER_PROFILE = "google_gemini"
-VISUAL_TABLE_OPENAI_ROLE = "none_in_current_pipeline"
-VISUAL_TABLE_PROVIDER_CONSENSUS_REQUIRED = False
-VISUAL_TABLE_VLM_PHYSICAL_GEOMETRY_RESPONSIBILITY = 0
-VISUAL_TABLE_MODEL_SYSTEM_METADATA_FIELDS = frozenset()
-VISUAL_TABLE_MARKDOWN_RUNTIME_DEPENDENCY = False
-VISUAL_TABLE_SYSTEM_ENVELOPE_OWNER = "deterministic_application_code"
-VISUAL_TABLE_FINANCIAL_INTERPRETATION_OWNER = "gate3"
-LEGACY_VISUAL_TABLE_MODEL_CONTRACT = "broker_reports_canonical_table_v1"
-LEGACY_VISUAL_TABLE_CONTRACT_DISPOSITION = (
-    "historical_evidence_and_immutable_artifacts_readable_not_default_model_facing"
-)
 GATE1_RUN_WIDE_PRIVATE_GRAPH_ALLOWED = False
 GATE1_INTERMEDIATE_LIFETIME = "one_document_then_seal_persist_release"
 GATE1_PRIVATE_REPRESENTATION_AUTHORITY = "artifactstore_resolver_only"
@@ -268,21 +251,9 @@ GATE2_LOCAL_MAXIMUM_CONCURRENCY = 2
 WORKLOAD_PRIMARY_WALL_TIMEOUT = None
 
 COMPONENT_RUNTIME_STATUSES = {
-    "visual_table_vlm": "research_only",
-    "visual_neutral_tables": "maintained_qualified_default_on",
-    "visual_review_boundary": "research_only",
-    "visual_recovery_handoff": "research_only",
+    "pdf_document_ai": "unconfigured_fail_closed",
     "gate1_bounded_graph": "maintained",
     "workload_authority": "maintained",
-    # One current locator transport plus isolated historical research contours.
-    "pdf_table_locator_provider": "maintained_current",
-    "pdf_csv_experiment_provider": "proof_only",
-    "pdf_grid_experiment_provider": "compatibility_only",
-    "pdf_hybrid_provider": "research_only",
-    "pdf_dual_vlm_fact_providers": "research_only",
-    "pdf_dual_vlm_canonical_table": "research_only",
-    "pdf_dual_vlm_runtime": "research_only",
-    "prove_visual_neutral_tables_actual_corpus": "offline_only",
 }
 
 NON_PRODUCTION_RUNTIME_STATUSES = frozenset(
@@ -297,20 +268,19 @@ NON_PRODUCTION_RUNTIME_STATUSES = frozenset(
 )
 
 FACTORY_REQUIRED = (
-    "Maintained Broker Reports entrypoints must route PDF table location through "
-    "PdfTableIntakeRuntimeFactory and deterministic pdfplumber projection; "
+    "Maintained Broker Reports entrypoints must route PDF understanding through "
+    "PdfDocumentExtractorFactory.create; "
     "heavy Gate 1 runs must route storage through Gate1BoundedGraphFactory.create; "
     "all production workloads must route through WorkloadAuthorityFactory.create; "
     "consumer evidence demand must route through Gate3EvidenceDemandPortFactory.create"
 )
 FORBIDDEN = (
-    "Native OpenWebUI processing, Knowledge/RAG/vectorization, whole-document "
-    "visual upload, local OCR production dependencies, and model canonical "
+    "Native OpenWebUI processing, Knowledge/RAG/vectorization, local content "
+    "extraction, local OCR production dependencies, and model canonical "
     "authority are forbidden; retaining decoded private representations for "
     "the complete Gate 1 run, process-local workload queues and local OCR "
-    "worker pools are forbidden; model-generated physical table geometry, "
-    "model-generated system metadata, mandatory dual-provider consensus, and "
-    "Markdown parser dependencies are forbidden in semantic visual extraction; "
+    "worker pools are forbidden; automatic provider fallback and Markdown "
+    "semantic parsing are forbidden at the Document AI boundary; "
     "Gate 5 Canonical/source reads and document-provider calls, Gate 3 tax "
     "methodology, Gate 4 tax calculation, and projection business decisions are forbidden"
 )

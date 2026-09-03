@@ -190,40 +190,16 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
                 self.assertTrue(result["passed"])
                 self.assertTrue(result["checks"]["active"])
 
-    def test_gate1_operational_state_requires_supported_table_intake_config(self):
-        table_intake_valves = {
-            "pdf_table_intake_enabled": True,
-            "pdf_table_intake_provider_profile": "google_gemini",
-            "pdf_table_intake_model_id": "models/gemini-3.5-flash",
-            "pdf_table_intake_dpi": 150,
-            "pdf_table_intake_maximum_pages": 64,
-            "pdf_table_intake_maximum_candidates_per_page": 32,
-            "pdf_table_intake_horizontal_padding_fraction": 0.08,
-            "pdf_table_intake_vertical_padding_fraction": 0.08,
-        }
-        passed = self.module.evaluate_gate1_operational_state(
-            valves=table_intake_valves,
-            fitz_version=self.module.REQUIRED_FITZ_VERSION,
-        )
+    def test_gate1_operational_state_requires_retired_pdf_valves_absent(self):
+        passed = self.module.evaluate_gate1_operational_state(valves={})
         retired_enabled = self.module.evaluate_gate1_operational_state(
-            valves={**table_intake_valves, "pdf_dual_vlm_enabled": True},
-            fitz_version=self.module.REQUIRED_FITZ_VERSION,
-        )
-        wrong_runtime = self.module.evaluate_gate1_operational_state(
-            valves=table_intake_valves,
-            fitz_version="0.0.0",
+            valves={self.module.GATE1_RETIRED_VALVE_KEYS[0]: True},
         )
 
         self.assertTrue(passed["retired_table_valves_absent"])
-        self.assertTrue(passed["fitz_version_match"])
-        self.assertTrue(passed["table_intake_enabled"])
-        self.assertTrue(passed["table_intake_provider_configured"])
-        self.assertTrue(passed["table_intake_model_configured"])
-        self.assertTrue(passed["table_intake_dpi_configured"])
-        self.assertTrue(passed["table_intake_padding_configured"])
-        self.assertTrue(passed["table_intake_bounds_configured"])
+        self.assertTrue(passed["pdf_document_ai_unconfigured"])
         self.assertFalse(retired_enabled["retired_table_valves_absent"])
-        self.assertFalse(wrong_runtime["fitz_version_match"])
+        self.assertFalse(retired_enabled["pdf_document_ai_unconfigured"])
 
     def test_gate1_contract_has_current_pipeline_antidrift_markers(self):
         markers = set(self.module.FUNCTION_CONTRACTS[0].required_markers)
@@ -236,21 +212,10 @@ class Stage2DeliveryVerifierTests(unittest.TestCase):
             "broker_reports_current_pipeline_result_v1",
             markers,
         )
-        self.assertIn("PdfTableLocatorProviderFactory", markers)
+        self.assertIn("PdfDocumentExtractorFactory", markers)
+        self.assertIn("PDF_DOCUMENT_AI_NOT_CONFIGURED", markers)
 
     def test_live_ssh_reads_require_strict_host_key_verification(self):
-        with mock.patch.object(self.module.subprocess, "run") as run:
-            run.return_value = mock.Mock(
-                stdout='{"version": "1.26.5"}',
-            )
-
-            version = self.module._read_live_fitz_version("stage@example.invalid")
-
-        command = run.call_args.args[0]
-        self.assertEqual("1.26.5", version)
-        self.assertIn("StrictHostKeyChecking=yes", command)
-        self.assertNotIn("StrictHostKeyChecking=no", command)
-
         with mock.patch.object(self.module.subprocess, "run") as run:
             run.return_value = mock.Mock(stdout="[]")
 

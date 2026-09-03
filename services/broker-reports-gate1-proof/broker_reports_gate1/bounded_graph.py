@@ -17,7 +17,6 @@ from .full_source import (
     SOURCE_PAYLOAD_SCHEMA_VERSION,
     validate_full_source_unit,
 )
-from .pdf_text_layer import validate_pdf_text_layer_payload
 from .source_provenance import validate_normalized_slice_provenance
 from .table_projection import TableProjectionValidator
 
@@ -386,10 +385,6 @@ class Gate1BoundedGraph:
                 errors.append("full_source_payload_schema_mismatch")
             if value.get("document_ref") != document_id:
                 errors.append("full_source_payload_document_mismatch")
-            if value.get("container_format") == "pdf":
-                errors.extend(
-                    validate_pdf_text_layer_payload(value).get("errors") or []
-                )
         elif collection_name == "private_normalized_source_units":
             if (
                 str(value.get("parent_payload_ref") or "")
@@ -475,12 +470,6 @@ class Gate1BoundedGraph:
                         value.get("coverage_index") or {}
                     ).get("full_source_coverage_available")
                     is True,
-                    "pdf_text_layer_projection_status": value.get(
-                        "text_layer_projection_status"
-                    ),
-                    "pdf_visible_content_coverage_status": value.get(
-                        "visible_content_coverage_status"
-                    ),
                     "ocr_vlm_used": value.get("ocr_vlm_used"),
                     "page_rendering_used_for_extraction": value.get(
                         "page_rendering_used_for_extraction"
@@ -509,10 +498,6 @@ class Gate1BoundedGraph:
                     "parent_remainder_status": value.get("parent_remainder_status"),
                     "parser_completeness_status": value.get(
                         "parser_completeness_status"
-                    ),
-                    "pdf_unit_type": value.get("pdf_unit_type"),
-                    "pdf_text_layer_projection_status": value.get(
-                        "text_layer_projection_status"
                     ),
                     "ocr_vlm_used": value.get("ocr_vlm_used"),
                     "page_rendering_used_for_extraction": value.get(
@@ -601,7 +586,6 @@ class Gate1BoundedGraph:
                 "document_id": value.get("document_id"),
                 "slice_type": value.get("slice_type"),
                 "container_format": value.get("container_format"),
-                "pdf_unit_type": value.get("pdf_unit_type"),
                 "rows_count": int(value.get("rows_count") or 0),
                 "rows_in_slice": int(value.get("rows_in_slice") or 0),
                 "cell_refs_count": len(value.get("cell_refs") or []),

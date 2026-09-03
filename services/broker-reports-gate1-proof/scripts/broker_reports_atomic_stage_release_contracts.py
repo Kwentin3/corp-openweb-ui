@@ -14,16 +14,11 @@ from broker_reports_gate1.architecture_policy import (
     KNOWLEDGE_RAG_VECTORIZATION_ALLOWED,
     LOCAL_OCR_PRODUCTION_ALLOWED,
     LOCAL_OCR_WORKER_POOL_ALLOWED,
-    NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED,
-    WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED,
 )
-from broker_reports_gate1.pdf_table_locator import (
-    PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
-    PDF_TABLE_LOCATOR_OUTPUT_SCHEMA,
-    PDF_TABLE_LOCATOR_POLICY_VERSION,
-    PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
-    PDF_TABLE_LOCATOR_PROMPT,
-    PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
+from broker_reports_gate1.pdf_document_ai import (
+    PDF_DOCUMENT_AI_NOT_CONFIGURED,
+    PDF_DOCUMENT_AI_POLICY_VERSION,
+    PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION,
 )
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -41,7 +36,6 @@ PINNED_IMAGE_ID = (
 )
 PINNED_IMAGE_REVISION = "8e6a71f13cf4f9cec0e5be191fac924548050e48"
 PRIVATE_INTAKE_CONTRACT = "server-authoritative-v2"
-REQUIRED_FITZ_VERSION = "1.26.5"
 
 ACTION_ID = "broker_reports_private_intake_action"
 ACTION_PATH = (
@@ -89,17 +83,17 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
     "ndfl_presentation_llm_enabled": True,
     "ndfl_presentation_model_id": "models/gemini-3.5-flash",
     "ndfl_presentation_openwebui_origin": "https://gpt.alpha-soft.ru",
-    "pdf_table_intake_enabled": True,
-    "pdf_table_intake_provider_profile": "google_gemini",
-    "pdf_table_intake_model_id": "models/gemini-3.5-flash",
-    "pdf_table_intake_dpi": 150,
-    "pdf_table_intake_maximum_pages": 64,
-    "pdf_table_intake_maximum_candidates_per_page": 32,
-    "pdf_table_intake_horizontal_padding_fraction": 0.08,
-    "pdf_table_intake_vertical_padding_fraction": 0.08,
 }
 
 GATE1_RETIRED_VALVE_KEYS = (
+    "pdf_" "table_intake_enabled",
+    "pdf_" "table_intake_provider_profile",
+    "pdf_" "table_intake_model_id",
+    "pdf_" "table_intake_dpi",
+    "pdf_" "table_intake_maximum_pages",
+    "pdf_" "table_intake_maximum_candidates_per_page",
+    "pdf_" "table_intake_horizontal_padding_fraction",
+    "pdf_" "table_intake_vertical_padding_fraction",
     "canonical_gate2_compare_enabled",
     "broker_pdf_neutral_table_profile_v1_enabled",
     "pdf_dual_vlm_enabled",
@@ -149,9 +143,8 @@ FUNCTION_CONTRACTS = (
         valves=GATE1_RELEASE_VALVES,
         required_markers=(
             "WorkloadAuthorityFactory",
-            "PdfTableLocatorProjectionFactory",
-            "vlm_located_pdfplumber_source_bound",
-            "pdf_table_normalization_incomplete",
+            "PdfDocumentExtractorFactory",
+            "PDF_DOCUMENT_AI_NOT_CONFIGURED",
             "Gate2TablePackageFactory",
             "broker_reports_fns_2ndfl_source_facts_v1",
             "Gate5DeclarationPreparationRuntimeFactory",
@@ -323,9 +316,7 @@ def build_manifest(
         "managed_prompts": prompts,
         "provider_policy": dict(provider_policy),
         "runtime": {
-            "fitz_version": REQUIRED_FITZ_VERSION,
-            "vlm_default_enabled": True,
-            "source_bound_table_normalization_default_enabled": True,
+            "pdf_document_ai_configured": False,
             "legacy_table_route_available": False,
             "release_quiescent_workload_states": sorted(
                 RELEASE_QUIESCENT_WORKLOAD_STATES
@@ -399,18 +390,17 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         raise ValueError("stage_release_manifest_loader_invalid")
     runtime = manifest.get("runtime") or {}
     if (
-        runtime.get("vlm_default_enabled") is not True
-        or runtime.get("source_bound_table_normalization_default_enabled") is not True
+        runtime.get("pdf_document_ai_configured") is not False
         or runtime.get("legacy_table_route_available") is not False
         or runtime.get("release_quiescent_workload_states")
         != sorted(RELEASE_QUIESCENT_WORKLOAD_STATES)
     ):
         raise ValueError("stage_release_manifest_current_route_invalid")
-    source_bound = (manifest.get("provider_policy") or {}).get(
-        "source_bound_table_contract"
+    document_ai = (manifest.get("provider_policy") or {}).get(
+        "pdf_document_ai_contract"
     ) or {}
-    if source_bound != source_bound_table_contract_manifest():
-        raise ValueError("stage_release_manifest_source_bound_contract_invalid")
+    if document_ai != pdf_document_ai_contract_manifest():
+        raise ValueError("stage_release_manifest_pdf_document_ai_contract_invalid")
     if "financial_evidence_registry" in (manifest.get("provider_policy") or {}):
         raise ValueError("stage_release_manifest_legacy_registry_present")
 
@@ -428,34 +418,19 @@ def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, An
         )
     return {
         "gate2_profile_contract": "gate2_provider_profile_registry_v1",
-        "gate1_visual_selection_policy": PDF_TABLE_LOCATOR_POLICY_VERSION,
-        "gate1_visual_model_ids": {
-            "google_gemini": "models/gemini-3.5-flash",
-        },
-        "source_bound_table_contract": source_bound_table_contract_manifest(),
+        "pdf_document_ai_contract": pdf_document_ai_contract_manifest(),
         "profiles": profiles,
     }
 
 
-def source_bound_table_contract_manifest() -> dict[str, Any]:
+def pdf_document_ai_contract_manifest() -> dict[str, Any]:
     return {
-        "active_for_new_writes": True,
-        "locator_policy_version": PDF_TABLE_LOCATOR_POLICY_VERSION,
-        "prompt_sha256": sha256_text(PDF_TABLE_LOCATOR_PROMPT),
-        "response_schema": PDF_TABLE_LOCATOR_RESPONSE_SCHEMA,
-        "response_schema_sha256": sha256_text(
-            canonical_json(PDF_TABLE_LOCATOR_OUTPUT_SCHEMA)
-        ),
-        "projection_schema": PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
-        "coordinate_contract": PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
-        "table_structure_authority": "pdfplumber",
-        "source_literal_authority": "original_pdf",
-        "canonical_publication_authority": "Gate1Normalizer",
-        "model_values_used_as_source_literals": False,
-        "pdfplumber_settings_selected_by_model": False,
-        "hidden_retry": False,
-        "provider_failover": False,
-        "terminal_blocker": "pdf_table_normalization_incomplete",
+        "configured": False,
+        "policy_version": PDF_DOCUMENT_AI_POLICY_VERSION,
+        "extraction_schema_version": PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION,
+        "composition_owner": "PdfDocumentExtractorFactory",
+        "terminal_blocker": PDF_DOCUMENT_AI_NOT_CONFIGURED,
+        "automatic_fallback": False,
         "runtime_boundary": {
             "architecture_policy_version": ARCHITECTURE_POLICY_VERSION,
             "knowledge_rag_vectorization_allowed": (
@@ -463,11 +438,5 @@ def source_bound_table_contract_manifest() -> dict[str, Any]:
             ),
             "local_ocr_production_allowed": LOCAL_OCR_PRODUCTION_ALLOWED,
             "local_ocr_worker_pool_allowed": LOCAL_OCR_WORKER_POOL_ALLOWED,
-            "native_openwebui_document_processing_allowed": (
-                NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED
-            ),
-            "whole_document_provider_upload_allowed": (
-                WHOLE_DOCUMENT_PROVIDER_UPLOAD_ALLOWED
-            ),
         },
     }

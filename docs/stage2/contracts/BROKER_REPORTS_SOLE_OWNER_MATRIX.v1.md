@@ -43,8 +43,7 @@ alternate owner. `Consumer` means a declared downstream reader.
 
 | Responsibility | Sole owner | Producer | Consumer | Current duplicates | Required disposition |
 | --- | --- | --- | --- | --- | --- |
-| `visual_transcription` | `PdfDualVlmRuntimeFactory` + contract validation by `SemanticVisualTableValidatorFactory` | bounded PDF crop intake | `SemanticVisualTableMaterializationFactory` | none | `KEEP_AS_SOLE_OWNER` |
-| `logical_table_materialization` | `SemanticVisualTableMaterializationFactory.create` | validated `description + rows` | `Gate2TablePackageFactory`, ArtifactStore | none | `KEEP_AS_SOLE_OWNER` |
+| `pdf_document_understanding` | `PdfDocumentExtractor`; selection only by `PdfDocumentExtractorFactory.create` | authenticated PDF bytes after shared custody and safe preflight | provider-neutral `PdfDocumentExtraction` consumer boundary | retired local parser/VLM/reconstruction families | `KEEP_AS_SOLE_OWNER`; current implementation fails closed with `PDF_DOCUMENT_AI_NOT_CONFIGURED` |
 | `gate2_table_package` | `Gate2TablePackageFactory.create` | accepted Gate 1 projection | Gate 2 readiness/segmentation | none | `KEEP_AS_SOLE_OWNER` |
 | `source_unit_segmentation` | `Gate2SourceUnitSegmenterFactory.create` | Gate 2 readiness | router/domain package builder | none | `KEEP_AS_SOLE_OWNER` |
 | `financial_type_authority` | `Gate2FinancialSemanticContractFactory.create` | Financial Semantic Pack contract | candidate compiler, validator/materializer | GOAL 17 Type-First cards in PR #232 reuse this snapshot but add a parallel candidate surface | `REUSE` |
@@ -100,11 +99,13 @@ alternate owner. `Consumer` means a declared downstream reader.
 
 ## Sole-owner decisions for future convergence
 
-The future semantic route must reuse the existing visual input, Gate 2 package,
-canonical source grounding, canonical financial validator/materializer,
-ArtifactStore, and evidence/replay authorities. Pack-backed Type-First may be
-added only as an evolution inside the existing source-fact product boundary.
-It cannot establish a second product runtime.
+Any future PDF adapter must remain behind `PdfDocumentExtractor` and reuse the
+provider-neutral extraction envelope. Semantic routes must reuse the existing
+Gate 2 package, canonical source grounding, canonical financial
+validator/materializer, ArtifactStore, and evidence/replay authorities.
+Pack-backed Type-First may be added only as an evolution inside the existing
+source-fact product boundary. Neither change may establish a second product
+runtime.
 
 No new owner is introduced by KT1.
 

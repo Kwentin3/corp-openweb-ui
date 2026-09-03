@@ -42,6 +42,9 @@ from broker_reports_gate1.document_passport import prompt_hash  # noqa: E402
 from broker_reports_gate1.clarification import (  # noqa: E402
     gate1_clarification_request_schema_hash,
 )
+from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
+    GATE1_RETIRED_VALVE_KEYS,
+)
 
 
 def main() -> int:
@@ -91,26 +94,14 @@ def main() -> int:
         raise RuntimeError("live_function_bundle_hash_mismatch")
     current_valves = _get_function_valves(session, base_url)
     desired_valves = {
-        **current_valves,
-        "pdf_table_intake_enabled": False,
-        "pdf_dual_vlm_enabled": False,
-        "pdf_table_intake_provider_profile": "google_gemini",
-        "pdf_table_intake_model_id": "models/gemini-3.5-flash",
-        "pdf_table_intake_dpi": 150,
-        "pdf_table_intake_maximum_pages": 64,
-        "pdf_table_intake_maximum_candidates_per_page": 32,
-        "pdf_table_intake_horizontal_padding_fraction": 0.08,
-        "pdf_table_intake_vertical_padding_fraction": 0.08,
-        "pdf_structural_repair_shadow_enabled": False,
-        "pdf_vlm_guided_intake_shadow_enabled": False,
-        "pdf_vlm_guided_intake_shadow_page_allowlist": "",
-        "pdf_semantic_header_shadow_enabled": False,
+        key: value
+        for key, value in current_valves.items()
+        if key not in GATE1_RETIRED_VALVE_KEYS
     }
     _update_function_valves(session, base_url, desired_valves)
     live_valves = _get_function_valves(session, base_url)
-    for key, expected in desired_valves.items():
-        if key.startswith("pdf_table_intake_") and live_valves.get(key) != expected:
-            raise RuntimeError(f"live_function_valve_mismatch:{key}")
+    if any(key in live_valves for key in GATE1_RETIRED_VALVE_KEYS):
+        raise RuntimeError("live_function_retired_valve_present")
 
     prompt_summary = _seed_passport_prompt(
         ssh_target=ssh_target,
@@ -139,11 +130,9 @@ def main() -> int:
             "live_content_sha256": live_sha,
             "contains_document_passport": "DocumentPassportPromptResolverFactory" in str(after.get("content") or ""),
             "contains_metadata_clarification": "ClarificationPromptResolverFactory" in str(after.get("content") or ""),
-            "pdf_table_intake_valves": {
-                key: live_valves.get(key)
-                for key in sorted(live_valves)
-                if key.startswith("pdf_table_intake_")
-            },
+            "retired_pdf_valves_absent": all(
+                key not in live_valves for key in GATE1_RETIRED_VALVE_KEYS
+            ),
         },
         "managed_prompt": prompt_summary,
         "managed_clarification_prompt": clarification_prompt_summary,

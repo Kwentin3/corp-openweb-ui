@@ -14,9 +14,9 @@ from .contracts import (
 )
 from .source_provenance import validate_normalized_slice_provenance
 from .full_source import SOURCE_PAYLOAD_SCHEMA_VERSION, validate_full_source_unit
-from .pdf_text_layer import validate_pdf_text_layer_payload
 from .table_projection import TableProjectionValidator
 from .document_memory import validate_document_memory_manifest
+from .pdf_document_ai import is_terminal_pdf_document_ai_request
 
 
 SAFE_REPORT_ALLOWED_KEYS = {
@@ -43,7 +43,6 @@ SAFE_REPORT_ALLOWED_KEYS = {
     "normalization_blockers",
     "blockers",
     "file_processing_outcomes",
-    "pdf_structural_repair_shadow",
     "document_source_eligibility",
     "source_eligibility_summary",
     "gate2_handoff",
@@ -198,6 +197,11 @@ def validate_artifacts(package: dict) -> dict:
     table_projections_to_validate = [] if bounded_graph else table_projections
 
     blocker_ids = {item.get("blocker_id") for item in blockers}
+    taxonomy_terminal_document_ids = {
+        item.get("document_id")
+        for item in blockers
+        if item.get("code") == "PDF_DOCUMENT_AI_NOT_CONFIGURED"
+    }
     profile_by_doc = {item.get("document_id"): item for item in profiles}
     document_by_id = {item.get("document_id"): item for item in documents}
     document_ids = {item.get("document_id") for item in documents}
@@ -256,7 +260,10 @@ def validate_artifacts(package: dict) -> dict:
                     )
                 )
 
-        if document_id not in taxonomy_doc_ids:
+        if (
+            document_id not in taxonomy_doc_ids
+            and document_id not in taxonomy_terminal_document_ids
+        ):
             errors.append(_error("document_missing_taxonomy_candidate", document_id))
         if document_id not in eligibility_doc_ids:
             errors.append(_error("document_missing_source_eligibility", document_id))
@@ -321,9 +328,6 @@ def validate_artifacts(package: dict) -> dict:
             errors.append(
                 _error("full_source_payload_vector_guard_failed", payload_ref)
             )
-        if payload.get("container_format") == "pdf":
-            pdf_validation = validate_pdf_text_layer_payload(payload)
-            errors.extend(copy.deepcopy(pdf_validation.get("errors") or []))
 
     for unit in source_units_to_validate:
         if not isinstance(unit, dict):
@@ -737,6 +741,10 @@ def validate_artifacts(package: dict) -> dict:
         ) != document_memory_manifest.get("integrity_hash"):
             errors.append(_error("domain_packet_document_memory_hash_mismatch", run_id))
 
+    terminal_pdf_document_ai_request = is_terminal_pdf_document_ai_request(
+        documents,
+        blockers,
+    )
     if document_memory_manifest:
         memory_validation = validate_document_memory_manifest(
             document_memory_manifest,
@@ -745,7 +753,7 @@ def validate_artifacts(package: dict) -> dict:
             issue_ledger=issue_ledger,
         )
         errors.extend(copy.deepcopy(memory_validation.get("errors") or []))
-    else:
+    elif not terminal_pdf_document_ai_request:
         errors.append(_error("document_memory_manifest_missing", run_id))
 
     if passports:
@@ -801,21 +809,6 @@ def validate_artifacts(package: dict) -> dict:
                         "zip_missing_inventory_or_blocker", profile.get("document_id")
                     )
                 )
-        if profile.get("container_format") == "pdf" and profile.get(
-            "raster_or_scan_likelihood"
-        ) in {"medium", "high"}:
-            doc_refs = {
-                blocker.get("code")
-                for blocker in blockers
-                if blocker.get("document_id") == profile.get("document_id")
-            }
-            if "raster_requires_ocr_or_review" not in doc_refs:
-                errors.append(
-                    _error(
-                        "raster_pdf_missing_gate2_blocker", profile.get("document_id")
-                    )
-                )
-
     for manifest in package.get("archive_source_manifests") or []:
         if not isinstance(manifest, dict):
             errors.append(_error("archive_manifest_not_object", run_id))

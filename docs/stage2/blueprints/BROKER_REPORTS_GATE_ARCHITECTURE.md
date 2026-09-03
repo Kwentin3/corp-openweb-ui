@@ -181,14 +181,14 @@ Representation-preserving normalization ends here. Mechanically normalized
 dates/numbers and structural table labels are allowed only when reproducible
 from source values. Assigning a financial fact type is not normalization.
 
-### 3.1.1 Semantic visual-table boundary
+### 3.1.1 PDF Document AI boundary
 
-The normative model-facing contract is
-[Broker Reports Semantic Visual Table Transcription v1](../contracts/BROKER_REPORTS_SEMANTIC_VISUAL_TABLE_TRANSCRIPTION.v1.md).
-It is semantic transcription, not physical table reconstruction. VLM output is
-limited to a source-oriented description and logical rows containing strings or
-`null`. All source names, labels, amounts, currency signs, parentheses,
-percentage signs and separators remain literal strings.
+The current contract is the
+[PDF Document AI ADR](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
+PDF understanding is isolated behind `PdfDocumentExtractor`; the current
+implementation fails closed before network access. Provider output can enter
+the existing downstream only as a validated provider-neutral
+`PdfDocumentExtraction`.
 
 Deterministic code derives the rectangular logical table, indexes, explicit
 empty cells, provenance envelope, hashes, persistence and terminal state. Every
@@ -473,8 +473,7 @@ post-refactor stage evidence are recorded in the
 Bounded closure evidence remains separate:
 
 - [CSV pre-Gate-3 vertical closure](../../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_CSV_PRE_GATE3_VERTICAL_CLOSURE.report.md);
-- [PDF Table Intake local Gate 1 closure](../../reports/2026-07-17/OPENWEBUI_BROKER_REPORTS_PDF_TABLE_INTAKE_GATE1_CLOSURE.report.md);
-- [single-PDF whole-document Gate 2 bounded proof](../proof/BROKER_REPORTS_SINGLE_PDF_WHOLE_DOCUMENT_GATE2_E2E.md).
+- [current PDF Document AI boundary](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 
 ## 11. Final status
 

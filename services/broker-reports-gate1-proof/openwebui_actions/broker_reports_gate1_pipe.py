@@ -3,7 +3,7 @@ title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
 version: 0.40.0-automatic-semantic-mapping
 required_open_webui_version: 0.9.6
-requirements: pydantic,pypdf==6.7.5,pdfplumber==0.11.10,pdfminer.six==20260107,PyMuPDF==1.26.5,lxml==6.1.1
+requirements: pydantic,pypdf==6.7.5,lxml==6.1.1
 """
 
 from __future__ import annotations
@@ -53,7 +53,6 @@ from broker_reports_gate1 import (
     RetentionPolicyError,
     WorkloadAccessContext,
     WorkloadAuthorityConfig,
-    WorkloadAuthorityError,
     WorkloadAuthorityFactory,
     WorkloadCancelledError,
     WorkloadKind,
@@ -64,6 +63,7 @@ from broker_reports_gate1 import (
     build_llm_document_packages,
     build_metadata_gap_report,
     build_retention_policy,
+    is_terminal_pdf_document_ai_request,
     clarification_json_object_response_format,
     clarification_json_schema_response_format,
     clarification_model_call_audit_metadata,
@@ -78,17 +78,8 @@ from broker_reports_gate1 import (
     validate_document_metadata_passport,
     validation_error_summary,
     provider_budgets_from_json,
-    PdfTableIntakeConfig,
-    PdfTableIntakeError,
-    PdfTableIntakeRuntimeFactory,
-    PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-    PDF_TABLE_INTAKE_POLICY_VERSION,
-    PDF_TABLE_INTAKE_RUN_SCHEMA,
-    PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
-    PDF_TABLE_LOCATOR_POLICY_VERSION,
-    PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
 )
-from broker_reports_gate1.detectors import detect_container, extension_from_name
+from broker_reports_gate1.detectors import extension_from_name
 from broker_reports_gate1.normalizer import NormalizationResult
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
@@ -229,7 +220,6 @@ class Pipe:
         )
         clarification_model_id: str = Field(default="")
         clarification_criticality_refinement_enabled: bool = Field(default=True)
-        pdf_compact_canonical_dual_write: bool = Field(default=False)
         canonical_gate2_write_enabled: bool = Field(
             default=False,
             description="Write Gate 2 CanonicalArtifactV1 shadow versions only.",
@@ -276,26 +266,6 @@ class Pipe:
                 "Administrator-pinned HTTPS origin for the native OpenWebUI "
                 "completion endpoint; never derived from request metadata."
             ),
-        )
-        pdf_table_intake_enabled: bool = Field(
-            default=True,
-            description=(
-                "Locate PDF table instances visually, then let pinned pdfplumber "
-                "reconstruct structure and source literals. Fail closed per page."
-            ),
-        )
-        pdf_table_intake_provider_profile: str = Field(default="google_gemini")
-        pdf_table_intake_model_id: str = Field(default="models/gemini-3.5-flash")
-        pdf_table_intake_dpi: int = Field(default=150)
-        pdf_table_intake_maximum_pages: int = Field(default=64, ge=1, le=512)
-        pdf_table_intake_maximum_candidates_per_page: int = Field(
-            default=32, ge=1, le=64
-        )
-        pdf_table_intake_horizontal_padding_fraction: float = Field(
-            default=0.08, ge=0, le=0.25
-        )
-        pdf_table_intake_vertical_padding_fraction: float = Field(
-            default=0.08, ge=0, le=0.25
         )
         live_smoke_trigger_phrases: str = Field(
             default="artifactstore retention smoke,gate1 artifactstore smoke"
@@ -714,19 +684,6 @@ class Pipe:
                 source_file_refs=tuple(self._source_file_refs(file_refs)),
             )
         ).create(normalization_run_id=planned_run_id)
-        table_intake = self._maybe_run_pdf_table_intake(
-            file_inputs=file_inputs,
-            request=__request__,
-        )
-        locator_pages_by_sha256: dict[str, list[dict[str, Any]]] | None = None
-        if self.valves.pdf_table_intake_enabled:
-            locator_pages_by_sha256 = {}
-            for page_result in table_intake.get("private_page_results") or []:
-                if not isinstance(page_result, dict):
-                    continue
-                digest = str(page_result.get("pdf_sha256") or "")
-                if digest:
-                    locator_pages_by_sha256.setdefault(digest, []).append(page_result)
         result = self._normalizer.normalize(
             file_inputs,
             entrypoint="broker_reports_gate1_pipe",
@@ -742,42 +699,46 @@ class Pipe:
                 "retention_policy_mode": retention_policy.mode,
                 "retention_policy_explicit": retention_policy.explicit,
                 "clarification_criticality_refinement_enabled": criticality_refinement_enabled,
-                # The current PDF route always promotes source-bound pdfplumber
-                # projections through the deterministic neutral-table contract.
-                "broker_pdf_neutral_table_profile_v1_enabled": True,
-                "pdf_compact_canonical_dual_write": bool(
-                    self.valves.pdf_compact_canonical_dual_write
-                ),
                 "canonical_gate2_write_enabled": bool(
                     self.valves.canonical_gate2_write_enabled
                 ),
                 "canonical_gate2_read_enabled": bool(
                     self.valves.canonical_gate2_read_enabled
                 ),
-                "pdf_table_intake_enabled": bool(self.valves.pdf_table_intake_enabled),
-                "pdf_table_intake_horizontal_padding_fraction": (
-                    self.valves.pdf_table_intake_horizontal_padding_fraction
-                ),
-                "pdf_table_intake_vertical_padding_fraction": (
-                    self.valves.pdf_table_intake_vertical_padding_fraction
-                ),
             },
             extra_private_markers=self._private_markers(file_refs),
-            pdf_table_locator_pages_by_sha256=locator_pages_by_sha256,
             bounded_graph=bounded_graph,
             workload_checkpoint=self._workload_checkpoint,
             workload_progress=self._workload_progress,
         )
-        result.package["pdf_table_intake"] = table_intake["safe_summary"]
-        result.package["private_pdf_table_candidates"] = table_intake[
-            "private_candidates"
-        ]
-        result.package["private_pdf_table_detection_attempts"] = table_intake[
-            "private_detection_attempts"
-        ]
-        result.package["private_pdf_table_locator_pages"] = table_intake[
-            "private_page_results"
-        ]
+        if is_terminal_pdf_document_ai_request(
+            result.package.get("document_inventory", {}).get("documents", []),
+            result.package.get("normalization_blockers", []),
+        ):
+            self._workload_review_items = 1
+            artifact_manifest = persist_gate1_result(
+                store=artifact_store,
+                result=result,
+                context=artifact_context,
+                retention_policy=retention_policy,
+                source_file_refs=self._source_file_refs(file_refs),
+            )
+            self.last_safe_report = result.safe_report
+            self.last_artifact_manifest = artifact_manifest.to_dict()
+            self._finalize_workload_publication(gate2_handoff_status="blocked")
+            await self._emit(
+                __event_emitter__,
+                self._progress_description(
+                    safe_metadata,
+                    user_message="PDF Document AI is not configured.",
+                    internal_message=(
+                        "Gate 1 stopped at the PDF Document AI boundary; "
+                        "no downstream artifacts were created."
+                    ),
+                ),
+                done=True,
+            )
+            return render_chat_content(result.safe_report)
         result = await self._run_provider_awaitable(
             self._maybe_run_passport_stage(
                 result=result,
@@ -859,7 +820,6 @@ class Pipe:
         self.last_safe_report = result.safe_report
         self.last_artifact_manifest = {
             **artifact_manifest.to_dict(),
-            "pdf_table_intake": table_intake["safe_summary"],
             "ndfl_gate3": ndfl_gate3,
         }
 
@@ -2482,138 +2442,6 @@ class Pipe:
             "component_count": envelope.component_count,
             "payload_bytes": envelope.payload_bytes,
             "artifact": envelope.artifact,
-        }
-
-    def _maybe_run_pdf_table_intake(
-        self,
-        *,
-        file_inputs: list[FileInput],
-        request: Any,
-    ) -> dict[str, Any]:
-        config = PdfTableIntakeConfig(
-            enabled=bool(self.valves.pdf_table_intake_enabled),
-            detector_provider_profile=self.valves.pdf_table_intake_provider_profile,
-            detector_model_id=self.valves.pdf_table_intake_model_id,
-            dpi=self.valves.pdf_table_intake_dpi,
-            maximum_pages=self.valves.pdf_table_intake_maximum_pages,
-            maximum_candidates_per_page=(
-                self.valves.pdf_table_intake_maximum_candidates_per_page
-            ),
-            horizontal_padding_fraction=(
-                self.valves.pdf_table_intake_horizontal_padding_fraction
-            ),
-            vertical_padding_fraction=(
-                self.valves.pdf_table_intake_vertical_padding_fraction
-            ),
-        )
-        factory = PdfTableIntakeRuntimeFactory(config)
-        if not config.enabled:
-            disabled = factory.create_with_provider(None).run([])
-            return {
-                "safe_summary": disabled.safe_summary,
-                "private_candidates": [],
-                "private_detection_attempts": [],
-                "private_page_results": [],
-            }
-        documents_by_sha256: dict[str, dict[str, Any]] = {}
-        for file_input in file_inputs:
-            read = file_input.read_bytes()
-            if read.status != "available" or not isinstance(read.content_bytes, bytes):
-                continue
-            extension = extension_from_name(
-                file_input.original_filename_private,
-                file_input.mime_type,
-            )
-            detection = detect_container(
-                extension=extension,
-                mime_type=file_input.mime_type,
-                content_bytes=read.content_bytes,
-            )
-            if detection.get("container_format") != "pdf":
-                continue
-            digest = hashlib.sha256(read.content_bytes).hexdigest()
-            documents_by_sha256.setdefault(
-                digest,
-                {
-                    "document_ref": f"pdfsource_{digest[:24]}",
-                    "pdf_bytes": read.content_bytes,
-                    "pdf_sha256": digest,
-                },
-            )
-        documents = list(documents_by_sha256.values())
-        if not documents:
-            empty = factory.create_with_provider(None).run([])
-            return {
-                "safe_summary": empty.safe_summary,
-                "private_candidates": [],
-                "private_detection_attempts": [],
-                "private_page_results": [],
-            }
-        try:
-            with self._provider_slot_if_enabled(
-                True,
-                config.detector_provider_profile,
-                resume_state=WorkloadState.NORMALIZING,
-            ):
-                outcome = factory.create_for_openwebui(request).run(documents)
-            return {
-                "safe_summary": outcome.safe_summary,
-                "private_candidates": outcome.private_candidates,
-                "private_detection_attempts": outcome.private_detection_attempts,
-                "private_page_results": outcome.private_page_results,
-            }
-        except WorkloadAuthorityError:
-            raise
-        except (PdfTableIntakeError, RuntimeError, ValueError) as exc:
-            return self._pdf_table_intake_failure(
-                config,
-                str(getattr(exc, "code", "pdf_table_intake_runtime_failed")),
-                documents_total=len(documents),
-            )
-
-    @staticmethod
-    def _pdf_table_intake_failure(
-        config: PdfTableIntakeConfig,
-        failure_code: str,
-        *,
-        documents_total: int,
-    ) -> dict[str, Any]:
-        summary = {
-            "schema_version": PDF_TABLE_INTAKE_RUN_SCHEMA,
-            "policy_version": PDF_TABLE_INTAKE_POLICY_VERSION,
-            "enabled": config.enabled,
-            "status": "failed",
-            "documents_total": documents_total,
-            "pages_total": 0,
-            "candidates_total": 0,
-            "regions_total": 0,
-            "failed_pages_total": 0,
-            "failed_pages": [],
-            "terminal_failure_code": failure_code,
-            "detector_contract_version": PDF_TABLE_DETECTION_RESPONSE_SCHEMA,
-            "locator_policy_version": PDF_TABLE_LOCATOR_POLICY_VERSION,
-            "locator_projection_schema": PDF_TABLE_LOCATOR_PROJECTION_SCHEMA,
-            "coordinate_contract": PDF_TABLE_LOCATOR_COORDINATE_CONTRACT,
-            "detector_provider_profile": config.detector_provider_profile,
-            "detector_model_id": config.detector_model_id,
-            "dpi": config.dpi,
-            "horizontal_padding_fraction": config.horizontal_padding_fraction,
-            "vertical_padding_fraction": config.vertical_padding_fraction,
-            "padding_basis": "legacy_configuration_retained_not_applied",
-            "crop_boundary_basis": "locator_region_pdf_points",
-            "detector_qualification": None,
-            "gate2_boundary_ready": False,
-            "legacy_vlm_transcription_route_active": False,
-            "model_values_used_as_source_literals": False,
-            "pdfplumber_settings_selected_by_model": False,
-            "rows_columns_cells_inferred": False,
-            "financial_semantics_inferred": False,
-        }
-        return {
-            "safe_summary": summary,
-            "private_candidates": [],
-            "private_detection_attempts": [],
-            "private_page_results": [],
         }
 
     async def _maybe_run_passport_stage(

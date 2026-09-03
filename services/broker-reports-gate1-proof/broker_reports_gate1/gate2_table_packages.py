@@ -4,8 +4,6 @@ import copy
 from dataclasses import dataclass
 from typing import Any
 
-from .broker_pdf_neutral_tables import PROFILE_ID as BROKER_PDF_NEUTRAL_PROFILE_ID
-
 from .contracts import stable_digest
 from .gate1_public_contracts import (
     TableProjectionValidator,
@@ -60,21 +58,6 @@ class Gate2TablePackageBuilder:
             "medium",
         }:
             raise ValueError("gate2_table_projection_quality_not_eligible")
-        if projection.get("source_format") == "pdf" and (
-            projection.get("canonical_table_scope")
-            != "ready_validated_projection_only"
-            or _object(projection.get("canonical_validation")).get(
-                "validator_status"
-            )
-            != "passed"
-        ):
-            raise ValueError("gate2_pdf_canonical_table_not_validated")
-        if (
-            projection.get("source_format") == "pdf"
-            and projection.get("canonical_profile_id")
-            != BROKER_PDF_NEUTRAL_PROFILE_ID
-        ):
-            raise ValueError("gate2_pdf_canonical_boundary_unsupported")
         coverage = _object(projection.get("coverage"))
         if (
             coverage.get("coverage_status") != "complete"
@@ -321,23 +304,6 @@ def validate_gate2_table_package(
         "medium",
     }:
         errors.append(_error("gate2_table_projection_quality_not_eligible", package_id))
-    if projection.get("source_format") == "pdf" and (
-        projection.get("canonical_table_scope")
-        != "ready_validated_projection_only"
-        or _object(projection.get("canonical_validation")).get(
-            "validator_status"
-        )
-        != "passed"
-    ):
-        errors.append(_error("gate2_pdf_canonical_table_not_validated", package_id))
-    if (
-        projection.get("source_format") == "pdf"
-        and projection.get("canonical_profile_id")
-        != BROKER_PDF_NEUTRAL_PROFILE_ID
-    ):
-        errors.append(
-            _error("gate2_pdf_canonical_boundary_unsupported", package_id)
-        )
     if (
         projection_coverage.get("coverage_status") != "complete"
         or _strings(projection_coverage.get("duplicate_accounted_refs"))

@@ -1,0 +1,3 @@
+*.pdf -text
+*.jpeg -text
+*/mistral-markdown.md -text -whitespace

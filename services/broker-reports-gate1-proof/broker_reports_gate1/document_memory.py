@@ -93,22 +93,10 @@ def supported_pilot_profile_v1() -> dict[str, Any]:
                 "table_policy": "common_normalized_table_contract_required",
             },
             "pdf": {
-                "variant": "text_layout_and_bounded_visual_fallback_v1",
-                "max_input_bytes": 50_000_000,
-                "max_pages": 2_000,
-                "max_page_content_stream_bytes": 10_000_000,
-                "max_text_characters_per_page": 200_000,
-                "max_layout_characters_per_page": 50_000,
-                "max_layout_words_per_page": 10_000,
-                "max_layout_lines_per_page": 2_000,
-                "max_layout_objects_per_document": 75_000,
-                "image_only_pages": "bounded_visual_page_memory_review_required",
-                "mixed_text_image_pages": "bounded_visual_page_memory_review_required",
-                "embedded_attachments": "unsupported_review_required",
-                "table_policy": (
-                    "common_normalized_table_when_geometry_is_validated; "
-                    "otherwise explicit review with text fallback lineage"
-                ),
+                "variant": "document_ai_unconfigured_fail_closed_v1",
+                "preflight_scope": ["validity", "encryption", "page_count"],
+                "content_extraction": "none",
+                "gate2_memory": "blocked",
                 "logical_document_policy": "one_file_one_logical_document",
             },
             "xml": {
@@ -503,7 +491,7 @@ class Gate1DocumentMemoryBuilder:
         profile_variant = {
             "csv": "broker_reports_csv_supported_profile_v1",
             "html_text": "static_html_text_and_tables_v1",
-            "pdf": "text_layout_and_bounded_visual_fallback_v1",
+            "pdf": "document_ai_unconfigured_fail_closed_v1",
             "xml": "neutral_ordered_xml_event_memory_v1",
             "zip": "bounded_source_container_v1",
         }.get(container, "outside_supported_profile_v1")
@@ -547,6 +535,9 @@ class Gate1DocumentMemoryBuilder:
                 _strings(archive_manifest.get("reason_codes"))
                 or ["archive_source_container_not_complete"]
             )
+        elif container == "pdf":
+            terminal_status = "blocked"
+            reasons.append("PDF_DOCUMENT_AI_NOT_CONFIGURED")
         elif not summary:
             terminal_status = "blocked"
             reasons.append("full_source_summary_missing")
@@ -601,69 +592,6 @@ class Gate1DocumentMemoryBuilder:
                             "xml_canonical_financial_table_unavailable",
                         ]
                     )
-            if container == "pdf" and terminal_status == "complete":
-                if int(document.get("size_bytes") or 0) > 50_000_000:
-                    terminal_status = "partial"
-                    reasons.append("pdf_document_budget_exceeded")
-                visual_complete = summary.get(
-                    "pdf_visual_fallback_status"
-                ) == "complete" and int(
-                    summary.get("pdf_visual_pages_total") or 0
-                ) == int(summary.get("pdf_visual_requested_pages_total") or 0)
-                if summary.get("pdf_text_layer_projection_status") != "complete":
-                    if visual_complete:
-                        terminal_status = "review_required"
-                        reasons.append("pdf_text_scope_unavailable_visual_scope_ready")
-                    else:
-                        terminal_status = "partial"
-                        reasons.append("pdf_text_layer_projection_not_complete")
-                if summary.get("pdf_layout_projection_status") != "complete":
-                    if visual_complete:
-                        terminal_status = "review_required"
-                        reasons.append(
-                            "pdf_layout_scope_restricted_visual_fallback_ready"
-                        )
-                    elif (
-                        summary.get("pdf_text_layer_projection_status") == "complete"
-                        and summary.get("pdf_visible_content_coverage_status")
-                        == "complete_text_only"
-                    ):
-                        terminal_status = "review_required"
-                        reasons.append(
-                            "pdf_layout_scope_restricted_text_fallback_ready"
-                        )
-                    else:
-                        terminal_status = "partial"
-                        reasons.append("pdf_layout_projection_not_complete")
-                if summary.get("pdf_visible_content_coverage_status") not in {
-                    "complete_text_only",
-                    "complete_with_visual_fallback",
-                }:
-                    terminal_status = "partial"
-                    reasons.append("pdf_visible_content_coverage_not_complete")
-                elif visual_complete and terminal_status == "complete":
-                    terminal_status = "review_required"
-                    reasons.append("pdf_visual_scope_ready_requires_operator_review")
-                table_candidates = int(summary.get("pdf_table_candidates_total") or 0)
-                pdf_projections = sum(
-                    1
-                    for item in projections
-                    if item.get("source_format") == "pdf"
-                    and item.get("validator_status") == "passed"
-                )
-                blocked_decisions = sum(
-                    1
-                    for item in decisions
-                    if item.get("status")
-                    in {"blocked", "rejected_to_line_cluster", "partial"}
-                )
-                if terminal_status == "complete" and (
-                    table_candidates > pdf_projections or blocked_decisions
-                ):
-                    terminal_status = "review_required"
-                    reasons.append(
-                        "pdf_table_structure_requires_review_with_text_fallback"
-                    )
 
         accounting_errors = _accounting_errors(
             document=document,
@@ -688,9 +616,7 @@ class Gate1DocumentMemoryBuilder:
             else "not_proven"
         )
         if terminal_status in GATE2_MEMORY_READY_STATES:
-            if container == "xml" or (
-                container == "pdf" and int(summary.get("pdf_pages_with_text") or 0) == 0
-            ):
+            if container == "xml":
                 memory_status = "ready_with_restrictions"
             else:
                 memory_status = "ready"
@@ -728,7 +654,6 @@ class Gate1DocumentMemoryBuilder:
                 int(item.get("page_refs_count") or 0)
                 or len(_strings(item.get("page_refs")))
                 for item in payloads
-                if item.get("container_format") == "pdf"
             ),
             default=0,
         )
@@ -737,13 +662,11 @@ class Gate1DocumentMemoryBuilder:
             item
             for item in units
             if item.get("slice_type") in {"visual_page", "visual_media"}
-            or item.get("pdf_unit_type") == "pdf_visual_page_unit"
         ]
         visual_page_units = [
             item
             for item in visual_units
             if item.get("slice_type") == "visual_page"
-            or item.get("pdf_unit_type") == "pdf_visual_page_unit"
         ]
         visual_media_units = [
             item for item in visual_units if item.get("slice_type") == "visual_media"
@@ -1097,7 +1020,6 @@ def _accounting_errors(
         str(item.get("unit_ref") or "")
         for item in units
         if item.get("slice_type") == "table_rows"
-        and item.get("container_format") != "pdf"
     }
     projection_unit_refs = {
         str(item.get("source_unit_ref") or "")
@@ -1106,55 +1028,30 @@ def _accounting_errors(
     }
     if not native_table_unit_refs <= projection_unit_refs:
         errors.append("document_memory_native_table_projection_missing")
-    if document.get("container_format") != "pdf":
-        unit_rows_total = sum(
-            int(item.get("rows_count") or item.get("rows_in_slice") or 0)
-            for item in units
-            if item.get("slice_type") == "table_rows"
-        )
-        unit_cells_total = sum(
-            int(item.get("cell_refs_count") or 0) or len(item.get("cell_refs") or [])
-            for item in units
-            if item.get("slice_type") == "table_rows"
-        )
-        unit_text_characters_total = sum(
-            int(item.get("chars_count") or item.get("characters_in_slice") or 0)
-            for item in units
-            if item.get("slice_type") == "text_excerpt"
-        )
-        if (
-            sum(int(item.get("rows_total") or 0) for item in payloads)
-            != unit_rows_total
-        ):
-            errors.append("document_memory_row_count_mismatch")
-        if (
-            sum(int(item.get("cells_total") or 0) for item in payloads)
-            != unit_cells_total
-        ):
-            errors.append("document_memory_cell_count_mismatch")
-        if (
-            sum(int(item.get("text_characters_total") or 0) for item in payloads)
-            != unit_text_characters_total
-        ):
-            errors.append("document_memory_text_character_count_mismatch")
-    if document.get("container_format") == "pdf":
-        if int(summary.get("pdf_pages_total") or 0) <= 0:
-            errors.append("document_memory_pdf_page_scope_missing")
-        if int(summary.get("pdf_pages_total") or 0) != (
-            int(summary.get("pdf_pages_with_text") or 0)
-            + int(summary.get("pdf_pages_without_text") or 0)
-        ):
-            errors.append("document_memory_pdf_page_accounting_mismatch")
-        visual_units_total = sum(
-            1 for item in units if item.get("pdf_unit_type") == "pdf_visual_page_unit"
-        )
-        if int(summary.get("pdf_visual_pages_total") or 0) != visual_units_total:
-            errors.append("document_memory_pdf_visual_unit_count_mismatch")
-        if summary.get("pdf_visual_fallback_status") == "complete" and (
-            int(summary.get("pdf_visual_requested_pages_total") or 0)
-            != visual_units_total
-        ):
-            errors.append("document_memory_pdf_visual_coverage_incomplete")
+    unit_rows_total = sum(
+        int(item.get("rows_count") or item.get("rows_in_slice") or 0)
+        for item in units
+        if item.get("slice_type") == "table_rows"
+    )
+    unit_cells_total = sum(
+        int(item.get("cell_refs_count") or 0) or len(item.get("cell_refs") or [])
+        for item in units
+        if item.get("slice_type") == "table_rows"
+    )
+    unit_text_characters_total = sum(
+        int(item.get("chars_count") or item.get("characters_in_slice") or 0)
+        for item in units
+        if item.get("slice_type") == "text_excerpt"
+    )
+    if sum(int(item.get("rows_total") or 0) for item in payloads) != unit_rows_total:
+        errors.append("document_memory_row_count_mismatch")
+    if sum(int(item.get("cells_total") or 0) for item in payloads) != unit_cells_total:
+        errors.append("document_memory_cell_count_mismatch")
+    if (
+        sum(int(item.get("text_characters_total") or 0) for item in payloads)
+        != unit_text_characters_total
+    ):
+        errors.append("document_memory_text_character_count_mismatch")
     return sorted(set(errors))
 
 

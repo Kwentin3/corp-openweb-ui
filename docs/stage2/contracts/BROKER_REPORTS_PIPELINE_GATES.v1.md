@@ -4,7 +4,7 @@ Status: `CURRENT`
 
 Classification: `CURRENT AUTHORITY`
 
-Updated: 2026-08-27 (automatic case-scoped semantic mapping)
+Updated: 2026-09-03 (Issue #372 PDF Document AI boundary)
 
 ```text
 CURRENT_PIPELINE_AUTHORITY = ONE
@@ -22,6 +22,11 @@ ACTIVE_ORDINARY_TRADE_ROUTE = ordinary_trade_automatic_semantic_mapping_v1
 GATE3_EXECUTION_IN_ACTIVE_ORDINARY_TRADE_ROUTE = DISABLED
 LEGACY_SEMANTIC_FALLBACK = FORBIDDEN
 GATE3_BINDING_FIELD = COMPATIBILITY_FIELD_ONLY
+PDF_DOCUMENT_OWNER = PdfDocumentExtractor
+PDF_DOCUMENT_RESULT = PdfDocumentExtraction
+PDF_DOCUMENT_COMPOSITION = ONE_EXPLICIT_FACTORY
+PDF_DOCUMENT_DEFAULT = PDF_DOCUMENT_AI_NOT_CONFIGURED
+PDF_DOCUMENT_FALLBACK = FORBIDDEN
 ```
 
 This is the one short navigation authority for Broker Reports ownership and
@@ -33,7 +38,12 @@ The current ordinary-security-trade product composition is exactly:
 
 ```text
 broker_reports_gate1_pipe
-  -> PdfTableIntakeRuntimeFactory.create_for_openwebui
+  -> authenticated bytes / source custody / PDF preflight
+  -> PdfDocumentExtractorFactory.create
+     -> UnconfiguredPdfDocumentExtractor
+        -> PDF_DOCUMENT_AI_NOT_CONFIGURED -> STOP
+     -> one explicitly configured, separately qualified adapter (future only)
+        -> PdfDocumentExtraction
   -> Gate1Normalizer / persist_gate1_result
   -> immutable active CanonicalArtifactV1
   -> OrdinaryTradeProductionRuntimeFactory.create
@@ -54,10 +64,12 @@ remain readable deployment-rollback compatibility. They are not called when
 `ndfl_gate3_enabled=false`. They are not a fallback for an unknown schema,
 missing Canonical, incomplete row or downstream evidence blocker.
 
-The retired dual-VLM, semantic-migration, structural-repair, hybrid-shadow and
-synthetic end-to-end XML runtimes are absent from the product bundle and are
-not fallbacks. A real case may terminate before release with an exact evidence
-or methodology blocker.
+The retired PDFPlumber/pdfminer/PyMuPDF, Camelot, Docling, VLM/bbox,
+dual-engine, semantic-migration, structural-repair and hybrid-shadow routes are
+absent from the product bundle and are not fallbacks. PDF extraction is owned
+only by `PdfDocumentExtractor`; its provider-neutral envelope is not Canonical
+or financial meaning. A real case may terminate before release with an exact
+evidence or methodology blocker.
 
 ## Stage-aware composition law
 
@@ -233,7 +245,9 @@ responsibility without executing the historically named Gate 3 runtime:
 ```text
 ACTIVE ORDINARY SECURITY TRADES
 
-PDF -> normalization -> immutable Canonical
+PDF -> source custody / safe preflight -> PdfDocumentExtractor
+    -> PDF_DOCUMENT_AI_NOT_CONFIGURED until separate integration/qualification
+    -> provider-neutral PdfDocumentExtraction -> existing Full Source / Canonical
     -> exact mapping + matching qualification receipt
     -> Source Observations
     -> deterministic runtime records
@@ -289,29 +303,15 @@ broker-neutral visual region
     -> best-effort supporting metadata
 ```
 
-Markdown is the contract seam between the visual and semantic domains. The
-transcriber may change form but must preserve source words, labels, values,
-table/line relationships and value boundaries. It must not emit G5.60 role
-names, tax meaning or broker-specific normalization. The semantic metadata
-adapter may propose supporting facts only; it is not financial admission,
-calculation or tax-scope authority.
-
-The candidate metadata route is not product-active because the maintained
-region detector is table-only and explicitly excludes document identity
-headers. No broker-neutral automatic metadata-region selector exists yet.
-Manual crops remain research evidence, not a runtime default. Do not add
-broker/page/percentage rules: stop with
-`METADATA_REGION_SELECTION_GENERALIZATION_GAP_LOCALIZED`.
-
-PDF data-table normalization has one separate source-bound route. The VLM
-locates each visible table with a native normalized `box_2d`; deterministic
-code projects the box to PDF points; pdfplumber reconstructs structure and
-reads every literal from the original PDF; the existing normalizer validates
-and publishes. The model does not transcribe values, invent structure, choose
-parser settings or publish canonical data. A missing or ambiguous region fails
-closed with `pdf_table_normalization_incomplete`; there is no semantic-VLM
-transcription fallback. Exact rules are in
-[PDF Source-Bound Table Normalization v1](./BROKER_REPORTS_PDF_SOURCE_BOUND_TABLE_NORMALIZATION.v1.md).
+`PdfDocumentExtraction` preserves exact UTF-8 Markdown bytes, source and
+Markdown hashes, ordered pages, closed local image references with hashes,
+provider/model/adapter provenance, qualification status, page usage, and a
+text-free safe technical summary. It does not reconstruct tables, repair
+content, choose financial meaning, or publish Canonical. The only current PDF
+terminal before a separately qualified adapter is
+`PDF_DOCUMENT_AI_NOT_CONFIGURED`; no local parser, OpenWebUI extractor, VLM,
+retry, or alternative engine may run as fallback. Exact rules are in
+[the current PDF Document AI ADR](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 
 | Entrypoint / artifact | Status | Authority boundary |
 | --- | --- | --- |
@@ -322,10 +322,8 @@ transcription fallback. Exact rules are in
 | `NdflWorkflowFactory.create().run_product_path` | `DEPLOYMENT ROLLBACK ONLY` | historical Gate 2 -> Gate 3 financial execution; never semantic fallback |
 | `Gate3ChunkBatchLabelingFactory.create` | `DEPLOYMENT ROLLBACK ONLY` | historical model-based financial semantic extraction |
 | `Gate4FinancialCaseRuntimeFactory.create` | `DEPLOYMENT ROLLBACK ONLY FOR ORDINARY TRADE` | historical Gate 3-backed normalized facts and case reads |
-| `PdfTableIntakeRuntimeFactory.create_for_openwebui` | `PRODUCT/NORMATIVE` | one full-page call; table boxes only; no source literals or structure |
-| `PdfTableLocatorProjectionFactory.create` | `PRODUCT/NORMATIVE` | the only native `box_2d` to PDF-point projection owner |
-| `PdfDualVlmRuntimeFactory.create_for_openwebui` | `HISTORICAL/INACTIVE` | old value-transcription route; no new writes or fallback |
-| `PdfGridExperimentProviderFactory.create_for_openwebui` | `LEGACY COMPATIBILITY` | historically named provider transport behind maintained owners; never a public semantic owner |
+| `PdfDocumentExtractorFactory.create` | `PRODUCT/FAIL_CLOSED` | one explicit adapter selection; unconfigured by default; no fallback |
+| `PdfDocumentExtractor.extract` | `PRODUCT PORT` | provider-neutral extraction only; no Canonical or financial semantics |
 | `Gate3LlmMetadataAdapterFactory.create` | `SUPPORTING` | best-effort metadata proposal, no tax/financial authority |
 | `Gate3MetadataSourceFactRuntimeFactory.create` | `SUPPORTING` | current supporting metadata publication/read boundary |
 | Gate 1 document passport stage | `LEGACY COMPATIBILITY` | optional pre-Gate2 document review; not G5.60 or tax authority |

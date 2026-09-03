@@ -20,7 +20,6 @@ from broker_reports_gate1 import (
     supported_pilot_profile_v1,
     validate_document_memory_manifest,
 )
-from tests.test_broker_reports_pdf_layout_slice2 import _ruled_table_pdf
 
 
 def _mixed_inputs(*, include_xlsx: bool = True) -> list[FileInput]:
@@ -39,12 +38,6 @@ def _mixed_inputs(*, include_xlsx: bool = True) -> list[FileInput]:
                 b"<tr><td>2026-01-01</td><td>10</td></tr></table>"
             ),
             mime_type="text/html",
-        ),
-        FileInput.from_bytes(
-            private_ref="document-memory-pdf",
-            filename="representative.pdf",
-            content=_ruled_table_pdf(),
-            mime_type="application/pdf",
         ),
     ]
     if include_xlsx:
@@ -75,11 +68,12 @@ class BrokerReportsGate1DocumentMemoryV1Test(unittest.TestCase):
             set(profile["formats"]), {"csv", "html_text", "pdf", "xml", "zip"}
         )
         self.assertEqual(profile["formats"]["csv"]["max_rows"], 10_000)
-        self.assertEqual(profile["formats"]["pdf"]["max_pages"], 2_000)
         self.assertEqual(
-            profile["formats"]["pdf"]["image_only_pages"],
-            "bounded_visual_page_memory_review_required",
+            profile["formats"]["pdf"]["variant"],
+            "document_ai_unconfigured_fail_closed_v1",
         )
+        self.assertEqual(profile["formats"]["pdf"]["content_extraction"], "none")
+        self.assertEqual(profile["formats"]["pdf"]["gate2_memory"], "blocked")
         self.assertEqual(
             profile["formats"]["zip"]["promoted_member_formats"],
             ["pdf", "xml"],
@@ -101,13 +95,13 @@ class BrokerReportsGate1DocumentMemoryV1Test(unittest.TestCase):
         }
 
         self.assertEqual(package["validation_result"]["status"], "passed")
-        for container in ("csv", "html_text", "pdf"):
+        for container in ("csv", "html_text"):
             self.assertEqual(by_format[container]["profile_acceptance"], "accepted")
             self.assertEqual(by_format[container]["accounting_status"], "passed")
             self.assertEqual(by_format[container]["zero_silent_loss"], "passed")
         self.assertEqual(by_format["xlsx"]["terminal_status"], "unsupported")
         self.assertEqual(by_format["xlsx"]["gate2_memory_status"], "blocked")
-        self.assertEqual(manifest["summary"]["accepted_documents_total"], 3)
+        self.assertEqual(manifest["summary"]["accepted_documents_total"], 2)
         self.assertEqual(
             manifest["summary"]["zero_silent_loss_status"],
             "passed_for_all_profile_accepted_documents",

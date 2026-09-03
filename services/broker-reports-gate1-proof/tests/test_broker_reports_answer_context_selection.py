@@ -23,86 +23,8 @@ from broker_reports_gate1.gate2_source_fact_stitching import (
 from broker_reports_gate1.gate2_source_unit_segmentation import (
     DERIVED_SOURCE_UNIT_SCHEMA_VERSION,
 )
-from broker_reports_gate1.pdf_dual_vlm_runtime import (
-    PdfDualVlmRuntimeConfig,
-    PdfDualVlmRuntimeFactory,
-    sha256_json,
-)
-from broker_reports_gate1.semantic_visual_table_migration import (
-    SemanticVisualTableMigrationConfig,
-    SemanticVisualTableMigrationFactory,
-)
-from tests.test_broker_reports_pdf_text_layer_slice1 import _pdf_bytes
-from tests.test_broker_reports_semantic_visual_table_materialization import (
-    _Provider,
-    _candidate,
-)
 
 
-def test_semantic_scope_selects_one_interpretation_and_keeps_source_as_provenance(
-    tmp_path,
-) -> None:
-    normalized = Gate1Normalizer().normalize(
-        [
-            FileInput.from_bytes(
-                private_ref="answer-context-semantic-pdf",
-                filename="answer_context_semantic.pdf",
-                content=_pdf_bytes(
-                    pages=[("text", ["Synthetic Broker Report", "Total 1,000 USD"])]
-                ),
-                mime_type="application/pdf",
-            )
-        ],
-        input_context={"pdf_layout_slice2_enabled": False},
-    )
-    document = normalized.package["document_inventory"]["documents"][0]
-    migrated = _migration_for_document(
-        document_ref=document["document_id"],
-        source_sha256=document["sha256"],
-    )
-    normalized.package["semantic_visual_table_migration"] = migrated.safe_summary
-    normalized.package["private_semantic_visual_table_envelopes"] = (
-        migrated.private_envelopes
-    )
-    normalized.package["private_semantic_visual_table_projections"] = (
-        migrated.gate2_projections
-    )
-
-    store = ArtifactStoreFactory(
-        ArtifactStoreConfig(
-            mode="sqlite",
-            sqlite_path=tmp_path / "artifacts.sqlite3",
-            payload_root=tmp_path / "payloads",
-        )
-    ).create()
-    context = ArtifactAccessContext(
-        user_id="answer-context-user",
-        normalization_run_id=normalized.package["normalization_run"]["run_id"],
-        case_id="answer-context-case",
-        chat_id="answer-context-chat",
-        workspace_model_id="answer-context-model",
-        allow_private=True,
-        require_source_available=True,
-    )
-    retention = build_retention_policy(mode="api_smoke")
-    with pytest.raises(
-        ValueError,
-        match="retired_semantic_visual_product_payload_forbidden",
-    ):
-        persist_gate1_result(
-            store=store,
-            result=normalized,
-            context=context,
-            retention_policy=retention,
-            source_file_refs=[
-                {
-                    "provider": "openwebui",
-                    "openwebui_file_id": "answer-context-source",
-                    "source_deleted": False,
-                }
-            ],
-        )
-    assert store.list_by_run(context.normalization_run_id) == []
 
 
 def test_ordinary_scope_presents_only_stitch_owned_fact(tmp_path) -> None:
@@ -249,32 +171,6 @@ def test_ordinary_scope_presents_only_stitch_owned_fact(tmp_path) -> None:
     assert presented_ids == {"sf_owned"}
 
 
-def _migration_for_document(*, document_ref: str, source_sha256: str):
-    candidate = _candidate()
-    manifest = candidate["manifest"]
-    manifest.pop("manifest_hash")
-    manifest["document_ref"] = document_ref
-    manifest["pdf_sha256"] = source_sha256
-    manifest["manifest_hash"] = sha256_json(manifest)
-    runtime = (
-        PdfDualVlmRuntimeFactory(PdfDualVlmRuntimeConfig(enabled=True))
-        .create_with_providers(
-            gemini=_Provider(
-                [["Item", "Amount"], ["Cash", "1,000"], ["Total", "1,000"]]
-            )
-        )
-        .run([candidate])
-    )
-    return (
-        SemanticVisualTableMigrationFactory(
-            SemanticVisualTableMigrationConfig(enabled=True)
-        )
-        .create()
-        .migrate(
-            decisions=runtime.private_decisions,
-            provider_evidence=runtime.private_provider_evidence,
-        )
-    )
 
 
 def _put(

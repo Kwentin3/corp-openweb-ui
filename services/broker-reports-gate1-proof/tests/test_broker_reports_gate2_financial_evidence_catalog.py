@@ -26,9 +26,6 @@ from broker_reports_gate1.gate2_financial_evidence_registry import (  # noqa: E4
 from broker_reports_gate1.gate2_fns_2ndfl_contracts import (  # noqa: E402
     TYPED_FACTS_SCHEMA_VERSION,
 )
-from broker_reports_gate1.semantic_visual_table_contracts import (  # noqa: E402
-    SEMANTIC_LOGICAL_TABLE_PROFILE_ID,
-)
 from broker_reports_gate1.table_projection import (  # noqa: E402
     TABLE_PROJECTION_SCHEMA_VERSION,
 )
@@ -89,7 +86,7 @@ def test_semantic_identity_pins_are_literals_and_exact():
 def test_catalog_source_families_are_existing_gate1_contract_ids():
     assert SUPPORTED_SOURCE_FAMILIES == (
         TABLE_PROJECTION_SCHEMA_VERSION,
-        SEMANTIC_LOGICAL_TABLE_PROFILE_ID,
+        "semantic_visual_logical_table_v1",
     )
     assert all(
         declaration.compatible_source_families

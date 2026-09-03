@@ -4,9 +4,8 @@
 
 Naming note: the gates in this file are repository-wide Stage 2 governance and
 implementation conditions. They are not the numbered Broker Reports product
-pipeline. In particular, `PDF Table Intake Gate 1` is a local child-capability
-name documented in
-[Broker Reports PDF Table Intake](blueprints/BROKER_REPORTS_PDF_TABLE_INTAKE.blueprint.md).
+pipeline. PDF understanding is governed by the
+[current Document AI boundary](adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 The authoritative Broker Reports product sequence is defined separately in
 [Broker Reports Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md).
 
