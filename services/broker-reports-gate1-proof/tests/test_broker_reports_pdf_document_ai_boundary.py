@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import importlib.util
 import io
 import inspect
 import socket
+import sys
 import zipfile
 from pathlib import Path
 from unittest.mock import patch
@@ -29,6 +31,13 @@ PUBLIC_PDF = next(
     (REPO_ROOT / "docs" / "reports" / "2026-09-02" / "artifacts").glob(
         "*/fidelity/source.pdf"
     )
+)
+BUNDLED_PIPE_PATH = (
+    REPO_ROOT
+    / "services"
+    / "broker-reports-gate1-proof"
+    / "openwebui_actions"
+    / "broker_reports_gate1_pipe_bundled.py"
 )
 
 
@@ -130,6 +139,289 @@ def test_archive_containing_only_pdf_is_terminal_before_domain_ingestion() -> No
     assert "document_usage_classification" not in result.package
     assert "domain_context_packet" not in result.package
     assert "domain_ingestion_summary" not in result.package
+
+
+def test_archive_with_two_duplicate_pdfs_is_terminal_and_valid_before_downstream() -> None:
+    archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(archive_buffer, "w") as archive:
+        archive.writestr("first.pdf", PUBLIC_PDF.read_bytes())
+        archive.writestr("second.pdf", PUBLIC_PDF.read_bytes())
+
+    result = Gate1Normalizer().normalize(
+        [
+            FileInput.from_bytes(
+                private_ref="public-multi-pdf-archive-boundary-test",
+                filename="public-multi-pdf.zip",
+                content=archive_buffer.getvalue(),
+                mime_type="application/zip",
+                source_kind="synthetic",
+            )
+        ]
+    )
+
+    pdf_documents = [
+        item
+        for item in result.package["document_inventory"]["documents"]
+        if item["container_format"] == "pdf"
+    ]
+    pdf_blockers = [
+        item
+        for item in result.package["normalization_blockers"]
+        if item["code"] == PDF_DOCUMENT_AI_NOT_CONFIGURED
+    ]
+    assert len(pdf_documents) == 2
+    assert len(pdf_blockers) == 2
+    assert pdf_documents[1]["duplicate_of_document_id"] == pdf_documents[0]["document_id"]
+    assert result.package["normalization_run"]["run_status"] == "failed_safe"
+    assert result.package["validation_result"]["status"] == "passed"
+    for key in (
+        "canonical_artifacts",
+        "source_facts",
+        "gate1_issue_ledger",
+        "document_usage_classification",
+        "domain_context_packet",
+        "domain_ingestion_summary",
+    ):
+        assert key not in result.package
+
+
+def _pipe_file(
+    file_id: str,
+    filename: str,
+    mime_type: str,
+    content_bytes: bytes,
+) -> dict:
+    return {
+        "type": "file",
+        "file": {
+            "id": file_id,
+            "filename": filename,
+            "mime_type": mime_type,
+            "content_bytes": content_bytes,
+        },
+    }
+
+
+def _run_mixed_pipe(
+    pipe_variant: str,
+    tmp_path: Path,
+    files: list[dict],
+) -> tuple[object, str, int]:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    maintained_modules = {
+        name: module
+        for name, module in sys.modules.items()
+        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1.")
+    }
+    if pipe_variant == "bundled":
+        for name in maintained_modules:
+            del sys.modules[name]
+        spec = importlib.util.spec_from_file_location(
+            "broker_reports_gate1_pdf_boundary_bundle_test",
+            BUNDLED_PIPE_PATH,
+        )
+        if spec is None or spec.loader is None:
+            raise AssertionError("could not load bundled Gate 1 Pipe")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        pipe_type = module.Pipe
+    else:
+        pipe_type = Pipe
+    pipe = pipe_type()
+    pipe.valves.artifact_store_path = str(tmp_path / "artifacts.sqlite3")
+    pipe.valves.artifact_payload_root = str(tmp_path / "payloads")
+
+    def forbidden(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("mixed PDF route must not call the network")
+
+    async def run() -> tuple[str, int]:
+        with (
+            patch.object(
+                pipe,
+                "_maybe_run_passport_stage",
+                wraps=pipe._maybe_run_passport_stage,
+            ) as passport_stage,
+            patch.object(socket, "create_connection", side_effect=forbidden),
+            patch.object(socket.socket, "connect", side_effect=forbidden),
+        ):
+            content = await pipe.pipe(
+                {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Gate 1 mixed normalization",
+                            "files": files,
+                        }
+                    ]
+                },
+                __user__={"id": "mixed-pdf-boundary-user"},
+                __metadata__={
+                    "chat_id": "mixed-pdf-boundary-chat",
+                    "model_id": "broker_reports_gate1_pipe_test",
+                },
+            )
+            return content, passport_stage.await_count
+
+    try:
+        content, passport_await_count = asyncio.run(run())
+    finally:
+        if pipe_variant == "bundled":
+            for name in list(sys.modules):
+                if name == "broker_reports_gate1" or name.startswith(
+                    "broker_reports_gate1."
+                ):
+                    del sys.modules[name]
+            sys.modules.update(maintained_modules)
+    return pipe, content, passport_await_count
+
+
+@pytest.mark.parametrize("pipe_variant", ("maintained", "bundled"))
+def test_mixed_csv_and_pdf_continues_reduced_subset_in_production_pipe(
+    pipe_variant: str,
+    tmp_path: Path,
+) -> None:
+    pipe, content, passport_await_count = _run_mixed_pipe(
+        pipe_variant,
+        tmp_path,
+        [
+            _pipe_file(
+                "mixed-csv",
+                "operations.csv",
+                "text/csv",
+                b"symbol,quantity\nSYNTH-A,1\n",
+            ),
+            _pipe_file(
+                "mixed-pdf",
+                "statement.pdf",
+                "application/pdf",
+                PUBLIC_PDF.read_bytes(),
+            ),
+        ],
+    )
+
+    report = pipe.last_safe_report
+    assert report is not None
+    documents = {item["container_format"]: item for item in report["documents"]}
+    included = set(report["gate2_handoff"]["included_document_ids"])
+    assert report["run_status"] == "completed_with_blockers"
+    assert report["validation_result"]["status"] == "passed"
+    assert report["gate2_handoff_status"] == "ready_with_reduced_subset"
+    assert documents["csv"]["document_id"] in included
+    assert documents["pdf"]["document_id"] not in included
+    assert report["private_artifact_summary"]["private_normalized_source_units_count"] > 0
+    assert report["domain_context_packet"] is not None
+    assert passport_await_count == 1
+    assert pipe.last_workload_snapshot["state"] == "completed"
+    assert pipe.last_workload_snapshot["cleanup_status"] == "cleaned"
+    assert "Gate 1 stopped at the PDF Document AI boundary" not in content
+
+
+@pytest.mark.parametrize("pipe_variant", ("maintained", "bundled"))
+def test_archive_pdf_and_xml_continues_xml_in_production_pipe(
+    pipe_variant: str,
+    tmp_path: Path,
+) -> None:
+    mixed_archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(mixed_archive_buffer, "w") as archive:
+        archive.writestr("statement.pdf", PUBLIC_PDF.read_bytes())
+        archive.writestr(
+            "operations.xml",
+            b"<operations><quantity>1</quantity></operations>",
+        )
+    control_archive_buffer = io.BytesIO()
+    with zipfile.ZipFile(control_archive_buffer, "w") as archive:
+        archive.writestr(
+            "operations.xml",
+            b"<operations><quantity>1</quantity></operations>",
+        )
+
+    pipe, content, passport_await_count = _run_mixed_pipe(
+        pipe_variant,
+        tmp_path / "mixed",
+        [
+            _pipe_file(
+                "mixed-archive",
+                "mixed.zip",
+                "application/zip",
+                mixed_archive_buffer.getvalue(),
+            )
+        ],
+    )
+    control_pipe, _control_content, control_passport_await_count = _run_mixed_pipe(
+        pipe_variant,
+        tmp_path / "control",
+        [
+            _pipe_file(
+                "xml-only-archive",
+                "xml-only.zip",
+                "application/zip",
+                control_archive_buffer.getvalue(),
+            )
+        ],
+    )
+
+    report = pipe.last_safe_report
+    control_report = control_pipe.last_safe_report
+    assert report is not None
+    assert control_report is not None
+    documents = {item["container_format"]: item for item in report["documents"]}
+    eligibility = {
+        item["document_id"]: item
+        for item in report["document_source_eligibility"]["entries"]
+    }
+    control_xml_document = next(
+        item
+        for item in control_report["documents"]
+        if item["container_format"] == "xml"
+    )
+    control_xml_eligibility = next(
+        item
+        for item in control_report["document_source_eligibility"]["entries"]
+        if item["document_id"] == control_xml_document["document_id"]
+    )
+    xml_eligibility = eligibility[documents["xml"]["document_id"]]
+    pdf_eligibility = eligibility[documents["pdf"]["document_id"]]
+    assert report["run_status"] == "completed_with_blockers"
+    assert report["validation_result"]["status"] == "passed"
+    assert report["gate2_handoff_status"] == control_report["gate2_handoff_status"]
+    assert report["gate2_handoff_mode"] == control_report["gate2_handoff_mode"]
+    assert {
+        key: xml_eligibility[key]
+        for key in (
+            "source_eligibility",
+            "can_enter_gate2",
+            "reason_codes",
+            "review_action",
+        )
+    } == {
+        key: control_xml_eligibility[key]
+        for key in (
+            "source_eligibility",
+            "can_enter_gate2",
+            "reason_codes",
+            "review_action",
+        )
+    }
+    assert pdf_eligibility["source_eligibility"] == "excluded_from_gate2"
+    assert pdf_eligibility["reason_codes"] == [PDF_DOCUMENT_AI_NOT_CONFIGURED]
+    private_summary = report["private_artifact_summary"]
+    control_private_summary = control_report["private_artifact_summary"]
+    for key in (
+        "private_normalized_slices_count",
+        "private_normalized_source_payloads_count",
+        "private_normalized_source_units_count",
+        "private_normalized_table_projections_count",
+        "full_source_raw_content_chat_visible",
+        "chat_visible_raw_slice_content",
+    ):
+        assert private_summary[key] == control_private_summary[key]
+    assert private_summary["private_normalized_source_units_count"] > 0
+    assert report["domain_context_packet"] is not None
+    assert passport_await_count == 1
+    assert control_passport_await_count == 1
+    assert pipe.last_workload_snapshot["state"] == "completed"
+    assert pipe.last_workload_snapshot["cleanup_status"] == "cleaned"
+    assert "Gate 1 stopped at the PDF Document AI boundary" not in content
 
 
 def test_pipe_returns_unconfigured_pdf_before_any_provider_or_semantic_artifact(

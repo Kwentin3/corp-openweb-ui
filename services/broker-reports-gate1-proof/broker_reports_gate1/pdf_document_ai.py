@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Protocol, runtime_checkable
@@ -149,6 +150,36 @@ class PdfDocumentExtractorFactory:
     @staticmethod
     def create() -> PdfDocumentExtractor:
         return UnconfiguredPdfDocumentExtractor()
+
+
+def is_terminal_pdf_document_ai_request(
+    documents: Iterable[Mapping[str, object]],
+    blockers: Iterable[Mapping[str, object]],
+) -> bool:
+    """Return whether every processable document stopped at the PDF boundary."""
+
+    document_list = tuple(documents)
+    pdf_document_refs = {
+        str(document.get("document_id") or "")
+        for document in document_list
+        if document.get("container_format") == "pdf" and document.get("document_id")
+    }
+    blocked_document_refs = {
+        str(blocker.get("document_id") or "")
+        for blocker in blockers
+        if blocker.get("code") == PDF_DOCUMENT_AI_NOT_CONFIGURED
+        and str(blocker.get("document_id") or "") in pdf_document_refs
+    }
+    if not blocked_document_refs:
+        return False
+    processable_document_refs = {
+        str(document.get("document_id") or "")
+        for document in document_list
+        if document.get("container_format") != "zip" and document.get("document_id")
+    }
+    return bool(processable_document_refs) and processable_document_refs.issubset(
+        blocked_document_refs
+    )
 
 
 def validate_extraction_source(

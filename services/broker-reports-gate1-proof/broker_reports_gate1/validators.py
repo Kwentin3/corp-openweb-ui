@@ -16,6 +16,7 @@ from .source_provenance import validate_normalized_slice_provenance
 from .full_source import SOURCE_PAYLOAD_SCHEMA_VERSION, validate_full_source_unit
 from .table_projection import TableProjectionValidator
 from .document_memory import validate_document_memory_manifest
+from .pdf_document_ai import is_terminal_pdf_document_ai_request
 
 
 SAFE_REPORT_ALLOWED_KEYS = {
@@ -740,6 +741,10 @@ def validate_artifacts(package: dict) -> dict:
         ) != document_memory_manifest.get("integrity_hash"):
             errors.append(_error("domain_packet_document_memory_hash_mismatch", run_id))
 
+    terminal_pdf_document_ai_request = is_terminal_pdf_document_ai_request(
+        documents,
+        blockers,
+    )
     if document_memory_manifest:
         memory_validation = validate_document_memory_manifest(
             document_memory_manifest,
@@ -748,7 +753,7 @@ def validate_artifacts(package: dict) -> dict:
             issue_ledger=issue_ledger,
         )
         errors.extend(copy.deepcopy(memory_validation.get("errors") or []))
-    else:
+    elif not terminal_pdf_document_ai_request:
         errors.append(_error("document_memory_manifest_missing", run_id))
 
     if passports:

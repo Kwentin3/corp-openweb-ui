@@ -743,6 +743,7 @@ from .pdf_document_ai import (
     PdfDocumentImageRef,
     PdfSourceContext,
     UnconfiguredPdfDocumentExtractor,
+    is_terminal_pdf_document_ai_request,
     validate_extraction_source,
 )
 from .full_source import (
@@ -1318,6 +1319,7 @@ __all__ = [
     "PdfDocumentImageRef",
     "PdfSourceContext",
     "UnconfiguredPdfDocumentExtractor",
+    "is_terminal_pdf_document_ai_request",
     "validate_extraction_source",
     "ARCHITECTURE_AUTHORITY",
     "ARCHITECTURE_POLICY_VERSION",

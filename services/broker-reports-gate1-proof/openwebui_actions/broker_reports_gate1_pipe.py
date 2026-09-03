@@ -48,7 +48,6 @@ from broker_reports_gate1 import (
     GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
     ManagedPrompt,
     NORMALIZER_VERSION,
-    PDF_DOCUMENT_AI_NOT_CONFIGURED,
     PromptUserContext,
     SAFETY_STATEMENT as SAFETY_STATEMENT,
     RetentionPolicyError,
@@ -64,6 +63,7 @@ from broker_reports_gate1 import (
     build_llm_document_packages,
     build_metadata_gap_report,
     build_retention_policy,
+    is_terminal_pdf_document_ai_request,
     clarification_json_object_response_format,
     clarification_json_schema_response_format,
     clarification_model_call_audit_metadata,
@@ -711,9 +711,9 @@ class Pipe:
             workload_checkpoint=self._workload_checkpoint,
             workload_progress=self._workload_progress,
         )
-        if any(
-            blocker.get("code") == PDF_DOCUMENT_AI_NOT_CONFIGURED
-            for blocker in result.package.get("normalization_blockers", [])
+        if is_terminal_pdf_document_ai_request(
+            result.package.get("document_inventory", {}).get("documents", []),
+            result.package.get("normalization_blockers", []),
         ):
             self._workload_review_items = 1
             artifact_manifest = persist_gate1_result(

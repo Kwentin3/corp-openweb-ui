@@ -31,6 +31,7 @@ from .pdf_document_ai import (
     PdfDocumentExtractor,
     PdfDocumentExtractorFactory,
     PdfSourceContext,
+    is_terminal_pdf_document_ai_request,
     validate_extraction_source,
 )
 from .profilers_csv_txt import profile_csv, profile_txt
@@ -572,7 +573,15 @@ class Gate1Normalizer:
         summary_counts["source_eligibility_counts"] = dict(
             source_eligibility_summary.get("status_counts", {})
         )
-        run_status = self._run_status(file_inputs, blockers)
+        terminal_pdf_document_ai_request = is_terminal_pdf_document_ai_request(
+            documents,
+            blockers,
+        )
+        run_status = self._run_status(
+            documents,
+            blockers,
+            terminal_pdf_document_ai_request=terminal_pdf_document_ai_request,
+        )
         gate2_handoff_status = gate2_handoff["gate2_handoff_status"]
         gate2_handoff_mode = gate2_handoff["handoff_mode"]
         normalization_run = {
@@ -635,19 +644,6 @@ class Gate1Normalizer:
                 file_inputs, blockers, gate2_handoff
             ),
         }
-        pdf_document_ai_blocked_documents = {
-            str(blocker.get("document_id") or "")
-            for blocker in blockers
-            if blocker.get("code") == PDF_DOCUMENT_AI_NOT_CONFIGURED
-        }
-        terminal_pdf_document_ai_request = bool(
-            pdf_document_ai_blocked_documents
-        ) and all(
-            str(document.get("document_id") or "")
-            in pdf_document_ai_blocked_documents
-            or document.get("container_format") == "zip"
-            for document in documents
-        )
         if bounded_graph is not None:
             bounded_graph.seal()
         if not terminal_pdf_document_ai_request:
@@ -867,15 +863,16 @@ class Gate1Normalizer:
             "blockers_total": len(blockers),
         }
 
-    def _run_status(self, file_inputs: list[FileInput], blockers: list[dict]) -> str:
-        if not file_inputs:
+    def _run_status(
+        self,
+        documents: list[dict],
+        blockers: list[dict],
+        *,
+        terminal_pdf_document_ai_request: bool,
+    ) -> str:
+        if not documents:
             return "failed_safe"
-        blocked_document_refs = {
-            str(blocker.get("document_id") or "")
-            for blocker in blockers
-            if blocker.get("code") == PDF_DOCUMENT_AI_NOT_CONFIGURED
-        }
-        if blocked_document_refs and len(blocked_document_refs) == len(file_inputs):
+        if terminal_pdf_document_ai_request:
             return "failed_safe"
         blocking = any(blocker.get("blocks_gate2") for blocker in blockers)
         return "completed_with_blockers" if blocking or blockers else "completed"
