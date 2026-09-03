@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import subprocess
 from pathlib import Path
 
 
@@ -16,8 +17,8 @@ PAIR_ROOT = (
 )
 
 EXPECTED_FILES = {
-    ".gitattributes": "d1ff5f906182c429571b84cf1c3420bf87fe585b563439df15ac30a75b756f58",
-    "README.md": "96ad96df5d1bb5b215bacde64250e6c0e35912dbc00b7db082d8246ab6d9f1eb",
+    ".gitattributes": "3ff20795e070d1bdac9195e89901ae2f9be851be0fab662de827355b66ffcc47",
+    "README.md": "57b2b97492081aee96335b53be10811628bedb694624c3f10681166d277d3b66",
     "drivewealth/mistral-markdown.md": "384245df67e772df1cc1d8c0a06430721fab8bbe4e5b2d8a64b012d059eae399",
     "drivewealth/source.pdf": "738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57",
     "fidelity/img-0.jpeg": "1b669fc6f1d25f31511b3de2b69a2e16359340f0509115be59f07499b6b08f9b",
@@ -46,6 +47,17 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _git_blob_sha256(path: Path) -> str:
+    repository_path = path.relative_to(REPOSITORY_ROOT).as_posix()
+    completed = subprocess.run(
+        ["git", "show", f"HEAD:{repository_path}"],
+        cwd=REPOSITORY_ROOT,
+        check=True,
+        capture_output=True,
+    )
+    return hashlib.sha256(completed.stdout).hexdigest()
+
+
 def test_public_pair_fixture_has_closed_file_allowlist_and_exact_hashes() -> None:
     actual = {
         path.relative_to(PAIR_ROOT).as_posix()
@@ -53,8 +65,10 @@ def test_public_pair_fixture_has_closed_file_allowlist_and_exact_hashes() -> Non
         if path.is_file()
     }
     assert actual == set(EXPECTED_FILES)
-    assert {name: _sha256(PAIR_ROOT / name) for name in actual} == EXPECTED_FILES
-    assert {name: _sha256(PAIR_ROOT / name) for name in PRIMARY_PAIR_HASHES} == PRIMARY_PAIR_HASHES
+    assert {name: _git_blob_sha256(PAIR_ROOT / name) for name in actual} == EXPECTED_FILES
+    assert {
+        name: _git_blob_sha256(PAIR_ROOT / name) for name in PRIMARY_PAIR_HASHES
+    } == PRIMARY_PAIR_HASHES
 
 
 def test_sources_are_pdfs_and_all_fidelity_image_refs_are_local_and_hashed() -> None:
