@@ -213,57 +213,58 @@ def _run_mixed_pipe(
         for name, module in sys.modules.items()
         if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1.")
     }
-    if pipe_variant == "bundled":
-        for name in maintained_modules:
-            del sys.modules[name]
-        spec = importlib.util.spec_from_file_location(
-            "broker_reports_gate1_pdf_boundary_bundle_test",
-            BUNDLED_PIPE_PATH,
-        )
-        if spec is None or spec.loader is None:
-            raise AssertionError("could not load bundled Gate 1 Pipe")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        pipe_type = module.Pipe
-    else:
-        pipe_type = Pipe
-    pipe = pipe_type()
-    pipe.valves.artifact_store_path = str(tmp_path / "artifacts.sqlite3")
-    pipe.valves.artifact_payload_root = str(tmp_path / "payloads")
-
-    def forbidden(*_args: object, **_kwargs: object) -> None:
-        raise AssertionError("mixed PDF route must not call the network")
-
-    async def run() -> tuple[str, int]:
-        with (
-            patch.object(
-                pipe,
-                "_maybe_run_passport_stage",
-                wraps=pipe._maybe_run_passport_stage,
-            ) as passport_stage,
-            patch.object(socket, "create_connection", side_effect=forbidden),
-            patch.object(socket.socket, "connect", side_effect=forbidden),
-        ):
-            content = await pipe.pipe(
-                {
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": "Gate 1 mixed normalization",
-                            "files": files,
-                        }
-                    ]
-                },
-                __user__={"id": "mixed-pdf-boundary-user"},
-                __metadata__={
-                    "chat_id": "mixed-pdf-boundary-chat",
-                    "model_id": "broker_reports_gate1_pipe_test",
-                },
-            )
-            return content, passport_stage.await_count
-
     try:
+        if pipe_variant == "bundled":
+            for name in maintained_modules:
+                del sys.modules[name]
+            spec = importlib.util.spec_from_file_location(
+                "broker_reports_gate1_pdf_boundary_bundle_test",
+                BUNDLED_PIPE_PATH,
+            )
+            if spec is None or spec.loader is None:
+                raise AssertionError("could not load bundled Gate 1 Pipe")
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            pipe_type = module.Pipe
+        else:
+            pipe_type = Pipe
+        pipe = pipe_type()
+        pipe.valves.artifact_store_path = str(tmp_path / "artifacts.sqlite3")
+        pipe.valves.artifact_payload_root = str(tmp_path / "payloads")
+
+        def forbidden(*_args: object, **_kwargs: object) -> None:
+            raise AssertionError("mixed PDF route must not call the network")
+
+        async def run() -> tuple[str, int]:
+            with (
+                patch.object(
+                    pipe,
+                    "_maybe_run_passport_stage",
+                    wraps=pipe._maybe_run_passport_stage,
+                ) as passport_stage,
+                patch.object(socket, "create_connection", side_effect=forbidden),
+                patch.object(socket.socket, "connect", side_effect=forbidden),
+            ):
+                content = await pipe.pipe(
+                    {
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": "Gate 1 mixed normalization",
+                                "files": files,
+                            }
+                        ]
+                    },
+                    __user__={"id": "mixed-pdf-boundary-user"},
+                    __metadata__={
+                        "chat_id": "mixed-pdf-boundary-chat",
+                        "model_id": "broker_reports_gate1_pipe_test",
+                    },
+                )
+                return content, passport_stage.await_count
+
         content, passport_await_count = asyncio.run(run())
+        return pipe, content, passport_await_count
     finally:
         if pipe_variant == "bundled":
             for name in list(sys.modules):
@@ -272,7 +273,6 @@ def _run_mixed_pipe(
                 ):
                     del sys.modules[name]
             sys.modules.update(maintained_modules)
-    return pipe, content, passport_await_count
 
 
 @pytest.mark.parametrize("pipe_variant", ("maintained", "bundled"))
