@@ -228,6 +228,45 @@ def test_success_maps_ordered_multi_page_empty_page_and_image_once(tmp_path: Pat
     assert RAW_PROVIDER_SECRET not in result_text
 
 
+def test_success_preserves_multiple_same_page_and_page_scoped_targets(
+    tmp_path: Path,
+) -> None:
+    pages = [
+        {
+            "index": 0,
+            "markdown": "![first](a.png)\n![second](b.png)",
+            "images": [
+                {"id": "a.png", "image_base64": PNG_BASE64},
+                {"id": "b.png", "image_base64": PNG_BASE64},
+            ],
+        },
+        {
+            "index": 1,
+            "markdown": "![shared](shared.png)",
+            "images": [{"id": "shared.png", "image_base64": PNG_BASE64}],
+        },
+        {
+            "index": 2,
+            "markdown": "![shared-again](shared.png)",
+            "images": [{"id": "shared.png", "image_base64": PNG_BASE64}],
+        },
+    ]
+    opener = _FakeOpener(_FakeResponse(_response(pages)))
+
+    result = _extractor(tmp_path, opener).extract(PDF_BYTES, _source_context(3))
+
+    _assert_one_post(opener)
+    assert tuple(
+        (ref.page_number, ref.markdown_target) for ref in result.image_refs
+    ) == (
+        (1, "a.png"),
+        (1, "b.png"),
+        (2, "shared.png"),
+        (3, "shared.png"),
+    )
+    assert len({ref.local_ref for ref in result.image_refs}) == 4
+
+
 def _fidelity_offline_pages() -> tuple[str, list[dict[str, object]]]:
     markdown = (FIDELITY_FIXTURE_ROOT / "mistral-markdown.md").read_text(
         encoding="utf-8"
