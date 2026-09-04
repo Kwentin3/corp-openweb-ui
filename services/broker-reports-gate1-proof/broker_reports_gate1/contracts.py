@@ -143,6 +143,7 @@ TERMINAL_GATE2_BLOCKER_CODES = {
     "corrupt_file",
     "parser_failed",
     "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+    "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED",
 }
 
 BLOCKER_CODES = {
@@ -153,6 +154,7 @@ BLOCKER_CODES = {
     "corrupt_file",
     "parser_failed",
     "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+    "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED",
     "raster_requires_ocr_or_review",
     "zip_requires_review",
     "unknown_role",

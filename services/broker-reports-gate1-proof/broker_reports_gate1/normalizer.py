@@ -5,6 +5,7 @@ import hashlib
 import time
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable
 
 from . import blockers as blocker_factory
@@ -26,6 +27,7 @@ from .file_processing_outcomes import FileProcessingOutcomeFactory
 from .full_source import FullSourceArtifactConfig, FullSourceArtifactFactory
 from .inputs import FileInput
 from .pdf_document_ai import (
+    PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
     PDF_DOCUMENT_AI_NOT_CONFIGURED,
     PdfDocumentExtractionError,
     PdfDocumentExtractor,
@@ -55,6 +57,12 @@ from .validators import (
 )
 
 
+_TERMINAL_PDF_DOCUMENT_AI_CODES = {
+    PDF_DOCUMENT_AI_NOT_CONFIGURED,
+    PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
+}
+
+
 @dataclass
 class NormalizationResult:
     package: dict
@@ -68,11 +76,19 @@ class Gate1Normalizer:
         self,
         *,
         _pdf_document_extractor: PdfDocumentExtractor | None = None,
+        _server_request: Any = None,
+        _pdf_image_root: Path | None = None,
     ) -> None:
         """Compose the production boundary; the private override is test-only."""
-        self._pdf_document_extractor = (
-            _pdf_document_extractor or PdfDocumentExtractorFactory.create()
-        )
+        if _pdf_document_extractor is not None:
+            self._pdf_document_extractor = _pdf_document_extractor
+        elif _server_request is None:
+            self._pdf_document_extractor = PdfDocumentExtractorFactory.create()
+        else:
+            self._pdf_document_extractor = PdfDocumentExtractorFactory.create(
+                server_request=_server_request,
+                image_root=_pdf_image_root,
+            )
 
     def plan_run_id(self, file_inputs: list[FileInput]) -> str:
         return normalization_run_id([self._input_summary(item) for item in file_inputs])
@@ -323,6 +339,12 @@ class Gate1Normalizer:
                         doc_blockers.append(
                             blocker_factory.pdf_document_ai_not_configured(run_id, doc_id)
                         )
+                    elif exc.code == PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED:
+                        doc_blockers.append(
+                            blocker_factory.pdf_document_ai_live_qualification_required(
+                                run_id, doc_id
+                            )
+                        )
                     else:
                         doc_blockers.append(
                             blocker_factory.parser_failed(run_id, doc_id, exc.code)
@@ -467,7 +489,7 @@ class Gate1Normalizer:
             documents.append(document)
 
             doc_blocker_codes = {item["code"] for item in doc_blockers}
-            if PDF_DOCUMENT_AI_NOT_CONFIGURED in doc_blocker_codes:
+            if doc_blocker_codes & _TERMINAL_PDF_DOCUMENT_AI_CODES:
                 if bounded_graph is not None:
                     bounded_graph.register_document(document)
                 private_slices.extend(new_slices)
@@ -902,6 +924,7 @@ class Gate1Normalizer:
             ("parser_failed", "parsing"),
             ("unsupported_format", "container_detection"),
             (PDF_DOCUMENT_AI_NOT_CONFIGURED, "document_profiling"),
+            (PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED, "document_profiling"),
         )
         partial_codes = {
             "raster_requires_ocr_or_review",
@@ -952,6 +975,8 @@ class Gate1Normalizer:
             return "verify_pipe_byte_access_boundary"
         if PDF_DOCUMENT_AI_NOT_CONFIGURED in codes:
             return "configure_pdf_document_ai"
+        if PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED in codes:
+            return "complete_pdf_document_ai_live_qualification"
         mode = gate2_handoff.get("handoff_mode")
         if mode == "reduced_subset_ready_for_gate2":
             return "continue_with_reduced_gate2_subset_after_specialist_confirmation"

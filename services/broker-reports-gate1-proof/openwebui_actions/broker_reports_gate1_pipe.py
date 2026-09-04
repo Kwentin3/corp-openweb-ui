@@ -661,7 +661,11 @@ class Pipe:
         )
         file_inputs = [self._to_file_input(file_ref) for file_ref in file_refs]
         retention_policy = self._retention_policy(safe_body, safe_metadata)
-        planned_run_id = self._normalizer.plan_run_id(file_inputs)
+        normalizer = Gate1Normalizer(
+            _server_request=__request__,
+            _pdf_image_root=Path(self.valves.artifact_payload_root),
+        )
+        planned_run_id = normalizer.plan_run_id(file_inputs)
         artifact_context = self._artifact_context(
             user=__user__,
             metadata=safe_metadata,
@@ -684,7 +688,8 @@ class Pipe:
                 source_file_refs=tuple(self._source_file_refs(file_refs)),
             )
         ).create(normalization_run_id=planned_run_id)
-        result = self._normalizer.normalize(
+        result = await asyncio.to_thread(
+            normalizer.normalize,
             file_inputs,
             entrypoint="broker_reports_gate1_pipe",
             trigger_type="pipe_backend_normalizer",
@@ -730,7 +735,7 @@ class Pipe:
                 __event_emitter__,
                 self._progress_description(
                     safe_metadata,
-                    user_message="PDF Document AI is not configured.",
+                    user_message="PDF Document AI is not configured or live-qualified.",
                     internal_message=(
                         "Gate 1 stopped at the PDF Document AI boundary; "
                         "no downstream artifacts were created."

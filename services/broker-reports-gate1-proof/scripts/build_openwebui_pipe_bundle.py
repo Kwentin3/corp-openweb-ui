@@ -146,7 +146,7 @@ MODULE_ORDER = [
     "__init__",
 ]
 
-GATE1_INPUT_MODULES = ["private_intake_bytes"]
+GATE1_INPUT_MODULES = ["private_intake_bytes", "mistral_pdf_document_ai"]
 
 _GATE1_INPUT_INSERT_AT = MODULE_ORDER.index("inputs") + 1
 GATE1_MODULE_ORDER = [

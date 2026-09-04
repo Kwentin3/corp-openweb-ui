@@ -191,6 +191,16 @@ class FullSourceArtifactBuilder:
     ) -> FullSourceBuildResult:
         """Carry exact extraction output as one private representation-only unit."""
         text = extraction.markdown_bytes.decode("utf-8", errors="strict")
+        provenance = {
+            "provider_id": extraction.provider_id,
+            "model_id": extraction.model_id,
+            "adapter_id": extraction.adapter_id,
+            "qualification_status": extraction.qualification_status,
+        }
+        image_refs = [
+            {"local_ref": item.local_ref, "sha256": item.sha256}
+            for item in extraction.image_refs
+        ]
         descriptor = {
             "logical_identity": "document_ai_markdown_001",
             "slice_type": "text_excerpt",
@@ -209,6 +219,9 @@ class FullSourceArtifactBuilder:
                 "page_numbers": list(extraction.page_numbers),
             },
             "text": text,
+            "document_ai_provenance": provenance,
+            "document_ai_markdown_sha256": extraction.markdown_sha256,
+            "document_ai_image_refs": image_refs,
         }
         payload, unit = self._build_descriptor(
             normalization_run_id=normalization_run_id,
@@ -219,18 +232,6 @@ class FullSourceArtifactBuilder:
             ordinal=1,
             descriptor=descriptor,
         )
-        provenance = {
-            "provider_id": extraction.provider_id,
-            "model_id": extraction.model_id,
-            "adapter_id": extraction.adapter_id,
-            "qualification_status": extraction.qualification_status,
-        }
-        payload["document_ai_provenance"] = provenance
-        payload["document_ai_markdown_sha256"] = extraction.markdown_sha256
-        payload["document_ai_image_refs"] = [
-            {"local_ref": item.local_ref, "sha256": item.sha256}
-            for item in extraction.image_refs
-        ]
         units = [unit] if unit is not None else []
         return FullSourceBuildResult(
             payloads=[payload],
@@ -692,25 +693,30 @@ class FullSourceArtifactBuilder:
         budget_exceeded = any(reason.endswith("_budget_exceeded") for reason in reasons)
         stored_projection = {} if budget_exceeded else projection
         payload_ref = f"srcpayload_{stable_digest([normalization_run_id, document_id, logical_identity, source_checksum_sha256], length=24)}"
-        payload_checksum_ref = _checksum_ref(
-            "srcpayloadchk",
-            {
-                "container_format": container_format,
-                "logical_identity": logical_identity,
-                "source_location": descriptor.get("source_location") or {},
-                "projection": stored_projection,
-                "projection_status": (
-                    "omitted_budget_exceeded" if budget_exceeded else "materialized"
-                ),
-                "parser": descriptor.get("parser"),
-                "parser_version": descriptor.get("parser_version"),
-                "format_structural_inventory": descriptor.get(
-                    "format_structural_inventory"
-                )
-                or {},
-                "format_reason_codes": descriptor.get("format_reason_codes") or [],
-            },
-        )
+        checksum_material = {
+            "container_format": container_format,
+            "logical_identity": logical_identity,
+            "source_location": descriptor.get("source_location") or {},
+            "projection": stored_projection,
+            "projection_status": (
+                "omitted_budget_exceeded" if budget_exceeded else "materialized"
+            ),
+            "parser": descriptor.get("parser"),
+            "parser_version": descriptor.get("parser_version"),
+            "format_structural_inventory": descriptor.get(
+                "format_structural_inventory"
+            )
+            or {},
+            "format_reason_codes": descriptor.get("format_reason_codes") or [],
+        }
+        for key in (
+            "document_ai_provenance",
+            "document_ai_markdown_sha256",
+            "document_ai_image_refs",
+        ):
+            if key in descriptor:
+                checksum_material[key] = copy.deepcopy(descriptor[key])
+        payload_checksum_ref = _checksum_ref("srcpayloadchk", checksum_material)
         source_checksum_ref = f"srcsum_{stable_digest([document_id, source_checksum_sha256], length=24)}"
         payload = {
             "schema_version": SOURCE_PAYLOAD_SCHEMA_VERSION,
@@ -754,6 +760,13 @@ class FullSourceArtifactBuilder:
             "knowledge_rag_used": False,
             "vectorization_performed": False,
         }
+        for key in (
+            "document_ai_provenance",
+            "document_ai_markdown_sha256",
+            "document_ai_image_refs",
+        ):
+            if key in descriptor:
+                payload[key] = copy.deepcopy(descriptor[key])
         if self.config.enable_canonical_artifact_v1_shadow and isinstance(
             descriptor.get("canonical_projection"), dict
         ):
