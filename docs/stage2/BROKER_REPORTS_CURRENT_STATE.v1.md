@@ -10,12 +10,13 @@ older state inventory. PDF source
 custody and safe preflight remain active. PDF understanding is isolated behind
 the single `PdfDocumentExtractor` port and one composition factory. No live
 adapter is live-qualified or configured for production. An absent or
-unselected engine terminates with `PDF_DOCUMENT_AI_NOT_CONFIGURED`; selected
-Mistral terminates with `PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED` while
-the code-owned admission is false. Both stop before credential or network
-access and before Canonical or Source Facts publication. The static Mistral
-adapter and exact model transport are implemented; live qualification and
-activation are not. PDFPlumber,
+unselected engine terminates with `PDF_DOCUMENT_AI_NOT_CONFIGURED`; an ordinary
+upload with selected Mistral terminates with
+`PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED` while the code-owned admission is
+false. A separate capability admits only the two pinned public qualification
+hashes through the same factory. The Mistral adapter and atomic private
+ArtifactStore lifecycle for Markdown/images are implemented; live qualification
+and activation are not. PDFPlumber,
 pdfminer, PyMuPDF, Camelot, Docling, VLM/bbox, hybrid, dual-engine and repair
 routes are retired with no fallback. CSV, TXT, HTML, XML, XLSX, DOCX,
 archive/ZIP and image boundaries retain their existing status.

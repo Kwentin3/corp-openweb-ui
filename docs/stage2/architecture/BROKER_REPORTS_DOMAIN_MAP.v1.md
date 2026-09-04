@@ -31,10 +31,13 @@ The current PDF information flow is:
 
 `authenticated bytes -> source custody / safe preflight -> PdfDocumentExtractor -> PdfDocumentExtraction -> existing Full Source / Canonical downstream`
 
-Until an adapter is separately integrated and qualified,
-`PdfDocumentExtractorFactory` selects the unconfigured implementation and
-returns `PDF_DOCUMENT_AI_NOT_CONFIGURED`. This source-normalization owner is
-not a second Canonical or financial-semantic owner. No engine fallback exists.
+`PdfDocumentExtractorFactory` returns `PDF_DOCUMENT_AI_NOT_CONFIGURED` for an
+absent/unselected engine and `PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED` for
+an ordinary selected-but-unqualified route. One bounded capability admits only
+the two pinned public qualification hashes through the same factory. The
+implemented adapter publishes Markdown and images as one private ArtifactStore
+graph. This source-normalization owner is not a second Canonical or
+financial-semantic owner. No engine fallback exists.
 
 The current non-PDF information flow is:
 
@@ -79,9 +82,11 @@ transport success alone.
 - **Forbidden knowledge outside adapter/composition:** provider schema/model,
   OCR options, bbox/crop/DPI, raw response, table reconstruction, retry or
   fallback.
-- **Runtime status:** `ACTIVE_FAIL_CLOSED`; no live adapter is configured.
-- **Completion criterion:** `PDF_DOCUMENT_AI_NOT_CONFIGURED` before network, or
-  one qualified adapter returns a contract-valid envelope.
+- **Runtime status:** `QUALIFICATION_READY_PRODUCT_FAIL_CLOSED`; no live
+  qualification or production activation is claimed.
+- **Completion criterion:** ordinary routes stop before network, or the exact
+  two-fixture qualification capability returns a contract-valid envelope and
+  atomically persisted private Full Source/image graph.
 
 ## 3. Gate 2 table package
 

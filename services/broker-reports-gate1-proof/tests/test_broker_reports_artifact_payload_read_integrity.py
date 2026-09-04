@@ -3,9 +3,12 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import sqlite3
 from contextlib import closing
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -18,6 +21,10 @@ from broker_reports_gate1 import (
     build_retention_policy,
 )
 from broker_reports_gate1.artifact_models import ArtifactRecord
+from broker_reports_gate1.artifact_models import (
+    PRIVATE_BINARY_ARTIFACT_TYPE,
+    build_private_binary_payload,
+)
 
 
 def _store(tmp_path: Path):
@@ -385,3 +392,185 @@ def test_same_database_writer_can_reseal_generic_payload_scope_limit(tmp_path: P
     )
 
     assert store.read_payload(stored)["value"] == "resealed"
+
+
+def test_atomic_preparation_failure_removes_earlier_payload_files(tmp_path: Path):
+    store = _store(tmp_path)
+    first = _record("artifact-atomic-preparation-first")
+    second = _record("artifact-atomic-preparation-second")
+    original_write = store._write_payload
+    calls = 0
+
+    def fail_second(artifact_id: str, payload_bytes: bytes) -> str:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise PermissionError("synthetic preparation failure")
+        return original_write(artifact_id, payload_bytes)
+
+    with patch.object(store, "_write_payload", side_effect=fail_second):
+        with pytest.raises(PermissionError, match="synthetic preparation"):
+            store.put_records_atomic([first, second])
+
+    assert list(store.payload_root.glob("*.json")) == []
+    assert store.get_record_unchecked(first.artifact_id) is None
+    assert store.get_record_unchecked(second.artifact_id) is None
+
+
+def test_private_binary_roundtrip_is_acl_checked_and_inner_hash_bound(tmp_path: Path):
+    store = _store(tmp_path)
+    content = b"\x89PNG\r\n\x1a\nprivate-image"
+    record = _record(
+        "artifact-private-binary", artifact_type=PRIVATE_BINARY_ARTIFACT_TYPE
+    )
+    record.payload = build_private_binary_payload(
+        content=content, media_type="image/png"
+    )
+    stored = store.put_record(record)
+    resolver = ArtifactResolver(store)
+
+    resolved = resolver.resolve_private_binary(
+        stored.artifact_id,
+        _context(),
+        expected_sha256=hashlib.sha256(content).hexdigest(),
+    )
+
+    assert resolved["content"] == content
+    assert resolved["media_type"] == "image/png"
+    assert resolved["content_sha256"] == hashlib.sha256(content).hexdigest()
+    with pytest.raises(ArtifactStoreError) as denied:
+        resolver.resolve_private_binary(
+            stored.artifact_id, replace(_context(), user_id="foreign-user")
+        )
+    assert denied.value.code == "artifact_access_denied"
+
+
+def test_private_binary_inner_mutation_fails_after_outer_store_reseal(tmp_path: Path):
+    store = _store(tmp_path)
+    record = _record(
+        "artifact-private-binary-mutated",
+        artifact_type=PRIVATE_BINARY_ARTIFACT_TYPE,
+    )
+    record.payload = build_private_binary_payload(
+        content=b"original-private-bytes", media_type="image/jpeg"
+    )
+    stored = store.put_record(record)
+    payload_path = _payload_path(store, stored)
+    envelope = json.loads(payload_path.read_text(encoding="utf-8"))
+    envelope["content_base64"] = "dGFtcGVyZWQ="
+    resealed = json.dumps(envelope, sort_keys=True).encode("utf-8")
+    payload_path.write_bytes(resealed)
+    _update(
+        store,
+        """
+        UPDATE artifact_records
+        SET checksum_sha256 = ?, payload_size_bytes = ?
+        WHERE artifact_id = ?
+        """,
+        (hashlib.sha256(resealed).hexdigest(), len(resealed), stored.artifact_id),
+    )
+
+    with pytest.raises(ArtifactStoreError) as blocked:
+        ArtifactResolver(store).resolve_private_binary(stored.artifact_id, _context())
+
+    assert blocked.value.code == "artifact_binary_checksum_mismatch"
+
+
+def test_private_binary_expected_association_hash_mismatch_fails(tmp_path: Path):
+    store = _store(tmp_path)
+    record = _record(
+        "artifact-private-binary-association",
+        artifact_type=PRIVATE_BINARY_ARTIFACT_TYPE,
+    )
+    record.payload = build_private_binary_payload(
+        content=b"association-bound", media_type="image/webp"
+    )
+    stored = store.put_record(record)
+
+    with pytest.raises(ArtifactStoreError) as blocked:
+        ArtifactResolver(store).resolve_private_binary(
+            stored.artifact_id, _context(), expected_sha256="0" * 64
+        )
+
+    assert blocked.value.code == "artifact_binary_checksum_mismatch"
+
+
+def test_payload_root_preflight_leaves_no_probe_and_uses_private_mode(tmp_path: Path):
+    store = _store(tmp_path)
+
+    assert list(store.payload_root.glob(".artifact-store-probe-*")) == []
+    if os.name != "nt":
+        assert store.payload_root.stat().st_mode & 0o077 == 0
+
+
+def test_payload_root_symlink_is_rejected_when_platform_supports_it(tmp_path: Path):
+    target = tmp_path / "payload-target"
+    target.mkdir(mode=0o700)
+    linked = tmp_path / "payload-link"
+    try:
+        linked.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are unavailable for this runtime")
+
+    with pytest.raises(ArtifactStoreError) as blocked:
+        ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=tmp_path / "linked.sqlite3",
+                payload_root=linked,
+            )
+        ).create()
+
+    assert blocked.value.code == "artifact_store_unavailable"
+
+
+def test_payload_root_permission_preflight_fails_closed(tmp_path: Path):
+    original_open = os.open
+
+    def deny_probe(path, flags, mode=0o777):
+        if ".artifact-store-probe-" in str(path):
+            raise PermissionError("synthetic permission denial")
+        return original_open(path, flags, mode)
+
+    with patch("broker_reports_gate1.artifact_store.os.open", side_effect=deny_probe):
+        with pytest.raises(ArtifactStoreError) as blocked:
+            _store(tmp_path)
+
+    assert blocked.value.code == "artifact_store_unavailable"
+    assert "synthetic permission denial" not in str(blocked.value)
+
+
+def test_payload_root_rename_and_replacement_is_identity_blocked(tmp_path: Path):
+    store = _store(tmp_path)
+    stored = store.put_record(_record("artifact-root-replaced"))
+    original_root = store.payload_root
+    moved_root = tmp_path / "payloads-moved"
+    original_root.rename(moved_root)
+    original_root.mkdir(mode=0o700)
+    assert stored.payload_ref is not None
+    (original_root / stored.payload_ref).write_bytes(
+        (moved_root / stored.payload_ref).read_bytes()
+    )
+
+    with pytest.raises(ArtifactStoreError) as blocked:
+        store.read_payload(stored)
+
+    assert blocked.value.code == "artifact_payload_unavailable"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits are not Windows ACLs")
+def test_existing_non_private_payload_root_is_rejected(tmp_path: Path):
+    payload_root = tmp_path / "non-private"
+    payload_root.mkdir(mode=0o755)
+    payload_root.chmod(0o755)
+
+    with pytest.raises(ArtifactStoreError) as blocked:
+        ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=tmp_path / "non-private.sqlite3",
+                payload_root=payload_root,
+            )
+        ).create()
+
+    assert blocked.value.code == "artifact_store_unavailable"

@@ -10,6 +10,8 @@ from typing import Any, Callable
 
 from . import blockers as blocker_factory
 from .archive_intake import Gate1ArchiveIntakeFactory
+from .artifact_models import ArtifactStoreError
+from .bounded_graph import Gate1BoundedGraphError
 from .contracts import (
     NORMALIZER_VERSION,
     SUPPORTED_CONTRACTS,
@@ -46,7 +48,6 @@ from .profilers_zip import profile_zip
 from .safe_report import render_privacy_failed_report, render_safe_report
 from .source_provenance import NormalizedSliceProvenanceFactory
 from .table_projection import (
-    NormalizedTableProjectionConfig,
     NormalizedTableProjectionFactory,
 )
 from .taxonomy import classify_document
@@ -78,6 +79,7 @@ class Gate1Normalizer:
         _pdf_document_extractor: PdfDocumentExtractor | None = None,
         _server_request: Any = None,
         _pdf_image_root: Path | None = None,
+        _pdf_document_ai_qualification_permit: Any = None,
     ) -> None:
         """Compose the production boundary; the private override is test-only."""
         if _pdf_document_extractor is not None:
@@ -88,6 +90,7 @@ class Gate1Normalizer:
             self._pdf_document_extractor = PdfDocumentExtractorFactory.create(
                 server_request=_server_request,
                 image_root=_pdf_image_root,
+                qualification_permit=_pdf_document_ai_qualification_permit,
             )
 
     def plan_run_id(self, file_inputs: list[FileInput]) -> str:
@@ -377,7 +380,6 @@ class Gate1Normalizer:
                     profile_id=profile["profile_id"] if profile else profile_id(doc_id),
                     extraction=pdf_extraction,
                 )
-                full_source_document_summaries.append(full_source_result.summary)
             elif (
                 content_bytes is not None
                 and content_sha256
@@ -391,7 +393,6 @@ class Gate1Normalizer:
                     content_bytes=content_bytes,
                     source_checksum_sha256=content_sha256,
                 )
-                full_source_document_summaries.append(full_source_result.summary)
             if full_source_result is not None:
                 table_projection_started = time.perf_counter()
                 table_projection_result = table_projection_builder.build_for_document(
@@ -521,8 +522,29 @@ class Gate1Normalizer:
                 bounded_graph.register_document(document)
             private_slices.extend(new_slices)
             if full_source_result is not None:
-                private_source_payloads.extend(full_source_result.payloads)
-                private_source_units.extend(full_source_result.units)
+                try:
+                    if pdf_extraction is not None and bounded_graph is not None:
+                        bounded_graph.publish_pdf_full_source_atomic(
+                            result=full_source_result,
+                            image_refs=pdf_extraction.image_refs,
+                        )
+                    else:
+                        private_source_payloads.extend(full_source_result.payloads)
+                        private_source_units.extend(full_source_result.units)
+                except (ArtifactStoreError, Gate1BoundedGraphError):
+                    publication_blocker = blocker_factory.parser_failed(
+                        run_id,
+                        doc_id,
+                        "PDF_DOCUMENT_ARTIFACT_PUBLICATION_FAILED",
+                    )
+                    blockers.append(publication_blocker)
+                    document["blocker_refs"].append(
+                        publication_blocker["blocker_id"]
+                    )
+                    full_source_result = None
+                    table_projection_result = None
+                else:
+                    full_source_document_summaries.append(full_source_result.summary)
             if table_projection_result is not None:
                 private_table_projections.extend(table_projection_result.projections)
                 table_projection_decisions.extend(table_projection_result.decisions)

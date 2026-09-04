@@ -9,14 +9,18 @@ from .artifact_lifecycle import lifecycle_for_visibility
 from .artifact_models import (
     ArtifactAccessContext,
     ArtifactRecord,
+    PRIVATE_BINARY_ARTIFACT_TYPE,
     RetentionPolicy,
+    build_private_binary_payload,
     utc_now_iso,
 )
 from .artifact_store import SqliteArtifactStoreAdapter, new_artifact_id
 from .full_source import (
+    FullSourceBuildResult,
     SOURCE_PAYLOAD_SCHEMA_VERSION,
     validate_full_source_unit,
 )
+from .pdf_document_ai import PdfDocumentImageRef
 from .source_provenance import validate_normalized_slice_provenance
 from .table_projection import TableProjectionValidator
 
@@ -119,6 +123,15 @@ class ArtifactStoreBackedList(list[dict[str, Any]]):
             self.collection_name,
             value,
         )
+        self._register_committed(value, artifact_id, document_id)
+
+    def extend(self, values) -> None:
+        for value in values:
+            self.append(value)
+
+    def _register_committed(
+        self, value: dict[str, Any], artifact_id: str, document_id: str
+    ) -> None:
         self._artifact_ids.append(artifact_id)
         self._artifact_ids_by_document.setdefault(document_id, []).append(artifact_id)
         compact_value = self._owner._compact_value(self.collection_name, value)
@@ -126,10 +139,6 @@ class ArtifactStoreBackedList(list[dict[str, Any]]):
         self._compact_values_by_document.setdefault(document_id, []).append(
             compact_value
         )
-
-    def extend(self, values) -> None:
-        for value in values:
-            self.append(value)
 
     def seal(self) -> None:
         self._sealed = True
@@ -306,6 +315,140 @@ class Gate1BoundedGraph:
             "retained_compact_refs_only": True,
             "store_factory_required": True,
         }
+
+    def publish_pdf_full_source_atomic(
+        self,
+        *,
+        result: FullSourceBuildResult,
+        image_refs: tuple[PdfDocumentImageRef, ...],
+    ) -> None:
+        """Publish one PDF Markdown/unit/image graph or none of it."""
+
+        if self._sealed:
+            raise Gate1BoundedGraphError("bounded_graph_already_sealed")
+        if len(result.payloads) != 1 or len(result.units) != 1:
+            raise Gate1BoundedGraphError("bounded_pdf_full_source_shape_invalid")
+        payload = result.payloads[0]
+        unit = result.units[0]
+        document_id = str(payload.get("document_ref") or "")
+        if document_id not in self._documents_registered:
+            raise Gate1BoundedGraphError("bounded_value_source_not_registered")
+        if unit.get("document_id") != document_id:
+            raise Gate1BoundedGraphError("bounded_pdf_full_source_shape_invalid")
+        expected_associations = tuple(
+            (
+                image.page_number,
+                image.markdown_target,
+                image.local_ref,
+                image.sha256,
+            )
+            for image in image_refs
+        )
+        stored_associations = tuple(
+            (
+                item.get("page_number"),
+                item.get("markdown_target"),
+                item.get("local_ref"),
+                item.get("sha256"),
+            )
+            for item in payload.get("document_ai_image_refs") or []
+            if isinstance(item, dict)
+        )
+        if stored_associations != expected_associations:
+            raise Gate1BoundedGraphError("bounded_pdf_image_association_mismatch")
+
+        self._validate_value(
+            "private_normalized_source_payloads", payload, document_id
+        )
+        source_checksum = str(
+            self.source_records_by_doc[document_id].get("file_hash_sha256") or ""
+        )
+        if str(unit.get("parent_payload_ref") or "") != str(
+            payload.get("source_payload_ref") or ""
+        ):
+            raise Gate1BoundedGraphError("bounded_pdf_full_source_shape_invalid")
+        if validate_full_source_unit(
+            unit=unit,
+            normalization_run_id=self.normalization_run_id,
+            document_id=document_id,
+            source_checksum_sha256=source_checksum,
+        ).get("errors"):
+            raise Gate1BoundedGraphError("bounded_value_validation_failed")
+
+        payload_collection = self.collection("private_normalized_source_payloads")
+        unit_collection = self.collection("private_normalized_source_units")
+        payload_type, _payload_document, payload_metadata = self._value_contract(
+            "private_normalized_source_payloads", payload
+        )
+        unit_type, _unit_document, unit_metadata = self._value_contract(
+            "private_normalized_source_units", unit
+        )
+        access_policy = {**self._access_policy(), "requires_gate2_resolver": True}
+        source_ref = self.source_records_by_doc[document_id]
+        payload_record = self._build_record(
+            artifact_id=new_artifact_id(),
+            artifact_type=payload_type,
+            document_id=document_id,
+            source_file_ref=source_ref,
+            visibility="private_case",
+            storage_backend="project_artifact_payload",
+            validation_status="validated",
+            payload=payload,
+            safe_metadata=payload_metadata,
+            access_policy=access_policy,
+        )
+        unit_record = self._build_record(
+            artifact_id=new_artifact_id(),
+            artifact_type=unit_type,
+            document_id=document_id,
+            source_file_ref=source_ref,
+            visibility="private_case",
+            storage_backend="project_artifact_payload",
+            validation_status="validated",
+            payload=unit,
+            safe_metadata=unit_metadata,
+            access_policy=access_policy,
+        )
+        image_records = [
+            self._build_record(
+                artifact_id=image.local_ref,
+                artifact_type=PRIVATE_BINARY_ARTIFACT_TYPE,
+                document_id=document_id,
+                source_file_ref=source_ref,
+                visibility="private_case",
+                storage_backend="project_artifact_payload",
+                validation_status="validated",
+                payload=build_private_binary_payload(
+                    content=image.content_bytes, media_type=image.media_type
+                ),
+                safe_metadata={
+                    "media_type": image.media_type,
+                    "content_sha256": image.sha256,
+                    "page_number": image.page_number,
+                },
+                access_policy=access_policy,
+            )
+            for image in image_refs
+        ]
+        records = [payload_record, unit_record, *image_records]
+        self.store.put_records_atomic(records)
+
+        payload_collection._register_committed(
+            payload, payload_record.artifact_id, document_id
+        )
+        unit_collection._register_committed(unit, unit_record.artifact_id, document_id)
+        self.private_source_payload_refs_by_doc.setdefault(document_id, []).append(
+            payload_record.artifact_id
+        )
+        self.private_source_unit_refs_by_doc.setdefault(document_id, []).append(
+            unit_record.artifact_id
+        )
+        self._payload_logical_refs.add(str(payload.get("source_payload_ref") or ""))
+        self._unit_logical_refs.add(str(unit.get("unit_ref") or ""))
+        for record in records:
+            self.refs_by_type.setdefault(record.artifact_type, []).append(
+                record.artifact_id
+            )
 
     def _persist_value(
         self,
@@ -627,9 +770,39 @@ class Gate1BoundedGraph:
         safe_metadata: dict[str, Any],
         access_policy: dict[str, Any],
     ) -> ArtifactRecord:
-        now = utc_now_iso()
-        record = ArtifactRecord(
+        record = self._build_record(
             artifact_id=new_artifact_id(),
+            artifact_type=artifact_type,
+            document_id=document_id,
+            source_file_ref=copy.deepcopy(source_file_ref),
+            visibility=visibility,
+            storage_backend=storage_backend,
+            access_policy=access_policy,
+            validation_status=validation_status,
+            payload=payload,
+            safe_metadata=safe_metadata,
+        )
+        stored = self.store.put_record(record)
+        self.refs_by_type.setdefault(artifact_type, []).append(stored.artifact_id)
+        return stored
+
+    def _build_record(
+        self,
+        *,
+        artifact_id: str,
+        artifact_type: str,
+        document_id: str,
+        source_file_ref: dict[str, Any],
+        visibility: str,
+        storage_backend: str,
+        validation_status: str,
+        payload: Any,
+        safe_metadata: dict[str, Any],
+        access_policy: dict[str, Any],
+    ) -> ArtifactRecord:
+        now = utc_now_iso()
+        return ArtifactRecord(
+            artifact_id=artifact_id,
             artifact_type=artifact_type,
             case_id=self.context.case_id,
             chat_id=self.context.chat_id,
@@ -657,9 +830,6 @@ class Gate1BoundedGraph:
             created_at=now,
             updated_at=now,
         )
-        stored = self.store.put_record(record)
-        self.refs_by_type.setdefault(artifact_type, []).append(stored.artifact_id)
-        return stored
 
     def _source_ref_for_document(self, document: dict[str, Any]) -> dict[str, Any]:
         root_ordinal = int(document.get("root_input_ordinal") or 0)

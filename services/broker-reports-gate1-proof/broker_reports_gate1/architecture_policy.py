@@ -10,7 +10,7 @@ from __future__ import annotations
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v25"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v26"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -241,6 +241,10 @@ PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE = "mistral_ocr"
 PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER = "mistral_serverless_ocr_adapter_v1"
 PDF_DOCUMENT_EXTRACTION_STATIC_READY = True
 PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED = False
+PDF_DOCUMENT_EXTRACTION_QUALIFICATION_ALLOWLIST_SIZE = 2
+PDF_DOCUMENT_EXTRACTION_IMAGE_LIFECYCLE = (
+    "existing_artifact_store_atomic_private_graph"
+)
 PDF_DOCUMENT_EXTRACTION_AUTOMATIC_FALLBACK_ALLOWED = False
 PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED = False
 LOCAL_OCR_PRODUCTION_ALLOWED = False

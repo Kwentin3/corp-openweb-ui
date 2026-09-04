@@ -171,6 +171,37 @@ config OpenWebUI; не добавлять ключ в Git, Broker Reports valves
 `PDF_DOCUMENT_AI_LIVE_QUALIFIED = False`: наличие native-настроек само по себе
 не открывает сеть. Смена gate должна идти отдельным review после live-квалификации.
 
+До ввода ключа проверить qualification plan из чистого exact HEAD открытого PR
+с зелёным `broker-reports-ci`:
+
+```bash
+python services/broker-reports-gate1-proof/scripts/live_pdf_document_ai_qualification.py --preflight-only
+```
+
+Ожидается ровно два pinned SHA-256 и нули для config/key reads, provider calls,
+external sends, retry, fallback, repair и activation. Скрипт не принимает путь
+к PDF, URL, key, model или hash. Live-режим запускается только после отдельного
+разрешения владельца через этот же entrypoint с server-owned existing-Pipe
+runner; он не является вторым product route и не создаёт adapter напрямую.
+
+Для разрешённой квалификации:
+
+1. Открыть изолированное maintenance window и запретить параллельные PDF upload.
+2. Записать прежнее значение `CONTENT_EXTRACTION_ENGINE` вне Git.
+3. Ввести URL/key только в native Admin configuration и временно выбрать
+   `mistral_ocr`.
+4. Выполнить один `--execute-exact-attempt`: два durable slots, по одному на
+   DriveWealth и Fidelity; ошибка или timeout расходует slot без retry.
+5. Через private ArtifactResolver повторно прочитать оба Full Source и все
+   image associations; для Fidelity требуется ровно восемь разрешимых images.
+6. Удалить qualification uploads штатным source-deletion lifecycle и доказать
+   purge/read denial.
+7. В `finally` восстановить прежний engine даже после первой ошибки.
+
+На всём шаге `PDF_DOCUMENT_AI_LIVE_QUALIFIED = False`. Успех квалификации не
+разрешает production activation: для смены gate нужен отдельный owner-approved
+review.
+
 ## 14. Проверить LLM-ответ
 
 Администратор или тестовый пользователь задает простой рабочий вопрос.

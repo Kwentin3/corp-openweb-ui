@@ -835,6 +835,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "pdf_document_ai_qualification.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "gemini_normalized_table_boxes.py"
         ),
         (

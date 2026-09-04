@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import base64
+import binascii
+import hashlib
+import re
 import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -7,6 +11,8 @@ from typing import Any, Protocol
 
 
 ARTIFACT_SCHEMA_VERSION = "broker_reports_artifact_v0"
+PRIVATE_BINARY_ARTIFACT_TYPE = "private_binary_artifact_v1"
+PRIVATE_BINARY_ARTIFACT_SCHEMA_VERSION = PRIVATE_BINARY_ARTIFACT_TYPE
 ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION = "broker_reports_artifact_lifecycle_result_v1"
 CANONICAL_VERSION_SCHEMA_VERSION = "broker_reports_canonical_version_v1"
 CANONICAL_ACTIVATION_RECEIPT_SCHEMA_VERSION = (
@@ -106,6 +112,7 @@ ARTIFACT_TYPES = {
     "private_normalized_table_slice_v0",
     "private_normalized_source_payload_v0",
     "private_normalized_source_unit_v0",
+    PRIVATE_BINARY_ARTIFACT_TYPE,
     "broker_reports_normalized_table_projection_v0",
     "broker_reports_canonical_artifact_v1",
     "broker_reports_canonical_legacy_compare_receipt_v1",
@@ -170,6 +177,74 @@ ARTIFACT_TYPES = {
     "broker_reports_gate5_openwebui_xml_delivery_receipt_v0",
     "debug_diagnostic_v0",
 }
+
+
+_MEDIA_TYPE = re.compile(r"^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+
+
+def build_private_binary_payload(*, content: bytes, media_type: str) -> dict[str, str]:
+    """Build the sole JSON-safe envelope for private binary ArtifactStore data."""
+
+    if not isinstance(content, bytes) or not content:
+        raise ArtifactStoreError(
+            "artifact_binary_payload_invalid", "Private binary content is required"
+        )
+    if not isinstance(media_type, str):
+        raise ArtifactStoreError(
+            "artifact_binary_payload_invalid", "Private binary media type is invalid"
+        )
+    normalized_media_type = media_type.strip().lower()
+    if _MEDIA_TYPE.fullmatch(normalized_media_type) is None:
+        raise ArtifactStoreError(
+            "artifact_binary_payload_invalid", "Private binary media type is invalid"
+        )
+    return {
+        "schema_version": PRIVATE_BINARY_ARTIFACT_SCHEMA_VERSION,
+        "media_type": normalized_media_type,
+        "content_base64": base64.b64encode(content).decode("ascii"),
+        "content_sha256": hashlib.sha256(content).hexdigest(),
+    }
+
+
+def decode_private_binary_payload(payload: Any) -> tuple[bytes, str, str]:
+    """Validate and decode a private binary envelope without exposing its content."""
+
+    if not isinstance(payload, dict) or set(payload) != {
+        "schema_version",
+        "media_type",
+        "content_base64",
+        "content_sha256",
+    }:
+        raise ArtifactStoreError(
+            "artifact_binary_payload_invalid", "Private binary envelope is invalid"
+        )
+    media_type = payload.get("media_type")
+    content_base64 = payload.get("content_base64")
+    content_sha256 = payload.get("content_sha256")
+    if (
+        payload.get("schema_version") != PRIVATE_BINARY_ARTIFACT_SCHEMA_VERSION
+        or not isinstance(media_type, str)
+        or _MEDIA_TYPE.fullmatch(media_type) is None
+        or not isinstance(content_base64, str)
+        or not isinstance(content_sha256, str)
+        or _SHA256.fullmatch(content_sha256) is None
+    ):
+        raise ArtifactStoreError(
+            "artifact_binary_payload_invalid", "Private binary envelope is invalid"
+        )
+    try:
+        content = base64.b64decode(content_base64, validate=True)
+    except (ValueError, binascii.Error):
+        raise ArtifactStoreError(
+            "artifact_binary_payload_invalid", "Private binary envelope is invalid"
+        ) from None
+    if not content or hashlib.sha256(content).hexdigest() != content_sha256:
+        raise ArtifactStoreError(
+            "artifact_binary_checksum_mismatch",
+            "Private binary content does not match its checksum",
+        )
+    return content, media_type, content_sha256
 
 
 def utc_now_iso() -> str:
@@ -339,6 +414,10 @@ class ArtifactStorePort(Protocol):
     """Domain-neutral persistence port used by gate runtimes and resolvers."""
 
     def put_record(self, record: ArtifactRecord) -> ArtifactRecord: ...
+
+    def put_records_atomic(
+        self, records: list[ArtifactRecord]
+    ) -> list[ArtifactRecord]: ...
 
     def get_record_unchecked(self, artifact_id: str) -> ArtifactRecord | None: ...
 

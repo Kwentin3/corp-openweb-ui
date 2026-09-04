@@ -12,14 +12,18 @@ Normative gate authority: `BROKER_REPORTS_PIPELINE_GATES.v1.md`.
 authenticated PDF bytes
   -> shared source custody and safe preflight
   -> PdfDocumentExtractorFactory.create()
-  -> UnconfiguredPdfDocumentExtractor
-  -> PDF_DOCUMENT_AI_NOT_CONFIGURED
+     -> absent/unselected: PDF_DOCUMENT_AI_NOT_CONFIGURED
+     -> ordinary selected/unqualified: PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
+     -> exact two-fixture qualification capability
+        -> Mistral adapter -> PdfDocumentExtraction
+        -> atomic private Full Source + image graph in existing ArtifactStore
 ```
 
 `PdfDocumentExtractorFactory` is the sole PDF-understanding composition point.
-The current configuration performs no provider call and publishes no downstream
-PDF artifact. A future adapter requires separate authorization and qualification
-and must return only the provider-neutral `PdfDocumentExtraction` envelope.
+The current ordinary product route performs no provider call. The implemented
+adapter remains production-blocked; only the closed two-public-hash
+qualification capability can reach it before a later activation review, and it
+returns only the provider-neutral `PdfDocumentExtraction` envelope.
 
 Pipe, Full Source, Canonical, financial mapping, Gate 4 and Gate 5 must not know
 provider/model fields, response schemas, OCR options, coordinates, crops, DPI,

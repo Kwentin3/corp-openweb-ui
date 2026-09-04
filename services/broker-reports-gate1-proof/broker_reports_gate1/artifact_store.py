@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import secrets
 import sqlite3
+import stat
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -60,7 +62,12 @@ class SqliteArtifactStoreAdapter:
     def __init__(self, sqlite_path: Path, payload_root: Path) -> None:
         self.sqlite_path = sqlite_path
         self.payload_root = payload_root
+        self._payload_root_anchor: Path | None = None
+        self._payload_root_identity: tuple[int, int] | None = None
         self._ensure_schema()
+        self._payload_root_anchor = self._preflight_payload_root()
+        root_stat = self._payload_root_anchor.stat()
+        self._payload_root_identity = (root_stat.st_dev, root_stat.st_ino)
 
     def put_record(self, record: ArtifactRecord) -> ArtifactRecord:
         with self._connect() as conn:
@@ -101,8 +108,12 @@ class SqliteArtifactStoreAdapter:
                 payload_ref = self._write_payload(record.artifact_id, payload_bytes)
                 payload_inline = None
 
-        with self._connect() as conn:
-            conn.execute(
+        created_payload: Path | None = None
+        if payload_ref and record.storage_backend == "project_artifact_payload":
+            created_payload = self._payload_path_from_ref(payload_ref)
+        try:
+            with self._connect() as conn:
+                conn.execute(
                 """
                 INSERT INTO artifact_records(
                     artifact_id,
@@ -170,7 +181,10 @@ class SqliteArtifactStoreAdapter:
                     record.deleted_at,
                     record.purged_at,
                 ),
-            )
+                )
+        except Exception:
+            self._cleanup_created_payloads([created_payload] if created_payload else [])
+            raise
         stored = self.get_record_unchecked(record.artifact_id)
         if stored is None:
             raise ArtifactStoreError("artifact_not_found", "Artifact was not stored")
@@ -202,54 +216,54 @@ class SqliteArtifactStoreAdapter:
                     tuple(artifact_ids),
                 ).fetchall()
             }
-        for record in records:
-            self._validate_record(record)
-            existing = existing_rows.get(record.artifact_id)
-            if existing is not None:
-                stored = _row_to_record(existing)
-                if stored.lifecycle_status == "purged":
-                    raise ArtifactStoreError(
-                        "artifact_purged", "Purged artifact ids cannot be restored"
-                    )
-                incoming_payload = record.payload
-                existing_payload = self.read_payload(stored)
-                if incoming_payload is None and record.payload_ref == stored.payload_ref:
-                    incoming_payload = existing_payload
-                if _immutable_record_material(
-                    stored, existing_payload
-                ) != _immutable_record_material(record, incoming_payload):
-                    raise ArtifactStoreError(
-                        "artifact_immutable",
-                        "Existing "
-                        + record.artifact_type
-                        + " artifact ids cannot be overwritten with different content",
-                    )
-                prepared.append(
-                    (
-                        stored,
-                        stored.payload_ref,
-                        stored.payload,
-                        str(existing["checksum_sha256"] or "") or None,
-                        existing["payload_size_bytes"],
-                    )
-                )
-                continue
-            payload_ref = record.payload_ref
-            payload_inline = record.payload
-            checksum = None
-            size_bytes = None
-            if record.payload is not None:
-                payload_bytes = _json_bytes(record.payload)
-                checksum = hashlib.sha256(payload_bytes).hexdigest()
-                size_bytes = len(payload_bytes)
-                if record.storage_backend == "project_artifact_payload":
-                    payload_ref = self._write_payload(record.artifact_id, payload_bytes)
-                    created_payloads.append(self._payload_path_from_ref(payload_ref))
-                    payload_inline = None
-            prepared.append(
-                (record, payload_ref, payload_inline, checksum, size_bytes)
-            )
         try:
+            for record in records:
+                self._validate_record(record)
+                existing = existing_rows.get(record.artifact_id)
+                if existing is not None:
+                    stored = _row_to_record(existing)
+                    if stored.lifecycle_status == "purged":
+                        raise ArtifactStoreError(
+                            "artifact_purged", "Purged artifact ids cannot be restored"
+                        )
+                    incoming_payload = record.payload
+                    existing_payload = self.read_payload(stored)
+                    if incoming_payload is None and record.payload_ref == stored.payload_ref:
+                        incoming_payload = existing_payload
+                    if _immutable_record_material(
+                        stored, existing_payload
+                    ) != _immutable_record_material(record, incoming_payload):
+                        raise ArtifactStoreError(
+                            "artifact_immutable",
+                            "Existing "
+                            + record.artifact_type
+                            + " artifact ids cannot be overwritten with different content",
+                        )
+                    prepared.append(
+                        (
+                            stored,
+                            stored.payload_ref,
+                            stored.payload,
+                            str(existing["checksum_sha256"] or "") or None,
+                            existing["payload_size_bytes"],
+                        )
+                    )
+                    continue
+                payload_ref = record.payload_ref
+                payload_inline = record.payload
+                checksum = None
+                size_bytes = None
+                if record.payload is not None:
+                    payload_bytes = _json_bytes(record.payload)
+                    checksum = hashlib.sha256(payload_bytes).hexdigest()
+                    size_bytes = len(payload_bytes)
+                    if record.storage_backend == "project_artifact_payload":
+                        payload_ref = self._write_payload(record.artifact_id, payload_bytes)
+                        created_payloads.append(self._payload_path_from_ref(payload_ref))
+                        payload_inline = None
+                prepared.append(
+                    (record, payload_ref, payload_inline, checksum, size_bytes)
+                )
             with self._connect(immediate=True) as conn:
                 for record, payload_ref, payload_inline, checksum, size_bytes in prepared:
                     if record.artifact_id in existing_rows:
@@ -263,9 +277,7 @@ class SqliteArtifactStoreAdapter:
                         size_bytes=size_bytes,
                     )
         except Exception:
-            for payload_path in created_payloads:
-                if payload_path.exists():
-                    payload_path.unlink()
+            self._cleanup_created_payloads(created_payloads)
             raise
         stored_records: list[ArtifactRecord] = []
         for artifact_id in artifact_ids:
@@ -1801,7 +1813,7 @@ class SqliteArtifactStoreAdapter:
 
     def _ensure_schema(self) -> None:
         self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
-        self.payload_root.mkdir(parents=True, exist_ok=True)
+        self.payload_root.mkdir(mode=0o700, parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.execute(
                 """
@@ -2080,12 +2092,11 @@ class SqliteArtifactStoreAdapter:
 
     def _write_payload(self, artifact_id: str, payload_bytes: bytes) -> str:
         payload_ref = self._canonical_payload_ref(artifact_id)
-        target = (self.payload_root / payload_ref).resolve()
-        root = self.payload_root.resolve()
-        if root not in target.parents:
-            raise ArtifactStoreError("artifact_payload_unavailable", "Payload path escaped root")
+        root = self._checked_payload_root()
+        target = root / payload_ref
         try:
-            with target.open("xb") as stream:
+            descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, "wb") as stream:
                 stream.write(payload_bytes)
         except FileExistsError as exc:
             raise ArtifactStoreError(
@@ -2095,10 +2106,20 @@ class SqliteArtifactStoreAdapter:
         return str(target.relative_to(root)).replace("\\", "/")
 
     def _payload_path_from_ref(self, payload_ref: str) -> Path:
-        if payload_ref.startswith("/") or ".." in Path(payload_ref).parts:
+        if (
+            not payload_ref
+            or Path(payload_ref).name != payload_ref
+            or payload_ref.startswith(".")
+            or ":" in payload_ref
+        ):
             raise ArtifactStoreError("artifact_payload_unavailable", "Payload ref is malformed")
-        target = (self.payload_root / payload_ref).resolve()
-        root = self.payload_root.resolve()
+        root = self._checked_payload_root()
+        lexical_target = root / payload_ref
+        if self._is_reparse_point(lexical_target):
+            raise ArtifactStoreError(
+                "artifact_payload_unavailable", "Payload ref is not a regular store file"
+            )
+        target = lexical_target.resolve()
         if root not in target.parents and target != root:
             raise ArtifactStoreError("artifact_payload_unavailable", "Payload ref escaped root")
         return target
@@ -2124,9 +2145,99 @@ class SqliteArtifactStoreAdapter:
 
     @staticmethod
     def _canonical_payload_ref(artifact_id: str) -> str:
-        if "/" in artifact_id or "\\" in artifact_id:
+        if (
+            not artifact_id
+            or artifact_id.startswith(".")
+            or any(character in artifact_id for character in "/\\")
+            or any(ord(character) < 32 for character in artifact_id)
+        ):
             raise ArtifactStoreError("artifact_not_found", "Artifact id is malformed")
+        if any(
+            character
+            not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-"
+            for character in artifact_id
+        ):
+            return f"artifact-{hashlib.sha256(artifact_id.encode('utf-8')).hexdigest()}.json"
         return f"{artifact_id}.json"
+
+    def _preflight_payload_root(self) -> Path:
+        try:
+            root = self.payload_root.resolve(strict=True)
+            if (
+                not root.is_dir()
+                or self.payload_root.is_symlink()
+                or self._is_reparse_point(self.payload_root)
+            ):
+                raise OSError("unsafe payload root")
+            if os.name != "nt" and stat.S_IMODE(root.stat().st_mode) & 0o077:
+                raise OSError("payload root permissions are not private")
+            probe = root / f".artifact-store-probe-{secrets.token_urlsafe(12)}"
+            descriptor = os.open(probe, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(b"artifact-store-preflight")
+            if probe.read_bytes() != b"artifact-store-preflight":
+                raise OSError("payload root read failed")
+            probe.unlink()
+            return root
+        except OSError as exc:
+            try:
+                if "probe" in locals() and probe.exists():
+                    probe.unlink()
+            except OSError:
+                pass
+            raise ArtifactStoreError(
+                "artifact_store_unavailable",
+                "Artifact payload root failed private read/write/delete preflight",
+            ) from exc
+
+    def _checked_payload_root(self) -> Path:
+        try:
+            root = self.payload_root.resolve(strict=True)
+        except OSError as exc:
+            raise ArtifactStoreError(
+                "artifact_payload_unavailable", "Artifact payload root is unavailable"
+            ) from exc
+        if (
+            self.payload_root.is_symlink()
+            or self._is_reparse_point(self.payload_root)
+            or (
+                self._payload_root_anchor is not None
+                and root != self._payload_root_anchor
+            )
+            or (
+                self._payload_root_identity is not None
+                and (root.stat().st_dev, root.stat().st_ino)
+                != self._payload_root_identity
+            )
+        ):
+            raise ArtifactStoreError(
+                "artifact_payload_unavailable", "Artifact payload root changed"
+            )
+        return root
+
+    @staticmethod
+    def _is_reparse_point(path: Path) -> bool:
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            return False
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+        return path.is_symlink() or bool(reparse_flag and attributes & reparse_flag)
+
+    @staticmethod
+    def _cleanup_created_payloads(payload_paths: list[Path]) -> None:
+        cleanup_failed = False
+        for payload_path in reversed(payload_paths):
+            try:
+                payload_path.unlink(missing_ok=True)
+            except OSError:
+                cleanup_failed = True
+        if cleanup_failed:
+            raise ArtifactStoreError(
+                "artifact_payload_cleanup_failed",
+                "Artifact payload cleanup did not complete",
+            )
 
     def _validate_stored_payload_locator(self, row: sqlite3.Row) -> None:
         artifact_id = str(row["artifact_id"])

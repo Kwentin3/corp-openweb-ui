@@ -13,6 +13,18 @@ from unittest.mock import patch
 
 import pytest
 
+from broker_reports_gate1.artifact_models import (
+    PRIVATE_BINARY_ARTIFACT_TYPE,
+    ArtifactAccessContext,
+    ArtifactStoreError,
+    RetentionPolicy,
+)
+from broker_reports_gate1.artifact_resolver import ArtifactResolver
+from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
+from broker_reports_gate1.bounded_graph import (
+    Gate1BoundedGraphConfig,
+    Gate1BoundedGraphFactory,
+)
 from broker_reports_gate1.inputs import FileInput
 from broker_reports_gate1.normalizer import Gate1Normalizer
 from broker_reports_gate1.pdf_document_ai import (
@@ -22,6 +34,7 @@ from broker_reports_gate1.pdf_document_ai import (
     PdfDocumentImageRef,
     PdfSourceContext,
     UnconfiguredPdfDocumentExtractor,
+    is_terminal_pdf_document_ai_request,
 )
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 
@@ -78,6 +91,37 @@ class _OfflineFixtureExtractor:
 
 class _SecondOfflineFixtureExtractor(_OfflineFixtureExtractor):
     pass
+
+
+class _OfflineImageFixtureExtractor(_OfflineFixtureExtractor):
+    def extract(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+    ) -> PdfDocumentExtraction:
+        image_bytes = b"\x89PNG\r\n\x1a\nneutral-image"
+        markdown = b"# Exact offline fixture\n\n![image](img-0.png)"
+        return PdfDocumentExtraction(
+            source_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+            page_numbers=tuple(range(1, source_context.preflight_page_count + 1)),
+            markdown_bytes=markdown,
+            markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+            image_refs=(
+                PdfDocumentImageRef(
+                    page_number=1,
+                    markdown_target="img-0.png",
+                    local_ref="pdfimg_normalizer_fixture",
+                    sha256=hashlib.sha256(image_bytes).hexdigest(),
+                    media_type="image/png",
+                    content_bytes=image_bytes,
+                ),
+            ),
+            provider_id="offline_fixture_provider",
+            model_id="offline_fixture_model",
+            adapter_id="offline_fixture_adapter_v1",
+            qualification_status="offline_fixture",
+            usage_page_count=source_context.preflight_page_count,
+        )
 
 
 def test_production_factory_is_sole_fail_closed_composition() -> None:
@@ -529,6 +573,101 @@ def test_offline_adapters_with_same_envelope_have_identical_representation_hando
     ]
 
 
+def _bounded_pdf_normalization(tmp_path: Path):
+    pdf_input = _input(PUBLIC_PDF.read_bytes())
+    normalizer = Gate1Normalizer(
+        _pdf_document_extractor=_OfflineImageFixtureExtractor()
+    )
+    run_id = normalizer.plan_run_id([pdf_input])
+    context = ArtifactAccessContext(
+        user_id="pdf-normalizer-user",
+        normalization_run_id=run_id,
+        case_id="pdf-normalizer-case",
+        chat_id="pdf-normalizer-chat",
+        workspace_model_id="pdf-normalizer-workspace",
+        allow_private=True,
+    )
+    retention = RetentionPolicy(
+        mode="synthetic_dev",
+        ttl_seconds=None,
+        expires_at=None,
+        explicit=True,
+    )
+    store = ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=tmp_path / "artifacts.sqlite3",
+            payload_root=tmp_path / "payloads",
+        )
+    ).create()
+    graph = Gate1BoundedGraphFactory(
+        Gate1BoundedGraphConfig(
+            store=store,
+            context=context,
+            retention_policy=retention,
+            source_file_refs=(
+                {
+                    "provider": "openwebui",
+                    "openwebui_file_id": "pdf-normalizer-upload",
+                    "content_type": "application/pdf",
+                    "source_deleted": False,
+                },
+            ),
+        )
+    ).create(normalization_run_id=run_id)
+    return normalizer, pdf_input, store, graph, context, retention
+
+
+def test_normalizer_routes_pdf_markdown_unit_and_image_through_atomic_graph(
+    tmp_path: Path,
+) -> None:
+    normalizer, pdf_input, store, graph, context, _retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+
+    result = normalizer.normalize([pdf_input], bounded_graph=graph)
+
+    payload = result.package["private_normalized_source_payloads"][0]
+    association = payload["document_ai_image_refs"][0]
+    assert graph.refs_by_type[PRIVATE_BINARY_ARTIFACT_TYPE] == [
+        association["local_ref"]
+    ]
+    resolved = ArtifactResolver(store).resolve_private_binary(
+        association["local_ref"],
+        context,
+        expected_sha256=association["sha256"],
+    )
+    assert resolved["content"].startswith(b"\x89PNG")
+
+
+def test_normalizer_turns_atomic_pdf_publication_failure_into_blocker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    normalizer, pdf_input, store, graph, _context, _retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+
+    def fail_atomic(_records: object) -> None:
+        raise ArtifactStoreError("artifact_atomic_write_failed", "synthetic")
+
+    monkeypatch.setattr(store, "put_records_atomic", fail_atomic)
+    result = normalizer.normalize([pdf_input], bounded_graph=graph)
+
+    assert {
+        item["reason_code"]
+        for item in result.package["normalization_blockers"]
+        if item["reason_code"] == "PDF_DOCUMENT_ARTIFACT_PUBLICATION_FAILED"
+    } == {"PDF_DOCUMENT_ARTIFACT_PUBLICATION_FAILED"}
+    assert result.package["private_normalized_source_payloads"] == []
+    assert result.package["private_normalized_source_units"] == []
+    assert PRIVATE_BINARY_ARTIFACT_TYPE not in graph.refs_by_type
+
+    assert is_terminal_pdf_document_ai_request(
+        result.package["document_inventory"]["documents"],
+        result.package["normalization_blockers"],
+    )
+
+
 @pytest.mark.parametrize(
     "local_ref",
     (
@@ -548,7 +687,9 @@ def test_image_ref_rejects_escape_and_absolute_path_mutations(local_ref: str) ->
             page_number=1,
             markdown_target="image.png",
             local_ref=local_ref,
-            sha256="0" * 64,
+            sha256=hashlib.sha256(b"image").hexdigest(),
+            media_type="image/png",
+            content_bytes=b"image",
         )
 
 
