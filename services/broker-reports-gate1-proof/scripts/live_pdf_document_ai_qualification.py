@@ -101,16 +101,6 @@ def _require_clean_committed_head() -> str:
 
 
 def _require_green_actions(head: str) -> None:
-    pr = _gh_json(["gh", "pr", "view", "--json", "headRefOid,state,isDraft,number"])
-    if (
-        pr.get("headRefOid") != head
-        or pr.get("state") != "OPEN"
-        or pr.get("isDraft") is not False
-        or type(pr.get("number")) is not int
-    ):
-        raise PdfDocumentAiQualificationError(
-            "pdf_document_ai_qualification_ci_not_green_for_head"
-        )
     checks = _gh_json(
         [
             "gh",
@@ -133,15 +123,64 @@ def _require_green_actions(head: str) -> None:
         if isinstance(checks, list)
         else []
     )
-    if (
-        len(matching) != 1
-        or matching[0].get("status") != "completed"
-        or matching[0].get("conclusion") != "success"
-        or not any(
-            isinstance(item, dict) and item.get("number") == pr["number"]
-            for item in matching[0].get("pull_requests", [])
+    if len(matching) != 1 or matching[0].get("status") != "completed" or matching[
+        0
+    ].get("conclusion") != "success":
+        raise PdfDocumentAiQualificationError(
+            "pdf_document_ai_qualification_ci_not_green_for_head"
         )
-    ):
+    pull_requests = matching[0].get("pull_requests")
+    if not isinstance(pull_requests, list):
+        raise PdfDocumentAiQualificationError(
+            "pdf_document_ai_qualification_ci_not_green_for_head"
+        )
+    pr_numbers = [
+        item.get("number")
+        for item in pull_requests
+        if isinstance(item, dict) and type(item.get("number")) is int
+    ]
+    if pr_numbers:
+        if len(pr_numbers) != 1:
+            raise PdfDocumentAiQualificationError(
+                "pdf_document_ai_qualification_ci_not_green_for_head"
+            )
+        pr = _gh_json(
+            [
+                "gh",
+                "pr",
+                "view",
+                str(pr_numbers[0]),
+                "--json",
+                "headRefOid,state,isDraft,number",
+            ]
+        )
+        if (
+            pr.get("headRefOid") == head
+            and pr.get("state") == "OPEN"
+            and pr.get("isDraft") is False
+            and pr.get("number") == pr_numbers[0]
+        ):
+            return
+        raise PdfDocumentAiQualificationError(
+            "pdf_document_ai_qualification_ci_not_green_for_head"
+        )
+
+    repository = _gh_json(["gh", "repo", "view", "--json", "defaultBranchRef"])
+    default_branch_ref = repository.get("defaultBranchRef")
+    default_branch = (
+        default_branch_ref.get("name")
+        if isinstance(default_branch_ref, dict)
+        else None
+    )
+    if not isinstance(default_branch, str) or not default_branch:
+        raise PdfDocumentAiQualificationError(
+            "pdf_document_ai_qualification_ci_not_green_for_head"
+        )
+    branch = _gh_json(
+        ["gh", "api", f"repos/{{owner}}/{{repo}}/branches/{default_branch}"]
+    )
+    commit = branch.get("commit")
+    if not isinstance(commit, dict) or commit.get("sha") != head:
         raise PdfDocumentAiQualificationError(
             "pdf_document_ai_qualification_ci_not_green_for_head"
         )

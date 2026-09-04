@@ -171,8 +171,9 @@ config OpenWebUI; не добавлять ключ в Git, Broker Reports valves
 `PDF_DOCUMENT_AI_LIVE_QUALIFIED = False`: наличие native-настроек само по себе
 не открывает сеть. Смена gate должна идти отдельным review после live-квалификации.
 
-До ввода ключа проверить qualification plan из чистого exact HEAD открытого PR
-с зелёным `broker-reports-ci`:
+До ввода ключа проверить qualification plan из чистого exact HEAD с зелёным
+`broker-reports-ci`. HEAD должен быть либо точной вершиной открытого non-draft
+PR, либо точной текущей вершиной default branch после merge:
 
 ```bash
 python services/broker-reports-gate1-proof/scripts/live_pdf_document_ai_qualification.py --preflight-only

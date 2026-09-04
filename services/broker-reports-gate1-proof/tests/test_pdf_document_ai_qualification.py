@@ -307,12 +307,6 @@ def test_repository_or_exact_ci_failure_is_terminal_before_execution(
     responses = iter(
         (
             {
-                "headRefOid": HEAD,
-                "state": "OPEN",
-                "isDraft": False,
-                "number": 376,
-            },
-            {
                 "check_runs": [
                     {
                         "name": "broker-reports-ci",
@@ -330,6 +324,90 @@ def test_repository_or_exact_ci_failure_is_terminal_before_execution(
     with pytest.raises(PdfDocumentAiQualificationError) as ci:
         module._require_green_actions(HEAD)
     assert ci.value.code == "pdf_document_ai_qualification_ci_not_green_for_head"
+
+
+def test_exact_green_open_pr_head_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _script_module()
+    responses = iter(
+        (
+            {
+                "check_runs": [
+                    {
+                        "name": "broker-reports-ci",
+                        "head_sha": HEAD,
+                        "status": "completed",
+                        "conclusion": "success",
+                        "app": {"slug": "github-actions"},
+                        "pull_requests": [{"number": 377}],
+                    }
+                ]
+            },
+            {
+                "headRefOid": HEAD,
+                "state": "OPEN",
+                "isDraft": False,
+                "number": 377,
+            },
+        )
+    )
+    monkeypatch.setattr(module, "_gh_json", lambda _command: next(responses))
+    module._require_green_actions(HEAD)
+
+
+def test_exact_green_default_branch_head_is_accepted_after_merge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _script_module()
+    responses = iter(
+        (
+            {
+                "check_runs": [
+                    {
+                        "name": "broker-reports-ci",
+                        "head_sha": HEAD,
+                        "status": "completed",
+                        "conclusion": "success",
+                        "app": {"slug": "github-actions"},
+                        "pull_requests": [],
+                    }
+                ]
+            },
+            {"defaultBranchRef": {"name": "main"}},
+            {"commit": {"sha": HEAD}},
+        )
+    )
+    monkeypatch.setattr(module, "_gh_json", lambda _command: next(responses))
+    module._require_green_actions(HEAD)
+
+
+def test_green_unassociated_non_default_branch_head_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _script_module()
+    responses = iter(
+        (
+            {
+                "check_runs": [
+                    {
+                        "name": "broker-reports-ci",
+                        "head_sha": HEAD,
+                        "status": "completed",
+                        "conclusion": "success",
+                        "app": {"slug": "github-actions"},
+                        "pull_requests": [],
+                    }
+                ]
+            },
+            {"defaultBranchRef": {"name": "main"}},
+            {"commit": {"sha": "c" * 40}},
+        )
+    )
+    monkeypatch.setattr(module, "_gh_json", lambda _command: next(responses))
+    with pytest.raises(PdfDocumentAiQualificationError) as caught:
+        module._require_green_actions(HEAD)
+    assert caught.value.code == "pdf_document_ai_qualification_ci_not_green_for_head"
 
 
 def test_cli_exposes_no_arbitrary_provider_or_fixture_inputs() -> None:
