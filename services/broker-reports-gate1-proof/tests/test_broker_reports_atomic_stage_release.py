@@ -427,7 +427,8 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             "image": {
                 **manifest["image"],
                 "running": True,
-                "restart_count": 0,
+                "restart_count": 1,
+                "health_status": "healthy",
             },
             "loader_sha256": manifest["loader"]["content_sha256"],
             "workload": {
@@ -730,7 +731,8 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 "image": {
                     **manifest["image"],
                     "running": True,
-                    "restart_count": 0,
+                    "restart_count": 1,
+                    "health_status": "healthy",
                 },
                 "action": {
                     **manifest["action"],

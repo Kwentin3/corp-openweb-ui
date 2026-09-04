@@ -174,7 +174,7 @@ def evaluate_remote_runtime(
             )
         ),
         "image_running_clean": image.get("running") is True
-        and image.get("restart_count") == 0,
+        and image.get("health_status") == "healthy",
         "loader_hash_exact": runtime.get("loader_sha256")
         == expected_manifest["loader"]["content_sha256"],
         "workload_quiescent": workload.get("release_blocking_jobs") == 0,
@@ -365,6 +365,9 @@ print(json.dumps({
         "image_id": container.get("Image"),
         "running": bool(container.get("State", {}).get("Running")),
         "restart_count": int(container.get("RestartCount") or 0),
+        "health_status": (container.get("State", {}).get("Health") or {}).get(
+            "Status"
+        ),
         "source_revision": labels.get("org.opencontainers.image.revision"),
         "private_intake_contract": labels.get(
             "ai.alpha-soft.broker-reports-private-intake"),
