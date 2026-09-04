@@ -40,7 +40,7 @@ RELEASE_QUIESCENT_WORKLOAD_STATES = {
     *TERMINAL_WORKLOAD_STATES,
     "awaiting_review",
 }
-MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v9"
+MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v10"
 
 
 class StageReleaseError(RuntimeError):
@@ -426,6 +426,9 @@ def _image_state() -> dict[str, Any]:
         "image_id": container.get("Image"),
         "running": bool(container.get("State", {}).get("Running")),
         "restart_count": int(container.get("RestartCount") or 0),
+        "health_status": (container.get("State", {}).get("Health") or {}).get(
+            "Status"
+        ),
         "source_revision": labels.get("org.opencontainers.image.revision"),
         "private_intake_contract": labels.get(
             "ai.alpha-soft.broker-reports-private-intake"
@@ -572,7 +575,7 @@ def _assert_static_contracts(
     ):
         if image.get(key) != expected_image.get(key):
             raise StageReleaseError(f"stage_release_image_{key}_mismatch")
-    if image.get("running") is not True or image.get("restart_count") != 0:
+    if image.get("running") is not True or image.get("health_status") != "healthy":
         raise StageReleaseError("stage_release_image_runtime_state_invalid")
     expected_action = manifest["action"]
     action = state["action"]
