@@ -158,6 +158,19 @@ Post-bootstrap password rotation не blocker PRD-0. После стабилиз
 - проверить API key, quota, region/billing и exact model id;
 - сохранить результат без секретов в приватном deployment note.
 
+### Gate активации Mistral OCR для PDF
+
+Не включать Mistral OCR в рамках обычного deployment. Значение
+`CONTENT_EXTRACTION_ENGINE=mistral_ocr` действует глобально: все новые PDF,
+обрабатываемые штатным OpenWebUI Knowledge/RAG, могут быть отправлены в
+Mistral. `MISTRAL_OCR_API_KEY` хранить только через Admin UI в native persistent
+config OpenWebUI; не добавлять ключ в Git, Broker Reports valves или другие
+копии конфигурации. Активация и любые live-вызовы разрешены только после
+отдельного одобрения владельца и отдельной квалификации. Текущий статический
+релиз дополнительно закрыт кодовым gate
+`PDF_DOCUMENT_AI_LIVE_QUALIFIED = False`: наличие native-настроек само по себе
+не открывает сеть. Смена gate должна идти отдельным review после live-квалификации.
+
 ## 14. Проверить LLM-ответ
 
 Администратор или тестовый пользователь задает простой рабочий вопрос.

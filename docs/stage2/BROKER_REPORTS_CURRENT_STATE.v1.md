@@ -2,16 +2,20 @@
 
 Status: `CURRENT_WITH_HISTORICAL_APPENDIX`
 
-Effective date: 2026-09-03
+Effective date: 2026-09-04
 
 [Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) is the
-current normative route authority. Issue #372 replaces the PDF portion of the older state inventory. PDF source
+current normative route authority. Issue #374 updates the PDF portion of the
+older state inventory. PDF source
 custody and safe preflight remain active. PDF understanding is isolated behind
 the single `PdfDocumentExtractor` port and one composition factory. No live
-adapter is configured, so production PDF intake terminates with typed
-`PDF_DOCUMENT_AI_NOT_CONFIGURED` before network access and before Canonical or
-Source Facts publication. Mistral is the selected first future adapter but its
-transport, exact model and qualification are not implemented. PDFPlumber,
+adapter is live-qualified or configured for production. An absent or
+unselected engine terminates with `PDF_DOCUMENT_AI_NOT_CONFIGURED`; selected
+Mistral terminates with `PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED` while
+the code-owned admission is false. Both stop before credential or network
+access and before Canonical or Source Facts publication. The static Mistral
+adapter and exact model transport are implemented; live qualification and
+activation are not. PDFPlumber,
 pdfminer, PyMuPDF, Camelot, Docling, VLM/bbox, hybrid, dual-engine and repair
 routes are retired with no fallback. CSV, TXT, HTML, XML, XLSX, DOCX,
 archive/ZIP and image boundaries retain their existing status.

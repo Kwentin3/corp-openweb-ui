@@ -147,6 +147,12 @@ _REASON_POLICIES: dict[tuple[str, str], _ReasonPolicy] = {
         "PDF Document AI is not configured. Contact the administrator.",
         frozenset({"document_profiling"}),
     ),
+    ("failed", "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED"): _ReasonPolicy(
+        False,
+        "contact_operator",
+        "PDF Document AI requires a separately approved live qualification.",
+        frozenset({"document_profiling"}),
+    ),
     ("partial", "atom_budget_exceeded"): _ReasonPolicy(
         True,
         "use_partial_result",

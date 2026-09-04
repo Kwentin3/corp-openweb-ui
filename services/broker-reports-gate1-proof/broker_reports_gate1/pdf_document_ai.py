@@ -2,14 +2,20 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
-from pathlib import PurePosixPath, PureWindowsPath
-from typing import Protocol, runtime_checkable
+from dataclasses import dataclass, field
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Any, Protocol, runtime_checkable
 
 
-PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v1"
-PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v1"
+PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v2"
+PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v2"
 PDF_DOCUMENT_AI_NOT_CONFIGURED = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
+PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED = (
+    "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED"
+)
+# Release admission is code-owned. Native OpenWebUI configuration is necessary,
+# but it is not evidence that the production route has been qualified.
+PDF_DOCUMENT_AI_LIVE_QUALIFIED = False
 _SAFE_TECHNICAL_SUMMARY_KEYS = {
     "document_bytes",
     "images_count",
@@ -20,34 +26,52 @@ _SAFE_TECHNICAL_SUMMARY_KEYS = {
 
 @dataclass(frozen=True)
 class PdfDocumentImageRef:
+    page_number: int
+    markdown_target: str
     local_ref: str
     sha256: str
 
     def __post_init__(self) -> None:
-        windows_path = PureWindowsPath(self.local_ref)
-        posix_path = PurePosixPath(self.local_ref)
-        if (
-            not self.local_ref
-            or "\x00" in self.local_ref
-            or "://" in self.local_ref
-            or windows_path.drive
-            or windows_path.root
-            or windows_path.is_absolute()
-            or posix_path.is_absolute()
-            or ".." in windows_path.parts
-            or ".." in posix_path.parts
-        ):
-            raise ValueError("pdf_document_image_ref_must_be_closed_local")
+        if type(self.page_number) is not int or self.page_number < 1:
+            raise ValueError("pdf_document_image_page_number_invalid")
+        _require_closed_relative_ref(
+            self.markdown_target,
+            "pdf_document_image_markdown_target_must_be_closed_relative",
+        )
+        _require_closed_relative_ref(
+            self.local_ref,
+            "pdf_document_image_ref_must_be_closed_local",
+        )
         _require_sha256(self.sha256, "pdf_document_image_sha256_invalid")
+
+
+def _require_closed_relative_ref(value: str, code: str) -> None:
+    if not isinstance(value, str):
+        raise ValueError(code)
+    windows_path = PureWindowsPath(value)
+    posix_path = PurePosixPath(value)
+    if (
+        not value
+        or value == "."
+        or "\x00" in value
+        or "://" in value
+        or windows_path.drive
+        or windows_path.root
+        or windows_path.is_absolute()
+        or posix_path.is_absolute()
+        or ".." in windows_path.parts
+        or ".." in posix_path.parts
+    ):
+        raise ValueError(code)
 
 
 @dataclass(frozen=True)
 class PdfDocumentExtraction:
-    source_pdf_sha256: str
+    source_pdf_sha256: str = field(repr=False)
     page_numbers: tuple[int, ...]
-    markdown_bytes: bytes
-    markdown_sha256: str
-    image_refs: tuple[PdfDocumentImageRef, ...]
+    markdown_bytes: bytes = field(repr=False)
+    markdown_sha256: str = field(repr=False)
+    image_refs: tuple[PdfDocumentImageRef, ...] = field(repr=False)
     provider_id: str
     model_id: str
     adapter_id: str
@@ -77,6 +101,16 @@ class PdfDocumentExtraction:
             raise ValueError("pdf_document_qualification_status_invalid")
         if len({item.local_ref for item in self.image_refs}) != len(self.image_refs):
             raise ValueError("pdf_document_image_ref_duplicate")
+        if any(item.page_number not in self.page_numbers for item in self.image_refs):
+            raise ValueError("pdf_document_image_page_not_in_document")
+        image_pages = tuple(item.page_number for item in self.image_refs)
+        if image_pages != tuple(sorted(image_pages)):
+            raise ValueError("pdf_document_image_page_order_invalid")
+        associations = {
+            (item.page_number, item.markdown_target) for item in self.image_refs
+        }
+        if len(associations) != len(self.image_refs):
+            raise ValueError("pdf_document_image_association_duplicate")
         summary_keys = [key for key, _value in self.safe_technical_summary]
         if len(set(summary_keys)) != len(summary_keys):
             raise ValueError("pdf_document_safe_summary_key_duplicate")
@@ -141,6 +175,21 @@ class UnconfiguredPdfDocumentExtractor:
         raise PdfDocumentExtractionError(PDF_DOCUMENT_AI_NOT_CONFIGURED)
 
 
+class RejectedPdfDocumentExtractor:
+    """Keep a static configuration failure inside the normal PDF boundary."""
+
+    def __init__(self, code: str) -> None:
+        self._code = code
+
+    def extract(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+    ) -> PdfDocumentExtraction:
+        del pdf_bytes, source_context
+        raise PdfDocumentExtractionError(self._code)
+
+
 class PdfDocumentExtractorFactory:
     """The sole production composition point for PDF understanding."""
 
@@ -148,8 +197,35 @@ class PdfDocumentExtractorFactory:
     FORBIDDEN = "Automatic provider selection, retry and fallback are forbidden"
 
     @staticmethod
-    def create() -> PdfDocumentExtractor:
-        return UnconfiguredPdfDocumentExtractor()
+    def create(
+        *,
+        server_request: Any = None,
+        image_root: Path | None = None,
+    ) -> PdfDocumentExtractor:
+        if server_request is None:
+            return UnconfiguredPdfDocumentExtractor()
+        try:
+            engine = str(
+                server_request.app.state.config.CONTENT_EXTRACTION_ENGINE or ""
+            ).lower()
+        except (AttributeError, TypeError):
+            return UnconfiguredPdfDocumentExtractor()
+        if engine != "mistral_ocr":
+            return UnconfiguredPdfDocumentExtractor()
+        if not PDF_DOCUMENT_AI_LIVE_QUALIFIED:
+            return RejectedPdfDocumentExtractor(
+                PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
+            )
+        from .mistral_pdf_document_ai import create_from_openwebui_request
+
+        try:
+            configured = create_from_openwebui_request(
+                server_request=server_request,
+                image_root=image_root,
+            )
+        except PdfDocumentExtractionError as exc:
+            return RejectedPdfDocumentExtractor(exc.code)
+        return configured or UnconfiguredPdfDocumentExtractor()
 
 
 def is_terminal_pdf_document_ai_request(
@@ -167,7 +243,11 @@ def is_terminal_pdf_document_ai_request(
     blocked_document_refs = {
         str(blocker.get("document_id") or "")
         for blocker in blockers
-        if blocker.get("code") == PDF_DOCUMENT_AI_NOT_CONFIGURED
+        if blocker.get("code")
+        in {
+            PDF_DOCUMENT_AI_NOT_CONFIGURED,
+            PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
+        }
         and str(blocker.get("document_id") or "") in pdf_document_refs
     }
     if not blocked_document_refs:

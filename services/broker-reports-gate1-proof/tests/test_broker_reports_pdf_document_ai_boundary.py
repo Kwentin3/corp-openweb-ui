@@ -544,7 +544,12 @@ def test_offline_adapters_with_same_envelope_have_identical_representation_hando
 )
 def test_image_ref_rejects_escape_and_absolute_path_mutations(local_ref: str) -> None:
     with pytest.raises(ValueError, match="pdf_document_image_ref_must_be_closed_local"):
-        PdfDocumentImageRef(local_ref=local_ref, sha256="0" * 64)
+        PdfDocumentImageRef(
+            page_number=1,
+            markdown_target="image.png",
+            local_ref=local_ref,
+            sha256="0" * 64,
+        )
 
 
 @pytest.mark.parametrize(
