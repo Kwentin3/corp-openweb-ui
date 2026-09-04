@@ -52,6 +52,17 @@ retention, expiry, purge and source-deletion cascade. Its private-root preflight
 checks read/write/delete access and rejects root identity changes and
 symlink/reparse roots. The adapter owns no filesystem path or staging area.
 
+The qualification-only Pipe keeps that same atomic private graph alive for one
+short same-user review lease. Through the existing private OpenWebUI interaction
+callback, the user sees the exact Full Source Markdown and every associated
+image resolved with its stored SHA-256. The verdict covers the fixed checklist
+and must echo a digest bound to the live Markdown/image hashes, fixture and code
+HEAD. Cross-user or cross-case access fails closed. Success, rejection, expiry,
+abort and error all end by purging the run and verifying read denial. The safe
+receipt contains only hashes, counts and status; it never contains Markdown or
+image bytes. This is temporary inspection, not a second route, store, archive,
+provider client or lifecycle owner.
+
 PDFPlumber, pdfminer, PyMuPDF, Camelot, Docling, VLM/bbox reconstruction,
 hybrid/dual-engine execution, structural repair, and automatic fallback are
 rejected product paths. An engine may be introduced only as one adapter behind
@@ -86,3 +97,9 @@ The script must not toggle this setting itself. Source uploads are made with
 the existing source-deletion lifecycle and purge/read denial is verified.
 `PDF_DOCUMENT_AI_LIVE_QUALIFIED` remains false throughout; activation requires
 a later owner-approved change.
+
+`--review-lifecycle-dry-run` exercises the same private ArtifactStore review
+lease with synthetic bytes after exact-HEAD CI verification. It performs zero
+native configuration reads, key reads, provider calls and external sends, then
+proves Full Source/image readback and purge without exposing their content in
+its receipt.

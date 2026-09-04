@@ -111,6 +111,12 @@ def test_exact_admin_command_runs_two_real_pipe_slices_then_purges(
         "create",
         lambda **_kwargs: _QualificationExtractor(),
     )
+    private_review_events = []
+
+    async def event_call(event):
+        private_review_events.append(event)
+        return True
+
     content = asyncio.run(
         _pipe(tmp_path).pipe(
             _body(),
@@ -119,11 +125,12 @@ def test_exact_admin_command_runs_two_real_pipe_slices_then_purges(
                 "chat_id": "qualification-chat",
                 "model_id": "broker_reports_gate1_pipe",
             },
+            __event_call__=event_call,
         )
     )
     receipt = json.loads(content)
 
-    assert receipt["status"] == "succeeded"
+    assert receipt["status"] == "succeeded", json.dumps(receipt, sort_keys=True)
     assert receipt["provider_call_slots_consumed_total"] == 2
     assert [item["status"] for item in receipt["outcomes"]] == [
         "succeeded",
@@ -136,6 +143,10 @@ def test_exact_admin_command_runs_two_real_pipe_slices_then_purges(
             )
         )
     ) == 2
+    assert private_review_events
+    assert all(item["type"] == "confirmation" for item in private_review_events)
+    assert "Qualified public fixture" not in content
+    assert all(item["review"]["status"] == "passed" for item in receipt["outcomes"])
 
 
 def test_qualification_command_rejects_non_admin_before_any_slot(

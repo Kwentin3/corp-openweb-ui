@@ -121,6 +121,12 @@ from broker_reports_gate1.pdf_document_ai_qualification import (
     PdfDocumentAiQualificationExecutor,
     PdfDocumentAiQualificationPlanFactory,
 )
+from broker_reports_gate1.pdf_document_ai_qualification_review import (
+    PDF_DOCUMENT_AI_REVIEW_CHECKS,
+    PdfDocumentAiQualificationReviewFactory,
+    PdfDocumentAiQualificationReviewVerdict,
+    PdfDocumentAiQualificationReviewView,
+)
 from broker_reports_gate1.gate2_model_clients import (
     Gate2StructuredModelClientFactory,
 )
@@ -166,6 +172,7 @@ _COMPLETED_WITH_REVIEW_ADVISORY = "completed_with_review_advisory"
 NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS = 45.0
 NDFL_PRESENTATION_MAX_RESPONSE_BYTES = 1024 * 1024
 PDF_DOCUMENT_AI_QUALIFICATION_COMMAND = "PDF Document AI live qualification"
+PDF_DOCUMENT_AI_QUALIFICATION_REVIEW_TTL_SECONDS = 15 * 60
 
 
 class _NdflPresentationNoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -328,6 +335,7 @@ class Pipe:
                 files=__files__,
                 messages=__messages__,
                 event_emitter=__event_emitter__,
+                event_call=__event_call__,
                 kwargs=kwargs,
             )
         if "broker_reports_declaration_action" in safe_body:
@@ -621,6 +629,7 @@ class Pipe:
         files: Any,
         messages: Any,
         event_emitter: Any,
+        event_call: Any,
         kwargs: dict[str, Any],
     ) -> str:
         """Bind the exact two-slot qualification to the real authenticated Pipe."""
@@ -702,12 +711,16 @@ class Pipe:
                 __files__=[file_ref["_private_file_obj"]],
                 __messages__=None,
                 __event_emitter__=event_emitter,
+                __event_call__=event_call,
                 __pdf_document_ai_qualification_permit__=runner_input[
                     "qualification_permit"
                 ],
                 __pdf_document_ai_qualification_only__=True,
                 __pdf_document_ai_qualification_expected_image_count__=runner_input[
                     "expected_image_count"
+                ],
+                __pdf_document_ai_qualification_fixture_id__=runner_input[
+                    "fixture_id"
                 ],
                 **safe_kwargs,
             )
@@ -730,6 +743,83 @@ class Pipe:
         )
         return json.dumps(receipt, ensure_ascii=False, sort_keys=True)
 
+    @staticmethod
+    def _qualification_reviewer(event_call: Any):
+        """Adapt the existing private OpenWebUI interaction to one review verdict."""
+
+        async def review(
+            view: PdfDocumentAiQualificationReviewView,
+        ) -> PdfDocumentAiQualificationReviewVerdict:
+            if not callable(event_call):
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_private_review_required"
+                )
+            chunks = [
+                view.markdown[index : index + 5_000]
+                for index in range(0, len(view.markdown), 5_000)
+            ] or [""]
+            for ordinal, chunk in enumerate(chunks, start=1):
+                accepted = await event_call(
+                    {
+                        "type": "confirmation",
+                        "data": {
+                            "title": (
+                                f"Private PDF review: {view.fixture_id} "
+                                f"Markdown {ordinal}/{len(chunks)}"
+                            ),
+                            "message": chunk,
+                        },
+                    }
+                )
+                if accepted is not True:
+                    raise PdfDocumentAiQualificationError(
+                        "pdf_document_ai_qualification_review_aborted"
+                    )
+            for ordinal, (target, content, media_type) in enumerate(
+                view.images, start=1
+            ):
+                encoded = base64.b64encode(content).decode("ascii")
+                accepted = await event_call(
+                    {
+                        "type": "confirmation",
+                        "data": {
+                            "title": (
+                                f"Private PDF review: {view.fixture_id} "
+                                f"image {ordinal}/{len(view.images)}"
+                            ),
+                            "message": (
+                                f"{target}\n\n![private image]"
+                                f"(data:{media_type};base64,{encoded})"
+                            ),
+                        },
+                    }
+                )
+                if accepted is not True:
+                    raise PdfDocumentAiQualificationError(
+                        "pdf_document_ai_qualification_review_aborted"
+                    )
+            checks: dict[str, bool] = {}
+            for check in PDF_DOCUMENT_AI_REVIEW_CHECKS:
+                value = await event_call(
+                    {
+                        "type": "confirmation",
+                        "data": {
+                            "title": f"Private PDF review: {view.fixture_id}",
+                            "message": (
+                                f"Confirm `{check}` for live output digest "
+                                f"`{view.live_output_digest}`."
+                            ),
+                        },
+                    }
+                )
+                checks[check] = value is True
+            return PdfDocumentAiQualificationReviewVerdict(
+                live_output_digest=view.live_output_digest,
+                checks=checks,
+            )
+
+        return review
+
     async def _run_workload(
         self,
         body: dict,
@@ -749,6 +839,9 @@ class Pipe:
         )
         qualification_expected_image_count = kwargs.pop(
             "__pdf_document_ai_qualification_expected_image_count__", None
+        )
+        qualification_fixture_id = kwargs.pop(
+            "__pdf_document_ai_qualification_fixture_id__", None
         )
         await self._emit(
             __event_emitter__,
@@ -805,6 +898,11 @@ class Pipe:
         )
         file_inputs = [self._to_file_input(file_ref) for file_ref in file_refs]
         retention_policy = self._retention_policy(safe_body, safe_metadata)
+        if qualification_only:
+            retention_policy = build_retention_policy(
+                mode="expires_after_ttl",
+                ttl_seconds=PDF_DOCUMENT_AI_QUALIFICATION_REVIEW_TTL_SECONDS,
+            )
         normalizer = Gate1Normalizer(
             _server_request=__request__,
             _pdf_image_root=Path(self.valves.artifact_payload_root),
@@ -871,7 +969,6 @@ class Pipe:
                 retention_policy=retention_policy,
                 source_file_refs=self._source_file_refs(file_refs),
             )
-            resolver = ArtifactResolver(artifact_store)
             private_full_source_refs = list(
                 artifact_manifest.artifact_refs_by_type.get(
                     "private_normalized_source_payload_v0", []
@@ -881,54 +978,33 @@ class Pipe:
                 raise PdfDocumentAiQualificationError(
                     "pdf_document_ai_qualification_full_source_missing"
                 )
-            image_associations: list[dict[str, Any]] = []
-            for artifact_ref in private_full_source_refs:
-                resolved = resolver.resolve(artifact_ref, artifact_context)
-                payload = resolved.get("payload")
-                if not isinstance(payload, dict):
-                    raise PdfDocumentAiQualificationError(
-                        "pdf_document_ai_qualification_full_source_invalid"
-                    )
-                image_associations.extend(payload.get("document_ai_image_refs") or [])
-            if (
-                type(qualification_expected_image_count) is not int
-                or len(image_associations) != qualification_expected_image_count
-            ):
+            if type(qualification_expected_image_count) is not int:
                 raise PdfDocumentAiQualificationError(
                     "pdf_document_ai_qualification_image_count_mismatch"
                 )
-            for association in image_associations:
-                if not isinstance(association, dict):
-                    raise PdfDocumentAiQualificationError(
-                        "pdf_document_ai_qualification_image_association_invalid"
-                    )
-                resolver.resolve_private_binary(
-                    str(association.get("local_ref") or ""),
-                    artifact_context,
-                    expected_sha256=str(association.get("sha256") or ""),
-                )
-            purge = artifact_store.purge_run(artifact_context)
-            if purge.status != "changed":
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_purge_failed"
-                )
-            for artifact_ref in private_full_source_refs:
-                try:
-                    resolver.resolve(artifact_ref, artifact_context)
-                except ArtifactStoreError as exc:
-                    if exc.code == "artifact_purged":
-                        continue
-                    raise
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_purge_failed"
-                )
+            expires_at = datetime.fromisoformat(str(retention_policy.expires_at))
+            review = await PdfDocumentAiQualificationReviewFactory.create(
+                store=artifact_store,
+                context=artifact_context,
+                full_source_refs=private_full_source_refs,
+                repository_head=str(
+                    self.valves.pdf_document_ai_qualification_repository_head or ""
+                ),
+                fixture_id=str(qualification_fixture_id or ""),
+                expected_image_count=qualification_expected_image_count,
+                expires_at=expires_at,
+            ).review(
+                actor_context=artifact_context,
+                reviewer=self._qualification_reviewer(__event_call__),
+            )
             return {
-                "status": "succeeded",
+                "status": "succeeded" if review["status"] == "passed" else "failed",
                 "normalization_run_id": artifact_manifest.normalization_run_id,
                 "private_full_source_readback": True,
-                "private_image_readback_count": len(image_associations),
+                "private_image_readback_count": qualification_expected_image_count,
                 "private_artifacts_purged": True,
                 "provider_calls_total": 1,
+                "review": review,
             }
         if is_terminal_pdf_document_ai_request(
             result.package.get("document_inventory", {}).get("documents", []),
