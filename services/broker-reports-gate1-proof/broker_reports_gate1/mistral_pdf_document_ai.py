@@ -57,7 +57,7 @@ class ClosedLocalImageBatchMaterializer:
         self._root = root.resolve()
 
     def materialize(
-        self, encoded_images: Sequence[str]
+        self, encoded_images: Sequence[tuple[int, str, str]]
     ) -> tuple[tuple[PdfDocumentImageRef, ...], Path | None]:
         if len(encoded_images) > _MAX_IMAGES:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED")
@@ -83,7 +83,9 @@ class ClosedLocalImageBatchMaterializer:
         total_bytes = 0
         try:
             staging.mkdir(mode=0o700, exist_ok=False)
-            for ordinal, encoded in enumerate(encoded_images, start=1):
+            for ordinal, (page_number, markdown_target, encoded) in enumerate(
+                encoded_images, start=1
+            ):
                 image_bytes, extension = _decode_image(encoded)
                 total_bytes += len(image_bytes)
                 if total_bytes > _MAX_TOTAL_IMAGE_BYTES:
@@ -108,6 +110,8 @@ class ClosedLocalImageBatchMaterializer:
                     )
                 refs.append(
                     PdfDocumentImageRef(
+                        page_number=page_number,
+                        markdown_target=markdown_target,
                         local_ref=f"pdf_document_images/batch-{batch_id}/{name}",
                         sha256=digest,
                     )
@@ -186,7 +190,7 @@ class MistralPdfDocumentExtractor:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_PAGE_COUNT_MISMATCH")
 
         markdown_parts: list[bytes] = []
-        encoded_images: list[str] = []
+        encoded_images: list[tuple[int, str, str]] = []
         for expected_index, page in enumerate(pages):
             if not isinstance(page, Mapping):
                 raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
@@ -218,7 +222,9 @@ class MistralPdfDocumentExtractor:
                 ):
                     raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_IMAGE_INVALID")
                 page_image_ids.append(image_id)
-                encoded_images.append(image["image_base64"])
+                encoded_images.append(
+                    (expected_index + 1, image_id, image["image_base64"])
+                )
             markdown_image_targets = re.findall(
                 r"!\[[^\]\r\n]*\]\(([^\s)]+)", markdown
             )

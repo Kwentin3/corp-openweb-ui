@@ -223,11 +223,21 @@ def evaluate_route_activation(
         ),
         "pdf_document_ai_contract_identity_exact": (
             document_ai.get("configured") is False
+            and document_ai.get("adapter_status") == "static_ready"
+            and document_ai.get("selected_engine") == "mistral_ocr"
+            and document_ai.get("selected_adapter")
+            == "mistral_serverless_ocr_adapter_v1"
+            and document_ai.get("static_ready") is True
+            and document_ai.get("live_qualified") is False
             and document_ai.get("composition_owner")
             == "PdfDocumentExtractorFactory"
-            and document_ai.get("terminal_blocker")
-            == "PDF_DOCUMENT_AI_NOT_CONFIGURED"
-            and runtime.get("pdf_document_ai_configured") is False
+            and document_ai.get("terminal_blockers")
+            == {
+                "unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+                "selected_unqualified": "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED",
+            }
+            and runtime.get("pdf_document_ai_static_ready") is True
+            and runtime.get("pdf_document_ai_live_qualified") is False
             and runtime.get("legacy_table_route_available") is False
         ),
     }

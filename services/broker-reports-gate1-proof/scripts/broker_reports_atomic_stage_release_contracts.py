@@ -14,8 +14,14 @@ from broker_reports_gate1.architecture_policy import (
     KNOWLEDGE_RAG_VECTORIZATION_ALLOWED,
     LOCAL_OCR_PRODUCTION_ALLOWED,
     LOCAL_OCR_WORKER_POOL_ALLOWED,
+    PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED,
+    PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED,
+    PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER,
+    PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE,
+    PDF_DOCUMENT_EXTRACTION_STATIC_READY,
 )
 from broker_reports_gate1.pdf_document_ai import (
+    PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
     PDF_DOCUMENT_AI_NOT_CONFIGURED,
     PDF_DOCUMENT_AI_POLICY_VERSION,
     PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION,
@@ -25,7 +31,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 
-SCHEMA_VERSION = "broker_reports_atomic_stage_release_v8"
+SCHEMA_VERSION = "broker_reports_atomic_stage_release_v9"
 RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -316,7 +322,8 @@ def build_manifest(
         "managed_prompts": prompts,
         "provider_policy": dict(provider_policy),
         "runtime": {
-            "pdf_document_ai_configured": False,
+            "pdf_document_ai_static_ready": PDF_DOCUMENT_EXTRACTION_STATIC_READY,
+            "pdf_document_ai_live_qualified": PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED,
             "legacy_table_route_available": False,
             "release_quiescent_workload_states": sorted(
                 RELEASE_QUIESCENT_WORKLOAD_STATES
@@ -390,7 +397,8 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         raise ValueError("stage_release_manifest_loader_invalid")
     runtime = manifest.get("runtime") or {}
     if (
-        runtime.get("pdf_document_ai_configured") is not False
+        runtime.get("pdf_document_ai_static_ready") is not True
+        or runtime.get("pdf_document_ai_live_qualified") is not False
         or runtime.get("legacy_table_route_available") is not False
         or runtime.get("release_quiescent_workload_states")
         != sorted(RELEASE_QUIESCENT_WORKLOAD_STATES)
@@ -425,11 +433,19 @@ def provider_policy_manifest(provider_profiles: tuple[Any, ...]) -> dict[str, An
 
 def pdf_document_ai_contract_manifest() -> dict[str, Any]:
     return {
-        "configured": False,
+        "configured": PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED,
+        "adapter_status": "static_ready",
+        "selected_engine": PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE,
+        "selected_adapter": PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER,
+        "static_ready": PDF_DOCUMENT_EXTRACTION_STATIC_READY,
+        "live_qualified": PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED,
         "policy_version": PDF_DOCUMENT_AI_POLICY_VERSION,
         "extraction_schema_version": PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION,
         "composition_owner": "PdfDocumentExtractorFactory",
-        "terminal_blocker": PDF_DOCUMENT_AI_NOT_CONFIGURED,
+        "terminal_blockers": {
+            "unconfigured": PDF_DOCUMENT_AI_NOT_CONFIGURED,
+            "selected_unqualified": PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
+        },
         "automatic_fallback": False,
         "runtime_boundary": {
             "architecture_policy_version": ARCHITECTURE_POLICY_VERSION,

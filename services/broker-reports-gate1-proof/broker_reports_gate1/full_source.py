@@ -198,7 +198,12 @@ class FullSourceArtifactBuilder:
             "qualification_status": extraction.qualification_status,
         }
         image_refs = [
-            {"local_ref": item.local_ref, "sha256": item.sha256}
+            {
+                "page_number": item.page_number,
+                "markdown_target": item.markdown_target,
+                "local_ref": item.local_ref,
+                "sha256": item.sha256,
+            }
             for item in extraction.image_refs
         ]
         descriptor = {

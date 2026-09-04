@@ -4,7 +4,7 @@ Status: `CURRENT`
 
 Classification: `CURRENT AUTHORITY`
 
-Updated: 2026-09-03 (Issue #372 PDF Document AI boundary)
+Updated: 2026-09-04 (Issue #374 PDF Document AI static adapter)
 
 ```text
 CURRENT_PIPELINE_AUTHORITY = ONE
@@ -26,6 +26,8 @@ PDF_DOCUMENT_OWNER = PdfDocumentExtractor
 PDF_DOCUMENT_RESULT = PdfDocumentExtraction
 PDF_DOCUMENT_COMPOSITION = ONE_EXPLICIT_FACTORY
 PDF_DOCUMENT_DEFAULT = PDF_DOCUMENT_AI_NOT_CONFIGURED
+PDF_DOCUMENT_SELECTED_UNQUALIFIED = PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
+PDF_DOCUMENT_LIVE_ADMISSION = FALSE
 PDF_DOCUMENT_FALLBACK = FORBIDDEN
 ```
 
@@ -40,9 +42,12 @@ The current ordinary-security-trade product composition is exactly:
 broker_reports_gate1_pipe
   -> authenticated bytes / source custody / PDF preflight
   -> PdfDocumentExtractorFactory.create
-     -> UnconfiguredPdfDocumentExtractor
+     -> absent or unselected engine
         -> PDF_DOCUMENT_AI_NOT_CONFIGURED -> STOP
-     -> one explicitly configured, separately qualified adapter (future only)
+     -> selected Mistral engine while code-owned live admission is false
+        -> PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED -> STOP
+     -> implemented Mistral adapter only after separate live qualification and
+        activation
         -> PdfDocumentExtraction
   -> Gate1Normalizer / persist_gate1_result
   -> immutable active CanonicalArtifactV1
@@ -246,7 +251,9 @@ responsibility without executing the historically named Gate 3 runtime:
 ACTIVE ORDINARY SECURITY TRADES
 
 PDF -> source custody / safe preflight -> PdfDocumentExtractor
-    -> PDF_DOCUMENT_AI_NOT_CONFIGURED until separate integration/qualification
+    -> absent or unselected engine: PDF_DOCUMENT_AI_NOT_CONFIGURED
+    -> selected Mistral while live admission is false:
+       PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
     -> provider-neutral PdfDocumentExtraction -> existing Full Source / Canonical
     -> exact mapping + matching qualification receipt
     -> Source Observations
@@ -307,10 +314,16 @@ broker-neutral visual region
 Markdown hashes, ordered pages, closed local image references with hashes,
 provider/model/adapter provenance, qualification status, page usage, and a
 text-free safe technical summary. It does not reconstruct tables, repair
-content, choose financial meaning, or publish Canonical. The only current PDF
-terminal before a separately qualified adapter is
-`PDF_DOCUMENT_AI_NOT_CONFIGURED`; no local parser, OpenWebUI extractor, VLM,
-retry, or alternative engine may run as fallback. Exact rules are in
+content, choose financial meaning, or publish Canonical. For every provider
+image, the adapter preserves one ordered association:
+`page_number + markdown_target -> local_ref + sha256`; positional
+reconstruction is forbidden. An absent
+or unselected engine terminates with `PDF_DOCUMENT_AI_NOT_CONFIGURED`; a
+selected Mistral engine terminates with
+`PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED` while code-owned live admission
+is false. The static adapter and transport exist, but no live qualification or
+activation is claimed. No local parser, OpenWebUI extractor, VLM, retry, or
+alternative engine may run as fallback. Exact rules are in
 [the current PDF Document AI ADR](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 
 | Entrypoint / artifact | Status | Authority boundary |
@@ -322,7 +335,7 @@ retry, or alternative engine may run as fallback. Exact rules are in
 | `NdflWorkflowFactory.create().run_product_path` | `DEPLOYMENT ROLLBACK ONLY` | historical Gate 2 -> Gate 3 financial execution; never semantic fallback |
 | `Gate3ChunkBatchLabelingFactory.create` | `DEPLOYMENT ROLLBACK ONLY` | historical model-based financial semantic extraction |
 | `Gate4FinancialCaseRuntimeFactory.create` | `DEPLOYMENT ROLLBACK ONLY FOR ORDINARY TRADE` | historical Gate 3-backed normalized facts and case reads |
-| `PdfDocumentExtractorFactory.create` | `PRODUCT/FAIL_CLOSED` | one explicit adapter selection; unconfigured by default; no fallback |
+| `PdfDocumentExtractorFactory.create` | `PRODUCT/STATIC READY; LIVE BLOCKED` | one explicit adapter selection; absent/unselected engine and selected-but-unqualified engine have distinct typed terminals; implemented Mistral adapter remains unreachable until separate live qualification and activation; no fallback |
 | `PdfDocumentExtractor.extract` | `PRODUCT PORT` | provider-neutral extraction only; no Canonical or financial semantics |
 | `Gate3LlmMetadataAdapterFactory.create` | `SUPPORTING` | best-effort metadata proposal, no tax/financial authority |
 | `Gate3MetadataSourceFactRuntimeFactory.create` | `SUPPORTING` | current supporting metadata publication/read boundary |

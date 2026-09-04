@@ -20,8 +20,13 @@ from broker_reports_gate1.architecture_policy import (
     PDF_DOCUMENT_EXTRACTION_COMPOSITION_ROOT,
     PDF_DOCUMENT_EXTRACTION_DEFAULT,
     PDF_DOCUMENT_EXTRACTION_ENVELOPE,
+    PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED,
     PDF_DOCUMENT_EXTRACTION_PORT,
     PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED,
+    PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER,
+    PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE,
+    PDF_DOCUMENT_EXTRACTION_SELECTED_UNQUALIFIED_CODE,
+    PDF_DOCUMENT_EXTRACTION_STATIC_READY,
     PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE,
     PROVIDER_OUTPUT_AUTHORITY,
     WORKLOAD_ADMISSION,
@@ -284,7 +289,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v24",
+            "broker_reports_architecture_policy_v25",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -460,8 +465,19 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
             PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE,
             "PDF_DOCUMENT_AI_NOT_CONFIGURED",
         )
-        self.assertFalse(PDF_DOCUMENT_EXTRACTION_AUTOMATIC_FALLBACK_ALLOWED)
+        self.assertEqual(
+            PDF_DOCUMENT_EXTRACTION_SELECTED_UNQUALIFIED_CODE,
+            "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED",
+        )
+        self.assertEqual(PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE, "mistral_ocr")
+        self.assertEqual(
+            PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER,
+            "mistral_serverless_ocr_adapter_v1",
+        )
+        self.assertTrue(PDF_DOCUMENT_EXTRACTION_STATIC_READY)
+        self.assertFalse(PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED)
         self.assertFalse(PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED)
+        self.assertFalse(PDF_DOCUMENT_EXTRACTION_AUTOMATIC_FALLBACK_ALLOWED)
         self.assertFalse(LOCAL_OCR_PRODUCTION_ALLOWED)
         self.assertFalse(LOCAL_OCR_WORKER_POOL_ALLOWED)
         self.assertEqual(PROVIDER_OUTPUT_AUTHORITY, "document_ai_representation_only")
@@ -531,7 +547,9 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertEqual(violations, [])
 
     def test_pdf_document_ai_component_is_explicitly_classified(self):
-        expected = {"pdf_document_ai": "unconfigured_fail_closed"}
+        expected = {
+            "pdf_document_ai": "static_ready_live_qualification_blocked"
+        }
         self.assertEqual(
             {key: COMPONENT_RUNTIME_STATUSES.get(key) for key in expected},
             expected,

@@ -7,8 +7,8 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Protocol, runtime_checkable
 
 
-PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v1"
-PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v1"
+PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v2"
+PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v2"
 PDF_DOCUMENT_AI_NOT_CONFIGURED = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
 PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED = (
     "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED"
@@ -26,25 +26,43 @@ _SAFE_TECHNICAL_SUMMARY_KEYS = {
 
 @dataclass(frozen=True)
 class PdfDocumentImageRef:
+    page_number: int
+    markdown_target: str
     local_ref: str
     sha256: str
 
     def __post_init__(self) -> None:
-        windows_path = PureWindowsPath(self.local_ref)
-        posix_path = PurePosixPath(self.local_ref)
-        if (
-            not self.local_ref
-            or "\x00" in self.local_ref
-            or "://" in self.local_ref
-            or windows_path.drive
-            or windows_path.root
-            or windows_path.is_absolute()
-            or posix_path.is_absolute()
-            or ".." in windows_path.parts
-            or ".." in posix_path.parts
-        ):
-            raise ValueError("pdf_document_image_ref_must_be_closed_local")
+        if type(self.page_number) is not int or self.page_number < 1:
+            raise ValueError("pdf_document_image_page_number_invalid")
+        _require_closed_relative_ref(
+            self.markdown_target,
+            "pdf_document_image_markdown_target_must_be_closed_relative",
+        )
+        _require_closed_relative_ref(
+            self.local_ref,
+            "pdf_document_image_ref_must_be_closed_local",
+        )
         _require_sha256(self.sha256, "pdf_document_image_sha256_invalid")
+
+
+def _require_closed_relative_ref(value: str, code: str) -> None:
+    if not isinstance(value, str):
+        raise ValueError(code)
+    windows_path = PureWindowsPath(value)
+    posix_path = PurePosixPath(value)
+    if (
+        not value
+        or value == "."
+        or "\x00" in value
+        or "://" in value
+        or windows_path.drive
+        or windows_path.root
+        or windows_path.is_absolute()
+        or posix_path.is_absolute()
+        or ".." in windows_path.parts
+        or ".." in posix_path.parts
+    ):
+        raise ValueError(code)
 
 
 @dataclass(frozen=True)
@@ -83,6 +101,16 @@ class PdfDocumentExtraction:
             raise ValueError("pdf_document_qualification_status_invalid")
         if len({item.local_ref for item in self.image_refs}) != len(self.image_refs):
             raise ValueError("pdf_document_image_ref_duplicate")
+        if any(item.page_number not in self.page_numbers for item in self.image_refs):
+            raise ValueError("pdf_document_image_page_not_in_document")
+        image_pages = tuple(item.page_number for item in self.image_refs)
+        if image_pages != tuple(sorted(image_pages)):
+            raise ValueError("pdf_document_image_page_order_invalid")
+        associations = {
+            (item.page_number, item.markdown_target) for item in self.image_refs
+        }
+        if len(associations) != len(self.image_refs):
+            raise ValueError("pdf_document_image_association_duplicate")
         summary_keys = [key for key, _value in self.safe_technical_summary]
         if len(set(summary_keys)) != len(summary_keys):
             raise ValueError("pdf_document_safe_summary_key_duplicate")

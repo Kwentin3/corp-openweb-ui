@@ -40,7 +40,7 @@ RELEASE_QUIESCENT_WORKLOAD_STATES = {
     *TERMINAL_WORKLOAD_STATES,
     "awaiting_review",
 }
-MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v8"
+MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v9"
 
 
 class StageReleaseError(RuntimeError):
@@ -131,10 +131,36 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> None:
     material.pop("manifest_sha256", None)
     if _sha256_text(_canonical_json(material)) != supplied:
         raise StageReleaseError("stage_release_manifest_digest_mismatch")
-    if (manifest.get("runtime") or {}).get(
-        "release_quiescent_workload_states"
-    ) != sorted(RELEASE_QUIESCENT_WORKLOAD_STATES):
+    runtime = manifest.get("runtime") or {}
+    if runtime.get("release_quiescent_workload_states") != sorted(
+        RELEASE_QUIESCENT_WORKLOAD_STATES
+    ):
         raise StageReleaseError("stage_release_workload_policy_invalid")
+    if (
+        runtime.get("pdf_document_ai_static_ready") is not True
+        or runtime.get("pdf_document_ai_live_qualified") is not False
+    ):
+        raise StageReleaseError("stage_release_pdf_document_ai_admission_invalid")
+    document_ai = (manifest.get("provider_policy") or {}).get(
+        "pdf_document_ai_contract"
+    ) or {}
+    if (
+        document_ai.get("configured") is not False
+        or document_ai.get("adapter_status") != "static_ready"
+        or document_ai.get("selected_engine") != "mistral_ocr"
+        or document_ai.get("selected_adapter")
+        != "mistral_serverless_ocr_adapter_v1"
+        or document_ai.get("static_ready") is not True
+        or document_ai.get("live_qualified") is not False
+        or document_ai.get("composition_owner") != "PdfDocumentExtractorFactory"
+        or document_ai.get("automatic_fallback") is not False
+        or document_ai.get("terminal_blockers")
+        != {
+            "unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+            "selected_unqualified": "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED",
+        }
+    ):
+        raise StageReleaseError("stage_release_pdf_document_ai_contract_invalid")
     functions = manifest.get("functions") or []
     if not functions or any(not isinstance(item, dict) for item in functions):
         raise StageReleaseError("stage_release_function_contract_invalid")

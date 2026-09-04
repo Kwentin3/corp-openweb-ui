@@ -211,7 +211,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(list(RETIRED_FUNCTION_IDS), manifest["retired_function_ids"])
         self.assertEqual(12, len(manifest["managed_prompts"]))
         self.assertEqual(
-            "broker_reports_atomic_stage_release_v8",
+            "broker_reports_atomic_stage_release_v9",
             manifest["schema_version"],
         )
         self.assertTrue(
@@ -245,19 +245,33 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             [contract.function_id for contract in FUNCTION_CONTRACTS],
             [item["function_id"] for item in manifest["functions"]],
         )
-        self.assertFalse(manifest["runtime"]["pdf_document_ai_configured"])
+        self.assertTrue(manifest["runtime"]["pdf_document_ai_static_ready"])
+        self.assertFalse(manifest["runtime"]["pdf_document_ai_live_qualified"])
         self.assertFalse(manifest["runtime"]["legacy_table_route_available"])
         self.assertNotIn(
             "semantic_visual_table_contract", manifest["provider_policy"]
         )
         document_ai = manifest["provider_policy"]["pdf_document_ai_contract"]
         self.assertFalse(document_ai["configured"])
+        self.assertEqual("static_ready", document_ai["adapter_status"])
+        self.assertEqual("mistral_ocr", document_ai["selected_engine"])
+        self.assertEqual(
+            "mistral_serverless_ocr_adapter_v1", document_ai["selected_adapter"]
+        )
+        self.assertTrue(document_ai["static_ready"])
+        self.assertFalse(document_ai["live_qualified"])
         self.assertEqual("PdfDocumentExtractorFactory", document_ai["composition_owner"])
-        self.assertEqual("PDF_DOCUMENT_AI_NOT_CONFIGURED", document_ai["terminal_blocker"])
+        self.assertEqual(
+            {
+                "unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+                "selected_unqualified": "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED",
+            },
+            document_ai["terminal_blockers"],
+        )
         self.assertFalse(document_ai["automatic_fallback"])
         self.assertEqual(
             {
-                "architecture_policy_version": "broker_reports_architecture_policy_v24",
+                "architecture_policy_version": "broker_reports_architecture_policy_v25",
                 "knowledge_rag_vectorization_allowed": False,
                 "local_ocr_production_allowed": False,
                 "local_ocr_worker_pool_allowed": False,
@@ -282,10 +296,27 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
 
     def test_manifest_digest_tampering_fails_closed(self):
         manifest = _manifest()
-        manifest["runtime"]["pdf_document_ai_configured"] = True
+        manifest["runtime"]["pdf_document_ai_live_qualified"] = True
 
         with self.assertRaisesRegex(ValueError, "manifest_digest_mismatch"):
             validate_manifest(manifest)
+
+    def test_resealed_manifest_cannot_open_pdf_document_ai_live_admission(self):
+        manifest = _manifest()
+        manifest["runtime"]["pdf_document_ai_live_qualified"] = True
+        manifest["manifest_sha256"] = remote._sha256_text(
+            remote._canonical_json(
+                {key: value for key, value in manifest.items() if key != "manifest_sha256"}
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "current_route_invalid"):
+            validate_manifest(manifest)
+        with self.assertRaisesRegex(
+            remote.StageReleaseError,
+            "stage_release_pdf_document_ai_admission_invalid",
+        ):
+            remote._validate_manifest(manifest)
 
     def test_release_valves_remove_retired_pdf_routes(self):
         function_id = FUNCTION_CONTRACTS[0].function_id
@@ -493,6 +524,15 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             gate1_valves=drifted,
         )
         self.assertFalse(failed["pdf_document_ai_fail_closed"])
+
+        manifest["provider_policy"]["pdf_document_ai_contract"][
+            "terminal_blockers"
+        ].pop("selected_unqualified")
+        contract_failed = evaluate_route_activation(
+            expected_manifest=manifest,
+            gate1_valves=FUNCTION_CONTRACTS[0].valves,
+        )
+        self.assertFalse(contract_failed["pdf_document_ai_contract_identity_exact"])
 
     def test_local_driver_surfaces_only_typed_safe_remote_error(self):
         completed = subprocess.CompletedProcess(

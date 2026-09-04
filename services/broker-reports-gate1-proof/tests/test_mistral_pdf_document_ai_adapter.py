@@ -5,6 +5,7 @@ import base64
 import hashlib
 import io
 import json
+import re
 import traceback
 from collections.abc import Mapping
 from pathlib import Path
@@ -47,6 +48,17 @@ PUBLIC_PDF = next(
     (REPO_ROOT / "docs" / "reports" / "2026-09-02" / "artifacts").glob(
         "*/fidelity/source.pdf"
     )
+)
+FIDELITY_FIXTURE_ROOT = PUBLIC_PDF.parent
+FIDELITY_IMAGE_ASSOCIATIONS = (
+    (1, "img-0.jpeg", "1b669fc6f1d25f31511b3de2b69a2e16359340f0509115be59f07499b6b08f9b"),
+    (3, "img-1.jpeg", "471d69e259ed61018654fb9f4e46a55a70bff2019a10d901b5be913ac778bf83"),
+    (4, "img-2.jpeg", "20038d0abdbd9377a33961f8d3cca668ec9548d49c3986bece2446d2891fedf9"),
+    (8, "img-3.jpeg", "d3f4c9f2871cb6d82e2a9ff96044a4d2a3a16760b073d4ab0d3bafbeb6e95878"),
+    (19, "img-4.jpeg", "7f3c2dc4bfb5573915d32ab011c6325df9bcc1aac7331de66a3b0ed249ae5723"),
+    (20, "img-5.jpeg", "a8470376c926d1e6141718ad9a429cc75319ecb20a4f6588dc211af1a05fc44b"),
+    (24, "img-6.jpeg", "a8470376c926d1e6141718ad9a429cc75319ecb20a4f6588dc211af1a05fc44b"),
+    (25, "img-7.jpeg", "a8470376c926d1e6141718ad9a429cc75319ecb20a4f6588dc211af1a05fc44b"),
 )
 
 
@@ -130,7 +142,9 @@ def _extractor(
     )
 
 
-def _assert_one_post(opener: _FakeOpener) -> dict[str, Any]:
+def _assert_one_post(
+    opener: _FakeOpener, *, expected_pdf_bytes: bytes = PDF_BYTES
+) -> dict[str, Any]:
     assert len(opener.calls) == 1
     request, timeout = opener.calls[0]
     assert request.get_method() == "POST"
@@ -144,7 +158,10 @@ def _assert_one_post(opener: _FakeOpener) -> dict[str, Any]:
         "model": MISTRAL_OCR_MODEL,
         "document": {
             "type": "document_url",
-            "document_url": f"data:application/pdf;base64,{PDF_BASE64}",
+            "document_url": (
+                "data:application/pdf;base64,"
+                + base64.b64encode(expected_pdf_bytes).decode("ascii")
+            ),
         },
         "include_image_base64": True,
     }
@@ -199,6 +216,8 @@ def test_success_maps_ordered_multi_page_empty_page_and_image_once(tmp_path: Pat
     assert result.markdown_sha256 == hashlib.sha256(result.markdown_bytes).hexdigest()
     assert len(result.image_refs) == 1
     image_ref = result.image_refs[0]
+    assert image_ref.page_number == 1
+    assert image_ref.markdown_target == "img-0.png"
     assert image_ref.sha256 == hashlib.sha256(PNG_BYTES).hexdigest()
     assert (tmp_path / image_ref.local_ref).read_bytes() == PNG_BYTES
     result_text = repr(result)
@@ -207,6 +226,175 @@ def test_success_maps_ordered_multi_page_empty_page_and_image_once(tmp_path: Pat
     assert PDF_BASE64 not in result_text
     assert PDF_BYTES.decode("ascii") not in result_text
     assert RAW_PROVIDER_SECRET not in result_text
+
+
+def _fidelity_offline_pages() -> tuple[str, list[dict[str, object]]]:
+    markdown = (FIDELITY_FIXTURE_ROOT / "mistral-markdown.md").read_text(
+        encoding="utf-8"
+    )
+    by_page = {
+        page_number: target
+        for page_number, target, _sha256 in FIDELITY_IMAGE_ASSOCIATIONS
+    }
+    pages: list[dict[str, object]] = []
+    cursor = 0
+    footers = tuple(re.finditer(r"(?m)^(\d+) of 28$", markdown))
+    assert tuple(int(match.group(1)) for match in footers) == tuple(range(1, 29))
+    for page_number, footer in enumerate(footers, start=1):
+        page_markdown = markdown[cursor : footer.end()]
+        cursor = footer.end()
+        if page_number < 28:
+            assert markdown[cursor : cursor + 2] == "\n\n"
+            cursor += 2
+        target = by_page.get(page_number)
+        images: list[dict[str, str]] = []
+        if target is not None:
+            assert f"]({target})" in page_markdown
+            encoded = base64.b64encode(
+                (FIDELITY_FIXTURE_ROOT / target).read_bytes()
+            ).decode("ascii")
+            images.append(
+                {
+                    "id": target,
+                    "image_base64": f"data:image/jpeg;base64,{encoded}",
+                }
+            )
+        pages.append(
+            {"index": page_number - 1, "markdown": page_markdown, "images": images}
+        )
+    assert cursor == len(markdown)
+    return markdown, pages
+
+
+def test_fidelity_offline_fixture_preserves_all_eight_image_associations(
+    tmp_path: Path,
+) -> None:
+    markdown, pages = _fidelity_offline_pages()
+    pdf_bytes = PUBLIC_PDF.read_bytes()
+    opener = _FakeOpener(_FakeResponse(_response(pages)))
+    source_context = PdfSourceContext(
+        document_ref="fidelity-public-offline-fixture",
+        expected_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+        preflight_page_count=28,
+    )
+
+    result = _extractor(tmp_path, opener).extract(pdf_bytes, source_context)
+
+    _assert_one_post(opener, expected_pdf_bytes=pdf_bytes)
+    assert result.markdown_bytes == markdown.encode("utf-8")
+    assert tuple(
+        (ref.page_number, ref.markdown_target, ref.sha256)
+        for ref in result.image_refs
+    ) == FIDELITY_IMAGE_ASSOCIATIONS
+    assert len(result.image_refs) == 8
+    for ref in result.image_refs:
+        stored = tmp_path / ref.local_ref
+        assert stored.read_bytes() == (
+            FIDELITY_FIXTURE_ROOT / ref.markdown_target
+        ).read_bytes()
+        assert hashlib.sha256(stored.read_bytes()).hexdigest() == ref.sha256
+    repeated_hash_refs = [
+        ref
+        for ref in result.image_refs
+        if ref.sha256 == FIDELITY_IMAGE_ASSOCIATIONS[-1][2]
+    ]
+    assert [(ref.page_number, ref.markdown_target) for ref in repeated_hash_refs] == [
+        (20, "img-5.jpeg"),
+        (24, "img-6.jpeg"),
+        (25, "img-7.jpeg"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("page_number", "markdown_target", "expected_error"),
+    (
+        (0, "img.png", "pdf_document_image_page_number_invalid"),
+        (True, "img.png", "pdf_document_image_page_number_invalid"),
+        (1, "../img.png", "pdf_document_image_markdown_target_must_be_closed_relative"),
+        (1, "https://example.invalid/img.png", "pdf_document_image_markdown_target_must_be_closed_relative"),
+    ),
+)
+def test_neutral_image_ref_rejects_invalid_page_or_escaping_target(
+    page_number: object, markdown_target: str, expected_error: str
+) -> None:
+    with pytest.raises(ValueError, match=expected_error):
+        PdfDocumentImageRef(
+            page_number=page_number,  # type: ignore[arg-type]
+            markdown_target=markdown_target,
+            local_ref="pdf_document_images/batch/image.png",
+            sha256="0" * 64,
+        )
+
+
+def _neutral_extraction(
+    image_refs: tuple[PdfDocumentImageRef, ...],
+) -> PdfDocumentExtraction:
+    markdown = b"page one\n\npage two"
+    return PdfDocumentExtraction(
+        source_pdf_sha256="0" * 64,
+        page_numbers=(1, 2),
+        markdown_bytes=markdown,
+        markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+        image_refs=image_refs,
+        provider_id="offline_fixture_provider",
+        model_id="offline_fixture_model",
+        adapter_id="offline_fixture_adapter_v1",
+        qualification_status="offline_fixture",
+        usage_page_count=2,
+    )
+
+
+@pytest.mark.parametrize(
+    ("image_refs", "expected_error"),
+    (
+        (
+            (
+                PdfDocumentImageRef(3, "img.png", "images/a.png", "0" * 64),
+            ),
+            "pdf_document_image_page_not_in_document",
+        ),
+        (
+            (
+                PdfDocumentImageRef(2, "b.png", "images/b.png", "0" * 64),
+                PdfDocumentImageRef(1, "a.png", "images/a.png", "1" * 64),
+            ),
+            "pdf_document_image_page_order_invalid",
+        ),
+        (
+            (
+                PdfDocumentImageRef(1, "same.png", "images/a.png", "0" * 64),
+                PdfDocumentImageRef(1, "same.png", "images/b.png", "1" * 64),
+            ),
+            "pdf_document_image_association_duplicate",
+        ),
+        (
+            (
+                PdfDocumentImageRef(1, "a.png", "images/same.png", "0" * 64),
+                PdfDocumentImageRef(2, "b.png", "images/same.png", "0" * 64),
+            ),
+            "pdf_document_image_ref_duplicate",
+        ),
+    ),
+    ids=("foreign_page", "page_regression", "duplicate_association", "duplicate_local_ref"),
+)
+def test_neutral_extraction_rejects_ambiguous_image_associations(
+    image_refs: tuple[PdfDocumentImageRef, ...], expected_error: str
+) -> None:
+    with pytest.raises(ValueError, match=expected_error):
+        _neutral_extraction(image_refs)
+
+
+def test_same_markdown_target_on_distinct_pages_remains_unambiguous() -> None:
+    extraction = _neutral_extraction(
+        (
+            PdfDocumentImageRef(1, "same.png", "images/a.png", "0" * 64),
+            PdfDocumentImageRef(2, "same.png", "images/b.png", "0" * 64),
+        )
+    )
+
+    assert tuple(
+        (ref.page_number, ref.markdown_target) for ref in extraction.image_refs
+    ) == ((1, "same.png"), (2, "same.png"))
 
 
 @pytest.mark.parametrize(
@@ -488,8 +676,8 @@ def test_cleanup_oserror_is_an_observable_typed_failure(
         with pytest.raises(PdfDocumentExtractionError) as caught:
             materializer.materialize(
                 [
-                    f"data:image/png;base64,{PNG_BASE64}",
-                    "%%%broken-second-image%%%",
+                    (1, "img-0.png", f"data:image/png;base64,{PNG_BASE64}"),
+                    (1, "img-1.png", "%%%broken-second-image%%%"),
                 ]
             )
 
@@ -661,19 +849,32 @@ def test_factory_missing_native_key_returns_static_typed_error_without_network(
     )
 
 
-def _full_source_checksum(*, local_ref: str, image_sha256: str) -> str:
+def _full_source_checksum(
+    *,
+    page_number: int,
+    markdown_target: str,
+    local_ref: str,
+    image_sha256: str,
+) -> tuple[str, list[dict[str, object]]]:
     markdown = b"# Provider-neutral extraction"
     extraction = PdfDocumentExtraction(
         source_pdf_sha256=hashlib.sha256(PDF_BYTES).hexdigest(),
-        page_numbers=(1,),
+        page_numbers=(1, 2),
         markdown_bytes=markdown,
         markdown_sha256=hashlib.sha256(markdown).hexdigest(),
-        image_refs=(PdfDocumentImageRef(local_ref=local_ref, sha256=image_sha256),),
+        image_refs=(
+            PdfDocumentImageRef(
+                page_number=page_number,
+                markdown_target=markdown_target,
+                local_ref=local_ref,
+                sha256=image_sha256,
+            ),
+        ),
         provider_id=MISTRAL_OCR_PROVIDER_ID,
         model_id="mistral-ocr-versioned",
         adapter_id=MISTRAL_OCR_ADAPTER_ID,
         qualification_status="offline_fixture",
-        usage_page_count=1,
+        usage_page_count=2,
     )
     built = FullSourceArtifactFactory().create().build_document_extraction(
         normalization_run_id="pdf-document-ai-checksum-run",
@@ -682,31 +883,52 @@ def _full_source_checksum(*, local_ref: str, image_sha256: str) -> str:
         extraction=extraction,
     )
     assert len(built.payloads) == 1
-    return str(built.payloads[0]["payload_checksum_ref"])
+    payload = built.payloads[0]
+    return (
+        str(payload["payload_checksum_ref"]),
+        list(payload["document_ai_image_refs"]),
+    )
 
 
 @pytest.mark.parametrize(
-    ("mutated_ref", "mutated_sha256"),
+    ("mutated_page", "mutated_target", "mutated_ref", "mutated_sha256"),
     (
-        ("pdf_document_images/batch-b/image-0001.png", "1" * 64),
-        ("pdf_document_images/batch-a/image-0001.png", "2" * 64),
+        (2, "img-0.png", "pdf_document_images/batch-a/image-0001.png", "1" * 64),
+        (1, "img-other.png", "pdf_document_images/batch-a/image-0001.png", "1" * 64),
+        (1, "img-0.png", "pdf_document_images/batch-b/image-0001.png", "1" * 64),
+        (1, "img-0.png", "pdf_document_images/batch-a/image-0001.png", "2" * 64),
     ),
-    ids=("image_ref", "image_hash"),
+    ids=("page_number", "markdown_target", "image_ref", "image_hash"),
 )
-def test_full_source_payload_checksum_binds_image_ref_and_hash_mutations(
-    mutated_ref: str, mutated_sha256: str
+def test_full_source_payload_checksum_binds_every_image_association_field(
+    mutated_page: int,
+    mutated_target: str,
+    mutated_ref: str,
+    mutated_sha256: str,
 ) -> None:
-    baseline = _full_source_checksum(
+    baseline_checksum, baseline_refs = _full_source_checksum(
+        page_number=1,
+        markdown_target="img-0.png",
         local_ref="pdf_document_images/batch-a/image-0001.png",
         image_sha256="1" * 64,
     )
 
-    mutated = _full_source_checksum(
+    mutated_checksum, _mutated_refs = _full_source_checksum(
+        page_number=mutated_page,
+        markdown_target=mutated_target,
         local_ref=mutated_ref,
         image_sha256=mutated_sha256,
     )
 
-    assert mutated != baseline
+    assert baseline_refs == [
+        {
+            "page_number": 1,
+            "markdown_target": "img-0.png",
+            "local_ref": "pdf_document_images/batch-a/image-0001.png",
+            "sha256": "1" * 64,
+        }
+    ]
+    assert mutated_checksum != baseline_checksum
 
 
 def test_production_pipe_static_rejection_is_zero_call_and_nonblocking(
