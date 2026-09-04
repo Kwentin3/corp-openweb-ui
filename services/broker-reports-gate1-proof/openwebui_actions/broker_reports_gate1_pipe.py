@@ -115,6 +115,12 @@ from broker_reports_gate1.private_intake_bytes import (
     PrivateIntakeBytesError,
     is_private_intake_source_id,
 )
+from broker_reports_gate1.pdf_document_ai_qualification import (
+    PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES,
+    PdfDocumentAiQualificationError,
+    PdfDocumentAiQualificationExecutor,
+    PdfDocumentAiQualificationPlanFactory,
+)
 from broker_reports_gate1.gate2_model_clients import (
     Gate2StructuredModelClientFactory,
 )
@@ -159,6 +165,7 @@ _GATE2_USABLE_HANDOFF_STATUSES = frozenset(
 _COMPLETED_WITH_REVIEW_ADVISORY = "completed_with_review_advisory"
 NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS = 45.0
 NDFL_PRESENTATION_MAX_RESPONSE_BYTES = 1024 * 1024
+PDF_DOCUMENT_AI_QUALIFICATION_COMMAND = "PDF Document AI live qualification"
 
 
 class _NdflPresentationNoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -192,6 +199,7 @@ class Pipe:
         artifact_payload_root: str = Field(
             default="/app/backend/data/broker_reports_gate1/payloads"
         )
+        pdf_document_ai_qualification_repository_head: str = Field(default="")
         workload_store_path: str = Field(default="")
         workload_temp_root: str = Field(default="")
         workload_lease_seconds: float = Field(default=90.0, ge=5.0, le=600.0)
@@ -311,6 +319,17 @@ class Pipe:
             metadata=metadata,
             user=__user__,
         )
+        if interaction_message.strip() == PDF_DOCUMENT_AI_QUALIFICATION_COMMAND:
+            return await self._run_pdf_document_ai_qualification(
+                body=safe_body,
+                user=__user__,
+                request=__request__,
+                metadata=metadata,
+                files=__files__,
+                messages=__messages__,
+                event_emitter=__event_emitter__,
+                kwargs=kwargs,
+            )
         if "broker_reports_declaration_action" in safe_body:
             raise NdflWorkflowError("ordinary_trade_declaration_hidden_action_forbidden")
         completed_turn = await self._server_attested_completed_turn_content(
@@ -592,6 +611,125 @@ class Pipe:
             )
         return "Broker Reports processing is already in progress."
 
+    async def _run_pdf_document_ai_qualification(
+        self,
+        *,
+        body: dict[str, Any],
+        user: Any,
+        request: Any,
+        metadata: dict[str, Any],
+        files: Any,
+        messages: Any,
+        event_emitter: Any,
+        kwargs: dict[str, Any],
+    ) -> str:
+        """Bind the exact two-slot qualification to the real authenticated Pipe."""
+
+        if not isinstance(user, dict) or str(user.get("role") or "") != "admin":
+            raise PdfDocumentAiQualificationError(
+                "pdf_document_ai_qualification_admin_required"
+            )
+        repository_head = str(
+            self.valves.pdf_document_ai_qualification_repository_head or ""
+        ).strip()
+        file_refs = self._collect_file_refs(body, metadata, files, messages)
+        await self._hydrate_private_intake_file_refs(
+            file_refs,
+            actor_user_id=self._authenticated_user_id(user),
+        )
+        if len(file_refs) != len(PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES):
+            raise PdfDocumentAiQualificationError(
+                "pdf_document_ai_qualification_exact_fixture_set_required"
+            )
+
+        expected_by_path = {
+            repository_path: expected_sha256
+            for _fixture_id, repository_path, expected_sha256 in (
+                PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES
+            )
+        }
+        payload_by_sha256: dict[str, bytes] = {}
+        file_ref_by_sha256: dict[str, dict[str, Any]] = {}
+        for file_ref in file_refs:
+            payload = self._read_original_bytes(file_ref)
+            observed_sha256 = hashlib.sha256(payload).hexdigest()
+            if observed_sha256 in file_ref_by_sha256:
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_exact_fixture_set_required"
+                )
+            payload_by_sha256[observed_sha256] = payload
+            file_ref_by_sha256[observed_sha256] = file_ref
+        if set(payload_by_sha256) != set(expected_by_path.values()):
+            raise PdfDocumentAiQualificationError(
+                "pdf_document_ai_qualification_exact_fixture_set_required"
+            )
+
+        def fixture_reader(repository_path: str) -> bytes:
+            expected_sha256 = expected_by_path.get(repository_path)
+            if expected_sha256 is None:
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_fixture_path_forbidden"
+                )
+            return payload_by_sha256[expected_sha256]
+
+        plan = PdfDocumentAiQualificationPlanFactory.create(
+            repository_head=repository_head,
+            fixture_reader=fixture_reader,
+        )
+        safe_metadata = {
+            key: value
+            for key, value in metadata.items()
+            if key not in {"file", "files", "message", "messages"}
+        }
+        safe_kwargs = {
+            key: value
+            for key, value in kwargs.items()
+            if key not in {"__file__", "__files__", "__message__", "__messages__"}
+        }
+
+        async def run_existing_pipe(**runner_input: Any) -> dict[str, object]:
+            expected_sha256 = str(runner_input["expected_sha256"])
+            file_ref = file_ref_by_sha256[expected_sha256]
+            if runner_input["pdf_bytes"] != payload_by_sha256[expected_sha256]:
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_fixture_hash_mismatch"
+                )
+            result = await self._run_workload(
+                {"messages": [{"role": "user", "content": "Gate 1 normalization"}]},
+                __user__=user,
+                __request__=request,
+                __metadata__=safe_metadata,
+                __files__=[file_ref["_private_file_obj"]],
+                __messages__=None,
+                __event_emitter__=event_emitter,
+                __pdf_document_ai_qualification_permit__=runner_input[
+                    "qualification_permit"
+                ],
+                __pdf_document_ai_qualification_only__=True,
+                __pdf_document_ai_qualification_expected_image_count__=runner_input[
+                    "expected_image_count"
+                ],
+                **safe_kwargs,
+            )
+            if not isinstance(result, dict):
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_pipe_result_invalid"
+                )
+            return result
+
+        claim_root = (
+            Path(self.valves.artifact_payload_root).parent
+            / "pdf-document-ai-qualification-claims"
+        )
+        receipt = await PdfDocumentAiQualificationExecutor(
+            claim_root=claim_root
+        ).execute_async(
+            plan=plan,
+            fixture_reader=fixture_reader,
+            pipe_runner=run_existing_pipe,
+        )
+        return json.dumps(receipt, ensure_ascii=False, sort_keys=True)
+
     async def _run_workload(
         self,
         body: dict,
@@ -603,9 +741,15 @@ class Pipe:
         __event_emitter__=None,
         __event_call__=None,
         **kwargs,
-    ) -> str:
+    ) -> str | dict[str, object]:
         safe_body = body if isinstance(body, dict) else {}
         safe_metadata = __metadata__ if isinstance(__metadata__, dict) else {}
+        qualification_only = bool(
+            kwargs.pop("__pdf_document_ai_qualification_only__", False)
+        )
+        qualification_expected_image_count = kwargs.pop(
+            "__pdf_document_ai_qualification_expected_image_count__", None
+        )
         await self._emit(
             __event_emitter__,
             self._progress_description(
@@ -719,6 +863,73 @@ class Pipe:
             workload_checkpoint=self._workload_checkpoint,
             workload_progress=self._workload_progress,
         )
+        if qualification_only:
+            artifact_manifest = persist_gate1_result(
+                store=artifact_store,
+                result=result,
+                context=artifact_context,
+                retention_policy=retention_policy,
+                source_file_refs=self._source_file_refs(file_refs),
+            )
+            resolver = ArtifactResolver(artifact_store)
+            private_full_source_refs = list(
+                artifact_manifest.artifact_refs_by_type.get(
+                    "private_normalized_source_payload_v0", []
+                )
+            )
+            if not private_full_source_refs:
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_full_source_missing"
+                )
+            image_associations: list[dict[str, Any]] = []
+            for artifact_ref in private_full_source_refs:
+                resolved = resolver.resolve(artifact_ref, artifact_context)
+                payload = resolved.get("payload")
+                if not isinstance(payload, dict):
+                    raise PdfDocumentAiQualificationError(
+                        "pdf_document_ai_qualification_full_source_invalid"
+                    )
+                image_associations.extend(payload.get("document_ai_image_refs") or [])
+            if (
+                type(qualification_expected_image_count) is not int
+                or len(image_associations) != qualification_expected_image_count
+            ):
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_image_count_mismatch"
+                )
+            for association in image_associations:
+                if not isinstance(association, dict):
+                    raise PdfDocumentAiQualificationError(
+                        "pdf_document_ai_qualification_image_association_invalid"
+                    )
+                resolver.resolve_private_binary(
+                    str(association.get("local_ref") or ""),
+                    artifact_context,
+                    expected_sha256=str(association.get("sha256") or ""),
+                )
+            purge = artifact_store.purge_run(artifact_context)
+            if purge.status != "changed":
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_purge_failed"
+                )
+            for artifact_ref in private_full_source_refs:
+                try:
+                    resolver.resolve(artifact_ref, artifact_context)
+                except ArtifactStoreError as exc:
+                    if exc.code == "artifact_purged":
+                        continue
+                    raise
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_purge_failed"
+                )
+            return {
+                "status": "succeeded",
+                "normalization_run_id": artifact_manifest.normalization_run_id,
+                "private_full_source_readback": True,
+                "private_image_readback_count": len(image_associations),
+                "private_artifacts_purged": True,
+                "provider_calls_total": 1,
+            }
         if is_terminal_pdf_document_ai_request(
             result.package.get("document_inventory", {}).get("documents", []),
             result.package.get("normalization_blockers", []),

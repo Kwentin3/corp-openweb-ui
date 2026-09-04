@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import json
 from dataclasses import replace
@@ -38,6 +39,16 @@ def _plan():
     )
 
 
+def _pipe_success(kwargs: dict) -> dict[str, object]:
+    return {
+        "status": "succeeded",
+        "provider_calls_total": 1,
+        "private_full_source_readback": True,
+        "private_image_readback_count": kwargs["expected_image_count"],
+        "private_artifacts_purged": True,
+    }
+
+
 def _script_module():
     spec = importlib.util.spec_from_file_location(
         "live_pdf_document_ai_qualification_test", SCRIPT_PATH
@@ -63,6 +74,7 @@ def test_plan_has_exact_closed_two_pdf_allowlist_and_zero_call_receipt() -> None
     )
     receipt = _plan().safe_receipt()
     assert receipt["fixtures_total"] == 2
+    assert receipt["expected_image_count"] == [0, 8]
     assert receipt["planned_provider_calls_max"] == 2
     assert receipt["provider_calls_total"] == 0
     assert receipt["provider_call_slots_consumed_total"] == 0
@@ -100,7 +112,7 @@ def test_executor_consumes_exactly_two_slots_and_delegates_to_pipe(
             )
         )
         assert kwargs["pdf_bytes"].startswith(b"%PDF")
-        return {"status": "succeeded"}
+        return _pipe_success(kwargs)
 
     plan = _plan()
     receipt = PdfDocumentAiQualificationExecutor(
@@ -120,12 +132,38 @@ def test_executor_consumes_exactly_two_slots_and_delegates_to_pipe(
     assert len(list((tmp_path / "claims").glob("*.consumed.safe.json"))) == 2
 
 
+def test_async_executor_uses_same_irreversible_slots_and_stops_on_failure(
+    tmp_path: Path,
+) -> None:
+    calls: list[str] = []
+
+    async def pipe_runner(**kwargs):
+        calls.append(kwargs["fixture_id"])
+        return {
+            "status": "failed" if len(calls) == 1 else "succeeded",
+        }
+
+    receipt = asyncio.run(
+        PdfDocumentAiQualificationExecutor(
+            claim_root=tmp_path / "claims",
+        ).execute_async(
+            plan=_plan(),
+            fixture_reader=_reader,
+            pipe_runner=pipe_runner,
+        )
+    )
+    assert calls == ["drivewealth"]
+    assert receipt["status"] == "failed"
+    assert receipt["provider_call_slots_consumed_total"] == 1
+    assert len(list((tmp_path / "claims").glob("*.consumed.safe.json"))) == 1
+
+
 def _captured_permit(tmp_path: Path):
     permits = []
 
     def pipe_runner(**kwargs):
         permits.append(kwargs["qualification_permit"])
-        return {"status": "succeeded"}
+        return _pipe_success(kwargs)
 
     PdfDocumentAiQualificationExecutor(
         claim_root=tmp_path / "claims",
@@ -243,10 +281,10 @@ def test_failure_consumes_slot_and_cannot_be_retried(tmp_path: Path) -> None:
 def test_executor_rejects_forged_plan_before_pipe(tmp_path: Path) -> None:
     calls = 0
 
-    def pipe_runner(**_kwargs):
+    def pipe_runner(**kwargs):
         nonlocal calls
         calls += 1
-        return {"status": "succeeded"}
+        return _pipe_success(kwargs)
 
     plan = _plan()
     forged = replace(plan, plan_sha256="0" * 64)

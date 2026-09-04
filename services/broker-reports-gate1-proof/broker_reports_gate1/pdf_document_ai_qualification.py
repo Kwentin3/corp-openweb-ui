@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -26,6 +26,10 @@ PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES = (
     ),
 )
 PDF_DOCUMENT_AI_QUALIFICATION_MAX_PROVIDER_CALLS = 2
+PDF_DOCUMENT_AI_QUALIFICATION_EXPECTED_IMAGES = {
+    "drivewealth": 0,
+    "fidelity": 8,
+}
 
 FACTORY_REQUIRED = (
     "Qualification execution must delegate each exact fixture to the existing "
@@ -52,7 +56,21 @@ class ExistingPipeRunner(Protocol):
         expected_sha256: str,
         plan_sha256: str,
         qualification_permit: "PdfDocumentAiQualificationPermit",
+        expected_image_count: int,
     ) -> Mapping[str, object]: ...
+
+
+class AsyncExistingPipeRunner(Protocol):
+    def __call__(
+        self,
+        *,
+        fixture_id: str,
+        pdf_bytes: bytes,
+        expected_sha256: str,
+        plan_sha256: str,
+        qualification_permit: "PdfDocumentAiQualificationPermit",
+        expected_image_count: int,
+    ) -> Awaitable[Mapping[str, object]]: ...
 
 
 _PERMIT_CAPABILITY = object()
@@ -83,6 +101,7 @@ class PdfDocumentAiQualificationFixture:
     repository_path: str
     sha256: str
     size_bytes: int
+    expected_image_count: int
 
 
 @dataclass(frozen=True)
@@ -98,6 +117,9 @@ class PdfDocumentAiQualificationPlan:
             "repository_head": self.repository_head,
             "plan_sha256": self.plan_sha256,
             "fixture_sha256": [item.sha256 for item in self.fixtures],
+            "expected_image_count": [
+                item.expected_image_count for item in self.fixtures
+            ],
             "fixtures_total": len(self.fixtures),
             "planned_provider_calls_max": (
                 PDF_DOCUMENT_AI_QUALIFICATION_MAX_PROVIDER_CALLS
@@ -148,6 +170,9 @@ class PdfDocumentAiQualificationPlanFactory:
                     repository_path=repository_path,
                     sha256=expected_sha256,
                     size_bytes=len(payload),
+                    expected_image_count=PDF_DOCUMENT_AI_QUALIFICATION_EXPECTED_IMAGES[
+                        fixture_id
+                    ],
                 )
             )
         material = {
@@ -159,6 +184,7 @@ class PdfDocumentAiQualificationPlanFactory:
                     "repository_path": item.repository_path,
                     "sha256": item.sha256,
                     "size_bytes": item.size_bytes,
+                    "expected_image_count": item.expected_image_count,
                 }
                 for item in fixtures
             ],
@@ -179,7 +205,12 @@ class PdfDocumentAiQualificationPlanFactory:
 class PdfDocumentAiQualificationExecutor:
     """Consume at most one irreversible Pipe slot per allowlisted PDF."""
 
-    def __init__(self, *, claim_root: Path, pipe_runner: ExistingPipeRunner) -> None:
+    def __init__(
+        self,
+        *,
+        claim_root: Path,
+        pipe_runner: ExistingPipeRunner | None = None,
+    ) -> None:
         self._claim_root = claim_root
         self._pipe_runner = pipe_runner
 
@@ -189,6 +220,10 @@ class PdfDocumentAiQualificationExecutor:
         plan: PdfDocumentAiQualificationPlan,
         fixture_reader: Callable[[str], bytes],
     ) -> dict[str, object]:
+        if self._pipe_runner is None:
+            raise PdfDocumentAiQualificationError(
+                "pdf_document_ai_qualification_pipe_runner_required"
+            )
         expected_plan = PdfDocumentAiQualificationPlanFactory.create(
             repository_head=plan.repository_head,
             fixture_reader=fixture_reader,
@@ -205,13 +240,7 @@ class PdfDocumentAiQualificationExecutor:
                     "pdf_document_ai_qualification_fixture_hash_mismatch"
                 )
             self._consume_slot(plan=plan, fixture=fixture)
-            permit = PdfDocumentAiQualificationPermit(
-                repository_head=plan.repository_head,
-                plan_sha256=plan.plan_sha256,
-                fixture_id=fixture.fixture_id,
-                fixture_sha256=fixture.sha256,
-                _capability=_PERMIT_CAPABILITY,
-            )
+            permit = self._permit(plan=plan, fixture=fixture)
             try:
                 result = self._pipe_runner(
                     fixture_id=fixture.fixture_id,
@@ -219,15 +248,102 @@ class PdfDocumentAiQualificationExecutor:
                     expected_sha256=fixture.sha256,
                     plan_sha256=plan.plan_sha256,
                     qualification_permit=permit,
+                    expected_image_count=fixture.expected_image_count,
                 )
             except Exception:
                 outcomes.append({"fixture_id": fixture.fixture_id, "status": "failed"})
                 return self._execution_receipt(plan=plan, outcomes=outcomes)
-            if result.get("status") != "succeeded":
+            if not self._pipe_result_succeeded(fixture=fixture, result=result):
                 outcomes.append({"fixture_id": fixture.fixture_id, "status": "failed"})
                 return self._execution_receipt(plan=plan, outcomes=outcomes)
-            outcomes.append({"fixture_id": fixture.fixture_id, "status": "succeeded"})
+            outcomes.append(self._safe_success_outcome(fixture=fixture))
         return self._execution_receipt(plan=plan, outcomes=outcomes)
+
+    async def execute_async(
+        self,
+        *,
+        plan: PdfDocumentAiQualificationPlan,
+        fixture_reader: Callable[[str], bytes],
+        pipe_runner: AsyncExistingPipeRunner,
+    ) -> dict[str, object]:
+        """Run the same irreversible claims through a server-injected async Pipe."""
+
+        expected_plan = PdfDocumentAiQualificationPlanFactory.create(
+            repository_head=plan.repository_head,
+            fixture_reader=fixture_reader,
+        )
+        if plan != expected_plan:
+            raise PdfDocumentAiQualificationError(
+                "pdf_document_ai_qualification_plan_invalid"
+            )
+        outcomes: list[dict[str, object]] = []
+        for fixture in plan.fixtures:
+            payload = fixture_reader(fixture.repository_path)
+            if hashlib.sha256(payload).hexdigest() != fixture.sha256:
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_fixture_hash_mismatch"
+                )
+            self._consume_slot(plan=plan, fixture=fixture)
+            permit = self._permit(plan=plan, fixture=fixture)
+            try:
+                result = await pipe_runner(
+                    fixture_id=fixture.fixture_id,
+                    pdf_bytes=payload,
+                    expected_sha256=fixture.sha256,
+                    plan_sha256=plan.plan_sha256,
+                    qualification_permit=permit,
+                    expected_image_count=fixture.expected_image_count,
+                )
+            except Exception:
+                outcomes.append({"fixture_id": fixture.fixture_id, "status": "failed"})
+                return self._execution_receipt(plan=plan, outcomes=outcomes)
+            if not self._pipe_result_succeeded(fixture=fixture, result=result):
+                outcomes.append({"fixture_id": fixture.fixture_id, "status": "failed"})
+                return self._execution_receipt(plan=plan, outcomes=outcomes)
+            outcomes.append(self._safe_success_outcome(fixture=fixture))
+        return self._execution_receipt(plan=plan, outcomes=outcomes)
+
+    @staticmethod
+    def _pipe_result_succeeded(
+        *,
+        fixture: PdfDocumentAiQualificationFixture,
+        result: Mapping[str, object],
+    ) -> bool:
+        return (
+            result.get("status") == "succeeded"
+            and result.get("private_full_source_readback") is True
+            and result.get("private_artifacts_purged") is True
+            and result.get("provider_calls_total") == 1
+            and result.get("private_image_readback_count")
+            == fixture.expected_image_count
+        )
+
+    @staticmethod
+    def _safe_success_outcome(
+        *, fixture: PdfDocumentAiQualificationFixture
+    ) -> dict[str, object]:
+        return {
+            "fixture_id": fixture.fixture_id,
+            "status": "succeeded",
+            "provider_calls_total": 1,
+            "private_full_source_readback": True,
+            "private_image_readback_count": fixture.expected_image_count,
+            "private_artifacts_purged": True,
+        }
+
+    @staticmethod
+    def _permit(
+        *,
+        plan: PdfDocumentAiQualificationPlan,
+        fixture: PdfDocumentAiQualificationFixture,
+    ) -> PdfDocumentAiQualificationPermit:
+        return PdfDocumentAiQualificationPermit(
+            repository_head=plan.repository_head,
+            plan_sha256=plan.plan_sha256,
+            fixture_id=fixture.fixture_id,
+            fixture_sha256=fixture.sha256,
+            _capability=_PERMIT_CAPABILITY,
+        )
 
     def _consume_slot(
         self,
