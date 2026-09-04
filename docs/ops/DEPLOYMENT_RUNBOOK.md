@@ -182,8 +182,11 @@ python services/broker-reports-gate1-proof/scripts/live_pdf_document_ai_qualific
 Ожидается ровно два pinned SHA-256 и нули для config/key reads, provider calls,
 external sends, retry, fallback, repair и activation. Скрипт не принимает путь
 к PDF, URL, key, model или hash. Live-режим запускается только после отдельного
-разрешения владельца через этот же entrypoint с server-owned existing-Pipe
-runner; он не является вторым product route и не создаёт adapter напрямую.
+разрешения владельца через закрытый admin-only режим существующего
+`broker_reports_gate1_pipe`; он не является вторым product route и не создаёт
+adapter напрямую. Перед публикацией Function его valve
+`pdf_document_ai_qualification_repository_head` должен быть равен точному
+merged HEAD, для которого прошёл `broker-reports-ci`.
 
 Для разрешённой квалификации:
 
@@ -191,13 +194,18 @@ runner; он не является вторым product route и не созда
 2. Записать прежнее значение `CONTENT_EXTRACTION_ENGINE` вне Git.
 3. Ввести URL/key только в native Admin configuration и временно выбрать
    `mistral_ocr`.
-4. Выполнить один `--execute-exact-attempt`: два durable slots, по одному на
-   DriveWealth и Fidelity; ошибка или timeout расходует slot без retry.
-5. Через private ArtifactResolver повторно прочитать оба Full Source и все
-   image associations; для Fidelity требуется ровно восемь разрешимых images.
-6. Удалить qualification uploads штатным source-deletion lifecycle и доказать
-   purge/read denial.
-7. В `finally` восстановить прежний engine даже после первой ошибки.
+4. В одном admin-чате существующего Broker Reports Pipe приложить точные
+   DriveWealth и Fidelity fixtures и отправить точную команду
+   `PDF Document AI live qualification`. Произвольный файл, другой набор,
+   не-admin пользователь или незаданный exact HEAD блокируются до расхода slot.
+5. Pipe расходует два durable slots, по одному на каждый pinned SHA-256, и
+   проводит каждый PDF через тот же Normalizer, factory, adapter и ArtifactStore.
+   Ошибка или timeout расходует текущий slot без retry.
+6. Для каждого PDF закрытый runner через private ArtifactResolver повторно
+   читает приватный Full Source, затем вызывает `purge_run` и доказывает отказ
+   повторного чтения. Внешний координатор не получает PDF или provider payload.
+7. Qualification uploads удалить штатным OpenWebUI source-deletion lifecycle.
+8. В `finally` восстановить прежний engine даже после первой ошибки.
 
 На всём шаге `PDF_DOCUMENT_AI_LIVE_QUALIFIED = False`. Успех квалификации не
 разрешает production activation: для смены gate нужен отдельный owner-approved
