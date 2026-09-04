@@ -220,6 +220,10 @@ def evaluate_route_activation(
             and gate1_valves.get("canonical_gate2_read_enabled") is True
             and gate1_valves.get("ordinary_trade_candidate_enabled") is True
             and gate1_valves.get("ndfl_gate3_enabled") is False
+            and gate1_valves.get(
+                "pdf_document_ai_qualification_repository_head"
+            )
+            == expected_manifest.get("source_revision")
         ),
         "pdf_document_ai_contract_identity_exact": (
             document_ai.get("configured") is False

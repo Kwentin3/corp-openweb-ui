@@ -31,7 +31,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 
-SCHEMA_VERSION = "broker_reports_atomic_stage_release_v9"
+SCHEMA_VERSION = "broker_reports_atomic_stage_release_v10"
 RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -42,6 +42,9 @@ PINNED_IMAGE_ID = (
 )
 PINNED_IMAGE_REVISION = "8e6a71f13cf4f9cec0e5be191fac924548050e48"
 PRIVATE_INTAKE_CONTRACT = "server-authoritative-v2"
+PDF_DOCUMENT_AI_QUALIFICATION_HEAD_VALVE = (
+    "pdf_document_ai_qualification_repository_head"
+)
 
 ACTION_ID = "broker_reports_private_intake_action"
 ACTION_PATH = (
@@ -150,6 +153,7 @@ FUNCTION_CONTRACTS = (
         required_markers=(
             "WorkloadAuthorityFactory",
             "PdfDocumentExtractorFactory",
+            "PDF_DOCUMENT_AI_QUALIFICATION_COMMAND",
             "PDF_DOCUMENT_AI_NOT_CONFIGURED",
             "Gate2TablePackageFactory",
             "broker_reports_fns_2ndfl_source_facts_v1",
@@ -280,7 +284,14 @@ def build_manifest(
                 "activation_policy": "preserve_existing",
                 "content_sha256": sha256_text(content),
                 "required_markers": list(contract.required_markers),
-                "valves": dict(contract.valves),
+                "valves": {
+                    **dict(contract.valves),
+                    **(
+                        {PDF_DOCUMENT_AI_QUALIFICATION_HEAD_VALVE: source_revision}
+                        if contract.function_id == "broker_reports_gate1_pipe"
+                        else {}
+                    ),
+                },
                 "retired_valve_keys": list(contract.retired_valve_keys),
             }
         )

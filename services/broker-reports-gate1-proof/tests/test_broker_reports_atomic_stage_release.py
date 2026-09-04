@@ -211,7 +211,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(list(RETIRED_FUNCTION_IDS), manifest["retired_function_ids"])
         self.assertEqual(12, len(manifest["managed_prompts"]))
         self.assertEqual(
-            "broker_reports_atomic_stage_release_v9",
+            "broker_reports_atomic_stage_release_v10",
             manifest["schema_version"],
         )
         self.assertTrue(
@@ -244,6 +244,12 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(
             [contract.function_id for contract in FUNCTION_CONTRACTS],
             [item["function_id"] for item in manifest["functions"]],
+        )
+        self.assertEqual(
+            REVISION,
+            manifest["functions"][0]["valves"][
+                "pdf_document_ai_qualification_repository_head"
+            ],
         )
         self.assertTrue(manifest["runtime"]["pdf_document_ai_static_ready"])
         self.assertFalse(manifest["runtime"]["pdf_document_ai_live_qualified"])
@@ -513,11 +519,11 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         manifest = _manifest()
         checks = evaluate_route_activation(
             expected_manifest=manifest,
-            gate1_valves=FUNCTION_CONTRACTS[0].valves,
+            gate1_valves=manifest["functions"][0]["valves"],
         )
         self.assertTrue(all(checks.values()), checks)
 
-        drifted = dict(FUNCTION_CONTRACTS[0].valves)
+        drifted = dict(manifest["functions"][0]["valves"])
         drifted["pdf_dual_vlm_enabled"] = True
         failed = evaluate_route_activation(
             expected_manifest=manifest,
@@ -530,7 +536,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         ].pop("selected_unqualified")
         contract_failed = evaluate_route_activation(
             expected_manifest=manifest,
-            gate1_valves=FUNCTION_CONTRACTS[0].valves,
+            gate1_valves=manifest["functions"][0]["valves"],
         )
         self.assertFalse(contract_failed["pdf_document_ai_contract_identity_exact"])
 
