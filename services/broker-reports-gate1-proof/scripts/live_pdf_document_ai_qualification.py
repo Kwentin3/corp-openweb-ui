@@ -4,10 +4,14 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
+import hashlib
 import json
 import subprocess
 import sys
+import tempfile
 from collections.abc import Sequence
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -21,6 +25,21 @@ from broker_reports_gate1.pdf_document_ai_qualification import (  # noqa: E402
     PdfDocumentAiQualificationError,
     PdfDocumentAiQualificationExecutor,
     PdfDocumentAiQualificationPlanFactory,
+)
+from broker_reports_gate1.artifact_models import (  # noqa: E402
+    ArtifactAccessContext,
+    ArtifactRecord,
+    build_private_binary_payload,
+)
+from broker_reports_gate1.artifact_retention import build_retention_policy  # noqa: E402
+from broker_reports_gate1.artifact_store import (  # noqa: E402
+    ArtifactStoreConfig,
+    ArtifactStoreFactory,
+)
+from broker_reports_gate1.pdf_document_ai_qualification_review import (  # noqa: E402
+    PDF_DOCUMENT_AI_REVIEW_CHECKS,
+    PdfDocumentAiQualificationReviewFactory,
+    PdfDocumentAiQualificationReviewVerdict,
 )
 
 
@@ -51,6 +70,14 @@ def main(
         action="store_true",
         help="Consume the two exact one-shot slots through an injected existing-Pipe runner.",
     )
+    modes.add_argument(
+        "--review-lifecycle-dry-run",
+        action="store_true",
+        help=(
+            "Exercise private Full Source review and purge with synthetic bytes; "
+            "never read config/key or call providers."
+        ),
+    )
     args = parser.parse_args(argv)
 
     head = _require_clean_committed_head()
@@ -59,6 +86,9 @@ def main(
         repository_head=head,
         fixture_reader=_read_repository_fixture,
     )
+    if args.review_lifecycle_dry_run:
+        print(_pretty_json(_review_lifecycle_dry_run(head)), end="")
+        return 0
     if not args.execute_exact_attempt:
         print(_pretty_json(plan.safe_receipt()), end="")
         return 0
@@ -72,6 +102,114 @@ def main(
     ).execute(plan=plan, fixture_reader=_read_repository_fixture)
     print(_pretty_json(receipt), end="")
     return 0 if receipt["status"] == "succeeded" else 2
+
+
+def _review_lifecycle_dry_run(repository_head: str) -> dict[str, object]:
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=15)
+    context = ArtifactAccessContext(
+        user_id="qualification-dry-run",
+        case_id="qualification-dry-run",
+        chat_id="qualification-dry-run",
+        workspace_model_id="broker_reports_gate1_pipe",
+        normalization_run_id="qualification-dry-run",
+        allow_private=True,
+        require_source_available=True,
+    )
+    retention = build_retention_policy(
+        mode="expires_after_ttl", ttl_seconds=900, now=now
+    )
+    markdown = "# Private review lifecycle dry-run\n\n| A | B |\n|---|---|\n| 1 | 2 |"
+    markdown_sha256 = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
+    image = b"qualification-review-dry-run-image"
+    image_sha256 = hashlib.sha256(image).hexdigest()
+    common = {
+        "case_id": context.case_id,
+        "chat_id": context.chat_id,
+        "user_id": context.user_id,
+        "workspace_model_id": context.workspace_model_id,
+        "normalization_run_id": context.normalization_run_id,
+        "document_id": "qualification-dry-run-document",
+        "source_file_ref": {"openwebui_file_id": "qualification-dry-run"},
+        "visibility": "private_case",
+        "storage_backend": "project_artifact_payload",
+        "retention_policy": retention,
+        "access_policy": {"requires_user_id": True},
+        "validation_status": "validated",
+        "lifecycle_status": "private_ready",
+    }
+    with tempfile.TemporaryDirectory(prefix="broker-reports-review-") as root:
+        root_path = Path(root)
+        store = ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=root_path / "artifacts.sqlite3",
+                payload_root=root_path / "payloads",
+            )
+        ).create()
+        store.put_records_atomic(
+            [
+                ArtifactRecord(
+                    artifact_id="qualification-dry-run-full-source",
+                    artifact_type="private_normalized_source_payload_v0",
+                    payload={
+                        "normalized_projection": {"text": markdown},
+                        "document_ai_markdown_sha256": markdown_sha256,
+                        "document_ai_image_refs": [
+                            {
+                                "page_number": 1,
+                                "markdown_target": "dry-run-image.bin",
+                                "local_ref": "qualification-dry-run-image",
+                                "sha256": image_sha256,
+                            }
+                        ],
+                    },
+                    **common,
+                ),
+                ArtifactRecord(
+                    artifact_id="qualification-dry-run-image",
+                    artifact_type="private_binary_artifact_v1",
+                    payload=build_private_binary_payload(
+                        content=image, media_type="application/octet-stream"
+                    ),
+                    **common,
+                ),
+            ]
+        )
+
+        async def reviewer(view):
+            if view.markdown != markdown or view.images[0][1] != image:
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_review_dry_run_readback_failed"
+                )
+            return PdfDocumentAiQualificationReviewVerdict(
+                live_output_digest=view.live_output_digest,
+                checks={key: True for key in PDF_DOCUMENT_AI_REVIEW_CHECKS},
+            )
+
+        review = asyncio.run(
+            PdfDocumentAiQualificationReviewFactory.create(
+                store=store,
+                context=context,
+                full_source_refs=["qualification-dry-run-full-source"],
+                repository_head=repository_head,
+                fixture_id="synthetic-review-lifecycle",
+                expected_image_count=1,
+                expires_at=expires_at,
+            ).review(actor_context=context, reviewer=reviewer, now=now)
+        )
+    return {
+        "mode": "review_lifecycle_dry_run",
+        "repository_head": repository_head,
+        "private_full_source_readback": True,
+        "private_image_readback_count": 1,
+        "private_artifacts_purged": True,
+        "provider_calls_total": 0,
+        "native_config_read": False,
+        "api_key_read": False,
+        "external_sends_total": 0,
+        "review": review,
+    }
 
 
 def _read_repository_fixture(repository_path: str) -> bytes:

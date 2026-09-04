@@ -22,6 +22,7 @@ from broker_reports_gate1.architecture_policy import (
     PDF_DOCUMENT_EXTRACTION_ENVELOPE,
     PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED,
     PDF_DOCUMENT_EXTRACTION_QUALIFICATION_ALLOWLIST_SIZE,
+    PDF_DOCUMENT_EXTRACTION_QUALIFICATION_REVIEW,
     PDF_DOCUMENT_EXTRACTION_IMAGE_LIFECYCLE,
     PDF_DOCUMENT_EXTRACTION_PORT,
     PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED,
@@ -291,7 +292,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
     def test_machine_readable_gate_ownership_matches_current_pipeline(self):
         self.assertEqual(
             architecture_policy.ARCHITECTURE_POLICY_VERSION,
-            "broker_reports_architecture_policy_v26",
+            "broker_reports_architecture_policy_v27",
         )
         self.assertEqual(
             architecture_policy.GATE_OWNERSHIP,
@@ -480,6 +481,10 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
         self.assertFalse(PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED)
         self.assertEqual(PDF_DOCUMENT_EXTRACTION_QUALIFICATION_ALLOWLIST_SIZE, 2)
         self.assertEqual(
+            PDF_DOCUMENT_EXTRACTION_QUALIFICATION_REVIEW,
+            "same_pipe_same_user_digest_bound_temporary_review_then_purge",
+        )
+        self.assertEqual(
             PDF_DOCUMENT_EXTRACTION_IMAGE_LIFECYCLE,
             "existing_artifact_store_atomic_private_graph",
         )
@@ -555,7 +560,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
 
     def test_pdf_document_ai_component_is_explicitly_classified(self):
         expected = {
-            "pdf_document_ai": "static_ready_live_qualification_blocked"
+            "pdf_document_ai": "live_qualification_ready_activation_blocked"
         }
         self.assertEqual(
             {key: COMPONENT_RUNTIME_STATUSES.get(key) for key in expected},

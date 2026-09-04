@@ -250,13 +250,19 @@ class PdfDocumentAiQualificationExecutor:
                     qualification_permit=permit,
                     expected_image_count=fixture.expected_image_count,
                 )
-            except Exception:
-                outcomes.append({"fixture_id": fixture.fixture_id, "status": "failed"})
+            except Exception as exc:
+                outcomes.append(
+                    {
+                        "fixture_id": fixture.fixture_id,
+                        "status": "failed",
+                        "reason_code": self._safe_failure_code(exc),
+                    }
+                )
                 return self._execution_receipt(plan=plan, outcomes=outcomes)
             if not self._pipe_result_succeeded(fixture=fixture, result=result):
                 outcomes.append({"fixture_id": fixture.fixture_id, "status": "failed"})
                 return self._execution_receipt(plan=plan, outcomes=outcomes)
-            outcomes.append(self._safe_success_outcome(fixture=fixture))
+            outcomes.append(self._safe_success_outcome(fixture=fixture, result=result))
         return self._execution_receipt(plan=plan, outcomes=outcomes)
 
     async def execute_async(
@@ -294,14 +300,27 @@ class PdfDocumentAiQualificationExecutor:
                     qualification_permit=permit,
                     expected_image_count=fixture.expected_image_count,
                 )
-            except Exception:
-                outcomes.append({"fixture_id": fixture.fixture_id, "status": "failed"})
+            except Exception as exc:
+                outcomes.append(
+                    {
+                        "fixture_id": fixture.fixture_id,
+                        "status": "failed",
+                        "reason_code": self._safe_failure_code(exc),
+                    }
+                )
                 return self._execution_receipt(plan=plan, outcomes=outcomes)
             if not self._pipe_result_succeeded(fixture=fixture, result=result):
                 outcomes.append({"fixture_id": fixture.fixture_id, "status": "failed"})
                 return self._execution_receipt(plan=plan, outcomes=outcomes)
-            outcomes.append(self._safe_success_outcome(fixture=fixture))
+            outcomes.append(self._safe_success_outcome(fixture=fixture, result=result))
         return self._execution_receipt(plan=plan, outcomes=outcomes)
+
+    @staticmethod
+    def _safe_failure_code(exc: Exception) -> str:
+        code = str(getattr(exc, "code", ""))
+        if re.fullmatch(r"(?:pdf_document_ai|artifact)_[a-z0-9_]+", code):
+            return code
+        return "pdf_document_ai_qualification_internal_failure"
 
     @staticmethod
     def _pipe_result_succeeded(
@@ -316,11 +335,15 @@ class PdfDocumentAiQualificationExecutor:
             and result.get("provider_calls_total") == 1
             and result.get("private_image_readback_count")
             == fixture.expected_image_count
+            and isinstance(result.get("review"), Mapping)
+            and result["review"].get("status") == "passed"
         )
 
     @staticmethod
     def _safe_success_outcome(
-        *, fixture: PdfDocumentAiQualificationFixture
+        *,
+        fixture: PdfDocumentAiQualificationFixture,
+        result: Mapping[str, object],
     ) -> dict[str, object]:
         return {
             "fixture_id": fixture.fixture_id,
@@ -329,6 +352,7 @@ class PdfDocumentAiQualificationExecutor:
             "private_full_source_readback": True,
             "private_image_readback_count": fixture.expected_image_count,
             "private_artifacts_purged": True,
+            "review": dict(result["review"]),
         }
 
     @staticmethod

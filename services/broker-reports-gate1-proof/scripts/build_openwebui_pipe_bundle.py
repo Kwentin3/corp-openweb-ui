@@ -107,6 +107,7 @@ MODULE_ORDER = [
     "validators",
     "clarification",
     "artifact_resolver",
+    "pdf_document_ai_qualification_review",
     "canonical_store",
     "gate1_public_contracts",
     "gate2_source_fact_contracts",

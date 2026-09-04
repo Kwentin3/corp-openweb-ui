@@ -118,6 +118,7 @@ jobs:
           tests/test_mistral_public_pairs_integrity.py
           tests/test_mistral_pdf_document_ai_adapter.py
           tests/test_pdf_document_ai_qualification.py
+          tests/test_pdf_document_ai_qualification_review.py
           tests/test_pdf_document_ai_existing_pipe_runner.py
           tests/test_broker_reports_pdf_document_ai_boundary.py
           tests/test_broker_reports_artifact_payload_read_integrity.py

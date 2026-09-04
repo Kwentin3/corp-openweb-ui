@@ -10,7 +10,7 @@ from __future__ import annotations
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v26"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v27"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -245,6 +245,9 @@ PDF_DOCUMENT_EXTRACTION_QUALIFICATION_ALLOWLIST_SIZE = 2
 PDF_DOCUMENT_EXTRACTION_IMAGE_LIFECYCLE = (
     "existing_artifact_store_atomic_private_graph"
 )
+PDF_DOCUMENT_EXTRACTION_QUALIFICATION_REVIEW = (
+    "same_pipe_same_user_digest_bound_temporary_review_then_purge"
+)
 PDF_DOCUMENT_EXTRACTION_AUTOMATIC_FALLBACK_ALLOWED = False
 PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED = False
 LOCAL_OCR_PRODUCTION_ALLOWED = False
@@ -262,7 +265,7 @@ GATE2_LOCAL_MAXIMUM_CONCURRENCY = 2
 WORKLOAD_PRIMARY_WALL_TIMEOUT = None
 
 COMPONENT_RUNTIME_STATUSES = {
-    "pdf_document_ai": "static_ready_live_qualification_blocked",
+    "pdf_document_ai": "live_qualification_ready_activation_blocked",
     "gate1_bounded_graph": "maintained",
     "workload_authority": "maintained",
 }

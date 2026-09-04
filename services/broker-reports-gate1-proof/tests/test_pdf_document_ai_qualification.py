@@ -46,6 +46,11 @@ def _pipe_success(kwargs: dict) -> dict[str, object]:
         "private_full_source_readback": True,
         "private_image_readback_count": kwargs["expected_image_count"],
         "private_artifacts_purged": True,
+        "review": {
+            "status": "passed",
+            "live_output_digest": "d" * 64,
+            "contains_private_payload": False,
+        },
     }
 
 
@@ -312,6 +317,28 @@ def test_cli_default_preflight_does_not_require_pipe_or_read_runtime_config(
     assert receipt["api_key_read"] is False
 
 
+def test_review_lifecycle_dry_run_reads_private_graph_then_purges_without_provider(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _script_module()
+    monkeypatch.setattr(module, "_require_clean_committed_head", lambda: HEAD)
+    monkeypatch.setattr(module, "_require_green_actions", lambda _head: None)
+    assert module.main(["--review-lifecycle-dry-run"]) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["mode"] == "review_lifecycle_dry_run"
+    assert receipt["repository_head"] == HEAD
+    assert receipt["private_full_source_readback"] is True
+    assert receipt["private_image_readback_count"] == 1
+    assert receipt["private_artifacts_purged"] is True
+    assert receipt["provider_calls_total"] == 0
+    assert receipt["native_config_read"] is False
+    assert receipt["api_key_read"] is False
+    assert receipt["external_sends_total"] == 0
+    assert receipt["review"]["status"] == "passed"
+    assert receipt["review"]["contains_private_payload"] is False
+
+
 def test_execute_checks_repository_and_ci_before_requesting_pipe_runner(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -452,6 +479,7 @@ def test_cli_exposes_no_arbitrary_provider_or_fixture_inputs() -> None:
     source = SCRIPT_PATH.read_text(encoding="utf-8")
     assert '"--preflight-only"' in source
     assert '"--execute-exact-attempt"' in source
+    assert '"--review-lifecycle-dry-run"' in source
     for forbidden_argument in (
         "--pdf",
         "--path",
