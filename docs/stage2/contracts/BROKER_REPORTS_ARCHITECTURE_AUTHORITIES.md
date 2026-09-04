@@ -5,15 +5,15 @@ Status: `CURRENT`
 Updated: 2026-09-04
 
 Issue #374 updates the Issue #372 PDF boundary without restoring any retired
-engine assignment. The static Mistral adapter and its one-call transport now
-exist behind the boundary, but live qualification and activation are not
-claimed.
+engine assignment. The Mistral adapter, atomic private image lifecycle and
+bounded two-fixture qualification seam now exist behind the boundary, but live
+qualification and activation are not claimed.
 The sole PDF-understanding owner is `PdfDocumentExtractor`; the sole stable
 result is provider-neutral `PdfDocumentExtraction`; and the sole selection
 point is `PdfDocumentExtractorFactory`. An absent or unselected engine returns
 `PDF_DOCUMENT_AI_NOT_CONFIGURED`. A selected Mistral engine returns
 `PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED` while the code-owned live
-admission remains false. Both terminals occur before adapter import,
+admission remains false. Both ordinary-product terminals occur before adapter import,
 credential access, network access or downstream publication. Automatic
 fallback and all
 PDFPlumber, Camelot, Docling, PyMuPDF, VLM/bbox, hybrid, dual-engine and repair
@@ -59,8 +59,10 @@ PDF
 -> absent or unselected engine: PDF_DOCUMENT_AI_NOT_CONFIGURED and STOP
 -> selected Mistral while live admission is false:
    PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED and STOP
--> implemented Mistral adapter -> PdfDocumentExtraction only after a separate
-   live qualification and activation change
+-> exact two-fixture qualification capability -> same factory and adapter
+   -> atomic private Full Source/image graph in existing ArtifactStore
+-> implemented Mistral adapter for ordinary uploads only after a separate live
+   qualification and activation change
 -> immutable CanonicalArtifactV1
 -> frozen exact mapping fast path OR strict case-scoped semantic mapping
 -> append-only clarification/confirmation case + qualification receipt
@@ -339,7 +341,7 @@ rollback compatibility or exact historical proof surfaces; their word
 | Domain | Owns | Does not own | Public entrypoint | Normative contracts | Allowed consumers | Forbidden duplicate |
 | --- | --- | --- | --- | --- | --- | --- |
 | Gate 1 Intake | authenticated upload custody, access, format detection, original storage and routing | canonical normalization, financial meaning or product cutover | existing intake/ArtifactStore factories and `ArtifactResolver` | [Pipeline Gates v1](./BROKER_REPORTS_PIPELINE_GATES.v1.md) | Gate 2 canonical extraction | native document processing, Knowledge/RAG/vectorization or caller tenant authority |
-| PDF Document AI | provider-neutral extraction of exact Markdown/pages/local image refs and provenance; the static Mistral adapter preserves `page_number + markdown_target -> local_ref + sha256` in order | custody/preflight, Canonical, financial meaning, provider fallback or content repair | `PdfDocumentExtractor` selected only by `PdfDocumentExtractorFactory` | [PDF Document AI boundary ADR](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md) | existing Full Source / Canonical downstream through `PdfDocumentExtraction` only after separate live qualification and activation | provider/model/response knowledge outside adapter/composition, injected envelopes, positional reconstruction, alternate parsers or automatic fallback; STATIC READY is not live qualification or activation |
+| PDF Document AI | provider-neutral extraction of exact Markdown/pages/opaque image refs and provenance; the static Mistral adapter preserves `page_number + markdown_target -> local_ref + sha256` in order | custody/preflight, Canonical, financial meaning, provider fallback or content repair | `PdfDocumentExtractor` selected only by `PdfDocumentExtractorFactory`; existing ArtifactStore owns the atomic private Markdown/image lifecycle | [PDF Document AI boundary ADR](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md) | bounded two-public-fixture qualification through the same Pipe/factory; ordinary Full Source / Canonical downstream only after separate live qualification and activation | provider/model/response knowledge outside adapter/composition, positional reconstruction, alternate parsers, second store or automatic fallback; qualification readiness is not live qualification or activation |
 | Gate 2 Canonical | format extraction, deterministic non-financial `CanonicalArtifactV1`, provenance/issues, immutable versions, shared completeness and shadow comparison | product/task-specific LLM projection, financial type/role meaning or product cutover | `FullSourceArtifactFactory`, `CanonicalNormalizerFactory.create`, `CanonicalArtifactStoreFactory.create`, `CanonicalReaderFactory.create` | [Canonical Artifact v1](./BROKER_REPORTS_CANONICAL_ARTIFACT.v1.md), Storage, Reader and [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md) | shadow/read-only proof and the explicitly authorized NDFL Gate 3 exact-manifest route | a second schema/parser/store/reader, direct component access or canonical product reads outside an authorized route |
 | Gate 2 Consumer Compatibility | consumer-specific, versioned structural projection over an active canonical version; aggregate safe read telemetry; one non-active format-neutral proof renderer | global read enable, legacy fallback, private evidence, financial semantics or consumer selection | four explicit factories plus `render_neutral_canonical_projection` in `canonical_consumer_migration.py`, all consuming `CanonicalReaderFactory.create` output | [Canonical Reader v1](./BROKER_REPORTS_CANONICAL_READER.v1.md), [Gate 2 Exit Contract v1](./BROKER_REPORTS_GATE2_EXIT_CONTRACT.v1.md), [Migration Strategy](./BROKER_REPORTS_GATE2_MIGRATION_STRATEGY.v1.md), [Consumer Matrix](./BROKER_REPORTS_GATE2_CONSUMER_MIGRATION_MATRIX.v1.md) | isolated Wave 0 tests, retained-cohort proof and shadow-only Wave 2 | format-branch consumer API, direct ArtifactStore/SQLite/payload access, global flag or silent fallback |
 | Technical Preparation | deterministic financial scope, technical preclose and sealed Evidence Bundle | financial classification or provider choice | `Gate2DeterministicFinancialScopeFromGate1V2Factory.create`, `Gate2FinancialEvidenceBundleFactory.create` | Evidence Bundle | Candidate Compiler, Qualification | a second source/provenance projection |

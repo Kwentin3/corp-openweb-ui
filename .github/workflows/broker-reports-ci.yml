@@ -116,7 +116,13 @@ jobs:
           tests/test_broker_reports_kt1_architecture_stabilization.py
           tests/test_retired_pdf_engines_absent.py
           tests/test_mistral_public_pairs_integrity.py
+          tests/test_mistral_pdf_document_ai_adapter.py
+          tests/test_pdf_document_ai_qualification.py
           tests/test_broker_reports_pdf_document_ai_boundary.py
+          tests/test_broker_reports_artifact_payload_read_integrity.py
+          tests/test_broker_reports_artifact_lifecycle.py
+          tests/test_broker_reports_gate1_artifact_store.py
+          tests/test_broker_reports_gate1_bounded_graph.py
           tests/test_broker_reports_kt16_canonical_context.py
           tests/test_broker_reports_kt2_same_source_type_first_proof.py
           tests/test_broker_reports_gate1_pipe_bundle.py

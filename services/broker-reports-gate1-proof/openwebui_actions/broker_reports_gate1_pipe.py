@@ -664,6 +664,9 @@ class Pipe:
         normalizer = Gate1Normalizer(
             _server_request=__request__,
             _pdf_image_root=Path(self.valves.artifact_payload_root),
+            _pdf_document_ai_qualification_permit=kwargs.pop(
+                "__pdf_document_ai_qualification_permit__", None
+            ),
         )
         planned_run_id = normalizer.plan_run_id(file_inputs)
         artifact_context = self._artifact_context(

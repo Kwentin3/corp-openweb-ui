@@ -4,13 +4,9 @@ import base64
 import binascii
 import hashlib
 import json
-import os
 import re
-import shutil
 import socket
-import uuid
 from collections.abc import Mapping, Sequence
-from pathlib import Path
 from typing import Any, Protocol
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlunsplit
@@ -28,6 +24,7 @@ from .pdf_document_ai import (
     PdfDocumentExtractionError,
     PdfDocumentImageRef,
     PdfSourceContext,
+    new_pdf_document_image_ref,
 )
 
 
@@ -50,107 +47,37 @@ class _NoRedirectHandler(HTTPRedirectHandler):
         return None
 
 
-class ClosedLocalImageBatchMaterializer:
-    """Materialize one response batch without trusting provider filenames."""
+class BoundedImageDecoder:
+    """Decode one response batch without choosing or touching storage."""
 
-    def __init__(self, root: Path) -> None:
-        self._root = root.resolve()
-
-    def materialize(
+    def decode(
         self, encoded_images: Sequence[tuple[int, str, str]]
-    ) -> tuple[tuple[PdfDocumentImageRef, ...], Path | None]:
+    ) -> tuple[PdfDocumentImageRef, ...]:
         if len(encoded_images) > _MAX_IMAGES:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED")
         if not encoded_images:
-            return (), None
-
-        batch_id = uuid.uuid4().hex
-        parent = self._root / "pdf_document_images"
-        try:
-            parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        except OSError:
-            raise PdfDocumentExtractionError(
-                "PDF_DOCUMENT_AI_IMAGE_STORAGE_INVALID"
-            ) from None
-        if parent.is_symlink() or parent.resolve() != parent:
-            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_IMAGE_STORAGE_INVALID")
-        staging = parent / f".staging-{batch_id}"
-        final = parent / f"batch-{batch_id}"
-        if staging.parent != parent or final.parent != parent:
-            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_IMAGE_STORAGE_INVALID")
+            return ()
 
         refs: list[PdfDocumentImageRef] = []
         total_bytes = 0
-        try:
-            staging.mkdir(mode=0o700, exist_ok=False)
-            for ordinal, (page_number, markdown_target, encoded) in enumerate(
-                encoded_images, start=1
-            ):
-                image_bytes, extension = _decode_image(encoded)
-                total_bytes += len(image_bytes)
-                if total_bytes > _MAX_TOTAL_IMAGE_BYTES:
-                    raise PdfDocumentExtractionError(
-                        "PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED"
-                    )
-                name = f"image-{ordinal:04d}.{extension}"
-                target = staging / name
-                descriptor = os.open(
-                    target,
-                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-                    0o600,
+        for page_number, markdown_target, encoded in encoded_images:
+            image_bytes, extension = _decode_image(encoded)
+            total_bytes += len(image_bytes)
+            if total_bytes > _MAX_TOTAL_IMAGE_BYTES:
+                raise PdfDocumentExtractionError(
+                    "PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED"
                 )
-                with os.fdopen(descriptor, "wb") as handle:
-                    handle.write(image_bytes)
-                    handle.flush()
-                    os.fsync(handle.fileno())
-                digest = hashlib.sha256(image_bytes).hexdigest()
-                if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
-                    raise PdfDocumentExtractionError(
-                        "PDF_DOCUMENT_AI_IMAGE_WRITE_FAILED"
-                    )
-                refs.append(
-                    PdfDocumentImageRef(
-                        page_number=page_number,
-                        markdown_target=markdown_target,
-                        local_ref=f"pdf_document_images/batch-{batch_id}/{name}",
-                        sha256=digest,
-                    )
+            refs.append(
+                PdfDocumentImageRef(
+                    page_number=page_number,
+                    markdown_target=markdown_target,
+                    local_ref=new_pdf_document_image_ref(),
+                    sha256=hashlib.sha256(image_bytes).hexdigest(),
+                    media_type=f"image/{extension}",
+                    content_bytes=image_bytes,
                 )
-            staging.replace(final)
-            for ref in refs:
-                stored = self._root / ref.local_ref
-                if (
-                    stored.is_symlink()
-                    or stored.resolve().parent != final
-                    or hashlib.sha256(stored.read_bytes()).hexdigest() != ref.sha256
-                ):
-                    raise PdfDocumentExtractionError(
-                        "PDF_DOCUMENT_AI_IMAGE_WRITE_FAILED"
-                    )
-            return tuple(refs), final
-        except PdfDocumentExtractionError:
-            _remove_batches(staging, final)
-            raise
-        except OSError:
-            _remove_batches(staging, final)
-            raise PdfDocumentExtractionError(
-                "PDF_DOCUMENT_AI_IMAGE_WRITE_FAILED"
-            ) from None
-
-    def discard(self, batch_path: Path | None) -> None:
-        if batch_path is None:
-            return
-        parent = self._root / "pdf_document_images"
-        if (
-            parent.is_symlink()
-            or parent.resolve() != parent
-            or batch_path.parent != parent
-            or batch_path.is_symlink()
-            or batch_path.resolve().parent != parent
-            or not batch_path.name.startswith("batch-")
-        ):
-            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_IMAGE_STORAGE_INVALID")
-        _remove_batch(batch_path)
+            )
+        return tuple(refs)
 
 
 class MistralPdfDocumentExtractor:
@@ -161,7 +88,7 @@ class MistralPdfDocumentExtractor:
         *,
         api_base_url: str,
         api_key: str,
-        image_materializer: ClosedLocalImageBatchMaterializer,
+        image_decoder: BoundedImageDecoder,
         qualification_status: str,
         timeout_seconds: float = 180.0,
         opener: _HttpOpener | None = None,
@@ -170,8 +97,12 @@ class MistralPdfDocumentExtractor:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_CONFIG_MISSING")
         self._ocr_url = _ocr_url(api_base_url)
         self._api_key = api_key
-        self._images = image_materializer
-        if qualification_status not in {"offline_fixture", "qualified"}:
+        self._images = image_decoder
+        if qualification_status not in {
+            "offline_fixture",
+            "qualification_attempt",
+            "qualified",
+        }:
             raise PdfDocumentExtractionError(
                 "PDF_DOCUMENT_AI_QUALIFICATION_STATUS_INVALID"
             )
@@ -247,11 +178,8 @@ class MistralPdfDocumentExtractor:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
 
         markdown_bytes = _PAGE_SEPARATOR.join(markdown_parts)
-        image_refs: tuple[PdfDocumentImageRef, ...] = ()
-        batch_path: Path | None = None
-        try:
-            image_refs, batch_path = self._images.materialize(encoded_images)
-            return PdfDocumentExtraction(
+        image_refs = self._images.decode(encoded_images)
+        return PdfDocumentExtraction(
                 source_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
                 page_numbers=tuple(range(1, len(pages) + 1)),
                 markdown_bytes=markdown_bytes,
@@ -269,9 +197,6 @@ class MistralPdfDocumentExtractor:
                     ("pages_count", usage_page_count),
                 ),
             )
-        except Exception:
-            self._images.discard(batch_path)
-            raise
 
     def _post_once(self, pdf_bytes: bytes) -> Mapping[str, Any]:
         payload = json.dumps(
@@ -333,7 +258,9 @@ class MistralPdfDocumentExtractor:
 
 
 def create_from_openwebui_request(
-    *, server_request: Any, image_root: Path | None
+    *,
+    server_request: Any,
+    qualification_status: str = "qualified",
 ) -> MistralPdfDocumentExtractor | None:
     """Read the sole live OpenWebUI config owner without copying persistence."""
 
@@ -344,7 +271,10 @@ def create_from_openwebui_request(
         return None
     if engine != "mistral_ocr":
         return None
-    if not PDF_DOCUMENT_AI_LIVE_QUALIFIED:
+    if (
+        not PDF_DOCUMENT_AI_LIVE_QUALIFIED
+        and qualification_status != "qualification_attempt"
+    ):
         raise PdfDocumentExtractionError(
             PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
         )
@@ -353,13 +283,13 @@ def create_from_openwebui_request(
         api_key = str(config.MISTRAL_OCR_API_KEY or "")
     except (AttributeError, TypeError):
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_CONFIG_MISSING") from None
-    if not api_base_url or not api_key.strip() or image_root is None:
+    if not api_base_url or not api_key.strip():
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_CONFIG_MISSING")
     return MistralPdfDocumentExtractor(
         api_base_url=api_base_url,
         api_key=api_key,
-        image_materializer=ClosedLocalImageBatchMaterializer(image_root),
-        qualification_status="qualified",
+        image_decoder=BoundedImageDecoder(),
+        qualification_status=qualification_status,
     )
 
 
@@ -404,26 +334,3 @@ def _decode_image(encoded: str) -> tuple[bytes, str]:
     if image_bytes.startswith(b"RIFF") and image_bytes[8:12] == b"WEBP":
         return image_bytes, "webp"
     raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_IMAGE_INVALID")
-
-
-def _remove_batch(path: Path) -> None:
-    if path.exists():
-        try:
-            shutil.rmtree(path)
-        except OSError:
-            raise PdfDocumentExtractionError(
-                "PDF_DOCUMENT_AI_IMAGE_CLEANUP_FAILED"
-            ) from None
-
-
-def _remove_batches(*paths: Path) -> None:
-    cleanup_failed = False
-    for path in paths:
-        try:
-            _remove_batch(path)
-        except PdfDocumentExtractionError:
-            cleanup_failed = True
-    if cleanup_failed:
-        raise PdfDocumentExtractionError(
-            "PDF_DOCUMENT_AI_IMAGE_CLEANUP_FAILED"
-        )

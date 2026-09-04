@@ -5,10 +5,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .artifact_models import (
+    PRIVATE_BINARY_ARTIFACT_SCHEMA_VERSION,
     ArtifactAccessContext,
     ArtifactRecord,
     ArtifactStoreError,
     ArtifactStorePort,
+    decode_private_binary_payload,
 )
 
 
@@ -42,6 +44,41 @@ class ArtifactResolver:
         result.payload = None
         result.payload_ref = None
         return result
+
+    def resolve_private_binary(
+        self,
+        artifact_id: str,
+        context: ArtifactAccessContext,
+        *,
+        expected_sha256: str | None = None,
+    ) -> dict[str, Any]:
+        """Resolve one ACL-checked private binary envelope and verify its inner seal."""
+
+        resolved = self.resolve(artifact_id, context)
+        record = resolved["record"]
+        if (
+            record.artifact_type != PRIVATE_BINARY_ARTIFACT_SCHEMA_VERSION
+            or record.visibility != "private_case"
+            or record.storage_backend != "project_artifact_payload"
+        ):
+            raise ArtifactStoreError(
+                "artifact_binary_payload_invalid",
+                "Artifact is not a private binary envelope",
+            )
+        content, media_type, content_sha256 = decode_private_binary_payload(
+            resolved["payload"]
+        )
+        if expected_sha256 is not None and expected_sha256 != content_sha256:
+            raise ArtifactStoreError(
+                "artifact_binary_checksum_mismatch",
+                "Private binary content does not match the expected checksum",
+            )
+        return {
+            "record": record,
+            "content": content,
+            "media_type": media_type,
+            "content_sha256": content_sha256,
+        }
 
     def resolve_case(
         self, artifact_id: str, context: ArtifactAccessContext

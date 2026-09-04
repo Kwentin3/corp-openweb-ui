@@ -16,11 +16,23 @@ from urllib.request import Request
 
 import pytest
 
+from broker_reports_gate1.artifact_models import (
+    PRIVATE_BINARY_ARTIFACT_TYPE,
+    ArtifactAccessContext,
+    ArtifactStoreError,
+    RetentionPolicy,
+)
+from broker_reports_gate1.artifact_resolver import ArtifactResolver
+from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
+from broker_reports_gate1.bounded_graph import (
+    Gate1BoundedGraphConfig,
+    Gate1BoundedGraphFactory,
+)
 from broker_reports_gate1.mistral_pdf_document_ai import (
+    BoundedImageDecoder,
     MISTRAL_OCR_ADAPTER_ID,
     MISTRAL_OCR_MODEL,
     MISTRAL_OCR_PROVIDER_ID,
-    ClosedLocalImageBatchMaterializer,
     MistralPdfDocumentExtractor,
 )
 from broker_reports_gate1.full_source import FullSourceArtifactFactory
@@ -135,7 +147,7 @@ def _extractor(
     return MistralPdfDocumentExtractor(
         api_base_url="https://api.mistral.ai/v1",
         api_key=API_KEY,
-        image_materializer=ClosedLocalImageBatchMaterializer(tmp_path),
+        image_decoder=BoundedImageDecoder(),
         qualification_status="offline_fixture",
         timeout_seconds=17.0,
         opener=opener,
@@ -219,7 +231,8 @@ def test_success_maps_ordered_multi_page_empty_page_and_image_once(tmp_path: Pat
     assert image_ref.page_number == 1
     assert image_ref.markdown_target == "img-0.png"
     assert image_ref.sha256 == hashlib.sha256(PNG_BYTES).hexdigest()
-    assert (tmp_path / image_ref.local_ref).read_bytes() == PNG_BYTES
+    assert image_ref.content_bytes == PNG_BYTES
+    assert image_ref.media_type == "image/png"
     result_text = repr(result)
     assert first_page_markdown not in result_text
     assert API_KEY not in result_text
@@ -327,11 +340,10 @@ def test_fidelity_offline_fixture_preserves_all_eight_image_associations(
     ) == FIDELITY_IMAGE_ASSOCIATIONS
     assert len(result.image_refs) == 8
     for ref in result.image_refs:
-        stored = tmp_path / ref.local_ref
-        assert stored.read_bytes() == (
+        assert ref.content_bytes == (
             FIDELITY_FIXTURE_ROOT / ref.markdown_target
         ).read_bytes()
-        assert hashlib.sha256(stored.read_bytes()).hexdigest() == ref.sha256
+        assert hashlib.sha256(ref.content_bytes).hexdigest() == ref.sha256
     repeated_hash_refs = [
         ref
         for ref in result.image_refs
@@ -361,7 +373,9 @@ def test_neutral_image_ref_rejects_invalid_page_or_escaping_target(
             page_number=page_number,  # type: ignore[arg-type]
             markdown_target=markdown_target,
             local_ref="pdf_document_images/batch/image.png",
-            sha256="0" * 64,
+            sha256=hashlib.sha256(PNG_BYTES).hexdigest(),
+            media_type="image/png",
+            content_bytes=PNG_BYTES,
         )
 
 
@@ -383,33 +397,46 @@ def _neutral_extraction(
     )
 
 
+def _neutral_image_ref(
+    page_number: int, markdown_target: str, local_ref: str
+) -> PdfDocumentImageRef:
+    return PdfDocumentImageRef(
+        page_number=page_number,
+        markdown_target=markdown_target,
+        local_ref=local_ref,
+        sha256=hashlib.sha256(PNG_BYTES).hexdigest(),
+        media_type="image/png",
+        content_bytes=PNG_BYTES,
+    )
+
+
 @pytest.mark.parametrize(
     ("image_refs", "expected_error"),
     (
         (
             (
-                PdfDocumentImageRef(3, "img.png", "images/a.png", "0" * 64),
+                _neutral_image_ref(3, "img.png", "images/a.png"),
             ),
             "pdf_document_image_page_not_in_document",
         ),
         (
             (
-                PdfDocumentImageRef(2, "b.png", "images/b.png", "0" * 64),
-                PdfDocumentImageRef(1, "a.png", "images/a.png", "1" * 64),
+                _neutral_image_ref(2, "b.png", "images/b.png"),
+                _neutral_image_ref(1, "a.png", "images/a.png"),
             ),
             "pdf_document_image_page_order_invalid",
         ),
         (
             (
-                PdfDocumentImageRef(1, "same.png", "images/a.png", "0" * 64),
-                PdfDocumentImageRef(1, "same.png", "images/b.png", "1" * 64),
+                _neutral_image_ref(1, "same.png", "images/a.png"),
+                _neutral_image_ref(1, "same.png", "images/b.png"),
             ),
             "pdf_document_image_association_duplicate",
         ),
         (
             (
-                PdfDocumentImageRef(1, "a.png", "images/same.png", "0" * 64),
-                PdfDocumentImageRef(2, "b.png", "images/same.png", "0" * 64),
+                _neutral_image_ref(1, "a.png", "images/same.png"),
+                _neutral_image_ref(2, "b.png", "images/same.png"),
             ),
             "pdf_document_image_ref_duplicate",
         ),
@@ -426,8 +453,8 @@ def test_neutral_extraction_rejects_ambiguous_image_associations(
 def test_same_markdown_target_on_distinct_pages_remains_unambiguous() -> None:
     extraction = _neutral_extraction(
         (
-            PdfDocumentImageRef(1, "same.png", "images/a.png", "0" * 64),
-            PdfDocumentImageRef(2, "same.png", "images/b.png", "0" * 64),
+            _neutral_image_ref(1, "same.png", "images/a.png"),
+            _neutral_image_ref(2, "same.png", "images/b.png"),
         )
     )
 
@@ -548,7 +575,7 @@ def test_markdown_image_association_must_exactly_match_ids_in_order(
     _assert_typed_failure_without_leak(
         caught, expected_code="PDF_DOCUMENT_AI_IMAGE_ASSOCIATION_INVALID"
     )
-    assert not (tmp_path / "pdf_document_images").exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.parametrize(
@@ -583,8 +610,7 @@ def test_missing_or_broken_image_fails_and_leaves_no_batch(
     _assert_typed_failure_without_leak(
         caught, expected_code="PDF_DOCUMENT_AI_IMAGE_INVALID"
     )
-    image_parent = tmp_path / "pdf_document_images"
-    assert not image_parent.exists() or list(image_parent.iterdir()) == []
+    assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.parametrize(
@@ -664,7 +690,7 @@ def test_oversized_response_is_rejected_before_json_parsing(tmp_path: Path) -> N
     assert len(response.read_limits) == 1
 
 
-def test_partial_image_batch_is_removed_after_later_image_failure(tmp_path: Path) -> None:
+def test_partial_image_decode_failure_never_touches_filesystem(tmp_path: Path) -> None:
     opener = _FakeOpener(
         _FakeResponse(
             _response(
@@ -697,73 +723,7 @@ def test_partial_image_batch_is_removed_after_later_image_failure(tmp_path: Path
     _assert_typed_failure_without_leak(
         caught, expected_code="PDF_DOCUMENT_AI_IMAGE_INVALID"
     )
-    image_parent = tmp_path / "pdf_document_images"
-    assert image_parent.is_dir()
-    assert list(image_parent.iterdir()) == []
-
-
-def test_cleanup_oserror_is_an_observable_typed_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    materializer = ClosedLocalImageBatchMaterializer(tmp_path)
-
-    with monkeypatch.context() as patch_context:
-        patch_context.setattr(
-            "broker_reports_gate1.mistral_pdf_document_ai.shutil.rmtree",
-            lambda _path: (_ for _ in ()).throw(OSError("private cleanup detail")),
-        )
-        with pytest.raises(PdfDocumentExtractionError) as caught:
-            materializer.materialize(
-                [
-                    (1, "img-0.png", f"data:image/png;base64,{PNG_BASE64}"),
-                    (1, "img-1.png", "%%%broken-second-image%%%"),
-                ]
-            )
-
-    _assert_typed_failure_without_leak(
-        caught, expected_code="PDF_DOCUMENT_AI_IMAGE_CLEANUP_FAILED"
-    )
-
-
-def test_symlink_image_parent_is_rejected_without_escape(
-    tmp_path: Path,
-) -> None:
-    root = tmp_path / "closed-root"
-    outside = tmp_path / "outside"
-    root.mkdir()
-    outside.mkdir()
-    image_parent = root / "pdf_document_images"
-    try:
-        image_parent.symlink_to(outside, target_is_directory=True)
-    except (NotImplementedError, OSError) as exc:
-        pytest.skip(f"directory symlink unavailable on this platform: {type(exc).__name__}")
-    opener = _FakeOpener(
-        _FakeResponse(
-            _response(
-                [
-                    {
-                        "index": 0,
-                        "markdown": "page\n\n![image](img-0.png)",
-                        "images": [
-                            {
-                                "id": "img-0.png",
-                                "image_base64": f"data:image/png;base64,{PNG_BASE64}",
-                            }
-                        ],
-                    }
-                ]
-            )
-        )
-    )
-
-    with pytest.raises(PdfDocumentExtractionError) as caught:
-        _extractor(root, opener).extract(PDF_BYTES, _source_context(1))
-
-    _assert_one_post(opener)
-    _assert_typed_failure_without_leak(
-        caught, expected_code="PDF_DOCUMENT_AI_IMAGE_STORAGE_INVALID"
-    )
-    assert list(outside.iterdir()) == []
+    assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.parametrize(
@@ -785,7 +745,7 @@ def test_arbitrary_host_port_or_path_is_rejected_before_http(
         MistralPdfDocumentExtractor(
             api_base_url=api_base_url,
             api_key=API_KEY,
-            image_materializer=ClosedLocalImageBatchMaterializer(tmp_path),
+            image_decoder=BoundedImageDecoder(),
             qualification_status="offline_fixture",
             opener=opener,
         )
@@ -805,7 +765,7 @@ def test_direct_adapter_rejects_missing_key_before_http(tmp_path: Path) -> None:
         MistralPdfDocumentExtractor(
             api_base_url="https://api.mistral.ai/v1",
             api_key="   ",
-            image_materializer=ClosedLocalImageBatchMaterializer(tmp_path),
+            image_decoder=BoundedImageDecoder(),
             qualification_status="offline_fixture",
             opener=opener,
         )
@@ -893,7 +853,7 @@ def _full_source_checksum(
     page_number: int,
     markdown_target: str,
     local_ref: str,
-    image_sha256: str,
+    image_bytes: bytes,
 ) -> tuple[str, list[dict[str, object]]]:
     markdown = b"# Provider-neutral extraction"
     extraction = PdfDocumentExtraction(
@@ -906,7 +866,9 @@ def _full_source_checksum(
                 page_number=page_number,
                 markdown_target=markdown_target,
                 local_ref=local_ref,
-                sha256=image_sha256,
+                sha256=hashlib.sha256(image_bytes).hexdigest(),
+                media_type="image/png",
+                content_bytes=image_bytes,
             ),
         ),
         provider_id=MISTRAL_OCR_PROVIDER_ID,
@@ -930,12 +892,12 @@ def _full_source_checksum(
 
 
 @pytest.mark.parametrize(
-    ("mutated_page", "mutated_target", "mutated_ref", "mutated_sha256"),
+    ("mutated_page", "mutated_target", "mutated_ref", "mutated_bytes"),
     (
-        (2, "img-0.png", "pdf_document_images/batch-a/image-0001.png", "1" * 64),
-        (1, "img-other.png", "pdf_document_images/batch-a/image-0001.png", "1" * 64),
-        (1, "img-0.png", "pdf_document_images/batch-b/image-0001.png", "1" * 64),
-        (1, "img-0.png", "pdf_document_images/batch-a/image-0001.png", "2" * 64),
+        (2, "img-0.png", "pdfimg_a", PNG_BYTES),
+        (1, "img-other.png", "pdfimg_a", PNG_BYTES),
+        (1, "img-0.png", "pdfimg_b", PNG_BYTES),
+        (1, "img-0.png", "pdfimg_a", PNG_BYTES + b"-changed"),
     ),
     ids=("page_number", "markdown_target", "image_ref", "image_hash"),
 )
@@ -943,31 +905,178 @@ def test_full_source_payload_checksum_binds_every_image_association_field(
     mutated_page: int,
     mutated_target: str,
     mutated_ref: str,
-    mutated_sha256: str,
+    mutated_bytes: bytes,
 ) -> None:
     baseline_checksum, baseline_refs = _full_source_checksum(
         page_number=1,
         markdown_target="img-0.png",
-        local_ref="pdf_document_images/batch-a/image-0001.png",
-        image_sha256="1" * 64,
+        local_ref="pdfimg_a",
+        image_bytes=PNG_BYTES,
     )
 
     mutated_checksum, _mutated_refs = _full_source_checksum(
         page_number=mutated_page,
         markdown_target=mutated_target,
         local_ref=mutated_ref,
-        image_sha256=mutated_sha256,
+        image_bytes=mutated_bytes,
     )
 
     assert baseline_refs == [
         {
             "page_number": 1,
             "markdown_target": "img-0.png",
-            "local_ref": "pdf_document_images/batch-a/image-0001.png",
-            "sha256": "1" * 64,
+            "local_ref": "pdfimg_a",
+            "sha256": hashlib.sha256(PNG_BYTES).hexdigest(),
         }
     ]
     assert mutated_checksum != baseline_checksum
+
+
+def _pdf_graph_fixture(tmp_path: Path):
+    run_id = "pdf-atomic-publication-run"
+    document_id = "pdf-atomic-publication-document"
+    context = ArtifactAccessContext(
+        user_id="pdf-user",
+        normalization_run_id=run_id,
+        case_id="pdf-case",
+        chat_id="pdf-chat",
+        workspace_model_id="pdf-workspace",
+        allow_private=True,
+    )
+    retention = RetentionPolicy(
+        mode="synthetic_dev",
+        ttl_seconds=None,
+        expires_at=None,
+        explicit=True,
+    )
+    store = ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=tmp_path / "artifacts.sqlite3",
+            payload_root=tmp_path / "payloads",
+        )
+    ).create()
+    graph = Gate1BoundedGraphFactory(
+        Gate1BoundedGraphConfig(
+            store=store,
+            context=context,
+            retention_policy=retention,
+            source_file_refs=(
+                {
+                    "provider": "openwebui",
+                    "openwebui_file_id": "pdf-upload",
+                    "content_type": "application/pdf",
+                    "source_deleted": False,
+                },
+            ),
+        )
+    ).create(normalization_run_id=run_id)
+    graph.register_document(
+        {
+            "document_id": document_id,
+            "root_input_ordinal": 1,
+            "source_kind": "openwebui_pipe",
+            "container_format": "pdf",
+            "declared_mime_type": "application/pdf",
+            "sha256": hashlib.sha256(PDF_BYTES).hexdigest(),
+            "size_bytes": len(PDF_BYTES),
+        }
+    )
+    image = _neutral_image_ref(1, "img-0.png", "pdfimg_atomic_fixture")
+    markdown = b"page\n\n![image](img-0.png)"
+    extraction = PdfDocumentExtraction(
+        source_pdf_sha256=hashlib.sha256(PDF_BYTES).hexdigest(),
+        page_numbers=(1,),
+        markdown_bytes=markdown,
+        markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+        image_refs=(image,),
+        provider_id="offline_fixture_provider",
+        model_id="offline_fixture_model",
+        adapter_id="offline_fixture_adapter_v1",
+        qualification_status="offline_fixture",
+        usage_page_count=1,
+    )
+    result = FullSourceArtifactFactory().create().build_document_extraction(
+        normalization_run_id=run_id,
+        document_id=document_id,
+        profile_id="technical_pdf_profile_v0",
+        extraction=extraction,
+    )
+    return store, graph, context, result, image
+
+
+def test_pdf_full_source_and_image_are_one_atomic_private_publication(
+    tmp_path: Path,
+) -> None:
+    store, graph, context, result, image = _pdf_graph_fixture(tmp_path)
+
+    graph.publish_pdf_full_source_atomic(result=result, image_refs=(image,))
+
+    assert len(graph.collection("private_normalized_source_payloads")) == 1
+    assert len(graph.collection("private_normalized_source_units")) == 1
+    assert graph.refs_by_type[PRIVATE_BINARY_ARTIFACT_TYPE] == [image.local_ref]
+    resolved = ArtifactResolver(store).resolve_private_binary(
+        image.local_ref,
+        context,
+        expected_sha256=image.sha256,
+    )
+    assert resolved["content"] == PNG_BYTES
+    assert resolved["media_type"] == "image/png"
+
+
+def test_pdf_source_deletion_purges_markdown_unit_and_linked_image(
+    tmp_path: Path,
+) -> None:
+    store, graph, context, result, image = _pdf_graph_fixture(tmp_path)
+    graph.publish_pdf_full_source_atomic(result=result, image_refs=(image,))
+    source_context = ArtifactAccessContext(
+        user_id=context.user_id,
+        normalization_run_id=context.normalization_run_id,
+        case_id=context.case_id,
+        chat_id=context.chat_id,
+        workspace_model_id=context.workspace_model_id,
+        source_file_id="pdf-upload",
+        allow_private=True,
+    )
+
+    purged = store.mark_source_file_deleted(source_context)
+
+    assert purged.records_changed == 4
+    private_graph_ids = {
+        *graph.refs_by_type["private_normalized_source_payload_v0"],
+        *graph.refs_by_type["private_normalized_source_unit_v0"],
+        *graph.refs_by_type[PRIVATE_BINARY_ARTIFACT_TYPE],
+    }
+    assert private_graph_ids <= set(purged.artifact_ids)
+    assert all(
+        store.get_record_unchecked(artifact_id).lifecycle_status == "purged"
+        for artifact_id in private_graph_ids
+    )
+    with pytest.raises(ArtifactStoreError) as blocked:
+        ArtifactResolver(store).resolve_private_binary(
+            image.local_ref,
+            context,
+            expected_sha256=image.sha256,
+        )
+    assert blocked.value.code == "artifact_purged"
+
+
+def test_pdf_atomic_failure_does_not_publish_images_or_update_graph_indexes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store, graph, _context, result, image = _pdf_graph_fixture(tmp_path)
+
+    def fail_atomic(_records: object) -> None:
+        raise ArtifactStoreError("artifact_atomic_write_failed", "synthetic")
+
+    monkeypatch.setattr(store, "put_records_atomic", fail_atomic)
+    with pytest.raises(ArtifactStoreError, match="synthetic"):
+        graph.publish_pdf_full_source_atomic(result=result, image_refs=(image,))
+
+    assert len(graph.collection("private_normalized_source_payloads")) == 0
+    assert len(graph.collection("private_normalized_source_units")) == 0
+    assert PRIVATE_BINARY_ARTIFACT_TYPE not in graph.refs_by_type
+    assert store.get_record_unchecked(image.local_ref) is None
 
 
 def test_production_pipe_static_rejection_is_zero_call_and_nonblocking(

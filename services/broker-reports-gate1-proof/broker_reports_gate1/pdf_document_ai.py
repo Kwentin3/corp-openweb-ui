@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import secrets
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -30,6 +31,8 @@ class PdfDocumentImageRef:
     markdown_target: str
     local_ref: str
     sha256: str
+    media_type: str
+    content_bytes: bytes = field(repr=False)
 
     def __post_init__(self) -> None:
         if type(self.page_number) is not int or self.page_number < 1:
@@ -43,6 +46,23 @@ class PdfDocumentImageRef:
             "pdf_document_image_ref_must_be_closed_local",
         )
         _require_sha256(self.sha256, "pdf_document_image_sha256_invalid")
+        if self.media_type not in {
+            "image/png",
+            "image/jpeg",
+            "image/gif",
+            "image/webp",
+        }:
+            raise ValueError("pdf_document_image_media_type_invalid")
+        if type(self.content_bytes) is not bytes or not self.content_bytes:
+            raise ValueError("pdf_document_image_bytes_required")
+        if hashlib.sha256(self.content_bytes).hexdigest() != self.sha256:
+            raise ValueError("pdf_document_image_sha256_mismatch")
+
+
+def new_pdf_document_image_ref() -> str:
+    """Mint an opaque, unpublished ref without choosing a storage backend."""
+
+    return f"pdfimg_{secrets.token_urlsafe(24)}"
 
 
 def _require_closed_relative_ref(value: str, code: str) -> None:
@@ -97,7 +117,11 @@ class PdfDocumentExtraction:
             raise ValueError("pdf_document_page_count_invalid")
         if not all((self.provider_id, self.model_id, self.adapter_id)):
             raise ValueError("pdf_document_provenance_incomplete")
-        if self.qualification_status not in {"offline_fixture", "qualified"}:
+        if self.qualification_status not in {
+            "offline_fixture",
+            "qualification_attempt",
+            "qualified",
+        }:
             raise ValueError("pdf_document_qualification_status_invalid")
         if len({item.local_ref for item in self.image_refs}) != len(self.image_refs):
             raise ValueError("pdf_document_image_ref_duplicate")
@@ -201,7 +225,9 @@ class PdfDocumentExtractorFactory:
         *,
         server_request: Any = None,
         image_root: Path | None = None,
+        qualification_permit: Any = None,
     ) -> PdfDocumentExtractor:
+        del image_root  # Compatibility-only; ArtifactStore owns image persistence.
         if server_request is None:
             return UnconfiguredPdfDocumentExtractor()
         try:
@@ -212,20 +238,53 @@ class PdfDocumentExtractorFactory:
             return UnconfiguredPdfDocumentExtractor()
         if engine != "mistral_ocr":
             return UnconfiguredPdfDocumentExtractor()
-        if not PDF_DOCUMENT_AI_LIVE_QUALIFIED:
+        if not PDF_DOCUMENT_AI_LIVE_QUALIFIED and qualification_permit is None:
             return RejectedPdfDocumentExtractor(
                 PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
+            )
+        if not PDF_DOCUMENT_AI_LIVE_QUALIFIED:
+            return _QualificationPdfDocumentExtractor(
+                server_request=server_request,
+                permit=qualification_permit,
             )
         from .mistral_pdf_document_ai import create_from_openwebui_request
 
         try:
             configured = create_from_openwebui_request(
                 server_request=server_request,
-                image_root=image_root,
             )
         except PdfDocumentExtractionError as exc:
             return RejectedPdfDocumentExtractor(exc.code)
         return configured or UnconfiguredPdfDocumentExtractor()
+
+
+class _QualificationPdfDocumentExtractor:
+    """Defer native config/key access until the exact public digest is admitted."""
+
+    def __init__(self, *, server_request: Any, permit: Any) -> None:
+        self._server_request = server_request
+        self._permit = permit
+
+    def extract(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+    ) -> PdfDocumentExtraction:
+        observed_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+        admits = getattr(self._permit, "admits", None)
+        if not callable(admits) or admits(observed_sha256) is not True:
+            raise PdfDocumentExtractionError(
+                "PDF_DOCUMENT_AI_QUALIFICATION_FIXTURE_FORBIDDEN"
+            )
+        from .mistral_pdf_document_ai import create_from_openwebui_request
+
+        configured = create_from_openwebui_request(
+            server_request=self._server_request,
+            qualification_status="qualification_attempt",
+        )
+        if configured is None:
+            raise PdfDocumentExtractionError(PDF_DOCUMENT_AI_NOT_CONFIGURED)
+        return configured.extract(pdf_bytes, source_context)
 
 
 def is_terminal_pdf_document_ai_request(
@@ -243,11 +302,19 @@ def is_terminal_pdf_document_ai_request(
     blocked_document_refs = {
         str(blocker.get("document_id") or "")
         for blocker in blockers
-        if blocker.get("code")
-        in {
-            PDF_DOCUMENT_AI_NOT_CONFIGURED,
-            PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
-        }
+        if (
+            blocker.get("code")
+            in {
+                PDF_DOCUMENT_AI_NOT_CONFIGURED,
+                PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
+            }
+            or (
+                blocker.get("code") == "parser_failed"
+                and str(
+                    blocker.get("reason_code") or blocker.get("reason") or ""
+                ).startswith("PDF_DOCUMENT_")
+            )
+        )
         and str(blocker.get("document_id") or "") in pdf_document_refs
     }
     if not blocked_document_refs:
