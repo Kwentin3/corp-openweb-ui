@@ -41,6 +41,7 @@ from live_verify_broker_reports_atomic_stage_release import (  # noqa: E402
     _read_remote_runtime_state,
     evaluate_action_release,
     evaluate_function_release,
+    evaluate_provider_runtime_boundary,
     evaluate_remote_runtime,
     evaluate_route_activation,
 )
@@ -540,6 +541,38 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             gate1_valves=manifest["functions"][0]["valves"],
         )
         self.assertFalse(contract_failed["pdf_document_ai_contract_identity_exact"])
+
+    def test_verifier_reads_runtime_boundary_from_pdf_document_ai_contract(self):
+        provider_policy = _manifest()["provider_policy"]
+        self.assertNotIn("source_bound_table_contract", provider_policy)
+        checks = evaluate_provider_runtime_boundary(provider_policy)
+        self.assertTrue(all(checks.values()), checks)
+
+        for field, check in (
+            (
+                "knowledge_rag_vectorization_allowed",
+                "knowledge_rag_vectorization_forbidden",
+            ),
+            ("local_ocr_production_allowed", "local_ocr_production_forbidden"),
+            ("local_ocr_worker_pool_allowed", "local_ocr_production_forbidden"),
+        ):
+            with self.subTest(field=field):
+                drifted = json.loads(json.dumps(provider_policy))
+                drifted["pdf_document_ai_contract"]["runtime_boundary"][field] = True
+                failed = evaluate_provider_runtime_boundary(drifted)
+                self.assertFalse(failed[check])
+
+        with mock.patch(
+            "live_verify_broker_reports_atomic_stage_release."
+            "NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED",
+            True,
+        ):
+            failed = evaluate_provider_runtime_boundary(provider_policy)
+        self.assertFalse(failed["knowledge_rag_vectorization_forbidden"])
+
+        self.assertFalse(
+            all(evaluate_provider_runtime_boundary({}).values())
+        )
 
     def test_local_driver_surfaces_only_typed_safe_remote_error(self):
         completed = subprocess.CompletedProcess(
