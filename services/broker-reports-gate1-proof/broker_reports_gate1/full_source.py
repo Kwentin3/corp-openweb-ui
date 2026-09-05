@@ -190,6 +190,13 @@ class FullSourceArtifactBuilder:
         extraction: PdfDocumentExtraction,
     ) -> FullSourceBuildResult:
         """Carry exact extraction output as one private representation-only unit."""
+        if extraction.page_markdown_bytes:
+            return self._build_paged_document_extraction(
+                normalization_run_id=normalization_run_id,
+                document_id=document_id,
+                profile_id=profile_id,
+                extraction=extraction,
+            )
         text = extraction.markdown_bytes.decode("utf-8", errors="strict")
         provenance = {
             "provider_id": extraction.provider_id,
@@ -258,6 +265,131 @@ class FullSourceArtifactBuilder:
                 "rows_total": 0,
                 "cells_total": 0,
                 "text_characters_total": len(text),
+                "text_segments_total": 0,
+                "full_coverage_available": bool(units),
+                "preview_artifacts_are_coverage_authority": False,
+                "knowledge_rag_used": False,
+                "vectorization_performed": False,
+            },
+        )
+
+    def _build_paged_document_extraction(
+        self,
+        *,
+        normalization_run_id: str,
+        document_id: str,
+        profile_id: str,
+        extraction: PdfDocumentExtraction,
+    ) -> FullSourceBuildResult:
+        """Preserve the adapter's exact page boundary before neutral parsing.
+
+        A combined Markdown string is convenient for Full Source delivery, but
+        its separator is not an authority for reconstructing pages.  Only the
+        adapter-provided page byte sequence may create page-scoped units.
+        """
+
+        provenance = {
+            "provider_id": extraction.provider_id,
+            "source_pdf_sha256": extraction.source_pdf_sha256,
+            "requested_model_id": extraction.requested_model_id,
+            "model_id": extraction.model_id,
+            "adapter_id": extraction.adapter_id,
+            "request_contract_version": extraction.request_contract_version,
+            "request_parameters": dict(extraction.request_parameters),
+            "request_parameters_sha256": extraction.request_parameters_sha256,
+            "page_markdown_sha256": list(extraction.page_markdown_sha256),
+            "qualification_status": extraction.qualification_status,
+        }
+        image_refs_by_page = {
+            page: [
+                {
+                    "page_number": image.page_number,
+                    "markdown_target": image.markdown_target,
+                    "local_ref": image.local_ref,
+                    "sha256": image.sha256,
+                }
+                for image in extraction.image_refs
+                if image.page_number == page
+            ]
+            for page in extraction.page_numbers
+        }
+        payloads: list[dict[str, Any]] = []
+        units: list[dict[str, Any]] = []
+        for ordinal, (page, page_bytes, page_sha256) in enumerate(
+            zip(
+                extraction.page_numbers,
+                extraction.page_markdown_bytes,
+                extraction.page_markdown_sha256,
+                strict=True,
+            ),
+            start=1,
+        ):
+            text = page_bytes.decode("utf-8", errors="strict")
+            descriptor = {
+                "logical_identity": f"document_ai_markdown_page_{page:03d}",
+                "slice_type": "text_excerpt",
+                "parser": "document_ai_extraction_envelope",
+                "parser_version": extraction.schema_version,
+                "parser_completeness_status": "complete",
+                "parser_completeness_reason_codes": [],
+                "format_reason_codes": ["document_ai_content_not_semantically_parsed"],
+                "format_structural_inventory": {
+                    "page_number": page,
+                    "page_markdown_bytes": len(page_bytes),
+                    "page_markdown_sha256": page_sha256,
+                    "images_count": len(image_refs_by_page[page]),
+                },
+                "source_location": {
+                    "kind": "document_ai_page_markdown",
+                    "page": page,
+                    "line_start": 1,
+                    "line_end": len(text.splitlines()),
+                },
+                "text": text,
+                "document_ai_provenance": provenance,
+                "document_ai_markdown_sha256": extraction.markdown_sha256,
+                "document_ai_image_refs": image_refs_by_page[page],
+            }
+            payload, unit = self._build_descriptor(
+                normalization_run_id=normalization_run_id,
+                document_id=document_id,
+                profile_id=profile_id,
+                source_checksum_sha256=extraction.source_pdf_sha256,
+                container_format="pdf",
+                ordinal=ordinal,
+                descriptor=descriptor,
+            )
+            payloads.append(payload)
+            if unit is not None:
+                units.append(unit)
+        unit_refs = [str(item["unit_ref"]) for item in units]
+        for index, unit in enumerate(units):
+            unit["remaining_unit_refs"] = unit_refs[index + 1 :]
+            unit["next_unit_refs"] = unit_refs[index + 1 : index + 2]
+        units_by_payload = {str(item["parent_payload_ref"]): item for item in units}
+        for payload in payloads:
+            unit = units_by_payload.get(str(payload["source_payload_ref"]))
+            payload["extraction_unit_refs"] = [unit["unit_ref"]] if unit else []
+            if unit:
+                payload["row_inventory"] = copy.deepcopy(unit.get("row_provenance") or [])
+                payload["cell_inventory"] = copy.deepcopy(unit.get("cell_provenance") or [])
+                payload["text_segment_inventory"] = copy.deepcopy(unit.get("segment_provenance") or [])
+                payload["source_value_index"] = copy.deepcopy(unit.get("source_value_index") or [])
+                payload["coverage_index"] = copy.deepcopy(unit.get("coverage") or {})
+        return FullSourceBuildResult(
+            payloads=payloads,
+            units=units,
+            summary={
+                "schema_version": "full_source_coverage_summary_v0",
+                "document_ref": document_id,
+                "container_format": "pdf",
+                "parser_completeness_status": "complete",
+                "parser_completeness_reason_codes": [],
+                "payloads_total": len(payloads),
+                "extraction_units_total": len(units),
+                "rows_total": 0,
+                "cells_total": 0,
+                "text_characters_total": sum(len(page) for page in extraction.page_markdown_bytes),
                 "text_segments_total": 0,
                 "full_coverage_available": bool(units),
                 "preview_artifacts_are_coverage_authority": False,

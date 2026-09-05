@@ -227,6 +227,7 @@ class MistralPdfDocumentExtractor:
             ),
             qualification_status=self._qualification_status,
             usage_page_count=usage_page_count,
+            page_markdown_bytes=tuple(markdown_parts),
             safe_technical_summary=(
                 ("document_bytes", len(pdf_bytes)),
                 ("images_count", len(image_refs)),

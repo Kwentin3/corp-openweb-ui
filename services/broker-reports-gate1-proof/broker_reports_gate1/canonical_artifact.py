@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -430,6 +431,28 @@ class CanonicalNormalizer:
                 continue
             text = str(unit.get("text") or "")
             if text:
+                if _location(unit).get("kind") == "document_ai_page_markdown":
+                    for node_type, content in _document_ai_markdown_nodes(text):
+                        if node_type == "TABLE":
+                            builder.add_table(
+                                container,
+                                content["rows"],
+                                location,
+                                metadata={
+                                    "source_format": "pdf",
+                                    "representation": "document_ai_markdown",
+                                },
+                                header_present=True,
+                            )
+                        else:
+                            builder.add_node(
+                                container,
+                                node_type,
+                                content,
+                                location,
+                                issue_refs=issue_refs,
+                            )
+                    continue
                 node_type, content = _pdf_text_node(unit, text)
                 builder.add_node(
                     container,
@@ -898,6 +921,108 @@ def _pdf_text_node(unit: dict[str, Any], text: str) -> tuple[str, dict[str, Any]
     return "TEXT", {"text": text}
 
 
+_MARKDOWN_HEADING = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
+_MARKDOWN_LIST = re.compile(r"^(\s*)([-+*]|\d+[.)])\s+(.*\S)\s*$")
+_MARKDOWN_TABLE_DIVIDER = re.compile(
+    r"^\s*:?-{3,}:?\s*$"
+)
+
+
+def _document_ai_markdown_nodes(text: str) -> list[tuple[str, dict[str, Any]]]:
+    """Parse only standard Markdown structure into neutral Canonical nodes.
+
+    This is a representation adapter inside the existing Canonical owner.  It
+    neither assigns financial meaning nor tries to repair malformed Markdown:
+    anything outside the small closed grammar remains literal TEXT.
+    """
+
+    lines = text.splitlines()
+    nodes: list[tuple[str, dict[str, Any]]] = []
+    index = 0
+    while index < len(lines):
+        if not lines[index].strip():
+            index += 1
+            continue
+        heading = _MARKDOWN_HEADING.match(lines[index])
+        if heading:
+            nodes.append(
+                (
+                    "HEADING",
+                    {"text": heading.group(2), "level": len(heading.group(1))},
+                )
+            )
+            index += 1
+            continue
+        if index + 1 < len(lines):
+            header = _markdown_table_row(lines[index])
+            divider = _markdown_table_row(lines[index + 1])
+            if (
+                header is not None
+                and divider is not None
+                and len(header) == len(divider)
+                and all(_MARKDOWN_TABLE_DIVIDER.fullmatch(cell) for cell in divider)
+            ):
+                rows = [header]
+                index += 2
+                while index < len(lines):
+                    row = _markdown_table_row(lines[index])
+                    if row is None or len(row) != len(header):
+                        break
+                    rows.append(row)
+                    index += 1
+                nodes.append(("TABLE", {"rows": rows}))
+                continue
+        list_match = _MARKDOWN_LIST.match(lines[index])
+        if list_match:
+            items: list[dict[str, Any]] = []
+            while index < len(lines):
+                item = _MARKDOWN_LIST.match(lines[index])
+                if not item:
+                    break
+                marker = item.group(2)
+                items.append(
+                    {
+                        "text": item.group(3),
+                        "level": len(item.group(1)) // 2,
+                        "ordered": marker[0].isdigit(),
+                    }
+                )
+                index += 1
+            nodes.append(("LIST", {"items": items}))
+            continue
+        paragraph: list[str] = []
+        while index < len(lines) and lines[index].strip():
+            if paragraph and (
+                _MARKDOWN_HEADING.match(lines[index])
+                or _MARKDOWN_LIST.match(lines[index])
+                or (
+                    index + 1 < len(lines)
+                    and _markdown_table_row(lines[index]) is not None
+                    and _markdown_table_row(lines[index + 1]) is not None
+                )
+            ):
+                break
+            paragraph.append(lines[index])
+            index += 1
+        if paragraph:
+            nodes.append(("TEXT", {"text": "\n".join(paragraph)}))
+    return nodes
+
+
+def _markdown_table_row(line: str) -> list[str] | None:
+    if "|" not in line:
+        return None
+    value = line.strip()
+    if value.startswith("|"):
+        value = value[1:]
+    if value.endswith("|") and not value.endswith("\\|"):
+        value = value[:-1]
+    cells = re.split(r"(?<!\\)\|", value)
+    if len(cells) < 2:
+        return None
+    return [cell.strip().replace("\\|", "|") for cell in cells]
+
+
 def _proved_empty_pdf(source_payloads: list[dict[str, Any]]) -> bool:
     if len(source_payloads) != 1:
         return False
@@ -1078,6 +1203,25 @@ def pdf_source_atom_accounting(
     )
     source_pages_total = len(projection.get("page_inventory") or [])
     parser_lines_total = len(projection.get("line_inventory") or [])
+    if source_pages_total == 0:
+        # Document AI retains exact page units.  Their authoritative page
+        # boundaries are adapter output, not a split inferred from combined
+        # Markdown delivery text.
+        document_ai_pages = {
+            int(_location(unit).get("page") or 0)
+            for unit in source_units
+            if str(_location(unit).get("kind") or "")
+            == "document_ai_page_markdown"
+            and int(_location(unit).get("page") or 0) > 0
+        }
+        if document_ai_pages:
+            source_pages_total = len(document_ai_pages)
+            parser_lines_total = sum(
+                max(0, int(_location(unit).get("line_end") or 0))
+                for unit in source_units
+                if str(_location(unit).get("kind") or "")
+                == "document_ai_page_markdown"
+            )
     page_containers_total = sum(
         item.get("container_type") == "PAGE" for item in containers
     )

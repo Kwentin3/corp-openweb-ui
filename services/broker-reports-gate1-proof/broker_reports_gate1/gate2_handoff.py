@@ -1046,7 +1046,7 @@ def _persist_canonical_artifacts(
     )
     canonical_store = CanonicalArtifactStoreFactory(store=store).create()
     for document in documents:
-        if document.get("container_format") not in {"html_text", "csv", "xlsx"}:
+        if document.get("container_format") not in {"pdf", "html_text", "csv", "xlsx"}:
             continue
         document_id = str(document.get("document_id") or "")
         source_payloads = _document_items(

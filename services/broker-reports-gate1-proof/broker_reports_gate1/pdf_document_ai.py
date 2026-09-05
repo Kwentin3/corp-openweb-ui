@@ -97,6 +97,7 @@ class PdfDocumentExtraction:
     page_markdown_sha256: tuple[str, ...] = field(repr=False)
     qualification_status: str
     usage_page_count: int
+    page_markdown_bytes: tuple[bytes, ...] = field(repr=False, default=())
     safe_technical_summary: tuple[tuple[str, int], ...] = ()
     schema_version: str = PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION
 
@@ -149,6 +150,18 @@ class PdfDocumentExtraction:
             raise ValueError("pdf_document_page_markdown_digest_count_mismatch")
         for digest in self.page_markdown_sha256:
             _require_sha256(digest, "pdf_document_page_markdown_sha256_invalid")
+        if self.page_markdown_bytes:
+            if len(self.page_markdown_bytes) != len(self.page_numbers):
+                raise ValueError("pdf_document_page_markdown_bytes_count_invalid")
+            if any(type(page) is not bytes for page in self.page_markdown_bytes):
+                raise ValueError("pdf_document_page_markdown_bytes_invalid")
+            if tuple(
+                hashlib.sha256(page).hexdigest()
+                for page in self.page_markdown_bytes
+            ) != self.page_markdown_sha256:
+                raise ValueError("pdf_document_page_markdown_bytes_hash_mismatch")
+            if b"\n\n".join(self.page_markdown_bytes) != self.markdown_bytes:
+                raise ValueError("pdf_document_page_markdown_aggregate_mismatch")
         if self.qualification_status not in {
             "offline_fixture",
             "qualified",

@@ -2059,6 +2059,7 @@ class Pipe:
 
         entries: dict[str, bytes] = {}
         documents: list[dict[str, Any]] = []
+        published_document_ids: set[str] = set()
         for payload_ref in payload_refs:
             resolved = resolver.resolve(str(payload_ref), context)
             record = resolved["record"]
@@ -2070,6 +2071,38 @@ class Pipe:
                 )
             if payload.get("container_format") != "pdf":
                 continue
+            document_id = str(record.document_id or payload.get("document_ref") or "")
+            if not document_id or document_id in published_document_ids:
+                continue
+            page_payloads: list[tuple[Any, dict[str, Any], str]] = []
+            for candidate_ref in payload_refs:
+                candidate = resolver.resolve(str(candidate_ref), context)
+                candidate_record = candidate["record"]
+                candidate_payload = candidate["payload"]
+                if (
+                    isinstance(candidate_payload, dict)
+                    and candidate_payload.get("container_format") == "pdf"
+                    and str(
+                        candidate_record.document_id
+                        or candidate_payload.get("document_ref")
+                        or ""
+                    )
+                    == document_id
+                ):
+                    page_payloads.append(
+                        (candidate_record, candidate_payload, str(candidate_ref))
+                    )
+            page_payloads.sort(
+                key=lambda item: int(
+                    (item[1].get("source_location") or {}).get("page") or 0
+                )
+            )
+            if not page_payloads:
+                raise ArtifactStoreError(
+                    "full_source_projection_payload_invalid",
+                    "PDF Full Source payload set is empty",
+                )
+            record, payload, payload_ref = page_payloads[0]
             if (
                 record.artifact_type != "private_normalized_source_payload_v0"
                 or record.visibility != "private_case"
@@ -2079,9 +2112,24 @@ class Pipe:
                     "full_source_projection_payload_invalid",
                     "PDF Full Source payload binding is invalid",
                 )
-            projection = payload.get("normalized_projection")
-            markdown = projection.get("text") if isinstance(projection, dict) else None
+            markdown_parts: list[str] = []
             markdown_sha256 = str(payload.get("document_ai_markdown_sha256") or "")
+            for _page_record, page_payload, _page_ref in page_payloads:
+                projection = page_payload.get("normalized_projection")
+                page_markdown = (
+                    projection.get("text") if isinstance(projection, dict) else None
+                )
+                if (
+                    not isinstance(page_markdown, str)
+                    or str(page_payload.get("document_ai_markdown_sha256") or "")
+                    != markdown_sha256
+                ):
+                    raise ArtifactStoreError(
+                        "full_source_projection_markdown_hash_mismatch",
+                        "PDF Full Source Markdown page seal is invalid",
+                    )
+                markdown_parts.append(page_markdown)
+            markdown = "\n\n".join(markdown_parts)
             if (
                 not isinstance(markdown, str)
                 or re.fullmatch(r"[0-9a-f]{64}", markdown_sha256) is None
@@ -2116,7 +2164,12 @@ class Pipe:
             markdown_path = f"{document_root}/full-source.md"
             entries[markdown_path] = markdown.encode("utf-8")
             images: list[dict[str, Any]] = []
-            for image_ref in payload.get("document_ai_image_refs") or []:
+            image_refs = [
+                image_ref
+                for _page_record, page_payload, _page_ref in page_payloads
+                for image_ref in page_payload.get("document_ai_image_refs") or []
+            ]
+            for image_ref in image_refs:
                 if not isinstance(image_ref, dict):
                     raise ArtifactStoreError(
                         "full_source_projection_image_binding_invalid",
@@ -2161,7 +2214,6 @@ class Pipe:
                         "media_type": binary["media_type"],
                     }
                 )
-            document_id = str(record.document_id or payload.get("document_ref") or "")
             documents.append(
                 {
                     "document_ref": document_id,
@@ -2177,6 +2229,7 @@ class Pipe:
                     "document_ai_provenance": copy.deepcopy(provenance),
                 }
             )
+            published_document_ids.add(document_id)
         if not documents:
             return None
 

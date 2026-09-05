@@ -4,7 +4,8 @@
 OpenWebUI v0.9.6 already owns the selected-model state and the native file
 upload API's ``process`` argument.  This exact, fail-fast bundle patch changes
 only the default PDF upload for the single Broker Gate 1 model to
-``process=false``.  Explicit image/media behavior and every other model remain
+``process=false``.  The IDs are the deployed base Pipe and the ordinary-user
+Workspace Model; explicit image/media behavior and every other model remain
 unchanged.
 """
 
@@ -15,7 +16,7 @@ from pathlib import Path
 
 
 PATCH_ID = "broker-native-pdf-upload-v1"
-MODEL_ID = "broker_reports_gate1_pipe"
+MODEL_IDS = ("broker_reports_gate1_pipe", "broker-reports-ndfl")
 
 # Exact signature emitted by the pinned ghcr.io/open-webui/open-webui:v0.9.6
 # build.  A base-image drift must fail the image build instead of silently
@@ -23,9 +24,9 @@ MODEL_ID = "broker_reports_gate1_pipe"
 OLD = 'is=async(De,st=!0,at={})=>{'
 NEW = (
     OLD
-    + 'M().length===1&&M()[0]==="'
-    + MODEL_ID
-    + '"&&(De.type==="application/pdf"||String(De.name||"").toLowerCase().endsWith(".pdf"))&&(st=!1);'
+    + 'M().length===1&&["'
+    + '","'.join(MODEL_IDS)
+    + '"].includes(M()[0])&&(De.type==="application/pdf"||String(De.name||"").toLowerCase().endsWith(".pdf"))&&(st=!1);'
 )
 
 

@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import io
 import inspect
+import json
 import socket
 import sys
 import zipfile
@@ -22,12 +23,18 @@ from broker_reports_gate1.artifact_models import (
 )
 from broker_reports_gate1.artifact_resolver import ArtifactResolver
 from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
+from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.bounded_graph import (
     Gate1BoundedGraphConfig,
     Gate1BoundedGraphFactory,
 )
+from broker_reports_gate1.gate2_handoff import persist_gate1_result
 from broker_reports_gate1.inputs import FileInput
 from broker_reports_gate1.normalizer import Gate1Normalizer
+from broker_reports_gate1.ordinary_trade_production_runtime import (
+    ORDINARY_TRADE_PRODUCTION_ROUTE_ID,
+    OrdinaryTradeProductionRuntimeFactory,
+)
 from broker_reports_gate1.pdf_document_ai import (
     PDF_DOCUMENT_AI_NOT_CONFIGURED,
     PdfDocumentExtraction,
@@ -71,7 +78,11 @@ class _OfflineFixtureExtractor:
         pdf_bytes: bytes,
         source_context: PdfSourceContext,
     ) -> PdfDocumentExtraction:
-        markdown = b"# Exact offline fixture\n\n| A | B |\n|---|---|\n| 1 | 2 |\n"
+        page_markdown = b"# Exact offline fixture\n\n| A | B |\n|---|---|\n| 1 | 2 |\n"
+        page_markdown_bytes = tuple(
+            page_markdown for _ in range(source_context.preflight_page_count)
+        )
+        markdown = b"\n\n".join(page_markdown_bytes)
         return PdfDocumentExtraction(
             source_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
             page_numbers=tuple(range(1, source_context.preflight_page_count + 1)),
@@ -88,11 +99,11 @@ class _OfflineFixtureExtractor:
                 b'{"include_image_base64":true}'
             ).hexdigest(),
             page_markdown_sha256=tuple(
-                hashlib.sha256(markdown).hexdigest()
-                for _ in range(source_context.preflight_page_count)
+                hashlib.sha256(page).hexdigest() for page in page_markdown_bytes
             ),
             qualification_status="offline_fixture",
             usage_page_count=source_context.preflight_page_count,
+            page_markdown_bytes=page_markdown_bytes,
             safe_technical_summary=(
                 ("markdown_bytes", len(markdown)),
                 ("pages_count", source_context.preflight_page_count),
@@ -111,7 +122,12 @@ class _OfflineImageFixtureExtractor(_OfflineFixtureExtractor):
         source_context: PdfSourceContext,
     ) -> PdfDocumentExtraction:
         image_bytes = b"\x89PNG\r\n\x1a\nneutral-image"
-        markdown = b"# Exact offline fixture\n\n![image](img-0.png)"
+        first_page = b"# Exact offline fixture\n\n![image](img-0.png)"
+        other_page = b"# Exact offline fixture"
+        page_markdown_bytes = (first_page,) + tuple(
+            other_page for _ in range(source_context.preflight_page_count - 1)
+        )
+        markdown = b"\n\n".join(page_markdown_bytes)
         return PdfDocumentExtraction(
             source_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
             page_numbers=tuple(range(1, source_context.preflight_page_count + 1)),
@@ -137,11 +153,11 @@ class _OfflineImageFixtureExtractor(_OfflineFixtureExtractor):
                 b'{"include_image_base64":true}'
             ).hexdigest(),
             page_markdown_sha256=tuple(
-                hashlib.sha256(markdown).hexdigest()
-                for _ in range(source_context.preflight_page_count)
+                hashlib.sha256(page).hexdigest() for page in page_markdown_bytes
             ),
             qualification_status="offline_fixture",
             usage_page_count=source_context.preflight_page_count,
+            page_markdown_bytes=page_markdown_bytes,
         )
 
 
@@ -686,6 +702,105 @@ def test_normalizer_routes_pdf_markdown_unit_and_image_through_atomic_graph(
         expected_sha256=association["sha256"],
     )
     assert resolved["content"].startswith(b"\x89PNG")
+
+
+def test_persisted_pdf_canonical_exact_ref_reaches_existing_right_bank(
+    tmp_path: Path,
+) -> None:
+    """The configured PDF route must not stop at private Full Source.
+
+    This exercises the real Gate 1 persistence seam: the existing neutral
+    Canonical owner consumes the source-bound PDF units, and the resulting
+    artifact remains readable only in the exact authenticated scope.
+    """
+
+    normalizer, pdf_input, store, graph, context, retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+    normalizer = Gate1Normalizer(_pdf_document_extractor=_OfflineFixtureExtractor())
+    result = normalizer.normalize(
+        [pdf_input],
+        bounded_graph=graph,
+        input_context={
+            "canonical_gate2_write_enabled": True,
+            "canonical_gate2_read_enabled": True,
+            "normalizer_version": "issue-391-pdf-canonical-v1",
+        },
+    )
+
+    manifest = persist_gate1_result(
+        store=store,
+        result=result,
+        context=context,
+        retention_policy=retention,
+        source_file_refs=[
+            {
+                "provider": "openwebui",
+                "openwebui_file_id": "pdf-normalizer-upload",
+                "content_type": "application/pdf",
+                "source_deleted": False,
+            }
+        ],
+    )
+    canonical_refs = manifest.artifact_refs_by_type.get(
+        "broker_reports_canonical_artifact_v1", []
+    )
+    failures = manifest.artifact_refs_by_type.get(
+        "broker_reports_canonical_build_failure_v1", []
+    )
+    failure_payloads = [
+        store.read_payload(store.get_record_unchecked(ref)) for ref in failures
+    ]
+    assert canonical_refs, [item["failure_code"] for item in failure_payloads]
+    assert len(canonical_refs) == 1
+
+    reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
+    envelope = reader.read_envelope(canonical_refs[0], context)
+    artifact = envelope.artifact
+    assert artifact["source"]["source_format"] == "pdf"
+    assert artifact["source"]["source_sha256"] == hashlib.sha256(
+        PUBLIC_PDF.read_bytes()
+    ).hexdigest()
+    assert any(node["node_type"] == "TABLE" for node in artifact["nodes"])
+
+    right_bank = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create().run(
+        canonical_artifact_refs=canonical_refs,
+        context=context,
+    )
+
+    assert right_bank["route_owner"] == ORDINARY_TRADE_PRODUCTION_ROUTE_ID
+    assert right_bank["canonical_version_ids"] == [envelope.canonical_version_id]
+    assert right_bank["canonical_root_sha256"] == [
+        envelope.canonical_root_sha256
+    ]
+    assert len(right_bank["documents"]) == 1
+    document = right_bank["documents"][0]
+    assert document["document_id"] == envelope.document_id
+    assert document["canonical_version_id"] == envelope.canonical_version_id
+    assert document["projection_artifact_id"] == right_bank[
+        "projection_artifact_ids"
+    ][0]
+    assert document["runtime_ready_observations"] == 0
+    assert document["relevant_unmapped_observations"] == sum(
+        node["node_type"] != "PAGE_BREAK" for node in artifact["nodes"]
+    )
+    assert document["matched_qualified_tables"] == 0
+    assert document["activation_receipt"]["actor"] == (
+        ORDINARY_TRADE_PRODUCTION_ROUTE_ID
+    )
+    assert document["activation_receipt"][
+        "canonical_version_id"
+    ] == envelope.canonical_version_id
+    assert right_bank["product"]["terminal"] == (
+        "ordinary_trade_declaration_canonical_relevant_unmapped"
+    )
+    assert right_bank["product"]["declaration_ready"] is False
+    assert right_bank["provider_calls_total"] == 0
+    assert right_bank["semantic_fallback_used"] is False
+    assert "user_case_fact" not in json.dumps(artifact, sort_keys=True)
 
 
 def test_normalizer_turns_atomic_pdf_publication_failure_into_blocker(
