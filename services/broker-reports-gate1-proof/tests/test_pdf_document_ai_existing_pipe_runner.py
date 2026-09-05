@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -257,4 +258,28 @@ def test_qualification_rejects_unverified_scope_before_any_slot(
         )
 
     assert caught.value.code == "artifact_scope_unverified"
+    assert not (tmp_path / "pdf-document-ai-qualification-claims").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits are not Windows ACLs")
+def test_qualification_rejects_unavailable_artifact_store_before_any_slot(
+    tmp_path: Path,
+) -> None:
+    payload_root = tmp_path / "payloads"
+    payload_root.mkdir(mode=0o755)
+    payload_root.chmod(0o755)
+
+    with pytest.raises(ArtifactStoreError) as caught:
+        asyncio.run(
+            _pipe(tmp_path).pipe(
+                _body(),
+                __user__={"id": "qualification-admin", "role": "admin"},
+                __metadata__={
+                    "chat_id": "qualification-chat",
+                    "model_id": "broker_reports_gate1_pipe",
+                },
+            )
+        )
+
+    assert caught.value.code == "artifact_store_unavailable"
     assert not (tmp_path / "pdf-document-ai-qualification-claims").exists()

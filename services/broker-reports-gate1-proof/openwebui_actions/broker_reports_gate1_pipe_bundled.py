@@ -900,6 +900,7 @@ class Pipe:
             kwargs=kwargs,
             normalization_run_id="pdf_document_ai_qualification_preflight",
         )
+        self._artifact_store()
         repository_head = str(
             self.valves.pdf_document_ai_qualification_repository_head or ""
         ).strip()
@@ -1180,13 +1181,7 @@ class Pipe:
             kwargs=kwargs,
             normalization_run_id=planned_run_id,
         )
-        artifact_store = ArtifactStoreFactory(
-            ArtifactStoreConfig(
-                mode="sqlite",
-                sqlite_path=Path(self.valves.artifact_store_path),
-                payload_root=Path(self.valves.artifact_payload_root),
-            )
-        ).create()
+        artifact_store = self._artifact_store()
         bounded_graph = Gate1BoundedGraphFactory(
             Gate1BoundedGraphConfig(
                 store=artifact_store,
@@ -1508,13 +1503,7 @@ class Pipe:
                 ).hexdigest()[:24]
             ),
         )
-        store = ArtifactStoreFactory(
-            ArtifactStoreConfig(
-                mode="sqlite",
-                sqlite_path=Path(self.valves.artifact_store_path),
-                payload_root=Path(self.valves.artifact_payload_root),
-            )
-        ).create()
+        store = self._artifact_store()
         context = self._current_declaration_execution_context(
             store=store,
             context=context,
@@ -5155,6 +5144,15 @@ class Pipe:
             workspace_model_id=str(workspace_model_id) if workspace_model_id else None,
             allow_private=True,
         )
+
+    def _artifact_store(self):
+        return ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=Path(self.valves.artifact_store_path),
+                payload_root=Path(self.valves.artifact_payload_root),
+            )
+        ).create()
 
     @staticmethod
     def _authenticated_user_id(user: Any) -> str:
