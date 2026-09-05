@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.40.0-automatic-semantic-mapping
+version: 0.40.1-scrollable-private-review
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,lxml==6.1.1
 """
@@ -13,6 +13,7 @@ import base64
 import binascii
 import copy
 import hashlib
+import html
 import inspect
 import io
 import json
@@ -765,6 +766,45 @@ class Pipe:
         return json.dumps(receipt, ensure_ascii=False, sort_keys=True)
 
     @staticmethod
+    def _qualification_review_text_panel(content: str) -> str:
+        """Keep native confirmation controls visible around long private text."""
+
+        return (
+            '<div style="max-height:52vh;overflow:auto;overscroll-behavior:contain;'
+            'border:1px solid rgba(128,128,128,.35);border-radius:.5rem;'
+            'padding:.75rem">'
+            '<pre style="margin:0;white-space:pre-wrap;overflow-wrap:anywhere">'
+            f"{html.escape(content)}"
+            "</pre></div>"
+        )
+
+    @staticmethod
+    def _qualification_review_image_panel(
+        *,
+        page: int,
+        target: str,
+        image_sha256: str,
+        content: bytes,
+        media_type: str,
+    ) -> str:
+        """Bound a private image preview without pushing dialog controls off-screen."""
+
+        encoded = base64.b64encode(content).decode("ascii")
+        description = html.escape(
+            f"page={page} target={target} sha256={image_sha256}"
+        )
+        safe_media_type = html.escape(media_type, quote=True)
+        return (
+            '<div style="max-height:52vh;overflow:auto;overscroll-behavior:contain">'
+            f"<p><code>{description}</code></p>"
+            '<img alt="private qualification image" '
+            f'src="data:{safe_media_type};base64,{encoded}" '
+            'style="display:block;max-width:100%;max-height:44vh;'
+            'object-fit:contain;margin:auto" />'
+            "</div>"
+        )
+
+    @staticmethod
     def _qualification_reviewer(event_call: Any):
         """Adapt the existing private OpenWebUI interaction to one review verdict."""
 
@@ -782,8 +822,9 @@ class Pipe:
                         "title": f"Private PDF review: {view.fixture_id} source",
                         "message": (
                             f"Source SHA-256: `{view.source_pdf_sha256}`\n\n"
-                            f"Open attached OpenWebUI file `{view.source_file_id}` "
-                            "and review every source page."
+                            "Review the matching pinned fixture that was opened "
+                            "outside this modal before the qualification started. "
+                            f"The bound OpenWebUI file id is `{view.source_file_id}`."
                         ),
                     },
                 }
@@ -797,15 +838,17 @@ class Pipe:
                     "type": "confirmation",
                     "data": {
                         "title": f"Private PDF review: {view.fixture_id} binding",
-                        "message": json.dumps(
-                            {
-                                "repository_head": view.repository_head,
-                                "live_output_digest": view.live_output_digest,
-                                "execution_binding": view.execution_binding,
-                                "structural_counts": view.structural_counts,
-                            },
-                            ensure_ascii=False,
-                            sort_keys=True,
+                        "message": Pipe._qualification_review_text_panel(
+                            json.dumps(
+                                {
+                                    "repository_head": view.repository_head,
+                                    "live_output_digest": view.live_output_digest,
+                                    "execution_binding": view.execution_binding,
+                                    "structural_counts": view.structural_counts,
+                                },
+                                ensure_ascii=False,
+                                sort_keys=True,
+                            )
                         ),
                     },
                 }
@@ -827,7 +870,7 @@ class Pipe:
                                 f"Private PDF review: {view.fixture_id} "
                                 f"Markdown {ordinal}/{len(chunks)}"
                             ),
-                            "message": chunk,
+                            "message": Pipe._qualification_review_text_panel(chunk),
                         },
                     }
                 )
@@ -838,7 +881,6 @@ class Pipe:
             for ordinal, (page, target, image_sha256, content, media_type) in enumerate(
                 view.images, start=1
             ):
-                encoded = base64.b64encode(content).decode("ascii")
                 accepted = await event_call(
                     {
                         "type": "confirmation",
@@ -847,10 +889,12 @@ class Pipe:
                                 f"Private PDF review: {view.fixture_id} "
                                 f"image {ordinal}/{len(view.images)}"
                             ),
-                            "message": (
-                                f"page={page} target={target} sha256={image_sha256}"
-                                "\n\n![private image]"
-                                f"(data:{media_type};base64,{encoded})"
+                            "message": Pipe._qualification_review_image_panel(
+                                page=page,
+                                target=target,
+                                image_sha256=image_sha256,
+                                content=content,
+                                media_type=media_type,
                             ),
                         },
                     }
