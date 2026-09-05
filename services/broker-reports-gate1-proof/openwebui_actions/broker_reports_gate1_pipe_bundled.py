@@ -576,6 +576,12 @@ class Pipe:
             user=__user__,
         )
         if interaction_message.strip() == PDF_DOCUMENT_AI_QUALIFICATION_COMMAND:
+            direct_message = self._latest_user_message(safe_body, messages_arg)
+            if (
+                metadata.get("task")
+                or direct_message.strip() != PDF_DOCUMENT_AI_QUALIFICATION_COMMAND
+            ):
+                return "PDF Document AI qualification is unavailable for internal tasks."
             return await self._run_pdf_document_ai_qualification(
                 body=safe_body,
                 user=__user__,
