@@ -841,11 +841,6 @@ class Pipe:
             ),
         }
 
-        if full_source_delivery is not None:
-            await self._emit_full_source_delivery(
-                __event_emitter__, full_source_delivery
-            )
-
         if not file_refs:
             await self._emit(
                 __event_emitter__,
@@ -5115,31 +5110,6 @@ class Pipe:
                 file_ref.get("_openwebui_bytes_error")
                 or "openwebui_file_bytes_unresolved"
             )
-        )
-
-    @staticmethod
-    async def _emit_full_source_delivery(
-        emitter: Any, delivery: dict[str, Any]
-    ) -> None:
-        """Expose the private projection through OpenWebUI's native file UI."""
-
-        if emitter is None:
-            return
-        await emitter(
-            {
-                "type": "files",
-                "data": {
-                    "files": [
-                        {
-                            "type": "file",
-                            "id": str(delivery["file_id"]),
-                            "name": str(delivery["filename"]),
-                            "url": str(delivery["url"]),
-                            "content_type": str(delivery["content_type"]),
-                        }
-                    ]
-                },
-            }
         )
 
     async def _hydrate_openwebui_file_refs(

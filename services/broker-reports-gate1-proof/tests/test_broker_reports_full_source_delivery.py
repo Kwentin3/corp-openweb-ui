@@ -297,38 +297,6 @@ def test_full_source_delivery_is_owner_scoped_reused_and_chat_safe(
     assert "image-2" not in chat_line
 
 
-def test_full_source_delivery_uses_native_openwebui_file_event() -> None:
-    delivery = {
-        "file_id": "file-full-source",
-        "filename": FULL_SOURCE_ZIP_FILENAME,
-        "url": "/api/v1/files/file-full-source/content?attachment=true",
-        "content_type": "application/zip",
-    }
-    events: list[dict] = []
-
-    async def emitter(event: dict) -> None:
-        events.append(event)
-
-    asyncio.run(Pipe._emit_full_source_delivery(emitter, delivery))
-
-    assert events == [
-        {
-            "type": "files",
-            "data": {
-                "files": [
-                    {
-                        "type": "file",
-                        "id": "file-full-source",
-                        "name": FULL_SOURCE_ZIP_FILENAME,
-                        "url": delivery["url"],
-                        "content_type": "application/zip",
-                    }
-                ]
-            },
-        }
-    ]
-
-
 def test_full_source_upload_hash_mismatch_is_deleted_and_not_published(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
