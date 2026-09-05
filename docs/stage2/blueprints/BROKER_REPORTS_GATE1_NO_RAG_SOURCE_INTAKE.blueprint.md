@@ -73,10 +73,11 @@ The Pipe receives refs and the backend normalizer reads bytes under the approved
 The 2026-07-08 test proved that `file_context=false` alone was insufficient:
 default upload processing still extracted synthetic content and changed vector
 counters. The current product route keeps the ordinary OpenWebUI attachment UX
-and native upload response. On OpenWebUI 0.9.6 only, a temporary frontend seam
-sets `process=false` for PDF uploads when the exact selected model ID is
-`broker_reports_gate1_pipe`. There is no project-owned intake endpoint, custom
-Action, response schema or DOM-derived file mapping.
+and native upload response. On pinned OpenWebUI 0.9.6 only, the native
+`MessageInput` upload call sets `process=false` for PDF uploads when its live
+selected-model state contains exactly `broker_reports_gate1_pipe`. There is no
+project-owned intake endpoint, custom Action, response schema or DOM-derived
+file mapping.
 
 ## 4. Backend Boundary
 
@@ -165,8 +166,8 @@ the ordinary attachment request uses the native primitive:
 POST /api/v1/files/?process=false
 ```
 
-The loader only rewrites this URL for a PDF when the exact selected model ID is
-`broker_reports_gate1_pipe`. OpenWebUI still owns the file row and response;
+The pinned native `MessageInput` path selects this URL for a PDF only when its
+exact selected model ID is `broker_reports_gate1_pipe`. OpenWebUI still owns the file row and response;
 the Pipe still receives the native ID. The seam must obey these constraints:
 
 - no OpenWebUI core patch;

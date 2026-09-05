@@ -31,11 +31,11 @@ provider response schemas, OCR options, coordinates, crops, DPI,
 table reconstruction, retry policy or fallback logic. Automatic engine or
 provider fallback is forbidden.
 
-OpenWebUI 0.9.6 lacks a per-model upload-processing policy. A temporary
-frontend compatibility seam therefore sets `process=false` only for a native
-PDF upload when the exact selected model ID is `broker_reports_gate1_pipe`.
-It must be removed when upstream provides that policy. A core fork, global
-bypass, DOM file mapping and RAG intake remain forbidden.
+OpenWebUI 0.9.6 lacks a per-model upload-processing policy. The pinned native
+`MessageInput` adaptation therefore sets `process=false` only for a PDF upload
+when its authoritative selected-model state contains exactly
+`broker_reports_gate1_pipe`. It must be removed when upstream provides that
+policy. A global bypass, DOM file mapping and RAG intake remain forbidden.
 
 The governing decision is
 [PDF Document AI boundary](adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).

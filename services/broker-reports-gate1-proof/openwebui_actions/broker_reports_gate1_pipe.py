@@ -291,8 +291,16 @@ class Pipe:
         __messages__=None,
         __event_emitter__=None,
         __event_call__=None,
+        __task__=None,
+        __task_body__=None,
         **kwargs,
-    ) -> str:
+    ) -> str | dict[str, object]:
+        if str(__task__ or "").strip():
+            return {
+                "error": {
+                    "detail": "broker_reports_auxiliary_task_not_supported",
+                }
+            }
         self._presentation_llm_calls_total = 0
         safe_body = body if isinstance(body, dict) else {}
         messages_arg = __messages__ or kwargs.get("__messages__")

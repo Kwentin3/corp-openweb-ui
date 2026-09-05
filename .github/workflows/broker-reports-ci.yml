@@ -127,6 +127,7 @@ jobs:
           tests/test_broker_reports_kt16_canonical_context.py
           tests/test_broker_reports_kt2_same_source_type_first_proof.py
           tests/test_broker_reports_gate1_pipe_bundle.py
+          tests/test_openwebui_native_broker_pdf_upload_patch.py
           tests/test_broker_reports_table_projection.py
           tests/test_broker_reports_atomic_stage_release.py
           tests/test_broker_reports_gate2_pipe_bundle.py

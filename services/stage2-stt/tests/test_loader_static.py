@@ -82,42 +82,28 @@ def test_loader_scans_message_docx_buttons_without_replacing_stt_scan():
     assert "scanMessageDocxButtons();" in queue_scan
 
 
-def test_loader_routes_active_broker_pdf_through_native_unprocessed_upload():
+def test_loader_leaves_broker_pdf_routing_to_native_message_input():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("function patchFetch")
     end = source.index("function queueScan", start)
     patch_block = source[start:end]
 
-    assert (
-        "const brokerGate1Active = uploadFile ? isBrokerGate1ModelActive() : false;"
-        in patch_block
-    )
-    assert (
-        "brokerGate1UploadFile = brokerGate1Active && isBrokerGate1Pdf(uploadFile.name, uploadFile.type) ? uploadFile : null;"
-        in patch_block
-    )
     assert "if (sttUploadFile) {" in patch_block
-    assert "else if (brokerGate1UploadFile)" in patch_block
-    assert patch_block.count("nextInput = withProcessFalse(input);") == 2
+    assert patch_block.count("nextInput = withProcessFalse(input);") == 1
     assert "state.originalFetch(nextInput, nextInit)" in patch_block
     assert "broker-reports/intake" not in patch_block
     assert "normalizeBroker" not in patch_block
+    assert "brokerGate1UploadFile" not in patch_block
     assert "return response;" in patch_block
 
 
-def test_loader_scopes_broker_gate1_to_exact_native_state_ids_only():
+def test_loader_does_not_own_broker_gate1_pdf_routing():
     source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("function selectedModelIdsFromSession")
-    end = source.index("function persistentChatIdFromLocation", start)
-    scope_block = source[start:end]
 
-    assert "const BROKER_GATE1_PIPE_MODEL_ID = 'broker_reports_gate1_pipe';" in source
-    assert "window.sessionStorage.getItem('selectedModels')" in scope_block
-    assert "params.get('models') || params.get('model')" in scope_block
-    assert "selectedIds.length === 1" in scope_block
-    assert "selectedIds[0] === BROKER_GATE1_PIPE_MODEL_ID" in scope_block
-    assert "model-selector" not in scope_block
-    assert "fetcher('/api/models'" not in scope_block
+    assert "BROKER_GATE1_PIPE_MODEL_ID" not in source
+    assert "isBrokerGate1Pdf" not in source
+    assert "isBrokerGate1ModelActive" not in source
+    assert "brokerGate1UploadFile" not in source
 
 
 def test_loader_action_payload_uses_the_current_native_model_selection():

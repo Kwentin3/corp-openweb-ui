@@ -200,6 +200,55 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         pipe.valves.passport_model_id = "passport-model"
         return pipe
 
+    def test_native_auxiliary_task_stops_before_heavy_work(self):
+        class ExplodingRequest:
+            async def json(self):
+                raise AssertionError("auxiliary task inspected request metadata")
+
+        class ExplodingResolver:
+            async def resolve(self, **_kwargs):
+                raise AssertionError("auxiliary task resolved file bytes")
+
+        pipe = Pipe(_file_bytes_resolver=ExplodingResolver())
+        root = Path(self._tmp.name)
+        artifact_db = root / "artifacts.sqlite3"
+        payload_root = root / "payloads"
+        pipe.valves.artifact_store_path = str(artifact_db)
+        pipe.valves.artifact_payload_root = str(payload_root)
+
+        result = run_pipe(
+            pipe,
+            {
+                "model": "broker_reports_gate1_pipe",
+                "messages": [{"role": "user", "content": "task prompt"}],
+                "files": [
+                    file_ref(
+                        "br-auxiliary-task-file",
+                        "source.pdf",
+                        "application/pdf",
+                    )
+                ],
+            },
+            __request__=ExplodingRequest(),
+            __task__="query_generation",
+            __task_body__={"type": "retrieval"},
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "error": {
+                    "detail": "broker_reports_auxiliary_task_not_supported",
+                }
+            },
+        )
+        self.assertIsNone(pipe.last_workload_job_id)
+        self.assertIsNone(pipe.last_safe_report)
+        self.assertIsNone(pipe.last_artifact_manifest)
+        self.assertFalse(artifact_db.exists())
+        self.assertFalse(artifact_db.with_name("workloads.sqlite3").exists())
+        self.assertFalse(payload_root.exists())
+
     def test_current_broker_pdf_profile_is_not_a_client_runtime_valve(self):
         pipe = self._pipe()
 

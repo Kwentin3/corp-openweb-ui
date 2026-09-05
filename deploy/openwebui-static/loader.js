@@ -3,7 +3,6 @@
 
 	const ACTION_ID = 'stage2_media_transcription_action';
 	const ACTION_URL = `/api/chat/actions/${ACTION_ID}`;
-	const BROKER_GATE1_PIPE_MODEL_ID = 'broker_reports_gate1_pipe';
 	const BROKER_GATE2_MODEL_IDS = new Set([
 		'broker_reports_gate2_source_fact_pipe',
 		'broker_reports_gate2_domain_source_fact_pipe'
@@ -238,12 +237,6 @@
 		return baseMime(file.mime_type) === baseMime(definition.mime_type);
 	}
 
-	function isBrokerGate1Pdf(filename, mimeType) {
-		const extension = extensionOf(filename);
-		const mime = baseMime(mimeType);
-		return extension === 'pdf' || mime === 'application/pdf';
-	}
-
 	function uploadFormDataFile(body) {
 		if (!(body instanceof FormData)) {
 			return null;
@@ -315,11 +308,6 @@
 	function currentSelectedModelIds() {
 		const sessionIds = selectedModelIdsFromSession();
 		return sessionIds.length ? sessionIds : selectedModelIdsFromLocation();
-	}
-
-	function isBrokerGate1ModelActive() {
-		const selectedIds = currentSelectedModelIds();
-		return selectedIds.length === 1 && selectedIds[0] === BROKER_GATE1_PIPE_MODEL_ID;
 	}
 
 	function persistentChatIdFromLocation() {
@@ -440,18 +428,13 @@
 		window.fetch = async function patchedFetch(input, init) {
 			let uploadFile = null;
 			let sttUploadFile = null;
-			let brokerGate1UploadFile = null;
 			const gate2Route = await bindBrokerGate2RequestToActiveChat(input, init);
 			let nextInput = gate2Route.input;
 			let nextInit = gate2Route.init;
 			if (isFileUpload(input, init)) {
 				uploadFile = uploadFormDataFile(requestBody(input, init));
 				sttUploadFile = uploadFile && isCandidateMedia(uploadFile.name, uploadFile.type) ? uploadFile : null;
-				const brokerGate1Active = uploadFile ? isBrokerGate1ModelActive() : false;
-				brokerGate1UploadFile = brokerGate1Active && isBrokerGate1Pdf(uploadFile.name, uploadFile.type) ? uploadFile : null;
 				if (sttUploadFile) {
-					nextInput = withProcessFalse(input);
-				} else if (brokerGate1UploadFile) {
 					nextInput = withProcessFalse(input);
 				}
 			}

@@ -76,8 +76,8 @@ gain provider-specific knowledge.
 ## OpenWebUI 0.9.6 compatibility seam
 
 OpenWebUI 0.9.6 has no supported per-model policy for upload processing. The
-temporary frontend seam therefore changes only the native PDF upload URL to
-`process=false`, and only when the exact selected model ID is
+pinned native `MessageInput` adaptation therefore passes `process=false` only
+for a PDF whose authoritative selected-model state contains exactly
 `broker_reports_gate1_pipe`. It does not add an endpoint, response contract,
 file-identity mapper, Action, provider client or DOM-based source binding. The
 Pipe still receives native file IDs and performs the server-side owner read.

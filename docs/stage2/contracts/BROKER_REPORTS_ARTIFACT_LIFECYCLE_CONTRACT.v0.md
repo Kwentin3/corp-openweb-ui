@@ -329,8 +329,9 @@ The 2026-07-08 synthetic no-RAG smoke rejected the native per-model candidate:
 target route. The follow-up process-false smoke proved the native endpoint with
 zero vector/Knowledge/document deltas, ArtifactStore persistence, resolver
 checks and purge/tombstones. On OpenWebUI 0.9.6 the ordinary Broker Reports
-upload reaches that native `process=false` primitive through the temporary
-exact-model compatibility seam; there is no custom intake endpoint or Action.
+upload reaches that native `process=false` primitive through the pinned
+`MessageInput` exact-model adaptation; there is no custom intake endpoint or
+Action.
 
 ## Full-source private artifacts (2026-07-10)
 

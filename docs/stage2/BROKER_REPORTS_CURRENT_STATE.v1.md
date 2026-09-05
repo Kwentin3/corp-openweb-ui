@@ -20,11 +20,12 @@ pdfminer, PyMuPDF, Camelot, Docling, VLM/bbox, hybrid, dual-engine and repair
 routes are retired with no fallback. CSV, TXT, HTML, XML, XLSX, DOCX,
 archive/ZIP and image boundaries retain their existing status.
 
-On OpenWebUI 0.9.6, a temporary frontend compatibility seam sets
-`process=false` only for native PDF uploads when the exact selected model ID is
-`broker_reports_gate1_pipe`. It must be removed when upstream provides an
-equivalent per-model upload-processing policy; it owns neither file identity
-nor server-side processing.
+On pinned OpenWebUI 0.9.6, the native `MessageInput` upload call sets
+`process=false` only for PDF uploads when its authoritative selected-model
+state contains exactly `broker_reports_gate1_pipe`. A fail-fast image overlay
+applies that source-level intent to the pinned bundle. It must be removed when
+upstream provides an equivalent per-model upload-processing policy; it owns
+neither file identity nor server-side processing.
 
 The material below is the DOC6-era historical appendix, not the current Broker
 Reports entrypoint.
