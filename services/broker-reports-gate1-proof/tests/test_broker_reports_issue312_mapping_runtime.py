@@ -24,6 +24,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
 )
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
+    _apply_mapping_terminal,
 )
 from broker_reports_gate1.ordinary_trade_projection import (
     ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE,
@@ -1223,6 +1224,70 @@ def test_unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
 
 def test_production_pipe_keeps_mapping_question_confirmation_and_case(tmp_path) -> None:
     asyncio.run(_production_pipe_keeps_mapping_question_confirmation_and_case(tmp_path))
+
+
+def test_mapping_followup_supersedes_stale_declaration_request() -> None:
+    """The next mapping question, not an answered owner request, reaches chat."""
+
+    stale_owner_request = {
+        "request_publication_ref": "art_" + "a" * 32,
+        "closure_type": "USER_FACT",
+        "fact_key": "filing_instance_identity",
+        "reason": "owner-only",
+        "answer_contract": {"kind": "code", "allowed": ["INITIAL", "CORRECTION"]},
+    }
+    followup_question = {
+        "question_ref": "q_followup_table",
+        "question": "Какое из следующих проверяемых решений верно?",
+        "options": [
+            {
+                "option_ref": "o_followup_1",
+                "label": "Вариант для следующей таблицы 1",
+                "source_literals": [],
+                "safe_description": "первый вариант для следующей таблицы",
+            },
+            {
+                "option_ref": "o_followup_2",
+                "label": "Вариант для следующей таблицы 2",
+                "source_literals": [],
+                "safe_description": "второй вариант для следующей таблицы",
+            },
+        ],
+    }
+    result = {
+        "product": {
+            "status": "PREPARATION_INCOMPLETE",
+            "terminal": "old_terminal",
+            "declaration_ready": False,
+            "xml_created": False,
+            "gate5": {
+                "execution_status": "old_status",
+                "security_tax_input_status": "old_input",
+                "blocker_reason_codes": [],
+            },
+            "preparation": {
+                "user_actions": [stale_owner_request],
+                "final_note": {"filing_eligible": False},
+            },
+        }
+    }
+
+    _apply_mapping_terminal(
+        result=result,
+        mapping_turn={
+            "status": "CLARIFICATION_REQUIRED",
+            "public_state": {
+                "question": followup_question,
+                "confirmation_message": None,
+                "confirmation_option_ref": None,
+            },
+        },
+    )
+
+    context = build_public_dialogue_context(product=result["product"])
+    assert context["current_question"]["authority_kind"] == "source_choice"
+    assert context["current_question"]["question_ref"] == "q_followup_table"
+    assert context["current_question"]["options"] == ["Вариант 1", "Вариант 2"]
 
 
 def test_model_cannot_exclude_financial_table_without_confirmation(tmp_path) -> None:
