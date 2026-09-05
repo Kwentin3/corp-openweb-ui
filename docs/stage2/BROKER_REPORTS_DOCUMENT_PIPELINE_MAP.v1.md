@@ -17,6 +17,8 @@ authenticated PDF bytes
      -> exact two-fixture qualification capability
         -> Mistral adapter -> PdfDocumentExtraction
         -> atomic private Full Source + image graph in existing ArtifactStore
+        -> source PDF vs live Markdown/images substantive private review
+        -> safe OCR 4.1 baseline candidate -> purge private review graph
 ```
 
 `PdfDocumentExtractorFactory` is the sole PDF-understanding composition point.
@@ -26,7 +28,7 @@ qualification capability can reach it before a later activation review, and it
 returns only the provider-neutral `PdfDocumentExtraction` envelope.
 
 Pipe, Full Source, Canonical, financial mapping, Gate 4 and Gate 5 must not know
-provider/model fields, response schemas, OCR options, coordinates, crops, DPI,
+provider response schemas, OCR options, coordinates, crops, DPI,
 table reconstruction, retry policy or fallback logic. Automatic engine or
 provider fallback is forbidden.
 
@@ -43,6 +45,11 @@ Supported non-PDF formats continue through their existing deterministic
 normalization and downstream contracts. This map does not change Canonical,
 financial-semantic, ArtifactStore, AnswerContext, Gate 3, Gate 4 or Gate 5
 ownership.
+
+The extraction envelope and Full Source may carry provider-neutral execution
+evidence (requested model, reported model, safe normalized parameters, adapter
+version and digests). Downstream financial and Canonical domains must not
+interpret it. Markdown-to-Canonical parsing is a separate future goal.
 
 ## Historical research
 

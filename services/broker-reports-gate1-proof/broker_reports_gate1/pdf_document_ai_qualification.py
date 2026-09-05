@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from .pdf_document_ai import PdfDocumentAiExecutionContract, PdfDocumentExtractorFactory
+
 
 PDF_DOCUMENT_AI_QUALIFICATION_POLICY_VERSION = (
-    "broker_reports_pdf_document_ai_qualification_v1"
+    "broker_reports_pdf_document_ai_qualification_v2"
 )
 PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES = (
     (
@@ -84,6 +86,7 @@ class PdfDocumentAiQualificationPermit:
     plan_sha256: str
     fixture_id: str
     fixture_sha256: str
+    execution_contract: PdfDocumentAiExecutionContract
     _capability: object
 
     def admits(self, observed_sha256: str) -> bool:
@@ -108,6 +111,7 @@ class PdfDocumentAiQualificationFixture:
 class PdfDocumentAiQualificationPlan:
     repository_head: str
     fixtures: tuple[PdfDocumentAiQualificationFixture, ...]
+    execution_contract: PdfDocumentAiExecutionContract
     plan_sha256: str
 
     def safe_receipt(self) -> dict[str, object]:
@@ -116,6 +120,7 @@ class PdfDocumentAiQualificationPlan:
             "mode": "preflight_only",
             "repository_head": self.repository_head,
             "plan_sha256": self.plan_sha256,
+            "execution_contract": self.execution_contract.safe_dict(),
             "fixture_sha256": [item.sha256 for item in self.fixtures],
             "expected_image_count": [
                 item.expected_image_count for item in self.fixtures
@@ -149,6 +154,9 @@ class PdfDocumentAiQualificationPlanFactory:
                 "pdf_document_ai_qualification_head_invalid"
             )
         fixtures: list[PdfDocumentAiQualificationFixture] = []
+        execution_contract = (
+            PdfDocumentExtractorFactory.qualification_execution_contract()
+        )
         for (
             fixture_id,
             repository_path,
@@ -178,6 +186,7 @@ class PdfDocumentAiQualificationPlanFactory:
         material = {
             "policy_version": PDF_DOCUMENT_AI_QUALIFICATION_POLICY_VERSION,
             "repository_head": repository_head,
+            "execution_contract": execution_contract.safe_dict(),
             "fixtures": [
                 {
                     "fixture_id": item.fixture_id,
@@ -198,6 +207,7 @@ class PdfDocumentAiQualificationPlanFactory:
         return PdfDocumentAiQualificationPlan(
             repository_head=repository_head,
             fixtures=tuple(fixtures),
+            execution_contract=execution_contract,
             plan_sha256=plan_sha256,
         )
 
@@ -259,7 +269,9 @@ class PdfDocumentAiQualificationExecutor:
                     }
                 )
                 return self._execution_receipt(plan=plan, outcomes=outcomes)
-            if not self._pipe_result_succeeded(fixture=fixture, result=result):
+            if not self._pipe_result_succeeded(
+                plan=plan, fixture=fixture, result=result
+            ):
                 outcomes.append({"fixture_id": fixture.fixture_id, "status": "failed"})
                 return self._execution_receipt(plan=plan, outcomes=outcomes)
             outcomes.append(self._safe_success_outcome(fixture=fixture, result=result))
@@ -309,7 +321,9 @@ class PdfDocumentAiQualificationExecutor:
                     }
                 )
                 return self._execution_receipt(plan=plan, outcomes=outcomes)
-            if not self._pipe_result_succeeded(fixture=fixture, result=result):
+            if not self._pipe_result_succeeded(
+                plan=plan, fixture=fixture, result=result
+            ):
                 outcomes.append({"fixture_id": fixture.fixture_id, "status": "failed"})
                 return self._execution_receipt(plan=plan, outcomes=outcomes)
             outcomes.append(self._safe_success_outcome(fixture=fixture, result=result))
@@ -325,9 +339,15 @@ class PdfDocumentAiQualificationExecutor:
     @staticmethod
     def _pipe_result_succeeded(
         *,
+        plan: PdfDocumentAiQualificationPlan,
         fixture: PdfDocumentAiQualificationFixture,
         result: Mapping[str, object],
     ) -> bool:
+        from .pdf_document_ai_qualification_review import (
+            validate_passed_review_receipt,
+        )
+
+        review = result.get("review")
         return (
             result.get("status") == "succeeded"
             and result.get("private_full_source_readback") is True
@@ -335,8 +355,15 @@ class PdfDocumentAiQualificationExecutor:
             and result.get("provider_calls_total") == 1
             and result.get("private_image_readback_count")
             == fixture.expected_image_count
-            and isinstance(result.get("review"), Mapping)
-            and result["review"].get("status") == "passed"
+            and isinstance(review, Mapping)
+            and validate_passed_review_receipt(
+                review,
+                repository_head=plan.repository_head,
+                fixture_id=fixture.fixture_id,
+                source_pdf_sha256=fixture.sha256,
+                expected_image_count=fixture.expected_image_count,
+                execution_contract=plan.execution_contract.safe_dict(),
+            )
         )
 
     @staticmethod
@@ -366,6 +393,7 @@ class PdfDocumentAiQualificationExecutor:
             plan_sha256=plan.plan_sha256,
             fixture_id=fixture.fixture_id,
             fixture_sha256=fixture.sha256,
+            execution_contract=plan.execution_contract,
             _capability=_PERMIT_CAPABILITY,
         )
 
@@ -422,6 +450,7 @@ class PdfDocumentAiQualificationExecutor:
             "mode": "execute_exact_attempt",
             "repository_head": plan.repository_head,
             "plan_sha256": plan.plan_sha256,
+            "execution_contract": plan.execution_contract.safe_dict(),
             "status": (
                 "succeeded"
                 if consumed == len(plan.fixtures)

@@ -121,6 +121,12 @@ def _review_lifecycle_dry_run(repository_head: str) -> dict[str, object]:
     )
     markdown = "# Private review lifecycle dry-run\n\n| A | B |\n|---|---|\n| 1 | 2 |"
     markdown_sha256 = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
+    source_pdf = b"%PDF-qualification-review-dry-run"
+    source_pdf_sha256 = hashlib.sha256(source_pdf).hexdigest()
+    request_parameters = {"include_image_base64": True}
+    request_parameters_sha256 = hashlib.sha256(
+        b'{"include_image_base64":true}'
+    ).hexdigest()
     image = b"qualification-review-dry-run-image"
     image_sha256 = hashlib.sha256(image).hexdigest()
     common = {
@@ -155,6 +161,22 @@ def _review_lifecycle_dry_run(repository_head: str) -> dict[str, object]:
                     payload={
                         "normalized_projection": {"text": markdown},
                         "document_ai_markdown_sha256": markdown_sha256,
+                        "format_structural_inventory": {
+                            "pages_count": 1,
+                            "images_count": 1,
+                            "markdown_bytes": len(markdown.encode("utf-8")),
+                        },
+                        "document_ai_provenance": {
+                            "provider_id": "mistral",
+                            "source_pdf_sha256": source_pdf_sha256,
+                            "requested_model_id": "mistral-ocr-4-1",
+                            "model_id": "mistral-ocr-4-1",
+                            "adapter_id": "mistral_serverless_ocr_adapter_v2",
+                            "request_contract_version": "mistral_ocr_request_v1",
+                            "request_parameters": request_parameters,
+                            "request_parameters_sha256": request_parameters_sha256,
+                            "page_markdown_sha256": [markdown_sha256],
+                        },
                         "document_ai_image_refs": [
                             {
                                 "page_number": 1,
@@ -178,7 +200,7 @@ def _review_lifecycle_dry_run(repository_head: str) -> dict[str, object]:
         )
 
         async def reviewer(view):
-            if view.markdown != markdown or view.images[0][1] != image:
+            if view.markdown != markdown or view.images[0][3] != image:
                 raise PdfDocumentAiQualificationError(
                     "pdf_document_ai_review_dry_run_readback_failed"
                 )
@@ -194,6 +216,9 @@ def _review_lifecycle_dry_run(repository_head: str) -> dict[str, object]:
                 full_source_refs=["qualification-dry-run-full-source"],
                 repository_head=repository_head,
                 fixture_id="synthetic-review-lifecycle",
+                source_file_id="qualification-dry-run",
+                source_pdf_bytes=source_pdf,
+                expected_source_pdf_sha256=source_pdf_sha256,
                 expected_image_count=1,
                 expires_at=expires_at,
             ).review(actor_context=context, reviewer=reviewer, now=now)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -8,7 +9,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Protocol, runtime_checkable
 
 
-PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v2"
+PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v3"
 PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v2"
 PDF_DOCUMENT_AI_NOT_CONFIGURED = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
 PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED = (
@@ -93,8 +94,13 @@ class PdfDocumentExtraction:
     markdown_sha256: str = field(repr=False)
     image_refs: tuple[PdfDocumentImageRef, ...] = field(repr=False)
     provider_id: str
+    requested_model_id: str
     model_id: str
     adapter_id: str
+    request_contract_version: str
+    request_parameters: tuple[tuple[str, bool | int | str], ...]
+    request_parameters_sha256: str = field(repr=False)
+    page_markdown_sha256: tuple[str, ...] = field(repr=False)
     qualification_status: str
     usage_page_count: int
     safe_technical_summary: tuple[tuple[str, int], ...] = ()
@@ -115,8 +121,40 @@ class PdfDocumentExtraction:
             raise ValueError("pdf_document_page_order_invalid")
         if self.page_numbers[0] < 1 or self.usage_page_count != len(self.page_numbers):
             raise ValueError("pdf_document_page_count_invalid")
-        if not all((self.provider_id, self.model_id, self.adapter_id)):
+        if not all(
+            (
+                self.provider_id,
+                self.requested_model_id,
+                self.model_id,
+                self.adapter_id,
+                self.request_contract_version,
+            )
+        ):
             raise ValueError("pdf_document_provenance_incomplete")
+        parameter_keys = tuple(key for key, _value in self.request_parameters)
+        if parameter_keys != tuple(sorted(parameter_keys)) or len(
+            set(parameter_keys)
+        ) != len(parameter_keys):
+            raise ValueError("pdf_document_request_parameters_invalid")
+        _require_sha256(
+            self.request_parameters_sha256,
+            "pdf_document_request_parameters_sha256_invalid",
+        )
+        parameter_material = json.dumps(
+            dict(self.request_parameters),
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        if (
+            hashlib.sha256(parameter_material).hexdigest()
+            != self.request_parameters_sha256
+        ):
+            raise ValueError("pdf_document_request_parameters_sha256_mismatch")
+        if len(self.page_markdown_sha256) != len(self.page_numbers):
+            raise ValueError("pdf_document_page_markdown_digest_count_mismatch")
+        for digest in self.page_markdown_sha256:
+            _require_sha256(digest, "pdf_document_page_markdown_sha256_invalid")
         if self.qualification_status not in {
             "offline_fixture",
             "qualification_attempt",
@@ -178,6 +216,59 @@ class PdfDocumentExtractionError(RuntimeError):
         super().__init__(code)
 
 
+@dataclass(frozen=True)
+class PdfDocumentAiExecutionContract:
+    provider_id: str
+    requested_model_id: str
+    adapter_id: str
+    request_contract_version: str
+    request_parameters: tuple[tuple[str, bool | int | str], ...]
+    request_parameters_sha256: str
+    accepted_provider_reported_model_ids: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        if not all(
+            (
+                self.provider_id,
+                self.requested_model_id,
+                self.adapter_id,
+                self.request_contract_version,
+                *self.accepted_provider_reported_model_ids,
+            )
+        ):
+            raise ValueError("pdf_document_execution_contract_incomplete")
+        keys = tuple(key for key, _value in self.request_parameters)
+        if keys != tuple(sorted(keys)) or len(keys) != len(set(keys)):
+            raise ValueError("pdf_document_execution_contract_parameters_invalid")
+        _require_sha256(
+            self.request_parameters_sha256,
+            "pdf_document_execution_contract_parameters_sha256_invalid",
+        )
+        material = json.dumps(
+            dict(self.request_parameters),
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        if hashlib.sha256(material).hexdigest() != self.request_parameters_sha256:
+            raise ValueError(
+                "pdf_document_execution_contract_parameters_sha256_mismatch"
+            )
+
+    def safe_dict(self) -> dict[str, object]:
+        return {
+            "provider_id": self.provider_id,
+            "requested_model_id": self.requested_model_id,
+            "adapter_id": self.adapter_id,
+            "request_contract_version": self.request_contract_version,
+            "request_parameters": dict(self.request_parameters),
+            "request_parameters_sha256": self.request_parameters_sha256,
+            "accepted_provider_reported_model_ids": list(
+                self.accepted_provider_reported_model_ids
+            ),
+        }
+
+
 @runtime_checkable
 class PdfDocumentExtractor(Protocol):
     def extract(
@@ -219,6 +310,12 @@ class PdfDocumentExtractorFactory:
 
     FACTORY_REQUIRED = "PdfDocumentExtractorFactory.create is the only production PDF Document AI composition point"
     FORBIDDEN = "Automatic provider selection, retry and fallback are forbidden"
+
+    @staticmethod
+    def qualification_execution_contract() -> PdfDocumentAiExecutionContract:
+        from .mistral_pdf_document_ai import execution_contract
+
+        return execution_contract()
 
     @staticmethod
     def create(

@@ -202,8 +202,12 @@ merged HEAD, для которого прошёл `broker-reports-ci`.
    проводит каждый PDF через тот же Normalizer, factory, adapter и ArtifactStore.
    Ошибка или timeout расходует текущий slot без retry.
 6. Для каждого PDF закрытый runner через private ArtifactResolver повторно
-   читает приватный Full Source, затем вызывает `purge_run` и доказывает отказ
-   повторного чтения. Внешний координатор не получает PDF или provider payload.
+   показывает проверяющему точный исходный PDF, execution binding, приватный
+   Full Source Markdown и связанные изображения. Проверяющий сверяет страницы,
+   таблицы, заголовки, периоды, продолжения, соседние таблицы, буквальные числа,
+   изображения и административный шум. Только положительный verdict создаёт
+   safe OCR 4.1 baseline candidate; затем `purge_run` доказывает отказ повторного
+   чтения. Внешний координатор не получает PDF или provider payload.
 7. Qualification uploads удалить штатным OpenWebUI source-deletion lifecycle.
 8. В `finally` восстановить прежний engine даже после первой ошибки.
 

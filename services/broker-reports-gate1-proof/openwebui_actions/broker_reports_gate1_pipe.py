@@ -736,6 +736,13 @@ class Pipe:
                 __pdf_document_ai_qualification_fixture_id__=runner_input[
                     "fixture_id"
                 ],
+                __pdf_document_ai_qualification_source_pdf_bytes__=runner_input[
+                    "pdf_bytes"
+                ],
+                __pdf_document_ai_qualification_source_pdf_sha256__=runner_input[
+                    "expected_sha256"
+                ],
+                __pdf_document_ai_qualification_source_file_id__=file_ref["file_id"],
                 **safe_kwargs,
             )
             if not isinstance(result, dict):
@@ -768,6 +775,45 @@ class Pipe:
                 raise PdfDocumentAiQualificationError(
                     "pdf_document_ai_qualification_private_review_required"
                 )
+            source_accepted = await event_call(
+                {
+                    "type": "confirmation",
+                    "data": {
+                        "title": f"Private PDF review: {view.fixture_id} source",
+                        "message": (
+                            f"Source SHA-256: `{view.source_pdf_sha256}`\n\n"
+                            f"Open attached OpenWebUI file `{view.source_file_id}` "
+                            "and review every source page."
+                        ),
+                    },
+                }
+            )
+            if source_accepted is not True:
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_review_aborted"
+                )
+            binding_accepted = await event_call(
+                {
+                    "type": "confirmation",
+                    "data": {
+                        "title": f"Private PDF review: {view.fixture_id} binding",
+                        "message": json.dumps(
+                            {
+                                "repository_head": view.repository_head,
+                                "live_output_digest": view.live_output_digest,
+                                "execution_binding": view.execution_binding,
+                                "structural_counts": view.structural_counts,
+                            },
+                            ensure_ascii=False,
+                            sort_keys=True,
+                        ),
+                    },
+                }
+            )
+            if binding_accepted is not True:
+                raise PdfDocumentAiQualificationError(
+                    "pdf_document_ai_qualification_review_aborted"
+                )
             chunks = [
                 view.markdown[index : index + 5_000]
                 for index in range(0, len(view.markdown), 5_000)
@@ -789,7 +835,7 @@ class Pipe:
                     raise PdfDocumentAiQualificationError(
                         "pdf_document_ai_qualification_review_aborted"
                     )
-            for ordinal, (target, content, media_type) in enumerate(
+            for ordinal, (page, target, image_sha256, content, media_type) in enumerate(
                 view.images, start=1
             ):
                 encoded = base64.b64encode(content).decode("ascii")
@@ -802,7 +848,8 @@ class Pipe:
                                 f"image {ordinal}/{len(view.images)}"
                             ),
                             "message": (
-                                f"{target}\n\n![private image]"
+                                f"page={page} target={target} sha256={image_sha256}"
+                                "\n\n![private image]"
                                 f"(data:{media_type};base64,{encoded})"
                             ),
                         },
@@ -856,6 +903,15 @@ class Pipe:
         )
         qualification_fixture_id = kwargs.pop(
             "__pdf_document_ai_qualification_fixture_id__", None
+        )
+        qualification_source_pdf_bytes = kwargs.pop(
+            "__pdf_document_ai_qualification_source_pdf_bytes__", None
+        )
+        qualification_source_pdf_sha256 = kwargs.pop(
+            "__pdf_document_ai_qualification_source_pdf_sha256__", None
+        )
+        qualification_source_file_id = kwargs.pop(
+            "__pdf_document_ai_qualification_source_file_id__", None
         )
         await self._emit(
             __event_emitter__,
@@ -999,6 +1055,9 @@ class Pipe:
                     self.valves.pdf_document_ai_qualification_repository_head or ""
                 ),
                 fixture_id=str(qualification_fixture_id or ""),
+                source_file_id=str(qualification_source_file_id or ""),
+                source_pdf_bytes=qualification_source_pdf_bytes,
+                expected_source_pdf_sha256=str(qualification_source_pdf_sha256 or ""),
                 expected_image_count=qualification_expected_image_count,
                 expires_at=expires_at,
             ).review(
