@@ -32,7 +32,7 @@ def test_patch_moves_exact_broker_pdf_default_to_native_process_false(tmp_path: 
 
     result = chunk.read_text(encoding="utf-8")
     assert result.count(patch.NEW) == 1
-    assert '["broker_reports_gate1_pipe","broker_reports_ndfl"].includes(M()[0])' in result
+    assert '["broker_reports_gate1_pipe","broker-reports-ndfl"].includes(M()[0])' in result
     assert 'De.type==="application/pdf"' in result
     assert 'String(De.name||"").toLowerCase().endsWith(".pdf")' in result
     assert "&&(st=!1);" in result
