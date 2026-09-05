@@ -893,6 +893,13 @@ class Pipe:
             raise PdfDocumentAiQualificationError(
                 "pdf_document_ai_qualification_admin_required"
             )
+        self._artifact_context(
+            user=user,
+            metadata=metadata,
+            body=body,
+            kwargs=kwargs,
+            normalization_run_id="pdf_document_ai_qualification_preflight",
+        )
         repository_head = str(
             self.valves.pdf_document_ai_qualification_repository_head or ""
         ).strip()
