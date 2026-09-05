@@ -326,10 +326,11 @@ Before any customer-approved package is uploaded, the latest Gate 1 source-intak
 
 The 2026-07-08 synthetic no-RAG smoke rejected the native per-model candidate:
 `file_context=false` did not stop default upload processing/vectorization on the
-target route. The follow-up process-false smoke proved the project-owned private
-intake fallback with zero vector/Knowledge/document deltas, ArtifactStore
-persistence, resolver checks and purge/tombstones. Customer-approved upload is
-allowed only through that `process=false` private intake path.
+target route. The follow-up process-false smoke proved the native endpoint with
+zero vector/Knowledge/document deltas, ArtifactStore persistence, resolver
+checks and purge/tombstones. On OpenWebUI 0.9.6 the ordinary Broker Reports
+upload reaches that native `process=false` primitive through the temporary
+exact-model compatibility seam; there is no custom intake endpoint or Action.
 
 ## Full-source private artifacts (2026-07-10)
 

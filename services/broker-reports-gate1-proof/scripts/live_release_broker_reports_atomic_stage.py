@@ -126,9 +126,7 @@ def _scp_prefix() -> list[str]:
 
 
 def _prepare_remote_staging(ssh_target: str, release_name: str) -> str:
-    remote_dir = (
-        "/opt/openwebui-prd0/.broker-reports-release-staging/" + release_name
-    )
+    remote_dir = "/opt/openwebui-prd0/.broker-reports-release-staging/" + release_name
     code = (
         "import os,pathlib,re;"
         f"p=pathlib.Path({remote_dir!r});"
@@ -295,7 +293,6 @@ def execute(
             item["function_id"]: item["content_sha256"]
             for item in manifest["functions"]
         },
-        "action_sha256": manifest["action"]["content_sha256"],
         "loader_sha256": manifest["loader"]["content_sha256"],
         "prompt_sha256": {
             item["prompt_id"]: item["content_sha256"]
@@ -316,9 +313,7 @@ def main() -> int:
 
     env = _read_env(Path(args.env_file))
     ssh_target = (
-        args.ssh_target
-        or env.get("OPENWEBUI_SSH_TARGET")
-        or _default_ssh_target(env)
+        args.ssh_target or env.get("OPENWEBUI_SSH_TARGET") or _default_ssh_target(env)
     )
     receipt = execute(
         source_revision=args.source_revision,

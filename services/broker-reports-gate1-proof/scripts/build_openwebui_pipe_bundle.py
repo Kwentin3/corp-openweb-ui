@@ -107,7 +107,6 @@ MODULE_ORDER = [
     "validators",
     "clarification",
     "artifact_resolver",
-    "pdf_document_ai_qualification_review",
     "canonical_store",
     "gate1_public_contracts",
     "gate2_source_fact_contracts",
@@ -148,8 +147,7 @@ MODULE_ORDER = [
 ]
 
 GATE1_INPUT_MODULES = [
-    "pdf_document_ai_qualification",
-    "private_intake_bytes",
+    "openwebui_file_bytes",
     "mistral_pdf_document_ai",
 ]
 

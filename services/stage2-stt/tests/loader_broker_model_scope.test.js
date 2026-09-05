@@ -10,7 +10,6 @@ const loaderPath = path.resolve(
 );
 const loaderSource = fs.readFileSync(loaderPath, 'utf8');
 
-const brokerSourceId = 'br-00000000-0000-4000-8000-000000000001';
 function modelCatalog() {
   return [
     {
@@ -60,21 +59,10 @@ function loaderRuntime(selectedModels, options = {}) {
   let modelLabels = [...(options.modelLabels ?? [])];
   const animationFrames = [];
   const mutationCallbacks = [];
-  const brokerPanels = [];
   const messageInputRoot = {
     appendChild: () => {},
-    querySelector: (selector) => {
-      if (selector === '[data-broker-gate1-composer-panel="1"]') {
-        return brokerPanels.find((panel) => !panel.removed) ?? null;
-      }
-      return null;
-    },
-    querySelectorAll: (selector) => {
-      if (selector.includes('[data-broker-gate1-panel="1"]')) {
-        return brokerPanels.filter((panel) => !panel.removed);
-      }
-      return [];
-    },
+    querySelector: () => null,
+    querySelectorAll: () => [],
   };
   const originalFetch = async (input, init) => {
     const url = String(input && input.url ? input.url : input);
@@ -87,12 +75,6 @@ function loaderRuntime(selectedModels, options = {}) {
     }
     if (url === '/static/stage2-stt-normalization.json') {
       return Response.json({});
-    }
-    if (url === '/api/v1/broker-reports/intake') {
-      return Response.json({
-        source_id: brokerSourceId,
-        size_bytes: 4,
-      });
     }
     if (url.includes('/api/v1/files/')) {
       return Response.json({
@@ -110,7 +92,7 @@ function loaderRuntime(selectedModels, options = {}) {
     location: {
       origin: 'https://openwebui.test',
       pathname: '/',
-      search: '',
+      search: options.locationSearch ?? '',
     },
     requestAnimationFrame: (callback) => {
       animationFrames.push(callback);
@@ -177,16 +159,6 @@ function loaderRuntime(selectedModels, options = {}) {
         await callback();
       }
     },
-    seedBrokerUi: () => {
-      const panel = {
-        removed: false,
-        remove() {
-          this.removed = true;
-        },
-      };
-      brokerPanels.push(panel);
-      return panel;
-    },
     setModelLabels: (labels) => {
       modelLabels = [...labels];
       for (const callback of mutationCallbacks) {
@@ -215,22 +187,21 @@ function uploadRoutes(calls) {
   return calls
     .filter(({ init }) => String(init?.method ?? 'GET').toUpperCase() === 'POST')
     .map(({ url }) => url)
-    .filter((url) => url === '/api/v1/files/' || url === '/api/v1/broker-reports/intake');
+    .filter((url) => url.startsWith('/api/v1/files/'));
 }
 
-test('Workspace Model backed by the Broker Gate 1 Pipe uses private intake', async () => {
-  const { calls, window } = loaderRuntime(['test']);
+test('exact Broker Pipe id uses native unprocessed PDF upload', async () => {
+  const { calls, window } = loaderRuntime(['broker_reports_gate1_pipe']);
 
   const response = await upload(window);
   const payload = await response.json();
 
-  assert.deepEqual(uploadRoutes(calls), ['/api/v1/broker-reports/intake']);
-  assert.equal(payload.id, brokerSourceId);
-  const intake = calls.find(({ url }) => url === '/api/v1/broker-reports/intake');
-  assert.match(intake.init.headers.get('Idempotency-Key'), /^broker-ui-/);
+  assert.deepEqual(uploadRoutes(calls), ['/api/v1/files/?process=false']);
+  assert.equal(payload.id, 'native-file-id');
+  assert.equal(payload.filename, 'statement.pdf');
 });
 
-test('display alias does not control Broker Gate 1 ownership', async () => {
+test('display alias cannot activate Broker upload rewriting', async () => {
   const { calls, window } = loaderRuntime(null, {
     brokerName: 'Renamed display alias',
     modelLabels: ['Renamed display alias'],
@@ -238,7 +209,8 @@ test('display alias does not control Broker Gate 1 ownership', async () => {
 
   await upload(window);
 
-  assert.deepEqual(uploadRoutes(calls), ['/api/v1/broker-reports/intake']);
+  assert.deepEqual(uploadRoutes(calls), ['/api/v1/files/']);
+  assert.equal(calls.some(({ url }) => url === '/api/models'), false);
 });
 
 test('ordinary model preserves the native OpenWebUI document upload', async () => {
@@ -251,8 +223,8 @@ test('ordinary model preserves the native OpenWebUI document upload', async () =
   assert.equal(payload.id, 'native-file-id');
 });
 
-test('declared Broker document formats share the same model boundary', async () => {
-  const broker = loaderRuntime(['test']);
+test('only Broker PDF uses unprocessed native upload', async () => {
+  const broker = loaderRuntime(['broker_reports_gate1_pipe']);
   const native = loaderRuntime(['deepseek-chat']);
   const documents = [
     ['statement.pdf', 'application/pdf'],
@@ -266,7 +238,12 @@ test('declared Broker document formats share the same model boundary', async () 
     await upload(native.window, name, type);
   }
 
-  assert.deepEqual(uploadRoutes(broker.calls), documents.map(() => '/api/v1/broker-reports/intake'));
+  assert.deepEqual(uploadRoutes(broker.calls), [
+    '/api/v1/files/?process=false',
+    '/api/v1/files/',
+    '/api/v1/files/',
+    '/api/v1/files/',
+  ]);
   assert.deepEqual(uploadRoutes(native.calls), documents.map(() => '/api/v1/files/'));
 });
 
@@ -274,19 +251,19 @@ test('model switching changes routing in both directions without stale scope', a
   const { calls, setSelectedModels, window } = loaderRuntime(['deepseek-chat']);
 
   await upload(window);
-  setSelectedModels(['test']);
+  setSelectedModels(['broker_reports_gate1_pipe']);
   await upload(window);
   setSelectedModels(['deepseek-chat']);
   await upload(window);
 
   assert.deepEqual(uploadRoutes(calls), [
     '/api/v1/files/',
-    '/api/v1/broker-reports/intake',
+    '/api/v1/files/?process=false',
     '/api/v1/files/',
   ]);
 });
 
-test('native OpenWebUI selector owns routing and removes Broker UI after a model switch', async () => {
+test('DOM model selector text does not control routing', async () => {
   const runtime = loaderRuntime(null, {
     modelLabels: ['Broker Reports user-friendly alias'],
     observeUi: true,
@@ -294,30 +271,27 @@ test('native OpenWebUI selector owns routing and removes Broker UI after a model
 
   await runtime.flushScans();
   await upload(runtime.window);
-  const cardPanel = runtime.seedBrokerUi();
-  const composerPanel = runtime.seedBrokerUi();
 
   runtime.setModelLabels(['DeepSeek']);
   await runtime.flushScans();
   await upload(runtime.window);
 
   assert.deepEqual(uploadRoutes(runtime.calls), [
-    '/api/v1/broker-reports/intake',
+    '/api/v1/files/',
     '/api/v1/files/',
   ]);
-  assert.equal(cardPanel.removed, true);
-  assert.equal(composerPanel.removed, true);
+  assert.equal(runtime.calls.some(({ url }) => url === '/api/models'), false);
 });
 
 test('mixed-model selection fails closed to native OpenWebUI upload', async () => {
-  const { calls, window } = loaderRuntime(['test', 'deepseek-chat']);
+  const { calls, window } = loaderRuntime(['broker_reports_gate1_pipe', 'deepseek-chat']);
 
   await upload(window);
 
   assert.deepEqual(uploadRoutes(calls), ['/api/v1/files/']);
 });
 
-test('ambiguous display alias fails closed to native OpenWebUI upload', async () => {
+test('ambiguous display alias remains ordinary native upload', async () => {
   const { calls, window } = loaderRuntime(null, {
     duplicateBrokerName: true,
     modelLabels: ['Broker Reports user-friendly alias'],
@@ -328,13 +302,12 @@ test('ambiguous display alias fails closed to native OpenWebUI upload', async ()
   assert.deepEqual(uploadRoutes(calls), ['/api/v1/files/']);
 });
 
-test('unavailable model catalog fails closed to native OpenWebUI upload', async () => {
+test('exact query-state Broker Pipe id activates unprocessed PDF upload', async () => {
   const { calls, window } = loaderRuntime(null, {
-    modelLabels: ['Broker Reports user-friendly alias'],
-    modelsStatus: 503,
+    locationSearch: '?model=broker_reports_gate1_pipe',
   });
 
   await upload(window);
 
-  assert.deepEqual(uploadRoutes(calls), ['/api/v1/files/']);
+  assert.deepEqual(uploadRoutes(calls), ['/api/v1/files/?process=false']);
 });

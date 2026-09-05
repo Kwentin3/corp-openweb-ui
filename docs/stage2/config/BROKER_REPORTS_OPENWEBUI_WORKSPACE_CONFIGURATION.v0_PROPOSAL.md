@@ -257,9 +257,13 @@ Customer-approved files can be used only after:
 - raw filenames/private paths safety checks pass;
 - Knowledge boundary accepted.
 
-Normal OpenWebUI bulk chat upload remains blocked for Broker Reports customer packages.
-The no-RAG/no-vector source-intake guard is passed only for the project-owned
-`process=false` private intake path. `Knowledge count = 0` is not enough.
+Ordinary OpenWebUI chat upload is the Broker Reports product entrypoint when the
+exact selected model is `broker_reports_gate1_pipe`. On OpenWebUI 0.9.6 the
+temporary frontend compatibility seam changes only the native PDF upload URL
+to `process=false`; it creates no custom intake endpoint or Action. The Pipe
+receives native file IDs, verifies the authenticated owner through `Files`, and
+reads bytes through `Storage`. `Knowledge count = 0` alone is still not enough:
+the upload must also create no extraction/vectorization delta.
 
 ## 14. Status
 
@@ -268,7 +272,8 @@ WORKSPACE_CONFIGURATION_PROPOSAL_READY
 WORKSPACE_MODEL_RECOMMENDED_AS_SCENARIO_ENTRYPOINT
 KNOWLEDGE_FOR_APPROVED_METHODOLOGY_ONLY
 RAW_CUSTOMER_DOCS_NOT_KNOWLEDGE
-RAW_CUSTOMER_DOCS_NOT_NATIVE_RAG_VIA_PROCESS_FALSE_PRIVATE_INTAKE
-GATE1_TRIGGER_ACTION_OR_TOOL_TO_BE_PROVEN
-CUSTOMER_APPROVED_UPLOAD_ALLOWED_ONLY_VIA_PROCESS_FALSE_PRIVATE_INTAKE
+RAW_CUSTOMER_DOCS_NOT_NATIVE_RAG_VIA_PROCESS_FALSE_NATIVE_UPLOAD
+GATE1_TRIGGER_IS_EXISTING_PIPE
+CUSTOM_INTAKE_OR_ACTION_NOT_PRESENT
+OPENWEBUI_0_9_6_PER_MODEL_UPLOAD_COMPATIBILITY_SEAM_TEMPORARY
 ```

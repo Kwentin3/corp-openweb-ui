@@ -40,7 +40,6 @@ from broker_reports_gate1.mistral_pdf_document_ai import (
 )
 from broker_reports_gate1.full_source import FullSourceArtifactFactory
 from broker_reports_gate1.pdf_document_ai import (
-    PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
     PdfDocumentExtraction,
     PdfDocumentExtractionError,
     PdfDocumentExtractorFactory,
@@ -848,7 +847,7 @@ def _server_request(
     return SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(config=config)))
 
 
-def test_factory_statically_rejects_native_mistral_until_qualification(
+def test_factory_exposes_configured_native_mistral_to_product_flow(
     tmp_path: Path,
 ) -> None:
     configured = PdfDocumentExtractorFactory.create(
@@ -859,35 +858,15 @@ def test_factory_statically_rejects_native_mistral_until_qualification(
     )
     no_request = PdfDocumentExtractorFactory.create()
 
-    assert isinstance(configured, RejectedPdfDocumentExtractor)
-    with pytest.raises(PdfDocumentExtractionError) as caught:
-        configured.extract(PDF_BYTES, _source_context(1))
-    _assert_typed_failure_without_leak(
-        caught, expected_code=PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
-    )
+    assert isinstance(configured, MistralPdfDocumentExtractor)
     assert isinstance(other_engine, UnconfiguredPdfDocumentExtractor)
     assert isinstance(no_request, UnconfiguredPdfDocumentExtractor)
 
 
-def test_factory_missing_native_key_returns_static_typed_error_without_network(
+def test_factory_missing_native_key_is_terminal_without_network(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    class _UnreadableNativeConfig:
-        CONTENT_EXTRACTION_ENGINE = "mistral_ocr"
-
-        @property
-        def MISTRAL_OCR_API_BASE_URL(self) -> str:
-            raise AssertionError("static admission must not read provider URL")
-
-        @property
-        def MISTRAL_OCR_API_KEY(self) -> str:
-            raise AssertionError("static admission must not read provider key")
-
-    request = SimpleNamespace(
-        app=SimpleNamespace(
-            state=SimpleNamespace(config=_UnreadableNativeConfig())
-        )
-    )
+    request = _server_request(api_key="")
     monkeypatch.setattr(
         "broker_reports_gate1.mistral_pdf_document_ai.build_opener",
         lambda *_handlers: (_ for _ in ()).throw(
@@ -895,14 +874,14 @@ def test_factory_missing_native_key_returns_static_typed_error_without_network(
         ),
     )
     extractor = PdfDocumentExtractorFactory.create(
-        server_request=request, image_root=tmp_path
+        server_request=request,
+        image_root=tmp_path,
     )
-
     assert isinstance(extractor, RejectedPdfDocumentExtractor)
     with pytest.raises(PdfDocumentExtractionError) as caught:
         extractor.extract(PDF_BYTES, _source_context(1))
     _assert_typed_failure_without_leak(
-        caught, expected_code=PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
+        caught, expected_code="PDF_DOCUMENT_AI_CONFIG_MISSING"
     )
 
 
@@ -1160,24 +1139,68 @@ def test_pdf_atomic_failure_does_not_publish_images_or_update_graph_indexes(
     assert store.get_record_unchecked(image.local_ref) is None
 
 
-def test_production_pipe_static_rejection_is_zero_call_and_nonblocking(
+def test_production_pipe_uses_configured_native_mistral_once_and_nonblocking(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    opener_constructed = False
-
-    def forbidden_build_opener(*_handlers: object) -> object:
-        nonlocal opener_constructed
-        opener_constructed = True
-        raise AssertionError("static admission must not construct HTTP transport")
+    opener = _FakeOpener(
+        _FakeResponse(
+            _response(
+                [
+                    {
+                        "index": page_index,
+                        "markdown": f"# Page {page_index + 1}",
+                        "images": [],
+                    }
+                    for page_index in range(28)
+                ]
+            )
+        )
+    )
 
     monkeypatch.setattr(
         "broker_reports_gate1.mistral_pdf_document_ai.build_opener",
-        forbidden_build_opener,
+        lambda *_handlers: opener,
     )
     pipe = Pipe()
     pipe.valves.artifact_store_path = str(tmp_path / "artifacts.sqlite3")
     pipe.valves.artifact_payload_root = str(tmp_path / "payloads")
     pdf_bytes = PUBLIC_PDF.read_bytes()
+
+    class OwnedFileResolver:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str]] = []
+
+        async def resolve(self, *, file_id: str, actor_user_id: str) -> object:
+            self.calls.append((file_id, actor_user_id))
+            return SimpleNamespace(
+                filename="heartbeat.pdf",
+                content_type="application/pdf",
+                payload=pdf_bytes,
+            )
+
+    file_resolver = OwnedFileResolver()
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_file_bytes_resolver",
+        lambda: file_resolver,
+    )
+    published_files: list[dict[str, object]] = []
+
+    async def publish_private_file(**kwargs: object) -> str:
+        published_files.append(kwargs)
+        content = kwargs["content"]
+        assert isinstance(content, bytes)
+        assert hashlib.sha256(content).hexdigest() == kwargs["content_sha256"]
+        context = kwargs["context"]
+        assert isinstance(context, ArtifactAccessContext)
+        assert context.user_id == "mistral-heartbeat-user"
+        return "mistral-heartbeat-full-source"
+
+    monkeypatch.setattr(
+        Pipe,
+        "_publish_owner_scoped_private_file",
+        staticmethod(publish_private_file),
+    )
     body = {
         "messages": [
             {
@@ -1225,27 +1248,22 @@ def test_production_pipe_static_rejection_is_zero_call_and_nonblocking(
     content, heartbeat_observed = asyncio.run(run())
 
     assert heartbeat_observed is True
-    assert opener_constructed is False
+    assert file_resolver.calls == [
+        ("mistral-heartbeat-pdf", "mistral-heartbeat-user")
+    ]
+    assert len(opener.calls) == 1
+    assert len(published_files) == 1
     assert isinstance(content, str) and content
     assert pipe.last_safe_report is not None
-    qualification_blockers = [
-        item
-        for item in pipe.last_safe_report["blockers"]
-        if item["code"] == PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
-    ]
-    assert len(qualification_blockers) == 1
-    assert qualification_blockers[0]["blocks_next_gate"] is True
-    assert pipe.last_safe_report["taxonomy_candidates"] == []
-    assert (
-        pipe.last_safe_report["recommended_next_step"]
-        == "complete_pdf_document_ai_live_qualification"
-    )
     outcomes = pipe.last_safe_report["file_processing_outcomes"]["outcomes"]
     assert len(outcomes) == 1
-    assert outcomes[0]["status"] == "failed"
+    assert outcomes[0]["status"] == "success"
+    assert outcomes[0]["reason_code"] == "completed"
     assert (
-        outcomes[0]["reason_code"]
-        == PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
+        pipe.last_safe_report["private_artifact_summary"][
+            "private_normalized_source_units_count"
+        ]
+        > 0
     )
 
 

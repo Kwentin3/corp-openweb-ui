@@ -14,20 +14,17 @@ import live_cleanup_gate3_legacy_routes as cleanup  # noqa: E402
 
 def test_cleanup_allowlist_is_exact_and_preserves_ndfl_base() -> None:
     assert cleanup.LEGACY_FUNCTIONS_TO_DISABLE == {
-        "broker_reports_gate1_normalizer_action": (
-            "proof_only_global_gate1_stub"
-        ),
-        "broker_reports_gate2_source_fact_pipe": (
-            "legacy_user_selectable_gate2_pipe"
-        ),
+        "broker_reports_gate1_normalizer_action": ("proof_only_global_gate1_stub"),
+        "broker_reports_private_intake_action": "retired_custom_intake_action",
+        "broker_reports_gate2_source_fact_pipe": ("legacy_user_selectable_gate2_pipe"),
         "broker_reports_gate2_domain_source_fact_pipe": (
             "legacy_user_selectable_gate2_domain_pipe"
         ),
     }
     assert "broker_reports_gate1_pipe" not in cleanup.LEGACY_FUNCTIONS_TO_DISABLE
-    assert "broker_reports_gate1_pipe" in cleanup.REQUIRED_ACTIVE_FUNCTIONS
-    assert "broker_reports_private_intake_action" in (
-        cleanup.REQUIRED_ACTIVE_FUNCTIONS
+    assert cleanup.NDFL_OPENWEBUI_BASE_PIPE_ID in cleanup.REQUIRED_ACTIVE_FUNCTIONS
+    assert (
+        "broker_reports_private_intake_action" not in cleanup.REQUIRED_ACTIVE_FUNCTIONS
     )
 
 
@@ -50,9 +47,9 @@ def test_function_state_evaluator_uses_id_type_and_flags_not_name() -> None:
 
 
 def test_cleanup_uses_toggle_only_and_never_deletes_history() -> None:
-    source = (
-        SCRIPT_ROOT / "live_cleanup_gate3_legacy_routes.py"
-    ).read_text(encoding="utf-8")
+    source = (SCRIPT_ROOT / "live_cleanup_gate3_legacy_routes.py").read_text(
+        encoding="utf-8"
+    )
     assert "/api/v1/functions/id/{stable_id}/toggle" in source
     assert "/delete" not in source
     assert "get_by_name" not in source
@@ -74,9 +71,7 @@ def test_product_orchestrator_delegates_to_existing_owners_only() -> None:
     ):
         assert owner in source
     chunk_source = (
-        SERVICE_ROOT
-        / "broker_reports_gate1"
-        / "gate3_bounded_labeling.py"
+        SERVICE_ROOT / "broker_reports_gate1" / "gate3_bounded_labeling.py"
     ).read_text(encoding="utf-8")
     assert "Gate3FinancialLabelDictionaryFactory" in chunk_source
     for bypass in (

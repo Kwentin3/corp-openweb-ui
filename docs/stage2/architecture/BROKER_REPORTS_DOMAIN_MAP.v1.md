@@ -2,7 +2,7 @@
 
 Status: `HISTORICAL_DOMAIN_MAP_WITH_CURRENT_PDF_BOUNDARY`
 
-Effective date: 2026-09-03
+Effective date: 2026-09-05
 
 Scope: Broker Reports / NDFL, Gate 1 through Gate 4
 
@@ -29,15 +29,15 @@ owner discovery.
 
 The current PDF information flow is:
 
-`authenticated bytes -> source custody / safe preflight -> PdfDocumentExtractor -> PdfDocumentExtraction -> existing Full Source / Canonical downstream`
+`ordinary authenticated user -> native file ID -> Files owner check -> Storage exact-byte read -> source custody / safe preflight -> PdfDocumentExtractor -> one configured Mistral call per PDF -> PdfDocumentExtraction -> ArtifactStore Markdown/image graph -> owner-scoped full-source.zip`
 
 `PdfDocumentExtractorFactory` returns `PDF_DOCUMENT_AI_NOT_CONFIGURED` for an
-absent/unselected engine and `PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED` for
-an ordinary selected-but-unqualified route. One bounded capability admits only
-the two pinned public qualification hashes through the same factory. The
-implemented adapter publishes Markdown and images as one private ArtifactStore
-graph. This source-normalization owner is not a second Canonical or
-financial-semantic owner. No engine fallback exists.
+absent/unselected engine and directly selects configured Mistral for the
+ordinary Pipe route. There is no admin qualification, custom intake/action,
+retry, repair or fallback. The ArtifactStore graph is authoritative;
+`full-source.zip` is only a native Files/Storage delivery projection. This
+source-normalization owner is not a second Canonical or financial-semantic
+owner.
 
 The current non-PDF information flow is:
 
@@ -82,11 +82,11 @@ transport success alone.
 - **Forbidden knowledge outside adapter/composition:** provider schema/model,
   OCR options, bbox/crop/DPI, raw response, table reconstruction, retry or
   fallback.
-- **Runtime status:** `QUALIFICATION_READY_PRODUCT_FAIL_CLOSED`; no live
-  qualification or production activation is claimed.
-- **Completion criterion:** ordinary routes stop before network, or the exact
-  two-fixture qualification capability returns a contract-valid envelope and
-  atomically persisted private Full Source/image graph.
+- **Runtime status:** `ACTIVE_PRODUCT_FAIL_CLOSED_ON_NATIVE_CONFIG`.
+- **Completion criterion:** an absent/unselected engine stops terminally; a
+  configured PDF produces one contract-valid envelope with one provider call,
+  atomically persists its private Markdown/image graph, and exposes only an
+  owner-scoped Full Source projection.
 
 ## 3. Gate 2 table package
 

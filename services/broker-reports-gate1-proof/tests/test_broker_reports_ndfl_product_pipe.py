@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 from dataclasses import replace
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -32,10 +33,39 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     declaration_surrogate_preview,
     render_public_dialogue_fallback,
 )
+from broker_reports_gate1.openwebui_file_bytes import OpenWebUIOwnedFile
 from openwebui_actions import broker_reports_gate1_pipe as product_pipe
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
 from broker_reports_gate1.artifact_retention import build_retention_policy
 import test_broker_reports_ordinary_trade_declaration_mvp as declaration_fixtures
+
+
+class _OwnedFixtureFileResolver:
+    def __init__(
+        self,
+        *,
+        user_id: str,
+        file_id: str,
+        filename: str,
+        content_type: str,
+        payload: bytes,
+    ) -> None:
+        self._user_id = user_id
+        self._file_id = file_id
+        self._filename = filename
+        self._content_type = content_type
+        self._payload = payload
+
+    async def resolve(self, *, file_id: str, actor_user_id: str) -> OpenWebUIOwnedFile:
+        assert (file_id, actor_user_id) == (self._file_id, self._user_id)
+        return OpenWebUIOwnedFile(
+            file_id=file_id,
+            user_id=actor_user_id,
+            filename=self._filename,
+            content_type=self._content_type,
+            payload=self._payload,
+            sha256=hashlib.sha256(self._payload).hexdigest(),
+        )
 
 
 def _ready_public_product() -> dict:
@@ -652,7 +682,17 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
 def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     tmp_path: Path,
 ) -> None:
-    pipe = Pipe()
+    fixture = Path(__file__).parent / "fixtures/issue306_supported_ordinary_trade.csv"
+    payload = fixture.read_bytes()
+    pipe = Pipe(
+        _file_bytes_resolver=_OwnedFixtureFileResolver(
+            user_id="surrogate-maintained-user",
+            file_id="surrogate-maintained-file-turn",
+            filename=fixture.name,
+            content_type="text/csv",
+            payload=payload,
+        )
+    )
     pipe.valves.ordinary_trade_candidate_enabled = True
     pipe.valves.canonical_gate2_write_enabled = True
     pipe.valves.canonical_gate2_read_enabled = True
@@ -661,14 +701,12 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     pipe.valves.workload_store_path = str(tmp_path / "workloads.sqlite3")
     pipe.valves.workload_temp_root = str(tmp_path / "workload-temp")
     pipe.valves.artifact_retention_mode = "synthetic_dev"
-    fixture = Path(__file__).parent / "fixtures/issue306_supported_ordinary_trade.csv"
     file_ref = {
         "type": "file",
         "file": {
             "id": "surrogate-maintained-file-turn",
             "filename": fixture.name,
             "mime_type": "text/csv",
-            "content_bytes": fixture.read_bytes(),
         },
     }
     metadata = {
@@ -782,7 +820,17 @@ def test_public_file_turn_explains_non_filing_position_routes(
     expected_status: str,
     visible_markers: tuple[str, ...],
 ) -> None:
-    pipe = Pipe()
+    fixture = Path(__file__).parent / "fixtures" / fixture_name
+    payload = fixture.read_bytes()
+    pipe = Pipe(
+        _file_bytes_resolver=_OwnedFixtureFileResolver(
+            user_id="issue310-position-user",
+            file_id="issue310-" + fixture.stem,
+            filename=fixture.name,
+            content_type="text/csv",
+            payload=payload,
+        )
+    )
     pipe.valves.ordinary_trade_candidate_enabled = True
     pipe.valves.canonical_gate2_write_enabled = True
     pipe.valves.canonical_gate2_read_enabled = True
@@ -791,14 +839,12 @@ def test_public_file_turn_explains_non_filing_position_routes(
     pipe.valves.workload_store_path = str(tmp_path / "workloads.sqlite3")
     pipe.valves.workload_temp_root = str(tmp_path / "workload-temp")
     pipe.valves.artifact_retention_mode = "synthetic_dev"
-    fixture = Path(__file__).parent / "fixtures" / fixture_name
     file_ref = {
         "type": "file",
         "file": {
             "id": "issue310-" + fixture.stem,
             "filename": fixture.name,
             "mime_type": "text/csv",
-            "content_bytes": fixture.read_bytes(),
         },
     }
 

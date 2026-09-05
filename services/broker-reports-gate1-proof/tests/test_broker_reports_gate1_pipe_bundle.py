@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
@@ -32,6 +33,23 @@ def run_pipe(pipe, body: dict, **kwargs) -> str:
             "model_id": "broker_reports_gate1_pipe_bundle_test",
         },
     )
+    owned_files = {}
+    for message in body.get("messages", []):
+        for item in message.get("files", []):
+            file_value = item.get("file", item)
+            owned_files[str(file_value["id"])] = SimpleNamespace(
+                filename=str(file_value.get("filename") or ""),
+                content_type=str(file_value.get("mime_type") or ""),
+                payload=file_value.get("content_bytes"),
+            )
+
+    class OwnedFileResolver:
+        async def resolve(self, *, file_id: str, actor_user_id: str):
+            if actor_user_id != "bundle-test-user" or file_id not in owned_files:
+                raise AssertionError("unexpected owner-scoped file resolution")
+            return owned_files[file_id]
+
+    pipe._file_bytes_resolver = OwnedFileResolver()
     return asyncio.run(pipe.pipe(body, **kwargs))
 
 

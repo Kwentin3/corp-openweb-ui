@@ -1,8 +1,8 @@
 # ADR: PDF Document AI boundary
 
-Status: `LIVE QUALIFICATION READY / OWNER INPUT REQUIRED`
+Status: `CURRENT PRODUCT ROUTE`
 
-Decision date: 2026-09-04
+Decision date: 2026-09-05
 
 PDF understanding belongs to one port in the existing source-normalization
 domain: `PdfDocumentExtractor.extract(pdf_bytes, source_context) ->
@@ -35,46 +35,36 @@ the short-lived neutral extraction envelope until the existing bounded-graph
 owner atomically publishes Markdown, its Full Source unit, and every image
 through the existing ArtifactStore.
 
-The architecture is statically ready, but live qualification and activation
-remain blocked by the code-owned `PDF_DOCUMENT_AI_LIVE_QUALIFIED = False`
-admission gate. Native configuration does not qualify or activate the route.
-Until a separately authorized activation changes that reviewed gate, ordinary
-Mistral-selected production intake terminates with
-`PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED` before the adapter import,
-credential read, network access, image materialization, or downstream artifact
-publication. The one qualification-only capability is the sole exception: it
-admits only one of the two repository-pinned public PDF hashes, verifies the
-actual bytes before URL/key access, and still routes through the same Pipe,
-Normalizer, factory, adapter and ArtifactStore. An unselected or absent engine
-still terminates with
-`PDF_DOCUMENT_AI_NOT_CONFIGURED`. The admission constant is release state, not
-a second operator configuration surface. The API key must not enter logs,
-errors, public results, technical summaries, receipts, Git, or Pipe state.
+There is no separate admin qualification or activation route. When native
+OpenWebUI configuration selects `mistral_ocr`, the ordinary authenticated
+`broker_reports_gate1_pipe` path may select the adapter. An unselected or absent
+engine terminates with `PDF_DOCUMENT_AI_NOT_CONFIGURED`. Invalid configuration
+or provider failure terminates fail-closed; neither case permits retry,
+fallback, repair, engine probing or downstream publication from an incomplete
+extraction. The API key must not enter logs, errors, public results, technical
+summaries, receipts, Git, Pipe state or browser code.
+
+The source boundary is native OpenWebUI custody. The Pipe receives opaque file
+IDs, resolves each row through `Files`, verifies the authenticated owner, and
+reads the exact stored bytes through `Storage`. Caller-supplied filenames,
+bytes, hashes or metadata cannot substitute for that owner read. There is no
+custom intake endpoint or Action.
+
 The existing ArtifactStore is the only lifecycle owner. It performs one atomic
 private publication, checksum verification on reread, scoped resolution,
 retention, expiry, purge and source-deletion cascade. Its private-root preflight
 checks read/write/delete access and rejects root identity changes and
 symlink/reparse roots. The adapter owns no filesystem path or staging area.
 
-The qualification-only Pipe keeps that same atomic private graph alive for one
-short same-user review lease. Through the existing private OpenWebUI interaction
-callback, the reviewer opens the exact source PDF, sees the exact Full Source
-Markdown and every associated image resolved with its stored SHA-256. The
-verdict covers the fixed source-fidelity checklist and must echo a stable digest
-bound to source PDF SHA-256, requested and provider-reported model, normalized
-parameters, adapter, ordered page/Markdown/image evidence, fixture and code
-HEAD. The server binds the authenticated reviewer identity and UTC review time.
-Cross-user or cross-case access fails closed. Success, rejection, expiry,
-abort and error all end by purging the run and verifying read denial. The safe
-receipt contains only hashes, counts and status; it never contains Markdown or
-image bytes. This is temporary inspection, not a second route, store, archive,
-provider client or lifecycle owner. Only a positive review emits a safe
-versioned OCR 4.1 baseline candidate. Future byte differences require a content
-diff and a new substantive review; digest inequality alone is not rejection.
+After successful persistence, the Pipe deterministically projects the stored
+Markdown and every stored image into an owner-scoped `full-source.zip`. The ZIP
+is a delivery projection, not a second authority: ArtifactStore remains the
+source of truth, while native `Files`/`Storage` owns authenticated download
+delivery. Cross-user or cross-case reads fail closed.
 
 The 2026-09-02 Playground Markdown remains research reference material only.
 Its exact model and parameters were not recorded, so it is not a byte oracle
-and cannot pass or fail production qualification.
+and cannot define current product acceptance.
 
 PDFPlumber, pdfminer, PyMuPDF, Camelot, Docling, VLM/bbox reconstruction,
 hybrid/dual-engine execution, structural repair, and automatic fallback are
@@ -83,36 +73,16 @@ the same port and selected explicitly at the single composition point;
 Pipe, Full Source, Canonical, financial mapping, Gate 4, and Gate 5 must not
 gain provider-specific knowledge.
 
-## Qualification-only operator path
+## OpenWebUI 0.9.6 compatibility seam
 
-Qualification preparation has one operator entrypoint:
-`services/broker-reports-gate1-proof/scripts/live_pdf_document_ai_qualification.py`.
-Its default/preflight mode
-uses only the two repository-pinned public PDF hashes (DriveWealth
-`738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57`
-and Fidelity
-`36a166a5a13e6d6d86b391233023f83f6f7b4d268a4a23fbae01cb81290e3b96`),
-requires a clean committed HEAD and the exact successful `broker-reports-ci`
-check, and reports zero config/key reads, provider calls and external sends.
-It accepts no caller PDF/path, URL, key, model or hash. Eventual execution can
-only consume two durable one-shot slots and delegate the exact bytes to an
-injected existing-Pipe runner; a timeout or failure consumes its slot and is
-not retried. This seam neither constructs the adapter nor admits production.
+OpenWebUI 0.9.6 has no supported per-model policy for upload processing. The
+temporary frontend seam therefore changes only the native PDF upload URL to
+`process=false`, and only when the exact selected model ID is
+`broker_reports_gate1_pipe`. It does not add an endpoint, response contract,
+file-identity mapper, Action, provider client or DOM-based source binding. The
+Pipe still receives native file IDs and performs the server-side owner read.
 
-`CONTENT_EXTRACTION_ENGINE=mistral_ocr` is global OpenWebUI state and also
-affects ordinary Knowledge/RAG PDF processing. A separately authorized live
-qualification therefore requires an isolated maintenance window with no
-parallel PDF uploads. The operator records the prior engine, enters the key in
-the native Admin configuration, selects Mistral, runs the single qualification
-entrypoint, and restores the prior engine in `finally` even after failure.
-The script must not toggle this setting itself. Source uploads are made with
-`process=false`; after private Full Source/image readback they are deleted via
-the existing source-deletion lifecycle and purge/read denial is verified.
-`PDF_DOCUMENT_AI_LIVE_QUALIFIED` remains false throughout; activation requires
-a later owner-approved change.
-
-`--review-lifecycle-dry-run` exercises the same private ArtifactStore review
-lease with synthetic bytes after exact-HEAD CI verification. It performs zero
-native configuration reads, key reads, provider calls and external sends, then
-proves Full Source/image readback and purge without exposing their content in
-its receipt.
+This seam must be removed when upstream OpenWebUI exposes an equivalent
+per-model upload-processing policy. A core fork and a global RAG/embedding
+bypass are rejected: the former creates upgrade debt, while the latter changes
+unrelated models and Knowledge workflows.

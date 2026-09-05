@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import requests
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
@@ -26,9 +27,6 @@ from broker_reports_gate1.gate2_economy_provider_selection import (  # noqa: E40
     Gate2EconomyProviderSelectionError,
     Gate2EconomyProviderSelectionFactory,
 )
-from live_broker_reports_private_intake_smoke import (  # noqa: E402
-    _authenticated_session,
-)
 from live_gate2_synthetic_extraction_smoke import (  # noqa: E402
     _extract_content,
     _remote_json,
@@ -40,6 +38,7 @@ from live_no_rag_source_intake_smoke import (  # noqa: E402
     _read_env,
     _runtime_snapshot,
     _safe_counter_view,
+    _signin,
 )
 
 
@@ -54,6 +53,14 @@ FINANCIAL_TYPES = frozenset(
         "broker_reports_gate2_financial_evidence_production_run_v1",
     }
 )
+
+
+def _authenticated_session(base_url: str, env: dict[str, str]) -> requests.Session:
+    session = requests.Session()
+    session.headers.update({"Accept": "application/json"})
+    token = _signin(session, base_url, env)
+    session.headers.update({"Authorization": f"Bearer {token}"})
+    return session
 
 
 def main() -> int:
@@ -78,9 +85,7 @@ def main() -> int:
         print(
             json.dumps(
                 {
-                    "schema_version": (
-                        "broker_reports_economy_migration_preflight_v1"
-                    ),
+                    "schema_version": ("broker_reports_economy_migration_preflight_v1"),
                     "status": "blocked",
                     "error_code": exc.code,
                     "provider_calls_total": 0,
@@ -93,15 +98,9 @@ def main() -> int:
         )
         return 2
     env = _read_env(Path(args.env_file))
-    base_url = (
-        args.base_url.rstrip("/")
-        if args.base_url
-        else _base_url(env)
-    )
+    base_url = args.base_url.rstrip("/") if args.base_url else _base_url(env)
     ssh_target = (
-        args.ssh_target
-        or env.get("OPENWEBUI_SSH_TARGET")
-        or _default_ssh_target(env)
+        args.ssh_target or env.get("OPENWEBUI_SSH_TARGET") or _default_ssh_target(env)
     )
     session = _authenticated_session(base_url, env)
     before_runtime = _runtime_snapshot(ssh_target)
@@ -110,18 +109,14 @@ def main() -> int:
         dcp_ref=args.dcp_ref,
     )
     before_functions = _function_snapshot(session, base_url)
-    domain_valves = _function_valves(
-        session, base_url, FUNCTION_ID
-    )
+    domain_valves = _function_valves(session, base_url, FUNCTION_ID)
 
     response = session.post(
         _url(base_url, "/api/chat/completions"),
         json=_migration_chat_body(
             dcp_ref=args.dcp_ref,
             model_id=economy_selection.primary.exact_model_id,
-            provider_profile_id=(
-                economy_selection.primary.provider_profile_id
-            ),
+            provider_profile_id=(economy_selection.primary.provider_profile_id),
             source_unit_start=args.source_unit_start,
             source_segment_start=args.source_segment_start,
         ),
@@ -148,9 +143,7 @@ def main() -> int:
         domain_valves=domain_valves,
         chat_content=chat_content,
     )
-    evaluation["economy_provider_selection"] = (
-        economy_selection.safe_receipt()
-    )
+    evaluation["economy_provider_selection"] = economy_selection.safe_receipt()
     print(
         json.dumps(
             evaluation,
@@ -237,30 +230,19 @@ def evaluate(
     before_records = before_scope["record_hashes"]
     after_records = after_scope["record_hashes"]
     existing_unchanged = all(
-        after_records.get(ref) == digest
-        for ref, digest in before_records.items()
+        after_records.get(ref) == digest for ref, digest in before_records.items()
     )
     new_financial = after_scope["new_financial"]
     counts = {
-        artifact_type: int(
-            new_financial["type_counts"].get(artifact_type, 0)
-        )
-        - int(
-            before_scope["new_financial"]["type_counts"].get(
-                artifact_type, 0
-            )
-        )
+        artifact_type: int(new_financial["type_counts"].get(artifact_type, 0))
+        - int(before_scope["new_financial"]["type_counts"].get(artifact_type, 0))
         for artifact_type in sorted(FINANCIAL_TYPES)
     }
     receipt = new_financial.get("receipt") or {}
     run = new_financial.get("run") or {}
     context = new_financial.get("context") or {}
-    inputs_total = counts.get(
-        "broker_reports_financial_evidence_inputs_v1", 0
-    )
-    context_total = counts.get(
-        "broker_reports_gate2_financial_context_v1", 0
-    )
+    inputs_total = counts.get("broker_reports_financial_evidence_inputs_v1", 0)
+    context_total = counts.get("broker_reports_gate2_financial_context_v1", 0)
     receipt_total = counts.get(
         "broker_reports_gate2_financial_evidence_production_receipt_v1",
         0,
@@ -281,9 +263,7 @@ def evaluate(
             domain_valves.get("financial_evidence_enabled") is True
         ),
         "registry_valve_exact": (
-            domain_valves.get(
-                "financial_evidence_registry_version"
-            )
+            domain_valves.get("financial_evidence_registry_version")
             == registry.registry_version
         ),
         "preexisting_artifacts_unchanged": existing_unchanged,
@@ -291,21 +271,14 @@ def evaluate(
         "new_financial_receipt_present": receipt_total == 1,
         "new_financial_context_present": context_total == 1,
         "new_financial_inputs_present": inputs_total > 0,
-        "single_write_new_schema": (
-            run.get("write_policy") == "new_schema_only"
-        ),
-        "legacy_dual_read": (
-            run.get("legacy_read_policy") == "dual_read"
-        ),
+        "single_write_new_schema": (run.get("write_policy") == "new_schema_only"),
+        "legacy_dual_read": (run.get("legacy_read_policy") == "dual_read"),
         "registry_identity_exact": (
-            run.get("registry_version")
-            == registry.registry_version
+            run.get("registry_version") == registry.registry_version
             and run.get("registry_hash") == registry.registry_hash
         ),
         "receipt_passed": receipt.get("status") == "passed",
-        "terminal_scope_complete": (
-            receipt.get("uncovered_source_refs_total") == 0
-        ),
+        "terminal_scope_complete": (receipt.get("uncovered_source_refs_total") == 0),
         "unclassified_value_loss_zero": (
             receipt.get("unclassified_value_loss_total") == 0
         ),
@@ -326,8 +299,7 @@ def evaluate(
         ),
         "gate3_fields_zero": run.get("gate3_fields_total") == 0,
         "gate1_source_function_identity_unchanged": all(
-            before_functions.get(function_id)
-            == after_functions.get(function_id)
+            before_functions.get(function_id) == after_functions.get(function_id)
             for function_id in (
                 GATE1_FUNCTION_ID,
                 SOURCE_FUNCTION_ID,
@@ -338,8 +310,7 @@ def evaluate(
             for key in knowledge_vector_keys
         ),
         "chat_reports_financial_completion": (
-            "structured financial evidence context: completed"
-            in chat_content
+            "structured financial evidence context: completed" in chat_content
         ),
     }
     return {
@@ -529,9 +500,7 @@ def _function_snapshot(session, base_url: str) -> dict[str, str]:
         )
         response.raise_for_status()
         content = str((response.json() or {}).get("content") or "")
-        result[function_id] = hashlib.sha256(
-            content.encode("utf-8")
-        ).hexdigest()
+        result[function_id] = hashlib.sha256(content.encode("utf-8")).hexdigest()
     return result
 
 
