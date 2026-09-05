@@ -30,7 +30,10 @@ from broker_reports_release_source import (  # noqa: E402
     LOADER_REPOSITORY_PATH,
     git_blob_bytes,
 )
-from broker_reports_gate1 import GATE2_PROVIDER_PROFILES  # noqa: E402
+from broker_reports_gate1 import (  # noqa: E402
+    GATE2_PROVIDER_PROFILES,
+    NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED,
+)
 from live_no_rag_source_intake_smoke import (  # noqa: E402
     _base_url,
     _default_ssh_target,
@@ -243,6 +246,23 @@ def evaluate_route_activation(
             and runtime.get("pdf_document_ai_static_ready") is True
             and runtime.get("pdf_document_ai_live_qualified") is False
             and runtime.get("legacy_table_route_available") is False
+        ),
+    }
+
+
+def evaluate_provider_runtime_boundary(
+    provider_policy: Mapping[str, Any],
+) -> dict[str, bool]:
+    document_ai = dict(provider_policy.get("pdf_document_ai_contract") or {})
+    runtime_boundary = dict(document_ai.get("runtime_boundary") or {})
+    return {
+        "local_ocr_production_forbidden": (
+            runtime_boundary.get("local_ocr_production_allowed") is False
+            and runtime_boundary.get("local_ocr_worker_pool_allowed") is False
+        ),
+        "knowledge_rag_vectorization_forbidden": (
+            runtime_boundary.get("knowledge_rag_vectorization_allowed") is False
+            and NATIVE_OPENWEBUI_DOCUMENT_PROCESSING_ALLOWED is False
         ),
     }
 
@@ -512,9 +532,9 @@ def main() -> int:
         }
         for item in function_checks
     ]
-    runtime_boundary = manifest["provider_policy"][
-        "source_bound_table_contract"
-    ]["runtime_boundary"]
+    provider_boundary_checks = evaluate_provider_runtime_boundary(
+        manifest["provider_policy"]
+    )
     release_checks = {
         "all_function_bundles_exact": all(
             item["passed"] for item in function_checks
@@ -529,16 +549,10 @@ def main() -> int:
         "no_paddle_or_local_ocr_dependency": factory_checks[
             "production_python_has_no_paddle_or_local_ocr_import"
         ]
-        and runtime_boundary["local_ocr_production_allowed"] is False
-        and runtime_boundary["local_ocr_worker_pool_allowed"] is False,
-        "knowledge_rag_vectorization_forbidden": runtime_boundary[
-            "knowledge_rag_vectorization_allowed"
-        ]
-        is False
-        and runtime_boundary[
-            "native_openwebui_document_processing_allowed"
-        ]
-        is False,
+        and provider_boundary_checks["local_ocr_production_forbidden"],
+        "knowledge_rag_vectorization_forbidden": provider_boundary_checks[
+            "knowledge_rag_vectorization_forbidden"
+        ],
         "single_workload_authority_configuration": all(
             item == workload_valves[0] for item in workload_valves[1:]
         ),
