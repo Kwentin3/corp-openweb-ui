@@ -230,7 +230,7 @@ def evaluate_route_activation(
             and document_ai.get("adapter_status") == "static_ready"
             and document_ai.get("selected_engine") == "mistral_ocr"
             and document_ai.get("selected_adapter")
-            == "mistral_serverless_ocr_adapter_v1"
+            == "mistral_serverless_ocr_adapter_v2"
             and document_ai.get("static_ready") is True
             and document_ai.get("live_qualified") is False
             and document_ai.get("composition_owner")
