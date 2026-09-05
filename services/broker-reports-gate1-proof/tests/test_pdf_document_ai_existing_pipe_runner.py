@@ -181,6 +181,25 @@ def test_exact_admin_command_runs_two_real_pipe_slices_then_purges(
     assert len(source_messages) == 2
     assert "qualification-drivewealth" in source_messages[0]
     assert "qualification-fidelity" in source_messages[1]
+    assert all("opened outside this modal" in message for message in source_messages)
+    assert all("href=" not in message for message in source_messages)
+    long_review_messages = [
+        item["data"]["message"]
+        for item in private_review_events
+        if item["data"]["title"].endswith(" binding")
+        or " Markdown " in item["data"]["title"]
+        or " image " in item["data"]["title"]
+    ]
+    assert long_review_messages
+    assert all(
+        "max-height:52vh;overflow:auto" in message
+        for message in long_review_messages
+    )
+    escaped_panel = Pipe._qualification_review_text_panel(
+        '<script>alert("private")</script>'
+    )
+    assert "<script>" not in escaped_panel
+    assert "&lt;script&gt;" in escaped_panel
     assert "Qualified public fixture" not in content
     assert all(item["review"]["status"] == "passed" for item in receipt["outcomes"])
 
