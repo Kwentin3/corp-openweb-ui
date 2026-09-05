@@ -322,18 +322,25 @@ class Gate1BoundedGraph:
         result: FullSourceBuildResult,
         image_refs: tuple[PdfDocumentImageRef, ...],
     ) -> None:
-        """Publish one PDF Markdown/unit/image graph or none of it."""
+        """Publish one complete PDF Markdown/unit/image graph or none of it."""
 
         if self._sealed:
             raise Gate1BoundedGraphError("bounded_graph_already_sealed")
-        if len(result.payloads) != 1 or len(result.units) != 1:
+        if not result.payloads or len(result.payloads) != len(result.units):
             raise Gate1BoundedGraphError("bounded_pdf_full_source_shape_invalid")
-        payload = result.payloads[0]
-        unit = result.units[0]
-        document_id = str(payload.get("document_ref") or "")
+        document_id = str(result.payloads[0].get("document_ref") or "")
         if document_id not in self._documents_registered:
             raise Gate1BoundedGraphError("bounded_value_source_not_registered")
-        if unit.get("document_id") != document_id:
+        payload_refs = {
+            str(payload.get("source_payload_ref") or "")
+            for payload in result.payloads
+        }
+        if not all(
+            payload.get("document_ref") == document_id
+            and unit.get("document_id") == document_id
+            and str(unit.get("parent_payload_ref") or "") in payload_refs
+            for payload, unit in zip(result.payloads, result.units, strict=True)
+        ):
             raise Gate1BoundedGraphError("bounded_pdf_full_source_shape_invalid")
         expected_associations = tuple(
             (
@@ -351,64 +358,69 @@ class Gate1BoundedGraph:
                 item.get("local_ref"),
                 item.get("sha256"),
             )
+            for payload in result.payloads
             for item in payload.get("document_ai_image_refs") or []
             if isinstance(item, dict)
         )
         if stored_associations != expected_associations:
             raise Gate1BoundedGraphError("bounded_pdf_image_association_mismatch")
 
-        self._validate_value(
-            "private_normalized_source_payloads", payload, document_id
-        )
         source_checksum = str(
             self.source_records_by_doc[document_id].get("file_hash_sha256") or ""
         )
-        if str(unit.get("parent_payload_ref") or "") != str(
-            payload.get("source_payload_ref") or ""
-        ):
-            raise Gate1BoundedGraphError("bounded_pdf_full_source_shape_invalid")
-        if validate_full_source_unit(
-            unit=unit,
-            normalization_run_id=self.normalization_run_id,
-            document_id=document_id,
-            source_checksum_sha256=source_checksum,
-        ).get("errors"):
-            raise Gate1BoundedGraphError("bounded_value_validation_failed")
+        for payload, unit in zip(result.payloads, result.units, strict=True):
+            self._validate_value(
+                "private_normalized_source_payloads", payload, document_id
+            )
+            if validate_full_source_unit(
+                unit=unit,
+                normalization_run_id=self.normalization_run_id,
+                document_id=document_id,
+                source_checksum_sha256=source_checksum,
+            ).get("errors"):
+                raise Gate1BoundedGraphError("bounded_value_validation_failed")
 
         payload_collection = self.collection("private_normalized_source_payloads")
         unit_collection = self.collection("private_normalized_source_units")
-        payload_type, _payload_document, payload_metadata = self._value_contract(
-            "private_normalized_source_payloads", payload
-        )
-        unit_type, _unit_document, unit_metadata = self._value_contract(
-            "private_normalized_source_units", unit
-        )
         access_policy = {**self._access_policy(), "requires_gate2_resolver": True}
         source_ref = self.source_records_by_doc[document_id]
-        payload_record = self._build_record(
-            artifact_id=new_artifact_id(),
-            artifact_type=payload_type,
-            document_id=document_id,
-            source_file_ref=source_ref,
-            visibility="private_case",
-            storage_backend="project_artifact_payload",
-            validation_status="validated",
-            payload=payload,
-            safe_metadata=payload_metadata,
-            access_policy=access_policy,
-        )
-        unit_record = self._build_record(
-            artifact_id=new_artifact_id(),
-            artifact_type=unit_type,
-            document_id=document_id,
-            source_file_ref=source_ref,
-            visibility="private_case",
-            storage_backend="project_artifact_payload",
-            validation_status="validated",
-            payload=unit,
-            safe_metadata=unit_metadata,
-            access_policy=access_policy,
-        )
+        payload_records = []
+        unit_records = []
+        for payload, unit in zip(result.payloads, result.units, strict=True):
+            payload_type, _payload_document, payload_metadata = self._value_contract(
+                "private_normalized_source_payloads", payload
+            )
+            unit_type, _unit_document, unit_metadata = self._value_contract(
+                "private_normalized_source_units", unit
+            )
+            payload_records.append(
+                self._build_record(
+                    artifact_id=new_artifact_id(),
+                    artifact_type=payload_type,
+                    document_id=document_id,
+                    source_file_ref=source_ref,
+                    visibility="private_case",
+                    storage_backend="project_artifact_payload",
+                    validation_status="validated",
+                    payload=payload,
+                    safe_metadata=payload_metadata,
+                    access_policy=access_policy,
+                )
+            )
+            unit_records.append(
+                self._build_record(
+                    artifact_id=new_artifact_id(),
+                    artifact_type=unit_type,
+                    document_id=document_id,
+                    source_file_ref=source_ref,
+                    visibility="private_case",
+                    storage_backend="project_artifact_payload",
+                    validation_status="validated",
+                    payload=unit,
+                    safe_metadata=unit_metadata,
+                    access_policy=access_policy,
+                )
+            )
         image_records = [
             self._build_record(
                 artifact_id=image.local_ref,
@@ -430,21 +442,32 @@ class Gate1BoundedGraph:
             )
             for image in image_refs
         ]
-        records = [payload_record, unit_record, *image_records]
+        records = [*payload_records, *unit_records, *image_records]
         self.store.put_records_atomic(records)
 
-        payload_collection._register_committed(
-            payload, payload_record.artifact_id, document_id
-        )
-        unit_collection._register_committed(unit, unit_record.artifact_id, document_id)
-        self.private_source_payload_refs_by_doc.setdefault(document_id, []).append(
-            payload_record.artifact_id
-        )
-        self.private_source_unit_refs_by_doc.setdefault(document_id, []).append(
-            unit_record.artifact_id
-        )
-        self._payload_logical_refs.add(str(payload.get("source_payload_ref") or ""))
-        self._unit_logical_refs.add(str(unit.get("unit_ref") or ""))
+        for payload, unit, payload_record, unit_record in zip(
+            result.payloads,
+            result.units,
+            payload_records,
+            unit_records,
+            strict=True,
+        ):
+            payload_collection._register_committed(
+                payload, payload_record.artifact_id, document_id
+            )
+            unit_collection._register_committed(
+                unit, unit_record.artifact_id, document_id
+            )
+            self.private_source_payload_refs_by_doc.setdefault(document_id, []).append(
+                payload_record.artifact_id
+            )
+            self.private_source_unit_refs_by_doc.setdefault(document_id, []).append(
+                unit_record.artifact_id
+            )
+            self._payload_logical_refs.add(
+                str(payload.get("source_payload_ref") or "")
+            )
+            self._unit_logical_refs.add(str(unit.get("unit_ref") or ""))
         for record in records:
             self.refs_by_type.setdefault(record.artifact_type, []).append(
                 record.artifact_id
