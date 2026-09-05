@@ -34,11 +34,11 @@ RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
-PINNED_IMAGE = "corp-openwebui/openwebui:v0.9.6-native-web-stt-native-pdf-5581ebc"
+PINNED_IMAGE = "corp-openwebui/openwebui:v0.9.6-native-web-stt-native-pdf-51b6075"
 PINNED_IMAGE_ID = (
-    "sha256:2fd0673dc2352c40ceb4d263e0c141d251881f66a93cbbb326475fff68f5afc1"
+    "sha256:709790ab30b4955dfecb71d5ccb43a5cb258358e883715f57f8a06769e6244bb"
 )
-PINNED_IMAGE_REVISION = "5581ebc7f36d76d755dd7720fb700dff27debc60"
+PINNED_IMAGE_REVISION = "51b60750a597ca3103fdb92b657aa627f9f5db33"
 LOADER_PATH = ROOT / "deploy" / "openwebui-static" / "loader.js"
 
 TERMINAL_WORKLOAD_STATES = frozenset({"completed", "failed", "cancelled"})
