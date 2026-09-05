@@ -97,7 +97,7 @@ def test_native_chat_scope_is_recovered_only_through_owner_lookup(
         @staticmethod
         async def get_chat_by_id_and_user_id(chat_id: str, user_id: str):
             assert (chat_id, user_id) == ("owned-chat", "user-a")
-            return SimpleNamespace(chat={"models": ["broker_reports_ndfl"]})
+            return SimpleNamespace(chat={"models": [NDFL_WORKSPACE_MODEL_STABLE_ID]})
 
     class FakeRequest:
         async def json(self):
@@ -121,7 +121,7 @@ def test_native_chat_scope_is_recovered_only_through_owner_lookup(
 
     assert metadata == {
         "chat_id": "owned-chat",
-        "model_id": "broker_reports_ndfl",
+        "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
     }
 
 
@@ -253,7 +253,7 @@ def test_product_stage_is_disabled_by_default() -> None:
     result = asyncio.run(
         pipe._maybe_run_ndfl_gate3(
             store=object(),
-            context=_context("broker_reports_ndfl"),
+            context=_context(NDFL_WORKSPACE_MODEL_STABLE_ID),
             artifact_manifest=SimpleNamespace(artifact_refs_by_type={}),
             user={"id": "user"},
             request=object(),
@@ -269,25 +269,29 @@ def test_product_stage_is_disabled_by_default() -> None:
     }
 
 
-def test_legacy_ndfl_workspace_route_fails_closed_before_file_processing() -> None:
+def test_selected_ndfl_workspace_model_reaches_current_route_not_legacy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     pipe = Pipe()
+
+    async def current_route(*_args, **_kwargs):
+        return {"route": "current_ndfl"}
+
+    monkeypatch.setattr(pipe, "_run_workload", current_route)
     content = asyncio.run(
         pipe.pipe(
-            {"messages": [{"role": "user", "content": "Подготовьте 3-НДФЛ"}]},
+            {"messages": [{"role": "user", "content": "current route probe"}]},
             __user__={"id": "user-a"},
             __metadata__={
-                "chat_id": "legacy-route-chat",
-                "model_id": NDFL_WORKFLOW_STABLE_ID,
+                "chat_id": "current-route-chat",
+                "model_id": "broker-reports-ndfl",
             },
         )
     )
 
-    assert "устаревшую карточку" in content
-    assert "XML не создан" in content
-    assert "актуальную карточку «NDFL»" in content
-    assert pipe.last_artifact_manifest is None
-    assert "Gate" not in content
-    assert "broker_reports" not in content
+    assert NDFL_WORKSPACE_MODEL_STABLE_ID == "broker-reports-ndfl"
+    assert NDFL_WORKSPACE_MODEL_STABLE_ID == NDFL_WORKFLOW_STABLE_ID
+    assert content == {"route": "current_ndfl"}
 
 
 def test_product_stage_rejects_base_pipe_identity_before_provider() -> None:
@@ -323,7 +327,7 @@ def test_public_pipe_rejects_caller_selected_hidden_declaration_action() -> None
                 __user__={"id": "user-a"},
                 __metadata__={
                     "chat_id": "case-a",
-                    "model_id": "broker_reports_ndfl",
+                    "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
                 },
             )
         )
@@ -1588,7 +1592,7 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
         metadata = {
             "chat_id": context.case_id,
             "case_id": context.case_id,
-            "model_id": "broker_reports_ndfl",
+            "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
         }
 
         event_payloads = []
@@ -1787,7 +1791,7 @@ def test_xml_delivery_uses_authenticated_openwebui_private_file_owner(
         user_id="user-a",
         normalization_run_id="run-a",
         case_id="case-a",
-        workspace_model_id="broker_reports_ndfl",
+        workspace_model_id=NDFL_WORKSPACE_MODEL_STABLE_ID,
         allow_private=True,
     )
     kwargs = {
@@ -1899,7 +1903,7 @@ def test_concurrent_identical_xml_delivery_keeps_one_valid_owner_file(
         user_id="user-a",
         normalization_run_id="run-a",
         case_id="case-a",
-        workspace_model_id="broker_reports_ndfl",
+        workspace_model_id=NDFL_WORKSPACE_MODEL_STABLE_ID,
         allow_private=True,
     )
     kwargs = {
@@ -1984,7 +1988,7 @@ def test_private_xml_record_failure_removes_partial_storage_file(
         user_id="user-a",
         normalization_run_id="run-a",
         case_id="case-a",
-        workspace_model_id="broker_reports_ndfl",
+        workspace_model_id=NDFL_WORKSPACE_MODEL_STABLE_ID,
         allow_private=True,
     )
 
@@ -2036,7 +2040,7 @@ def test_workload_failure_detail_exposes_only_explicit_safe_details() -> None:
 
 
 def test_human_residual_turn_reuses_one_validated_gate3_artifact() -> None:
-    context = _context("broker_reports_ndfl")
+    context = _context(NDFL_WORKSPACE_MODEL_STABLE_ID)
     record = SimpleNamespace(
         artifact_id="annotations",
         artifact_type=GATE3_FINANCIAL_ANNOTATIONS_ARTIFACT_TYPE,
