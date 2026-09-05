@@ -6,3 +6,6 @@ LABEL org.opencontainers.image.revision=${BROKER_REPORTS_SOURCE_REVISION}
 
 COPY deploy/openwebui-native-web-stt-patch/apply_native_web_stt_patch.py /usr/local/bin/apply_native_web_stt_patch.py
 RUN python /usr/local/bin/apply_native_web_stt_patch.py --root /app/build/_app/immutable/chunks
+
+COPY deploy/openwebui-native-web-stt-patch/apply_native_broker_pdf_upload_patch.py /usr/local/bin/apply_native_broker_pdf_upload_patch.py
+RUN python /usr/local/bin/apply_native_broker_pdf_upload_patch.py --root /app/build/_app/immutable/chunks

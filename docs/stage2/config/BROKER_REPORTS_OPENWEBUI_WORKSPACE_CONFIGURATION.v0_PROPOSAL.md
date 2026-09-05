@@ -258,9 +258,9 @@ Customer-approved files can be used only after:
 - Knowledge boundary accepted.
 
 Ordinary OpenWebUI chat upload is the Broker Reports product entrypoint when the
-exact selected model is `broker_reports_gate1_pipe`. On OpenWebUI 0.9.6 the
-temporary frontend compatibility seam changes only the native PDF upload URL
-to `process=false`; it creates no custom intake endpoint or Action. The Pipe
+exact selected model is `broker_reports_gate1_pipe`. On pinned OpenWebUI 0.9.6
+the native `MessageInput` adaptation passes `process=false` only for that
+model's PDF upload; it creates no custom intake endpoint or Action. The Pipe
 receives native file IDs, verifies the authenticated owner through `Files`, and
 reads bytes through `Storage`. `Knowledge count = 0` alone is still not enough:
 the upload must also create no extraction/vectorization delta.

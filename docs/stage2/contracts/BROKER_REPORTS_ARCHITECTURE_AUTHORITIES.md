@@ -69,11 +69,12 @@ PDF
 -> deterministic Gate 5 source-fact consumption
 ```
 
-For OpenWebUI 0.9.6 only, the frontend compatibility seam sets `process=false`
-on native PDF upload when the exact selected model ID is
-`broker_reports_gate1_pipe`. It owns no file mapping or server contract and must
-be removed when upstream gains an equivalent per-model processing policy. A
-core fork, global bypass and DOM-derived file binding are not authorities.
+For pinned OpenWebUI 0.9.6 only, the native `MessageInput` upload call sets
+`process=false` on PDF upload when its authoritative selected-model state is
+exactly `broker_reports_gate1_pipe`. The fail-fast image overlay owns only this
+version-specific adaptation and must be removed when upstream gains an
+equivalent per-model processing policy. A global bypass and DOM-derived file
+binding are not authorities.
 
 | Domain | Owns | Input contract | Output contract | Forbidden | Consumer |
 | --- | --- | --- | --- | --- | --- |
