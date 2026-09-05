@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import io
 import inspect
+import json
 import socket
 import sys
 import zipfile
@@ -30,6 +31,10 @@ from broker_reports_gate1.bounded_graph import (
 from broker_reports_gate1.gate2_handoff import persist_gate1_result
 from broker_reports_gate1.inputs import FileInput
 from broker_reports_gate1.normalizer import Gate1Normalizer
+from broker_reports_gate1.ordinary_trade_production_runtime import (
+    ORDINARY_TRADE_PRODUCTION_ROUTE_ID,
+    OrdinaryTradeProductionRuntimeFactory,
+)
 from broker_reports_gate1.pdf_document_ai import (
     PDF_DOCUMENT_AI_NOT_CONFIGURED,
     PdfDocumentExtraction,
@@ -699,7 +704,7 @@ def test_normalizer_routes_pdf_markdown_unit_and_image_through_atomic_graph(
     assert resolved["content"].startswith(b"\x89PNG")
 
 
-def test_persisted_pdf_full_source_becomes_private_canonical_for_right_bank(
+def test_persisted_pdf_canonical_exact_ref_reaches_existing_right_bank(
     tmp_path: Path,
 ) -> None:
     """The configured PDF route must not stop at private Full Source.
@@ -749,14 +754,53 @@ def test_persisted_pdf_full_source_becomes_private_canonical_for_right_bank(
     assert canonical_refs, [item["failure_code"] for item in failure_payloads]
     assert len(canonical_refs) == 1
 
-    artifact = CanonicalReaderFactory(store=store, read_enabled=True).create().read(
-        canonical_refs[0], context
-    )
+    reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
+    envelope = reader.read_envelope(canonical_refs[0], context)
+    artifact = envelope.artifact
     assert artifact["source"]["source_format"] == "pdf"
     assert artifact["source"]["source_sha256"] == hashlib.sha256(
         PUBLIC_PDF.read_bytes()
     ).hexdigest()
     assert any(node["node_type"] == "TABLE" for node in artifact["nodes"])
+
+    right_bank = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+    ).create().run(
+        canonical_artifact_refs=canonical_refs,
+        context=context,
+    )
+
+    assert right_bank["route_owner"] == ORDINARY_TRADE_PRODUCTION_ROUTE_ID
+    assert right_bank["canonical_version_ids"] == [envelope.canonical_version_id]
+    assert right_bank["canonical_root_sha256"] == [
+        envelope.canonical_root_sha256
+    ]
+    assert len(right_bank["documents"]) == 1
+    document = right_bank["documents"][0]
+    assert document["document_id"] == envelope.document_id
+    assert document["canonical_version_id"] == envelope.canonical_version_id
+    assert document["projection_artifact_id"] == right_bank[
+        "projection_artifact_ids"
+    ][0]
+    assert document["runtime_ready_observations"] == 0
+    assert document["relevant_unmapped_observations"] == sum(
+        node["node_type"] != "PAGE_BREAK" for node in artifact["nodes"]
+    )
+    assert document["matched_qualified_tables"] == 0
+    assert document["activation_receipt"]["actor"] == (
+        ORDINARY_TRADE_PRODUCTION_ROUTE_ID
+    )
+    assert document["activation_receipt"][
+        "canonical_version_id"
+    ] == envelope.canonical_version_id
+    assert right_bank["product"]["terminal"] == (
+        "ordinary_trade_declaration_canonical_relevant_unmapped"
+    )
+    assert right_bank["product"]["declaration_ready"] is False
+    assert right_bank["provider_calls_total"] == 0
+    assert right_bank["semantic_fallback_used"] is False
+    assert "user_case_fact" not in json.dumps(artifact, sort_keys=True)
 
 
 def test_normalizer_turns_atomic_pdf_publication_failure_into_blocker(
