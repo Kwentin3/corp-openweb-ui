@@ -11,10 +11,22 @@ def test_loader_binds_postprocessing_actions_to_prepared_file_scope():
     end = source.index("async function callTranscriptionAction", start)
     run_transcription = source[start:end]
 
-    assert "const preparedFile = isPreparedStage2Audio(file) ? file : await prepareMediaFile(file, status);" in run_transcription
-    assert "const content = await callTranscriptionAction(preparedFile, status);" in run_transcription
-    assert "loadPostprocessingActions(preparedFile, transcriptRef, button.parentElement, status)" in run_transcription
-    assert "loadPostprocessingActions(file, transcriptRef, button.parentElement, status)" not in run_transcription
+    assert (
+        "const preparedFile = isPreparedStage2Audio(file) ? file : await prepareMediaFile(file, status);"
+        in run_transcription
+    )
+    assert (
+        "const content = await callTranscriptionAction(preparedFile, status);"
+        in run_transcription
+    )
+    assert (
+        "loadPostprocessingActions(preparedFile, transcriptRef, button.parentElement, status)"
+        in run_transcription
+    )
+    assert (
+        "loadPostprocessingActions(file, transcriptRef, button.parentElement, status)"
+        not in run_transcription
+    )
 
 
 def test_loader_quick_action_drafts_native_chat_prompt_instead_of_processed_result():
@@ -23,8 +35,14 @@ def test_loader_quick_action_drafts_native_chat_prompt_instead_of_processed_resu
     end = source.index("async function callPostprocessingPromptDraft", start)
     action_block = source[start:end]
 
-    assert "const draft = await callPostprocessingPromptDraft(file, transcriptRef, template);" in action_block
-    assert "submitPostprocessingPromptDraft(draft.prompt_text, transcriptRef)" in action_block
+    assert (
+        "const draft = await callPostprocessingPromptDraft(file, transcriptRef, template);"
+        in action_block
+    )
+    assert (
+        "submitPostprocessingPromptDraft(draft.prompt_text, transcriptRef)"
+        in action_block
+    )
     assert "appendToComposer(content)" not in action_block
 
 
@@ -45,7 +63,10 @@ def test_loader_quick_action_submits_prompt_without_overwriting_unrelated_draft(
     end = source.index("function findComposer", start)
     submit_block = source[start:end]
 
-    assert "composerText && transcriptRef && !composerText.includes(transcriptRef)" in submit_block
+    assert (
+        "composerText && transcriptRef && !composerText.includes(transcriptRef)"
+        in submit_block
+    )
     assert "postprocessing_prompt_blocked" in submit_block
     assert "replaceComposerText(composer, promptText)" in submit_block
     assert "submitComposer(composer)" in submit_block
@@ -61,42 +82,42 @@ def test_loader_scans_message_docx_buttons_without_replacing_stt_scan():
     assert "scanMessageDocxButtons();" in queue_scan
 
 
-def test_loader_routes_broker_documents_to_server_authoritative_private_intake():
+def test_loader_routes_active_broker_pdf_through_native_unprocessed_upload():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("function patchFetch")
     end = source.index("function queueScan", start)
     patch_block = source[start:end]
 
-    assert "const brokerGate1Active = uploadFile ? await refreshBrokerGate1Scope() : false;" in patch_block
-    assert "brokerGate1UploadFile = brokerGate1Active && isBrokerGate1Document(uploadFile.name, uploadFile.type) ? uploadFile : null;" in patch_block
+    assert (
+        "const brokerGate1Active = uploadFile ? isBrokerGate1ModelActive() : false;"
+        in patch_block
+    )
+    assert (
+        "brokerGate1UploadFile = brokerGate1Active && isBrokerGate1Pdf(uploadFile.name, uploadFile.type) ? uploadFile : null;"
+        in patch_block
+    )
     assert "if (sttUploadFile) {" in patch_block
-    assert "nextInput = withProcessFalse(input);" in patch_block
-    assert "brokerPrivateIntakeRequest(input, init, brokerGate1UploadFile)" in patch_block
-    assert "nextInit = routed.init;" in patch_block
+    assert "else if (brokerGate1UploadFile)" in patch_block
+    assert patch_block.count("nextInput = withProcessFalse(input);") == 2
     assert "state.originalFetch(nextInput, nextInit)" in patch_block
-    assert "normalizeBrokerPrivateIntakeResponse" in patch_block
-    assert "normalizeBrokerGate1UploadedFile(" in patch_block
+    assert "broker-reports/intake" not in patch_block
+    assert "normalizeBroker" not in patch_block
+    assert "return response;" in patch_block
 
 
-def test_loader_scopes_broker_gate1_to_the_native_workspace_model_base_id():
+def test_loader_scopes_broker_gate1_to_exact_native_state_ids_only():
     source = LOADER_PATH.read_text(encoding="utf-8")
     start = source.index("function selectedModelIdsFromSession")
     end = source.index("function persistentChatIdFromLocation", start)
     scope_block = source[start:end]
 
     assert "const BROKER_GATE1_PIPE_MODEL_ID = 'broker_reports_gate1_pipe';" in source
-    assert (
-        'button[id^="model-selector-"][aria-haspopup="listbox"]'
-        in scope_block
-    )
-    assert "selectedModelIdsForLabels" in scope_block
-    assert "matches.length !== 1" in scope_block
     assert "window.sessionStorage.getItem('selectedModels')" in scope_block
-    assert "selectedIds.length !== 1" in scope_block
-    assert "model.info && model.info.base_model_id" in scope_block
-    assert "baseModelId === BROKER_GATE1_PIPE_MODEL_ID" in scope_block
-    assert "fetcher('/api/models', { cache: 'no-store' })" in scope_block
-    assert "return false;" in scope_block
+    assert "params.get('models') || params.get('model')" in scope_block
+    assert "selectedIds.length === 1" in scope_block
+    assert "selectedIds[0] === BROKER_GATE1_PIPE_MODEL_ID" in scope_block
+    assert "model-selector" not in scope_block
+    assert "fetcher('/api/models'" not in scope_block
 
 
 def test_loader_action_payload_uses_the_current_native_model_selection():
@@ -105,7 +126,7 @@ def test_loader_action_payload_uses_the_current_native_model_selection():
     end = source.index("function currentChatId", start)
     selected_model_block = source[start:end]
 
-    assert "const selectedIds = await currentSelectedModelIds();" in selected_model_block
+    assert "const selectedIds = currentSelectedModelIds();" in selected_model_block
     assert "selectedIds.length !== 1" in selected_model_block
     assert "return selectedIds[0];" in selected_model_block
     assert "payload.data[0]" not in selected_model_block
@@ -127,124 +148,21 @@ def test_loader_binds_only_gate2_completions_to_active_persistent_chat():
     assert "const chatId = persistentChatIdFromLocation();" in binding_block
     assert "chat_id: chatId" in binding_block
     assert "metadata:" in binding_block
-    assert (
-        "await bindBrokerGate2RequestToActiveChat(input, init)" in patch_block
-    )
+    assert "await bindBrokerGate2RequestToActiveChat(input, init)" in patch_block
     assert "state.originalFetch(nextInput, nextInit)" in patch_block
 
 
-def test_loader_private_intake_request_has_server_route_and_idempotency():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("function brokerIntakeIdempotencyKey")
-    end = source.index("function normalizeUploadedFile", start)
-    intake_block = source[start:end]
-
-    assert "const BROKER_PRIVATE_INTAKE_PATH = '/api/v1/broker-reports/intake';" in source
-    assert "state.brokerIntakeIdempotencyKeys.get(file)" in intake_block
-    assert "state.brokerIntakeIdempotencyKeys.set(file, key)" in intake_block
-    assert "headers.set('Idempotency-Key', brokerIntakeIdempotencyKey(file));" in intake_block
-    assert "input: BROKER_PRIVATE_INTAKE_PATH" in intake_block
-    assert "id: String(sourceId)" in intake_block
-    assert "source_id: String(sourceId)" in intake_block
-    assert "broker_reports_private_intake: true" in intake_block
-
-
-def test_loader_broker_action_uses_only_protected_private_intake_action():
+def test_loader_has_no_broker_private_intake_route_or_dom_action():
     source = LOADER_PATH.read_text(encoding="utf-8")
 
-    assert (
-        "const BROKER_GATE1_ACTION_ID = 'broker_reports_private_intake_action';"
-        in source
-    )
-    assert "broker_reports_gate1_normalizer_action" not in source
-    assert "Broker Reports private intake accepted. Ready to verify." in source
-    assert "Verifying Broker Reports private intake..." in source
-    assert (
-        "Broker Reports source verified. Send the message to start processing."
-        in source
-    )
-
-
-def test_loader_installs_broker_gate1_action_on_document_cards():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("function scanAttachmentCards")
-    end = source.index("function installCardAction", start)
-    scan_block = source[start:end]
-
-    assert "isCandidateMedia(file.filename, file.mime_type)" in scan_block
-    assert "if (!state.brokerGate1Active)" in scan_block
-    assert "removeBrokerGate1Ui(root);" in scan_block
-    assert "isBrokerGate1Document(file.filename, file.mime_type)" in scan_block
-    assert "state.brokerGate1Active &&" in scan_block
-    assert "installBrokerGate1CardAction(card, file);" in scan_block
-    assert "card.dataset.brokerGate1Card !== '1'" in scan_block
-
-
-def test_loader_broker_gate1_recovers_file_refs_from_files_api():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("async function refreshBrokerGate1Files")
-    end = source.index("async function selectedModelId", start)
-    refresh_block = source[start:end]
-
-    assert "fetcher('/api/v1/files/', { cache: 'no-store' })" in refresh_block
-    assert "rememberFilesFromListPayload(payload)" in refresh_block
-    assert "normalizeBrokerGate1FileRecord(item)" in source
-    assert "payload && Array.isArray(payload.items)" in source
-    assert "sourceId.startsWith('br-')" in source
-    assert "brokerPrivate: true" in source
-
-
-def test_loader_removes_broker_ui_when_the_selected_model_changes():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("function removeBrokerGate1Ui")
-    end = source.index("function setStatus", start)
-    cleanup_block = source[start:end]
-
-    assert '[data-broker-gate1-panel="1"]' in cleanup_block
-    assert '[data-broker-gate1-composer-panel="1"]' in cleanup_block
-    assert '[data-broker-gate1-card="1"]' in cleanup_block
-    assert "card.style.minHeight = card.dataset.brokerGate1OriginalMinHeight || '';" in cleanup_block
-    assert "delete card.dataset.brokerGate1Card;" in cleanup_block
-
-
-def test_loader_broker_gate1_matches_truncated_visible_attachment_text():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("function fileMatchesElementText")
-    end = source.index("function findCardFile", start)
-    match_block = source[start:end]
-
-    assert "haystack.includes(filename)" in match_block
-    assert "const base = filename.replace" in match_block
-    assert "const prefixLength = Math.min(18, Math.max(8, base.length));" in match_block
-    assert "haystack.includes(prefix)" in match_block
-
-
-def test_loader_broker_gate1_has_composer_panel_fallback():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("function scanBrokerGate1ComposerPanel")
-    end = source.index("function scheduleBrokerGate1FileRefresh", start)
-    panel_block = source[start:end]
-
-    assert '[data-broker-gate1-composer-panel="1"]' in panel_block
-    assert "root.appendChild(panel)" in panel_block
-    assert "runBrokerGate1(files[0], button, status)" in panel_block
-    assert "Files: ${files.length}" in panel_block
-
-
-def test_loader_broker_gate1_action_posts_explicit_file_refs_to_action():
-    source = LOADER_PATH.read_text(encoding="utf-8")
-    start = source.index("async function callBrokerGate1Action")
-    end = source.index("function extractTranscriptRef", start)
-    action_block = source[start:end]
-
-    assert "fetch(BROKER_GATE1_ACTION_URL" in action_block
-    assert "files: files.map((file) => ({" in action_block
-    assert "id: file.id" in action_block
-    assert "filename: file.filename" in action_block
-    assert "mime_type: file.mime_type" in action_block
-    assert "appendToComposer(content)" in action_block
-    assert "submitComposer" not in action_block
-    assert "No uploaded file refs were visible" in action_block
+    assert "/api/v1/broker-reports/intake" not in source
+    assert "broker_reports_private_intake_action" not in source
+    assert "brokerPrivateIntakeRequest" not in source
+    assert "normalizeBrokerPrivateIntakeResponse" not in source
+    assert "scanBrokerGate1ComposerPanel" not in source
+    assert "installBrokerGate1CardAction" not in source
+    assert "callBrokerGate1Action" not in source
+    assert "data-broker-gate1" not in source
 
 
 def test_loader_docx_button_is_assistant_scoped_and_deduplicated():
@@ -286,12 +204,18 @@ def test_loader_docx_request_uses_canonical_markdown_before_dom_html_fallback():
 
     assert "const chatId = currentChatId();" in request_block
     assert "const messageId = messageIdFromRoot(root);" in request_block
-    assert "const markdown = await fetchCanonicalMessageMarkdown(chatId, messageId);" in request_block
+    assert (
+        "const markdown = await fetchCanonicalMessageMarkdown(chatId, messageId);"
+        in request_block
+    )
     assert "const html = extractScopedMessageHtml(content);" in request_block
     assert "message_markdown: markdown" in request_block
     assert "message_html: html" in request_block
     assert "source: markdown ? 'openwebui_chat_api' : 'dom'" in request_block
-    assert "formatting_profile: hasStructuredSource ? 'semantic_chat_v1' : 'simple_mvp'" in request_block
+    assert (
+        "formatting_profile: hasStructuredSource ? 'semantic_chat_v1' : 'simple_mvp'"
+        in request_block
+    )
     assert "message_markdown: null" not in request_block
     assert "message_markdown: text" not in request_block
 
@@ -307,9 +231,15 @@ def test_loader_docx_fetches_openwebui_chat_markdown_safely():
     assert "cache: 'no-store'" in fetch_block
     assert "findCanonicalChatMessage(payload, messageId)" in fetch_block
     assert "collectCanonicalMessages(candidates, chat.messages)" in fetch_block
-    assert "collectCanonicalMessages(candidates, chat.history && chat.history.messages)" in fetch_block
+    assert (
+        "collectCanonicalMessages(candidates, chat.history && chat.history.messages)"
+        in fetch_block
+    )
     assert "collectCanonicalMessages(candidates, payload.messages)" in fetch_block
-    assert "collectCanonicalMessages(candidates, payload.history && payload.history.messages)" in fetch_block
+    assert (
+        "collectCanonicalMessages(candidates, payload.history && payload.history.messages)"
+        in fetch_block
+    )
     assert "message.content ?? message.text ?? message.message" in fetch_block
     assert "value.text ?? value.content ?? value.message ?? ''" in fetch_block
 

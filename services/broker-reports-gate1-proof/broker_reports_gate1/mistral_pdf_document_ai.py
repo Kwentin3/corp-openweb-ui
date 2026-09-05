@@ -18,8 +18,6 @@ from urllib.request import (
 )
 
 from .pdf_document_ai import (
-    PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
-    PDF_DOCUMENT_AI_LIVE_QUALIFIED,
     PdfDocumentExtraction,
     PdfDocumentAiExecutionContract,
     PdfDocumentExtractionError,
@@ -131,7 +129,6 @@ class MistralPdfDocumentExtractor:
         self._images = image_decoder
         if qualification_status not in {
             "offline_fixture",
-            "qualification_attempt",
             "qualified",
         }:
             raise PdfDocumentExtractionError(
@@ -301,7 +298,6 @@ class MistralPdfDocumentExtractor:
 def create_from_openwebui_request(
     *,
     server_request: Any,
-    qualification_status: str = "qualified",
 ) -> MistralPdfDocumentExtractor | None:
     """Read the sole live OpenWebUI config owner without copying persistence."""
 
@@ -312,13 +308,6 @@ def create_from_openwebui_request(
         return None
     if engine != "mistral_ocr":
         return None
-    if (
-        not PDF_DOCUMENT_AI_LIVE_QUALIFIED
-        and qualification_status != "qualification_attempt"
-    ):
-        raise PdfDocumentExtractionError(
-            PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
-        )
     try:
         api_base_url = str(config.MISTRAL_OCR_API_BASE_URL or "")
         api_key = str(config.MISTRAL_OCR_API_KEY or "")
@@ -330,7 +319,7 @@ def create_from_openwebui_request(
         api_base_url=api_base_url,
         api_key=api_key,
         image_decoder=BoundedImageDecoder(),
-        qualification_status=qualification_status,
+        qualification_status="qualified",
     )
 
 

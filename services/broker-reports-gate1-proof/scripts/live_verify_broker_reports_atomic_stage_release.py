@@ -22,7 +22,6 @@ sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
 
 from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
-    ACTION_ID,
     build_manifest,
     provider_policy_manifest,
 )
@@ -78,9 +77,7 @@ def evaluate_function_release(
     content = str(live.get("content") or "")
     expected_valves = dict(expected.get("valves") or {})
     retired_valves = set(expected.get("retired_valve_keys") or [])
-    projected_valves = {
-        key: valves.get(key) for key in sorted(expected_valves)
-    }
+    projected_valves = {key: valves.get(key) for key in sorted(expected_valves)}
     checks = {
         "present": bool(live_function),
         "type_pipe": live.get("type") == "pipe",
@@ -98,8 +95,7 @@ def evaluate_function_release(
             )
             is expected_active
         ),
-        "not_global": live.get("is_global") is False
-        or live.get("is_global") == 0,
+        "not_global": live.get("is_global") is False or live.get("is_global") == 0,
         "content_sha256_match": bool(content)
         and _sha256_text(content) == expected.get("content_sha256"),
         "required_markers_present": all(
@@ -125,30 +121,6 @@ def evaluate_function_release(
     }
 
 
-def evaluate_action_release(
-    *, expected: Mapping[str, Any], live: Mapping[str, Any] | None
-) -> dict[str, Any]:
-    value = dict(live or {})
-    content = str(value.get("content") or "")
-    checks = {
-        "present": bool(live),
-        "type_action": value.get("type") == "action",
-        "active": value.get("is_active") is True
-        or value.get("is_active") == 1,
-        "not_global": value.get("is_global") is False
-        or value.get("is_global") == 0,
-        "content_sha256_match": bool(content)
-        and _sha256_text(content) == expected.get("content_sha256"),
-    }
-    return {
-        "action_id": expected.get("action_id"),
-        "passed": all(checks.values()),
-        "checks": checks,
-        "repository_content_sha256": expected.get("content_sha256"),
-        "live_content_sha256": _sha256_text(content) if content else None,
-    }
-
-
 def evaluate_remote_runtime(
     *,
     expected_manifest: Mapping[str, Any],
@@ -162,8 +134,7 @@ def evaluate_remote_runtime(
         runtime.get("previous_function_activation") or {}
     )
     expected_function_ids = {
-        str(item["function_id"])
-        for item in expected_manifest.get("functions", [])
+        str(item["function_id"]) for item in expected_manifest.get("functions", [])
     }
     retired_function_ids = set(expected_manifest.get("retired_function_ids") or [])
     checks = {
@@ -173,7 +144,6 @@ def evaluate_remote_runtime(
                 "configured_image",
                 "image_id",
                 "source_revision",
-                "private_intake_contract",
             )
         ),
         "image_running_clean": image.get("running") is True
@@ -186,8 +156,7 @@ def evaluate_remote_runtime(
         "release_staging_clean": runtime.get("release_staging_entries") == 0,
         "rollback_identity_exact": (
             rollback_identity_sha256 is None
-            or runtime.get("rollback_identity_sha256")
-            == rollback_identity_sha256
+            or runtime.get("rollback_identity_sha256") == rollback_identity_sha256
         ),
         "rollback_loader_hash_exact": (
             rollback_identity_sha256 is None
@@ -215,36 +184,29 @@ def evaluate_route_activation(
     provider_policy = dict(expected_manifest.get("provider_policy") or {})
     document_ai = dict(provider_policy.get("pdf_document_ai_contract") or {})
     functions = list(expected_manifest.get("functions") or [])
-    gate1_retired = set((functions[0] if functions else {}).get("retired_valve_keys") or [])
+    gate1_retired = set(
+        (functions[0] if functions else {}).get("retired_valve_keys") or []
+    )
     return {
-        "pdf_document_ai_fail_closed": (
+        "pdf_document_ai_product_route": (
             all(key not in gate1_valves for key in gate1_retired)
             and gate1_valves.get("canonical_gate2_write_enabled") is True
             and gate1_valves.get("canonical_gate2_read_enabled") is True
             and gate1_valves.get("ordinary_trade_candidate_enabled") is True
             and gate1_valves.get("ndfl_gate3_enabled") is False
-            and gate1_valves.get(
-                "pdf_document_ai_qualification_repository_head"
-            )
-            == expected_manifest.get("source_revision")
         ),
         "pdf_document_ai_contract_identity_exact": (
-            document_ai.get("configured") is False
+            document_ai.get("configured") is True
             and document_ai.get("adapter_status") == "static_ready"
             and document_ai.get("selected_engine") == "mistral_ocr"
             and document_ai.get("selected_adapter")
             == "mistral_serverless_ocr_adapter_v2"
             and document_ai.get("static_ready") is True
-            and document_ai.get("live_qualified") is False
-            and document_ai.get("composition_owner")
-            == "PdfDocumentExtractorFactory"
+            and document_ai.get("composition_owner") == "PdfDocumentExtractorFactory"
             and document_ai.get("terminal_blockers")
-            == {
-                "unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED",
-                "selected_unqualified": "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED",
-            }
+            == {"unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED"}
             and runtime.get("pdf_document_ai_static_ready") is True
-            and runtime.get("pdf_document_ai_live_qualified") is False
+            and runtime.get("pdf_document_ai_production_configured") is True
             and runtime.get("legacy_table_route_available") is False
         ),
     }
@@ -272,7 +234,7 @@ def _read_remote_runtime_state(
     ssh_target: str,
     release_id: str,
 ) -> dict[str, Any]:
-    remote_code = r'''
+    remote_code = r"""
 import hashlib
 import json
 import os
@@ -389,8 +351,6 @@ print(json.dumps({
             "Status"
         ),
         "source_revision": labels.get("org.opencontainers.image.revision"),
-        "private_intake_contract": labels.get(
-            "ai.alpha-soft.broker-reports-private-intake"),
     },
     "loader_sha256": hashlib.sha256(loader.read_bytes()).hexdigest(),
     "workload": {
@@ -406,7 +366,7 @@ print(json.dumps({
     "previous_function_activation": previous_function_activation,
     "release_staging_entries": staging_entries,
 }, ensure_ascii=False, sort_keys=True))
-'''
+"""
     remote_code = remote_code.replace(
         "__RELEASE_ID__", json.dumps(release_id, ensure_ascii=False)
     )
@@ -449,9 +409,7 @@ def main() -> int:
     env = _read_env(Path(args.env_file))
     base_url = args.base_url.rstrip("/") if args.base_url else _base_url(env)
     ssh_target = (
-        args.ssh_target
-        or env.get("OPENWEBUI_SSH_TARGET")
-        or _default_ssh_target(env)
+        args.ssh_target or env.get("OPENWEBUI_SSH_TARGET") or _default_ssh_target(env)
     )
     manifest = build_manifest(
         source_revision=args.source_revision,
@@ -482,9 +440,7 @@ def main() -> int:
             evaluate_function_release(
                 expected=expected,
                 live_function=_get_live_function(session, base_url, function_id),
-                live_valves=_get_live_function_valves(
-                    session, base_url, function_id
-                ),
+                live_valves=_get_live_function_valves(session, base_url, function_id),
                 source_revision=args.source_revision,
                 manifest_sha256=manifest["manifest_sha256"],
                 expected_active=previous_function_activation.get(function_id),
@@ -500,17 +456,15 @@ def main() -> int:
         }
         for function_id in manifest.get("retired_function_ids") or []
     ]
-    action_check = evaluate_action_release(
-        expected=manifest["action"],
-        live=_get_live_function(session, base_url, ACTION_ID),
-    )
     expected_prompts = expected_prompt_contracts()
     live_prompts = _read_live_prompt_state(
         ssh_target=ssh_target,
         prompt_ids=sorted(expected_prompts),
     )
     prompt_checks = [
-        evaluate_prompt_contract(expected_prompts[prompt_id], live_prompts.get(prompt_id))
+        evaluate_prompt_contract(
+            expected_prompts[prompt_id], live_prompts.get(prompt_id)
+        )
         for prompt_id in sorted(expected_prompts)
     ]
     runtime_checks = evaluate_remote_runtime(
@@ -536,13 +490,10 @@ def main() -> int:
         manifest["provider_policy"]
     )
     release_checks = {
-        "all_function_bundles_exact": all(
-            item["passed"] for item in function_checks
-        ),
+        "all_function_bundles_exact": all(item["passed"] for item in function_checks),
         "retired_functions_inactive": all(
             item["inactive"] for item in retired_function_checks
         ),
-        "private_intake_action_exact": action_check["passed"],
         "all_managed_prompts_exact": all(item["passed"] for item in prompt_checks),
         "all_runtime_identities_exact": all(runtime_checks.values()),
         "repository_factory_boundary_passed": all(factory_checks.values()),
@@ -562,7 +513,8 @@ def main() -> int:
         ),
         "legacy_table_route_unavailable": manifest["runtime"][
             "legacy_table_route_available"
-        ] is False,
+        ]
+        is False,
     }
     output = {
         "status": "passed" if all(release_checks.values()) else "failed",
@@ -573,7 +525,6 @@ def main() -> int:
         "checks": release_checks,
         "functions": function_checks,
         "retired_functions": retired_function_checks,
-        "action": action_check,
         "managed_prompts": prompt_checks,
         "runtime_checks": runtime_checks,
         "runtime": runtime,

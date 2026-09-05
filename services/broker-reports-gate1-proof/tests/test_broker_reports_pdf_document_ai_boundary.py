@@ -9,6 +9,7 @@ import socket
 import sys
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -295,6 +296,21 @@ def _run_mixed_pipe(
         pipe = pipe_type()
         pipe.valves.artifact_store_path = str(tmp_path / "artifacts.sqlite3")
         pipe.valves.artifact_payload_root = str(tmp_path / "payloads")
+        owned_files = {
+            item["file"]["id"]: SimpleNamespace(
+                filename=item["file"]["filename"],
+                content_type=item["file"]["mime_type"],
+                payload=item["file"]["content_bytes"],
+            )
+            for item in files
+        }
+
+        class OwnedFileResolver:
+            async def resolve(self, *, file_id: str, actor_user_id: str) -> object:
+                assert actor_user_id == "mixed-pdf-boundary-user"
+                return owned_files[file_id]
+
+        pipe._openwebui_file_bytes_resolver = lambda: OwnedFileResolver()
 
         def forbidden(*_args: object, **_kwargs: object) -> None:
             raise AssertionError("mixed PDF route must not call the network")
@@ -499,6 +515,18 @@ def test_pipe_returns_unconfigured_pdf_before_any_provider_or_semantic_artifact(
     pipe.valves.passport_model_id = "must-not-run"
     pipe.valves.clarification_enabled = True
     pipe.valves.clarification_model_id = "must-not-run"
+
+    class OwnedFileResolver:
+        async def resolve(self, *, file_id: str, actor_user_id: str) -> object:
+            assert file_id == "pdf-document-ai-boundary"
+            assert actor_user_id == "pdf-boundary-user"
+            return SimpleNamespace(
+                filename="boundary.pdf",
+                content_type="application/pdf",
+                payload=pdf_bytes,
+            )
+
+    pipe._openwebui_file_bytes_resolver = lambda: OwnedFileResolver()
 
     def forbidden(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("downstream stage must not run")

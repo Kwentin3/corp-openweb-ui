@@ -3,22 +3,17 @@
 
 	const ACTION_ID = 'stage2_media_transcription_action';
 	const ACTION_URL = `/api/chat/actions/${ACTION_ID}`;
-	const BROKER_GATE1_ACTION_ID = 'broker_reports_private_intake_action';
-	const BROKER_GATE1_ACTION_URL = `/api/chat/actions/${BROKER_GATE1_ACTION_ID}`;
 	const BROKER_GATE1_PIPE_MODEL_ID = 'broker_reports_gate1_pipe';
 	const BROKER_GATE2_MODEL_IDS = new Set([
 		'broker_reports_gate2_source_fact_pipe',
 		'broker_reports_gate2_domain_source_fact_pipe'
 	]);
 	const FILE_UPLOAD_PATH = '/api/v1/files/';
-	const BROKER_PRIVATE_INTAKE_PATH = '/api/v1/broker-reports/intake';
 	const CHAT_COMPLETION_PATH = '/api/chat/completions';
 	const CONFIG_URL = '/static/stage2-stt-normalization.json';
 	const TRANSCRIBE_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u0442\u044c';
 	const RUNNING_LABEL = '\u0422\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435...';
 	const DONE_LABEL = '\u0413\u043e\u0442\u043e\u0432\u043e';
-	const BROKER_GATE1_LABEL = 'Broker Reports';
-	const BROKER_GATE1_RUNNING_LABEL = 'Broker Reports...';
 	const DOCX_LABEL = '\u0421\u043a\u0430\u0447\u0430\u0442\u044c DOCX';
 	const DOCX_RUNNING_LABEL = '...';
 	const DOCX_DONE_LABEL = '\u2713';
@@ -90,7 +85,6 @@
 		postprocessing_failed: '\u0414\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043b\u044f \u0440\u0430\u0441\u0448\u0438\u0444\u0440\u043e\u0432\u043a\u0438 \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u043e.',
 		postprocessing_prompt_blocked: '\u0412 \u043f\u043e\u043b\u0435 \u0443\u0436\u0435 \u0435\u0441\u0442\u044c \u0434\u0440\u0443\u0433\u043e\u0439 \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a. \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0438\u043b\u0438 \u043e\u0447\u0438\u0441\u0442\u0438\u0442\u0435 \u0435\u0433\u043e \u043f\u0435\u0440\u0435\u0434 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435\u043c.',
 		postprocessing_submit_unavailable: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0433\u043e\u0442\u043e\u0432, \u043d\u043e \u043a\u043d\u043e\u043f\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043a\u0438 OpenWebUI \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430.',
-		broker_gate1_action_failed: 'Broker Reports private intake was not verified.',
 		message_docx_unsupported_role: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442 DOCX \u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d \u0442\u043e\u043b\u044c\u043a\u043e \u0434\u043b\u044f \u043e\u0442\u0432\u0435\u0442\u043e\u0432 \u0430\u0441\u0441\u0438\u0441\u0442\u0435\u043d\u0442\u0430.',
 		message_docx_empty_message: '\u0412 \u0441\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0438 \u043d\u0435\u0442 \u0442\u0435\u043a\u0441\u0442\u0430 \u0434\u043b\u044f DOCX.',
 		message_docx_streaming_message: '\u0414\u043e\u0436\u0434\u0438\u0442\u0435\u0441\u044c \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0438\u044f \u043e\u0442\u0432\u0435\u0442\u0430.',
@@ -100,7 +94,7 @@
 		message_docx_access_denied: '\u041d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u0430 \u043a DOCX-\u044d\u043a\u0441\u043f\u043e\u0440\u0442\u0443.',
 		message_docx_no_leak_check_failed: '\u042d\u043a\u0441\u043f\u043e\u0440\u0442 DOCX \u043e\u0442\u043a\u043b\u043e\u043d\u0451\u043d \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u043e\u0439 \u0431\u0435\u0437\u043e\u043f\u0430\u0441\u043d\u043e\u0441\u0442\u0438.'
 	});
-	const DOCX_REMOVE_SELECTOR = 'button, svg, textarea, input, select, script, style, noscript, [data-stage2-docx-export], [data-stage2-stt-panel], [data-stage2-stt-status], [data-broker-gate1-panel], [data-broker-gate1-status]';
+	const DOCX_REMOVE_SELECTOR = 'button, svg, textarea, input, select, script, style, noscript, [data-stage2-docx-export], [data-stage2-stt-panel], [data-stage2-stt-status]';
 	const DOCX_ALLOWED_HTML_TAGS = new Set(['a', 'b', 'blockquote', 'br', 'code', 'div', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'li', 'ol', 'p', 'pre', 'span', 'strong', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul']);
 	const STATUS_TEXT = Object.freeze({
 		ready: '\u0413\u043e\u0442\u043e\u0432\u043e \u043a \u0442\u0440\u0430\u043d\u0441\u043a\u0440\u0438\u0431\u0430\u0446\u0438\u0438.',
@@ -113,21 +107,12 @@
 		loading_actions: '\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439...',
 		action_running: '\u041f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043a\u0430 \u0437\u0430\u043f\u0440\u043e\u0441\u0430...',
 		action_completed: '\u0417\u0430\u043f\u0440\u043e\u0441 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d \u0432 LLM.',
-		action_prompt_ready: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0435\u0433\u043e \u0432 OpenWebUI.',
-		broker_gate1_ready: 'Broker Reports private intake accepted. Ready to verify.',
-		broker_gate1_running: 'Verifying Broker Reports private intake...',
-		broker_gate1_completed: 'Broker Reports source verified. Send the message to start processing.'
+		action_prompt_ready: '\u0417\u0430\u043f\u0440\u043e\u0441 \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d. \u041f\u0440\u043e\u0432\u0435\u0440\u044c\u0442\u0435 \u0438 \u043e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0435\u0433\u043e \u0432 OpenWebUI.'
 	});
 	const state = {
 		filesById: new Map(),
 		filesByName: new Map(),
-		modelCatalogById: new Map(),
-		modelCatalogPromise: null,
-		modelCatalogRefreshedAt: 0,
-		brokerGate1Active: false,
 		scanQueued: false,
-		filesRefreshPromise: null,
-		filesRefreshedAt: 0,
 		config: null,
 		configPromise: null,
 		ffmpeg: null,
@@ -135,8 +120,7 @@
 		ffmpegLogBuffer: [],
 		progressStatus: null,
 		originalFetch: null,
-		scriptPromises: new Map(),
-		brokerIntakeIdempotencyKeys: new WeakMap()
+		scriptPromises: new Map()
 	};
 
 	function extensionOf(filename) {
@@ -254,27 +238,10 @@
 		return baseMime(file.mime_type) === baseMime(definition.mime_type);
 	}
 
-	function isBrokerGate1Document(filename, mimeType) {
+	function isBrokerGate1Pdf(filename, mimeType) {
 		const extension = extensionOf(filename);
 		const mime = baseMime(mimeType);
-		if (isCandidateMedia(filename, mimeType)) {
-			return false;
-		}
-		if (['pdf', 'xlsx', 'xls', 'csv', 'html', 'htm', 'txt', 'docx', 'zip', 'png', 'jpg', 'jpeg', 'webp', 'tif', 'tiff'].includes(extension)) {
-			return true;
-		}
-		return (
-			mime === 'application/pdf' ||
-			mime === 'text/csv' ||
-			mime === 'text/html' ||
-			mime === 'text/plain' ||
-			mime === 'application/zip' ||
-			mime === 'application/x-zip-compressed' ||
-			mime.includes('spreadsheet') ||
-			mime.includes('excel') ||
-			mime.includes('wordprocessingml.document') ||
-			mime.startsWith('image/')
-		);
+		return extension === 'pdf' || mime === 'application/pdf';
 	}
 
 	function uploadFormDataFile(body) {
@@ -345,105 +312,14 @@
 		}
 	}
 
-	function normalizedModelLabel(value) {
-		return String(value || '').replace(/\s+/g, ' ').trim();
-	}
-
-	function selectedModelLabelsFromUi() {
-		const labels = Array.from(
-			document.querySelectorAll('button[id^="model-selector-"][aria-haspopup="listbox"]')
-		)
-			.map((button) => normalizedModelLabel(button.innerText || button.textContent))
-			.filter(Boolean);
-		return Array.from(new Set(labels));
-	}
-
-	function selectedModelIdsForLabels(labels, modelsById) {
-		const models = Array.from(modelsById.values());
-		const selectedIds = [];
-		for (const label of labels) {
-			const matches = models.filter((model) => {
-				const id = normalizedModelLabel(model && model.id);
-				const name = normalizedModelLabel(model && model.name);
-				return id === label || name === label;
-			});
-			if (matches.length !== 1) {
-				return [];
-			}
-			selectedIds.push(String(matches[0].id));
-		}
-		return Array.from(new Set(selectedIds));
-	}
-
-	async function currentSelectedModelIds() {
-		const uiLabels = selectedModelLabelsFromUi();
-		if (uiLabels.length) {
-			try {
-				const modelsById = await loadModelCatalog();
-				return selectedModelIdsForLabels(selectedModelLabelsFromUi(), modelsById);
-			} catch (_) {
-				return [];
-			}
-		}
+	function currentSelectedModelIds() {
 		const sessionIds = selectedModelIdsFromSession();
 		return sessionIds.length ? sessionIds : selectedModelIdsFromLocation();
 	}
 
-	function modelOwnsBrokerGate1(model) {
-		if (!model || !model.id) {
-			return false;
-		}
-		const baseModelId = model.info && model.info.base_model_id;
-		return model.id === BROKER_GATE1_PIPE_MODEL_ID || baseModelId === BROKER_GATE1_PIPE_MODEL_ID;
-	}
-
-	async function loadModelCatalog() {
-		const now = Date.now();
-		if (state.modelCatalogById.size && now - state.modelCatalogRefreshedAt < 60000) {
-			return state.modelCatalogById;
-		}
-		if (state.modelCatalogPromise) {
-			return state.modelCatalogPromise;
-		}
-		const fetcher = state.originalFetch || window.fetch.bind(window);
-		state.modelCatalogPromise = fetcher('/api/models', { cache: 'no-store' })
-			.then(async (response) => {
-				if (!response.ok) {
-					throw new Error('OpenWebUI models endpoint is unavailable.');
-				}
-				const payload = await response.json();
-				const models = payload && Array.isArray(payload.data) ? payload.data : [];
-				state.modelCatalogById = new Map(
-					models.filter((model) => model && model.id).map((model) => [String(model.id), model])
-				);
-				state.modelCatalogRefreshedAt = Date.now();
-				return state.modelCatalogById;
-			})
-			.finally(() => {
-				state.modelCatalogPromise = null;
-			});
-		return state.modelCatalogPromise;
-	}
-
-	async function isBrokerGate1ModelActive() {
-		const selectedIds = await currentSelectedModelIds();
-		if (selectedIds.length !== 1) {
-			return false;
-		}
-		if (selectedIds[0] === BROKER_GATE1_PIPE_MODEL_ID) {
-			return true;
-		}
-		try {
-			const modelsById = await loadModelCatalog();
-			return selectedIds.length === 1 && modelOwnsBrokerGate1(modelsById.get(selectedIds[0]));
-		} catch (_) {
-			return false;
-		}
-	}
-
-	async function refreshBrokerGate1Scope() {
-		state.brokerGate1Active = await isBrokerGate1ModelActive();
-		return state.brokerGate1Active;
+	function isBrokerGate1ModelActive() {
+		const selectedIds = currentSelectedModelIds();
+		return selectedIds.length === 1 && selectedIds[0] === BROKER_GATE1_PIPE_MODEL_ID;
 	}
 
 	function persistentChatIdFromLocation() {
@@ -523,75 +399,6 @@
 		return nextUrl;
 	}
 
-	function brokerIntakeIdempotencyKey(file) {
-		const existing = state.brokerIntakeIdempotencyKeys.get(file);
-		if (existing) {
-			return existing;
-		}
-		const suffix = window.crypto && typeof window.crypto.randomUUID === 'function'
-			? window.crypto.randomUUID()
-			: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-		const key = `broker-ui-${suffix}`;
-		state.brokerIntakeIdempotencyKeys.set(file, key);
-		return key;
-	}
-
-	function brokerPrivateIntakeRequest(input, init, file) {
-		const body = requestBody(input, init);
-		if (!(body instanceof FormData) || !file) {
-			throw stageError(
-				'broker_gate1_action_failed',
-				'Broker Reports private intake requires the native attachment form.'
-			);
-		}
-		const headers = new Headers(
-			(init && init.headers) || (input instanceof Request ? input.headers : undefined)
-		);
-		headers.set('Idempotency-Key', brokerIntakeIdempotencyKey(file));
-		return {
-			input: BROKER_PRIVATE_INTAKE_PATH,
-			init: {
-				...(init || {}),
-				method: 'POST',
-				headers,
-				body
-			}
-		};
-	}
-
-	function normalizeBrokerPrivateIntakeResponse(uploaded, fallbackFile) {
-		const sourceId = uploaded && (uploaded.source_id || uploaded.id);
-		if (!sourceId || !fallbackFile) {
-			throw stageError(
-				'broker_gate1_action_failed',
-				'Broker Reports private intake response is invalid.'
-			);
-		}
-		return {
-			...uploaded,
-			id: String(sourceId),
-			source_id: String(sourceId),
-			filename: String(fallbackFile.name),
-			meta: {
-				content_type: String(fallbackFile.type || 'application/octet-stream'),
-				size: Number(uploaded.size_bytes || fallbackFile.size || 0),
-				broker_reports_private_intake: true
-			},
-			data: {}
-		};
-	}
-
-	function jsonResponseLike(response, payload) {
-		const headers = new Headers(response.headers);
-		headers.set('Content-Type', 'application/json');
-		headers.delete('Content-Length');
-		return new Response(JSON.stringify(payload), {
-			status: response.status,
-			statusText: response.statusText,
-			headers
-		});
-	}
-
 	function normalizeUploadedFile(uploaded, fallbackFile, options) {
 		if (!uploaded || !uploaded.id) {
 			return null;
@@ -613,66 +420,6 @@
 			output_profile: options && options.outputProfile ? options.outputProfile : null,
 			prepared: Boolean(options && options.prepared)
 		};
-	}
-
-	function normalizeBrokerGate1UploadedFile(uploaded, fallbackFile) {
-		const sourceId = uploaded && (uploaded.source_id || uploaded.id);
-		if (!uploaded || !sourceId) {
-			return null;
-		}
-		const meta = uploaded.meta || {};
-		const filename = uploaded.filename || uploaded.name || (fallbackFile && fallbackFile.name);
-		const mimeType = meta.content_type || uploaded.content_type || uploaded.type || (fallbackFile && fallbackFile.type);
-		if (!filename || !isBrokerGate1Document(filename, mimeType)) {
-			return null;
-		}
-		return {
-			id: String(sourceId),
-			filename: String(filename),
-			name: String(filename),
-			mime_type: String(mimeType || 'application/octet-stream'),
-			content_type: String(mimeType || 'application/octet-stream'),
-			size: meta.size || uploaded.size || (fallbackFile && fallbackFile.size) || null,
-			sourceFile: fallbackFile || null,
-			brokerPrivate: true,
-			prepared: false
-		};
-	}
-
-	function normalizeBrokerGate1FileRecord(record) {
-		if (!record || !record.id) {
-			return null;
-		}
-		const meta = record.meta || {};
-		const sourceId = String(record.id);
-		if (!sourceId.startsWith('br-') && !meta.broker_reports_intake && meta.broker_reports_private_intake !== true) {
-			return null;
-		}
-		const data = record.data || {};
-		const filename = record.filename || record.name || meta.filename || data.filename;
-		const mimeType = meta.content_type || meta.mime_type || record.content_type || record.type || data.content_type || data.mime_type;
-		if (!filename || !isBrokerGate1Document(filename, mimeType)) {
-			return null;
-		}
-		return {
-			id: sourceId,
-			filename: String(filename),
-			name: String(filename),
-			mime_type: String(mimeType || 'application/octet-stream'),
-			content_type: String(mimeType || 'application/octet-stream'),
-			size: meta.size || record.size || data.size || null,
-			sourceFile: null,
-			brokerPrivate: true,
-			prepared: false
-		};
-	}
-
-	function rememberFilesFromListPayload(payload) {
-		const items = Array.isArray(payload) ? payload : payload && Array.isArray(payload.items) ? payload.items : [];
-		for (const item of items) {
-			rememberFile(normalizeBrokerGate1FileRecord(item));
-		}
-		return items.length;
 	}
 
 	function rememberFile(file) {
@@ -700,33 +447,17 @@
 			if (isFileUpload(input, init)) {
 				uploadFile = uploadFormDataFile(requestBody(input, init));
 				sttUploadFile = uploadFile && isCandidateMedia(uploadFile.name, uploadFile.type) ? uploadFile : null;
-				const brokerGate1Active = uploadFile ? await refreshBrokerGate1Scope() : false;
-				brokerGate1UploadFile = brokerGate1Active && isBrokerGate1Document(uploadFile.name, uploadFile.type) ? uploadFile : null;
+				const brokerGate1Active = uploadFile ? isBrokerGate1ModelActive() : false;
+				brokerGate1UploadFile = brokerGate1Active && isBrokerGate1Pdf(uploadFile.name, uploadFile.type) ? uploadFile : null;
 				if (sttUploadFile) {
 					nextInput = withProcessFalse(input);
 				} else if (brokerGate1UploadFile) {
-					const routed = brokerPrivateIntakeRequest(input, init, brokerGate1UploadFile);
-					nextInput = routed.input;
-					nextInit = routed.init;
+					nextInput = withProcessFalse(input);
 				}
 			}
 
 			const response = await state.originalFetch(nextInput, nextInit);
-			if ((sttUploadFile || brokerGate1UploadFile) && response.ok) {
-				if (brokerGate1UploadFile) {
-					const uploaded = await response.clone().json();
-					const normalizedResponse = normalizeBrokerPrivateIntakeResponse(
-						uploaded,
-						brokerGate1UploadFile
-					);
-					rememberFile(
-						normalizeBrokerGate1UploadedFile(
-							normalizedResponse,
-							brokerGate1UploadFile
-						)
-					);
-					return jsonResponseLike(response, normalizedResponse);
-				}
+			if (sttUploadFile && response.ok) {
 				response.clone().json().then((uploaded) => {
 					rememberFile(normalizeUploadedFile(uploaded, sttUploadFile));
 				}).catch(() => {});
@@ -742,9 +473,7 @@
 		state.scanQueued = true;
 		window.requestAnimationFrame(async () => {
 			state.scanQueued = false;
-			await refreshBrokerGate1Scope();
 			scanAttachmentCards();
-			scanBrokerGate1ComposerPanel();
 			scanMessageDocxButtons();
 		});
 	}
@@ -807,13 +536,9 @@
 		if (!root) {
 			return;
 		}
-		if (!state.brokerGate1Active) {
-			removeBrokerGate1Ui(root);
-		}
 		const cards = attachmentCardCandidates(root);
-		let matchedGate1Document = false;
 		for (const card of cards) {
-			if (card.dataset.stage2SttAction === '1' || card.dataset.brokerGate1Action === '1') {
+			if (card.dataset.stage2SttAction === '1') {
 				continue;
 			}
 			const file = findCardFile(card);
@@ -823,13 +548,6 @@
 			if (isCandidateMedia(file.filename, file.mime_type) && card.dataset.stage2SttCard !== '1') {
 				installCardAction(card, file);
 			}
-			if (state.brokerGate1Active && isBrokerGate1Document(file.filename, file.mime_type) && card.dataset.brokerGate1Card !== '1') {
-				matchedGate1Document = true;
-				installBrokerGate1CardAction(card, file);
-			}
-		}
-		if (!matchedGate1Document) {
-			scheduleBrokerGate1FileRefresh();
 		}
 	}
 
@@ -897,187 +615,11 @@
 		contentColumn.appendChild(panel);
 	}
 
-	function scanBrokerGate1ComposerPanel() {
-		const root = document.querySelector('#message-input-container');
-		if (!root) {
-			return;
-		}
-		if (!state.brokerGate1Active) {
-			removeBrokerGate1Ui(root);
-			return;
-		}
-		const files = visibleBrokerGate1Files();
-		let panel = root.querySelector('[data-broker-gate1-composer-panel="1"]');
-		if (!files.length) {
-			if (panel) {
-				panel.remove();
-			}
-			scheduleBrokerGate1FileRefresh();
-			return;
-		}
-		if (!panel) {
-			panel = document.createElement('div');
-			panel.dataset.brokerGate1ComposerPanel = '1';
-			panel.style.display = 'flex';
-			panel.style.alignItems = 'center';
-			panel.style.gap = '0.5rem';
-			panel.style.margin = '0.35rem 0 0.15rem';
-			panel.style.width = '100%';
-
-			const button = document.createElement('button');
-			button.type = 'button';
-			button.dataset.brokerGate1Action = '1';
-			button.title = 'Broker Reports private intake';
-			button.textContent = BROKER_GATE1_LABEL;
-			button.style.border = '1px solid rgba(245, 158, 11, 0.45)';
-			button.style.borderRadius = '0.5rem';
-			button.style.padding = '0.2rem 0.45rem';
-			button.style.fontSize = '0.75rem';
-			button.style.lineHeight = '1rem';
-			button.style.background = 'rgba(245, 158, 11, 0.12)';
-			button.style.color = 'inherit';
-			button.style.cursor = 'pointer';
-			button.addEventListener('focus', () => {
-				button.style.outline = '2px solid rgba(245, 158, 11, 0.75)';
-				button.style.outlineOffset = '2px';
-			});
-			button.addEventListener('blur', () => {
-				button.style.outline = 'none';
-				button.style.outlineOffset = '0';
-			});
-
-			const status = document.createElement('div');
-			status.dataset.brokerGate1Status = 'ready';
-			status.style.minHeight = '1rem';
-			status.style.fontSize = '0.7rem';
-			status.style.lineHeight = '1rem';
-			status.style.color = 'rgb(107, 114, 128)';
-			status.style.whiteSpace = 'normal';
-
-			button.addEventListener('click', (event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				runBrokerGate1(files[0], button, status);
-			});
-
-			panel.append(button, status);
-			root.appendChild(panel);
-		}
-		const status = panel.querySelector('[data-broker-gate1-status]');
-		if (status && status.dataset.brokerGate1Status === 'ready') {
-			status.textContent = `${STATUS_TEXT.broker_gate1_ready} Files: ${files.length}.`;
-		}
-	}
-
-	function scheduleBrokerGate1FileRefresh() {
-		if (!state.brokerGate1Active) {
-			return;
-		}
-		const now = Date.now();
-		if (state.filesRefreshPromise || now - state.filesRefreshedAt < 5000) {
-			return;
-		}
-		state.filesRefreshedAt = now;
-		state.filesRefreshPromise = refreshBrokerGate1Files()
-			.then(() => queueScan())
-			.catch(() => {})
-			.finally(() => {
-				state.filesRefreshPromise = null;
-			});
-	}
-
-	async function refreshBrokerGate1Files() {
-		if (!state.brokerGate1Active) {
-			return 0;
-		}
-		const fetcher = state.originalFetch || window.fetch.bind(window);
-		const response = await fetcher('/api/v1/files/', { cache: 'no-store' });
-		if (!response.ok) {
-			return 0;
-		}
-		const payload = await response.json().catch(() => null);
-		return rememberFilesFromListPayload(payload);
-	}
-
-	function installBrokerGate1CardAction(card, file) {
-		card.dataset.brokerGate1Card = '1';
-		card.dataset.brokerGate1OriginalMinHeight = card.style.minHeight || '';
-		card.dataset.brokerGate1OriginalAlignItems = card.style.alignItems || '';
-		card.style.minHeight = '4.5rem';
-		card.style.alignItems = 'stretch';
-
-		const panel = document.createElement('div');
-		panel.dataset.brokerGate1Panel = '1';
-		panel.style.display = 'flex';
-		panel.style.flexDirection = 'column';
-		panel.style.gap = '0.25rem';
-		panel.style.marginTop = '0.35rem';
-		panel.style.width = '100%';
-
-		const button = document.createElement('button');
-		button.type = 'button';
-		button.dataset.brokerGate1Action = '1';
-		button.title = 'Broker Reports private intake';
-		button.textContent = BROKER_GATE1_LABEL;
-		button.style.alignSelf = 'flex-start';
-		button.style.border = '1px solid rgba(245, 158, 11, 0.45)';
-		button.style.borderRadius = '0.5rem';
-		button.style.padding = '0.2rem 0.45rem';
-		button.style.fontSize = '0.75rem';
-		button.style.lineHeight = '1rem';
-		button.style.background = 'rgba(245, 158, 11, 0.12)';
-		button.style.color = 'inherit';
-		button.style.cursor = 'pointer';
-		button.addEventListener('focus', () => {
-			button.style.outline = '2px solid rgba(245, 158, 11, 0.75)';
-			button.style.outlineOffset = '2px';
-		});
-		button.addEventListener('blur', () => {
-			button.style.outline = 'none';
-			button.style.outlineOffset = '0';
-		});
-
-		const status = document.createElement('div');
-		status.dataset.brokerGate1Status = 'ready';
-		status.textContent = STATUS_TEXT.broker_gate1_ready;
-		status.style.minHeight = '1rem';
-		status.style.fontSize = '0.7rem';
-		status.style.lineHeight = '1rem';
-		status.style.color = 'rgb(107, 114, 128)';
-		status.style.whiteSpace = 'normal';
-
-		button.addEventListener('click', (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-			runBrokerGate1(file, button, status);
-		});
-
-		panel.append(button, status);
-		const contentColumn = card.querySelector('.flex.flex-col.w-full') || card;
-		contentColumn.appendChild(panel);
-	}
-
-	function removeBrokerGate1Ui(root) {
-		for (const panel of Array.from(root.querySelectorAll('[data-broker-gate1-panel="1"], [data-broker-gate1-composer-panel="1"]'))) {
-			panel.remove();
-		}
-		for (const card of Array.from(root.querySelectorAll('[data-broker-gate1-card="1"]'))) {
-			card.style.minHeight = card.dataset.brokerGate1OriginalMinHeight || '';
-			card.style.alignItems = card.dataset.brokerGate1OriginalAlignItems || '';
-			delete card.dataset.brokerGate1Card;
-			delete card.dataset.brokerGate1OriginalMinHeight;
-			delete card.dataset.brokerGate1OriginalAlignItems;
-		}
-	}
-
 	function setStatus(status, key, text) {
 		if (!status) {
 			return;
 		}
 		status.dataset.stage2SttStatus = key;
-		if (status.dataset.brokerGate1Status !== undefined) {
-			status.dataset.brokerGate1Status = key;
-		}
 		status.textContent = text || STATUS_TEXT[key] || '';
 	}
 
@@ -1724,7 +1266,7 @@
 	}
 
 	async function selectedModelId() {
-		const selectedIds = await currentSelectedModelIds();
+		const selectedIds = currentSelectedModelIds();
 		if (selectedIds.length !== 1) {
 			throw new Error('OpenWebUI model is not selected.');
 		}
@@ -1821,100 +1363,6 @@
 		}
 		if (!appendToComposer(content)) {
 			throw stageError('stt_action_failed', 'Composer is unavailable for transcript insertion.');
-		}
-		return content;
-	}
-
-	async function runBrokerGate1(anchorFile, button, status) {
-		if (button.disabled) {
-			return;
-		}
-		const files = visibleBrokerGate1Files(anchorFile);
-		if (!files.length) {
-			setErrorStatus(status, stageError('broker_gate1_action_failed', 'No supported Gate 1 documents are visible.'));
-			return;
-		}
-		button.disabled = true;
-		button.style.opacity = '0.65';
-		button.style.cursor = 'wait';
-		button.textContent = BROKER_GATE1_RUNNING_LABEL;
-		delete status.dataset.stage2SttReason;
-		try {
-			await callBrokerGate1Action(files, status);
-			button.textContent = DONE_LABEL;
-			button.style.cursor = 'default';
-			setStatus(status, 'broker_gate1_completed');
-		} catch (error) {
-			button.disabled = false;
-			button.style.opacity = '1';
-			button.style.cursor = 'pointer';
-			button.textContent = BROKER_GATE1_LABEL;
-			setErrorStatus(status, error && error.code ? error : stageError('broker_gate1_action_failed', error && error.message));
-		}
-	}
-
-	function visibleBrokerGate1Files(anchorFile) {
-		if (!state.brokerGate1Active) {
-			return [];
-		}
-		const root = document.querySelector('#message-input-container');
-		const files = [];
-		const seen = new Set();
-		function add(file) {
-			if (!file || !file.id || file.brokerPrivate !== true || !isBrokerGate1Document(file.filename, file.mime_type) || seen.has(file.id)) {
-				return;
-			}
-			seen.add(file.id);
-			files.push(file);
-		}
-		if (root) {
-			for (const card of attachmentCardCandidates(root)) {
-				add(findCardFile(card));
-			}
-		}
-		add(anchorFile);
-		return files;
-	}
-
-	async function callBrokerGate1Action(files, status) {
-		setStatus(status, 'broker_gate1_running');
-		const model = await selectedModelId();
-		const payload = {
-			id: `broker-gate1-${Date.now()}`,
-			chat_id: currentChatId(),
-			session_id: currentSessionId(),
-			model,
-			messages: [],
-			files: files.map((file) => ({
-				type: 'file',
-				file: {
-					id: file.id,
-					filename: file.filename,
-					name: file.filename,
-					mime_type: file.mime_type,
-					content_type: file.content_type,
-					size: file.size
-				}
-			}))
-		};
-		const response = await fetch(BROKER_GATE1_ACTION_URL, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(payload)
-		});
-		const result = await response.json().catch(() => ({}));
-		if (!response.ok) {
-			throw stageError('broker_gate1_action_failed', result.detail || 'Gate 1 action failed.');
-		}
-		const content = String(result.content || '').trim();
-		if (!content) {
-			throw stageError('broker_gate1_action_failed', 'Gate 1 action returned an empty result.');
-		}
-		if (/No uploaded file refs were visible/i.test(content)) {
-			throw stageError('broker_gate1_action_failed', content);
-		}
-		if (!appendToComposer(content)) {
-			throw stageError('broker_gate1_action_failed', 'Composer is unavailable for Gate 1 report insertion.');
 		}
 		return content;
 	}

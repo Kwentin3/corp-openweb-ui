@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.40.2-observed-image-review
+version: 0.41.0-native-user-pdf
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,lxml==6.1.1
 """
@@ -9,11 +9,8 @@ requirements: pydantic,pypdf==6.7.5,lxml==6.1.1
 from __future__ import annotations
 
 import asyncio
-import base64
-import binascii
 import copy
 import hashlib
-import html
 import inspect
 import io
 import json
@@ -24,8 +21,9 @@ import uuid
 from contextlib import nullcontext
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 from pydantic import BaseModel, Field
 
@@ -111,22 +109,9 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     validate_public_dialogue_interpretation,
     validate_public_dialogue_message,
 )
-from broker_reports_gate1.private_intake_bytes import (
-    OpenWebUIPrivateIntakeBytesResolverFactory,
-    PrivateIntakeBytesError,
-    is_private_intake_source_id,
-)
-from broker_reports_gate1.pdf_document_ai_qualification import (
-    PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES,
-    PdfDocumentAiQualificationError,
-    PdfDocumentAiQualificationExecutor,
-    PdfDocumentAiQualificationPlanFactory,
-)
-from broker_reports_gate1.pdf_document_ai_qualification_review import (
-    PDF_DOCUMENT_AI_REVIEW_CHECKS,
-    PdfDocumentAiQualificationReviewFactory,
-    PdfDocumentAiQualificationReviewVerdict,
-    PdfDocumentAiQualificationReviewView,
+from broker_reports_gate1.openwebui_file_bytes import (
+    OpenWebUIFileBytesError,
+    OpenWebUIFileBytesResolverFactory,
 )
 from broker_reports_gate1.gate2_model_clients import (
     Gate2StructuredModelClientFactory,
@@ -172,8 +157,8 @@ _GATE2_USABLE_HANDOFF_STATUSES = frozenset(
 _COMPLETED_WITH_REVIEW_ADVISORY = "completed_with_review_advisory"
 NDFL_PRESENTATION_COMPLETION_TIMEOUT_SECONDS = 45.0
 NDFL_PRESENTATION_MAX_RESPONSE_BYTES = 1024 * 1024
-PDF_DOCUMENT_AI_QUALIFICATION_COMMAND = "PDF Document AI live qualification"
-PDF_DOCUMENT_AI_QUALIFICATION_REVIEW_TTL_SECONDS = 15 * 60
+FULL_SOURCE_PROJECTION_SCHEMA_VERSION = "broker_reports_full_source_projection_v1"
+FULL_SOURCE_ZIP_FILENAME = "full-source.zip"
 
 
 class _NdflPresentationNoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -199,15 +184,12 @@ class Pipe:
                 "\u043d\u043e\u0440\u043c\u0430\u043b\u0438\u0437\u0443\u0439"
             )
         )
-        upload_root: str = Field(default="/app/backend/data/uploads")
-        allow_upload_path_access: bool = Field(default=True)
         artifact_store_path: str = Field(
             default="/app/backend/data/broker_reports_gate1/artifacts.sqlite3"
         )
         artifact_payload_root: str = Field(
             default="/app/backend/data/broker_reports_gate1/payloads"
         )
-        pdf_document_ai_qualification_repository_head: str = Field(default="")
         workload_store_path: str = Field(default="")
         workload_temp_root: str = Field(default="")
         workload_lease_seconds: float = Field(default=90.0, ge=5.0, le=600.0)
@@ -287,9 +269,10 @@ class Pipe:
             default="artifactstore retention smoke,gate1 artifactstore smoke"
         )
 
-    def __init__(self) -> None:
+    def __init__(self, *, _file_bytes_resolver: Any = None) -> None:
         self.valves = self.Valves()
         self._normalizer = Gate1Normalizer()
+        self._file_bytes_resolver = _file_bytes_resolver
         self.last_safe_report: dict | None = None
         self.last_artifact_manifest: dict | None = None
         self.last_workload_job_id: str | None = None
@@ -327,24 +310,6 @@ class Pipe:
             metadata=metadata,
             user=__user__,
         )
-        if interaction_message.strip() == PDF_DOCUMENT_AI_QUALIFICATION_COMMAND:
-            direct_message = self._latest_user_message(safe_body, messages_arg)
-            if (
-                metadata.get("task")
-                or direct_message.strip() != PDF_DOCUMENT_AI_QUALIFICATION_COMMAND
-            ):
-                return "PDF Document AI qualification is unavailable for internal tasks."
-            return await self._run_pdf_document_ai_qualification(
-                body=safe_body,
-                user=__user__,
-                request=__request__,
-                metadata=metadata,
-                files=__files__,
-                messages=__messages__,
-                event_emitter=__event_emitter__,
-                event_call=__event_call__,
-                kwargs=kwargs,
-            )
         if "broker_reports_declaration_action" in safe_body:
             raise NdflWorkflowError("ordinary_trade_declaration_hidden_action_forbidden")
         completed_turn = await self._server_attested_completed_turn_content(
@@ -626,302 +591,6 @@ class Pipe:
             )
         return "Broker Reports processing is already in progress."
 
-    async def _run_pdf_document_ai_qualification(
-        self,
-        *,
-        body: dict[str, Any],
-        user: Any,
-        request: Any,
-        metadata: dict[str, Any],
-        files: Any,
-        messages: Any,
-        event_emitter: Any,
-        event_call: Any,
-        kwargs: dict[str, Any],
-    ) -> str:
-        """Bind the exact two-slot qualification to the real authenticated Pipe."""
-
-        if not isinstance(user, dict) or str(user.get("role") or "") != "admin":
-            raise PdfDocumentAiQualificationError(
-                "pdf_document_ai_qualification_admin_required"
-            )
-        self._artifact_context(
-            user=user,
-            metadata=metadata,
-            body=body,
-            kwargs=kwargs,
-            normalization_run_id="pdf_document_ai_qualification_preflight",
-        )
-        self._artifact_store()
-        repository_head = str(
-            self.valves.pdf_document_ai_qualification_repository_head or ""
-        ).strip()
-        file_refs = self._collect_file_refs(body, metadata, files, messages)
-        await self._hydrate_private_intake_file_refs(
-            file_refs,
-            actor_user_id=self._authenticated_user_id(user),
-        )
-        if len(file_refs) != len(PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES):
-            raise PdfDocumentAiQualificationError(
-                "pdf_document_ai_qualification_exact_fixture_set_required"
-            )
-
-        expected_by_path = {
-            repository_path: expected_sha256
-            for _fixture_id, repository_path, expected_sha256 in (
-                PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES
-            )
-        }
-        payload_by_sha256: dict[str, bytes] = {}
-        file_ref_by_sha256: dict[str, dict[str, Any]] = {}
-        for file_ref in file_refs:
-            payload = self._read_original_bytes(file_ref)
-            observed_sha256 = hashlib.sha256(payload).hexdigest()
-            if observed_sha256 in file_ref_by_sha256:
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_exact_fixture_set_required"
-                )
-            payload_by_sha256[observed_sha256] = payload
-            file_ref_by_sha256[observed_sha256] = file_ref
-        if set(payload_by_sha256) != set(expected_by_path.values()):
-            raise PdfDocumentAiQualificationError(
-                "pdf_document_ai_qualification_exact_fixture_set_required"
-            )
-
-        def fixture_reader(repository_path: str) -> bytes:
-            expected_sha256 = expected_by_path.get(repository_path)
-            if expected_sha256 is None:
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_fixture_path_forbidden"
-                )
-            return payload_by_sha256[expected_sha256]
-
-        plan = PdfDocumentAiQualificationPlanFactory.create(
-            repository_head=repository_head,
-            fixture_reader=fixture_reader,
-        )
-        safe_metadata = {
-            key: value
-            for key, value in metadata.items()
-            if key not in {"file", "files", "message", "messages"}
-        }
-        safe_kwargs = {
-            key: value
-            for key, value in kwargs.items()
-            if key not in {"__file__", "__files__", "__message__", "__messages__"}
-        }
-
-        async def run_existing_pipe(**runner_input: Any) -> dict[str, object]:
-            expected_sha256 = str(runner_input["expected_sha256"])
-            file_ref = file_ref_by_sha256[expected_sha256]
-            if runner_input["pdf_bytes"] != payload_by_sha256[expected_sha256]:
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_fixture_hash_mismatch"
-                )
-            result = await self._run_workload(
-                {"messages": [{"role": "user", "content": "Gate 1 normalization"}]},
-                __user__=user,
-                __request__=request,
-                __metadata__=safe_metadata,
-                __files__=[file_ref["_private_file_obj"]],
-                __messages__=None,
-                __event_emitter__=event_emitter,
-                __event_call__=event_call,
-                __pdf_document_ai_qualification_permit__=runner_input[
-                    "qualification_permit"
-                ],
-                __pdf_document_ai_qualification_only__=True,
-                __pdf_document_ai_qualification_fixture_id__=runner_input[
-                    "fixture_id"
-                ],
-                __pdf_document_ai_qualification_source_pdf_bytes__=runner_input[
-                    "pdf_bytes"
-                ],
-                __pdf_document_ai_qualification_source_pdf_sha256__=runner_input[
-                    "expected_sha256"
-                ],
-                __pdf_document_ai_qualification_source_file_id__=file_ref["file_id"],
-                **safe_kwargs,
-            )
-            if not isinstance(result, dict):
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_pipe_result_invalid"
-                )
-            return result
-
-        claim_root = (
-            Path(self.valves.artifact_payload_root).parent
-            / "pdf-document-ai-qualification-claims"
-        )
-        receipt = await PdfDocumentAiQualificationExecutor(
-            claim_root=claim_root
-        ).execute_async(
-            plan=plan,
-            fixture_reader=fixture_reader,
-            pipe_runner=run_existing_pipe,
-        )
-        return json.dumps(receipt, ensure_ascii=False, sort_keys=True)
-
-    @staticmethod
-    def _qualification_review_text_panel(content: str) -> str:
-        """Keep native confirmation controls visible around long private text."""
-
-        return (
-            '<div style="max-height:52vh;overflow:auto;overscroll-behavior:contain;'
-            'border:1px solid rgba(128,128,128,.35);border-radius:.5rem;'
-            'padding:.75rem">'
-            '<pre style="margin:0;white-space:pre-wrap;overflow-wrap:anywhere">'
-            f"{html.escape(content)}"
-            "</pre></div>"
-        )
-
-    @staticmethod
-    def _qualification_review_image_panel(
-        *,
-        page: int,
-        target: str,
-        image_sha256: str,
-        content: bytes,
-        media_type: str,
-    ) -> str:
-        """Bound a private image preview without pushing dialog controls off-screen."""
-
-        encoded = base64.b64encode(content).decode("ascii")
-        description = html.escape(
-            f"page={page} target={target} sha256={image_sha256}"
-        )
-        safe_media_type = html.escape(media_type, quote=True)
-        return (
-            '<div style="max-height:52vh;overflow:auto;overscroll-behavior:contain">'
-            f"<p><code>{description}</code></p>"
-            '<img alt="private qualification image" '
-            f'src="data:{safe_media_type};base64,{encoded}" '
-            'style="display:block;max-width:100%;max-height:44vh;'
-            'object-fit:contain;margin:auto" />'
-            "</div>"
-        )
-
-    @staticmethod
-    def _qualification_reviewer(event_call: Any):
-        """Adapt the existing private OpenWebUI interaction to one review verdict."""
-
-        async def review(
-            view: PdfDocumentAiQualificationReviewView,
-        ) -> PdfDocumentAiQualificationReviewVerdict:
-            if not callable(event_call):
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_private_review_required"
-                )
-            source_accepted = await event_call(
-                {
-                    "type": "confirmation",
-                    "data": {
-                        "title": f"Private PDF review: {view.fixture_id} source",
-                        "message": (
-                            f"Source SHA-256: `{view.source_pdf_sha256}`\n\n"
-                            "Review the matching pinned fixture that was opened "
-                            "outside this modal before the qualification started. "
-                            f"The bound OpenWebUI file id is `{view.source_file_id}`."
-                        ),
-                    },
-                }
-            )
-            if source_accepted is not True:
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_review_aborted"
-                )
-            binding_accepted = await event_call(
-                {
-                    "type": "confirmation",
-                    "data": {
-                        "title": f"Private PDF review: {view.fixture_id} binding",
-                        "message": Pipe._qualification_review_text_panel(
-                            json.dumps(
-                                {
-                                    "repository_head": view.repository_head,
-                                    "live_output_digest": view.live_output_digest,
-                                    "execution_binding": view.execution_binding,
-                                    "structural_counts": view.structural_counts,
-                                },
-                                ensure_ascii=False,
-                                sort_keys=True,
-                            )
-                        ),
-                    },
-                }
-            )
-            if binding_accepted is not True:
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_review_aborted"
-                )
-            chunks = [
-                view.markdown[index : index + 5_000]
-                for index in range(0, len(view.markdown), 5_000)
-            ] or [""]
-            for ordinal, chunk in enumerate(chunks, start=1):
-                accepted = await event_call(
-                    {
-                        "type": "confirmation",
-                        "data": {
-                            "title": (
-                                f"Private PDF review: {view.fixture_id} "
-                                f"Markdown {ordinal}/{len(chunks)}"
-                            ),
-                            "message": Pipe._qualification_review_text_panel(chunk),
-                        },
-                    }
-                )
-                if accepted is not True:
-                    raise PdfDocumentAiQualificationError(
-                        "pdf_document_ai_qualification_review_aborted"
-                    )
-            for ordinal, (page, target, image_sha256, content, media_type) in enumerate(
-                view.images, start=1
-            ):
-                accepted = await event_call(
-                    {
-                        "type": "confirmation",
-                        "data": {
-                            "title": (
-                                f"Private PDF review: {view.fixture_id} "
-                                f"image {ordinal}/{len(view.images)}"
-                            ),
-                            "message": Pipe._qualification_review_image_panel(
-                                page=page,
-                                target=target,
-                                image_sha256=image_sha256,
-                                content=content,
-                                media_type=media_type,
-                            ),
-                        },
-                    }
-                )
-                if accepted is not True:
-                    raise PdfDocumentAiQualificationError(
-                        "pdf_document_ai_qualification_review_aborted"
-                    )
-            checks: dict[str, bool] = {}
-            for check in PDF_DOCUMENT_AI_REVIEW_CHECKS:
-                value = await event_call(
-                    {
-                        "type": "confirmation",
-                        "data": {
-                            "title": f"Private PDF review: {view.fixture_id}",
-                            "message": (
-                                f"Confirm `{check}` for live output digest "
-                                f"`{view.live_output_digest}`."
-                            ),
-                        },
-                    }
-                )
-                checks[check] = value is True
-            return PdfDocumentAiQualificationReviewVerdict(
-                live_output_digest=view.live_output_digest,
-                checks=checks,
-            )
-
-        return review
-
     async def _run_workload(
         self,
         body: dict,
@@ -936,21 +605,6 @@ class Pipe:
     ) -> str | dict[str, object]:
         safe_body = body if isinstance(body, dict) else {}
         safe_metadata = __metadata__ if isinstance(__metadata__, dict) else {}
-        qualification_only = bool(
-            kwargs.pop("__pdf_document_ai_qualification_only__", False)
-        )
-        qualification_fixture_id = kwargs.pop(
-            "__pdf_document_ai_qualification_fixture_id__", None
-        )
-        qualification_source_pdf_bytes = kwargs.pop(
-            "__pdf_document_ai_qualification_source_pdf_bytes__", None
-        )
-        qualification_source_pdf_sha256 = kwargs.pop(
-            "__pdf_document_ai_qualification_source_pdf_sha256__", None
-        )
-        qualification_source_file_id = kwargs.pop(
-            "__pdf_document_ai_qualification_source_file_id__", None
-        )
         await self._emit(
             __event_emitter__,
             self._progress_description(
@@ -979,7 +633,7 @@ class Pipe:
         file_refs = self._collect_file_refs(
             safe_body, safe_metadata, files_arg, messages_arg
         )
-        await self._hydrate_private_intake_file_refs(
+        await self._hydrate_openwebui_file_refs(
             file_refs,
             actor_user_id=self._authenticated_user_id(__user__),
         )
@@ -1006,17 +660,9 @@ class Pipe:
         )
         file_inputs = [self._to_file_input(file_ref) for file_ref in file_refs]
         retention_policy = self._retention_policy(safe_body, safe_metadata)
-        if qualification_only:
-            retention_policy = build_retention_policy(
-                mode="expires_after_ttl",
-                ttl_seconds=PDF_DOCUMENT_AI_QUALIFICATION_REVIEW_TTL_SECONDS,
-            )
         normalizer = Gate1Normalizer(
             _server_request=__request__,
             _pdf_image_root=Path(self.valves.artifact_payload_root),
-            _pdf_document_ai_qualification_permit=kwargs.pop(
-                "__pdf_document_ai_qualification_permit__", None
-            ),
         )
         planned_run_id = normalizer.plan_run_id(file_inputs)
         artifact_context = self._artifact_context(
@@ -1063,50 +709,6 @@ class Pipe:
             workload_checkpoint=self._workload_checkpoint,
             workload_progress=self._workload_progress,
         )
-        if qualification_only:
-            artifact_manifest = persist_gate1_result(
-                store=artifact_store,
-                result=result,
-                context=artifact_context,
-                retention_policy=retention_policy,
-                source_file_refs=self._source_file_refs(file_refs),
-            )
-            private_full_source_refs = list(
-                artifact_manifest.artifact_refs_by_type.get(
-                    "private_normalized_source_payload_v0", []
-                )
-            )
-            if not private_full_source_refs:
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_full_source_missing"
-                )
-            expires_at = datetime.fromisoformat(str(retention_policy.expires_at))
-            review = await PdfDocumentAiQualificationReviewFactory.create(
-                store=artifact_store,
-                context=artifact_context,
-                full_source_refs=private_full_source_refs,
-                repository_head=str(
-                    self.valves.pdf_document_ai_qualification_repository_head or ""
-                ),
-                fixture_id=str(qualification_fixture_id or ""),
-                source_file_id=str(qualification_source_file_id or ""),
-                source_pdf_bytes=qualification_source_pdf_bytes,
-                expected_source_pdf_sha256=str(qualification_source_pdf_sha256 or ""),
-                expires_at=expires_at,
-            ).review(
-                actor_context=artifact_context,
-                reviewer=self._qualification_reviewer(__event_call__),
-            )
-            observed_image_count = review["structural_counts"]["images_count"]
-            return {
-                "status": "succeeded" if review["status"] == "passed" else "failed",
-                "normalization_run_id": artifact_manifest.normalization_run_id,
-                "private_full_source_readback": True,
-                "private_image_readback_count": observed_image_count,
-                "private_artifacts_purged": True,
-                "provider_calls_total": 1,
-                "review": review,
-            }
         if is_terminal_pdf_document_ai_request(
             result.package.get("document_inventory", {}).get("documents", []),
             result.package.get("normalization_blockers", []),
@@ -1168,6 +770,12 @@ class Pipe:
             retention_policy=retention_policy,
             source_file_refs=self._source_file_refs(file_refs),
         )
+        full_source_delivery = await self._publish_pdf_full_source_delivery(
+            store=artifact_store,
+            context=artifact_context,
+            artifact_manifest=artifact_manifest,
+            user=__user__,
+        )
         ndfl_gate3 = await self._run_provider_awaitable(
             self._maybe_run_ndfl_gate3(
                 store=artifact_store,
@@ -1217,6 +825,11 @@ class Pipe:
         self.last_artifact_manifest = {
             **artifact_manifest.to_dict(),
             "ndfl_gate3": ndfl_gate3,
+            **(
+                {"full_source_delivery": full_source_delivery}
+                if full_source_delivery is not None
+                else {}
+            ),
         }
 
         if not file_refs:
@@ -1234,7 +847,11 @@ class Pipe:
                 __event_emitter__,
                 self._progress_description(
                     safe_metadata,
-                    user_message="Отчёт обработан, результат сохранён в кейсе.",
+                    user_message=(
+                        "Отчёт обработан. Full Source готов к скачиванию."
+                        if full_source_delivery is not None
+                        else "Отчёт обработан, результат сохранён в кейсе."
+                    ),
                     internal_message=(
                         "Gate 1 artifacts persisted and compact report ready."
                     ),
@@ -1262,6 +879,14 @@ class Pipe:
                     )
                 )
                 chat_content = "\n".join([chat_content, "", semantic_status])
+        if full_source_delivery is not None:
+            chat_content = "\n".join(
+                [
+                    chat_content,
+                    "",
+                    self._full_source_download_line(full_source_delivery),
+                ]
+            )
         if self._live_smoke_requested(safe_body, messages_arg):
             smoke_lines = self._run_live_artifactstore_smoke(
                 store=artifact_store,
@@ -2364,6 +1989,463 @@ class Pipe:
         }
 
     @staticmethod
+    def _closed_zip_member(value: Any) -> str:
+        rendered = str(value or "")
+        path = PurePosixPath(rendered)
+        if (
+            not rendered
+            or "\\" in rendered
+            or path.is_absolute()
+            or any(part in {"", ".", ".."} for part in path.parts)
+        ):
+            raise ArtifactStoreError(
+                "full_source_projection_image_target_invalid",
+                "Full Source image target is not a closed relative path",
+            )
+        return str(path)
+
+    @staticmethod
+    def _zip_entry(name: str, content: bytes) -> tuple[ZipInfo, bytes]:
+        info = ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+        info.compress_type = ZIP_DEFLATED
+        info.create_system = 3
+        info.external_attr = 0o600 << 16
+        return info, content
+
+    @staticmethod
+    def _build_pdf_full_source_zip(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+        artifact_manifest: Any,
+    ) -> dict[str, Any] | None:
+        """Project one owner-resolved PDF Full Source graph into a download ZIP."""
+
+        if not isinstance(context, ArtifactAccessContext) or not context.allow_private:
+            raise ArtifactStoreError(
+                "full_source_projection_private_context_required",
+                "Private ArtifactStore context is required",
+            )
+        payload_refs = list(
+            getattr(artifact_manifest, "private_source_payload_refs", None) or []
+        )
+        unit_refs = list(
+            getattr(artifact_manifest, "private_source_unit_refs", None) or []
+        )
+        resolver = ArtifactResolver(store)
+        unit_refs_by_document: dict[str, list[str]] = {}
+        for unit_ref in unit_refs:
+            unit_record = resolver.resolve_record(str(unit_ref), context)
+            unit_refs_by_document.setdefault(
+                str(unit_record.document_id or ""), []
+            ).append(str(unit_ref))
+
+        entries: dict[str, bytes] = {}
+        documents: list[dict[str, Any]] = []
+        for payload_ref in payload_refs:
+            resolved = resolver.resolve(str(payload_ref), context)
+            record = resolved["record"]
+            payload = resolved["payload"]
+            if not isinstance(payload, dict):
+                raise ArtifactStoreError(
+                    "full_source_projection_payload_invalid",
+                    "Full Source payload is not an object",
+                )
+            if payload.get("container_format") != "pdf":
+                continue
+            if (
+                record.artifact_type != "private_normalized_source_payload_v0"
+                or record.visibility != "private_case"
+                or payload.get("normalized_projection_status") != "materialized"
+            ):
+                raise ArtifactStoreError(
+                    "full_source_projection_payload_invalid",
+                    "PDF Full Source payload binding is invalid",
+                )
+            projection = payload.get("normalized_projection")
+            markdown = projection.get("text") if isinstance(projection, dict) else None
+            markdown_sha256 = str(payload.get("document_ai_markdown_sha256") or "")
+            if (
+                not isinstance(markdown, str)
+                or re.fullmatch(r"[0-9a-f]{64}", markdown_sha256) is None
+                or hashlib.sha256(markdown.encode("utf-8")).hexdigest()
+                != markdown_sha256
+            ):
+                raise ArtifactStoreError(
+                    "full_source_projection_markdown_hash_mismatch",
+                    "PDF Full Source Markdown seal is invalid",
+                )
+            source_ref = record.source_file_ref
+            provenance = payload.get("document_ai_provenance")
+            if not isinstance(source_ref, dict) or not isinstance(provenance, dict):
+                raise ArtifactStoreError(
+                    "full_source_projection_source_binding_invalid",
+                    "PDF Full Source source binding is missing",
+                )
+            source_file_id = str(source_ref.get("openwebui_file_id") or "")
+            source_sha256 = str(provenance.get("source_pdf_sha256") or "")
+            if (
+                not source_file_id
+                or re.fullmatch(r"[0-9a-f]{64}", source_sha256) is None
+                or str(source_ref.get("file_hash_sha256") or "") != source_sha256
+            ):
+                raise ArtifactStoreError(
+                    "full_source_projection_source_binding_invalid",
+                    "PDF Full Source is not bound to the exact native source file",
+                )
+
+            ordinal = len(documents) + 1
+            document_root = f"documents/{ordinal:03d}"
+            markdown_path = f"{document_root}/full-source.md"
+            entries[markdown_path] = markdown.encode("utf-8")
+            images: list[dict[str, Any]] = []
+            for image_ref in payload.get("document_ai_image_refs") or []:
+                if not isinstance(image_ref, dict):
+                    raise ArtifactStoreError(
+                        "full_source_projection_image_binding_invalid",
+                        "PDF Full Source image binding is invalid",
+                    )
+                target = Pipe._closed_zip_member(image_ref.get("markdown_target"))
+                artifact_id = str(image_ref.get("local_ref") or "")
+                expected_sha256 = str(image_ref.get("sha256") or "")
+                binary = resolver.resolve_private_binary(
+                    artifact_id,
+                    context,
+                    expected_sha256=expected_sha256,
+                )
+                binary_record = binary["record"]
+                binary_source_ref = binary_record.source_file_ref
+                if (
+                    not isinstance(binary_source_ref, dict)
+                    or str(binary_source_ref.get("openwebui_file_id") or "")
+                    != source_file_id
+                    or str(binary_source_ref.get("file_hash_sha256") or "")
+                    != source_sha256
+                ):
+                    raise ArtifactStoreError(
+                        "full_source_projection_image_binding_invalid",
+                        "PDF Full Source image belongs to another source",
+                    )
+                archive_path = f"{document_root}/{target}"
+                existing = entries.get(archive_path)
+                if existing is not None and existing != binary["content"]:
+                    raise ArtifactStoreError(
+                        "full_source_projection_image_target_collision",
+                        "One Markdown image target resolves to different bytes",
+                    )
+                entries[archive_path] = binary["content"]
+                images.append(
+                    {
+                        "artifact_id": artifact_id,
+                        "page_number": int(image_ref.get("page_number") or 0),
+                        "markdown_target": target,
+                        "archive_path": archive_path,
+                        "sha256": binary["content_sha256"],
+                        "media_type": binary["media_type"],
+                    }
+                )
+            document_id = str(record.document_id or payload.get("document_ref") or "")
+            documents.append(
+                {
+                    "document_ref": document_id,
+                    "source_openwebui_file_id": source_file_id,
+                    "source_pdf_sha256": source_sha256,
+                    "source_payload_artifact_id": str(payload_ref),
+                    "source_unit_artifact_ids": unit_refs_by_document.get(
+                        document_id, []
+                    ),
+                    "markdown_path": markdown_path,
+                    "markdown_sha256": markdown_sha256,
+                    "images": images,
+                    "document_ai_provenance": copy.deepcopy(provenance),
+                }
+            )
+        if not documents:
+            return None
+
+        projection_manifest = {
+            "schema_version": FULL_SOURCE_PROJECTION_SCHEMA_VERSION,
+            "representation_only": True,
+            "authority": "ArtifactStore",
+            "normalization_run_id": context.normalization_run_id,
+            "documents": documents,
+        }
+        manifest_bytes = json.dumps(
+            projection_manifest,
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        ).encode("utf-8")
+        entries["manifest.json"] = manifest_bytes
+        output = io.BytesIO()
+        with ZipFile(output, "w") as archive:
+            for name in sorted(entries):
+                info, content = Pipe._zip_entry(name, entries[name])
+                archive.writestr(info, content)
+        zip_bytes = output.getvalue()
+        return {
+            "content": zip_bytes,
+            "content_sha256": hashlib.sha256(zip_bytes).hexdigest(),
+            "manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+            "documents_total": len(documents),
+            "source_binding_sha256": hashlib.sha256(
+                json.dumps(
+                    [item["source_openwebui_file_id"] for item in documents],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest(),
+        }
+
+    @staticmethod
+    async def _publish_owner_scoped_private_file(
+        *,
+        user: Any,
+        context: ArtifactAccessContext,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        content_sha256: str,
+        purpose: str,
+        projection_metadata: dict[str, Any],
+        identity_material: dict[str, Any] | None = None,
+        file_id_namespace: str = "d0ca6f8e-a812-4bc8-baad-176549d3dd42",
+        record_metadata: dict[str, Any] | None = None,
+        existing_metadata_validator: Any = None,
+    ) -> str:
+        """Publish one deterministic private delivery copy through OpenWebUI Files."""
+
+        if (
+            not isinstance(user, dict)
+            or not str(user.get("id") or "")
+            or not isinstance(context, ArtifactAccessContext)
+            or not context.allow_private
+            or context.user_id != str(user["id"])
+            or not (context.case_id or context.chat_id)
+            or Path(filename).name != filename
+            or re.fullmatch(r"[0-9a-f]{64}", content_sha256) is None
+            or hashlib.sha256(content).hexdigest() != content_sha256
+        ):
+            raise ArtifactStoreError(
+                "private_file_projection_binding_invalid",
+                "Private file projection binding is invalid",
+            )
+        try:
+            from open_webui.models.files import FileForm, Files
+            from open_webui.storage.provider import Storage
+        except ImportError as exc:
+            raise ArtifactStoreError(
+                "private_file_projection_boundary_unavailable",
+                "OpenWebUI private file boundary is unavailable",
+            ) from exc
+        scope_value = str(context.case_id or context.chat_id or "")
+        scope_sha256 = hashlib.sha256(scope_value.encode("utf-8")).hexdigest()
+        identity = identity_material or {
+            "owner": "OpenWebUIFiles",
+            "authenticated_user_ref": context.user_id,
+            "scope_sha256": scope_sha256,
+            "purpose": purpose,
+            "content_sha256": content_sha256,
+        }
+        identity_json = json.dumps(identity, sort_keys=True, separators=(",", ":"))
+        file_id = str(
+            uuid.uuid5(
+                uuid.UUID(file_id_namespace),
+                identity_json,
+            )
+        )
+        expected_data = record_metadata or {
+            "broker_reports_private_projection": True,
+            "projection_only": True,
+            "artifact_store_authority": True,
+            "purpose": purpose,
+            "scope_sha256": scope_sha256,
+            "publication_identity_sha256": hashlib.sha256(
+                identity_json.encode("utf-8")
+            ).hexdigest(),
+            **projection_metadata,
+        }
+
+        async def existing_valid() -> str | None:
+            getter = getattr(Files, "get_file_by_id", None)
+            if not callable(getter):
+                raise ArtifactStoreError(
+                    "private_file_projection_lookup_unavailable",
+                    "OpenWebUI private file lookup is unavailable",
+                )
+            row = await getter(file_id)
+            if row is None:
+                return None
+            meta = getattr(row, "meta", None)
+            meta = meta if isinstance(meta, dict) else {}
+            data = meta.get("data") if isinstance(meta.get("data"), dict) else {}
+            row_path = str(getattr(row, "path", "") or "")
+            metadata_valid = (
+                existing_metadata_validator(data)
+                if callable(existing_metadata_validator)
+                else data == expected_data
+            )
+            if (
+                str(getattr(row, "user_id", "") or "") != context.user_id
+                or str(getattr(row, "hash", "") or "") != content_sha256
+                or str(getattr(row, "filename", "") or "") != filename
+                or meta.get("content_type") != content_type
+                or int(meta.get("size") or -1) != len(content)
+                or not metadata_valid
+                or not row_path
+            ):
+                raise ArtifactStoreError(
+                    "private_file_projection_reuse_binding_invalid",
+                    "Existing private file projection binding is invalid",
+                )
+            try:
+                resolved_path = await asyncio.to_thread(Storage.get_file, row_path)
+                stored = await asyncio.to_thread(Path(str(resolved_path)).read_bytes)
+            except Exception as exc:
+                raise ArtifactStoreError(
+                    "private_file_projection_reuse_unavailable",
+                    "Existing private file projection cannot be read",
+                ) from exc
+            if stored != content:
+                raise ArtifactStoreError(
+                    "private_file_projection_reuse_hash_mismatch",
+                    "Existing private file projection bytes do not match",
+                )
+            return row_path
+
+        if await existing_valid() is not None:
+            return file_id
+        attempt_id = uuid.uuid4().hex
+        uploaded, file_path = await asyncio.to_thread(
+            Storage.upload_file,
+            io.BytesIO(content),
+            f"{file_id}_{attempt_id}_{filename}",
+            {
+                "OpenWebUI-User-Email": str(user.get("email") or ""),
+                "OpenWebUI-User-Id": str(user["id"]),
+                "OpenWebUI-User-Name": str(user.get("name") or ""),
+                "OpenWebUI-File-Id": file_id,
+            },
+        )
+        if uploaded != content:
+            await Pipe._delete_partial_private_file(
+                Storage=Storage, file_path=file_path
+            )
+            raise ArtifactStoreError(
+                "private_file_projection_upload_hash_mismatch",
+                "OpenWebUI private file upload changed the projection bytes",
+            )
+        try:
+            file_item = await Files.insert_new_file(
+                str(user["id"]),
+                FileForm(
+                    id=file_id,
+                    hash=content_sha256,
+                    filename=filename,
+                    path=file_path,
+                    data={},
+                    meta={
+                        "name": filename,
+                        "content_type": content_type,
+                        "size": len(content),
+                        "file_hash": content_sha256,
+                        "data": expected_data,
+                    },
+                ),
+            )
+        except Exception as exc:
+            winner_path = await existing_valid()
+            if winner_path is not None:
+                if winner_path != str(file_path):
+                    await Pipe._delete_partial_private_file(
+                        Storage=Storage, file_path=file_path
+                    )
+                return file_id
+            await Pipe._delete_partial_private_file(
+                Storage=Storage, file_path=file_path
+            )
+            raise ArtifactStoreError(
+                "private_file_projection_record_failed",
+                "OpenWebUI private file record was not created",
+            ) from exc
+        if file_item is None:
+            winner_path = await existing_valid()
+            if winner_path is not None:
+                if winner_path != str(file_path):
+                    await Pipe._delete_partial_private_file(
+                        Storage=Storage, file_path=file_path
+                    )
+                return file_id
+            await Pipe._delete_partial_private_file(
+                Storage=Storage, file_path=file_path
+            )
+            raise ArtifactStoreError(
+                "private_file_projection_record_failed",
+                "OpenWebUI private file record was not created",
+            )
+        return file_id
+
+    @staticmethod
+    async def _delete_partial_private_file(*, Storage: Any, file_path: str) -> None:
+        try:
+            await asyncio.to_thread(Storage.delete_file, file_path)
+        except Exception as exc:
+            raise ArtifactStoreError(
+                "private_file_projection_cleanup_failed",
+                "Partial OpenWebUI private file could not be removed",
+            ) from exc
+
+    @staticmethod
+    async def _publish_pdf_full_source_delivery(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+        artifact_manifest: Any,
+        user: Any,
+    ) -> dict[str, Any] | None:
+        projection = Pipe._build_pdf_full_source_zip(
+            store=store,
+            context=context,
+            artifact_manifest=artifact_manifest,
+        )
+        if projection is None:
+            return None
+        file_id = await Pipe._publish_owner_scoped_private_file(
+            user=user,
+            context=context,
+            filename=FULL_SOURCE_ZIP_FILENAME,
+            content_type="application/zip",
+            content=projection["content"],
+            content_sha256=projection["content_sha256"],
+            purpose=FULL_SOURCE_PROJECTION_SCHEMA_VERSION,
+            projection_metadata={
+                "projection_manifest_sha256": projection["manifest_sha256"],
+                "source_binding_sha256": projection["source_binding_sha256"],
+                "documents_total": projection["documents_total"],
+            },
+        )
+        return {
+            "schema_version": FULL_SOURCE_PROJECTION_SCHEMA_VERSION,
+            "projection_only": True,
+            "authority": "ArtifactStore",
+            "file_id": file_id,
+            "filename": FULL_SOURCE_ZIP_FILENAME,
+            "content_type": "application/zip",
+            "url": f"/api/v1/files/{file_id}/content?attachment=true",
+            "content_sha256": projection["content_sha256"],
+            "projection_manifest_sha256": projection["manifest_sha256"],
+            "source_binding_sha256": projection["source_binding_sha256"],
+            "documents_total": projection["documents_total"],
+        }
+
+    @staticmethod
+    def _full_source_download_line(delivery: dict[str, Any]) -> str:
+        return (
+            "Full Source: "
+            f"[скачать {FULL_SOURCE_ZIP_FILENAME}]({str(delivery['url'])})"
+        )
+
+    @staticmethod
     async def _publish_ndfl_xml_file(
         *,
         user: Any,
@@ -2377,13 +2459,6 @@ class Pipe:
             raise NdflWorkflowError(
                 "ordinary_trade_declaration_authenticated_user_required"
             )
-        try:
-            from open_webui.models.files import FileForm, Files
-            from open_webui.storage.provider import Storage
-        except ImportError as exc:
-            raise NdflWorkflowError(
-                "ordinary_trade_declaration_private_file_boundary_unavailable"
-            ) from exc
         if (
             not isinstance(context, ArtifactAccessContext)
             or context.user_id != str(user["id"])
@@ -2396,25 +2471,18 @@ class Pipe:
                 "ordinary_trade_declaration_private_file_binding_invalid"
             )
         case_scope_sha256 = hashlib.sha256(context.case_id.encode("utf-8")).hexdigest()
+        identity_material = {
+            "owner": "OpenWebUIFiles",
+            "authenticated_user_ref": context.user_id,
+            "case_scope_sha256": case_scope_sha256,
+            "xml_sha256": xml_sha256,
+        }
         file_material = json.dumps(
-            {
-                "owner": "OpenWebUIFiles",
-                "authenticated_user_ref": context.user_id,
-                "case_scope_sha256": case_scope_sha256,
-                "xml_sha256": xml_sha256,
-            },
-            sort_keys=True,
-            separators=(",", ":"),
+            identity_material, sort_keys=True, separators=(",", ":")
         )
         publication_identity_sha256 = hashlib.sha256(
             file_material.encode("utf-8")
         ).hexdigest()
-        file_id = str(
-            uuid.uuid5(
-                uuid.UUID("99ab3cab-969f-4c79-bf48-3e7e5030911b"),
-                file_material,
-            )
-        )
         stable_expected_data = {
             "broker_reports_declaration_product": True,
             "private_user_artifact": True,
@@ -2426,120 +2494,67 @@ class Pipe:
             "receipt_sha256": receipt_sha256,
         }
 
-        async def existing_valid() -> str | None:
-            getter = getattr(Files, "get_file_by_id", None)
-            if not callable(getter):
-                raise NdflWorkflowError(
-                    "ordinary_trade_declaration_private_file_lookup_unavailable"
-                )
-            row = await getter(file_id)
-            if row is None:
-                return None
-            meta = getattr(row, "meta", None)
-            meta = meta if isinstance(meta, dict) else {}
-            data = meta.get("data") if isinstance(meta.get("data"), dict) else {}
-            row_path = str(getattr(row, "path", "") or "")
+        def existing_metadata_valid(data: Any) -> bool:
+            if not isinstance(data, dict):
+                return False
             stored_receipt_sha256 = str(data.get("receipt_sha256") or "")
-            if (
-                str(getattr(row, "user_id", "") or "") != context.user_id
-                or str(getattr(row, "hash", "") or "") != xml_sha256
-                or set(data) != {*stable_expected_data, "receipt_sha256"}
-                or any(
+            return (
+                set(data) == {*stable_expected_data, "receipt_sha256"}
+                and not any(
                     data.get(key) != value
                     for key, value in stable_expected_data.items()
                 )
-                or re.fullmatch(r"[0-9a-f]{64}", stored_receipt_sha256) is None
-                or not row_path
-            ):
-                raise NdflWorkflowError(
-                    "ordinary_trade_declaration_private_file_reuse_binding_invalid"
-                )
-            try:
-                resolved_path = await asyncio.to_thread(
-                    Storage.get_file, row_path
-                )
-                stored_bytes = await asyncio.to_thread(
-                    Path(str(resolved_path)).read_bytes
-                )
-            except Exception as exc:
-                raise NdflWorkflowError(
-                    "ordinary_trade_declaration_private_file_reuse_unavailable"
-                ) from exc
-            if hashlib.sha256(stored_bytes).hexdigest() != xml_sha256:
-                raise NdflWorkflowError(
-                    "ordinary_trade_declaration_private_file_reuse_hash_mismatch"
-                )
-            return row_path
-
-        if await existing_valid() is not None:
-            return file_id
-        upload_attempt_id = uuid.uuid4().hex
-        contents, file_path = await asyncio.to_thread(
-            Storage.upload_file,
-            io.BytesIO(xml_bytes),
-            f"{file_id}_{upload_attempt_id}_{filename}",
-            {
-                "OpenWebUI-User-Email": str(user.get("email") or ""),
-                "OpenWebUI-User-Id": str(user["id"]),
-                "OpenWebUI-User-Name": str(user.get("name") or ""),
-                "OpenWebUI-File-Id": file_id,
-            },
-        )
-        if hashlib.sha256(contents).hexdigest() != xml_sha256:
-            await Pipe._delete_partial_ndfl_file(Storage=Storage, file_path=file_path)
-            raise NdflWorkflowError("ordinary_trade_declaration_private_file_hash_mismatch")
-        try:
-            file_item = await Files.insert_new_file(
-                str(user["id"]),
-                FileForm(
-                    id=file_id,
-                    hash=xml_sha256,
-                    filename=filename,
-                    path=file_path,
-                    data={},
-                    meta={
-                        "name": filename,
-                        "content_type": "application/xml",
-                        "size": len(contents),
-                        "file_hash": xml_sha256,
-                        "data": inserted_data,
-                    },
-                ),
+                and re.fullmatch(r"[0-9a-f]{64}", stored_receipt_sha256) is not None
             )
-        except Exception as exc:
-            winner_path = await existing_valid()
-            if winner_path is not None:
-                if winner_path != str(file_path):
-                    await Pipe._delete_partial_ndfl_file(
-                        Storage=Storage,
-                        file_path=file_path,
-                    )
-                return file_id
-            await Pipe._delete_partial_ndfl_file(Storage=Storage, file_path=file_path)
-            raise NdflWorkflowError(
-                "ordinary_trade_declaration_private_file_record_failed"
-            ) from exc
-        if file_item is None:
-            winner_path = await existing_valid()
-            if winner_path is not None:
-                if winner_path != str(file_path):
-                    await Pipe._delete_partial_ndfl_file(
-                        Storage=Storage,
-                        file_path=file_path,
-                    )
-                return file_id
-            await Pipe._delete_partial_ndfl_file(Storage=Storage, file_path=file_path)
-            raise NdflWorkflowError("ordinary_trade_declaration_private_file_record_failed")
-        return file_id
 
-    @staticmethod
-    async def _delete_partial_ndfl_file(*, Storage: Any, file_path: str) -> None:
         try:
-            await asyncio.to_thread(Storage.delete_file, file_path)
-        except Exception as exc:
-            raise NdflWorkflowError(
-                "ordinary_trade_declaration_private_file_cleanup_failed"
-            ) from exc
+            return await Pipe._publish_owner_scoped_private_file(
+                user=user,
+                context=context,
+                filename=filename,
+                content_type="application/xml",
+                content=xml_bytes,
+                content_sha256=xml_sha256,
+                purpose="ordinary_trade_declaration_xml_v1",
+                projection_metadata={},
+                identity_material=identity_material,
+                file_id_namespace="99ab3cab-969f-4c79-bf48-3e7e5030911b",
+                record_metadata=inserted_data,
+                existing_metadata_validator=existing_metadata_valid,
+            )
+        except ArtifactStoreError as exc:
+            mapped_code = {
+                "private_file_projection_boundary_unavailable": (
+                    "ordinary_trade_declaration_private_file_boundary_unavailable"
+                ),
+                "private_file_projection_binding_invalid": (
+                    "ordinary_trade_declaration_private_file_binding_invalid"
+                ),
+                "private_file_projection_lookup_unavailable": (
+                    "ordinary_trade_declaration_private_file_lookup_unavailable"
+                ),
+                "private_file_projection_reuse_binding_invalid": (
+                    "ordinary_trade_declaration_private_file_reuse_binding_invalid"
+                ),
+                "private_file_projection_reuse_unavailable": (
+                    "ordinary_trade_declaration_private_file_reuse_unavailable"
+                ),
+                "private_file_projection_reuse_hash_mismatch": (
+                    "ordinary_trade_declaration_private_file_reuse_hash_mismatch"
+                ),
+                "private_file_projection_upload_hash_mismatch": (
+                    "ordinary_trade_declaration_private_file_hash_mismatch"
+                ),
+                "private_file_projection_record_failed": (
+                    "ordinary_trade_declaration_private_file_record_failed"
+                ),
+                "private_file_projection_cleanup_failed": (
+                    "ordinary_trade_declaration_private_file_cleanup_failed"
+                ),
+            }.get(exc.code)
+            if mapped_code is None:
+                raise
+            raise NdflWorkflowError(mapped_code) from exc
 
     @staticmethod
     async def _declaration_event_answer(
@@ -5078,91 +5093,43 @@ class Pipe:
         )
 
     def _read_original_bytes(self, file_ref: dict[str, Any]) -> bytes:
-        if is_private_intake_source_id(file_ref.get("file_id")):
-            trusted = file_ref.get("_trusted_private_intake_bytes")
-            if isinstance(trusted, bytes) and trusted:
-                return trusted
-            raise BytesUnavailable(
-                str(
-                    file_ref.get("_private_intake_bytes_error")
-                    or "private_intake_bytes_unresolved"
-                )
+        trusted = file_ref.get("_trusted_openwebui_bytes")
+        if isinstance(trusted, bytes) and trusted:
+            return trusted
+        raise BytesUnavailable(
+            str(
+                file_ref.get("_openwebui_bytes_error")
+                or "openwebui_file_bytes_unresolved"
             )
+        )
 
-        file_obj = file_ref.get("_private_file_obj")
-        if isinstance(file_obj, dict):
-            inline = self._inline_bytes(file_obj)
-            if inline is not None:
-                return inline
-
-        if not self.valves.allow_upload_path_access:
-            raise BytesUnavailable("upload_path_access_disabled")
-
-        candidate_result = self._upload_root_candidate(file_ref)
-        if candidate_result.get("status") == "blocked":
-            raise BytesUnavailable(
-                str(candidate_result.get("reason") or "upload_candidate_blocked")
-            )
-        candidate = candidate_result.get("path")
-        if isinstance(candidate, Path) and candidate.exists() and candidate.is_file():
-            return candidate.read_bytes()
-        raise BytesUnavailable("upload_file_not_found")
-
-    async def _hydrate_private_intake_file_refs(
+    async def _hydrate_openwebui_file_refs(
         self,
         file_refs: list[dict[str, Any]],
         *,
         actor_user_id: str,
     ) -> None:
-        resolver = None
+        resolver = self._openwebui_file_bytes_resolver()
         for file_ref in file_refs:
             source_id = str(file_ref.get("file_id") or "")
-            if not is_private_intake_source_id(source_id):
-                continue
-            if resolver is None:
-                resolver = self._private_intake_bytes_resolver()
             try:
-                file_ref["_trusted_private_intake_bytes"] = await resolver.resolve(
-                    source_id=source_id,
+                owned_file = await resolver.resolve(
+                    file_id=source_id,
                     actor_user_id=actor_user_id,
                 )
-            except PrivateIntakeBytesError as exc:
-                file_ref["_private_intake_bytes_error"] = exc.code
+                file_ref["filename"] = owned_file.filename
+                file_ref["extension"] = extension_from_name(
+                    owned_file.filename,
+                    owned_file.content_type,
+                )
+                file_ref["mime_type"] = owned_file.content_type
+                file_ref["size_bytes"] = len(owned_file.payload)
+                file_ref["_trusted_openwebui_bytes"] = owned_file.payload
+            except OpenWebUIFileBytesError as exc:
+                file_ref["_openwebui_bytes_error"] = exc.code
 
-    def _private_intake_bytes_resolver(self):
-        return OpenWebUIPrivateIntakeBytesResolverFactory().create()
-
-    def _inline_bytes(self, file_obj: dict[str, Any]) -> bytes | None:
-        for key in ("content_bytes", "bytes", "data_bytes"):
-            value = file_obj.get(key)
-            if isinstance(value, bytes):
-                return value
-        for key in ("content_base64", "data_base64"):
-            value = file_obj.get(key)
-            if isinstance(value, str):
-                try:
-                    return base64.b64decode(value.encode("ascii"), validate=True)
-                except (binascii.Error, UnicodeEncodeError):
-                    return None
-        for key in ("content", "data"):
-            value = file_obj.get(key)
-            if isinstance(value, str):
-                return value.encode("utf-8")
-        return None
-
-    def _upload_root_candidate(self, file_ref: dict[str, Any]) -> dict[str, Any]:
-        upload_root = Path(self.valves.upload_root).resolve()
-        file_id = str(file_ref.get("file_id") or "")
-        filename = str(file_ref.get("filename") or "")
-        if self._has_path_separator(file_id) or self._has_path_separator(filename):
-            return {"status": "blocked", "reason": "upload_path_escape_detected"}
-        candidate = (upload_root / f"{file_id}_{filename}").resolve()
-        if upload_root not in candidate.parents and candidate != upload_root:
-            return {"status": "blocked", "reason": "upload_path_escape_detected"}
-        return {"status": "candidate", "path": candidate}
-
-    def _has_path_separator(self, value: str) -> bool:
-        return "/" in value or "\\" in value or Path(value).name != value
+    def _openwebui_file_bytes_resolver(self):
+        return self._file_bytes_resolver or OpenWebUIFileBytesResolverFactory.create()
 
     def _private_markers(self, file_refs: list[dict[str, Any]]) -> list[str]:
         markers: list[str] = []

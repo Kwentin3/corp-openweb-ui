@@ -14,14 +14,12 @@ from broker_reports_gate1.architecture_policy import (
     KNOWLEDGE_RAG_VECTORIZATION_ALLOWED,
     LOCAL_OCR_PRODUCTION_ALLOWED,
     LOCAL_OCR_WORKER_POOL_ALLOWED,
-    PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED,
     PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED,
     PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER,
     PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE,
     PDF_DOCUMENT_EXTRACTION_STATIC_READY,
 )
 from broker_reports_gate1.pdf_document_ai import (
-    PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
     PDF_DOCUMENT_AI_NOT_CONFIGURED,
     PDF_DOCUMENT_AI_POLICY_VERSION,
     PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION,
@@ -31,7 +29,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parents[2]
 SERVICE_ROOT = ROOT / "services" / "broker-reports-gate1-proof"
 
-SCHEMA_VERSION = "broker_reports_atomic_stage_release_v10"
+SCHEMA_VERSION = "broker_reports_atomic_stage_release_v11"
 RELEASE_ID_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -41,15 +39,6 @@ PINNED_IMAGE_ID = (
     "sha256:c862956b5a88f490de3a13829cb4176ce9a2e3fb3621ebf0198b059be65f8e83"
 )
 PINNED_IMAGE_REVISION = "8e6a71f13cf4f9cec0e5be191fac924548050e48"
-PRIVATE_INTAKE_CONTRACT = "server-authoritative-v2"
-PDF_DOCUMENT_AI_QUALIFICATION_HEAD_VALVE = (
-    "pdf_document_ai_qualification_repository_head"
-)
-
-ACTION_ID = "broker_reports_private_intake_action"
-ACTION_PATH = (
-    SERVICE_ROOT / "openwebui_actions" / "broker_reports_private_intake_action.py"
-)
 LOADER_PATH = ROOT / "deploy" / "openwebui-static" / "loader.js"
 
 TERMINAL_WORKLOAD_STATES = frozenset({"completed", "failed", "cancelled"})
@@ -95,14 +84,14 @@ GATE1_RELEASE_VALVES: dict[str, Any] = {
 }
 
 GATE1_RETIRED_VALVE_KEYS = (
-    "pdf_" "table_intake_enabled",
-    "pdf_" "table_intake_provider_profile",
-    "pdf_" "table_intake_model_id",
-    "pdf_" "table_intake_dpi",
-    "pdf_" "table_intake_maximum_pages",
-    "pdf_" "table_intake_maximum_candidates_per_page",
-    "pdf_" "table_intake_horizontal_padding_fraction",
-    "pdf_" "table_intake_vertical_padding_fraction",
+    "pdf_table_intake_enabled",
+    "pdf_table_intake_provider_profile",
+    "pdf_table_intake_model_id",
+    "pdf_table_intake_dpi",
+    "pdf_table_intake_maximum_pages",
+    "pdf_table_intake_maximum_candidates_per_page",
+    "pdf_table_intake_horizontal_padding_fraction",
+    "pdf_table_intake_vertical_padding_fraction",
     "canonical_gate2_compare_enabled",
     "broker_pdf_neutral_table_profile_v1_enabled",
     "pdf_dual_vlm_enabled",
@@ -129,6 +118,7 @@ GATE1_RETIRED_VALVE_KEYS = (
 )
 
 RETIRED_FUNCTION_IDS = (
+    "broker_reports_private_intake_action",
     "broker_reports_gate2_source_fact_pipe",
     "broker_reports_gate2_domain_source_fact_pipe",
 )
@@ -153,7 +143,6 @@ FUNCTION_CONTRACTS = (
         required_markers=(
             "WorkloadAuthorityFactory",
             "PdfDocumentExtractorFactory",
-            "PDF_DOCUMENT_AI_QUALIFICATION_COMMAND",
             "PDF_DOCUMENT_AI_NOT_CONFIGURED",
             "Gate2TablePackageFactory",
             "broker_reports_fns_2ndfl_source_facts_v1",
@@ -178,10 +167,6 @@ def sha256_text(value: str) -> str:
 
 def normalized_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
-
-def normalized_text_sha256(path: Path) -> str:
-    return sha256_text(normalized_text(path))
 
 
 def canonical_json(value: Any) -> str:
@@ -284,14 +269,7 @@ def build_manifest(
                 "activation_policy": "preserve_existing",
                 "content_sha256": sha256_text(content),
                 "required_markers": list(contract.required_markers),
-                "valves": {
-                    **dict(contract.valves),
-                    **(
-                        {PDF_DOCUMENT_AI_QUALIFICATION_HEAD_VALVE: source_revision}
-                        if contract.function_id == "broker_reports_gate1_pipe"
-                        else {}
-                    ),
-                },
+                "valves": dict(contract.valves),
                 "retired_valve_keys": list(contract.retired_valve_keys),
             }
         )
@@ -316,13 +294,6 @@ def build_manifest(
             "configured_image": PINNED_IMAGE,
             "image_id": PINNED_IMAGE_ID,
             "source_revision": PINNED_IMAGE_REVISION,
-            "private_intake_contract": PRIVATE_INTAKE_CONTRACT,
-        },
-        "action": {
-            "action_id": ACTION_ID,
-            "content_sha256": normalized_text_sha256(ACTION_PATH),
-            "active": True,
-            "global": False,
         },
         "loader": {
             "file_name": LOADER_PATH.name,
@@ -334,7 +305,9 @@ def build_manifest(
         "provider_policy": dict(provider_policy),
         "runtime": {
             "pdf_document_ai_static_ready": PDF_DOCUMENT_EXTRACTION_STATIC_READY,
-            "pdf_document_ai_live_qualified": PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED,
+            "pdf_document_ai_production_configured": (
+                PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED
+            ),
             "legacy_table_route_available": False,
             "release_quiescent_workload_states": sorted(
                 RELEASE_QUIESCENT_WORKLOAD_STATES
@@ -398,7 +371,6 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
         "configured_image": PINNED_IMAGE,
         "image_id": PINNED_IMAGE_ID,
         "source_revision": PINNED_IMAGE_REVISION,
-        "private_intake_contract": PRIVATE_INTAKE_CONTRACT,
     }:
         raise ValueError("stage_release_manifest_image_invalid")
     loader = manifest.get("loader") or {}
@@ -409,7 +381,7 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     runtime = manifest.get("runtime") or {}
     if (
         runtime.get("pdf_document_ai_static_ready") is not True
-        or runtime.get("pdf_document_ai_live_qualified") is not False
+        or runtime.get("pdf_document_ai_production_configured") is not True
         or runtime.get("legacy_table_route_available") is not False
         or runtime.get("release_quiescent_workload_states")
         != sorted(RELEASE_QUIESCENT_WORKLOAD_STATES)
@@ -449,14 +421,10 @@ def pdf_document_ai_contract_manifest() -> dict[str, Any]:
         "selected_engine": PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE,
         "selected_adapter": PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER,
         "static_ready": PDF_DOCUMENT_EXTRACTION_STATIC_READY,
-        "live_qualified": PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED,
         "policy_version": PDF_DOCUMENT_AI_POLICY_VERSION,
         "extraction_schema_version": PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION,
         "composition_owner": "PdfDocumentExtractorFactory",
-        "terminal_blockers": {
-            "unconfigured": PDF_DOCUMENT_AI_NOT_CONFIGURED,
-            "selected_unqualified": PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
-        },
+        "terminal_blockers": {"unconfigured": PDF_DOCUMENT_AI_NOT_CONFIGURED},
         "automatic_fallback": False,
         "runtime_boundary": {
             "architecture_policy_version": ARCHITECTURE_POLICY_VERSION,

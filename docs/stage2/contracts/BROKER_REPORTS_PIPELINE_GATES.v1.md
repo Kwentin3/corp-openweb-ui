@@ -4,7 +4,7 @@ Status: `CURRENT`
 
 Classification: `CURRENT AUTHORITY`
 
-Updated: 2026-09-04 (Issue #374 PDF ArtifactStore lifecycle and qualification seam)
+Updated: 2026-09-05 (Issue #374 ordinary PDF product route)
 
 ```text
 CURRENT_PIPELINE_AUTHORITY = ONE
@@ -26,10 +26,10 @@ PDF_DOCUMENT_OWNER = PdfDocumentExtractor
 PDF_DOCUMENT_RESULT = PdfDocumentExtraction
 PDF_DOCUMENT_COMPOSITION = ONE_EXPLICIT_FACTORY
 PDF_DOCUMENT_DEFAULT = PDF_DOCUMENT_AI_NOT_CONFIGURED
-PDF_DOCUMENT_SELECTED_UNQUALIFIED = PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
-PDF_DOCUMENT_LIVE_ADMISSION = FALSE
-PDF_DOCUMENT_QUALIFICATION_ALLOWLIST = TWO_PINNED_PUBLIC_SHA256
+PDF_DOCUMENT_CONFIGURED_ROUTE = ORDINARY_AUTHENTICATED_PIPE
+PDF_DOCUMENT_PROVIDER_CALLS_PER_ACCEPTED_PDF = ONE
 PDF_DOCUMENT_IMAGE_LIFECYCLE = EXISTING_ARTIFACT_STORE_ATOMIC_PRIVATE_GRAPH
+PDF_DOCUMENT_DELIVERY = OWNER_SCOPED_FULL_SOURCE_ZIP
 PDF_DOCUMENT_FALLBACK = FORBIDDEN
 ```
 
@@ -42,18 +42,16 @@ The current ordinary-security-trade product composition is exactly:
 
 ```text
 broker_reports_gate1_pipe
-  -> authenticated bytes / source custody / PDF preflight
+  -> native file ID / exact owner check / Storage byte read
+  -> source custody / PDF preflight
   -> PdfDocumentExtractorFactory.create
      -> absent or unselected engine
         -> PDF_DOCUMENT_AI_NOT_CONFIGURED -> STOP
-     -> selected Mistral engine while code-owned live admission is false
-        -> PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED -> STOP
-     -> exact two-fixture qualification capability only
-        -> same factory and implemented Mistral adapter
-        -> atomic private Full Source + image graph in existing ArtifactStore
-     -> implemented Mistral adapter for ordinary uploads only after separate
-        live qualification and activation
+     -> selected configured Mistral adapter
+        -> exactly one provider call per accepted PDF
         -> PdfDocumentExtraction
+        -> atomic private Markdown/image graph in existing ArtifactStore
+        -> owner-scoped full-source.zip projection through native Files/Storage
   -> Gate1Normalizer / persist_gate1_result
   -> immutable active CanonicalArtifactV1
   -> OrdinaryTradeProductionRuntimeFactory.create
@@ -73,6 +71,13 @@ remain readable deployment-rollback compatibility. They are not called when
 `ordinary_trade_candidate_enabled=true`; production release additionally pins
 `ndfl_gate3_enabled=false`. They are not a fallback for an unknown schema,
 missing Canonical, incomplete row or downstream evidence blocker.
+
+On OpenWebUI 0.9.6, a temporary frontend compatibility seam sets
+`process=false` only for native PDF upload when the exact selected model ID is
+`broker_reports_gate1_pipe`. It changes no response, file identity or Pipe
+contract and must be removed when upstream provides an equivalent per-model
+upload-processing policy. A custom intake/action, core fork, global bypass and
+DOM-based file binding are forbidden.
 
 The retired PDFPlumber/pdfminer/PyMuPDF, Camelot, Docling, VLM/bbox,
 dual-engine, semantic-migration, structural-repair and hybrid-shadow routes are
@@ -255,10 +260,10 @@ responsibility without executing the historically named Gate 3 runtime:
 ```text
 ACTIVE ORDINARY SECURITY TRADES
 
-PDF -> source custody / safe preflight -> PdfDocumentExtractor
+PDF -> native file ID -> Files owner check -> Storage byte read
+    -> source custody / safe preflight -> PdfDocumentExtractor
     -> absent or unselected engine: PDF_DOCUMENT_AI_NOT_CONFIGURED
-    -> selected Mistral while live admission is false:
-       PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
+    -> selected configured Mistral: exactly one call per accepted PDF
     -> provider-neutral PdfDocumentExtraction -> existing Full Source / Canonical
     -> exact mapping + matching qualification receipt
     -> Source Observations
@@ -322,13 +327,12 @@ text-free safe technical summary. It does not reconstruct tables, repair
 content, choose financial meaning, or publish Canonical. For every provider
 image, the adapter preserves one ordered association:
 `page_number + markdown_target -> local_ref + sha256`; positional
-reconstruction is forbidden. An absent
-or unselected engine terminates with `PDF_DOCUMENT_AI_NOT_CONFIGURED`; a
-an ordinary upload with selected Mistral engine terminates with
-`PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED` while code-owned live admission
-is false. A bounded capability admits only the two pinned public qualification
-hashes through the same factory and atomic private ArtifactStore graph. No live
-qualification or activation is claimed. No local parser, OpenWebUI extractor, VLM, retry, or
+reconstruction is forbidden. An absent or unselected engine terminates with
+`PDF_DOCUMENT_AI_NOT_CONFIGURED`; a configured Mistral engine is available to
+the ordinary authenticated Pipe route. There is no admin qualification or
+custom intake/action. Native file identity and exact owner reads belong to
+OpenWebUI `Files`/`Storage`; the atomic Markdown/image graph belongs only to
+ArtifactStore. No local parser, OpenWebUI extractor, VLM, retry, or
 alternative engine may run as fallback. Exact rules are in
 [the current PDF Document AI ADR](../adr/BROKER_REPORTS_PDF_DOCUMENT_AI_BOUNDARY.v1.md).
 
@@ -341,7 +345,7 @@ alternative engine may run as fallback. Exact rules are in
 | `NdflWorkflowFactory.create().run_product_path` | `DEPLOYMENT ROLLBACK ONLY` | historical Gate 2 -> Gate 3 financial execution; never semantic fallback |
 | `Gate3ChunkBatchLabelingFactory.create` | `DEPLOYMENT ROLLBACK ONLY` | historical model-based financial semantic extraction |
 | `Gate4FinancialCaseRuntimeFactory.create` | `DEPLOYMENT ROLLBACK ONLY FOR ORDINARY TRADE` | historical Gate 3-backed normalized facts and case reads |
-| `PdfDocumentExtractorFactory.create` | `LIVE QUALIFICATION READY; PRODUCT LIVE BLOCKED` | one explicit adapter selection; absent/unselected engine and ordinary selected-but-unqualified engine have distinct typed terminals; one exact two-fixture qualification capability reaches the same adapter, while ordinary activation stays closed; no fallback |
+| `PdfDocumentExtractorFactory.create` | `PRODUCT/NORMATIVE` | one explicit adapter selection; absent/unselected engine is terminal; configured Mistral is available to the ordinary authenticated Pipe with one call per accepted PDF and no fallback |
 | `PdfDocumentExtractor.extract` | `PRODUCT PORT` | provider-neutral extraction only; no Canonical or financial semantics |
 | `Gate3LlmMetadataAdapterFactory.create` | `SUPPORTING` | best-effort metadata proposal, no tax/financial authority |
 | `Gate3MetadataSourceFactRuntimeFactory.create` | `SUPPORTING` | current supporting metadata publication/read boundary |

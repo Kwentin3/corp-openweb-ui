@@ -40,7 +40,7 @@ RELEASE_QUIESCENT_WORKLOAD_STATES = {
     *TERMINAL_WORKLOAD_STATES,
     "awaiting_review",
 }
-MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v10"
+MANIFEST_SCHEMA_VERSION = "broker_reports_atomic_stage_release_v11"
 
 
 class StageReleaseError(RuntimeError):
@@ -138,36 +138,28 @@ def _validate_manifest(manifest: Mapping[str, Any]) -> None:
         raise StageReleaseError("stage_release_workload_policy_invalid")
     if (
         runtime.get("pdf_document_ai_static_ready") is not True
-        or runtime.get("pdf_document_ai_live_qualified") is not False
+        or runtime.get("pdf_document_ai_production_configured") is not True
     ):
         raise StageReleaseError("stage_release_pdf_document_ai_admission_invalid")
     document_ai = (manifest.get("provider_policy") or {}).get(
         "pdf_document_ai_contract"
     ) or {}
     if (
-        document_ai.get("configured") is not False
+        document_ai.get("configured") is not True
         or document_ai.get("adapter_status") != "static_ready"
         or document_ai.get("selected_engine") != "mistral_ocr"
-        or document_ai.get("selected_adapter")
-        != "mistral_serverless_ocr_adapter_v2"
+        or document_ai.get("selected_adapter") != "mistral_serverless_ocr_adapter_v2"
         or document_ai.get("static_ready") is not True
-        or document_ai.get("live_qualified") is not False
         or document_ai.get("composition_owner") != "PdfDocumentExtractorFactory"
         or document_ai.get("automatic_fallback") is not False
         or document_ai.get("terminal_blockers")
-        != {
-            "unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED",
-            "selected_unqualified": "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED",
-        }
+        != {"unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED"}
     ):
         raise StageReleaseError("stage_release_pdf_document_ai_contract_invalid")
     functions = manifest.get("functions") or []
     if not functions or any(not isinstance(item, dict) for item in functions):
         raise StageReleaseError("stage_release_function_contract_invalid")
-    if any(
-        item.get("activation_policy") != "preserve_existing"
-        for item in functions
-    ):
+    if any(item.get("activation_policy") != "preserve_existing" for item in functions):
         raise StageReleaseError("stage_release_activation_policy_invalid")
     current_ids = [str(item.get("function_id") or "") for item in functions]
     retired_ids = manifest.get("retired_function_ids")
@@ -329,9 +321,7 @@ def _safe_function_state(
                 "type": row.get("type"),
                 "release_revision": release_meta.get("source_revision"),
                 "release_manifest_sha256": release_meta.get("manifest_sha256"),
-                "valves": {
-                    key: valves.get(key) for key in sorted(expected_valves)
-                },
+                "valves": {key: valves.get(key) for key in sorted(expected_valves)},
             }
         )
     return result
@@ -350,28 +340,6 @@ def _function_activation_state(
         else:
             raise StageReleaseError("stage_release_existing_activation_invalid")
     return result
-
-
-def _action_state(db_path: Path, manifest: Mapping[str, Any]) -> dict[str, Any]:
-    action = _json_object(manifest.get("action"))
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT id, content, type, is_active, is_global FROM function WHERE id = ?",
-            (action.get("action_id"),),
-        ).fetchone()
-    finally:
-        conn.close()
-    if row is None:
-        raise StageReleaseError("stage_release_action_missing")
-    return {
-        "action_id": row["id"],
-        "content_sha256": _sha256_text(str(row["content"] or "")),
-        "type": row["type"],
-        "active": row["is_active"] in (1, True),
-        "global": row["is_global"] in (1, True),
-    }
 
 
 def _prompt_states(db_path: Path, manifest: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -407,8 +375,7 @@ def _prompt_states(db_path: Path, manifest: Mapping[str, Any]) -> list[dict[str,
                 "version": row["version_id"],
                 "content_sha256": _sha256_text(str(row["content"] or "")),
                 "metadata_match": all(
-                    live_meta.get(key) == value
-                    for key, value in expected_meta.items()
+                    live_meta.get(key) == value for key, value in expected_meta.items()
                 ),
             }
         )
@@ -426,13 +393,8 @@ def _image_state() -> dict[str, Any]:
         "image_id": container.get("Image"),
         "running": bool(container.get("State", {}).get("Running")),
         "restart_count": int(container.get("RestartCount") or 0),
-        "health_status": (container.get("State", {}).get("Health") or {}).get(
-            "Status"
-        ),
+        "health_status": (container.get("State", {}).get("Health") or {}).get("Status"),
         "source_revision": labels.get("org.opencontainers.image.revision"),
-        "private_intake_contract": labels.get(
-            "ai.alpha-soft.broker-reports-private-intake"
-        ),
     }
 
 
@@ -508,11 +470,14 @@ def _workload_state(data_root: Path) -> dict[str, Any]:
         for state, count in state_counts.items()
         if state not in TERMINAL_WORKLOAD_STATES
     )
-    release_blocking = sum(
-        count
-        for state, count in state_counts.items()
-        if state not in RELEASE_QUIESCENT_WORKLOAD_STATES
-    ) + unsafe_review_jobs
+    release_blocking = (
+        sum(
+            count
+            for state, count in state_counts.items()
+            if state not in RELEASE_QUIESCENT_WORKLOAD_STATES
+        )
+        + unsafe_review_jobs
+    )
     temp_root = data_root / "broker_reports_gate1" / "workload-temp"
     temp_entries = (
         sum(1 for item in temp_root.iterdir() if item.name.startswith("brjob_"))
@@ -550,7 +515,6 @@ def _live_state(
             }
             for function_id in retired_ids
         ],
-        "action": _action_state(db_path, manifest),
         "managed_prompts": _prompt_states(db_path, manifest),
         "image": _image_state(),
         "loader": _loader_state(),
@@ -571,26 +535,14 @@ def _assert_static_contracts(
         "configured_image",
         "image_id",
         "source_revision",
-        "private_intake_contract",
     ):
         if image.get(key) != expected_image.get(key):
             raise StageReleaseError(f"stage_release_image_{key}_mismatch")
     if image.get("running") is not True or image.get("health_status") != "healthy":
         raise StageReleaseError("stage_release_image_runtime_state_invalid")
-    expected_action = manifest["action"]
-    action = state["action"]
-    if (
-        action.get("action_id") != expected_action.get("action_id")
-        or action.get("content_sha256") != expected_action.get("content_sha256")
-        or action.get("type") != "action"
-        or action.get("active") is not True
-        or action.get("global") is not False
-    ):
-        raise StageReleaseError("stage_release_action_contract_mismatch")
     loader = state.get("loader")
-    if (
-        not isinstance(loader, dict)
-        or not SHA256_RE.fullmatch(str(loader.get("content_sha256") or ""))
+    if not isinstance(loader, dict) or not SHA256_RE.fullmatch(
+        str(loader.get("content_sha256") or "")
     ):
         raise StageReleaseError("stage_release_loader_state_invalid")
     if require_candidate_loader and loader.get("content_sha256") != (
@@ -658,8 +610,7 @@ def _assert_candidate(
             or item.get("global") is not False
             or item.get("type") != "pipe"
             or item.get("release_revision") != manifest.get("source_revision")
-            or item.get("release_manifest_sha256")
-            != manifest.get("manifest_sha256")
+            or item.get("release_manifest_sha256") != manifest.get("manifest_sha256")
             or item.get("valves") != contract.get("valves")
         ):
             raise StageReleaseError(
@@ -783,7 +734,6 @@ def _rollback_artifact(
         "previous_prompt_rows": _snapshot_prompt_rows(prompt_rows),
         "previous_object_identities": {
             "functions": before_state["functions"],
-            "action": before_state["action"],
             "image": before_state["image"],
             "loader": before_state["loader"],
             "managed_prompts": before_state["managed_prompts"],
@@ -928,9 +878,7 @@ def _desired_prompt_rows(
             "version_id": str(contract["version"]),
             "is_active": 1,
             "content": str(contract["content"]),
-            "meta": (
-                current.get("meta") if unchanged else _canonical_json(meta)
-            ),
+            "meta": (current.get("meta") if unchanged else _canonical_json(meta)),
             "updated_at": current.get("updated_at") if unchanged else now,
         }
     return result
@@ -954,7 +902,9 @@ def _replace_release_rows(
                     "SELECT content FROM function WHERE id = ?", (function_id,)
                 ).fetchone()
                 if current is None:
-                    raise StageReleaseError("stage_release_function_missing_during_write")
+                    raise StageReleaseError(
+                        "stage_release_function_missing_during_write"
+                    )
                 if expected_function_hashes is not None:
                     current_hash = _sha256_text(str(current[0] or ""))
                     if current_hash != expected_function_hashes.get(function_id):
@@ -971,17 +921,21 @@ def _replace_release_rows(
                 if current is None:
                     raise StageReleaseError("stage_release_prompt_missing_during_write")
                 if expected_prompt_hashes is not None:
-                    current_hash = _prompt_row_hash(dict(zip(
-                        (
-                            "command",
-                            "version_id",
-                            "is_active",
-                            "content",
-                            "meta",
-                            "updated_at",
-                        ),
-                        current,
-                    )))
+                    current_hash = _prompt_row_hash(
+                        dict(
+                            zip(
+                                (
+                                    "command",
+                                    "version_id",
+                                    "is_active",
+                                    "content",
+                                    "meta",
+                                    "updated_at",
+                                ),
+                                current,
+                            )
+                        )
+                    )
                     if current_hash != expected_prompt_hashes.get(prompt_id):
                         raise StageReleaseError(
                             "stage_release_prompt_changed_during_release:" + prompt_id
@@ -1003,7 +957,9 @@ def _replace_release_rows(
                     ),
                 )
                 if updated.rowcount != 1:
-                    raise StageReleaseError("stage_release_function_update_count_invalid")
+                    raise StageReleaseError(
+                        "stage_release_function_update_count_invalid"
+                    )
             for prompt_id in sorted(replacement_prompt_rows):
                 row = replacement_prompt_rows[prompt_id]
                 updated = conn.execute(
@@ -1057,10 +1013,7 @@ def _prompt_row_hash(row: Mapping[str, Any]) -> str:
 def _prompt_hashes(
     rows: Mapping[str, Mapping[str, Any]],
 ) -> dict[str, str]:
-    return {
-        prompt_id: _prompt_row_hash(row)
-        for prompt_id, row in rows.items()
-    }
+    return {prompt_id: _prompt_row_hash(row) for prompt_id, row in rows.items()}
 
 
 def _container_running() -> bool:
@@ -1092,7 +1045,11 @@ def _external_url() -> str:
     host = matches[-1].strip().strip('"').strip("'")
     if not host:
         raise StageReleaseError("stage_release_external_host_missing")
-    return host.rstrip("/") if host.startswith(("http://", "https://")) else "https://" + host.rstrip("/")
+    return (
+        host.rstrip("/")
+        if host.startswith(("http://", "https://"))
+        else "https://" + host.rstrip("/")
+    )
 
 
 def _wait_healthy() -> None:
@@ -1247,7 +1204,8 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         function_id: {
             "before_sha256": before_hashes[function_id],
             "candidate_sha256": desired_hashes[function_id],
-            "change_required": before_hashes[function_id] != desired_hashes[function_id],
+            "change_required": before_hashes[function_id]
+            != desired_hashes[function_id],
             "activation_preserved": (
                 desired_rows[function_id].get("is_active")
                 == current_function_rows[function_id].get("is_active")
@@ -1260,8 +1218,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             "before_sha256": before_prompt_hashes[prompt_id],
             "candidate_sha256": desired_prompt_hashes[prompt_id],
             "change_required": (
-                before_prompt_hashes[prompt_id]
-                != desired_prompt_hashes[prompt_id]
+                before_prompt_hashes[prompt_id] != desired_prompt_hashes[prompt_id]
             ),
         }
         for prompt_id in prompt_ids
@@ -1285,7 +1242,6 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             "loader_plan": loader_plan,
             "static_contracts": {
                 "image": before["image"],
-                "action": before["action"],
                 "loader": before["loader"],
                 "managed_prompts": before["managed_prompts"],
             },
@@ -1367,8 +1323,7 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
             restored_prompt_rows = _prompt_rows(db_path, prompt_ids)
             if (
                 _snapshot_function_rows(restored_rows) != rollback_rows
-                or _snapshot_prompt_rows(restored_prompt_rows)
-                != rollback_prompt_rows
+                or _snapshot_prompt_rows(restored_prompt_rows) != rollback_prompt_rows
             ):
                 raise StageReleaseError("stage_release_rollback_rehearsal_mismatch")
             restored = _live_state(
@@ -1448,7 +1403,6 @@ def execute(*, staging_dir: Path, apply: bool, prove_rollback: bool) -> dict[str
         "loader_plan": loader_plan,
         "functions": candidate["functions"],
         "retired_functions": candidate["retired_functions"],
-        "action": candidate["action"],
         "image": candidate["image"],
         "loader": candidate["loader"],
         "managed_prompts": candidate["managed_prompts"],

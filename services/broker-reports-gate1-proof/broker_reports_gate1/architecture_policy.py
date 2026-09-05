@@ -10,7 +10,7 @@ from __future__ import annotations
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
-ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v28"
+ARCHITECTURE_POLICY_VERSION = "broker_reports_architecture_policy_v29"
 ARCHITECTURE_AUTHORITY = "docs/stage2/contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md"
 VISUAL_TABLE_CONTRACT_AUTHORITY = (
     "docs/stage2/blueprints/BROKER_REPORTS_GATE_ARCHITECTURE.md"
@@ -234,22 +234,14 @@ PDF_DOCUMENT_EXTRACTION_ENVELOPE = "PdfDocumentExtraction"
 PDF_DOCUMENT_EXTRACTION_COMPOSITION_ROOT = "PdfDocumentExtractorFactory.create"
 PDF_DOCUMENT_EXTRACTION_DEFAULT = "UnconfiguredPdfDocumentExtractor"
 PDF_DOCUMENT_EXTRACTION_UNCONFIGURED_CODE = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
-PDF_DOCUMENT_EXTRACTION_SELECTED_UNQUALIFIED_CODE = (
-    "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED"
-)
 PDF_DOCUMENT_EXTRACTION_SELECTED_ENGINE = "mistral_ocr"
 PDF_DOCUMENT_EXTRACTION_SELECTED_ADAPTER = "mistral_serverless_ocr_adapter_v2"
 PDF_DOCUMENT_EXTRACTION_STATIC_READY = True
-PDF_DOCUMENT_EXTRACTION_LIVE_QUALIFIED = False
-PDF_DOCUMENT_EXTRACTION_QUALIFICATION_ALLOWLIST_SIZE = 2
 PDF_DOCUMENT_EXTRACTION_IMAGE_LIFECYCLE = (
     "existing_artifact_store_atomic_private_graph"
 )
-PDF_DOCUMENT_EXTRACTION_QUALIFICATION_REVIEW = (
-    "same_pipe_same_user_digest_bound_temporary_review_then_purge"
-)
 PDF_DOCUMENT_EXTRACTION_AUTOMATIC_FALLBACK_ALLOWED = False
-PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED = False
+PDF_DOCUMENT_EXTRACTION_PRODUCTION_CONFIGURED = True
 LOCAL_OCR_PRODUCTION_ALLOWED = False
 LOCAL_OCR_WORKER_POOL_ALLOWED = False
 PROVIDER_OUTPUT_AUTHORITY = "document_ai_representation_only"
@@ -265,7 +257,7 @@ GATE2_LOCAL_MAXIMUM_CONCURRENCY = 2
 WORKLOAD_PRIMARY_WALL_TIMEOUT = None
 
 COMPONENT_RUNTIME_STATUSES = {
-    "pdf_document_ai": "live_qualification_ready_activation_blocked",
+    "pdf_document_ai": "production_active_fail_closed_on_native_config",
     "gate1_bounded_graph": "maintained",
     "workload_authority": "maintained",
 }

@@ -20,7 +20,10 @@ from broker_reports_gate1 import (
     RetentionPolicyError,
 )
 from broker_reports_gate1 import ManagedPrompt
-from broker_reports_gate1.private_intake_bytes import PrivateIntakeBytesError
+from broker_reports_gate1.openwebui_file_bytes import (
+    OpenWebUIFileBytesError,
+    OpenWebUIOwnedFile,
+)
 from broker_reports_gate1.document_passport import document_metadata_passport_schema_hash, prompt_hash
 from openwebui_actions.broker_reports_gate1_pipe import NORMALIZER_VERSION, SAFETY_STATEMENT, Pipe
 
@@ -41,7 +44,31 @@ def file_ref(file_id: str, filename: str, mime_type: str, **extra):
         "mime_type": mime_type,
     }
     payload.update(extra)
+    content = extra.get("content_bytes", extra.get("content"))
+    if isinstance(content, str):
+        content = content.encode("utf-8")
+    if isinstance(content, bytes):
+        _TEST_FILE_PAYLOADS[file_id] = (filename, mime_type, content)
     return {"type": "file", "file": payload}
+
+
+_TEST_FILE_PAYLOADS: dict[str, tuple[str, str, bytes]] = {}
+
+
+class _TestOwnedFileResolver:
+    async def resolve(self, *, file_id: str, actor_user_id: str):
+        item = _TEST_FILE_PAYLOADS.get(file_id)
+        if item is None or actor_user_id != "pipe-test-user":
+            raise OpenWebUIFileBytesError("openwebui_file_not_owned")
+        filename, content_type, payload = item
+        return OpenWebUIOwnedFile(
+            file_id=file_id,
+            user_id=actor_user_id,
+            filename=filename,
+            content_type=content_type,
+            payload=payload,
+            sha256=hashlib.sha256(payload).hexdigest(),
+        )
 
 
 class PassportRepairPipe(Pipe):
@@ -152,11 +179,12 @@ class PassportRepairPipe(Pipe):
 
 class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
     def setUp(self) -> None:
+        _TEST_FILE_PAYLOADS.clear()
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
 
     def _pipe(self) -> Pipe:
-        pipe = Pipe()
+        pipe = Pipe(_file_bytes_resolver=_TestOwnedFileResolver())
         root = Path(self._tmp.name)
         pipe.valves.artifact_store_path = str(root / "artifacts.sqlite3")
         pipe.valves.artifact_payload_root = str(root / "payloads")
@@ -164,6 +192,7 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
 
     def _passport_pipe(self) -> PassportRepairPipe:
         pipe = PassportRepairPipe()
+        pipe._file_bytes_resolver = _TestOwnedFileResolver()
         root = Path(self._tmp.name)
         pipe.valves.artifact_store_path = str(root / "artifacts.sqlite3")
         pipe.valves.artifact_payload_root = str(root / "payloads")
@@ -201,14 +230,21 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertEqual(context.workspace_model_id, "trusted-model")
         self.assertEqual(context.normalization_run_id, "trusted-run")
 
-    def test_private_intake_bytes_ignore_client_inline_content_and_path(self):
+    def test_native_file_bytes_ignore_client_inline_content_and_path(self):
         pipe = self._pipe()
-        trusted = b"trusted receipt-owned bytes"
+        trusted = b"trusted owner-scoped bytes"
 
         class Resolver:
-            async def resolve(self, *, source_id: str, actor_user_id: str):
-                self.call = (source_id, actor_user_id)
-                return trusted
+            async def resolve(self, *, file_id: str, actor_user_id: str):
+                self.call = (file_id, actor_user_id)
+                return OpenWebUIOwnedFile(
+                    file_id=file_id,
+                    user_id=actor_user_id,
+                    filename="authoritative.pdf",
+                    content_type="application/pdf",
+                    payload=trusted,
+                    sha256=hashlib.sha256(trusted).hexdigest(),
+                )
 
         resolver = Resolver()
         file_ref_value = {
@@ -222,11 +258,11 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
 
         with patch.object(
             pipe,
-            "_private_intake_bytes_resolver",
+            "_openwebui_file_bytes_resolver",
             return_value=resolver,
         ):
             asyncio.run(
-                pipe._hydrate_private_intake_file_refs(
+                pipe._hydrate_openwebui_file_refs(
                     [file_ref_value],
                     actor_user_id="trusted-user",
                 )
@@ -238,12 +274,12 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         )
         self.assertEqual(pipe._read_original_bytes(file_ref_value), trusted)
 
-    def test_private_intake_resolution_failure_does_not_use_client_bytes(self):
+    def test_native_file_resolution_failure_does_not_use_client_bytes(self):
         pipe = self._pipe()
 
         class Resolver:
-            async def resolve(self, *, source_id: str, actor_user_id: str):
-                raise PrivateIntakeBytesError("private_intake_receipt_invalid")
+            async def resolve(self, *, file_id: str, actor_user_id: str):
+                raise OpenWebUIFileBytesError("openwebui_file_not_owned")
 
         file_ref_value = {
             "file_id": "br-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
@@ -252,11 +288,11 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         }
         with patch.object(
             pipe,
-            "_private_intake_bytes_resolver",
+            "_openwebui_file_bytes_resolver",
             return_value=Resolver(),
         ):
             asyncio.run(
-                pipe._hydrate_private_intake_file_refs(
+                pipe._hydrate_openwebui_file_refs(
                     [file_ref_value],
                     actor_user_id="trusted-user",
                 )
@@ -264,7 +300,7 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
 
         with self.assertRaisesRegex(
             BytesUnavailable,
-            "private_intake_receipt_invalid",
+            "openwebui_file_not_owned",
         ):
             pipe._read_original_bytes(file_ref_value)
 
@@ -774,7 +810,6 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
 
     def test_pipe_reports_bytes_unavailable_without_failing(self):
         pipe = self._pipe()
-        pipe.valves.allow_upload_path_access = False
 
         run_pipe(
             pipe,
@@ -801,37 +836,33 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertEqual(report["container_counts"], {"csv": 1})
         self.assertEqual(report["blockers_total"], 1)
         self.assertEqual(report["blockers"][0]["code"], "bytes_unavailable")
-        self.assertEqual(report["blockers"][0]["reason_code"], "upload_path_access_disabled")
+        self.assertEqual(report["blockers"][0]["reason_code"], "openwebui_file_not_owned")
         self.assertEqual(report["documents"][0]["sha256"], None)
         self.assertEqual(report["documents"][0]["read_error_class"], "bytes_unavailable")
         self.assertEqual(report["recommended_next_step"], "verify_pipe_byte_access_boundary")
 
-    def test_pipe_hashes_uploaded_bytes_from_guarded_upload_root(self):
+    def test_pipe_hashes_owner_resolved_uploaded_bytes(self):
         pipe = self._pipe()
         csv_bytes = b"synthetic_symbol,synthetic_quantity\nSYNTH-A,1\n"
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
-            pipe.valves.upload_root = str(tmp_path)
-            (tmp_path / "pipe-file-csv-1_synthetic_gate1_operations.csv").write_bytes(csv_bytes)
-
-            content = run_pipe(
-                pipe,
-                {
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": "Gate 1 normalization",
-                            "files": [
-                                file_ref(
-                                    "pipe-file-csv-1",
-                                    "synthetic_gate1_operations.csv",
-                                    "text/csv",
-                                )
-                            ],
-                        }
-                    ],
-                },
-            )
+        content = run_pipe(
+            pipe,
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Gate 1 normalization",
+                        "files": [
+                            file_ref(
+                                "pipe-file-csv-1",
+                                "synthetic_gate1_operations.csv",
+                                "text/csv",
+                                content_bytes=csv_bytes,
+                            )
+                        ],
+                    }
+                ],
+            },
+        )
 
         report = pipe.last_safe_report
         self.assertIsNotNone(report)
@@ -988,35 +1019,34 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertNotIn("pipe-file-unknown-1", content)
         self.assertNotIn("synthetic_unknown_payload.bin", content)
 
-    def test_pipe_blocks_upload_path_escape_without_printing_private_path(self):
+    def test_pipe_does_not_use_client_path_when_owner_resolution_fails(self):
         pipe = self._pipe()
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            pipe.valves.upload_root = tmp_dir
-            content = run_pipe(
-                pipe,
-                {
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": "Gate 1 normalization",
-                            "files": [
-                                file_ref(
-                                    "..\\escape-file",
-                                    "synthetic_gate1_operations.csv",
-                                    "text/csv",
-                                )
-                            ],
-                        }
-                    ],
-                },
-            )
+        content = run_pipe(
+            pipe,
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Gate 1 normalization",
+                        "files": [
+                            file_ref(
+                                "unknown-file-id",
+                                "synthetic_gate1_operations.csv",
+                                "text/csv",
+                                path="forged/client/path",
+                            )
+                        ],
+                    }
+                ],
+            },
+        )
 
         report = pipe.last_safe_report
         self.assertIsNotNone(report)
         self.assertEqual(report["run_status"], "completed_with_blockers")
         self.assertEqual(report["blockers"][0]["code"], "bytes_unavailable")
-        self.assertEqual(report["blockers"][0]["reason_code"], "upload_path_escape_detected")
-        self.assertNotIn("escape-file", content)
+        self.assertEqual(report["blockers"][0]["reason_code"], "openwebui_file_not_owned")
+        self.assertNotIn("forged/client/path", content)
         self.assertNotIn("synthetic_gate1_operations.csv", content)
 
 if __name__ == "__main__":

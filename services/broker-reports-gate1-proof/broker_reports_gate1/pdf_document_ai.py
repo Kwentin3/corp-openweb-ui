@@ -10,14 +10,8 @@ from typing import Any, Protocol, runtime_checkable
 
 
 PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v3"
-PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v2"
+PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v3"
 PDF_DOCUMENT_AI_NOT_CONFIGURED = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
-PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED = (
-    "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED"
-)
-# Release admission is code-owned. Native OpenWebUI configuration is necessary,
-# but it is not evidence that the production route has been qualified.
-PDF_DOCUMENT_AI_LIVE_QUALIFIED = False
 _SAFE_TECHNICAL_SUMMARY_KEYS = {
     "document_bytes",
     "images_count",
@@ -157,7 +151,6 @@ class PdfDocumentExtraction:
             _require_sha256(digest, "pdf_document_page_markdown_sha256_invalid")
         if self.qualification_status not in {
             "offline_fixture",
-            "qualification_attempt",
             "qualified",
         }:
             raise ValueError("pdf_document_qualification_status_invalid")
@@ -312,17 +305,10 @@ class PdfDocumentExtractorFactory:
     FORBIDDEN = "Automatic provider selection, retry and fallback are forbidden"
 
     @staticmethod
-    def qualification_execution_contract() -> PdfDocumentAiExecutionContract:
-        from .mistral_pdf_document_ai import execution_contract
-
-        return execution_contract()
-
-    @staticmethod
     def create(
         *,
         server_request: Any = None,
         image_root: Path | None = None,
-        qualification_permit: Any = None,
     ) -> PdfDocumentExtractor:
         del image_root  # Compatibility-only; ArtifactStore owns image persistence.
         if server_request is None:
@@ -335,15 +321,6 @@ class PdfDocumentExtractorFactory:
             return UnconfiguredPdfDocumentExtractor()
         if engine != "mistral_ocr":
             return UnconfiguredPdfDocumentExtractor()
-        if not PDF_DOCUMENT_AI_LIVE_QUALIFIED and qualification_permit is None:
-            return RejectedPdfDocumentExtractor(
-                PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED
-            )
-        if not PDF_DOCUMENT_AI_LIVE_QUALIFIED:
-            return _QualificationPdfDocumentExtractor(
-                server_request=server_request,
-                permit=qualification_permit,
-            )
         from .mistral_pdf_document_ai import create_from_openwebui_request
 
         try:
@@ -353,35 +330,6 @@ class PdfDocumentExtractorFactory:
         except PdfDocumentExtractionError as exc:
             return RejectedPdfDocumentExtractor(exc.code)
         return configured or UnconfiguredPdfDocumentExtractor()
-
-
-class _QualificationPdfDocumentExtractor:
-    """Defer native config/key access until the exact public digest is admitted."""
-
-    def __init__(self, *, server_request: Any, permit: Any) -> None:
-        self._server_request = server_request
-        self._permit = permit
-
-    def extract(
-        self,
-        pdf_bytes: bytes,
-        source_context: PdfSourceContext,
-    ) -> PdfDocumentExtraction:
-        observed_sha256 = hashlib.sha256(pdf_bytes).hexdigest()
-        admits = getattr(self._permit, "admits", None)
-        if not callable(admits) or admits(observed_sha256) is not True:
-            raise PdfDocumentExtractionError(
-                "PDF_DOCUMENT_AI_QUALIFICATION_FIXTURE_FORBIDDEN"
-            )
-        from .mistral_pdf_document_ai import create_from_openwebui_request
-
-        configured = create_from_openwebui_request(
-            server_request=self._server_request,
-            qualification_status="qualification_attempt",
-        )
-        if configured is None:
-            raise PdfDocumentExtractionError(PDF_DOCUMENT_AI_NOT_CONFIGURED)
-        return configured.extract(pdf_bytes, source_context)
 
 
 def is_terminal_pdf_document_ai_request(
@@ -400,11 +348,7 @@ def is_terminal_pdf_document_ai_request(
         str(blocker.get("document_id") or "")
         for blocker in blockers
         if (
-            blocker.get("code")
-            in {
-                PDF_DOCUMENT_AI_NOT_CONFIGURED,
-                PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
-            }
+            blocker.get("code") == PDF_DOCUMENT_AI_NOT_CONFIGURED
             or (
                 blocker.get("code") == "parser_failed"
                 and str(

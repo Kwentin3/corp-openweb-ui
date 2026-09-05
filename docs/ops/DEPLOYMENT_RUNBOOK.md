@@ -158,62 +158,39 @@ Post-bootstrap password rotation не blocker PRD-0. После стабилиз
 - проверить API key, quota, region/billing и exact model id;
 - сохранить результат без секретов в приватном deployment note.
 
-### Gate активации Mistral OCR для PDF
+### Mistral OCR для Broker Reports PDF
 
-Не включать Mistral OCR в рамках обычного deployment. Значение
-`CONTENT_EXTRACTION_ENGINE=mistral_ocr` действует глобально: все новые PDF,
-обрабатываемые штатным OpenWebUI Knowledge/RAG, могут быть отправлены в
-Mistral. `MISTRAL_OCR_API_KEY` хранить только через Admin UI в native persistent
-config OpenWebUI; не добавлять ключ в Git, Broker Reports valves или другие
-копии конфигурации. Активация и любые live-вызовы разрешены только после
-отдельного одобрения владельца и отдельной квалификации. Текущий статический
-релиз дополнительно закрыт кодовым gate
-`PDF_DOCUMENT_AI_LIVE_QUALIFIED = False`: наличие native-настроек само по себе
-не открывает сеть. Смена gate должна идти отдельным review после live-квалификации.
+Текущий product route не имеет отдельного admin qualification gate. Если в
+native persistent config OpenWebUI выбран
+`CONTENT_EXTRACTION_ENGINE=mistral_ocr` и задан `MISTRAL_OCR_API_KEY`, обычный
+авторизованный пользователь запускает обработку через существующий
+`broker_reports_gate1_pipe`. Ключ хранится только в Admin UI; его нельзя
+копировать в Git, Pipe valves, loader или отдельный Broker Reports config.
 
-До ввода ключа проверить qualification plan из чистого exact HEAD с зелёным
-`broker-reports-ci`. HEAD должен быть либо точной вершиной открытого non-draft
-PR, либо точной текущей вершиной default branch после merge:
+Пользовательский путь:
 
-```bash
-python services/broker-reports-gate1-proof/scripts/live_pdf_document_ai_qualification.py --preflight-only
-```
+1. Выбрать ровно модель `broker_reports_gate1_pipe`.
+2. Загрузить PDF обычным контролом вложений и отправить сообщение в тот же Pipe.
+3. OpenWebUI создаёт native file ID. Pipe по этому ID через native
+   `Files`/`Storage` проверяет владельца и читает точные байты.
+4. На один принятый PDF выполняется ровно один вызов Mistral. Retry, fallback,
+   repair и второй intake/action запрещены.
+5. Markdown и все связанные изображения атомарно сохраняются в единственном
+   `ArtifactStore`. Пользователь получает owner-scoped `full-source.zip`,
+   опубликованный через native `Files`/`Storage`; чат не становится хранилищем
+   Full Source.
 
-Ожидается ровно два pinned SHA-256 и нули для config/key reads, provider calls,
-external sends, retry, fallback, repair и activation. Скрипт не принимает путь
-к PDF, URL, key, model или hash. Live-режим запускается только после отдельного
-разрешения владельца через закрытый admin-only режим существующего
-`broker_reports_gate1_pipe`; он не является вторым product route и не создаёт
-adapter напрямую. Перед публикацией Function его valve
-`pdf_document_ai_qualification_repository_head` должен быть равен точному
-merged HEAD, для которого прошёл `broker-reports-ci`.
+Если engine не выбран или отсутствует, маршрут завершается
+`PDF_DOCUMENT_AI_NOT_CONFIGURED`. Ошибка конфигурации или провайдера также
+завершается fail-closed, без автоматической смены движка.
 
-Для разрешённой квалификации:
-
-1. Открыть изолированное maintenance window и запретить параллельные PDF upload.
-2. Записать прежнее значение `CONTENT_EXTRACTION_ENGINE` вне Git.
-3. Ввести URL/key только в native Admin configuration и временно выбрать
-   `mistral_ocr`.
-4. В одном admin-чате существующего Broker Reports Pipe приложить точные
-   DriveWealth и Fidelity fixtures и отправить точную команду
-   `PDF Document AI live qualification`. Произвольный файл, другой набор,
-   не-admin пользователь или незаданный exact HEAD блокируются до расхода slot.
-5. Pipe расходует два durable slots, по одному на каждый pinned SHA-256, и
-   проводит каждый PDF через тот же Normalizer, factory, adapter и ArtifactStore.
-   Ошибка или timeout расходует текущий slot без retry.
-6. Для каждого PDF закрытый runner через private ArtifactResolver повторно
-   показывает проверяющему точный исходный PDF, execution binding, приватный
-   Full Source Markdown и связанные изображения. Проверяющий сверяет страницы,
-   таблицы, заголовки, периоды, продолжения, соседние таблицы, буквальные числа,
-   изображения и административный шум. Только положительный verdict создаёт
-   safe OCR 4.1 baseline candidate; затем `purge_run` доказывает отказ повторного
-   чтения. Внешний координатор не получает PDF или provider payload.
-7. Qualification uploads удалить штатным OpenWebUI source-deletion lifecycle.
-8. В `finally` восстановить прежний engine даже после первой ошибки.
-
-На всём шаге `PDF_DOCUMENT_AI_LIVE_QUALIFIED = False`. Успех квалификации не
-разрешает production activation: для смены gate нужен отдельный owner-approved
-review.
+OpenWebUI 0.9.6 пока не имеет per-model upload-processing policy. Поэтому
+временный frontend compatibility seam меняет только URL native PDF upload на
+`process=false`, и только когда точный выбранный model ID равен
+`broker_reports_gate1_pipe`. Seam не создаёт endpoint, response schema, action
+или DOM-сопоставление файлов. Его нужно удалить, как только upstream OpenWebUI
+предоставит эквивалентную per-model policy. Глобальный bypass не использовать:
+он затронет другие модели и Knowledge/RAG-сценарии.
 
 ## 14. Проверить LLM-ответ
 

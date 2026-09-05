@@ -3,11 +3,10 @@
 Status:
 
 - NO_RAG_SOURCE_INTAKE_SMOKE_CHECKLIST_READY
-- NATIVE_NO_RAG_MODE_NOT_FOUND
-- PROJECT_OWNED_PRIVATE_INTAKE_READY
+- ORDINARY_NATIVE_UPLOAD_PRODUCT_ROUTE
 - PROCESS_FALSE_UPLOAD_PROVEN
 - LIVE_GATE1_VECTOR_DB_GUARD_PROVEN
-- READY_FOR_CUSTOMER_APPROVED_TEST_PACKAGE
+- OPENWEBUI_0_9_6_COMPATIBILITY_SEAM_TEMPORARY
 
 Date: 2026-07-08
 
@@ -47,20 +46,23 @@ Observed result:
 - vector DB counters increased;
 - native upload delete removed file rows but did not return vector counters to baseline.
 
-Native OpenWebUI bulk upload remains blocked for Broker Reports customer packages.
-Customer-approved upload may proceed only through the project-owned `process=false`
-private intake path proven in the 2026-07-08 process-false smoke report.
+That exact unmodified OpenWebUI 0.9.6 upload behavior remains rejected. The
+current product keeps the ordinary attachment UX but temporarily sets
+`process=false` only for PDF upload with exact selected model ID
+`broker_reports_gate1_pipe`.
 
-## 3. Proven Fallback Path
+## 3. Current compatibility seam
 
-The accepted path is the narrow project-owned private intake wrapper around:
+The ordinary attachment request uses the native endpoint:
 
 ```text
 POST /api/v1/files/?process=false
 ```
 
-The fallback stays inside the OpenWebUI workflow, does not patch OpenWebUI core,
-and does not create a separate user-facing sidecar UI.
+The seam changes only the URL. It does not patch OpenWebUI core, create a custom
+intake endpoint/Action or own file identity. Pipe receives the native file ID
+and performs the exact owner read through `Files`/`Storage`. Remove the seam
+when upstream supplies an equivalent per-model upload-processing policy.
 
 ## 4. Pre-Smoke Snapshot
 

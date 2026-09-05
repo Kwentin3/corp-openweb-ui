@@ -2,24 +2,29 @@
 
 Status: `CURRENT_WITH_HISTORICAL_APPENDIX`
 
-Effective date: 2026-09-04
+Effective date: 2026-09-05
 
 [Pipeline Gates v1](contracts/BROKER_REPORTS_PIPELINE_GATES.v1.md) is the
 current normative route authority. Issue #374 updates the PDF portion of the
-older state inventory. PDF source
-custody and safe preflight remain active. PDF understanding is isolated behind
-the single `PdfDocumentExtractor` port and one composition factory. No live
-adapter is live-qualified or configured for production. An absent or
-unselected engine terminates with `PDF_DOCUMENT_AI_NOT_CONFIGURED`; an ordinary
-upload with selected Mistral terminates with
-`PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED` while the code-owned admission is
-false. A separate capability admits only the two pinned public qualification
-hashes through the same factory. The Mistral adapter and atomic private
-ArtifactStore lifecycle for Markdown/images are implemented; live qualification
-and activation are not. PDFPlumber,
+older state inventory. PDF source custody and safe preflight remain active.
+PDF understanding is isolated behind the single `PdfDocumentExtractor` port
+and one composition factory. For an ordinary authenticated user, native
+OpenWebUI file IDs are owner-checked through `Files` and read through `Storage`;
+a configured Mistral adapter makes exactly one provider call per accepted PDF.
+The provider-neutral Markdown/image graph is atomically persisted by the sole
+`ArtifactStore`, then projected as an owner-scoped `full-source.zip`. There is
+no admin qualification route, custom intake/action, RAG route, retry, repair or
+fallback. An absent or unselected engine terminates with
+`PDF_DOCUMENT_AI_NOT_CONFIGURED`. PDFPlumber,
 pdfminer, PyMuPDF, Camelot, Docling, VLM/bbox, hybrid, dual-engine and repair
 routes are retired with no fallback. CSV, TXT, HTML, XML, XLSX, DOCX,
 archive/ZIP and image boundaries retain their existing status.
+
+On OpenWebUI 0.9.6, a temporary frontend compatibility seam sets
+`process=false` only for native PDF uploads when the exact selected model ID is
+`broker_reports_gate1_pipe`. It must be removed when upstream provides an
+equivalent per-model upload-processing policy; it owns neither file identity
+nor server-side processing.
 
 The material below is the DOC6-era historical appendix, not the current Broker
 Reports entrypoint.

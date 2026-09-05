@@ -39,6 +39,7 @@ from live_publish_ndfl_workspace_model import (  # noqa: E402
 
 LEGACY_FUNCTIONS_TO_DISABLE = {
     "broker_reports_gate1_normalizer_action": "proof_only_global_gate1_stub",
+    "broker_reports_private_intake_action": "retired_custom_intake_action",
     "broker_reports_gate2_source_fact_pipe": "legacy_user_selectable_gate2_pipe",
     "broker_reports_gate2_domain_source_fact_pipe": (
         "legacy_user_selectable_gate2_domain_pipe"
@@ -46,7 +47,6 @@ LEGACY_FUNCTIONS_TO_DISABLE = {
 }
 REQUIRED_ACTIVE_FUNCTIONS = {
     NDFL_OPENWEBUI_BASE_PIPE_ID: "ndfl_base_pipe",
-    "broker_reports_private_intake_action": "server_attested_private_intake",
 }
 NON_COMPETING_UTILITY_FUNCTIONS = {
     "broker_reports_gate2_economy_qualification_action": (
@@ -140,8 +140,7 @@ def main() -> int:
         *NON_COMPETING_UTILITY_FUNCTIONS,
     )
     previous = {
-        stable_id: _get_function(session, base_url, stable_id)
-        for stable_id in all_ids
+        stable_id: _get_function(session, base_url, stable_id) for stable_id in all_ids
     }
     expected_types = {
         "broker_reports_gate1_normalizer_action": "action",
@@ -182,17 +181,14 @@ def main() -> int:
                             "legacy_function_rollback_state_mismatch"
                         )
                 except Exception as rollback_exc:
-                    rollback_errors.append(
-                        f"{stable_id}:{type(rollback_exc).__name__}"
-                    )
+                    rollback_errors.append(f"{stable_id}:{type(rollback_exc).__name__}")
             raise LegacyRouteCleanupError(
                 f"legacy_cleanup_failed:{type(exc).__name__}:"
                 f"rollback_errors={','.join(rollback_errors) or 'none'}"
             ) from exc
 
     current = {
-        stable_id: _get_function(session, base_url, stable_id)
-        for stable_id in all_ids
+        stable_id: _get_function(session, base_url, stable_id) for stable_id in all_ids
     }
     legacy_checks = {
         stable_id: evaluate_function_state(
@@ -201,9 +197,7 @@ def main() -> int:
             expected_type=expected_types[stable_id],
             expected_active=False,
             expected_global=(
-                False
-                if stable_id != "broker_reports_gate1_normalizer_action"
-                else True
+                False if stable_id != "broker_reports_gate1_normalizer_action" else True
             ),
         )
         for stable_id in LEGACY_FUNCTIONS_TO_DISABLE
@@ -235,9 +229,7 @@ def main() -> int:
     ndfl_check = evaluate_ndfl_model(
         _get_model(session, base_url, NDFL_WORKSPACE_MODEL_STABLE_ID)
     )
-    visible_check = evaluate_visible_routes(
-        _get_visible_models(session, base_url)
-    )
+    visible_check = evaluate_visible_routes(_get_visible_models(session, base_url))
     passed = bool(
         all(check["passed"] for check in legacy_checks.values())
         and all(check["passed"] for check in required_checks.values())

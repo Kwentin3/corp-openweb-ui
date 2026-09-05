@@ -3,12 +3,11 @@
 Status:
 
 - BROKER_REPORTS_NO_RAG_SOURCE_INTAKE_BLUEPRINT_READY
-- NATIVE_NO_RAG_MODE_NOT_FOUND
-- PROJECT_OWNED_PRIVATE_INTAKE_READY
+- ORDINARY_NATIVE_UPLOAD_PRODUCT_ROUTE
 - PROCESS_FALSE_UPLOAD_PROVEN
-- READY_FOR_CUSTOMER_APPROVED_TEST_PACKAGE
+- OPENWEBUI_0_9_6_COMPATIBILITY_SEAM_TEMPORARY
 
-Date: 2026-07-08
+Updated: 2026-09-05
 
 Scope: Source-file intake for Broker Reports / XLS NDFL Gate 1 in OpenWebUI without native RAG/vector processing of case files.
 
@@ -23,8 +22,10 @@ The intended product route remains:
 ```text
 OpenWebUI Workspace Model
 -> Broker Reports Gate 1 Pipe
+-> native Files owner check / Storage byte read
 -> backend normalizer
 -> project ArtifactStore
+-> owner-scoped full-source.zip projection
 -> compact Russian chat report
 -> Gate 2 opaque handoff refs
 ```
@@ -69,20 +70,21 @@ OpenWebUI does not attach files to Knowledge.
 The Pipe receives refs and the backend normalizer reads bytes under the approved runtime boundary.
 ```
 
-This native path was tested on 2026-07-08 and rejected for the target route. `file_context=false` was applied, Knowledge stayed empty, and the Pipe still received opaque refs, but default OpenWebUI upload processing extracted synthetic content and increased vector DB counters.
-
-The accepted route is the project-owned private intake wrapper around
-`POST /api/v1/files/?process=false`, proven on 2026-07-08. Customer-approved
-packages may proceed through that wrapper only, not through ordinary OpenWebUI
-bulk upload.
+The 2026-07-08 test proved that `file_context=false` alone was insufficient:
+default upload processing still extracted synthetic content and changed vector
+counters. The current product route keeps the ordinary OpenWebUI attachment UX
+and native upload response. On OpenWebUI 0.9.6 only, a temporary frontend seam
+sets `process=false` for PDF uploads when the exact selected model ID is
+`broker_reports_gate1_pipe`. There is no project-owned intake endpoint, custom
+Action, response schema or DOM-derived file mapping.
 
 ## 4. Backend Boundary
 
 Gate 1 backend behavior stays unchanged in principle:
 
 - collect OpenWebUI file refs from the Pipe request;
-- validate same-user and same-context access;
-- read source bytes through the approved OpenWebUI source custody boundary;
+- resolve the native file ID through `Files` and require exact owner equality;
+- read source bytes through native `Storage`;
 - build technical profiles, document inventory, taxonomy candidates and blockers;
 - persist safe and private artifacts in the project ArtifactStore;
 - apply an explicit retention policy;
@@ -96,7 +98,8 @@ Gate 1 still must not:
 - calculate tax;
 - generate a declaration;
 - generate XLS/XLSX;
-- run OCR/VLM;
+- run any PDF OCR path except the single configured Mistral adapter behind
+  `PdfDocumentExtractorFactory`;
 - load customer case files or private slices into Knowledge;
 - print raw filenames, file ids, paths, rows, text, secrets or env values.
 
@@ -153,30 +156,38 @@ Fail criteria:
 - the Pipe cannot access the source bytes from opaque refs;
 - retention is missing in customer-approved mode.
 
-## 6. Fallback If Native Chat UX Fails
+## 6. Temporary OpenWebUI 0.9.6 compatibility seam
 
-Because `file_context=false` did not make ordinary upload no-RAG on the target runtime, use the native backend primitive directly in the next project-owned proof:
+Because `file_context=false` does not make upload no-RAG on OpenWebUI 0.9.6,
+the ordinary attachment request uses the native primitive:
 
 ```text
 POST /api/v1/files/?process=false
 ```
 
-That fallback is project-owned source intake, not unmodified native OpenWebUI UX. It may be implemented as an OpenWebUI-integrated helper around the existing Workspace Model flow, but it must still obey these constraints:
+The loader only rewrites this URL for a PDF when the exact selected model ID is
+`broker_reports_gate1_pipe`. OpenWebUI still owns the file row and response;
+the Pipe still receives the native ID. The seam must obey these constraints:
 
 - no OpenWebUI core patch;
 - no separate user-facing sidecar UI;
+- no custom intake endpoint or Action;
+- no filename-, position- or DOM-based file identity;
 - no customer docs in Knowledge;
 - no private slices in Knowledge;
 - no vectorization of customer case files;
 - no raw identifiers or text in chat-visible output;
 - all derived artifacts in project ArtifactStore with retention and purge.
 
-The fallback should be promoted only after a separate synthetic proof shows:
+The seam remains valid only while tests show:
 
 - `process=false` upload creates source custody without extraction/vectorization;
 - Pipe can receive or resolve the resulting refs;
 - same-user/same-context access checks hold;
 - wrong-user/wrong-case/expired/purged access checks fail closed.
+
+Remove it when upstream OpenWebUI provides an equivalent per-model
+upload-processing policy.
 
 ## 7. Why Global Bypass Is Rejected
 
@@ -230,20 +241,21 @@ Private artifacts must use the project payload backend. The store must reject `o
 
 ## 10. Operator Runbook Gate
 
-The 2026-07-08 process-false smoke closed the synthetic no-RAG gate for the
-project-owned private intake path:
+The 2026-07-08 process-false smoke proved the native upload primitive. The
+current ordinary Pipe route reuses it through the temporary exact-model seam:
 
 ```text
-PROJECT_OWNED_PRIVATE_INTAKE_READY
+ORDINARY_NATIVE_UPLOAD_PRODUCT_ROUTE
 PROCESS_FALSE_UPLOAD_PROVEN
 LIVE_GATE1_VECTOR_DB_GUARD_PROVEN
 LIVE_GATE1_RAW_CASE_UPLOAD_NO_RAG_MODE_PROVEN
 LIVE_GATE1_SOURCE_UPLOAD_PURGE_PROVEN
 LIVE_GATE1_ARTIFACTSTORE_PERSISTENCE_PASSED
 LIVE_GATE1_COMPACT_RUSSIAN_REPORT_READY
-READY_FOR_CUSTOMER_APPROVED_TEST_PACKAGE
+CUSTOM_INTAKE_OR_ACTION_NOT_PRESENT
 ```
 
-The customer-approved package may be scheduled by the operator only through
-the project-owned `process=false` intake wrapper. Ordinary OpenWebUI bulk upload
-remains outside the approved route.
+The operator uses the ordinary OpenWebUI attachment control with exactly
+`broker_reports_gate1_pipe` selected. The server trusts only the native file ID
+and exact owner read through `Files`/`Storage`. The frontend seam owns no source
+identity and is not a fallback route.

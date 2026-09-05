@@ -39,7 +39,6 @@ from broker_reports_release_source import (  # noqa: E402
 from broker_reports_gate1 import GATE2_PROVIDER_PROFILES  # noqa: E402
 from live_verify_broker_reports_atomic_stage_release import (  # noqa: E402
     _read_remote_runtime_state,
-    evaluate_action_release,
     evaluate_function_release,
     evaluate_provider_runtime_boundary,
     evaluate_remote_runtime,
@@ -59,9 +58,7 @@ def _manifest():
         source_revision=REVISION,
         prompt_contracts=expected_prompt_contracts(),
         provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
-        loader_bytes=(
-            ROOT / "deploy" / "openwebui-static" / "loader.js"
-        ).read_bytes(),
+        loader_bytes=(ROOT / "deploy" / "openwebui-static" / "loader.js").read_bytes(),
     )
 
 
@@ -91,6 +88,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         )
         self.assertEqual(
             {
+                "broker_reports_private_intake_action",
                 "broker_reports_gate2_source_fact_pipe",
                 "broker_reports_gate2_domain_source_fact_pipe",
             },
@@ -212,7 +210,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual(list(RETIRED_FUNCTION_IDS), manifest["retired_function_ids"])
         self.assertEqual(12, len(manifest["managed_prompts"]))
         self.assertEqual(
-            "broker_reports_atomic_stage_release_v10",
+            "broker_reports_atomic_stage_release_v11",
             manifest["schema_version"],
         )
         self.assertTrue(
@@ -225,20 +223,14 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertEqual("loader.js", manifest["loader"]["file_name"])
         self.assertEqual(
             remote._sha256_bytes(
-                (
-                    ROOT
-                    / "deploy"
-                    / "openwebui-static"
-                    / "loader.js"
-                ).read_bytes()
+                (ROOT / "deploy" / "openwebui-static" / "loader.js").read_bytes()
             ),
             manifest["loader"]["content_sha256"],
         )
         self.assertTrue(
             all(
                 item["content"]
-                and remote._sha256_text(item["content"])
-                == item["content_sha256"]
+                and remote._sha256_text(item["content"]) == item["content_sha256"]
                 for item in manifest["managed_prompts"]
             )
         )
@@ -246,74 +238,62 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             [contract.function_id for contract in FUNCTION_CONTRACTS],
             [item["function_id"] for item in manifest["functions"]],
         )
-        self.assertEqual(
-            REVISION,
-            manifest["functions"][0]["valves"][
-                "pdf_document_ai_qualification_repository_head"
-            ],
-        )
         self.assertTrue(manifest["runtime"]["pdf_document_ai_static_ready"])
-        self.assertFalse(manifest["runtime"]["pdf_document_ai_live_qualified"])
+        self.assertTrue(manifest["runtime"]["pdf_document_ai_production_configured"])
         self.assertFalse(manifest["runtime"]["legacy_table_route_available"])
-        self.assertNotIn(
-            "semantic_visual_table_contract", manifest["provider_policy"]
-        )
+        self.assertNotIn("semantic_visual_table_contract", manifest["provider_policy"])
         document_ai = manifest["provider_policy"]["pdf_document_ai_contract"]
-        self.assertFalse(document_ai["configured"])
+        self.assertTrue(document_ai["configured"])
         self.assertEqual("static_ready", document_ai["adapter_status"])
         self.assertEqual("mistral_ocr", document_ai["selected_engine"])
         self.assertEqual(
             "mistral_serverless_ocr_adapter_v2", document_ai["selected_adapter"]
         )
         self.assertTrue(document_ai["static_ready"])
-        self.assertFalse(document_ai["live_qualified"])
-        self.assertEqual("PdfDocumentExtractorFactory", document_ai["composition_owner"])
         self.assertEqual(
-            {
-                "unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED",
-                "selected_unqualified": "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED",
-            },
+            "PdfDocumentExtractorFactory", document_ai["composition_owner"]
+        )
+        self.assertEqual(
+            {"unconfigured": "PDF_DOCUMENT_AI_NOT_CONFIGURED"},
             document_ai["terminal_blockers"],
         )
         self.assertFalse(document_ai["automatic_fallback"])
         self.assertEqual(
             {
-                "architecture_policy_version": "broker_reports_architecture_policy_v28",
+                "architecture_policy_version": "broker_reports_architecture_policy_v29",
                 "knowledge_rag_vectorization_allowed": False,
                 "local_ocr_production_allowed": False,
                 "local_ocr_worker_pool_allowed": False,
             },
             document_ai["runtime_boundary"],
         )
-        self.assertNotIn(
-            "financial_evidence_registry", manifest["provider_policy"]
-        )
+        self.assertNotIn("financial_evidence_registry", manifest["provider_policy"])
         self.assertFalse(manifest["functions"][0]["valves"]["ndfl_gate3_enabled"])
         self.assertTrue(
-            manifest["functions"][0]["valves"][
-                "ordinary_trade_candidate_enabled"
-            ]
+            manifest["functions"][0]["valves"]["ordinary_trade_candidate_enabled"]
         )
         self.assertEqual(1, manifest["runtime"]["gate1_heavy_concurrency"])
         self.assertEqual(2, manifest["runtime"]["gate2_local_maximum_concurrency"])
-        self.assertEqual(
-            "server-authoritative-v2",
-            manifest["image"]["private_intake_contract"],
-        )
+        self.assertNotIn("private_intake_contract", manifest["image"])
+        self.assertNotIn("action", manifest)
 
     def test_manifest_digest_tampering_fails_closed(self):
         manifest = _manifest()
-        manifest["runtime"]["pdf_document_ai_live_qualified"] = True
+        manifest["runtime"]["pdf_document_ai_production_configured"] = False
 
         with self.assertRaisesRegex(ValueError, "manifest_digest_mismatch"):
             validate_manifest(manifest)
 
-    def test_resealed_manifest_cannot_open_pdf_document_ai_live_admission(self):
+    def test_resealed_manifest_cannot_disable_pdf_document_ai_product_route(self):
         manifest = _manifest()
-        manifest["runtime"]["pdf_document_ai_live_qualified"] = True
+        manifest["runtime"]["pdf_document_ai_production_configured"] = False
         manifest["manifest_sha256"] = remote._sha256_text(
             remote._canonical_json(
-                {key: value for key, value in manifest.items() if key != "manifest_sha256"}
+                {
+                    key: value
+                    for key, value in manifest.items()
+                    if key != "manifest_sha256"
+                }
             )
         )
 
@@ -408,22 +388,8 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
         self.assertFalse(failed["passed"])
         self.assertFalse(failed["checks"]["release_revision_match"])
 
-    def test_action_and_runtime_checks_are_terminal_not_shape_only(self):
+    def test_runtime_checks_are_terminal_not_shape_only(self):
         manifest = _manifest()
-        action_content = (
-            SERVICE_ROOT
-            / "openwebui_actions"
-            / "broker_reports_private_intake_action.py"
-        ).read_text(encoding="utf-8")
-        action = evaluate_action_release(
-            expected=manifest["action"],
-            live={
-                "content": action_content,
-                "type": "action",
-                "is_active": 1,
-                "is_global": 0,
-            },
-        )
         runtime = {
             "image": {
                 **manifest["image"],
@@ -458,7 +424,6 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             rollback_identity_sha256="c" * 64,
         )
 
-        self.assertTrue(action["passed"], action)
         self.assertTrue(all(checks.values()), checks)
         self.assertFalse(failed["workload_quiescent"])
 
@@ -517,7 +482,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 }
             )
 
-    def test_verifier_requires_fail_closed_pdf_document_ai_route(self):
+    def test_verifier_requires_pdf_document_ai_product_route(self):
         manifest = _manifest()
         checks = evaluate_route_activation(
             expected_manifest=manifest,
@@ -531,11 +496,11 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             expected_manifest=manifest,
             gate1_valves=drifted,
         )
-        self.assertFalse(failed["pdf_document_ai_fail_closed"])
+        self.assertFalse(failed["pdf_document_ai_product_route"])
 
-        manifest["provider_policy"]["pdf_document_ai_contract"][
-            "terminal_blockers"
-        ].pop("selected_unqualified")
+        manifest["provider_policy"]["pdf_document_ai_contract"]["terminal_blockers"][
+            "selected_unqualified"
+        ] = "PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED"
         contract_failed = evaluate_route_activation(
             expected_manifest=manifest,
             gate1_valves=manifest["functions"][0]["valves"],
@@ -570,9 +535,7 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
             failed = evaluate_provider_runtime_boundary(provider_policy)
         self.assertFalse(failed["knowledge_rag_vectorization_forbidden"])
 
-        self.assertFalse(
-            all(evaluate_provider_runtime_boundary({}).values())
-        )
+        self.assertFalse(all(evaluate_provider_runtime_boundary({}).values()))
 
     def test_local_driver_surfaces_only_typed_safe_remote_error(self):
         completed = subprocess.CompletedProcess(
@@ -737,9 +700,7 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                     replacement_function_rows=replacement,
                     replacement_prompt_rows=replacement_prompts,
                     expected_function_hashes=expected,
-                    expected_prompt_hashes=remote._prompt_hashes(
-                        before_prompts
-                    ),
+                    expected_prompt_hashes=remote._prompt_hashes(before_prompts),
                 )
 
             self.assertEqual(
@@ -766,10 +727,6 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                     "running": True,
                     "restart_count": 1,
                     "health_status": "healthy",
-                },
-                "action": {
-                    **manifest["action"],
-                    "type": "action",
                 },
                 "loader": {
                     "content_sha256": remote._sha256_bytes(prior),
@@ -812,9 +769,7 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
         manifest = build_manifest(
             source_revision=REVISION,
             prompt_contracts=expected_prompt_contracts(),
-            provider_policy=provider_policy_manifest(
-                GATE2_PROVIDER_PROFILES
-            ),
+            provider_policy=provider_policy_manifest(GATE2_PROVIDER_PROFILES),
             loader_bytes=candidate_loader,
         )
         with tempfile.TemporaryDirectory() as temp:
@@ -825,9 +780,7 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                 json.dumps(manifest),
                 encoding="utf-8",
             )
-            (staging / manifest["loader"]["file_name"]).write_bytes(
-                candidate_loader
-            )
+            (staging / manifest["loader"]["file_name"]).write_bytes(candidate_loader)
             db = root / "webui.db"
             self._database(db)
             loader_path = root / "loader.js"
@@ -850,7 +803,6 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
                     "content_sha256": remote._sha256_bytes(prior_loader),
                 },
                 "image": {},
-                "action": {},
                 "managed_prompts": [],
                 "workload": {},
                 "counters": {},
@@ -946,7 +898,6 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
             self._database(db)
             before_state = {
                 "functions": [],
-                "action": {},
                 "image": {},
                 "loader": {
                     "content_sha256": remote._sha256_bytes(loader_bytes),
@@ -955,14 +906,12 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
             }
             rollback_root = Path(temp) / "rollbacks"
             with mock.patch.object(remote, "ROLLBACK_ROOT", rollback_root):
-                value, identity, created, restored_loader = (
-                    remote._rollback_artifact(
-                        manifest=manifest,
-                        function_rows=self._function_rows(db),
-                        prompt_rows=self._prompt_rows(db),
-                        before_state=before_state,
-                        loader_bytes=loader_bytes,
-                    )
+                value, identity, created, restored_loader = remote._rollback_artifact(
+                    manifest=manifest,
+                    function_rows=self._function_rows(db),
+                    prompt_rows=self._prompt_rows(db),
+                    before_state=before_state,
+                    loader_bytes=loader_bytes,
                 )
                 rollback_dir = rollback_root / manifest["release_id"]
                 metadata_path = rollback_dir / "function_rows.rollback.json"
@@ -1094,6 +1043,44 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
             {function_id: row["is_active"] for function_id, row in desired.items()},
         )
 
+    def test_desired_rows_disable_legacy_private_intake_action(self):
+        manifest = _manifest()
+        current = {
+            FUNCTION_CONTRACTS[0].function_id: {
+                "content": "old-pipe",
+                "meta": "{}",
+                "valves": "{}",
+                "type": "pipe",
+                "is_active": 1,
+                "is_global": 0,
+                "updated_at": 1,
+            },
+            "broker_reports_private_intake_action": {
+                "content": "legacy-action",
+                "meta": "{}",
+                "valves": "{}",
+                "type": "action",
+                "is_active": 1,
+                "is_global": 0,
+                "updated_at": 2,
+            },
+        }
+
+        desired = remote._desired_rows(
+            staging_dir=ROOT
+            / "services"
+            / "broker-reports-gate1-proof"
+            / "openwebui_actions",
+            manifest=manifest,
+            current_rows=current,
+        )
+
+        retired = desired["broker_reports_private_intake_action"]
+        self.assertEqual("legacy-action", retired["content"])
+        self.assertEqual("action", retired["type"])
+        self.assertEqual(0, retired["is_active"])
+        self.assertEqual(0, retired["is_global"])
+
     def test_candidate_apply_and_exact_rollback_reach_terminal_states(self):
         with tempfile.TemporaryDirectory() as temp:
             db = Path(temp) / "webui.db"
@@ -1101,9 +1088,7 @@ class AtomicStageRemoteTransactionTests(unittest.TestCase):
             before = self._function_rows(db)
             before_prompts = self._prompt_rows(db)
             rollback_rows = remote._snapshot_function_rows(before)
-            rollback_prompt_rows = remote._snapshot_prompt_rows(
-                before_prompts
-            )
+            rollback_prompt_rows = remote._snapshot_prompt_rows(before_prompts)
             desired = {
                 function_id: {
                     **row,
