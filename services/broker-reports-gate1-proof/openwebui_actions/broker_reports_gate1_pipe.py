@@ -776,25 +776,34 @@ class Pipe:
             artifact_manifest=artifact_manifest,
             user=__user__,
         )
-        ndfl_gate3 = await self._run_provider_awaitable(
-            self._maybe_run_ndfl_gate3(
-                store=artifact_store,
-                context=artifact_context,
-                artifact_manifest=artifact_manifest,
-                user=__user__,
-                request=__request__,
-                event_emitter=__event_emitter__,
-                retention_policy=retention_policy,
-                trusted_interaction_message=trusted_interaction_message,
-                event_call=__event_call__,
-                source_turn=bool(file_refs),
-            ),
-            enabled=(
-                bool(self.valves.ndfl_gate3_enabled)
-                and not bool(self.valves.ordinary_trade_candidate_enabled)
-            ),
-            provider_id=self.valves.ndfl_gate3_provider_profile_id,
-        )
+        if artifact_context.workspace_model_id == NDFL_WORKSPACE_MODEL_STABLE_ID:
+            ndfl_gate3 = await self._run_provider_awaitable(
+                self._maybe_run_ndfl_gate3(
+                    store=artifact_store,
+                    context=artifact_context,
+                    artifact_manifest=artifact_manifest,
+                    user=__user__,
+                    request=__request__,
+                    event_emitter=__event_emitter__,
+                    retention_policy=retention_policy,
+                    trusted_interaction_message=trusted_interaction_message,
+                    event_call=__event_call__,
+                    source_turn=bool(file_refs),
+                ),
+                enabled=(
+                    bool(self.valves.ndfl_gate3_enabled)
+                    and not bool(self.valves.ordinary_trade_candidate_enabled)
+                ),
+                provider_id=self.valves.ndfl_gate3_provider_profile_id,
+            )
+        else:
+            # The Gate 1 PDF owner must not leak into the NDFL product domain.
+            ndfl_gate3 = {
+                "schema_version": "broker_reports_ndfl_gate3_product_run_v1",
+                "enabled": False,
+                "status": "disabled",
+                "provider_calls_total": 0,
+            }
         product_result = ndfl_gate3.get("product")
         declaration_result = ndfl_gate3.get("declaration")
         if (

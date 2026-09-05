@@ -356,6 +356,9 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
 
     def test_pipe_collects_files_and_returns_contract_safe_inventory(self):
         pipe = self._pipe()
+        # A release valve owned by the NDFL model must not pull generic Gate 1
+        # traffic across that product boundary.
+        pipe.valves.ordinary_trade_candidate_enabled = True
         txt = (
             "Synthetic Person Alpha\n"
             "Synthetic Broker LLC\n"
