@@ -65,6 +65,11 @@ class _QualificationExtractor:
         )
 
 
+class _OuterQualificationRequest:
+    async def json(self) -> dict:
+        return _body()
+
+
 def _body() -> dict:
     files = []
     for fixture_id, repository_path, _expected_sha256 in (
@@ -147,6 +152,77 @@ def test_exact_admin_command_runs_two_real_pipe_slices_then_purges(
     assert all(item["type"] == "confirmation" for item in private_review_events)
     assert "Qualified public fixture" not in content
     assert all(item["review"]["status"] == "passed" for item in receipt["outcomes"])
+
+
+def test_internal_task_body_cannot_consume_restored_qualification_then_primary_runs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import broker_reports_gate1.normalizer as normalizer_module
+
+    extraction_calls = 0
+
+    class CountingQualificationExtractor(_QualificationExtractor):
+        def extract(self, pdf_bytes, source_context):
+            nonlocal extraction_calls
+            extraction_calls += 1
+            return super().extract(pdf_bytes, source_context)
+
+    monkeypatch.setattr(
+        normalizer_module.PdfDocumentExtractorFactory,
+        "create",
+        lambda **_kwargs: CountingQualificationExtractor(),
+    )
+    pipe = _pipe(tmp_path)
+    files = _body()["messages"][0]["files"]
+
+    internal_content = asyncio.run(
+        pipe.pipe(
+            {"messages": [{"role": "user", "content": "Generate search queries"}]},
+            __user__={"id": "qualification-admin", "role": "admin"},
+            __request__=_OuterQualificationRequest(),
+            __metadata__={
+                "chat_id": "qualification-chat",
+                "model_id": "broker_reports_gate1_pipe",
+                "files": files,
+            },
+        )
+    )
+
+    assert (
+        internal_content
+        == "PDF Document AI qualification is unavailable for internal tasks."
+    )
+    assert extraction_calls == 0
+    assert not (tmp_path / "pdf-document-ai-qualification-claims").exists()
+
+    async def event_call(_event):
+        return True
+
+    content = asyncio.run(
+        pipe.pipe(
+            _body(),
+            __user__={"id": "qualification-admin", "role": "admin"},
+            __request__=_OuterQualificationRequest(),
+            __metadata__={
+                "chat_id": "qualification-chat",
+                "model_id": "broker_reports_gate1_pipe",
+            },
+            __event_call__=event_call,
+        )
+    )
+    receipt = json.loads(content)
+
+    assert receipt["status"] == "succeeded"
+    assert receipt["provider_call_slots_consumed_total"] == 2
+    assert extraction_calls == 2
+    assert len(
+        list(
+            (tmp_path / "pdf-document-ai-qualification-claims").glob(
+                "*.consumed.safe.json"
+            )
+        )
+    ) == 2
 
 
 def test_qualification_command_rejects_non_admin_before_any_slot(
