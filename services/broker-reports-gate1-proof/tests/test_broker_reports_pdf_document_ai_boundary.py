@@ -78,8 +78,18 @@ class _OfflineFixtureExtractor:
             markdown_sha256=hashlib.sha256(markdown).hexdigest(),
             image_refs=(),
             provider_id="offline_fixture_provider",
+            requested_model_id="offline_fixture_model",
             model_id="offline_fixture_model",
             adapter_id="offline_fixture_adapter_v1",
+            request_contract_version="offline_fixture_request_v1",
+            request_parameters=(("include_image_base64", True),),
+            request_parameters_sha256=hashlib.sha256(
+                b'{"include_image_base64":true}'
+            ).hexdigest(),
+            page_markdown_sha256=tuple(
+                hashlib.sha256(markdown).hexdigest()
+                for _ in range(source_context.preflight_page_count)
+            ),
             qualification_status="offline_fixture",
             usage_page_count=source_context.preflight_page_count,
             safe_technical_summary=(
@@ -117,8 +127,18 @@ class _OfflineImageFixtureExtractor(_OfflineFixtureExtractor):
                 ),
             ),
             provider_id="offline_fixture_provider",
+            requested_model_id="offline_fixture_model",
             model_id="offline_fixture_model",
             adapter_id="offline_fixture_adapter_v1",
+            request_contract_version="offline_fixture_request_v1",
+            request_parameters=(("include_image_base64", True),),
+            request_parameters_sha256=hashlib.sha256(
+                b'{"include_image_base64":true}'
+            ).hexdigest(),
+            page_markdown_sha256=tuple(
+                hashlib.sha256(markdown).hexdigest()
+                for _ in range(source_context.preflight_page_count)
+            ),
             qualification_status="offline_fixture",
             usage_page_count=source_context.preflight_page_count,
         )
@@ -716,8 +736,15 @@ def test_safe_summary_rejects_text_boolean_negative_and_mismatched_counts(
             markdown_sha256=hashlib.sha256(markdown).hexdigest(),
             image_refs=(),
             provider_id="offline_fixture_provider",
+            requested_model_id="offline_fixture_model",
             model_id="offline_fixture_model",
             adapter_id="offline_fixture_adapter_v1",
+            request_contract_version="offline_fixture_request_v1",
+            request_parameters=(("include_image_base64", True),),
+            request_parameters_sha256=hashlib.sha256(
+                b'{"include_image_base64":true}'
+            ).hexdigest(),
+            page_markdown_sha256=(hashlib.sha256(markdown).hexdigest(),),
             qualification_status="offline_fixture",
             usage_page_count=1,
             safe_technical_summary=summary,  # type: ignore[arg-type]

@@ -52,7 +52,7 @@ SUPPORTED_CONTRACTS = [
     "private_normalized_source_unit_v0",
     "full_source_coverage_summary_v0",
     "broker_reports_normalized_table_projection_v0",
-    "broker_reports_pdf_document_extraction_v2",
+    "broker_reports_pdf_document_extraction_v3",
     "broker_reports_pdf_document_ai_v2",
     "broker_reports_table_projection_coverage_v0",
     "broker_reports_table_reconstruction_quality_v0",

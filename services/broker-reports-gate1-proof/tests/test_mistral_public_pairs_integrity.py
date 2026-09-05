@@ -18,7 +18,7 @@ PAIR_ROOT = (
 
 EXPECTED_FILES = {
     ".gitattributes": "3ff20795e070d1bdac9195e89901ae2f9be851be0fab662de827355b66ffcc47",
-    "README.md": "57b2b97492081aee96335b53be10811628bedb694624c3f10681166d277d3b66",
+    "README.md": "ba100ff6b53fafdf682034172d88b4295f4de222e10ecc2fbb4ac0f6f1cc234b",
     "drivewealth/mistral-markdown.md": "384245df67e772df1cc1d8c0a06430721fab8bbe4e5b2d8a64b012d059eae399",
     "drivewealth/source.pdf": "738a0279eba3020c9a6cf3a650df254d0a2a8a0800aae80b4889efcc0a8bec57",
     "fidelity/img-0.jpeg": "1b669fc6f1d25f31511b3de2b69a2e16359340f0509115be59f07499b6b08f9b",

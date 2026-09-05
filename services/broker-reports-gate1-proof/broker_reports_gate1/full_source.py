@@ -193,8 +193,14 @@ class FullSourceArtifactBuilder:
         text = extraction.markdown_bytes.decode("utf-8", errors="strict")
         provenance = {
             "provider_id": extraction.provider_id,
+            "source_pdf_sha256": extraction.source_pdf_sha256,
+            "requested_model_id": extraction.requested_model_id,
             "model_id": extraction.model_id,
             "adapter_id": extraction.adapter_id,
+            "request_contract_version": extraction.request_contract_version,
+            "request_parameters": dict(extraction.request_parameters),
+            "request_parameters_sha256": extraction.request_parameters_sha256,
+            "page_markdown_sha256": list(extraction.page_markdown_sha256),
             "qualification_status": extraction.qualification_status,
         }
         image_refs = [

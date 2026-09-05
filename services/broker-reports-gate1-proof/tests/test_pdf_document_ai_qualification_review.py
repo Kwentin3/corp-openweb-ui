@@ -45,12 +45,18 @@ def _lease(tmp_path: Path):
         require_source_available=True,
     )
     retention = build_retention_policy(
-        mode="expires_after_ttl", ttl_seconds=900, now=NOW
+        mode="expires_after_ttl", ttl_seconds=7200, now=NOW
     )
     image = b"private-image"
     image_sha = hashlib.sha256(image).hexdigest()
     markdown = "# Live result\n\n| A | B |\n|---|---|\n| 1 | 2 |"
     markdown_sha = hashlib.sha256(markdown.encode()).hexdigest()
+    source_pdf = b"%PDF-review-source"
+    source_pdf_sha = hashlib.sha256(source_pdf).hexdigest()
+    request_parameters = {"include_image_base64": True}
+    request_parameters_sha = hashlib.sha256(
+        b'{"include_image_base64":true}'
+    ).hexdigest()
     common = {
         "case_id": context.case_id,
         "chat_id": context.chat_id,
@@ -74,6 +80,22 @@ def _lease(tmp_path: Path):
                 payload={
                     "normalized_projection": {"text": markdown},
                     "document_ai_markdown_sha256": markdown_sha,
+                    "format_structural_inventory": {
+                        "pages_count": 1,
+                        "images_count": 1,
+                        "markdown_bytes": len(markdown.encode()),
+                    },
+                    "document_ai_provenance": {
+                        "provider_id": "mistral",
+                        "source_pdf_sha256": source_pdf_sha,
+                        "requested_model_id": "mistral-ocr-4-1",
+                        "model_id": "mistral-ocr-4-1",
+                        "adapter_id": "mistral_serverless_ocr_adapter_v2",
+                        "request_contract_version": "mistral_ocr_request_v1",
+                        "request_parameters": request_parameters,
+                        "request_parameters_sha256": request_parameters_sha,
+                        "page_markdown_sha256": [markdown_sha],
+                    },
                     "document_ai_image_refs": [
                         {
                             "page_number": 1,
@@ -101,15 +123,19 @@ def _lease(tmp_path: Path):
         full_source_refs=["art_full_source"],
         repository_head="a" * 40,
         fixture_id="fidelity",
+        source_file_id="public-fixture",
+        source_pdf_bytes=source_pdf,
+        expected_source_pdf_sha256=source_pdf_sha,
         expected_image_count=1,
-        expires_at=NOW + timedelta(seconds=900),
+        expires_at=NOW + timedelta(seconds=7200),
     )
     return store, context, lease
 
 
 async def _passing_reviewer(view):
     assert "Live result" in view.markdown
-    assert view.images[0][1] == b"private-image"
+    assert view.source_pdf_bytes.startswith(b"%PDF")
+    assert view.images[0][3] == b"private-image"
     return PdfDocumentAiQualificationReviewVerdict(
         live_output_digest=view.live_output_digest,
         checks={key: True for key in PDF_DOCUMENT_AI_REVIEW_CHECKS},
@@ -123,6 +149,17 @@ def test_same_user_review_is_digest_bound_and_guarantees_purge(tmp_path: Path) -
     )
     assert receipt["status"] == "passed"
     assert receipt["checks_passed"] == len(PDF_DOCUMENT_AI_REVIEW_CHECKS)
+    assert receipt["checks"] == {key: True for key in PDF_DOCUMENT_AI_REVIEW_CHECKS}
+    assert receipt["reviewer_id"] == context.user_id
+    assert (
+        receipt["source_pdf_sha256"]
+        == hashlib.sha256(b"%PDF-review-source").hexdigest()
+    )
+    assert (
+        receipt["baseline_candidate"]["live_output_digest"]
+        == receipt["live_output_digest"]
+    )
+    assert receipt["baseline_candidate"]["contains_private_payload"] is False
     assert receipt["contains_private_payload"] is False
     with pytest.raises(ArtifactStoreError) as purged:
         store.read_payload(store.get_record_unchecked("art_full_source"))
@@ -167,7 +204,7 @@ def test_expired_lease_is_terminal_and_purges(tmp_path: Path) -> None:
             lease.review(
                 actor_context=context,
                 reviewer=_passing_reviewer,
-                now=NOW + timedelta(seconds=901),
+                now=NOW + timedelta(seconds=7201),
             )
         )
     assert caught.value.code == "pdf_document_ai_review_lease_expired"
@@ -182,4 +219,38 @@ def test_reviewer_abort_is_terminal_and_purges(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="review aborted"):
         asyncio.run(lease.review(actor_context=context, reviewer=abort, now=NOW))
+    assert store.get_record_unchecked("art_full_source").purge_status == "purged"
+
+
+def test_negative_substantive_check_has_no_baseline_and_purges(tmp_path: Path) -> None:
+    store, context, lease = _lease(tmp_path)
+
+    async def reject(view):
+        checks = {key: True for key in PDF_DOCUMENT_AI_REVIEW_CHECKS}
+        checks["administrative_noise_not_financial_fact"] = False
+        return PdfDocumentAiQualificationReviewVerdict(
+            live_output_digest=view.live_output_digest,
+            checks=checks,
+        )
+
+    receipt = asyncio.run(lease.review(actor_context=context, reviewer=reject, now=NOW))
+    assert receipt["status"] == "failed"
+    assert "baseline_candidate" not in receipt
+    assert receipt["checks"]["administrative_noise_not_financial_fact"] is False
+    assert store.get_record_unchecked("art_full_source").purge_status == "purged"
+
+
+def test_reviewer_cannot_mutate_bound_safe_evidence(tmp_path: Path) -> None:
+    store, context, lease = _lease(tmp_path)
+
+    async def mutate(view):
+        view.structural_counts["pages_count"] = 99
+        return PdfDocumentAiQualificationReviewVerdict(
+            live_output_digest=view.live_output_digest,
+            checks={key: True for key in PDF_DOCUMENT_AI_REVIEW_CHECKS},
+        )
+
+    with pytest.raises(PdfDocumentAiQualificationReviewError) as caught:
+        asyncio.run(lease.review(actor_context=context, reviewer=mutate, now=NOW))
+    assert caught.value.code == "pdf_document_ai_review_view_mutated"
     assert store.get_record_unchecked("art_full_source").purge_status == "purged"

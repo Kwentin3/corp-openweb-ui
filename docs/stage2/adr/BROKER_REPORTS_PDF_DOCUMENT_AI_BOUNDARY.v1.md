@@ -12,7 +12,11 @@ provider provenance, qualification status, page usage, and a text-free safe
 technical summary. It is transport evidence, not a second Canonical or a
 financial-semantic authority.
 
-Mistral Document AI is the first isolated adapter behind this port. Native
+Mistral Document AI is the first isolated adapter behind this port. Its
+production request is pinned to `mistral-ocr-4-1`; moving aliases are forbidden.
+The adapter owns one versioned request contract and records its normalized
+significant parameters, digest, adapter version, and provider-reported model.
+Native
 OpenWebUI `request.app.state.config` remains the sole runtime owner of
 `CONTENT_EXTRACTION_ENGINE`, `MISTRAL_OCR_API_BASE_URL`, and
 `MISTRAL_OCR_API_KEY`. Broker Reports does not copy these settings into Pipe,
@@ -54,14 +58,23 @@ symlink/reparse roots. The adapter owns no filesystem path or staging area.
 
 The qualification-only Pipe keeps that same atomic private graph alive for one
 short same-user review lease. Through the existing private OpenWebUI interaction
-callback, the user sees the exact Full Source Markdown and every associated
-image resolved with its stored SHA-256. The verdict covers the fixed checklist
-and must echo a digest bound to the live Markdown/image hashes, fixture and code
-HEAD. Cross-user or cross-case access fails closed. Success, rejection, expiry,
+callback, the reviewer opens the exact source PDF, sees the exact Full Source
+Markdown and every associated image resolved with its stored SHA-256. The
+verdict covers the fixed source-fidelity checklist and must echo a stable digest
+bound to source PDF SHA-256, requested and provider-reported model, normalized
+parameters, adapter, ordered page/Markdown/image evidence, fixture and code
+HEAD. The server binds the authenticated reviewer identity and UTC review time.
+Cross-user or cross-case access fails closed. Success, rejection, expiry,
 abort and error all end by purging the run and verifying read denial. The safe
 receipt contains only hashes, counts and status; it never contains Markdown or
 image bytes. This is temporary inspection, not a second route, store, archive,
-provider client or lifecycle owner.
+provider client or lifecycle owner. Only a positive review emits a safe
+versioned OCR 4.1 baseline candidate. Future byte differences require a content
+diff and a new substantive review; digest inequality alone is not rejection.
+
+The 2026-09-02 Playground Markdown remains research reference material only.
+Its exact model and parameters were not recorded, so it is not a byte oracle
+and cannot pass or fail production qualification.
 
 PDFPlumber, pdfminer, PyMuPDF, Camelot, Docling, VLM/bbox reconstruction,
 hybrid/dual-engine execution, structural repair, and automatic fallback are

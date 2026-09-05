@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import importlib.util
 import json
 from dataclasses import replace
@@ -19,6 +20,12 @@ from broker_reports_gate1.pdf_document_ai import (
     PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
     PdfDocumentExtractionError,
     PdfDocumentExtractorFactory,
+)
+from broker_reports_gate1.pdf_document_ai_qualification_review import (
+    PDF_DOCUMENT_AI_BASELINE_SCHEMA_VERSION,
+    PDF_DOCUMENT_AI_REVIEW_CHECKS,
+    PDF_DOCUMENT_AI_REVIEW_POLICY_VERSION,
+    build_safe_review_evidence_digest,
 )
 
 
@@ -40,6 +47,55 @@ def _plan():
 
 
 def _pipe_success(kwargs: dict) -> dict[str, object]:
+    permit = kwargs["qualification_permit"]
+    contract = permit.execution_contract.safe_dict()
+    contract.pop("accepted_provider_reported_model_ids")
+    binding = {
+        **contract,
+        "provider_reported_model_id": "mistral-ocr-4-1",
+    }
+    checks = {key: True for key in PDF_DOCUMENT_AI_REVIEW_CHECKS}
+    images = [
+        {
+            "page_number": index + 1,
+            "markdown_target": f"img-{index}.jpeg",
+            "sha256": "c" * 64,
+        }
+        for index in range(kwargs["expected_image_count"])
+    ]
+    content_evidence = {
+        "markdown_sha256": ["a" * 64],
+        "page_markdown_sha256": ["b" * 64],
+        "image_associations": images,
+    }
+    structural_counts = {
+        "pages_count": 1,
+        "markdown_bytes": 1,
+        "images_count": len(images),
+    }
+    reviewed_at = "2026-09-05T12:00:00+00:00"
+    live_output_digest = build_safe_review_evidence_digest(
+        repository_head=permit.repository_head,
+        fixture_id=kwargs["fixture_id"],
+        source_pdf_sha256=kwargs["expected_sha256"],
+        execution_binding=binding,
+        content_evidence=content_evidence,
+        structural_counts=structural_counts,
+    )
+    baseline = {
+        "schema_version": PDF_DOCUMENT_AI_BASELINE_SCHEMA_VERSION,
+        "repository_head": permit.repository_head,
+        "fixture_id": kwargs["fixture_id"],
+        "source_pdf_sha256": kwargs["expected_sha256"],
+        "live_output_digest": live_output_digest,
+        "execution_binding": binding,
+        "content_evidence": content_evidence,
+        "structural_counts": structural_counts,
+        "checks": checks,
+        "reviewer_id": "reviewer",
+        "reviewed_at": reviewed_at,
+        "contains_private_payload": False,
+    }
     return {
         "status": "succeeded",
         "provider_calls_total": 1,
@@ -47,9 +103,22 @@ def _pipe_success(kwargs: dict) -> dict[str, object]:
         "private_image_readback_count": kwargs["expected_image_count"],
         "private_artifacts_purged": True,
         "review": {
+            "policy_version": PDF_DOCUMENT_AI_REVIEW_POLICY_VERSION,
             "status": "passed",
-            "live_output_digest": "d" * 64,
+            "repository_head": permit.repository_head,
+            "fixture_id": kwargs["fixture_id"],
+            "source_pdf_sha256": kwargs["expected_sha256"],
+            "execution_binding": binding,
+            "content_evidence": content_evidence,
+            "structural_counts": structural_counts,
+            "checks": checks,
+            "checks_passed": len(PDF_DOCUMENT_AI_REVIEW_CHECKS),
+            "checks_total": len(PDF_DOCUMENT_AI_REVIEW_CHECKS),
+            "live_output_digest": live_output_digest,
+            "reviewer_id": "reviewer",
+            "reviewed_at": reviewed_at,
             "contains_private_payload": False,
+            "baseline_candidate": baseline,
         },
     }
 
@@ -161,6 +230,83 @@ def test_async_executor_uses_same_irreversible_slots_and_stops_on_failure(
     assert receipt["status"] == "failed"
     assert receipt["provider_call_slots_consumed_total"] == 1
     assert len(list((tmp_path / "claims").glob("*.consumed.safe.json"))) == 1
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    (
+        "baseline_candidate",
+        "reviewer_id",
+        "reviewed_at",
+        "checks",
+        "content_evidence",
+    ),
+)
+def test_executor_rejects_incomplete_positive_review_receipt(
+    tmp_path: Path, missing_field: str
+) -> None:
+    calls: list[str] = []
+
+    def pipe_runner(**kwargs):
+        calls.append(kwargs["fixture_id"])
+        result = copy.deepcopy(_pipe_success(kwargs))
+        result["review"].pop(missing_field)
+        return result
+
+    receipt = PdfDocumentAiQualificationExecutor(
+        claim_root=tmp_path / "claims",
+        pipe_runner=pipe_runner,
+    ).execute(plan=_plan(), fixture_reader=_reader)
+
+    assert calls == ["drivewealth"]
+    assert receipt["status"] == "failed"
+    assert receipt["provider_call_slots_consumed_total"] == 1
+
+
+def test_executor_rejects_unexpected_provider_reported_model(tmp_path: Path) -> None:
+    def pipe_runner(**kwargs):
+        result = copy.deepcopy(_pipe_success(kwargs))
+        result["review"]["execution_binding"][
+            "provider_reported_model_id"
+        ] = "mistral-ocr-other"
+        result["review"]["baseline_candidate"]["execution_binding"] = dict(
+            result["review"]["execution_binding"]
+        )
+        return result
+
+    receipt = PdfDocumentAiQualificationExecutor(
+        claim_root=tmp_path / "claims",
+        pipe_runner=pipe_runner,
+    ).execute(plan=_plan(), fixture_reader=_reader)
+
+    assert receipt["status"] == "failed"
+    assert receipt["provider_call_slots_consumed_total"] == 1
+
+
+@pytest.mark.parametrize("mutation", ("bound_content", "extra_private_field"))
+def test_executor_recomputes_digest_and_keeps_receipt_closed_world(
+    tmp_path: Path, mutation: str
+) -> None:
+    def pipe_runner(**kwargs):
+        result = copy.deepcopy(_pipe_success(kwargs))
+        if mutation == "bound_content":
+            result["review"]["content_evidence"]["page_markdown_sha256"][0] = (
+                "e" * 64
+            )
+            result["review"]["baseline_candidate"]["content_evidence"] = copy.deepcopy(
+                result["review"]["content_evidence"]
+            )
+        else:
+            result["review"]["private_markdown"] = "must not pass"
+        return result
+
+    receipt = PdfDocumentAiQualificationExecutor(
+        claim_root=tmp_path / "claims",
+        pipe_runner=pipe_runner,
+    ).execute(plan=_plan(), fixture_reader=_reader)
+
+    assert receipt["status"] == "failed"
+    assert receipt["provider_call_slots_consumed_total"] == 1
 
 
 def _captured_permit(tmp_path: Path):

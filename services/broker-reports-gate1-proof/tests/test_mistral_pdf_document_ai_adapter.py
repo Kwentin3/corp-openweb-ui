@@ -33,6 +33,9 @@ from broker_reports_gate1.mistral_pdf_document_ai import (
     MISTRAL_OCR_ADAPTER_ID,
     MISTRAL_OCR_MODEL,
     MISTRAL_OCR_PROVIDER_ID,
+    MISTRAL_OCR_PROVIDER_REPORTED_MODEL_IDS,
+    MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
+    MISTRAL_OCR_REQUEST_PARAMETERS,
     MistralPdfDocumentExtractor,
 )
 from broker_reports_gate1.full_source import FullSourceArtifactFactory
@@ -130,7 +133,7 @@ def _response(
     pages: list[Mapping[str, object]],
     *,
     pages_processed: int | None = None,
-    model: object = "mistral-ocr-versioned",
+    model: object = MISTRAL_OCR_MODEL,
 ) -> dict[str, object]:
     return {
         "pages": pages,
@@ -217,12 +220,30 @@ def test_success_maps_ordered_multi_page_empty_page_and_image_once(tmp_path: Pat
     result = _extractor(tmp_path, opener).extract(PDF_BYTES, _source_context(2))
 
     _assert_one_post(opener)
+    assert MISTRAL_OCR_MODEL == "mistral-ocr-4-1"
     assert result.page_numbers == (1, 2)
     assert result.markdown_bytes == first_page_markdown.encode("utf-8") + b"\n\n"
     assert result.usage_page_count == 2
     assert result.provider_id == MISTRAL_OCR_PROVIDER_ID
-    assert result.model_id == "mistral-ocr-versioned"
+    assert result.requested_model_id == "mistral-ocr-4-1"
+    assert result.model_id == MISTRAL_OCR_MODEL
     assert result.adapter_id == MISTRAL_OCR_ADAPTER_ID
+    assert result.request_contract_version == "mistral_ocr_request_v1"
+    assert result.request_parameters == MISTRAL_OCR_REQUEST_PARAMETERS
+    assert (
+        result.request_parameters_sha256
+        == hashlib.sha256(
+            json.dumps(
+                dict(MISTRAL_OCR_REQUEST_PARAMETERS),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest()
+    )
+    assert result.page_markdown_sha256 == (
+        hashlib.sha256(first_page_markdown.encode("utf-8")).hexdigest(),
+        hashlib.sha256(b"").hexdigest(),
+    )
     assert result.qualification_status == "offline_fixture"
     assert result.source_pdf_sha256 == hashlib.sha256(PDF_BYTES).hexdigest()
     assert result.markdown_sha256 == hashlib.sha256(result.markdown_bytes).hexdigest()
@@ -278,6 +299,29 @@ def test_success_preserves_multiple_same_page_and_page_scoped_targets(
         (3, "shared.png"),
     )
     assert len({ref.local_ref for ref in result.image_refs}) == 4
+
+
+def test_provider_reported_model_outside_pinned_family_is_terminal(
+    tmp_path: Path,
+) -> None:
+    opener = _FakeOpener(
+        _FakeResponse(
+            _response(
+                [{"index": 0, "markdown": "page", "images": []}],
+                model="mistral-ocr-other",
+            )
+        )
+    )
+
+    with pytest.raises(PdfDocumentExtractionError) as caught:
+        _extractor(tmp_path, opener).extract(PDF_BYTES, _source_context(1))
+
+    assert caught.value.code == "PDF_DOCUMENT_AI_MODEL_MISMATCH"
+    assert len(opener.calls) == 1
+    assert MISTRAL_OCR_PROVIDER_REPORTED_MODEL_IDS == (
+        "mistral-ocr-4-1",
+        "mistral-ocr-4-1-completion",
+    )
 
 
 def _fidelity_offline_pages() -> tuple[str, list[dict[str, object]]]:
@@ -383,6 +427,13 @@ def _neutral_extraction(
     image_refs: tuple[PdfDocumentImageRef, ...],
 ) -> PdfDocumentExtraction:
     markdown = b"page one\n\npage two"
+    parameters_sha = hashlib.sha256(
+        json.dumps(
+            dict(MISTRAL_OCR_REQUEST_PARAMETERS),
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest()
     return PdfDocumentExtraction(
         source_pdf_sha256="0" * 64,
         page_numbers=(1, 2),
@@ -390,8 +441,15 @@ def _neutral_extraction(
         markdown_sha256=hashlib.sha256(markdown).hexdigest(),
         image_refs=image_refs,
         provider_id="offline_fixture_provider",
+        requested_model_id=MISTRAL_OCR_MODEL,
         model_id="offline_fixture_model",
         adapter_id="offline_fixture_adapter_v1",
+        request_contract_version=MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
+        request_parameters=MISTRAL_OCR_REQUEST_PARAMETERS,
+        request_parameters_sha256=parameters_sha,
+        page_markdown_sha256=tuple(
+            hashlib.sha256(part).hexdigest() for part in (b"page one", b"page two")
+        ),
         qualification_status="offline_fixture",
         usage_page_count=2,
     )
@@ -856,6 +914,11 @@ def _full_source_checksum(
     image_bytes: bytes,
 ) -> tuple[str, list[dict[str, object]]]:
     markdown = b"# Provider-neutral extraction"
+    parameters_sha = hashlib.sha256(
+        json.dumps(
+            dict(MISTRAL_OCR_REQUEST_PARAMETERS), sort_keys=True, separators=(",", ":")
+        ).encode()
+    ).hexdigest()
     extraction = PdfDocumentExtraction(
         source_pdf_sha256=hashlib.sha256(PDF_BYTES).hexdigest(),
         page_numbers=(1, 2),
@@ -872,8 +935,16 @@ def _full_source_checksum(
             ),
         ),
         provider_id=MISTRAL_OCR_PROVIDER_ID,
+        requested_model_id=MISTRAL_OCR_MODEL,
         model_id="mistral-ocr-versioned",
         adapter_id=MISTRAL_OCR_ADAPTER_ID,
+        request_contract_version=MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
+        request_parameters=MISTRAL_OCR_REQUEST_PARAMETERS,
+        request_parameters_sha256=parameters_sha,
+        page_markdown_sha256=(
+            hashlib.sha256(markdown).hexdigest(),
+            hashlib.sha256(b"").hexdigest(),
+        ),
         qualification_status="offline_fixture",
         usage_page_count=2,
     )
@@ -984,6 +1055,11 @@ def _pdf_graph_fixture(tmp_path: Path):
     )
     image = _neutral_image_ref(1, "img-0.png", "pdfimg_atomic_fixture")
     markdown = b"page\n\n![image](img-0.png)"
+    parameters_sha = hashlib.sha256(
+        json.dumps(
+            dict(MISTRAL_OCR_REQUEST_PARAMETERS), sort_keys=True, separators=(",", ":")
+        ).encode()
+    ).hexdigest()
     extraction = PdfDocumentExtraction(
         source_pdf_sha256=hashlib.sha256(PDF_BYTES).hexdigest(),
         page_numbers=(1,),
@@ -991,8 +1067,13 @@ def _pdf_graph_fixture(tmp_path: Path):
         markdown_sha256=hashlib.sha256(markdown).hexdigest(),
         image_refs=(image,),
         provider_id="offline_fixture_provider",
+        requested_model_id=MISTRAL_OCR_MODEL,
         model_id="offline_fixture_model",
         adapter_id="offline_fixture_adapter_v1",
+        request_contract_version=MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
+        request_parameters=MISTRAL_OCR_REQUEST_PARAMETERS,
+        request_parameters_sha256=parameters_sha,
+        page_markdown_sha256=(hashlib.sha256(markdown).hexdigest(),),
         qualification_status="offline_fixture",
         usage_page_count=1,
     )

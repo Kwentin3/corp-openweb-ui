@@ -21,6 +21,7 @@ from .pdf_document_ai import (
     PDF_DOCUMENT_AI_LIVE_QUALIFICATION_REQUIRED,
     PDF_DOCUMENT_AI_LIVE_QUALIFIED,
     PdfDocumentExtraction,
+    PdfDocumentAiExecutionContract,
     PdfDocumentExtractionError,
     PdfDocumentImageRef,
     PdfSourceContext,
@@ -28,14 +29,44 @@ from .pdf_document_ai import (
 )
 
 
-MISTRAL_OCR_MODEL = "mistral-ocr-latest"
-MISTRAL_OCR_ADAPTER_ID = "mistral_serverless_ocr_adapter_v1"
+MISTRAL_OCR_MODEL = "mistral-ocr-4-1"
+MISTRAL_OCR_ADAPTER_ID = "mistral_serverless_ocr_adapter_v2"
 MISTRAL_OCR_PROVIDER_ID = "mistral"
+MISTRAL_OCR_PROVIDER_REPORTED_MODEL_IDS = (
+    "mistral-ocr-4-1",
+    "mistral-ocr-4-1-completion",
+)
+MISTRAL_OCR_REQUEST_CONTRACT_VERSION = "mistral_ocr_request_v1"
+MISTRAL_OCR_REQUEST_PARAMETERS = (
+    ("document_type", "document_url"),
+    ("document_url_media_type", "application/pdf"),
+    ("include_image_base64", True),
+)
 _MAX_RESPONSE_BYTES = 64 * 1024 * 1024
 _MAX_IMAGES = 64
 _MAX_IMAGE_BYTES = 10 * 1024 * 1024
 _MAX_TOTAL_IMAGE_BYTES = 50 * 1024 * 1024
 _PAGE_SEPARATOR = b"\n\n"
+
+
+def execution_contract() -> PdfDocumentAiExecutionContract:
+    parameters_sha256 = hashlib.sha256(
+        json.dumps(
+            dict(MISTRAL_OCR_REQUEST_PARAMETERS),
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    return PdfDocumentAiExecutionContract(
+        provider_id=MISTRAL_OCR_PROVIDER_ID,
+        requested_model_id=MISTRAL_OCR_MODEL,
+        adapter_id=MISTRAL_OCR_ADAPTER_ID,
+        request_contract_version=MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
+        request_parameters=MISTRAL_OCR_REQUEST_PARAMETERS,
+        request_parameters_sha256=parameters_sha256,
+        accepted_provider_reported_model_ids=MISTRAL_OCR_PROVIDER_REPORTED_MODEL_IDS,
+    )
 
 
 class _HttpOpener(Protocol):
@@ -171,45 +202,55 @@ class MistralPdfDocumentExtractor:
         if usage_page_count != len(pages):
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_PAGE_COUNT_MISMATCH")
         model = response.get("model")
-        if (
-            not isinstance(model, str)
-            or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", model)
+        if not isinstance(model, str) or not re.fullmatch(
+            r"[A-Za-z0-9._:-]{1,128}", model
         ):
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
+        if model not in MISTRAL_OCR_PROVIDER_REPORTED_MODEL_IDS:
+            raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_MODEL_MISMATCH")
 
         markdown_bytes = _PAGE_SEPARATOR.join(markdown_parts)
+        contract = execution_contract()
         image_refs = self._images.decode(encoded_images)
         return PdfDocumentExtraction(
-                source_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
-                page_numbers=tuple(range(1, len(pages) + 1)),
-                markdown_bytes=markdown_bytes,
-                markdown_sha256=hashlib.sha256(markdown_bytes).hexdigest(),
-                image_refs=image_refs,
-                provider_id=MISTRAL_OCR_PROVIDER_ID,
-                model_id=model,
-                adapter_id=MISTRAL_OCR_ADAPTER_ID,
-                qualification_status=self._qualification_status,
-                usage_page_count=usage_page_count,
-                safe_technical_summary=(
-                    ("document_bytes", len(pdf_bytes)),
-                    ("images_count", len(image_refs)),
-                    ("markdown_bytes", len(markdown_bytes)),
-                    ("pages_count", usage_page_count),
-                ),
-            )
+            source_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+            page_numbers=tuple(range(1, len(pages) + 1)),
+            markdown_bytes=markdown_bytes,
+            markdown_sha256=hashlib.sha256(markdown_bytes).hexdigest(),
+            image_refs=image_refs,
+            provider_id=MISTRAL_OCR_PROVIDER_ID,
+            requested_model_id=MISTRAL_OCR_MODEL,
+            model_id=model,
+            adapter_id=MISTRAL_OCR_ADAPTER_ID,
+            request_contract_version=MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
+            request_parameters=MISTRAL_OCR_REQUEST_PARAMETERS,
+            request_parameters_sha256=contract.request_parameters_sha256,
+            page_markdown_sha256=tuple(
+                hashlib.sha256(part).hexdigest() for part in markdown_parts
+            ),
+            qualification_status=self._qualification_status,
+            usage_page_count=usage_page_count,
+            safe_technical_summary=(
+                ("document_bytes", len(pdf_bytes)),
+                ("images_count", len(image_refs)),
+                ("markdown_bytes", len(markdown_bytes)),
+                ("pages_count", usage_page_count),
+            ),
+        )
 
     def _post_once(self, pdf_bytes: bytes) -> Mapping[str, Any]:
+        parameters = dict(MISTRAL_OCR_REQUEST_PARAMETERS)
         payload = json.dumps(
             {
                 "model": MISTRAL_OCR_MODEL,
                 "document": {
-                    "type": "document_url",
+                    "type": parameters["document_type"],
                     "document_url": (
-                        "data:application/pdf;base64,"
+                        f"data:{parameters['document_url_media_type']};base64,"
                         + base64.b64encode(pdf_bytes).decode("ascii")
                     ),
                 },
-                "include_image_base64": True,
+                "include_image_base64": parameters["include_image_base64"],
             },
             ensure_ascii=True,
             separators=(",", ":"),

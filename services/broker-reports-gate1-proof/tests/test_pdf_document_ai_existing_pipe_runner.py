@@ -13,6 +13,13 @@ from broker_reports_gate1.pdf_document_ai import (
     PdfDocumentExtraction,
     PdfDocumentImageRef,
 )
+from broker_reports_gate1.mistral_pdf_document_ai import (
+    MISTRAL_OCR_ADAPTER_ID,
+    MISTRAL_OCR_MODEL,
+    MISTRAL_OCR_PROVIDER_ID,
+    MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
+    MISTRAL_OCR_REQUEST_PARAMETERS,
+)
 from broker_reports_gate1.pdf_document_ai_qualification import (
     PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES,
     PdfDocumentAiQualificationError,
@@ -53,15 +60,29 @@ class _QualificationExtractor:
                 )
             )
         markdown = markdown_text.encode("utf-8")
+        page_digest = hashlib.sha256(markdown).hexdigest()
         return PdfDocumentExtraction(
             source_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
             page_numbers=tuple(range(1, source_context.preflight_page_count + 1)),
             markdown_bytes=markdown,
             markdown_sha256=hashlib.sha256(markdown).hexdigest(),
             image_refs=tuple(image_refs),
-            provider_id="qualification-test-provider",
-            model_id="qualification-test-model",
-            adapter_id="qualification-test-adapter",
+            provider_id=MISTRAL_OCR_PROVIDER_ID,
+            requested_model_id=MISTRAL_OCR_MODEL,
+            model_id=MISTRAL_OCR_MODEL,
+            adapter_id=MISTRAL_OCR_ADAPTER_ID,
+            request_contract_version=MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
+            request_parameters=MISTRAL_OCR_REQUEST_PARAMETERS,
+            request_parameters_sha256=hashlib.sha256(
+                json.dumps(
+                    dict(MISTRAL_OCR_REQUEST_PARAMETERS),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest(),
+            page_markdown_sha256=tuple(
+                page_digest for _ in range(source_context.preflight_page_count)
+            ),
             qualification_status="qualification_attempt",
             usage_page_count=source_context.preflight_page_count,
         )
@@ -152,6 +173,14 @@ def test_exact_admin_command_runs_two_real_pipe_slices_then_purges(
     ) == 2
     assert private_review_events
     assert all(item["type"] == "confirmation" for item in private_review_events)
+    source_messages = [
+        item["data"]["message"]
+        for item in private_review_events
+        if item["data"]["title"].endswith(" source")
+    ]
+    assert len(source_messages) == 2
+    assert "qualification-drivewealth" in source_messages[0]
+    assert "qualification-fidelity" in source_messages[1]
     assert "Qualified public fixture" not in content
     assert all(item["review"]["status"] == "passed" for item in receipt["outcomes"])
 
