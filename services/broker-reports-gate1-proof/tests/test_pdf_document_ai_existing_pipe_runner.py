@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from broker_reports_gate1.artifact_models import ArtifactStoreError
 from broker_reports_gate1.pdf_document_ai import (
     PdfDocumentExtraction,
     PdfDocumentImageRef,
@@ -241,4 +242,19 @@ def test_qualification_command_rejects_non_admin_before_any_slot(
         )
 
     assert caught.value.code == "pdf_document_ai_qualification_admin_required"
+    assert not (tmp_path / "pdf-document-ai-qualification-claims").exists()
+
+
+def test_qualification_rejects_unverified_scope_before_any_slot(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ArtifactStoreError) as caught:
+        asyncio.run(
+            _pipe(tmp_path).pipe(
+                _body(),
+                __user__={"id": "qualification-admin", "role": "admin"},
+            )
+        )
+
+    assert caught.value.code == "artifact_scope_unverified"
     assert not (tmp_path / "pdf-document-ai-qualification-claims").exists()
