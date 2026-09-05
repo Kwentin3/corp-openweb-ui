@@ -273,6 +273,7 @@ def test_selected_ndfl_workspace_model_reaches_current_route_not_legacy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pipe = Pipe()
+    pipe.valves.require_trigger_phrase = True
 
     async def current_route(*_args, **_kwargs):
         return {"route": "current_ndfl"}
