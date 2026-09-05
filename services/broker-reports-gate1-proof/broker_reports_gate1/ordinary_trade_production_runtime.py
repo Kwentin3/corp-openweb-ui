@@ -733,23 +733,25 @@ def _apply_mapping_terminal(
     preparation["status"] = product_status
     preparation["terminals"] = [terminal]
     preparation["declaration_readiness"] = {"ready": False}
+    mapping_actions = (
+        [
+            {
+                "kind": "MAPPING_CLARIFICATION",
+                "question": public.get("question"),
+                "confirmation_message": public.get("confirmation_message"),
+                "confirmation_option_ref": public.get("confirmation_option_ref"),
+            }
+        ]
+        if status in {"CLARIFICATION_REQUIRED", "CONFIRMATION_REQUIRED"}
+        else []
+    )
+    # A mapping question supersedes every earlier declaration request.  The
+    # public adapter deliberately reads ``user_actions`` first, so leaving its
+    # prior value here would render an already answered question after a new
+    # mapping turn has been saved.
+    preparation["user_actions"] = mapping_actions
     preparation["gap_closure"] = {
-        "user_facing_required_actions": (
-            [
-                {
-                    "kind": "MAPPING_CLARIFICATION",
-                    "question": public.get("question"),
-                    "confirmation_message": public.get(
-                        "confirmation_message"
-                    ),
-                    "confirmation_option_ref": public.get(
-                        "confirmation_option_ref"
-                    ),
-                }
-            ]
-            if status in {"CLARIFICATION_REQUIRED", "CONFIRMATION_REQUIRED"}
-            else []
-        ),
+        "user_facing_required_actions": mapping_actions,
         "internal_owner_required_actions": (
             []
             if status in {"CLARIFICATION_REQUIRED", "CONFIRMATION_REQUIRED"}
