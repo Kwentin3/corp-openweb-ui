@@ -36,15 +36,18 @@ HEAD = "a" * 40
 
 
 class _QualificationExtractor:
+    def __init__(self, fidelity_image_count: int = 7) -> None:
+        self._fidelity_image_count = fidelity_image_count
+
     def extract(self, pdf_bytes, source_context):
         fidelity_sha256 = PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES[1][2]
         image_count = (
-            8 if hashlib.sha256(pdf_bytes).hexdigest() == fidelity_sha256 else 0
+            self._fidelity_image_count
+            if hashlib.sha256(pdf_bytes).hexdigest() == fidelity_sha256
+            else 0
         )
         image_refs = []
-        markdown_text = (
-            f"# Qualified public fixture\n\npages={source_context.preflight_page_count}\n"
-        )
+        markdown_text = f"# Qualified public fixture\n\npages={source_context.preflight_page_count}\n"
         for index in range(image_count):
             content = f"qualification-image-{index}".encode("ascii")
             target = f"img-{index}.jpeg"
@@ -95,9 +98,11 @@ class _OuterQualificationRequest:
 
 def _body() -> dict:
     files = []
-    for fixture_id, repository_path, _expected_sha256 in (
-        PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES
-    ):
+    for (
+        fixture_id,
+        repository_path,
+        _expected_sha256,
+    ) in PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES:
         files.append(
             {
                 "type": "file",
@@ -128,16 +133,18 @@ def _pipe(tmp_path: Path) -> Pipe:
     return pipe
 
 
-def test_exact_admin_command_runs_two_real_pipe_slices_then_purges(
+@pytest.mark.parametrize("fidelity_image_count", (7, 8))
+def test_exact_admin_command_reviews_every_observed_image_then_purges(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    fidelity_image_count: int,
 ) -> None:
     import broker_reports_gate1.normalizer as normalizer_module
 
     monkeypatch.setattr(
         normalizer_module.PdfDocumentExtractorFactory,
         "create",
-        lambda **_kwargs: _QualificationExtractor(),
+        lambda **_kwargs: _QualificationExtractor(fidelity_image_count),
     )
     private_review_events = []
 
@@ -164,13 +171,20 @@ def test_exact_admin_command_runs_two_real_pipe_slices_then_purges(
         "succeeded",
         "succeeded",
     ]
-    assert len(
-        list(
-            (tmp_path / "pdf-document-ai-qualification-claims").glob(
-                "*.consumed.safe.json"
+    assert [item["private_image_readback_count"] for item in receipt["outcomes"]] == [
+        0,
+        fidelity_image_count,
+    ]
+    assert (
+        len(
+            list(
+                (tmp_path / "pdf-document-ai-qualification-claims").glob(
+                    "*.consumed.safe.json"
+                )
             )
         )
-    ) == 2
+        == 2
+    )
     assert private_review_events
     assert all(item["type"] == "confirmation" for item in private_review_events)
     source_messages = [
@@ -191,9 +205,12 @@ def test_exact_admin_command_runs_two_real_pipe_slices_then_purges(
         or " image " in item["data"]["title"]
     ]
     assert long_review_messages
+    image_events = [
+        item for item in private_review_events if " image " in item["data"]["title"]
+    ]
+    assert len(image_events) == fidelity_image_count
     assert all(
-        "max-height:52vh;overflow:auto" in message
-        for message in long_review_messages
+        "max-height:52vh;overflow:auto" in message for message in long_review_messages
     )
     escaped_panel = Pipe._qualification_review_text_panel(
         '<script>alert("private")</script>'
@@ -266,13 +283,16 @@ def test_internal_task_body_cannot_consume_restored_qualification_then_primary_r
     assert receipt["status"] == "succeeded"
     assert receipt["provider_call_slots_consumed_total"] == 2
     assert extraction_calls == 2
-    assert len(
-        list(
-            (tmp_path / "pdf-document-ai-qualification-claims").glob(
-                "*.consumed.safe.json"
+    assert (
+        len(
+            list(
+                (tmp_path / "pdf-document-ai-qualification-claims").glob(
+                    "*.consumed.safe.json"
+                )
             )
         )
-    ) == 2
+        == 2
+    )
 
 
 def test_qualification_command_rejects_non_admin_before_any_slot(
@@ -309,7 +329,9 @@ def test_qualification_rejects_unverified_scope_before_any_slot(
     assert not (tmp_path / "pdf-document-ai-qualification-claims").exists()
 
 
-@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits are not Windows ACLs")
+@pytest.mark.skipif(
+    os.name == "nt", reason="POSIX permission bits are not Windows ACLs"
+)
 def test_qualification_rejects_unavailable_artifact_store_before_any_slot(
     tmp_path: Path,
 ) -> None:

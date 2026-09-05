@@ -12,7 +12,7 @@ from .artifact_models import ArtifactAccessContext, ArtifactStoreError, Artifact
 from .artifact_resolver import ArtifactResolver
 
 
-PDF_DOCUMENT_AI_REVIEW_POLICY_VERSION = "broker_reports_pdf_document_ai_review_v2"
+PDF_DOCUMENT_AI_REVIEW_POLICY_VERSION = "broker_reports_pdf_document_ai_review_v3"
 PDF_DOCUMENT_AI_BASELINE_SCHEMA_VERSION = (
     "broker_reports_pdf_document_ai_ocr41_baseline_v1"
 )
@@ -84,7 +84,6 @@ class PdfDocumentAiQualificationReviewFactory:
         source_file_id: str,
         source_pdf_bytes: bytes,
         expected_source_pdf_sha256: str,
-        expected_image_count: int,
         expires_at: datetime,
     ) -> "PdfDocumentAiQualificationReviewLease":
         if (
@@ -106,7 +105,6 @@ class PdfDocumentAiQualificationReviewFactory:
             source_file_id=source_file_id,
             source_pdf_bytes=source_pdf_bytes,
             expected_source_pdf_sha256=expected_source_pdf_sha256,
-            expected_image_count=expected_image_count,
             expires_at=expires_at.astimezone(timezone.utc),
         )
 
@@ -123,7 +121,6 @@ class PdfDocumentAiQualificationReviewLease:
         source_file_id: str,
         source_pdf_bytes: bytes,
         expected_source_pdf_sha256: str,
-        expected_image_count: int,
         expires_at: datetime,
     ) -> None:
         self._store = store
@@ -134,7 +131,6 @@ class PdfDocumentAiQualificationReviewLease:
         self._source_file_id = source_file_id
         self._source_pdf_bytes = source_pdf_bytes
         self._source_pdf_sha256 = expected_source_pdf_sha256
-        self._expected_images = expected_image_count
         self._expires_at = expires_at
 
     async def review(
@@ -232,6 +228,7 @@ class PdfDocumentAiQualificationReviewLease:
         page_markdown_hashes: list[str] = []
         execution_binding: dict[str, object] | None = None
         pages_count = 0
+        declared_images_count = 0
         for artifact_ref in self._refs:
             resolved = resolver.resolve(artifact_ref, self._context)
             payload = resolved.get("payload")
@@ -316,7 +313,19 @@ class PdfDocumentAiQualificationReviewLease:
                     "pdf_document_ai_review_page_count_mismatch"
                 )
             pages_count += observed_pages_count
-            for association in payload.get("document_ai_image_refs") or []:
+            associations = payload.get("document_ai_image_refs")
+            inventory_images_count = inventory.get("images_count")
+            if (
+                not isinstance(associations, list)
+                or type(inventory_images_count) is not int
+                or inventory_images_count < 0
+                or inventory_images_count != len(associations)
+            ):
+                raise PdfDocumentAiQualificationReviewError(
+                    "pdf_document_ai_review_image_count_mismatch"
+                )
+            declared_images_count += inventory_images_count
+            for association in associations:
                 if not isinstance(association, dict):
                     raise PdfDocumentAiQualificationReviewError(
                         "pdf_document_ai_review_image_association_invalid"
@@ -345,7 +354,7 @@ class PdfDocumentAiQualificationReviewLease:
                         "sha256": image_sha256,
                     }
                 )
-        if len(images) != self._expected_images:
+        if len(images) != declared_images_count:
             raise PdfDocumentAiQualificationReviewError(
                 "pdf_document_ai_review_image_count_mismatch"
             )
@@ -428,7 +437,6 @@ def validate_passed_review_receipt(
     repository_head: str,
     fixture_id: str,
     source_pdf_sha256: str,
-    expected_image_count: int,
     execution_contract: Mapping[str, object],
 ) -> bool:
     """Validate one safe positive receipt without reopening private payloads."""
@@ -549,7 +557,6 @@ def validate_passed_review_receipt(
         or counts.get("pages_count") != len(page_hashes)
         or type(counts.get("images_count")) is not int
         or counts.get("images_count") != len(images)
-        or counts.get("images_count") != expected_image_count
         or type(counts.get("markdown_bytes")) is not int
         or counts.get("markdown_bytes", -1) < 0
     ):

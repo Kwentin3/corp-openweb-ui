@@ -1,7 +1,7 @@
 """
 title: Broker Reports Gate 1 Pipe Backend Normalizer
 author: Alpha Soft
-version: 0.40.1-scrollable-private-review
+version: 0.40.2-observed-image-review
 required_open_webui_version: 0.9.6
 requirements: pydantic,pypdf==6.7.5,lxml==6.1.1
 """
@@ -731,9 +731,6 @@ class Pipe:
                     "qualification_permit"
                 ],
                 __pdf_document_ai_qualification_only__=True,
-                __pdf_document_ai_qualification_expected_image_count__=runner_input[
-                    "expected_image_count"
-                ],
                 __pdf_document_ai_qualification_fixture_id__=runner_input[
                     "fixture_id"
                 ],
@@ -942,9 +939,6 @@ class Pipe:
         qualification_only = bool(
             kwargs.pop("__pdf_document_ai_qualification_only__", False)
         )
-        qualification_expected_image_count = kwargs.pop(
-            "__pdf_document_ai_qualification_expected_image_count__", None
-        )
         qualification_fixture_id = kwargs.pop(
             "__pdf_document_ai_qualification_fixture_id__", None
         )
@@ -1086,10 +1080,6 @@ class Pipe:
                 raise PdfDocumentAiQualificationError(
                     "pdf_document_ai_qualification_full_source_missing"
                 )
-            if type(qualification_expected_image_count) is not int:
-                raise PdfDocumentAiQualificationError(
-                    "pdf_document_ai_qualification_image_count_mismatch"
-                )
             expires_at = datetime.fromisoformat(str(retention_policy.expires_at))
             review = await PdfDocumentAiQualificationReviewFactory.create(
                 store=artifact_store,
@@ -1102,17 +1092,17 @@ class Pipe:
                 source_file_id=str(qualification_source_file_id or ""),
                 source_pdf_bytes=qualification_source_pdf_bytes,
                 expected_source_pdf_sha256=str(qualification_source_pdf_sha256 or ""),
-                expected_image_count=qualification_expected_image_count,
                 expires_at=expires_at,
             ).review(
                 actor_context=artifact_context,
                 reviewer=self._qualification_reviewer(__event_call__),
             )
+            observed_image_count = review["structural_counts"]["images_count"]
             return {
                 "status": "succeeded" if review["status"] == "passed" else "failed",
                 "normalization_run_id": artifact_manifest.normalization_run_id,
                 "private_full_source_readback": True,
-                "private_image_readback_count": qualification_expected_image_count,
+                "private_image_readback_count": observed_image_count,
                 "private_artifacts_purged": True,
                 "provider_calls_total": 1,
                 "review": review,
