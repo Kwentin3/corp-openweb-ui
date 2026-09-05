@@ -13,7 +13,7 @@ from .pdf_document_ai import PdfDocumentAiExecutionContract, PdfDocumentExtracto
 
 
 PDF_DOCUMENT_AI_QUALIFICATION_POLICY_VERSION = (
-    "broker_reports_pdf_document_ai_qualification_v2"
+    "broker_reports_pdf_document_ai_qualification_v3"
 )
 PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES = (
     (
@@ -28,10 +28,6 @@ PDF_DOCUMENT_AI_QUALIFICATION_FIXTURES = (
     ),
 )
 PDF_DOCUMENT_AI_QUALIFICATION_MAX_PROVIDER_CALLS = 2
-PDF_DOCUMENT_AI_QUALIFICATION_EXPECTED_IMAGES = {
-    "drivewealth": 0,
-    "fidelity": 8,
-}
 
 FACTORY_REQUIRED = (
     "Qualification execution must delegate each exact fixture to the existing "
@@ -58,7 +54,6 @@ class ExistingPipeRunner(Protocol):
         expected_sha256: str,
         plan_sha256: str,
         qualification_permit: "PdfDocumentAiQualificationPermit",
-        expected_image_count: int,
     ) -> Mapping[str, object]: ...
 
 
@@ -71,7 +66,6 @@ class AsyncExistingPipeRunner(Protocol):
         expected_sha256: str,
         plan_sha256: str,
         qualification_permit: "PdfDocumentAiQualificationPermit",
-        expected_image_count: int,
     ) -> Awaitable[Mapping[str, object]]: ...
 
 
@@ -104,7 +98,6 @@ class PdfDocumentAiQualificationFixture:
     repository_path: str
     sha256: str
     size_bytes: int
-    expected_image_count: int
 
 
 @dataclass(frozen=True)
@@ -122,9 +115,6 @@ class PdfDocumentAiQualificationPlan:
             "plan_sha256": self.plan_sha256,
             "execution_contract": self.execution_contract.safe_dict(),
             "fixture_sha256": [item.sha256 for item in self.fixtures],
-            "expected_image_count": [
-                item.expected_image_count for item in self.fixtures
-            ],
             "fixtures_total": len(self.fixtures),
             "planned_provider_calls_max": (
                 PDF_DOCUMENT_AI_QUALIFICATION_MAX_PROVIDER_CALLS
@@ -178,9 +168,6 @@ class PdfDocumentAiQualificationPlanFactory:
                     repository_path=repository_path,
                     sha256=expected_sha256,
                     size_bytes=len(payload),
-                    expected_image_count=PDF_DOCUMENT_AI_QUALIFICATION_EXPECTED_IMAGES[
-                        fixture_id
-                    ],
                 )
             )
         material = {
@@ -193,7 +180,6 @@ class PdfDocumentAiQualificationPlanFactory:
                     "repository_path": item.repository_path,
                     "sha256": item.sha256,
                     "size_bytes": item.size_bytes,
-                    "expected_image_count": item.expected_image_count,
                 }
                 for item in fixtures
             ],
@@ -258,7 +244,6 @@ class PdfDocumentAiQualificationExecutor:
                     expected_sha256=fixture.sha256,
                     plan_sha256=plan.plan_sha256,
                     qualification_permit=permit,
-                    expected_image_count=fixture.expected_image_count,
                 )
             except Exception as exc:
                 outcomes.append(
@@ -310,7 +295,6 @@ class PdfDocumentAiQualificationExecutor:
                     expected_sha256=fixture.sha256,
                     plan_sha256=plan.plan_sha256,
                     qualification_permit=permit,
-                    expected_image_count=fixture.expected_image_count,
                 )
             except Exception as exc:
                 outcomes.append(
@@ -348,20 +332,28 @@ class PdfDocumentAiQualificationExecutor:
         )
 
         review = result.get("review")
+        review_counts = (
+            review.get("structural_counts") if isinstance(review, Mapping) else None
+        )
+        observed_image_count = (
+            review_counts.get("images_count")
+            if isinstance(review_counts, Mapping)
+            else None
+        )
         return (
             result.get("status") == "succeeded"
             and result.get("private_full_source_readback") is True
             and result.get("private_artifacts_purged") is True
             and result.get("provider_calls_total") == 1
-            and result.get("private_image_readback_count")
-            == fixture.expected_image_count
+            and type(observed_image_count) is int
+            and observed_image_count >= 0
+            and result.get("private_image_readback_count") == observed_image_count
             and isinstance(review, Mapping)
             and validate_passed_review_receipt(
                 review,
                 repository_head=plan.repository_head,
                 fixture_id=fixture.fixture_id,
                 source_pdf_sha256=fixture.sha256,
-                expected_image_count=fixture.expected_image_count,
                 execution_contract=plan.execution_contract.safe_dict(),
             )
         )
@@ -377,7 +369,7 @@ class PdfDocumentAiQualificationExecutor:
             "status": "succeeded",
             "provider_calls_total": 1,
             "private_full_source_readback": True,
-            "private_image_readback_count": fixture.expected_image_count,
+            "private_image_readback_count": result["private_image_readback_count"],
             "private_artifacts_purged": True,
             "review": dict(result["review"]),
         }

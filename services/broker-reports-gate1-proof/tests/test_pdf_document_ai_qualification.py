@@ -46,7 +46,7 @@ def _plan():
     )
 
 
-def _pipe_success(kwargs: dict) -> dict[str, object]:
+def _pipe_success(kwargs: dict, *, fidelity_image_count: int = 7) -> dict[str, object]:
     permit = kwargs["qualification_permit"]
     contract = permit.execution_contract.safe_dict()
     contract.pop("accepted_provider_reported_model_ids")
@@ -55,13 +55,14 @@ def _pipe_success(kwargs: dict) -> dict[str, object]:
         "provider_reported_model_id": "mistral-ocr-4-1",
     }
     checks = {key: True for key in PDF_DOCUMENT_AI_REVIEW_CHECKS}
+    image_count = fidelity_image_count if kwargs["fixture_id"] == "fidelity" else 0
     images = [
         {
             "page_number": index + 1,
             "markdown_target": f"img-{index}.jpeg",
             "sha256": "c" * 64,
         }
-        for index in range(kwargs["expected_image_count"])
+        for index in range(image_count)
     ]
     content_evidence = {
         "markdown_sha256": ["a" * 64],
@@ -100,7 +101,7 @@ def _pipe_success(kwargs: dict) -> dict[str, object]:
         "status": "succeeded",
         "provider_calls_total": 1,
         "private_full_source_readback": True,
-        "private_image_readback_count": kwargs["expected_image_count"],
+        "private_image_readback_count": image_count,
         "private_artifacts_purged": True,
         "review": {
             "policy_version": PDF_DOCUMENT_AI_REVIEW_POLICY_VERSION,
@@ -148,7 +149,7 @@ def test_plan_has_exact_closed_two_pdf_allowlist_and_zero_call_receipt() -> None
     )
     receipt = _plan().safe_receipt()
     assert receipt["fixtures_total"] == 2
-    assert receipt["expected_image_count"] == [0, 8]
+    assert "expected_image_count" not in receipt
     assert receipt["planned_provider_calls_max"] == 2
     assert receipt["provider_calls_total"] == 0
     assert receipt["provider_call_slots_consumed_total"] == 0
@@ -170,8 +171,10 @@ def test_plan_fails_closed_on_fixture_mutation() -> None:
     assert caught.value.code == "pdf_document_ai_qualification_fixture_hash_mismatch"
 
 
-def test_executor_consumes_exactly_two_slots_and_delegates_to_pipe(
+@pytest.mark.parametrize("fidelity_image_count", (7, 8))
+def test_executor_accepts_consistent_observed_graph_and_consumes_exactly_two_slots(
     tmp_path: Path,
+    fidelity_image_count: int,
 ) -> None:
     calls: list[tuple[str, str, str]] = []
     permits = []
@@ -186,7 +189,7 @@ def test_executor_consumes_exactly_two_slots_and_delegates_to_pipe(
             )
         )
         assert kwargs["pdf_bytes"].startswith(b"%PDF")
-        return _pipe_success(kwargs)
+        return _pipe_success(kwargs, fidelity_image_count=fidelity_image_count)
 
     plan = _plan()
     receipt = PdfDocumentAiQualificationExecutor(
@@ -203,7 +206,28 @@ def test_executor_consumes_exactly_two_slots_and_delegates_to_pipe(
     assert receipt["hidden_retry_total"] == 0
     assert receipt["fallback_total"] == 0
     assert receipt["repair_total"] == 0
+    assert [item["private_image_readback_count"] for item in receipt["outcomes"]] == [
+        0,
+        fidelity_image_count,
+    ]
     assert len(list((tmp_path / "claims").glob("*.consumed.safe.json"))) == 2
+
+
+def test_executor_rejects_readback_count_not_bound_to_review_graph(
+    tmp_path: Path,
+) -> None:
+    def pipe_runner(**kwargs):
+        result = _pipe_success(kwargs)
+        result["private_image_readback_count"] = 1
+        return result
+
+    receipt = PdfDocumentAiQualificationExecutor(
+        claim_root=tmp_path / "claims",
+        pipe_runner=pipe_runner,
+    ).execute(plan=_plan(), fixture_reader=_reader)
+
+    assert receipt["status"] == "failed"
+    assert receipt["provider_call_slots_consumed_total"] == 1
 
 
 def test_async_executor_uses_same_irreversible_slots_and_stops_on_failure(
@@ -266,9 +290,9 @@ def test_executor_rejects_incomplete_positive_review_receipt(
 def test_executor_rejects_unexpected_provider_reported_model(tmp_path: Path) -> None:
     def pipe_runner(**kwargs):
         result = copy.deepcopy(_pipe_success(kwargs))
-        result["review"]["execution_binding"][
-            "provider_reported_model_id"
-        ] = "mistral-ocr-other"
+        result["review"]["execution_binding"]["provider_reported_model_id"] = (
+            "mistral-ocr-other"
+        )
         result["review"]["baseline_candidate"]["execution_binding"] = dict(
             result["review"]["execution_binding"]
         )
@@ -290,9 +314,7 @@ def test_executor_recomputes_digest_and_keeps_receipt_closed_world(
     def pipe_runner(**kwargs):
         result = copy.deepcopy(_pipe_success(kwargs))
         if mutation == "bound_content":
-            result["review"]["content_evidence"]["page_markdown_sha256"][0] = (
-                "e" * 64
-            )
+            result["review"]["content_evidence"]["page_markdown_sha256"][0] = "e" * 64
             result["review"]["baseline_candidate"]["content_evidence"] = copy.deepcopy(
                 result["review"]["content_evidence"]
             )

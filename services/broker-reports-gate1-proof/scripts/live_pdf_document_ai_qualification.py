@@ -219,7 +219,6 @@ def _review_lifecycle_dry_run(repository_head: str) -> dict[str, object]:
                 source_file_id="qualification-dry-run",
                 source_pdf_bytes=source_pdf,
                 expected_source_pdf_sha256=source_pdf_sha256,
-                expected_image_count=1,
                 expires_at=expires_at,
             ).review(actor_context=context, reviewer=reviewer, now=now)
         )

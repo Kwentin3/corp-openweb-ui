@@ -15,7 +15,10 @@ from broker_reports_gate1.artifact_models import (
     build_private_binary_payload,
 )
 from broker_reports_gate1.artifact_retention import build_retention_policy
-from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
+from broker_reports_gate1.artifact_store import (
+    ArtifactStoreConfig,
+    ArtifactStoreFactory,
+)
 from broker_reports_gate1.pdf_document_ai_qualification_review import (
     PDF_DOCUMENT_AI_REVIEW_CHECKS,
     PdfDocumentAiQualificationReviewError,
@@ -27,7 +30,13 @@ from broker_reports_gate1.pdf_document_ai_qualification_review import (
 NOW = datetime.now(timezone.utc)
 
 
-def _lease(tmp_path: Path):
+def _lease(
+    tmp_path: Path,
+    *,
+    image_count: int = 1,
+    declared_image_count: int | None = None,
+    mutation: str | None = None,
+):
     store = ArtifactStoreFactory(
         ArtifactStoreConfig(
             mode="sqlite",
@@ -47,8 +56,6 @@ def _lease(tmp_path: Path):
     retention = build_retention_policy(
         mode="expires_after_ttl", ttl_seconds=7200, now=NOW
     )
-    image = b"private-image"
-    image_sha = hashlib.sha256(image).hexdigest()
     markdown = "# Live result\n\n| A | B |\n|---|---|\n| 1 | 2 |"
     markdown_sha = hashlib.sha256(markdown.encode()).hexdigest()
     source_pdf = b"%PDF-review-source"
@@ -72,6 +79,36 @@ def _lease(tmp_path: Path):
         "validation_status": "validated",
         "lifecycle_status": "private_ready",
     }
+    associations = []
+    image_records = []
+    for index in range(image_count):
+        image = f"private-image-{index}".encode("ascii")
+        image_sha = hashlib.sha256(image).hexdigest()
+        local_ref = f"art_image_{index}"
+        associations.append(
+            {
+                "page_number": index + 1,
+                "markdown_target": f"img-{index}.jpeg",
+                "local_ref": local_ref,
+                "sha256": image_sha,
+            }
+        )
+        image_records.append(
+            ArtifactRecord(
+                artifact_id=local_ref,
+                artifact_type="private_binary_artifact_v1",
+                payload=build_private_binary_payload(
+                    content=image, media_type="image/jpeg"
+                ),
+                **common,
+            )
+        )
+    if mutation == "resolved":
+        associations[0]["local_ref"] = "missing_image"
+    elif mutation == "hash":
+        associations[0]["sha256"] = "0" * 64
+    elif mutation == "association":
+        associations[0] = "not-an-association"
     store.put_records_atomic(
         [
             ArtifactRecord(
@@ -82,7 +119,11 @@ def _lease(tmp_path: Path):
                     "document_ai_markdown_sha256": markdown_sha,
                     "format_structural_inventory": {
                         "pages_count": 1,
-                        "images_count": 1,
+                        "images_count": (
+                            image_count
+                            if declared_image_count is None
+                            else declared_image_count
+                        ),
                         "markdown_bytes": len(markdown.encode()),
                     },
                     "document_ai_provenance": {
@@ -96,25 +137,11 @@ def _lease(tmp_path: Path):
                         "request_parameters_sha256": request_parameters_sha,
                         "page_markdown_sha256": [markdown_sha],
                     },
-                    "document_ai_image_refs": [
-                        {
-                            "page_number": 1,
-                            "markdown_target": "img-0.jpeg",
-                            "local_ref": "art_image",
-                            "sha256": image_sha,
-                        }
-                    ],
+                    "document_ai_image_refs": associations,
                 },
                 **common,
             ),
-            ArtifactRecord(
-                artifact_id="art_image",
-                artifact_type="private_binary_artifact_v1",
-                payload=build_private_binary_payload(
-                    content=image, media_type="image/jpeg"
-                ),
-                **common,
-            ),
+            *image_records,
         ]
     )
     lease = PdfDocumentAiQualificationReviewFactory.create(
@@ -126,7 +153,6 @@ def _lease(tmp_path: Path):
         source_file_id="public-fixture",
         source_pdf_bytes=source_pdf,
         expected_source_pdf_sha256=source_pdf_sha,
-        expected_image_count=1,
         expires_at=NOW + timedelta(seconds=7200),
     )
     return store, context, lease
@@ -135,21 +161,29 @@ def _lease(tmp_path: Path):
 async def _passing_reviewer(view):
     assert "Live result" in view.markdown
     assert view.source_pdf_bytes.startswith(b"%PDF")
-    assert view.images[0][3] == b"private-image"
+    assert all(
+        image[3] == f"private-image-{index}".encode("ascii")
+        for index, image in enumerate(view.images)
+    )
     return PdfDocumentAiQualificationReviewVerdict(
         live_output_digest=view.live_output_digest,
         checks={key: True for key in PDF_DOCUMENT_AI_REVIEW_CHECKS},
     )
 
 
-def test_same_user_review_is_digest_bound_and_guarantees_purge(tmp_path: Path) -> None:
-    store, context, lease = _lease(tmp_path)
+@pytest.mark.parametrize("image_count", (7, 8))
+def test_consistent_observed_graph_reaches_review_and_guarantees_purge(
+    tmp_path: Path, image_count: int
+) -> None:
+    store, context, lease = _lease(tmp_path, image_count=image_count)
     receipt = asyncio.run(
         lease.review(actor_context=context, reviewer=_passing_reviewer, now=NOW)
     )
     assert receipt["status"] == "passed"
     assert receipt["checks_passed"] == len(PDF_DOCUMENT_AI_REVIEW_CHECKS)
     assert receipt["checks"] == {key: True for key in PDF_DOCUMENT_AI_REVIEW_CHECKS}
+    assert receipt["structural_counts"]["images_count"] == image_count
+    assert len(receipt["content_evidence"]["image_associations"]) == image_count
     assert receipt["reviewer_id"] == context.user_id
     assert (
         receipt["source_pdf_sha256"]
@@ -166,7 +200,45 @@ def test_same_user_review_is_digest_bound_and_guarantees_purge(tmp_path: Path) -
     assert purged.value.code == "artifact_purged"
 
 
-def test_cross_user_review_is_denied_without_destroying_owner_graph(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("lease_kwargs", "error_code"),
+    (
+        (
+            {"image_count": 7, "declared_image_count": 8},
+            "pdf_document_ai_review_image_count_mismatch",
+        ),
+        ({"image_count": 7, "mutation": "resolved"}, "artifact_not_found"),
+        ({"image_count": 7, "mutation": "hash"}, "artifact_binary_checksum_mismatch"),
+        (
+            {"image_count": 7, "mutation": "association"},
+            "pdf_document_ai_review_image_association_invalid",
+        ),
+    ),
+)
+def test_image_graph_mismatch_fails_before_review_and_purges(
+    tmp_path: Path, lease_kwargs: dict[str, object], error_code: str
+) -> None:
+    store, context, lease = _lease(tmp_path, **lease_kwargs)
+    review_calls = 0
+
+    async def reviewer(view):
+        nonlocal review_calls
+        review_calls += 1
+        return await _passing_reviewer(view)
+
+    with pytest.raises(
+        (PdfDocumentAiQualificationReviewError, ArtifactStoreError)
+    ) as caught:
+        asyncio.run(lease.review(actor_context=context, reviewer=reviewer, now=NOW))
+
+    assert caught.value.code == error_code
+    assert review_calls == 0
+    assert store.get_record_unchecked("art_full_source").purge_status == "purged"
+
+
+def test_cross_user_review_is_denied_without_destroying_owner_graph(
+    tmp_path: Path,
+) -> None:
     store, context, lease = _lease(tmp_path)
     with pytest.raises(ArtifactStoreError) as denied:
         asyncio.run(
