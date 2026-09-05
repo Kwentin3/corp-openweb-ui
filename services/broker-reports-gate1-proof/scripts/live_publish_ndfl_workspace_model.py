@@ -34,17 +34,16 @@ from live_no_rag_source_intake_smoke import (  # noqa: E402
 
 
 LEGACY_WORKSPACE_MODEL_ID = "test"
-LEGACY_NDFL_MODEL_ID = "broker-reports-ndfl"
-FUNCTION_ID = NDFL_WORKSPACE_MODEL_STABLE_ID
-LEGACY_OPENWEBUI_BASE_PIPE_ID = "broker_reports_gate1_pipe"
+LEGACY_NDFL_MODEL_ID = "broker_reports_ndfl"
+FUNCTION_ID = NDFL_OPENWEBUI_BASE_PIPE_ID
 LEGACY_PIPE_IDS = (
-    LEGACY_OPENWEBUI_BASE_PIPE_ID,
     "broker_reports_gate2_source_fact_pipe",
     "broker_reports_gate2_domain_source_fact_pipe",
 )
 TECHNICAL_PIPE_IDS = LEGACY_PIPE_IDS
 PRODUCT_ROUTE_IDS = (
     NDFL_WORKSPACE_MODEL_STABLE_ID,
+    NDFL_OPENWEBUI_BASE_PIPE_ID,
     LEGACY_NDFL_MODEL_ID,
     LEGACY_WORKSPACE_MODEL_ID,
     *TECHNICAL_PIPE_IDS,
@@ -52,14 +51,14 @@ PRODUCT_ROUTE_IDS = (
 HIDDEN_ROUTE_SCHEMA_VERSION = "broker_reports_hidden_technical_route_v1"
 
 FACTORY_REQUIRED = (
-    "NDFL Workspace publication must bind the maintained generated Function "
-    "and NdflWorkflow stable IDs directly; OpenWebUI model APIs are addressed "
-    "by ID only"
+    "NDFL Workspace publication must bind the one user-facing facade to the "
+    "maintained technical Gate 1 Pipe; OpenWebUI model APIs are addressed by "
+    "ID only"
 )
 FORBIDDEN = (
-    "The publisher must not wrap a technical Pipe as base_model_id, resolve "
-    "behavior by display name, create another Function, attach Knowledge/RAG, "
-    "call a provider or delete historical models"
+    "The publisher must not detach or deactivate the technical Gate 1 Pipe, "
+    "resolve behavior by display name, create another Function, attach "
+    "Knowledge/RAG, call a provider, alias model IDs or delete historical models"
 )
 
 
@@ -105,6 +104,21 @@ def _get_model(
         return None
     if not isinstance(value, dict) or value.get("id") != stable_id:
         raise NdflWorkspacePublishError("openwebui_model_readback_invalid")
+    return value
+
+
+def _get_function(
+    session: requests.Session,
+    base_url: str,
+    stable_id: str,
+) -> dict[str, Any]:
+    value = _request_json(
+        session,
+        "GET",
+        _url(base_url, f"/api/v1/functions/id/{stable_id}"),
+    )
+    if not isinstance(value, dict) or value.get("id") != stable_id:
+        raise NdflWorkspacePublishError("openwebui_function_readback_invalid")
     return value
 
 
@@ -159,11 +173,35 @@ def desired_ndfl_model(
 ) -> dict[str, Any]:
     grants_source = previous if previous is not None else legacy
     capabilities_source = previous if previous is not None else legacy
-    return {
-        "id": NDFL_WORKSPACE_MODEL_STABLE_ID,
-        "base_model_id": None,
-        "name": NDFL_WORKFLOW_DISPLAY_NAME,
-        "meta": {
+    source_meta = copy.deepcopy((previous or legacy or {}).get("meta") or {})
+    source_binding = source_meta.get("broker_reports_product_binding")
+    binding = (
+        copy.deepcopy(source_binding)
+        if isinstance(source_binding, dict)
+        else ndfl_product_binding_snapshot()
+    )
+    # This publisher owns topology only. Existing provider, model, dictionary
+    # and role-pack semantics must survive an identity repair unchanged.
+    binding.update(
+        {
+            "workspace_model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+            "base_pipe_id": NDFL_OPENWEBUI_BASE_PIPE_ID,
+            "workflow_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+        }
+    )
+    if previous is not None:
+        meta = source_meta
+        meta.update(
+            {
+                "capabilities": _capabilities(capabilities_source),
+                "knowledge": [],
+                "toolIds": [],
+                "skillIds": [],
+                "broker_reports_product_binding": binding,
+            }
+        )
+    else:
+        meta = {
             "profile_image_url": "/static/favicon.png",
             "description": (
                 "Помогает проверить брокерский отчёт, рассчитать подтверждённые "
@@ -173,9 +211,7 @@ def desired_ndfl_model(
             "suggestion_prompts": [
                 {
                     "title": ["Подготовить", "3-НДФЛ"],
-                    "content": (
-                        "Помогите подготовить 3-НДФЛ по брокерскому отчёту."
-                    ),
+                    "content": "Помогите подготовить 3-НДФЛ по брокерскому отчёту.",
                 },
                 {
                     "title": ["Проверить", "операции"],
@@ -193,9 +229,14 @@ def desired_ndfl_model(
             "knowledge": [],
             "toolIds": [],
             "skillIds": [],
-            "broker_reports_product_binding": ndfl_product_binding_snapshot(),
-        },
-        "params": {},
+            "broker_reports_product_binding": binding,
+        }
+    return {
+        "id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+        "base_model_id": NDFL_OPENWEBUI_BASE_PIPE_ID,
+        "name": NDFL_WORKFLOW_DISPLAY_NAME,
+        "meta": meta,
+        "params": copy.deepcopy(previous.get("params") or {}) if previous else {},
         "access_grants": _grant_payload(grants_source),
         "is_active": True,
     }
@@ -260,9 +301,11 @@ def _is_managed_ndfl(record: dict[str, Any]) -> bool:
     )
     return bool(
         record.get("id") == NDFL_WORKSPACE_MODEL_STABLE_ID
+        and record.get("base_model_id") == NDFL_OPENWEBUI_BASE_PIPE_ID
         and isinstance(binding, dict)
         and binding.get("workspace_model_id")
         == NDFL_WORKSPACE_MODEL_STABLE_ID
+        and binding.get("base_pipe_id") == NDFL_OPENWEBUI_BASE_PIPE_ID
     )
 
 
@@ -278,6 +321,31 @@ def _is_managed_legacy_ndfl(record: dict[str, Any]) -> bool:
         and isinstance(binding, dict)
         and binding.get("workspace_model_id") == LEGACY_NDFL_MODEL_ID
     )
+
+
+def evaluate_required_base_model(record: dict[str, Any] | None) -> dict[str, bool]:
+    checks = {
+        "present": record is not None,
+        "stable_id_match": bool(
+            record and record.get("id") == NDFL_OPENWEBUI_BASE_PIPE_ID
+        ),
+        "not_a_facade": bool(record and record.get("base_model_id") is None),
+        "active": bool(record and record.get("is_active") is True),
+    }
+    return {**checks, "passed": all(checks.values())}
+
+
+def evaluate_required_base_function(
+    record: dict[str, Any] | None,
+) -> dict[str, bool]:
+    checks = {
+        "present": record is not None,
+        "stable_id_match": bool(record and record.get("id") == FUNCTION_ID),
+        "pipe": bool(record and record.get("type") == "pipe"),
+        "active": bool(record and record.get("is_active") is True),
+        "not_global": bool(record and record.get("is_global") is False),
+    }
+    return {**checks, "passed": all(checks.values())}
 
 
 def _is_managed_hidden_route(record: dict[str, Any], pipe_id: str) -> bool:
@@ -357,6 +425,27 @@ def _restore_model(
     )
 
 
+def _rollback_models(
+    session: requests.Session,
+    base_url: str,
+    *,
+    mutated: list[str],
+    previous: dict[str, dict[str, Any] | None],
+) -> list[str]:
+    rollback_errors: list[str] = []
+    for stable_id in reversed(mutated):
+        try:
+            _restore_model(
+                session,
+                base_url,
+                stable_id=stable_id,
+                previous=previous[stable_id],
+            )
+        except Exception as exc:
+            rollback_errors.append(f"{stable_id}:{type(exc).__name__}")
+    return rollback_errors
+
+
 def evaluate_ndfl_model(record: dict[str, Any] | None) -> dict[str, Any]:
     meta = record.get("meta") if record else None
     binding = (
@@ -376,10 +465,18 @@ def evaluate_ndfl_model(record: dict[str, Any] | None) -> dict[str, Any]:
             record
             and record.get("id") == NDFL_WORKSPACE_MODEL_STABLE_ID
         ),
-        "base_pipe_id_match": bool(record and record.get("base_model_id") is None),
-        "direct_function_id_match": FUNCTION_ID == NDFL_WORKSPACE_MODEL_STABLE_ID,
+        "base_pipe_id_match": bool(
+            record and record.get("base_model_id") == NDFL_OPENWEBUI_BASE_PIPE_ID
+        ),
+        "function_id_match": FUNCTION_ID == NDFL_OPENWEBUI_BASE_PIPE_ID,
         "active": bool(record and record.get("is_active") is True),
-        "stable_binding_exact": binding == ndfl_product_binding_snapshot(),
+        "stable_binding_topology_exact": bool(
+            isinstance(binding, dict)
+            and binding.get("workspace_model_id")
+            == NDFL_WORKSPACE_MODEL_STABLE_ID
+            and binding.get("base_pipe_id") == NDFL_OPENWEBUI_BASE_PIPE_ID
+            and binding.get("workflow_id") == NDFL_WORKSPACE_MODEL_STABLE_ID
+        ),
         "knowledge_empty": bool(
             isinstance(meta, dict) and meta.get("knowledge") == []
         ),
@@ -438,17 +535,23 @@ def evaluate_visible_routes(
         for item in visible_models
         if item.get("id") in PRODUCT_ROUTE_IDS
     }
-    competing_ids = visible_ids - {NDFL_WORKSPACE_MODEL_STABLE_ID}
+    internal_base_ids = visible_ids & {NDFL_OPENWEBUI_BASE_PIPE_ID}
+    competing_ids = visible_ids - {
+        NDFL_WORKSPACE_MODEL_STABLE_ID,
+        NDFL_OPENWEBUI_BASE_PIPE_ID,
+    }
     return {
         "visible_product_route_ids": sorted(
             visible_ids & {NDFL_WORKSPACE_MODEL_STABLE_ID}
         ),
-        "visible_internal_runtime_base_ids": [],
+        "visible_internal_runtime_base_ids": sorted(internal_base_ids),
         "user_facing_ndfl_models": int(
             NDFL_WORKSPACE_MODEL_STABLE_ID in visible_ids
         ),
         "legacy_or_competing_routes_visible": sorted(competing_ids),
-        "passed": visible_ids == {NDFL_WORKSPACE_MODEL_STABLE_ID},
+        "passed": bool(
+            NDFL_WORKSPACE_MODEL_STABLE_ID in visible_ids and not competing_ids
+        ),
     }
 
 
@@ -459,7 +562,7 @@ def main() -> int:
     parser.add_argument(
         "--publish",
         action="store_true",
-        help="Publish NDFL and hide legacy/technical model-list routes.",
+        help="Publish the NDFL facade and deactivate only managed legacy routes.",
     )
     args = parser.parse_args()
 
@@ -472,6 +575,7 @@ def main() -> int:
 
     tracked_ids = (
         NDFL_WORKSPACE_MODEL_STABLE_ID,
+        NDFL_OPENWEBUI_BASE_PIPE_ID,
         LEGACY_NDFL_MODEL_ID,
         LEGACY_WORKSPACE_MODEL_ID,
         *TECHNICAL_PIPE_IDS,
@@ -480,6 +584,14 @@ def main() -> int:
         stable_id: _get_model(session, base_url, stable_id)
         for stable_id in tracked_ids
     }
+    base_model_check = evaluate_required_base_model(
+        previous[NDFL_OPENWEBUI_BASE_PIPE_ID]
+    )
+    base_function_check = evaluate_required_base_function(
+        _get_function(session, base_url, FUNCTION_ID)
+    )
+    if not base_model_check["passed"] or not base_function_check["passed"]:
+        raise NdflWorkspacePublishError("ndfl_base_pipe_topology_invalid")
     if (
         previous[NDFL_WORKSPACE_MODEL_STABLE_ID] is not None
         and not _is_managed_ndfl(previous[NDFL_WORKSPACE_MODEL_STABLE_ID])
@@ -502,8 +614,7 @@ def main() -> int:
     legacy_ndfl = previous[LEGACY_NDFL_MODEL_ID]
     legacy = legacy_ndfl or legacy_workspace
     if legacy_workspace is not None and (
-        legacy_workspace.get("base_model_id")
-        not in {NDFL_OPENWEBUI_BASE_PIPE_ID, LEGACY_OPENWEBUI_BASE_PIPE_ID}
+        legacy_workspace.get("base_model_id") != NDFL_OPENWEBUI_BASE_PIPE_ID
         or legacy_workspace.get("id") != LEGACY_WORKSPACE_MODEL_ID
     ):
         raise NdflWorkspacePublishError("legacy_workspace_model_identity_changed")
@@ -559,56 +670,87 @@ def main() -> int:
                 )
                 mutated.append(stable_id)
         except Exception as exc:
-            rollback_errors: list[str] = []
-            for stable_id in reversed(mutated):
-                try:
-                    _restore_model(
-                        session,
-                        base_url,
-                        stable_id=stable_id,
-                        previous=previous[stable_id],
-                    )
-                except Exception as rollback_exc:
-                    rollback_errors.append(
-                        f"{stable_id}:{type(rollback_exc).__name__}"
-                    )
+            rollback_errors = _rollback_models(
+                session,
+                base_url,
+                mutated=mutated,
+                previous=previous,
+            )
             raise NdflWorkspacePublishError(
                 f"ndfl_workspace_publish_failed:{type(exc).__name__}:"
                 f"rollback_errors={','.join(rollback_errors) or 'none'}"
             ) from exc
 
-    current = {
-        stable_id: _get_model(session, base_url, stable_id)
-        for stable_id in tracked_ids
-    }
-    ndfl_check = evaluate_ndfl_model(
-        current[NDFL_WORKSPACE_MODEL_STABLE_ID]
-    )
-    hidden_checks = {
-        pipe_id: evaluate_hidden_pipe_model(current[pipe_id], pipe_id)
-        for pipe_id in TECHNICAL_PIPE_IDS
-    }
-    legacy_ndfl_inactive = bool(
-        current[LEGACY_NDFL_MODEL_ID] is None
-        or current[LEGACY_NDFL_MODEL_ID].get("is_active") is False
-    )
-    legacy_workspace_inactive = bool(
-        current[LEGACY_WORKSPACE_MODEL_ID] is None
-        or current[LEGACY_WORKSPACE_MODEL_ID].get("is_active") is False
-    )
-    visible_check = evaluate_visible_routes(
-        _get_visible_models(session, base_url)
-    )
-    hidden_pass = all(all(check.values()) for check in hidden_checks.values())
-    passed = bool(
-        ndfl_check["routing_passed"]
-        and ndfl_check["display_name_match"]
-        and ndfl_check["managed_tags_match"]
-        and hidden_pass
-        and legacy_ndfl_inactive
-        and legacy_workspace_inactive
-        and visible_check["passed"]
-    )
+    try:
+        current = {
+            stable_id: _get_model(session, base_url, stable_id)
+            for stable_id in tracked_ids
+        }
+        current_base_model_check = evaluate_required_base_model(
+            current[NDFL_OPENWEBUI_BASE_PIPE_ID]
+        )
+        current_base_function_check = evaluate_required_base_function(
+            _get_function(session, base_url, FUNCTION_ID)
+        )
+        ndfl_check = evaluate_ndfl_model(
+            current[NDFL_WORKSPACE_MODEL_STABLE_ID]
+        )
+        hidden_checks = {
+            pipe_id: evaluate_hidden_pipe_model(current[pipe_id], pipe_id)
+            for pipe_id in TECHNICAL_PIPE_IDS
+        }
+        legacy_ndfl_inactive = bool(
+            current[LEGACY_NDFL_MODEL_ID] is None
+            or current[LEGACY_NDFL_MODEL_ID].get("is_active") is False
+        )
+        legacy_workspace_inactive = bool(
+            current[LEGACY_WORKSPACE_MODEL_ID] is None
+            or current[LEGACY_WORKSPACE_MODEL_ID].get("is_active") is False
+        )
+        visible_check = evaluate_visible_routes(
+            _get_visible_models(session, base_url)
+        )
+        hidden_pass = all(
+            all(check.values()) for check in hidden_checks.values()
+        )
+        passed = bool(
+            current_base_model_check["passed"]
+            and current_base_function_check["passed"]
+            and ndfl_check["routing_passed"]
+            and ndfl_check["display_name_match"]
+            and ndfl_check["managed_tags_match"]
+            and hidden_pass
+            and legacy_ndfl_inactive
+            and legacy_workspace_inactive
+            and visible_check["passed"]
+        )
+    except Exception as exc:
+        rollback_errors = (
+            _rollback_models(
+                session,
+                base_url,
+                mutated=mutated,
+                previous=previous,
+            )
+            if args.publish
+            else []
+        )
+        raise NdflWorkspacePublishError(
+            f"ndfl_workspace_readback_failed:{type(exc).__name__}:"
+            f"rollback_errors={','.join(rollback_errors) or 'none'}"
+        ) from exc
+
+    if args.publish and not passed:
+        rollback_errors = _rollback_models(
+            session,
+            base_url,
+            mutated=mutated,
+            previous=previous,
+        )
+        raise NdflWorkspacePublishError(
+            "ndfl_workspace_publish_failed:postcondition_failed:"
+            f"rollback_errors={','.join(rollback_errors) or 'none'}"
+        )
     result = {
         "schema_version": "broker_reports_ndfl_workspace_model_live_binding_v1",
         "mode": "publish" if args.publish else "read_only",
@@ -617,6 +759,8 @@ def main() -> int:
         "stable_bindings": ndfl_product_binding_snapshot(),
         "actions": actions,
         "checks": {
+            "required_base_model": current_base_model_check,
+            "required_base_function": current_base_function_check,
             "ndfl_workspace_model": ndfl_check,
             "hidden_technical_routes": hidden_checks,
             "legacy_ndfl_model_inactive": legacy_ndfl_inactive,

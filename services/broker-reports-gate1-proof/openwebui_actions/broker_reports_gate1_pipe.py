@@ -309,8 +309,6 @@ class Pipe:
             metadata=(__metadata__ if isinstance(__metadata__, dict) else {}),
             user=__user__,
         )
-        if metadata.get("model_id") == NDFL_WORKFLOW_STABLE_ID:
-            return self._ndfl_legacy_route_content()
         interaction_message = await self._trusted_interaction_message(
             body=safe_body,
             messages_arg=messages_arg,
@@ -939,15 +937,6 @@ class Pipe:
             "Источник прочитан и привязан к текущему кейсу. Релевантные "
             "неразобранные строки не используются молча: при их наличии выпуск "
             "XML будет остановлен."
-        )
-
-    @staticmethod
-    def _ndfl_legacy_route_content() -> str:
-        return (
-            "Подготовка 3-НДФЛ в этом чате недоступна: он открыт через "
-            "устаревшую карточку сервиса. Загруженный файл не использован для "
-            "расчёта, XML не создан. Начните новый чат через актуальную карточку "
-            "«NDFL». Если она не видна, обратитесь к администратору сервиса."
         )
 
     async def _maybe_resume_ndfl_chat_turn(

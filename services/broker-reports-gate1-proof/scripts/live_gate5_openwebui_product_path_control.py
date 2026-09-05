@@ -18,9 +18,7 @@ import requests
 SCRIPT_DIR = Path(__file__).resolve().parent
 SERVICE_ROOT = SCRIPT_DIR.parent
 REPO_ROOT = SERVICE_ROOT.parents[1]
-FUNCTION_ID = "broker_reports_ndfl"
-MODEL_ID = FUNCTION_ID
-LEGACY_FUNCTION_ID = "broker_reports_gate1_pipe"
+LEGACY_FUNCTION_ID = "broker_reports_ndfl"
 BUNDLE_PATH = SERVICE_ROOT / "openwebui_actions/broker_reports_gate1_pipe_bundled.py"
 VISIBLE_PROOF_USER_SUFFIXES = ("a", "c", "d", "e", "f", "g", "h")
 HIDDEN_PROOF_USER_SUFFIX = "b"
@@ -28,6 +26,10 @@ HIDDEN_PROOF_USER_SUFFIX = "b"
 sys.path.insert(0, str(SCRIPT_DIR))
 sys.path.insert(0, str(SERVICE_ROOT))
 
+from broker_reports_gate1.gate3_ndfl_workflow import (  # noqa: E402
+    NDFL_OPENWEBUI_BASE_PIPE_ID,
+    NDFL_WORKSPACE_MODEL_STABLE_ID,
+)
 from broker_reports_atomic_stage_release_contracts import (  # noqa: E402
     GATE1_RELEASE_VALVES,
     GATE1_RETIRED_VALVE_KEYS,
@@ -38,6 +40,10 @@ from live_no_rag_source_intake_smoke import (  # noqa: E402
     _signin,
     _url,
 )
+
+
+FUNCTION_ID = NDFL_OPENWEBUI_BASE_PIPE_ID
+MODEL_ID = NDFL_WORKSPACE_MODEL_STABLE_ID
 
 
 class G536ControlError(RuntimeError):
@@ -667,6 +673,8 @@ def _cleanup(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    if FUNCTION_ID == LEGACY_FUNCTION_ID:
+        raise G536ControlError("active_and_legacy_function_ids_must_differ")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--env-file", default=str(REPO_ROOT / ".env"))
     parser.add_argument("--base-url", default=None)
