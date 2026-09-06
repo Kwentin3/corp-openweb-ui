@@ -927,12 +927,15 @@ class Gate1Normalizer:
         """Build the single safe per-file result used by chat and LLM contexts."""
         if not documents:
             return None
-        blockers_by_document: dict[str, set[str]] = defaultdict(set)
+        blockers_by_document: dict[str, set[tuple[str, str | None]]] = defaultdict(set)
         for blocker in blockers:
             document_id_value = blocker.get("document_id")
             code = blocker.get("code")
             if isinstance(document_id_value, str) and isinstance(code, str):
-                blockers_by_document[document_id_value].add(code)
+                reason_code = blocker.get("reason_code")
+                blockers_by_document[document_id_value].add(
+                    (code, reason_code if isinstance(reason_code, str) else None)
+                )
 
         outcomes = FileProcessingOutcomeFactory().create()
         records = []
@@ -950,7 +953,12 @@ class Gate1Normalizer:
         }
         for document in documents:
             file_ref = str(document["document_id"])
-            codes = blockers_by_document.get(file_ref, set())
+            blocker_details = blockers_by_document.get(file_ref, set())
+            codes = {code for code, _reason_code in blocker_details}
+            document_ai_limit = (
+                "parser_failed",
+                "PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED",
+            ) in blocker_details
             terminal = next(
                 (
                     (reason_code, stage)
@@ -959,7 +967,15 @@ class Gate1Normalizer:
                 ),
                 None,
             )
-            if terminal is not None:
+            if document_ai_limit:
+                records.append(
+                    outcomes.failed(
+                        file_ref=file_ref,
+                        stage="document_profiling",
+                        reason_code="PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED",
+                    )
+                )
+            elif terminal is not None:
                 reason_code, stage = terminal
                 records.append(
                     outcomes.failed(

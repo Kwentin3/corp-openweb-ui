@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from io import BytesIO
 import json
 import sys
 import unittest
 from pathlib import Path
+
+from pypdf import PdfWriter
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +23,22 @@ from broker_reports_gate1.document_passport import prompt_hash  # noqa: E402
 from broker_reports_gate1.file_processing_outcomes import (  # noqa: E402
     validate_file_processing_batch,
 )
+from broker_reports_gate1.pdf_document_ai import (  # noqa: E402
+    PdfDocumentExtractionError,
+)
+
+
+class _ImageLimitPdfExtractor:
+    def extract(self, _pdf_bytes: bytes, _source_context: object) -> object:
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED")
+
+
+def _synthetic_pdf_bytes() -> bytes:
+    output = BytesIO()
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.write(output)
+    return output.getvalue()
 
 
 class BrokerReportsFileProcessingIntegrationTest(unittest.TestCase):
@@ -138,6 +157,28 @@ class BrokerReportsFileProcessingIntegrationTest(unittest.TestCase):
         self.assertEqual(outcome["stage"], "container_detection")
         self.assertEqual(outcome["reason_code"], "unsupported_format")
         self.assertEqual(outcome["next_action"], "upload_supported_file")
+
+    def test_pdf_document_ai_limit_keeps_its_safe_user_action(self) -> None:
+        result = Gate1Normalizer(
+            _pdf_document_extractor=_ImageLimitPdfExtractor()
+        ).normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="private-large-pdf",
+                    filename="customer-report.pdf",
+                    content=_synthetic_pdf_bytes(),
+                    mime_type="application/pdf",
+                )
+            ]
+        )
+
+        outcome = result.safe_report["file_processing_outcomes"]["outcomes"][0]
+        self.assertEqual(outcome["reason_code"], "PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED")
+        self.assertEqual(outcome["stage"], "document_profiling")
+        self.assertFalse(outcome["retryable"])
+        self.assertEqual(outcome["next_action"], "reduce_document_scope")
+        self.assertIn("безопасный лимит", outcome["user_message"])
+        self.assertNotIn("PDF_DOCUMENT_AI", outcome["user_message"])
 
 
 if __name__ == "__main__":
