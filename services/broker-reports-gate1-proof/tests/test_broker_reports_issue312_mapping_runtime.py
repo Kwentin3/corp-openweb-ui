@@ -276,7 +276,7 @@ async def _repeated_currency_assertion_resumes_legacy_mapping_case(tmp_path) -> 
     assert len(current["confirmed_understandings"]) == 1
 
 
-async def _user_currency_then_exclusion_confirmation_completes(tmp_path) -> None:
+async def _user_currency_then_internal_classification_completes(tmp_path) -> None:
     store, context, document_id, _tables, canonical_ref = _multi_table_case(
         tmp_path,
         table_row_sets=tuple(
@@ -299,11 +299,7 @@ async def _user_currency_then_exclusion_confirmation_completes(tmp_path) -> None
             "amount_currency_bindings": [],
             "side_values": [],
         }
-    resumed_response = _response_for_tables(table_count=2, mapping=mapping)
-    for decision in resumed_response["table_decisions"]:
-        decision["amount_currency_bindings"] = []
-        decision["columns"][5]["semantic_role"] = "unmapped"
-    client = BoundaryModelClient([currency_response, resumed_response])
+    client = BoundaryModelClient([currency_response])
     runtime = OrdinaryTradeProductionRuntimeFactory(
         store=store,
         read_enabled=True,
@@ -322,25 +318,20 @@ async def _user_currency_then_exclusion_confirmation_completes(tmp_path) -> None
         context=context,
         user_message="Валюта: USD",
     )
-    clarified = await runtime.run_with_automatic_mapping(
-        canonical_artifact_refs=[canonical_ref],
-        context=context,
-        user_message="Подтверждаю: указанная группа не относится к поддерживаемым операциям",
-    )
-    completed = await runtime.run_with_automatic_mapping(
-        canonical_artifact_refs=[canonical_ref],
-        context=context,
-        user_message="Да",
-    )
-
     assert required["semantic_mapping"]["status"] == "CURRENCY_ASSERTION_REQUIRED"
-    assert currency_supplied["semantic_mapping"]["status"] == "CLARIFICATION_REQUIRED"
-    assert clarified["semantic_mapping"]["status"] == "CONFIRMATION_REQUIRED"
-    assert completed["semantic_mapping"]["status"] == "COMPLETE"
-    assert {
-        (item["table_ref"], item["currency_code"])
-        for item in client.calls[1]["package"]["case"]["user_currency_assertions"]
-    } == {("table_1", "USD"), ("table_2", "USD")}
+    assert currency_supplied["semantic_mapping"]["status"] == "COMPLETE"
+    assert len(client.calls) == 1
+    current = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+    assertions = [
+        item["decision"]
+        for item in current["confirmed_understandings"]
+        if item["decision"]["decision_kind"] == "USER_PROVIDED_CURRENCY"
+    ]
+    assert len(assertions) == 1
+    assert assertions[0]["currency_code"] == "USD"
+    assert len(assertions[0]["table_node_ids"]) == 2
 
 
 async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
@@ -377,10 +368,9 @@ async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
         user_message="Нет",
     )
 
-    assert pending["status"] == "CONFIRMATION_REQUIRED"
-    assert pending["public_state"]["confirmation_message"].endswith("«Нет».")
-    assert rejected["status"] == "SPECIALIST_REVIEW_REQUIRED"
-    assert rejected["public_state"]["may_resume"] is False
+    assert pending["status"] == "COMPLETE"
+    assert pending["public_state"]["confirmation_message"] is None
+    assert rejected["status"] == "COMPLETE"
     assert len(client.calls) == 1
 
 
@@ -1421,8 +1411,8 @@ def test_repeated_currency_assertion_resumes_legacy_mapping_case(tmp_path) -> No
     asyncio.run(_repeated_currency_assertion_resumes_legacy_mapping_case(tmp_path))
 
 
-def test_user_currency_then_exclusion_confirmation_completes(tmp_path) -> None:
-    asyncio.run(_user_currency_then_exclusion_confirmation_completes(tmp_path))
+def test_user_currency_then_internal_classification_completes(tmp_path) -> None:
+    asyncio.run(_user_currency_then_internal_classification_completes(tmp_path))
 
 
 def test_user_currency_assertion_is_rendered_as_one_plain_chat_question() -> None:
@@ -1604,5 +1594,5 @@ def test_mapping_followup_supersedes_stale_declaration_request() -> None:
     assert context["current_question"]["options"] == ["Вариант 1", "Вариант 2"]
 
 
-def test_model_exclusion_requires_one_deterministic_confirmation(tmp_path) -> None:
+def test_model_exclusion_is_complete_internal_mapping(tmp_path) -> None:
     asyncio.run(_no_named_consumer_is_complete_auditable_mapping(tmp_path))

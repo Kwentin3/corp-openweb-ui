@@ -411,6 +411,22 @@ class OrdinaryTradeSemanticMapping:
                 )
                 for item in decisions
             ]
+            if any(
+                item["disposition"] == "UNSUPPORTED_FINANCIAL_MEANING"
+                for item in resolved
+            ):
+                return {
+                    "status": "UNSUPPORTED",
+                    "message": value["message"].strip(),
+                    "question": None,
+                    "qualified_mappings": [],
+                    "qualification_receipts": [],
+                    "table_resolutions": [],
+                    "model_response_sha256": _sha256_json(value),
+                    "execution_metadata_sha256": _execution_metadata_sha256(
+                        execution_metadata
+                    ),
+                }
             scoped = [
                 item["table_node_id"]
                 for item in resolved
@@ -502,32 +518,6 @@ class OrdinaryTradeSemanticMapping:
             confirmed_understandings=confirmed_understandings,
             tables=all_tables,
         )
-        unconfirmed_exclusions = [
-            item
-            for item in resolved_decisions
-            if item["disposition"] == "NO_NAMED_CONSUMER"
-            and not _has_confirmed_table_disposition(
-                confirmed_understandings=confirmed_understandings,
-                table_node_id=item["table_node_id"],
-                disposition="NO_NAMED_CONSUMER",
-            )
-        ]
-        if unconfirmed_exclusions:
-            return {
-                "status": "CLARIFICATION_REQUIRED",
-                "message": (
-                    "Excluding non-calculation source sections requires one "
-                    "explicit declarant confirmation."
-                ),
-                "question": _build_no_named_consumer_batch_question(
-                    decisions=unconfirmed_exclusions,
-                    tables=tables,
-                ),
-                "model_response_sha256": model_decision["response_sha256"],
-                "execution_metadata_sha256": model_decision[
-                    "execution_metadata_sha256"
-                ],
-            }
         if any(
             item["disposition"] == "UNSUPPORTED_FINANCIAL_MEANING"
             for item in resolved_decisions
@@ -1095,6 +1085,11 @@ def _validate_table_decision(
     )
     disposition = decision["disposition"]
     if disposition != "SECURITY_TRADES":
+        if any(
+            decision[key]
+            for key in ("columns", "amount_currency_bindings", "side_values")
+        ):
+            _fail("ordinary_trade_semantic_mapping_non_trade_material_invalid")
         return {
             "table_node_id": table["table_node_id"],
             "header_row": decision["header_row"],
@@ -1366,20 +1361,6 @@ def _resolved_decision_satisfies(
         "source_literal": decision["source_literal"],
         "normalized_value": decision["normalized_value"],
     } in resolved["side_values"]
-
-
-def _has_confirmed_table_disposition(
-    *,
-    confirmed_understandings: list[dict[str, Any]],
-    table_node_id: str,
-    disposition: str,
-) -> bool:
-    return any(
-        (item.get("decision") or {}).get("decision_kind") == "TABLE_DISPOSITION"
-        and item["decision"].get("table_node_id") == table_node_id
-        and item["decision"].get("disposition") == disposition
-        for item in confirmed_understandings
-    )
 
 
 def _validate_question(
