@@ -4,6 +4,7 @@ import copy
 import hashlib
 
 import pytest
+from jsonschema import Draft202012Validator, ValidationError
 
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.gate2_model_contracts import Gate2ProviderExecutionMetadata
@@ -256,12 +257,14 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         {"COMPLETE", "CLARIFICATION_REQUIRED", "CURRENCY_ASSERTION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
     ]
     disposition_enums = _property_enum_sets(provider_schema, "disposition")
-    assert len(disposition_enums) == 2
-    assert all(
-        values
-        == {"SECURITY_TRADES", "NO_NAMED_CONSUMER", "UNSUPPORTED_FINANCIAL_MEANING"}
-        for values in disposition_enums
-    )
+    assert len(disposition_enums) == 3
+    assert {"SECURITY_TRADES"} in disposition_enums
+    assert {"NO_NAMED_CONSUMER", "UNSUPPORTED_FINANCIAL_MEANING"} in disposition_enums
+    assert {
+        "SECURITY_TRADES",
+        "NO_NAMED_CONSUMER",
+        "UNSUPPORTED_FINANCIAL_MEANING",
+    } in disposition_enums
     decision_kind_enums = _property_enum_sets(provider_schema, "decision_kind")
     assert len(decision_kind_enums) == 1
     assert all(
@@ -276,6 +279,36 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         for values in normalized_value_enums
     )
     assert response_format == canonical_response_format
+
+
+def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
+    schema = (
+        OrdinaryTradeSemanticMappingFactory.create()
+        .mapping_response_format()["json_schema"]["schema"]
+    )
+    validator = Draft202012Validator(schema)
+    response = {
+        "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+        "status": "COMPLETE",
+        "table_decisions": [
+            {
+                "table_ref": "table_001",
+                "header_row": 1,
+                "disposition": "NO_NAMED_CONSUMER",
+                "columns": [{"column": 1, "semantic_role": "asset_name"}],
+                "amount_currency_bindings": [],
+                "side_values": [],
+            }
+        ],
+        "clarification": None,
+        "message": "The table has no ordinary-trade consumer.",
+    }
+
+    with pytest.raises(ValidationError):
+        validator.validate(response)
+
+    response["table_decisions"][0]["columns"] = []
+    validator.validate(response)
 
 
 def test_unknown_schema_mapping_is_qualified_only_for_exact_case(tmp_path) -> None:

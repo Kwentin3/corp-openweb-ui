@@ -1583,7 +1583,11 @@ def _mapping_response_schema() -> dict[str, Any]:
             "semantic_role": {"type": "string", "enum": sorted(_SEMANTIC_ROLES)},
         },
     }
-    table_decision = {
+    table_decision_common = {
+        "table_ref": {"type": "string", "minLength": 1},
+        "header_row": {"type": "integer", "minimum": 1},
+    }
+    security_trade_table_decision = {
         "type": "object",
         "additionalProperties": False,
         "required": [
@@ -1595,9 +1599,8 @@ def _mapping_response_schema() -> dict[str, Any]:
             "side_values",
         ],
         "properties": {
-            "table_ref": {"type": "string", "minLength": 1},
-            "header_row": {"type": "integer", "minimum": 1},
-            "disposition": {"type": "string", "enum": sorted(_TABLE_DISPOSITIONS)},
+            **table_decision_common,
+            "disposition": {"const": "SECURITY_TRADES"},
             "columns": {"type": "array", "items": column},
             "amount_currency_bindings": {
                 "type": "array",
@@ -1627,6 +1630,31 @@ def _mapping_response_schema() -> dict[str, Any]:
                 },
             },
         },
+    }
+    non_trade_table_decision = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "table_ref",
+            "header_row",
+            "disposition",
+            "columns",
+            "amount_currency_bindings",
+            "side_values",
+        ],
+        "properties": {
+            **table_decision_common,
+            "disposition": {
+                "type": "string",
+                "enum": sorted(_TABLE_DISPOSITIONS - {"SECURITY_TRADES"}),
+            },
+            "columns": {"type": "array", "maxItems": 0},
+            "amount_currency_bindings": {"type": "array", "maxItems": 0},
+            "side_values": {"type": "array", "maxItems": 0},
+        },
+    }
+    table_decision = {
+        "anyOf": [security_trade_table_decision, non_trade_table_decision]
     }
     decision = {
         "type": "object",
