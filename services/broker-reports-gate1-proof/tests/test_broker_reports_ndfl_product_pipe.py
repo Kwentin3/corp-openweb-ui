@@ -686,7 +686,21 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
 
 def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # This is a product-route test, not a host-capacity-policy test.  Keep its
+    # Canonical write independent of the free-space ratio of the CI worker;
+    # capacity rejection itself is covered by the Canonical storage tests.
+    import broker_reports_gate1.canonical_store as canonical_store
+
+    monkeypatch.setattr(
+        canonical_store.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(
+            total=20 * 1024 * 1024 * 1024,
+            free=10 * 1024 * 1024 * 1024,
+        ),
+    )
     fixture = Path(__file__).parent / "fixtures/issue306_supported_ordinary_trade.csv"
     payload = fixture.read_bytes()
     pipe = Pipe(
