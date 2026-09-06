@@ -129,6 +129,17 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=current, context=context, provider_calls_this_turn=0
             )
         if current is not None and current[1]["status"] == "CONFIRMATION_REQUIRED":
+            question = current[1].get("question")
+            if (
+                confirmation is None
+                and isinstance(question, dict)
+                and question.get("question_id") == "q_user_table_disposition"
+            ):
+                confirmation = self._semantic.interpret_manual_confirmation(
+                    user_message
+                )
+                if confirmation is not None:
+                    expected_confirmation_artifact_id = current[0].artifact_id
             if confirmation is None:
                 return self._result(
                     current=current, context=context, provider_calls_this_turn=0
@@ -151,6 +162,25 @@ class OrdinaryTradeAutomaticMappingRuntime:
             if not str(user_message or "").strip():
                 return self._result(
                     current=current, context=context, provider_calls_this_turn=0
+                )
+            question = current[1].get("question")
+            manual = (
+                self._semantic.interpret_manual_table_disposition_answer(
+                    question=question,
+                    user_message=user_message,
+                )
+                if isinstance(question, dict)
+                else None
+            )
+            if manual is not None:
+                saved = self._cases.save_answer_candidate(
+                    document_id=document_id,
+                    context=context,
+                    interpretation=manual,
+                    provider_calls_total=0,
+                )
+                return self._result(
+                    current=saved, context=context, provider_calls_this_turn=0
                 )
             return await self._interpret_answer(
                 document_id=document_id,
@@ -291,6 +321,36 @@ class OrdinaryTradeAutomaticMappingRuntime:
             code = getattr(
                 exc, "code", "ordinary_trade_semantic_mapping_output_invalid"
             )
+            manual_question = None
+            if str(code) == "ordinary_trade_semantic_mapping_response_json_invalid":
+                manual_question = self._semantic.manual_table_disposition_question(
+                    canonical=binding["canonical"],
+                    confirmed_understandings=confirmed,
+                    target_table_node_ids=target_table_node_ids,
+                )
+            if manual_question is not None:
+                saved = self._cases.save_mapping_outcome(
+                    document_id=document_id,
+                    context=context,
+                    outcome={
+                        "status": "CLARIFICATION_REQUIRED",
+                        "message": (
+                            "Автоматическая классификация таблицы не прошла "
+                            "проверку. Финансовые факты не опубликованы; "
+                            "уточните назначение таблицы по исходным заголовкам."
+                        ),
+                        "question": manual_question,
+                        "qualified_mappings": [],
+                        "qualification_receipts": [],
+                        "table_resolutions": [],
+                        "model_response_sha256": None,
+                        "execution_metadata_sha256": None,
+                    },
+                    provider_calls_total=1,
+                )
+                return self._result(
+                    current=saved, context=context, provider_calls_this_turn=1
+                )
             incomplete = str(code) in {
                 "ordinary_trade_semantic_mapping_side_invalid",
                 "ordinary_trade_semantic_mapping_dry_run_incomplete",

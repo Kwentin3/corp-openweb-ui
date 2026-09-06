@@ -273,6 +273,127 @@ class OrdinaryTradeSemanticMapping:
             },
         }
 
+    def manual_table_disposition_question(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        confirmed_understandings: list[dict[str, Any]],
+        target_table_node_ids: Iterable[str],
+    ) -> dict[str, Any] | None:
+        """Return one source-bound user choice when one model attempt is unusable.
+
+        This is deliberately limited to classifying a table.  It neither maps a
+        financial column nor derives a fact, so it cannot turn a malformed model
+        response into a financial assertion.
+        """
+
+        confirmed_table_ids = {
+            str((item.get("decision") or {}).get("table_node_id") or "")
+            for item in confirmed_understandings
+            if isinstance(item, dict)
+            and (item.get("decision") or {}).get("decision_kind")
+            == "TABLE_DISPOSITION"
+        }
+        for table in _selected_table_surfaces(
+            canonical=canonical,
+            target_table_node_ids=target_table_node_ids,
+        ):
+            if table["table_node_id"] in confirmed_table_ids:
+                continue
+            header = next((row for row in table["rows"] if row["cells"]), None)
+            if header is None:
+                _fail("ordinary_trade_semantic_mapping_header_invalid")
+            header_row = int(header["row"])
+            source_literals = [
+                str(cell["literal"])[:500]
+                for cell in header["cells"]
+                if str(cell["literal"]).strip()
+            ][:4]
+            if not source_literals:
+                _fail("ordinary_trade_semantic_mapping_header_invalid")
+            options = []
+            for index, disposition in enumerate(
+                (
+                    "SECURITY_TRADES",
+                    "NO_NAMED_CONSUMER",
+                    "UNSUPPORTED_FINANCIAL_MEANING",
+                ),
+                start=1,
+            ):
+                decision = {
+                    "decision_kind": "TABLE_DISPOSITION",
+                    "table_node_id": table["table_node_id"],
+                    "header_row": header_row,
+                    "column": None,
+                    "semantic_role": None,
+                    "amount_column": None,
+                    "currency_column": None,
+                    "source_literal": None,
+                    "normalized_value": None,
+                    "disposition": disposition,
+                }
+                _validate_clarification_decision(decision=decision, table=table)
+                options.append(
+                    {
+                        "option_id": f"o_user_table_{index}",
+                        "label": _render_decision_label(decision=decision, table=table),
+                        "decision": decision,
+                        "source_literals": source_literals,
+                    }
+                )
+            question = {
+                "question_id": "q_user_table_disposition",
+                "table_node_id": table["table_node_id"],
+                "question": (
+                    "Уточните назначение таблицы по её заголовкам. "
+                    "Ответьте номером варианта: 1, 2 или 3."
+                ),
+                "options": options,
+            }
+            _validate_question(question, internal=True)
+            return question
+        return None
+
+    def interpret_manual_table_disposition_answer(
+        self, *, question: dict[str, Any], user_message: str
+    ) -> dict[str, Any] | None:
+        """Accept only the documented exact option reference or its number."""
+
+        if question.get("question_id") != "q_user_table_disposition":
+            return None
+        text = str(user_message or "").strip().casefold()
+        options = question.get("options")
+        if not isinstance(options, list):
+            _fail("ordinary_trade_semantic_mapping_question_invalid")
+        selected = None
+        for index, option in enumerate(options, start=1):
+            if text in {
+                str(index),
+                f"вариант {index}",
+                str(option.get("option_id") or "").casefold(),
+            }:
+                selected = option
+                break
+        if not isinstance(selected, dict):
+            return None
+        return {
+            "status": "CANDIDATE",
+            "option_id": selected["option_id"],
+            "message": "Выбранный вариант будет применён только после подтверждения.",
+            "evidence_quote": text,
+        }
+
+    @staticmethod
+    def interpret_manual_confirmation(user_message: str) -> bool | None:
+        """Accept the two exact confirmation strings rendered by the public UI."""
+
+        text = str(user_message or "").strip().casefold()
+        if text in {"да", "yes"}:
+            return True
+        if text in {"нет", "no"}:
+            return False
+        return None
+
     def validate_mapping_response(
         self,
         *,
