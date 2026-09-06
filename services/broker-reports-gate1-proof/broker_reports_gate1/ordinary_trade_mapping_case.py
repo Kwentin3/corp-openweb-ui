@@ -17,7 +17,8 @@ from .ordinary_trade_qualified_mappings import (
 )
 from .ordinary_trade_semantic_mapping import (
     MAPPING_CASE_SCHEMA_VERSION,
-    mapping_decision_communication_description,
+    mapping_question_option_communication_description,
+    validate_internal_mapping_question,
 )
 
 
@@ -127,9 +128,8 @@ class OrdinaryTradeMappingCaseRuntime:
         if not records:
             return None
         revisions = [item[1]["revision"] for item in records]
-        if (
-            len(revisions) != len(set(revisions))
-            or sorted(revisions) != list(range(1, max(revisions) + 1))
+        if len(revisions) != len(set(revisions)) or sorted(revisions) != list(
+            range(1, max(revisions) + 1)
         ):
             _fail("ordinary_trade_mapping_case_history_ambiguous")
         latest = max(records, key=lambda item: item[1]["revision"])
@@ -171,23 +171,17 @@ class OrdinaryTradeMappingCaseRuntime:
             confirmed_understandings=copy.deepcopy(
                 (prior or {}).get("confirmed_understandings") or []
             ),
-            qualified_mappings=copy.deepcopy(
-                outcome.get("qualified_mappings") or []
-            ),
+            qualified_mappings=copy.deepcopy(outcome.get("qualified_mappings") or []),
             qualification_receipts=copy.deepcopy(
                 outcome.get("qualification_receipts") or []
             ),
-            table_resolutions=copy.deepcopy(
-                outcome.get("table_resolutions") or []
-            ),
+            table_resolutions=copy.deepcopy(outcome.get("table_resolutions") or []),
             provider_calls_total=(
                 int((prior or {}).get("provider_calls_total") or 0)
                 + provider_calls_total
             ),
             model_response_sha256=outcome.get("model_response_sha256"),
-            execution_metadata_sha256=outcome.get(
-                "execution_metadata_sha256"
-            ),
+            execution_metadata_sha256=outcome.get("execution_metadata_sha256"),
             reason_code=None,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
@@ -327,15 +321,11 @@ class OrdinaryTradeMappingCaseRuntime:
             message=interpretation["message"],
             question=copy.deepcopy(prior["question"]),
             pending_candidate=candidate,
-            confirmed_understandings=copy.deepcopy(
-                prior["confirmed_understandings"]
-            ),
+            confirmed_understandings=copy.deepcopy(prior["confirmed_understandings"]),
             qualified_mappings=[],
             qualification_receipts=[],
             table_resolutions=[],
-            provider_calls_total=(
-                prior["provider_calls_total"] + provider_calls_total
-            ),
+            provider_calls_total=(prior["provider_calls_total"] + provider_calls_total),
             model_response_sha256=None,
             execution_metadata_sha256=None,
             reason_code=None,
@@ -370,20 +360,30 @@ class OrdinaryTradeMappingCaseRuntime:
                 for item in prior["question"]["options"]
                 if item["option_id"] == pending["option_id"]
             )
-            confirmed = [
-                *copy.deepcopy(prior["confirmed_understandings"]),
-                {
-                    "question_id": pending["question_id"],
-                    "option_id": pending["option_id"],
-                    "label_sha256": hashlib.sha256(
-                        option["label"].encode("utf-8")
-                    ).hexdigest(),
-                    "label": option["label"],
-                    "decision": copy.deepcopy(option["decision"]),
-                    "decision_sha256": _sha256_json(option["decision"]),
-                },
-            ]
-            status = "MAPPING_REQUIRED"
+            if option.get("effect") == "SPECIALIST_REVIEW":
+                confirmed = copy.deepcopy(prior["confirmed_understandings"])
+                status = "SPECIALIST_REVIEW_REQUIRED"
+            else:
+                decisions = option.get("decisions")
+                if not isinstance(decisions, list):
+                    decisions = [option["decision"]]
+                confirmed = [
+                    *copy.deepcopy(prior["confirmed_understandings"]),
+                    *[
+                        {
+                            "question_id": pending["question_id"],
+                            "option_id": pending["option_id"],
+                            "label_sha256": hashlib.sha256(
+                                option["label"].encode("utf-8")
+                            ).hexdigest(),
+                            "label": option["label"],
+                            "decision": copy.deepcopy(decision),
+                            "decision_sha256": _sha256_json(decision),
+                        }
+                        for decision in decisions
+                    ],
+                ]
+                status = "MAPPING_REQUIRED"
             message = "Понимание подтверждено; mapping будет проверен повторно."
         payload = self._next_payload(
             document_id=document_id,
@@ -439,10 +439,8 @@ class OrdinaryTradeMappingCaseRuntime:
                             "option_ref": item["option_id"],
                             "label": item["label"],
                             "source_literals": list(item["source_literals"]),
-                            "safe_description": (
-                                mapping_decision_communication_description(
-                                    item["decision"]
-                                )
+                            "safe_description": mapping_question_option_communication_description(
+                                item
                             ),
                         }
                         for item in question["options"]
@@ -471,7 +469,9 @@ class OrdinaryTradeMappingCaseRuntime:
             "provider_calls_total": payload["provider_calls_total"],
         }
 
-    def _next_payload(self, *, prior: dict[str, Any] | None, **values: Any) -> dict[str, Any]:
+    def _next_payload(
+        self, *, prior: dict[str, Any] | None, **values: Any
+    ) -> dict[str, Any]:
         binding = self.case_binding(
             document_id=values["document_id"], context=values["context"]
         )
@@ -513,9 +513,7 @@ class OrdinaryTradeMappingCaseRuntime:
             _fail("ordinary_trade_mapping_case_canonical_manifest_missing")
         manifest = self._resolver.resolve_record(active.manifest_ref, context)
         artifact_id = (
-            "art_otmapcase_"
-            + payload["case_id"][7:27]
-            + f"_{payload['revision']:04d}"
+            "art_otmapcase_" + payload["case_id"][7:27] + f"_{payload['revision']:04d}"
         )
         record = ArtifactRecord(
             artifact_id=artifact_id,
@@ -649,6 +647,13 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
             or _sha256_json(item["decision"]) != item["decision_sha256"]
         ):
             _fail("ordinary_trade_mapping_case_confirmation_invalid")
+    if payload.get("question") is not None:
+        try:
+            validate_internal_mapping_question(payload["question"])
+        except Exception as exc:
+            raise OrdinaryTradeMappingCaseError(
+                "ordinary_trade_mapping_case_question_invalid"
+            ) from exc
     mappings = payload.get("qualified_mappings")
     receipts = payload.get("qualification_receipts")
     resolutions = payload.get("table_resolutions")
