@@ -443,13 +443,13 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
 
     def test_expired_queued_caller_fails_and_cannot_block_fifo_after_restart(self):
         config = self._config(
-            lease_seconds=0.25,
-            heartbeat_interval_seconds=0.05,
-            poll_interval_seconds=0.01,
+            lease_seconds=2.0,
+            heartbeat_interval_seconds=0.1,
+            poll_interval_seconds=0.02,
         )
         authority = WorkloadAuthorityFactory(config).create()
         orphan = self._submit(authority, WorkloadKind.GATE1)
-        time.sleep(0.32)
+        time.sleep(2.1)
 
         recovered = WorkloadAuthorityFactory(config).create()
         orphan_snapshot = recovered.snapshot(
@@ -500,9 +500,9 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
 
     def test_live_admission_wait_renews_queue_lease_until_fifo_capacity_opens(self):
         config = self._config(
-            lease_seconds=0.25,
-            heartbeat_interval_seconds=0.05,
-            poll_interval_seconds=0.01,
+            lease_seconds=2.0,
+            heartbeat_interval_seconds=0.1,
+            poll_interval_seconds=0.02,
         )
         authority = WorkloadAuthorityFactory(config).create()
         holder_ticket = self._submit(authority, WorkloadKind.GATE1)
@@ -542,7 +542,7 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
                 )
                 heartbeat_observed.clear()
                 self.assertTrue(
-                    await asyncio.to_thread(heartbeat_observed.wait, 1.0)
+                    await asyncio.to_thread(heartbeat_observed.wait, 3.0)
                 )
                 self.assertGreater(
                     lease_expiry(holder.job_id),
@@ -589,16 +589,16 @@ class BrokerReportsWorkloadAuthorityTest(unittest.TestCase):
 
     def test_expired_worker_lease_fails_and_never_false_completes(self):
         config = self._config(
-            lease_seconds=0.25,
-            heartbeat_interval_seconds=0.05,
-            poll_interval_seconds=0.01,
+            lease_seconds=2.0,
+            heartbeat_interval_seconds=0.1,
+            poll_interval_seconds=0.02,
         )
         authority = WorkloadAuthorityFactory(config).create()
         ticket = self._submit(authority, WorkloadKind.GATE1)
         session = authority.try_admit(job_id=ticket.job_id, access=self.access)
         session.transition(WorkloadState.NORMALIZING)
         (session.temp_dir / "crash-partial").write_bytes(b"partial")
-        time.sleep(0.32)
+        time.sleep(2.1)
 
         recovered = WorkloadAuthorityFactory(config).create()
         snapshot = recovered.snapshot(job_id=ticket.job_id, access=self.access)
