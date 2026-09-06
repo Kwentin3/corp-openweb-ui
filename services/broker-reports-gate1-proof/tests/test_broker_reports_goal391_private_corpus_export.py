@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import hashlib
+import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -28,6 +31,9 @@ from broker_reports_gate1.goal391_private_corpus_export import (
     PRIVATE_CORPUS_SELECTION_SCHEMA_VERSION,
     parse_private_corpus_selection,
 )
+from broker_reports_gate1.goal391_private_corpus_export_cli import (
+    export_private_corpus,
+)
 
 
 def test_exports_only_explicit_manifest_refs_through_canonical_reader() -> None:
@@ -38,8 +44,7 @@ def test_exports_only_explicit_manifest_refs_through_canonical_reader() -> None:
         second = _publish(store, context=_context("run-two"), document_id="document-two", amount="20")
         reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
         recording_reader = _RecordingReader(reader)
-        private_root = root / "_private_test_corpora"
-        private_root.mkdir()
+        private_root = _private_root(root)
         selection = parse_private_corpus_selection(
             _selection("ordinary-trade-corpus", "trade-001", first.artifact_ref, "run-one")
         )
@@ -82,8 +87,7 @@ def test_scope_failure_leaves_no_partial_private_pack() -> None:
         store = _store(root)
         published = _publish(store, context=_context("run-one"), document_id="document-one", amount="10")
         reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
-        private_root = root / "_private_test_corpora"
-        private_root.mkdir()
+        private_root = _private_root(root)
         selection = parse_private_corpus_selection(
             _selection("ordinary-trade-corpus", "trade-001", published.artifact_ref, "run-one", user_id="other-user")
         )
@@ -110,8 +114,7 @@ def test_manifest_is_closed_world_and_target_is_not_overwritten() -> None:
 
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
-        private_root = root / "_private_test_corpora"
-        private_root.mkdir()
+        private_root = _private_root(root)
         (private_root / "ordinary-trade-corpus").mkdir()
         selection = parse_private_corpus_selection(
             _selection("ordinary-trade-corpus", "trade-001", "manifest-1", "run-one")
@@ -121,6 +124,131 @@ def test_manifest_is_closed_world_and_target_is_not_overwritten() -> None:
                 reader=_NeverRead(), private_corpus_root=private_root
             ).export(selection=selection)
         assert exists.value.code == "goal391_private_corpus_target_exists"
+
+
+def test_cli_composes_read_only_store_reader_and_exporter_without_schema_or_probe() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        store = _store(root)
+        published = _publish(store, context=_context("run-one"), document_id="document-one", amount="10")
+        private_root = _private_root(root)
+        manifest_path = root / "selection.private.json"
+        manifest_path.write_text(
+            json.dumps(_selection("cli-corpus", "trade-001", published.artifact_ref, "run-one")),
+            encoding="utf-8",
+        )
+        actual_open = os.open
+
+        def reject_payload_probe(path, *args, **kwargs):
+            assert ".artifact-store-probe-" not in str(path)
+            return actual_open(path, *args, **kwargs)
+
+        with patch(
+            "broker_reports_gate1.artifact_store.SqliteArtifactStoreAdapter._ensure_schema",
+            side_effect=AssertionError("CLI must not initialize schema"),
+        ), patch(
+            "broker_reports_gate1.artifact_store.os.open",
+            side_effect=reject_payload_probe,
+        ):
+            receipt = export_private_corpus(
+                artifact_store_sqlite_path=root / "artifacts.sqlite3",
+                artifact_payload_root=root / "payloads",
+                selection_manifest=manifest_path,
+                private_corpus_root=private_root,
+            )
+
+        assert receipt["status"] == "EXPORTED"
+        assert (private_root / "cli-corpus" / "export_receipt.json").is_file()
+
+
+def test_rejects_symlink_and_insecure_private_roots() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        actual = root / "actual-private"
+        actual.mkdir(mode=0o700)
+        link = root / "_private_test_corpora"
+        try:
+            os.symlink(actual, link, target_is_directory=True)
+        except OSError:
+            pytest.skip("symlink creation is unavailable in this environment")
+        with pytest.raises(Goal391PrivateCorpusExportError) as linked:
+            Goal391PrivateCorpusExportCoordinator(reader=_NeverRead(), private_corpus_root=link)
+        assert linked.value.code == "goal391_private_corpus_root_unsafe"
+
+    if os.name == "nt":
+        return
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        private_root = _private_root(root)
+        private_root.chmod(0o777)
+        with pytest.raises(Goal391PrivateCorpusExportError) as insecure:
+            Goal391PrivateCorpusExportCoordinator(
+                reader=_NeverRead(), private_corpus_root=private_root
+            )
+        assert insecure.value.code == "goal391_private_corpus_root_unsafe"
+
+
+def test_atomic_target_reservation_prevents_concurrent_overwrite() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        store = _store(root)
+        published = _publish(store, context=_context("run-one"), document_id="document-one", amount="10")
+        reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
+        private_root = _private_root(root)
+        selection = parse_private_corpus_selection(
+            _selection("raced-corpus", "trade-001", published.artifact_ref, "run-one")
+        )
+
+        def export_once():
+            return Goal391PrivateCorpusExportCoordinator(
+                reader=reader, private_corpus_root=private_root
+            ).export(selection=selection)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(export_once), pool.submit(export_once)]
+            results = []
+            failures = []
+            for future in futures:
+                try:
+                    results.append(future.result())
+                except Goal391PrivateCorpusExportError as exc:
+                    failures.append(exc)
+
+        assert len(results) == 1
+        assert [failure.code for failure in failures] == [
+            "goal391_private_corpus_target_exists"
+        ]
+        assert results[0]["status"] == "EXPORTED"
+        assert (private_root / "raced-corpus" / "export_receipt.json").is_file()
+
+
+def test_second_selected_read_failure_removes_first_private_payload() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        store = _store(root)
+        first = _publish(store, context=_context("run-one"), document_id="document-one", amount="10")
+        second = _publish(store, context=_context("run-two"), document_id="document-two", amount="20")
+        reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
+        private_root = _private_root(root)
+        manifest = _selection("partial-corpus", "trade-001", first.artifact_ref, "run-one")
+        manifest["selections"].append(
+            {
+                **manifest["selections"][0],
+                "slot_id": "trade-002",
+                "manifest_ref": second.artifact_ref,
+                "normalization_run_id": "run-two",
+                "user_id": "other-user",
+            }
+        )
+        selection = parse_private_corpus_selection(manifest)
+
+        with pytest.raises(ArtifactStoreError) as denied:
+            Goal391PrivateCorpusExportCoordinator(
+                reader=reader, private_corpus_root=private_root
+            ).export(selection=selection)
+
+        assert denied.value.code == "artifact_access_denied"
+        assert list(private_root.iterdir()) == []
 
 
 def _selection(
@@ -156,6 +284,14 @@ def _context(run_id: str) -> ArtifactAccessContext:
         workspace_model_id="workspace-1",
         allow_private=True,
     )
+
+
+def _private_root(root: Path) -> Path:
+    private_root = root / "_private_test_corpora"
+    private_root.mkdir(mode=0o700)
+    if os.name != "nt":
+        private_root.chmod(0o700)
+    return private_root
 
 
 def _store(root: Path):

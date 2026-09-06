@@ -15,6 +15,7 @@ import json
 import os
 import re
 import secrets
+import stat
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -165,6 +166,7 @@ class Goal391PrivateCorpusExportCoordinator:
             )
         self._reader = reader
         self._root = _private_corpus_root(private_corpus_root)
+        self._root_identity = _path_identity(self._root)
 
     def export(self, *, selection: PrivateCorpusSelectionManifest) -> dict[str, Any]:
         """Export only manifest-listed Canonical artifacts, atomically locally."""
@@ -173,15 +175,16 @@ class Goal391PrivateCorpusExportCoordinator:
             raise Goal391PrivateCorpusExportError(
                 "goal391_private_corpus_selection_required"
             )
-        target = self._root / selection.corpus_id
-        if target.exists():
+        root = _private_corpus_root(self._root)
+        if _path_identity(root) != self._root_identity:
             raise Goal391PrivateCorpusExportError(
-                "goal391_private_corpus_target_exists"
+                "goal391_private_corpus_root_changed"
             )
-        staging = self._root / f".{selection.corpus_id}.staging-{secrets.token_hex(8)}"
+        target, reservation_marker, reservation_token = _reserve_target(
+            root, selection.corpus_id
+        )
         try:
-            staging.mkdir(mode=0o700)
-            cases_root = staging / "canonical"
+            cases_root = target / "canonical"
             cases_root.mkdir(mode=0o700)
             entries = []
             for item in selection.selections:
@@ -199,7 +202,7 @@ class Goal391PrivateCorpusExportCoordinator:
                 "corpus_id": selection.corpus_id,
                 "entries": entries,
             }
-            _write_json(staging / "corpus_manifest.private.json", pack)
+            _write_json(target / "corpus_manifest.private.json", pack)
             receipt = {
                 "schema_version": PRIVATE_CORPUS_EXPORT_RECEIPT_SCHEMA_VERSION,
                 "status": "EXPORTED",
@@ -211,10 +214,11 @@ class Goal391PrivateCorpusExportCoordinator:
                     entry["canonical_file_sha256"] for entry in entries
                 ),
             }
-            _write_json(staging / "export_receipt.json", receipt)
-            os.replace(staging, target)
+            # Receipt is written last: a consumer treats its absence as an
+            # incomplete local export rather than a readable corpus pack.
+            _write_json(target / "export_receipt.json", receipt)
         except Exception:
-            shutil.rmtree(staging, ignore_errors=True)
+            _remove_reserved_target(target, reservation_marker, reservation_token)
             raise
         return receipt
 
@@ -251,12 +255,97 @@ def _pack_entry(selection: PrivateCorpusSelection, envelope: Any) -> dict[str, A
 
 
 def _private_corpus_root(value: str | Path) -> Path:
-    root = Path(value).resolve()
-    if root.name != "_private_test_corpora" or not root.is_dir():
+    raw_root = Path(value)
+    if not raw_root.is_absolute():
+        raw_root = Path.cwd() / raw_root
+    if raw_root.name != "_private_test_corpora" or not raw_root.is_dir():
         raise Goal391PrivateCorpusExportError(
             "goal391_private_corpus_root_invalid"
         )
+    for candidate in (raw_root, *raw_root.parents):
+        if _is_link_or_reparse_point(candidate):
+            raise Goal391PrivateCorpusExportError(
+                "goal391_private_corpus_root_unsafe"
+            )
+    try:
+        root = raw_root.resolve(strict=True)
+        mode = stat.S_IMODE(root.stat().st_mode)
+    except OSError as exc:
+        raise Goal391PrivateCorpusExportError(
+            "goal391_private_corpus_root_invalid"
+        ) from exc
+    if os.name != "nt" and mode & 0o077:
+        raise Goal391PrivateCorpusExportError(
+            "goal391_private_corpus_root_unsafe"
+        )
     return root
+
+
+def _reserve_target(root: Path, corpus_id: str) -> tuple[Path, Path, bytes]:
+    """Atomically claim the public pack name before any private bytes exist."""
+
+    target = root / corpus_id
+    try:
+        target.mkdir(mode=0o700)
+    except FileExistsError as exc:
+        raise Goal391PrivateCorpusExportError(
+            "goal391_private_corpus_target_exists"
+        ) from exc
+    except OSError as exc:
+        raise Goal391PrivateCorpusExportError(
+            "goal391_private_corpus_target_reservation_failed"
+        ) from exc
+    marker = target / ".goal391-reservation"
+    token = secrets.token_urlsafe(24).encode("ascii")
+    try:
+        descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(token)
+    except OSError as exc:
+        _remove_reserved_target(target, marker, token)
+        raise Goal391PrivateCorpusExportError(
+            "goal391_private_corpus_target_reservation_failed"
+        ) from exc
+    return target, marker, token
+
+
+def _remove_reserved_target(target: Path, marker: Path, token: bytes) -> None:
+    """Remove only our own incomplete reservation; never delete a replacement."""
+
+    try:
+        if (
+            target.is_dir()
+            and not _is_link_or_reparse_point(target)
+            and marker.is_file()
+            and not _is_link_or_reparse_point(marker)
+            and marker.read_bytes() == token
+        ):
+            shutil.rmtree(target)
+    except OSError:
+        # A failed cleanup leaves an incomplete pack (no receipt), never a
+        # second attempt or overwrite of an unknown directory.
+        pass
+
+
+def _is_link_or_reparse_point(path: Path) -> bool:
+    try:
+        state = path.lstat()
+    except OSError:
+        return True
+    if stat.S_ISLNK(state.st_mode):
+        return True
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(getattr(state, "st_file_attributes", 0) & reparse_flag)
+
+
+def _path_identity(path: Path) -> tuple[int, int]:
+    try:
+        state = path.stat()
+    except OSError as exc:
+        raise Goal391PrivateCorpusExportError(
+            "goal391_private_corpus_root_invalid"
+        ) from exc
+    return state.st_dev, state.st_ino
 
 
 def _write_json(path: Path, value: Any) -> None:
