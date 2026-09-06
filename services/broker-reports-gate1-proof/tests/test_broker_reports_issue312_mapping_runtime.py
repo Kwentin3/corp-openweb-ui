@@ -343,50 +343,30 @@ async def _public_confirmation_renders_validated_decision_not_model_text(
     assert "колонке 10" not in confirmation
 
 
-async def _invalid_automatic_mapping_opens_source_bound_user_choice(tmp_path) -> None:
-    """A malformed model reply may not publish facts or strand an ordinary user."""
+async def _invalid_automatic_mapping_fails_closed_without_a_user_loop(tmp_path) -> None:
+    """A malformed model reply is a provider-contract terminal, not a user task."""
 
     store, context, document_id, _canonical, _binding, _table, _mapping = (
         case_fixtures._unknown_case(tmp_path)
     )
-    runtime = _runtime(
-        store,
-        BoundaryModelClient(["not-json", RuntimeError("provider unavailable")]),
-    )
+    client = BoundaryModelClient(["not-json"])
+    runtime = _runtime(store, client)
 
     first = await runtime.resolve(document_id=document_id, context=context)
 
-    assert first["status"] == "CLARIFICATION_REQUIRED"
+    assert first["status"] == "MAPPING_OUTPUT_INVALID"
     assert first["provider_calls_this_turn"] == 1
-    question = first["public_state"]["question"]
-    assert question["question_ref"] == "q_user_table_disposition"
-    assert [item["option_ref"] for item in question["options"]] == [
-        "o_user_table_1",
-        "o_user_table_2",
-        "o_user_table_3",
-    ]
-    assert all(item["source_literals"] for item in question["options"])
-
-    candidate = await runtime.resolve(
-        document_id=document_id,
-        context=context,
-        user_message="Вариант 1",
-    )
-
-    assert candidate["status"] == "CONFIRMATION_REQUIRED"
-    assert candidate["provider_calls_this_turn"] == 0
-    confirmed = await runtime.resolve(
-        document_id=document_id,
-        context=context,
-        user_message="Да",
-    )
-    assert confirmed["status"] == "PROVIDER_UNAVAILABLE"
+    assert first["public_state"]["may_resume"] is False
+    assert first["public_state"]["question"] is None
     current = (
         OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True)
         .create()
         .current(document_id=document_id, context=context)[1]
     )
-    assert len(current["confirmed_understandings"]) == 1
+    assert current["reason_code"] == (
+        "ordinary_trade_semantic_mapping_response_json_invalid"
+    )
+    assert current["provider_calls_total"] == 1
     assert current["qualified_mappings"] == []
 
 
@@ -1193,8 +1173,8 @@ def test_public_confirmation_renders_validated_decision_not_model_text(
     )
 
 
-def test_invalid_automatic_mapping_opens_source_bound_user_choice(tmp_path) -> None:
-    asyncio.run(_invalid_automatic_mapping_opens_source_bound_user_choice(tmp_path))
+def test_invalid_automatic_mapping_fails_closed_without_a_user_loop(tmp_path) -> None:
+    asyncio.run(_invalid_automatic_mapping_fails_closed_without_a_user_loop(tmp_path))
 
 
 def test_rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> None:
