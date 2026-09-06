@@ -822,6 +822,21 @@ def test_unsupported_financial_meaning_explains_that_no_partial_calculation_was_
     assert "XML не создан" in visible
 
 
+def test_invalid_mapping_does_not_present_absent_calculation_as_zero() -> None:
+    product = _product(status="PREPARATION_INCOMPLETE")
+    product["terminal"] = "ordinary_trade_mapping_output_invalid"
+    product["gate5"] = {
+        "blocker_reason_codes": ["ordinary_trade_mapping_output_invalid"]
+    }
+
+    visible = render_public_dialogue_fallback(
+        build_public_dialogue_context(product=product)
+    )
+
+    assert "закрытых продаж: 0" not in visible
+    assert "безопасный расчёт не был завершён" in visible
+
+
 def test_public_message_rejects_leaks_and_false_filing_claims() -> None:
     context = build_public_dialogue_context(product=_product())
     fallback = render_public_dialogue_fallback(context)
