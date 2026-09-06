@@ -60,6 +60,7 @@ def test_exports_only_explicit_manifest_refs_through_canonical_reader() -> None:
         assert receipt["contains_private_payload"] is False
         assert receipt["selection_count"] == 1
         assert recording_reader.manifest_refs == [first.artifact_ref]
+        assert recording_reader.expected_normalization_run_ids == ["run-one"]
         assert "Amount" not in json.dumps(receipt)
         assert "source-document-one" not in json.dumps(receipt)
         assert pack["entries"] == [
@@ -99,6 +100,38 @@ def test_scope_failure_leaves_no_partial_private_pack() -> None:
 
         assert denied.value.code == "artifact_access_denied"
         assert not (private_root / "ordinary-trade-corpus").exists()
+        assert list(private_root.iterdir()) == []
+
+
+def test_selected_normalization_run_mismatch_stops_before_private_payload_write() -> None:
+    """The immutable selection run is checked by CanonicalReader before export."""
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        store = _store(root)
+        published = _publish(
+            store,
+            context=_context("run-one"),
+            document_id="document-one",
+            amount="10",
+        )
+        private_root = _private_root(root)
+        selection = parse_private_corpus_selection(
+            _selection(
+                "run-mismatch-corpus",
+                "trade-001",
+                published.artifact_ref,
+                "run-two",
+            )
+        )
+
+        with pytest.raises(ArtifactStoreError) as mismatch:
+            Goal391PrivateCorpusExportCoordinator(
+                reader=CanonicalReaderFactory(store=store, read_enabled=True).create(),
+                private_corpus_root=private_root,
+            ).export(selection=selection)
+
+        assert mismatch.value.code == "canonical_normalization_run_mismatch"
         assert list(private_root.iterdir()) == []
 
 
@@ -369,7 +402,13 @@ class _RecordingReader:
     def __init__(self, reader) -> None:
         self._reader = reader
         self.manifest_refs: list[str] = []
+        self.expected_normalization_run_ids: list[str | None] = []
 
-    def read_envelope(self, manifest_ref, context):
+    def read_envelope(self, manifest_ref, context, *, expected_normalization_run_id=None):
         self.manifest_refs.append(manifest_ref)
-        return self._reader.read_envelope(manifest_ref, context)
+        self.expected_normalization_run_ids.append(expected_normalization_run_id)
+        return self._reader.read_envelope(
+            manifest_ref,
+            context,
+            expected_normalization_run_id=expected_normalization_run_id,
+        )
