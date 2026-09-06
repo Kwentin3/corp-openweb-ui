@@ -764,6 +764,7 @@ def test_normalizer_routes_pdf_markdown_unit_and_image_through_atomic_graph(
 
 def test_persisted_pdf_canonical_exact_ref_reaches_existing_right_bank(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The configured PDF route must not stop at private Full Source.
 
@@ -771,6 +772,20 @@ def test_persisted_pdf_canonical_exact_ref_reaches_existing_right_bank(
     Canonical owner consumes the source-bound PDF units, and the resulting
     artifact remains readable only in the exact authenticated scope.
     """
+
+    # This is a synthetic persistence test.  The capacity policy itself has
+    # dedicated tests; pin a healthy filesystem boundary here so the asserted
+    # PDF-to-right-bank route is independent of the developer machine's disk.
+    import broker_reports_gate1.canonical_store as canonical_store
+
+    monkeypatch.setattr(
+        canonical_store.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(
+            total=20 * 1024 * 1024 * 1024,
+            free=10 * 1024 * 1024 * 1024,
+        ),
+    )
 
     normalizer, pdf_input, store, graph, context, retention = (
         _bounded_pdf_normalization(tmp_path)
