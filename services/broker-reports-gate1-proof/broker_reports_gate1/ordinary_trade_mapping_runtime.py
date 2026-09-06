@@ -270,6 +270,11 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
         try:
             _strict_result(response)
+            contract_failure = self._semantic.mapping_response_contract_failure_code(
+                response
+            )
+            if contract_failure is not None:
+                raise OrdinaryTradeSemanticMappingError(contract_failure)
             outcome = self._semantic.validate_mapping_response(
                 response=response,
                 canonical=binding["canonical"],

@@ -104,6 +104,40 @@ class OrdinaryTradeSemanticMappingFactory:
 
 
 class OrdinaryTradeSemanticMapping:
+    def mapping_response_contract_failure_code(self, response: Any) -> str | None:
+        """Classify only the public shape of a rejected model response.
+
+        The returned code deliberately contains no model text or source values.  It
+        is retained in the private case receipt so an invalid strict response can
+        be repaired at the contract boundary rather than guessed from a document.
+        """
+
+        value = getattr(response, "content", response)
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                return "ordinary_trade_semantic_mapping_response_json_invalid"
+        if not isinstance(value, dict):
+            return "ordinary_trade_semantic_mapping_response_shape_invalid"
+        if set(value) != {
+            "schema_version",
+            "status",
+            "table_decisions",
+            "clarification",
+            "message",
+        }:
+            return "ordinary_trade_semantic_mapping_response_fields_invalid"
+        if value.get("schema_version") != MAPPING_RESPONSE_SCHEMA_VERSION:
+            return "ordinary_trade_semantic_mapping_response_version_invalid"
+        if value.get("status") not in _MAPPING_STATUSES:
+            return "ordinary_trade_semantic_mapping_response_status_invalid"
+        if not isinstance(value.get("table_decisions"), list):
+            return "ordinary_trade_semantic_mapping_response_decisions_invalid"
+        if not isinstance(value.get("message"), str) or not value["message"].strip():
+            return "ordinary_trade_semantic_mapping_response_message_invalid"
+        return None
+
     def mapping_prompt(self) -> Gate2ManagedPrompt:
         content = (
             "You map structurally extracted broker-like tables to the closed "
