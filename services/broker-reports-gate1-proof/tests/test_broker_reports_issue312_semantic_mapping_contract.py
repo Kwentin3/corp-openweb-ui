@@ -173,6 +173,65 @@ def test_mapping_prompt_states_the_exact_top_level_response_contract() -> None:
     assert "clarification must be null" in prompt
 
 
+@pytest.mark.parametrize(
+    ("response", "expected"),
+    [
+        ("not json", "ordinary_trade_semantic_mapping_response_json_invalid"),
+        ([], "ordinary_trade_semantic_mapping_response_shape_invalid"),
+        ({}, "ordinary_trade_semantic_mapping_response_fields_invalid"),
+        (
+            {
+                "schema_version": "wrong",
+                "status": "COMPLETE",
+                "table_decisions": [],
+                "clarification": None,
+                "message": "ok",
+            },
+            "ordinary_trade_semantic_mapping_response_version_invalid",
+        ),
+        (
+            {
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "wrong",
+                "table_decisions": [],
+                "clarification": None,
+                "message": "ok",
+            },
+            "ordinary_trade_semantic_mapping_response_status_invalid",
+        ),
+        (
+            {
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "COMPLETE",
+                "table_decisions": {},
+                "clarification": None,
+                "message": "ok",
+            },
+            "ordinary_trade_semantic_mapping_response_decisions_invalid",
+        ),
+        (
+            {
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "COMPLETE",
+                "table_decisions": [],
+                "clarification": None,
+                "message": "",
+            },
+            "ordinary_trade_semantic_mapping_response_message_invalid",
+        ),
+    ],
+)
+def test_mapping_response_contract_failure_code_is_safe_and_specific(
+    response, expected
+) -> None:
+    assert (
+        OrdinaryTradeSemanticMappingFactory.create().mapping_response_contract_failure_code(
+            response
+        )
+        == expected
+    )
+
+
 def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
     owner = OrdinaryTradeSemanticMappingFactory.create()
     response_format = owner.mapping_response_format()
