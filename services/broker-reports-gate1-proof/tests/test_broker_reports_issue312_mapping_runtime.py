@@ -218,6 +218,73 @@ async def _user_currency_assertion_resumes_same_case_without_provider_retry(tmp_
     assert current["confirmed_understandings"][-1]["decision"]["currency_code"] == "USD"
 
 
+async def _user_currency_then_exclusion_confirmation_completes(tmp_path) -> None:
+    store, context, document_id, _tables, canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=tuple(
+            _unknown_rows(suffix=f"table-{index}")
+            for index in range(1, 15)
+        ),
+    )
+    mapping = case_fixtures.candidate._QUALIFIED_MAPPING
+    currency_response = _response_for_tables(table_count=14, mapping=mapping)
+    currency_response["status"] = "CURRENCY_ASSERTION_REQUIRED"
+    for decision in currency_response["table_decisions"][:2]:
+        decision["amount_currency_bindings"] = []
+        decision["columns"][5]["semantic_role"] = "unmapped"
+    for index in range(2, 14):
+        currency_response["table_decisions"][index] = {
+            "table_ref": f"table_{index + 1}",
+            "header_row": 1,
+            "disposition": "NO_NAMED_CONSUMER",
+            "columns": [],
+            "amount_currency_bindings": [],
+            "side_values": [],
+        }
+    resumed_response = _response_for_tables(table_count=2, mapping=mapping)
+    for decision in resumed_response["table_decisions"]:
+        decision["amount_currency_bindings"] = []
+        decision["columns"][5]["semantic_role"] = "unmapped"
+    client = BoundaryModelClient([currency_response, resumed_response])
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+    ).create()
+
+    required = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref],
+        context=context,
+    )
+    currency_supplied = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref],
+        context=context,
+        user_message="Валюта: USD",
+    )
+    clarified = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref],
+        context=context,
+        user_message="Подтверждаю: указанная группа не относится к поддерживаемым операциям",
+    )
+    completed = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref],
+        context=context,
+        user_message="Да",
+    )
+
+    assert required["semantic_mapping"]["status"] == "CURRENCY_ASSERTION_REQUIRED"
+    assert currency_supplied["semantic_mapping"]["status"] == "CLARIFICATION_REQUIRED"
+    assert clarified["semantic_mapping"]["status"] == "CONFIRMATION_REQUIRED"
+    assert completed["semantic_mapping"]["status"] == "COMPLETE"
+    assert {
+        (item["table_ref"], item["currency_code"])
+        for item in client.calls[1]["package"]["case"]["user_currency_assertions"]
+    } == {("table_1", "USD"), ("table_2", "USD")}
+
+
 async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, _table, _mapping = (
         case_fixtures._unknown_case(tmp_path)
@@ -1290,6 +1357,10 @@ def test_interactive_mapping_response_is_terminal_without_second_call(tmp_path) 
 
 def test_user_currency_assertion_resumes_same_case_without_provider_retry(tmp_path) -> None:
     asyncio.run(_user_currency_assertion_resumes_same_case_without_provider_retry(tmp_path))
+
+
+def test_user_currency_then_exclusion_confirmation_completes(tmp_path) -> None:
+    asyncio.run(_user_currency_then_exclusion_confirmation_completes(tmp_path))
 
 
 def test_user_currency_assertion_is_rendered_as_one_plain_chat_question() -> None:

@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v9"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v10"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -170,7 +170,12 @@ class OrdinaryTradeSemanticMapping:
             "mapping but has no dedicated currency column, return "
             "CURRENCY_ASSERTION_REQUIRED. Include every table decision, map no "
             "column as currency, and leave amount_currency_bindings empty for "
-            "each such table. This does not make currency a source fact. "
+            "each such table. This does not make currency a source fact. When "
+            "case.user_currency_assertions names a table_ref, its currency_code "
+            "is an explicit user-provided value, not source text: do not request "
+            "currency again for that table, do not map a currency column or add an "
+            "amount_currency_binding, and return the otherwise valid COMPLETE "
+            "decision. "
             "The top-level result must contain exactly schema_version "
             f"{MAPPING_RESPONSE_SCHEMA_VERSION!r}, status, table_decisions, "
             "clarification and a non-empty message. For COMPLETE, UNSUPPORTED "
@@ -225,11 +230,39 @@ class OrdinaryTradeSemanticMapping:
             target_table_node_ids=target_table_node_ids,
         )
         confirmed_decisions = []
+        user_currency_assertions = []
         for item in confirmed_understandings:
             decision = copy.deepcopy(item["decision"])
             # This case-bound user input belongs to deterministic projection,
-            # not to a model-visible table-decision package.
+            # not to model-visible source decisions.  The model receives only a
+            # separately marked instruction so it does not ask the same user
+            # question twice.
             if decision.get("decision_kind") == "USER_PROVIDED_CURRENCY":
+                if (
+                    set(decision)
+                    != {
+                        "schema_version",
+                        "assertion_id",
+                        "currency_code",
+                        "case_binding_sha256",
+                        "table_node_ids",
+                        "decision_kind",
+                    }
+                    or not isinstance(decision["currency_code"], str)
+                    or re.fullmatch(r"[A-Z]{3}", decision["currency_code"])
+                    is None
+                    or not isinstance(decision["table_node_ids"], list)
+                ):
+                    _fail("ordinary_trade_user_currency_assertion_invalid")
+                for table_node_id in decision["table_node_ids"]:
+                    table_ref = refs_by_node_id.get(table_node_id)
+                    if table_ref is not None:
+                        user_currency_assertions.append(
+                            {
+                                "table_ref": table_ref,
+                                "currency_code": decision["currency_code"],
+                            }
+                        )
                 continue
             table_node_id = decision.pop("table_node_id")
             if table_node_id not in refs_by_node_id:
@@ -244,6 +277,7 @@ class OrdinaryTradeSemanticMapping:
                 "allowed_table_dispositions": sorted(_TABLE_DISPOSITIONS),
                 "tables": tables,
                 "confirmed_decisions": confirmed_decisions,
+                "user_currency_assertions": user_currency_assertions,
             },
         }
         if len(_canonical_json(package).encode("utf-8")) > _MAX_CONTEXT_BYTES:
@@ -392,6 +426,9 @@ class OrdinaryTradeSemanticMapping:
                     "response": copy.deepcopy(value),
                     "execution_metadata": _execution_metadata_value(execution_metadata),
                     "table_node_ids": sorted(scoped),
+                    # Model table_ref values are positional, so preserve the
+                    # exact canonical order used for this request.
+                    "target_table_node_ids": list(tables),
                 },
                 "currency_table_node_ids": sorted(scoped),
                 "model_response_sha256": _sha256_json(value),
