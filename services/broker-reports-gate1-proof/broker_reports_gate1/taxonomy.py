@@ -98,6 +98,7 @@ def classify_document(
     pdf_html_evidence = _has_pdf_html_parse_evidence(
         container=container,
         profile=profile,
+        private_slices=private_slices,
         slice_text=slice_text,
         blocker_codes=blocker_codes,
     )
@@ -273,12 +274,19 @@ def _has_pdf_html_parse_evidence(
     *,
     container: str,
     profile: dict | None,
+    private_slices: list[dict],
     slice_text: str,
     blocker_codes: set[str],
 ) -> bool:
     if "raster_requires_ocr_or_review" in blocker_codes:
         return False
     if container == "pdf":
+        # A configured Document AI adapter supplies a source-bound
+        # representation through the Full Source contract.  It is not a local
+        # PDF parser and does not alter the PDF's source authority, but it is
+        # the real text evidence for the existing source-role policy.
+        if _has_document_ai_text_representation(private_slices):
+            return True
         if not profile:
             return False
         return (
@@ -294,4 +302,19 @@ def _has_pdf_html_parse_evidence(
         ):
             return True
         return bool(slice_text.strip())
+    return False
+
+
+def _has_document_ai_text_representation(private_slices: list[dict]) -> bool:
+    for item in private_slices:
+        if not isinstance(item, dict) or not str(item.get("text") or "").strip():
+            continue
+        location = item.get("source_location") or item.get("location") or {}
+        if (
+            item.get("parser") == "document_ai_extraction_envelope"
+            and isinstance(location, dict)
+            and location.get("kind")
+            in {"document_ai_extraction", "document_ai_page_markdown"}
+        ):
+            return True
     return False

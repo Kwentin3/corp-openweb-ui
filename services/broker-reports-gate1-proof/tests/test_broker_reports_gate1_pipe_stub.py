@@ -784,6 +784,31 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertNotIn("pipe-file-source-policy-1", content)
         self.assertNotIn("<table>", content)
 
+    def test_ndfl_workspace_model_owns_pdf_source_policy(self):
+        pipe = self._pipe()
+
+        context = pipe._safe_input_context(
+            {
+                "source_policy": {
+                    "mode": "client_supplied_review_only",
+                    "explicit": False,
+                    "accept_pdf_html_source_roles": False,
+                }
+            },
+            {"model_id": "broker-reports-ndfl"},
+            [],
+            [],
+        )
+
+        self.assertEqual(
+            context["source_policy"],
+            {
+                "mode": "native_ndfl_workspace_model",
+                "explicit": True,
+                "accept_pdf_html_source_roles": True,
+            },
+        )
+
     def test_pipe_fails_closed_without_files(self):
         pipe = self._pipe()
 
