@@ -146,6 +146,7 @@ jobs:
           tests/test_broker_reports_goal391_role_mapping_sandbox_corpus.py
           tests/test_broker_reports_ordinary_trade_mapping_qualification.py
           tests/test_broker_reports_goal391_live_mapping_qualification.py
+          tests/test_broker_reports_goal391_private_corpus_export.py
           tests/test_repository_privacy_guard.py
           --tb=short
 
