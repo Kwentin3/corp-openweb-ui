@@ -17,10 +17,13 @@ from typing import Any, Iterable, Mapping
 
 
 ORDINARY_TRADE_MAPPING_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_schema_mapping_v3"
+    "broker_reports_ordinary_trade_schema_mapping_v4"
 )
 ORDINARY_TRADE_PROJECTION_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_runtime_projection_v5"
+    "broker_reports_ordinary_trade_runtime_projection_v6"
+)
+USER_CURRENCY_ASSERTION_SCHEMA_VERSION = (
+    "broker_reports_user_currency_assertion_v1"
 )
 SOURCE_OBSERVATION_SCHEMA_VERSION = "broker_reports_source_observation_v1"
 FACTORY_REQUIRED = (
@@ -88,6 +91,7 @@ _MAPPING_KEYS = {
     "amount_currency_bindings",
     "side_values",
     "qualification_ref",
+    "user_currency_assertion",
 }
 _FORBIDDEN_PROFILE_KEYS = {"broker", "broker_id", "year", "filename", "profile"}
 _DMY_PREFIX = re.compile(r"^([0-9]{2})\.([0-9]{2})\.([0-9]{4})(?:\s|$)")
@@ -324,6 +328,7 @@ def compile_schema_mapping(
     amount_currency_bindings: Iterable[Mapping[str, int]],
     side_values: Iterable[Mapping[str, str]],
     qualification_ref: Mapping[str, str],
+    user_currency_assertion: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Freeze a validated mapping candidate without accepting row values."""
 
@@ -367,6 +372,11 @@ def compile_schema_mapping(
         "amount_currency_bindings": frozen_amount_currency_bindings,
         "side_values": [copy.deepcopy(dict(item)) for item in side_values],
         "qualification_ref": frozen_qualification_ref,
+        "user_currency_assertion": (
+            copy.deepcopy(dict(user_currency_assertion))
+            if user_currency_assertion is not None
+            else None
+        ),
     }
     mapping = {
         "schema_version": ORDINARY_TRADE_MAPPING_SCHEMA_VERSION,
@@ -378,6 +388,7 @@ def compile_schema_mapping(
         "amount_currency_bindings": material["amount_currency_bindings"],
         "side_values": material["side_values"],
         "qualification_ref": material["qualification_ref"],
+        "user_currency_assertion": material["user_currency_assertion"],
     }
     return _validated_mapping(mapping)
 
@@ -518,14 +529,30 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
             _fail("ordinary_trade_mapping_column_invalid")
         column_numbers.append(item["column"])
         roles.append(item["semantic_role"])
-    if column_numbers != sorted(set(column_numbers)) or not _REQUIRED <= set(roles):
+    user_currency_assertion = _validated_user_currency_assertion(
+        value.get("user_currency_assertion")
+    )
+    required_roles = (
+        _REQUIRED - {"currency"}
+        if user_currency_assertion is not None
+        else _REQUIRED
+    )
+    if (
+        column_numbers != sorted(set(column_numbers))
+        or not required_roles <= set(roles)
+        or (user_currency_assertion is not None and "currency" in roles)
+    ):
         _fail("ordinary_trade_mapping_column_invalid")
     expected_fingerprint = structural_fingerprint(
         title_literal=value["title_literal"], columns=columns
     )
     if value.get("structural_fingerprint") != expected_fingerprint:
         _fail("ordinary_trade_mapping_fingerprint_invalid")
-    _validated_amount_currency_bindings(value=value, columns=columns)
+    _validated_amount_currency_bindings(
+        value=value,
+        columns=columns,
+        user_currency_assertion=user_currency_assertion,
+    )
     side_values = value.get("side_values")
     if not isinstance(side_values, list) or not side_values:
         _fail("ordinary_trade_mapping_side_invalid")
@@ -558,6 +585,7 @@ def _validated_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
         "amount_currency_bindings": value["amount_currency_bindings"],
         "side_values": side_values,
         "qualification_ref": copy.deepcopy(qualification_ref),
+        "user_currency_assertion": user_currency_assertion,
     }
     if value["mapping_id"] != "otmap_" + _sha256_json(identity_material)[:32]:
         _fail("ordinary_trade_mapping_identity_invalid")
@@ -585,7 +613,10 @@ def _validated_scoped_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _validated_amount_currency_bindings(
-    *, value: Mapping[str, Any], columns: list[Mapping[str, Any]]
+    *,
+    value: Mapping[str, Any],
+    columns: list[Mapping[str, Any]],
+    user_currency_assertion: dict[str, Any] | None,
 ) -> None:
     bindings = value.get("amount_currency_bindings")
     if not isinstance(bindings, list) or not bindings:
@@ -602,11 +633,12 @@ def _validated_amount_currency_bindings(
     for item in bindings:
         if (
             not isinstance(item, dict)
-            or set(item) != {"amount_column", "currency_column"}
-            or not isinstance(item.get("amount_column"), int)
-            or not isinstance(item.get("currency_column"), int)
-            or item["amount_column"] not in amount_columns
-            or roles_by_column.get(item["currency_column"]) != "currency"
+            or item.get("amount_column") not in amount_columns
+            or not _currency_binding_valid(
+                item=item,
+                user_currency_assertion=user_currency_assertion,
+                roles_by_column=roles_by_column,
+            )
         ):
             _fail("ordinary_trade_mapping_currency_binding_invalid")
         bound_amount_columns.append(item["amount_column"])
@@ -615,6 +647,59 @@ def _validated_amount_currency_bindings(
         or set(bound_amount_columns) != amount_columns
     ):
         _fail("ordinary_trade_mapping_currency_binding_invalid")
+
+
+def _currency_binding_valid(
+    *,
+    item: Any,
+    roles_by_column: dict[int, str],
+    user_currency_assertion: dict[str, Any] | None,
+) -> bool:
+    if not isinstance(item, Mapping) or not isinstance(item.get("amount_column"), int):
+        return False
+    if user_currency_assertion is None:
+        return (
+            set(item) == {"amount_column", "currency_column"}
+            and isinstance(item.get("currency_column"), int)
+            and roles_by_column.get(item["currency_column"]) == "currency"
+        )
+    return (
+        set(item) == {"amount_column", "currency_source"}
+        and item.get("currency_source") == {"kind": "user_assertion"}
+    )
+
+
+def _validated_user_currency_assertion(value: Any) -> dict[str, Any] | None:
+    """Accept only an explicitly case-bound user value, never PDF evidence."""
+
+    if value is None:
+        return None
+    if (
+        not isinstance(value, Mapping)
+        or set(value)
+        != {
+            "schema_version",
+            "assertion_id",
+            "currency_code",
+            "case_binding_sha256",
+            "table_node_ids",
+        }
+        or value.get("schema_version") != USER_CURRENCY_ASSERTION_SCHEMA_VERSION
+        or not isinstance(value.get("assertion_id"), str)
+        or not value["assertion_id"].startswith("usrassert_")
+        or not isinstance(value.get("currency_code"), str)
+        or re.fullmatch(r"[A-Z]{3}", value["currency_code"]) is None
+        or not isinstance(value.get("case_binding_sha256"), str)
+        or re.fullmatch(r"[0-9a-f]{64}", value["case_binding_sha256"]) is None
+        or not isinstance(value.get("table_node_ids"), list)
+        or not value["table_node_ids"]
+        or value["table_node_ids"] != sorted(set(value["table_node_ids"]))
+        or any(
+            not isinstance(item, str) or not item for item in value["table_node_ids"]
+        )
+    ):
+        _fail("ordinary_trade_user_currency_assertion_invalid")
+    return copy.deepcopy(dict(value))
 
 
 def _table_rows(table: Mapping[str, Any]) -> dict[int, dict[int, dict[str, Any]]]:
@@ -1074,6 +1159,20 @@ def _runtime_role(
         field["literal"],
         numeric_convention=numeric_convention,
     )
+    assertion = field.get("user_currency_assertion")
+    if assertion is not None:
+        if role != "currency":
+            _fail("ordinary_trade_user_currency_assertion_role_invalid")
+        return {
+            "role": role,
+            "value": value,
+            "source_binding": {
+                "source_ref": field["source_ref"],
+                "source_literal": field["literal"],
+                "deterministic_transform": transform,
+                "user_currency_assertion": copy.deepcopy(assertion),
+            },
+        }
     return {
         "role": role,
         "value": value,
@@ -1155,6 +1254,20 @@ def _validate_projection_lineage(
             _fail("ordinary_trade_runtime_claim_lineage_invalid")
         for role in record.get("roles", []):
             source = role.get("source_binding") or {}
+            assertion = source.get("user_currency_assertion")
+            if assertion is not None:
+                if (
+                    role.get("role") != "currency"
+                    or source.get("source_ref")
+                    != "canonical_user_assertion:"
+                    + str(assertion.get("assertion_id") or "")
+                    or source.get("source_literal") != assertion.get("currency_code")
+                    or source.get("deterministic_transform") != "TRIM_ONLY"
+                    or role.get("value") != assertion.get("currency_code")
+                ):
+                    _fail("ordinary_trade_runtime_user_currency_assertion_invalid")
+                _validated_user_currency_assertion(assertion)
+                continue
             field = literals.get(source.get("source_ref"))
             if (
                 field is None
@@ -1266,12 +1379,25 @@ def _currency_field_for_amount(
     ]
     if len(bindings) != 1:
         return None
-    currency_column = bindings[0]["currency_column"]
+    binding = bindings[0]
+    if binding.get("currency_source") == {"kind": "user_assertion"}:
+        assertion = _validated_user_currency_assertion(
+            mapping.get("user_currency_assertion")
+        )
+        if assertion is None:
+            return None
+        return {
+            "semantic_role": "currency",
+            "source_ref": "canonical_user_assertion:" + assertion["assertion_id"],
+            # Intentionally user-provided context, not text extracted from a PDF.
+            "literal": assertion["currency_code"],
+            "user_currency_assertion": assertion,
+        }
     candidates = [
         item
         for item in by_role.get("currency", [])
         if item["literal"]
-        and item["canonical_cell"]["column"] == currency_column
+        and item["canonical_cell"]["column"] == binding["currency_column"]
     ]
     return candidates[0] if len(candidates) == 1 else None
 

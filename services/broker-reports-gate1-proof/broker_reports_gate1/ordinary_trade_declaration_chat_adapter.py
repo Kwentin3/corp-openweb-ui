@@ -658,6 +658,23 @@ def build_public_question_context(request: Any) -> dict[str, Any] | None:
     mapping_question = _mapping_public_question_context(request)
     if mapping_question is not None:
         return mapping_question
+    if (
+        isinstance(request, dict)
+        and set(request) == {"kind", "question", "accepted_answer_examples"}
+        and request.get("kind") == "USER_CURRENCY_ASSERTION"
+        and isinstance(request.get("question"), str)
+        and request["question"].strip()
+        and request.get("accepted_answer_examples") == ["Валюта: USD"]
+    ):
+        return {
+            "authority_kind": "user_provided_currency",
+            "question_ref": "user_currency_assertion",
+            "question": request["question"].strip(),
+            "help": "Введите трёхбуквенный код валюты в указанном формате.",
+            "options": [],
+            "accepted_answer_examples": ["Валюта: USD"],
+            "candidate_hint": None,
+        }
     if not isinstance(request, dict) or not _presentation_contract_valid(request):
         return None
     presentation = _request_presentation(request) or {}

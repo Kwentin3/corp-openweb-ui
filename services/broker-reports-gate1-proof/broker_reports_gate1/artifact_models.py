@@ -161,6 +161,7 @@ ARTIFACT_TYPES = {
     "broker_reports_ordinary_trade_runtime_projection_v3",
     "broker_reports_ordinary_trade_runtime_projection_v4",
     "broker_reports_ordinary_trade_runtime_projection_v5",
+    "broker_reports_ordinary_trade_runtime_projection_v6",
     "broker_reports_ordinary_trade_mapping_case_v1",
     "broker_reports_ordinary_trade_mapping_case_v2",
     "broker_reports_gate5_supplemental_fact_v0",

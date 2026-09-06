@@ -185,16 +185,22 @@ def _assertions(
         }
         if not all(isinstance(value, str) and value for value in material.values()):
             raise CanonicalFinalizationError("canonical_finalization_confirmations_invalid")
+        decision = copy.deepcopy(item["decision"])
+        kind = (
+            "user_provided_currency"
+            if decision.get("decision_kind") == "USER_PROVIDED_CURRENCY"
+            else "mapping_decision"
+        )
         result.append(
             {
                 "schema_version": CANONICAL_USER_ASSERTION_SCHEMA_VERSION,
                 "assertion_id": "usrassert_" + _sha256(material)[:32],
-                "kind": "mapping_decision",
+                "kind": kind,
                 "question_id": item["question_id"],
                 "option_id": item["option_id"],
                 "label": item["label"],
                 "label_sha256": item["label_sha256"],
-                "decision": copy.deepcopy(item["decision"]),
+                "decision": decision,
                 "decision_sha256": item["decision_sha256"],
                 "mapping_case_artifact_ref": mapping_case_artifact_ref,
                 "mapping_case_sha256": mapping_case_sha256,

@@ -40,6 +40,7 @@ _MAPPING_STATUSES = {
     "CLARIFICATION_REQUIRED",
     "UNSUPPORTED",
     "SPECIALIST_REVIEW_REQUIRED",
+    "CURRENCY_ASSERTION_REQUIRED",
 }
 _TABLE_DISPOSITIONS = {
     "SECURITY_TRADES",
@@ -165,6 +166,11 @@ class OrdinaryTradeSemanticMapping:
             "a table, choose a column meaning, or confirm an exclusion. If the source "
             "does not permit a complete safe classification, return "
             "SPECIALIST_REVIEW_REQUIRED with table_decisions empty. "
+            "If, and only if, a table is otherwise a complete security-trade "
+            "mapping but has no dedicated currency column, return "
+            "CURRENCY_ASSERTION_REQUIRED. Include every table decision, map no "
+            "column as currency, and leave amount_currency_bindings empty for "
+            "each such table. This does not make currency a source fact. "
             "The top-level result must contain exactly schema_version "
             f"{MAPPING_RESPONSE_SCHEMA_VERSION!r}, status, table_decisions, "
             "clarification and a non-empty message. For COMPLETE, UNSUPPORTED "
@@ -342,6 +348,51 @@ class OrdinaryTradeSemanticMapping:
                     execution_metadata
                 ),
             }
+        if status == "CURRENCY_ASSERTION_REQUIRED":
+            if value.get("clarification") is not None:
+                _fail("ordinary_trade_user_currency_request_invalid")
+            decisions = _normalize_model_decisions(
+                value["table_decisions"], node_ids_by_ref=node_ids_by_ref
+            )
+            ids = [
+                item.get("table_node_id")
+                for item in decisions
+                if isinstance(item, dict)
+            ]
+            if (
+                len(ids) != len(tables)
+                or set(ids) != set(tables)
+                or len(ids) != len(set(ids))
+            ):
+                _fail("ordinary_trade_semantic_mapping_table_coverage_invalid")
+            resolved = [
+                _validate_table_decision(
+                    decision=item,
+                    table=tables[str(item["table_node_id"])],
+                    allow_user_currency=True,
+                )
+                for item in decisions
+            ]
+            scoped = [
+                item["table_node_id"]
+                for item in resolved
+                if item["disposition"] == "SECURITY_TRADES"
+            ]
+            if not scoped:
+                _fail("ordinary_trade_user_currency_request_invalid")
+            return {
+                "status": status,
+                "message": "Укажите валюту сделок в формате «Валюта: USD». Значение будет сохранено как ваш ответ, а не как текст PDF.",
+                "question": None,
+                "currency_mapping_plan": {
+                    "response": copy.deepcopy(value),
+                    "execution_metadata": _execution_metadata_value(execution_metadata),
+                    "table_node_ids": sorted(scoped),
+                },
+                "currency_table_node_ids": sorted(scoped),
+                "model_response_sha256": _sha256_json(value),
+                "execution_metadata_sha256": _execution_metadata_sha256(execution_metadata),
+            }
         if status == "SPECIALIST_REVIEW_REQUIRED":
             if value["table_decisions"] or value.get("clarification") is not None:
                 _fail("ordinary_trade_semantic_mapping_specialist_invalid")
@@ -394,7 +445,13 @@ class OrdinaryTradeSemanticMapping:
         resolved_decisions = []
         for decision in decisions:
             table = tables[str(decision.get("table_node_id"))]
-            resolved = _validate_table_decision(decision=decision, table=table)
+            assertion = _confirmed_user_currency_assertion(
+                confirmed_understandings=confirmed_understandings,
+                table_node_id=table["table_node_id"],
+            )
+            resolved = _validate_table_decision(
+                decision=decision, table=table, user_currency_assertion=assertion
+            )
             resolved_decisions.append(resolved)
         _validate_confirmed_decisions(
             confirmed_understandings=confirmed_understandings,
@@ -485,6 +542,10 @@ class OrdinaryTradeSemanticMapping:
                         }
                         for item in confirmed_understandings
                     ],
+                    user_currency_assertion=_confirmed_user_currency_assertion(
+                        confirmed_understandings=confirmed_understandings,
+                        table_node_id=resolved["table_node_id"],
+                    ),
                 )
                 qualified_mappings.append(mapping)
                 qualification_receipts.append(receipt)
@@ -944,7 +1005,13 @@ def _decision_source_literals(
     return []
 
 
-def _validate_table_decision(*, decision: Any, table: dict[str, Any]) -> dict[str, Any]:
+def _validate_table_decision(
+    *,
+    decision: Any,
+    table: dict[str, Any],
+    user_currency_assertion: dict[str, Any] | None = None,
+    allow_user_currency: bool = False,
+) -> dict[str, Any]:
     if (
         not isinstance(decision, dict)
         or set(decision)
@@ -1005,7 +1072,16 @@ def _validate_table_decision(*, decision: Any, table: dict[str, Any]) -> dict[st
             or item.get("semantic_role") not in _SEMANTIC_ROLES
             for item in columns
         )
-        or not _REQUIRED_ROLES <= {item["semantic_role"] for item in columns}
+        or not (
+            (_REQUIRED_ROLES - {"currency"})
+            <= {item["semantic_role"] for item in columns}
+            if (user_currency_assertion is not None or allow_user_currency)
+            else _REQUIRED_ROLES <= {item["semantic_role"] for item in columns}
+        )
+        or (
+            (user_currency_assertion is not None or allow_user_currency)
+            and "currency" in {item["semantic_role"] for item in columns}
+        )
     ):
         _fail("ordinary_trade_semantic_mapping_columns_invalid")
     side_columns = [
@@ -1034,6 +1110,18 @@ def _validate_table_decision(*, decision: Any, table: dict[str, Any]) -> dict[st
         or {item["source_literal"] for item in side_values} != source_side_literals
     ):
         _fail("ordinary_trade_semantic_mapping_side_invalid")
+    bindings = copy.deepcopy(decision["amount_currency_bindings"])
+    if user_currency_assertion is not None:
+        if bindings:
+            _fail("ordinary_trade_user_currency_request_invalid")
+        bindings = [
+            {"amount_column": item["column"], "currency_source": {"kind": "user_assertion"}}
+            for item in columns
+            if item["semantic_role"]
+            in {"gross_amount", "broker_commission", "exchange_commission"}
+        ]
+    elif allow_user_currency and bindings:
+        _fail("ordinary_trade_user_currency_request_invalid")
     return {
         "table_node_id": table["table_node_id"],
         "header_row": decision["header_row"],
@@ -1042,7 +1130,7 @@ def _validate_table_decision(*, decision: Any, table: dict[str, Any]) -> dict[st
         "disposition": disposition,
         "headers": headers,
         "columns": copy.deepcopy(columns),
-        "amount_currency_bindings": copy.deepcopy(decision["amount_currency_bindings"]),
+        "amount_currency_bindings": bindings,
         "side_values": copy.deepcopy(side_values),
     }
 
@@ -1126,6 +1214,8 @@ def _validate_confirmed_decisions(
     by_table = {item["table_node_id"]: item for item in resolved_decisions}
     for understanding in confirmed_understandings:
         decision = understanding.get("decision")
+        if isinstance(decision, dict) and decision.get("decision_kind") == "USER_PROVIDED_CURRENCY":
+            continue
         resolved = by_table.get((decision or {}).get("table_node_id"))
         if (
             isinstance(decision, dict)
@@ -1138,6 +1228,35 @@ def _validate_confirmed_decisions(
             resolved=resolved, decision=decision
         ):
             _fail("ordinary_trade_semantic_mapping_confirmed_decision_conflict")
+
+
+def _confirmed_user_currency_assertion(
+    *, confirmed_understandings: list[dict[str, Any]], table_node_id: str
+) -> dict[str, Any] | None:
+    matches = []
+    for item in confirmed_understandings:
+        decision = item.get("decision") if isinstance(item, dict) else None
+        if (
+            isinstance(decision, dict)
+            and decision.get("decision_kind") == "USER_PROVIDED_CURRENCY"
+            and table_node_id in (decision.get("table_node_ids") or [])
+        ):
+            matches.append(decision)
+    if len(matches) > 1:
+        _fail("ordinary_trade_user_currency_assertion_ambiguous")
+    if not matches:
+        return None
+    decision = matches[0]
+    return {
+        key: decision[key]
+        for key in (
+            "schema_version",
+            "assertion_id",
+            "currency_code",
+            "case_binding_sha256",
+            "table_node_ids",
+        )
+    }
 
 
 def _confirmed_exclusion_resolutions(
@@ -1406,6 +1525,10 @@ def _strict_model_value(response: Any) -> dict[str, Any]:
 
 
 def _execution_metadata_sha256(value: Any) -> str:
+    return _sha256_json(_execution_metadata_value(value))
+
+
+def _execution_metadata_value(value: Any) -> dict[str, Any]:
     if value is None:
         _fail("ordinary_trade_semantic_mapping_execution_metadata_missing")
     if hasattr(value, "snapshot"):
@@ -1414,7 +1537,7 @@ def _execution_metadata_sha256(value: Any) -> str:
         value = asdict(value)
     if not isinstance(value, dict):
         _fail("ordinary_trade_semantic_mapping_execution_metadata_missing")
-    return _sha256_json(value)
+    return copy.deepcopy(value)
 
 
 def _response_format(*, name: str, schema: dict[str, Any]) -> dict[str, Any]:

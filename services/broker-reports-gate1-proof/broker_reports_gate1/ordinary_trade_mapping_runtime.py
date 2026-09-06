@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .artifact_models import ArtifactAccessContext
@@ -18,6 +19,11 @@ from .ordinary_trade_qualified_mappings import (
 )
 from .ordinary_trade_semantic_compiler import (
     OrdinaryTradeSemanticCompilerFactory,
+)
+
+
+_USER_CURRENCY_ANSWER = re.compile(
+    r"^(?:currency|валюта)\s*:\s*([A-Z]{3})$", re.IGNORECASE
 )
 
 
@@ -127,6 +133,42 @@ class OrdinaryTradeAutomaticMappingRuntime:
         }:
             return self._result(
                 current=current, context=context, provider_calls_this_turn=0
+            )
+        if current is not None and current[1]["status"] == "CURRENCY_ASSERTION_REQUIRED":
+            currency_code = _user_currency_code(user_message)
+            if currency_code is None:
+                return self._result(
+                    current=current, context=context, provider_calls_this_turn=0
+                )
+            plan = current[1]["pending_candidate"]
+            response = dict(plan["response"])
+            response["status"] = "COMPLETE"
+            saved_assertion = self._cases.record_user_currency_assertion(
+                document_id=document_id,
+                context=context,
+                currency_code=currency_code,
+                table_node_ids=_currency_plan_table_node_ids(plan),
+            )
+            binding = self._cases.case_binding(document_id=document_id, context=context)
+            outcome = self._semantic.validate_mapping_response(
+                response=response,
+                canonical=binding["canonical"],
+                canonical_binding=binding["canonical_binding"],
+                model_id=self._model_id,
+                provider_profile_id=self._provider_profile_id,
+                execution_metadata=plan["execution_metadata"],
+                confirmed_understandings=saved_assertion[1]["confirmed_understandings"],
+                user_scope_sha256=binding["user_scope_sha256"],
+                frozen_mappings=self._frozen_mappings,
+            )
+            saved = self._cases.save_mapping_outcome(
+                document_id=document_id,
+                context=context,
+                outcome=outcome,
+                provider_calls_total=0,
+            )
+            return self._result(
+                current=saved, context=context, provider_calls_this_turn=0
             )
         if current is not None and current[1]["status"] == "CONFIRMATION_REQUIRED":
             if not _is_exclusion_confirmation(current[1]):
@@ -353,6 +395,16 @@ class OrdinaryTradeAutomaticMappingRuntime:
             return self._result(
                 current=retired, context=context, provider_calls_this_turn=1
             )
+        if outcome["status"] == "CURRENCY_ASSERTION_REQUIRED":
+            saved = self._cases.save_mapping_outcome(
+                document_id=document_id,
+                context=context,
+                outcome=outcome,
+                provider_calls_total=1,
+            )
+            return self._result(
+                current=saved, context=context, provider_calls_this_turn=1
+            )
         saved = self._cases.save_mapping_outcome(
             document_id=document_id,
             context=context,
@@ -473,6 +525,29 @@ def _strict_result(response: Any) -> None:
 def _is_exclusion_confirmation(payload: dict[str, Any]) -> bool:
     question = payload.get("question")
     return isinstance(question, dict) and question.get("question_id") == "q_exclusion_batch"
+
+
+def _user_currency_code(user_message: str) -> str | None:
+    """Accept only the code-owned, explicitly rendered currency answer."""
+
+    match = _USER_CURRENCY_ANSWER.fullmatch(str(user_message or "").strip())
+    return match.group(1).upper() if match is not None else None
+
+
+def _currency_plan_table_node_ids(plan: dict[str, Any]) -> list[str]:
+    """Accept only node ids frozen by the semantic owner in the pending case."""
+
+    table_node_ids = plan.get("table_node_ids")
+    if (
+        not isinstance(table_node_ids, list)
+        or not table_node_ids
+        or table_node_ids != sorted(set(table_node_ids))
+        or any(not isinstance(item, str) or not item for item in table_node_ids)
+    ):
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_user_currency_request_invalid"
+        )
+    return list(table_node_ids)
 
 
 __all__ = [

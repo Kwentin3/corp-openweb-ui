@@ -395,6 +395,7 @@ def _semantic_scope(spec: dict[str, Any]) -> dict[str, Any]:
         "columns": copy.deepcopy(spec["columns"]),
         "amount_currency_bindings": copy.deepcopy(spec["amount_currency_bindings"]),
         "side_values": copy.deepcopy(spec["side_values"]),
+        "user_currency_assertion": None,
     }
 
 
@@ -511,6 +512,7 @@ def _validate_qualification(
         "columns": mapping["columns"],
         "amount_currency_bindings": mapping["amount_currency_bindings"],
         "side_values": mapping["side_values"],
+        "user_currency_assertion": mapping["user_currency_assertion"],
     }
     if receipt.get("semantic_scope_sha256") != _sha256_json(scope):
         raise RuntimeError("ordinary_trade_mapping_qualification_scope_invalid")
@@ -615,6 +617,7 @@ def qualify_case_mapping(
     case_scope: dict[str, str],
     model_decision: dict[str, str],
     confirmed_understandings: list[dict[str, str]],
+    user_currency_assertion: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Admit one model-proposed mapping only for its authenticated case scope."""
 
@@ -628,11 +631,13 @@ def qualify_case_mapping(
             "qualification_id": "otqual_" + "0" * 32,
             "receipt_sha256": "0" * 64,
         },
+        user_currency_assertion=user_currency_assertion,
     )
     semantic_scope = {
         "columns": provisional["columns"],
         "amount_currency_bindings": provisional["amount_currency_bindings"],
         "side_values": provisional["side_values"],
+        "user_currency_assertion": provisional["user_currency_assertion"],
     }
     headers_by_column = {
         item["column"]: item["header_literal"] for item in provisional["columns"]
@@ -647,17 +652,11 @@ def qualify_case_mapping(
             "headers": copy.deepcopy(headers),
         },
         "semantic_scope_sha256": _sha256_json(semantic_scope),
-        "relation_claims": [
-            {
-                "amount_column": item["amount_column"],
-                "currency_column": item["currency_column"],
-                "amount_header_literal": headers_by_column[item["amount_column"]],
-                "currency_header_literal": headers_by_column[item["currency_column"]],
-                "evidence_basis": "MODEL_PROPOSED_CASE_SCOPE",
-                "consumer_contract": _CONSUMER_CONTRACT,
-            }
-            for item in provisional["amount_currency_bindings"]
-        ],
+        "relation_claims": _case_relation_claims(
+            bindings=provisional["amount_currency_bindings"],
+            headers_by_column=headers_by_column,
+            user_currency_assertion=provisional["user_currency_assertion"],
+        ),
         "model_decision": copy.deepcopy(model_decision),
         "confirmed_understandings": copy.deepcopy(confirmed_understandings),
         "consumer_contracts": [_CONSUMER_CONTRACT],
@@ -676,6 +675,7 @@ def qualify_case_mapping(
             "qualification_id": qualification_id,
             "receipt_sha256": receipt["receipt_sha256"],
         },
+        user_currency_assertion=user_currency_assertion,
     )
     validate_case_qualified_mapping(
         mapping=mapping,
@@ -751,6 +751,7 @@ def validate_case_qualified_mapping(
         "columns": mapping["columns"],
         "amount_currency_bindings": mapping["amount_currency_bindings"],
         "side_values": mapping["side_values"],
+        "user_currency_assertion": mapping["user_currency_assertion"],
     }
     if receipt.get("semantic_scope_sha256") != _sha256_json(scope):
         raise RuntimeError("ordinary_trade_case_mapping_scope_invalid")
@@ -791,19 +792,49 @@ def validate_case_qualified_mapping(
     headers_by_column = {
         item["column"]: item["header_literal"] for item in mapping["columns"]
     }
-    expected_claims = [
-        {
-            "amount_column": item["amount_column"],
-            "currency_column": item["currency_column"],
-            "amount_header_literal": headers_by_column[item["amount_column"]],
-            "currency_header_literal": headers_by_column[item["currency_column"]],
-            "evidence_basis": "MODEL_PROPOSED_CASE_SCOPE",
-            "consumer_contract": _CONSUMER_CONTRACT,
-        }
-        for item in mapping["amount_currency_bindings"]
-    ]
+    expected_claims = _case_relation_claims(
+        bindings=mapping["amount_currency_bindings"],
+        headers_by_column=headers_by_column,
+        user_currency_assertion=mapping["user_currency_assertion"],
+    )
     if receipt.get("relation_claims") != expected_claims:
         raise RuntimeError("ordinary_trade_case_mapping_relation_coverage_invalid")
+
+
+def _case_relation_claims(
+    *,
+    bindings: list[dict[str, int]],
+    headers_by_column: dict[int, str],
+    user_currency_assertion: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Keep a user assertion distinct from a source-column relation claim."""
+
+    claims = []
+    for item in bindings:
+        if item.get("currency_source") == {"kind": "user_assertion"}:
+            if user_currency_assertion is None:
+                raise RuntimeError("ordinary_trade_case_mapping_currency_assertion_missing")
+            claims.append(
+                {
+                    "amount_column": item["amount_column"],
+                    "currency_assertion_id": user_currency_assertion["assertion_id"],
+                    "currency_code": user_currency_assertion["currency_code"],
+                    "evidence_basis": "USER_PROVIDED_CASE_ASSERTION",
+                    "consumer_contract": _CONSUMER_CONTRACT,
+                }
+            )
+            continue
+        claims.append(
+            {
+                "amount_column": item["amount_column"],
+                "currency_column": item["currency_column"],
+                "amount_header_literal": headers_by_column[item["amount_column"]],
+                "currency_header_literal": headers_by_column[item["currency_column"]],
+                "evidence_basis": "MODEL_PROPOSED_CASE_SCOPE",
+                "consumer_contract": _CONSUMER_CONTRACT,
+            }
+        )
+    return claims
 
 
 _QUALIFIED_ENTRIES = tuple(
