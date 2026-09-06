@@ -192,6 +192,19 @@ class OrdinaryTradeAutomaticMappingRuntime:
             canonical=binding["canonical"],
             mappings=self._frozen_mappings,
         )
+        confirmed_exclusion_ids = {
+            str((item.get("decision") or {}).get("table_node_id") or "")
+            for item in confirmed
+            if (item.get("decision") or {}).get("decision_kind")
+            == "TABLE_DISPOSITION"
+            and (item.get("decision") or {}).get("disposition")
+            == "NO_NAMED_CONSUMER"
+        }
+        target_table_node_ids = [
+            table_node_id
+            for table_node_id in target_table_node_ids
+            if table_node_id not in confirmed_exclusion_ids
+        ]
         if not target_table_node_ids:
             saved = self._cases.save_deterministic_terminal(
                 document_id=document_id,
