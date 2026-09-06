@@ -1420,10 +1420,10 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
     assert result["provider_calls_total"] == 0
 
 
-def test_confirmed_mapping_answer_is_not_reused_for_followup_action(
+def test_mapping_candidate_confirmation_stays_in_the_ordinary_chat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A confirmed mapping answer belongs only to that mapping case turn."""
+    """The normal chat owns mapping confirmation; no popup may block it."""
 
     pipe = Pipe()
     pipe.valves.ordinary_trade_candidate_enabled = True
@@ -1497,10 +1497,8 @@ def test_confirmed_mapping_answer_is_not_reused_for_followup_action(
 
     monkeypatch.setattr(product_pipe, "OrdinaryTradeProductionRuntimeFactory", Factory)
 
-    async def confirm(payload):
-        assert payload["type"] == "confirmation"
-        assert payload["data"]["message"] == "Подтвердите выбор."
-        return True
+    async def confirm(_payload):
+        raise AssertionError("mapping confirmation must remain a normal chat turn")
 
     result = asyncio.run(
         pipe._maybe_run_ndfl_gate3(
@@ -1515,13 +1513,9 @@ def test_confirmed_mapping_answer_is_not_reused_for_followup_action(
         )
     )
 
-    assert result == followup
+    assert result == initial
     assert "declaration_chat_receipt" not in result
-    assert len(runtime.calls) == 2
-    assert runtime.calls[1]["confirmation"] is True
-    assert runtime.calls[1]["expected_confirmation_artifact_id"] == (
-        "mapping-case-confirmation"
-    )
+    assert len(runtime.calls) == 1
 
 
 def test_case_note_explains_that_operation_years_are_not_determined() -> None:
