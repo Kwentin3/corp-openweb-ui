@@ -802,6 +802,24 @@ def test_every_deterministic_public_branch_forbids_engineering_vocabulary(
         assert hidden not in content.casefold()
 
 
+def test_unsupported_financial_meaning_explains_that_no_partial_calculation_was_used() -> None:
+    product = _product(status="PREPARATION_INCOMPLETE")
+    product["terminal"] = "ordinary_trade_mapping_unsupported_financial_meaning"
+    product["gate5"] = {
+        "blocker_reason_codes": [
+            "ordinary_trade_mapping_unsupported_financial_meaning"
+        ]
+    }
+
+    visible = render_public_dialogue_fallback(
+        build_public_dialogue_context(product=product)
+    )
+
+    assert "не относятся к поддерживаемой обработке сделок с ценными бумагами" in visible
+    assert "не стал считать только часть отчёта" in visible
+    assert "XML не создан" in visible
+
+
 def test_public_message_rejects_leaks_and_false_filing_claims() -> None:
     context = build_public_dialogue_context(product=_product())
     fallback = render_public_dialogue_fallback(context)

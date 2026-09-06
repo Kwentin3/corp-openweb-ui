@@ -1681,6 +1681,12 @@ def _public_safe_stop_text(product: dict[str, Any]) -> str:
             "обработать. Операции не считаются отсутствующими; сохраните анализ и "
             "передайте кейс специалисту. XML не создан."
         )
+    if "ordinary_trade_mapping_unsupported_financial_meaning" in reasons:
+        return (
+            "В отчёте есть операции, которые не относятся к поддерживаемой "
+            "обработке сделок с ценными бумагами. Сервис не стал считать только "
+            "часть отчёта: сохраните анализ и передайте кейс специалисту. XML не создан."
+        )
     if "ordinary_trade_declaration_canonical_relevant_unmapped" in reasons:
         return (
             "В отчёте есть строки операций, которые не удалось однозначно "
