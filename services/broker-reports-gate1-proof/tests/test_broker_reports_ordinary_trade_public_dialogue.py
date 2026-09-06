@@ -744,6 +744,25 @@ def test_mapping_public_question_keeps_bounded_batch_source_evidence() -> None:
     ]
 
 
+def test_mapping_batch_renders_source_fragments_for_user_review() -> None:
+    product = _mapping_product()
+    action = product["preparation"]["gap_closure"][
+        "user_facing_required_actions"
+    ][0]
+    action["question"]["options"][0]["source_literals"] = [
+        "Cash Activity",
+        "Interest and Dividends",
+    ]
+
+    visible = render_public_dialogue_fallback(
+        build_public_dialogue_context(product=product)
+    )
+
+    assert "Варианты и фрагменты исходного отчёта" in visible
+    assert "> Из отчёта: Cash Activity" in visible
+    assert "> Из отчёта: Interest and Dividends" in visible
+
+
 @pytest.mark.parametrize(
     "status",
     [
