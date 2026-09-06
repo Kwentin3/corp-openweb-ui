@@ -825,6 +825,7 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
     assert request["max_tokens"] == 65_536
     assert request["response_format"]["json_schema"]["strict"] is True
     assert "never ask the declarant to classify" in request["messages"][0]["content"]
+    assert "Cash movements, dividends, interest" in request["messages"][0]["content"]
     question = {
         "question_id": "q_table_kind",
         "table_node_id": table["node_id"],
