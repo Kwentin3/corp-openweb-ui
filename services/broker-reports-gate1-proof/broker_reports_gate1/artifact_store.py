@@ -373,6 +373,44 @@ class SqliteArtifactStoreAdapter:
             ).fetchall()
         return [_row_to_record(row) for row in rows]
 
+    def list_by_authenticated_scope_context(
+        self, context: ArtifactAccessContext
+    ) -> list[ArtifactRecord]:
+        """List one authenticated case-or-chat/workspace scope across runs.
+
+        This is deliberately not a run lookup.  The caller must supply an
+        already server-attested ``ArtifactAccessContext``; this storage owner
+        does not authenticate or accept a separate caller-selected user
+        filter, and never reads payload bytes.
+        """
+
+        self._validate_authenticated_scope_context(context, require_private=True)
+        if context.case_id:
+            predicate = "user_id = ? AND case_id = ? AND workspace_model_id IS ?"
+            parameters = (
+                context.user_id,
+                context.case_id,
+                context.workspace_model_id,
+            )
+        else:
+            predicate = (
+                "user_id = ? AND case_id IS NULL AND chat_id = ? "
+                "AND workspace_model_id IS ?"
+            )
+            parameters = (
+                context.user_id,
+                context.chat_id,
+                context.workspace_model_id,
+            )
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM artifact_records WHERE "
+                + predicate
+                + " ORDER BY created_at ASC, artifact_type ASC",
+                parameters,
+            ).fetchall()
+        return [_row_to_record(row) for row in rows]
+
     def list_by_type(self, normalization_run_id: str, artifact_type: str) -> list[ArtifactRecord]:
         return [
             record
@@ -1666,6 +1704,30 @@ class SqliteArtifactStoreAdapter:
         if require_private and not context.allow_private:
             raise ArtifactStoreError(
                 "artifact_access_denied", "Private canonical access was not requested"
+            )
+
+    @staticmethod
+    def _validate_authenticated_scope_context(
+        context: ArtifactAccessContext, *, require_private: bool
+    ) -> None:
+        """Validate an authenticated scope without inventing a processing run."""
+
+        if not isinstance(context, ArtifactAccessContext):
+            raise ArtifactStoreError(
+                "artifact_scope_unverified", "Trusted ArtifactAccessContext is required"
+            )
+        if not str(context.user_id or "").strip():
+            raise ArtifactStoreError(
+                "artifact_scope_unverified", "Authenticated artifact user context is required"
+            )
+        if not context.case_id and not context.chat_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified",
+                "Artifact case or chat context is required",
+            )
+        if require_private and not context.allow_private:
+            raise ArtifactStoreError(
+                "artifact_access_denied", "Private artifact access was not requested"
             )
 
     @classmethod

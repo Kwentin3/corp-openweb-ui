@@ -257,6 +257,104 @@ class BrokerReportsGate1ArtifactStoreTest(unittest.TestCase):
         self.assertIn(private["record"].artifact_type, {"private_normalized_text_slice_v0", "private_normalized_table_slice_v0"})
         self.assertIsNotNone(private["payload"])
 
+    def test_authenticated_scope_metadata_catalog_spans_runs_without_payload(self):
+        """A user-owned case may discover refs without inventing a run id."""
+
+        retention = build_retention_policy(mode="customer_approved_test", explicit=True)
+
+        def persist(*, artifact_id: str, run_id: str, user_id: str = "user-scope", case_id: str = "case-scope"):
+            return self.store.put_record(
+                ArtifactRecord(
+                    artifact_id=artifact_id,
+                    artifact_type="validation_result_v0",
+                    case_id=case_id,
+                    chat_id="chat-scope",
+                    user_id=user_id,
+                    workspace_model_id="workspace-scope",
+                    normalization_run_id=run_id,
+                    document_id=None,
+                    source_file_ref={"openwebui_file_id": "private-source"},
+                    visibility="private_case",
+                    storage_backend="project_artifact_payload",
+                    retention_policy=retention,
+                    access_policy={"requires_user_id": True},
+                    validation_status="validated",
+                    lifecycle_status="private_ready",
+                    payload={"schema_version": "validation_result_v0", "run": run_id},
+                    safe_metadata={"run": run_id},
+                )
+            )
+
+        first = persist(artifact_id="art_scope_first", run_id="run-scope-first")
+        second = persist(artifact_id="art_scope_second", run_id="run-scope-second")
+        persist(
+            artifact_id="art_scope_foreign",
+            run_id="run-scope-foreign",
+            user_id="other-user",
+        )
+        persist(
+            artifact_id="art_scope_other_case",
+            run_id="run-scope-other-case",
+            case_id="other-case",
+        )
+        chat_only = persist(
+            artifact_id="art_scope_chat_only",
+            run_id="run-scope-chat-only",
+            case_id=None,
+        )
+        scope = ArtifactAccessContext(
+            user_id="user-scope",
+            normalization_run_id="",
+            case_id="case-scope",
+            chat_id="chat-scope",
+            workspace_model_id="workspace-scope",
+            allow_private=True,
+        )
+
+        metadata = ArtifactResolver(self.store).catalog_authenticated_scope_metadata(scope)
+
+        self.assertEqual({item.artifact_id for item in metadata}, {first.artifact_id, second.artifact_id})
+        self.assertEqual(
+            {item.normalization_run_id for item in metadata},
+            {"run-scope-first", "run-scope-second"},
+        )
+        self.assertTrue(all(item.payload is None for item in metadata))
+        self.assertTrue(all(item.payload_ref is None for item in metadata))
+        self.assertTrue(all(item.source_file_ref is None for item in metadata))
+        self.assertEqual(
+            ArtifactResolver(self.store).catalog_authenticated_scope_metadata(
+                ArtifactAccessContext(
+                    **{**scope.__dict__, "workspace_model_id": "other-workspace"}
+                )
+            ),
+            [],
+        )
+        with self.assertRaises(ArtifactStoreError) as no_private_access:
+            ArtifactResolver(self.store).catalog_authenticated_scope_metadata(
+                ArtifactAccessContext(**{**scope.__dict__, "allow_private": False})
+            )
+        self.assertEqual(no_private_access.exception.code, "artifact_access_denied")
+        chat_metadata = ArtifactResolver(self.store).catalog_authenticated_scope_metadata(
+            ArtifactAccessContext(
+                **{**scope.__dict__, "case_id": None}
+            )
+        )
+        self.assertEqual([item.artifact_id for item in chat_metadata], [chat_only.artifact_id])
+        self.assertIsNotNone(self.store.read_payload(first))
+
+    def test_authenticated_scope_metadata_catalog_rejects_missing_case_or_chat(self):
+        with self.assertRaises(ArtifactStoreError) as missing_scope:
+            ArtifactResolver(self.store).catalog_authenticated_scope_metadata(
+                ArtifactAccessContext(
+                    user_id="user-scope",
+                    normalization_run_id="",
+                    workspace_model_id="workspace-scope",
+                    allow_private=True,
+                )
+            )
+
+        self.assertEqual(missing_scope.exception.code, "artifact_scope_unverified")
+
     def test_resolver_denies_wrong_user_case_chat_expired_purged_blocked_and_privacy_failed(self):
         _result, context, manifest = self._persist_clean_run()
         resolver = ArtifactResolver(self.store)

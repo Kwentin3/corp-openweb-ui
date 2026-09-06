@@ -139,6 +139,30 @@ class ArtifactResolver:
             result.append(item)
         return result
 
+    def catalog_authenticated_scope_metadata(
+        self, context: ArtifactAccessContext
+    ) -> list[ArtifactRecord]:
+        """Return payload-free metadata across one authenticated scope's runs.
+
+        This is a server-local discovery seam for a user-owned case or chat.
+        It expects an already server-attested access context; it does not add
+        an authentication mechanism, an all-user catalog, or a separate user
+        identifier.  A later payload read still has to name one exact run
+        through ``resolve``.
+        """
+
+        records = self.store.list_by_authenticated_scope_context(context)
+        result: list[ArtifactRecord] = []
+        for record in records:
+            self._validate_authenticated_scope_without_run(record, context)
+            self._validate_lifecycle(record, context)
+            item = copy.deepcopy(record)
+            item.payload = None
+            item.payload_ref = None
+            item.source_file_ref = None
+            result.append(item)
+        return result
+
     def _validate(self, record: ArtifactRecord, context: ArtifactAccessContext) -> None:
         self._validate_scope(record, context)
         self._validate_lifecycle(record, context)
@@ -235,6 +259,39 @@ class ArtifactResolver:
                 raise ArtifactStoreError("artifact_scope_unverified", "Artifact workspace context is missing")
             if record.workspace_model_id != context.workspace_model_id:
                 raise ArtifactStoreError("artifact_access_denied", "Artifact workspace context mismatch")
+
+    @staticmethod
+    def _validate_authenticated_scope_without_run(
+        record: ArtifactRecord, context: ArtifactAccessContext
+    ) -> None:
+        """Validate the exact user/case-or-chat/workspace scope only."""
+
+        if not isinstance(context, ArtifactAccessContext) or not context.user_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified", "Trusted ArtifactAccessContext is required"
+            )
+        if record.user_id != context.user_id:
+            raise ArtifactStoreError("artifact_access_denied", "Artifact user context mismatch")
+        if record.case_id:
+            if not context.case_id:
+                raise ArtifactStoreError(
+                    "artifact_scope_unverified", "Artifact case context is missing"
+                )
+            if record.case_id != context.case_id:
+                raise ArtifactStoreError("artifact_access_denied", "Artifact case context mismatch")
+        else:
+            if not record.chat_id:
+                raise ArtifactStoreError(
+                    "artifact_scope_unverified", "Artifact has no case/chat scope"
+                )
+            if not context.chat_id:
+                raise ArtifactStoreError(
+                    "artifact_scope_unverified", "Artifact chat context is missing"
+                )
+            if record.chat_id != context.chat_id:
+                raise ArtifactStoreError("artifact_access_denied", "Artifact chat context mismatch")
+        if record.workspace_model_id != context.workspace_model_id:
+            raise ArtifactStoreError("artifact_access_denied", "Artifact workspace context mismatch")
 
 
 def _record_matches_context_scope(
