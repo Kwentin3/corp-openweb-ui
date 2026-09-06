@@ -858,10 +858,21 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "gate3_financial_label_dictionary_cli.py"
         ),
     }
+    allowed_r_and_d_qualification_modules = {
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_semantic_mapping_qualification.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_semantic_mapping_live_qualification.py"
+        ),
+    }
     assert set(added_package_modules) <= (
         allowed_subordinates
         | allowed_standalone_contract_authorities
         | allowed_support_modules
+        | allowed_r_and_d_qualification_modules
     )
     added_subordinates = set(added_package_modules) & allowed_subordinates
     if added_subordinates:
@@ -1195,4 +1206,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         "tests/test_broker_reports_gate3_openwebui_managed_dictionary.py",
     ):
         assert gate3_suite in workflow
+    for qualification_suite in (
+        "tests/test_broker_reports_goal391_role_mapping_sandbox_corpus.py",
+        "tests/test_broker_reports_ordinary_trade_mapping_qualification.py",
+        "tests/test_broker_reports_goal391_live_mapping_qualification.py",
+    ):
+        assert qualification_suite in workflow
     assert DOMAIN_MAP.is_file()
