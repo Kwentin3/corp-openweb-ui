@@ -555,6 +555,9 @@ def test_prompt_injection_cell_cannot_author_mapping_or_source_literal(tmp_path)
     assert "canonical_binding" not in str(package)
     assert "canonical_root_sha256" not in str(package)
     assert package["case"]["tables"][0]["table_ref"] == "table_1"
+    assert package["case"]["tables"][0]["header_row_choices"] == [
+        item["row"] for item in table["content"]["cells"] if item["column"] == 1
+    ]
     assert "table_node_id" not in str(package)
     forged = _complete_response(table, known)
     forged["table_decisions"][0]["side_values"][0]["source_literal"] = "SELL"
