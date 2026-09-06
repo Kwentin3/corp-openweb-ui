@@ -95,6 +95,9 @@ def _table_disposition_decision(disposition: str) -> dict:
 
 
 def _complete_response(table, known):
+    cells_by_row = {}
+    for cell in (table.get("content") or {}).get("cells") or []:
+        cells_by_row.setdefault(cell["row"], []).append(cell)
     return {
         "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
         "status": "COMPLETE",
@@ -114,6 +117,12 @@ def _complete_response(table, known):
                     known["amount_currency_bindings"]
                 ),
                 "side_values": copy.deepcopy(known["side_values"]),
+                "row_dispositions": [
+                    {"row": row, "disposition": "SECURITY_TRADES"}
+                    for row, cells in sorted(cells_by_row.items())
+                    if row > 1
+                    and any(str(cell.get("displayed_value") or cell.get("value") or "").strip() for cell in cells)
+                ],
             }
         ],
         "clarification": None,
@@ -257,8 +266,9 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         {"COMPLETE", "CLARIFICATION_REQUIRED", "CURRENCY_ASSERTION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
     ]
     disposition_enums = _property_enum_sets(provider_schema, "disposition")
-    assert len(disposition_enums) == 3
+    assert len(disposition_enums) == 4
     assert {"SECURITY_TRADES"} in disposition_enums
+    assert {"SECURITY_TRADES", "NO_NAMED_CONSUMER"} in disposition_enums
     assert {"NO_NAMED_CONSUMER", "UNSUPPORTED_FINANCIAL_MEANING"} in disposition_enums
     assert {
         "SECURITY_TRADES",
@@ -298,6 +308,7 @@ def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
                 "columns": [{"column": 1, "semantic_role": "asset_name"}],
                 "amount_currency_bindings": [],
                 "side_values": [],
+                "row_dispositions": [],
             }
         ],
         "clarification": None,
@@ -343,6 +354,63 @@ def test_unknown_schema_mapping_is_qualified_only_for_exact_case(tmp_path) -> No
             receipt=receipt,
             expected_case_scope=foreign,
         )
+
+
+def test_security_table_requires_explicit_coverage_of_every_nonempty_row(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    response = _complete_response(table, known)
+    response["table_decisions"][0]["row_dispositions"].pop()
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+            response=response,
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256="a" * 64,
+        )
+
+    assert exc.value.code == "ordinary_trade_semantic_mapping_row_coverage_invalid"
+
+
+def test_explicit_non_trade_row_is_retained_without_partial_calculation(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    response = _complete_response(table, known)
+    response["table_decisions"][0]["row_dispositions"][0]["disposition"] = (
+        "NO_NAMED_CONSUMER"
+    )
+    side_column = next(
+        item["column"]
+        for item in known["columns"]
+        if item["semantic_role"] == "side"
+    )
+    remaining_side_literal = next(
+        cell["displayed_value"]
+        for cell in table["content"]["cells"]
+        if cell["row"] == 3 and cell["column"] == side_column
+    )
+    response["table_decisions"][0]["side_values"] = [
+        item
+        for item in known["side_values"]
+        if item["source_literal"] == remaining_side_literal
+    ]
+
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert result["table_resolutions"][0]["security_trade_rows"] == [3]
 
 
 def test_registry_and_case_mapping_conflict_fails_at_exact_table_scope(
@@ -520,6 +588,7 @@ def test_mixed_tables_publish_complete_internal_table_classification(
             "columns": [],
             "amount_currency_bindings": [],
             "side_values": [],
+            "row_dispositions": [],
         }
     )
 
@@ -565,6 +634,7 @@ def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> Non
                 "columns": [],
                 "amount_currency_bindings": [],
                 "side_values": [],
+                "row_dispositions": [],
             }
         )
 
@@ -621,6 +691,7 @@ def test_unsupported_decision_never_carries_partial_mapping_material(tmp_path) -
     response["table_decisions"][0]["columns"] = []
     response["table_decisions"][0]["amount_currency_bindings"] = []
     response["table_decisions"][0]["side_values"] = []
+    response["table_decisions"][0]["row_dispositions"] = []
 
     result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
         response=response,
@@ -662,8 +733,9 @@ def test_currency_question_never_hides_unsupported_financial_meaning(tmp_path) -
             "header_row": 1,
             "disposition": "UNSUPPORTED_FINANCIAL_MEANING",
             "columns": [],
-            "amount_currency_bindings": [],
-            "side_values": [],
+                "amount_currency_bindings": [],
+                "side_values": [],
+                "row_dispositions": [],
         }
     )
 

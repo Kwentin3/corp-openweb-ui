@@ -92,6 +92,22 @@ def _metadata() -> Gate2ProviderExecutionMetadata:
 
 
 def _complete(table, mapping):
+    cells_by_row = {}
+    for cell in (table.get("content") or {}).get("cells") or []:
+        cells_by_row.setdefault(cell["row"], []).append(cell)
+    trade_rows = (
+        [
+            row
+            for row, cells in sorted(cells_by_row.items())
+            if row > 1
+            and any(
+                str(cell.get("displayed_value") or cell.get("value") or "").strip()
+                for cell in cells
+            )
+        ]
+        if cells_by_row
+        else list(range(2, len(candidate._ROWS) + 1))
+    )
     return {
         "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
         "status": "COMPLETE",
@@ -111,6 +127,10 @@ def _complete(table, mapping):
                     mapping["amount_currency_bindings"]
                 ),
                 "side_values": copy.deepcopy(mapping["side_values"]),
+                "row_dispositions": [
+                    {"row": row, "disposition": "SECURITY_TRADES"}
+                    for row in trade_rows
+                ],
             }
         ],
         "clarification": None,
@@ -270,6 +290,7 @@ def test_exclusion_decisions_remain_complete_and_auditable(tmp_path) -> None:
                     "columns": [],
                     "amount_currency_bindings": [],
                     "side_values": [],
+                    "row_dispositions": [],
                 }
                 for index in (1, 2)
             ],
