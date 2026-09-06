@@ -239,7 +239,9 @@ def declaration_change_intent(message: str) -> dict[str, Any] | None:
                 "status": "CHANGE_ANSWER_READY" if answer else "ANSWER_REJECTED",
                 "fact_key": fact_key,
                 "answer": answer,
-                "reason_code": None if answer else "declaration_chat_change_format_invalid",
+                "reason_code": None
+                if answer
+                else "declaration_chat_change_format_invalid",
             }
     return None
 
@@ -259,7 +261,10 @@ def adapt_current_declaration_request(
         or request.get("closure_type") != "USER_FACT"
         or not isinstance(request.get("answer_contract"), dict)
     ):
-        return _result("OWNER_REQUEST_INVALID", reason_code="declaration_chat_owner_request_invalid")
+        return _result(
+            "OWNER_REQUEST_INVALID",
+            reason_code="declaration_chat_owner_request_invalid",
+        )
     text = _text(message)
     if not text:
         return _result("NO_ANSWER")
@@ -320,9 +325,11 @@ def declaration_request_help(request: dict[str, Any]) -> str:
         presentation = _request_presentation(request)
         labels = presentation.get("code_labels") if presentation else None
         if isinstance(labels, dict) and set(allowed) == set(labels):
-            return "Допустимые ответы: " + "; ".join(
-                str(labels[value]) for value in allowed
-            ) + "."
+            return (
+                "Допустимые ответы: "
+                + "; ".join(str(labels[value]) for value in allowed)
+                + "."
+            )
         return _UNAVAILABLE_REQUEST
     if request.get("fact_key") == "declaration_date":
         return "Введите календарную дату в формате ГГГГ-ММ-ДД."
@@ -429,7 +436,11 @@ def _request_presentation(request: dict[str, Any]) -> dict[str, Any] | None:
     fact_key = request.get("fact_key")
     if fact_key == "selected_tax_period":
         subject = request.get("subject")
-        years = subject.get("detected_operation_years") if isinstance(subject, dict) else None
+        years = (
+            subject.get("detected_operation_years")
+            if isinstance(subject, dict)
+            else None
+        )
         if (
             not isinstance(years, list)
             or years != sorted(set(years))
@@ -462,9 +473,7 @@ def _request_presentation(request: dict[str, Any]) -> dict[str, Any] | None:
             or not profiles
             or profiles != sorted(set(profiles))
             or any(
-                not isinstance(item, str)
-                or not item.strip()
-                or len(item) > 512
+                not isinstance(item, str) or not item.strip() or len(item) > 512
                 for item in profiles
             )
             or re.fullmatch(r"art_[0-9a-f]{32}", str(selected_fact_ref)) is None
@@ -490,9 +499,8 @@ def _presentation_contract_valid(request: dict[str, Any]) -> bool:
     if presentation is None:
         return False
     contract = request.get("answer_contract")
-    if (
-        not isinstance(contract, dict)
-        or contract.get("kind") != presentation.get("answer_kind")
+    if not isinstance(contract, dict) or contract.get("kind") != presentation.get(
+        "answer_kind"
     ):
         return False
     labels = presentation.get("code_labels")
@@ -638,8 +646,7 @@ def declaration_surrogate_preview(preview: Any) -> str:
             *([f"- {item}" for item in placeholder_values] or ["- ничего"]),
             "Перед подачей нужен точный профиль выбранного года, повторная "
             "проверка заполненных реквизитов и новый расчёт.",
-            "Этот черновик использует профиль другого года и не является "
-            "декларацией.",
+            "Этот черновик использует профиль другого года и не является декларацией.",
             "XML и файл для скачивания не созданы.",
         ]
     )
@@ -741,7 +748,7 @@ def _mapping_public_question_context(request: Any) -> dict[str, Any] | None:
             or not item["label"].strip()
             or len(item["label"]) > 1000
             or not isinstance(item.get("source_literals"), list)
-            or len(item["source_literals"]) > 4
+            or len(item["source_literals"]) > 12
             or any(
                 not isinstance(literal, str)
                 or not literal.strip()
@@ -1126,9 +1133,7 @@ def public_mapping_verification_messages(
     return system, user
 
 
-def validate_public_mapping_verification(
-    value: Any, *, context: dict[str, Any]
-) -> str:
+def validate_public_mapping_verification(value: Any, *, context: dict[str, Any]) -> str:
     payload = _json_object(value)
     if set(payload) != {
         "schema_version",
@@ -1143,14 +1148,18 @@ def validate_public_mapping_verification(
     ):
         raise ValueError("public_mapping_verification_schema_invalid")
     question = context.get("current_question")
-    if not isinstance(question, dict) or question.get("authority_kind") != "source_choice":
+    if (
+        not isinstance(question, dict)
+        or question.get("authority_kind") != "source_choice"
+    ):
         raise ValueError("public_mapping_verification_context_invalid")
     evidence = question.get("source_evidence")
     evidence = evidence if isinstance(evidence, list) else []
     expected_refs = [str(item.get("option_ref") or "") for item in evidence]
-    if payload.get("question_ref") != question.get("question_ref") or payload.get(
-        "option_refs"
-    ) != expected_refs:
+    if (
+        payload.get("question_ref") != question.get("question_ref")
+        or payload.get("option_refs") != expected_refs
+    ):
         raise ValueError("public_mapping_verification_binding_invalid")
     disposition = payload.get("disposition")
     if disposition not in {"ACCEPT", "REJECT"}:
@@ -1223,11 +1232,7 @@ def validate_public_dialogue_interpretation(
         question = context.get("current_question")
         question = question if isinstance(question, dict) else {}
         options = question.get("options")
-        if (
-            isinstance(options, list)
-            and options
-            and normalized_answer not in options
-        ):
+        if isinstance(options, list) and options and normalized_answer not in options:
             raise ValueError("public_dialogue_candidate_not_on_public_surface")
     visible_parts = [interpretation_message]
     if disposition == "CANDIDATE":
@@ -1305,9 +1310,10 @@ def validate_public_dialogue_message(
         raise ValueError("public_dialogue_turn_binding_invalid")
     if question and question.get("authority_kind") == "source_choice":
         _validated_mapping_dialogue_draft(payload, context=context)
-        if validate_public_mapping_verification(
-            mapping_verification, context=context
-        ) != "ACCEPT":
+        if (
+            validate_public_mapping_verification(mapping_verification, context=context)
+            != "ACCEPT"
+        ):
             raise ValueError("public_mapping_verification_rejected")
         return _render_public_dialogue_context(context, question_override=message)
     _validate_public_text(message)
@@ -1394,7 +1400,9 @@ def _validated_mapping_dialogue_draft(
     if (
         not required_descriptions
         or len(required_descriptions) != len(evidence)
-        or any(not isinstance(description, str) for description in required_descriptions)
+        or any(
+            not isinstance(description, str) for description in required_descriptions
+        )
     ):
         raise ValueError("public_dialogue_mapping_brief_invalid")
     return message, binding, question
@@ -1493,12 +1501,15 @@ def _public_summary_lines(
             lines.append(
                 "По проверенному результату: доход {total_income} ₽, принятые "
                 "расходы {accepted_expenses} ₽, налоговая база {tax_base} ₽, "
-                "исчисленный налог {calculated_tax} ₽, к уплате {tax_payable} ₽."
-                .format_map(amounts)
+                "исчисленный налог {calculated_tax} ₽, к уплате {tax_payable} ₽.".format_map(
+                    amounts
+                )
             )
         lines.append("Файл не отправлялся в ФНС автоматически.")
     elif status == "NON_FILING_SURROGATE_READY":
-        preview = declaration_surrogate_preview(preparation_value(product, "surrogate_preview"))
+        preview = declaration_surrogate_preview(
+            preparation_value(product, "surrogate_preview")
+        )
         lines.extend(preview.splitlines())
     elif status == "ANALYSIS_ONLY_READY":
         lines.append("Готов анализ выбранного периода. XML не создавался.")
@@ -1523,7 +1534,9 @@ def _public_summary_lines(
             "нужно подтвердить оставшиеся сведения."
         )
     elif status == "INPUT_REQUIRED":
-        lines.append("Расчёт сохранён, но для продолжения нужны подтверждённые сведения.")
+        lines.append(
+            "Расчёт сохранён, но для продолжения нужны подтверждённые сведения."
+        )
     else:
         lines.append(_public_safe_stop_text(product))
     selected = note.get("selected_tax_period")
@@ -1560,7 +1573,9 @@ def _public_summary_lines(
     return [line for line in lines if line]
 
 
-def _public_provenance(*, note: dict[str, Any], declaration: Any) -> list[dict[str, str]]:
+def _public_provenance(
+    *, note: dict[str, Any], declaration: Any
+) -> list[dict[str, str]]:
     calculated = note.get("calculated_disposal_fact_ids")
     calculated_total = len(calculated) if isinstance(calculated, list) else 0
     result = [
@@ -1587,7 +1602,9 @@ def _public_provenance(*, note: dict[str, Any], declaration: Any) -> list[dict[s
         },
     ]
     if _public_reconciled_amounts(declaration):
-        result[2]["text"] += "; итоговые суммы независимо сверены с подготовленным файлом"
+        result[2]["text"] += (
+            "; итоговые суммы независимо сверены с подготовленным файлом"
+        )
     return result
 
 
@@ -1605,8 +1622,15 @@ def _public_next_actions(
         ]
     if status == "STOPPED_RESUMABLE":
         return ["Вернуться к этому кейсу позже"]
-    if status in {"OPEN_POSITION_RETAINED", "ANALYSIS_READY_WITH_OPEN_ITEMS", "ANALYSIS_ONLY_READY"}:
-        return ["Сохранить анализ", "Добавить отчёт, если нужна проверка новых операций"]
+    if status in {
+        "OPEN_POSITION_RETAINED",
+        "ANALYSIS_READY_WITH_OPEN_ITEMS",
+        "ANALYSIS_ONLY_READY",
+    }:
+        return [
+            "Сохранить анализ",
+            "Добавить отчёт, если нужна проверка новых операций",
+        ]
     return ["Добавить недостающий отчёт или передать кейс специалисту сервиса"]
 
 
@@ -1721,7 +1745,10 @@ def _validate_public_value(value: Any) -> None:
         nodes += 1
         if nodes > 512:
             raise ValueError("public_dialogue_context_too_large")
-        if isinstance(current, dict) and current.get("trust") == "untrusted_source_data":
+        if (
+            isinstance(current, dict)
+            and current.get("trust") == "untrusted_source_data"
+        ):
             _validate_untrusted_source_evidence(current)
         elif isinstance(current, str):
             if len(current) > 8000:
@@ -1757,7 +1784,7 @@ def _validate_untrusted_source_evidence(value: dict[str, Any]) -> None:
         or not value["quoted_source"].strip()
         or len(value["quoted_source"]) > 1000
         or not isinstance(value.get("untrusted_source_literals"), list)
-        or len(value["untrusted_source_literals"]) > 4
+        or len(value["untrusted_source_literals"]) > 12
         or any(
             not isinstance(item, str) or not item.strip() or len(item) > 500
             for item in value["untrusted_source_literals"]

@@ -28,9 +28,11 @@ def _unknown_case(tmp_path, *, source_header_injection: str | None = None):
         headers[8] = source_header_injection
     rows = (tuple(headers), *candidate._ROWS[1:])
     store, context, document_id, mapping = candidate._case(tmp_path, rows=rows)
-    envelope = CanonicalReaderFactory(
-        store=store, read_enabled=True
-    ).create().read_active_envelope(document_id, context)
+    envelope = (
+        CanonicalReaderFactory(store=store, read_enabled=True)
+        .create()
+        .read_active_envelope(document_id, context)
+    )
     table = next(
         item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
     )
@@ -42,6 +44,37 @@ def _unknown_case(tmp_path, *, source_header_injection: str | None = None):
         "source_sha256": envelope.artifact["source"]["source_sha256"],
     }
     return store, context, document_id, envelope.artifact, binding, table, mapping
+
+
+def _unknown_two_table_case(tmp_path):
+    store, context = candidate.gate4_fixtures._store_context(tmp_path)
+    document_id = "ordinary-trade-two-table-mapping-case"
+    rows = []
+    for suffix in ("one", "two"):
+        headers = list(candidate._ROWS[0])
+        headers[0] = f"{headers[0]} ({suffix})"
+        rows.append((tuple(headers), *candidate._ROWS[1:]))
+    candidate.gate4_fixtures._activate_canonical(
+        store=store,
+        context=context,
+        document_id=document_id,
+        artifact_version=1,
+        expected_previous_version_id=None,
+        table_row_sets=tuple(rows),
+    )
+    envelope = (
+        CanonicalReaderFactory(store=store, read_enabled=True)
+        .create()
+        .read_active_envelope(document_id, context)
+    )
+    binding = {
+        "document_id": envelope.document_id,
+        "canonical_version_id": envelope.canonical_version_id,
+        "canonical_root_sha256": envelope.canonical_root_sha256,
+        "source_artifact_ref": envelope.artifact["source"]["source_artifact_ref"],
+        "source_sha256": envelope.artifact["source"]["source_sha256"],
+    }
+    return store, context, document_id, envelope.artifact, binding
 
 
 def _metadata() -> Gate2ProviderExecutionMetadata:
@@ -105,12 +138,10 @@ def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> 
         tmp_path
     )
     semantic = OrdinaryTradeSemanticMappingFactory.create()
-    cases = OrdinaryTradeMappingCaseFactory(
-        store=store, read_enabled=True
-    ).create()
-    actual_scope = cases.case_binding(
-        document_id=document_id, context=context
-    )["user_scope_sha256"]
+    cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
+    actual_scope = cases.case_binding(document_id=document_id, context=context)[
+        "user_scope_sha256"
+    ]
     outcome = semantic.validate_mapping_response(
         response=_complete(table, mapping),
         canonical=canonical,
@@ -129,12 +160,16 @@ def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> 
     )
     assert record.artifact_id.endswith("_0001")
     assert payload["status"] == "COMPLETE"
-    projection_record = OrdinaryTradeProjectionFactory(
-        store=store, read_enabled=True
-    ).create().compile_and_save(document_id=document_id, context=context)
-    projection = OrdinaryTradeProjectionFactory(
-        store=store, read_enabled=True
-    ).create().read(artifact_id=projection_record.artifact_id, context=context)
+    projection_record = (
+        OrdinaryTradeProjectionFactory(store=store, read_enabled=True)
+        .create()
+        .compile_and_save(document_id=document_id, context=context)
+    )
+    projection = (
+        OrdinaryTradeProjectionFactory(store=store, read_enabled=True)
+        .create()
+        .read(artifact_id=projection_record.artifact_id, context=context)
+    )
     assert {item["disposition"] for item in projection["source_observations"]} == {
         "RUNTIME_READY"
     }
@@ -148,9 +183,7 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
         tmp_path
     )
     semantic = OrdinaryTradeSemanticMappingFactory.create()
-    cases = OrdinaryTradeMappingCaseFactory(
-        store=store, read_enabled=True
-    ).create()
+    cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
     clarification = {
         "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
         "status": "CLARIFICATION_REQUIRED",
@@ -182,9 +215,9 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
         provider_profile_id="google_gemini",
         execution_metadata=_metadata(),
         confirmed_understandings=[],
-        user_scope_sha256=cases.case_binding(
-            document_id=document_id, context=context
-        )["user_scope_sha256"],
+        user_scope_sha256=cases.case_binding(document_id=document_id, context=context)[
+            "user_scope_sha256"
+        ],
     )
     cases.save_mapping_outcome(
         document_id=document_id,
@@ -221,14 +254,84 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
     assert confirmed["confirmed_understandings"][0]["option_id"] == "o_choice_2"
 
 
+def test_one_exclusion_confirmation_persists_each_table_decision(tmp_path) -> None:
+    store, context, document_id, canonical, binding = _unknown_two_table_case(tmp_path)
+    semantic = OrdinaryTradeSemanticMappingFactory.create()
+    cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
+    outcome = semantic.validate_mapping_response(
+        response={
+            "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+            "status": "COMPLETE",
+            "table_decisions": [
+                {
+                    "table_ref": f"table_{index}",
+                    "header_row": 1,
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "columns": [],
+                    "amount_currency_bindings": [],
+                    "side_values": [],
+                }
+                for index in (1, 2)
+            ],
+            "clarification": None,
+            "message": "Both tables have no named consumer.",
+        },
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=cases.case_binding(document_id=document_id, context=context)[
+            "user_scope_sha256"
+        ],
+    )
+    assert outcome["status"] == "CLARIFICATION_REQUIRED"
+    question = outcome["question"]
+    assert question["options"][0]["effect"] == "APPLY_DECISIONS"
+    assert len(question["options"][0]["decisions"]) == 2
+    record, _payload = cases.save_mapping_outcome(
+        document_id=document_id,
+        context=context,
+        outcome=outcome,
+        provider_calls_total=1,
+    )
+    candidate_record, candidate_payload = cases.save_answer_candidate(
+        document_id=document_id,
+        context=context,
+        interpretation={
+            "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
+            "status": "CANDIDATE",
+            "option_id": "o_confirm_exclusion_batch",
+            "message": "Confirm the group.",
+            "evidence_quote": "Confirm",
+        },
+        provider_calls_total=1,
+    )
+    assert candidate_record.artifact_id != record.artifact_id
+    _record, confirmed = cases.confirm_pending_answer(
+        document_id=document_id,
+        context=context,
+        expected_artifact_id=candidate_record.artifact_id,
+        accepted=True,
+    )
+    assert confirmed["status"] == "MAPPING_REQUIRED"
+    decisions = confirmed["confirmed_understandings"]
+    assert len(decisions) == 2
+    assert {item["decision"]["table_node_id"] for item in decisions} == set(
+        question["table_node_ids"]
+    )
+    assert all(
+        item["decision"]["disposition"] == "NO_NAMED_CONSUMER" for item in decisions
+    )
+
+
 def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
     store, context, document_id, canonical, binding, table, _mapping = _unknown_case(
         tmp_path
     )
     semantic = OrdinaryTradeSemanticMappingFactory.create()
-    cases = OrdinaryTradeMappingCaseFactory(
-        store=store, read_enabled=True
-    ).create()
+    cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
     question = {
         "question_id": "q_money_role",
         "table_ref": "table_1",
@@ -260,9 +363,9 @@ def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:
         provider_profile_id="google_gemini",
         execution_metadata=_metadata(),
         confirmed_understandings=[],
-        user_scope_sha256=cases.case_binding(
-            document_id=document_id, context=context
-        )["user_scope_sha256"],
+        user_scope_sha256=cases.case_binding(document_id=document_id, context=context)[
+            "user_scope_sha256"
+        ],
     )
     cases.save_mapping_outcome(
         document_id=document_id,

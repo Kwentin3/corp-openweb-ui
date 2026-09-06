@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v7"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v8"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -82,6 +82,7 @@ _MAX_CELLS_TOTAL = 12_000
 _MAX_CONTEXT_BYTES = 524_288
 _MAX_MODEL_ROWS_PER_TABLE = 24
 _MAX_DISTINCT_VALUES_PER_COLUMN = 64
+_MAX_EXCLUSION_CONFIRMATION_TABLES = 12
 _DECISION_KINDS = {
     "COLUMN_ROLE",
     "AMOUNT_CURRENCY_BINDING",
@@ -124,11 +125,10 @@ class OrdinaryTradeSemanticMapping:
             "cash summaries and other non-transaction tables. "
             "UNSUPPORTED_FINANCIAL_MEANING is only for a transaction table whose rows "
             "carry a financial meaning outside the ordinary security-trade contract, "
-            "not merely for auxiliary financial content. Never return COMPLETE with an unconfirmed "
-            "NO_NAMED_CONSUMER decision. Instead return CLARIFICATION_REQUIRED for "
-            "exactly one such table, with mutually exclusive options that include the "
-            "NO_NAMED_CONSUMER decision and its plausible alternative; after a confirmed "
-            "decision, ask about the next unconfirmed exclusion if one remains. "
+            "not merely for auxiliary financial content. Classify every table, including "
+            "NO_NAMED_CONSUMER tables, in one COMPLETE response. The runtime owns the "
+            "explicit user confirmation of those exclusions; do not emit one clarification "
+            "per auxiliary table. "
             "If one financial decision is ambiguous, ask exactly one "
             "plain-language question and provide two to four mutually exclusive "
             "options. For CLARIFICATION_REQUIRED, table_decisions must be empty and "
@@ -246,7 +246,13 @@ class OrdinaryTradeSemanticMapping:
         value = _strict_model_value(response)
         if (
             set(value)
-            != {"schema_version", "status", "table_decisions", "clarification", "message"}
+            != {
+                "schema_version",
+                "status",
+                "table_decisions",
+                "clarification",
+                "message",
+            }
             or value.get("schema_version") != MAPPING_RESPONSE_SCHEMA_VERSION
             or value.get("status") not in _MAPPING_STATUSES
             or not isinstance(value.get("table_decisions"), list)
@@ -266,7 +272,9 @@ class OrdinaryTradeSemanticMapping:
         node_ids_by_ref = {value: key for key, value in refs_by_node_id.items()}
         status = value["status"]
         if status == "CLARIFICATION_REQUIRED":
-            if value["table_decisions"] or not isinstance(value.get("clarification"), dict):
+            if value["table_decisions"] or not isinstance(
+                value.get("clarification"), dict
+            ):
                 _fail("ordinary_trade_semantic_mapping_clarification_invalid")
             question = _normalize_model_question(
                 value["clarification"],
@@ -302,8 +310,14 @@ class OrdinaryTradeSemanticMapping:
         decisions = _normalize_model_decisions(
             value["table_decisions"], node_ids_by_ref=node_ids_by_ref
         )
-        ids = [item.get("table_node_id") for item in decisions if isinstance(item, dict)]
-        if len(ids) != len(tables) or set(ids) != set(tables) or len(ids) != len(set(ids)):
+        ids = [
+            item.get("table_node_id") for item in decisions if isinstance(item, dict)
+        ]
+        if (
+            len(ids) != len(tables)
+            or set(ids) != set(tables)
+            or len(ids) != len(set(ids))
+        ):
             _fail("ordinary_trade_semantic_mapping_table_coverage_invalid")
         case_scope_base = {
             key: str(canonical_binding.get(key) or "")
@@ -322,9 +336,7 @@ class OrdinaryTradeSemanticMapping:
             "model_id": model_id,
             "provider_profile_id": provider_profile_id,
             "response_sha256": _sha256_json(value),
-            "execution_metadata_sha256": _execution_metadata_sha256(
-                execution_metadata
-            ),
+            "execution_metadata_sha256": _execution_metadata_sha256(execution_metadata),
         }
         authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
         qualified_mappings: list[dict[str, Any]] = []
@@ -351,12 +363,15 @@ class OrdinaryTradeSemanticMapping:
         ]
         if unconfirmed_exclusions:
             return {
-                "status": "SPECIALIST_REVIEW_REQUIRED",
+                "status": "CLARIFICATION_REQUIRED",
                 "message": (
                     "Исключение таблицы из финансового конвейера требует "
                     "отдельного подтверждённого доменного решения."
                 ),
-                "question": None,
+                "question": _build_no_named_consumer_batch_question(
+                    decisions=unconfirmed_exclusions,
+                    tables=tables,
+                ),
                 "model_response_sha256": model_decision["response_sha256"],
                 "execution_metadata_sha256": model_decision[
                     "execution_metadata_sha256"
@@ -449,9 +464,7 @@ class OrdinaryTradeSemanticMapping:
             "qualification_receipts": qualification_receipts,
             "table_resolutions": table_resolutions,
             "model_response_sha256": model_decision["response_sha256"],
-            "execution_metadata_sha256": model_decision[
-                "execution_metadata_sha256"
-            ],
+            "execution_metadata_sha256": model_decision["execution_metadata_sha256"],
         }
 
     def validate_answer_response(
@@ -536,9 +549,7 @@ def _table_surfaces(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
                 or not isinstance(literal, str)
             ):
                 _fail("ordinary_trade_semantic_mapping_canonical_invalid")
-            by_row.setdefault(row, []).append(
-                {"column": column, "literal": literal}
-            )
+            by_row.setdefault(row, []).append({"column": column, "literal": literal})
             cells_total += 1
         if len(by_row) > _MAX_ROWS_PER_TABLE:
             _fail("ordinary_trade_semantic_mapping_context_limit")
@@ -676,6 +687,74 @@ def _normalize_model_question(
     return normalized
 
 
+def _build_no_named_consumer_batch_question(
+    *,
+    decisions: list[dict[str, Any]],
+    tables: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Group only already-validated exclusions for one explicit user decision."""
+
+    batch = decisions[:_MAX_EXCLUSION_CONFIRMATION_TABLES]
+    if not batch or any(
+        item.get("disposition") != "NO_NAMED_CONSUMER" for item in batch
+    ):
+        _fail("ordinary_trade_semantic_mapping_exclusion_batch_invalid")
+    confirmation_decisions = []
+    source_literals = []
+    for resolved in batch:
+        table = tables.get(str(resolved.get("table_node_id")))
+        if table is None:
+            _fail("ordinary_trade_semantic_mapping_exclusion_batch_invalid")
+        decision = {
+            "decision_kind": "TABLE_DISPOSITION",
+            "table_node_id": resolved["table_node_id"],
+            "header_row": resolved["header_row"],
+            "column": None,
+            "semantic_role": None,
+            "amount_column": None,
+            "currency_column": None,
+            "source_literal": None,
+            "normalized_value": None,
+            "disposition": "NO_NAMED_CONSUMER",
+        }
+        _validate_clarification_decision(decision=decision, table=table)
+        confirmation_decisions.append(decision)
+        headers = next(
+            item for item in table["rows"] if item["row"] == resolved["header_row"]
+        )["cells"]
+        literal = " | ".join(str(item["literal"]).strip() for item in headers)
+        if literal and literal not in source_literals:
+            source_literals.append(literal[:500])
+    total = len(confirmation_decisions)
+    question = {
+        "question_id": "q_exclusion_batch",
+        "table_node_ids": [item["table_node_id"] for item in confirmation_decisions],
+        "question": (
+            "Подтвердите исключение группы таблиц, не относящихся к поддерживаемым операциям. "
+            f"Количество таблиц в группе: {total}. "
+            "Вариант 1 применяется только к перечисленным источникам; вариант 2 остановит обработку для проверки специалистом."
+        ),
+        "options": [
+            {
+                "option_id": "o_confirm_exclusion_batch",
+                "label": "Подтверждаю: указанная группа не относится к поддерживаемым операциям",
+                "effect": "APPLY_DECISIONS",
+                "decisions": confirmation_decisions,
+                "source_literals": source_literals,
+            },
+            {
+                "option_id": "o_review_exclusion_batch",
+                "label": "Не подтверждаю: нужна проверка специалистом",
+                "effect": "SPECIALIST_REVIEW",
+                "decisions": [],
+                "source_literals": [],
+            },
+        ],
+    }
+    _validate_question(question, internal=True)
+    return question
+
+
 _ROLE_LABELS = {
     "asset_name": "ценная бумага",
     "trade_date": "дата сделки",
@@ -706,9 +785,7 @@ _DISPOSITION_LABELS = {
 }
 
 
-def _render_decision_label(
-    *, decision: dict[str, Any], table: dict[str, Any]
-) -> str:
+def _render_decision_label(*, decision: dict[str, Any], table: dict[str, Any]) -> str:
     """Render the exact validated machine decision without model-authored wording."""
 
     header = next(
@@ -732,9 +809,7 @@ def _render_decision_label(
         )
     if kind == "SIDE_VALUE":
         normalized = (
-            "покупка"
-            if decision["normalized_value"] == "PURCHASE"
-            else "продажа"
+            "покупка" if decision["normalized_value"] == "PURCHASE" else "продажа"
         )
         return f"Значение «{decision['source_literal']}» означает: {normalized}"
     disposition = decision["disposition"]
@@ -747,8 +822,7 @@ def mapping_decision_communication_description(decision: dict[str, Any]) -> str:
     kind = decision["decision_kind"]
     if kind == "COLUMN_ROLE":
         return (
-            f"колонка {decision['column']} — "
-            f"{_ROLE_LABELS[decision['semantic_role']]}"
+            f"колонка {decision['column']} — {_ROLE_LABELS[decision['semantic_role']]}"
         )
     if kind == "AMOUNT_CURRENCY_BINDING":
         return (
@@ -757,12 +831,26 @@ def mapping_decision_communication_description(decision: dict[str, Any]) -> str:
         )
     if kind == "SIDE_VALUE":
         normalized = (
-            "покупка"
-            if decision["normalized_value"] == "PURCHASE"
-            else "продажа"
+            "покупка" if decision["normalized_value"] == "PURCHASE" else "продажа"
         )
         return f"процитированное значение означает «{normalized}»"
     return _DISPOSITION_LABELS[decision["disposition"]]
+
+
+def mapping_question_option_communication_description(option: dict[str, Any]) -> str:
+    """Render only code-owned meaning for one persisted mapping option."""
+
+    decision = option.get("decision")
+    if isinstance(decision, dict):
+        return mapping_decision_communication_description(decision)
+    if option.get("effect") == "APPLY_DECISIONS":
+        decisions = option.get("decisions")
+        if not isinstance(decisions, list) or not decisions:
+            _fail("ordinary_trade_semantic_mapping_question_invalid")
+        return "подтверждение исключения указанной группы вне поддерживаемых операций"
+    if option.get("effect") == "SPECIALIST_REVIEW":
+        return "остановка обработки и передача на проверку специалисту"
+    _fail("ordinary_trade_semantic_mapping_question_invalid")
 
 
 def _decision_source_literals(
@@ -787,9 +875,7 @@ def _decision_source_literals(
     return []
 
 
-def _validate_table_decision(
-    *, decision: Any, table: dict[str, Any]
-) -> dict[str, Any]:
+def _validate_table_decision(*, decision: Any, table: dict[str, Any]) -> dict[str, Any]:
     if (
         not isinstance(decision, dict)
         or set(decision)
@@ -817,8 +903,7 @@ def _validate_table_decision(
     if row is None or not row["cells"]:
         _fail("ordinary_trade_semantic_mapping_header_invalid")
     headers = [
-        {"column": item["column"], "literal": item["literal"]}
-        for item in row["cells"]
+        {"column": item["column"], "literal": item["literal"]} for item in row["cells"]
     ]
     fingerprint = structural_fingerprint(
         title_literal=None,
@@ -843,7 +928,8 @@ def _validate_table_decision(
     columns = decision["columns"]
     if (
         len(columns) != len(headers)
-        or [item.get("column") for item in columns] != [item["column"] for item in headers]
+        or [item.get("column") for item in columns]
+        != [item["column"] for item in headers]
         or any(
             not isinstance(item, dict)
             or set(item) != {"column", "semantic_role"}
@@ -853,7 +939,9 @@ def _validate_table_decision(
         or not _REQUIRED_ROLES <= {item["semantic_role"] for item in columns}
     ):
         _fail("ordinary_trade_semantic_mapping_columns_invalid")
-    side_columns = [item["column"] for item in columns if item["semantic_role"] == "side"]
+    side_columns = [
+        item["column"] for item in columns if item["semantic_role"] == "side"
+    ]
     if len(side_columns) != 1:
         _fail("ordinary_trade_semantic_mapping_side_invalid")
     source_side_literals = {
@@ -874,8 +962,7 @@ def _validate_table_decision(
             for item in side_values
         )
         or len({item["source_literal"] for item in side_values}) != len(side_values)
-        or {item["source_literal"] for item in side_values}
-        != source_side_literals
+        or {item["source_literal"] for item in side_values} != source_side_literals
     ):
         _fail("ordinary_trade_semantic_mapping_side_invalid")
     return {
@@ -886,9 +973,7 @@ def _validate_table_decision(
         "disposition": disposition,
         "headers": headers,
         "columns": copy.deepcopy(columns),
-        "amount_currency_bindings": copy.deepcopy(
-            decision["amount_currency_bindings"]
-        ),
+        "amount_currency_bindings": copy.deepcopy(decision["amount_currency_bindings"]),
         "side_values": copy.deepcopy(side_values),
     }
 
@@ -905,14 +990,10 @@ _DECISION_FIELDS = {
     "normalized_value",
     "disposition",
 }
-_INTERNAL_DECISION_FIELDS = (_DECISION_FIELDS - {"table_ref"}) | {
-    "table_node_id"
-}
+_INTERNAL_DECISION_FIELDS = (_DECISION_FIELDS - {"table_ref"}) | {"table_node_id"}
 
 
-def _validate_clarification_decision(
-    *, decision: Any, table: dict[str, Any]
-) -> None:
+def _validate_clarification_decision(*, decision: Any, table: dict[str, Any]) -> None:
     if (
         not isinstance(decision, dict)
         or set(decision) != _INTERNAL_DECISION_FIELDS
@@ -949,10 +1030,9 @@ def _validate_clarification_decision(
             for cell in row["cells"]
             if cell["literal"]
         }
-        valid = (
-            decision["source_literal"] in source_literals
-            and decision["normalized_value"] in {"PURCHASE", "DISPOSAL"}
-        )
+        valid = decision["source_literal"] in source_literals and decision[
+            "normalized_value"
+        ] in {"PURCHASE", "DISPOSAL"}
     else:
         required_non_null = {"disposition"}
         valid = decision["disposition"] in _TABLE_DISPOSITIONS
@@ -961,8 +1041,10 @@ def _validate_clarification_decision(
         - {"decision_kind", "table_node_id", "header_row"}
         - required_non_null
     )
-    if not valid or any(decision[key] is None for key in required_non_null) or any(
-        decision[key] is not None for key in nullable
+    if (
+        not valid
+        or any(decision[key] is None for key in required_non_null)
+        or any(decision[key] is not None for key in nullable)
     ):
         _fail("ordinary_trade_semantic_mapping_question_decision_invalid")
 
@@ -1029,20 +1111,63 @@ def _validate_question(
     internal: bool = False,
 ) -> None:
     table_key = "table_node_id" if internal else "table_ref"
+    allowed_question_keys = {
+        "question_id",
+        table_key,
+        "question",
+        "options",
+    }
+    if internal:
+        allowed_question_keys_batch = {
+            "question_id",
+            "table_node_ids",
+            "question",
+            "options",
+        }
+    else:
+        allowed_question_keys_batch = set()
+    is_batch = (
+        internal
+        and isinstance(question, dict)
+        and set(question) == allowed_question_keys_batch
+    )
     if (
         not isinstance(question, dict)
-        or set(question) != {"question_id", table_key, "question", "options"}
+        or frozenset(question)
+        not in {
+            frozenset(allowed_question_keys),
+            frozenset(allowed_question_keys_batch),
+        }
         or not isinstance(question.get("question_id"), str)
         or (
             internal
-            and re.fullmatch(
-                r"q_[a-z0-9][a-z0-9_-]{5,63}", question["question_id"]
-            )
+            and re.fullmatch(r"q_[a-z0-9][a-z0-9_-]{5,63}", question["question_id"])
             is None
         )
         or (not internal and not question["question_id"].strip())
-        or not isinstance(question.get(table_key), str)
-        or (table_refs is not None and question[table_key] not in table_refs)
+        or (
+            (not is_batch and not isinstance(question.get(table_key), str))
+            or (
+                not is_batch
+                and table_refs is not None
+                and question[table_key] not in table_refs
+            )
+            or (
+                is_batch
+                and (
+                    not isinstance(question.get("table_node_ids"), list)
+                    or not question["table_node_ids"]
+                    or len(question["table_node_ids"])
+                    > _MAX_EXCLUSION_CONFIRMATION_TABLES
+                    or len(question["table_node_ids"])
+                    != len(set(question["table_node_ids"]))
+                    or any(
+                        not isinstance(item, str) or not item
+                        for item in question["table_node_ids"]
+                    )
+                )
+            )
+        )
         or not isinstance(question.get("question"), str)
         or not question["question"].strip()
         or not isinstance(question.get("options"), list)
@@ -1051,48 +1176,107 @@ def _validate_question(
         _fail("ordinary_trade_semantic_mapping_question_invalid")
     option_ids = []
     for option in question["options"]:
+        is_batch_option = (
+            internal
+            and isinstance(option, dict)
+            and set(option)
+            == {"option_id", "label", "effect", "decisions", "source_literals"}
+        )
         if (
             not isinstance(option, dict)
-            or set(option)
-            != (
-                {"option_id", "label", "decision", "source_literals"}
-                if internal
-                else {"option_id", "label", "decision"}
+            or (is_batch and not is_batch_option)
+            or (not is_batch and is_batch_option)
+            or (
+                not is_batch_option
+                and set(option)
+                != (
+                    {"option_id", "label", "decision", "source_literals"}
+                    if internal
+                    else {"option_id", "label", "decision"}
+                )
             )
             or not isinstance(option.get("option_id"), str)
             or (
                 internal
-                and re.fullmatch(
-                    r"o_[a-z0-9][a-z0-9_-]{2,63}", option["option_id"]
-                )
+                and re.fullmatch(r"o_[a-z0-9][a-z0-9_-]{2,63}", option["option_id"])
                 is None
             )
             or (not internal and not option["option_id"].strip())
             or not isinstance(option.get("label"), str)
             or not option["label"].strip()
-            or not isinstance(option.get("decision"), dict)
-            or set(option["decision"])
-            != (_INTERNAL_DECISION_FIELDS if internal else _DECISION_FIELDS)
+            or (
+                not is_batch_option
+                and (
+                    not isinstance(option.get("decision"), dict)
+                    or set(option["decision"])
+                    != (_INTERNAL_DECISION_FIELDS if internal else _DECISION_FIELDS)
+                )
+            )
             or (
                 internal
                 and (
                     not isinstance(option.get("source_literals"), list)
                     or len(option["source_literals"]) > 4
                     or any(
-                        not isinstance(item, str)
-                        or not item.strip()
-                        or len(item) > 500
+                        not isinstance(item, str) or not item.strip() or len(item) > 500
                         for item in option["source_literals"]
                     )
                     or len(option["source_literals"])
                     != len(set(option["source_literals"]))
                 )
             )
+            or (
+                is_batch_option
+                and (
+                    option.get("effect") not in {"APPLY_DECISIONS", "SPECIALIST_REVIEW"}
+                    or not isinstance(option.get("decisions"), list)
+                    or (
+                        option["effect"] == "APPLY_DECISIONS"
+                        and (
+                            not option["decisions"]
+                            or len(option["decisions"])
+                            != len(question["table_node_ids"])
+                        )
+                    )
+                    or (option["effect"] == "SPECIALIST_REVIEW" and option["decisions"])
+                    or any(
+                        not isinstance(decision, dict)
+                        or set(decision) != _INTERNAL_DECISION_FIELDS
+                        or decision.get("decision_kind") != "TABLE_DISPOSITION"
+                        or decision.get("disposition") != "NO_NAMED_CONSUMER"
+                        or not isinstance(decision.get("header_row"), int)
+                        or any(
+                            decision.get(key) is not None
+                            for key in (
+                                "column",
+                                "semantic_role",
+                                "amount_column",
+                                "currency_column",
+                                "source_literal",
+                                "normalized_value",
+                            )
+                        )
+                        for decision in option["decisions"]
+                    )
+                )
+            )
         ):
             _fail("ordinary_trade_semantic_mapping_question_invalid")
+        if is_batch_option and option["effect"] == "APPLY_DECISIONS":
+            decision_node_ids = [
+                decision["table_node_id"] for decision in option["decisions"]
+            ]
+            if decision_node_ids != question["table_node_ids"]:
+                _fail("ordinary_trade_semantic_mapping_question_invalid")
         option_ids.append(option["option_id"])
     if len(option_ids) != len(set(option_ids)):
         _fail("ordinary_trade_semantic_mapping_question_invalid")
+
+
+def validate_internal_mapping_question(question: Any) -> None:
+    """Validate the stored mapping-owner question before it crosses an adapter."""
+
+    _validate_question(question, internal=True)
 
 
 def _strict_model_value(response: Any) -> dict[str, Any]:
@@ -1199,9 +1383,15 @@ def _mapping_response_schema() -> dict[str, Any]:
                     {"type": "string", "enum": sorted(_SEMANTIC_ROLES)},
                 ]
             },
-            "amount_column": {"anyOf": [{"type": "null"}, {"type": "integer", "minimum": 1}]},
-            "currency_column": {"anyOf": [{"type": "null"}, {"type": "integer", "minimum": 1}]},
-            "source_literal": {"anyOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+            "amount_column": {
+                "anyOf": [{"type": "null"}, {"type": "integer", "minimum": 1}]
+            },
+            "currency_column": {
+                "anyOf": [{"type": "null"}, {"type": "integer", "minimum": 1}]
+            },
+            "source_literal": {
+                "anyOf": [{"type": "null"}, {"type": "string", "minLength": 1}]
+            },
             "normalized_value": {
                 "anyOf": [
                     {"type": "null"},
@@ -1244,9 +1434,18 @@ def _mapping_response_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": ["schema_version", "status", "table_decisions", "clarification", "message"],
+        "required": [
+            "schema_version",
+            "status",
+            "table_decisions",
+            "clarification",
+            "message",
+        ],
         "properties": {
-            "schema_version": {"type": "string", "const": MAPPING_RESPONSE_SCHEMA_VERSION},
+            "schema_version": {
+                "type": "string",
+                "const": MAPPING_RESPONSE_SCHEMA_VERSION,
+            },
             "status": {"type": "string", "enum": sorted(_MAPPING_STATUSES)},
             "table_decisions": {"type": "array", "items": table_decision},
             "clarification": {"anyOf": [{"type": "null"}, question]},
@@ -1259,14 +1458,25 @@ def _answer_response_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "additionalProperties": False,
-        "required": ["schema_version", "status", "option_id", "message", "evidence_quote"],
+        "required": [
+            "schema_version",
+            "status",
+            "option_id",
+            "message",
+            "evidence_quote",
+        ],
         "properties": {
-            "schema_version": {"type": "string", "const": ANSWER_RESPONSE_SCHEMA_VERSION},
+            "schema_version": {
+                "type": "string",
+                "const": ANSWER_RESPONSE_SCHEMA_VERSION,
+            },
             "status": {
                 "type": "string",
                 "enum": ["CANDIDATE", "CLARIFY", "SPECIALIST_REVIEW"],
             },
-            "option_id": {"anyOf": [{"type": "null"}, {"type": "string", "minLength": 1}]},
+            "option_id": {
+                "anyOf": [{"type": "null"}, {"type": "string", "minLength": 1}]
+            },
             "message": {"type": "string", "minLength": 1},
             "evidence_quote": {"type": "string"},
         },

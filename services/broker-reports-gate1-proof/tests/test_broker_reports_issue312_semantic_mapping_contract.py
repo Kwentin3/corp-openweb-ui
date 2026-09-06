@@ -154,11 +154,12 @@ def test_mapping_prompt_states_exact_currency_binding_contract() -> None:
     assert "Do not add bindings for unit_price" in prompt
 
 
-def test_mapping_prompt_requires_confirmation_before_table_exclusion() -> None:
+def test_mapping_prompt_owns_group_confirmation_after_table_classification() -> None:
     prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
 
-    assert "Never return COMPLETE with an unconfirmed NO_NAMED_CONSUMER" in prompt
-    assert "ask about the next unconfirmed exclusion" in prompt
+    assert "Classify every table, including NO_NAMED_CONSUMER tables" in prompt
+    assert "runtime owns the explicit user confirmation" in prompt
+    assert "do not emit one clarification per auxiliary table" in prompt
     assert "balances, holdings, reference/master data" in prompt
     assert "only for a transaction table" in prompt
 
@@ -436,7 +437,9 @@ def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
         user_scope_sha256="a" * 64,
     )
 
-    assert result["status"] == "SPECIALIST_REVIEW_REQUIRED"
+    assert result["status"] == "CLARIFICATION_REQUIRED"
+    assert result["question"]["options"][0]["effect"] == "APPLY_DECISIONS"
+    assert len(result["question"]["options"][0]["decisions"]) == 1
     assert "qualified_mappings" not in result
     assert "table_resolutions" not in result
 
