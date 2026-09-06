@@ -1978,7 +1978,8 @@ def _validate_user_assertions(
                 "provenance_kind",
             }
             or assertion.get("schema_version") != CANONICAL_USER_ASSERTION_SCHEMA_VERSION
-            or assertion.get("kind") != "mapping_decision"
+            or assertion.get("kind")
+            not in {"mapping_decision", "user_provided_currency"}
             or assertion.get("provenance_kind") != "user_confirmed"
             or not all(
                 isinstance(assertion.get(field), str) and assertion[field]
@@ -2021,6 +2022,35 @@ def _validate_user_assertions(
         )[:32]
         if assertion["assertion_id"] != expected_id or assertion["assertion_id"] in ids:
             errors.append("canonical_user_assertion_identity_invalid")
+        if assertion["kind"] == "user_provided_currency":
+            decision = assertion["decision"]
+            if (
+                set(decision)
+                != {
+                    "schema_version",
+                    "decision_kind",
+                    "assertion_id",
+                    "currency_code",
+                    "case_binding_sha256",
+                    "table_node_ids",
+                }
+                or decision.get("schema_version")
+                != "broker_reports_user_currency_assertion_v1"
+                or decision.get("decision_kind") != "USER_PROVIDED_CURRENCY"
+                or not isinstance(decision.get("assertion_id"), str)
+                or not decision["assertion_id"].startswith("usrassert_")
+                or not isinstance(decision.get("currency_code"), str)
+                or re.fullmatch(r"[A-Z]{3}", decision["currency_code"]) is None
+                or not _is_sha256(decision.get("case_binding_sha256"))
+                or not isinstance(decision.get("table_node_ids"), list)
+                or not decision["table_node_ids"]
+                or decision["table_node_ids"] != sorted(set(decision["table_node_ids"]))
+                or any(
+                    not isinstance(value, str) or not value
+                    for value in decision["table_node_ids"]
+                )
+            ):
+                errors.append("canonical_user_currency_assertion_invalid")
         ids.add(assertion["assertion_id"])
 
 

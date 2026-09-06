@@ -20,6 +20,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     ORDINARY_TRADE_PUBLIC_DIALOGUE_MESSAGE_SCHEMA_VERSION,
     ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION,
     build_public_dialogue_context,
+    build_public_question_context,
     render_public_dialogue_fallback,
 )
 from broker_reports_gate1.ordinary_trade_production_runtime import (
@@ -186,6 +187,35 @@ async def _interactive_mapping_response_is_terminal_without_second_call(tmp_path
     )[1]
     assert current["reason_code"] == "ordinary_trade_mapping_interactive_loop_forbidden"
     assert current["qualified_mappings"] == []
+
+
+async def _user_currency_assertion_resumes_same_case_without_provider_retry(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    response = case_fixtures._complete(table, mapping)
+    response["status"] = "CURRENCY_ASSERTION_REQUIRED"
+    response["table_decisions"][0]["amount_currency_bindings"] = []
+    response["table_decisions"][0]["columns"][5]["semantic_role"] = "unmapped"
+    client = BoundaryModelClient([response])
+    runtime = _runtime(store, client)
+
+    pending = await runtime.resolve(document_id=document_id, context=context)
+    completed = await runtime.resolve(
+        document_id=document_id,
+        context=context,
+        user_message="Валюта: USD",
+    )
+
+    assert pending["status"] == "CURRENCY_ASSERTION_REQUIRED"
+    assert pending["public_state"]["may_resume"] is True
+    assert completed["status"] == "COMPLETE"
+    assert completed["provider_calls_this_turn"] == 0
+    assert len(client.calls) == 1
+    current = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
+        document_id=document_id, context=context
+    )[1]
+    assert current["confirmed_understandings"][-1]["decision"]["currency_code"] == "USD"
 
 
 async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
@@ -1256,6 +1286,39 @@ def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
 
 def test_interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:
     asyncio.run(_interactive_mapping_response_is_terminal_without_second_call(tmp_path))
+
+
+def test_user_currency_assertion_resumes_same_case_without_provider_retry(tmp_path) -> None:
+    asyncio.run(_user_currency_assertion_resumes_same_case_without_provider_retry(tmp_path))
+
+
+def test_user_currency_assertion_is_rendered_as_one_plain_chat_question() -> None:
+    result = {
+        "product": {
+            "gate5": {},
+            "preparation": {"final_note": {}},
+        }
+    }
+    _apply_mapping_terminal(
+        result=result,
+        mapping_turn={
+            "status": "CURRENCY_ASSERTION_REQUIRED",
+            "public_state": {},
+        },
+    )
+    action = result["product"]["preparation"]["user_actions"][0]
+    question = build_public_question_context(action)
+
+    assert action["kind"] == "USER_CURRENCY_ASSERTION"
+    assert question == {
+        "authority_kind": "user_provided_currency",
+        "question_ref": "user_currency_assertion",
+        "question": "В отчёте не указана валюта сумм сделок. Укажите её в формате «Валюта: USD».",
+        "help": "Введите трёхбуквенный код валюты в указанном формате.",
+        "options": [],
+        "accepted_answer_examples": ["Валюта: USD"],
+        "candidate_hint": None,
+    }
 
 
 def test_retired_mapping_case_is_terminal_without_user_reinterpretation(tmp_path) -> None:

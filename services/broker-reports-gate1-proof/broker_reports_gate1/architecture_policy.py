@@ -49,7 +49,7 @@ ACTIVE_PRODUCT_ROUTES = {
             "+OrdinaryTradeQualifiedMappingAuthorityFactory.create"
             "+OrdinaryTradeSemanticCompilerFactory.create"
         ),
-        "mapping_contract": "broker_reports_ordinary_trade_schema_mapping_v3",
+        "mapping_contract": "broker_reports_ordinary_trade_schema_mapping_v4",
         "qualification_contract": (
             "broker_reports_ordinary_trade_mapping_qualification_v2"
             "|broker_reports_ordinary_trade_case_mapping_qualification_v1"

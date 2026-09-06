@@ -323,7 +323,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                         "+OrdinaryTradeSemanticCompilerFactory.create"
                     ),
                     "mapping_contract": (
-                        "broker_reports_ordinary_trade_schema_mapping_v3"
+                        "broker_reports_ordinary_trade_schema_mapping_v4"
                     ),
                     "qualification_contract": (
                         "broker_reports_ordinary_trade_mapping_qualification_v2"

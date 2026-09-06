@@ -1658,9 +1658,10 @@ class Pipe:
             # open an Open WebUI event popup after the owner has advanced the
             # case.  The next owner state is rendered as the next normal chat
             # turn instead.
-            if current_actions and current_actions[0].get(
-                "kind"
-            ) == "MAPPING_CLARIFICATION":
+            if current_actions and current_actions[0].get("kind") in {
+                "MAPPING_CLARIFICATION",
+                "USER_CURRENCY_ASSERTION",
+            }:
                 self._finalize_workload_publication()
                 return result
             change = declaration_change_intent(trusted_interaction_message)

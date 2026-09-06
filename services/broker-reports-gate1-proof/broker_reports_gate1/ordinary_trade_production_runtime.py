@@ -702,6 +702,11 @@ def _apply_mapping_terminal(
             "ordinary_trade_mapping_resume_required",
             "mapping_resume_required",
         ),
+        "CURRENCY_ASSERTION_REQUIRED": (
+            "INPUT_REQUIRED",
+            "ordinary_trade_user_currency_required",
+            "user_currency_required",
+        ),
         "PROVIDER_UNAVAILABLE": (
             "PREPARATION_INCOMPLETE",
             "ordinary_trade_mapping_provider_unavailable",
@@ -762,6 +767,17 @@ def _apply_mapping_terminal(
         if status in {"CLARIFICATION_REQUIRED", "CONFIRMATION_REQUIRED"}
         else []
     )
+    if status == "CURRENCY_ASSERTION_REQUIRED":
+        mapping_actions = [
+            {
+                "kind": "USER_CURRENCY_ASSERTION",
+                "question": (
+                    "В отчёте не указана валюта сумм сделок. "
+                    "Укажите её в формате «Валюта: USD»."
+                ),
+                "accepted_answer_examples": ["Валюта: USD"],
+            }
+        ]
     # A mapping question supersedes every earlier declaration request.  The
     # public adapter deliberately reads ``user_actions`` first, so leaving its
     # prior value here would render an already answered question after a new
@@ -771,7 +787,12 @@ def _apply_mapping_terminal(
         "user_facing_required_actions": mapping_actions,
         "internal_owner_required_actions": (
             []
-            if status in {"CLARIFICATION_REQUIRED", "CONFIRMATION_REQUIRED"}
+            if status
+            in {
+                "CLARIFICATION_REQUIRED",
+                "CONFIRMATION_REQUIRED",
+                "CURRENCY_ASSERTION_REQUIRED",
+            }
             else [{"reason_code": terminal}]
         ),
     }

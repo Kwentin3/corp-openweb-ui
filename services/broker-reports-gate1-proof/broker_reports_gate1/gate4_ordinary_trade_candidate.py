@@ -211,6 +211,39 @@ def _case_binding(context: ArtifactAccessContext) -> dict[str, str]:
 def _fact_role(item: dict[str, Any]) -> dict[str, Any]:
     binding = item.get("source_binding")
     cell = binding.get("canonical_cell") if isinstance(binding, dict) else None
+    assertion = (
+        binding.get("user_currency_assertion") if isinstance(binding, dict) else None
+    )
+    if assertion is not None:
+        if (
+            item.get("role") != "currency"
+            or not isinstance(assertion, dict)
+            or assertion.get("schema_version")
+            != "broker_reports_user_currency_assertion_v1"
+            or not isinstance(assertion.get("assertion_id"), str)
+            or not assertion["assertion_id"].startswith("usrassert_")
+            or item.get("value") != assertion.get("currency_code")
+            or binding.get("source_ref")
+            != "canonical_user_assertion:" + assertion["assertion_id"]
+            or binding.get("source_literal") != assertion.get("currency_code")
+        ):
+            raise Gate4OrdinaryTradeCandidateError(
+                "gate4_ordinary_trade_user_currency_assertion_invalid"
+            )
+        return {
+            "role": item["role"],
+            "requirement": "required",
+            "status": "value",
+            "value": item["value"],
+            "source_binding": {
+                "target": {
+                    "kind": "user_assertion",
+                    "assertion_id": assertion["assertion_id"],
+                },
+                "exact_text": assertion["currency_code"],
+                "source_literal": assertion["currency_code"],
+            },
+        }
     if (
         not isinstance(cell, dict)
         or not isinstance(cell.get("node_id"), str)
@@ -262,6 +295,28 @@ def _validate_compatibility_fact(fact: dict[str, Any]) -> None:
             != {"role", "requirement", "status", "value", "source_binding"}
             or set(item.get("source_binding", {}))
             != {"target", "exact_text", "source_literal"}
+            or not isinstance(item["source_binding"].get("target"), dict)
+            or (
+                item["source_binding"]["target"].get("kind") == "table_cell"
+                and set(item["source_binding"]["target"])
+                != {"kind", "node_id", "row", "column"}
+            )
+            or (
+                item["source_binding"]["target"].get("kind") == "user_assertion"
+                and (
+                    item.get("role") != "currency"
+                    or set(item["source_binding"]["target"])
+                    != {"kind", "assertion_id"}
+                    or not isinstance(
+                        item["source_binding"]["target"].get("assertion_id"), str
+                    )
+                    or not item["source_binding"]["target"]["assertion_id"].startswith(
+                        "usrassert_"
+                    )
+                )
+            )
+            or item["source_binding"]["target"].get("kind")
+            not in {"table_cell", "user_assertion"}
             for item in roles
         )
     ):

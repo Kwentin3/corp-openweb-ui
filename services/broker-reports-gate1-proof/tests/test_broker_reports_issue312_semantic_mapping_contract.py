@@ -253,7 +253,7 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
     provider_schema = prepared.provider_visible_schema
 
     assert _property_enum_sets(provider_schema, "status") == [
-        {"COMPLETE", "CLARIFICATION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
+        {"COMPLETE", "CLARIFICATION_REQUIRED", "CURRENCY_ASSERTION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
     ]
     disposition_enums = _property_enum_sets(provider_schema, "disposition")
     assert len(disposition_enums) == 2

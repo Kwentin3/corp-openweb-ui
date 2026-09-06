@@ -20,6 +20,7 @@ from .ordinary_trade_semantic_mapping import (
     mapping_question_option_communication_description,
     validate_internal_mapping_question,
 )
+from .ordinary_trade_semantic_compiler import USER_CURRENCY_ASSERTION_SCHEMA_VERSION
 
 
 MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
@@ -41,6 +42,7 @@ _STATUSES = {
     "PROVIDER_UNAVAILABLE",
     "SOURCE_CONTEXT_LIMIT",
     "MAPPING_OUTPUT_INVALID",
+    "CURRENCY_ASSERTION_REQUIRED",
 }
 
 
@@ -166,6 +168,7 @@ class OrdinaryTradeMappingCaseRuntime:
             "CLARIFICATION_REQUIRED",
             "UNSUPPORTED",
             "SPECIALIST_REVIEW_REQUIRED",
+            "CURRENCY_ASSERTION_REQUIRED",
         }:
             _fail("ordinary_trade_mapping_case_outcome_invalid")
         prior = current[1] if current is not None else None
@@ -176,7 +179,7 @@ class OrdinaryTradeMappingCaseRuntime:
             status=status,
             message=str(outcome.get("message") or ""),
             question=copy.deepcopy(outcome.get("question")),
-            pending_candidate=None,
+            pending_candidate=copy.deepcopy(outcome.get("currency_mapping_plan")),
             confirmed_understandings=copy.deepcopy(
                 (prior or {}).get("confirmed_understandings") or []
             ),
@@ -239,6 +242,77 @@ class OrdinaryTradeMappingCaseRuntime:
             message=message,
             provider_calls_total=0,
         )
+
+    def record_user_currency_assertion(
+        self,
+        *,
+        document_id: str,
+        context: ArtifactAccessContext,
+        currency_code: str,
+        table_node_ids: list[str],
+    ) -> tuple[ArtifactRecord, dict[str, Any]]:
+        """Record one bounded user value without representing it as source text."""
+
+        binding = self.case_binding(document_id=document_id, context=context)
+        if (
+            not isinstance(currency_code, str)
+            or len(currency_code) != 3
+            or currency_code != currency_code.upper()
+            or not currency_code.isalpha()
+            or not isinstance(table_node_ids, list)
+            or not table_node_ids
+            or table_node_ids != sorted(set(table_node_ids))
+            or any(not isinstance(item, str) or not item for item in table_node_ids)
+        ):
+            _fail("ordinary_trade_user_currency_assertion_invalid")
+        current = self.current(document_id=document_id, context=context)
+        if (
+            current is None
+            or current[1]["status"] != "CURRENCY_ASSERTION_REQUIRED"
+            or not isinstance(current[1].get("pending_candidate"), dict)
+        ):
+            _fail("ordinary_trade_mapping_case_transition_invalid")
+        assertion_material = {
+            "schema_version": USER_CURRENCY_ASSERTION_SCHEMA_VERSION,
+            "currency_code": currency_code,
+            "case_binding_sha256": binding["case_binding_sha256"],
+            "table_node_ids": table_node_ids,
+        }
+        decision = {
+            **assertion_material,
+            "decision_kind": "USER_PROVIDED_CURRENCY",
+            "assertion_id": "usrassert_" + _sha256_json(assertion_material)[:32],
+        }
+        label = "User-provided transaction currency: " + currency_code
+        confirmed = [
+            *copy.deepcopy((current or ({}, {}))[1].get("confirmed_understandings") or []),
+            {
+                "question_id": "q_user_currency_assertion",
+                "option_id": "currency_" + currency_code.lower(),
+                "label": label,
+                "label_sha256": hashlib.sha256(label.encode("utf-8")).hexdigest(),
+                "decision": decision,
+                "decision_sha256": _sha256_json(decision),
+            },
+        ]
+        payload = self._next_payload(
+            document_id=document_id,
+            context=context,
+            prior=(current[1] if current is not None else None),
+            status="MAPPING_REQUIRED",
+            message="Currency supplied by the user is recorded separately from the source document.",
+            question=None,
+            pending_candidate=copy.deepcopy(current[1]["pending_candidate"]),
+            confirmed_understandings=confirmed,
+            qualified_mappings=[],
+            qualification_receipts=[],
+            table_resolutions=[],
+            provider_calls_total=int((current or ({}, {}))[1].get("provider_calls_total") or 0),
+            model_response_sha256=None,
+            execution_metadata_sha256=None,
+            reason_code=None,
+        )
+        return self._put(payload=payload, document_id=document_id, context=context)
 
     def _save_terminal(
         self,
@@ -543,6 +617,7 @@ class OrdinaryTradeMappingCaseRuntime:
                 "CONFIRMATION_REQUIRED",
                 "MAPPING_REQUIRED",
                 "PROVIDER_UNAVAILABLE",
+                "CURRENCY_ASSERTION_REQUIRED",
             },
             "provider_calls_total": payload["provider_calls_total"],
         }
@@ -709,7 +784,7 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
     if not isinstance(confirmed, list):
         _fail("ordinary_trade_mapping_case_confirmation_invalid")
     for item in confirmed:
-        if (
+        normal_confirmation = (
             not isinstance(item, dict)
             or set(item)
             != {
@@ -723,6 +798,18 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
             or hashlib.sha256(item["label"].encode("utf-8")).hexdigest()
             != item["label_sha256"]
             or _sha256_json(item["decision"]) != item["decision_sha256"]
+        )
+        decision = item.get("decision") if isinstance(item, dict) else None
+        user_currency_confirmation = (
+            not normal_confirmation
+            and isinstance(decision, dict)
+            and decision.get("decision_kind") == "USER_PROVIDED_CURRENCY"
+            and _valid_user_currency_decision(decision, binding=binding)
+        )
+        if normal_confirmation or (
+            isinstance(decision, dict)
+            and decision.get("decision_kind") == "USER_PROVIDED_CURRENCY"
+            and not user_currency_confirmation
         ):
             _fail("ordinary_trade_mapping_case_confirmation_invalid")
     if payload.get("question") is not None:
@@ -763,6 +850,25 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
     if payload["status"] == "CLARIFICATION_REQUIRED":
         if not isinstance(payload.get("question"), dict):
             _fail("ordinary_trade_mapping_case_question_invalid")
+    if payload["status"] == "CURRENCY_ASSERTION_REQUIRED":
+        if (
+            payload.get("question") is not None
+            or not isinstance(payload.get("pending_candidate"), dict)
+            or not isinstance(payload["pending_candidate"].get("response"), dict)
+            or not isinstance(
+                payload["pending_candidate"]["response"].get("table_decisions"), list
+            )
+            or not isinstance(payload["pending_candidate"].get("execution_metadata"), dict)
+            or not isinstance(payload["pending_candidate"].get("table_node_ids"), list)
+            or not payload["pending_candidate"]["table_node_ids"]
+            or payload["pending_candidate"]["table_node_ids"]
+            != sorted(set(payload["pending_candidate"]["table_node_ids"]))
+            or any(
+                not isinstance(item, str) or not item
+                for item in payload["pending_candidate"]["table_node_ids"]
+            )
+        ):
+            _fail("ordinary_trade_mapping_case_currency_request_invalid")
     if payload["status"] == "CONFIRMATION_REQUIRED":
         candidate = payload.get("pending_candidate")
         question = payload.get("question")
@@ -792,6 +898,40 @@ def _public_binding(binding: dict[str, Any]) -> dict[str, Any]:
         "user_scope_sha256": binding["user_scope_sha256"],
         "case_binding_sha256": binding["case_binding_sha256"],
     }
+
+
+def _valid_user_currency_decision(
+    decision: dict[str, Any], *, binding: dict[str, Any]
+) -> bool:
+    keys = {
+        "schema_version",
+        "decision_kind",
+        "assertion_id",
+        "currency_code",
+        "case_binding_sha256",
+        "table_node_ids",
+    }
+    material = {
+        "schema_version": decision.get("schema_version"),
+        "currency_code": decision.get("currency_code"),
+        "case_binding_sha256": decision.get("case_binding_sha256"),
+        "table_node_ids": decision.get("table_node_ids"),
+    }
+    return (
+        set(decision) == keys
+        and decision.get("schema_version") == USER_CURRENCY_ASSERTION_SCHEMA_VERSION
+        and isinstance(decision.get("currency_code"), str)
+        and len(decision["currency_code"]) == 3
+        and decision["currency_code"] == decision["currency_code"].upper()
+        and decision["currency_code"].isalpha()
+        and decision.get("case_binding_sha256") == binding.get("case_binding_sha256")
+        and isinstance(decision.get("table_node_ids"), list)
+        and decision["table_node_ids"]
+        and decision["table_node_ids"] == sorted(set(decision["table_node_ids"]))
+        and all(isinstance(item, str) and item for item in decision["table_node_ids"])
+        and decision.get("assertion_id")
+        == "usrassert_" + _sha256_json(material)[:32]
+    )
 
 
 def _sha256_json(value: Any) -> str:
