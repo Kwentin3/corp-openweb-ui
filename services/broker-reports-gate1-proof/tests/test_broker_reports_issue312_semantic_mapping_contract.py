@@ -25,6 +25,7 @@ from broker_reports_gate1.ordinary_trade_semantic_compiler import (
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
+    MAPPING_PROMPT_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
@@ -163,6 +164,21 @@ def test_mapping_prompt_states_exact_currency_binding_contract() -> None:
 
     assert "gross_amount, broker_commission or exchange_commission" in prompt
     assert "Do not add bindings for unit_price" in prompt
+
+
+def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> None:
+    managed_prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt()
+
+    assert managed_prompt.version == MAPPING_PROMPT_VERSION
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v14"
+    assert "A Settlement Date is never a Trade Date" in managed_prompt.content
+    assert "unambiguously not a transaction table" in managed_prompt.content
+    assert "distinct acquisition and disposal amount columns" in managed_prompt.content
+    assert "same table's exact side literals distinguish" in managed_prompt.content
+    assert "not literals occurring only in excluded rows" in managed_prompt.content
+    assert "source-column mappings in the same table" in managed_prompt.content
+    assert "preceding or adjacent row, narrative, or another table" in managed_prompt.content
+    assert "do not request currency" in managed_prompt.content
 
 
 def test_mapping_prompt_recognizes_explicit_sale_table_contract() -> None:
