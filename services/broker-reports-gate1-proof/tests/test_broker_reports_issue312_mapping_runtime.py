@@ -298,6 +298,7 @@ async def _user_currency_then_internal_classification_completes(tmp_path) -> Non
             "columns": [],
             "amount_currency_bindings": [],
             "side_values": [],
+            "row_dispositions": [],
         }
     client = BoundaryModelClient([currency_response])
     runtime = OrdinaryTradeProductionRuntimeFactory(
@@ -351,6 +352,7 @@ async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
                         "columns": [],
                         "amount_currency_bindings": [],
                         "side_values": [],
+                        "row_dispositions": [],
                     }
                 ],
                 "clarification": None,
@@ -1357,6 +1359,7 @@ async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -
                         "columns": [],
                         "amount_currency_bindings": [],
                         "side_values": [],
+                        "row_dispositions": [],
                     }
                 ],
                 "clarification": None,

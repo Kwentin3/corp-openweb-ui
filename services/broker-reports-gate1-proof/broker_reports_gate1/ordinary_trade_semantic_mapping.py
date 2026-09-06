@@ -18,13 +18,13 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v2"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v3"
 )
 ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v10"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v11"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -148,7 +148,11 @@ class OrdinaryTradeSemanticMapping:
             "and the allowed semantic roles from the supplied case. Do not create, "
             "change, calculate or omit source rows, values, dates, amounts or links. "
             "Classify every table exactly once. SECURITY_TRADES requires a complete "
-            "column mapping and exact side enum. amount_currency_bindings must contain "
+            "column mapping, exact side enum, and one row_dispositions entry for every "
+            "non-empty row below header_row. Mark only rows that satisfy the complete "
+            "ordinary-security-trade contract as SECURITY_TRADES; mark every other "
+            "such row NO_NAMED_CONSUMER. Do not use CURRENCY_ASSERTION_REQUIRED to "
+            "hide an incomplete row classification. amount_currency_bindings must contain "
             "exactly one entry, sorted by amount_column, for every column mapped as "
             "gross_amount, broker_commission or exchange_commission; each entry must "
             "point to the column mapped as currency. Do not add bindings for unit_price, "
@@ -545,6 +549,7 @@ class OrdinaryTradeSemanticMapping:
                     "structural_fingerprint",
                     "evidence_surface",
                     "disposition",
+                    "security_trade_rows",
                 )
             }
             for item in confirmed_exclusion_resolutions
@@ -590,6 +595,7 @@ class OrdinaryTradeSemanticMapping:
                     "structural_fingerprint",
                     "evidence_surface",
                     "disposition",
+                    "security_trade_rows",
                 )
             }
         table_resolutions = [
@@ -1059,13 +1065,19 @@ def _validate_table_decision(
             "columns",
             "amount_currency_bindings",
             "side_values",
+            "row_dispositions",
         }
         or decision.get("table_node_id") != table["table_node_id"]
         or not isinstance(decision.get("header_row"), int)
         or decision.get("disposition") not in _TABLE_DISPOSITIONS
         or not all(
             isinstance(decision.get(key), list)
-            for key in ("columns", "amount_currency_bindings", "side_values")
+            for key in (
+                "columns",
+                "amount_currency_bindings",
+                "side_values",
+                "row_dispositions",
+            )
         )
     ):
         _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
@@ -1089,7 +1101,12 @@ def _validate_table_decision(
     if disposition != "SECURITY_TRADES":
         if any(
             decision[key]
-            for key in ("columns", "amount_currency_bindings", "side_values")
+            for key in (
+                "columns",
+                "amount_currency_bindings",
+                "side_values",
+                "row_dispositions",
+            )
         ):
             _fail("ordinary_trade_semantic_mapping_non_trade_material_invalid")
         return {
@@ -1102,6 +1119,7 @@ def _validate_table_decision(
             "columns": [],
             "amount_currency_bindings": [],
             "side_values": [],
+            "security_trade_rows": [],
         }
     columns = decision["columns"]
     if (
@@ -1131,10 +1149,39 @@ def _validate_table_decision(
     ]
     if len(side_columns) != 1:
         _fail("ordinary_trade_semantic_mapping_side_invalid")
+    expected_rows = sorted(
+        source_row["row"]
+        for source_row in table["rows"]
+        if source_row["row"] > decision["header_row"]
+        and any(cell["literal"].strip() for cell in source_row["cells"])
+    )
+    row_dispositions = decision["row_dispositions"]
+    if (
+        not row_dispositions
+        or any(
+            not isinstance(item, dict)
+            or set(item) != {"row", "disposition"}
+            or not isinstance(item.get("row"), int)
+            or item.get("disposition")
+            not in {"SECURITY_TRADES", "NO_NAMED_CONSUMER"}
+            for item in row_dispositions
+        )
+        or [item["row"] for item in row_dispositions]
+        != sorted(set(item["row"] for item in row_dispositions))
+        or {item["row"] for item in row_dispositions} != set(expected_rows)
+    ):
+        _fail("ordinary_trade_semantic_mapping_row_coverage_invalid")
+    security_trade_rows = [
+        item["row"]
+        for item in row_dispositions
+        if item["disposition"] == "SECURITY_TRADES"
+    ]
+    if not security_trade_rows:
+        _fail("ordinary_trade_semantic_mapping_row_coverage_invalid")
     source_side_literals = {
         cell["literal"]
         for source_row in table["rows"]
-        if source_row["row"] > decision["header_row"]
+        if source_row["row"] in security_trade_rows
         for cell in source_row["cells"]
         if cell["column"] == side_columns[0] and cell["literal"]
     }
@@ -1174,6 +1221,7 @@ def _validate_table_decision(
         "columns": copy.deepcopy(columns),
         "amount_currency_bindings": bindings,
         "side_values": copy.deepcopy(side_values),
+        "security_trade_rows": security_trade_rows,
     }
 
 
@@ -1599,6 +1647,7 @@ def _mapping_response_schema() -> dict[str, Any]:
             "columns",
             "amount_currency_bindings",
             "side_values",
+            "row_dispositions",
         ],
         "properties": {
             **table_decision_common,
@@ -1631,6 +1680,21 @@ def _mapping_response_schema() -> dict[str, Any]:
                     },
                 },
             },
+            "row_dispositions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["row", "disposition"],
+                    "properties": {
+                        "row": {"type": "integer", "minimum": 1},
+                        "disposition": {
+                            "type": "string",
+                            "enum": ["SECURITY_TRADES", "NO_NAMED_CONSUMER"],
+                        },
+                    },
+                },
+            },
         },
     }
     non_trade_table_decision = {
@@ -1643,6 +1707,7 @@ def _mapping_response_schema() -> dict[str, Any]:
             "columns",
             "amount_currency_bindings",
             "side_values",
+            "row_dispositions",
         ],
         "properties": {
             **table_decision_common,
@@ -1653,6 +1718,7 @@ def _mapping_response_schema() -> dict[str, Any]:
             "columns": {"type": "array", "maxItems": 0},
             "amount_currency_bindings": {"type": "array", "maxItems": 0},
             "side_values": {"type": "array", "maxItems": 0},
+            "row_dispositions": {"type": "array", "maxItems": 0},
         },
     }
     table_decision = {

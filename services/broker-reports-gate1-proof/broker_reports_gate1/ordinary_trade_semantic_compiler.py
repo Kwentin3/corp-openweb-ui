@@ -166,6 +166,14 @@ class OrdinaryTradeSemanticCompiler:
         ]
         for table in table_nodes:
             rows = _table_rows(table)
+            resolutions = _matching_table_resolutions(
+                table=table,
+                rows=rows,
+                resolutions=accepted_resolutions,
+            )
+            if len(resolutions) > 1:
+                _fail("ordinary_trade_table_resolution_ambiguous")
+            resolution = resolutions[0] if resolutions else None
             global_matches = _matching_mappings(rows=rows, mappings=accepted)
             if len(global_matches) > 1:
                 _fail("ordinary_trade_table_mapping_ambiguous")
@@ -180,15 +188,7 @@ class OrdinaryTradeSemanticCompiler:
                 _fail("ordinary_trade_table_mapping_authority_conflict")
             matches = global_matches or scoped_matches
             if not matches:
-                resolutions = _matching_table_resolutions(
-                    table=table,
-                    rows=rows,
-                    resolutions=accepted_resolutions,
-                )
-                if len(resolutions) > 1:
-                    _fail("ordinary_trade_table_resolution_ambiguous")
-                if resolutions:
-                    resolution = resolutions[0]
+                if resolution is not None:
                     observations.extend(
                         _unmapped_table_rows(
                             binding=binding,
@@ -202,7 +202,7 @@ class OrdinaryTradeSemanticCompiler:
                                 "NO_NAMED_ORDINARY_TRADE_CONSUMER"
                                 if resolution["disposition"]
                                 == "NO_NAMED_CONSUMER"
-                                else "UNSUPPORTED_FINANCIAL_MEANING"
+                                else "UNKNOWN_STRUCTURAL_FINGERPRINT"
                             ),
                             disposition=(
                                 "SOURCE_RETAINED_NO_CONSUMER"
@@ -223,11 +223,33 @@ class OrdinaryTradeSemanticCompiler:
                 )
                 continue
             mapping, header_row = matches[0]
+            if resolution is not None and (
+                resolution["disposition"] != "SECURITY_TRADES"
+                or resolution["header_row"] != header_row
+            ):
+                _fail("ordinary_trade_table_resolution_mapping_conflict")
+            if resolution is None and scoped_matches:
+                _fail("ordinary_trade_table_resolution_mapping_missing")
             mapping_matches[mapping["mapping_id"]] += 1
             numeric_convention = _table_numeric_convention(rows=rows, mapping=mapping)
             for row_number in sorted(row for row in rows if row > header_row):
                 cells = rows[row_number]
                 if not any(_literal(cell) for cell in cells.values()):
+                    continue
+                if (
+                    resolution is not None
+                    and resolution["security_trade_rows"] is not None
+                    and row_number not in resolution["security_trade_rows"]
+                ):
+                    observations.extend(
+                        _unmapped_table_rows(
+                            binding=binding,
+                            table=table,
+                            rows={row_number: cells},
+                            reason="NO_NAMED_ORDINARY_TRADE_CONSUMER",
+                            disposition="SOURCE_RETAINED_NO_CONSUMER",
+                        )
+                    )
                     continue
                 observation = _mapped_observation(
                     binding=binding,
@@ -918,13 +940,23 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
     if (
         not isinstance(value, Mapping)
         or set(value)
-        != {
+        not in (
+            {
+                "table_node_id",
+                "header_row",
+                "structural_fingerprint",
+                "evidence_surface",
+                "disposition",
+            },
+            {
             "table_node_id",
             "header_row",
             "structural_fingerprint",
             "evidence_surface",
             "disposition",
-        }
+            "security_trade_rows",
+            },
+        )
         or not isinstance(value.get("table_node_id"), str)
         or not value["table_node_id"]
         or not isinstance(value.get("header_row"), int)
@@ -935,6 +967,27 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
             "NO_NAMED_CONSUMER",
             "UNSUPPORTED_FINANCIAL_MEANING",
         }
+    ):
+        _fail("ordinary_trade_table_resolution_invalid")
+    trade_rows = value.get("security_trade_rows")
+    if (
+        (trade_rows is not None and not isinstance(trade_rows, list))
+        or (
+            isinstance(trade_rows, list)
+            and any(not isinstance(item, int) or item < 1 for item in trade_rows)
+        )
+        or (
+            isinstance(trade_rows, list)
+            and trade_rows != sorted(set(trade_rows))
+        )
+        or (
+            value["disposition"] == "SECURITY_TRADES"
+            and trade_rows is not None
+            and not trade_rows
+        )
+        or (
+            value["disposition"] != "SECURITY_TRADES" and trade_rows not in (None, [])
+        )
     ):
         _fail("ordinary_trade_table_resolution_invalid")
     surface = value.get("evidence_surface")
@@ -965,7 +1018,12 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
     )
     if value.get("structural_fingerprint") != expected:
         _fail("ordinary_trade_table_resolution_fingerprint_invalid")
-    return copy.deepcopy(dict(value))
+    return {
+        **copy.deepcopy(dict(value)),
+        "security_trade_rows": (
+            trade_rows if value["disposition"] == "SECURITY_TRADES" else []
+        ),
+    }
 
 
 def _matching_table_resolutions(
