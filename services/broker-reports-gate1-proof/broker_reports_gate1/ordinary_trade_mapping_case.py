@@ -867,6 +867,26 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
                 not isinstance(item, str) or not item
                 for item in payload["pending_candidate"]["table_node_ids"]
             )
+            or (
+                "target_table_node_ids" in payload["pending_candidate"]
+                and (
+                    not isinstance(
+                        payload["pending_candidate"]["target_table_node_ids"],
+                        list,
+                    )
+                    or not payload["pending_candidate"]["target_table_node_ids"]
+                    or len(payload["pending_candidate"]["target_table_node_ids"])
+                    != len(
+                        set(payload["pending_candidate"]["target_table_node_ids"])
+                    )
+                    or any(
+                        not isinstance(item, str) or not item
+                        for item in payload["pending_candidate"][
+                            "target_table_node_ids"
+                        ]
+                    )
+                )
+            )
         ):
             _fail("ordinary_trade_mapping_case_currency_request_invalid")
     if payload["status"] == "CONFIRMATION_REQUIRED":

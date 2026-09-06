@@ -802,6 +802,10 @@ def test_mapping_package_keeps_user_currency_out_of_model_table_decisions(tmp_pa
         confirmed_understandings=[
             {
                 "decision": {
+                    "schema_version": "broker_reports_user_currency_assertion_v1",
+                    "assertion_id": "usrassert_0123456789abcdef0123456789abcdef",
+                    "currency_code": "USD",
+                    "case_binding_sha256": "0" * 64,
                     "decision_kind": "USER_PROVIDED_CURRENCY",
                     "table_node_ids": [table["node_id"]],
                 }
@@ -810,3 +814,6 @@ def test_mapping_package_keeps_user_currency_out_of_model_table_decisions(tmp_pa
     )
 
     assert package["case"]["confirmed_decisions"] == []
+    assert package["case"]["user_currency_assertions"] == [
+        {"table_ref": "table_1", "currency_code": "USD"}
+    ]

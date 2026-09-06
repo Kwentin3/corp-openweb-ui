@@ -141,14 +141,32 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     current=current, context=context, provider_calls_this_turn=0
                 )
             plan = current[1]["pending_candidate"]
+            table_node_ids = _currency_plan_table_node_ids(plan)
+            prior_currency_code = _confirmed_currency_code(
+                confirmed_understandings=current[1]["confirmed_understandings"],
+                table_node_ids=table_node_ids,
+            )
+            if prior_currency_code is not None and prior_currency_code != currency_code:
+                return self._result(
+                    current=current, context=context, provider_calls_this_turn=0
+                )
             response = dict(plan["response"])
             response["status"] = "COMPLETE"
-            saved_assertion = self._cases.record_user_currency_assertion(
-                document_id=document_id,
-                context=context,
-                currency_code=currency_code,
-                table_node_ids=_currency_plan_table_node_ids(plan),
-            )
+            saved_assertion = current
+            if prior_currency_code is None:
+                saved_assertion = self._cases.record_user_currency_assertion(
+                    document_id=document_id,
+                    context=context,
+                    currency_code=currency_code,
+                    table_node_ids=table_node_ids,
+                )
+            if "target_table_node_ids" not in plan:
+                # Older private cases did not retain the positional table-ref
+                # scope.  Their saved response must not be replayed against a
+                # guessed order; rebuild one strict package from the Canonical.
+                return await self._map_document(
+                    document_id=document_id, context=context
+                )
             binding = self._cases.case_binding(document_id=document_id, context=context)
             outcome = self._semantic.validate_mapping_response(
                 response=response,
@@ -159,6 +177,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 execution_metadata=plan["execution_metadata"],
                 confirmed_understandings=saved_assertion[1]["confirmed_understandings"],
                 user_scope_sha256=binding["user_scope_sha256"],
+                target_table_node_ids=_currency_plan_target_table_node_ids(plan),
                 frozen_mappings=self._frozen_mappings,
             )
             saved = self._cases.save_mapping_outcome(
@@ -548,6 +567,44 @@ def _currency_plan_table_node_ids(plan: dict[str, Any]) -> list[str]:
             "ordinary_trade_user_currency_request_invalid"
         )
     return list(table_node_ids)
+
+
+def _currency_plan_target_table_node_ids(plan: dict[str, Any]) -> list[str]:
+    """Use the source scope frozen with a currency request, never a broad retry."""
+
+    target = plan.get("target_table_node_ids")
+    if (
+        not isinstance(target, list)
+        or not target
+        or len(target) != len(set(target))
+        or any(not isinstance(item, str) or not item for item in target)
+    ):
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_user_currency_request_invalid"
+        )
+    return list(target)
+
+
+def _confirmed_currency_code(
+    *, confirmed_understandings: list[dict[str, Any]], table_node_ids: list[str]
+) -> str | None:
+    """Return one previously accepted user value only for the exact table scope."""
+
+    matches = {
+        decision.get("currency_code")
+        for item in confirmed_understandings
+        if isinstance(item, dict)
+        and isinstance((decision := item.get("decision")), dict)
+        and decision.get("decision_kind") == "USER_PROVIDED_CURRENCY"
+        and set(table_node_ids).issubset(set(decision.get("table_node_ids") or []))
+        and isinstance(decision.get("currency_code"), str)
+        and re.fullmatch(r"[A-Z]{3}", decision["currency_code"]) is not None
+    }
+    if len(matches) > 1:
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_user_currency_assertion_ambiguous"
+        )
+    return next(iter(matches), None)
 
 
 __all__ = [
