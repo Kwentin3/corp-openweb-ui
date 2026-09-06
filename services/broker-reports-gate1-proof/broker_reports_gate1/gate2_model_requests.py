@@ -44,6 +44,7 @@ GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE = "gate5_single_input_hitl_v0"
 ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE = (
     "ordinary_trade_semantic_mapping_v1"
 )
+ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS = 8192
 ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE = (
     "ordinary_trade_mapping_answer_v1"
 )
@@ -401,7 +402,7 @@ class Gate2OpenWebUIRequestBuilder:
                 "ordinary_trade_semantic_model_request_invalid",
                 "Ordinary-trade semantic request is not closed and strict",
             )
-        return {
+        request = {
             "model": model_id,
             "messages": [
                 {"role": "system", "content": prompt.content},
@@ -432,6 +433,12 @@ class Gate2OpenWebUIRequestBuilder:
                 }
             },
         }
+        if expected_phase == "map":
+            # A single Canonical can contain many independent tables. Mapping is
+            # still one exact attempt, but the provider must have room to return
+            # one decision per table rather than an invalid partial JSON result.
+            request["max_tokens"] = ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS
+        return request
 
     def _build_gate5_single_input_hitl(
         self,
