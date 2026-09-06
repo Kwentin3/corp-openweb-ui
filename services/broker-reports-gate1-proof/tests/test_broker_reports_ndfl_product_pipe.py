@@ -1420,6 +1420,110 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
     assert result["provider_calls_total"] == 0
 
 
+def test_confirmed_mapping_answer_is_not_reused_for_followup_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A confirmed mapping answer belongs only to that mapping case turn."""
+
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    pipe.valves.ordinary_trade_semantic_mapping_enabled = False
+    followup_action = {
+        "kind": "MAPPING_CLARIFICATION",
+        "question": {
+            "question_ref": "q_followup_table",
+            "question": "Какое из следующих проверяемых решений верно?",
+            "options": [
+                {
+                    "option_ref": "o_followup_1",
+                    "label": "Вариант 1",
+                    "source_literals": [],
+                    "safe_description": "первый вариант",
+                },
+                {
+                    "option_ref": "o_followup_2",
+                    "label": "Вариант 2",
+                    "source_literals": [],
+                    "safe_description": "второй вариант",
+                },
+            ],
+        },
+        "confirmation_message": None,
+        "confirmation_option_ref": None,
+    }
+    followup = {
+        "product": {
+            "status": "INPUT_REQUIRED",
+            "preparation": {"user_actions": [followup_action]},
+        },
+        "semantic_mapping": {
+            "status": "CLARIFICATION_REQUIRED",
+            "mapping_case_artifact_id": "mapping-case-followup",
+        },
+    }
+    initial = {
+        "product": {"status": "INPUT_REQUIRED", "preparation": {"user_actions": []}},
+        "semantic_mapping": {
+            "status": "CONFIRMATION_REQUIRED",
+            "mapping_case_artifact_id": "mapping-case-confirmation",
+            "public_state": {"confirmation_message": "Подтвердите выбор."},
+        },
+    }
+
+    class Runtime:
+        calls: list[dict] = []
+
+        async def run_with_automatic_mapping(self, **kwargs):
+            self.calls.append(kwargs)
+            return copy.deepcopy(
+                followup if kwargs.get("confirmation") is True else initial
+            )
+
+        @staticmethod
+        def publish_declaration_change_action(**_kwargs):
+            raise AssertionError("mapping follow-up must not reach declaration owner")
+
+    runtime = Runtime()
+
+    class Factory:
+        def __init__(self, **_kwargs):
+            pass
+
+        @staticmethod
+        def create():
+            return runtime
+
+    monkeypatch.setattr(product_pipe, "OrdinaryTradeProductionRuntimeFactory", Factory)
+
+    async def confirm(payload):
+        assert payload["type"] == "confirmation"
+        assert payload["data"]["message"] == "Подтвердите выбор."
+        return True
+
+    result = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            store=object(),
+            context=_context(NDFL_WORKSPACE_MODEL_STABLE_ID),
+            artifact_manifest=SimpleNamespace(artifact_refs_by_type={}),
+            user={"id": "user-a"},
+            request=object(),
+            event_emitter=None,
+            trusted_interaction_message="Вариант 1",
+            event_call=confirm,
+        )
+    )
+
+    assert result == followup
+    assert "declaration_chat_receipt" not in result
+    assert len(runtime.calls) == 2
+    assert runtime.calls[1]["confirmation"] is True
+    assert runtime.calls[1]["expected_confirmation_artifact_id"] == (
+        "mapping-case-confirmation"
+    )
+
+
 def test_case_note_explains_that_operation_years_are_not_determined() -> None:
     content = render_public_dialogue_fallback(
         build_public_dialogue_context(
