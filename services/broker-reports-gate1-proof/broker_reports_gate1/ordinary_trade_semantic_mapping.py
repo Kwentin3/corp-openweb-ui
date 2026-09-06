@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v8"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v9"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -160,16 +160,11 @@ class OrdinaryTradeSemanticMapping:
             "UNSUPPORTED_FINANCIAL_MEANING is only for a transaction table whose rows "
             "carry a financial meaning outside the ordinary security-trade contract, "
             "not merely for auxiliary financial content. Classify every table, including "
-            "NO_NAMED_CONSUMER tables, in one COMPLETE response. The runtime owns the "
-            "explicit user confirmation of those exclusions; do not emit one clarification "
-            "per auxiliary table. "
-            "If one financial decision is ambiguous, ask exactly one "
-            "plain-language question and provide two to four mutually exclusive "
-            "options. For CLARIFICATION_REQUIRED, table_decisions must be empty and "
-            "clarification must contain that one question. Every option must carry "
-            "one machine-applicable decision. "
-            "Confirmed decisions are authoritative only for this case and the final "
-            "mapping must satisfy them exactly. "
+            "NO_NAMED_CONSUMER tables, in one COMPLETE response. Mapping is an "
+            "internal source-structure operation: never ask the declarant to classify "
+            "a table, choose a column meaning, or confirm an exclusion. If the source "
+            "does not permit a complete safe classification, return "
+            "SPECIALIST_REVIEW_REQUIRED with table_decisions empty. "
             "The top-level result must contain exactly schema_version "
             f"{MAPPING_RESPONSE_SCHEMA_VERSION!r}, status, table_decisions, "
             "clarification and a non-empty message. For COMPLETE, UNSUPPORTED "
@@ -340,10 +335,7 @@ class OrdinaryTradeSemanticMapping:
             )
             return {
                 "status": status,
-                "message": (
-                    "Выберите одно из проверяемых mapping-решений; перед "
-                    "применением выбранное решение будет показано ещё раз."
-                ),
+                "message": "Mapping requires a retired interactive decision.",
                 "question": question,
                 "model_response_sha256": _sha256_json(value),
                 "execution_metadata_sha256": _execution_metadata_sha256(
@@ -426,8 +418,8 @@ class OrdinaryTradeSemanticMapping:
             return {
                 "status": "CLARIFICATION_REQUIRED",
                 "message": (
-                    "Исключение таблицы из финансового конвейера требует "
-                    "отдельного подтверждённого доменного решения."
+                    "Excluding non-calculation source sections requires one "
+                    "explicit declarant confirmation."
                 ),
                 "question": _build_no_named_consumer_batch_question(
                     decisions=unconfirmed_exclusions,
