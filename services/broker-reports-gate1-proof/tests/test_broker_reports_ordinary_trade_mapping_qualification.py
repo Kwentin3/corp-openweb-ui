@@ -8,6 +8,7 @@ import json
 import pytest
 
 from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResult
+from broker_reports_gate1.ordinary_trade_semantic_mapping import MAPPING_PROMPT_VERSION
 from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
     OrdinaryTradeSemanticMappingQualificationError,
     OrdinaryTradeSemanticMappingQualificationFactory,
@@ -71,7 +72,8 @@ def test_local_qualification_uses_production_contract_once_and_returns_safe_rece
     )
 
     assert len(client.calls) == 1
-    assert client.calls[0]["prompt"].version == "ordinary_trade_semantic_mapping_prompt_v13"
+    assert client.calls[0]["prompt"].version == MAPPING_PROMPT_VERSION
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v14"
     assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
     assert receipt["status"] == "PASSED"
     assert receipt["provider_calls_total"] == 1
