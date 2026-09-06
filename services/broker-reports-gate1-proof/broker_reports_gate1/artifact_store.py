@@ -455,10 +455,20 @@ class SqliteArtifactStoreAdapter:
         source_sha256: str,
         canonical_root_sha256: str,
         retention_class: str,
+        source_context: ArtifactAccessContext | None = None,
     ) -> CanonicalVersionRecord:
         """Reserve one immutable cross-run version in authenticated document scope."""
 
         self._validate_canonical_context(context, require_private=False)
+        source_context = source_context or context
+        self._validate_canonical_context(source_context, require_private=False)
+        if self._canonical_scope(context, document_id) != self._canonical_scope(
+            source_context, document_id
+        ):
+            raise ArtifactStoreError(
+                "canonical_source_scope_mismatch",
+                "Final Canonical source must remain in the same authenticated scope",
+            )
         if retention_class not in CANONICAL_RETENTION_CLASSES:
             raise ArtifactStoreError(
                 "canonical_retention_class_invalid",
@@ -481,7 +491,10 @@ class SqliteArtifactStoreAdapter:
                 )
             source_record = _row_to_record(source_row)
             self._validate_record_context(
-                source_record, context, require_run=True, require_private=False
+                source_record,
+                source_context,
+                require_run=True,
+                require_private=False,
             )
             if source_record.document_id != document_id:
                 raise ArtifactStoreError(

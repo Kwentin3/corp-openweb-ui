@@ -126,6 +126,12 @@ class OrdinaryTradeDeclarationMvpRuntime:
         self._semantic_input = Gate5DeclarationSemanticInputRuntimeFactory.create()
         self._methodology = Gate5TrustedMethodologyAuthorityFactory.create()
 
+    @property
+    def retention_policy(self) -> RetentionPolicy:
+        """Expose the existing lifecycle policy to the final Canonical owner."""
+
+        return self._retention_policy
+
     def run(
         self,
         *,

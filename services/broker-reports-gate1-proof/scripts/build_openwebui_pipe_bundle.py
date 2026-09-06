@@ -222,6 +222,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_qualified_mappings",
     "ordinary_trade_semantic_mapping",
     "ordinary_trade_mapping_case",
+    "canonical_finalization",
     "ordinary_trade_projection",
     "ordinary_trade_mapping_runtime",
     "gate4_ordinary_trade_candidate",
