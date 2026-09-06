@@ -1,4 +1,9 @@
-"""Gate 2 non-financial CanonicalArtifactV1 construction authority."""
+"""Gate 2 Canonical construction and validation authority.
+
+The source layout remains neutral.  A later immutable final version may carry
+explicit, user-confirmed assertions; it never turns them into document facts or
+tax semantics.
+"""
 
 from __future__ import annotations
 
@@ -49,6 +54,8 @@ CANONICAL_ROOT_TYPE_BY_FORMAT = {
     "csv": "DATASET",
     "xlsx": "WORKBOOK",
 }
+CANONICAL_USER_ASSERTION_SCHEMA_VERSION = "canonical_user_assertion_v1"
+CANONICAL_FINALIZATION_SCHEMA_VERSION = "canonical_finalization_v1"
 
 
 class CanonicalArtifactError(RuntimeError):
@@ -1422,6 +1429,8 @@ def validate_canonical_artifact(artifact: dict[str, Any]) -> dict[str, Any]:
     provenance = artifact.get("provenance") or []
     issues = artifact.get("issues") or []
     source = artifact.get("source") or {}
+    user_assertions = artifact.get("user_assertions") or []
+    finalization = artifact.get("finalization")
     source_format = str(source.get("source_format") or "")
     container_ids = [str(item.get("container_id") or "") for item in containers]
     node_ids = [str(item.get("node_id") or "") for item in nodes]
@@ -1439,6 +1448,11 @@ def validate_canonical_artifact(artifact: dict[str, Any]) -> dict[str, Any]:
         errors.append("canonical_source_identity_incomplete")
     if len(str(source.get("source_sha256") or "")) != 64:
         errors.append("canonical_source_sha256_invalid")
+    _validate_user_assertions(
+        user_assertions=user_assertions,
+        finalization=finalization,
+        errors=errors,
+    )
     if len(container_ids) != len(set(container_ids)) or "" in container_ids:
         errors.append("canonical_container_ids_invalid")
     if len(node_ids) != len(set(node_ids)) or "" in node_ids:
@@ -1587,6 +1601,8 @@ def validate_canonical_artifact(artifact: dict[str, Any]) -> dict[str, Any]:
                 nodes=nodes,
                 provenance=provenance,
                 issues=issues,
+                user_assertions=user_assertions,
+                finalization=finalization,
             )
         )
         if artifact.get("canonical_root_hash") != expected_hash:
@@ -1879,6 +1895,8 @@ def _root_hash_material(
     nodes: list[dict[str, Any]],
     provenance: list[dict[str, Any]],
     issues: list[dict[str, Any]],
+    user_assertions: list[dict[str, Any]] | None = None,
+    finalization: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "schema_version": CANONICAL_ARTIFACT_SCHEMA_VERSION,
@@ -1895,7 +1913,114 @@ def _root_hash_material(
             for item in provenance
         ],
         "issues": issues,
+        "user_assertions": user_assertions or [],
+        "finalization": finalization,
     }
+
+
+def _validate_user_assertions(
+    *,
+    user_assertions: Any,
+    finalization: Any,
+    errors: list[str],
+) -> None:
+    """Keep user input explicit, immutable and separate from source evidence."""
+
+    if not isinstance(user_assertions, list):
+        errors.append("canonical_user_assertions_invalid")
+        return
+    if not user_assertions:
+        if finalization is not None:
+            errors.append("canonical_finalization_without_user_assertions")
+        return
+    if (
+        not isinstance(finalization, dict)
+        or set(finalization)
+        != {
+            "schema_version",
+            "base_canonical_version_id",
+            "base_canonical_root_sha256",
+            "mapping_case_artifact_ref",
+            "mapping_case_sha256",
+        }
+        or finalization.get("schema_version") != CANONICAL_FINALIZATION_SCHEMA_VERSION
+        or not isinstance(finalization.get("base_canonical_version_id"), str)
+        or not finalization["base_canonical_version_id"]
+        or not _is_sha256(finalization.get("base_canonical_root_sha256"))
+        or not isinstance(finalization.get("mapping_case_artifact_ref"), str)
+        or not finalization["mapping_case_artifact_ref"].startswith("art_otmapcase_")
+        or not _is_sha256(finalization.get("mapping_case_sha256"))
+    ):
+        errors.append("canonical_finalization_invalid")
+        return
+    ids: set[str] = set()
+    for assertion in user_assertions:
+        if (
+            not isinstance(assertion, dict)
+            or set(assertion)
+            != {
+                "schema_version",
+                "assertion_id",
+                "kind",
+                "question_id",
+                "option_id",
+                "label",
+                "label_sha256",
+                "decision",
+                "decision_sha256",
+                "mapping_case_artifact_ref",
+                "mapping_case_sha256",
+                "provenance_kind",
+            }
+            or assertion.get("schema_version") != CANONICAL_USER_ASSERTION_SCHEMA_VERSION
+            or assertion.get("kind") != "mapping_decision"
+            or assertion.get("provenance_kind") != "user_confirmed"
+            or not all(
+                isinstance(assertion.get(field), str) and assertion[field]
+                for field in (
+                    "assertion_id",
+                    "question_id",
+                    "option_id",
+                    "label",
+                    "mapping_case_artifact_ref",
+                    "mapping_case_sha256",
+                )
+            )
+            or not assertion["assertion_id"].startswith("usrassert_")
+            or not _is_sha256(assertion.get("label_sha256"))
+            or not _is_sha256(assertion.get("decision_sha256"))
+            or not _is_sha256(assertion.get("mapping_case_sha256"))
+            or not isinstance(assertion.get("decision"), dict)
+            or hashlib.sha256(assertion["label"].encode("utf-8")).hexdigest()
+            != assertion["label_sha256"]
+            or _sha256(assertion["decision"]) != assertion["decision_sha256"]
+            or assertion["mapping_case_artifact_ref"]
+            != finalization["mapping_case_artifact_ref"]
+            or assertion["mapping_case_sha256"]
+            != finalization["mapping_case_sha256"]
+        ):
+            errors.append("canonical_user_assertion_invalid")
+            continue
+        expected_id = "usrassert_" + _sha256(
+            {
+                key: assertion[key]
+                for key in (
+                    "question_id",
+                    "option_id",
+                    "label_sha256",
+                    "decision_sha256",
+                    "mapping_case_artifact_ref",
+                    "mapping_case_sha256",
+                )
+            }
+        )[:32]
+        if assertion["assertion_id"] != expected_id or assertion["assertion_id"] in ids:
+            errors.append("canonical_user_assertion_identity_invalid")
+        ids.add(assertion["assertion_id"])
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
 def _sha256(value: Any) -> str:

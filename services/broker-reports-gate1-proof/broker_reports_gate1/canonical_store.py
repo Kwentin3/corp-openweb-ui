@@ -100,6 +100,7 @@ class CanonicalArtifactStore:
         context: ArtifactAccessContext,
         retention_policy: RetentionPolicy,
         compare_receipt: dict[str, Any] | None,
+        source_context: ArtifactAccessContext | None = None,
     ) -> CanonicalPersistResult:
         """Persist a candidate only after scope, source and content validation.
 
@@ -118,10 +119,11 @@ class CanonicalArtifactStore:
             raise ArtifactStoreError(
                 "artifact_blocked", "Canonical artifact failed validation"
             )
+        source_context = source_context or context
         source_ref = str(
             (artifact.get("source") or {}).get("source_artifact_ref") or ""
         )
-        source_record = self.resolver.resolve_record(source_ref, context)
+        source_record = self.resolver.resolve_record(source_ref, source_context)
         if not source_record.document_id:
             raise ArtifactStoreError(
                 "canonical_source_scope_mismatch",
@@ -130,6 +132,7 @@ class CanonicalArtifactStore:
         source = artifact.get("source") or {}
         reservation = self.store.reserve_canonical_version(
             context=context,
+            source_context=source_context,
             document_id=source_record.document_id,
             source_artifact_ref=source_ref,
             schema_version=str(artifact.get("schema_version") or ""),

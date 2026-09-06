@@ -137,7 +137,13 @@ class OrdinaryTradeProjectionRuntime:
             raise OrdinaryTradeProjectionError(
                 "ordinary_trade_canonical_manifest_missing"
             )
-        manifest = self._resolver.resolve_record(active.manifest_ref, context)
+        # A final Canonical is a separately immutable lifecycle version.  Read
+        # its manifest under the version's authenticated run rather than
+        # bypassing ArtifactResolver scope checks from the original intake run.
+        manifest = self._resolver.resolve_record(
+            active.manifest_ref,
+            replace(context, normalization_run_id=active.normalization_run_id),
+        )
         artifact_id = "art_otproj_" + projection["projection_sha256"][:40]
         record = ArtifactRecord(
             artifact_id=artifact_id,

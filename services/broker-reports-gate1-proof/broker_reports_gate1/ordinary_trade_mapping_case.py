@@ -77,10 +77,19 @@ class OrdinaryTradeMappingCaseRuntime:
         _private_case(context)
         envelope = self._reader.read_active_envelope(document_id, context)
         source = envelope.artifact.get("source") or {}
+        finalization = envelope.artifact.get("finalization") or {}
+        base_version_id = str(
+            finalization.get("base_canonical_version_id")
+            or envelope.canonical_version_id
+        )
+        base_root_sha256 = str(
+            finalization.get("base_canonical_root_sha256")
+            or envelope.canonical_root_sha256
+        )
         canonical_binding = {
             "document_id": envelope.document_id,
-            "canonical_version_id": envelope.canonical_version_id,
-            "canonical_root_sha256": envelope.canonical_root_sha256,
+            "canonical_version_id": base_version_id,
+            "canonical_root_sha256": base_root_sha256,
             "source_artifact_ref": str(source.get("source_artifact_ref") or ""),
             "source_sha256": str(source.get("source_sha256") or ""),
         }

@@ -8,6 +8,7 @@ from typing import Any, Iterable
 
 from .artifact_models import ArtifactAccessContext, ArtifactStorePort, RetentionPolicy
 from .canonical_store import CanonicalReaderFactory
+from .canonical_finalization import CanonicalFinalizationFactory
 from .gate4_ordinary_trade_candidate import (
     Gate4OrdinaryTradeCandidateRuntimeFactory,
 )
@@ -132,6 +133,9 @@ class OrdinaryTradeProductionRuntime:
         ).create()
         self._declaration = declaration
         self._mapping = mapping
+        self._finalizer = CanonicalFinalizationFactory(
+            store=store, read_enabled=read_enabled
+        ).create()
 
     async def run_with_automatic_mapping(
         self,
@@ -177,6 +181,19 @@ class OrdinaryTradeProductionRuntime:
             expected_confirmation_artifact_id = None
             if mapping_turn["status"] != "COMPLETE":
                 break
+            if self._declaration is not None:
+                finalized = self._finalizer.finalize(
+                    document_id=document_id,
+                    context=context,
+                    retention_policy=self._declaration.retention_policy,
+                )
+                refs = [
+                    finalized["artifact_ref"]
+                    if self._reader.read_envelope(ref, context).document_id
+                    == document_id
+                    else ref
+                    for ref in refs
+                ]
             if not refs:
                 self._projections.compile_and_save(
                     document_id=document_id,
