@@ -129,12 +129,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=current, context=context, provider_calls_this_turn=0
             )
         if current is not None and current[1]["status"] == "CONFIRMATION_REQUIRED":
-            question = current[1].get("question")
-            if (
-                confirmation is None
-                and isinstance(question, dict)
-                and question.get("question_id") == "q_user_table_disposition"
-            ):
+            if confirmation is None:
                 confirmation = self._semantic.interpret_manual_confirmation(
                     user_message
                 )

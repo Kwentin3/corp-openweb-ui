@@ -1103,22 +1103,10 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
     assert "Подтвердите выбранный Вариант 2?" in visible_confirmation
     assert "> Вариант 2: Колонка 10 " in visible_confirmation
 
-    async def native_confirmation(event):
-        assert event["type"] == "confirmation"
-        assert event["data"]["message"] == exact_confirmation
-        return True
-
-    confirmed = await pipe._mapping_candidate_confirmation(
-        event_call=native_confirmation,
-        visible_message=exact_confirmation,
-    )
     completed = await runtime.run_with_automatic_mapping(
         canonical_artifact_refs=[],
         context=context,
-        confirmation=confirmed,
-        expected_confirmation_artifact_id=candidate["semantic_mapping"][
-            "mapping_case_artifact_id"
-        ],
+        user_message="Да",
     )
     completed_case = (
         OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True)

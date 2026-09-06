@@ -1641,35 +1641,6 @@ class Pipe:
                     trusted_interaction_message if not source_turn else ""
                 ),
             )
-            mapping_interaction_consumed = False
-            semantic_turn = result.get("semantic_mapping")
-            if (
-                isinstance(semantic_turn, dict)
-                and semantic_turn.get("status") == "CONFIRMATION_REQUIRED"
-            ):
-                confirmation_value = await self._mapping_candidate_confirmation(
-                    event_call=event_call,
-                    visible_message=str(
-                        (semantic_turn.get("public_state") or {}).get(
-                            "confirmation_message"
-                        )
-                        or ""
-                    ),
-                )
-                if confirmation_value is not None:
-                    result = await runtime.run_with_automatic_mapping(
-                        canonical_artifact_refs=canonical_refs,
-                        context=context,
-                        confirmation=confirmation_value,
-                        expected_confirmation_artifact_id=str(
-                            semantic_turn["mapping_case_artifact_id"]
-                        ),
-                    )
-                    # The original chat message has already been bound to the
-                    # mapping case.  If confirmation advances that case to a
-                    # new question, it must never be interpreted again as an
-                    # answer to the declaration owner.
-                    mapping_interaction_consumed = True
             preparation = result.get("product", {}).get("preparation")
             preparation = preparation if isinstance(preparation, dict) else {}
             current_actions = preparation.get("user_actions")
@@ -1712,7 +1683,6 @@ class Pipe:
                 if (
                     source_turn
                     or not trusted_interaction_message
-                    or mapping_interaction_consumed
                 ):
                     return result
                 if (
@@ -2712,39 +2682,6 @@ class Pipe:
         if isinstance(value, dict) and value.get("error"):
             raise NdflWorkflowError(
                 "ordinary_trade_declaration_interaction_boundary_failed"
-            )
-        return value if isinstance(value, bool) else None
-
-    @staticmethod
-    async def _mapping_candidate_confirmation(
-        *, event_call: Any, visible_message: str
-    ) -> bool | None:
-        """Confirm one server-bound semantic understanding without parsing text."""
-
-        if not callable(event_call):
-            return None
-        message = str(visible_message or "").strip()
-        if not message or len(message) > 6000:
-            raise NdflWorkflowError(
-                "ordinary_trade_mapping_interaction_request_invalid"
-            )
-        try:
-            value = await event_call(
-                {
-                    "type": "confirmation",
-                    "data": {
-                        "title": "Подтвердите понимание отчёта",
-                        "message": message,
-                    },
-                }
-            )
-        except Exception as exc:
-            raise NdflWorkflowError(
-                "ordinary_trade_mapping_interaction_boundary_failed"
-            ) from exc
-        if isinstance(value, dict) and value.get("error"):
-            raise NdflWorkflowError(
-                "ordinary_trade_mapping_interaction_boundary_failed"
             )
         return value if isinstance(value, bool) else None
 
