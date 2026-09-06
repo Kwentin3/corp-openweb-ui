@@ -540,6 +540,49 @@ def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
     ]
 
 
+def test_exclusion_batch_keeps_all_decisions_but_bounds_public_examples(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    response = _complete_response(table, known)
+    for index in range(2, 7):
+        excluded = copy.deepcopy(table)
+        excluded["node_id"] = f"{table['node_id']}_excluded_{index}"
+        header = next(
+            cell
+            for cell in excluded["content"]["cells"]
+            if cell["row"] == 1 and cell["column"] == 1
+        )
+        header["value"] = f"Excluded section {index}"
+        header["displayed_value"] = header["value"]
+        canonical["nodes"].append(excluded)
+        response["table_decisions"].append(
+            {
+                "table_ref": f"table_{index}",
+                "header_row": 1,
+                "disposition": "NO_NAMED_CONSUMER",
+                "columns": [],
+                "amount_currency_bindings": [],
+                "side_values": [],
+            }
+        )
+
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+
+    question = result["question"]
+    assert result["status"] == "CLARIFICATION_REQUIRED"
+    assert len(question["table_node_ids"]) == 5
+    assert len(question["options"][0]["decisions"]) == 5
+    assert len(question["options"][0]["source_literals"]) == 4
+
+
 def test_runtime_derives_terminal_status_from_validated_table_decisions(tmp_path) -> None:
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
     response = _complete_response(table, known)
