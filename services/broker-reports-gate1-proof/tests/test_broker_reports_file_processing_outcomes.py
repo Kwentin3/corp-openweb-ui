@@ -100,6 +100,20 @@ class BrokerReportsFileProcessingOutcomesTest(unittest.TestCase):
         self.assertTrue(validate_file_processing_outcome(partial)["passed"])
         self.assertTrue(validate_file_processing_outcome(failed)["passed"])
 
+    def test_pdf_image_limit_is_terminal_and_requests_a_smaller_document_scope(self) -> None:
+        outcome = self.service.failed(
+            file_ref="upload_pdf_004",
+            stage="document_profiling",
+            reason_code="PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED",
+        ).safe_snapshot()
+
+        self.assertEqual(outcome["status"], "failed")
+        self.assertFalse(outcome["retryable"])
+        self.assertEqual(outcome["next_action"], "reduce_document_scope")
+        self.assertTrue(outcome["terminal"])
+        self.assertNotIn("PDF_DOCUMENT_AI", outcome["user_message"])
+        self.assertTrue(validate_file_processing_outcome(outcome)["passed"])
+
     def test_private_diagnostic_is_separate_and_never_model_facing(self) -> None:
         private_marker = "PRIVATE-ACCOUNT-778899"
         secret_marker = "sk-secret-do-not-publish"
