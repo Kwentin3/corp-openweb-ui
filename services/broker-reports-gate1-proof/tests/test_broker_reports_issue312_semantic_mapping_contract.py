@@ -745,3 +745,5 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
         "interpret_answer"
     )
     assert "max_tokens" not in answer_request
+    assert "none of the offered options is true" in owner.answer_prompt().content
+    assert "SPECIALIST_REVIEW, not CLARIFY" in owner.answer_prompt().content

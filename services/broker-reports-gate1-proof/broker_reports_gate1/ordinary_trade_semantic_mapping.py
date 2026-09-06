@@ -25,7 +25,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
 MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v8"
-ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v1"
+ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
     "mapping contract and case-qualification entrypoint"
@@ -187,8 +187,11 @@ class OrdinaryTradeSemanticMapping:
             "Interpret one natural-language answer to one supplied mapping question. "
             "Do not infer tax meaning or inspect broker identity. Select CANDIDATE only "
             "when the answer unambiguously matches exactly one supplied option_id. "
-            "Use CLARIFY when it does not, and SPECIALIST_REVIEW when the user says they "
-            "cannot determine the answer. Copy a short exact evidence_quote from the "
+            "Use SPECIALIST_REVIEW, not CLARIFY, when the user says that none of the "
+            "offered options is true, that the needed value is absent, or that they "
+            "cannot determine the answer. Use CLARIFY only when the user message is "
+            "too unclear to establish either a supplied option or that explicit stop. "
+            "Copy a short exact evidence_quote from the "
             "user message. Return only strict JSON."
         )
         return _managed_prompt(
