@@ -1609,8 +1609,15 @@ def _public_provenance(
     calculated = note.get("calculated_disposal_fact_ids")
     calculated_total = len(calculated) if isinstance(calculated, list) else 0
     source_text = (
-        "распознаны операции; расчёт не выполнялся выборочно, поэтому итог "
-        "закрытых продаж не показан"
+        (
+            "распознаны операции; расчёт не выполнялся выборочно, поэтому итог "
+            "закрытых продаж не показан"
+            if _calculation_withheld_for_unsupported_financial_meaning(product)
+            else (
+                "распознаны операции; безопасный расчёт не был завершён, поэтому "
+                "итог закрытых продаж не показан"
+            )
+        )
         if _calculation_total_withheld(product)
         else (
             f"распознаны операции; закрытых продаж рассчитано {calculated_total}; "
@@ -1645,6 +1652,19 @@ def _public_provenance(
 
 
 def _calculation_total_withheld(product: dict[str, Any]) -> bool:
+    gate5 = product.get("gate5")
+    gate5 = gate5 if isinstance(gate5, dict) else {}
+    reasons = gate5.get("blocker_reason_codes")
+    reasons = {str(item) for item in reasons} if isinstance(reasons, list) else set()
+    reasons.add(str(product.get("terminal") or ""))
+    return any(
+        reason.startswith("ordinary_trade_mapping_") for reason in reasons
+    )
+
+
+def _calculation_withheld_for_unsupported_financial_meaning(
+    product: dict[str, Any],
+) -> bool:
     gate5 = product.get("gate5")
     gate5 = gate5 if isinstance(gate5, dict) else {}
     reasons = gate5.get("blocker_reason_codes")
