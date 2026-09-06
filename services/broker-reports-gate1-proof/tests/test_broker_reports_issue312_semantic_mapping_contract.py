@@ -165,6 +165,14 @@ def test_mapping_prompt_states_exact_currency_binding_contract() -> None:
     assert "Do not add bindings for unit_price" in prompt
 
 
+def test_mapping_prompt_recognizes_explicit_sale_table_contract() -> None:
+    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
+
+    assert "date acquired, date sold or disposed" in prompt
+    assert "explicitly says Sale" in prompt
+    assert "Do not mark that row NO_NAMED_CONSUMER" in prompt
+
+
 def test_mapping_prompt_forbids_declarant_table_classification() -> None:
     prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
 

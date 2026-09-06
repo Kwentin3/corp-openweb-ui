@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v12"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v13"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -160,6 +160,13 @@ class OrdinaryTradeSemanticMapping:
             "gross_amount, broker_commission or exchange_commission; each entry must "
             "point to the column mapped as currency. Do not add bindings for unit_price, "
             "accrued_interest or any other role. "
+            "A table is a SECURITY_TRADES candidate when its exact headers include "
+            "a description or security column, date acquired, date sold or disposed, "
+            "quantity, proceeds, and cost or other basis. For each row below such a "
+            "header that explicitly says Sale and has values for those columns, classify "
+            "that row as SECURITY_TRADES and map those columns. Do not mark that row "
+            "NO_NAMED_CONSUMER merely because the document also contains unrelated tax "
+            "forms, totals, or explanatory text. "
             "Rows may be sampled; column_distinct_values is derived from the full "
             "Canonical and must be used to cover every exact side literal. "
             "NO_NAMED_CONSUMER is for content with no current ordinary-trade Fact v2 "
