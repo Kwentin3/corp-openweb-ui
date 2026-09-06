@@ -227,6 +227,10 @@ class OrdinaryTradeSemanticMapping:
         confirmed_decisions = []
         for item in confirmed_understandings:
             decision = copy.deepcopy(item["decision"])
+            # This case-bound user input belongs to deterministic projection,
+            # not to a model-visible table-decision package.
+            if decision.get("decision_kind") == "USER_PROVIDED_CURRENCY":
+                continue
             table_node_id = decision.pop("table_node_id")
             if table_node_id not in refs_by_node_id:
                 continue

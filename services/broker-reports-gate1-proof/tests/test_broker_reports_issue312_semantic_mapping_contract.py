@@ -792,3 +792,21 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
     assert "max_tokens" not in answer_request
     assert "none of the offered options is true" in owner.answer_prompt().content
     assert "SPECIALIST_REVIEW, not CLARIFY" in owner.answer_prompt().content
+
+
+def test_mapping_package_keeps_user_currency_out_of_model_table_decisions(tmp_path) -> None:
+    _context, canonical, _binding, table, _known = _canonical_case(tmp_path)
+
+    package = OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[
+            {
+                "decision": {
+                    "decision_kind": "USER_PROVIDED_CURRENCY",
+                    "table_node_ids": [table["node_id"]],
+                }
+            }
+        ],
+    )
+
+    assert package["case"]["confirmed_decisions"] == []
