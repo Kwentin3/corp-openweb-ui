@@ -155,12 +155,12 @@ def test_mapping_prompt_states_exact_currency_binding_contract() -> None:
     assert "Do not add bindings for unit_price" in prompt
 
 
-def test_mapping_prompt_owns_group_confirmation_after_table_classification() -> None:
+def test_mapping_prompt_forbids_declarant_table_classification() -> None:
     prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
 
     assert "Classify every table, including NO_NAMED_CONSUMER tables" in prompt
-    assert "runtime owns the explicit user confirmation" in prompt
-    assert "do not emit one clarification per auxiliary table" in prompt
+    assert "never ask the declarant to classify" in prompt
+    assert "SPECIALIST_REVIEW_REQUIRED" in prompt
     assert "balances, holdings, reference/master data" in prompt
     assert "only for a transaction table" in prompt
 
@@ -506,6 +506,7 @@ def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
     )
 
     assert result["status"] == "CLARIFICATION_REQUIRED"
+    assert result["question"]["question_id"] == "q_exclusion_batch"
     assert result["question"]["options"][0]["effect"] == "APPLY_DECISIONS"
     assert len(result["question"]["options"][0]["decisions"]) == 1
     assert "qualified_mappings" not in result
@@ -705,7 +706,7 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
     assert request["max_tokens"] == ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS
     assert request["max_tokens"] == 65_536
     assert request["response_format"]["json_schema"]["strict"] is True
-    assert "table_decisions must be empty" in request["messages"][0]["content"]
+    assert "never ask the declarant to classify" in request["messages"][0]["content"]
     question = {
         "question_id": "q_table_kind",
         "table_node_id": table["node_id"],

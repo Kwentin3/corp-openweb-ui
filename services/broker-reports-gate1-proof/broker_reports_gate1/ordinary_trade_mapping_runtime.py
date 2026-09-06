@@ -129,10 +129,19 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=current, context=context, provider_calls_this_turn=0
             )
         if current is not None and current[1]["status"] == "CONFIRMATION_REQUIRED":
-            if confirmation is None:
-                confirmation = self._semantic.interpret_manual_confirmation(
-                    user_message
+            if not _is_exclusion_confirmation(current[1]):
+                retired = self._cases.save_deterministic_terminal(
+                    document_id=document_id,
+                    context=context,
+                    status="SPECIALIST_REVIEW_REQUIRED",
+                    reason_code="ordinary_trade_mapping_interactive_loop_retired",
+                    message="Старый технический шаг mapping передан специалисту.",
                 )
+                return self._result(
+                    current=retired, context=context, provider_calls_this_turn=0
+                )
+            if confirmation is None:
+                confirmation = self._semantic.interpret_manual_confirmation(user_message)
                 if confirmation is not None:
                     expected_confirmation_artifact_id = current[0].artifact_id
             if confirmation is None:
@@ -154,31 +163,28 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     current=current, context=context, provider_calls_this_turn=0
                 )
         if current is not None and current[1]["status"] == "CLARIFICATION_REQUIRED":
-            if not str(user_message or "").strip():
-                return self._result(
-                    current=current, context=context, provider_calls_this_turn=0
+            if _is_exclusion_confirmation(current[1]):
+                promoted = self._cases.promote_exclusion_confirmation(
+                    document_id=document_id, context=context
                 )
-            return await self._interpret_answer(
+                return self._result(
+                    current=promoted, context=context, provider_calls_this_turn=0
+                )
+            retired = self._cases.save_deterministic_terminal(
                 document_id=document_id,
                 context=context,
-                current=current,
-                user_message=user_message,
+                status="SPECIALIST_REVIEW_REQUIRED",
+                reason_code="ordinary_trade_mapping_interactive_loop_retired",
+                message="Техническая неоднозначность mapping передана специалисту.",
+            )
+            return self._result(
+                current=retired, context=context, provider_calls_this_turn=0
             )
         if (
             current is not None
             and current[1]["status"] == "PROVIDER_UNAVAILABLE"
-            and isinstance(current[1].get("question"), dict)
         ):
-            if not str(user_message or "").strip():
-                return self._result(
-                    current=current, context=context, provider_calls_this_turn=0
-                )
-            return await self._interpret_answer(
-                document_id=document_id,
-                context=context,
-                current=current,
-                user_message=user_message,
-            )
+            return await self._map_document(document_id=document_id, context=context)
         return await self._map_document(
             document_id=document_id,
             context=context,
@@ -323,6 +329,30 @@ class OrdinaryTradeAutomaticMappingRuntime:
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
             )
+        if outcome["status"] == "CLARIFICATION_REQUIRED":
+            saved = self._cases.save_mapping_outcome(
+                document_id=document_id,
+                context=context,
+                outcome=outcome,
+                provider_calls_total=1,
+            )
+            if _is_exclusion_confirmation(saved[1]):
+                promoted = self._cases.promote_exclusion_confirmation(
+                    document_id=document_id, context=context
+                )
+                return self._result(
+                    current=promoted, context=context, provider_calls_this_turn=1
+                )
+            retired = self._cases.save_deterministic_terminal(
+                document_id=document_id,
+                context=context,
+                status="SPECIALIST_REVIEW_REQUIRED",
+                reason_code="ordinary_trade_mapping_interactive_loop_forbidden",
+                message="Техническая неоднозначность mapping передана специалисту.",
+            )
+            return self._result(
+                current=retired, context=context, provider_calls_this_turn=1
+            )
         saved = self._cases.save_mapping_outcome(
             document_id=document_id,
             context=context,
@@ -438,6 +468,11 @@ def _strict_result(response: Any) -> None:
             "ordinary_trade_mapping_strict_output_required",
             "Semantic mapping requires one strict output without repair",
         )
+
+
+def _is_exclusion_confirmation(payload: dict[str, Any]) -> bool:
+    question = payload.get("question")
+    return isinstance(question, dict) and question.get("question_id") == "q_exclusion_batch"
 
 
 __all__ = [

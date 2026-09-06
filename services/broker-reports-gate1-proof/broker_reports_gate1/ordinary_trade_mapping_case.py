@@ -341,6 +341,64 @@ class OrdinaryTradeMappingCaseRuntime:
         )
         return self._put(payload=payload, document_id=document_id, context=context)
 
+    def promote_exclusion_confirmation(
+        self,
+        *,
+        document_id: str,
+        context: ArtifactAccessContext,
+    ) -> tuple[ArtifactRecord, dict[str, Any]]:
+        """Expose one code-owned yes/no confirmation for validated exclusions."""
+
+        current = self.current(document_id=document_id, context=context)
+        if (
+            current is None
+            or current[1]["status"] != "CLARIFICATION_REQUIRED"
+            or not isinstance(current[1].get("question"), dict)
+            or current[1]["question"].get("question_id") != "q_exclusion_batch"
+        ):
+            _fail("ordinary_trade_mapping_case_transition_invalid")
+        prior = current[1]
+        selected = next(
+            (
+                item
+                for item in prior["question"]["options"]
+                if item.get("effect") == "APPLY_DECISIONS"
+            ),
+            None,
+        )
+        if not isinstance(selected, dict):
+            _fail("ordinary_trade_mapping_case_question_invalid")
+        count = len(selected.get("decisions") or [])
+        candidate = {
+            "question_id": "q_exclusion_batch",
+            "option_id": selected["option_id"],
+            "message": (
+                "В отчёте найдены служебные разделы, не участвующие в расчёте "
+                f"сделок ({count}). Продолжить без включения их в расчёт? Ответьте «Да» или «Нет»."
+            ),
+            "evidence_quote_sha256": hashlib.sha256(
+                selected["label"].encode("utf-8")
+            ).hexdigest(),
+        }
+        payload = self._next_payload(
+            document_id=document_id,
+            context=context,
+            prior=prior,
+            status="CONFIRMATION_REQUIRED",
+            message=candidate["message"],
+            question=copy.deepcopy(prior["question"]),
+            pending_candidate=candidate,
+            confirmed_understandings=copy.deepcopy(prior["confirmed_understandings"]),
+            qualified_mappings=[],
+            qualification_receipts=[],
+            table_resolutions=[],
+            provider_calls_total=prior["provider_calls_total"],
+            model_response_sha256=None,
+            execution_metadata_sha256=None,
+            reason_code=None,
+        )
+        return self._put(payload=payload, document_id=document_id, context=context)
+
     def confirm_pending_answer(
         self,
         *,
@@ -359,9 +417,20 @@ class OrdinaryTradeMappingCaseRuntime:
             _fail("ordinary_trade_mapping_case_concurrent_answer")
         prior = current[1]
         if not accepted:
-            status = "CLARIFICATION_REQUIRED"
+            exclusion_confirmation = (
+                prior["question"].get("question_id") == "q_exclusion_batch"
+            )
+            status = (
+                "SPECIALIST_REVIEW_REQUIRED"
+                if exclusion_confirmation
+                else "CLARIFICATION_REQUIRED"
+            )
             confirmed = copy.deepcopy(prior["confirmed_understandings"])
-            message = "Предложенное понимание не подтверждено. Уточните ответ."
+            message = (
+                "Исключение служебных разделов не подтверждено; требуется проверка специалиста."
+                if exclusion_confirmation
+                else "Предложенное понимание не подтверждено. Уточните ответ."
+            )
         else:
             pending = prior["pending_candidate"]
             option = next(

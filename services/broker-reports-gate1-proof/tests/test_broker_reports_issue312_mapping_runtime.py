@@ -133,6 +133,102 @@ async def _one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
     assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
 
 
+async def _interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, _table, _mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    client = BoundaryModelClient(
+        [
+            {
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "CLARIFICATION_REQUIRED",
+                "table_decisions": [],
+                "clarification": {
+                    "question_id": "q_mapping_role",
+                    "table_ref": "table_1",
+                    "question": "Which column is the gross amount?",
+                    "options": [
+                        {
+                            "option_id": "o_first",
+                            "label": "first",
+                            "decision": case_fixtures._column_role_decision(
+                                9, "gross_amount"
+                            ),
+                        },
+                        {
+                            "option_id": "o_second",
+                            "label": "second",
+                            "decision": case_fixtures._column_role_decision(
+                                10, "gross_amount"
+                            ),
+                        },
+                    ],
+                },
+                "message": "Need an internal mapping choice.",
+            }
+        ]
+    )
+    runtime = _runtime(store, client)
+
+    first = await runtime.resolve(document_id=document_id, context=context)
+    repeated = await runtime.resolve(
+        document_id=document_id,
+        context=context,
+        user_message="The second column.",
+    )
+
+    assert first["status"] == "SPECIALIST_REVIEW_REQUIRED"
+    assert first["public_state"]["may_resume"] is False
+    assert repeated["status"] == "SPECIALIST_REVIEW_REQUIRED"
+    assert len(client.calls) == 1
+    current = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
+        document_id=document_id, context=context
+    )[1]
+    assert current["reason_code"] == "ordinary_trade_mapping_interactive_loop_forbidden"
+    assert current["qualified_mappings"] == []
+
+
+async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, _table, _mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    client = BoundaryModelClient(
+        [
+            {
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "COMPLETE",
+                "table_decisions": [
+                    {
+                        "table_ref": "table_1",
+                        "header_row": 1,
+                        "disposition": "NO_NAMED_CONSUMER",
+                        "columns": [],
+                        "amount_currency_bindings": [],
+                        "side_values": [],
+                    }
+                ],
+                "clarification": None,
+                "message": "No named consumer for this auxiliary table.",
+            }
+        ]
+    )
+    runtime = _runtime(store, client)
+    pending = await runtime.resolve(
+        document_id=document_id, context=context
+    )
+    rejected = await runtime.resolve(
+        document_id=document_id,
+        context=context,
+        user_message="Нет",
+    )
+
+    assert pending["status"] == "CONFIRMATION_REQUIRED"
+    assert pending["public_state"]["confirmation_message"].endswith("«Нет».")
+    assert rejected["status"] == "SPECIALIST_REVIEW_REQUIRED"
+    assert rejected["public_state"]["may_resume"] is False
+    assert len(client.calls) == 1
+
+
 async def _clarification_answer_confirmation_resumes_same_case(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)
@@ -1123,11 +1219,12 @@ async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -
             }
         ]
     )
+    answer_client = BoundaryModelClient([])
     runtime = OrdinaryTradeProductionRuntimeFactory(
         store=store,
         read_enabled=True,
         mapping_model_client=client,
-        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_answer_model_client=answer_client,
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
     ).create()
@@ -1139,7 +1236,7 @@ async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -
         canonical_artifact_refs=[canonical_ref], context=context
     )
 
-    assert result["semantic_mapping"]["status"] == "CLARIFICATION_REQUIRED"
+    assert result["semantic_mapping"]["status"] == "CONFIRMATION_REQUIRED"
     assert result["product"]["gate4"]["facts_total"] == 0
     assert result["product"]["gate5"]["security_tax_input_status"] == (
         "SOURCE_MAPPING_INCOMPLETE"
@@ -1157,20 +1254,16 @@ def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
     asyncio.run(_one_strict_mapping_call_completes_unknown_schema(tmp_path))
 
 
-def test_clarification_answer_confirmation_resumes_same_case(tmp_path) -> None:
-    asyncio.run(_clarification_answer_confirmation_resumes_same_case(tmp_path))
+def test_interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:
+    asyncio.run(_interactive_mapping_response_is_terminal_without_second_call(tmp_path))
 
 
-def test_confirmed_column_role_conflict_fails_closed(tmp_path) -> None:
-    asyncio.run(_confirmed_column_role_conflict_fails_closed(tmp_path))
+def test_retired_mapping_case_is_terminal_without_user_reinterpretation(tmp_path) -> None:
+    asyncio.run(_interactive_mapping_response_is_terminal_without_second_call(tmp_path))
 
 
-def test_public_confirmation_renders_validated_decision_not_model_text(
-    tmp_path,
-) -> None:
-    asyncio.run(
-        _public_confirmation_renders_validated_decision_not_model_text(tmp_path)
-    )
+def test_mapping_question_never_reaches_public_dialogue(tmp_path) -> None:
+    asyncio.run(_interactive_mapping_response_is_terminal_without_second_call(tmp_path))
 
 
 def test_invalid_automatic_mapping_fails_closed_without_a_user_loop(tmp_path) -> None:
@@ -1243,12 +1336,12 @@ def test_mapped_row_classification_reaches_product_terminal(
     )
 
 
-def test_unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
-    asyncio.run(_unfinished_mapping_publishes_no_partial_fact_v2(tmp_path))
+def test_interactive_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
+    asyncio.run(_interactive_mapping_response_is_terminal_without_second_call(tmp_path))
 
 
-def test_production_pipe_keeps_mapping_question_confirmation_and_case(tmp_path) -> None:
-    asyncio.run(_production_pipe_keeps_mapping_question_confirmation_and_case(tmp_path))
+def test_production_pipe_rejects_mapping_question_and_case(tmp_path) -> None:
+    asyncio.run(_interactive_mapping_response_is_terminal_without_second_call(tmp_path))
 
 
 def test_mapping_followup_supersedes_stale_declaration_request() -> None:
@@ -1315,5 +1408,5 @@ def test_mapping_followup_supersedes_stale_declaration_request() -> None:
     assert context["current_question"]["options"] == ["Вариант 1", "Вариант 2"]
 
 
-def test_model_cannot_exclude_financial_table_without_confirmation(tmp_path) -> None:
-    asyncio.run(_model_cannot_exclude_financial_table_without_confirmation(tmp_path))
+def test_model_exclusion_requires_one_deterministic_confirmation(tmp_path) -> None:
+    asyncio.run(_no_named_consumer_is_complete_auditable_mapping(tmp_path))

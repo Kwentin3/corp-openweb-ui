@@ -254,7 +254,7 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
     assert confirmed["confirmed_understandings"][0]["option_id"] == "o_choice_2"
 
 
-def test_one_exclusion_confirmation_persists_each_table_decision(tmp_path) -> None:
+def test_exclusion_decisions_remain_complete_and_auditable(tmp_path) -> None:
     store, context, document_id, canonical, binding = _unknown_two_table_case(tmp_path)
     semantic = OrdinaryTradeSemanticMappingFactory.create()
     cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()

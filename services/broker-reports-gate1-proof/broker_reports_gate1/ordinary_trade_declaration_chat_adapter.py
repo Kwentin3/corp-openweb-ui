@@ -805,7 +805,11 @@ def _mapping_public_question_context(request: Any) -> dict[str, Any] | None:
         result = {
             "authority_kind": "source_choice_confirmation",
             "question_ref": question_ref,
-            "question": f"Подтвердите выбранный {selected['public_label']}?",
+            "question": (
+                confirmation
+                if question_ref == "q_exclusion_batch"
+                else f"Подтвердите выбранный {selected['public_label']}?"
+            ),
             "help": (
                 "Ответьте «Да», если всё верно, или «Нет», если нужно уточнить ответ."
             ),
