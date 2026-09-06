@@ -10,6 +10,7 @@ from broker_reports_gate1.gate2_model_contracts import Gate2ProviderExecutionMet
 from broker_reports_gate1.gate2_model_contracts import gate2_provider_profile
 from broker_reports_gate1.gate2_model_requests import (
     ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
+    ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS,
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
     Gate2OpenWebUIRequestBuilder,
 )
@@ -634,6 +635,7 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
         response_format=owner.mapping_response_format(),
     )
     assert request["stream"] is False
+    assert request["max_tokens"] == ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS
     assert request["response_format"]["json_schema"]["strict"] is True
     assert "table_decisions must be empty" in request["messages"][0]["content"]
     question = {
@@ -675,3 +677,4 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
     assert answer_request["metadata"]["broker_reports_ordinary_trade"]["phase"] == (
         "interpret_answer"
     )
+    assert "max_tokens" not in answer_request
