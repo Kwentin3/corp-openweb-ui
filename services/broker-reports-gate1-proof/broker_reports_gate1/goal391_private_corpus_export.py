@@ -189,7 +189,9 @@ class Goal391PrivateCorpusExportCoordinator:
             entries = []
             for item in selection.selections:
                 envelope = self._reader.read_envelope(
-                    item.manifest_ref, item.access_context()
+                    item.manifest_ref,
+                    item.access_context(),
+                    expected_normalization_run_id=item.normalization_run_id,
                 )
                 entry = _pack_entry(item, envelope)
                 canonical_path = cases_root / f"{item.slot_id}.json"

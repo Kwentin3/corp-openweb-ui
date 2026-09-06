@@ -718,13 +718,20 @@ class CanonicalReader:
         return self._read_version(version, context)
 
     def read_envelope(
-        self, artifact_ref: str, context: ArtifactAccessContext
+        self,
+        artifact_ref: str,
+        context: ArtifactAccessContext,
+        *,
+        expected_normalization_run_id: str | None = None,
     ) -> CanonicalReadEnvelope:
         """Return one exact manifest-bound version with safe accounting."""
 
         self._require_enabled()
         version = self.store.get_canonical_version_by_manifest(
             context=context, manifest_ref=artifact_ref
+        )
+        self._require_expected_normalization_run(
+            version, expected_normalization_run_id
         )
         return self._read_envelope(version, context)
 
@@ -989,6 +996,28 @@ class CanonicalReader:
             component_count=len(components),
             payload_bytes=len(_json_bytes(artifact)),
         )
+
+    @staticmethod
+    def _require_expected_normalization_run(
+        version: CanonicalVersionRecord,
+        expected_normalization_run_id: str | None,
+    ) -> None:
+        """Bind an explicit external selection before Canonical payload reads.
+
+        The ordinary reader remains version-oriented by default.  Callers that
+        carry an immutable run identity (such as a private research export)
+        can demand that the manifest resolves to precisely that run instead of
+        merely the same user/case scope.
+        """
+
+        if (
+            expected_normalization_run_id is not None
+            and version.normalization_run_id != expected_normalization_run_id
+        ):
+            raise ArtifactStoreError(
+                "canonical_normalization_run_mismatch",
+                "Canonical manifest does not belong to the expected normalization run",
+            )
 
     def _manifest(
         self, version: CanonicalVersionRecord, context: ArtifactAccessContext
