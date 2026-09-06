@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
+
 from broker_reports_gate1.canonical_finalization import CanonicalFinalizationFactory
+from broker_reports_gate1.canonical_artifact import validate_canonical_artifact
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.ordinary_trade_mapping_case import OrdinaryTradeMappingCaseFactory
 from broker_reports_gate1.ordinary_trade_projection import OrdinaryTradeProjectionFactory
@@ -142,4 +145,11 @@ def test_confirmed_user_choice_is_sealed_into_final_canonical_and_reused(tmp_pat
     assert right_bank["canonical_version_ids"] == [final["canonical_version_id"]]
     assert right_bank["documents"][0]["canonical_version_id"] == final[
         "canonical_version_id"
+    ]
+
+    forged = copy.deepcopy(envelope.artifact)
+    forged["user_assertions"][0]["provenance_kind"] = "document"
+    assert not validate_canonical_artifact(forged)["passed"]
+    assert "canonical_user_assertion_invalid" in validate_canonical_artifact(forged)[
+        "error_codes"
     ]
