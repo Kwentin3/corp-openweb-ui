@@ -44,7 +44,10 @@ GATE5_SINGLE_INPUT_HITL_REQUEST_PROFILE = "gate5_single_input_hitl_v0"
 ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE = (
     "ordinary_trade_semantic_mapping_v1"
 )
-ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS = 8192
+# One supported document may contribute up to 64 independent table surfaces.
+# Mapping is deliberately one strict response, so 8k tokens can truncate a
+# complete contract-valid decision set before the JSON object is closed.
+ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS = 65_536
 ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE = (
     "ordinary_trade_mapping_answer_v1"
 )
