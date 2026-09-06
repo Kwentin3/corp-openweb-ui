@@ -57,19 +57,38 @@ class ArtifactStoreFactory:
             raise ArtifactStoreError("artifact_store_unavailable", "Only sqlite ArtifactStore mode is enabled")
         return SqliteArtifactStoreAdapter(self.config.sqlite_path, self.config.payload_root)
 
+    def create_read_only(self) -> "SqliteArtifactStoreAdapter":
+        """Open an existing ArtifactStore without schema or payload mutation.
+
+        This is intentionally a factory path, rather than a second storage
+        implementation: read-only consumers retain the same access and
+        canonical validation owner as production readers.
+        """
+
+        if self.config.mode != "sqlite":
+            raise ArtifactStoreError("artifact_store_unavailable", "Only sqlite ArtifactStore mode is enabled")
+        return SqliteArtifactStoreAdapter(
+            self.config.sqlite_path,
+            self.config.payload_root,
+            read_only=True,
+        )
+
 
 class SqliteArtifactStoreAdapter:
-    def __init__(self, sqlite_path: Path, payload_root: Path) -> None:
+    def __init__(self, sqlite_path: Path, payload_root: Path, *, read_only: bool = False) -> None:
         self.sqlite_path = sqlite_path
         self.payload_root = payload_root
+        self.read_only = read_only
         self._payload_root_anchor: Path | None = None
         self._payload_root_identity: tuple[int, int] | None = None
-        self._ensure_schema()
-        self._payload_root_anchor = self._preflight_payload_root()
+        if not self.read_only:
+            self._ensure_schema()
+        self._payload_root_anchor = self._preflight_payload_root(read_only=self.read_only)
         root_stat = self._payload_root_anchor.stat()
         self._payload_root_identity = (root_stat.st_dev, root_stat.st_ino)
 
     def put_record(self, record: ArtifactRecord) -> ArtifactRecord:
+        self._require_writable()
         with self._connect() as conn:
             existing = conn.execute(
                 "SELECT * FROM artifact_records WHERE artifact_id = ?",
@@ -193,6 +212,7 @@ class SqliteArtifactStoreAdapter:
     def put_records_atomic(
         self, records: list[ArtifactRecord]
     ) -> list[ArtifactRecord]:
+        self._require_writable()
         """Persist one physical artifact graph or none of it.
 
         Payload files are removed when the SQLite transaction fails. Existing
@@ -459,6 +479,7 @@ class SqliteArtifactStoreAdapter:
     ) -> CanonicalVersionRecord:
         """Reserve one immutable cross-run version in authenticated document scope."""
 
+        self._require_writable()
         self._validate_canonical_context(context, require_private=False)
         source_context = source_context or context
         self._validate_canonical_context(source_context, require_private=False)
@@ -604,6 +625,7 @@ class SqliteArtifactStoreAdapter:
     ) -> CanonicalVersionRecord:
         """Bind an immutable physical graph and promote CANDIDATE to VALIDATED."""
 
+        self._require_writable()
         self._validate_canonical_context(context, require_private=False)
         if not components:
             raise ArtifactStoreError(
@@ -736,6 +758,7 @@ class SqliteArtifactStoreAdapter:
     ) -> None:
         """Terminally purge only an unlinked candidate's streamed components."""
 
+        self._require_writable()
         self._validate_canonical_context(context, require_private=False)
         artifact_ids = sorted(set(component_artifact_ids))
         records: list[ArtifactRecord] = []
@@ -929,6 +952,7 @@ class SqliteArtifactStoreAdapter:
         a manifest whose persisted graph is missing or invalid.
         """
 
+        self._require_writable()
         self._validate_canonical_context(context, require_private=True)
         if operation not in {"ACTIVATE", "ROLLBACK"} or not actor or not reason:
             raise ArtifactStoreError(
@@ -1144,6 +1168,7 @@ class SqliteArtifactStoreAdapter:
         context: ArtifactAccessContext,
         now: datetime | None = None,
     ) -> ArtifactLifecycleResult:
+        self._require_writable()
         scope = self._lifecycle_scope(context, required_scope="run")
         transition_at = utc_now_iso()
         current = _normalized_utc_iso(now or datetime.now(timezone.utc))
@@ -1209,6 +1234,7 @@ class SqliteArtifactStoreAdapter:
         self,
         context: ArtifactAccessContext,
     ) -> ArtifactLifecycleResult:
+        self._require_writable()
         scope = self._lifecycle_scope(context, required_scope="source")
         source_file_id = str(context.source_file_id or "").strip()
         source_predicate = (
@@ -1354,6 +1380,7 @@ class SqliteArtifactStoreAdapter:
         required_scope: str,
         extra_predicate: str | None = None,
     ) -> ArtifactLifecycleResult:
+        self._require_writable()
         scope = self._lifecycle_scope(context, required_scope=required_scope)
         claim_id = f"claim_{secrets.token_urlsafe(24)}"
         transition_at = utc_now_iso()
@@ -1810,19 +1837,41 @@ class SqliteArtifactStoreAdapter:
 
     @contextmanager
     def _connect(self, *, immediate: bool = False):
-        self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.sqlite_path, timeout=30.0)
+        if self.read_only:
+            if immediate:
+                self._require_writable()
+            try:
+                conn = sqlite3.connect(
+                    f"{self.sqlite_path.resolve().as_uri()}?mode=ro",
+                    uri=True,
+                    timeout=30.0,
+                )
+            except sqlite3.Error as exc:
+                raise ArtifactStoreError(
+                    "artifact_store_unavailable", "Read-only ArtifactStore database is unavailable"
+                ) from exc
+        else:
+            self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(self.sqlite_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
         try:
             if immediate:
                 conn.execute("BEGIN IMMEDIATE")
             yield conn
-            conn.commit()
+            if not self.read_only:
+                conn.commit()
         except Exception:
             conn.rollback()
             raise
         finally:
             conn.close()
+
+    def _require_writable(self) -> None:
+        if self.read_only:
+            raise ArtifactStoreError(
+                "artifact_store_read_only",
+                "Read-only ArtifactStore cannot mutate artifacts or canonical state",
+            )
 
     def _ensure_schema(self) -> None:
         self.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2173,7 +2222,7 @@ class SqliteArtifactStoreAdapter:
             return f"artifact-{hashlib.sha256(artifact_id.encode('utf-8')).hexdigest()}.json"
         return f"{artifact_id}.json"
 
-    def _preflight_payload_root(self) -> Path:
+    def _preflight_payload_root(self, *, read_only: bool = False) -> Path:
         try:
             root = self.payload_root.resolve(strict=True)
             if (
@@ -2184,13 +2233,14 @@ class SqliteArtifactStoreAdapter:
                 raise OSError("unsafe payload root")
             if os.name != "nt" and stat.S_IMODE(root.stat().st_mode) & 0o077:
                 raise OSError("payload root permissions are not private")
-            probe = root / f".artifact-store-probe-{secrets.token_urlsafe(12)}"
-            descriptor = os.open(probe, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-            with os.fdopen(descriptor, "wb") as stream:
-                stream.write(b"artifact-store-preflight")
-            if probe.read_bytes() != b"artifact-store-preflight":
-                raise OSError("payload root read failed")
-            probe.unlink()
+            if not read_only:
+                probe = root / f".artifact-store-probe-{secrets.token_urlsafe(12)}"
+                descriptor = os.open(probe, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(descriptor, "wb") as stream:
+                    stream.write(b"artifact-store-preflight")
+                if probe.read_bytes() != b"artifact-store-preflight":
+                    raise OSError("payload root read failed")
+                probe.unlink()
             return root
         except OSError as exc:
             try:
@@ -2200,7 +2250,7 @@ class SqliteArtifactStoreAdapter:
                 pass
             raise ArtifactStoreError(
                 "artifact_store_unavailable",
-                "Artifact payload root failed private read/write/delete preflight",
+                "Artifact payload root failed private preflight",
             ) from exc
 
     def _checked_payload_root(self) -> Path:
