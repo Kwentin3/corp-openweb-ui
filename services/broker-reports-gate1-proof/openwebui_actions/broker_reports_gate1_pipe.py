@@ -644,7 +644,11 @@ class Pipe:
             actor_user_id=self._authenticated_user_id(__user__),
         )
         input_context = self._safe_input_context(
-            safe_body, safe_metadata, files_arg, messages_arg
+            safe_body,
+            safe_metadata,
+            files_arg,
+            messages_arg,
+            model_context=kwargs.get("__model__"),
         )
         case_group_id = self._case_group_id(safe_body, safe_metadata)
         if case_group_id:
@@ -4859,6 +4863,8 @@ class Pipe:
         metadata: dict,
         files_arg: Any,
         messages_arg: Any,
+        *,
+        model_context: Any = None,
     ) -> dict[str, Any]:
         message_sources = [
             body.get("message"),
@@ -4882,10 +4888,36 @@ class Pipe:
                 and self._safe_len(message.get("files")) > 0
             ),
         }
-        source_policy = self._source_policy_context(body, metadata)
+        if (
+            self._workspace_model_id(metadata, model_context)
+            == NDFL_WORKSPACE_MODEL_STABLE_ID
+        ):
+            # Selecting the native NDFL Workspace Model is the user's explicit
+            # product intent.  This server-owned policy permits only a PDF/HTML
+            # document that the existing taxonomy owner independently recognizes
+            # as source evidence; client request metadata cannot broaden it.
+            source_policy = self._ndfl_workspace_source_policy()
+        else:
+            source_policy = self._source_policy_context(body, metadata)
         if source_policy:
             context["source_policy"] = source_policy
         return context
+
+    @staticmethod
+    def _workspace_model_id(metadata: dict[str, Any], model_context: Any) -> str:
+        if metadata.get("model_id"):
+            return str(metadata["model_id"])
+        if isinstance(model_context, dict):
+            return str(model_context.get("id") or model_context.get("model_id") or "")
+        return str(model_context or "")
+
+    @staticmethod
+    def _ndfl_workspace_source_policy() -> dict[str, Any]:
+        return {
+            "mode": "native_ndfl_workspace_model",
+            "explicit": True,
+            "accept_pdf_html_source_roles": True,
+        }
 
     def _safe_len(self, value: Any) -> int:
         return len(value) if isinstance(value, list) else 0
@@ -4996,10 +5028,9 @@ class Pipe:
         # excluded so a caller cannot select another lifecycle scope.
         chat_id = metadata.get("chat_id") or kwargs.get("__chat_id__")
         case_id = metadata.get("case_id")
-        model_context = kwargs.get("__model__")
-        if isinstance(model_context, dict):
-            model_context = model_context.get("id") or model_context.get("model_id")
-        workspace_model_id = metadata.get("model_id") or model_context
+        workspace_model_id = self._workspace_model_id(
+            metadata, kwargs.get("__model__")
+        )
         if (
             not case_id
             and chat_id

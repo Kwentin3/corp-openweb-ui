@@ -485,10 +485,19 @@ class Gate1Normalizer:
                 del full_source_result, table_projection_result, new_slices, content_bytes
                 checkpoint()
                 continue
+            # PDF Document AI is a representation-only boundary.  Its complete,
+            # source-bound Full Source units are therefore valid *input* to the
+            # existing taxonomy owner, while the original PDF remains the source
+            # of record.  Classifying only ``new_slices`` here loses all Document
+            # AI Markdown: the PDF profiler intentionally exposes metadata, not
+            # a second local text parser.
+            classification_slices = list(new_slices)
+            if full_source_result is not None:
+                classification_slices.extend(full_source_result.units)
             taxonomy_candidate = classify_document(
                 document=document,
                 profile=profile,
-                private_slices=new_slices,
+                private_slices=classification_slices,
                 blocker_codes=doc_blocker_codes,
                 source_policy_context=source_policy_context,
                 source_policy_hint=self._source_policy_hint_for_document(

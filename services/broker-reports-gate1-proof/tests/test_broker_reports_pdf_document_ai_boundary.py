@@ -9,6 +9,7 @@ import json
 import socket
 import sys
 import zipfile
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -113,6 +114,37 @@ class _OfflineFixtureExtractor:
 
 class _SecondOfflineFixtureExtractor(_OfflineFixtureExtractor):
     pass
+
+
+class _BrokerReportFixtureExtractor(_OfflineFixtureExtractor):
+    """A source-bound Document AI representation with no local PDF parser."""
+
+    def extract(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+    ) -> PdfDocumentExtraction:
+        base = super().extract(pdf_bytes, source_context)
+        page_markdown = (
+            b"# Broker Activity Statement\n\n"
+            b"## Transactions\n\n"
+            b"| Symbol | Quantity | Proceeds |\n|---|---:|---:|\n| SAFE | 1 | 10 |\n"
+        )
+        pages = tuple(page_markdown for _ in base.page_numbers)
+        markdown = b"\n\n".join(pages)
+        return replace(
+            base,
+            markdown_bytes=markdown,
+            markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+            page_markdown_bytes=pages,
+            page_markdown_sha256=tuple(
+                hashlib.sha256(page).hexdigest() for page in pages
+            ),
+            safe_technical_summary=(
+                ("markdown_bytes", len(markdown)),
+                ("pages_count", len(pages)),
+            ),
+        )
 
 
 class _OfflineImageFixtureExtractor(_OfflineFixtureExtractor):
@@ -635,6 +667,32 @@ def test_offline_adapters_with_same_envelope_have_identical_representation_hando
     assert payload["format_reason_codes"] == [
         "document_ai_content_not_semantically_parsed"
     ]
+
+
+def test_document_ai_pdf_representation_reaches_existing_taxonomy_owner() -> None:
+    """A successful OCR representation must not be hidden behind the PDF profile."""
+
+    result = Gate1Normalizer(
+        _pdf_document_extractor=_BrokerReportFixtureExtractor()
+    ).normalize(
+        [_input(PUBLIC_PDF.read_bytes())],
+        input_context={
+            "source_policy": {
+                "mode": "native_ndfl_workspace_model",
+                "explicit": True,
+                "accept_pdf_html_source_roles": True,
+            }
+        },
+    )
+
+    candidate = result.package["taxonomy_candidates"][0]
+    eligibility = result.package["document_source_eligibility"]["entries"][0]
+    assert candidate["document_class_candidate"] == "source_broker_report"
+    assert candidate["source_role_policy_status"] == "approved"
+    assert eligibility["source_eligibility"] == "accepted_for_gate2"
+    assert "unknown_role" not in {
+        item["code"] for item in result.package["normalization_blockers"]
+    }
 
 
 def _bounded_pdf_normalization(tmp_path: Path):
