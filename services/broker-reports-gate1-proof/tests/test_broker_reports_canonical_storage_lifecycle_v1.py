@@ -148,6 +148,7 @@ class BrokerReportsCanonicalStorageLifecycleV1Test(unittest.TestCase):
             )
             self.assertEqual(small.physical_layout, "single_payload")
             self.assertEqual(large.physical_layout, "chunked")
+
             self.assertGreater(large.component_count, 1)
             for artifact, document_id, context in (
                 (small_artifact, "document-small", self._context("run-small")),
@@ -173,6 +174,54 @@ class BrokerReportsCanonicalStorageLifecycleV1Test(unittest.TestCase):
                 )
                 self.assertEqual(container["container"]["container_id"], root)
                 self.assertEqual(table["node_type"], "TABLE")
+
+    def test_read_only_store_reads_same_scope_canonical_without_initialization_or_writes(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            writable = self._store(temp_dir)
+            context = self._context("readonly-run")
+            persisted = self._publish(
+                writable,
+                context=context,
+                source_ref="readonly-source",
+                amount="10",
+                chunked=False,
+                document_id="readonly-document",
+                capacity_check_enabled=False,
+            )
+            database = root / "artifacts.sqlite3"
+            database_before = database.read_bytes()
+            payload_paths_before = sorted(
+                path.relative_to(root).as_posix()
+                for path in (root / "payloads").rglob("*")
+            )
+
+            with patch(
+                "broker_reports_gate1.artifact_store.SqliteArtifactStoreAdapter._ensure_schema",
+                side_effect=AssertionError("read-only creation must not initialize schema"),
+            ):
+                readonly = ArtifactStoreFactory(
+                    ArtifactStoreConfig(
+                        mode="sqlite",
+                        sqlite_path=database,
+                        payload_root=root / "payloads",
+                    )
+                ).create_read_only()
+
+            artifact = CanonicalReaderFactory(
+                store=readonly, read_enabled=True
+            ).create().read(persisted.artifact_ref, context)
+            self.assertEqual(artifact["artifact_id"], persisted.canonical_version_id)
+            self.assertEqual(database.read_bytes(), database_before)
+            self.assertEqual(
+                sorted(path.relative_to(root).as_posix() for path in (root / "payloads").rglob("*")),
+                payload_paths_before,
+            )
+
+            existing = readonly.list_by_run(context.normalization_run_id)[0]
+            with self.assertRaises(ArtifactStoreError) as mutation:
+                readonly.put_record(existing)
+            self.assertEqual(mutation.exception.code, "artifact_store_read_only")
 
     def test_cross_tenant_and_guessed_version_ids_fail_closed(self):
         with tempfile.TemporaryDirectory() as temp_dir:
