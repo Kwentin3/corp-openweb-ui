@@ -817,6 +817,8 @@ def test_unsupported_financial_meaning_explains_that_no_partial_calculation_was_
 
     assert "не относятся к поддерживаемой обработке сделок с ценными бумагами" in visible
     assert "не стал считать только часть отчёта" in visible
+    assert "закрытых продаж: 0" not in visible
+    assert "расчёт не выполнялся выборочно" in visible
     assert "XML не создан" in visible
 
 

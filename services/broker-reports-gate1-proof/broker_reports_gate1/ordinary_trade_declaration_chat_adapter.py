@@ -900,7 +900,9 @@ def build_public_dialogue_context(
         note=note,
         declaration=declaration,
     )
-    provenance = _public_provenance(note=note, declaration=declaration)
+    provenance = _public_provenance(
+        product=product, note=note, declaration=declaration
+    )
     next_actions = _public_next_actions(
         status=status,
         question=question,
@@ -1596,23 +1598,29 @@ def _public_summary_lines(
             if isinstance(item, dict)
         )
     calculated = note.get("calculated_disposal_fact_ids")
-    if isinstance(calculated, list):
+    if isinstance(calculated, list) and not _calculation_total_withheld(product):
         lines.append(f"Рассчитанных закрытых продаж: {len(calculated)}.")
     return [line for line in lines if line]
 
 
 def _public_provenance(
-    *, note: dict[str, Any], declaration: Any
+    *, product: dict[str, Any], note: dict[str, Any], declaration: Any
 ) -> list[dict[str, str]]:
     calculated = note.get("calculated_disposal_fact_ids")
     calculated_total = len(calculated) if isinstance(calculated, list) else 0
+    source_text = (
+        "распознаны операции; расчёт не выполнялся выборочно, поэтому итог "
+        "закрытых продаж не показан"
+        if _calculation_total_withheld(product)
+        else (
+            f"распознаны операции; закрытых продаж рассчитано {calculated_total}; "
+            "неоднозначные строки не используются молча"
+        )
+    )
     result = [
         {
             "label": "Из отчёта",
-            "text": (
-                f"распознаны операции; закрытых продаж рассчитано {calculated_total}; "
-                "неоднозначные строки не используются молча"
-            ),
+            "text": source_text,
         },
         {
             "label": "Подтверждено вами",
@@ -1634,6 +1642,15 @@ def _public_provenance(
             "; итоговые суммы независимо сверены с подготовленным файлом"
         )
     return result
+
+
+def _calculation_total_withheld(product: dict[str, Any]) -> bool:
+    gate5 = product.get("gate5")
+    gate5 = gate5 if isinstance(gate5, dict) else {}
+    reasons = gate5.get("blocker_reason_codes")
+    reasons = {str(item) for item in reasons} if isinstance(reasons, list) else set()
+    reasons.add(str(product.get("terminal") or ""))
+    return "ordinary_trade_mapping_unsupported_financial_meaning" in reasons
 
 
 def _public_next_actions(
