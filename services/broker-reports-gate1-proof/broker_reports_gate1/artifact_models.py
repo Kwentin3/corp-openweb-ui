@@ -430,6 +430,10 @@ class ArtifactStorePort(Protocol):
         self, context: ArtifactAccessContext
     ) -> list[ArtifactRecord]: ...
 
+    def list_by_authenticated_scope_context(
+        self, context: ArtifactAccessContext
+    ) -> list[ArtifactRecord]: ...
+
     def read_payload(self, record: ArtifactRecord) -> Any: ...
 
     def expire_run(
