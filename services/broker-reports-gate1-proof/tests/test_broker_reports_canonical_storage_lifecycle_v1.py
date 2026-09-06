@@ -199,6 +199,9 @@ class BrokerReportsCanonicalStorageLifecycleV1Test(unittest.TestCase):
             with patch(
                 "broker_reports_gate1.artifact_store.SqliteArtifactStoreAdapter._ensure_schema",
                 side_effect=AssertionError("read-only creation must not initialize schema"),
+            ), patch(
+                "broker_reports_gate1.artifact_store.os.open",
+                side_effect=AssertionError("read-only creation must not write a payload probe"),
             ):
                 readonly = ArtifactStoreFactory(
                     ArtifactStoreConfig(
