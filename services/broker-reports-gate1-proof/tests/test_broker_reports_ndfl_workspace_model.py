@@ -72,6 +72,7 @@ def test_ndfl_workspace_model_is_a_facade_without_knowledge_or_tools() -> None:
     assert check["display_name_match"] is True
     assert check["managed_tags_match"] is True
     assert desired["base_model_id"] == NDFL_OPENWEBUI_BASE_PIPE_ID
+    assert desired["access_grants"] == [publisher.ORDINARY_USER_READ_GRANT]
     assert desired["meta"]["knowledge"] == []
     assert desired["meta"]["toolIds"] == []
     assert desired["meta"]["skillIds"] == []
@@ -158,6 +159,7 @@ def test_required_runtime_base_model_and_function_are_fail_closed() -> None:
         "id": NDFL_OPENWEBUI_BASE_PIPE_ID,
         "base_model_id": None,
         "is_active": True,
+        "access_grants": [publisher.ORDINARY_USER_READ_GRANT],
     }
     base_function = {
         "id": NDFL_OPENWEBUI_BASE_PIPE_ID,
@@ -181,6 +183,32 @@ def test_required_runtime_base_model_and_function_are_fail_closed() -> None:
         publisher.evaluate_required_base_function(global_function)["passed"]
         is False
     )
+
+
+def test_facade_acl_preserves_custom_grants_and_adds_ordinary_user_read() -> None:
+    previous = publisher.desired_ndfl_model(
+        previous=None,
+        legacy=_legacy_model(),
+    )
+    previous["access_grants"] = [
+        {
+            "principal_type": "group",
+            "principal_id": "accountants",
+            "permission": "read",
+        }
+    ]
+
+    desired = publisher.desired_ndfl_model(previous=previous, legacy=None)
+
+    assert desired["access_grants"] == [
+        {
+            "principal_type": "group",
+            "principal_id": "accountants",
+            "permission": "read",
+        },
+        publisher.ORDINARY_USER_READ_GRANT,
+    ]
+    assert publisher.evaluate_ndfl_model(desired)["routing_passed"] is True
 
 
 def test_existing_binding_meaning_is_preserved_during_topology_repair() -> None:
@@ -256,7 +284,7 @@ def test_publish_rolls_back_when_postcondition_fails(monkeypatch) -> None:
         "name": NDFL_OPENWEBUI_BASE_PIPE_ID,
         "meta": {},
         "params": {},
-        "access_grants": [],
+        "access_grants": [publisher.ORDINARY_USER_READ_GRANT],
         "is_active": True,
     }
     retired_models = {

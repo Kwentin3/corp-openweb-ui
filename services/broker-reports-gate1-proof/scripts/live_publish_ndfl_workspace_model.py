@@ -49,6 +49,11 @@ PRODUCT_ROUTE_IDS = (
     *TECHNICAL_PIPE_IDS,
 )
 HIDDEN_ROUTE_SCHEMA_VERSION = "broker_reports_hidden_technical_route_v1"
+ORDINARY_USER_READ_GRANT = {
+    "principal_type": "user",
+    "principal_id": "*",
+    "permission": "read",
+}
 
 FACTORY_REQUIRED = (
     "NDFL Workspace publication must bind the one user-facing facade to the "
@@ -154,6 +159,19 @@ def _grant_payload(record: dict[str, Any] | None) -> list[dict[str, Any]]:
     ]
 
 
+def _has_ordinary_user_read(grants: list[dict[str, Any]]) -> bool:
+    return ORDINARY_USER_READ_GRANT in grants
+
+
+def _with_ordinary_user_read(grants: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep existing ACL customisation while making the product usable by users."""
+
+    result = copy.deepcopy(grants)
+    if not _has_ordinary_user_read(result):
+        result.append(copy.deepcopy(ORDINARY_USER_READ_GRANT))
+    return result
+
+
 def _capabilities(record: dict[str, Any] | None) -> dict[str, Any]:
     meta = record.get("meta") if record else None
     value = meta.get("capabilities") if isinstance(meta, dict) else None
@@ -237,7 +255,9 @@ def desired_ndfl_model(
         "name": NDFL_WORKFLOW_DISPLAY_NAME,
         "meta": meta,
         "params": copy.deepcopy(previous.get("params") or {}) if previous else {},
-        "access_grants": _grant_payload(grants_source),
+        "access_grants": _with_ordinary_user_read(
+            _grant_payload(grants_source)
+        ),
         "is_active": True,
     }
 
@@ -331,6 +351,9 @@ def evaluate_required_base_model(record: dict[str, Any] | None) -> dict[str, boo
         ),
         "not_a_facade": bool(record and record.get("base_model_id") is None),
         "active": bool(record and record.get("is_active") is True),
+        "ordinary_user_read": bool(
+            record and _has_ordinary_user_read(_grant_payload(record))
+        ),
     }
     return {**checks, "passed": all(checks.values())}
 
@@ -470,6 +493,9 @@ def evaluate_ndfl_model(record: dict[str, Any] | None) -> dict[str, Any]:
         ),
         "function_id_match": FUNCTION_ID == NDFL_OPENWEBUI_BASE_PIPE_ID,
         "active": bool(record and record.get("is_active") is True),
+        "ordinary_user_read": bool(
+            record and _has_ordinary_user_read(_grant_payload(record))
+        ),
         "stable_binding_topology_exact": bool(
             isinstance(binding, dict)
             and binding.get("workspace_model_id")
