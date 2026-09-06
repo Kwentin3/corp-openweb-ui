@@ -141,6 +141,12 @@ _REASON_POLICIES: dict[tuple[str, str], _ReasonPolicy] = {
         "Не удалось разобрать структуру файла. Повторите попытку или передайте файл на проверку.",
         frozenset({"parsing", "document_profiling", "table_detection"}),
     ),
+    ("failed", "PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED"): _ReasonPolicy(
+        False,
+        "reduce_document_scope",
+        "Документ превышает безопасный лимит обработки. Загрузите нужные страницы отдельным PDF или передайте документ на проверку.",
+        frozenset({"document_profiling"}),
+    ),
     ("failed", "PDF_DOCUMENT_AI_NOT_CONFIGURED"): _ReasonPolicy(
         False,
         "contact_operator",
