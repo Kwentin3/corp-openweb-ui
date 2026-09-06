@@ -232,6 +232,17 @@ class OrdinaryTradeSemanticCompiler:
                 _fail("ordinary_trade_table_resolution_mapping_missing")
             mapping_matches[mapping["mapping_id"]] += 1
             numeric_convention = _table_numeric_convention(rows=rows, mapping=mapping)
+            # A current mapping case explicitly scopes every provider-selected
+            # row.  A selected row that still lacks the closed record contract
+            # is retained with that fact; it never becomes a partial runtime
+            # record or a guessed retry.  Legacy mappings keep their original
+            # fail-closed treatment.
+            incomplete_row_disposition = (
+                "SOURCE_RETAINED_NO_CONSUMER"
+                if resolution is not None
+                and resolution["security_trade_rows"] is not None
+                else "RELEVANT_UNMAPPED"
+            )
             for row_number in sorted(row for row in rows if row > header_row):
                 cells = rows[row_number]
                 if not any(_literal(cell) for cell in cells.values()):
@@ -258,6 +269,7 @@ class OrdinaryTradeSemanticCompiler:
                     cells=cells,
                     mapping=mapping,
                     numeric_convention=numeric_convention,
+                    incomplete_row_disposition=incomplete_row_disposition,
                 )
                 observations.append(observation)
                 if observation["disposition"] == "RUNTIME_READY":
@@ -841,6 +853,7 @@ def _mapped_observation(
     cells: dict[int, dict[str, Any]],
     mapping: dict[str, Any],
     numeric_convention: str | None,
+    incomplete_row_disposition: str = "RELEVANT_UNMAPPED",
 ) -> dict[str, Any]:
     fields = [
         _field(
@@ -898,7 +911,7 @@ def _mapped_observation(
         table=table,
         row=row,
         fields=fields,
-        disposition="RUNTIME_READY" if ready else "RELEVANT_UNMAPPED",
+        disposition="RUNTIME_READY" if ready else incomplete_row_disposition,
         reason=None if ready else "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE",
         mapping_id=mapping["mapping_id"],
         numeric_convention=numeric_convention,

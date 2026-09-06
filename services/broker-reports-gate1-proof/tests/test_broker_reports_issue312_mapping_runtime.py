@@ -32,6 +32,7 @@ from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
 )
 from broker_reports_gate1.ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerFactory,
     OrdinaryTradeSemanticCompilerError,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
@@ -666,7 +667,7 @@ async def _rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> N
     assert current["table_resolutions"] == []
 
 
-async def _complete_mapping_requires_clean_deterministic_dry_run(tmp_path) -> None:
+async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:
     purchase = case_fixtures.candidate._ROWS[1]
     disposal = list(case_fixtures.candidate._ROWS[2])
     mapping_template = case_fixtures.candidate._QUALIFIED_MAPPING
@@ -695,16 +696,42 @@ async def _complete_mapping_requires_clean_deterministic_dry_run(tmp_path) -> No
 
     result = await runtime.resolve(document_id=document_id, context=context)
 
-    assert result["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["status"] == "COMPLETE"
     current = (
         OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True)
         .create()
         .current(document_id=document_id, context=context)[1]
     )
-    assert current["reason_code"] == (
-        "ordinary_trade_semantic_mapping_dry_run_incomplete"
+    assert current["reason_code"] is None
+    assert len(current["qualified_mappings"]) == 1
+    binding = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().case_binding(
+        document_id=document_id,
+        context=context,
     )
-    assert current["qualified_mappings"] == []
+    projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+        canonical=envelope.artifact,
+        canonical_binding=binding["canonical_binding"],
+        mappings=[],
+        scoped_mappings=[
+            {
+                "table_node_id": receipt["case_scope"]["table_node_id"],
+                "mapping": qualified,
+            }
+            for qualified, receipt in zip(
+                current["qualified_mappings"],
+                current["qualification_receipts"],
+                strict=True,
+            )
+        ],
+        table_resolutions=current["table_resolutions"],
+    )
+    retained = [
+        item
+        for item in projection["source_observations"]
+        if item["reason_code"] == "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE"
+    ]
+    assert len(retained) == 1
+    assert retained[0]["disposition"] == "SOURCE_RETAINED_NO_CONSUMER"
 
 
 async def _provider_failure_and_invalid_output_are_distinct_terminals(
@@ -1463,8 +1490,8 @@ def test_rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> Non
     asyncio.run(_rare_side_literal_below_sample_cannot_complete_mapping(tmp_path))
 
 
-def test_complete_mapping_requires_clean_deterministic_dry_run(tmp_path) -> None:
-    asyncio.run(_complete_mapping_requires_clean_deterministic_dry_run(tmp_path))
+def test_complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:
+    asyncio.run(_complete_mapping_retains_incomplete_scoped_rows(tmp_path))
 
 
 def test_provider_failure_and_invalid_output_are_distinct_terminals(tmp_path) -> None:
