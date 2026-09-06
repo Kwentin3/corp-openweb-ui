@@ -286,44 +286,20 @@ def test_exclusion_decisions_remain_complete_and_auditable(tmp_path) -> None:
             "user_scope_sha256"
         ],
     )
-    assert outcome["status"] == "CLARIFICATION_REQUIRED"
-    question = outcome["question"]
-    assert question["options"][0]["effect"] == "APPLY_DECISIONS"
-    assert len(question["options"][0]["decisions"]) == 2
-    record, _payload = cases.save_mapping_outcome(
+    assert outcome["status"] == "COMPLETE"
+    assert outcome["question"] is None
+    record, payload = cases.save_mapping_outcome(
         document_id=document_id,
         context=context,
         outcome=outcome,
         provider_calls_total=1,
     )
-    candidate_record, candidate_payload = cases.save_answer_candidate(
-        document_id=document_id,
-        context=context,
-        interpretation={
-            "schema_version": ANSWER_RESPONSE_SCHEMA_VERSION,
-            "status": "CANDIDATE",
-            "option_id": "o_confirm_exclusion_batch",
-            "message": "Confirm the group.",
-            "evidence_quote": "Confirm",
-        },
-        provider_calls_total=1,
-    )
-    assert candidate_record.artifact_id != record.artifact_id
-    _record, confirmed = cases.confirm_pending_answer(
-        document_id=document_id,
-        context=context,
-        expected_artifact_id=candidate_record.artifact_id,
-        accepted=True,
-    )
-    assert confirmed["status"] == "MAPPING_REQUIRED"
-    decisions = confirmed["confirmed_understandings"]
-    assert len(decisions) == 2
-    assert {item["decision"]["table_node_id"] for item in decisions} == set(
-        question["table_node_ids"]
-    )
-    assert all(
-        item["decision"]["disposition"] == "NO_NAMED_CONSUMER" for item in decisions
-    )
+    assert record.artifact_id
+    assert payload["confirmed_understandings"] == []
+    assert [item["disposition"] for item in payload["table_resolutions"]] == [
+        "NO_NAMED_CONSUMER",
+        "NO_NAMED_CONSUMER",
+    ]
 
 
 def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:

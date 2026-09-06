@@ -471,7 +471,7 @@ def test_prompt_injection_cell_cannot_author_mapping_or_source_literal(tmp_path)
     assert exc.value.code == "ordinary_trade_semantic_mapping_side_invalid"
 
 
-def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
+def test_mixed_tables_publish_complete_internal_table_classification(
     tmp_path,
 ) -> None:
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
@@ -484,13 +484,9 @@ def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
             "table_ref": "table_2",
             "header_row": 1,
             "disposition": "NO_NAMED_CONSUMER",
-            "columns": copy.deepcopy(response["table_decisions"][0]["columns"]),
-            "amount_currency_bindings": copy.deepcopy(
-                response["table_decisions"][0]["amount_currency_bindings"]
-            ),
-            "side_values": copy.deepcopy(
-                response["table_decisions"][0]["side_values"]
-            ),
+            "columns": [],
+            "amount_currency_bindings": [],
+            "side_values": [],
         }
     )
 
@@ -505,42 +501,16 @@ def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
         user_scope_sha256="a" * 64,
     )
 
-    assert result["status"] == "CLARIFICATION_REQUIRED"
-    assert result["question"]["question_id"] == "q_exclusion_batch"
-    assert result["question"]["options"][0]["effect"] == "APPLY_DECISIONS"
-    assert len(result["question"]["options"][0]["decisions"]) == 1
-    assert "qualified_mappings" not in result
-    assert "table_resolutions" not in result
-
-    confirmed = [
-        {
-            "question_id": "q_exclusion_batch",
-            "option_id": "o_confirm_exclusion_batch",
-            "label_sha256": "a" * 64,
-            "label": "confirmed exclusion",
-            "decision": result["question"]["options"][0]["decisions"][0],
-            "decision_sha256": "b" * 64,
-        }
-    ]
-    resumed = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
-        response={**response, "table_decisions": response["table_decisions"][:1]},
-        canonical=canonical,
-        canonical_binding=binding,
-        model_id="models/gemini-3.5-flash",
-        provider_profile_id="google_gemini",
-        execution_metadata=_metadata(),
-        confirmed_understandings=confirmed,
-        user_scope_sha256="a" * 64,
-        target_table_node_ids=[table["node_id"]],
-    )
-    assert resumed["status"] == "COMPLETE"
-    assert [item["disposition"] for item in resumed["table_resolutions"]] == [
+    assert result["status"] == "COMPLETE"
+    assert result["question"] is None
+    assert len(result["qualified_mappings"]) == 1
+    assert [item["disposition"] for item in result["table_resolutions"]] == [
         "SECURITY_TRADES",
         "NO_NAMED_CONSUMER",
     ]
 
 
-def test_exclusion_batch_keeps_all_decisions_but_bounds_public_examples(tmp_path) -> None:
+def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> None:
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
     response = _complete_response(table, known)
     for index in range(2, 7):
@@ -576,11 +546,17 @@ def test_exclusion_batch_keeps_all_decisions_but_bounds_public_examples(tmp_path
         user_scope_sha256="a" * 64,
     )
 
-    question = result["question"]
-    assert result["status"] == "CLARIFICATION_REQUIRED"
-    assert len(question["table_node_ids"]) == 5
-    assert len(question["options"][0]["decisions"]) == 5
-    assert len(question["options"][0]["source_literals"]) == 4
+    assert result["status"] == "COMPLETE"
+    assert result["question"] is None
+    assert len(result["qualified_mappings"]) == 1
+    assert [item["disposition"] for item in result["table_resolutions"]] == [
+        "SECURITY_TRADES",
+        "NO_NAMED_CONSUMER",
+        "NO_NAMED_CONSUMER",
+        "NO_NAMED_CONSUMER",
+        "NO_NAMED_CONSUMER",
+        "NO_NAMED_CONSUMER",
+    ]
 
 
 def test_runtime_derives_terminal_status_from_validated_table_decisions(tmp_path) -> None:
@@ -609,6 +585,9 @@ def test_unsupported_decision_never_carries_partial_mapping_material(tmp_path) -
     response["table_decisions"][0]["disposition"] = (
         "UNSUPPORTED_FINANCIAL_MEANING"
     )
+    response["table_decisions"][0]["columns"] = []
+    response["table_decisions"][0]["amount_currency_bindings"] = []
+    response["table_decisions"][0]["side_values"] = []
 
     result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
         response=response,
@@ -625,6 +604,69 @@ def test_unsupported_decision_never_carries_partial_mapping_material(tmp_path) -
     assert result["qualified_mappings"] == []
     assert result["qualification_receipts"] == []
     assert result["table_resolutions"] == []
+
+
+def test_currency_question_never_hides_unsupported_financial_meaning(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    second = copy.deepcopy(table)
+    second["node_id"] = f"{table['node_id']}_unsupported"
+    canonical["nodes"].append(second)
+    response = _complete_response(table, known)
+    response["status"] = "CURRENCY_ASSERTION_REQUIRED"
+    response["table_decisions"][0]["amount_currency_bindings"] = []
+    response["table_decisions"][0]["columns"] = [
+        {
+            **item,
+            "semantic_role": "unmapped"
+            if item["semantic_role"] == "currency"
+            else item["semantic_role"],
+        }
+        for item in response["table_decisions"][0]["columns"]
+    ]
+    response["table_decisions"].append(
+        {
+            "table_ref": "table_2",
+            "header_row": 1,
+            "disposition": "UNSUPPORTED_FINANCIAL_MEANING",
+            "columns": [],
+            "amount_currency_bindings": [],
+            "side_values": [],
+        }
+    )
+
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+
+    assert result["status"] == "UNSUPPORTED"
+    assert result["question"] is None
+
+
+def test_non_trade_disposition_rejects_mapping_material(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    response = _complete_response(table, known)
+    response["table_decisions"][0]["disposition"] = "NO_NAMED_CONSUMER"
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+            response=response,
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256="a" * 64,
+        )
+
+    assert exc.value.code == "ordinary_trade_semantic_mapping_non_trade_material_invalid"
 
 
 def test_runtime_unconditionally_owns_provider_question_identifiers(tmp_path) -> None:
