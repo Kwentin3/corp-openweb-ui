@@ -853,7 +853,11 @@ def _build_no_named_consumer_batch_question(
             item for item in table["rows"] if item["row"] == resolved["header_row"]
         )["cells"]
         literal = " | ".join(str(item["literal"]).strip() for item in headers)
-        if literal and literal not in source_literals:
+        if (
+            literal
+            and literal not in source_literals
+            and len(source_literals) < 4
+        ):
             source_literals.append(literal[:500])
     total = len(confirmation_decisions)
     question = {
