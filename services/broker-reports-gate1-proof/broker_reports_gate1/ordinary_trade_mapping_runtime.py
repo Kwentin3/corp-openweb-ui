@@ -160,6 +160,13 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     currency_code=currency_code,
                     table_node_ids=table_node_ids,
                 )
+            else:
+                saved_assertion = self._cases.resume_existing_currency_assertion(
+                    document_id=document_id,
+                    context=context,
+                    currency_code=currency_code,
+                    table_node_ids=table_node_ids,
+                )
             if "target_table_node_ids" not in plan:
                 # Older private cases did not retain the positional table-ref
                 # scope.  Their saved response must not be replayed against a
