@@ -1,6 +1,6 @@
-"""Gate 2 Canonical construction and validation authority.
+"""Gate 2 non-financial CanonicalArtifactV1 construction authority.
 
-The source layout remains neutral.  A later immutable final version may carry
+The source layout remains neutral. A later immutable final version may carry
 explicit, user-confirmed assertions; it never turns them into document facts or
 tax semantics.
 """
@@ -1898,7 +1898,7 @@ def _root_hash_material(
     user_assertions: list[dict[str, Any]] | None = None,
     finalization: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return {
+    material = {
         "schema_version": CANONICAL_ARTIFACT_SCHEMA_VERSION,
         "normalizer_version": normalizer_version,
         "source_format": source_format,
@@ -1913,9 +1913,14 @@ def _root_hash_material(
             for item in provenance
         ],
         "issues": issues,
-        "user_assertions": user_assertions or [],
-        "finalization": finalization,
     }
+    # Preserve the established v1 hash for source-only Canonical versions.
+    # Finalization changes the identity only when an actual user assertion is
+    # present; empty extension fields must not invalidate XLSX streaming roots.
+    if user_assertions:
+        material["user_assertions"] = user_assertions
+        material["finalization"] = finalization
+    return material
 
 
 def _validate_user_assertions(
