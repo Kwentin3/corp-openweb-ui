@@ -185,7 +185,10 @@ class OrdinaryTradeSemanticMapping:
         confirmed_decisions = []
         for item in confirmed_understandings:
             decision = copy.deepcopy(item["decision"])
-            decision["table_ref"] = refs_by_node_id[decision.pop("table_node_id")]
+            table_node_id = decision.pop("table_node_id")
+            if table_node_id not in refs_by_node_id:
+                continue
+            decision["table_ref"] = refs_by_node_id[table_node_id]
             confirmed_decisions.append(decision)
         package = {
             "phase": "map",
@@ -260,11 +263,13 @@ class OrdinaryTradeSemanticMapping:
             or not value["message"].strip()
         ):
             _fail("ordinary_trade_semantic_mapping_response_invalid")
+        all_table_surfaces = _table_surfaces(canonical)
         table_surfaces = _selected_table_surfaces(
             canonical=canonical,
             target_table_node_ids=target_table_node_ids,
         )
         tables = {item["table_node_id"]: item for item in table_surfaces}
+        all_tables = {item["table_node_id"]: item for item in all_table_surfaces}
         _model_tables, refs_by_node_id = _model_table_surfaces(
             canonical,
             target_table_node_ids=target_table_node_ids,
@@ -351,6 +356,10 @@ class OrdinaryTradeSemanticMapping:
             confirmed_understandings=confirmed_understandings,
             resolved_decisions=resolved_decisions,
         )
+        confirmed_exclusion_resolutions = _confirmed_exclusion_resolutions(
+            confirmed_understandings=confirmed_understandings,
+            tables=all_tables,
+        )
         unconfirmed_exclusions = [
             item
             for item in resolved_decisions
@@ -393,6 +402,19 @@ class OrdinaryTradeSemanticMapping:
                     "execution_metadata_sha256"
                 ],
             }
+        resolutions_by_node_id = {
+            item["table_node_id"]: {
+                key: copy.deepcopy(item[key])
+                for key in (
+                    "table_node_id",
+                    "header_row",
+                    "structural_fingerprint",
+                    "evidence_surface",
+                    "disposition",
+                )
+            }
+            for item in confirmed_exclusion_resolutions
+        }
         for resolved in resolved_decisions:
             if resolved["disposition"] == "SECURITY_TRADES":
                 case_scope = {
@@ -422,18 +444,21 @@ class OrdinaryTradeSemanticMapping:
                 )
                 qualified_mappings.append(mapping)
                 qualification_receipts.append(receipt)
-            table_resolutions.append(
-                {
-                    key: copy.deepcopy(resolved[key])
-                    for key in (
-                        "table_node_id",
-                        "header_row",
-                        "structural_fingerprint",
-                        "evidence_surface",
-                        "disposition",
-                    )
-                }
-            )
+            resolutions_by_node_id[resolved["table_node_id"]] = {
+                key: copy.deepcopy(resolved[key])
+                for key in (
+                    "table_node_id",
+                    "header_row",
+                    "structural_fingerprint",
+                    "evidence_surface",
+                    "disposition",
+                )
+            }
+        table_resolutions = [
+            resolutions_by_node_id[table["table_node_id"]]
+            for table in all_table_surfaces
+            if table["table_node_id"] in resolutions_by_node_id
+        ]
         dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
             canonical=canonical,
             canonical_binding=canonical_binding,
@@ -1058,10 +1083,55 @@ def _validate_confirmed_decisions(
     for understanding in confirmed_understandings:
         decision = understanding.get("decision")
         resolved = by_table.get((decision or {}).get("table_node_id"))
+        if (
+            isinstance(decision, dict)
+            and decision.get("decision_kind") == "TABLE_DISPOSITION"
+            and decision.get("disposition") == "NO_NAMED_CONSUMER"
+            and resolved is None
+        ):
+            continue
         if resolved is None or not _resolved_decision_satisfies(
             resolved=resolved, decision=decision
         ):
             _fail("ordinary_trade_semantic_mapping_confirmed_decision_conflict")
+
+
+def _confirmed_exclusion_resolutions(
+    *,
+    confirmed_understandings: list[dict[str, Any]],
+    tables: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Reuse confirmed no-consumer decisions without sending them to the model again."""
+
+    results = []
+    for understanding in confirmed_understandings:
+        decision = understanding.get("decision")
+        if not (
+            isinstance(decision, dict)
+            and decision.get("decision_kind") == "TABLE_DISPOSITION"
+            and decision.get("disposition") == "NO_NAMED_CONSUMER"
+        ):
+            continue
+        table_node_id = str(decision.get("table_node_id") or "")
+        table = tables.get(table_node_id)
+        if table is None:
+            _fail("ordinary_trade_semantic_mapping_confirmed_decision_conflict")
+        results.append(
+            _validate_table_decision(
+                decision={
+                    "table_node_id": table_node_id,
+                    "header_row": decision.get("header_row"),
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "columns": [],
+                    "amount_currency_bindings": [],
+                    "side_values": [],
+                },
+                table=table,
+            )
+        )
+    if len({item["table_node_id"] for item in results}) != len(results):
+        _fail("ordinary_trade_semantic_mapping_confirmed_decision_conflict")
+    return results
 
 
 def _resolved_decision_satisfies(

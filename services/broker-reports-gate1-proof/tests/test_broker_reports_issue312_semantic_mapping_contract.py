@@ -443,6 +443,33 @@ def test_mixed_tables_cannot_publish_partial_mapping_via_unconfirmed_exclusion(
     assert "qualified_mappings" not in result
     assert "table_resolutions" not in result
 
+    confirmed = [
+        {
+            "question_id": "q_exclusion_batch",
+            "option_id": "o_confirm_exclusion_batch",
+            "label_sha256": "a" * 64,
+            "label": "confirmed exclusion",
+            "decision": result["question"]["options"][0]["decisions"][0],
+            "decision_sha256": "b" * 64,
+        }
+    ]
+    resumed = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response={**response, "table_decisions": response["table_decisions"][:1]},
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=confirmed,
+        user_scope_sha256="a" * 64,
+        target_table_node_ids=[table["node_id"]],
+    )
+    assert resumed["status"] == "COMPLETE"
+    assert [item["disposition"] for item in resumed["table_resolutions"]] == [
+        "SECURITY_TRADES",
+        "NO_NAMED_CONSUMER",
+    ]
+
 
 def test_runtime_derives_terminal_status_from_validated_table_decisions(tmp_path) -> None:
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
