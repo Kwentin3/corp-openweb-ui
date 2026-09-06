@@ -204,7 +204,7 @@ async def _user_currency_assertion_resumes_same_case_without_provider_retry(tmp_
     completed = await runtime.resolve(
         document_id=document_id,
         context=context,
-        user_message="Валюта: USD",
+        user_message="currency: USD",
     )
 
     assert pending["status"] == "CURRENCY_ASSERTION_REQUIRED"
@@ -216,6 +216,64 @@ async def _user_currency_assertion_resumes_same_case_without_provider_retry(tmp_
         document_id=document_id, context=context
     )[1]
     assert current["confirmed_understandings"][-1]["decision"]["currency_code"] == "USD"
+
+
+async def _repeated_currency_assertion_resumes_legacy_mapping_case(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
+    legacy_plan = {
+        "response": {"table_decisions": []},
+        "execution_metadata": {},
+        "table_node_ids": [table["node_id"]],
+    }
+    cases.save_mapping_outcome(
+        document_id=document_id,
+        context=context,
+        outcome={
+            "status": "CURRENCY_ASSERTION_REQUIRED",
+            "message": "Currency required.",
+            "question": None,
+            "currency_mapping_plan": copy.deepcopy(legacy_plan),
+        },
+        provider_calls_total=1,
+    )
+    cases.record_user_currency_assertion(
+        document_id=document_id,
+        context=context,
+        currency_code="USD",
+        table_node_ids=[table["node_id"]],
+    )
+    # This is the persisted shape from before positional target scope existed.
+    cases.save_mapping_outcome(
+        document_id=document_id,
+        context=context,
+        outcome={
+            "status": "CURRENCY_ASSERTION_REQUIRED",
+            "message": "Currency requested again by the legacy mapping turn.",
+            "question": None,
+            "currency_mapping_plan": legacy_plan,
+        },
+        provider_calls_total=1,
+    )
+    rebuilt_response = case_fixtures._complete(table, mapping)
+    rebuilt_response["table_decisions"][0]["amount_currency_bindings"] = []
+    rebuilt_response["table_decisions"][0]["columns"][5]["semantic_role"] = "unmapped"
+    client = BoundaryModelClient([rebuilt_response])
+
+    completed = await _runtime(store, client).resolve(
+        document_id=document_id,
+        context=context,
+        user_message="currency: USD",
+    )
+
+    assert completed["status"] == "COMPLETE"
+    assert completed["provider_calls_this_turn"] == 1
+    assert len(client.calls) == 1
+    current = cases.current(document_id=document_id, context=context)[1]
+    assert current["status"] == "COMPLETE"
+    assert len(current["confirmed_understandings"]) == 1
 
 
 async def _user_currency_then_exclusion_confirmation_completes(tmp_path) -> None:
@@ -1357,6 +1415,10 @@ def test_interactive_mapping_response_is_terminal_without_second_call(tmp_path) 
 
 def test_user_currency_assertion_resumes_same_case_without_provider_retry(tmp_path) -> None:
     asyncio.run(_user_currency_assertion_resumes_same_case_without_provider_retry(tmp_path))
+
+
+def test_repeated_currency_assertion_resumes_legacy_mapping_case(tmp_path) -> None:
+    asyncio.run(_repeated_currency_assertion_resumes_legacy_mapping_case(tmp_path))
 
 
 def test_user_currency_then_exclusion_confirmation_completes(tmp_path) -> None:

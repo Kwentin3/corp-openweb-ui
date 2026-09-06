@@ -314,6 +314,63 @@ class OrdinaryTradeMappingCaseRuntime:
         )
         return self._put(payload=payload, document_id=document_id, context=context)
 
+    def resume_existing_currency_assertion(
+        self,
+        *,
+        document_id: str,
+        context: ArtifactAccessContext,
+        currency_code: str,
+        table_node_ids: list[str],
+    ) -> tuple[ArtifactRecord, dict[str, Any]]:
+        """Advance a repeated, already case-bound currency answer once."""
+
+        if (
+            not isinstance(currency_code, str)
+            or len(currency_code) != 3
+            or currency_code != currency_code.upper()
+            or not currency_code.isalpha()
+            or not isinstance(table_node_ids, list)
+            or not table_node_ids
+            or table_node_ids != sorted(set(table_node_ids))
+            or any(not isinstance(item, str) or not item for item in table_node_ids)
+        ):
+            _fail("ordinary_trade_user_currency_assertion_invalid")
+        current = self.current(document_id=document_id, context=context)
+        if (
+            current is None
+            or current[1]["status"] != "CURRENCY_ASSERTION_REQUIRED"
+            or not isinstance(current[1].get("pending_candidate"), dict)
+            or not _has_confirmed_currency_assertion(
+                confirmed_understandings=current[1]["confirmed_understandings"],
+                currency_code=currency_code,
+                table_node_ids=table_node_ids,
+            )
+        ):
+            _fail("ordinary_trade_mapping_case_transition_invalid")
+        payload = self._next_payload(
+            document_id=document_id,
+            context=context,
+            prior=current[1],
+            status="MAPPING_REQUIRED",
+            message=(
+                "Previously supplied user currency is retained separately from the "
+                "source document."
+            ),
+            question=None,
+            pending_candidate=copy.deepcopy(current[1]["pending_candidate"]),
+            confirmed_understandings=copy.deepcopy(
+                current[1]["confirmed_understandings"]
+            ),
+            qualified_mappings=[],
+            qualification_receipts=[],
+            table_resolutions=[],
+            provider_calls_total=int(current[1]["provider_calls_total"]),
+            model_response_sha256=None,
+            execution_metadata_sha256=None,
+            reason_code=None,
+        )
+        return self._put(payload=payload, document_id=document_id, context=context)
+
     def _save_terminal(
         self,
         *,
@@ -951,6 +1008,22 @@ def _valid_user_currency_decision(
         and all(isinstance(item, str) and item for item in decision["table_node_ids"])
         and decision.get("assertion_id")
         == "usrassert_" + _sha256_json(material)[:32]
+    )
+
+
+def _has_confirmed_currency_assertion(
+    *,
+    confirmed_understandings: list[dict[str, Any]],
+    currency_code: str,
+    table_node_ids: list[str],
+) -> bool:
+    return any(
+        isinstance(item, dict)
+        and isinstance((decision := item.get("decision")), dict)
+        and decision.get("decision_kind") == "USER_PROVIDED_CURRENCY"
+        and decision.get("currency_code") == currency_code
+        and set(table_node_ids).issubset(set(decision.get("table_node_ids") or []))
+        for item in confirmed_understandings
     )
 
 
