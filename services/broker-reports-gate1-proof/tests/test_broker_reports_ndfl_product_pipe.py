@@ -1478,7 +1478,7 @@ def test_mapping_candidate_confirmation_stays_in_the_ordinary_chat(
         async def run_with_automatic_mapping(self, **kwargs):
             self.calls.append(kwargs)
             return copy.deepcopy(
-                followup if kwargs.get("confirmation") is True else initial
+                followup if kwargs.get("user_message") == "Да" else initial
             )
 
         @staticmethod
@@ -1516,6 +1516,23 @@ def test_mapping_candidate_confirmation_stays_in_the_ordinary_chat(
     assert result == initial
     assert "declaration_chat_receipt" not in result
     assert len(runtime.calls) == 1
+
+    confirmed = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            store=object(),
+            context=_context(NDFL_WORKSPACE_MODEL_STABLE_ID),
+            artifact_manifest=SimpleNamespace(artifact_refs_by_type={}),
+            user={"id": "user-a"},
+            request=object(),
+            event_emitter=None,
+            trusted_interaction_message="Да",
+            event_call=confirm,
+        )
+    )
+
+    assert confirmed == followup
+    assert "declaration_chat_receipt" not in confirmed
+    assert len(runtime.calls) == 2
 
 
 def test_case_note_explains_that_operation_years_are_not_determined() -> None:

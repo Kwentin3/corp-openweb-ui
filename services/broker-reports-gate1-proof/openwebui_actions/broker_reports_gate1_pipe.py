@@ -1647,6 +1647,18 @@ class Pipe:
             current_actions = (
                 current_actions if isinstance(current_actions, list) else []
             )
+            # Mapping clarification is already consumed by the mapping-case
+            # owner in ``run_with_automatic_mapping`` above.  It is a
+            # source-bound choice, not a declaration USER_FACT request: a
+            # second presentation adapter must neither reinterpret it nor
+            # open an Open WebUI event popup after the owner has advanced the
+            # case.  The next owner state is rendered as the next normal chat
+            # turn instead.
+            if current_actions and current_actions[0].get(
+                "kind"
+            ) == "MAPPING_CLARIFICATION":
+                self._finalize_workload_publication()
+                return result
             change = declaration_change_intent(trusted_interaction_message)
             adapted = None
             dialogue = None
