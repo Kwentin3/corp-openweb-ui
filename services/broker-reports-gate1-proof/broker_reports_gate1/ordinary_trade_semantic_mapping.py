@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v11"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v12"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -81,7 +81,9 @@ _MAX_TABLES = 64
 _MAX_ROWS_PER_TABLE = 256
 _MAX_CELLS_TOTAL = 12_000
 _MAX_CONTEXT_BYTES = 524_288
-_MAX_MODEL_ROWS_PER_TABLE = 24
+# Row scope is part of the provider's signed mapping decision.  Supplying a
+# sample here would force it to classify source rows it cannot see.
+_MAX_MODEL_ROWS_PER_TABLE = _MAX_ROWS_PER_TABLE
 _MAX_DISTINCT_VALUES_PER_COLUMN = 64
 _MAX_EXCLUSION_CONFIRMATION_TABLES = 12
 _DECISION_KINDS = {
@@ -157,8 +159,10 @@ class OrdinaryTradeSemanticMapping:
             "gross_amount, broker_commission or exchange_commission; each entry must "
             "point to the column mapped as currency. Do not add bindings for unit_price, "
             "accrued_interest or any other role. "
-            "Rows may be sampled; column_distinct_values is derived from the full "
-            "Canonical and must be used to cover every exact side literal. "
+            "The supplied rows include every extracted row in each table; inspect "
+            "each row before assigning its row disposition. "
+            "column_distinct_values is derived from the full Canonical and must be "
+            "used to cover every exact side literal. "
             "NO_NAMED_CONSUMER is for content with no current ordinary-trade Fact v2 "
             "consumer, including balances, holdings, reference/master data, collateral, "
             "cash summaries and other non-transaction tables. Cash movements, dividends, "
