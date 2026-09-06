@@ -136,6 +136,10 @@ class OrdinaryTradeSemanticMapping:
             "one machine-applicable decision. "
             "Confirmed decisions are authoritative only for this case and the final "
             "mapping must satisfy them exactly. "
+            "The top-level result must contain exactly schema_version "
+            f"{MAPPING_RESPONSE_SCHEMA_VERSION!r}, status, table_decisions, "
+            "clarification and a non-empty message. For COMPLETE, UNSUPPORTED "
+            "or SPECIALIST_REVIEW_REQUIRED, clarification must be null. "
             "Return only strict JSON."
         )
         return _managed_prompt(

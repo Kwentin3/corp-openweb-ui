@@ -165,6 +165,14 @@ def test_mapping_prompt_owns_group_confirmation_after_table_classification() -> 
     assert "only for a transaction table" in prompt
 
 
+def test_mapping_prompt_states_the_exact_top_level_response_contract() -> None:
+    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
+
+    assert repr(MAPPING_RESPONSE_SCHEMA_VERSION) in prompt
+    assert "status, table_decisions, clarification and a non-empty message" in prompt
+    assert "clarification must be null" in prompt
+
+
 def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
     owner = OrdinaryTradeSemanticMappingFactory.create()
     response_format = owner.mapping_response_format()
