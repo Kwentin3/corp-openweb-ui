@@ -16,6 +16,10 @@ from typing import Any, Awaitable, Callable, Mapping
 from .gate2_model_clients import Gate2StructuredModelClientFactory
 from .gate2_model_contracts import Gate2StructuredModelClientConfig
 from .gate2_model_requests import ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
+from .ordinary_trade_mapping_prompt import (
+    OrdinaryTradeMappingManagedPrompt,
+    validate_ordinary_trade_mapping_prompt_snapshot,
+)
 from .ordinary_trade_semantic_mapping_qualification import (
     OrdinaryTradeSemanticMappingQualificationFactory,
 )
@@ -103,6 +107,7 @@ class OrdinaryTradeSemanticMappingLiveQualificationFactory:
         request: Any,
         authenticated_user_id: str,
         call_chat_completions_once: CompletionRequest,
+        mapping_prompt: OrdinaryTradeMappingManagedPrompt,
     ) -> None:
         self._request = request
         self._resolver = StatelessOpenWebUICompletionResolver(
@@ -110,6 +115,13 @@ class OrdinaryTradeSemanticMappingLiveQualificationFactory:
             call_chat_completions_once=call_chat_completions_once,
         )
         self._user = _AuthenticatedUser(id=authenticated_user_id)
+        try:
+            validate_ordinary_trade_mapping_prompt_snapshot(mapping_prompt.snapshot())
+        except Exception as exc:
+            raise OrdinaryTradeSemanticMappingLiveQualificationError(
+                "ordinary_trade_mapping_live_prompt_invalid"
+            ) from exc
+        self._mapping_prompt = mapping_prompt
 
     def create(self) -> "OrdinaryTradeSemanticMappingLiveQualificationRunner":
         if self._request is None:
@@ -130,7 +142,7 @@ class OrdinaryTradeSemanticMappingLiveQualificationFactory:
         ).create()
         return OrdinaryTradeSemanticMappingLiveQualificationRunner(
             qualification=OrdinaryTradeSemanticMappingQualificationFactory(
-                model_client=client
+                model_client=client, mapping_prompt=self._mapping_prompt
             ).create(),
             resolver=self._resolver,
         )

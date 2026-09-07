@@ -463,6 +463,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_declaration_case_bundle.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "active_category_declaration_assembly.py"
         ),
         (
@@ -484,6 +488,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "ordinary_trade_mapping_case.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "ordinary_trade_mapping_prompt.py"
         ),
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
@@ -876,6 +884,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "goal391_private_corpus_export_cli.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "goal391_source_comparison_export.py"
         ),
     }
     assert set(added_package_modules) <= (

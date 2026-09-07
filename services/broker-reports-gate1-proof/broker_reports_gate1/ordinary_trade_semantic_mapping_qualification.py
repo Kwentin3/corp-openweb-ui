@@ -33,8 +33,11 @@ class OrdinaryTradeSemanticMappingQualificationError(RuntimeError):
 class OrdinaryTradeSemanticMappingQualificationFactory:
     """Construct the local runner with an explicitly injected model client."""
 
-    def __init__(self, *, model_client: Gate2StructuredModelClient) -> None:
+    def __init__(
+        self, *, model_client: Gate2StructuredModelClient, mapping_prompt: Any | None = None
+    ) -> None:
         self._model_client = model_client
+        self._mapping_prompt = mapping_prompt
 
     def create(self) -> "OrdinaryTradeSemanticMappingQualificationRunner":
         if self._model_client is None:
@@ -44,13 +47,17 @@ class OrdinaryTradeSemanticMappingQualificationFactory:
         return OrdinaryTradeSemanticMappingQualificationRunner(
             model_client=self._model_client,
             semantic=OrdinaryTradeSemanticMappingFactory.create(),
+            mapping_prompt=self._mapping_prompt,
         )
 
 
 class OrdinaryTradeSemanticMappingQualificationRunner:
-    def __init__(self, *, model_client: Gate2StructuredModelClient, semantic: Any) -> None:
+    def __init__(
+        self, *, model_client: Gate2StructuredModelClient, semantic: Any, mapping_prompt: Any
+    ) -> None:
         self._model_client = model_client
         self._semantic = semantic
+        self._mapping_prompt = mapping_prompt
 
     async def run(
         self,
@@ -67,8 +74,9 @@ class OrdinaryTradeSemanticMappingQualificationRunner:
             confirmed_understandings=input_data["confirmed_understandings"],
             target_table_node_ids=input_data["target_table_node_ids"],
         )
+        prompt = self._mapping_prompt or self._semantic.mapping_prompt()
         response = await self._model_client.extract(
-            prompt=self._semantic.mapping_prompt(),
+            prompt=prompt,
             package=package,
             model_id=model_id,
             response_format=self._semantic.mapping_response_format(),
@@ -100,8 +108,8 @@ class OrdinaryTradeSemanticMappingQualificationRunner:
             "status": "PASSED",
             "provider_calls_total": 1,
             "fixture_sha256": _sha256(input_data["fixture_identity"]),
-            "prompt_version": self._semantic.mapping_prompt().version,
-            "prompt_sha256": _sha256(self._semantic.mapping_prompt().content),
+            "prompt_version": prompt.version,
+            "prompt_sha256": _sha256(prompt.content),
             "response_format_sha256": _sha256(self._semantic.mapping_response_format()),
             "package_sha256": _sha256(package),
             "execution_metadata_sha256": _sha256(response.execution_metadata),

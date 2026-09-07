@@ -22,6 +22,19 @@ import test_broker_reports_issue312_mapping_case as case_fixtures
 from test_broker_reports_goal391_role_mapping_sandbox_corpus import (
     build_frozen_role_mapping_corpus,
 )
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION,
+    PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID,
+    PROMPT_PLACEHOLDER,
+    PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND,
+    OrdinaryTradeMappingManagedPrompt,
+    ordinary_trade_mapping_prompt_hash,
+)
 
 
 def _lab_runner_module():
@@ -68,6 +81,26 @@ def _completion_payload(response):
     }
 
 
+def _managed_qualification_prompt() -> OrdinaryTradeMappingManagedPrompt:
+    content = f"Hermetic role mapping candidate. {PROMPT_PLACEHOLDER}"
+    return OrdinaryTradeMappingManagedPrompt(
+        prompt_ref="goal391-hermetic-mapping-prompt",
+        command=PROMPT_COMMAND,
+        version="goal391-hermetic-v1",
+        content=content,
+        hash=ordinary_trade_mapping_prompt_hash(content),
+        source="test",
+        template_id=PROMPT_TEMPLATE_ID,
+        template_kind=PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=PROMPT_CONTRACT_ID,
+        input_schema_version=INPUT_SCHEMA_VERSION,
+        output_schema_id=OUTPUT_SCHEMA_ID,
+        output_schema_version=OUTPUT_SCHEMA_VERSION,
+        tags=(PROMPT_REQUIRED_TAG,),
+        safe_metadata={"name": "Goal 391 hermetic qualification candidate"},
+    )
+
+
 def test_live_bridge_uses_existing_client_once_and_forbids_chat_persistence(tmp_path):
     fixture, response, user_id = _fixture(tmp_path)
     submitted = []
@@ -81,6 +114,7 @@ def test_live_bridge_uses_existing_client_once_and_forbids_chat_persistence(tmp_
             request=SimpleNamespace(),
             authenticated_user_id=user_id,
             call_chat_completions_once=call_once,
+            mapping_prompt=_managed_qualification_prompt(),
         )
         .create()
         .run(fixture=fixture)
@@ -109,6 +143,7 @@ def test_live_bridge_rejects_a_completion_payload_that_attempts_chat_persistence
         request=SimpleNamespace(),
         authenticated_user_id=user_id,
         call_chat_completions_once=call_once,
+        mapping_prompt=_managed_qualification_prompt(),
     ).create()
 
     with pytest.raises(OrdinaryTradeSemanticMappingLiveQualificationError) as exc:
@@ -136,6 +171,7 @@ def test_live_bridge_accepts_the_frozen_golden_fixture_without_deriving_expectat
             request=SimpleNamespace(),
             authenticated_user_id="goal391-synthetic-ordinary-user",
             call_chat_completions_once=call_once,
+            mapping_prompt=_managed_qualification_prompt(),
         )
         .create()
         .run(fixture=golden.frozen_fixture)
