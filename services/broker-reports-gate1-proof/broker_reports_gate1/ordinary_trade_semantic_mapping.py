@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v18"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v19"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -259,6 +259,13 @@ class OrdinaryTradeSemanticMapping:
             f"{MAPPING_RESPONSE_SCHEMA_VERSION!r}, status, table_decisions, "
             "clarification and a non-empty message. For COMPLETE, UNSUPPORTED "
             "or SPECIALIST_REVIEW_REQUIRED, clarification must be null. "
+            "Final abstention check: COMPLETE is never a default for an uncertain "
+            "table. Return OTHER_NO_NAMED_CONSUMER only with direct literal proof "
+            "that the table is the declarant's non-transaction record. Return "
+            "INSTRUCTIONAL_REFERENCE only with direct literal source_context proof "
+            "that it is an example, instruction, template or reference. If neither "
+            "proof is present, the table meaning is unresolved: return "
+            "SPECIALIST_REVIEW_REQUIRED with table_decisions empty. "
             "Return only strict JSON."
         )
         return _managed_prompt(
