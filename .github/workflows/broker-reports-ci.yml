@@ -188,9 +188,9 @@ jobs:
           tests/test_broker_reports_canonical_machine_projection.py
           --tb=short
 
-      - name: Run active ordinary-trade production guards
+      - name: Run ordinary-trade declaration and XML guards
         run: >-
-          python -m pytest -q
+          timeout 12m python -m pytest -q
           tests/test_broker_reports_ordinary_trade_production_candidate.py
           tests/test_broker_reports_ordinary_trade_release_activation.py
           tests/test_broker_reports_gate5_deterministic_source_fact_consumption.py
@@ -203,6 +203,11 @@ jobs:
           tests/test_broker_reports_gate5_full_target_xml_projection.py
           tests/test_broker_reports_ordinary_trade_declaration_mvp.py
           tests/test_broker_reports_ordinary_trade_public_dialogue.py
+          --tb=short
+
+      - name: Run ordinary-trade mapping and workspace guards
+        run: >-
+          timeout 12m python -m pytest -q
           tests/test_broker_reports_issue312_semantic_mapping_contract.py
           tests/test_broker_reports_issue312_mapping_case.py
           tests/test_broker_reports_issue312_mapping_runtime.py
