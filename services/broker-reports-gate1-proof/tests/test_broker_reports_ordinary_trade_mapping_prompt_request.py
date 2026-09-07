@@ -8,6 +8,7 @@ import pytest
 from broker_reports_gate1.gate2_model_contracts import Gate2SourceFactRuntimeError
 from broker_reports_gate1.gate2_model_requests import (
     ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE,
+    ORDINARY_TRADE_MAPPING_PACKAGE_MARKER,
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
     Gate2OpenWebUIRequestBuilder,
 )
@@ -38,6 +39,10 @@ def _mapping_package() -> dict:
         "phase": "map",
         "case": {"private_marker": "canonical-private-data"},
     }
+
+
+def test_request_transport_marker_is_pinned_to_workspace_prompt_contract() -> None:
+    assert ORDINARY_TRADE_MAPPING_PACKAGE_MARKER == PROMPT_PLACEHOLDER
 
 
 def test_mapping_request_expands_exact_marker_once_without_user_package_copy() -> None:

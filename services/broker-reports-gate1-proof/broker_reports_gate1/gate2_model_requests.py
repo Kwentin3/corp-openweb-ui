@@ -8,7 +8,6 @@ from typing import Any
 
 from .gate2_model_contracts import Gate2SourceFactRuntimeError
 from .gate2_source_fact_contracts import Gate2PromptError
-from .ordinary_trade_mapping_prompt import PROMPT_PLACEHOLDER
 
 
 SOURCE_REQUEST_PROFILE = "source_v0"
@@ -52,6 +51,10 @@ ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS = 65_536
 ORDINARY_TRADE_MAPPING_ANSWER_REQUEST_PROFILE = (
     "ordinary_trade_mapping_answer_v1"
 )
+# This is request transport syntax, not a dependency on the Workspace Prompt
+# adapter.  A focused contract test pins it to the adapter's stored-prompt
+# marker without pulling that mapping domain into Gate 2-only bundles.
+ORDINARY_TRADE_MAPPING_PACKAGE_MARKER = "{{ordinary_trade_mapping_case_json}}"
 FINANCIAL_SEMANTIC_V6_CONTEXT_LINT_RECEIPT_SCHEMA_VERSION = (
     "broker_reports_gate2_financial_semantic_v6_context_lint_receipt_v1"
 )
@@ -414,15 +417,17 @@ class Gate2OpenWebUIRequestBuilder:
         )
         if expected_phase == "map":
             if (
-                prompt.content.count(PROMPT_PLACEHOLDER) != 1
-                or PROMPT_PLACEHOLDER in package_json
+                prompt.content.count(ORDINARY_TRADE_MAPPING_PACKAGE_MARKER) != 1
+                or ORDINARY_TRADE_MAPPING_PACKAGE_MARKER in package_json
             ):
                 raise Gate2SourceFactRuntimeError(
                     "ordinary_trade_semantic_mapping_prompt_contract_mismatch",
                     "Ordinary-trade mapping prompt and package marker contract is invalid",
                 )
-            system_content = prompt.content.replace(PROMPT_PLACEHOLDER, package_json)
-            if PROMPT_PLACEHOLDER in system_content:
+            system_content = prompt.content.replace(
+                ORDINARY_TRADE_MAPPING_PACKAGE_MARKER, package_json
+            )
+            if ORDINARY_TRADE_MAPPING_PACKAGE_MARKER in system_content:
                 raise Gate2SourceFactRuntimeError(
                     "ordinary_trade_semantic_mapping_prompt_contract_mismatch",
                     "Ordinary-trade mapping package marker reached the provider request",
