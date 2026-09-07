@@ -341,7 +341,46 @@ class OrdinaryTradeProductionRuntime:
                     preparation = self._declaration.prepare(
                         context=context,
                         canonical_coverage=canonical_coverage,
+                        # The declaration owner may calculate readiness, but it
+                        # must not persist XML until this composition root has
+                        # admitted the exact case bundle.
+                        allow_final_assembly=False,
                     )
+                    declaration_bundle = None
+                    if (
+                        preparation["status"]
+                        == "DECLARATION_CASE_BUNDLE_REQUIRED"
+                    ):
+                        tax_period = preparation["period_profile"][
+                            "selected_tax_period"
+                        ]
+                        if not isinstance(tax_period, str):
+                            raise OrdinaryTradeProductionError(
+                                "ordinary_trade_declaration_bundle_period_required"
+                            )
+                        if self._declaration_bundle is None:
+                            raise OrdinaryTradeProductionError(
+                                "ordinary_trade_declaration_bundle_authority_owners_required"
+                            )
+                        declaration_bundle = self._declaration_bundle.read_current(
+                            context=context,
+                            tax_period=tax_period,
+                        )
+                        if declaration_bundle["status"] == "CURRENT":
+                            # Re-enter the existing declaration owner only
+                            # after its bundle owner has admitted the exact
+                            # current scope.  No bundle payload crosses into
+                            # declaration assembly.
+                            preparation = self._declaration.prepare(
+                                context=context,
+                                canonical_coverage=canonical_coverage,
+                                allow_final_assembly=True,
+                            )
+                        else:
+                            _apply_declaration_bundle_terminal(
+                                preparation=preparation,
+                                bundle=declaration_bundle,
+                            )
                     product_status = preparation["status"]
                     terminal = preparation["terminal"]
                     declaration = preparation.get("declaration")
@@ -845,6 +884,44 @@ def _apply_mapping_terminal(
     final_note = preparation.get("final_note")
     if isinstance(final_note, dict):
         final_note["source_completeness_status"] = status
+        final_note["required_checks"] = [terminal]
+        final_note["filing_eligible"] = False
+        final_note["xml_created"] = False
+
+
+def _apply_declaration_bundle_terminal(
+    *, preparation: dict[str, Any], bundle: dict[str, Any]
+) -> None:
+    """Present the bundle owner's terminal without interpreting its contents."""
+
+    status = str(bundle.get("status") or "")
+    if status not in {"BUNDLE_STABILIZATION_REQUIRED", "BUNDLE_STALE"}:
+        raise OrdinaryTradeProductionError(
+            "ordinary_trade_declaration_bundle_terminal_invalid"
+        )
+    terminal = {
+        "BUNDLE_STABILIZATION_REQUIRED": (
+            "ordinary_trade_declaration_bundle_stabilization_required"
+        ),
+        "BUNDLE_STALE": "ordinary_trade_declaration_bundle_stale",
+    }[status]
+    preparation["status"] = status
+    preparation["terminal"] = terminal
+    preparation["declaration_ready"] = False
+    preparation["xml_created"] = False
+    preparation["user_actions"] = [
+        {
+            "kind": "DECLARATION_CASE_BUNDLE_STABILIZATION",
+            "bundle_status": status,
+        }
+    ]
+    preparation["internal_blockers"] = []
+    preparation["declaration_case_bundle"] = {
+        "status": status,
+        "bundle_artifact_ref": bundle.get("bundle_artifact_ref"),
+    }
+    final_note = preparation.get("final_note")
+    if isinstance(final_note, dict):
         final_note["required_checks"] = [terminal]
         final_note["filing_eligible"] = False
         final_note["xml_created"] = False

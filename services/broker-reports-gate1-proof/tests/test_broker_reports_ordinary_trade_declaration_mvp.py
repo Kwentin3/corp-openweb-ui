@@ -475,7 +475,10 @@ def test_duplicate_confirmation_is_idempotent_without_duplicate_fact(
 
 def test_only_production_factory_activates_the_mvp_adapter(tmp_path: Path) -> None:
     _runtime, context, providers, store = _case(
-        tmp_path, proceeds="60.00", include_store=True
+        tmp_path,
+        proceeds="60.00",
+        include_store=True,
+        stabilize_declaration_case=False,
     )
     production = OrdinaryTradeProductionRuntimeFactory(
         store=store,
@@ -483,8 +486,26 @@ def test_only_production_factory_activates_the_mvp_adapter(tmp_path: Path) -> No
         retention_policy=build_retention_policy(mode="synthetic_dev"),
     ).create()
 
+    before_stabilization = production.run(
+        canonical_artifact_refs=[], context=context
+    )
+
+    assert before_stabilization["product"]["status"] == (
+        "BUNDLE_STABILIZATION_REQUIRED"
+    )
+    assert before_stabilization["product"]["terminal"] == (
+        "ordinary_trade_declaration_bundle_stabilization_required"
+    )
+    assert before_stabilization["declaration"] is None
+    assert before_stabilization["product"]["xml_created"] is False
+
+    stabilized = production.stabilize_declaration_case(
+        context=context,
+        tax_period="2025",
+    )
     result = production.run(canonical_artifact_refs=[], context=context)
 
+    assert stabilized["status"] == "CURRENT"
     assert result["product"]["status"] == "DECLARATION_XML_READY"
     assert result["product"]["declaration_ready"] is True
     assert result["product"]["xml_created"] is True
@@ -1443,6 +1464,7 @@ def _case(
     extra_incomplete_operation: bool = False,
     publish_human_facts: bool = True,
     publish_tax_period: bool = True,
+    stabilize_declaration_case: bool = True,
     metadata_lines: tuple[str, ...] = _METADATA_LINES,
     financial_rows: tuple | None = None,
 ):
@@ -1515,6 +1537,12 @@ def _case(
         read_enabled=True,
         retention_policy=retention,
     ).create()
+    if (
+        stabilize_declaration_case
+        and publish_human_facts
+        and publish_tax_period
+    ):
+        runtime.stabilize_declaration_case(context=context, tax_period="2025")
     result = (runtime, context, (None, None, human))
     return (*result, store) if include_store else result
 

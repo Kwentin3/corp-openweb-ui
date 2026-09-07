@@ -358,8 +358,12 @@ class OrdinaryTradeDeclarationMvpRuntime:
         *,
         context: ArtifactAccessContext,
         canonical_coverage: dict[str, Any],
+        allow_final_assembly: bool = True,
     ) -> dict[str, Any]:
-        """Return INPUT_REQUIRED, DRAFT_READY or the exact XML result."""
+        """Return preparation state; the composition root admits final XML."""
+
+        if not isinstance(allow_final_assembly, bool):
+            _fail("ordinary_trade_declaration_final_assembly_permission_invalid")
 
         coverage = _validated_canonical_coverage(
             canonical_coverage,
@@ -528,6 +532,16 @@ class OrdinaryTradeDeclarationMvpRuntime:
             )
             return self._with_case_summary(
                 result=result,
+                case_inputs=case_inputs,
+                source_assembly=source_assembly,
+            )
+        if not allow_final_assembly:
+            return self._with_case_summary(
+                result=_preparation_state(
+                    status="DECLARATION_CASE_BUNDLE_REQUIRED",
+                    actions=[],
+                    internal_blockers=[],
+                ),
                 case_inputs=case_inputs,
                 source_assembly=source_assembly,
             )
@@ -1516,6 +1530,9 @@ def _preparation_state(
             ),
             "STOPPED_RESUMABLE": "ordinary_trade_preparation_stopped_resumable",
             "OPEN_POSITION_RETAINED": "ordinary_trade_closed_disposal_absent",
+            "DECLARATION_CASE_BUNDLE_REQUIRED": (
+                "ordinary_trade_declaration_case_bundle_current_required"
+            ),
         }.get(
             status,
             internal_blockers[0]["reason_code"]
