@@ -245,3 +245,41 @@ def test_lab_currency_assessment_uses_the_scoped_canonical_table_node() -> None:
     record = runner._safe_record(case=case, outcome=outcome)
 
     assert record["outcome"] == "PASS"
+
+
+def test_lab_passes_the_resolved_managed_prompt_to_its_single_call() -> None:
+    runner = _lab_runner_module()
+    managed_prompt = _managed_qualification_prompt()
+    captured = {}
+
+    class StopAfterCapture(RuntimeError):
+        pass
+
+    class Semantic:
+        def build_mapping_package(self, **_kwargs):
+            return {"phase": "map", "case": {}}
+
+        def mapping_response_format(self):
+            return {"type": "json_schema"}
+
+    class Client:
+        async def extract(self, **kwargs):
+            captured.update(kwargs)
+            raise StopAfterCapture()
+
+    with pytest.raises(StopAfterCapture):
+        asyncio.run(
+            runner._run_case(
+                semantic=Semantic(),
+                prompt=managed_prompt,
+                client=Client(),
+                case={
+                    "canonical": {},
+                    "confirmed_understandings": [],
+                    "target_table_node_ids": None,
+                },
+                progress=lambda *_args: None,
+            )
+        )
+
+    assert captured["prompt"] is managed_prompt

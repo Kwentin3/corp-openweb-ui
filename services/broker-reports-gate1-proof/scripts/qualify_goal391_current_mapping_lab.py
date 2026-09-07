@@ -32,6 +32,12 @@ from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelClien
 from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
 )
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (  # noqa: E402
+    PROMPT_COMMAND,
+    OrdinaryTradeMappingPromptConfig,
+    OrdinaryTradeMappingPromptResolverFactory,
+    OrdinaryTradeMappingPromptUserContext,
+)
 from broker_reports_gate1.canonical_artifact import validate_canonical_artifact  # noqa: E402
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (  # noqa: E402
     MAPPING_RESPONSE_SCHEMA_VERSION,
@@ -60,7 +66,11 @@ def main() -> int:
     parser.add_argument("--safe-receipt", type=Path, required=True)
     parser.add_argument("--progress-receipt", type=Path)
     parser.add_argument("--expected-git-head", required=True)
-    parser.add_argument("--ordinary-user-id", default="")
+    parser.add_argument("--ordinary-user-id", required=True)
+    parser.add_argument("--prompt-db-path", type=Path, required=True)
+    prompt_selector = parser.add_mutually_exclusive_group(required=True)
+    prompt_selector.add_argument("--prompt-id")
+    prompt_selector.add_argument("--prompt-command")
     parser.add_argument("--server-runtime", action="store_true")
     parser.add_argument("--timeout-seconds", type=int, default=600)
     args = parser.parse_args()
@@ -68,6 +78,15 @@ def main() -> int:
         raise SystemExit("goal391_exactly_one_execution_mode_required")
     if not 1 <= args.timeout_seconds <= 900:
         raise SystemExit("goal391_timeout_out_of_bounds")
+    ordinary_user_id = str(args.ordinary_user_id or "").strip()
+    if not ordinary_user_id:
+        raise SystemExit("goal391_ordinary_user_id_invalid")
+    prompt = _resolve_mapping_prompt(
+        db_path=args.prompt_db_path,
+        prompt_id=args.prompt_id,
+        prompt_command=args.prompt_command,
+        ordinary_user_id=ordinary_user_id,
+    )
 
     corpus_root = args.corpus_root.resolve()
     expectation_path = args.expectations.resolve()
@@ -85,8 +104,7 @@ def main() -> int:
         raise SystemExit("goal391_progress_receipt_invalid")
     semantic = OrdinaryTradeSemanticMappingFactory.create()
     candidate = _current_candidate(
-        semantic=semantic,
-        expected_git_head=args.expected_git_head,
+        semantic=semantic, prompt=prompt, expected_git_head=args.expected_git_head
     )
     cases = _preflight(
         corpus_root=corpus_root,
@@ -102,7 +120,7 @@ def main() -> int:
     if not args.server_runtime:
         raise SystemExit("goal391_server_runtime_required")
     request, user, chat_count = _server_runtime_context(
-        ordinary_user_id=args.ordinary_user_id
+        ordinary_user_id=ordinary_user_id
     )
     chats_before = chat_count()
     if chats_before < 0:
@@ -147,6 +165,7 @@ def main() -> int:
     records, terminal_error = asyncio.run(
         _run_all_cases(
             semantic=semantic,
+            prompt=prompt,
             client=client,
             cases=cases,
             submissions=submissions,
@@ -329,7 +348,9 @@ def _fixture(*, canonical: dict[str, Any], expected: Mapping[str, Any]) -> dict[
     }
 
 
-async def _run_case(*, semantic, client, case: Mapping[str, Any], progress) -> dict[str, Any]:
+async def _run_case(
+    *, semantic, prompt, client, case: Mapping[str, Any], progress
+) -> dict[str, Any]:
     package = semantic.build_mapping_package(
         canonical=case["canonical"],
         confirmed_understandings=case["confirmed_understandings"],
@@ -337,7 +358,7 @@ async def _run_case(*, semantic, client, case: Mapping[str, Any], progress) -> d
     )
     progress("DISPATCH_INTENT", case)
     response = await client.extract(
-        prompt=semantic.mapping_prompt(),
+        prompt=prompt,
         package=package,
         model_id=MODEL_ID,
         response_format=semantic.mapping_response_format(),
@@ -361,7 +382,7 @@ async def _run_case(*, semantic, client, case: Mapping[str, Any], progress) -> d
     return {"outcome": outcome, "response": response}
 
 
-async def _run_all_cases(*, semantic, client, cases, submissions, progress):
+async def _run_all_cases(*, semantic, prompt, client, cases, submissions, progress):
     records = []
     terminal_error = None
     for case in cases:
@@ -370,7 +391,11 @@ async def _run_all_cases(*, semantic, client, cases, submissions, progress):
         progress("CASE_PREPARED", case)
         try:
             outcome = await _run_case(
-                semantic=semantic, client=client, case=case, progress=progress
+                semantic=semantic,
+                prompt=prompt,
+                client=client,
+                case=case,
+                progress=progress,
             )
             if submissions["count"] - before != 1:
                 raise Goal391CurrentMappingLabError("goal391_exactly_one_call_required")
@@ -529,7 +554,7 @@ def _safe_error_code(exc: Exception) -> str:
     return type(exc).__name__
 
 
-def _current_candidate(*, semantic: Any, expected_git_head: str) -> dict[str, str]:
+def _current_candidate(*, semantic: Any, prompt: Any, expected_git_head: str) -> dict[str, str]:
     if re.fullmatch(r"[0-9a-f]{40}", expected_git_head) is None:
         raise SystemExit("goal391_expected_git_head_invalid")
     try:
@@ -543,16 +568,50 @@ def _current_candidate(*, semantic: Any, expected_git_head: str) -> dict[str, st
         raise SystemExit("goal391_git_head_unavailable") from exc
     if actual_git_head != expected_git_head:
         raise SystemExit("goal391_git_head_mismatch")
-    prompt = semantic.mapping_prompt()
     return {
         "git_head": actual_git_head,
         "model_id": MODEL_ID,
         "provider_profile_id": PROVIDER_PROFILE_ID,
+        "prompt_ref": prompt.prompt_ref,
         "prompt_version": prompt.version,
         "prompt_sha256": prompt.hash,
+        "prompt_contract_id": prompt.prompt_contract_id,
+        "prompt_input_schema_version": prompt.input_schema_version,
+        "prompt_output_schema_id": prompt.output_schema_id,
+        "prompt_output_schema_version": prompt.output_schema_version,
         "response_schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
         "response_format_sha256": _sha256(semantic.mapping_response_format()),
     }
+
+
+def _resolve_mapping_prompt(
+    *,
+    db_path: Path,
+    prompt_id: str | None,
+    prompt_command: str | None,
+    ordinary_user_id: str,
+):
+    """Resolve the version-pinned Workspace Prompt without exposing its body."""
+
+    selector_id = str(prompt_id or "").strip()
+    selector_command = str(prompt_command or "").strip()
+    if bool(selector_id) == bool(selector_command):
+        raise SystemExit("goal391_mapping_prompt_selector_invalid")
+    if selector_command and selector_command != PROMPT_COMMAND:
+        raise SystemExit("goal391_mapping_prompt_command_invalid")
+    return OrdinaryTradeMappingPromptResolverFactory(
+        OrdinaryTradeMappingPromptConfig(
+            source="openwebui_sqlite",
+            db_path=db_path,
+            prompt_id=selector_id or None,
+            command=selector_command or None,
+        )
+    ).create().resolve(
+        OrdinaryTradeMappingPromptUserContext(
+            user_id=ordinary_user_id,
+            user_role="user",
+        )
+    )
 
 
 def _validate_expected_assessment(value: Any) -> None:

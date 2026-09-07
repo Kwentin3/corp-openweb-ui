@@ -188,6 +188,10 @@ def test_user_attested_candidate_defer_draft_and_same_case_xml_resume(
         assert result["typed_user_case_fact"]["provenance"]["source_kind"] == (
             "USER_ATTESTED_CASE_FACT"
         )
+    stabilized = runtime.stabilize_declaration_case(
+        context=context, tax_period="2025"
+    )
+    assert stabilized["status"] == "CURRENT"
     ready = runtime.run(canonical_artifact_refs=[], context=context)
     assert ready["product"]["status"] == "DECLARATION_XML_READY"
 
@@ -281,6 +285,10 @@ def test_owner_published_fill_fact_successor_allows_safe_correction(
         context=context,
     )
     assert accepted["status"] == "TYPED_USER_CASE_FACT_READY"
+    stabilized = runtime.stabilize_declaration_case(
+        context=context, tax_period="2025"
+    )
+    assert stabilized["status"] == "CURRENT"
     corrected = runtime.run(canonical_artifact_refs=[], context=context)
     assert corrected["product"]["status"] == "DECLARATION_XML_READY"
     identity_successor = runtime.publish_declaration_change_action(
@@ -309,6 +317,10 @@ def test_owner_published_fill_fact_successor_allows_safe_correction(
         },
         context=context,
     )
+    stabilized = runtime.stabilize_declaration_case(
+        context=context, tax_period="2025"
+    )
+    assert stabilized["status"] == "CURRENT"
     identity_corrected = runtime.run(canonical_artifact_refs=[], context=context)
     assert identity_corrected["product"]["status"] == "DECLARATION_XML_READY"
     assert identity_corrected["declaration"]["xml_sha256"] != corrected[
@@ -342,6 +354,10 @@ def test_identity_candidate_successor_stales_old_confirmation_and_cross_scope(
             context=context_a,
         )
         assert accepted["status"] == "TYPED_USER_CASE_FACT_READY"
+    stabilized = runtime.stabilize_declaration_case(
+        context=context_a, tax_period="2025"
+    )
+    assert stabilized["status"] == "CURRENT"
     ready = runtime.run(canonical_artifact_refs=[], context=context_a)
     assert ready["product"]["status"] == "DECLARATION_XML_READY"
     assert ready["product"]["xml_created"] is True
@@ -404,6 +420,10 @@ def test_identity_candidate_successor_stales_old_confirmation_and_cross_scope(
         context=context_b,
     )
     assert accepted["status"] == "TYPED_USER_CASE_FACT_READY"
+    stabilized = runtime.stabilize_declaration_case(
+        context=context_b, tax_period="2025"
+    )
+    assert stabilized["status"] == "CURRENT"
     current = runtime.run(canonical_artifact_refs=[], context=context_b)
     assert current["product"]["status"] == "DECLARATION_XML_READY"
     assert current["declaration"]["xml_sha256"] != ready["declaration"]["xml_sha256"]
@@ -754,6 +774,10 @@ def test_correction_without_owner_produced_number_is_typed_blocked(
             "filing_instance_identity": {"kind": "code", "value": "CORRECTION"}
         },
     )
+    stabilized = runtime.stabilize_declaration_case(
+        context=context, tax_period="2025"
+    )
+    assert stabilized["status"] == "CURRENT"
 
     result = runtime.run(canonical_artifact_refs=[], context=context)
     assert result["declaration"] is None
@@ -841,6 +865,17 @@ def test_same_case_canonical_fact_successor_60_to_64_invalidates_old_output(
         context=context_b,
         document_id=projection_record.document_id,
     )
+    # Rebuild the isolated projection from the successor Canonical before
+    # recording the user's explicit complete-document-set intent.
+    refresh = runtime_a.run(
+        canonical_artifact_refs=[str(current.manifest_ref)],
+        context=context_b,
+    )
+    assert refresh["product"]["status"] == "BUNDLE_STALE"
+    stabilized = runtime_a.stabilize_declaration_case(
+        context=context_b, tax_period="2025"
+    )
+    assert stabilized["status"] == "CURRENT"
     successor_result = runtime_a.run(
         canonical_artifact_refs=[str(current.manifest_ref)],
         context=context_b,
