@@ -514,25 +514,80 @@ def test_maintained_stage_binds_normal_chat_answer_to_current_owner_actions(
         "retention_policy": build_retention_policy(mode="synthetic_dev"),
     }
 
+    presentation_calls: list[dict[str, object]] = []
+
+    def completion(**call):
+        """Exercise the installed structured presentation seam, not a fallback."""
+
+        form_data = call["form_data"]
+        response_format = form_data["response_format"]
+        assert response_format["json_schema"]["name"] == (
+            "ordinary_trade_public_interpretation_v1"
+        )
+        turn = json.loads(form_data["messages"][1]["content"])
+        answer = turn["current_user_message"]
+        presentation_calls.append({"answer": answer})
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "disposition": "CANDIDATE",
+                                "message": "Понял ответ.",
+                                "normalized_answer": answer,
+                                "evidence_quote": answer,
+                            },
+                            ensure_ascii=False,
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+    )
+
     first = asyncio.run(pipe._maybe_run_ndfl_gate3(**kwargs))
     assert first["product"]["status"] == "INPUT_REQUIRED"
     assert first["provider_calls_total"] == 0
+    stabilization_confirmed = False
     while first["product"]["preparation"]["user_actions"]:
-        request = first["product"]["preparation"]["user_actions"][0]
-
-        result = asyncio.run(
+        action = first["product"]["preparation"]["user_actions"][0]
+        if action["kind"] == "DECLARATION_CASE_BUNDLE_STABILIZATION":
+            assert first["product"]["status"] == "BUNDLE_STABILIZATION_REQUIRED"
+            result = asyncio.run(
+                pipe._maybe_run_ndfl_gate3(
+                    **kwargs,
+                    trusted_interaction_message="Подтверждаю",
+                )
+            )
+            assert result["declaration_case_bundle_receipt"]["stabilized"] is True
+            stabilization_confirmed = True
+        else:
+            result = asyncio.run(
                 pipe._maybe_run_ndfl_gate3(
                     **kwargs,
                     trusted_interaction_message=_product_chat_answer(
-                        request["fact_key"]
+                        action["fact_key"]
                     ),
+                )
             )
-        )
-        assert result["declaration_chat_receipt"]["status"] == "ANSWER_ACCEPTED"
+            assert result["declaration_chat_receipt"]["status"] == "ANSWER_ACCEPTED"
         first = result
+    assert stabilization_confirmed is True
+    assert presentation_calls
+    assert pipe._presentation_llm_calls_total == len(presentation_calls)
     assert result["product"]["status"] == "DECLARATION_XML_READY"
     assert result["product"]["xml_created"] is True
-    assert result["declaration_action_receipt"]["fact_created"] is True
+    assert result["declaration_case_bundle_receipt"] == {
+        "status": "CURRENT",
+        "stabilized": True,
+        "created": True,
+    }
     assert result["provider_calls_total"] == 0
     result["product"]["private_download"] = {"url": "/private-owner-file"}
     chat = pipe._standalone_ndfl_chat_content(result)

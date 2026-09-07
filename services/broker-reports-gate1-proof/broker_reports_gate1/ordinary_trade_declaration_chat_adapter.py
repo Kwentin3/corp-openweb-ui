@@ -1220,7 +1220,21 @@ def validate_public_dialogue_interpretation(
         question = context.get("current_question")
         question = question if isinstance(question, dict) else {}
         options = question.get("options")
-        if isinstance(options, list) and options and normalized_answer not in options:
+        accepted_examples = question.get("accepted_answer_examples")
+        options = (
+            [item for item in options if isinstance(item, str)]
+            if isinstance(options, list)
+            else []
+        )
+        accepted_examples = (
+            [item for item in accepted_examples if isinstance(item, str)]
+            if isinstance(accepted_examples, list)
+            else []
+        )
+        # Free-form owner contracts publish examples as formats, not closed
+        # values.  Only an explicitly enumerated option surface is closed;
+        # its exact examples are additional equally public representations.
+        if options and normalized_answer not in [*options, *accepted_examples]:
             raise ValueError("public_dialogue_candidate_not_on_public_surface")
     visible_parts = [interpretation_message]
     if disposition == "CANDIDATE":
