@@ -18,13 +18,13 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v4"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v5"
 )
 ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v15"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v16"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -47,6 +47,10 @@ _TABLE_DISPOSITIONS = {
     "SECURITY_TRADES_INCOMPLETE",
     "NO_NAMED_CONSUMER",
     "UNSUPPORTED_FINANCIAL_MEANING",
+}
+_NO_CONSUMER_KINDS = {
+    "INSTRUCTIONAL_REFERENCE",
+    "OTHER_NO_NAMED_CONSUMER",
 }
 _SEMANTIC_ROLES = {
     "asset_name",
@@ -182,6 +186,14 @@ class OrdinaryTradeSemanticMapping:
             "cash summaries and other non-transaction tables. Cash movements, dividends, "
             "interest, withholding taxes and standalone fees are also NO_NAMED_CONSUMER "
             "when they are not part of an acquisition or disposal row for a security. "
+            "For every NO_NAMED_CONSUMER table, set no_consumer_kind. Use "
+            "INSTRUCTIONAL_REFERENCE only when the table itself is explanatory "
+            "material such as an example, template, how-to guidance, or a reference "
+            "illustration rather than the declarant's record. Use "
+            "OTHER_NO_NAMED_CONSUMER for every other unambiguously non-consumer "
+            "table. Do not infer that a table is instructional from one word alone; "
+            "if its meaning is ambiguous, do not label it instructional. This label "
+            "does not delete, alter, or hide Canonical source material. "
             "UNSUPPORTED_FINANCIAL_MEANING is only for a transaction table whose rows "
             "carry a financial meaning outside the ordinary security-trade contract, "
             "not merely for auxiliary financial content. Classify every table, including "
@@ -638,6 +650,7 @@ class OrdinaryTradeSemanticMapping:
                     "evidence_surface",
                     "disposition",
                     "security_trade_rows",
+                    "no_consumer_kind",
                 )
                 if key in resolved
             }
@@ -1129,6 +1142,7 @@ def _validate_table_decision(
     table: dict[str, Any],
     user_currency_assertion: dict[str, Any] | None = None,
     allow_user_currency: bool = False,
+    allow_legacy_no_consumer: bool = False,
 ) -> dict[str, Any]:
     base_fields = {
         "table_node_id",
@@ -1140,9 +1154,10 @@ def _validate_table_decision(
         "row_dispositions",
     }
     incomplete_fields = base_fields | {"missing_required_roles"}
+    no_consumer_fields = base_fields | {"no_consumer_kind"}
     if (
         not isinstance(decision, dict)
-        or (set(decision) != base_fields and set(decision) != incomplete_fields)
+        or set(decision) not in {frozenset(base_fields), frozenset(incomplete_fields), frozenset(no_consumer_fields)}
         or decision.get("table_node_id") != table["table_node_id"]
         or not isinstance(decision.get("header_row"), int)
         or decision.get("disposition") not in _TABLE_DISPOSITIONS
@@ -1160,6 +1175,18 @@ def _validate_table_decision(
     disposition = decision["disposition"]
     incomplete = disposition == "SECURITY_TRADES_INCOMPLETE"
     if incomplete != (set(decision) == incomplete_fields):
+        _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
+    no_consumer = disposition == "NO_NAMED_CONSUMER"
+    if no_consumer != (
+        set(decision) == no_consumer_fields
+        or (allow_legacy_no_consumer and set(decision) == base_fields)
+    ):
+        _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
+    if (
+        no_consumer
+        and "no_consumer_kind" in decision
+        and decision["no_consumer_kind"] not in _NO_CONSUMER_KINDS
+    ):
         _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
     row = next(
         (item for item in table["rows"] if item["row"] == decision["header_row"]),
@@ -1188,7 +1215,7 @@ def _validate_table_decision(
             )
         ):
             _fail("ordinary_trade_semantic_mapping_non_trade_material_invalid")
-        return {
+        resolved = {
             "table_node_id": table["table_node_id"],
             "header_row": decision["header_row"],
             "structural_fingerprint": fingerprint,
@@ -1200,6 +1227,9 @@ def _validate_table_decision(
             "side_values": [],
             "security_trade_rows": [],
         }
+        if no_consumer and "no_consumer_kind" in decision:
+            resolved["no_consumer_kind"] = decision["no_consumer_kind"]
+        return resolved
     columns = decision["columns"]
     if (
         len(columns) != len(headers)
@@ -1481,8 +1511,10 @@ def _confirmed_exclusion_resolutions(
                     "columns": [],
                     "amount_currency_bindings": [],
                     "side_values": [],
+                    "row_dispositions": [],
                 },
                 table=table,
+                allow_legacy_no_consumer=True,
             )
         )
     if len({item["table_node_id"] for item in results}) != len(results):
@@ -1844,7 +1876,33 @@ def _mapping_response_schema() -> dict[str, Any]:
             },
         },
     }
-    non_trade_table_decision = {
+    no_named_consumer_table_decision = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "table_ref",
+            "header_row",
+            "disposition",
+            "columns",
+            "amount_currency_bindings",
+            "side_values",
+            "row_dispositions",
+            "no_consumer_kind",
+        ],
+        "properties": {
+            **table_decision_common,
+            "disposition": {"const": "NO_NAMED_CONSUMER"},
+            "columns": {"type": "array", "maxItems": 0},
+            "amount_currency_bindings": {"type": "array", "maxItems": 0},
+            "side_values": {"type": "array", "maxItems": 0},
+            "row_dispositions": {"type": "array", "maxItems": 0},
+            "no_consumer_kind": {
+                "type": "string",
+                "enum": sorted(_NO_CONSUMER_KINDS),
+            },
+        },
+    }
+    unsupported_financial_meaning_table_decision = {
         "type": "object",
         "additionalProperties": False,
         "required": [
@@ -1858,13 +1916,7 @@ def _mapping_response_schema() -> dict[str, Any]:
         ],
         "properties": {
             **table_decision_common,
-            "disposition": {
-                "type": "string",
-                "enum": sorted(
-                    _TABLE_DISPOSITIONS
-                    - {"SECURITY_TRADES", "SECURITY_TRADES_INCOMPLETE"}
-                ),
-            },
+            "disposition": {"const": "UNSUPPORTED_FINANCIAL_MEANING"},
             "columns": {"type": "array", "maxItems": 0},
             "amount_currency_bindings": {"type": "array", "maxItems": 0},
             "side_values": {"type": "array", "maxItems": 0},
@@ -1875,7 +1927,8 @@ def _mapping_response_schema() -> dict[str, Any]:
         "anyOf": [
             security_trade_table_decision,
             incomplete_security_trade_table_decision,
-            non_trade_table_decision,
+            no_named_consumer_table_decision,
+            unsupported_financial_meaning_table_decision,
         ]
     }
     decision = {

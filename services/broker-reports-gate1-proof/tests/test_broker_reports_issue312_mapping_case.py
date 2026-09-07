@@ -372,9 +372,10 @@ def test_exclusion_decisions_remain_complete_and_auditable(tmp_path) -> None:
                     "header_row": 1,
                     "disposition": "NO_NAMED_CONSUMER",
                     "columns": [],
-                    "amount_currency_bindings": [],
-                    "side_values": [],
-                    "row_dispositions": [],
+                        "amount_currency_bindings": [],
+                        "side_values": [],
+                        "row_dispositions": [],
+                        "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
                 }
                 for index in (1, 2)
             ],

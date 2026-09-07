@@ -971,6 +971,7 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
         "side_values",
         "missing_required_roles",
     }
+    no_consumer_fields = base_fields | {"no_consumer_kind"}
     if (
         not isinstance(value, Mapping)
         or set(value)
@@ -984,6 +985,7 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
             },
             base_fields,
             incomplete_fields,
+            no_consumer_fields,
         )
         or not isinstance(value.get("table_node_id"), str)
         or not value["table_node_id"]
@@ -1000,6 +1002,16 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
         _fail("ordinary_trade_table_resolution_invalid")
     incomplete = value["disposition"] == "SECURITY_TRADES_INCOMPLETE"
     if incomplete != (set(value) == incomplete_fields):
+        _fail("ordinary_trade_table_resolution_invalid")
+    no_consumer_kind = value.get("no_consumer_kind")
+    if value["disposition"] == "NO_NAMED_CONSUMER" and (
+        set(value) != base_fields and set(value) != no_consumer_fields
+        or (
+            no_consumer_kind is not None
+            and no_consumer_kind
+            not in {"INSTRUCTIONAL_REFERENCE", "OTHER_NO_NAMED_CONSUMER"}
+        )
+    ):
         _fail("ordinary_trade_table_resolution_invalid")
     if incomplete and (
         not isinstance(value.get("columns"), list)

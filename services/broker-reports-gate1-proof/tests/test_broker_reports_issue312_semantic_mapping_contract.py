@@ -29,6 +29,8 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
+    _confirmed_exclusion_resolutions,
+    _table_surfaces,
 )
 
 import test_broker_reports_ordinary_trade_production_candidate as candidate
@@ -170,7 +172,7 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     managed_prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt()
 
     assert managed_prompt.version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v15"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v16"
     assert "A Settlement Date is never a Trade Date" in managed_prompt.content
     assert "unambiguously not a transaction table" in managed_prompt.content
     assert "distinct acquisition and disposal amount columns" in managed_prompt.content
@@ -179,6 +181,9 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     assert "source-column mappings in the same table" in managed_prompt.content
     assert "preceding or adjacent row, narrative, or another table" in managed_prompt.content
     assert "do not request currency" in managed_prompt.content
+    assert "INSTRUCTIONAL_REFERENCE" in managed_prompt.content
+    assert "OTHER_NO_NAMED_CONSUMER" in managed_prompt.content
+    assert "does not delete, alter, or hide Canonical" in managed_prompt.content
 
 
 def test_mapping_prompt_recognizes_explicit_sale_table_contract() -> None:
@@ -290,11 +295,12 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         {"COMPLETE", "CLARIFICATION_REQUIRED", "CURRENCY_ASSERTION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
     ]
     disposition_enums = _property_enum_sets(provider_schema, "disposition")
-    assert len(disposition_enums) == 6
+    assert len(disposition_enums) == 7
     assert {"SECURITY_TRADES"} in disposition_enums
     assert {"SECURITY_TRADES_INCOMPLETE"} in disposition_enums
     assert {"SECURITY_TRADES", "NO_NAMED_CONSUMER"} in disposition_enums
-    assert {"NO_NAMED_CONSUMER", "UNSUPPORTED_FINANCIAL_MEANING"} in disposition_enums
+    assert {"NO_NAMED_CONSUMER"} in disposition_enums
+    assert {"UNSUPPORTED_FINANCIAL_MEANING"} in disposition_enums
     assert {
         "SECURITY_TRADES",
         "SECURITY_TRADES_INCOMPLETE",
@@ -335,6 +341,7 @@ def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
                 "amount_currency_bindings": [],
                 "side_values": [],
                 "row_dispositions": [],
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
             }
         ],
         "clarification": None,
@@ -346,6 +353,40 @@ def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
 
     response["table_decisions"][0]["columns"] = []
     validator.validate(response)
+
+
+def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
+    schema = (
+        OrdinaryTradeSemanticMappingFactory.create()
+        .mapping_response_format()["json_schema"]["schema"]
+    )
+    validator = Draft202012Validator(schema)
+    decision = {
+        "table_ref": "table_001",
+        "header_row": 1,
+        "disposition": "NO_NAMED_CONSUMER",
+        "columns": [],
+        "amount_currency_bindings": [],
+        "side_values": [],
+        "row_dispositions": [],
+        "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+    }
+    response = {
+        "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+        "status": "COMPLETE",
+        "table_decisions": [decision],
+        "clarification": None,
+        "message": "The table is explanatory material.",
+    }
+
+    validator.validate(response)
+    del decision["no_consumer_kind"]
+    with pytest.raises(ValidationError):
+        validator.validate(response)
+    decision["no_consumer_kind"] = "INSTRUCTIONAL_REFERENCE"
+    decision["disposition"] = "SECURITY_TRADES"
+    with pytest.raises(ValidationError):
+        validator.validate(response)
 
 
 def test_unknown_schema_mapping_is_qualified_only_for_exact_case(tmp_path) -> None:
@@ -607,6 +648,13 @@ def test_mixed_tables_publish_complete_internal_table_classification(
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
     second = copy.deepcopy(table)
     second["node_id"] = f"{table['node_id']}_second"
+    second_header = next(
+        cell
+        for cell in second["content"]["cells"]
+        if cell["row"] == 1 and cell["column"] == 1
+    )
+    second_header["value"] = f"{second_header['value']} (reference)"
+    second_header["displayed_value"] = second_header["value"]
     canonical["nodes"].append(second)
     response = _complete_response(table, known)
     response["table_decisions"].append(
@@ -618,6 +666,7 @@ def test_mixed_tables_publish_complete_internal_table_classification(
             "amount_currency_bindings": [],
             "side_values": [],
             "row_dispositions": [],
+            "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
         }
     )
 
@@ -639,6 +688,43 @@ def test_mixed_tables_publish_complete_internal_table_classification(
         "SECURITY_TRADES",
         "NO_NAMED_CONSUMER",
     ]
+    assert result["table_resolutions"][1]["no_consumer_kind"] == (
+        "INSTRUCTIONAL_REFERENCE"
+    )
+    projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+        canonical=canonical,
+        canonical_binding=binding,
+        mappings=result["qualified_mappings"],
+        table_resolutions=result["table_resolutions"],
+    )
+    assert projection["qualified_table_resolutions"][1]["no_consumer_kind"] == (
+        "INSTRUCTIONAL_REFERENCE"
+    )
+    assert any(
+        item["table_node_id"] == second["node_id"]
+        and item["disposition"] == "SOURCE_RETAINED_NO_CONSUMER"
+        for item in projection["source_observations"]
+    )
+
+
+def test_legacy_confirmed_no_consumer_decision_remains_readable(tmp_path) -> None:
+    _context, canonical, _binding, _table, _known = _canonical_case(tmp_path)
+    table = _table_surfaces(canonical)[0]
+    resolutions = _confirmed_exclusion_resolutions(
+        confirmed_understandings=[
+            {
+                "decision": {
+                    "decision_kind": "TABLE_DISPOSITION",
+                    "table_node_id": table["table_node_id"],
+                    "header_row": 1,
+                    "disposition": "NO_NAMED_CONSUMER",
+                }
+            }
+        ],
+        tables={table["table_node_id"]: table},
+    )
+    assert resolutions[0]["disposition"] == "NO_NAMED_CONSUMER"
+    assert "no_consumer_kind" not in resolutions[0]
 
 
 def test_recognized_incomplete_security_trade_retains_role_without_fact_mapping(
@@ -713,6 +799,7 @@ def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> Non
                 "amount_currency_bindings": [],
                 "side_values": [],
                 "row_dispositions": [],
+                "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
             }
         )
 
@@ -836,6 +923,9 @@ def test_non_trade_disposition_rejects_mapping_material(tmp_path) -> None:
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
     response = _complete_response(table, known)
     response["table_decisions"][0]["disposition"] = "NO_NAMED_CONSUMER"
+    response["table_decisions"][0]["no_consumer_kind"] = (
+        "OTHER_NO_NAMED_CONSUMER"
+    )
 
     with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
         OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(

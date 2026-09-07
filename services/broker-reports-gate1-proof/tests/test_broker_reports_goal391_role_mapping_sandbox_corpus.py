@@ -83,7 +83,7 @@ def _golden_complete_trade_case() -> FrozenRoleMappingCorpusCase:
         ),
     )
     response = {
-        "schema_version": "broker_reports_ordinary_trade_semantic_mapping_response_v4",
+        "schema_version": "broker_reports_ordinary_trade_semantic_mapping_response_v5",
         "status": "COMPLETE",
         "table_decisions": [
             {
