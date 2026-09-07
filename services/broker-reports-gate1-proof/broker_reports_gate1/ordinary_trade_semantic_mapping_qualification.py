@@ -16,6 +16,13 @@ from typing import Any, Mapping
 
 from .canonical_artifact import validate_canonical_artifact
 from .gate2_model_contracts import Gate2StructuredModelClient, Gate2StructuredModelResult
+from .ordinary_trade_mapping_prompt import (
+    PROMPT_COMMAND,
+    PROMPT_PLACEHOLDER,
+    OrdinaryTradeMappingManagedPrompt,
+    ordinary_trade_mapping_prompt_hash,
+    validate_ordinary_trade_mapping_prompt_snapshot,
+)
 from .ordinary_trade_semantic_mapping import OrdinaryTradeSemanticMappingFactory
 
 
@@ -34,7 +41,10 @@ class OrdinaryTradeSemanticMappingQualificationFactory:
     """Construct the local runner with an explicitly injected model client."""
 
     def __init__(
-        self, *, model_client: Gate2StructuredModelClient, mapping_prompt: Any | None = None
+        self,
+        *,
+        model_client: Gate2StructuredModelClient,
+        mapping_prompt: OrdinaryTradeMappingManagedPrompt,
     ) -> None:
         self._model_client = model_client
         self._mapping_prompt = mapping_prompt
@@ -47,17 +57,21 @@ class OrdinaryTradeSemanticMappingQualificationFactory:
         return OrdinaryTradeSemanticMappingQualificationRunner(
             model_client=self._model_client,
             semantic=OrdinaryTradeSemanticMappingFactory.create(),
-            mapping_prompt=self._mapping_prompt,
+            mapping_prompt=_require_managed_mapping_prompt(self._mapping_prompt),
         )
 
 
 class OrdinaryTradeSemanticMappingQualificationRunner:
     def __init__(
-        self, *, model_client: Gate2StructuredModelClient, semantic: Any, mapping_prompt: Any
+        self,
+        *,
+        model_client: Gate2StructuredModelClient,
+        semantic: Any,
+        mapping_prompt: OrdinaryTradeMappingManagedPrompt,
     ) -> None:
         self._model_client = model_client
         self._semantic = semantic
-        self._mapping_prompt = mapping_prompt
+        self._mapping_prompt = _require_managed_mapping_prompt(mapping_prompt)
 
     async def run(
         self,
@@ -74,9 +88,8 @@ class OrdinaryTradeSemanticMappingQualificationRunner:
             confirmed_understandings=input_data["confirmed_understandings"],
             target_table_node_ids=input_data["target_table_node_ids"],
         )
-        prompt = self._mapping_prompt or self._semantic.mapping_prompt()
         response = await self._model_client.extract(
-            prompt=prompt,
+            prompt=self._mapping_prompt,
             package=package,
             model_id=model_id,
             response_format=self._semantic.mapping_response_format(),
@@ -108,8 +121,8 @@ class OrdinaryTradeSemanticMappingQualificationRunner:
             "status": "PASSED",
             "provider_calls_total": 1,
             "fixture_sha256": _sha256(input_data["fixture_identity"]),
-            "prompt_version": prompt.version,
-            "prompt_sha256": _sha256(prompt.content),
+            "prompt_version": self._mapping_prompt.version,
+            "prompt_sha256": _sha256(self._mapping_prompt.content),
             "response_format_sha256": _sha256(self._semantic.mapping_response_format()),
             "package_sha256": _sha256(package),
             "execution_metadata_sha256": _sha256(response.execution_metadata),
@@ -187,6 +200,31 @@ def _validated_fixture(fixture: Mapping[str, Any]) -> dict[str, Any]:
             "ordinary_trade_mapping_qualification_expected_verdict_invalid"
         )
     return dict(fixture)
+
+
+def _require_managed_mapping_prompt(
+    prompt: Any,
+) -> OrdinaryTradeMappingManagedPrompt:
+    if not isinstance(prompt, OrdinaryTradeMappingManagedPrompt):
+        raise OrdinaryTradeSemanticMappingQualificationError(
+            "ordinary_trade_mapping_qualification_prompt_required"
+        )
+    try:
+        validate_ordinary_trade_mapping_prompt_snapshot(prompt.snapshot())
+    except Exception as exc:
+        raise OrdinaryTradeSemanticMappingQualificationError(
+            "ordinary_trade_mapping_qualification_prompt_invalid"
+        ) from exc
+    if (
+        prompt.command != PROMPT_COMMAND
+        or not prompt.content.strip()
+        or prompt.content.count(PROMPT_PLACEHOLDER) != 1
+        or prompt.hash != ordinary_trade_mapping_prompt_hash(prompt.content)
+    ):
+        raise OrdinaryTradeSemanticMappingQualificationError(
+            "ordinary_trade_mapping_qualification_prompt_invalid"
+        )
+    return prompt
 
 
 def _require_one_strict_result(response: Any) -> None:
