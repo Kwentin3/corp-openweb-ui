@@ -26,6 +26,10 @@ from .ordinary_trade_declaration_mvp import (
     OrdinaryTradeDeclarationMvpError,
     OrdinaryTradeDeclarationMvpRuntime,
 )
+from .ordinary_trade_declaration_case_bundle import (
+    OrdinaryTradeDeclarationCaseBundleFactory,
+)
+from .gate5_human_gap_closure import Gate5HumanGapClosureRuntimeFactory
 
 
 ORDINARY_TRADE_PRODUCTION_RUN_SCHEMA_VERSION = (
@@ -133,9 +137,51 @@ class OrdinaryTradeProductionRuntime:
         ).create()
         self._declaration = declaration
         self._mapping = mapping
+        self._declaration_bundle = (
+            OrdinaryTradeDeclarationCaseBundleFactory(
+                store=store,
+                retention_policy=declaration.retention_policy,
+                coverage_reader=self._projections.current_case_coverage,
+                fact_set_reader=self._gate4.current_fact_set,
+                user_facts_reader=Gate5HumanGapClosureRuntimeFactory.create(
+                    store=store,
+                    retention_policy=declaration.retention_policy,
+                ).current_user_case_facts,
+            ).create()
+            if declaration is not None
+            else None
+        )
         self._finalizer = CanonicalFinalizationFactory(
             store=store, read_enabled=read_enabled
         ).create()
+
+    def stabilize_declaration_case(
+        self, *, context: ArtifactAccessContext, tax_period: str
+    ) -> dict[str, Any]:
+        """Persist an explicit complete-document-set intent for declaration."""
+
+        if self._declaration_bundle is None:
+            raise OrdinaryTradeProductionError(
+                "ordinary_trade_declaration_bundle_authority_owners_required"
+            )
+        return self._declaration_bundle.stabilize_current_scope(
+            context=context,
+            tax_period=tax_period,
+        )
+
+    def current_declaration_case_bundle(
+        self, *, context: ArtifactAccessContext, tax_period: str
+    ) -> dict[str, Any]:
+        """Expose only the bundle owner's honest current/stale terminal."""
+
+        if self._declaration_bundle is None:
+            raise OrdinaryTradeProductionError(
+                "ordinary_trade_declaration_bundle_authority_owners_required"
+            )
+        return self._declaration_bundle.read_current(
+            context=context,
+            tax_period=tax_period,
+        )
 
     async def run_with_automatic_mapping(
         self,

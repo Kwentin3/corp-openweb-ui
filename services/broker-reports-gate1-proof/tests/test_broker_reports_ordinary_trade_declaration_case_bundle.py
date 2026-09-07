@@ -9,6 +9,9 @@ from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactSto
 from broker_reports_gate1.ordinary_trade_declaration_case_bundle import (
     OrdinaryTradeDeclarationCaseBundleFactory,
 )
+from broker_reports_gate1.ordinary_trade_production_runtime import (
+    OrdinaryTradeProductionRuntimeFactory,
+)
 
 
 def test_bundle_binds_current_owner_material_and_stales_on_real_coverage_change(
@@ -71,20 +74,39 @@ def test_bundle_scope_cannot_be_read_by_another_authenticated_case(tmp_path: Pat
     }
 
 
-def _runtime(tmp_path: Path, state: dict):
-    store = ArtifactStoreFactory(
-        ArtifactStoreConfig(
-            mode="sqlite",
-            sqlite_path=tmp_path / "artifacts.sqlite3",
-            payload_root=tmp_path / "payloads",
-        )
+def test_production_composition_exposes_only_bundle_owner_terminal(
+    tmp_path: Path,
+) -> None:
+    store = _store(tmp_path)
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        retention_policy=build_retention_policy(mode="api_smoke"),
     ).create()
+
+    assert runtime.current_declaration_case_bundle(
+        context=_context(), tax_period="2025"
+    ) == {"status": "BUNDLE_STABILIZATION_REQUIRED", "bundle": None}
+
+
+def _runtime(tmp_path: Path, state: dict):
+    store = _store(tmp_path)
     return OrdinaryTradeDeclarationCaseBundleFactory(
         store=store,
         retention_policy=build_retention_policy(mode="api_smoke"),
         coverage_reader=lambda **_kwargs: state["coverage"],
         fact_set_reader=lambda **_kwargs: state["fact_set"],
         user_facts_reader=lambda **_kwargs: state["user_facts"],
+    ).create()
+
+
+def _store(tmp_path: Path):
+    return ArtifactStoreFactory(
+        ArtifactStoreConfig(
+            mode="sqlite",
+            sqlite_path=tmp_path / "artifacts.sqlite3",
+            payload_root=tmp_path / "payloads",
+        )
     ).create()
 
 
