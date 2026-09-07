@@ -107,3 +107,79 @@ class OpenWebUIFileBytesTest(unittest.IsolatedAsyncioTestCase):
                     )
 
         self.assertEqual(denied.exception.code, "openwebui_file_hash_mismatch")
+
+    async def test_native_file_hash_binds_bytes_when_row_hash_is_not_content_hash(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stored_path = Path(temp_dir) / "source.pdf"
+            stored_path.write_bytes(PAYLOAD)
+            _Files.row = SimpleNamespace(
+                id=FILE_ID,
+                user_id=USER_ID,
+                filename="source.pdf",
+                path="stored/source.pdf",
+                # OpenWebUI may use this for the persisted row/object rather
+                # than for the raw upload body.
+                hash="0" * 64,
+                meta={
+                    "content_type": "application/pdf",
+                    "size": len(PAYLOAD),
+                    "file_hash": hashlib.sha256(PAYLOAD).hexdigest(),
+                },
+            )
+            with patch.dict(sys.modules, self._modules(stored_path)):
+                resolved = await OpenWebUIFileBytesResolverFactory.create().resolve(
+                    file_id=FILE_ID,
+                    actor_user_id=USER_ID,
+                )
+
+        self.assertEqual(resolved.sha256, hashlib.sha256(PAYLOAD).hexdigest())
+
+    async def test_native_file_hash_mismatch_is_terminal(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stored_path = Path(temp_dir) / "source.pdf"
+            stored_path.write_bytes(PAYLOAD)
+            _Files.row = SimpleNamespace(
+                id=FILE_ID,
+                user_id=USER_ID,
+                filename="source.pdf",
+                path="stored/source.pdf",
+                hash=hashlib.sha256(PAYLOAD).hexdigest(),
+                meta={
+                    "content_type": "application/pdf",
+                    "size": len(PAYLOAD),
+                    "file_hash": "0" * 64,
+                },
+            )
+            with patch.dict(sys.modules, self._modules(stored_path)):
+                with self.assertRaises(OpenWebUIFileBytesError) as denied:
+                    await OpenWebUIFileBytesResolverFactory.create().resolve(
+                        file_id=FILE_ID,
+                        actor_user_id=USER_ID,
+                    )
+
+        self.assertEqual(denied.exception.code, "openwebui_file_hash_mismatch")
+
+    async def test_invalid_native_file_hash_does_not_downgrade_to_row_hash(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stored_path = Path(temp_dir) / "source.pdf"
+            stored_path.write_bytes(PAYLOAD)
+            _Files.row = SimpleNamespace(
+                id=FILE_ID,
+                user_id=USER_ID,
+                filename="source.pdf",
+                path="stored/source.pdf",
+                hash=hashlib.sha256(PAYLOAD).hexdigest(),
+                meta={
+                    "content_type": "application/pdf",
+                    "size": len(PAYLOAD),
+                    "file_hash": "not-a-sha256",
+                },
+            )
+            with patch.dict(sys.modules, self._modules(stored_path)):
+                with self.assertRaises(OpenWebUIFileBytesError) as denied:
+                    await OpenWebUIFileBytesResolverFactory.create().resolve(
+                        file_id=FILE_ID,
+                        actor_user_id=USER_ID,
+                    )
+
+        self.assertEqual(denied.exception.code, "openwebui_file_hash_invalid")
