@@ -232,6 +232,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "active_category_declaration_assembly",
     "ordinary_trade_declaration_chat_adapter",
     "ordinary_trade_declaration_case_inputs",
+    "ordinary_trade_declaration_case_bundle",
     "ordinary_trade_declaration_mvp",
     "ordinary_trade_production_runtime",
 ]
