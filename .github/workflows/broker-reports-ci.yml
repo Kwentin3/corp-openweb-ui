@@ -19,7 +19,9 @@ jobs:
   broker-reports-ci:
     name: broker-reports-ci
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # The final production guard is a local, CPU-heavy 21-suite pytest run.
+    # Keep every guard mandatory; allow it to finish after prior CI stages.
+    timeout-minutes: 35
     defaults:
       run:
         shell: bash
