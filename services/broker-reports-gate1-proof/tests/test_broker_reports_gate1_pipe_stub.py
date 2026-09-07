@@ -784,7 +784,7 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertNotIn("pipe-file-source-policy-1", content)
         self.assertNotIn("<table>", content)
 
-    def test_ndfl_workspace_model_owns_pdf_source_policy(self):
+    def test_ndfl_workspace_model_owns_source_policy(self):
         pipe = self._pipe()
 
         context = pipe._safe_input_context(
@@ -806,6 +806,7 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
                 "mode": "native_ndfl_workspace_model",
                 "explicit": True,
                 "accept_pdf_html_source_roles": True,
+                "accept_tabular_source_roles": True,
             },
         )
 
