@@ -173,7 +173,7 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     managed_prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt()
 
     assert managed_prompt.version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v21"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v22"
     assert "A Settlement Date is never a Trade Date" in managed_prompt.content
     assert "unambiguously not a transaction table" in managed_prompt.content
     assert "distinct acquisition and disposal amount columns" in managed_prompt.content
@@ -187,6 +187,27 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     assert "does not delete, alter, or hide Canonical" in managed_prompt.content
     assert "COMPLETE has no residual or default disposition" in managed_prompt.content
     assert "Opaque headers, an opaque CSV shape" in managed_prompt.content
+
+
+def test_mapping_prompt_direct_instructional_context_beats_transaction_like_columns() -> None:
+    """The model, not code, resolves this semantic contrast from literal evidence."""
+
+    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
+
+    assert "Resolve source status before mapping columns" in prompt
+    assert "transaction-like columns do not override that direct source context" in prompt
+    assert "NO_NAMED_CONSUMER with INSTRUCTIONAL_REFERENCE" in prompt
+    assert "its exact classification_evidence reference" in prompt
+
+
+def test_mapping_prompt_requires_abstention_without_direct_declarant_example_evidence() -> None:
+    """No word list in code may resolve a declarant-versus-example ambiguity."""
+
+    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
+
+    assert "If no direct source context resolves the distinction between a declarant " in prompt
+    assert "record and an example or reference, return SPECIALIST_REVIEW_REQUIRED" in prompt
+    assert "the table is the declarant's non-transaction record" not in prompt
 
 
 def test_mapping_prompt_recognizes_explicit_sale_table_contract() -> None:
