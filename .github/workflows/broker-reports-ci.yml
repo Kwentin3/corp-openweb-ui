@@ -19,9 +19,10 @@ jobs:
   broker-reports-ci:
     name: broker-reports-ci
     runs-on: ubuntu-24.04
-    # The final production guard is a local, CPU-heavy 21-suite pytest run.
-    # Keep every guard mandatory; allow it to finish after prior CI stages.
-    timeout-minutes: 35
+    # The final Pipe guard is intentionally split into three complete,
+    # CPU-heavy local groups. Keep every guard mandatory and give their
+    # bounded sum room to reach a diagnostic terminal.
+    timeout-minutes: 55
     defaults:
       run:
         shell: bash
@@ -229,9 +230,28 @@ jobs:
           --durations=20
           --tb=short
 
-      - name: Run ordinary-trade NDFL product Pipe guards
+      - name: Run NDFL Pipe maintained-stage end-to-end guard
+        run: >-
+          timeout 18m python -m pytest -q
+          tests/test_broker_reports_ndfl_product_pipe.py
+          -k maintained_stage_binds_normal_chat_answer_to_current_owner_actions
+          --durations=20
+          --tb=short
+          -ra
+
+      - name: Run NDFL Pipe bundled XML end-to-end guard
         run: >-
           timeout 12m python -m pytest -q
           tests/test_broker_reports_ndfl_product_pipe.py
+          -k public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat
+          --durations=20
+          --tb=short
+          -ra
+
+      - name: Run remaining NDFL Pipe guards
+        run: >-
+          timeout 12m python -m pytest -q
+          tests/test_broker_reports_ndfl_product_pipe.py
+          -k "not (maintained_stage_binds_normal_chat_answer_to_current_owner_actions or public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat)"
           --durations=20
           --tb=short
