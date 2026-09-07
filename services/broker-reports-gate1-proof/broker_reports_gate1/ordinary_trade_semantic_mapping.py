@@ -433,13 +433,11 @@ class OrdinaryTradeSemanticMapping:
             or not value["message"].strip()
         ):
             _fail("ordinary_trade_semantic_mapping_response_invalid")
-        all_table_surfaces = _table_surfaces(canonical)
         table_surfaces = _selected_table_surfaces(
             canonical=canonical,
             target_table_node_ids=target_table_node_ids,
         )
         tables = {item["table_node_id"]: item for item in table_surfaces}
-        all_tables = {item["table_node_id"]: item for item in all_table_surfaces}
         _model_tables, refs_by_node_id = _model_table_surfaces(
             canonical,
             target_table_node_ids=target_table_node_ids,
@@ -595,7 +593,7 @@ class OrdinaryTradeSemanticMapping:
         )
         confirmed_exclusion_resolutions = _confirmed_exclusion_resolutions(
             confirmed_understandings=confirmed_understandings,
-            tables=all_tables,
+            tables=tables,
         )
         if any(
             item["disposition"] == "UNSUPPORTED_FINANCIAL_MEANING"
@@ -790,10 +788,24 @@ def _managed_prompt(
     )
 
 
-def _table_surfaces(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _table_surfaces(
+    canonical: Mapping[str, Any],
+    *,
+    target_table_node_ids: Iterable[str] | None = None,
+) -> list[dict[str, Any]]:
     nodes = canonical.get("nodes") if isinstance(canonical, Mapping) else None
     if not isinstance(nodes, list):
         _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+    target_ids = None
+    if target_table_node_ids is not None:
+        target_ids = list(target_table_node_ids)
+        if (
+            not target_ids
+            or len(target_ids) != len(set(target_ids))
+            or any(not isinstance(item, str) or not item for item in target_ids)
+        ):
+            _fail("ordinary_trade_semantic_mapping_target_scope_invalid")
+        target_ids = set(target_ids)
     tables = []
     cells_total = 0
     preceding_literals_by_container: dict[str, list[str]] = {}
@@ -825,6 +837,8 @@ def _table_surfaces(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
         cells = (node.get("content") or {}).get("cells")
         if not isinstance(node_id, str) or not node_id or not isinstance(cells, list):
             _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        if target_ids is not None and node_id not in target_ids:
+            continue
         by_row: dict[int, list[dict[str, Any]]] = {}
         for cell in cells:
             if not isinstance(cell, dict):
@@ -868,6 +882,8 @@ def _table_surfaces(canonical: Mapping[str, Any]) -> list[dict[str, Any]]:
         )
     if not tables or len(tables) > _MAX_TABLES or cells_total > _MAX_CELLS_TOTAL:
         _fail("ordinary_trade_semantic_mapping_context_limit")
+    if target_ids is not None and {item["table_node_id"] for item in tables} != target_ids:
+        _fail("ordinary_trade_semantic_mapping_target_scope_stale")
     return tables
 
 
@@ -938,19 +954,14 @@ def _selected_table_surfaces(
     canonical: Mapping[str, Any],
     target_table_node_ids: Iterable[str] | None,
 ) -> list[dict[str, Any]]:
-    tables = _table_surfaces(canonical)
     if target_table_node_ids is None:
-        return tables
+        return _table_surfaces(canonical)
     target_ids = list(target_table_node_ids)
-    if (
-        not target_ids
-        or len(target_ids) != len(set(target_ids))
-        or any(not isinstance(item, str) or not item for item in target_ids)
-    ):
-        _fail("ordinary_trade_semantic_mapping_target_scope_invalid")
+    tables = _table_surfaces(
+        canonical,
+        target_table_node_ids=target_ids,
+    )
     by_id = {item["table_node_id"]: item for item in tables}
-    if any(item not in by_id for item in target_ids):
-        _fail("ordinary_trade_semantic_mapping_target_scope_stale")
     return [by_id[item] for item in target_ids]
 
 

@@ -76,7 +76,7 @@ def test_local_qualification_uses_production_contract_once_and_returns_safe_rece
 
     assert len(client.calls) == 1
     assert client.calls[0]["prompt"].version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v17"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v18"
     assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
     assert receipt["status"] == "PASSED"
     assert receipt["provider_calls_total"] == 1
@@ -196,6 +196,30 @@ def test_scoped_mapping_does_not_claim_to_cover_tables_not_sent_to_model(tmp_pat
     assert [item["table_node_id"] for item in outcome["table_resolutions"]] == [
         table["node_id"]
     ]
+
+
+def test_scoped_mapping_applies_context_limits_after_structural_scope_selection(tmp_path):
+    _store, _context, _document_id, canonical, _binding = (
+        case_fixtures._unknown_two_table_case(tmp_path)
+    )
+    canonical = copy.deepcopy(canonical)
+    target = next(node for node in canonical["nodes"] if node["node_type"] == "TABLE")
+    for index in range(65):
+        unrelated = copy.deepcopy(target)
+        unrelated["node_id"] = f"unrelated-table-{index}"
+        unrelated["order"] = 1000 + index
+        canonical["nodes"].append(unrelated)
+
+    package = OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+        target_table_node_ids=[target["node_id"]],
+    )
+
+    # The full Canonical is still intact; only the explicit structural scope is
+    # sent to the model, so unrelated tables cannot consume this call's budget.
+    assert len(package["case"]["tables"]) == 1
+    assert package["case"]["tables"][0]["table_ref"] == "table_1"
 
 
 def test_safe_role_map_hash_covers_amount_currency_and_side_choices(tmp_path):
