@@ -94,7 +94,6 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     build_public_dialogue_context,
     build_public_question_context,
     public_answer_candidate_conflicts_with_explicit_negation,
-    public_answer_requires_clarification,
     public_dialogue_context_sha256,
     public_dialogue_interpretation_messages,
     public_dialogue_interpretation_response_format,
@@ -1117,28 +1116,15 @@ class Pipe:
             "presentation_call_already_used": False,
             "presentation_fallback_used": False,
         }
-        direct = adapt_current_declaration_request(
-            message=message,
-            current_requests=current_actions,
-        )
         adapted: dict[str, Any]
         if question is None:
-            adapted = adapt_current_declaration_request(
-                message=message,
-                current_requests=current_actions,
-            )
-            dialogue["presentation_fallback_used"] = True
-        elif public_answer_requires_clarification(message):
             adapted = {
                 "status": "ANSWER_REJECTED",
-                "reason_code": "declaration_chat_answer_delegates_choice",
+                "reason_code": "declaration_chat_public_question_unavailable",
             }
             dialogue["answer_feedback"] = (
-                "Не буду выбирать за вас. Уточните ответ на текущий вопрос "
-                "своими словами."
+                "Ответ на текущий вопрос временно недоступен."
             )
-        elif direct.get("status") == "ANSWER_READY":
-            adapted = direct
         else:
             interpretation: dict[str, str] | None = None
             if self.valves.ndfl_presentation_llm_enabled:
@@ -1179,15 +1165,13 @@ class Pipe:
                     dialogue["pre_rendered_message"] = interpretation["message"]
                 except Exception:
                     dialogue["presentation_call_already_used"] = True
-                    dialogue["presentation_fallback_used"] = True
             if interpretation is None:
                 adapted = {
                     "status": "ANSWER_REJECTED",
-                    "reason_code": "declaration_chat_answer_requires_explicit_value",
+                    "reason_code": "declaration_chat_presentation_unavailable",
                 }
                 dialogue["answer_feedback"] = (
-                    "Ответ пока не принят. Укажите один точный вариант для "
-                    "текущего вопроса своими словами."
+                    "Не удалось безопасно понять ответ. Попробуйте ещё раз позже."
                 )
             elif interpretation["disposition"] == "CLARIFY":
                 adapted = {

@@ -90,10 +90,6 @@ _PUBLIC_FORBIDDEN_TEXT = (
 )
 _INTERNAL_STATUS = re.compile(r"\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b")
 _PRIVATE_DOWNLOAD = re.compile(r"/api/v1/files/[^\s)]+", re.IGNORECASE)
-_DELEGATED_CHOICE = re.compile(
-    r"\b(?:выбер(?:и|ите)|реш(?:и|ите)|определ(?:и|ите))\b.{0,80}\bза меня\b",
-    re.IGNORECASE,
-)
 # Representation-only labels for the bounded declaration product.  Canonical
 # values still come exclusively from the current owner's answer_contract; this
 # table can only translate a visible label to a value already allowed there.
@@ -993,12 +989,6 @@ def public_dialogue_interpretation_messages(
     return system, user
 
 
-def public_answer_requires_clarification(user_message: str) -> bool:
-    """Reject an explicit request that the presentation model make the choice."""
-
-    return _DELEGATED_CHOICE.search(_text(user_message)) is not None
-
-
 def public_dialogue_message_response_format(
     *, context: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -1859,7 +1849,6 @@ __all__ = [
     "declaration_request_question",
     "declaration_surrogate_preview",
     "public_answer_candidate_conflicts_with_explicit_negation",
-    "public_answer_requires_clarification",
     "public_dialogue_context_sha256",
     "public_dialogue_message_response_format",
     "public_mapping_verification_messages",

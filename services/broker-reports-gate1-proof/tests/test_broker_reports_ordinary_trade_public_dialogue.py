@@ -963,7 +963,7 @@ def test_pipe_free_answer_uses_one_llm_candidate_from_the_normal_chat_turn(
     assert dialogue["presentation_llm_calls_total"] == 1
 
 
-def test_pipe_rejects_model_choice_not_grounded_in_ambiguous_user_answer(
+def test_pipe_sends_delegated_choice_to_one_model_turn_and_accepts_no_fact(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pipe = Pipe()
@@ -975,13 +975,18 @@ def test_pipe_rejects_model_choice_not_grounded_in_ambiguous_user_answer(
         "answer_contract": {"kind": "code", "pattern": "(?!0000$)[0-9]{4}"},
     }
 
-    def completion(**_kwargs):
-        raise AssertionError("delegated choice must not reach the model")
-
     monkeypatch.setattr(
         pipe,
         "_openwebui_completion_dependencies",
-        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+        lambda user_id: (
+            _interpretation_completion(
+                context=build_public_dialogue_context(product=_product_with_request(request)),
+                disposition="CLARIFY",
+                normalized_answer="",
+                evidence="",
+            ),
+            type("User", (), {"id": user_id})(),
+        ),
     )
     adapted, dialogue = asyncio.run(
         pipe._adapt_ndfl_public_answer(
@@ -996,10 +1001,50 @@ def test_pipe_rejects_model_choice_not_grounded_in_ambiguous_user_answer(
     )
 
     assert adapted["status"] == "ANSWER_REJECTED"
-    assert adapted["reason_code"] == "declaration_chat_answer_delegates_choice"
-    assert dialogue["answer_feedback"] == (
-        "Не буду выбирать за вас. Уточните ответ на текущий вопрос своими словами."
+    assert adapted["reason_code"] == "declaration_chat_answer_requires_clarification"
+    assert dialogue["presentation_llm_calls_total"] == 1
+
+
+def test_pipe_exact_visible_answer_still_uses_one_structured_model_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+    request = _request()
+    product = _product_with_request(request)
+    context = build_public_dialogue_context(product=product)
+    calls: list[dict] = []
+
+    def completion(**call):
+        calls.append(call)
+        return _interpretation_completion(
+            context=context,
+            disposition="CANDIDATE",
+            normalized_answer="Первичная декларация",
+            evidence="Первичная декларация",
+        )(**call)
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
     )
+
+    adapted, dialogue = asyncio.run(
+        pipe._adapt_ndfl_public_answer(
+            message="Первичная декларация",
+            current_actions=[request],
+            product=product,
+            declaration=None,
+            user={"id": "user-a"},
+            request=object(),
+        )
+    )
+
+    assert adapted["status"] == "ANSWER_READY"
+    assert adapted["answer"] == {"kind": "code", "value": "INITIAL"}
+    assert len(calls) == 1
+    assert dialogue["presentation_llm_calls_total"] == 1
+    assert dialogue["interpretation_model_used"] is True
 
 
 @pytest.mark.parametrize(
@@ -1158,7 +1203,7 @@ def test_model_cannot_return_hidden_owner_code_as_public_candidate(
 
     assert adapted["status"] == "ANSWER_REJECTED"
     assert dialogue["candidate_proposed"] is False
-    assert dialogue["presentation_fallback_used"] is True
+    assert dialogue["presentation_fallback_used"] is False
 
 
 def test_invalid_model_render_uses_same_context_fallback_without_new_meaning(
