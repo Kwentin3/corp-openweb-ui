@@ -76,7 +76,7 @@ def test_local_qualification_uses_production_contract_once_and_returns_safe_rece
 
     assert len(client.calls) == 1
     assert client.calls[0]["prompt"].version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v16"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v17"
     assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
     assert receipt["status"] == "PASSED"
     assert receipt["provider_calls_total"] == 1

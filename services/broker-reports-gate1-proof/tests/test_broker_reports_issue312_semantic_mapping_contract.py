@@ -30,6 +30,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
     _confirmed_exclusion_resolutions,
+    _model_table_surfaces,
     _table_surfaces,
 )
 
@@ -172,7 +173,7 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     managed_prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt()
 
     assert managed_prompt.version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v16"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v17"
     assert "A Settlement Date is never a Trade Date" in managed_prompt.content
     assert "unambiguously not a transaction table" in managed_prompt.content
     assert "distinct acquisition and disposal amount columns" in managed_prompt.content
@@ -197,11 +198,62 @@ def test_mapping_prompt_recognizes_explicit_sale_table_contract() -> None:
 def test_mapping_prompt_forbids_declarant_table_classification() -> None:
     prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
 
-    assert "Classify every table, including NO_NAMED_CONSUMER tables" in prompt
+    assert "Classify every supplied table, including NO_NAMED_CONSUMER tables" in prompt
     assert "never ask the declarant to classify" in prompt
     assert "SPECIALIST_REVIEW_REQUIRED" in prompt
     assert "balances, holdings, reference/master data" in prompt
     assert "only for a transaction table" in prompt
+
+
+def test_model_package_exposes_only_bounded_literal_local_table_context() -> None:
+    canonical = {
+        "nodes": [
+            {
+                "node_id": "heading_1",
+                "container_ref": "page_1",
+                "order": 0,
+                "node_type": "HEADING",
+                "content": {"text": "Reference example"},
+            },
+            {
+                "node_id": "text_1",
+                "container_ref": "page_1",
+                "order": 1,
+                "node_type": "TEXT",
+                "content": {"text": "How to read this sample"},
+            },
+            {
+                "node_id": "table_1",
+                "container_ref": "page_1",
+                "order": 2,
+                "node_type": "TABLE",
+                "content": {
+                    "title": "Illustrative transactions",
+                    "cells": [
+                        {"row": 1, "column": 1, "displayed_value": "Date"},
+                        {"row": 2, "column": 1, "displayed_value": "Example"},
+                    ],
+                },
+            },
+            {
+                "node_id": "foreign_text",
+                "container_ref": "page_2",
+                "order": 0,
+                "node_type": "TEXT",
+                "content": {"text": "Must not leak"},
+            },
+        ]
+    }
+
+    tables, refs = _model_table_surfaces(canonical)
+
+    assert refs == {"table_1": "table_1"}
+    assert tables[0]["source_context"] == {
+        "title_literal": "Illustrative transactions",
+        "preceding_literals": ["Reference example", "How to read this sample"],
+    }
+    assert "foreign_text" not in str(tables)
+    assert "table_1" not in str(tables[0]["source_context"])
 
 
 def test_mapping_prompt_states_the_exact_top_level_response_contract() -> None:
