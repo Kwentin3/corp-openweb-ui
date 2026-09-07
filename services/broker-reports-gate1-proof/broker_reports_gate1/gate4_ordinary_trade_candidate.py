@@ -25,6 +25,9 @@ GATE4_ORDINARY_TRADE_BLOCKER_SCHEMA_VERSION = (
 GATE4_ORDINARY_TRADE_SECURITY_POSITION_SOURCE_CONTRACT_MISSING = (
     "gate4_ordinary_trade_security_position_source_contract_missing"
 )
+GATE4_ORDINARY_TRADE_SOURCE_ROLE_INCOMPLETE = (
+    "gate4_ordinary_trade_source_role_incomplete"
+)
 
 
 FACTORY_REQUIRED = (
@@ -155,8 +158,35 @@ class Gate4OrdinaryTradeCandidateRuntime:
         if relevant_unmapped:
             facts = []
             security_facts = []
+        incomplete_table_resolutions = [
+            resolution
+            for _record, projection in projections
+            for resolution in projection["qualified_table_resolutions"]
+            if resolution.get("disposition") == "SECURITY_TRADES_INCOMPLETE"
+        ]
         blockers = []
-        if projections and not security_facts and not relevant_unmapped:
+        if incomplete_table_resolutions and not relevant_unmapped:
+            missing_roles = sorted(
+                {
+                    role
+                    for resolution in incomplete_table_resolutions
+                    for role in resolution["missing_required_roles"]
+                }
+            )
+            blockers.append(
+                {
+                    "schema_version": GATE4_ORDINARY_TRADE_BLOCKER_SCHEMA_VERSION,
+                    "reason_code": GATE4_ORDINARY_TRADE_SOURCE_ROLE_INCOMPLETE,
+                    "required_input": (
+                        "ordinary_trade_source.financial_roles."
+                        + ",".join(missing_roles)
+                    ),
+                    "gap_owner_classification": "REAL_SOURCE_EVIDENCE_MISSING",
+                    "owner": "Gate4OrdinaryTradeCandidateRuntime",
+                    "blocking_scope": "recognized_security_trade_source_table",
+                }
+            )
+        elif projections and not security_facts and not relevant_unmapped:
             blockers.append(
                 {
                     "schema_version": GATE4_ORDINARY_TRADE_BLOCKER_SCHEMA_VERSION,
@@ -181,6 +211,8 @@ class Gate4OrdinaryTradeCandidateRuntime:
             "status": (
                 "SOURCE_MAPPING_INCOMPLETE"
                 if relevant_unmapped
+                else "SOURCE_ROLE_INCOMPLETE"
+                if incomplete_table_resolutions
                 else "SECURITY_POSITION_SOURCE_CONTRACT_MISSING"
                 if blockers
                 else "READY"

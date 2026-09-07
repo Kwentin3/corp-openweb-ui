@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from types import SimpleNamespace
 
 from broker_reports_gate1.canonical_finalization import CanonicalFinalizationFactory
 from broker_reports_gate1.canonical_artifact import validate_canonical_artifact
@@ -20,7 +21,22 @@ from broker_reports_gate1.artifact_retention import build_retention_policy
 import test_broker_reports_issue312_mapping_case as fixtures
 
 
-def test_confirmed_user_choice_is_sealed_into_final_canonical_and_reused(tmp_path):
+def test_confirmed_user_choice_is_sealed_into_final_canonical_and_reused(
+    tmp_path, monkeypatch
+):
+    # This test owns the sealed user-confirmation transition, not disk-capacity
+    # admission. Pin a healthy filesystem boundary so the asserted state
+    # transition does not depend on the runner's temporary-volume capacity.
+    import broker_reports_gate1.canonical_store as canonical_store
+
+    monkeypatch.setattr(
+        canonical_store.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(
+            total=20 * 1024 * 1024 * 1024,
+            free=10 * 1024 * 1024 * 1024,
+        ),
+    )
     store, context, document_id, canonical, binding, table, mapping = fixtures._unknown_case(
         tmp_path
     )

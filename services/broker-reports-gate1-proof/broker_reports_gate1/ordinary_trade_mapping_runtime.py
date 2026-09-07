@@ -10,6 +10,10 @@ from .gate2_model_contracts import Gate2SourceFactRuntimeError
 from .ordinary_trade_mapping_case import (
     OrdinaryTradeMappingCaseFactory,
 )
+from .ordinary_trade_mapping_prompt import (
+    OrdinaryTradeMappingPromptUserContext,
+    validate_ordinary_trade_mapping_prompt_snapshot,
+)
 from .ordinary_trade_semantic_mapping import (
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
@@ -51,6 +55,8 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         read_enabled: bool,
         model_client: Any,
         answer_model_client: Any | None = None,
+        mapping_prompt_resolver: Any | None = None,
+        mapping_prompt_user_context_factory: Any | None = None,
         model_id: str,
         provider_profile_id: str,
     ) -> None:
@@ -58,6 +64,8 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         self._read_enabled = read_enabled
         self._model_client = model_client
         self._answer_model_client = answer_model_client or model_client
+        self._mapping_prompt_resolver = mapping_prompt_resolver
+        self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
         self._model_id = model_id
         self._provider_profile_id = provider_profile_id
 
@@ -68,6 +76,8 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
             or not self._model_id
             or not isinstance(self._provider_profile_id, str)
             or not self._provider_profile_id
+            or self._mapping_prompt_resolver is None
+            or not callable(self._mapping_prompt_user_context_factory)
         ):
             raise OrdinaryTradeAutomaticMappingError(
                 "ordinary_trade_automatic_mapping_configuration_invalid"
@@ -86,6 +96,10 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
                 OrdinaryTradeQualifiedMappingAuthorityFactory.create().list_mappings()
             ),
             compiler=OrdinaryTradeSemanticCompilerFactory.create(),
+            mapping_prompt_resolver=self._mapping_prompt_resolver,
+            mapping_prompt_user_context_factory=(
+                self._mapping_prompt_user_context_factory
+            ),
         )
 
 
@@ -101,6 +115,8 @@ class OrdinaryTradeAutomaticMappingRuntime:
         provider_profile_id: str,
         frozen_mappings: list[dict[str, Any]],
         compiler: Any,
+        mapping_prompt_resolver: Any,
+        mapping_prompt_user_context_factory: Any,
     ) -> None:
         self._cases = cases
         self._semantic = semantic
@@ -110,6 +126,8 @@ class OrdinaryTradeAutomaticMappingRuntime:
         self._provider_profile_id = provider_profile_id
         self._frozen_mappings = frozen_mappings
         self._compiler = compiler
+        self._mapping_prompt_resolver = mapping_prompt_resolver
+        self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
 
     async def resolve(
         self,
@@ -326,8 +344,32 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=saved, context=context, provider_calls_this_turn=0
             )
         try:
+            prompt = self._mapping_prompt_resolver.resolve(
+                self._mapping_prompt_user_context(context)
+            )
+            prompt_snapshot = validate_ordinary_trade_mapping_prompt_snapshot(
+                prompt.snapshot()
+            )
+        except Exception as exc:
+            code = getattr(exc, "code", "ordinary_trade_mapping_prompt_unavailable")
+            saved = self._cases.save_provider_terminal(
+                document_id=document_id,
+                context=context,
+                status="PROVIDER_UNAVAILABLE",
+                reason_code=str(code),
+                message=(
+                    "Утверждённая инструкция semantic mapping сейчас недоступна. "
+                    "Факты не опубликованы; попытку можно безопасно продолжить позже."
+                ),
+                provider_calls_total=0,
+                mapping_prompt_snapshot=None,
+            )
+            return self._result(
+                current=saved, context=context, provider_calls_this_turn=0
+            )
+        try:
             response = await self._model_client.extract(
-                prompt=self._semantic.mapping_prompt(),
+                prompt=prompt,
                 package=package,
                 model_id=self._model_id,
                 response_format=self._semantic.mapping_response_format(),
@@ -344,6 +386,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     "можно безопасно продолжить позже."
                 ),
                 provider_calls_total=1,
+                mapping_prompt_snapshot=prompt_snapshot,
             )
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
@@ -393,6 +436,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     )
                 ),
                 provider_calls_total=1,
+                mapping_prompt_snapshot=prompt_snapshot,
             )
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
@@ -403,6 +447,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 context=context,
                 outcome=outcome,
                 provider_calls_total=1,
+                mapping_prompt_snapshot=prompt_snapshot,
             )
             if _is_exclusion_confirmation(saved[1]):
                 promoted = self._cases.promote_exclusion_confirmation(
@@ -427,6 +472,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 context=context,
                 outcome=outcome,
                 provider_calls_total=1,
+                mapping_prompt_snapshot=prompt_snapshot,
             )
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
@@ -436,10 +482,25 @@ class OrdinaryTradeAutomaticMappingRuntime:
             context=context,
             outcome=outcome,
             provider_calls_total=1,
+            mapping_prompt_snapshot=prompt_snapshot,
         )
         return self._result(
             current=saved, context=context, provider_calls_this_turn=1
         )
+
+    def _mapping_prompt_user_context(
+        self, context: ArtifactAccessContext
+    ) -> OrdinaryTradeMappingPromptUserContext:
+        user_context = self._mapping_prompt_user_context_factory(context)
+        if (
+            not isinstance(user_context, OrdinaryTradeMappingPromptUserContext)
+            or not user_context.user_id
+            or user_context.user_id != context.user_id
+        ):
+            raise OrdinaryTradeAutomaticMappingError(
+                "ordinary_trade_mapping_prompt_user_context_invalid"
+            )
+        return user_context
 
     async def _interpret_answer(
         self,

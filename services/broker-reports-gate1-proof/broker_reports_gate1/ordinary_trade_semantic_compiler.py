@@ -40,6 +40,7 @@ _DISPOSITIONS = {
     "RUNTIME_READY",
     "RELEVANT_UNMAPPED",
     "SOURCE_RETAINED_NO_CONSUMER",
+    "SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE",
 }
 _ROLES = {
     "asset_name",
@@ -189,6 +190,9 @@ class OrdinaryTradeSemanticCompiler:
             matches = global_matches or scoped_matches
             if not matches:
                 if resolution is not None:
+                    recognized_incomplete = (
+                        resolution["disposition"] == "SECURITY_TRADES_INCOMPLETE"
+                    )
                     observations.extend(
                         _unmapped_table_rows(
                             binding=binding,
@@ -202,12 +206,16 @@ class OrdinaryTradeSemanticCompiler:
                                 "NO_NAMED_ORDINARY_TRADE_CONSUMER"
                                 if resolution["disposition"]
                                 == "NO_NAMED_CONSUMER"
+                                else "ORDINARY_TRADE_SOURCE_ROLE_INCOMPLETE"
+                                if recognized_incomplete
                                 else "UNKNOWN_STRUCTURAL_FINGERPRINT"
                             ),
                             disposition=(
                                 "SOURCE_RETAINED_NO_CONSUMER"
                                 if resolution["disposition"]
                                 == "NO_NAMED_CONSUMER"
+                                else "SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE"
+                                if recognized_incomplete
                                 else "RELEVANT_UNMAPPED"
                             ),
                         )
@@ -950,6 +958,25 @@ def _unmapped_table_rows(
 
 
 def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
+    base_fields = {
+        "table_node_id",
+        "header_row",
+        "structural_fingerprint",
+        "evidence_surface",
+        "disposition",
+        "security_trade_rows",
+    }
+    incomplete_fields = base_fields | {
+        "columns",
+        "side_values",
+        "missing_required_roles",
+    }
+    # The base and kind-only forms are persisted pre-v6 resolutions.  The
+    # compiler must continue to read them so historical immutable sidecars are
+    # replayable; new v6 model promotion is rejected upstream unless it carries
+    # classification_evidence.  This module never creates a resolution.
+    no_consumer_fields = base_fields | {"no_consumer_kind"}
+    evidenced_no_consumer_fields = no_consumer_fields | {"classification_evidence"}
     if (
         not isinstance(value, Mapping)
         or set(value)
@@ -961,14 +988,10 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
                 "evidence_surface",
                 "disposition",
             },
-            {
-            "table_node_id",
-            "header_row",
-            "structural_fingerprint",
-            "evidence_surface",
-            "disposition",
-            "security_trade_rows",
-            },
+            base_fields,
+            incomplete_fields,
+            no_consumer_fields,
+            evidenced_no_consumer_fields,
         )
         or not isinstance(value.get("table_node_id"), str)
         or not value["table_node_id"]
@@ -977,9 +1000,50 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
         or value.get("disposition")
         not in {
             "SECURITY_TRADES",
+            "SECURITY_TRADES_INCOMPLETE",
             "NO_NAMED_CONSUMER",
             "UNSUPPORTED_FINANCIAL_MEANING",
         }
+    ):
+        _fail("ordinary_trade_table_resolution_invalid")
+    incomplete = value["disposition"] == "SECURITY_TRADES_INCOMPLETE"
+    if incomplete != (set(value) == incomplete_fields):
+        _fail("ordinary_trade_table_resolution_invalid")
+    no_consumer_kind = value.get("no_consumer_kind")
+    if value["disposition"] == "NO_NAMED_CONSUMER" and (
+        set(value) != base_fields
+        and set(value) != no_consumer_fields
+        and set(value) != evidenced_no_consumer_fields
+        or (
+            no_consumer_kind is not None
+            and no_consumer_kind
+            not in {"INSTRUCTIONAL_REFERENCE", "OTHER_NO_NAMED_CONSUMER"}
+        )
+    ):
+        _fail("ordinary_trade_table_resolution_invalid")
+    classification_evidence = value.get("classification_evidence")
+    if classification_evidence is not None and (
+        value["disposition"] != "NO_NAMED_CONSUMER"
+        or not isinstance(classification_evidence, Mapping)
+        or set(classification_evidence)
+        != {"context_ref", "relation", "canonical_node_id", "literal_sha256"}
+        or any(
+            not isinstance(classification_evidence.get(key), str)
+            or not classification_evidence[key]
+            for key in ("context_ref", "relation", "canonical_node_id", "literal_sha256")
+        )
+        or re.fullmatch(r"[0-9a-f]{64}", classification_evidence["literal_sha256"])
+        is None
+    ):
+        _fail("ordinary_trade_table_resolution_invalid")
+    if incomplete and (
+        not isinstance(value.get("columns"), list)
+        or not isinstance(value.get("side_values"), list)
+        or not isinstance(value.get("missing_required_roles"), list)
+        or not value["missing_required_roles"]
+        or value["missing_required_roles"]
+        != sorted(set(value["missing_required_roles"]))
+        or any(not isinstance(item, str) or not item for item in value["missing_required_roles"])
     ):
         _fail("ordinary_trade_table_resolution_invalid")
     trade_rows = value.get("security_trade_rows")
@@ -994,12 +1058,13 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
             and trade_rows != sorted(set(trade_rows))
         )
         or (
-            value["disposition"] == "SECURITY_TRADES"
+            value["disposition"] in {"SECURITY_TRADES", "SECURITY_TRADES_INCOMPLETE"}
             and trade_rows is not None
             and not trade_rows
         )
         or (
-            value["disposition"] != "SECURITY_TRADES" and trade_rows not in (None, [])
+            value["disposition"] not in {"SECURITY_TRADES", "SECURITY_TRADES_INCOMPLETE"}
+            and trade_rows not in (None, [])
         )
     ):
         _fail("ordinary_trade_table_resolution_invalid")
@@ -1034,7 +1099,9 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
     return {
         **copy.deepcopy(dict(value)),
         "security_trade_rows": (
-            trade_rows if value["disposition"] == "SECURITY_TRADES" else []
+            trade_rows
+            if value["disposition"] in {"SECURITY_TRADES", "SECURITY_TRADES_INCOMPLETE"}
+            else []
         ),
     }
 

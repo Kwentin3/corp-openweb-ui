@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+from dataclasses import replace
 
 import pytest
 from jsonschema import Draft202012Validator, ValidationError
@@ -29,6 +30,9 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
+    _confirmed_exclusion_resolutions,
+    _model_table_surfaces,
+    _table_surfaces,
 )
 
 import test_broker_reports_ordinary_trade_production_candidate as candidate
@@ -170,7 +174,7 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     managed_prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt()
 
     assert managed_prompt.version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v14"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v22"
     assert "A Settlement Date is never a Trade Date" in managed_prompt.content
     assert "unambiguously not a transaction table" in managed_prompt.content
     assert "distinct acquisition and disposal amount columns" in managed_prompt.content
@@ -179,6 +183,32 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     assert "source-column mappings in the same table" in managed_prompt.content
     assert "preceding or adjacent row, narrative, or another table" in managed_prompt.content
     assert "do not request currency" in managed_prompt.content
+    assert "INSTRUCTIONAL_REFERENCE" in managed_prompt.content
+    assert "OTHER_NO_NAMED_CONSUMER" in managed_prompt.content
+    assert "does not delete, alter, or hide Canonical" in managed_prompt.content
+    assert "COMPLETE has no residual or default disposition" in managed_prompt.content
+    assert "Opaque headers, an opaque CSV shape" in managed_prompt.content
+
+
+def test_mapping_prompt_direct_instructional_context_beats_transaction_like_columns() -> None:
+    """The model, not code, resolves this semantic contrast from literal evidence."""
+
+    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
+
+    assert "Resolve source status before mapping columns" in prompt
+    assert "transaction-like columns do not override that direct source context" in prompt
+    assert "NO_NAMED_CONSUMER with INSTRUCTIONAL_REFERENCE" in prompt
+    assert "its exact classification_evidence reference" in prompt
+
+
+def test_mapping_prompt_requires_abstention_without_direct_declarant_example_evidence() -> None:
+    """No word list in code may resolve a declarant-versus-example ambiguity."""
+
+    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
+
+    assert "If no direct source context resolves the distinction between a declarant " in prompt
+    assert "record and an example or reference, return SPECIALIST_REVIEW_REQUIRED" in prompt
+    assert "the table is the declarant's non-transaction record" not in prompt
 
 
 def test_mapping_prompt_recognizes_explicit_sale_table_contract() -> None:
@@ -192,11 +222,65 @@ def test_mapping_prompt_recognizes_explicit_sale_table_contract() -> None:
 def test_mapping_prompt_forbids_declarant_table_classification() -> None:
     prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
 
-    assert "Classify every table, including NO_NAMED_CONSUMER tables" in prompt
+    assert "Classify every supplied table, including NO_NAMED_CONSUMER tables" in prompt
     assert "never ask the declarant to classify" in prompt
     assert "SPECIALIST_REVIEW_REQUIRED" in prompt
     assert "balances, holdings, reference/master data" in prompt
     assert "only for a transaction table" in prompt
+
+
+def test_model_package_exposes_only_bounded_literal_local_table_context() -> None:
+    canonical = {
+        "nodes": [
+            {
+                "node_id": "heading_1",
+                "container_ref": "page_1",
+                "order": 0,
+                "node_type": "HEADING",
+                "content": {"text": "Reference example"},
+            },
+            {
+                "node_id": "text_1",
+                "container_ref": "page_1",
+                "order": 1,
+                "node_type": "TEXT",
+                "content": {"text": "How to read this sample"},
+            },
+            {
+                "node_id": "table_1",
+                "container_ref": "page_1",
+                "order": 2,
+                "node_type": "TABLE",
+                "content": {
+                    "title": "Illustrative transactions",
+                    "cells": [
+                        {"row": 1, "column": 1, "displayed_value": "Date"},
+                        {"row": 2, "column": 1, "displayed_value": "Example"},
+                    ],
+                },
+            },
+            {
+                "node_id": "foreign_text",
+                "container_ref": "page_2",
+                "order": 0,
+                "node_type": "TEXT",
+                "content": {"text": "Must not leak"},
+            },
+        ]
+    }
+
+    tables, refs = _model_table_surfaces(canonical)
+
+    assert refs == {"table_1": "table_1"}
+    assert tables[0]["source_context"] == {
+        "entries": [
+            {"context_ref": "context_1", "relation": "TABLE_TITLE", "literal": "Illustrative transactions"},
+            {"context_ref": "context_2", "relation": "PRECEDING_SAME_CONTAINER", "literal": "Reference example"},
+            {"context_ref": "context_3", "relation": "PRECEDING_SAME_CONTAINER", "literal": "How to read this sample"},
+        ]
+    }
+    assert "foreign_text" not in str(tables)
+    assert "table_1" not in str(tables[0]["source_context"])
 
 
 def test_mapping_prompt_states_the_exact_top_level_response_contract() -> None:
@@ -205,6 +289,38 @@ def test_mapping_prompt_states_the_exact_top_level_response_contract() -> None:
     assert repr(MAPPING_RESPONSE_SCHEMA_VERSION) in prompt
     assert "status, table_decisions, clarification and a non-empty message" in prompt
     assert "clarification must be null" in prompt
+
+
+def test_mapping_preserves_a_bounded_local_context_window() -> None:
+    canonical = {
+        "nodes": [
+            *[
+                {
+                    "node_id": f"text_{index}",
+                    "container_ref": "page_1",
+                    "order": index,
+                    "node_type": "TEXT",
+                    "content": {"text": f"context {index}"},
+                }
+                for index in range(9)
+            ],
+            {
+                "node_id": "table_1",
+                "container_ref": "page_1",
+                "order": 9,
+                "node_type": "TABLE",
+                "content": {
+                    "cells": [{"row": 1, "column": 1, "displayed_value": "x"}],
+                },
+            },
+        ]
+    }
+
+    tables, _refs = _model_table_surfaces(canonical)
+
+    assert [item["literal"] for item in tables[0]["source_context"]["entries"]] == [
+        f"context {index}" for index in range(1, 9)
+    ]
 
 
 @pytest.mark.parametrize(
@@ -273,7 +389,10 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
     form_data = Gate2OpenWebUIRequestBuilder(
         request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
     ).build(
-        prompt=owner.mapping_prompt(),
+        prompt=replace(
+            owner.mapping_prompt(),
+            content=(owner.mapping_prompt().content + "\n{{ordinary_trade_mapping_case_json}}"),
+        ),
         package={"phase": "map", "case": {}},
         model_id="models/gemini-3.5-flash",
         response_format=response_format,
@@ -290,12 +409,15 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         {"COMPLETE", "CLARIFICATION_REQUIRED", "CURRENCY_ASSERTION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
     ]
     disposition_enums = _property_enum_sets(provider_schema, "disposition")
-    assert len(disposition_enums) == 4
+    assert len(disposition_enums) == 7
     assert {"SECURITY_TRADES"} in disposition_enums
+    assert {"SECURITY_TRADES_INCOMPLETE"} in disposition_enums
     assert {"SECURITY_TRADES", "NO_NAMED_CONSUMER"} in disposition_enums
-    assert {"NO_NAMED_CONSUMER", "UNSUPPORTED_FINANCIAL_MEANING"} in disposition_enums
+    assert {"NO_NAMED_CONSUMER"} in disposition_enums
+    assert {"UNSUPPORTED_FINANCIAL_MEANING"} in disposition_enums
     assert {
         "SECURITY_TRADES",
+        "SECURITY_TRADES_INCOMPLETE",
         "NO_NAMED_CONSUMER",
         "UNSUPPORTED_FINANCIAL_MEANING",
     } in disposition_enums
@@ -307,7 +429,7 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         for values in decision_kind_enums
     )
     normalized_value_enums = _property_enum_sets(provider_schema, "normalized_value")
-    assert len(normalized_value_enums) == 2
+    assert len(normalized_value_enums) == 3
     assert all(
         values == {"PURCHASE", "DISPOSAL"}
         for values in normalized_value_enums
@@ -333,6 +455,11 @@ def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
                 "amount_currency_bindings": [],
                 "side_values": [],
                 "row_dispositions": [],
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                "classification_evidence": {
+                    "context_ref": "context_1",
+                    "relation": "TABLE_TITLE",
+                },
             }
         ],
         "clarification": None,
@@ -344,6 +471,51 @@ def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
 
     response["table_decisions"][0]["columns"] = []
     validator.validate(response)
+
+
+def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
+    schema = (
+        OrdinaryTradeSemanticMappingFactory.create()
+        .mapping_response_format()["json_schema"]["schema"]
+    )
+    validator = Draft202012Validator(schema)
+    decision = {
+        "table_ref": "table_001",
+        "header_row": 1,
+        "disposition": "NO_NAMED_CONSUMER",
+        "columns": [],
+        "amount_currency_bindings": [],
+        "side_values": [],
+        "row_dispositions": [],
+        "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+        "classification_evidence": {
+            "context_ref": "context_1",
+            "relation": "TABLE_TITLE",
+        },
+    }
+    response = {
+        "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+        "status": "COMPLETE",
+        "table_decisions": [decision],
+        "clarification": None,
+        "message": "The table is explanatory material.",
+    }
+
+    validator.validate(response)
+    del decision["classification_evidence"]
+    with pytest.raises(ValidationError):
+        validator.validate(response)
+    decision["classification_evidence"] = {
+        "context_ref": "context_1",
+        "relation": "TABLE_TITLE",
+    }
+    del decision["no_consumer_kind"]
+    with pytest.raises(ValidationError):
+        validator.validate(response)
+    decision["no_consumer_kind"] = "INSTRUCTIONAL_REFERENCE"
+    decision["disposition"] = "SECURITY_TRADES"
+    with pytest.raises(ValidationError):
+        validator.validate(response)
 
 
 def test_unknown_schema_mapping_is_qualified_only_for_exact_case(tmp_path) -> None:
@@ -605,6 +777,14 @@ def test_mixed_tables_publish_complete_internal_table_classification(
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
     second = copy.deepcopy(table)
     second["node_id"] = f"{table['node_id']}_second"
+    second_header = next(
+        cell
+        for cell in second["content"]["cells"]
+        if cell["row"] == 1 and cell["column"] == 1
+    )
+    second_header["value"] = f"{second_header['value']} (reference)"
+    second_header["displayed_value"] = second_header["value"]
+    second["content"]["title"] = "Reference illustration"
     canonical["nodes"].append(second)
     response = _complete_response(table, known)
     response["table_decisions"].append(
@@ -616,6 +796,11 @@ def test_mixed_tables_publish_complete_internal_table_classification(
             "amount_currency_bindings": [],
             "side_values": [],
             "row_dispositions": [],
+            "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+            "classification_evidence": {
+                "context_ref": "context_1",
+                "relation": "TABLE_TITLE",
+            },
         }
     )
 
@@ -637,6 +822,92 @@ def test_mixed_tables_publish_complete_internal_table_classification(
         "SECURITY_TRADES",
         "NO_NAMED_CONSUMER",
     ]
+    assert result["table_resolutions"][1]["no_consumer_kind"] == (
+        "INSTRUCTIONAL_REFERENCE"
+    )
+    projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+        canonical=canonical,
+        canonical_binding=binding,
+        mappings=result["qualified_mappings"],
+        table_resolutions=result["table_resolutions"],
+    )
+    assert projection["qualified_table_resolutions"][1]["no_consumer_kind"] == (
+        "INSTRUCTIONAL_REFERENCE"
+    )
+    assert any(
+        item["table_node_id"] == second["node_id"]
+        and item["disposition"] == "SOURCE_RETAINED_NO_CONSUMER"
+        for item in projection["source_observations"]
+    )
+
+
+def test_legacy_confirmed_no_consumer_decision_remains_readable(tmp_path) -> None:
+    _context, canonical, _binding, _table, _known = _canonical_case(tmp_path)
+    table = _table_surfaces(canonical)[0]
+    resolutions = _confirmed_exclusion_resolutions(
+        confirmed_understandings=[
+            {
+                "decision": {
+                    "decision_kind": "TABLE_DISPOSITION",
+                    "table_node_id": table["table_node_id"],
+                    "header_row": 1,
+                    "disposition": "NO_NAMED_CONSUMER",
+                }
+            }
+        ],
+        tables={table["table_node_id"]: table},
+    )
+    assert resolutions[0]["disposition"] == "NO_NAMED_CONSUMER"
+    assert "no_consumer_kind" not in resolutions[0]
+
+
+def test_recognized_incomplete_security_trade_retains_role_without_fact_mapping(
+    tmp_path,
+) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    response = _complete_response(table, known)
+    decision = response["table_decisions"][0]
+    decision["disposition"] = "SECURITY_TRADES_INCOMPLETE"
+    decision["amount_currency_bindings"] = []
+    decision["missing_required_roles"] = ["currency"]
+    decision["columns"] = [
+        {
+            **item,
+            "semantic_role": "unmapped"
+            if item["semantic_role"] == "currency"
+            else item["semantic_role"],
+        }
+        for item in decision["columns"]
+    ]
+
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert result["qualified_mappings"] == []
+    assert result["qualification_receipts"] == []
+    resolution = result["table_resolutions"]
+    assert len(resolution) == 1
+    assert resolution[0]["disposition"] == "SECURITY_TRADES_INCOMPLETE"
+    assert resolution[0]["missing_required_roles"] == ["currency"]
+    assert {item["semantic_role"] for item in resolution[0]["columns"]} >= {
+        "asset_name",
+        "trade_date",
+        "side",
+        "quantity",
+        "unit_price",
+        "gross_amount",
+        "unmapped",
+    }
+    assert resolution[0]["security_trade_rows"] == [2, 3]
 
 
 def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> None:
@@ -652,6 +923,7 @@ def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> Non
         )
         header["value"] = f"Excluded section {index}"
         header["displayed_value"] = header["value"]
+        excluded["content"]["title"] = f"Excluded reference {index}"
         canonical["nodes"].append(excluded)
         response["table_decisions"].append(
             {
@@ -662,6 +934,11 @@ def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> Non
                 "amount_currency_bindings": [],
                 "side_values": [],
                 "row_dispositions": [],
+                "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+                "classification_evidence": {
+                    "context_ref": "context_1",
+                    "relation": "TABLE_TITLE",
+                },
             }
         )
 
@@ -783,8 +1060,16 @@ def test_currency_question_never_hides_unsupported_financial_meaning(tmp_path) -
 
 def test_non_trade_disposition_rejects_mapping_material(tmp_path) -> None:
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    table["content"]["title"] = "Non-trade reference"
     response = _complete_response(table, known)
     response["table_decisions"][0]["disposition"] = "NO_NAMED_CONSUMER"
+    response["table_decisions"][0]["no_consumer_kind"] = (
+        "OTHER_NO_NAMED_CONSUMER"
+    )
+    response["table_decisions"][0]["classification_evidence"] = {
+        "context_ref": "context_1",
+        "relation": "TABLE_TITLE",
+    }
 
     with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
         OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
@@ -799,6 +1084,60 @@ def test_non_trade_disposition_rejects_mapping_material(tmp_path) -> None:
         )
 
     assert exc.value.code == "ordinary_trade_semantic_mapping_non_trade_material_invalid"
+
+
+def test_no_consumer_requires_same_table_context_evidence_and_records_safe_binding(
+    tmp_path,
+) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    table["content"]["title"] = "Reference material"
+    response = _complete_response(table, known)
+    response["table_decisions"][0] = {
+        "table_ref": "table_1",
+        "header_row": 1,
+        "disposition": "NO_NAMED_CONSUMER",
+        "columns": [],
+        "amount_currency_bindings": [],
+        "side_values": [],
+        "row_dispositions": [],
+        "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+        "classification_evidence": {
+            "context_ref": "context_1",
+            "relation": "TABLE_TITLE",
+        },
+    }
+    owner = OrdinaryTradeSemanticMappingFactory.create()
+    result = owner.validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+    evidence = result["table_resolutions"][0]["classification_evidence"]
+    assert evidence["context_ref"] == "context_1"
+    assert evidence["relation"] == "TABLE_TITLE"
+    assert evidence["canonical_node_id"] == table["node_id"]
+    assert len(evidence["literal_sha256"]) == 64
+
+    response["table_decisions"][0]["classification_evidence"]["relation"] = (
+        "PRECEDING_SAME_CONTAINER"
+    )
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        owner.validate_mapping_response(
+            response=response,
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256="a" * 64,
+        )
+    assert exc.value.code == "ordinary_trade_semantic_mapping_classification_evidence_invalid"
 
 
 def test_runtime_unconditionally_owns_provider_question_identifiers(tmp_path) -> None:
@@ -914,7 +1253,10 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
     request = Gate2OpenWebUIRequestBuilder(
         request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
     ).build(
-        prompt=owner.mapping_prompt(),
+        prompt=replace(
+            owner.mapping_prompt(),
+            content=(owner.mapping_prompt().content + "\n{{ordinary_trade_mapping_case_json}}"),
+        ),
         package=mapping_package,
         model_id="models/gemini-3.5-flash",
         response_format=owner.mapping_response_format(),

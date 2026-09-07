@@ -83,6 +83,12 @@ from broker_reports_gate1.normalizer import NormalizationResult
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    OrdinaryTradeMappingPromptConfig,
+    OrdinaryTradeMappingPromptResolverFactory,
+    OrdinaryTradeMappingPromptUserContext,
+    PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
+)
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
 )
@@ -93,11 +99,7 @@ from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
     build_public_dialogue_context,
     build_public_question_context,
-    declaration_change_intent,
-    declaration_request_help,
-    declaration_request_question,
     public_answer_candidate_conflicts_with_explicit_negation,
-    public_answer_requires_clarification,
     public_dialogue_context_sha256,
     public_dialogue_interpretation_messages,
     public_dialogue_interpretation_response_format,
@@ -248,6 +250,16 @@ class Pipe:
         )
         ordinary_trade_mapping_model_id: str = Field(
             default=NDFL_PROVIDER_MODEL_ID
+        )
+        # The Pipe owns only the pinned configuration and authenticated caller
+        # context.  Prompt content, version and access remain owned by the
+        # OpenWebUI Prompt resolver passed to the mapping runtime.
+        ordinary_trade_mapping_prompt_db_path: str = Field(
+            default="/app/backend/data/webui.db"
+        )
+        ordinary_trade_mapping_prompt_id: str = Field(default="")
+        ordinary_trade_mapping_prompt_command: str = Field(
+            default=ORDINARY_TRADE_MAPPING_PROMPT_COMMAND
         )
         ndfl_gate3_provider_profile_id: str = Field(default=NDFL_PROVIDER_PROFILE_ID)
         ndfl_gate3_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
@@ -1099,12 +1111,21 @@ class Pipe:
         declaration: Any,
         user: Any,
         request: Any,
-        event_call: Any,
+        event_call: Any = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        """Propose one public interpretation; bind only through the owner."""
+        """Propose one public interpretation; bind only through the owner.
+
+        ``event_call`` remains an ignored compatibility parameter for existing
+        callers.  A declaration answer is never collected or confirmed through
+        an OpenWebUI popup on this route.
+        """
 
         baseline = self._presentation_llm_calls_total
-        question = build_public_question_context(current_actions[0])
+        question = (
+            build_public_question_context(current_actions[0])
+            if current_actions
+            else {}
+        )
         dialogue = {
             "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
             "answer_feedback": None,
@@ -1115,28 +1136,15 @@ class Pipe:
             "presentation_call_already_used": False,
             "presentation_fallback_used": False,
         }
-        direct = adapt_current_declaration_request(
-            message=message,
-            current_requests=current_actions,
-        )
         adapted: dict[str, Any]
         if question is None:
-            adapted = adapt_current_declaration_request(
-                message=message,
-                current_requests=current_actions,
-            )
-            dialogue["presentation_fallback_used"] = True
-        elif public_answer_requires_clarification(message):
             adapted = {
                 "status": "ANSWER_REJECTED",
-                "reason_code": "declaration_chat_answer_delegates_choice",
+                "reason_code": "declaration_chat_public_question_unavailable",
             }
             dialogue["answer_feedback"] = (
-                "Не буду выбирать за вас. Уточните ответ на текущий вопрос "
-                "своими словами."
+                "Ответ на текущий вопрос временно недоступен."
             )
-        elif direct.get("status") == "ANSWER_READY":
-            adapted = direct
         else:
             interpretation: dict[str, str] | None = None
             if self.valves.ndfl_presentation_llm_enabled:
@@ -1177,16 +1185,46 @@ class Pipe:
                     dialogue["pre_rendered_message"] = interpretation["message"]
                 except Exception:
                     dialogue["presentation_call_already_used"] = True
-                    dialogue["presentation_fallback_used"] = True
             if interpretation is None:
                 adapted = {
                     "status": "ANSWER_REJECTED",
-                    "reason_code": "declaration_chat_answer_requires_explicit_value",
+                    "reason_code": "declaration_chat_presentation_unavailable",
                 }
                 dialogue["answer_feedback"] = (
-                    "Ответ пока не принят. Укажите один точный вариант для "
-                    "текущего вопроса своими словами."
+                    "Не удалось безопасно понять ответ. Попробуйте ещё раз позже."
                 )
+            elif interpretation["disposition"] in {
+                "CHANGE_SELECTED_TAX_PERIOD",
+                "CHANGE_DECLARATION_DATE",
+            }:
+                # The presentation model selects only a closed public intent.
+                # The Pipe maps it to the pre-existing owner contract; the
+                # runtime still publishes, validates and persists the fact.
+                adapted = {
+                    "status": "CHANGE_ANSWER_READY",
+                    "fact_key": (
+                        "selected_tax_period"
+                        if interpretation["disposition"]
+                        == "CHANGE_SELECTED_TAX_PERIOD"
+                        else "declaration_date"
+                    ),
+                    "answer": {
+                        "kind": (
+                            "code"
+                            if interpretation["disposition"]
+                            == "CHANGE_SELECTED_TAX_PERIOD"
+                            else "text"
+                        ),
+                        "value": (
+                            interpretation["selected_tax_period"]
+                            if interpretation["disposition"]
+                            == "CHANGE_SELECTED_TAX_PERIOD"
+                            else interpretation["normalized_answer"]
+                        ),
+                    },
+                }
+                dialogue["explicit_confirmation_received"] = True
+                dialogue.pop("pre_rendered_message", None)
             elif interpretation["disposition"] == "CLARIFY":
                 adapted = {
                     "status": "ANSWER_REJECTED",
@@ -1218,34 +1256,14 @@ class Pipe:
                     )
                 else:
                     dialogue["candidate_proposed"] = True
-                    confirmed = await self._declaration_candidate_confirmation(
-                        event_call=event_call,
-                        normalized_answer=normalized_answer,
-                        visible_message=interpretation["message"],
-                    )
-                    if confirmed is True:
-                        adapted = owner_candidate
-                        dialogue["explicit_confirmation_received"] = True
-                        dialogue.pop("pre_rendered_message", None)
-                    elif confirmed is False:
-                        adapted = {
-                            "status": "ANSWER_REJECTED",
-                            "reason_code": (
-                                "declaration_chat_interpretation_not_confirmed"
-                            ),
-                        }
-                        dialogue.pop("pre_rendered_message", None)
-                        dialogue["answer_feedback"] = (
-                            "Интерпретация не подтверждена и не сохранена. "
-                            "Ответьте на текущий вопрос ещё раз своими словами."
-                        )
-                    else:
-                        adapted = {
-                            "status": "ANSWER_CONFIRMATION_REQUIRED",
-                            "reason_code": (
-                                "declaration_chat_interpretation_confirmation_required"
-                            ),
-                        }
+                    # The ordinary chat message is the user's confirmation.
+                    # The presentation model merely proposes a public answer;
+                    # the current owner contract remains the sole acceptance
+                    # boundary.  Do not open a second OpenWebUI popup after a
+                    # complete normal chat turn.
+                    adapted = owner_candidate
+                    dialogue["explicit_confirmation_received"] = True
+                    dialogue.pop("pre_rendered_message", None)
         if adapted.get("status") == "ANSWER_REJECTED" and not dialogue.get(
             "answer_feedback"
         ) and not dialogue.get("pre_rendered_message"):
@@ -1257,6 +1275,48 @@ class Pipe:
         )
         dialogue["domain_provider_calls_total"] = 0
         return adapted, dialogue
+
+    @staticmethod
+    def _is_declaration_case_bundle_stabilization_action(
+        actions: list[dict[str, Any]],
+    ) -> bool:
+        """Accept only the declaration owner's exact public stabilization action."""
+
+        if len(actions) != 1:
+            return False
+        action = actions[0]
+        return (
+            isinstance(action, dict)
+            and set(action) == {"kind", "bundle_status"}
+            and action.get("kind") == "DECLARATION_CASE_BUNDLE_STABILIZATION"
+            and action.get("bundle_status")
+            in {"BUNDLE_STABILIZATION_REQUIRED", "BUNDLE_STALE"}
+        )
+
+    @staticmethod
+    def _is_declaration_case_bundle_confirmation(message: str) -> bool:
+        """Keep durable document-set intent explicit and non-heuristic."""
+
+        return message.strip().casefold() == "подтверждаю"
+
+    @staticmethod
+    def _owner_selected_declaration_tax_period(
+        preparation: dict[str, Any],
+    ) -> str | None:
+        """Read, but never infer or repair, the declaration owner's period."""
+
+        profile = preparation.get("period_profile")
+        value = (
+            profile.get("selected_tax_period")
+            if isinstance(profile, dict)
+            else None
+        )
+        if (
+            not isinstance(value, str)
+            or re.fullmatch(r"(?!0000$)[0-9]{4}", value) is None
+        ):
+            return None
+        return value
 
     async def _render_ndfl_public_dialogue(
         self,
@@ -1292,7 +1352,10 @@ class Pipe:
         elif (
             isinstance(context.get("current_question"), dict)
             and context["current_question"].get("authority_kind")
-            == "source_choice_confirmation"
+            in {
+                "source_choice_confirmation",
+                "declaration_case_bundle_confirmation",
+            }
         ):
             content = render_public_dialogue_fallback(context)
         elif self.valves.ndfl_presentation_llm_enabled:
@@ -1591,6 +1654,8 @@ class Pipe:
             )
             mapping_client = None
             answer_client = None
+            mapping_prompt_resolver = None
+            mapping_prompt_user_context_factory = None
             if self.valves.ordinary_trade_semantic_mapping_enabled:
                 mapping_client = Gate2StructuredModelClientFactory(
                     config=Gate2StructuredModelClientConfig(
@@ -1620,12 +1685,23 @@ class Pipe:
                     user=user,
                     request=request,
                 ).create()
+                (
+                    mapping_prompt_resolver,
+                    mapping_prompt_user_context_factory,
+                ) = self._ordinary_trade_mapping_prompt_dependencies(
+                    user=user,
+                    metadata={},
+                )
             runtime = OrdinaryTradeProductionRuntimeFactory(
                 store=store,
                 read_enabled=True,
                 retention_policy=retention_policy,
                 mapping_model_client=mapping_client,
                 mapping_answer_model_client=answer_client,
+                mapping_prompt_resolver=mapping_prompt_resolver,
+                mapping_prompt_user_context_factory=(
+                    mapping_prompt_user_context_factory
+                ),
                 mapping_model_id=(
                     self.valves.ordinary_trade_mapping_model_id
                     if mapping_client is not None
@@ -1645,6 +1721,18 @@ class Pipe:
                     trusted_interaction_message if not source_turn else ""
                 ),
             )
+            semantic_mapping = result.get("semantic_mapping")
+            if (
+                isinstance(semantic_mapping, dict)
+                and semantic_mapping.get("status")
+                in {"CLARIFICATION_REQUIRED", "CONFIRMATION_REQUIRED"}
+            ):
+                # Mapping chat is entirely owned by the mapping-case runtime.
+                # It is not a declaration answer and must never enter the
+                # presentation adapter merely because it has no declaration
+                # action on this particular turn.
+                self._finalize_workload_publication()
+                return result
             preparation = result.get("product", {}).get("preparation")
             preparation = preparation if isinstance(preparation, dict) else {}
             current_actions = preparation.get("user_actions")
@@ -1664,35 +1752,51 @@ class Pipe:
             }:
                 self._finalize_workload_publication()
                 return result
-            change = declaration_change_intent(trusted_interaction_message)
+            if self._is_declaration_case_bundle_stabilization_action(
+                current_actions
+            ):
+                # The bundle owner is the sole owner of this durable user
+                # intent.  The Pipe only recognizes its exact public action,
+                # requires one explicit normal-chat confirmation, and passes
+                # back the tax period already selected by the declaration
+                # owner.  It neither interprets documents nor calls a model.
+                self._finalize_workload_publication()
+                if source_turn or not trusted_interaction_message:
+                    return result
+                if not self._is_declaration_case_bundle_confirmation(
+                    trusted_interaction_message
+                ):
+                    result["declaration_case_bundle_receipt"] = {
+                        "status": "CONFIRMATION_REQUIRED",
+                        "stabilized": False,
+                    }
+                    return result
+                tax_period = self._owner_selected_declaration_tax_period(
+                    preparation
+                )
+                if tax_period is None:
+                    result["declaration_case_bundle_receipt"] = {
+                        "status": "OWNER_TAX_PERIOD_REQUIRED",
+                        "stabilized": False,
+                    }
+                    return result
+                bundle = runtime.stabilize_declaration_case(
+                    context=context,
+                    tax_period=tax_period,
+                )
+                result = runtime.run(
+                    canonical_artifact_refs=canonical_refs,
+                    context=context,
+                )
+                result["declaration_case_bundle_receipt"] = {
+                    "status": str(bundle.get("status") or ""),
+                    "stabilized": True,
+                    "created": bool(bundle.get("created")),
+                }
+                return result
             adapted = None
             dialogue = None
-            if change is not None:
-                if change["status"] == "ANSWER_REJECTED":
-                    adapted = change
-                else:
-                    request_action = runtime.publish_declaration_change_action(
-                        fact_key=change["fact_key"],
-                        context=context,
-                    )
-                    if change["answer"] is None:
-                        result = runtime.run(
-                            canonical_artifact_refs=canonical_refs,
-                            context=context,
-                        )
-                        result["declaration_chat_receipt"] = {
-                            "status": "CHANGE_REQUEST_PUBLISHED",
-                            "answer_accepted": False,
-                        }
-                        return result
-                    adapted = {
-                        "status": "ANSWER_READY",
-                        "request_publication_ref": request_action[
-                            "request_publication_ref"
-                        ],
-                        "answer": change["answer"],
-                    }
-            elif current_actions:
+            if current_actions:
                 # The source workload is already durably published at this point.
                 # Human think time belongs to the Human Fact request owner and must
                 # not retain the scarce Gate 1 admission lease.
@@ -1702,41 +1806,39 @@ class Pipe:
                     or not trusted_interaction_message
                 ):
                     return result
-                if (
-                    trusted_interaction_message.casefold()
-                    == "показать точный ввод"
-                ):
-                    dialogue = {
-                        "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
-                        "answer_feedback": None,
-                        "interpretation_model_used": False,
-                        "interpretation_disposition": None,
-                        "candidate_proposed": False,
-                        "explicit_confirmation_received": False,
-                        "presentation_call_already_used": False,
-                        "presentation_fallback_used": False,
-                    }
-                    interactive_answer = await self._declaration_event_answer(
-                        event_call=event_call,
-                        current_actions=current_actions,
-                    )
-                    adapted = adapt_current_declaration_request(
-                        message=interactive_answer,
-                        current_requests=current_actions,
-                    )
-                else:
-                    adapted, dialogue = await self._adapt_ndfl_public_answer(
-                        message=trusted_interaction_message,
-                        current_actions=current_actions,
-                        product=result["product"],
-                        declaration=result.get("declaration"),
-                        user=user,
-                        request=request,
-                        event_call=event_call,
-                    )
-                    result["public_dialogue"] = dialogue
+                adapted, dialogue = await self._adapt_ndfl_public_answer(
+                    message=trusted_interaction_message,
+                    current_actions=current_actions,
+                    product=result["product"],
+                    declaration=result.get("declaration"),
+                    user=user,
+                    request=request,
+                )
+                result["public_dialogue"] = dialogue
             else:
-                return result
+                if source_turn or not trusted_interaction_message:
+                    return result
+                adapted, dialogue = await self._adapt_ndfl_public_answer(
+                    message=trusted_interaction_message,
+                    current_actions=[],
+                    product=result["product"],
+                    declaration=result.get("declaration"),
+                    user=user,
+                    request=request,
+                )
+                result["public_dialogue"] = dialogue
+            if adapted["status"] == "CHANGE_ANSWER_READY":
+                request_action = runtime.publish_declaration_change_action(
+                    fact_key=adapted["fact_key"],
+                    context=context,
+                )
+                adapted = {
+                    "status": "ANSWER_READY",
+                    "request_publication_ref": request_action[
+                        "request_publication_ref"
+                    ],
+                    "answer": adapted["answer"],
+                }
             if adapted["status"] == "ANSWER_READY":
                 try:
                     action_receipt = runtime.normalize_declaration_action(
@@ -1771,13 +1873,6 @@ class Pipe:
                 result["declaration_chat_receipt"] = {
                     "status": "ANSWER_REJECTED",
                     "answer_accepted": False,
-                    "reason_code": adapted["reason_code"],
-                }
-            elif adapted["status"] == "ANSWER_CONFIRMATION_REQUIRED":
-                result["declaration_chat_receipt"] = {
-                    "status": "ANSWER_CONFIRMATION_REQUIRED",
-                    "answer_accepted": False,
-                    "fact_created": False,
                     "reason_code": adapted["reason_code"],
                 }
             if action_receipt is not None:
@@ -2612,96 +2707,6 @@ class Pipe:
                 raise
             raise NdflWorkflowError(mapped_code) from exc
 
-    @staticmethod
-    async def _declaration_event_answer(
-        *, event_call: Any, current_actions: list[dict[str, Any]]
-    ) -> str:
-        """Ask for one answer while the current owner request stays server-bound."""
-
-        if not callable(event_call) or not current_actions:
-            return ""
-        request_action = current_actions[0]
-        if not isinstance(request_action, dict):
-            raise NdflWorkflowError(
-                "ordinary_trade_declaration_interaction_request_invalid"
-            )
-        answer_contract = request_action.get("answer_contract")
-        if not isinstance(answer_contract, dict):
-            raise NdflWorkflowError(
-                "ordinary_trade_declaration_interaction_request_invalid"
-            )
-        question = declaration_request_question(request_action)
-        help_text = declaration_request_help(request_action)
-        candidate_note = ""
-        candidate = answer_contract.get("candidate")
-        if isinstance(candidate, dict):
-            inn = str(candidate.get("inn") or "")
-            if re.fullmatch(r"[0-9]{12}", inn):
-                candidate_note = f" Кандидат ИНН: {inn[:4]}••••{inn[-4:]}."
-        kind = str(answer_contract.get("kind") or "")
-        event_type = "confirmation" if kind == "confirmation" else "input"
-        data = {
-            "title": "Данные для 3-НДФЛ",
-            "message": " ".join(
-                part for part in (question, candidate_note.strip(), help_text) if part
-            ),
-        }
-        if event_type == "input":
-            data["placeholder"] = help_text
-        try:
-            value = await event_call({"type": event_type, "data": data})
-        except Exception as exc:
-            raise NdflWorkflowError(
-                "ordinary_trade_declaration_interaction_boundary_failed"
-            ) from exc
-        if isinstance(value, dict) and value.get("error"):
-            raise NdflWorkflowError(
-                "ordinary_trade_declaration_interaction_boundary_failed"
-            )
-        if event_type == "confirmation" and isinstance(value, bool):
-            return "Да" if value else "Нет"
-        return value if isinstance(value, str) else ""
-
-    @staticmethod
-    async def _declaration_candidate_confirmation(
-        *, event_call: Any, normalized_answer: str, visible_message: str
-    ) -> bool | None:
-        """Confirm a presentation-only candidate without publishing it."""
-
-        if not callable(event_call):
-            return None
-        candidate = str(normalized_answer or "").strip()
-        message = str(visible_message or "").strip()
-        if (
-            not candidate
-            or len(candidate) > 2048
-            or not message
-            or len(message) > 6000
-            or candidate.casefold() not in message.casefold()
-        ):
-            raise NdflWorkflowError(
-                "ordinary_trade_declaration_interaction_request_invalid"
-            )
-        try:
-            value = await event_call(
-                {
-                    "type": "confirmation",
-                    "data": {
-                        "title": "Подтвердите понимание ответа",
-                        "message": message,
-                    },
-                }
-            )
-        except Exception as exc:
-            raise NdflWorkflowError(
-                "ordinary_trade_declaration_interaction_boundary_failed"
-            ) from exc
-        if isinstance(value, dict) and value.get("error"):
-            raise NdflWorkflowError(
-                "ordinary_trade_declaration_interaction_boundary_failed"
-            )
-        return value if isinstance(value, bool) else None
-
     def _write_ndfl_private_audit(self, executions: list[Any]) -> dict[str, Any]:
         if not self.valves.ndfl_gate3_private_audit_enabled:
             return {"enabled": False, "status": "disabled"}
@@ -3244,6 +3249,48 @@ class Pipe:
             )
         ).create()
         return resolver.resolve(user_context)
+
+    def _ordinary_trade_mapping_prompt_dependencies(
+        self, *, user: Any, metadata: dict[str, Any]
+    ) -> tuple[Any, Any]:
+        """Compose the mapping Prompt adapter; never read Prompt tables here."""
+
+        db_path = str(self.valves.ordinary_trade_mapping_prompt_db_path or "").strip()
+        prompt_id = str(self.valves.ordinary_trade_mapping_prompt_id or "").strip()
+        command = str(
+            self.valves.ordinary_trade_mapping_prompt_command or ""
+        ).strip()
+        if not db_path or (not prompt_id and not command):
+            raise NdflWorkflowError(
+                "ordinary_trade_mapping_prompt_configuration_invalid"
+            )
+        user_id = self._authenticated_user_id(user)
+        user_role = self._user_role(user, metadata)
+        resolver = OrdinaryTradeMappingPromptResolverFactory(
+            OrdinaryTradeMappingPromptConfig(
+                source="openwebui_sqlite",
+                db_path=Path(db_path),
+                prompt_id=prompt_id or None,
+                command=command or None,
+            )
+        ).create()
+
+        def user_context_factory(
+            context: ArtifactAccessContext,
+        ) -> OrdinaryTradeMappingPromptUserContext:
+            if context.user_id != user_id:
+                raise NdflWorkflowError(
+                    "ordinary_trade_mapping_prompt_user_scope_invalid"
+                )
+            return OrdinaryTradeMappingPromptUserContext(
+                user_id=user_id,
+                user_role=user_role,
+                # Group membership is established by the Prompt resolver from
+                # its owner data; Pipe metadata never grants Prompt access.
+                user_groups=(),
+            )
+
+        return resolver, user_context_factory
 
     async def _openwebui_passport_completion(
         self,

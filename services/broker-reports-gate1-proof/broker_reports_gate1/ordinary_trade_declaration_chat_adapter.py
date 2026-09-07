@@ -25,7 +25,7 @@ ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_public_mapping_verification_v1"
 )
 ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_public_interpretation_v1"
+    "broker_reports_ordinary_trade_public_interpretation_v3"
 )
 PUBLIC_DIALOGUE_MODEL_BOUNDARY = {
     "classification": "PRESENTATION_ADAPTER",
@@ -57,11 +57,6 @@ _PROMPT_ONLY = frozenset(
         "продолжить",
     }
 )
-_CHANGE_INTENTS = {
-    "изменить дату": "declaration_date",
-    "изменить инн": "taxpayer_identity",
-    "изменить налоговый период": "selected_tax_period",
-}
 _UNAVAILABLE_REQUEST = "Ответ на этот запрос временно недоступен."
 _PUBLIC_FORBIDDEN_TEXT = (
     "xsd",
@@ -95,10 +90,6 @@ _PUBLIC_FORBIDDEN_TEXT = (
 )
 _INTERNAL_STATUS = re.compile(r"\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b")
 _PRIVATE_DOWNLOAD = re.compile(r"/api/v1/files/[^\s)]+", re.IGNORECASE)
-_DELEGATED_CHOICE = re.compile(
-    r"\b(?:выбер(?:и|ите)|реш(?:и|ите)|определ(?:и|ите))\b.{0,80}\bза меня\b",
-    re.IGNORECASE,
-)
 # Representation-only labels for the bounded declaration product.  Canonical
 # values still come exclusively from the current owner's answer_contract; this
 # table can only translate a visible label to a value already allowed there.
@@ -205,45 +196,6 @@ _RESIDENCY = re.compile(
     r"([0-9]{4}-[0-9]{2}-[0-9]{2})|нет)\s*;\s*причины:\s*нет$",
     re.IGNORECASE,
 )
-
-
-def declaration_change_intent(message: str) -> dict[str, Any] | None:
-    """Recognize only bounded display phrases; never accept a caller fact key."""
-
-    text = _text(message)
-    lowered = text.casefold()
-    for phrase, fact_key in _CHANGE_INTENTS.items():
-        if lowered == phrase:
-            return {
-                "schema_version": ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION,
-                "status": "CHANGE_REQUESTED",
-                "fact_key": fact_key,
-                "answer": None,
-            }
-        prefix = phrase + ":"
-        if lowered.startswith(prefix):
-            value = text[len(prefix) :].strip()
-            if fact_key == "declaration_date":
-                answer = {"kind": "text", "value": value}
-            elif fact_key == "selected_tax_period":
-                answer = (
-                    {"kind": "code", "value": value}
-                    if re.fullmatch(r"(?!0000$)[0-9]{4}", value)
-                    else None
-                )
-            else:
-                match = _IDENTITY.fullmatch("Изменить: " + value)
-                answer = _identity_answer(match) if match else None
-            return {
-                "schema_version": ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION,
-                "status": "CHANGE_ANSWER_READY" if answer else "ANSWER_REJECTED",
-                "fact_key": fact_key,
-                "answer": answer,
-                "reason_code": None
-                if answer
-                else "declaration_chat_change_format_invalid",
-            }
-    return None
 
 
 def adapt_current_declaration_request(
@@ -660,6 +612,25 @@ def build_public_question_context(request: Any) -> dict[str, Any] | None:
         return mapping_question
     if (
         isinstance(request, dict)
+        and set(request) == {"kind", "bundle_status"}
+        and request.get("kind") == "DECLARATION_CASE_BUNDLE_STABILIZATION"
+        and request.get("bundle_status")
+        in {"BUNDLE_STABILIZATION_REQUIRED", "BUNDLE_STALE"}
+    ):
+        return {
+            "authority_kind": "declaration_case_bundle_confirmation",
+            "question_ref": "declaration_case_bundle_stabilization",
+            "question": (
+                "Подтвердите, что набор документов для этой декларации полный "
+                "и его можно зафиксировать."
+            ),
+            "help": "Ответьте точно: «Подтверждаю».",
+            "options": ["Подтверждаю"],
+            "accepted_answer_examples": ["Подтверждаю"],
+            "candidate_hint": None,
+        }
+    if (
+        isinstance(request, dict)
         and set(request) == {"kind", "question", "accepted_answer_examples"}
         and request.get("kind") == "USER_CURRENCY_ASSERTION"
         and isinstance(request.get("question"), str)
@@ -1025,6 +996,17 @@ def public_dialogue_interpretation_messages(
         "архитектуру, коды, ссылки сущностей или форматы внутренних контрактов. "
         "Верни только JSON по заданной схеме."
     )
+    system += (
+        " Return CHANGE_SELECTED_TAX_PERIOD only when the user explicitly asks "
+        "to change the tax period to a four-digit year written in that message. "
+        "Copy that year and a verbatim supporting quote. For every other or "
+        "ambiguous request, do not change the period. Return "
+        "CHANGE_DECLARATION_DATE only when the user explicitly asks to change "
+        "the declaration date to a YYYY-MM-DD value written in that message "
+        "and current_question is absent. "
+        "Put that value in normalized_answer and copy a verbatim supporting "
+        "quote. For every other or ambiguous request, do not change the date."
+    )
     user = json.dumps(
         {
             "task": "understand_current_public_answer",
@@ -1035,12 +1017,6 @@ def public_dialogue_interpretation_messages(
         sort_keys=True,
     )
     return system, user
-
-
-def public_answer_requires_clarification(user_message: str) -> bool:
-    """Reject an explicit request that the presentation model make the choice."""
-
-    return _DELEGATED_CHOICE.search(_text(user_message)) is not None
 
 
 def public_dialogue_message_response_format(
@@ -1194,7 +1170,7 @@ def public_dialogue_interpretation_response_format() -> dict[str, Any]:
     return {
         "type": "json_schema",
         "json_schema": {
-            "name": "ordinary_trade_public_interpretation_v1",
+            "name": "ordinary_trade_public_interpretation_v3",
             "strict": True,
             "schema": {
                 "type": "object",
@@ -1203,15 +1179,22 @@ def public_dialogue_interpretation_response_format() -> dict[str, Any]:
                     "disposition",
                     "message",
                     "normalized_answer",
+                    "selected_tax_period",
                     "evidence_quote",
                 ],
                 "properties": {
                     "disposition": {
                         "type": "string",
-                        "enum": ["CLARIFY", "CANDIDATE"],
+                        "enum": [
+                            "CLARIFY",
+                            "CANDIDATE",
+                            "CHANGE_SELECTED_TAX_PERIOD",
+                            "CHANGE_DECLARATION_DATE",
+                        ],
                     },
                     "message": {"type": "string", "minLength": 1, "maxLength": 6000},
                     "normalized_answer": {"type": "string", "maxLength": 2048},
+                    "selected_tax_period": {"type": "string", "maxLength": 4},
                     "evidence_quote": {"type": "string", "maxLength": 512},
                 },
             },
@@ -1230,38 +1213,85 @@ def validate_public_dialogue_interpretation(
         "disposition",
         "message",
         "normalized_answer",
+        "selected_tax_period",
         "evidence_quote",
     }
     if set(payload) != expected:
         raise ValueError("public_dialogue_interpretation_shape_invalid")
     disposition = str(payload.get("disposition") or "")
-    if disposition not in {"CLARIFY", "CANDIDATE"}:
+    if disposition not in {
+        "CLARIFY",
+        "CANDIDATE",
+        "CHANGE_SELECTED_TAX_PERIOD",
+        "CHANGE_DECLARATION_DATE",
+    }:
         raise ValueError("public_dialogue_interpretation_disposition_invalid")
     interpretation_message = str(payload.get("message") or "").strip()
     if not interpretation_message or len(interpretation_message) > 2000:
         raise ValueError("public_dialogue_interpretation_message_length_invalid")
     _validate_public_text(interpretation_message)
     normalized_answer = str(payload.get("normalized_answer") or "").strip()
+    selected_tax_period = str(payload.get("selected_tax_period") or "").strip()
     evidence_quote = str(payload.get("evidence_quote") or "").strip()
     if disposition == "CLARIFY":
-        if normalized_answer or evidence_quote:
+        if normalized_answer or selected_tax_period or evidence_quote:
             raise ValueError("public_dialogue_clarification_candidate_forbidden")
-    else:
+    elif disposition == "CANDIDATE":
         if not normalized_answer or not evidence_quote:
             raise ValueError("public_dialogue_candidate_incomplete")
+        if selected_tax_period:
+            raise ValueError("public_dialogue_candidate_change_forbidden")
         _validate_public_text(normalized_answer)
         if evidence_quote.casefold() not in _text(user_message).casefold():
             raise ValueError("public_dialogue_candidate_evidence_not_verbatim")
         question = context.get("current_question")
         question = question if isinstance(question, dict) else {}
+        if not question:
+            raise ValueError("public_dialogue_candidate_without_current_question")
         options = question.get("options")
-        if isinstance(options, list) and options and normalized_answer not in options:
+        accepted_examples = question.get("accepted_answer_examples")
+        options = (
+            [item for item in options if isinstance(item, str)]
+            if isinstance(options, list)
+            else []
+        )
+        accepted_examples = (
+            [item for item in accepted_examples if isinstance(item, str)]
+            if isinstance(accepted_examples, list)
+            else []
+        )
+        # Free-form owner contracts publish examples as formats, not closed
+        # values.  Only an explicitly enumerated option surface is closed;
+        # its exact examples are additional equally public representations.
+        if options and normalized_answer not in [*options, *accepted_examples]:
             raise ValueError("public_dialogue_candidate_not_on_public_surface")
+    elif disposition == "CHANGE_SELECTED_TAX_PERIOD":
+        if normalized_answer or not selected_tax_period or not evidence_quote:
+            raise ValueError("public_dialogue_change_candidate_incomplete")
+        if re.fullmatch(r"(?!0000$)[0-9]{4}", selected_tax_period) is None:
+            raise ValueError("public_dialogue_change_tax_period_invalid")
+        message_folded = _text(user_message).casefold()
+        if evidence_quote.casefold() not in message_folded:
+            raise ValueError("public_dialogue_change_evidence_not_verbatim")
+        if selected_tax_period not in evidence_quote:
+            raise ValueError("public_dialogue_change_tax_period_not_evidenced")
+    else:
+        if not normalized_answer or selected_tax_period or not evidence_quote:
+            raise ValueError("public_dialogue_date_change_candidate_incomplete")
+        if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", normalized_answer) is None:
+            raise ValueError("public_dialogue_change_declaration_date_format_invalid")
+        message_folded = _text(user_message).casefold()
+        if evidence_quote.casefold() not in message_folded:
+            raise ValueError("public_dialogue_change_evidence_not_verbatim")
+        if normalized_answer not in evidence_quote:
+            raise ValueError("public_dialogue_change_declaration_date_not_evidenced")
+        if context.get("current_question"):
+            raise ValueError("public_dialogue_change_with_current_question")
     visible_parts = [interpretation_message]
     if disposition == "CANDIDATE":
         visible_parts.append(f"Предлагаемое значение: {normalized_answer}.")
         visible_parts.append("Подтвердите эту интерпретацию.")
-    else:
+    elif disposition == "CLARIFY":
         visible_parts.append("Уточните ответ на текущий вопрос.")
     visible_parts.append(render_public_dialogue_fallback(context))
     visible_message = validate_public_dialogue_message(
@@ -1286,6 +1316,7 @@ def validate_public_dialogue_interpretation(
         "disposition": disposition,
         "message": visible_message,
         "normalized_answer": normalized_answer,
+        "selected_tax_period": selected_tax_period,
         "evidence_quote": evidence_quote,
     }
 
@@ -1899,12 +1930,10 @@ __all__ = [
     "adapt_current_declaration_request",
     "build_public_dialogue_context",
     "build_public_question_context",
-    "declaration_change_intent",
     "declaration_request_help",
     "declaration_request_question",
     "declaration_surrogate_preview",
     "public_answer_candidate_conflicts_with_explicit_negation",
-    "public_answer_requires_clarification",
     "public_dialogue_context_sha256",
     "public_dialogue_message_response_format",
     "public_mapping_verification_messages",

@@ -221,6 +221,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "ordinary_trade_semantic_compiler",
     "ordinary_trade_qualified_mappings",
     "ordinary_trade_semantic_mapping",
+    "ordinary_trade_mapping_prompt",
     "ordinary_trade_mapping_case",
     "canonical_finalization",
     "ordinary_trade_projection",
@@ -232,6 +233,7 @@ GATE1_ORDINARY_TRADE_MODULES = [
     "active_category_declaration_assembly",
     "ordinary_trade_declaration_chat_adapter",
     "ordinary_trade_declaration_case_inputs",
+    "ordinary_trade_declaration_case_bundle",
     "ordinary_trade_declaration_mvp",
     "ordinary_trade_production_runtime",
 ]

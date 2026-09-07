@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import copy
 import hashlib
+import importlib.util
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -20,6 +22,32 @@ import test_broker_reports_issue312_mapping_case as case_fixtures
 from test_broker_reports_goal391_role_mapping_sandbox_corpus import (
     build_frozen_role_mapping_corpus,
 )
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION,
+    PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID,
+    PROMPT_PLACEHOLDER,
+    PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND,
+    OrdinaryTradeMappingManagedPrompt,
+    ordinary_trade_mapping_prompt_hash,
+)
+
+
+def _lab_runner_module():
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "qualify_goal391_current_mapping_lab.py"
+    )
+    spec = importlib.util.spec_from_file_location("goal391_lab_runner", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _fixture(tmp_path):
@@ -53,6 +81,26 @@ def _completion_payload(response):
     }
 
 
+def _managed_qualification_prompt() -> OrdinaryTradeMappingManagedPrompt:
+    content = f"Hermetic role mapping candidate. {PROMPT_PLACEHOLDER}"
+    return OrdinaryTradeMappingManagedPrompt(
+        prompt_ref="goal391-hermetic-mapping-prompt",
+        command=PROMPT_COMMAND,
+        version="goal391-hermetic-v1",
+        content=content,
+        hash=ordinary_trade_mapping_prompt_hash(content),
+        source="test",
+        template_id=PROMPT_TEMPLATE_ID,
+        template_kind=PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=PROMPT_CONTRACT_ID,
+        input_schema_version=INPUT_SCHEMA_VERSION,
+        output_schema_id=OUTPUT_SCHEMA_ID,
+        output_schema_version=OUTPUT_SCHEMA_VERSION,
+        tags=(PROMPT_REQUIRED_TAG,),
+        safe_metadata={"name": "Goal 391 hermetic qualification candidate"},
+    )
+
+
 def test_live_bridge_uses_existing_client_once_and_forbids_chat_persistence(tmp_path):
     fixture, response, user_id = _fixture(tmp_path)
     submitted = []
@@ -66,6 +114,7 @@ def test_live_bridge_uses_existing_client_once_and_forbids_chat_persistence(tmp_
             request=SimpleNamespace(),
             authenticated_user_id=user_id,
             call_chat_completions_once=call_once,
+            mapping_prompt=_managed_qualification_prompt(),
         )
         .create()
         .run(fixture=fixture)
@@ -94,6 +143,7 @@ def test_live_bridge_rejects_a_completion_payload_that_attempts_chat_persistence
         request=SimpleNamespace(),
         authenticated_user_id=user_id,
         call_chat_completions_once=call_once,
+        mapping_prompt=_managed_qualification_prompt(),
     ).create()
 
     with pytest.raises(OrdinaryTradeSemanticMappingLiveQualificationError) as exc:
@@ -121,6 +171,7 @@ def test_live_bridge_accepts_the_frozen_golden_fixture_without_deriving_expectat
             request=SimpleNamespace(),
             authenticated_user_id="goal391-synthetic-ordinary-user",
             call_chat_completions_once=call_once,
+            mapping_prompt=_managed_qualification_prompt(),
         )
         .create()
         .run(fixture=golden.frozen_fixture)
@@ -128,3 +179,107 @@ def test_live_bridge_accepts_the_frozen_golden_fixture_without_deriving_expectat
 
     assert len(submitted) == 1
     assert receipt["verdict"] == golden.frozen_fixture["expected_verdict"]
+
+
+def test_safe_role_map_hash_binds_no_consumer_subtype() -> None:
+    base = {
+        "schema_version": "broker_reports_ordinary_trade_semantic_mapping_response_v6",
+        "status": "COMPLETE",
+        "table_decisions": [
+            {
+                "table_ref": "table_1",
+                "header_row": 1,
+                "disposition": "NO_NAMED_CONSUMER",
+                "columns": [],
+                "amount_currency_bindings": [],
+                "side_values": [],
+                "row_dispositions": [],
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                "classification_evidence": {
+                    "context_ref": "context_1",
+                    "relation": "TABLE_TITLE",
+                },
+            }
+        ],
+        "clarification": None,
+        "message": "Reference table.",
+    }
+    changed = copy.deepcopy(base)
+    changed["table_decisions"][0]["no_consumer_kind"] = (
+        "OTHER_NO_NAMED_CONSUMER"
+    )
+
+    assert safe_role_map_sha256(base) != safe_role_map_sha256(changed)
+
+
+def test_lab_currency_assessment_uses_the_scoped_canonical_table_node() -> None:
+    runner = _lab_runner_module()
+    node_id = "node_currency_target"
+    case = {
+        "case_id": "currency-case",
+        "canonical_binding": {"canonical_root_sha256": "root"},
+        "target_table_node_ids": [node_id],
+        "expected_assessment": {
+            "expected_status": "CURRENCY_ASSERTION_REQUIRED",
+            "required_table_decisions": [
+                {"table_node_id": node_id, "disposition": "SECURITY_TRADES"}
+            ],
+            "unresolved_table_node_ids": [],
+            "forbidden_qualified_mapping_table_node_ids": [node_id],
+        },
+    }
+    outcome = {
+        "outcome": {
+            "status": "CURRENCY_ASSERTION_REQUIRED",
+            "currency_mapping_plan": {
+                "response": {
+                    "table_decisions": [
+                        {"table_ref": "table_1", "disposition": "SECURITY_TRADES"}
+                    ]
+                }
+            },
+            "qualification_receipts": [],
+        }
+    }
+
+    record = runner._safe_record(case=case, outcome=outcome)
+
+    assert record["outcome"] == "PASS"
+
+
+def test_lab_passes_the_resolved_managed_prompt_to_its_single_call() -> None:
+    runner = _lab_runner_module()
+    managed_prompt = _managed_qualification_prompt()
+    captured = {}
+
+    class StopAfterCapture(RuntimeError):
+        pass
+
+    class Semantic:
+        def build_mapping_package(self, **_kwargs):
+            return {"phase": "map", "case": {}}
+
+        def mapping_response_format(self):
+            return {"type": "json_schema"}
+
+    class Client:
+        async def extract(self, **kwargs):
+            captured.update(kwargs)
+            raise StopAfterCapture()
+
+    with pytest.raises(StopAfterCapture):
+        asyncio.run(
+            runner._run_case(
+                semantic=Semantic(),
+                prompt=managed_prompt,
+                client=Client(),
+                case={
+                    "canonical": {},
+                    "confirmed_understandings": [],
+                    "target_table_node_ids": None,
+                },
+                progress=lambda *_args: None,
+            )
+        )
+
+    assert captured["prompt"] is managed_prompt

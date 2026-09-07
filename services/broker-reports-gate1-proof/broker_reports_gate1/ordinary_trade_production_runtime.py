@@ -26,6 +26,10 @@ from .ordinary_trade_declaration_mvp import (
     OrdinaryTradeDeclarationMvpError,
     OrdinaryTradeDeclarationMvpRuntime,
 )
+from .ordinary_trade_declaration_case_bundle import (
+    OrdinaryTradeDeclarationCaseBundleFactory,
+)
+from .gate5_human_gap_closure import Gate5HumanGapClosureRuntimeFactory
 
 
 ORDINARY_TRADE_PRODUCTION_RUN_SCHEMA_VERSION = (
@@ -58,6 +62,8 @@ class OrdinaryTradeProductionRuntimeFactory:
         retention_policy: RetentionPolicy | None = None,
         mapping_model_client: Any | None = None,
         mapping_answer_model_client: Any | None = None,
+        mapping_prompt_resolver: Any | None = None,
+        mapping_prompt_user_context_factory: Any | None = None,
         mapping_model_id: str | None = None,
         mapping_provider_profile_id: str | None = None,
     ) -> None:
@@ -66,6 +72,8 @@ class OrdinaryTradeProductionRuntimeFactory:
         self._retention_policy = retention_policy
         self._mapping_model_client = mapping_model_client
         self._mapping_answer_model_client = mapping_answer_model_client
+        self._mapping_prompt_resolver = mapping_prompt_resolver
+        self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
         self._mapping_model_id = mapping_model_id
         self._mapping_provider_profile_id = mapping_provider_profile_id
 
@@ -83,6 +91,8 @@ class OrdinaryTradeProductionRuntimeFactory:
             self._mapping_answer_model_client,
             self._mapping_model_id,
             self._mapping_provider_profile_id,
+            self._mapping_prompt_resolver,
+            self._mapping_prompt_user_context_factory,
         )
         if any(item is not None for item in mapping_values):
             if not all(item is not None for item in mapping_values):
@@ -94,6 +104,10 @@ class OrdinaryTradeProductionRuntimeFactory:
                 read_enabled=self._read_enabled,
                 model_client=self._mapping_model_client,
                 answer_model_client=self._mapping_answer_model_client,
+                mapping_prompt_resolver=self._mapping_prompt_resolver,
+                mapping_prompt_user_context_factory=(
+                    self._mapping_prompt_user_context_factory
+                ),
                 model_id=str(self._mapping_model_id),
                 provider_profile_id=str(self._mapping_provider_profile_id),
             ).create()
@@ -133,9 +147,51 @@ class OrdinaryTradeProductionRuntime:
         ).create()
         self._declaration = declaration
         self._mapping = mapping
+        self._declaration_bundle = (
+            OrdinaryTradeDeclarationCaseBundleFactory(
+                store=store,
+                retention_policy=declaration.retention_policy,
+                coverage_reader=self._projections.current_case_coverage,
+                fact_set_reader=self._gate4.current_fact_set,
+                user_facts_reader=Gate5HumanGapClosureRuntimeFactory.create(
+                    store=store,
+                    retention_policy=declaration.retention_policy,
+                ).current_user_case_facts,
+            ).create()
+            if declaration is not None
+            else None
+        )
         self._finalizer = CanonicalFinalizationFactory(
             store=store, read_enabled=read_enabled
         ).create()
+
+    def stabilize_declaration_case(
+        self, *, context: ArtifactAccessContext, tax_period: str
+    ) -> dict[str, Any]:
+        """Persist an explicit complete-document-set intent for declaration."""
+
+        if self._declaration_bundle is None:
+            raise OrdinaryTradeProductionError(
+                "ordinary_trade_declaration_bundle_authority_owners_required"
+            )
+        return self._declaration_bundle.stabilize_current_scope(
+            context=context,
+            tax_period=tax_period,
+        )
+
+    def current_declaration_case_bundle(
+        self, *, context: ArtifactAccessContext, tax_period: str
+    ) -> dict[str, Any]:
+        """Expose only the bundle owner's honest current/stale terminal."""
+
+        if self._declaration_bundle is None:
+            raise OrdinaryTradeProductionError(
+                "ordinary_trade_declaration_bundle_authority_owners_required"
+            )
+        return self._declaration_bundle.read_current(
+            context=context,
+            tax_period=tax_period,
+        )
 
     async def run_with_automatic_mapping(
         self,
@@ -295,7 +351,46 @@ class OrdinaryTradeProductionRuntime:
                     preparation = self._declaration.prepare(
                         context=context,
                         canonical_coverage=canonical_coverage,
+                        # The declaration owner may calculate readiness, but it
+                        # must not persist XML until this composition root has
+                        # admitted the exact case bundle.
+                        allow_final_assembly=False,
                     )
+                    declaration_bundle = None
+                    if (
+                        preparation["status"]
+                        == "DECLARATION_CASE_BUNDLE_REQUIRED"
+                    ):
+                        tax_period = preparation["period_profile"][
+                            "selected_tax_period"
+                        ]
+                        if not isinstance(tax_period, str):
+                            raise OrdinaryTradeProductionError(
+                                "ordinary_trade_declaration_bundle_period_required"
+                            )
+                        if self._declaration_bundle is None:
+                            raise OrdinaryTradeProductionError(
+                                "ordinary_trade_declaration_bundle_authority_owners_required"
+                            )
+                        declaration_bundle = self._declaration_bundle.read_current(
+                            context=context,
+                            tax_period=tax_period,
+                        )
+                        if declaration_bundle["status"] == "CURRENT":
+                            # Re-enter the existing declaration owner only
+                            # after its bundle owner has admitted the exact
+                            # current scope.  No bundle payload crosses into
+                            # declaration assembly.
+                            preparation = self._declaration.prepare(
+                                context=context,
+                                canonical_coverage=canonical_coverage,
+                                allow_final_assembly=True,
+                            )
+                        else:
+                            _apply_declaration_bundle_terminal(
+                                preparation=preparation,
+                                bundle=declaration_bundle,
+                            )
                     product_status = preparation["status"]
                     terminal = preparation["terminal"]
                     declaration = preparation.get("declaration")
@@ -799,6 +894,44 @@ def _apply_mapping_terminal(
     final_note = preparation.get("final_note")
     if isinstance(final_note, dict):
         final_note["source_completeness_status"] = status
+        final_note["required_checks"] = [terminal]
+        final_note["filing_eligible"] = False
+        final_note["xml_created"] = False
+
+
+def _apply_declaration_bundle_terminal(
+    *, preparation: dict[str, Any], bundle: dict[str, Any]
+) -> None:
+    """Present the bundle owner's terminal without interpreting its contents."""
+
+    status = str(bundle.get("status") or "")
+    if status not in {"BUNDLE_STABILIZATION_REQUIRED", "BUNDLE_STALE"}:
+        raise OrdinaryTradeProductionError(
+            "ordinary_trade_declaration_bundle_terminal_invalid"
+        )
+    terminal = {
+        "BUNDLE_STABILIZATION_REQUIRED": (
+            "ordinary_trade_declaration_bundle_stabilization_required"
+        ),
+        "BUNDLE_STALE": "ordinary_trade_declaration_bundle_stale",
+    }[status]
+    preparation["status"] = status
+    preparation["terminal"] = terminal
+    preparation["declaration_ready"] = False
+    preparation["xml_created"] = False
+    preparation["user_actions"] = [
+        {
+            "kind": "DECLARATION_CASE_BUNDLE_STABILIZATION",
+            "bundle_status": status,
+        }
+    ]
+    preparation["internal_blockers"] = []
+    preparation["declaration_case_bundle"] = {
+        "status": status,
+        "bundle_artifact_ref": bundle.get("bundle_artifact_ref"),
+    }
+    final_note = preparation.get("final_note")
+    if isinstance(final_note, dict):
         final_note["required_checks"] = [terminal]
         final_note["filing_eligible"] = False
         final_note["xml_created"] = False

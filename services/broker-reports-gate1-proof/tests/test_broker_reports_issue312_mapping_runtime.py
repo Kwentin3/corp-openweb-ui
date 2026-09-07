@@ -10,6 +10,19 @@ from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResul
 from broker_reports_gate1.ordinary_trade_mapping_case import (
     OrdinaryTradeMappingCaseFactory,
 )
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION,
+    PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID,
+    PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND,
+    OrdinaryTradeMappingManagedPrompt,
+    OrdinaryTradeMappingPromptUserContext,
+    StaticOrdinaryTradeMappingPromptResolver,
+)
 from broker_reports_gate1.ordinary_trade_mapping_runtime import (
     OrdinaryTradeAutomaticMappingRuntimeFactory,
 )
@@ -62,11 +75,44 @@ class BoundaryModelClient:
         )
 
 
+def _test_mapping_prompt() -> OrdinaryTradeMappingManagedPrompt:
+    return OrdinaryTradeMappingManagedPrompt(
+        prompt_ref="test-ordinary-trade-mapping-prompt",
+        command=PROMPT_COMMAND,
+        version="test-v1",
+        content="Map {{ordinary_trade_mapping_case_json}} as strict JSON.",
+        hash="b" * 64,
+        source="test",
+        template_id=PROMPT_TEMPLATE_ID,
+        template_kind=PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=PROMPT_CONTRACT_ID,
+        input_schema_version=INPUT_SCHEMA_VERSION,
+        output_schema_id=OUTPUT_SCHEMA_ID,
+        output_schema_version=OUTPUT_SCHEMA_VERSION,
+        tags=(PROMPT_REQUIRED_TAG,),
+        safe_metadata={},
+    )
+
+
+def _mapping_prompt_dependencies() -> dict[str, object]:
+    return {
+        "mapping_prompt_resolver": StaticOrdinaryTradeMappingPromptResolver(
+            _test_mapping_prompt()
+        ),
+        "mapping_prompt_user_context_factory": (
+            lambda context: OrdinaryTradeMappingPromptUserContext(
+                user_id=context.user_id
+            )
+        ),
+    }
+
+
 def _runtime(store, client):
     return OrdinaryTradeAutomaticMappingRuntimeFactory(
         store=store,
         read_enabled=True,
         model_client=client,
+        **_mapping_prompt_dependencies(),
         model_id="models/gemini-3.5-flash",
         provider_profile_id="google_gemini",
     ).create()
@@ -132,7 +178,15 @@ async def _one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
     assert result["status"] == "COMPLETE"
     assert result["provider_calls_this_turn"] == 1
     assert len(client.calls) == 1
+    assert client.calls[0]["prompt"].prompt_ref == "test-ordinary-trade-mapping-prompt"
     assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
+    saved = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
+        document_id=document_id, context=context
+    )[1]
+    assert saved["mapping_prompt_snapshot"]["prompt_ref"] == (
+        "test-ordinary-trade-mapping-prompt"
+    )
+    assert "content" not in saved["mapping_prompt_snapshot"]
 
 
 async def _interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:
@@ -299,7 +353,12 @@ async def _user_currency_then_internal_classification_completes(tmp_path) -> Non
             "columns": [],
             "amount_currency_bindings": [],
             "side_values": [],
-            "row_dispositions": [],
+                "row_dispositions": [],
+                "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+                "classification_evidence": {
+                    "context_ref": "context_1",
+                    "relation": "TABLE_TITLE",
+                },
         }
     client = BoundaryModelClient([currency_response])
     runtime = OrdinaryTradeProductionRuntimeFactory(
@@ -309,6 +368,7 @@ async def _user_currency_then_internal_classification_completes(tmp_path) -> Non
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
 
     required = await runtime.run_with_automatic_mapping(
@@ -320,8 +380,11 @@ async def _user_currency_then_internal_classification_completes(tmp_path) -> Non
         context=context,
         user_message="Валюта: USD",
     )
-    assert required["semantic_mapping"]["status"] == "CURRENCY_ASSERTION_REQUIRED"
-    assert currency_supplied["semantic_mapping"]["status"] == "COMPLETE"
+    # The synthetic tables deliberately contain no direct source context.  A
+    # model may no longer exclude them merely by shape, even while requesting
+    # currency for other tables.
+    assert required["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert currency_supplied["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
     assert len(client.calls) == 1
     current = OrdinaryTradeMappingCaseFactory(
         store=store, read_enabled=True
@@ -331,9 +394,7 @@ async def _user_currency_then_internal_classification_completes(tmp_path) -> Non
         for item in current["confirmed_understandings"]
         if item["decision"]["decision_kind"] == "USER_PROVIDED_CURRENCY"
     ]
-    assert len(assertions) == 1
-    assert assertions[0]["currency_code"] == "USD"
-    assert len(assertions[0]["table_node_ids"]) == 2
+    assert assertions == []
 
 
 async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
@@ -354,6 +415,11 @@ async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
                         "amount_currency_bindings": [],
                         "side_values": [],
                         "row_dispositions": [],
+                        "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+                        "classification_evidence": {
+                            "context_ref": "context_1",
+                            "relation": "TABLE_TITLE",
+                        },
                     }
                 ],
                 "clarification": None,
@@ -371,9 +437,8 @@ async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
         user_message="Нет",
     )
 
-    assert pending["status"] == "COMPLETE"
-    assert pending["public_state"]["confirmation_message"] is None
-    assert rejected["status"] == "COMPLETE"
+    assert pending["status"] == "MAPPING_OUTPUT_INVALID"
+    assert rejected["status"] == "MAPPING_OUTPUT_INVALID"
     assert len(client.calls) == 1
 
 
@@ -771,6 +836,7 @@ async def _production_composition_maps_unknown_then_publishes_facts(tmp_path) ->
         mapping_answer_model_client=answer_client,
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
     canonical_ref = store.get_active_canonical_version(
         context=context, document_id=document_id
@@ -818,6 +884,7 @@ async def _sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
     canonical_ref = store.get_active_canonical_version(
         context=context, document_id=document_id
@@ -848,6 +915,7 @@ async def _known_schema_fast_path_has_zero_semantic_calls(tmp_path) -> None:
         mapping_answer_model_client=answer_client,
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
     canonical_ref = store.get_active_canonical_version(
         context=context, document_id=document_id
@@ -879,6 +947,7 @@ async def _mixed_known_and_unknown_tables_reach_gate4_facts(tmp_path) -> None:
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
 
     result = await runtime.run_with_automatic_mapping(
@@ -910,6 +979,7 @@ async def _identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> Non
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
 
     result = await runtime.run_with_automatic_mapping(
@@ -956,6 +1026,7 @@ async def _identical_known_table_nodes_use_zero_call_fast_path(tmp_path) -> None
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
 
     result = await runtime.run_with_automatic_mapping(
@@ -1112,6 +1183,7 @@ async def _row_classification_reaches_product_terminal(
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
     canonical_ref = store.get_active_canonical_version(
         context=context, document_id=document_id
@@ -1187,6 +1259,7 @@ async def _unfinished_mapping_publishes_no_partial_fact_v2(tmp_path) -> None:
         mapping_answer_model_client=BoundaryModelClient([]),
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
     canonical_ref = store.get_active_canonical_version(
         context=context, document_id=document_id
@@ -1258,6 +1331,7 @@ async def _production_pipe_keeps_mapping_question_confirmation_and_case(
         mapping_answer_model_client=answer_client,
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
     canonical_ref = store.get_active_canonical_version(
         context=context, document_id=document_id
@@ -1387,6 +1461,7 @@ async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -
                         "amount_currency_bindings": [],
                         "side_values": [],
                         "row_dispositions": [],
+                        "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
                     }
                 ],
                 "clarification": None,
@@ -1402,6 +1477,7 @@ async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -
         mapping_answer_model_client=answer_client,
         mapping_model_id="models/gemini-3.5-flash",
         mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
     ).create()
     canonical_ref = store.get_active_canonical_version(
         context=context, document_id=document_id
