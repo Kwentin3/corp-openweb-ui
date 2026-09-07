@@ -81,7 +81,9 @@ def _completion_payload(response):
     }
 
 
-def _managed_qualification_prompt() -> OrdinaryTradeMappingManagedPrompt:
+def _managed_qualification_prompt(
+    *, source: str = "openwebui_prompt_history"
+) -> OrdinaryTradeMappingManagedPrompt:
     content = f"Hermetic role mapping candidate. {PROMPT_PLACEHOLDER}"
     return OrdinaryTradeMappingManagedPrompt(
         prompt_ref="goal391-hermetic-mapping-prompt",
@@ -89,7 +91,7 @@ def _managed_qualification_prompt() -> OrdinaryTradeMappingManagedPrompt:
         version="goal391-hermetic-v1",
         content=content,
         hash=ordinary_trade_mapping_prompt_hash(content),
-        source="test",
+        source=source,
         template_id=PROMPT_TEMPLATE_ID,
         template_kind=PROMPT_TEMPLATE_KIND,
         prompt_contract_id=PROMPT_CONTRACT_ID,
@@ -154,6 +156,26 @@ def test_live_bridge_rejects_a_completion_payload_that_attempts_chat_persistence
         )
 
     assert exc.value.code == "ordinary_trade_mapping_live_chat_persistence_forbidden"
+
+
+def test_live_bridge_rejects_non_native_prompt_before_completion_boundary(tmp_path):
+    _fixture_value, response, user_id = _fixture(tmp_path)
+    submitted = []
+
+    def call_once(form_data):
+        submitted.append(form_data)
+        return _completion_payload(response)
+
+    with pytest.raises(OrdinaryTradeSemanticMappingLiveQualificationError) as exc:
+        OrdinaryTradeSemanticMappingLiveQualificationFactory(
+            request=SimpleNamespace(),
+            authenticated_user_id=user_id,
+            call_chat_completions_once=call_once,
+            mapping_prompt=_managed_qualification_prompt(source="test"),
+        )
+
+    assert exc.value.code == "ordinary_trade_mapping_live_native_prompt_required"
+    assert submitted == []
 
 
 def test_live_bridge_accepts_the_frozen_golden_fixture_without_deriving_expectations():

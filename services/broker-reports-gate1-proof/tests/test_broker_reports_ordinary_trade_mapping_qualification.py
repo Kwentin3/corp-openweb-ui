@@ -9,15 +9,28 @@ import pytest
 
 from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResult
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
-    MAPPING_PROMPT_VERSION,
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
     OrdinaryTradeSemanticMappingQualificationError,
     OrdinaryTradeSemanticMappingQualificationFactory,
+    OrdinaryTradeSemanticMappingQualificationRunner,
     load_frozen_fixture,
     safe_role_map_sha256,
+)
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION,
+    PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID,
+    PROMPT_PLACEHOLDER,
+    PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND,
+    OrdinaryTradeMappingManagedPrompt,
+    ordinary_trade_mapping_prompt_hash,
 )
 
 import test_broker_reports_issue312_mapping_case as case_fixtures
@@ -34,6 +47,39 @@ class InjectedClient:
             content=self._response,
             execution_metadata=case_fixtures._metadata(),
         )
+
+
+class NoFallbackSemantic:
+    """Delegate to the real semantic owner while making fallback use observable."""
+
+    def __init__(self) -> None:
+        self._real = OrdinaryTradeSemanticMappingFactory.create()
+
+    def mapping_prompt(self):
+        raise AssertionError("qualification must not use the code-owned prompt")
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+
+def _managed_qualification_prompt() -> OrdinaryTradeMappingManagedPrompt:
+    content = f"Hermetic role mapping candidate. {PROMPT_PLACEHOLDER}"
+    return OrdinaryTradeMappingManagedPrompt(
+        prompt_ref="ordinary-trade-qualification-test-prompt",
+        command=PROMPT_COMMAND,
+        version="ordinary-trade-qualification-test-v1",
+        content=content,
+        hash=ordinary_trade_mapping_prompt_hash(content),
+        source="test",
+        template_id=PROMPT_TEMPLATE_ID,
+        template_kind=PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=PROMPT_CONTRACT_ID,
+        input_schema_version=INPUT_SCHEMA_VERSION,
+        output_schema_id=OUTPUT_SCHEMA_ID,
+        output_schema_version=OUTPUT_SCHEMA_VERSION,
+        tags=(PROMPT_REQUIRED_TAG,),
+        safe_metadata={"name": "Ordinary-trade qualification test prompt"},
+    )
 
 
 def _fixture(tmp_path):
@@ -64,9 +110,13 @@ def _fixture(tmp_path):
 def test_local_qualification_uses_production_contract_once_and_returns_safe_receipt(tmp_path):
     fixture, response = _fixture(tmp_path)
     client = InjectedClient(response)
+    prompt = _managed_qualification_prompt()
 
     receipt = asyncio.run(
-        OrdinaryTradeSemanticMappingQualificationFactory(model_client=client)
+        OrdinaryTradeSemanticMappingQualificationFactory(
+            model_client=client,
+            mapping_prompt=prompt,
+        )
         .create()
         .run(
             fixture=fixture,
@@ -76,14 +126,33 @@ def test_local_qualification_uses_production_contract_once_and_returns_safe_rece
     )
 
     assert len(client.calls) == 1
-    assert client.calls[0]["prompt"].version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v22"
+    assert client.calls[0]["prompt"] is prompt
     assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
     assert receipt["status"] == "PASSED"
     assert receipt["provider_calls_total"] == 1
     assert receipt["verdict"] == fixture["expected_verdict"]
     assert "Mapping" not in str(receipt)
     assert "displayed_value" not in str(receipt)
+
+
+def test_local_qualification_never_calls_code_owned_prompt_fallback(tmp_path):
+    fixture, response = _fixture(tmp_path)
+    client = InjectedClient(response)
+
+    receipt = asyncio.run(
+        OrdinaryTradeSemanticMappingQualificationRunner(
+            model_client=client,
+            semantic=NoFallbackSemantic(),
+            mapping_prompt=_managed_qualification_prompt(),
+        ).run(
+            fixture=fixture,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+        )
+    )
+
+    assert receipt["status"] == "PASSED"
+    assert len(client.calls) == 1
 
 
 def test_local_qualification_fails_closed_when_validator_verdict_disagrees(tmp_path):
@@ -94,7 +163,8 @@ def test_local_qualification_fails_closed_when_validator_verdict_disagrees(tmp_p
     with pytest.raises(OrdinaryTradeSemanticMappingQualificationError) as exc:
         asyncio.run(
             OrdinaryTradeSemanticMappingQualificationFactory(
-                model_client=InjectedClient(response)
+                model_client=InjectedClient(response),
+                mapping_prompt=_managed_qualification_prompt(),
             )
             .create()
             .run(
@@ -126,7 +196,10 @@ def test_local_qualification_rejects_a_stale_canonical_binding_before_model_call
 
     with pytest.raises(OrdinaryTradeSemanticMappingQualificationError) as exc:
         asyncio.run(
-            OrdinaryTradeSemanticMappingQualificationFactory(model_client=client)
+            OrdinaryTradeSemanticMappingQualificationFactory(
+                model_client=client,
+                mapping_prompt=_managed_qualification_prompt(),
+            )
             .create()
             .run(
                 fixture=fixture,
@@ -152,7 +225,8 @@ def test_local_qualification_rejects_count_equivalent_wrong_role_map(tmp_path):
     with pytest.raises(OrdinaryTradeSemanticMappingQualificationError) as exc:
         asyncio.run(
             OrdinaryTradeSemanticMappingQualificationFactory(
-                model_client=InjectedClient(wrong_response)
+                model_client=InjectedClient(wrong_response),
+                mapping_prompt=_managed_qualification_prompt(),
             )
             .create()
             .run(
@@ -163,6 +237,97 @@ def test_local_qualification_rejects_count_equivalent_wrong_role_map(tmp_path):
         )
 
     assert exc.value.code == "ordinary_trade_mapping_qualification_verdict_mismatch"
+
+
+def test_local_qualification_requires_managed_prompt_before_any_model_call(tmp_path):
+    _fixture_value, response = _fixture(tmp_path)
+    client = InjectedClient(response)
+
+    with pytest.raises(OrdinaryTradeSemanticMappingQualificationError) as exc:
+        OrdinaryTradeSemanticMappingQualificationFactory(
+            model_client=client,
+            mapping_prompt=None,
+        ).create()
+
+    assert exc.value.code == "ordinary_trade_mapping_qualification_prompt_required"
+    assert client.calls == []
+
+    with pytest.raises(OrdinaryTradeSemanticMappingQualificationError) as exc:
+        OrdinaryTradeSemanticMappingQualificationRunner(
+            model_client=client,
+            semantic=object(),
+            mapping_prompt=None,
+        )
+
+    assert exc.value.code == "ordinary_trade_mapping_qualification_prompt_required"
+    assert client.calls == []
+
+
+def test_local_qualification_rejects_tampered_managed_prompt_before_any_model_call(
+    tmp_path,
+):
+    _fixture_value, response = _fixture(tmp_path)
+    client = InjectedClient(response)
+    prompt = _managed_qualification_prompt()
+    tampered = OrdinaryTradeMappingManagedPrompt(
+        prompt_ref=prompt.prompt_ref,
+        command=prompt.command,
+        version=prompt.version,
+        content=prompt.content + " altered",
+        hash=prompt.hash,
+        source=prompt.source,
+        template_id=prompt.template_id,
+        template_kind=prompt.template_kind,
+        prompt_contract_id=prompt.prompt_contract_id,
+        input_schema_version=prompt.input_schema_version,
+        output_schema_id=prompt.output_schema_id,
+        output_schema_version=prompt.output_schema_version,
+        tags=prompt.tags,
+        safe_metadata=prompt.safe_metadata,
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticMappingQualificationError) as exc:
+        OrdinaryTradeSemanticMappingQualificationFactory(
+            model_client=client,
+            mapping_prompt=tampered,
+        ).create()
+
+    assert exc.value.code == "ordinary_trade_mapping_qualification_prompt_invalid"
+    assert client.calls == []
+
+
+@pytest.mark.parametrize("command", [None, "foreign-command"])
+def test_local_qualification_rejects_non_native_prompt_command_before_any_model_call(
+    tmp_path, command
+):
+    _fixture_value, response = _fixture(tmp_path)
+    client = InjectedClient(response)
+    prompt = _managed_qualification_prompt()
+    malformed = OrdinaryTradeMappingManagedPrompt(
+        prompt_ref=prompt.prompt_ref,
+        command=command,
+        version=prompt.version,
+        content=prompt.content,
+        hash=prompt.hash,
+        source=prompt.source,
+        template_id=prompt.template_id,
+        template_kind=prompt.template_kind,
+        prompt_contract_id=prompt.prompt_contract_id,
+        input_schema_version=prompt.input_schema_version,
+        output_schema_id=prompt.output_schema_id,
+        output_schema_version=prompt.output_schema_version,
+        tags=prompt.tags,
+        safe_metadata=prompt.safe_metadata,
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticMappingQualificationError) as exc:
+        OrdinaryTradeSemanticMappingQualificationFactory(
+            model_client=client,
+            mapping_prompt=malformed,
+        ).create()
+
+    assert exc.value.code == "ordinary_trade_mapping_qualification_prompt_invalid"
+    assert client.calls == []
 
 
 def test_scoped_mapping_does_not_claim_to_cover_tables_not_sent_to_model(tmp_path):

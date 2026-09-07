@@ -121,6 +121,10 @@ class OrdinaryTradeSemanticMappingLiveQualificationFactory:
             raise OrdinaryTradeSemanticMappingLiveQualificationError(
                 "ordinary_trade_mapping_live_prompt_invalid"
             ) from exc
+        if mapping_prompt.source != "openwebui_prompt_history":
+            raise OrdinaryTradeSemanticMappingLiveQualificationError(
+                "ordinary_trade_mapping_live_native_prompt_required"
+            )
         self._mapping_prompt = mapping_prompt
 
     def create(self) -> "OrdinaryTradeSemanticMappingLiveQualificationRunner":
