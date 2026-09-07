@@ -667,7 +667,7 @@ class OrdinaryTradeSemanticMapping:
             resolutions_by_node_id[resolved["table_node_id"]] = resolution
         table_resolutions = [
             resolutions_by_node_id[table["table_node_id"]]
-            for table in all_table_surfaces
+            for table in table_surfaces
             if table["table_node_id"] in resolutions_by_node_id
         ]
         # The current compiler intentionally predates the source-gap disposition.
@@ -703,6 +703,7 @@ class OrdinaryTradeSemanticMapping:
         }
         if any(
             item.get("disposition") == "RELEVANT_UNMAPPED"
+            and item.get("table_node_id") in tables
             and item.get("table_node_id") not in incomplete_table_node_ids
             for item in dry_run["source_observations"]
         ):

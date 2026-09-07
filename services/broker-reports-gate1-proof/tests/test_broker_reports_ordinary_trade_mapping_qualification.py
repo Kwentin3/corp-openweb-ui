@@ -8,7 +8,10 @@ import json
 import pytest
 
 from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResult
-from broker_reports_gate1.ordinary_trade_semantic_mapping import MAPPING_PROMPT_VERSION
+from broker_reports_gate1.ordinary_trade_semantic_mapping import (
+    MAPPING_PROMPT_VERSION,
+    OrdinaryTradeSemanticMappingFactory,
+)
 from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
     OrdinaryTradeSemanticMappingQualificationError,
     OrdinaryTradeSemanticMappingQualificationFactory,
@@ -159,6 +162,40 @@ def test_local_qualification_rejects_count_equivalent_wrong_role_map(tmp_path):
         )
 
     assert exc.value.code == "ordinary_trade_mapping_qualification_verdict_mismatch"
+
+
+def test_scoped_mapping_does_not_claim_to_cover_tables_not_sent_to_model(tmp_path):
+    _store, context, document_id, canonical, binding = (
+        case_fixtures._unknown_two_table_case(tmp_path)
+    )
+    table = next(
+        node for node in canonical["nodes"] if node["node_type"] == "TABLE"
+    )
+    header_cells = sorted(
+        (cell for cell in table["content"]["cells"] if cell["row"] == 1),
+        key=lambda cell: cell["column"],
+    )
+    mapping = case_fixtures.candidate._mapping_from_headers(
+        tuple(cell["displayed_value"] for cell in header_cells)
+    )
+    semantic = OrdinaryTradeSemanticMappingFactory.create()
+
+    outcome = semantic.validate_mapping_response(
+        response=case_fixtures._complete(table, mapping),
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=case_fixtures._metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
+        target_table_node_ids=[table["node_id"]],
+    )
+
+    assert outcome["status"] == "COMPLETE"
+    assert [item["table_node_id"] for item in outcome["table_resolutions"]] == [
+        table["node_id"]
+    ]
 
 
 def test_safe_role_map_hash_covers_amount_currency_and_side_choices(tmp_path):
