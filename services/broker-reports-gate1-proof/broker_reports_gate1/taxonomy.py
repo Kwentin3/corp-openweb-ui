@@ -95,6 +95,19 @@ def classify_document(
     if candidate not in SUPPORTED_CLASSES:
         candidate = "unknown_or_needs_review"
 
+    # A native NDFL Workspace Model is an explicit product choice.  It may
+    # admit only table-shaped source evidence that this taxonomy owner has
+    # already classified as an operations table; it does not turn an unknown
+    # spreadsheet or a calculation template into a broker source.
+    if (
+        candidate == "operations_table"
+        and container in {"csv", "xlsx"}
+        and _policy_accepts_tabular_source_roles(policy_context)
+    ):
+        source_role_policy_status = "approved"
+        source_role_policy_decision = "approved_for_gate2_source_role"
+        reason_codes.append("tabular_source_role_policy_approved")
+
     pdf_html_evidence = _has_pdf_html_parse_evidence(
         container=container,
         profile=profile,
@@ -249,6 +262,13 @@ def _policy_accepts_pdf_html_source_roles(source_policy_context: dict) -> bool:
         "approve_safe_registry_roles",
         "accepted_safe_registry_roles",
     }
+
+
+def _policy_accepts_tabular_source_roles(source_policy_context: dict) -> bool:
+    return (
+        source_policy_context.get("explicit") is True
+        and source_policy_context.get("accept_tabular_source_roles") is True
+    )
 
 
 def _requires_source_policy_review(

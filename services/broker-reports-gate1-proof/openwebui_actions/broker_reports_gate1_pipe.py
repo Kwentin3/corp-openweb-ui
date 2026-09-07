@@ -4895,8 +4895,9 @@ class Pipe:
         ):
             # Selecting the native NDFL Workspace Model is the user's explicit
             # product intent.  This server-owned policy permits only a PDF/HTML
-            # document that the existing taxonomy owner independently recognizes
-            # as source evidence; client request metadata cannot broaden it.
+            # document or a machine-readable CSV/XLSX operations table that the
+            # existing taxonomy owner independently recognizes as source
+            # evidence; client request metadata cannot broaden it.
             source_policy = self._ndfl_workspace_source_policy()
         else:
             source_policy = self._source_policy_context(body, metadata)
@@ -4918,6 +4919,7 @@ class Pipe:
             "mode": "native_ndfl_workspace_model",
             "explicit": True,
             "accept_pdf_html_source_roles": True,
+            "accept_tabular_source_roles": True,
         }
 
     def _safe_len(self, value: Any) -> int:
@@ -4959,6 +4961,11 @@ class Pipe:
         if "accept_pdf_html_source_roles" in value:
             result["accept_pdf_html_source_roles"] = self._optional_bool(
                 value.get("accept_pdf_html_source_roles"),
+                default=False,
+            )
+        if "accept_tabular_source_roles" in value:
+            result["accept_tabular_source_roles"] = self._optional_bool(
+                value.get("accept_tabular_source_roles"),
                 default=False,
             )
         hints = value.get("safe_registry_role_hints")

@@ -819,6 +819,110 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
 
 
 @pytest.mark.parametrize(
+    ("fixture_name", "content_type"),
+    [
+        ("issue310_sale_only_ordinary_trade.csv", "text/csv"),
+        (
+            "g537_multisheet_disposal.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ),
+    ],
+)
+def test_ndfl_facade_admits_tabular_ordinary_trade_source_to_product_terminal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fixture_name: str,
+    content_type: str,
+) -> None:
+    # This is a product-route test, not a host-capacity-policy test.  The
+    # Canonical storage capacity gate is verified by its dedicated tests.
+    import broker_reports_gate1.canonical_store as canonical_store
+
+    monkeypatch.setattr(
+        canonical_store.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(
+            total=20 * 1024 * 1024 * 1024,
+            free=10 * 1024 * 1024 * 1024,
+        ),
+    )
+    fixture = Path(__file__).parent / "fixtures" / fixture_name
+    file_id = "ndfl-tabular-" + fixture.stem
+    pipe = Pipe(
+        _file_bytes_resolver=_OwnedFixtureFileResolver(
+            user_id="ndfl-tabular-user",
+            file_id=file_id,
+            filename=fixture.name,
+            content_type=content_type,
+            payload=fixture.read_bytes(),
+        )
+    )
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    pipe.valves.artifact_store_path = str(tmp_path / "artifacts.sqlite3")
+    pipe.valves.artifact_payload_root = str(tmp_path / "payloads")
+    pipe.valves.workload_store_path = str(tmp_path / "workloads.sqlite3")
+    pipe.valves.workload_temp_root = str(tmp_path / "workload-temp")
+    pipe.valves.artifact_retention_mode = "synthetic_dev"
+
+    content = asyncio.run(
+        pipe.pipe(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Подготовь 3-НДФЛ по этому отчёту.",
+                        "files": [
+                            {
+                                "type": "file",
+                                "file": {
+                                    "id": file_id,
+                                    "filename": fixture.name,
+                                    "mime_type": content_type,
+                                },
+                            }
+                        ],
+                    }
+                ]
+            },
+            __user__={"id": "ndfl-tabular-user", "email": "", "name": ""},
+            __metadata__={
+                "chat_id": "ndfl-tabular-case-" + fixture.stem,
+                "case_id": "ndfl-tabular-case-" + fixture.stem,
+                "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+            },
+        )
+    )
+
+    result = pipe.last_artifact_manifest["ndfl_gate3"]
+    if result["product"]["status"] == "INPUT_REQUIRED":
+        # The source owner may need the tax period before it can close the
+        # ordinary-trade preparation terminal.  This is a normal user turn,
+        # not another upload or a route change.
+        content = asyncio.run(
+            pipe.pipe(
+                {"messages": [{"role": "user", "content": "2025"}]},
+                __user__={"id": "ndfl-tabular-user", "email": "", "name": ""},
+                __metadata__={
+                    "chat_id": "ndfl-tabular-case-" + fixture.stem,
+                    "case_id": "ndfl-tabular-case-" + fixture.stem,
+                    "model_id": NDFL_WORKSPACE_MODEL_STABLE_ID,
+                },
+            )
+        )
+        result = pipe.last_artifact_manifest["ndfl_gate3"]
+    source_entry = pipe.last_safe_report["document_source_eligibility"]["entries"][0]
+    assert source_entry["source_eligibility"] == "accepted_for_gate2"
+    assert source_entry["source_role_policy_status"] == "approved"
+    assert result["product"]["status"] == "PREPARATION_INCOMPLETE"
+    assert result["product"]["xml_created"] is False
+    assert result["declaration"] is None
+    assert "XML не создан" in content
+    assert "ordinary_trade_canonical_evidence_missing" not in content
+
+
+@pytest.mark.parametrize(
     ("fixture_name", "expected_status", "visible_markers"),
     [
         (
