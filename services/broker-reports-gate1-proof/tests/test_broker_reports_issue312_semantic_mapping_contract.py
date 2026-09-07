@@ -277,12 +277,12 @@ def test_mapping_preserves_a_bounded_local_context_window() -> None:
                     "node_type": "TEXT",
                     "content": {"text": f"context {index}"},
                 }
-                for index in range(8)
+                for index in range(9)
             ],
             {
                 "node_id": "table_1",
                 "container_ref": "page_1",
-                "order": 8,
+                "order": 9,
                 "node_type": "TABLE",
                 "content": {
                     "cells": [{"row": 1, "column": 1, "displayed_value": "x"}],
@@ -294,7 +294,7 @@ def test_mapping_preserves_a_bounded_local_context_window() -> None:
     tables, _refs = _model_table_surfaces(canonical)
 
     assert tables[0]["source_context"]["preceding_literals"] == [
-        f"context {index}" for index in range(8)
+        f"context {index}" for index in range(1, 9)
     ]
 
 
