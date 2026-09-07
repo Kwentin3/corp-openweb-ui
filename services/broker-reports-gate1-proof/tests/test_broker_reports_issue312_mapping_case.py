@@ -5,6 +5,10 @@ import pytest
 
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.gate2_model_contracts import Gate2ProviderExecutionMetadata
+from broker_reports_gate1.gate4_ordinary_trade_candidate import (
+    GATE4_ORDINARY_TRADE_SOURCE_ROLE_INCOMPLETE,
+    Gate4OrdinaryTradeCandidateRuntimeFactory,
+)
 from broker_reports_gate1.ordinary_trade_mapping_case import (
     OrdinaryTradeMappingCaseError,
     OrdinaryTradeMappingCaseFactory,
@@ -196,6 +200,86 @@ def test_case_mapping_persists_and_feeds_existing_projection_owner(tmp_path) -> 
     assert projection["qualified_table_resolutions"][0]["disposition"] == (
         "SECURITY_TRADES"
     )
+
+
+def test_recognized_incomplete_trade_is_retained_as_source_gap_not_pipeline_defect(
+    tmp_path,
+) -> None:
+    store, context, document_id, canonical, binding, table, mapping = _unknown_case(
+        tmp_path
+    )
+    semantic = OrdinaryTradeSemanticMappingFactory.create()
+    response = _complete(table, mapping)
+    decision = response["table_decisions"][0]
+    decision["disposition"] = "SECURITY_TRADES_INCOMPLETE"
+    decision["amount_currency_bindings"] = []
+    decision["missing_required_roles"] = ["asset_name"]
+    decision["columns"] = [
+        {
+            **item,
+            "semantic_role": (
+                "unmapped"
+                if item["semantic_role"] == "asset_name"
+                else item["semantic_role"]
+            ),
+        }
+        for item in decision["columns"]
+    ]
+    cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
+    outcome = semantic.validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=cases.case_binding(
+            document_id=document_id, context=context
+        )["user_scope_sha256"],
+    )
+    cases.save_mapping_outcome(
+        document_id=document_id,
+        context=context,
+        outcome=outcome,
+        provider_calls_total=1,
+    )
+    projection_record = OrdinaryTradeProjectionFactory(
+        store=store, read_enabled=True
+    ).create().compile_and_save(document_id=document_id, context=context)
+    projection = OrdinaryTradeProjectionFactory(store=store, read_enabled=True).create().read(
+        artifact_id=projection_record.artifact_id, context=context
+    )
+
+    assert {
+        item["disposition"] for item in projection["source_observations"]
+    } == {"SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE"}
+    assert {
+        item["reason_code"] for item in projection["source_observations"]
+    } == {"ORDINARY_TRADE_SOURCE_ROLE_INCOMPLETE"}
+    assert projection["runtime_records"] == []
+    assert projection["qualified_table_resolutions"][0]["disposition"] == (
+        "SECURITY_TRADES_INCOMPLETE"
+    )
+    assert projection["qualified_table_resolutions"][0]["missing_required_roles"] == [
+        "asset_name"
+    ]
+
+    fact_set = Gate4OrdinaryTradeCandidateRuntimeFactory(
+        store=store, read_enabled=True
+    ).create().current_fact_set(context=context)
+    assert fact_set["facts"] == []
+    assert fact_set["status"] == "SOURCE_ROLE_INCOMPLETE"
+    assert fact_set["blockers"] == [
+        {
+            "schema_version": "broker_reports_gate4_ordinary_trade_blocker_v1",
+            "reason_code": GATE4_ORDINARY_TRADE_SOURCE_ROLE_INCOMPLETE,
+            "required_input": "ordinary_trade_source.financial_roles.asset_name",
+            "gap_owner_classification": "REAL_SOURCE_EVIDENCE_MISSING",
+            "owner": "Gate4OrdinaryTradeCandidateRuntime",
+            "blocking_scope": "recognized_security_trade_source_table",
+        }
+    ]
 
 
 def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) -> None:

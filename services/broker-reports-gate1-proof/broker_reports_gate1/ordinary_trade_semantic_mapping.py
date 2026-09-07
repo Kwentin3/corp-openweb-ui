@@ -18,13 +18,13 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v3"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v4"
 )
 ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v14"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v15"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -44,6 +44,7 @@ _MAPPING_STATUSES = {
 }
 _TABLE_DISPOSITIONS = {
     "SECURITY_TRADES",
+    "SECURITY_TRADES_INCOMPLETE",
     "NO_NAMED_CONSUMER",
     "UNSUPPORTED_FINANCIAL_MEANING",
 }
@@ -152,10 +153,17 @@ class OrdinaryTradeSemanticMapping:
             "change, calculate or omit source rows, values, dates, amounts or links. "
             "Classify every table exactly once. SECURITY_TRADES requires a complete "
             "column mapping, exact side enum, and one row_dispositions entry for every "
-            "non-empty row below header_row. Mark only rows that satisfy the complete "
-            "ordinary-security-trade contract as SECURITY_TRADES; mark every other "
-            "such row NO_NAMED_CONSUMER. Do not use CURRENCY_ASSERTION_REQUIRED to "
-            "hide an incomplete row classification. amount_currency_bindings must contain "
+            "non-empty row below header_row. SECURITY_TRADES_INCOMPLETE is for a table "
+            "whose source structure clearly represents security trades but does not "
+            "contain every required source role or does not bind one safely. For that "
+            "disposition, retain every source column with its known semantic_role or "
+            "unmapped, classify every non-empty row, provide the exact sorted "
+            "missing_required_roles, and leave amount_currency_bindings empty. It is a "
+            "source-gap record, not a request to invent, calculate, or repair a fact. "
+            "Mark only rows that satisfy the complete ordinary-security-trade contract "
+            "as SECURITY_TRADES; mark every other such row NO_NAMED_CONSUMER. Do not "
+            "use CURRENCY_ASSERTION_REQUIRED to hide an incomplete row classification. "
+            "amount_currency_bindings must contain "
             "exactly one entry, sorted by amount_column, for every column mapped as "
             "gross_amount, broker_commission or exchange_commission; each entry must "
             "point to the column mapped as currency. Do not add bindings for unit_price, "
@@ -180,13 +188,17 @@ class OrdinaryTradeSemanticMapping:
             "NO_NAMED_CONSUMER tables, in one COMPLETE response. Mapping is an "
             "internal source-structure operation: never ask the declarant to classify "
             "a table, choose a column meaning, or confirm an exclusion. If the source "
-            "does not permit a complete safe classification, return "
-            "SPECIALIST_REVIEW_REQUIRED with table_decisions empty. "
+            "does not permit a safe semantic classification at all, return "
+            "SPECIALIST_REVIEW_REQUIRED with table_decisions empty. Missing source "
+            "roles alone are not ambiguity: retain an evident trade table as "
+            "SECURITY_TRADES_INCOMPLETE. "
             "A Settlement Date is never a Trade Date and must never be mapped as "
             "trade_date. Use NO_NAMED_CONSUMER only for a table that is unambiguously "
             "not a transaction table. If a table carries transaction-like quantities or "
             "amounts but a complete ordinary-security-trade mapping cannot be bound, "
-            "return SPECIALIST_REVIEW_REQUIRED with table_decisions empty. "
+            "return SECURITY_TRADES_INCOMPLETE when the table is evidently a security "
+            "trade table; use SPECIALIST_REVIEW_REQUIRED only when that meaning itself "
+            "is ambiguous. "
             "When a transaction table has distinct acquisition and disposal amount "
             "columns, map the disposal-specific amount column as gross_amount, leave "
             "the acquisition amount column unmapped, and use per-row side dispositions. "
@@ -617,7 +629,7 @@ class OrdinaryTradeSemanticMapping:
                 )
                 qualified_mappings.append(mapping)
                 qualification_receipts.append(receipt)
-            resolutions_by_node_id[resolved["table_node_id"]] = {
+            resolution = {
                 key: copy.deepcopy(resolved[key])
                 for key in (
                     "table_node_id",
@@ -627,11 +639,32 @@ class OrdinaryTradeSemanticMapping:
                     "disposition",
                     "security_trade_rows",
                 )
+                if key in resolved
             }
+            if resolved["disposition"] == "SECURITY_TRADES_INCOMPLETE":
+                resolution.update(
+                    {
+                        "columns": copy.deepcopy(resolved["columns"]),
+                        "side_values": copy.deepcopy(resolved["side_values"]),
+                        "missing_required_roles": copy.deepcopy(
+                            resolved["missing_required_roles"]
+                        ),
+                    }
+                )
+            resolutions_by_node_id[resolved["table_node_id"]] = resolution
         table_resolutions = [
             resolutions_by_node_id[table["table_node_id"]]
             for table in all_table_surfaces
             if table["table_node_id"] in resolutions_by_node_id
+        ]
+        # The current compiler intentionally predates the source-gap disposition.
+        # Keep the owner result exact, but pass only its already-supported subset
+        # into this local no-publication coverage check.  The caller receives the
+        # unmodified SECURITY_TRADES_INCOMPLETE resolution for the downstream seam.
+        compiler_table_resolutions = [
+            item
+            for item in table_resolutions
+            if item["disposition"] != "SECURITY_TRADES_INCOMPLETE"
         ]
         dry_run = OrdinaryTradeSemanticCompilerFactory.create().compile(
             canonical=canonical,
@@ -648,10 +681,16 @@ class OrdinaryTradeSemanticMapping:
                     strict=True,
                 )
             ],
-            table_resolutions=table_resolutions,
+            table_resolutions=compiler_table_resolutions,
         )
+        incomplete_table_node_ids = {
+            item["table_node_id"]
+            for item in table_resolutions
+            if item["disposition"] == "SECURITY_TRADES_INCOMPLETE"
+        }
         if any(
             item.get("disposition") == "RELEVANT_UNMAPPED"
+            and item.get("table_node_id") not in incomplete_table_node_ids
             for item in dry_run["source_observations"]
         ):
             _fail("ordinary_trade_semantic_mapping_dry_run_incomplete")
@@ -1091,18 +1130,19 @@ def _validate_table_decision(
     user_currency_assertion: dict[str, Any] | None = None,
     allow_user_currency: bool = False,
 ) -> dict[str, Any]:
+    base_fields = {
+        "table_node_id",
+        "header_row",
+        "disposition",
+        "columns",
+        "amount_currency_bindings",
+        "side_values",
+        "row_dispositions",
+    }
+    incomplete_fields = base_fields | {"missing_required_roles"}
     if (
         not isinstance(decision, dict)
-        or set(decision)
-        != {
-            "table_node_id",
-            "header_row",
-            "disposition",
-            "columns",
-            "amount_currency_bindings",
-            "side_values",
-            "row_dispositions",
-        }
+        or (set(decision) != base_fields and set(decision) != incomplete_fields)
         or decision.get("table_node_id") != table["table_node_id"]
         or not isinstance(decision.get("header_row"), int)
         or decision.get("disposition") not in _TABLE_DISPOSITIONS
@@ -1116,6 +1156,10 @@ def _validate_table_decision(
             )
         )
     ):
+        _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
+    disposition = decision["disposition"]
+    incomplete = disposition == "SECURITY_TRADES_INCOMPLETE"
+    if incomplete != (set(decision) == incomplete_fields):
         _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
     row = next(
         (item for item in table["rows"] if item["row"] == decision["header_row"]),
@@ -1133,8 +1177,7 @@ def _validate_table_decision(
             for item in headers
         ],
     )
-    disposition = decision["disposition"]
-    if disposition != "SECURITY_TRADES":
+    if disposition not in {"SECURITY_TRADES", "SECURITY_TRADES_INCOMPLETE"}:
         if any(
             decision[key]
             for key in (
@@ -1168,11 +1211,14 @@ def _validate_table_decision(
             or item.get("semantic_role") not in _SEMANTIC_ROLES
             for item in columns
         )
-        or not (
-            (_REQUIRED_ROLES - {"currency"})
-            <= {item["semantic_role"] for item in columns}
-            if (user_currency_assertion is not None or allow_user_currency)
-            else _REQUIRED_ROLES <= {item["semantic_role"] for item in columns}
+        or (
+            not incomplete
+            and not (
+                (_REQUIRED_ROLES - {"currency"})
+                <= {item["semantic_role"] for item in columns}
+                if (user_currency_assertion is not None or allow_user_currency)
+                else _REQUIRED_ROLES <= {item["semantic_role"] for item in columns}
+            )
         )
         or (
             (user_currency_assertion is not None or allow_user_currency)
@@ -1180,10 +1226,26 @@ def _validate_table_decision(
         )
     ):
         _fail("ordinary_trade_semantic_mapping_columns_invalid")
+    present_required_roles = {
+        item["semantic_role"] for item in columns if item["semantic_role"] in _REQUIRED_ROLES
+    }
+    if incomplete:
+        missing_required_roles = decision.get("missing_required_roles")
+        if (
+            not isinstance(missing_required_roles, list)
+            or missing_required_roles != sorted(set(missing_required_roles))
+            or not missing_required_roles
+            or any(item not in _REQUIRED_ROLES for item in missing_required_roles)
+            or set(missing_required_roles) != _REQUIRED_ROLES - present_required_roles
+            or decision["amount_currency_bindings"]
+            or user_currency_assertion is not None
+            or allow_user_currency
+        ):
+            _fail("ordinary_trade_semantic_mapping_incomplete_trade_invalid")
     side_columns = [
         item["column"] for item in columns if item["semantic_role"] == "side"
     ]
-    if len(side_columns) != 1:
+    if len(side_columns) != 1 and not (incomplete and not side_columns):
         _fail("ordinary_trade_semantic_mapping_side_invalid")
     expected_rows = sorted(
         source_row["row"]
@@ -1219,11 +1281,11 @@ def _validate_table_decision(
         for source_row in table["rows"]
         if source_row["row"] in security_trade_rows
         for cell in source_row["cells"]
-        if cell["column"] == side_columns[0] and cell["literal"]
+        if side_columns and cell["column"] == side_columns[0] and cell["literal"]
     }
     side_values = decision["side_values"]
     if (
-        not side_values
+        (not side_values and side_columns)
         or any(
             not isinstance(item, dict)
             or set(item) != {"source_literal", "normalized_value"}
@@ -1258,6 +1320,11 @@ def _validate_table_decision(
         "amount_currency_bindings": bindings,
         "side_values": copy.deepcopy(side_values),
         "security_trade_rows": security_trade_rows,
+        **(
+            {"missing_required_roles": copy.deepcopy(decision["missing_required_roles"])}
+            if incomplete
+            else {}
+        ),
     }
 
 
@@ -1733,6 +1800,50 @@ def _mapping_response_schema() -> dict[str, Any]:
             },
         },
     }
+    incomplete_security_trade_table_decision = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "table_ref",
+            "header_row",
+            "disposition",
+            "columns",
+            "amount_currency_bindings",
+            "side_values",
+            "row_dispositions",
+            "missing_required_roles",
+        ],
+        "properties": {
+            **table_decision_common,
+            "disposition": {"const": "SECURITY_TRADES_INCOMPLETE"},
+            "columns": {"type": "array", "items": column},
+            "amount_currency_bindings": {"type": "array", "maxItems": 0},
+            "side_values": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["source_literal", "normalized_value"],
+                    "properties": {
+                        "source_literal": {"type": "string", "minLength": 1},
+                        "normalized_value": {
+                            "type": "string",
+                            "enum": ["PURCHASE", "DISPOSAL"],
+                        },
+                    },
+                },
+            },
+            "row_dispositions": security_trade_table_decision["properties"][
+                "row_dispositions"
+            ],
+            "missing_required_roles": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": True,
+                "items": {"type": "string", "enum": sorted(_REQUIRED_ROLES)},
+            },
+        },
+    }
     non_trade_table_decision = {
         "type": "object",
         "additionalProperties": False,
@@ -1749,7 +1860,10 @@ def _mapping_response_schema() -> dict[str, Any]:
             **table_decision_common,
             "disposition": {
                 "type": "string",
-                "enum": sorted(_TABLE_DISPOSITIONS - {"SECURITY_TRADES"}),
+                "enum": sorted(
+                    _TABLE_DISPOSITIONS
+                    - {"SECURITY_TRADES", "SECURITY_TRADES_INCOMPLETE"}
+                ),
             },
             "columns": {"type": "array", "maxItems": 0},
             "amount_currency_bindings": {"type": "array", "maxItems": 0},
@@ -1758,7 +1872,11 @@ def _mapping_response_schema() -> dict[str, Any]:
         },
     }
     table_decision = {
-        "anyOf": [security_trade_table_decision, non_trade_table_decision]
+        "anyOf": [
+            security_trade_table_decision,
+            incomplete_security_trade_table_decision,
+            non_trade_table_decision,
+        ]
     }
     decision = {
         "type": "object",

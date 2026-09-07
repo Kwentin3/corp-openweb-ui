@@ -170,7 +170,7 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     managed_prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt()
 
     assert managed_prompt.version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v14"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v15"
     assert "A Settlement Date is never a Trade Date" in managed_prompt.content
     assert "unambiguously not a transaction table" in managed_prompt.content
     assert "distinct acquisition and disposal amount columns" in managed_prompt.content
@@ -290,12 +290,14 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         {"COMPLETE", "CLARIFICATION_REQUIRED", "CURRENCY_ASSERTION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
     ]
     disposition_enums = _property_enum_sets(provider_schema, "disposition")
-    assert len(disposition_enums) == 4
+    assert len(disposition_enums) == 6
     assert {"SECURITY_TRADES"} in disposition_enums
+    assert {"SECURITY_TRADES_INCOMPLETE"} in disposition_enums
     assert {"SECURITY_TRADES", "NO_NAMED_CONSUMER"} in disposition_enums
     assert {"NO_NAMED_CONSUMER", "UNSUPPORTED_FINANCIAL_MEANING"} in disposition_enums
     assert {
         "SECURITY_TRADES",
+        "SECURITY_TRADES_INCOMPLETE",
         "NO_NAMED_CONSUMER",
         "UNSUPPORTED_FINANCIAL_MEANING",
     } in disposition_enums
@@ -307,7 +309,7 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         for values in decision_kind_enums
     )
     normalized_value_enums = _property_enum_sets(provider_schema, "normalized_value")
-    assert len(normalized_value_enums) == 2
+    assert len(normalized_value_enums) == 3
     assert all(
         values == {"PURCHASE", "DISPOSAL"}
         for values in normalized_value_enums
@@ -637,6 +639,55 @@ def test_mixed_tables_publish_complete_internal_table_classification(
         "SECURITY_TRADES",
         "NO_NAMED_CONSUMER",
     ]
+
+
+def test_recognized_incomplete_security_trade_retains_role_without_fact_mapping(
+    tmp_path,
+) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    response = _complete_response(table, known)
+    decision = response["table_decisions"][0]
+    decision["disposition"] = "SECURITY_TRADES_INCOMPLETE"
+    decision["amount_currency_bindings"] = []
+    decision["missing_required_roles"] = ["currency"]
+    decision["columns"] = [
+        {
+            **item,
+            "semantic_role": "unmapped"
+            if item["semantic_role"] == "currency"
+            else item["semantic_role"],
+        }
+        for item in decision["columns"]
+    ]
+
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert result["qualified_mappings"] == []
+    assert result["qualification_receipts"] == []
+    resolution = result["table_resolutions"]
+    assert len(resolution) == 1
+    assert resolution[0]["disposition"] == "SECURITY_TRADES_INCOMPLETE"
+    assert resolution[0]["missing_required_roles"] == ["currency"]
+    assert {item["semantic_role"] for item in resolution[0]["columns"]} >= {
+        "asset_name",
+        "trade_date",
+        "side",
+        "quantity",
+        "unit_price",
+        "gross_amount",
+        "unmapped",
+    }
+    assert resolution[0]["security_trade_rows"] == [2, 3]
 
 
 def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> None:
