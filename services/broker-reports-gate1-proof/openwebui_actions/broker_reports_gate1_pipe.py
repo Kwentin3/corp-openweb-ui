@@ -1121,7 +1121,11 @@ class Pipe:
         """
 
         baseline = self._presentation_llm_calls_total
-        question = build_public_question_context(current_actions[0])
+        question = (
+            build_public_question_context(current_actions[0])
+            if current_actions
+            else {}
+        )
         dialogue = {
             "schema_version": "broker_reports_ndfl_public_dialogue_turn_v1",
             "answer_feedback": None,
@@ -1189,6 +1193,19 @@ class Pipe:
                 dialogue["answer_feedback"] = (
                     "Не удалось безопасно понять ответ. Попробуйте ещё раз позже."
                 )
+            elif interpretation["disposition"] == "CHANGE_SELECTED_TAX_PERIOD":
+                # The presentation model selects only this closed public intent.
+                # The Pipe maps it to the pre-existing owner contract; the
+                # runtime still publishes, validates and persists the fact.
+                adapted = {
+                    "status": "CHANGE_ANSWER_READY",
+                    "answer": {
+                        "kind": "code",
+                        "value": interpretation["selected_tax_period"],
+                    },
+                }
+                dialogue["explicit_confirmation_received"] = True
+                dialogue.pop("pre_rendered_message", None)
             elif interpretation["disposition"] == "CLARIFY":
                 adapted = {
                     "status": "ANSWER_REJECTED",
@@ -1768,7 +1785,29 @@ class Pipe:
                 )
                 result["public_dialogue"] = dialogue
             else:
-                return result
+                if source_turn or not trusted_interaction_message:
+                    return result
+                adapted, dialogue = await self._adapt_ndfl_public_answer(
+                    message=trusted_interaction_message,
+                    current_actions=[],
+                    product=result["product"],
+                    declaration=result.get("declaration"),
+                    user=user,
+                    request=request,
+                )
+                result["public_dialogue"] = dialogue
+            if adapted["status"] == "CHANGE_ANSWER_READY":
+                request_action = runtime.publish_declaration_change_action(
+                    fact_key="selected_tax_period",
+                    context=context,
+                )
+                adapted = {
+                    "status": "ANSWER_READY",
+                    "request_publication_ref": request_action[
+                        "request_publication_ref"
+                    ],
+                    "answer": adapted["answer"],
+                }
             if adapted["status"] == "ANSWER_READY":
                 try:
                     action_receipt = runtime.normalize_declaration_action(

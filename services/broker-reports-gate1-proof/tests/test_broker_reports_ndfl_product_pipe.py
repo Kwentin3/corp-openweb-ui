@@ -522,7 +522,7 @@ def test_maintained_stage_binds_normal_chat_answer_to_current_owner_actions(
         form_data = call["form_data"]
         response_format = form_data["response_format"]
         assert response_format["json_schema"]["name"] == (
-            "ordinary_trade_public_interpretation_v1"
+            "ordinary_trade_public_interpretation_v2"
         )
         turn = json.loads(form_data["messages"][1]["content"])
         answer = turn["current_user_message"]
@@ -536,6 +536,7 @@ def test_maintained_stage_binds_normal_chat_answer_to_current_owner_actions(
                                 "disposition": "CANDIDATE",
                                 "message": "Понял ответ.",
                                 "normalized_answer": answer,
+                                "selected_tax_period": "",
                                 "evidence_quote": answer,
                             },
                             ensure_ascii=False,
@@ -653,6 +654,7 @@ def test_llm_proposal_is_bound_and_persisted_by_the_current_chat_turn(
                                 "disposition": "CLARIFY" if clarify else "CANDIDATE",
                                 "message": visible,
                                 "normalized_answer": "" if clarify else "2025",
+                                "selected_tax_period": "",
                                 "evidence_quote": "" if clarify else "Беру 2025 год",
                             },
                             ensure_ascii=False,
@@ -822,7 +824,7 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
 
         form_data = call["form_data"]
         assert form_data["response_format"]["json_schema"]["name"] == (
-            "ordinary_trade_public_interpretation_v1"
+            "ordinary_trade_public_interpretation_v2"
         )
         turn = json.loads(form_data["messages"][1]["content"])
         answer = turn["current_user_message"]
@@ -836,6 +838,7 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
                                 "disposition": "CANDIDATE",
                                 "message": "Понял ответ.",
                                 "normalized_answer": answer,
+                                "selected_tax_period": "",
                                 "evidence_quote": answer,
                             },
                             ensure_ascii=False,
@@ -942,6 +945,48 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     }
     user = {"id": "surrogate-maintained-user", "email": "", "name": ""}
     public_events = []
+    presentation_calls: list[str] = []
+
+    def completion(**call):
+        form_data = call["form_data"]
+        assert form_data["response_format"]["json_schema"]["name"] == (
+            "ordinary_trade_public_interpretation_v2"
+        )
+        turn = json.loads(form_data["messages"][1]["content"])
+        answer = turn["current_user_message"]
+        presentation_calls.append(answer)
+        if answer.startswith("Изменить налоговый период:"):
+            tax_period = answer.rsplit(":", 1)[1].strip()
+            payload = {
+                "disposition": "CHANGE_SELECTED_TAX_PERIOD",
+                "message": "Понял запрос.",
+                "normalized_answer": "",
+                "selected_tax_period": tax_period,
+                "evidence_quote": answer,
+            }
+        else:
+            payload = {
+                "disposition": "CANDIDATE",
+                "message": "Понял ответ.",
+                "normalized_answer": answer,
+                "selected_tax_period": "",
+                "evidence_quote": answer,
+            }
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(payload, ensure_ascii=False)
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+    )
 
     def public_turn(
         message: str,
@@ -968,6 +1013,7 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
             pipe.pipe(
                 body,
                 __user__=user,
+                __request__=object(),
                 __metadata__=metadata,
                 __event_call__=event_call,
                 __event_emitter__=event_emitter,
@@ -1009,12 +1055,19 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     assert maintained["product"]["xml_created"] is False
     assert maintained["declaration"] is None
     assert maintained["provider_calls_total"] == 0
+    assert presentation_calls == ["2022", "Неподаваемый черновик"]
 
     public_turn("Изменить налоговый период: 2025")
     supported = pipe.last_artifact_manifest["ndfl_gate3"]
     supported_profile = supported["product"]["preparation"]["period_profile"]
     assert supported_profile["selected_tax_period"] == "2025"
     assert supported_profile["profile_support"] == "SUPPORTED"
+    assert supported["declaration_chat_receipt"] == {
+        "status": "ANSWER_ACCEPTED",
+        "answer_accepted": True,
+        "fact_created": True,
+    }
+    assert supported["declaration_action_receipt"]["fact_created"] is True
     assert all(
         item["fact_key"] != "profile_mismatch_mode"
         for item in supported["product"]["preparation"]["user_actions"]
@@ -1029,6 +1082,12 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     assert returned["product"]["preparation"]["user_actions"][0]["fact_key"] == (
         "profile_mismatch_mode"
     )
+    assert presentation_calls == [
+        "2022",
+        "Неподаваемый черновик",
+        "Изменить налоговый период: 2025",
+        "Изменить налоговый период: 2022",
+    ]
 
     rendered_events = json.dumps(public_events, ensure_ascii=False)
     assert "Проверяю загруженный файл" in rendered_events
@@ -1091,6 +1150,41 @@ def test_ndfl_facade_admits_tabular_ordinary_trade_source_to_product_terminal(
     pipe.valves.workload_temp_root = str(tmp_path / "workload-temp")
     pipe.valves.artifact_retention_mode = "synthetic_dev"
 
+    presentation_calls: list[str] = []
+
+    def completion(**call):
+        form_data = call["form_data"]
+        assert form_data["response_format"]["json_schema"]["name"] == (
+            "ordinary_trade_public_interpretation_v2"
+        )
+        turn = json.loads(form_data["messages"][1]["content"])
+        answer = turn["current_user_message"]
+        presentation_calls.append(answer)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "disposition": "CANDIDATE",
+                                "message": "Понял ответ.",
+                                "normalized_answer": answer,
+                                "selected_tax_period": "",
+                                "evidence_quote": answer,
+                            },
+                            ensure_ascii=False,
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+    )
+
     content = asyncio.run(
         pipe.pipe(
             {
@@ -1112,6 +1206,7 @@ def test_ndfl_facade_admits_tabular_ordinary_trade_source_to_product_terminal(
                 ]
             },
             __user__={"id": "ndfl-tabular-user", "email": "", "name": ""},
+            __request__=object(),
             __metadata__={
                 "chat_id": "ndfl-tabular-case-" + fixture.stem,
                 "case_id": "ndfl-tabular-case-" + fixture.stem,
@@ -1129,6 +1224,7 @@ def test_ndfl_facade_admits_tabular_ordinary_trade_source_to_product_terminal(
             pipe.pipe(
                 {"messages": [{"role": "user", "content": "2025"}]},
                 __user__={"id": "ndfl-tabular-user", "email": "", "name": ""},
+                __request__=object(),
                 __metadata__={
                     "chat_id": "ndfl-tabular-case-" + fixture.stem,
                     "case_id": "ndfl-tabular-case-" + fixture.stem,
@@ -1137,6 +1233,7 @@ def test_ndfl_facade_admits_tabular_ordinary_trade_source_to_product_terminal(
             )
         )
         result = pipe.last_artifact_manifest["ndfl_gate3"]
+        assert presentation_calls == ["2025"]
     source_entry = pipe.last_safe_report["document_source_eligibility"]["entries"][0]
     assert source_entry["source_eligibility"] == "accepted_for_gate2"
     assert source_entry["source_role_policy_status"] == "approved"
@@ -1164,10 +1261,24 @@ def test_ndfl_facade_admits_tabular_ordinary_trade_source_to_product_terminal(
 )
 def test_public_file_turn_explains_non_filing_position_routes(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     fixture_name: str,
     expected_status: str,
     visible_markers: tuple[str, ...],
 ) -> None:
+    # This exercises the NDFL public position route after Canonical admission,
+    # not the host free-space policy.  Keep the fixture independent of the
+    # CI worker capacity; dedicated Canonical storage tests own that gate.
+    import broker_reports_gate1.canonical_store as canonical_store
+
+    monkeypatch.setattr(
+        canonical_store.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(
+            total=20 * 1024 * 1024 * 1024,
+            free=10 * 1024 * 1024 * 1024,
+        ),
+    )
     fixture = Path(__file__).parent / "fixtures" / fixture_name
     payload = fixture.read_bytes()
     pipe = Pipe(
@@ -1187,6 +1298,41 @@ def test_public_file_turn_explains_non_filing_position_routes(
     pipe.valves.workload_store_path = str(tmp_path / "workloads.sqlite3")
     pipe.valves.workload_temp_root = str(tmp_path / "workload-temp")
     pipe.valves.artifact_retention_mode = "synthetic_dev"
+
+    presentation_calls: list[str] = []
+
+    def completion(**call):
+        form_data = call["form_data"]
+        assert form_data["response_format"]["json_schema"]["name"] == (
+            "ordinary_trade_public_interpretation_v2"
+        )
+        turn = json.loads(form_data["messages"][1]["content"])
+        answer = turn["current_user_message"]
+        presentation_calls.append(answer)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "disposition": "CANDIDATE",
+                                "message": "Понял ответ.",
+                                "normalized_answer": answer,
+                                "selected_tax_period": "",
+                                "evidence_quote": answer,
+                            },
+                            ensure_ascii=False,
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+    )
     file_ref = {
         "type": "file",
         "file": {
@@ -1208,6 +1354,7 @@ def test_public_file_turn_explains_non_filing_position_routes(
                 ]
             },
             __user__={"id": "issue310-position-user", "email": "", "name": ""},
+            __request__=object(),
             __metadata__={
                 "chat_id": "issue310-" + fixture.stem,
                 "case_id": "issue310-" + fixture.stem,
@@ -1223,6 +1370,7 @@ def test_public_file_turn_explains_non_filing_position_routes(
         pipe.pipe(
             {"messages": [{"role": "user", "content": "2025"}]},
             __user__={"id": "issue310-position-user", "email": "", "name": ""},
+            __request__=object(),
             __metadata__={
                 "chat_id": "issue310-" + fixture.stem,
                 "case_id": "issue310-" + fixture.stem,
@@ -1233,6 +1381,7 @@ def test_public_file_turn_explains_non_filing_position_routes(
     result = pipe.last_artifact_manifest["ndfl_gate3"]
 
     assert result["product"]["status"] == expected_status
+    assert presentation_calls == ["2025"]
     for marker in visible_markers:
         assert marker in content
     assert "XML не создан" in content

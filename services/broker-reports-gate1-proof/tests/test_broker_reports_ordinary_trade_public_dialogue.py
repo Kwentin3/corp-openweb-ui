@@ -143,6 +143,7 @@ def _interpretation_completion(
                                 "disposition": disposition,
                                 "message": visible,
                                 "normalized_answer": normalized_answer,
+                                "selected_tax_period": "",
                                 "evidence_quote": evidence,
                             },
                             ensure_ascii=False,
@@ -230,16 +231,21 @@ def test_presentation_model_boundary_is_local_and_has_no_business_authority() ->
         "strict_contracts": [
             "broker_reports_ordinary_trade_public_dialogue_message_v5",
             "broker_reports_ordinary_trade_public_mapping_verification_v1",
-            "broker_reports_ordinary_trade_public_interpretation_v1",
+            "broker_reports_ordinary_trade_public_interpretation_v2",
         ],
         "business_authority": False,
     }
     schema = public_dialogue_interpretation_response_format()["json_schema"]["schema"]
-    assert schema["properties"]["disposition"]["enum"] == ["CLARIFY", "CANDIDATE"]
+    assert schema["properties"]["disposition"]["enum"] == [
+        "CLARIFY",
+        "CANDIDATE",
+        "CHANGE_SELECTED_TAX_PERIOD",
+    ]
     assert set(schema["required"]) == {
         "disposition",
         "message",
         "normalized_answer",
+        "selected_tax_period",
         "evidence_quote",
     }
     assert "schema_version" not in schema["properties"]
@@ -268,6 +274,7 @@ def test_short_model_candidate_is_composed_with_exact_owner_context() -> None:
                 "Вы указали первичную декларацию. Подтверждаете эту интерпретацию?"
             ),
             "normalized_answer": "Первичная декларация",
+            "selected_tax_period": "",
             "evidence_quote": "первый раз",
         },
         context=context,
@@ -275,7 +282,7 @@ def test_short_model_candidate_is_composed_with_exact_owner_context() -> None:
     )
 
     assert interpreted["schema_version"] == (
-        "broker_reports_ordinary_trade_public_interpretation_v1"
+        "broker_reports_ordinary_trade_public_interpretation_v2"
     )
     assert interpreted["message"].startswith("Вы указали первичную декларацию.")
     assert render_public_dialogue_fallback(context) in interpreted["message"]
@@ -283,6 +290,38 @@ def test_short_model_candidate_is_composed_with_exact_owner_context() -> None:
         _owner_context_payload(interpreted["message"]),
         context=context,
     )
+
+
+def test_structured_period_change_is_bound_to_an_explicit_user_year() -> None:
+    context = build_public_dialogue_context(product=_product())
+    interpreted = validate_public_dialogue_interpretation(
+        {
+            "disposition": "CHANGE_SELECTED_TAX_PERIOD",
+            "message": "Понял запрос на смену года.",
+            "normalized_answer": "",
+            "selected_tax_period": "2025",
+            "evidence_quote": "Изменить налоговый период: 2025",
+        },
+        context=context,
+        user_message="Изменить налоговый период: 2025",
+    )
+
+    assert interpreted["disposition"] == "CHANGE_SELECTED_TAX_PERIOD"
+    assert interpreted["selected_tax_period"] == "2025"
+    with pytest.raises(ValueError, match="public_dialogue_change_tax_period_invalid"):
+        validate_public_dialogue_interpretation(
+            {
+                key: value
+                for key, value in interpreted.items()
+                if key != "schema_version"
+            }
+            | {
+                "selected_tax_period": "0000",
+                "evidence_quote": "Изменить налоговый период: 0000",
+            },
+            context=context,
+            user_message="Изменить налоговый период: 0000",
+        )
 
 
 def test_genuine_short_candidate_with_confirm_imperative_is_accepted() -> None:
@@ -295,6 +334,7 @@ def test_genuine_short_candidate_with_confirm_imperative_is_accepted() -> None:
                 "Пожалуйста, подтвердите этот выбор."
             ),
             "normalized_answer": "Первичная декларация",
+            "selected_tax_period": "",
             "evidence_quote": "первый раз",
         },
         context=context,
@@ -311,6 +351,7 @@ def test_runtime_owns_confirmation_wording_for_plain_model_understanding() -> No
             "disposition": "CANDIDATE",
             "message": "Вы хотите подать первичную декларацию. Это верно?",
             "normalized_answer": "Первичная декларация",
+            "selected_tax_period": "",
             "evidence_quote": "первый раз",
         },
         context=context,
@@ -327,6 +368,7 @@ def test_runtime_owns_clarification_marker_for_plain_model_question() -> None:
             "disposition": "CLARIFY",
             "message": "Вы имеете в виду первичную или корректирующую декларацию?",
             "normalized_answer": "",
+            "selected_tax_period": "",
             "evidence_quote": "",
         },
         context=context,
@@ -350,6 +392,7 @@ def test_model_cannot_choose_or_echo_interpretation_schema_version() -> None:
                     "Вы указали первичную декларацию. Подтверждаете эту интерпретацию?"
                 ),
                 "normalized_answer": "Первичная декларация",
+                "selected_tax_period": "",
                 "evidence_quote": "первый раз",
             },
             context=context,
