@@ -39,7 +39,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (  # noqa: E402
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (  # noqa: E402
     _require_one_strict_result,
-) 
+)
 
 
 PROVIDER_PROFILE_ID = "google_gemini"
