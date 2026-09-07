@@ -173,7 +173,7 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     managed_prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt()
 
     assert managed_prompt.version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v18"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v20"
     assert "A Settlement Date is never a Trade Date" in managed_prompt.content
     assert "unambiguously not a transaction table" in managed_prompt.content
     assert "distinct acquisition and disposal amount columns" in managed_prompt.content
@@ -264,6 +264,38 @@ def test_mapping_prompt_states_the_exact_top_level_response_contract() -> None:
     assert repr(MAPPING_RESPONSE_SCHEMA_VERSION) in prompt
     assert "status, table_decisions, clarification and a non-empty message" in prompt
     assert "clarification must be null" in prompt
+
+
+def test_mapping_preserves_a_bounded_local_context_window() -> None:
+    canonical = {
+        "nodes": [
+            *[
+                {
+                    "node_id": f"text_{index}",
+                    "container_ref": "page_1",
+                    "order": index,
+                    "node_type": "TEXT",
+                    "content": {"text": f"context {index}"},
+                }
+                for index in range(8)
+            ],
+            {
+                "node_id": "table_1",
+                "container_ref": "page_1",
+                "order": 8,
+                "node_type": "TABLE",
+                "content": {
+                    "cells": [{"row": 1, "column": 1, "displayed_value": "x"}],
+                },
+            },
+        ]
+    }
+
+    tables, _refs = _model_table_surfaces(canonical)
+
+    assert tables[0]["source_context"]["preceding_literals"] == [
+        f"context {index}" for index in range(8)
+    ]
 
 
 @pytest.mark.parametrize(

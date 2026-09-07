@@ -24,7 +24,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v19"
+MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v20"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -87,8 +87,10 @@ _MAX_ROWS_PER_TABLE = 256
 _MAX_CELLS_TOTAL = 12_000
 _MAX_CONTEXT_BYTES = 524_288
 _MAX_MODEL_ROWS_PER_TABLE = 24
-_MAX_LOCAL_CONTEXT_ITEMS = 3
-_MAX_LOCAL_CONTEXT_LITERAL_CHARS = 1_024
+# Keep enough local source structure to distinguish an instructional table from
+# a declarant record, while retaining the prior bounded context budget.
+_MAX_LOCAL_CONTEXT_ITEMS = 8
+_MAX_LOCAL_CONTEXT_LITERAL_CHARS = 512
 _MAX_DISTINCT_VALUES_PER_COLUMN = 64
 _MAX_EXCLUSION_CONFIRMATION_TABLES = 12
 _DECISION_KINDS = {
