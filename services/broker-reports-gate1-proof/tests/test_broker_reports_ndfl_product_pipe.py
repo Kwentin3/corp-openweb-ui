@@ -736,7 +736,13 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     user = {"id": "surrogate-maintained-user", "email": "", "name": ""}
     public_events = []
 
-    def public_turn(message: str, *, files=None, event_response=None) -> str:
+    def public_turn(
+        message: str,
+        *,
+        files=None,
+        event_response=None,
+        native_current_turn=False,
+    ) -> str:
         async def event_call(_payload):
             return event_response
 
@@ -746,9 +752,14 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
         message_record = {"role": "user", "content": message}
         if files:
             message_record["files"] = files
+        body = (
+            {"user_message": message_record}
+            if native_current_turn
+            else {"messages": [message_record]}
+        )
         return asyncio.run(
             pipe.pipe(
-                {"messages": [message_record]},
+                body,
                 __user__=user,
                 __metadata__=metadata,
                 __event_call__=event_call,
@@ -756,7 +767,14 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
             )
         )
 
-    public_turn("Initial file processing", files=[file_ref])
+    # The native browser request places the attachment on user_message rather
+    # than the historical messages list.  This must reach the same Canonical
+    # and NDFL terminal as a conventional Pipe request.
+    public_turn(
+        "Initial file processing",
+        files=[file_ref],
+        native_current_turn=True,
+    )
     first = pipe.last_artifact_manifest["ndfl_gate3"]
     assert first["product"]["status"] == "INPUT_REQUIRED"
 

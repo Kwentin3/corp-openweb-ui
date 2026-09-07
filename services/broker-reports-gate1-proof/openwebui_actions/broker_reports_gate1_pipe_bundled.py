@@ -4725,6 +4725,10 @@ class Pipe:
         for source in (files_arg, metadata.get("files"), body.get("files")):
             self._append_file_candidates(candidates, source)
         for source in (
+            # Native OpenWebUI puts attachments of the just-submitted turn
+            # here.  Keep it in the existing collector so intake detection
+            # and source hydration observe the same current user message.
+            body.get("user_message"),
             body.get("message"),
             body.get("messages"),
             metadata.get("message"),

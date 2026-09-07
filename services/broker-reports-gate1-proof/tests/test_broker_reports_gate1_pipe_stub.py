@@ -490,6 +490,32 @@ class BrokerReportsGate1PipeSlice1Test(unittest.TestCase):
         self.assertNotIn("SYNTH-A,1,SYNTH-FCY", content)
         self.assertNotIn(csv, content)
 
+    def test_pipe_collects_current_turn_attachment_from_native_user_message(self):
+        pipe = self._pipe()
+
+        refs = pipe._collect_file_refs(
+            {
+                "user_message": {
+                    "role": "user",
+                    "content": "Process the attached source.",
+                    "files": [
+                        file_ref(
+                            "native-current-turn-file",
+                            "ordinary-trades.csv",
+                            "text/csv",
+                        )
+                    ],
+                }
+            },
+            {},
+            None,
+        )
+
+        self.assertEqual(len(refs), 1)
+        self.assertEqual(refs[0]["file_id"], "native-current-turn-file")
+        self.assertEqual(refs[0]["filename"], "ordinary-trades.csv")
+        self.assertEqual(refs[0]["mime_type"], "text/csv")
+
     def test_pipe_passport_uses_json_schema_and_one_bounded_repair_attempt(self):
         pipe = self._passport_pipe()
 
