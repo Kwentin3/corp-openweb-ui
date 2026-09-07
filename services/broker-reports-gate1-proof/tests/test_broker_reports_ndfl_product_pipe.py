@@ -1467,6 +1467,34 @@ def test_human_fact_wait_releases_source_workload_lease_first(
     pipe.valves.ordinary_trade_candidate_enabled = True
     pipe.valves.canonical_gate2_write_enabled = True
     pipe.valves.canonical_gate2_read_enabled = True
+
+    def completion(**call):
+        turn = json.loads(call["form_data"]["messages"][1]["content"])
+        answer = turn["current_user_message"]
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "disposition": "CANDIDATE",
+                                "message": "Понял ответ.",
+                                "normalized_answer": answer,
+                                "selected_tax_period": "",
+                                "evidence_quote": answer,
+                            },
+                            ensure_ascii=False,
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+    )
     kwargs = {
         "store": store,
         "context": context,
@@ -2157,6 +2185,34 @@ def test_plain_chat_answer_is_bound_only_to_the_current_owner_request(
     pipe.valves.ordinary_trade_candidate_enabled = True
     pipe.valves.canonical_gate2_write_enabled = True
     pipe.valves.canonical_gate2_read_enabled = True
+
+    def completion(**call):
+        turn = json.loads(call["form_data"]["messages"][1]["content"])
+        answer = turn["current_user_message"]
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "disposition": "CANDIDATE",
+                                "message": "Понял ответ.",
+                                "normalized_answer": answer,
+                                "selected_tax_period": "",
+                                "evidence_quote": answer,
+                            },
+                            ensure_ascii=False,
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+    )
     kwargs = {
         "store": store,
         "context": context,

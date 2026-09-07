@@ -998,8 +998,7 @@ def public_dialogue_interpretation_messages(
     )
     system += (
         " Return CHANGE_SELECTED_TAX_PERIOD only when the user explicitly asks "
-        "to change the tax period to a four-digit year written in that message "
-        "and current_question is absent. "
+        "to change the tax period to a four-digit year written in that message. "
         "Copy that year and a verbatim supporting quote. For every other or "
         "ambiguous request, do not change the period. Return "
         "CHANGE_DECLARATION_DATE only when the user explicitly asks to change "
@@ -1276,8 +1275,6 @@ def validate_public_dialogue_interpretation(
             raise ValueError("public_dialogue_change_evidence_not_verbatim")
         if selected_tax_period not in evidence_quote:
             raise ValueError("public_dialogue_change_tax_period_not_evidenced")
-        if context.get("current_question"):
-            raise ValueError("public_dialogue_change_with_current_question")
     else:
         if not normalized_answer or selected_tax_period or not evidence_quote:
             raise ValueError("public_dialogue_date_change_candidate_incomplete")

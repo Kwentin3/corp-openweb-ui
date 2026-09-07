@@ -1721,6 +1721,18 @@ class Pipe:
                     trusted_interaction_message if not source_turn else ""
                 ),
             )
+            semantic_mapping = result.get("semantic_mapping")
+            if (
+                isinstance(semantic_mapping, dict)
+                and semantic_mapping.get("status")
+                in {"CLARIFICATION_REQUIRED", "CONFIRMATION_REQUIRED"}
+            ):
+                # Mapping chat is entirely owned by the mapping-case runtime.
+                # It is not a declaration answer and must never enter the
+                # presentation adapter merely because it has no declaration
+                # action on this particular turn.
+                self._finalize_workload_publication()
+                return result
             preparation = result.get("product", {}).get("preparation")
             preparation = preparation if isinstance(preparation, dict) else {}
             current_actions = preparation.get("user_actions")
