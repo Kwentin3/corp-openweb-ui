@@ -36,7 +36,7 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 PINNED_IMAGE = "corp-openwebui/openwebui:v0.9.6-native-web-stt-native-pdf-21545c1"
 PINNED_IMAGE_ID = (
-    "sha256:dd1fbeafeeb35a0750b472ab040d9d4b26c6408b9e50d3fe3ba2dcb2eadd9176"
+    "sha256:aa7d3c5710e22e759afc1ae602db17cabaeb4834c650b2f8f732f6ab33011fd6"
 )
 PINNED_IMAGE_REVISION = "21545c12a679df1733d11ebc2cc46ab5219bb938"
 LOADER_PATH = ROOT / "deploy" / "openwebui-static" / "loader.js"
