@@ -912,7 +912,7 @@ def test_public_message_rejects_leaks_and_false_filing_claims() -> None:
         ),
     ],
 )
-def test_pipe_free_answer_uses_one_llm_candidate_then_native_confirmation(
+def test_pipe_free_answer_uses_one_llm_candidate_from_the_normal_chat_turn(
     monkeypatch: pytest.MonkeyPatch,
     user_message: str,
     request_action: dict,
@@ -922,7 +922,6 @@ def test_pipe_free_answer_uses_one_llm_candidate_then_native_confirmation(
     pipe = Pipe()
     product = _product_with_request(request_action)
     context = build_public_dialogue_context(product=product)
-    calls: list[dict] = []
     monkeypatch.setattr(
         pipe,
         "_openwebui_completion_dependencies",
@@ -937,10 +936,6 @@ def test_pipe_free_answer_uses_one_llm_candidate_then_native_confirmation(
         ),
     )
 
-    async def confirm(payload):
-        calls.append(payload)
-        return True
-
     adapted, dialogue = asyncio.run(
         pipe._adapt_ndfl_public_answer(
             message=user_message,
@@ -949,7 +944,9 @@ def test_pipe_free_answer_uses_one_llm_candidate_then_native_confirmation(
             declaration=None,
             user={"id": "user-a"},
             request=object(),
-            event_call=confirm,
+            event_call=lambda _payload: (_ for _ in ()).throw(
+                AssertionError("ordinary declaration chat must not open a popup")
+            ),
         )
     )
 
@@ -959,11 +956,6 @@ def test_pipe_free_answer_uses_one_llm_candidate_then_native_confirmation(
         "request_publication_ref": request_action["request_publication_ref"],
         "answer": owner_answer,
     }
-    assert len(calls) == 1
-    assert calls[0]["type"] == "confirmation"
-    assert calls[0]["data"]["title"] == "Подтвердите понимание ответа"
-    assert candidate in calls[0]["data"]["message"]
-    assert "Подтверждаете эту интерпретацию?" in calls[0]["data"]["message"]
     assert dialogue["candidate_proposed"] is True
     assert dialogue["explicit_confirmation_received"] is True
     assert dialogue["interpretation_model_used"] is True

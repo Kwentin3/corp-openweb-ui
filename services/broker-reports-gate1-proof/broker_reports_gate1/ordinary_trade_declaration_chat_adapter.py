@@ -57,11 +57,6 @@ _PROMPT_ONLY = frozenset(
         "продолжить",
     }
 )
-_CHANGE_INTENTS = {
-    "изменить дату": "declaration_date",
-    "изменить инн": "taxpayer_identity",
-    "изменить налоговый период": "selected_tax_period",
-}
 _UNAVAILABLE_REQUEST = "Ответ на этот запрос временно недоступен."
 _PUBLIC_FORBIDDEN_TEXT = (
     "xsd",
@@ -205,45 +200,6 @@ _RESIDENCY = re.compile(
     r"([0-9]{4}-[0-9]{2}-[0-9]{2})|нет)\s*;\s*причины:\s*нет$",
     re.IGNORECASE,
 )
-
-
-def declaration_change_intent(message: str) -> dict[str, Any] | None:
-    """Recognize only bounded display phrases; never accept a caller fact key."""
-
-    text = _text(message)
-    lowered = text.casefold()
-    for phrase, fact_key in _CHANGE_INTENTS.items():
-        if lowered == phrase:
-            return {
-                "schema_version": ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION,
-                "status": "CHANGE_REQUESTED",
-                "fact_key": fact_key,
-                "answer": None,
-            }
-        prefix = phrase + ":"
-        if lowered.startswith(prefix):
-            value = text[len(prefix) :].strip()
-            if fact_key == "declaration_date":
-                answer = {"kind": "text", "value": value}
-            elif fact_key == "selected_tax_period":
-                answer = (
-                    {"kind": "code", "value": value}
-                    if re.fullmatch(r"(?!0000$)[0-9]{4}", value)
-                    else None
-                )
-            else:
-                match = _IDENTITY.fullmatch("Изменить: " + value)
-                answer = _identity_answer(match) if match else None
-            return {
-                "schema_version": ORDINARY_TRADE_DECLARATION_CHAT_ACTION_SCHEMA_VERSION,
-                "status": "CHANGE_ANSWER_READY" if answer else "ANSWER_REJECTED",
-                "fact_key": fact_key,
-                "answer": answer,
-                "reason_code": None
-                if answer
-                else "declaration_chat_change_format_invalid",
-            }
-    return None
 
 
 def adapt_current_declaration_request(
@@ -1899,7 +1855,6 @@ __all__ = [
     "adapt_current_declaration_request",
     "build_public_dialogue_context",
     "build_public_question_context",
-    "declaration_change_intent",
     "declaration_request_help",
     "declaration_request_question",
     "declaration_surrogate_preview",

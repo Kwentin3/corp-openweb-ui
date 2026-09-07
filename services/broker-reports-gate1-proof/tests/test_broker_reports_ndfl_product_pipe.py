@@ -27,7 +27,6 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
     build_public_dialogue_context,
-    declaration_change_intent,
     declaration_request_help,
     declaration_request_question,
     declaration_surrogate_preview,
@@ -335,7 +334,7 @@ def test_public_pipe_rejects_caller_selected_hidden_declaration_action() -> None
     assert failure.value.code == "ordinary_trade_declaration_hidden_action_forbidden"
 
 
-def test_maintained_stage_binds_event_response_to_current_owner_actions(
+def test_maintained_stage_binds_normal_chat_answer_to_current_owner_actions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -366,15 +365,12 @@ def test_maintained_stage_binds_event_response_to_current_owner_actions(
     while first["product"]["preparation"]["user_actions"]:
         request = first["product"]["preparation"]["user_actions"][0]
 
-        async def event_call(payload, *, answer=_product_chat_answer(request["fact_key"])):
-            assert payload["type"] in {"confirmation", "input"}
-            return answer
-
         result = asyncio.run(
                 pipe._maybe_run_ndfl_gate3(
                     **kwargs,
-                    trusted_interaction_message="показать точный ввод",
-                    event_call=event_call,
+                    trusted_interaction_message=_product_chat_answer(
+                        request["fact_key"]
+                    ),
             )
         )
         assert result["declaration_chat_receipt"]["status"] == "ANSWER_ACCEPTED"
@@ -395,7 +391,7 @@ def test_maintained_stage_binds_event_response_to_current_owner_actions(
     assert "не отправлялся в ФНС автоматически" in chat
 
 
-def test_llm_proposal_creates_no_fact_until_native_confirmation_and_owner_publish(
+def test_llm_proposal_is_bound_and_persisted_by_the_current_chat_turn(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -484,51 +480,24 @@ def test_llm_proposal_creates_no_fact_until_native_confirmation_and_owner_publis
     )
 
     assert proposed["declaration_chat_receipt"] == {
-        "status": "ANSWER_CONFIRMATION_REQUIRED",
-        "answer_accepted": False,
-        "fact_created": False,
-        "reason_code": (
-            "declaration_chat_interpretation_confirmation_required"
-        ),
-    }
-    assert proposed["product"]["preparation"]["user_actions"][0][
-        "request_publication_ref"
-    ] == current_ref
-
-    confirmations: list[dict] = []
-
-    async def confirm(payload):
-        confirmations.append(payload)
-        return True
-
-    confirmed = asyncio.run(
-        pipe._maybe_run_ndfl_gate3(
-            **kwargs,
-            trusted_interaction_message="Беру 2025 год",
-            event_call=confirm,
-        )
-    )
-    assert confirmed["declaration_chat_receipt"] == {
         "status": "ANSWER_ACCEPTED",
         "answer_accepted": True,
         "fact_created": True,
     }
-    assert confirmed["product"]["preparation"]["user_actions"][0][
+    assert proposed["product"]["preparation"]["user_actions"][0][
         "request_publication_ref"
     ] != current_ref
-    assert model_calls == ["Не 2025 год", "Беру 2025 год", "Беру 2025 год"]
-    assert confirmations[0]["type"] == "confirmation"
-    assert "2025" in confirmations[0]["data"]["message"]
+    assert model_calls == ["Не 2025 год", "Беру 2025 год"]
     rendered = asyncio.run(
         pipe._render_ndfl_public_dialogue(
-            result=confirmed,
+            result=proposed,
             user={"id": context.user_id},
             request=object(),
         )
     )
     assert rendered
-    assert model_calls == ["Не 2025 год", "Беру 2025 год", "Беру 2025 год"]
-    assert confirmed["public_dialogue"]["presentation_llm_calls_total"] == 3
+    assert model_calls == ["Не 2025 год", "Беру 2025 год"]
+    assert proposed["public_dialogue"]["presentation_llm_calls_total"] == 2
 
 
 def test_period_and_profile_mode_are_owner_bound_but_user_presented(
@@ -649,27 +618,19 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
     first = asyncio.run(pipe._maybe_run_ndfl_gate3(**kwargs))
     assert first["product"]["status"] == "INPUT_REQUIRED"
 
-    async def select_period(_payload):
-        return "2022"
-
     mismatch = asyncio.run(
         pipe._maybe_run_ndfl_gate3(
             **kwargs,
-            trusted_interaction_message="показать точный ввод",
-            event_call=select_period,
+            trusted_interaction_message="2022",
         )
     )
     assert mismatch["declaration_chat_receipt"]["status"] == "ANSWER_ACCEPTED"
     assert mismatch["product"]["status"] == "INPUT_REQUIRED"
 
-    async def select_surrogate(_payload):
-        return "Неподаваемый черновик"
-
     surrogate = asyncio.run(
         pipe._maybe_run_ndfl_gate3(
             **kwargs,
-            trusted_interaction_message="показать точный ввод",
-            event_call=select_surrogate,
+            trusted_interaction_message="Неподаваемый черновик",
         )
     )
     chat = pipe._standalone_ndfl_chat_content(surrogate)
@@ -1131,16 +1092,10 @@ def test_human_fact_wait_releases_source_workload_lease_first(
 
     monkeypatch.setattr(pipe, "_finalize_workload_publication", finalize)
 
-    async def event_call(payload):
-        assert session.terminal is True
-        assert payload["type"] in {"confirmation", "input"}
-        return _product_chat_answer(current["fact_key"])
-
     result = asyncio.run(
             pipe._maybe_run_ndfl_gate3(
                 **kwargs,
-                trusted_interaction_message="показать точный ввод",
-                event_call=event_call,
+                trusted_interaction_message=_product_chat_answer(current["fact_key"]),
         )
     )
 
@@ -1179,25 +1134,6 @@ def test_current_owner_code_request_uses_only_human_readable_presentation() -> N
     assert adapt_current_declaration_request(
         message="INITIAL", current_requests=[request]
     )["status"] == "ANSWER_REJECTED"
-
-
-def test_tax_period_change_intent_accepts_only_a_visible_four_digit_year() -> None:
-    assert declaration_change_intent("Изменить налоговый период") == {
-        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
-        "status": "CHANGE_REQUESTED",
-        "fact_key": "selected_tax_period",
-        "answer": None,
-    }
-    assert declaration_change_intent("Изменить налоговый период: 2022") == {
-        "schema_version": "broker_reports_ordinary_trade_declaration_chat_action_v1",
-        "status": "CHANGE_ANSWER_READY",
-        "fact_key": "selected_tax_period",
-        "answer": {"kind": "code", "value": "2022"},
-        "reason_code": None,
-    }
-    rejected = declaration_change_intent("Изменить налоговый период: 0000")
-    assert rejected["status"] == "ANSWER_REJECTED"
-    assert rejected["fact_key"] == "selected_tax_period"
 
 
 def test_new_owner_code_without_exact_label_coverage_fails_closed() -> None:
