@@ -261,6 +261,11 @@ def safe_role_map_sha256(response: Gate2StructuredModelResult | Mapping[str, Any
                 ],
                 key=lambda item: item["row"],
             ),
+            **(
+                {"no_consumer_kind": decision["no_consumer_kind"]}
+                if "no_consumer_kind" in decision
+                else {}
+            ),
         }
         for decision in value["table_decisions"]
     ]

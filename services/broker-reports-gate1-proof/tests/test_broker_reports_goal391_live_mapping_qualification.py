@@ -128,3 +128,30 @@ def test_live_bridge_accepts_the_frozen_golden_fixture_without_deriving_expectat
 
     assert len(submitted) == 1
     assert receipt["verdict"] == golden.frozen_fixture["expected_verdict"]
+
+
+def test_safe_role_map_hash_binds_no_consumer_subtype() -> None:
+    base = {
+        "schema_version": "broker_reports_ordinary_trade_semantic_mapping_response_v5",
+        "status": "COMPLETE",
+        "table_decisions": [
+            {
+                "table_ref": "table_1",
+                "header_row": 1,
+                "disposition": "NO_NAMED_CONSUMER",
+                "columns": [],
+                "amount_currency_bindings": [],
+                "side_values": [],
+                "row_dispositions": [],
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+            }
+        ],
+        "clarification": None,
+        "message": "Reference table.",
+    }
+    changed = copy.deepcopy(base)
+    changed["table_decisions"][0]["no_consumer_kind"] = (
+        "OTHER_NO_NAMED_CONSUMER"
+    )
+
+    assert safe_role_map_sha256(base) != safe_role_map_sha256(changed)
