@@ -889,6 +889,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "goal391_source_comparison_export.py"
         ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "goal391_private_selection_binding.py"
+        ),
     }
     assert set(added_package_modules) <= (
         allowed_subordinates
@@ -1234,6 +1238,7 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         "tests/test_broker_reports_ordinary_trade_mapping_qualification.py",
         "tests/test_broker_reports_goal391_live_mapping_qualification.py",
         "tests/test_broker_reports_goal391_private_corpus_export.py",
+        "tests/test_broker_reports_goal391_private_selection_binding.py",
     ):
         assert qualification_suite in workflow
     assert DOMAIN_MAP.is_file()
