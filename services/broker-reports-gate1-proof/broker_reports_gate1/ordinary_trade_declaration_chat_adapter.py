@@ -612,6 +612,25 @@ def build_public_question_context(request: Any) -> dict[str, Any] | None:
         return mapping_question
     if (
         isinstance(request, dict)
+        and set(request) == {"kind", "bundle_status"}
+        and request.get("kind") == "DECLARATION_CASE_BUNDLE_STABILIZATION"
+        and request.get("bundle_status")
+        in {"BUNDLE_STABILIZATION_REQUIRED", "BUNDLE_STALE"}
+    ):
+        return {
+            "authority_kind": "declaration_case_bundle_confirmation",
+            "question_ref": "declaration_case_bundle_stabilization",
+            "question": (
+                "Подтвердите, что набор документов для этой декларации полный "
+                "и его можно зафиксировать."
+            ),
+            "help": "Ответьте точно: «Подтверждаю».",
+            "options": ["Подтверждаю"],
+            "accepted_answer_examples": ["Подтверждаю"],
+            "candidate_hint": None,
+        }
+    if (
+        isinstance(request, dict)
         and set(request) == {"kind", "question", "accepted_answer_examples"}
         and request.get("kind") == "USER_CURRENCY_ASSERTION"
         and isinstance(request.get("question"), str)

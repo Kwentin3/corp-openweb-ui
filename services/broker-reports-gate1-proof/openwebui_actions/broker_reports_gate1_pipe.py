@@ -1224,6 +1224,48 @@ class Pipe:
         dialogue["domain_provider_calls_total"] = 0
         return adapted, dialogue
 
+    @staticmethod
+    def _is_declaration_case_bundle_stabilization_action(
+        actions: list[dict[str, Any]],
+    ) -> bool:
+        """Accept only the declaration owner's exact public stabilization action."""
+
+        if len(actions) != 1:
+            return False
+        action = actions[0]
+        return (
+            isinstance(action, dict)
+            and set(action) == {"kind", "bundle_status"}
+            and action.get("kind") == "DECLARATION_CASE_BUNDLE_STABILIZATION"
+            and action.get("bundle_status")
+            in {"BUNDLE_STABILIZATION_REQUIRED", "BUNDLE_STALE"}
+        )
+
+    @staticmethod
+    def _is_declaration_case_bundle_confirmation(message: str) -> bool:
+        """Keep durable document-set intent explicit and non-heuristic."""
+
+        return message.strip().casefold() == "подтверждаю"
+
+    @staticmethod
+    def _owner_selected_declaration_tax_period(
+        preparation: dict[str, Any],
+    ) -> str | None:
+        """Read, but never infer or repair, the declaration owner's period."""
+
+        profile = preparation.get("period_profile")
+        value = (
+            profile.get("selected_tax_period")
+            if isinstance(profile, dict)
+            else None
+        )
+        if (
+            not isinstance(value, str)
+            or re.fullmatch(r"(?!0000$)[0-9]{4}", value) is None
+        ):
+            return None
+        return value
+
     async def _render_ndfl_public_dialogue(
         self,
         *,
@@ -1258,7 +1300,10 @@ class Pipe:
         elif (
             isinstance(context.get("current_question"), dict)
             and context["current_question"].get("authority_kind")
-            == "source_choice_confirmation"
+            in {
+                "source_choice_confirmation",
+                "declaration_case_bundle_confirmation",
+            }
         ):
             content = render_public_dialogue_fallback(context)
         elif self.valves.ndfl_presentation_llm_enabled:
@@ -1629,6 +1674,48 @@ class Pipe:
                 "USER_CURRENCY_ASSERTION",
             }:
                 self._finalize_workload_publication()
+                return result
+            if self._is_declaration_case_bundle_stabilization_action(
+                current_actions
+            ):
+                # The bundle owner is the sole owner of this durable user
+                # intent.  The Pipe only recognizes its exact public action,
+                # requires one explicit normal-chat confirmation, and passes
+                # back the tax period already selected by the declaration
+                # owner.  It neither interprets documents nor calls a model.
+                self._finalize_workload_publication()
+                if source_turn or not trusted_interaction_message:
+                    return result
+                if not self._is_declaration_case_bundle_confirmation(
+                    trusted_interaction_message
+                ):
+                    result["declaration_case_bundle_receipt"] = {
+                        "status": "CONFIRMATION_REQUIRED",
+                        "stabilized": False,
+                    }
+                    return result
+                tax_period = self._owner_selected_declaration_tax_period(
+                    preparation
+                )
+                if tax_period is None:
+                    result["declaration_case_bundle_receipt"] = {
+                        "status": "OWNER_TAX_PERIOD_REQUIRED",
+                        "stabilized": False,
+                    }
+                    return result
+                bundle = runtime.stabilize_declaration_case(
+                    context=context,
+                    tax_period=tax_period,
+                )
+                result = runtime.run(
+                    canonical_artifact_refs=canonical_refs,
+                    context=context,
+                )
+                result["declaration_case_bundle_receipt"] = {
+                    "status": str(bundle.get("status") or ""),
+                    "stabilized": True,
+                    "created": bool(bundle.get("created")),
+                }
                 return result
             adapted = None
             dialogue = None

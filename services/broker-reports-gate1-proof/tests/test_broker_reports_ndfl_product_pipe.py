@@ -27,6 +27,7 @@ from broker_reports_gate1.gate3_ndfl_workflow import (
 from broker_reports_gate1.ordinary_trade_declaration_chat_adapter import (
     adapt_current_declaration_request,
     build_public_dialogue_context,
+    build_public_question_context,
     declaration_request_help,
     declaration_request_question,
     declaration_surrogate_preview,
@@ -332,6 +333,160 @@ def test_public_pipe_rejects_caller_selected_hidden_declaration_action() -> None
             )
         )
     assert failure.value.code == "ordinary_trade_declaration_hidden_action_forbidden"
+
+
+def test_declaration_case_bundle_stabilizes_only_after_exact_chat_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    action = {
+        "kind": "DECLARATION_CASE_BUNDLE_STABILIZATION",
+        "bundle_status": "BUNDLE_STABILIZATION_REQUIRED",
+    }
+    pending = {
+        "provider_calls_total": 0,
+        "product": {
+            "status": "BUNDLE_STABILIZATION_REQUIRED",
+            "preparation": {
+                "user_actions": [action],
+                "period_profile": {"selected_tax_period": "2025"},
+            },
+        },
+    }
+    ready = {
+        "provider_calls_total": 0,
+        "product": {
+            "status": "DECLARATION_XML_READY",
+            "preparation": {"user_actions": []},
+        },
+    }
+
+    class Runtime:
+        stabilized: list[dict[str, object]] = []
+        run_calls = 0
+
+        async def run_with_automatic_mapping(self, **_kwargs):
+            return copy.deepcopy(pending)
+
+        def stabilize_declaration_case(self, **kwargs):
+            self.stabilized.append(kwargs)
+            return {"status": "CURRENT", "created": True}
+
+        def run(self, **_kwargs):
+            self.run_calls += 1
+            return copy.deepcopy(ready)
+
+    runtime = Runtime()
+
+    class Factory:
+        def __init__(self, **_kwargs):
+            pass
+
+        def create(self):
+            return runtime
+
+    monkeypatch.setattr(product_pipe, "OrdinaryTradeProductionRuntimeFactory", Factory)
+    kwargs = {
+        "store": object(),
+        "context": _context(NDFL_WORKSPACE_MODEL_STABLE_ID),
+        "artifact_manifest": SimpleNamespace(artifact_refs_by_type={}),
+        "user": {"id": "user-a"},
+        "request": object(),
+        "event_emitter": None,
+    }
+
+    source_turn = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(**kwargs, source_turn=True)
+    )
+    assert source_turn["product"] == pending["product"]
+    assert runtime.stabilized == []
+
+    rejected = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            **kwargs,
+            trusted_interaction_message="Да",
+        )
+    )
+    assert rejected["declaration_case_bundle_receipt"] == {
+        "status": "CONFIRMATION_REQUIRED",
+        "stabilized": False,
+    }
+    assert runtime.stabilized == []
+
+    accepted = asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            **kwargs,
+            trusted_interaction_message="Подтверждаю",
+        )
+    )
+    assert runtime.stabilized == [
+        {"context": kwargs["context"], "tax_period": "2025"}
+    ]
+    assert runtime.run_calls == 1
+    assert accepted["product"] == ready["product"]
+    assert accepted["declaration_case_bundle_receipt"] == {
+        "status": "CURRENT",
+        "stabilized": True,
+        "created": True,
+    }
+
+
+def test_declaration_case_bundle_public_question_is_closed_to_owner_action() -> None:
+    action = {
+        "kind": "DECLARATION_CASE_BUNDLE_STABILIZATION",
+        "bundle_status": "BUNDLE_STALE",
+    }
+
+    question = build_public_question_context(action)
+
+    assert question is not None
+    assert question["authority_kind"] == "declaration_case_bundle_confirmation"
+    assert question["accepted_answer_examples"] == ["Подтверждаю"]
+    assert build_public_question_context(
+        {**action, "untrusted": "extra-field"}
+    ) is None
+
+
+def test_declaration_case_bundle_confirmation_uses_no_presentation_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+    action = {
+        "kind": "DECLARATION_CASE_BUNDLE_STABILIZATION",
+        "bundle_status": "BUNDLE_STABILIZATION_REQUIRED",
+    }
+
+    async def forbidden_provider(**_kwargs):
+        raise AssertionError("bundle confirmation must not call a provider")
+
+    monkeypatch.setattr(
+        pipe,
+        "_call_openwebui_presentation_completion",
+        forbidden_provider,
+    )
+    content = asyncio.run(
+        pipe._render_ndfl_public_dialogue(
+            result={
+                "product": {
+                    "status": "BUNDLE_STABILIZATION_REQUIRED",
+                    "terminal": "ordinary_trade_declaration_bundle_stabilization_required",
+                    "xml_created": False,
+                    "preparation": {
+                        "user_actions": [action],
+                        "final_note": {},
+                    },
+                }
+            },
+            user={"id": "user-a"},
+            request=object(),
+        )
+    )
+
+    assert "Подтвердите, что набор документов" in content
+    assert pipe._presentation_llm_calls_total == 0
 
 
 def test_maintained_stage_binds_normal_chat_answer_to_current_owner_actions(
