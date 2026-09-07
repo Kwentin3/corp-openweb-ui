@@ -119,6 +119,7 @@ ARTIFACT_TYPES = {
     "broker_reports_canonical_build_failure_v1",
     "broker_reports_canonical_component_v1",
     "broker_reports_canonical_activation_receipt_v1",
+    "broker_reports_ordinary_trade_declaration_case_bundle_v1",
     "broker_reports_file_processing_batch_v1",
     "chat_visible_normalization_report_v0",
     "validation_result_v0",
