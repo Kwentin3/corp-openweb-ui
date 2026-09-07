@@ -1193,15 +1193,34 @@ class Pipe:
                 dialogue["answer_feedback"] = (
                     "Не удалось безопасно понять ответ. Попробуйте ещё раз позже."
                 )
-            elif interpretation["disposition"] == "CHANGE_SELECTED_TAX_PERIOD":
-                # The presentation model selects only this closed public intent.
+            elif interpretation["disposition"] in {
+                "CHANGE_SELECTED_TAX_PERIOD",
+                "CHANGE_DECLARATION_DATE",
+            }:
+                # The presentation model selects only a closed public intent.
                 # The Pipe maps it to the pre-existing owner contract; the
                 # runtime still publishes, validates and persists the fact.
                 adapted = {
                     "status": "CHANGE_ANSWER_READY",
+                    "fact_key": (
+                        "selected_tax_period"
+                        if interpretation["disposition"]
+                        == "CHANGE_SELECTED_TAX_PERIOD"
+                        else "declaration_date"
+                    ),
                     "answer": {
-                        "kind": "code",
-                        "value": interpretation["selected_tax_period"],
+                        "kind": (
+                            "code"
+                            if interpretation["disposition"]
+                            == "CHANGE_SELECTED_TAX_PERIOD"
+                            else "text"
+                        ),
+                        "value": (
+                            interpretation["selected_tax_period"]
+                            if interpretation["disposition"]
+                            == "CHANGE_SELECTED_TAX_PERIOD"
+                            else interpretation["normalized_answer"]
+                        ),
                     },
                 }
                 dialogue["explicit_confirmation_received"] = True
@@ -1798,7 +1817,7 @@ class Pipe:
                 result["public_dialogue"] = dialogue
             if adapted["status"] == "CHANGE_ANSWER_READY":
                 request_action = runtime.publish_declaration_change_action(
-                    fact_key="selected_tax_period",
+                    fact_key=adapted["fact_key"],
                     context=context,
                 )
                 adapted = {

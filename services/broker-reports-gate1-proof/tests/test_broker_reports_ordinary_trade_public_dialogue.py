@@ -231,7 +231,7 @@ def test_presentation_model_boundary_is_local_and_has_no_business_authority() ->
         "strict_contracts": [
             "broker_reports_ordinary_trade_public_dialogue_message_v5",
             "broker_reports_ordinary_trade_public_mapping_verification_v1",
-            "broker_reports_ordinary_trade_public_interpretation_v2",
+            "broker_reports_ordinary_trade_public_interpretation_v3",
         ],
         "business_authority": False,
     }
@@ -240,6 +240,7 @@ def test_presentation_model_boundary_is_local_and_has_no_business_authority() ->
         "CLARIFY",
         "CANDIDATE",
         "CHANGE_SELECTED_TAX_PERIOD",
+        "CHANGE_DECLARATION_DATE",
     ]
     assert set(schema["required"]) == {
         "disposition",
@@ -282,7 +283,7 @@ def test_short_model_candidate_is_composed_with_exact_owner_context() -> None:
     )
 
     assert interpreted["schema_version"] == (
-        "broker_reports_ordinary_trade_public_interpretation_v2"
+        "broker_reports_ordinary_trade_public_interpretation_v3"
     )
     assert interpreted["message"].startswith("Вы указали первичную декларацию.")
     assert render_public_dialogue_fallback(context) in interpreted["message"]
@@ -293,7 +294,9 @@ def test_short_model_candidate_is_composed_with_exact_owner_context() -> None:
 
 
 def test_structured_period_change_is_bound_to_an_explicit_user_year() -> None:
-    context = build_public_dialogue_context(product=_product())
+    context = build_public_dialogue_context(
+        product=_product(status="DECLARATION_XML_READY")
+    )
     interpreted = validate_public_dialogue_interpretation(
         {
             "disposition": "CHANGE_SELECTED_TAX_PERIOD",
@@ -322,6 +325,40 @@ def test_structured_period_change_is_bound_to_an_explicit_user_year() -> None:
             context=context,
             user_message="Изменить налоговый период: 0000",
         )
+
+
+def test_structured_declaration_date_change_is_bound_to_explicit_user_date() -> None:
+    context = build_public_dialogue_context(
+        product=_product(status="DECLARATION_XML_READY")
+    )
+    interpreted = validate_public_dialogue_interpretation(
+        {
+            "disposition": "CHANGE_DECLARATION_DATE",
+            "message": "Понял запрос на смену даты.",
+            "normalized_answer": "2026-08-25",
+            "selected_tax_period": "",
+            "evidence_quote": "Изменить дату: 2026-08-25",
+        },
+        context=context,
+        user_message="Изменить дату: 2026-08-25",
+    )
+
+    assert interpreted["disposition"] == "CHANGE_DECLARATION_DATE"
+    assert interpreted["normalized_answer"] == "2026-08-25"
+    # The adapter verifies only the declared transport shape.  The existing
+    # Gate5 owner alone decides whether a calendar date is real.
+    structurally_valid = validate_public_dialogue_interpretation(
+        {
+            key: value for key, value in interpreted.items() if key != "schema_version"
+        }
+        | {
+            "normalized_answer": "2025-99-99",
+            "evidence_quote": "Изменить дату: 2025-99-99",
+        },
+        context=context,
+        user_message="Изменить дату: 2025-99-99",
+    )
+    assert structurally_valid["normalized_answer"] == "2025-99-99"
 
 
 def test_genuine_short_candidate_with_confirm_imperative_is_accepted() -> None:

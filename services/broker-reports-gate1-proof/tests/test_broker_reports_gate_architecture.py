@@ -414,7 +414,7 @@ class BrokerReportsGateArchitectureTest(unittest.TestCase):
                 (
                     "broker_reports_ordinary_trade_public_dialogue_message_v5"
                     "|broker_reports_ordinary_trade_public_mapping_verification_v1"
-                    "|broker_reports_ordinary_trade_public_interpretation_v2"
+                    "|broker_reports_ordinary_trade_public_interpretation_v3"
                 ),
             ),
         )

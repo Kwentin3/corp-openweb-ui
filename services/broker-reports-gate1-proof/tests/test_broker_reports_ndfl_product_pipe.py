@@ -522,7 +522,7 @@ def test_maintained_stage_binds_normal_chat_answer_to_current_owner_actions(
         form_data = call["form_data"]
         response_format = form_data["response_format"]
         assert response_format["json_schema"]["name"] == (
-            "ordinary_trade_public_interpretation_v2"
+            "ordinary_trade_public_interpretation_v3"
         )
         turn = json.loads(form_data["messages"][1]["content"])
         answer = turn["current_user_message"]
@@ -824,7 +824,7 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
 
         form_data = call["form_data"]
         assert form_data["response_format"]["json_schema"]["name"] == (
-            "ordinary_trade_public_interpretation_v2"
+            "ordinary_trade_public_interpretation_v3"
         )
         turn = json.loads(form_data["messages"][1]["content"])
         answer = turn["current_user_message"]
@@ -950,7 +950,7 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     def completion(**call):
         form_data = call["form_data"]
         assert form_data["response_format"]["json_schema"]["name"] == (
-            "ordinary_trade_public_interpretation_v2"
+            "ordinary_trade_public_interpretation_v3"
         )
         turn = json.loads(form_data["messages"][1]["content"])
         answer = turn["current_user_message"]
@@ -1155,7 +1155,7 @@ def test_ndfl_facade_admits_tabular_ordinary_trade_source_to_product_terminal(
     def completion(**call):
         form_data = call["form_data"]
         assert form_data["response_format"]["json_schema"]["name"] == (
-            "ordinary_trade_public_interpretation_v2"
+            "ordinary_trade_public_interpretation_v3"
         )
         turn = json.loads(form_data["messages"][1]["content"])
         answer = turn["current_user_message"]
@@ -1304,7 +1304,7 @@ def test_public_file_turn_explains_non_filing_position_routes(
     def completion(**call):
         form_data = call["form_data"]
         assert form_data["response_format"]["json_schema"]["name"] == (
-            "ordinary_trade_public_interpretation_v2"
+            "ordinary_trade_public_interpretation_v3"
         )
         turn = json.loads(form_data["messages"][1]["content"])
         answer = turn["current_user_message"]
@@ -2272,6 +2272,60 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
         pipe.valves.artifact_store_path = str(store.sqlite_path)
         pipe.valves.artifact_payload_root = str(store.payload_root)
         pipe.valves.artifact_retention_mode = "synthetic_dev"
+        presentation_calls: list[str] = []
+
+        def completion(**call):
+            """Exercise the native structured presentation boundary per chat turn."""
+
+            form_data = call["form_data"]
+            assert form_data["response_format"]["json_schema"]["name"] == (
+                "ordinary_trade_public_interpretation_v3"
+            )
+            turn = json.loads(form_data["messages"][1]["content"])
+            answer = turn["current_user_message"]
+            presentation_calls.append(answer)
+            if (
+                answer.startswith("Изменить дату:")
+                and not turn["context"].get("current_question")
+            ):
+                payload = {
+                    "disposition": "CHANGE_DECLARATION_DATE",
+                    "message": "Понял запрос на смену даты.",
+                    "normalized_answer": answer.rsplit(":", 1)[1].strip(),
+                    "selected_tax_period": "",
+                    "evidence_quote": answer,
+                }
+            elif answer.startswith("Изменить дату:"):
+                payload = {
+                    "disposition": "CANDIDATE",
+                    "message": "Понял исправленную дату.",
+                    "normalized_answer": answer.rsplit(":", 1)[1].strip(),
+                    "selected_tax_period": "",
+                    "evidence_quote": answer,
+                }
+            else:
+                payload = {
+                    "disposition": "CANDIDATE",
+                    "message": "Понял ответ.",
+                    "normalized_answer": answer,
+                    "selected_tax_period": "",
+                    "evidence_quote": answer,
+                }
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": json.dumps(payload, ensure_ascii=False)
+                        }
+                    }
+                ]
+            }
+
+        monkeypatch.setattr(
+            pipe,
+            "_openwebui_completion_dependencies",
+            lambda user_id: (completion, type("User", (), {"id": user_id})()),
+        )
         metadata = {
             "chat_id": context.case_id,
             "case_id": context.case_id,
@@ -2295,6 +2349,9 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
                     return event_response == "Да"
                 return event_response
 
+            async def event_emitter(payload):
+                event_payloads.append(payload)
+
             return asyncio.run(
                 pipe.pipe(
                     {
@@ -2305,8 +2362,10 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
                         "messages": [{"role": "user", "content": message}],
                     },
                     __user__={"id": user_id, "email": "", "name": ""},
+                    __request__=object(),
                     __metadata__=metadata,
                     __event_call__=event_call,
+                    __event_emitter__=event_emitter,
                 )
             )
 
@@ -2319,24 +2378,19 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
 
         states = {"INPUT_REQUIRED"}
         last_answer = ""
-        while first["product"]["preparation"]["user_actions"]:
+        for _turn_index in range(32):
+            if not first["product"]["preparation"]["user_actions"]:
+                break
             action = first["product"]["preparation"]["user_actions"][0]
-            fact_key = action["fact_key"]
-            if fact_key == "taxpayer_identity":
-                rejected = public_turn(
-                    "показать точный ввод",
-                    event_response="Изменить: 123456789012; Иванов; Иван; Иванович",
-                )
+            if action.get("kind") == "DECLARATION_CASE_BUNDLE_STABILIZATION":
+                public_turn("Подтверждаю")
                 first = pipe.last_artifact_manifest["ndfl_gate3"]
-                assert first["declaration_chat_receipt"]["status"] == "ANSWER_REJECTED"
-                assert "не принят" in rejected
-                last_answer = (
-                    "Изменить: 500100732259; Иванов; Иван; Иванович"
-                )
-            elif fact_key == "declaration_date":
-                rejected = public_turn(
-                    "показать точный ввод", event_response="2025-99-99"
-                )
+                assert first["declaration_case_bundle_receipt"]["stabilized"] is True
+                states.add(first["product"]["status"])
+                continue
+            fact_key = action["fact_key"]
+            if fact_key == "declaration_date":
+                rejected = public_turn("2025-99-99")
                 first = pipe.last_artifact_manifest["ndfl_gate3"]
                 assert first["declaration_chat_receipt"] == {
                     "status": "ANSWER_REJECTED",
@@ -2347,12 +2401,15 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
                 last_answer = "2026-08-24"
             else:
                 last_answer = _product_chat_answer(fact_key)
-            public_turn("показать точный ввод", event_response=last_answer)
+            public_turn(last_answer)
             first = pipe.last_artifact_manifest["ndfl_gate3"]
             states.add(first["product"]["status"])
+        else:
+            pytest.fail("ordinary chat did not make finite declaration progress")
 
         assert "DRAFT_READY" in states
         assert first["product"]["status"] == "DECLARATION_XML_READY"
+        assert presentation_calls
         file_id = first["product"]["private_download"]["file_id"]
         assert calls == {"upload": 1, "insert": 1, "delete": 0}
         assert len(rows) == 1
@@ -2368,7 +2425,7 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
         assert "request_publication_ref" not in serialized_events
         assert "fact_key" not in serialized_events
         assert "500100732259" not in serialized_events
-        assert "••••" in serialized_events
+        assert event_payloads
         for hidden_owner_vocabulary in (
             "Choose initial filing",
             "State whether the taxpayer",
@@ -2379,23 +2436,26 @@ def test_public_bundled_pipe_reaches_one_idempotent_private_xml_from_chat(
         ):
             assert hidden_owner_vocabulary not in serialized_events
 
-        change_content = public_turn("Изменить дату")
+        rejected_change = public_turn("Изменить дату: 2025-99-99")
         changing = pipe.last_artifact_manifest["ndfl_gate3"]
         assert changing["product"]["status"] == "DRAFT_READY"
         assert changing["product"]["xml_created"] is False
         assert changing["product"]["preparation"]["checklist_fact_keys"] == [
             "declaration_date"
         ]
-        assert "календарную дату" in change_content
-        rejected_change = public_turn(
-            "показать точный ввод", event_response="2025-99-99"
-        )
-        changing = pipe.last_artifact_manifest["ndfl_gate3"]
-        assert changing["product"]["status"] == "DRAFT_READY"
         assert changing["declaration_chat_receipt"]["status"] == "ANSWER_REJECTED"
         assert "не принят" in rejected_change
-        public_turn("показать точный ввод", event_response="2026-08-25")
+        public_turn("Изменить дату: 2026-08-25")
         corrected = pipe.last_artifact_manifest["ndfl_gate3"]
+        # The valid successor invalidates the prior document-set receipt; the
+        # user must explicitly stabilize the new declaration package once.
+        assert corrected["product"]["status"] in {
+            "BUNDLE_STABILIZATION_REQUIRED",
+            "BUNDLE_STALE",
+        }
+        public_turn("Подтверждаю")
+        corrected = pipe.last_artifact_manifest["ndfl_gate3"]
+        assert corrected["product"]["status"] == "DECLARATION_XML_READY"
         corrected_file_id = corrected["product"]["private_download"]["file_id"]
         assert corrected["product"]["status"] == "DECLARATION_XML_READY"
         assert corrected_file_id != file_id

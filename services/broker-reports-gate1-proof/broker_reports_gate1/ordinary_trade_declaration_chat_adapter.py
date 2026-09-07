@@ -25,7 +25,7 @@ ORDINARY_TRADE_PUBLIC_MAPPING_VERIFICATION_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_public_mapping_verification_v1"
 )
 ORDINARY_TRADE_PUBLIC_INTERPRETATION_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_public_interpretation_v2"
+    "broker_reports_ordinary_trade_public_interpretation_v3"
 )
 PUBLIC_DIALOGUE_MODEL_BOUNDARY = {
     "classification": "PRESENTATION_ADAPTER",
@@ -998,9 +998,15 @@ def public_dialogue_interpretation_messages(
     )
     system += (
         " Return CHANGE_SELECTED_TAX_PERIOD only when the user explicitly asks "
-        "to change the tax period to a four-digit year written in that message. "
+        "to change the tax period to a four-digit year written in that message "
+        "and current_question is absent. "
         "Copy that year and a verbatim supporting quote. For every other or "
-        "ambiguous request, do not change the period."
+        "ambiguous request, do not change the period. Return "
+        "CHANGE_DECLARATION_DATE only when the user explicitly asks to change "
+        "the declaration date to a YYYY-MM-DD value written in that message "
+        "and current_question is absent. "
+        "Put that value in normalized_answer and copy a verbatim supporting "
+        "quote. For every other or ambiguous request, do not change the date."
     )
     user = json.dumps(
         {
@@ -1165,7 +1171,7 @@ def public_dialogue_interpretation_response_format() -> dict[str, Any]:
     return {
         "type": "json_schema",
         "json_schema": {
-            "name": "ordinary_trade_public_interpretation_v2",
+            "name": "ordinary_trade_public_interpretation_v3",
             "strict": True,
             "schema": {
                 "type": "object",
@@ -1184,6 +1190,7 @@ def public_dialogue_interpretation_response_format() -> dict[str, Any]:
                             "CLARIFY",
                             "CANDIDATE",
                             "CHANGE_SELECTED_TAX_PERIOD",
+                            "CHANGE_DECLARATION_DATE",
                         ],
                     },
                     "message": {"type": "string", "minLength": 1, "maxLength": 6000},
@@ -1217,6 +1224,7 @@ def validate_public_dialogue_interpretation(
         "CLARIFY",
         "CANDIDATE",
         "CHANGE_SELECTED_TAX_PERIOD",
+        "CHANGE_DECLARATION_DATE",
     }:
         raise ValueError("public_dialogue_interpretation_disposition_invalid")
     interpretation_message = str(payload.get("message") or "").strip()
@@ -1258,7 +1266,7 @@ def validate_public_dialogue_interpretation(
         # its exact examples are additional equally public representations.
         if options and normalized_answer not in [*options, *accepted_examples]:
             raise ValueError("public_dialogue_candidate_not_on_public_surface")
-    else:
+    elif disposition == "CHANGE_SELECTED_TAX_PERIOD":
         if normalized_answer or not selected_tax_period or not evidence_quote:
             raise ValueError("public_dialogue_change_candidate_incomplete")
         if re.fullmatch(r"(?!0000$)[0-9]{4}", selected_tax_period) is None:
@@ -1268,6 +1276,20 @@ def validate_public_dialogue_interpretation(
             raise ValueError("public_dialogue_change_evidence_not_verbatim")
         if selected_tax_period not in evidence_quote:
             raise ValueError("public_dialogue_change_tax_period_not_evidenced")
+        if context.get("current_question"):
+            raise ValueError("public_dialogue_change_with_current_question")
+    else:
+        if not normalized_answer or selected_tax_period or not evidence_quote:
+            raise ValueError("public_dialogue_date_change_candidate_incomplete")
+        if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", normalized_answer) is None:
+            raise ValueError("public_dialogue_change_declaration_date_format_invalid")
+        message_folded = _text(user_message).casefold()
+        if evidence_quote.casefold() not in message_folded:
+            raise ValueError("public_dialogue_change_evidence_not_verbatim")
+        if normalized_answer not in evidence_quote:
+            raise ValueError("public_dialogue_change_declaration_date_not_evidenced")
+        if context.get("current_question"):
+            raise ValueError("public_dialogue_change_with_current_question")
     visible_parts = [interpretation_message]
     if disposition == "CANDIDATE":
         visible_parts.append(f"Предлагаемое значение: {normalized_answer}.")
