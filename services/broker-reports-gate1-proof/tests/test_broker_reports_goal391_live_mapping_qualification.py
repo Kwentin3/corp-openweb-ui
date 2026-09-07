@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import copy
 import hashlib
+import importlib.util
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -20,6 +22,19 @@ import test_broker_reports_issue312_mapping_case as case_fixtures
 from test_broker_reports_goal391_role_mapping_sandbox_corpus import (
     build_frozen_role_mapping_corpus,
 )
+
+
+def _lab_runner_module():
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "qualify_goal391_current_mapping_lab.py"
+    )
+    spec = importlib.util.spec_from_file_location("goal391_lab_runner", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def _fixture(tmp_path):
@@ -155,3 +170,38 @@ def test_safe_role_map_hash_binds_no_consumer_subtype() -> None:
     )
 
     assert safe_role_map_sha256(base) != safe_role_map_sha256(changed)
+
+
+def test_lab_currency_assessment_uses_the_scoped_canonical_table_node() -> None:
+    runner = _lab_runner_module()
+    node_id = "node_currency_target"
+    case = {
+        "case_id": "currency-case",
+        "canonical_binding": {"canonical_root_sha256": "root"},
+        "target_table_node_ids": [node_id],
+        "expected_assessment": {
+            "expected_status": "CURRENCY_ASSERTION_REQUIRED",
+            "required_table_decisions": [
+                {"table_node_id": node_id, "disposition": "SECURITY_TRADES"}
+            ],
+            "unresolved_table_node_ids": [],
+            "forbidden_qualified_mapping_table_node_ids": [node_id],
+        },
+    }
+    outcome = {
+        "outcome": {
+            "status": "CURRENCY_ASSERTION_REQUIRED",
+            "currency_mapping_plan": {
+                "response": {
+                    "table_decisions": [
+                        {"table_ref": "table_1", "disposition": "SECURITY_TRADES"}
+                    ]
+                }
+            },
+            "qualification_receipts": [],
+        }
+    }
+
+    record = runner._safe_record(case=case, outcome=outcome)
+
+    assert record["outcome"] == "PASS"

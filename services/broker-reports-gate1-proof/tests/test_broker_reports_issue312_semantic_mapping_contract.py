@@ -173,7 +173,7 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     managed_prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt()
 
     assert managed_prompt.version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v17"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v18"
     assert "A Settlement Date is never a Trade Date" in managed_prompt.content
     assert "unambiguously not a transaction table" in managed_prompt.content
     assert "distinct acquisition and disposal amount columns" in managed_prompt.content
@@ -185,6 +185,8 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     assert "INSTRUCTIONAL_REFERENCE" in managed_prompt.content
     assert "OTHER_NO_NAMED_CONSUMER" in managed_prompt.content
     assert "does not delete, alter, or hide Canonical" in managed_prompt.content
+    assert "COMPLETE has no residual or default disposition" in managed_prompt.content
+    assert "Opaque headers, an opaque CSV shape" in managed_prompt.content
 
 
 def test_mapping_prompt_recognizes_explicit_sale_table_contract() -> None:
