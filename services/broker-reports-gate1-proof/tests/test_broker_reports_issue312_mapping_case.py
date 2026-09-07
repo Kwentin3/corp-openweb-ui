@@ -19,6 +19,7 @@ from broker_reports_gate1.ordinary_trade_projection import (
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
 
@@ -358,54 +359,50 @@ def test_clarification_changes_state_only_after_explicit_confirmation(tmp_path) 
     assert confirmed["confirmed_understandings"][0]["option_id"] == "o_choice_2"
 
 
-def test_exclusion_decisions_remain_complete_and_auditable(tmp_path) -> None:
+def test_exclusion_without_direct_canonical_context_is_rejected(tmp_path) -> None:
+    """A table shape alone cannot create a no-consumer exclusion."""
+
     store, context, document_id, canonical, binding = _unknown_two_table_case(tmp_path)
     semantic = OrdinaryTradeSemanticMappingFactory.create()
     cases = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create()
-    outcome = semantic.validate_mapping_response(
-        response={
-            "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
-            "status": "COMPLETE",
-            "table_decisions": [
-                {
-                    "table_ref": f"table_{index}",
-                    "header_row": 1,
-                    "disposition": "NO_NAMED_CONSUMER",
-                    "columns": [],
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        semantic.validate_mapping_response(
+            response={
+                "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+                "status": "COMPLETE",
+                "table_decisions": [
+                    {
+                        "table_ref": f"table_{index}",
+                        "header_row": 1,
+                        "disposition": "NO_NAMED_CONSUMER",
+                        "columns": [],
                         "amount_currency_bindings": [],
                         "side_values": [],
                         "row_dispositions": [],
                         "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
-                }
-                for index in (1, 2)
-            ],
-            "clarification": None,
-            "message": "Both tables have no named consumer.",
-        },
-        canonical=canonical,
-        canonical_binding=binding,
-        model_id="models/gemini-3.5-flash",
-        provider_profile_id="google_gemini",
-        execution_metadata=_metadata(),
-        confirmed_understandings=[],
-        user_scope_sha256=cases.case_binding(document_id=document_id, context=context)[
-            "user_scope_sha256"
-        ],
+                        "classification_evidence": {
+                            "context_ref": "context_1",
+                            "relation": "TABLE_TITLE",
+                        },
+                    }
+                    for index in (1, 2)
+                ],
+                "clarification": None,
+                "message": "Both tables have no named consumer.",
+            },
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256=cases.case_binding(
+                document_id=document_id, context=context
+            )["user_scope_sha256"],
+        )
+    assert exc.value.code == (
+        "ordinary_trade_semantic_mapping_classification_evidence_invalid"
     )
-    assert outcome["status"] == "COMPLETE"
-    assert outcome["question"] is None
-    record, payload = cases.save_mapping_outcome(
-        document_id=document_id,
-        context=context,
-        outcome=outcome,
-        provider_calls_total=1,
-    )
-    assert record.artifact_id
-    assert payload["confirmed_understandings"] == []
-    assert [item["disposition"] for item in payload["table_resolutions"]] == [
-        "NO_NAMED_CONSUMER",
-        "NO_NAMED_CONSUMER",
-    ]
 
 
 def test_stale_concurrent_confirmation_fails_closed(tmp_path) -> None:

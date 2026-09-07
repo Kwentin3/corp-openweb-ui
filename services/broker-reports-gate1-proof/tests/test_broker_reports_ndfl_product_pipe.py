@@ -815,6 +815,41 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
     pipe.valves.ordinary_trade_candidate_enabled = True
     pipe.valves.canonical_gate2_write_enabled = True
     pipe.valves.canonical_gate2_read_enabled = True
+    presentation_calls: list[str] = []
+
+    def completion(**call):
+        """Use the required public structured-interpretation boundary."""
+
+        form_data = call["form_data"]
+        assert form_data["response_format"]["json_schema"]["name"] == (
+            "ordinary_trade_public_interpretation_v1"
+        )
+        turn = json.loads(form_data["messages"][1]["content"])
+        answer = turn["current_user_message"]
+        presentation_calls.append(answer)
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {
+                                "disposition": "CANDIDATE",
+                                "message": "Понял ответ.",
+                                "normalized_answer": answer,
+                                "evidence_quote": answer,
+                            },
+                            ensure_ascii=False,
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(
+        pipe,
+        "_openwebui_completion_dependencies",
+        lambda user_id: (completion, type("User", (), {"id": user_id})()),
+    )
     kwargs = {
         "store": store,
         "context": context,
@@ -853,6 +888,7 @@ def test_non_filing_surrogate_reaches_the_ordinary_pipe_flow(
     assert surrogate["product"]["xml_created"] is False
     assert surrogate["declaration"] is None
     assert surrogate["provider_calls_total"] == 0
+    assert presentation_calls == ["2022", "Неподаваемый черновик"]
 
 
 def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
