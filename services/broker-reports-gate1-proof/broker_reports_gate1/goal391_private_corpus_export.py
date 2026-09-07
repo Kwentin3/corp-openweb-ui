@@ -49,7 +49,9 @@ class PrivateCorpusSelection:
     chat_id: str | None
     workspace_model_id: str | None
 
-    def access_context(self) -> ArtifactAccessContext:
+    def access_context(
+        self, *, require_source_available: bool = False
+    ) -> ArtifactAccessContext:
         return ArtifactAccessContext(
             user_id=self.user_id,
             normalization_run_id=self.normalization_run_id,
@@ -57,6 +59,7 @@ class PrivateCorpusSelection:
             chat_id=self.chat_id,
             workspace_model_id=self.workspace_model_id,
             allow_private=True,
+            require_source_available=require_source_available,
         )
 
 
