@@ -252,6 +252,7 @@ def test_model_package_exposes_only_bounded_literal_local_table_context() -> Non
     assert refs == {"table_1": "table_1"}
     assert tables[0]["source_context"] == {
         "title_literal": "Illustrative transactions",
+        "preceding_sibling_container_literals": [],
         "preceding_literals": ["Reference example", "How to read this sample"],
     }
     assert "foreign_text" not in str(tables)

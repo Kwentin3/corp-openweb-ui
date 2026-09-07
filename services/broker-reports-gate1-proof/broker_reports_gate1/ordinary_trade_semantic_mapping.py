@@ -805,6 +805,7 @@ def _table_surfaces(
     nodes = canonical.get("nodes") if isinstance(canonical, Mapping) else None
     if not isinstance(nodes, list):
         _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+    preceding_sibling_by_container = _preceding_sibling_containers(canonical)
     target_ids = None
     if target_table_node_ids is not None:
         target_ids = list(target_table_node_ids)
@@ -815,33 +816,20 @@ def _table_surfaces(
         ):
             _fail("ordinary_trade_semantic_mapping_target_scope_invalid")
         target_ids = set(target_ids)
+    literal_nodes_by_container = _literal_nodes_by_container(
+        nodes=nodes,
+        container_refs=set(preceding_sibling_by_container),
+    )
     tables = []
     cells_total = 0
-    preceding_literals_by_container: dict[str, list[str]] = {}
     ordered_nodes = sorted(
         nodes,
-        key=lambda node: (
-            str(node.get("container_ref") or "") if isinstance(node, dict) else "",
-            int(node.get("order") or 0) if isinstance(node, dict) else 0,
-        ),
+        key=lambda node: (node["container_ref"], node["order"]),
     )
     for node in ordered_nodes:
-        if not isinstance(node, dict):
-            continue
-        container_ref = node.get("container_ref")
-        if not isinstance(container_ref, str) or not container_ref:
-            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
-        if node.get("node_type") in {"HEADING", "TEXT", "NOTE"}:
-            literal = _source_context_literal(
-                (node.get("content") or {}).get("text")
-            )
-            if literal:
-                preceding_literals_by_container.setdefault(container_ref, []).append(
-                    literal
-                )
-            continue
         if node.get("node_type") != "TABLE":
             continue
+        container_ref = node["container_ref"]
         node_id = node.get("node_id")
         cells = (node.get("content") or {}).get("cells")
         if not isinstance(node_id, str) or not node_id or not isinstance(cells, list):
@@ -881,10 +869,13 @@ def _table_surfaces(
                     "title_literal": _source_context_literal(
                         (node.get("content") or {}).get("title")
                     ),
-                    "preceding_literals": copy.deepcopy(
-                        preceding_literals_by_container.get(container_ref, [])[
-                            -_MAX_LOCAL_CONTEXT_ITEMS:
-                        ]
+                    **_bounded_source_context_literals(
+                        table_order=node["order"],
+                        container_ref=container_ref,
+                        preceding_sibling_ref=(
+                            preceding_sibling_by_container[container_ref]
+                        ),
+                        literal_nodes_by_container=literal_nodes_by_container,
                     ),
                 },
             }
@@ -894,6 +885,148 @@ def _table_surfaces(
     if target_ids is not None and {item["table_node_id"] for item in tables} != target_ids:
         _fail("ordinary_trade_semantic_mapping_target_scope_stale")
     return tables
+
+
+def _preceding_sibling_containers(canonical: Mapping[str, Any]) -> dict[str, str | None]:
+    """Return the one document-adjacent container, or reject ambiguous topology."""
+
+    containers = canonical.get("containers") if isinstance(canonical, Mapping) else None
+    if containers is None:
+        # Older neutral Canonical fixtures have no container tree.  They retain
+        # the established same-container-only projection and cannot gain a
+        # sibling context by inference.
+        nodes = canonical.get("nodes") if isinstance(canonical, Mapping) else None
+        if not isinstance(nodes, list):
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        refs = set()
+        for node in nodes:
+            container_ref = node.get("container_ref") if isinstance(node, dict) else None
+            if not isinstance(container_ref, str) or not container_ref:
+                _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+            refs.add(container_ref)
+        return {container_ref: None for container_ref in refs}
+    if not isinstance(containers, list) or not containers:
+        _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+    by_id: dict[str, dict[str, Any]] = {}
+    children_by_parent: dict[str | None, list[dict[str, Any]]] = {}
+    for container in containers:
+        if not isinstance(container, dict):
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        container_id = container.get("container_id")
+        parent = container.get("parent_container_ref")
+        order = container.get("order")
+        if (
+            not isinstance(container_id, str)
+            or not container_id
+            or container_id in by_id
+            or (parent is not None and (not isinstance(parent, str) or not parent))
+            or isinstance(order, bool)
+            or not isinstance(order, int)
+            or order < 0
+        ):
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        by_id[container_id] = container
+        children_by_parent.setdefault(parent, []).append(container)
+    if any(
+        parent is not None and parent not in by_id
+        for parent in children_by_parent
+    ):
+        _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+    root_ref = canonical.get("root_container_ref")
+    roots = [
+        container_id
+        for container_id, container in by_id.items()
+        if container["parent_container_ref"] is None
+    ]
+    if (
+        not isinstance(root_ref, str)
+        or root_ref not in by_id
+        or roots != [root_ref]
+    ):
+        _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+    for container_id, container in by_id.items():
+        seen: set[str] = {container_id}
+        parent = container["parent_container_ref"]
+        while parent is not None:
+            if parent in seen:
+                _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+            seen.add(parent)
+            parent = by_id[parent]["parent_container_ref"]
+
+    preceding: dict[str, str | None] = {}
+    for siblings in children_by_parent.values():
+        ordered = sorted(siblings, key=lambda item: item["order"])
+        if [item["order"] for item in ordered] != list(range(len(ordered))):
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        for index, container in enumerate(ordered):
+            preceding[container["container_id"]] = (
+                ordered[index - 1]["container_id"] if index else None
+            )
+    return preceding
+
+
+def _literal_nodes_by_container(
+    *, nodes: list[Any], container_refs: set[str]
+) -> dict[str, list[tuple[int, str]]]:
+    """Keep only literal text nodes, ordered inside their authoritative container."""
+
+    by_container: dict[str, list[tuple[int, str]]] = {}
+    for node in nodes:
+        if not isinstance(node, dict):
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        container_ref = node.get("container_ref")
+        order = node.get("order")
+        if (
+            not isinstance(container_ref, str)
+            or container_ref not in container_refs
+            or isinstance(order, bool)
+            or not isinstance(order, int)
+            or order < 0
+        ):
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        if node.get("node_type") not in {"HEADING", "TEXT", "NOTE"}:
+            continue
+        content = node.get("content")
+        if not isinstance(content, Mapping):
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        literal = _source_context_literal(content.get("text"))
+        if literal:
+            by_container.setdefault(container_ref, []).append((order, literal))
+    for literals in by_container.values():
+        literals.sort(key=lambda item: item[0])
+    return by_container
+
+
+def _bounded_source_context_literals(
+    *,
+    table_order: int,
+    container_ref: str,
+    preceding_sibling_ref: str | None,
+    literal_nodes_by_container: Mapping[str, list[tuple[int, str]]],
+) -> dict[str, list[str]]:
+    """Project at most eight nearest literal nodes without crossing other seams."""
+
+    sibling = list(literal_nodes_by_container.get(preceding_sibling_ref or "", []))
+    local = [
+        item
+        for item in literal_nodes_by_container.get(container_ref, [])
+        if item[0] < table_order
+    ]
+    bounded = [
+        ("preceding_sibling_container_literals", literal)
+        for _order, literal in sibling
+    ] + [("preceding_literals", literal) for _order, literal in local]
+    selected = bounded[-_MAX_LOCAL_CONTEXT_ITEMS:]
+    return {
+        "preceding_sibling_container_literals": [
+            literal
+            for origin, literal in selected
+            if origin == "preceding_sibling_container_literals"
+        ],
+        "preceding_literals": [
+            literal for origin, literal in selected if origin == "preceding_literals"
+        ],
+    }
 
 
 def _source_context_literal(value: Any) -> str:

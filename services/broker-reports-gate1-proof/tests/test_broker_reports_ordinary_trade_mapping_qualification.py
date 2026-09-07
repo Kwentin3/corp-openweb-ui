@@ -10,6 +10,7 @@ import pytest
 from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResult
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_PROMPT_VERSION,
+    OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
@@ -220,6 +221,150 @@ def test_scoped_mapping_applies_context_limits_after_structural_scope_selection(
     # sent to the model, so unrelated tables cannot consume this call's budget.
     assert len(package["case"]["tables"]) == 1
     assert package["case"]["tables"][0]["table_ref"] == "table_1"
+
+
+def test_mapping_package_projects_only_the_immediate_preceding_sibling_context(
+    tmp_path,
+):
+    _store, _context, _document_id, canonical, _binding, table, _mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    canonical = copy.deepcopy(canonical)
+    table = next(
+        item for item in canonical["nodes"] if item["node_id"] == table["node_id"]
+    )
+    root = canonical["root_container_ref"]
+    target_container = next(
+        item
+        for item in canonical["containers"]
+        if item["container_id"] == table["container_ref"]
+    )
+    target_container["order"] = 1
+    preceding_container = {
+        "container_id": "container_preceding",
+        "parent_container_ref": root,
+        "order": 0,
+    }
+    next_container = {
+        "container_id": "container_next",
+        "parent_container_ref": root,
+        "order": 2,
+    }
+    other_parent_container = {
+        "container_id": "container_other_parent",
+        "parent_container_ref": "container_preceding",
+        "order": 0,
+    }
+    canonical["containers"].extend(
+        [preceding_container, next_container, other_parent_container]
+    )
+    table["order"] = 5
+    preceding_literals = [
+            {
+                "node_id": f"preceding-text-{index}",
+                "container_ref": "container_preceding",
+                "order": index,
+                "node_type": "TEXT",
+                "content": {"text": f"sibling-{index}"},
+            }
+            for index in range(6)
+    ]
+    local_literals = [
+        {
+            "node_id": f"local-text-{index}",
+            "container_ref": table["container_ref"],
+            "order": index,
+            "node_type": "NOTE",
+            "content": {"text": f"local-{index}"},
+        }
+        for index in range(5)
+    ]
+    canonical["nodes"].extend(
+        preceding_literals
+        + [
+            {
+                "node_id": "preceding-table",
+                "container_ref": "container_preceding",
+                "order": 6,
+                "node_type": "TABLE",
+                "content": {"cells": [{"displayed_value": "table-leak"}]},
+            },
+        ]
+        + local_literals
+        + [
+            {
+                "node_id": "local-after-table",
+                "container_ref": table["container_ref"],
+                "order": 6,
+                "node_type": "HEADING",
+                "content": {"text": "next-node-leak"},
+            },
+            {
+                "node_id": "next-sibling-text",
+                "container_ref": "container_next",
+                "order": 0,
+                "node_type": "TEXT",
+                "content": {"text": "next-sibling-leak"},
+            },
+            {
+                "node_id": "other-parent-text",
+                "container_ref": "container_other_parent",
+                "order": 0,
+                "node_type": "TEXT",
+                "content": {"text": "other-parent-leak"},
+            },
+        ]
+    )
+
+    package = OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+        target_table_node_ids=[table["node_id"]],
+    )
+
+    source_context = package["case"]["tables"][0]["source_context"]
+    assert source_context["preceding_sibling_container_literals"] == [
+        "sibling-3",
+        "sibling-4",
+        "sibling-5",
+    ]
+    assert source_context["preceding_literals"] == [
+        "local-0",
+        "local-1",
+        "local-2",
+        "local-3",
+        "local-4",
+    ]
+    assert (
+        len(source_context["preceding_sibling_container_literals"])
+        + len(source_context["preceding_literals"])
+        == 8
+    )
+    assert "leak" not in str(source_context)
+
+
+def test_mapping_package_fails_closed_for_ambiguous_sibling_container_order(tmp_path):
+    _store, _context, _document_id, canonical, _binding, table, _mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    canonical = copy.deepcopy(canonical)
+    root = canonical["root_container_ref"]
+    canonical["containers"].append(
+        {
+            "container_id": "container_duplicate_sibling_order",
+            "parent_container_ref": root,
+            "order": 0,
+        }
+    )
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+            canonical=canonical,
+            confirmed_understandings=[],
+            target_table_node_ids=[table["node_id"]],
+        )
+
+    assert exc.value.code == "ordinary_trade_semantic_mapping_canonical_invalid"
 
 
 def test_safe_role_map_hash_covers_amount_currency_and_side_choices(tmp_path):
