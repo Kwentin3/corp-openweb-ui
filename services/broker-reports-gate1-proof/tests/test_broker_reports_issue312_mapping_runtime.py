@@ -299,8 +299,12 @@ async def _user_currency_then_internal_classification_completes(tmp_path) -> Non
             "columns": [],
             "amount_currency_bindings": [],
             "side_values": [],
-            "row_dispositions": [],
-            "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+                "row_dispositions": [],
+                "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+                "classification_evidence": {
+                    "context_ref": "context_1",
+                    "relation": "TABLE_TITLE",
+                },
         }
     client = BoundaryModelClient([currency_response])
     runtime = OrdinaryTradeProductionRuntimeFactory(
@@ -321,8 +325,11 @@ async def _user_currency_then_internal_classification_completes(tmp_path) -> Non
         context=context,
         user_message="Валюта: USD",
     )
-    assert required["semantic_mapping"]["status"] == "CURRENCY_ASSERTION_REQUIRED"
-    assert currency_supplied["semantic_mapping"]["status"] == "COMPLETE"
+    # The synthetic tables deliberately contain no direct source context.  A
+    # model may no longer exclude them merely by shape, even while requesting
+    # currency for other tables.
+    assert required["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert currency_supplied["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
     assert len(client.calls) == 1
     current = OrdinaryTradeMappingCaseFactory(
         store=store, read_enabled=True
@@ -332,9 +339,7 @@ async def _user_currency_then_internal_classification_completes(tmp_path) -> Non
         for item in current["confirmed_understandings"]
         if item["decision"]["decision_kind"] == "USER_PROVIDED_CURRENCY"
     ]
-    assert len(assertions) == 1
-    assert assertions[0]["currency_code"] == "USD"
-    assert len(assertions[0]["table_node_ids"]) == 2
+    assert assertions == []
 
 
 async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
@@ -356,6 +361,10 @@ async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
                         "side_values": [],
                         "row_dispositions": [],
                         "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+                        "classification_evidence": {
+                            "context_ref": "context_1",
+                            "relation": "TABLE_TITLE",
+                        },
                     }
                 ],
                 "clarification": None,
@@ -373,9 +382,8 @@ async def _no_named_consumer_is_complete_auditable_mapping(tmp_path) -> None:
         user_message="Нет",
     )
 
-    assert pending["status"] == "COMPLETE"
-    assert pending["public_state"]["confirmation_message"] is None
-    assert rejected["status"] == "COMPLETE"
+    assert pending["status"] == "MAPPING_OUTPUT_INVALID"
+    assert rejected["status"] == "MAPPING_OUTPUT_INVALID"
     assert len(client.calls) == 1
 
 

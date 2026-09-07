@@ -173,7 +173,7 @@ def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> N
     managed_prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt()
 
     assert managed_prompt.version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v20"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v21"
     assert "A Settlement Date is never a Trade Date" in managed_prompt.content
     assert "unambiguously not a transaction table" in managed_prompt.content
     assert "distinct acquisition and disposal amount columns" in managed_prompt.content
@@ -251,9 +251,11 @@ def test_model_package_exposes_only_bounded_literal_local_table_context() -> Non
 
     assert refs == {"table_1": "table_1"}
     assert tables[0]["source_context"] == {
-        "title_literal": "Illustrative transactions",
-        "preceding_sibling_container_literals": [],
-        "preceding_literals": ["Reference example", "How to read this sample"],
+        "entries": [
+            {"context_ref": "context_1", "relation": "TABLE_TITLE", "literal": "Illustrative transactions"},
+            {"context_ref": "context_2", "relation": "PRECEDING_SAME_CONTAINER", "literal": "Reference example"},
+            {"context_ref": "context_3", "relation": "PRECEDING_SAME_CONTAINER", "literal": "How to read this sample"},
+        ]
     }
     assert "foreign_text" not in str(tables)
     assert "table_1" not in str(tables[0]["source_context"])
@@ -294,7 +296,7 @@ def test_mapping_preserves_a_bounded_local_context_window() -> None:
 
     tables, _refs = _model_table_surfaces(canonical)
 
-    assert tables[0]["source_context"]["preceding_literals"] == [
+    assert [item["literal"] for item in tables[0]["source_context"]["entries"]] == [
         f"context {index}" for index in range(1, 9)
     ]
 
@@ -429,6 +431,10 @@ def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
                 "side_values": [],
                 "row_dispositions": [],
                 "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                "classification_evidence": {
+                    "context_ref": "context_1",
+                    "relation": "TABLE_TITLE",
+                },
             }
         ],
         "clarification": None,
@@ -457,6 +463,10 @@ def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
         "side_values": [],
         "row_dispositions": [],
         "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+        "classification_evidence": {
+            "context_ref": "context_1",
+            "relation": "TABLE_TITLE",
+        },
     }
     response = {
         "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
@@ -467,6 +477,13 @@ def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
     }
 
     validator.validate(response)
+    del decision["classification_evidence"]
+    with pytest.raises(ValidationError):
+        validator.validate(response)
+    decision["classification_evidence"] = {
+        "context_ref": "context_1",
+        "relation": "TABLE_TITLE",
+    }
     del decision["no_consumer_kind"]
     with pytest.raises(ValidationError):
         validator.validate(response)
@@ -742,6 +759,7 @@ def test_mixed_tables_publish_complete_internal_table_classification(
     )
     second_header["value"] = f"{second_header['value']} (reference)"
     second_header["displayed_value"] = second_header["value"]
+    second["content"]["title"] = "Reference illustration"
     canonical["nodes"].append(second)
     response = _complete_response(table, known)
     response["table_decisions"].append(
@@ -754,6 +772,10 @@ def test_mixed_tables_publish_complete_internal_table_classification(
             "side_values": [],
             "row_dispositions": [],
             "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+            "classification_evidence": {
+                "context_ref": "context_1",
+                "relation": "TABLE_TITLE",
+            },
         }
     )
 
@@ -876,6 +898,7 @@ def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> Non
         )
         header["value"] = f"Excluded section {index}"
         header["displayed_value"] = header["value"]
+        excluded["content"]["title"] = f"Excluded reference {index}"
         canonical["nodes"].append(excluded)
         response["table_decisions"].append(
             {
@@ -887,6 +910,10 @@ def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> Non
                 "side_values": [],
                 "row_dispositions": [],
                 "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+                "classification_evidence": {
+                    "context_ref": "context_1",
+                    "relation": "TABLE_TITLE",
+                },
             }
         )
 
@@ -1008,11 +1035,16 @@ def test_currency_question_never_hides_unsupported_financial_meaning(tmp_path) -
 
 def test_non_trade_disposition_rejects_mapping_material(tmp_path) -> None:
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    table["content"]["title"] = "Non-trade reference"
     response = _complete_response(table, known)
     response["table_decisions"][0]["disposition"] = "NO_NAMED_CONSUMER"
     response["table_decisions"][0]["no_consumer_kind"] = (
         "OTHER_NO_NAMED_CONSUMER"
     )
+    response["table_decisions"][0]["classification_evidence"] = {
+        "context_ref": "context_1",
+        "relation": "TABLE_TITLE",
+    }
 
     with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
         OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
@@ -1027,6 +1059,60 @@ def test_non_trade_disposition_rejects_mapping_material(tmp_path) -> None:
         )
 
     assert exc.value.code == "ordinary_trade_semantic_mapping_non_trade_material_invalid"
+
+
+def test_no_consumer_requires_same_table_context_evidence_and_records_safe_binding(
+    tmp_path,
+) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    table["content"]["title"] = "Reference material"
+    response = _complete_response(table, known)
+    response["table_decisions"][0] = {
+        "table_ref": "table_1",
+        "header_row": 1,
+        "disposition": "NO_NAMED_CONSUMER",
+        "columns": [],
+        "amount_currency_bindings": [],
+        "side_values": [],
+        "row_dispositions": [],
+        "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+        "classification_evidence": {
+            "context_ref": "context_1",
+            "relation": "TABLE_TITLE",
+        },
+    }
+    owner = OrdinaryTradeSemanticMappingFactory.create()
+    result = owner.validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+    evidence = result["table_resolutions"][0]["classification_evidence"]
+    assert evidence["context_ref"] == "context_1"
+    assert evidence["relation"] == "TABLE_TITLE"
+    assert evidence["canonical_node_id"] == table["node_id"]
+    assert len(evidence["literal_sha256"]) == 64
+
+    response["table_decisions"][0]["classification_evidence"]["relation"] = (
+        "PRECEDING_SAME_CONTAINER"
+    )
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        owner.validate_mapping_response(
+            response=response,
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256="a" * 64,
+        )
+    assert exc.value.code == "ordinary_trade_semantic_mapping_classification_evidence_invalid"
 
 
 def test_runtime_unconditionally_owns_provider_question_identifiers(tmp_path) -> None:

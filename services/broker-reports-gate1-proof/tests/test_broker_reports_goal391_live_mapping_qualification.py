@@ -147,7 +147,7 @@ def test_live_bridge_accepts_the_frozen_golden_fixture_without_deriving_expectat
 
 def test_safe_role_map_hash_binds_no_consumer_subtype() -> None:
     base = {
-        "schema_version": "broker_reports_ordinary_trade_semantic_mapping_response_v5",
+        "schema_version": "broker_reports_ordinary_trade_semantic_mapping_response_v6",
         "status": "COMPLETE",
         "table_decisions": [
             {
@@ -159,6 +159,10 @@ def test_safe_role_map_hash_binds_no_consumer_subtype() -> None:
                 "side_values": [],
                 "row_dispositions": [],
                 "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                "classification_evidence": {
+                    "context_ref": "context_1",
+                    "relation": "TABLE_TITLE",
+                },
             }
         ],
         "clarification": None,

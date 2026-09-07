@@ -77,7 +77,7 @@ def test_local_qualification_uses_production_contract_once_and_returns_safe_rece
 
     assert len(client.calls) == 1
     assert client.calls[0]["prompt"].version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v20"
+    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v21"
     assert client.calls[0]["response_format"]["json_schema"]["strict"] is True
     assert receipt["status"] == "PASSED"
     assert receipt["provider_calls_total"] == 1
@@ -323,23 +323,26 @@ def test_mapping_package_projects_only_the_immediate_preceding_sibling_context(
     )
 
     source_context = package["case"]["tables"][0]["source_context"]
-    assert source_context["preceding_sibling_container_literals"] == [
+    assert [item["literal"] for item in source_context["entries"]] == [
         "sibling-3",
         "sibling-4",
         "sibling-5",
-    ]
-    assert source_context["preceding_literals"] == [
         "local-0",
         "local-1",
         "local-2",
         "local-3",
         "local-4",
     ]
-    assert (
-        len(source_context["preceding_sibling_container_literals"])
-        + len(source_context["preceding_literals"])
-        == 8
-    )
+    assert [item["relation"] for item in source_context["entries"]] == [
+        "PRECEDING_SIBLING_CONTAINER",
+        "PRECEDING_SIBLING_CONTAINER",
+        "PRECEDING_SIBLING_CONTAINER",
+        "PRECEDING_SAME_CONTAINER",
+        "PRECEDING_SAME_CONTAINER",
+        "PRECEDING_SAME_CONTAINER",
+        "PRECEDING_SAME_CONTAINER",
+        "PRECEDING_SAME_CONTAINER",
+    ]
     assert "leak" not in str(source_context)
 
 

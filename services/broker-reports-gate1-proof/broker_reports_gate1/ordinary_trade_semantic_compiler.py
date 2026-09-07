@@ -971,7 +971,12 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
         "side_values",
         "missing_required_roles",
     }
+    # The base and kind-only forms are persisted pre-v6 resolutions.  The
+    # compiler must continue to read them so historical immutable sidecars are
+    # replayable; new v6 model promotion is rejected upstream unless it carries
+    # classification_evidence.  This module never creates a resolution.
     no_consumer_fields = base_fields | {"no_consumer_kind"}
+    evidenced_no_consumer_fields = no_consumer_fields | {"classification_evidence"}
     if (
         not isinstance(value, Mapping)
         or set(value)
@@ -986,6 +991,7 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
             base_fields,
             incomplete_fields,
             no_consumer_fields,
+            evidenced_no_consumer_fields,
         )
         or not isinstance(value.get("table_node_id"), str)
         or not value["table_node_id"]
@@ -1005,12 +1011,29 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
         _fail("ordinary_trade_table_resolution_invalid")
     no_consumer_kind = value.get("no_consumer_kind")
     if value["disposition"] == "NO_NAMED_CONSUMER" and (
-        set(value) != base_fields and set(value) != no_consumer_fields
+        set(value) != base_fields
+        and set(value) != no_consumer_fields
+        and set(value) != evidenced_no_consumer_fields
         or (
             no_consumer_kind is not None
             and no_consumer_kind
             not in {"INSTRUCTIONAL_REFERENCE", "OTHER_NO_NAMED_CONSUMER"}
         )
+    ):
+        _fail("ordinary_trade_table_resolution_invalid")
+    classification_evidence = value.get("classification_evidence")
+    if classification_evidence is not None and (
+        value["disposition"] != "NO_NAMED_CONSUMER"
+        or not isinstance(classification_evidence, Mapping)
+        or set(classification_evidence)
+        != {"context_ref", "relation", "canonical_node_id", "literal_sha256"}
+        or any(
+            not isinstance(classification_evidence.get(key), str)
+            or not classification_evidence[key]
+            for key in ("context_ref", "relation", "canonical_node_id", "literal_sha256")
+        )
+        or re.fullmatch(r"[0-9a-f]{64}", classification_evidence["literal_sha256"])
+        is None
     ):
         _fail("ordinary_trade_table_resolution_invalid")
     if incomplete and (
