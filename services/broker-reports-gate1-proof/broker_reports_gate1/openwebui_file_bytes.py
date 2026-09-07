@@ -84,7 +84,19 @@ class OpenWebUIFileBytesResolver:
             raise OpenWebUIFileBytesError("openwebui_file_bytes_empty")
 
         observed_sha256 = hashlib.sha256(payload).hexdigest()
-        stored_hash = str(getattr(row, "hash", "") or "").lower()
+        # Native OpenWebUI's row.hash identifies its persisted row/object; it
+        # is not consistently the hash of the uploaded bytes.  When the
+        # upload metadata carries file_hash, that is the source-byte checksum
+        # and therefore the only checksum that may bind this read.  Older
+        # rows without it retain the established row.hash check.
+        source_hash = str(meta.get("file_hash") or "").lower()
+        if "file_hash" in meta and _SHA256_RE.fullmatch(source_hash) is None:
+            raise OpenWebUIFileBytesError("openwebui_file_hash_invalid")
+        stored_hash = (
+            source_hash
+            if "file_hash" in meta
+            else str(getattr(row, "hash", "") or "").lower()
+        )
         if _SHA256_RE.fullmatch(stored_hash) and stored_hash != observed_sha256:
             raise OpenWebUIFileBytesError("openwebui_file_hash_mismatch")
         declared_size = meta.get("size")
