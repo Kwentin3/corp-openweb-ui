@@ -21,8 +21,8 @@ from .ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
 from .ordinary_trade_mapping_case import (
-    MAPPING_CASE_ARTIFACT_TYPE,
     OrdinaryTradeMappingCaseFactory,
+    mapping_case_artifact_types,
 )
 
 
@@ -225,7 +225,7 @@ class OrdinaryTradeProjectionRuntime:
         mapping_case_documents = {
             item.document_id
             for item in catalog
-            if item.artifact_type == MAPPING_CASE_ARTIFACT_TYPE
+            if item.artifact_type in mapping_case_artifact_types()
             and item.document_id
         }
         current: list[tuple[ArtifactRecord, dict[str, Any]]] = []

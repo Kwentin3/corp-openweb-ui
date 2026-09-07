@@ -1702,6 +1702,106 @@ def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
     assert result["provider_calls_total"] == 0
 
 
+def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Pipe composes a public resolver; mapping owns the actual read."""
+
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_candidate_enabled = True
+    pipe.valves.canonical_gate2_write_enabled = True
+    pipe.valves.canonical_gate2_read_enabled = True
+    pipe.valves.ordinary_trade_mapping_prompt_db_path = "/private/prompt.db"
+    pipe.valves.ordinary_trade_mapping_prompt_id = "pinned-mapping-prompt"
+    pipe.valves.ordinary_trade_mapping_prompt_command = ""
+    captured: dict[str, object] = {}
+
+    class Resolver:
+        def resolve(self, _user):
+            raise AssertionError("Pipe must not resolve or read the Prompt")
+
+    class PromptResolverFactory:
+        def __init__(self, config):
+            captured["config"] = config
+
+        @staticmethod
+        def create():
+            return Resolver()
+
+    class ModelClientFactory:
+        def __init__(self, **_kwargs):
+            pass
+
+        @staticmethod
+        def create():
+            return object()
+
+    class Runtime:
+        async def run_with_automatic_mapping(self, **_kwargs):
+            return {
+                "product": {
+                    "status": "INPUT_REQUIRED",
+                    "preparation": {"user_actions": []},
+                }
+            }
+
+    class ProductionFactory:
+        def __init__(self, **kwargs):
+            captured["runtime_kwargs"] = kwargs
+
+        @staticmethod
+        def create():
+            return Runtime()
+
+    monkeypatch.setattr(
+        product_pipe, "OrdinaryTradeMappingPromptResolverFactory", PromptResolverFactory
+    )
+    monkeypatch.setattr(product_pipe, "Gate2StructuredModelClientFactory", ModelClientFactory)
+    monkeypatch.setattr(product_pipe, "OrdinaryTradeProductionRuntimeFactory", ProductionFactory)
+
+    context = _context(NDFL_WORKSPACE_MODEL_STABLE_ID)
+    asyncio.run(
+        pipe._maybe_run_ndfl_gate3(
+            store=object(),
+            context=context,
+            artifact_manifest=SimpleNamespace(artifact_refs_by_type={}),
+            user={"id": context.user_id, "role": "user", "groups": ["forged"]},
+            request=object(),
+            event_emitter=None,
+        )
+    )
+
+    config = captured["config"]
+    assert config.source == "openwebui_sqlite"
+    assert config.db_path == Path("/private/prompt.db")
+    assert config.prompt_id == "pinned-mapping-prompt"
+    assert config.command is None
+    runtime_kwargs = captured["runtime_kwargs"]
+    assert isinstance(runtime_kwargs["mapping_prompt_resolver"], Resolver)
+    user_context_factory = runtime_kwargs["mapping_prompt_user_context_factory"]
+    user_context = user_context_factory(context)
+    assert user_context.user_id == context.user_id
+    assert user_context.user_role == "user"
+    assert user_context.user_groups == ()
+    with pytest.raises(NdflWorkflowError) as foreign_scope:
+        user_context_factory(replace(context, user_id="foreign-user"))
+    assert foreign_scope.value.code == "ordinary_trade_mapping_prompt_user_scope_invalid"
+
+
+def test_mapping_prompt_dependencies_fail_closed_without_a_valve_binding() -> None:
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_mapping_prompt_db_path = ""
+    pipe.valves.ordinary_trade_mapping_prompt_id = ""
+    pipe.valves.ordinary_trade_mapping_prompt_command = ""
+
+    with pytest.raises(NdflWorkflowError) as invalid:
+        pipe._ordinary_trade_mapping_prompt_dependencies(
+            user={"id": "ordinary-user", "role": "user"}, metadata={}
+        )
+
+    assert invalid.value.code == "ordinary_trade_mapping_prompt_configuration_invalid"
+
+
 def test_mapping_candidate_confirmation_stays_in_the_ordinary_chat(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

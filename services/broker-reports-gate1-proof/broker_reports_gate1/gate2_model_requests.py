@@ -8,6 +8,7 @@ from typing import Any
 
 from .gate2_model_contracts import Gate2SourceFactRuntimeError
 from .gate2_source_fact_contracts import Gate2PromptError
+from .ordinary_trade_mapping_prompt import PROMPT_PLACEHOLDER
 
 
 SOURCE_REQUEST_PROFILE = "source_v0"
@@ -405,19 +406,44 @@ class Gate2OpenWebUIRequestBuilder:
                 "ordinary_trade_semantic_model_request_invalid",
                 "Ordinary-trade semantic request is not closed and strict",
             )
+        package_json = json.dumps(
+            package,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        if expected_phase == "map":
+            if (
+                prompt.content.count(PROMPT_PLACEHOLDER) != 1
+                or PROMPT_PLACEHOLDER in package_json
+            ):
+                raise Gate2SourceFactRuntimeError(
+                    "ordinary_trade_semantic_mapping_prompt_contract_mismatch",
+                    "Ordinary-trade mapping prompt and package marker contract is invalid",
+                )
+            system_content = prompt.content.replace(PROMPT_PLACEHOLDER, package_json)
+            if PROMPT_PLACEHOLDER in system_content:
+                raise Gate2SourceFactRuntimeError(
+                    "ordinary_trade_semantic_mapping_prompt_contract_mismatch",
+                    "Ordinary-trade mapping package marker reached the provider request",
+                )
+            user_content = json.dumps(
+                {
+                    "task": "map_ordinary_trade_semantic_roles",
+                    "input": "embedded_in_system_prompt",
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        else:
+            system_content = prompt.content
+            user_content = package_json
         request = {
             "model": model_id,
             "messages": [
-                {"role": "system", "content": prompt.content},
-                {
-                    "role": "user",
-                    "content": json.dumps(
-                        package,
-                        ensure_ascii=False,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                    ),
-                },
+                {"role": "system", "content": system_content},
+                {"role": "user", "content": user_content},
             ],
             "stream": False,
             "response_format": copy.deepcopy(response_format),

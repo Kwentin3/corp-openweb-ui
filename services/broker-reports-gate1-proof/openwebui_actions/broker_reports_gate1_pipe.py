@@ -83,6 +83,12 @@ from broker_reports_gate1.normalizer import NormalizationResult
 from broker_reports_gate1.ordinary_trade_production_runtime import (
     OrdinaryTradeProductionRuntimeFactory,
 )
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    OrdinaryTradeMappingPromptConfig,
+    OrdinaryTradeMappingPromptResolverFactory,
+    OrdinaryTradeMappingPromptUserContext,
+    PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
+)
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
 )
@@ -244,6 +250,16 @@ class Pipe:
         )
         ordinary_trade_mapping_model_id: str = Field(
             default=NDFL_PROVIDER_MODEL_ID
+        )
+        # The Pipe owns only the pinned configuration and authenticated caller
+        # context.  Prompt content, version and access remain owned by the
+        # OpenWebUI Prompt resolver passed to the mapping runtime.
+        ordinary_trade_mapping_prompt_db_path: str = Field(
+            default="/app/backend/data/webui.db"
+        )
+        ordinary_trade_mapping_prompt_id: str = Field(default="")
+        ordinary_trade_mapping_prompt_command: str = Field(
+            default=ORDINARY_TRADE_MAPPING_PROMPT_COMMAND
         )
         ndfl_gate3_provider_profile_id: str = Field(default=NDFL_PROVIDER_PROFILE_ID)
         ndfl_gate3_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
@@ -1602,6 +1618,8 @@ class Pipe:
             )
             mapping_client = None
             answer_client = None
+            mapping_prompt_resolver = None
+            mapping_prompt_user_context_factory = None
             if self.valves.ordinary_trade_semantic_mapping_enabled:
                 mapping_client = Gate2StructuredModelClientFactory(
                     config=Gate2StructuredModelClientConfig(
@@ -1631,12 +1649,23 @@ class Pipe:
                     user=user,
                     request=request,
                 ).create()
+                (
+                    mapping_prompt_resolver,
+                    mapping_prompt_user_context_factory,
+                ) = self._ordinary_trade_mapping_prompt_dependencies(
+                    user=user,
+                    metadata={},
+                )
             runtime = OrdinaryTradeProductionRuntimeFactory(
                 store=store,
                 read_enabled=True,
                 retention_policy=retention_policy,
                 mapping_model_client=mapping_client,
                 mapping_answer_model_client=answer_client,
+                mapping_prompt_resolver=mapping_prompt_resolver,
+                mapping_prompt_user_context_factory=(
+                    mapping_prompt_user_context_factory
+                ),
                 mapping_model_id=(
                     self.valves.ordinary_trade_mapping_model_id
                     if mapping_client is not None
@@ -3150,6 +3179,48 @@ class Pipe:
             )
         ).create()
         return resolver.resolve(user_context)
+
+    def _ordinary_trade_mapping_prompt_dependencies(
+        self, *, user: Any, metadata: dict[str, Any]
+    ) -> tuple[Any, Any]:
+        """Compose the mapping Prompt adapter; never read Prompt tables here."""
+
+        db_path = str(self.valves.ordinary_trade_mapping_prompt_db_path or "").strip()
+        prompt_id = str(self.valves.ordinary_trade_mapping_prompt_id or "").strip()
+        command = str(
+            self.valves.ordinary_trade_mapping_prompt_command or ""
+        ).strip()
+        if not db_path or (not prompt_id and not command):
+            raise NdflWorkflowError(
+                "ordinary_trade_mapping_prompt_configuration_invalid"
+            )
+        user_id = self._authenticated_user_id(user)
+        user_role = self._user_role(user, metadata)
+        resolver = OrdinaryTradeMappingPromptResolverFactory(
+            OrdinaryTradeMappingPromptConfig(
+                source="openwebui_sqlite",
+                db_path=Path(db_path),
+                prompt_id=prompt_id or None,
+                command=command or None,
+            )
+        ).create()
+
+        def user_context_factory(
+            context: ArtifactAccessContext,
+        ) -> OrdinaryTradeMappingPromptUserContext:
+            if context.user_id != user_id:
+                raise NdflWorkflowError(
+                    "ordinary_trade_mapping_prompt_user_scope_invalid"
+                )
+            return OrdinaryTradeMappingPromptUserContext(
+                user_id=user_id,
+                user_role=user_role,
+                # Group membership is established by the Prompt resolver from
+                # its owner data; Pipe metadata never grants Prompt access.
+                user_groups=(),
+            )
+
+        return resolver, user_context_factory
 
     async def _openwebui_passport_completion(
         self,

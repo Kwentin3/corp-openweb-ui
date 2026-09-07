@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+from dataclasses import replace
 
 import pytest
 from jsonschema import Draft202012Validator, ValidationError
@@ -388,7 +389,10 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
     form_data = Gate2OpenWebUIRequestBuilder(
         request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
     ).build(
-        prompt=owner.mapping_prompt(),
+        prompt=replace(
+            owner.mapping_prompt(),
+            content=(owner.mapping_prompt().content + "\n{{ordinary_trade_mapping_case_json}}"),
+        ),
         package={"phase": "map", "case": {}},
         model_id="models/gemini-3.5-flash",
         response_format=response_format,
@@ -1249,7 +1253,10 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
     request = Gate2OpenWebUIRequestBuilder(
         request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
     ).build(
-        prompt=owner.mapping_prompt(),
+        prompt=replace(
+            owner.mapping_prompt(),
+            content=(owner.mapping_prompt().content + "\n{{ordinary_trade_mapping_case_json}}"),
+        ),
         package=mapping_package,
         model_id="models/gemini-3.5-flash",
         response_format=owner.mapping_response_format(),

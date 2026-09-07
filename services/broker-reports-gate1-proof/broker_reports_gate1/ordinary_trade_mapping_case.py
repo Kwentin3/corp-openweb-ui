@@ -15,6 +15,9 @@ from .canonical_store import CanonicalReaderFactory
 from .ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
+from .ordinary_trade_mapping_prompt import (
+    validate_ordinary_trade_mapping_prompt_snapshot,
+)
 from .ordinary_trade_semantic_mapping import (
     MAPPING_CASE_SCHEMA_VERSION,
     mapping_question_option_communication_description,
@@ -23,7 +26,11 @@ from .ordinary_trade_semantic_mapping import (
 from .ordinary_trade_semantic_compiler import USER_CURRENCY_ASSERTION_SCHEMA_VERSION
 
 
-MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
+# The model package remains v2.  This is the separately versioned, durable
+# private receipt that additionally binds a managed Workspace Prompt snapshot.
+MAPPING_CASE_RECEIPT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v3"
+MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_RECEIPT_SCHEMA_VERSION
+_LEGACY_MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
 FACTORY_REQUIRED = (
     "OrdinaryTradeMappingCaseFactory.create is the only mapping-case state "
     "persistence and continuation entrypoint"
@@ -44,6 +51,14 @@ _STATUSES = {
     "MAPPING_OUTPUT_INVALID",
     "CURRENCY_ASSERTION_REQUIRED",
 }
+
+
+def mapping_case_artifact_types() -> frozenset[str]:
+    """Return the closed receipt types accepted during the v2-to-v3 migration."""
+
+    return frozenset(
+        {MAPPING_CASE_ARTIFACT_TYPE, _LEGACY_MAPPING_CASE_ARTIFACT_TYPE}
+    )
 
 
 class OrdinaryTradeMappingCaseError(RuntimeError):
@@ -123,7 +138,7 @@ class OrdinaryTradeMappingCaseRuntime:
         records: list[tuple[ArtifactRecord, dict[str, Any]]] = []
         for record in self._resolver.catalog_case(context):
             if (
-                record.artifact_type != MAPPING_CASE_ARTIFACT_TYPE
+                record.artifact_type not in mapping_case_artifact_types()
                 or record.document_id != document_id
             ):
                 continue
@@ -155,6 +170,7 @@ class OrdinaryTradeMappingCaseRuntime:
         context: ArtifactAccessContext,
         outcome: dict[str, Any],
         provider_calls_total: int,
+        mapping_prompt_snapshot: dict[str, Any] | None = None,
     ) -> tuple[ArtifactRecord, dict[str, Any]]:
         current = self.current(document_id=document_id, context=context)
         if current is not None and current[1]["status"] not in {
@@ -194,6 +210,7 @@ class OrdinaryTradeMappingCaseRuntime:
             ),
             model_response_sha256=outcome.get("model_response_sha256"),
             execution_metadata_sha256=outcome.get("execution_metadata_sha256"),
+            mapping_prompt_snapshot=mapping_prompt_snapshot,
             reason_code=None,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
@@ -207,6 +224,7 @@ class OrdinaryTradeMappingCaseRuntime:
         reason_code: str,
         message: str,
         provider_calls_total: int,
+        mapping_prompt_snapshot: dict[str, Any] | None = None,
     ) -> tuple[ArtifactRecord, dict[str, Any]]:
         if status not in {
             "PROVIDER_UNAVAILABLE",
@@ -221,6 +239,7 @@ class OrdinaryTradeMappingCaseRuntime:
             reason_code=reason_code,
             message=message,
             provider_calls_total=provider_calls_total,
+            mapping_prompt_snapshot=mapping_prompt_snapshot,
         )
 
     def save_deterministic_terminal(
@@ -241,6 +260,7 @@ class OrdinaryTradeMappingCaseRuntime:
             reason_code=reason_code,
             message=message,
             provider_calls_total=0,
+            mapping_prompt_snapshot=None,
         )
 
     def record_user_currency_assertion(
@@ -380,6 +400,7 @@ class OrdinaryTradeMappingCaseRuntime:
         reason_code: str,
         message: str,
         provider_calls_total: int,
+        mapping_prompt_snapshot: dict[str, Any] | None = None,
     ) -> tuple[ArtifactRecord, dict[str, Any]]:
         current = self.current(document_id=document_id, context=context)
         prior = current[1] if current is not None else None
@@ -405,6 +426,7 @@ class OrdinaryTradeMappingCaseRuntime:
             ),
             model_response_sha256=None,
             execution_metadata_sha256=None,
+            mapping_prompt_snapshot=mapping_prompt_snapshot,
             reason_code=reason_code,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
@@ -686,8 +708,19 @@ class OrdinaryTradeMappingCaseRuntime:
             document_id=values["document_id"], context=values["context"]
         )
         revision = int((prior or {}).get("revision") or 0) + 1
+        prompt_snapshot = values.get("mapping_prompt_snapshot")
+        if prompt_snapshot is None and prior is not None:
+            prompt_snapshot = prior.get("mapping_prompt_snapshot")
+        if prompt_snapshot is not None:
+            prompt_snapshot = validate_ordinary_trade_mapping_prompt_snapshot(
+                prompt_snapshot
+            )
         payload = {
-            "schema_version": MAPPING_CASE_SCHEMA_VERSION,
+            "schema_version": (
+                MAPPING_CASE_RECEIPT_SCHEMA_VERSION
+                if prompt_snapshot is not None
+                else MAPPING_CASE_SCHEMA_VERSION
+            ),
             "case_id": binding["case_id"],
             "revision": revision,
             "predecessor_sha256": (prior or {}).get("integrity_sha256"),
@@ -705,6 +738,8 @@ class OrdinaryTradeMappingCaseRuntime:
             "execution_metadata_sha256": values["execution_metadata_sha256"],
             "reason_code": values["reason_code"],
         }
+        if prompt_snapshot is not None:
+            payload["mapping_prompt_snapshot"] = prompt_snapshot
         payload["integrity_sha256"] = _sha256_json(payload)
         _validate_payload(payload, authority=self._authority)
         return payload
@@ -793,10 +828,14 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         "reason_code",
         "integrity_sha256",
     }
+    schema_version = payload.get("schema_version") if isinstance(payload, dict) else None
+    if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+        expected_keys = {*expected_keys, "mapping_prompt_snapshot"}
     if (
         not isinstance(payload, dict)
         or set(payload) != expected_keys
-        or payload.get("schema_version") != MAPPING_CASE_SCHEMA_VERSION
+        or schema_version
+        not in {MAPPING_CASE_SCHEMA_VERSION, MAPPING_CASE_RECEIPT_SCHEMA_VERSION}
         or not isinstance(payload.get("case_id"), str)
         or not payload["case_id"].startswith("otcase_")
         or not isinstance(payload.get("revision"), int)
@@ -807,6 +846,15 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         or payload["provider_calls_total"] < 0
     ):
         _fail("ordinary_trade_mapping_case_invalid")
+    if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+        try:
+            validate_ordinary_trade_mapping_prompt_snapshot(
+                payload["mapping_prompt_snapshot"]
+            )
+        except Exception as exc:
+            raise OrdinaryTradeMappingCaseError(
+                "ordinary_trade_mapping_case_prompt_snapshot_invalid"
+            ) from exc
     frozen = copy.deepcopy(payload)
     digest = frozen.pop("integrity_sha256", None)
     if digest != _sha256_json(frozen):
@@ -1047,7 +1095,9 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "MAPPING_CASE_ARTIFACT_TYPE",
+    "MAPPING_CASE_RECEIPT_SCHEMA_VERSION",
     "OrdinaryTradeMappingCaseError",
     "OrdinaryTradeMappingCaseFactory",
     "OrdinaryTradeMappingCaseRuntime",
+    "mapping_case_artifact_types",
 ]
