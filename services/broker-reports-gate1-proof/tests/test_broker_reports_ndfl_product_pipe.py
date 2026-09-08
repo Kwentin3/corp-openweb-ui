@@ -125,6 +125,54 @@ def test_native_chat_scope_is_recovered_only_through_owner_lookup(
     }
 
 
+def test_native_workspace_model_is_recovered_from_the_exact_owned_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeChats:
+        @staticmethod
+        async def get_chat_by_id_and_user_id(chat_id: str, user_id: str):
+            assert (chat_id, user_id) == ("owned-chat", "user-a")
+            return SimpleNamespace(
+                chat={
+                    "models": ["broker_reports_gate1_pipe"],
+                    "history": {
+                        "messages": {
+                            "owned-turn": {
+                                "role": "user",
+                                "models": [NDFL_WORKSPACE_MODEL_STABLE_ID],
+                            },
+                            "other-turn": {
+                                "role": "user",
+                                "models": ["broker_reports_gate1_pipe"],
+                            },
+                        }
+                    },
+                }
+            )
+
+    class FakeRequest:
+        async def json(self):
+            return {"metadata": {"chat_id": "owned-chat"}}
+
+    openwebui = ModuleType("open_webui")
+    models = ModuleType("open_webui.models")
+    chats = ModuleType("open_webui.models.chats")
+    chats.Chats = FakeChats
+    monkeypatch.setitem(sys.modules, "open_webui", openwebui)
+    monkeypatch.setitem(sys.modules, "open_webui.models", models)
+    monkeypatch.setitem(sys.modules, "open_webui.models.chats", chats)
+
+    metadata = asyncio.run(
+        Pipe()._server_attested_runtime_metadata(
+            request=FakeRequest(),
+            metadata={"chat_id": "owned-chat", "message_id": "owned-turn"},
+            user={"id": "user-a"},
+        )
+    )
+
+    assert metadata["model_id"] == NDFL_WORKSPACE_MODEL_STABLE_ID
+
+
 def test_completed_host_owned_current_turn_is_replayed_without_reexecution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

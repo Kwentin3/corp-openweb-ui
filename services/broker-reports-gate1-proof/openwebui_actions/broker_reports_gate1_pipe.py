@@ -983,9 +983,9 @@ class Pipe:
             not self.valves.ordinary_trade_candidate_enabled
             or not self.valves.canonical_gate2_write_enabled
             or not self.valves.canonical_gate2_read_enabled
-            # The native browser transport supplies the selected Workspace
-            # Model through ``__model__``; server-attested metadata may omit
-            # it on a later ordinary chat turn.  Treating that turn as a new
+            # OpenWebUI 0.9.6 invokes the base Function without ``__model__``.
+            # ``metadata`` has therefore been recovered above from the exact
+            # authenticated current chat turn.  Treating that turn as a new
             # upload would re-read an already persisted PDF instead of using
             # its Canonical package.
             or self._workspace_model_id(
@@ -4768,6 +4768,33 @@ class Pipe:
             return result
         result["chat_id"] = chat_id
         chat_payload = chat.chat if isinstance(chat.chat, dict) else {}
+        history = (
+            chat_payload.get("history", {}).get("messages", {})
+            if isinstance(chat_payload, dict)
+            else {}
+        )
+        current_message = (
+            history.get(str(result.get("message_id") or ""))
+            if isinstance(history, dict)
+            else None
+        )
+        current_models = (
+            current_message.get("models")
+            if isinstance(current_message, dict)
+            else None
+        )
+        # OpenWebUI resolves a Workspace Model to its base Function before
+        # invoking ``pipe`` and, in 0.9.6, does not pass ``__model__`` to a
+        # Function.  The exact current message is already persisted by the
+        # authenticated chat owner, so it is the narrow server-owned record
+        # of the user's selected Workspace Model.  Do not infer it from the
+        # client request body or scan historic messages.
+        if (
+            isinstance(current_models, list)
+            and NDFL_WORKSPACE_MODEL_STABLE_ID in current_models
+        ):
+            result["model_id"] = NDFL_WORKSPACE_MODEL_STABLE_ID
+            return result
         models = chat_payload.get("models")
         if isinstance(models, list) and NDFL_WORKSPACE_MODEL_STABLE_ID in models:
             result["model_id"] = NDFL_WORKSPACE_MODEL_STABLE_ID
