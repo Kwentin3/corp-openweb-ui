@@ -270,6 +270,7 @@ def test_lab_currency_assessment_uses_the_scoped_canonical_table_node() -> None:
     assert record["outcome"] == "PASS"
     assert record["actual_table_decision_count"] == 1
     assert record["actual_disposition_counts"] == {"SECURITY_TRADES": 1}
+    assert record["actual_no_consumer_kind_counts"] == {}
     assert record["status_matches"] is True
     assert record["required_decisions_match"] is True
     assert record["unresolved_table_set_match"] is True

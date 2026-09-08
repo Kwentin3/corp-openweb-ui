@@ -49,7 +49,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
 
 PROVIDER_PROFILE_ID = "google_gemini"
 MODEL_ID = "models/gemini-3.5-flash"
-SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v3"
+SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v4"
 
 
 class Goal391CurrentMappingLabError(RuntimeError):
@@ -538,11 +538,17 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         and forbidden_qualified_mapping_clear
     )
     actual_disposition_counts: dict[str, int] = {}
+    actual_no_consumer_kind_counts: dict[str, int] = {}
     for resolution in actual_resolutions.values():
         disposition = resolution.get("disposition")
         if isinstance(disposition, str):
             actual_disposition_counts[disposition] = (
                 actual_disposition_counts.get(disposition, 0) + 1
+            )
+        no_consumer_kind = resolution.get("no_consumer_kind")
+        if isinstance(no_consumer_kind, str):
+            actual_no_consumer_kind_counts[no_consumer_kind] = (
+                actual_no_consumer_kind_counts.get(no_consumer_kind, 0) + 1
             )
     return {
         "case_sha256": _sha256(case["case_id"]),
@@ -553,6 +559,9 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         "qualified_mapping_total": len(qualified_table_node_ids),
         "actual_table_decision_count": len(actual_resolutions),
         "actual_disposition_counts": dict(sorted(actual_disposition_counts.items())),
+        "actual_no_consumer_kind_counts": dict(
+            sorted(actual_no_consumer_kind_counts.items())
+        ),
         "actual_status": actual_status,
         "status_matches": status_matches,
         "required_decisions_match": required_decisions_match,
