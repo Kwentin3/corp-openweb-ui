@@ -22,10 +22,13 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v7"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v8"
 )
-_LEGACY_MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v6"
+_LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS = frozenset(
+    {
+        "broker_reports_ordinary_trade_semantic_mapping_response_v6",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v7",
+    }
 )
 ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
@@ -146,10 +149,10 @@ class OrdinaryTradeSemanticMapping:
             "message",
         }:
             return "ordinary_trade_semantic_mapping_response_fields_invalid"
-        if value.get("schema_version") not in {
-            _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSION,
-            MAPPING_RESPONSE_SCHEMA_VERSION,
-        }:
+        if value.get("schema_version") not in (
+            _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS
+            | {MAPPING_RESPONSE_SCHEMA_VERSION}
+        ):
             return "ordinary_trade_semantic_mapping_response_version_invalid"
         if value.get("status") not in _MAPPING_STATUSES:
             return "ordinary_trade_semantic_mapping_response_status_invalid"
@@ -554,10 +557,8 @@ class OrdinaryTradeSemanticMapping:
                 "message",
             }
             or value.get("schema_version")
-            not in {
-                _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSION,
-                MAPPING_RESPONSE_SCHEMA_VERSION,
-            }
+            not in _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS
+            | {MAPPING_RESPONSE_SCHEMA_VERSION}
             or value.get("status") not in _MAPPING_STATUSES
             or not isinstance(value.get("table_decisions"), list)
             or not isinstance(value.get("message"), str)
@@ -616,9 +617,9 @@ class OrdinaryTradeSemanticMapping:
                     decision=item,
                     table=tables[str(item["table_node_id"])],
                     allow_user_currency=True,
-                    allow_legacy_classification_evidence=(
+                    model_supplies_classification_evidence=(
                         value["schema_version"]
-                        == _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSION
+                        in _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS
                     ),
                 )
                 for item in decisions
@@ -722,9 +723,9 @@ class OrdinaryTradeSemanticMapping:
                 decision=decision,
                 table=table,
                 user_currency_assertion=assertion,
-                allow_legacy_classification_evidence=(
+                model_supplies_classification_evidence=(
                     value["schema_version"]
-                    == _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSION
+                    in _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS
                 ),
             )
             resolved_decisions.append(resolved)
@@ -1721,6 +1722,52 @@ def _validated_classification_evidence(
     return resolved
 
 
+def _classification_evidence_envelope(*, table: dict[str, Any]) -> list[dict[str, str]]:
+    """Return the complete bounded Canonical context owned by this mapping run.
+
+    The model classifies a table's purpose.  It neither selects nor authors the
+    provenance for that conclusion: the mapping owner binds every already
+    exposed source-context entry, in the source owner's established order.
+    """
+
+    source_entries = table.get("source_context_evidence")
+    if not isinstance(source_entries, list) or not source_entries:
+        _fail("ordinary_trade_semantic_mapping_classification_evidence_invalid")
+    envelope: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for entry in source_entries:
+        if (
+            not isinstance(entry, dict)
+            or any(
+                not isinstance(entry.get(key), str) or not entry[key]
+                for key in (
+                    "context_ref",
+                    "relation",
+                    "canonical_node_id",
+                    "literal_sha256",
+                )
+            )
+            or re.fullmatch(r"[0-9a-f]{64}", entry["literal_sha256"]) is None
+        ):
+            _fail("ordinary_trade_semantic_mapping_classification_evidence_invalid")
+        identity = (entry["context_ref"], entry["relation"])
+        if identity in seen:
+            _fail("ordinary_trade_semantic_mapping_classification_evidence_invalid")
+        seen.add(identity)
+        envelope.append(
+            {
+                key: str(entry[key])
+                for key in (
+                    "context_ref",
+                    "relation",
+                    "canonical_node_id",
+                    "literal_sha256",
+                )
+            }
+        )
+    return envelope
+
+
 def _validate_table_decision(
     *,
     decision: Any,
@@ -1728,7 +1775,7 @@ def _validate_table_decision(
     user_currency_assertion: dict[str, Any] | None = None,
     allow_user_currency: bool = False,
     allow_legacy_no_consumer: bool = False,
-    allow_legacy_classification_evidence: bool = False,
+    model_supplies_classification_evidence: bool = False,
 ) -> dict[str, Any]:
     base_fields = {
         "table_node_id",
@@ -1742,11 +1789,19 @@ def _validate_table_decision(
     incomplete_fields = base_fields | {"missing_required_roles"}
     no_consumer_fields = base_fields | {
         "no_consumer_kind",
+    }
+    legacy_no_consumer_fields = no_consumer_fields | {
         "classification_evidence",
     }
     if (
         not isinstance(decision, dict)
-        or set(decision) not in {frozenset(base_fields), frozenset(incomplete_fields), frozenset(no_consumer_fields)}
+        or set(decision)
+        not in {
+            frozenset(base_fields),
+            frozenset(incomplete_fields),
+            frozenset(no_consumer_fields),
+            frozenset(legacy_no_consumer_fields),
+        }
         or decision.get("table_node_id") != table["table_node_id"]
         or not isinstance(decision.get("header_row"), int)
         or decision.get("disposition") not in _TABLE_DISPOSITIONS
@@ -1766,9 +1821,13 @@ def _validate_table_decision(
     if incomplete != (set(decision) == incomplete_fields):
         _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
     no_consumer = disposition == "NO_NAMED_CONSUMER"
-    if no_consumer != (
-        set(decision) == no_consumer_fields
-        or (allow_legacy_no_consumer and set(decision) == base_fields)
+    expected_no_consumer_fields = (
+        legacy_no_consumer_fields
+        if model_supplies_classification_evidence
+        else no_consumer_fields
+    )
+    if no_consumer and set(decision) != expected_no_consumer_fields and not (
+        allow_legacy_no_consumer and set(decision) == base_fields
     ):
         _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
     if (
@@ -1778,12 +1837,17 @@ def _validate_table_decision(
     ):
         _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
     classification_evidence = None
-    if no_consumer and "classification_evidence" in decision:
-        classification_evidence = _validated_classification_evidence(
+    if no_consumer and model_supplies_classification_evidence:
+        # V6/V7 are immutable model replays.  Keep their old wire contracts
+        # readable, including their model-selected subset, but never promote
+        # that selection as provenance for a new resolved outcome.
+        _validated_classification_evidence(
             evidence=decision["classification_evidence"],
             table=table,
-            allow_legacy_singleton=allow_legacy_classification_evidence,
+            allow_legacy_singleton=True,
         )
+    if no_consumer and not allow_legacy_no_consumer:
+        classification_evidence = _classification_evidence_envelope(table=table)
     row = next(
         (item for item in table["rows"] if item["row"] == decision["header_row"]),
         None,
@@ -2491,7 +2555,6 @@ def _mapping_response_schema() -> dict[str, Any]:
             "side_values",
             "row_dispositions",
             "no_consumer_kind",
-            "classification_evidence",
         ],
         "properties": {
             **table_decision_common,
@@ -2503,28 +2566,6 @@ def _mapping_response_schema() -> dict[str, Any]:
             "no_consumer_kind": {
                 "type": "string",
                 "enum": sorted(_NO_CONSUMER_KINDS),
-            },
-            "classification_evidence": {
-                "type": "array",
-                "minItems": 1,
-                # One title plus the existing eight-item bounded local window.
-                "maxItems": _MAX_LOCAL_CONTEXT_ITEMS + 1,
-                "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["context_ref", "relation"],
-                    "properties": {
-                        "context_ref": {"type": "string", "minLength": 1},
-                        "relation": {
-                            "type": "string",
-                            "enum": [
-                                "TABLE_TITLE",
-                                "PRECEDING_SAME_CONTAINER",
-                                "PRECEDING_SIBLING_CONTAINER",
-                            ],
-                        },
-                    },
-                },
             },
         },
     }
