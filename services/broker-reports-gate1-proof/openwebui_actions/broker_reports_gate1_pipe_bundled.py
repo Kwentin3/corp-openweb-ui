@@ -1233,7 +1233,14 @@ class Pipe:
             not self.valves.ordinary_trade_candidate_enabled
             or not self.valves.canonical_gate2_write_enabled
             or not self.valves.canonical_gate2_read_enabled
-            or metadata.get("model_id") != NDFL_WORKSPACE_MODEL_STABLE_ID
+            # The native browser transport supplies the selected Workspace
+            # Model through ``__model__``; server-attested metadata may omit
+            # it on a later ordinary chat turn.  Treating that turn as a new
+            # upload would re-read an already persisted PDF instead of using
+            # its Canonical package.
+            or self._workspace_model_id(
+                metadata, kwargs.get("__model__")
+            ) != NDFL_WORKSPACE_MODEL_STABLE_ID
             or not interaction_message
             or self._current_turn_has_files(body)
         ):

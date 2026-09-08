@@ -1796,6 +1796,12 @@ def test_current_turn_file_detection_ignores_persisted_chat_files() -> None:
     ) is True
 
 
+def test_native_workspace_model_context_survives_missing_turn_metadata() -> None:
+    assert Pipe._workspace_model_id(
+        {}, {"id": NDFL_WORKSPACE_MODEL_STABLE_ID}
+    ) == NDFL_WORKSPACE_MODEL_STABLE_ID
+
+
 def test_chat_transport_runs_bind_to_one_current_source_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
