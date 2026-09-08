@@ -145,12 +145,6 @@ async def _run_live_qualification(
     ordinary_user_id: str,
     progress_path: Path | None,
 ) -> dict[str, Any]:
-    request, user, chat_count = await _server_runtime_context(
-        ordinary_user_id=ordinary_user_id
-    )
-    chats_before = await chat_count()
-    if chats_before < 0:
-        raise SystemExit("goal391_chat_count_unavailable")
     submissions = {"count": 0}
 
     def progress(state: str, case: Mapping[str, Any] | None = None) -> None:
@@ -164,6 +158,24 @@ async def _run_live_qualification(
         if case is not None:
             value["case_sha256"] = _sha256(case["case_id"])
         _write_json(progress_path, value, atomic=True)
+
+    # This reaches only the in-process OpenWebUI boundary.  The last value is
+    # intentionally a closed, value-free state: its receipt must help locate a
+    # blocked boundary without leaking an exception, an identity, or model data.
+    progress("RUNTIME_CONTEXT_STARTED")
+    try:
+        request, user, chat_count = await _server_runtime_context(
+            ordinary_user_id=ordinary_user_id,
+            progress=progress,
+        )
+        progress("CHAT_COUNT_STARTED")
+        chats_before = await chat_count()
+        if chats_before < 0:
+            raise SystemExit("goal391_chat_count_unavailable")
+        progress("CHAT_COUNT_OBSERVED")
+    except SystemExit as exc:
+        progress(_safe_runtime_context_terminal_stage(exc))
+        raise
 
     progress("READY")
 
@@ -235,18 +247,43 @@ async def _run_live_qualification(
     }
 
 
-async def _server_runtime_context(*, ordinary_user_id: str):
-    """Use OpenWebUI's in-process completion owner; never read provider keys."""
+def _safe_runtime_context_terminal_stage(exc: SystemExit) -> str:
+    """Map known fail-closed context exits to value-free receipt stages."""
 
-    from starlette.requests import Request
-    from open_webui.main import app
-    from open_webui.models.chats import Chats
-    from open_webui.models.users import Users
+    return {
+        "goal391_ordinary_user_unavailable": (
+            "RUNTIME_CONTEXT_BLOCKED_ORDINARY_USER_UNAVAILABLE"
+        ),
+        "goal391_released_model_not_available": (
+            "RUNTIME_CONTEXT_BLOCKED_RELEASED_MODEL_UNAVAILABLE"
+        ),
+        "goal391_chat_count_unavailable": (
+            "RUNTIME_CONTEXT_BLOCKED_CHAT_COUNT_UNAVAILABLE"
+        ),
+    }.get(str(exc), "RUNTIME_CONTEXT_BLOCKED")
+
+
+async def _server_runtime_context(
+    *,
+    ordinary_user_id: str,
+    progress=None,
+    user_loader=None,
+    request_factory=None,
+    model_checker=None,
+    chat_loader=None,
+):
+    """Use OpenWebUI's in-process completion owner; never read provider keys."""
 
     if not isinstance(ordinary_user_id, str) or not ordinary_user_id:
         raise SystemExit("goal391_ordinary_user_id_invalid")
+    if progress is not None:
+        progress("ORDINARY_USER_RESOLUTION_STARTED")
+    if user_loader is None:
+        from open_webui.models.users import Users
 
-    result = await Users.get_users()
+        user_loader = Users.get_users
+
+    result = await user_loader()
     users = result.get("users", []) if isinstance(result, dict) else []
     user = next(
         (
@@ -259,29 +296,45 @@ async def _server_runtime_context(*, ordinary_user_id: str):
     )
     if user is None or not getattr(user, "id", None):
         raise SystemExit("goal391_ordinary_user_unavailable")
-    request = Request(
-        {
-            "type": "http",
-            "http_version": "1.1",
-            "method": "POST",
-            "scheme": "http",
-            "path": "/api/chat/completions",
-            "raw_path": b"/api/chat/completions",
-            "query_string": b"",
-            "headers": [],
-            "client": ("127.0.0.1", 0),
-            "server": ("127.0.0.1", 80),
-            "app": app,
-        }
-    )
-    await _ensure_server_model_available(
+    if request_factory is None:
+        from starlette.requests import Request
+        from open_webui.main import app
+
+        request_factory = lambda: Request(
+            {
+                "type": "http",
+                "http_version": "1.1",
+                "method": "POST",
+                "scheme": "http",
+                "path": "/api/chat/completions",
+                "raw_path": b"/api/chat/completions",
+                "query_string": b"",
+                "headers": [],
+                "client": ("127.0.0.1", 0),
+                "server": ("127.0.0.1", 80),
+                "app": app,
+            }
+        )
+    request = request_factory()
+    if progress is not None:
+        progress("RUNTIME_REQUEST_CREATED")
+        progress("RELEASED_MODEL_CHECK_STARTED")
+    if model_checker is None:
+        model_checker = _ensure_server_model_available
+    await model_checker(
         request=request,
         user=user,
         model_id=MODEL_ID,
     )
+    if progress is not None:
+        progress("RELEASED_MODEL_AVAILABLE")
+    if chat_loader is None:
+        from open_webui.models.chats import Chats
+
+        chat_loader = Chats.get_chats_by_user_id
 
     async def chat_count() -> int:
-        value = await Chats.get_chats_by_user_id(user.id)
+        value = await chat_loader(user.id)
         items = getattr(value, "chats", None)
         if items is None:
             items = getattr(value, "items", None)

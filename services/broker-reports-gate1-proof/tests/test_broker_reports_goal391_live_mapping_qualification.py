@@ -815,6 +815,165 @@ def test_lab_refuses_a_missing_released_model_before_completion() -> None:
     assert str(exc.value) == "goal391_released_model_not_available"
 
 
+@pytest.mark.parametrize(
+    ("user_loader", "model_checker", "expected_stage"),
+    [
+        (
+            lambda: {"users": []},
+            None,
+            "RUNTIME_CONTEXT_BLOCKED_ORDINARY_USER_UNAVAILABLE",
+        ),
+        (
+            lambda: {"users": [SimpleNamespace(id="ordinary-user", role="user")]},
+            lambda **_kwargs: (_ for _ in ()).throw(
+                SystemExit("goal391_released_model_not_available")
+            ),
+            "RUNTIME_CONTEXT_BLOCKED_RELEASED_MODEL_UNAVAILABLE",
+        ),
+    ],
+    ids=["ordinary-user-missing", "released-model-unavailable"],
+)
+def test_lab_runtime_context_blocks_before_ready_with_zero_provider_calls(
+    tmp_path,
+    monkeypatch,
+    user_loader,
+    model_checker,
+    expected_stage,
+) -> None:
+    """A failed native context can never reach the completion boundary."""
+
+    runner = _lab_runner_module()
+    original = runner._server_runtime_context
+    progress_path = tmp_path / "safe-progress.json"
+    completion_factory_reached = []
+
+    async def async_user_loader():
+        return user_loader()
+
+    async def available_model(**_kwargs):
+        return None
+
+    async def isolated_context(*, ordinary_user_id, progress):
+        return await original(
+            ordinary_user_id=ordinary_user_id,
+            progress=progress,
+            user_loader=async_user_loader,
+            request_factory=lambda: SimpleNamespace(),
+            model_checker=model_checker or available_model,
+            chat_loader=lambda _user_id: [],
+        )
+
+    class CompletionFactory:
+        def __init__(self, **_kwargs):
+            completion_factory_reached.append(True)
+
+        def create(self):
+            raise AssertionError("completion_boundary_must_not_be_reached")
+
+    monkeypatch.setattr(runner, "_server_runtime_context", isolated_context)
+    monkeypatch.setattr(runner, "Gate2StructuredModelClientFactory", CompletionFactory)
+
+    with pytest.raises(SystemExit):
+        asyncio.run(
+            runner._run_live_qualification(
+                semantic=SimpleNamespace(),
+                prompt=SimpleNamespace(),
+                candidate={"candidate": "safe-test"},
+                cases=[],
+                ordinary_user_id="ordinary-user",
+                progress_path=progress_path,
+            )
+        )
+
+    progress = json.loads(progress_path.read_text(encoding="utf-8"))
+    assert progress["state"] == expected_stage
+    assert progress["provider_calls_started_total"] == 0
+    assert completion_factory_reached == []
+    assert set(progress) == {
+        "schema_version",
+        "state",
+        "candidate_sha256",
+        "provider_calls_started_total",
+    }
+
+
+def test_lab_runtime_context_progresses_through_native_checks_before_ready(
+    tmp_path, monkeypatch
+) -> None:
+    runner = _lab_runner_module()
+    original = runner._server_runtime_context
+    progress_path = tmp_path / "safe-progress.json"
+
+    async def user_loader():
+        return {"users": [SimpleNamespace(id="ordinary-user", role="user")]}
+
+    async def model_checker(**_kwargs):
+        return None
+
+    async def chat_loader(_user_id):
+        return []
+
+    async def isolated_context(*, ordinary_user_id, progress):
+        return await original(
+            ordinary_user_id=ordinary_user_id,
+            progress=progress,
+            user_loader=user_loader,
+            request_factory=lambda: SimpleNamespace(),
+            model_checker=model_checker,
+            chat_loader=chat_loader,
+        )
+
+    monkeypatch.setattr(runner, "_server_runtime_context", isolated_context)
+
+    receipt = asyncio.run(
+        runner._run_live_qualification(
+            semantic=SimpleNamespace(),
+            prompt=SimpleNamespace(),
+            candidate={"candidate": "safe-test"},
+            cases=[],
+            ordinary_user_id="ordinary-user",
+            progress_path=progress_path,
+        )
+    )
+
+    progress = json.loads(progress_path.read_text(encoding="utf-8"))
+    assert progress["state"] == "READY"
+    assert progress["provider_calls_started_total"] == 0
+    assert receipt["status"] == "PASSED"
+    assert receipt["corpus"]["provider_calls_started_total"] == 0
+
+
+def test_lab_runtime_context_never_persists_a_raw_system_exit_value(
+    tmp_path, monkeypatch
+) -> None:
+    runner = _lab_runner_module()
+    progress_path = tmp_path / "safe-progress.json"
+    private_error = "private prompt/source/model response/secret"
+
+    async def blocked_context(**_kwargs):
+        raise SystemExit(private_error)
+
+    monkeypatch.setattr(runner, "_server_runtime_context", blocked_context)
+
+    with pytest.raises(SystemExit):
+        asyncio.run(
+            runner._run_live_qualification(
+                semantic=SimpleNamespace(),
+                prompt=SimpleNamespace(),
+                candidate={"candidate": "safe-test"},
+                cases=[],
+                ordinary_user_id="ordinary-user",
+                progress_path=progress_path,
+            )
+        )
+
+    serialized = progress_path.read_text(encoding="utf-8")
+    progress = json.loads(serialized)
+    assert progress["state"] == "RUNTIME_CONTEXT_BLOCKED"
+    assert private_error not in serialized
+    assert "error" not in progress
+
+
 def test_lab_resolves_only_an_explicit_release_pinned_prompt(monkeypatch) -> None:
     runner = _lab_runner_module()
     captured = {}
