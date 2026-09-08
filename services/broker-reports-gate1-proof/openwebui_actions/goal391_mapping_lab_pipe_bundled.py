@@ -259,6 +259,7 @@ _install_bundled_package()
 
 # Begin maintainable source adapter: openwebui_actions/goal391_mapping_lab_pipe.py
 import asyncio
+import copy
 import hashlib
 import inspect
 import json
@@ -267,7 +268,10 @@ from typing import Any, Mapping
 
 from pydantic import BaseModel, Field
 
+from broker_reports_gate1.artifact_models import ArtifactAccessContext
+from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
 from broker_reports_gate1.canonical_artifact import validate_canonical_artifact
+from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.gate2_model_clients import Gate2StructuredModelClientFactory
 from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelClientConfig
 from broker_reports_gate1.gate2_model_requests import (
@@ -287,6 +291,15 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
 PROVIDER_PROFILE_ID = "google_gemini"
 MODEL_ID = "models/gemini-3.5-flash"
 SAFE_RECEIPT_SCHEMA_VERSION = "goal391_native_mapping_lab_pipe_receipt_v1"
+SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION = "goal391_server_bound_case_plan_v1"
+_EXACT_CASES_REQUIRED_TOTAL = 2
+_CANONICAL_BINDING_FIELDS = (
+    "document_id",
+    "canonical_version_id",
+    "canonical_root_sha256",
+    "source_artifact_ref",
+    "source_sha256",
+)
 _FORBIDDEN_CHAT_KEYS = frozenset({"chat_id", "parent_id", "message_id"})
 _FORBIDDEN_LAB_BODY_KEYS = frozenset(
     {
@@ -311,12 +324,230 @@ class Goal391MappingLabPipeError(RuntimeError):
         super().__init__(code)
 
 
+class Goal391ServerBoundCaseLoader:
+    """Read exactly two already-attested Canonical slots for this lab Pipe.
+
+    This deliberately is not a corpus registry.  The native Function Valves
+    name the complete closed scope, while ArtifactStore and CanonicalReader
+    remain the only storage and Canonical owners.  The loader returns in-memory
+    packages only and never publishes, discovers, or repairs anything.
+    """
+
+    def __init__(self, *, valves: Any) -> None:
+        self._valves = valves
+
+    def load(self, *, user: Any) -> list[dict[str, Any]]:
+        plan = self._read_plan()
+        user_id = self._ordinary_user_id(user=user, plan=plan)
+        store = ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=Path(str(self._valves.artifact_store_path)),
+                payload_root=Path(str(self._valves.artifact_payload_root)),
+            )
+        ).create_read_only()
+        reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
+        loaded: list[dict[str, Any]] = []
+        for slot in plan["slots"]:
+            context = self._source_context(slot=slot, user_id=user_id)
+            envelope = reader.read_active_envelope(slot["document_id"], context)
+            binding = self._binding_from_envelope(envelope)
+            if binding != slot["canonical_binding"]:
+                raise Goal391MappingLabPipeError(
+                    "goal391_lab_canonical_binding_mismatch"
+                )
+            loaded.append(
+                {
+                    "case_id": slot["slot_id"],
+                    "canonical": copy.deepcopy(envelope.artifact),
+                    "canonical_binding": binding,
+                    "confirmed_understandings": copy.deepcopy(
+                        slot["confirmed_understandings"]
+                    ),
+                    "target_table_node_ids": list(slot["target_table_node_ids"]),
+                    "frozen_mappings": copy.deepcopy(slot["frozen_mappings"]),
+                    "user_scope_sha256": self._sha256(
+                        {
+                            "user_id": context.user_id,
+                            "case_id": context.case_id,
+                            "chat_id": context.chat_id,
+                            "workspace_model_id": context.workspace_model_id,
+                        }
+                    ),
+                    "expected_assessment": copy.deepcopy(
+                        slot["expected_assessment"]
+                    ),
+                }
+            )
+        return loaded
+
+    def _read_plan(self) -> dict[str, Any]:
+        encoded = str(getattr(self._valves, "case_control_plan_json", "") or "")
+        if not encoded.strip():
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_required")
+        try:
+            plan = json.loads(encoded)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_invalid") from exc
+        if not isinstance(plan, dict) or set(plan) != {
+            "schema_version",
+            "plan_ref",
+            "plan_digest",
+            "ordinary_test_user_id",
+            "outer_browser_chat_id",
+            "slots",
+        }:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_invalid")
+        if (
+            plan["schema_version"] != SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION
+            or not isinstance(plan["plan_ref"], str)
+            or not plan["plan_ref"].strip()
+            or not isinstance(plan["plan_digest"], str)
+            or len(plan["plan_digest"]) != 64
+            or not isinstance(plan["ordinary_test_user_id"], str)
+            or not plan["ordinary_test_user_id"].strip()
+            or not isinstance(plan["outer_browser_chat_id"], str)
+            or not plan["outer_browser_chat_id"].strip()
+            or not isinstance(plan["slots"], list)
+            or len(plan["slots"]) != _EXACT_CASES_REQUIRED_TOTAL
+        ):
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_invalid")
+        digest_material = dict(plan)
+        claimed_digest = digest_material.pop("plan_digest")
+        if claimed_digest != self._sha256(digest_material):
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_digest_invalid")
+        if str(getattr(self._valves, "ordinary_test_user_id", "") or "").strip() != plan[
+            "ordinary_test_user_id"
+        ]:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_user_mismatch")
+        slots = [self._validated_slot(slot=slot, plan=plan) for slot in plan["slots"]]
+        if len({slot["slot_id"] for slot in slots}) != _EXACT_CASES_REQUIRED_TOTAL or len(
+            {slot["document_id"] for slot in slots}
+        ) != _EXACT_CASES_REQUIRED_TOTAL:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_duplicate_scope")
+        return {**plan, "slots": slots}
+
+    @staticmethod
+    def _validated_slot(*, slot: Any, plan: Mapping[str, Any]) -> dict[str, Any]:
+        required = {
+            "slot_id",
+            "document_id",
+            "source_scope",
+            "canonical_binding",
+            "target_table_node_ids",
+            "confirmed_understandings",
+            "frozen_mappings",
+            "expected_assessment",
+        }
+        if not isinstance(slot, Mapping) or set(slot) != required:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
+        scope = slot["source_scope"]
+        if not isinstance(scope, Mapping) or set(scope) != {
+            "normalization_run_id",
+            "case_id",
+            "chat_id",
+            "workspace_model_id",
+        }:
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
+        binding = slot["canonical_binding"]
+        if (
+            not isinstance(binding, Mapping)
+            or set(binding) != set(_CANONICAL_BINDING_FIELDS)
+            or any(not isinstance(binding.get(key), str) or not binding[key] for key in _CANONICAL_BINDING_FIELDS)
+            or binding["document_id"] != slot["document_id"]
+            or any(not isinstance(scope.get(key), str) or not scope[key] for key in scope)
+            or scope["chat_id"] != plan["outer_browser_chat_id"]
+            or not isinstance(slot["slot_id"], str)
+            or not slot["slot_id"].strip()
+            or not isinstance(slot["document_id"], str)
+            or not slot["document_id"].strip()
+            or not isinstance(slot["target_table_node_ids"], list)
+            or not slot["target_table_node_ids"]
+            or any(not isinstance(value, str) or not value for value in slot["target_table_node_ids"])
+            or len(set(slot["target_table_node_ids"])) != len(slot["target_table_node_ids"])
+            or not isinstance(slot["confirmed_understandings"], list)
+            or not isinstance(slot["frozen_mappings"], list)
+            or not Pipe._valid_assessment(slot["expected_assessment"])
+        ):
+            raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
+        return copy.deepcopy(dict(slot))
+
+    @staticmethod
+    def _ordinary_user_id(*, user: Any, plan: Mapping[str, Any]) -> str:
+        user_id = str(
+            user.get("id") if isinstance(user, Mapping) else getattr(user, "id", "")
+        ).strip()
+        role = str(
+            user.get("role") if isinstance(user, Mapping) else getattr(user, "role", "")
+        ).strip()
+        if not user_id or role != "user" or user_id != plan["ordinary_test_user_id"]:
+            raise Goal391MappingLabPipeError("goal391_lab_access_denied")
+        return user_id
+
+    @staticmethod
+    def _source_context(*, slot: Mapping[str, Any], user_id: str) -> ArtifactAccessContext:
+        scope = slot["source_scope"]
+        return ArtifactAccessContext(
+            user_id=user_id,
+            normalization_run_id=scope["normalization_run_id"],
+            case_id=scope["case_id"],
+            chat_id=scope["chat_id"],
+            workspace_model_id=scope["workspace_model_id"],
+            allow_private=True,
+        )
+
+    @staticmethod
+    def _binding_from_envelope(envelope: Any) -> dict[str, str]:
+        source = envelope.artifact.get("source") or {}
+        finalization = envelope.artifact.get("finalization") or {}
+        binding = {
+            "document_id": str(envelope.document_id or ""),
+            "canonical_version_id": str(
+                finalization.get("base_canonical_version_id")
+                or envelope.canonical_version_id
+                or ""
+            ),
+            "canonical_root_sha256": str(
+                finalization.get("base_canonical_root_sha256")
+                or envelope.canonical_root_sha256
+                or ""
+            ),
+            "source_artifact_ref": str(source.get("source_artifact_ref") or ""),
+            "source_sha256": str(source.get("source_sha256") or ""),
+        }
+        if not all(binding.values()):
+            raise Goal391MappingLabPipeError("goal391_lab_canonical_binding_invalid")
+        return binding
+
+    @staticmethod
+    def _sha256(value: Any) -> str:
+        return hashlib.sha256(
+            json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+
+
 class Pipe:
     class Valves(BaseModel):
         # The lab is never a general-user model.  OpenWebUI remains the access
         # owner; this valve narrows it further to the designated ordinary user.
         ordinary_test_user_id: str = Field(default="")
-        cases_required_total: int = Field(default=2, ge=1, le=2)
+        cases_required_total: int = Field(default=2, ge=2, le=2)
+        # The Function owner supplies this sealed plan.  It contains only
+        # opaque references, existing bindings and lab expectations; it never
+        # carries a Canonical, source file, Prompt body or provider material.
+        case_control_plan_json: str = Field(default="")
+        artifact_store_path: str = Field(
+            default="/app/backend/data/broker_reports_gate1/artifacts.sqlite3"
+        )
+        artifact_payload_root: str = Field(
+            default="/app/backend/data/broker_reports_gate1/payloads"
+        )
         model_id: str = Field(default=MODEL_ID)
         provider_profile_id: str = Field(default=PROVIDER_PROFILE_ID)
         prompt_db_path: str = Field(default="/app/backend/data/webui.db")
@@ -348,12 +579,10 @@ class Pipe:
             # It never selects scope or enters the provider prompt.  Only a
             # caller trying to smuggle laboratory control data is rejected.
             self._require_normal_body(body)
-            loader = kwargs.get("__goal391_lab_case_loader__")
-            if loader is None:
-                raise Goal391MappingLabPipeError("goal391_lab_case_loader_unavailable")
-            prompt = self._resolve_prompt(__user__)
-            cases = await self._load_cases(loader=loader, user_id=user_id)
+            loader = Goal391ServerBoundCaseLoader(valves=self.valves)
+            cases = await self._load_cases(loader=loader, user=__user__)
             prepared = self._preflight(cases=cases)
+            prompt = self._resolve_prompt(__user__)
             receipt = await self._execute(
                 cases=prepared,
                 prompt=prompt,
@@ -413,8 +642,8 @@ class Pipe:
             OrdinaryTradeMappingPromptUserContext(user_id=user_id, user_role="user")
         )
 
-    async def _load_cases(self, *, loader: Any, user_id: str) -> list[dict[str, Any]]:
-        value = loader(user_id=user_id)
+    async def _load_cases(self, *, loader: Goal391ServerBoundCaseLoader, user: Any) -> list[dict[str, Any]]:
+        value = loader.load(user=user)
         if inspect.isawaitable(value):
             value = await value
         if not isinstance(value, list):
@@ -575,7 +804,10 @@ class Pipe:
                 "retries": 0,
                 "best_of_n": False,
                 "manual_output_repair": False,
-                "chat_persistence": "forbidden",
+                "outer_browser_chat": "declared_once",
+                "inner_provider_chat_id": "forbidden",
+                "inner_provider_parent_id": "forbidden",
+                "inner_chat_created": False,
                 "artifact_store_mutation": False,
                 "canonical_mutation": False,
                 "right_bank_mutation": False,
@@ -671,7 +903,10 @@ class Pipe:
                 "retries": 0,
                 "best_of_n": False,
                 "manual_output_repair": False,
-                "chat_persistence": "forbidden",
+                "outer_browser_chat": "declared_once",
+                "inner_provider_chat_id": "forbidden",
+                "inner_provider_parent_id": "forbidden",
+                "inner_chat_created": False,
                 "artifact_store_mutation": False,
                 "canonical_mutation": False,
                 "right_bank_mutation": False,
@@ -696,4 +931,4 @@ class Pipe:
         ).hexdigest()
 
 
-__all__ = ["Pipe"]
+__all__ = ["Goal391ServerBoundCaseLoader", "Pipe"]

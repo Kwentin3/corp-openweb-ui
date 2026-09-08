@@ -42,194 +42,265 @@ def _ordinary_user():
     return {"id": "ordinary-test-user", "role": "user"}
 
 
-def test_native_lab_pipe_has_no_direct_storage_or_product_owners():
-    source = SOURCE.read_text(encoding="utf-8")
+def _assessment(node_id: str) -> dict:
+    return {
+        "expected_status": "COMPLETE",
+        "required_table_decisions": [
+            {
+                "table_node_id": node_id,
+                "disposition": "NO_NAMED_CONSUMER",
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+            }
+        ],
+        "unresolved_table_node_ids": [],
+        "forbidden_qualified_mapping_table_node_ids": [node_id],
+    }
 
+
+def _slot(index: int, *, chat_id: str = "outer-chat") -> dict:
+    document_id = f"document-{index}"
+    return {
+        "slot_id": f"slot-{index}",
+        "document_id": document_id,
+        "source_scope": {
+            "normalization_run_id": f"run-{index}",
+            "case_id": "outer-case",
+            "chat_id": chat_id,
+            "workspace_model_id": "goal391-lab-model",
+        },
+        "canonical_binding": {
+            "document_id": document_id,
+            "canonical_version_id": f"canonical-{index}",
+            "canonical_root_sha256": f"root-{index}",
+            "source_artifact_ref": f"source-{index}",
+            "source_sha256": f"source-sha-{index}",
+        },
+        "target_table_node_ids": [f"table-{index}"],
+        "confirmed_understandings": [],
+        "frozen_mappings": [],
+        "expected_assessment": _assessment(f"table-{index}"),
+    }
+
+
+def _plan(module, *, slots=None) -> str:
+    plan = {
+        "schema_version": module.SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION,
+        "plan_ref": "opaque-plan-ref",
+        "plan_digest": "",
+        "ordinary_test_user_id": "ordinary-test-user",
+        "outer_browser_chat_id": "outer-chat",
+        "slots": slots if slots is not None else [_slot(1), _slot(2)],
+    }
+    digest_input = dict(plan)
+    digest_input.pop("plan_digest")
+    plan["plan_digest"] = module.Goal391ServerBoundCaseLoader._sha256(digest_input)
+    return json.dumps(plan)
+
+
+def _envelope(slot: dict):
+    binding = slot["canonical_binding"]
+    return SimpleNamespace(
+        document_id=binding["document_id"],
+        canonical_version_id=binding["canonical_version_id"],
+        canonical_root_sha256=binding["canonical_root_sha256"],
+        artifact={
+            "source": {
+                "source_artifact_ref": binding["source_artifact_ref"],
+                "source_sha256": binding["source_sha256"],
+            },
+            "opaque": "not a test Canonical",
+        },
+    )
+
+
+def _install_read_owners(monkeypatch, module, slots):
+    calls = {"factory": [], "reader": []}
+    envelopes = {slot["document_id"]: _envelope(slot) for slot in slots}
+
+    class FakeStoreFactory:
+        def __init__(self, config):
+            calls["config"] = config
+
+        def create_read_only(self):
+            calls["factory"].append("create_read_only")
+            return object()
+
+        def create(self):
+            raise AssertionError("write-capable ArtifactStore is forbidden")
+
+    class FakeReader:
+        def read_active_envelope(self, document_id, context):
+            calls["reader"].append((document_id, context))
+            return envelopes[document_id]
+
+    class FakeReaderFactory:
+        def __init__(self, *, store, read_enabled):
+            assert store is not None
+            assert read_enabled is True
+
+        def create(self):
+            return FakeReader()
+
+    monkeypatch.setattr(module, "ArtifactStoreFactory", FakeStoreFactory)
+    monkeypatch.setattr(module, "CanonicalReaderFactory", FakeReaderFactory)
+    return calls
+
+
+def _loader(module, plan: str):
+    valves = SimpleNamespace(
+        ordinary_test_user_id="ordinary-test-user",
+        case_control_plan_json=plan,
+        artifact_store_path="/safe/artifacts.sqlite3",
+        artifact_payload_root="/safe/payloads",
+    )
+    return module.Goal391ServerBoundCaseLoader(valves=valves)
+
+
+def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():
+    source = SOURCE.read_text(encoding="utf-8")
     assert "import sqlite3" not in source
-    assert "ArtifactStore" not in source
-    assert "CanonicalStore" not in source
+    assert "SqliteArtifactStoreAdapter" not in source
+    assert "ArtifactStoreFactory" in source
+    assert "create_read_only()" in source
+    assert "CanonicalReaderFactory" in source
+    assert "read_active_envelope" in source
     assert "RightBank" not in source
     assert "Declaration" not in source
     assert "generate_chat_completion" in source
-    assert "OrdinaryTradeMappingPromptResolverFactory" in source
-    assert "OrdinaryTradeSemanticMappingFactory" in source
-    assert "Gate2StructuredModelClientFactory" in source
-    assert "__goal391_lab_case_loader__" in source
 
 
-def test_auxiliary_task_is_terminal_and_never_resolves_user_or_case_loader():
+def test_server_bound_loader_reads_exact_two_attested_slots_without_writes(monkeypatch):
     module = _load_source_module()
-    pipe = module.Pipe()
-    loader_calls = []
-
-    def loader(**_kwargs):
-        loader_calls.append(True)
-        return []
-
-    result = asyncio.run(
-        pipe.pipe(
-            {},
-            __user__=_ordinary_user(),
-            __request__=object(),
-            __task__="title_generation",
-            __goal391_lab_case_loader__=loader,
-        )
-    )
-
-    receipt = json.loads(result)
-    assert receipt["status"] == "BLOCKED"
-    assert receipt["terminal_error"] == "goal391_lab_auxiliary_task_forbidden"
-    assert receipt["corpus"]["provider_calls_started_total"] == 0
-    assert loader_calls == []
+    slots = [_slot(1), _slot(2)]
+    calls = _install_read_owners(monkeypatch, module, slots)
+    cases = _loader(module, _plan(module, slots=slots)).load(user=_ordinary_user())
+    assert calls["factory"] == ["create_read_only"]
+    assert calls["config"].mode == "sqlite"
+    assert [item[0] for item in calls["reader"]] == ["document-1", "document-2"]
+    assert all(item[1].user_id == "ordinary-test-user" for item in calls["reader"])
+    assert all(item[1].chat_id == "outer-chat" for item in calls["reader"])
+    assert [case["case_id"] for case in cases] == ["slot-1", "slot-2"]
 
 
-def test_injected_request_and_selected_ordinary_user_are_required_before_prompt_or_cases():
+def test_server_bound_loader_rejects_wrong_user_before_reading(monkeypatch):
     module = _load_source_module()
-    pipe = module.Pipe()
-    pipe.valves.ordinary_test_user_id = "ordinary-test-user"
-    loader_calls = []
-
-    def loader(**_kwargs):
-        loader_calls.append(True)
-        return []
-
-    missing_request = json.loads(
-        asyncio.run(
-            pipe.pipe(
-                {},
-                __user__=_ordinary_user(),
-                __goal391_lab_case_loader__=loader,
-            )
+    slots = [_slot(1), _slot(2)]
+    calls = _install_read_owners(monkeypatch, module, slots)
+    with pytest.raises(module.Goal391MappingLabPipeError) as exc:
+        _loader(module, _plan(module, slots=slots)).load(
+            user={"id": "ordinary-test-user", "role": "admin"}
         )
-    )
-    assert missing_request["terminal_error"] == "goal391_lab_request_required"
-
-    wrong_user = json.loads(
-        asyncio.run(
-            pipe.pipe(
-                {},
-                __user__={"id": "ordinary-test-user", "role": "admin"},
-                __request__=object(),
-                __goal391_lab_case_loader__=loader,
-            )
-        )
-    )
-    assert wrong_user["terminal_error"] == "goal391_lab_access_denied"
-    assert loader_calls == []
-
-
-def test_pipe_accepts_normal_chat_body_but_refuses_lab_payloads_without_provider_work():
-    module = _load_source_module()
-    pipe = module.Pipe()
-    pipe.valves.ordinary_test_user_id = "ordinary-test-user"
-
-    body_input = json.loads(
-        asyncio.run(pipe.pipe({"canonical": "untrusted"}, __user__=_ordinary_user(), __request__=object()))
-    )
-    no_loader = json.loads(
-        asyncio.run(
-            pipe.pipe(
-                {"model": "goal391_mapping_lab", "messages": [{"role": "user", "content": "run"}]},
-                __user__=_ordinary_user(),
-                __request__=object(),
-            )
-        )
-    )
-
-    assert body_input["terminal_error"] == "goal391_lab_body_input_forbidden"
-    assert no_loader["terminal_error"] == "goal391_lab_case_loader_unavailable"
-    assert body_input["corpus"]["provider_calls_started_total"] == 0
-    assert no_loader["corpus"]["provider_calls_started_total"] == 0
+    assert exc.value.code == "goal391_lab_access_denied"
+    assert calls["factory"] == []
+    assert calls["reader"] == []
 
 
 @pytest.mark.parametrize(
-    "form_data",
+    "mutate, expected",
     [
-        {"chat_id": "forbidden"},
-        {"parent_id": "forbidden"},
-        {"message_id": "forbidden"},
-        {"metadata": {"chat_id": "forbidden"}},
-        {"metadata": {"parent_id": "forbidden"}},
+        (lambda plan: plan.update(plan_digest="0" * 64), "goal391_lab_control_plan_digest_invalid"),
+        (lambda plan: plan.update(slots=[]), "goal391_lab_control_plan_invalid"),
+        (
+            lambda plan: plan["slots"][1].update(slot_id=plan["slots"][0]["slot_id"]),
+            "goal391_lab_control_plan_duplicate_scope",
+        ),
     ],
 )
-def test_inner_completion_refuses_all_chat_identifiers(form_data):
+def test_server_bound_loader_rejects_bad_or_duplicate_control_scope_before_store(monkeypatch, mutate, expected):
     module = _load_source_module()
-
-    with pytest.raises(module.Goal391MappingLabPipeError) as exc:
-        module.Pipe._require_stateless_form(form_data)
-
-    assert exc.value.code == "goal391_lab_chat_identifier_forbidden"
-
-
-def test_preflight_rejects_wrong_exact_case_count_before_completion_boundary(monkeypatch):
-    module = _load_source_module()
-    pipe = module.Pipe()
-    pipe.valves.ordinary_test_user_id = "ordinary-test-user"
-    prompt_resolved = []
-
-    def resolve_prompt(_user):
-        prompt_resolved.append(True)
-        return SimpleNamespace()
-
-    monkeypatch.setattr(pipe, "_resolve_prompt", resolve_prompt)
-
-    receipt = json.loads(
-        asyncio.run(
-            pipe.pipe(
-                {},
-                __user__=_ordinary_user(),
-                __request__=object(),
-                __goal391_lab_case_loader__=lambda **_kwargs: [],
-            )
+    slots = [_slot(1), _slot(2)]
+    calls = _install_read_owners(monkeypatch, module, slots)
+    plan = json.loads(_plan(module, slots=slots))
+    mutate(plan)
+    if expected == "goal391_lab_control_plan_duplicate_scope":
+        digest_material = dict(plan)
+        digest_material.pop("plan_digest")
+        plan["plan_digest"] = module.Goal391ServerBoundCaseLoader._sha256(
+            digest_material
         )
-    )
+    with pytest.raises(module.Goal391MappingLabPipeError) as exc:
+        _loader(module, json.dumps(plan)).load(user=_ordinary_user())
+    assert exc.value.code == expected
+    assert calls["factory"] == []
 
-    assert prompt_resolved == [True]
+
+def test_server_bound_loader_fails_closed_when_active_canonical_misbinding(monkeypatch):
+    module = _load_source_module()
+    slots = [_slot(1), _slot(2)]
+    _install_read_owners(monkeypatch, module, slots)
+    bad = _envelope(slots[0])
+    bad.canonical_root_sha256 = "different-root"
+
+    class MismatchReader:
+        def read_active_envelope(self, document_id, _context):
+            return bad if document_id == "document-1" else _envelope(slots[1])
+
+    class MismatchReaderFactory:
+        def __init__(self, *, store, read_enabled):
+            assert store is not None and read_enabled is True
+
+        def create(self):
+            return MismatchReader()
+
+    monkeypatch.setattr(module, "CanonicalReaderFactory", MismatchReaderFactory)
+    with pytest.raises(module.Goal391MappingLabPipeError) as exc:
+        _loader(module, _plan(module, slots=slots)).load(user=_ordinary_user())
+    assert exc.value.code == "goal391_lab_canonical_binding_mismatch"
+
+
+def test_auxiliary_task_is_terminal_before_user_or_case_loading():
+    module = _load_source_module()
+    receipt = json.loads(asyncio.run(module.Pipe().pipe({}, __user__=_ordinary_user(), __request__=object(), __task__="title_generation")))
     assert receipt["status"] == "BLOCKED"
-    assert receipt["terminal_error"] == "goal391_lab_case_count_invalid"
+    assert receipt["terminal_error"] == "goal391_lab_auxiliary_task_forbidden"
     assert receipt["corpus"]["provider_calls_started_total"] == 0
 
 
-def test_safe_receipt_excludes_canonical_prompt_and_model_content():
+def test_pipe_requires_request_and_rejects_untrusted_body_before_case_reading():
+    module = _load_source_module()
+    pipe = module.Pipe()
+    pipe.valves.ordinary_test_user_id = "ordinary-test-user"
+    missing_request = json.loads(asyncio.run(pipe.pipe({}, __user__=_ordinary_user())))
+    body_input = json.loads(asyncio.run(pipe.pipe({"canonical": "untrusted"}, __user__=_ordinary_user(), __request__=object())))
+    assert missing_request["terminal_error"] == "goal391_lab_request_required"
+    assert body_input["terminal_error"] == "goal391_lab_body_input_forbidden"
+
+
+@pytest.mark.parametrize("form_data", [{"chat_id": "forbidden"}, {"parent_id": "forbidden"}, {"message_id": "forbidden"}, {"metadata": {"chat_id": "forbidden"}}, {"metadata": {"parent_id": "forbidden"}}])
+def test_inner_completion_refuses_all_chat_identifiers(form_data):
+    module = _load_source_module()
+    with pytest.raises(module.Goal391MappingLabPipeError) as exc:
+        module.Pipe._require_stateless_form(form_data)
+    assert exc.value.code == "goal391_lab_chat_identifier_forbidden"
+
+
+def test_safe_receipt_allows_only_declared_outer_chat_and_no_inner_chat():
     module = _load_source_module()
     receipt = module.Pipe()._blocked_receipt("goal391_lab_access_denied")
     serialized = json.dumps(receipt, ensure_ascii=False, sort_keys=True)
-
     assert set(receipt) == {"schema_version", "status", "corpus", "constraints", "terminal_error"}
     assert "canonical_root" not in serialized
     assert "source_artifact_ref" not in serialized
     assert "prompt" not in serialized
     assert "content" not in serialized
     assert receipt["constraints"] == {
-        "retries": 0,
-        "best_of_n": False,
-        "manual_output_repair": False,
-        "chat_persistence": "forbidden",
-        "artifact_store_mutation": False,
-        "canonical_mutation": False,
-        "right_bank_mutation": False,
-        "xml_mutation": False,
+        "retries": 0, "best_of_n": False, "manual_output_repair": False,
+        "outer_browser_chat": "declared_once", "inner_provider_chat_id": "forbidden",
+        "inner_provider_parent_id": "forbidden", "inner_chat_created": False,
+        "artifact_store_mutation": False, "canonical_mutation": False,
+        "right_bank_mutation": False, "xml_mutation": False,
     }
 
 
 def test_unexpected_owner_error_is_reduced_to_one_value_free_terminal_code():
     module = _load_source_module()
-
     class PrivateProviderFailure(RuntimeError):
         pass
-
-    assert (
-        module.Pipe._safe_error_code(PrivateProviderFailure("private source/key/prompt"))
-        == "goal391_lab_internal_failure"
-    )
+    assert module.Pipe._safe_error_code(PrivateProviderFailure("private source/key/prompt")) == "goal391_lab_internal_failure"
 
 
-def test_generated_bundle_is_closed_world_and_contains_only_adapter_not_product_flow():
-    maintained_modules = {
-        name: module
-        for name, module in sys.modules.items()
-        if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1.")
-    }
+def test_generated_bundle_is_closed_world_and_contains_only_lab_adapter_not_product_flow():
+    maintained_modules = {name: module for name, module in sys.modules.items() if name == "broker_reports_gate1" or name.startswith("broker_reports_gate1.")}
     try:
         bundle = _load_bundle_module()
         source = BUNDLE.read_text(encoding="utf-8")
@@ -237,8 +308,8 @@ def test_generated_bundle_is_closed_world_and_contains_only_adapter_not_product_
         assert "ordinary_trade_semantic_mapping" in bundle._BUNDLED_MODULES
         assert "ordinary_trade_mapping_prompt" in bundle._BUNDLED_MODULES
         assert "goal391_mapping_lab_pipe.py" in source
-        assert "__goal391_lab_case_loader__" in source
-        assert "import sqlite3" not in source.split("# Begin maintainable source adapter:", 1)[1]
+        assert "Goal391ServerBoundCaseLoader" in source
+        assert "SqliteArtifactStoreAdapter" not in source.split("# Begin maintainable source adapter:", 1)[1]
         assert hasattr(bundle.Pipe(), "last_safe_receipt")
     finally:
         _clear_broker_reports_modules()
