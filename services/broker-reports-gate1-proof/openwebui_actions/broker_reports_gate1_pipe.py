@@ -252,11 +252,8 @@ class Pipe:
             default=NDFL_PROVIDER_MODEL_ID
         )
         # The Pipe owns only the pinned configuration and authenticated caller
-        # context.  Prompt content, version and access remain owned by the
-        # OpenWebUI Prompt resolver passed to the mapping runtime.
-        ordinary_trade_mapping_prompt_db_path: str = Field(
-            default="/app/backend/data/webui.db"
-        )
+        # context. Prompt content, history and access remain with OpenWebUI's
+        # native server owners. There is intentionally no database-path Valve.
         ordinary_trade_mapping_prompt_id: str = Field(default="")
         ordinary_trade_mapping_prompt_command: str = Field(
             default=ORDINARY_TRADE_MAPPING_PROMPT_COMMAND
@@ -3268,7 +3265,6 @@ class Pipe:
     ) -> tuple[Any, Any]:
         """Compose the mapping Prompt adapter; never read Prompt tables here."""
 
-        db_path = str(self.valves.ordinary_trade_mapping_prompt_db_path or "").strip()
         prompt_id = str(self.valves.ordinary_trade_mapping_prompt_id or "").strip()
         command = str(
             self.valves.ordinary_trade_mapping_prompt_command or ""
@@ -3280,8 +3276,7 @@ class Pipe:
             self.valves.ordinary_trade_mapping_prompt_hash or ""
         ).strip()
         if (
-            not db_path
-            or (not prompt_id and not command)
+            not prompt_id and not command
         ):
             raise NdflWorkflowError(
                 "ordinary_trade_mapping_prompt_configuration_invalid"
@@ -3290,14 +3285,13 @@ class Pipe:
         user_role = self._user_role(user, metadata)
         resolver = OrdinaryTradeMappingPromptResolverFactory(
             OrdinaryTradeMappingPromptConfig(
-                source="openwebui_sqlite",
-                db_path=Path(db_path),
+                source="openwebui_server",
                 prompt_id=prompt_id or None,
                 command=command or None,
                 release_prompt_version=release_version,
                 release_prompt_hash=release_hash,
             )
-        ).create()
+        ).create_async()
 
         def user_context_factory(
             context: ArtifactAccessContext,

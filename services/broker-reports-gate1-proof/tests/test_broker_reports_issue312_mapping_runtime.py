@@ -121,6 +121,24 @@ def _runtime(store, client):
     ).create()
 
 
+class AsyncMappingPromptResolver:
+    async def resolve(self, _user_context):
+        return _test_mapping_prompt()
+
+
+def _runtime_with_native_prompt_owner(store, client):
+    dependencies = _mapping_prompt_dependencies()
+    dependencies["mapping_prompt_resolver"] = AsyncMappingPromptResolver()
+    return OrdinaryTradeAutomaticMappingRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        model_client=client,
+        **dependencies,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+    ).create()
+
+
 def _multi_table_case(tmp_path, *, table_row_sets):
     store, context = gate4_fixtures._store_context(tmp_path)
     document_id = "issue312-multi-table-document"
@@ -238,6 +256,22 @@ async def _one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
         "test-ordinary-trade-mapping-prompt"
     )
     assert "content" not in saved["mapping_prompt_snapshot"]
+
+
+async def _native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping)])
+
+    result = await _runtime_with_native_prompt_owner(store, client).resolve(
+        document_id=document_id,
+        context=context,
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert result["provider_calls_this_turn"] == 1
+    assert len(client.calls) == 1
 
 
 async def _interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:
@@ -1588,6 +1622,10 @@ async def _model_cannot_exclude_financial_table_without_confirmation(tmp_path) -
 
 def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
     asyncio.run(_one_strict_mapping_call_completes_unknown_schema(tmp_path))
+
+
+def test_native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
+    asyncio.run(_native_prompt_owner_completes_unknown_schema(tmp_path))
 
 
 def test_interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:

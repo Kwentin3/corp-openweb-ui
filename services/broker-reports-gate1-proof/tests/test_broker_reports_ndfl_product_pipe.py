@@ -1924,7 +1924,6 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     pipe.valves.ordinary_trade_candidate_enabled = True
     pipe.valves.canonical_gate2_write_enabled = True
     pipe.valves.canonical_gate2_read_enabled = True
-    pipe.valves.ordinary_trade_mapping_prompt_db_path = "/private/prompt.db"
     pipe.valves.ordinary_trade_mapping_prompt_id = "pinned-mapping-prompt"
     pipe.valves.ordinary_trade_mapping_prompt_command = ""
     pipe.valves.ordinary_trade_mapping_prompt_version = "history-1"
@@ -1940,7 +1939,7 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
             captured["config"] = config
 
         @staticmethod
-        def create():
+        def create_async():
             return Resolver()
 
     class ModelClientFactory:
@@ -1987,8 +1986,8 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     )
 
     config = captured["config"]
-    assert config.source == "openwebui_sqlite"
-    assert config.db_path == Path("/private/prompt.db")
+    assert config.source == "openwebui_server"
+    assert config.db_path is None
     assert config.prompt_id == "pinned-mapping-prompt"
     assert config.command is None
     assert config.release_prompt_version == "history-1"
@@ -2007,7 +2006,6 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
 
 def test_mapping_prompt_dependencies_fail_closed_without_a_valve_binding() -> None:
     pipe = Pipe()
-    pipe.valves.ordinary_trade_mapping_prompt_db_path = ""
     pipe.valves.ordinary_trade_mapping_prompt_id = ""
     pipe.valves.ordinary_trade_mapping_prompt_command = ""
 

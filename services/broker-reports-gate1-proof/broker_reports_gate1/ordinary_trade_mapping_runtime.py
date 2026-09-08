@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import inspect
 import json
 import re
 from typing import Any
@@ -383,9 +384,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=saved, context=context, provider_calls_this_turn=0
             )
         try:
-            prompt = self._mapping_prompt_resolver.resolve(
-                self._mapping_prompt_user_context(context)
-            )
+            prompt = await self._resolve_mapping_prompt(context=context)
             prompt_snapshot = validate_ordinary_trade_mapping_prompt_snapshot(
                 prompt.snapshot()
             )
@@ -548,9 +547,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     "ordinary_trade_mapping_batch_state_missing"
                 )
             try:
-                prompt = self._mapping_prompt_resolver.resolve(
-                    self._mapping_prompt_user_context(context)
-                )
+                prompt = await self._resolve_mapping_prompt(context=context)
                 snapshot = validate_ordinary_trade_mapping_prompt_snapshot(
                     prompt.snapshot()
                 )
@@ -575,9 +572,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         else:
             snapshot = current[1].get("mapping_prompt_snapshot")
             try:
-                prompt = self._mapping_prompt_resolver.resolve(
-                    self._mapping_prompt_user_context(context)
-                )
+                prompt = await self._resolve_mapping_prompt(context=context)
                 if validate_ordinary_trade_mapping_prompt_snapshot(prompt.snapshot()) != snapshot:
                     raise OrdinaryTradeAutomaticMappingError(
                         "ordinary_trade_mapping_batch_prompt_snapshot_mismatch"
@@ -848,6 +843,23 @@ class OrdinaryTradeAutomaticMappingRuntime:
         return self._result(
             current=saved, context=context, provider_calls_this_turn=1
         )
+
+    async def _resolve_mapping_prompt(
+        self, *, context: ArtifactAccessContext
+    ) -> Any:
+        """Accept the native async Prompt owner without a second read path.
+
+        Hermetic callers retain their typed synchronous resolver.  In a running
+        OpenWebUI Function the result is awaited through the native owner API;
+        this runtime never opens the Prompt database or calls a Prompt endpoint.
+        """
+
+        prompt = self._mapping_prompt_resolver.resolve(
+            self._mapping_prompt_user_context(context)
+        )
+        if inspect.isawaitable(prompt):
+            prompt = await prompt
+        return prompt
 
     def _result(
         self,
