@@ -511,6 +511,7 @@ class OrdinaryTradeSemanticMapping:
 
         all_mappings: list[dict[str, Any]] = []
         all_receipts: list[dict[str, Any]] = []
+        all_scoped_mappings: list[dict[str, Any]] = []
         all_resolutions: list[dict[str, Any]] = []
         authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
         for batch in expected_batches:
@@ -572,6 +573,12 @@ class OrdinaryTradeSemanticMapping:
                     receipt=receipt,
                     expected_case_scope=expected_scope,
                 )
+                all_scoped_mappings.append(
+                    {
+                        "table_node_id": table_node_id,
+                        "mapping": copy.deepcopy(mapping),
+                    }
+                )
             all_mappings.extend(copy.deepcopy(mappings))
             all_receipts.extend(copy.deepcopy(receipts))
             all_resolutions.extend(copy.deepcopy(resolutions))
@@ -588,13 +595,7 @@ class OrdinaryTradeSemanticMapping:
             canonical=canonical,
             canonical_binding=canonical_binding,
             mappings=frozen_mappings,
-            scoped_mappings=[
-                {
-                    "table_node_id": receipt["case_scope"]["table_node_id"],
-                    "mapping": mapping,
-                }
-                for mapping, receipt in zip(all_mappings, all_receipts, strict=True)
-            ],
+            scoped_mappings=all_scoped_mappings,
             table_resolutions=compiler_resolutions,
         )
         incomplete_ids = {

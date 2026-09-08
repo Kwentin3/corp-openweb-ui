@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
+import json
 
 import pytest
 
@@ -51,6 +53,7 @@ from broker_reports_gate1.ordinary_trade_semantic_compiler import (
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
 from openwebui_actions.broker_reports_gate1_pipe import Pipe
@@ -158,6 +161,54 @@ def _response_for_tables(*, table_count, mapping):
         decision["table_ref"] = f"table_{index}"
         response["table_decisions"].append(decision)
     return response
+
+
+class _ForcedTwoBatchSemantic:
+    """Test double: only the initial all-table package is too large."""
+
+    def __init__(self, canonical, target_table_node_ids):
+        self._real = OrdinaryTradeSemanticMappingFactory.create()
+        self._canonical = canonical
+        self._target_table_node_ids = list(target_table_node_ids)
+
+    def build_mapping_package(self, **kwargs):
+        target_ids = kwargs.get("target_table_node_ids")
+        if target_ids is None or list(target_ids) == self._target_table_node_ids:
+            raise OrdinaryTradeSemanticMappingError(
+                "ordinary_trade_semantic_mapping_context_limit"
+            )
+        return self._real.build_mapping_package(**kwargs)
+
+    def build_mapping_batch_plan(self, **kwargs):
+        batches = []
+        for index, table_node_id in enumerate(self._target_table_node_ids, start=1):
+            package = self._real.build_mapping_package(
+                canonical=self._canonical,
+                confirmed_understandings=kwargs["confirmed_understandings"],
+                target_table_node_ids=[table_node_id],
+            )
+            batches.append(
+                {
+                    "batch_id": f"batch_{index:04d}",
+                    "target_table_node_ids": [table_node_id],
+                    "mapping_package_sha256": hashlib.sha256(
+                        json.dumps(
+                            package,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ).encode("utf-8")
+                    ).hexdigest(),
+                }
+            )
+        return {
+            "schema_version": "broker_reports_ordinary_trade_mapping_batch_plan_v1",
+            "target_table_node_ids": list(self._target_table_node_ids),
+            "batches": batches,
+        }
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
 
 
 def _row_with_roles(**values):
@@ -1010,6 +1061,40 @@ async def _identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> Non
     )
 
 
+async def _overflowed_scope_executes_one_pinned_call_per_batch(tmp_path) -> None:
+    unknown_rows = _unknown_rows(suffix="bounded batch")
+    mapping = case_fixtures.candidate._mapping_from_headers(unknown_rows[0])
+    store, context, document_id, tables, _canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(unknown_rows, unknown_rows),
+    )
+    first = _response_for_tables(table_count=1, mapping=mapping)
+    second = _response_for_tables(table_count=1, mapping=mapping)
+    client = BoundaryModelClient([first, second])
+    runtime = _runtime(store, client)
+    canonical = CanonicalReaderFactory(store=store, read_enabled=True).create().read_active_envelope(
+        document_id, context
+    ).artifact
+    runtime._semantic = _ForcedTwoBatchSemantic(
+        canonical,
+        [item["node_id"] for item in tables],
+    )
+
+    result = await runtime.resolve(document_id=document_id, context=context)
+
+    assert result["status"] == "COMPLETE"
+    assert result["provider_calls_this_turn"] == 2
+    assert len(client.calls) == 2
+    assert all(
+        len(call["package"]["case"]["tables"]) == 1 for call in client.calls
+    )
+    current = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
+        document_id=document_id, context=context
+    )[1]
+    assert current["mapping_batch_state"] is None
+    assert current["provider_calls_total"] == 2
+
+
 async def _identical_known_table_nodes_use_zero_call_fast_path(tmp_path) -> None:
     store, context, _document_id, _tables, canonical_ref = _multi_table_case(
         tmp_path,
@@ -1592,6 +1677,10 @@ def test_mixed_known_and_unknown_tables_reach_gate4_facts(tmp_path) -> None:
 
 def test_identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> None:
     asyncio.run(_identical_unknown_table_nodes_execute_in_exact_scope(tmp_path))
+
+
+def test_overflowed_scope_executes_one_pinned_call_per_batch(tmp_path) -> None:
+    asyncio.run(_overflowed_scope_executes_one_pinned_call_per_batch(tmp_path))
 
 
 def test_identical_known_table_nodes_use_zero_call_fast_path(tmp_path) -> None:

@@ -28,9 +28,10 @@ from .ordinary_trade_semantic_compiler import USER_CURRENCY_ASSERTION_SCHEMA_VER
 
 # The model package remains v2.  This is the separately versioned, durable
 # private receipt that additionally binds a managed Workspace Prompt snapshot.
-MAPPING_CASE_RECEIPT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v3"
+MAPPING_CASE_RECEIPT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v4"
 MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_RECEIPT_SCHEMA_VERSION
 _LEGACY_MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
+_V3_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v3"
 FACTORY_REQUIRED = (
     "OrdinaryTradeMappingCaseFactory.create is the only mapping-case state "
     "persistence and continuation entrypoint"
@@ -57,7 +58,11 @@ def mapping_case_artifact_types() -> frozenset[str]:
     """Return the closed receipt types accepted during the v2-to-v3 migration."""
 
     return frozenset(
-        {MAPPING_CASE_ARTIFACT_TYPE, _LEGACY_MAPPING_CASE_ARTIFACT_TYPE}
+        {
+            MAPPING_CASE_ARTIFACT_TYPE,
+            _V3_MAPPING_CASE_ARTIFACT_TYPE,
+            _LEGACY_MAPPING_CASE_ARTIFACT_TYPE,
+        }
     )
 
 
@@ -211,7 +216,66 @@ class OrdinaryTradeMappingCaseRuntime:
             model_response_sha256=outcome.get("model_response_sha256"),
             execution_metadata_sha256=outcome.get("execution_metadata_sha256"),
             mapping_prompt_snapshot=mapping_prompt_snapshot,
+            mapping_batch_state=None,
             reason_code=None,
+        )
+        return self._put(payload=payload, document_id=document_id, context=context)
+
+    def save_batch_state(
+        self,
+        *,
+        document_id: str,
+        context: ArtifactAccessContext,
+        status: str,
+        message: str,
+        mapping_batch_state: dict[str, Any],
+        provider_calls_total: int,
+        mapping_prompt_snapshot: dict[str, Any],
+        pending_candidate: dict[str, Any] | None = None,
+        reason_code: str | None = None,
+    ) -> tuple[ArtifactRecord, dict[str, Any]]:
+        """Persist batch transport progress without publishing partial mappings."""
+
+        if status not in {
+            "MAPPING_REQUIRED",
+            "CURRENCY_ASSERTION_REQUIRED",
+            "PROVIDER_UNAVAILABLE",
+            "MAPPING_OUTPUT_INVALID",
+            "SPECIALIST_REVIEW_REQUIRED",
+            "UNSUPPORTED",
+        }:
+            _fail("ordinary_trade_mapping_case_outcome_invalid")
+        current = self.current(document_id=document_id, context=context)
+        if current is not None and current[1]["status"] not in {
+            "MAPPING_REQUIRED",
+            "CURRENCY_ASSERTION_REQUIRED",
+            "PROVIDER_UNAVAILABLE",
+        }:
+            _fail("ordinary_trade_mapping_case_transition_invalid")
+        prior = current[1] if current is not None else None
+        payload = self._next_payload(
+            document_id=document_id,
+            context=context,
+            prior=prior,
+            status=status,
+            message=message,
+            question=None,
+            pending_candidate=copy.deepcopy(pending_candidate),
+            confirmed_understandings=copy.deepcopy(
+                (prior or {}).get("confirmed_understandings") or []
+            ),
+            qualified_mappings=[],
+            qualification_receipts=[],
+            table_resolutions=[],
+            provider_calls_total=(
+                int((prior or {}).get("provider_calls_total") or 0)
+                + provider_calls_total
+            ),
+            model_response_sha256=None,
+            execution_metadata_sha256=None,
+            mapping_prompt_snapshot=mapping_prompt_snapshot,
+            mapping_batch_state=mapping_batch_state,
+            reason_code=reason_code,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
 
@@ -715,6 +779,13 @@ class OrdinaryTradeMappingCaseRuntime:
             prompt_snapshot = validate_ordinary_trade_mapping_prompt_snapshot(
                 prompt_snapshot
             )
+        # Absence preserves a paused batch during an unrelated case update;
+        # an explicit None is the terminal aggregate's instruction to clear it.
+        batch_state = values.get("mapping_batch_state")
+        if "mapping_batch_state" not in values and prior is not None:
+            batch_state = prior.get("mapping_batch_state")
+        if batch_state is not None and prompt_snapshot is None:
+            _fail("ordinary_trade_mapping_case_prompt_snapshot_invalid")
         payload = {
             "schema_version": (
                 MAPPING_CASE_RECEIPT_SCHEMA_VERSION
@@ -740,6 +811,7 @@ class OrdinaryTradeMappingCaseRuntime:
         }
         if prompt_snapshot is not None:
             payload["mapping_prompt_snapshot"] = prompt_snapshot
+            payload["mapping_batch_state"] = copy.deepcopy(batch_state)
         payload["integrity_sha256"] = _sha256_json(payload)
         _validate_payload(payload, authority=self._authority)
         return payload
@@ -830,12 +902,18 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
     }
     schema_version = payload.get("schema_version") if isinstance(payload, dict) else None
     if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+        expected_keys = {*expected_keys, "mapping_prompt_snapshot", "mapping_batch_state"}
+    elif schema_version == _V3_MAPPING_CASE_ARTIFACT_TYPE:
         expected_keys = {*expected_keys, "mapping_prompt_snapshot"}
     if (
         not isinstance(payload, dict)
         or set(payload) != expected_keys
         or schema_version
-        not in {MAPPING_CASE_SCHEMA_VERSION, MAPPING_CASE_RECEIPT_SCHEMA_VERSION}
+        not in {
+            MAPPING_CASE_SCHEMA_VERSION,
+            _V3_MAPPING_CASE_ARTIFACT_TYPE,
+            MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
+        }
         or not isinstance(payload.get("case_id"), str)
         or not payload["case_id"].startswith("otcase_")
         or not isinstance(payload.get("revision"), int)
@@ -846,7 +924,10 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         or payload["provider_calls_total"] < 0
     ):
         _fail("ordinary_trade_mapping_case_invalid")
-    if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+    if schema_version in {
+        _V3_MAPPING_CASE_ARTIFACT_TYPE,
+        MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
+    }:
         try:
             validate_ordinary_trade_mapping_prompt_snapshot(
                 payload["mapping_prompt_snapshot"]
@@ -855,6 +936,8 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
             raise OrdinaryTradeMappingCaseError(
                 "ordinary_trade_mapping_case_prompt_snapshot_invalid"
             ) from exc
+    if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+        _validate_mapping_batch_state(payload.get("mapping_batch_state"))
     frozen = copy.deepcopy(payload)
     digest = frozen.pop("integrity_sha256", None)
     if digest != _sha256_json(frozen):
@@ -1015,6 +1098,42 @@ def _private_case(context: ArtifactAccessContext) -> None:
         or not context.allow_private
     ):
         _fail("ordinary_trade_mapping_private_case_context_required")
+
+
+def _validate_mapping_batch_state(value: Any) -> None:
+    if value is None:
+        return
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema_version",
+            "plan",
+            "completed_batch_outcomes",
+            "pending_batch_id",
+        }
+        or value.get("schema_version")
+        != "broker_reports_ordinary_trade_mapping_batch_state_v1"
+        or not isinstance(value.get("plan"), dict)
+        or not isinstance(value.get("completed_batch_outcomes"), list)
+        or (
+            value.get("pending_batch_id") is not None
+            and (
+                not isinstance(value.get("pending_batch_id"), str)
+                or not value["pending_batch_id"]
+            )
+        )
+    ):
+        _fail("ordinary_trade_mapping_case_batch_state_invalid")
+    for item in value["completed_batch_outcomes"]:
+        if (
+            not isinstance(item, dict)
+            or set(item) != {"batch_id", "outcome"}
+            or not isinstance(item.get("batch_id"), str)
+            or not item["batch_id"]
+            or not isinstance(item.get("outcome"), dict)
+        ):
+            _fail("ordinary_trade_mapping_case_batch_state_invalid")
 
 
 def _public_binding(binding: dict[str, Any]) -> dict[str, Any]:
