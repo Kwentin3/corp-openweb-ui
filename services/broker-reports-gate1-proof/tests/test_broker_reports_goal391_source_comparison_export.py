@@ -243,6 +243,11 @@ class _Resolver:
             "file_hash_sha256": checksum,
             "source_deleted": source_deleted,
         }
+        # This is deliberately not the source-file binding.  The real store
+        # likewise persists an artifact payload independently of metadata.
+        # Export must use only the ACL-checked source_file_ref from
+        # resolve_record(), never payload bytes or payload shape.
+        self.source_artifact_payload = {"source_ref": dict(self.source_ref)}
         self.records = {
             "source-artifact-1": SimpleNamespace(
                 artifact_id="source-artifact-1",
@@ -269,12 +274,16 @@ class _Resolver:
         assert context.require_source_available is True
         return list(self.records.values())[1:]
 
+    def resolve_record(self, artifact_id, context):
+        assert artifact_id == "source-artifact-1"
+        assert context.require_source_available is True
+        return self.records[artifact_id]
+
     def resolve(self, artifact_id, context):
+        assert artifact_id != "source-artifact-1"
         record = self.records[artifact_id]
         payload = (
-            self.source_ref
-            if artifact_id == "source-artifact-1"
-            else {
+            {
                 "schema_version": "private_normalized_source_payload_v0",
                 "document_ref": "document-1",
                 "normalization_run_id": "run-1",

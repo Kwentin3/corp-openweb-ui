@@ -75,8 +75,11 @@ class Goal391SourceComparisonExportCoordinator:
     ) -> None:
         if not callable(getattr(reader, "read_envelope", None)):
             raise Goal391SourceComparisonExportError("goal391_source_comparison_reader_required")
-        if not callable(getattr(artifact_resolver, "resolve", None)) or not callable(
-            getattr(artifact_resolver, "catalog_run", None)
+        if (
+            not callable(getattr(artifact_resolver, "resolve", None))
+            or not callable(getattr(artifact_resolver, "resolve_record", None))
+            or not callable(getattr(artifact_resolver, "catalog_run", None)
+            )
         ):
             raise Goal391SourceComparisonExportError("goal391_source_comparison_resolver_required")
         if not callable(getattr(file_bytes_resolver, "resolve", None)):
@@ -147,15 +150,12 @@ class Goal391SourceComparisonExportCoordinator:
         if not source_artifact_ref or not _sha256_text(source_sha256) or not document_id:
             raise Goal391SourceComparisonExportError("goal391_source_comparison_canonical_binding_invalid")
 
-        source_resolved = self._resolver.resolve(source_artifact_ref, context)
-        source_record = source_resolved.get("record") if isinstance(source_resolved, Mapping) else None
+        source_record = self._resolver.resolve_record(source_artifact_ref, context)
         source_ref = getattr(source_record, "source_file_ref", None)
-        source_payload = source_resolved.get("payload") if isinstance(source_resolved, Mapping) else None
         if (
             getattr(source_record, "artifact_type", None) != "source_file_ref_v0"
             or getattr(source_record, "document_id", None) != document_id
             or not isinstance(source_ref, Mapping)
-            or source_payload != source_ref
             or source_ref.get("source_deleted") is True
         ):
             raise Goal391SourceComparisonExportError("goal391_source_comparison_source_record_invalid")
