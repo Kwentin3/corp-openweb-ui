@@ -258,6 +258,35 @@ class OrdinaryTradeSemanticMapping:
             _fail("ordinary_trade_semantic_mapping_context_limit")
         return package
 
+    def build_classification_evidence_envelopes(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        target_table_node_ids: Iterable[str],
+    ) -> dict[str, list[dict[str, str]]]:
+        """Bind explicit Canonical tables to their complete private evidence.
+
+        This narrow owner seam is for a trusted preflight receipt only.  It does
+        not reuse the model package because that representation deliberately
+        strips Canonical ids and private source evidence.  It returns no source
+        literal: only the already-validated, bounded provenance envelope.
+        """
+
+        target_ids = _ordered_target_table_node_ids(
+            canonical=canonical,
+            target_table_node_ids=target_table_node_ids,
+        )
+        tables = _selected_table_surfaces(
+            canonical=canonical,
+            target_table_node_ids=target_ids,
+        )
+        if [item["table_node_id"] for item in tables] != target_ids:
+            _fail("ordinary_trade_semantic_mapping_target_scope_stale")
+        return {
+            table["table_node_id"]: _classification_evidence_envelope(table=table)
+            for table in tables
+        }
+
     def build_mapping_batch_plan(
         self,
         *,

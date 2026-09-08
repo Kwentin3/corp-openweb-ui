@@ -666,6 +666,31 @@ def test_lab_passes_the_resolved_managed_prompt_to_its_single_call() -> None:
     assert captured["prompt"] is managed_prompt
 
 
+def test_lab_owner_envelopes_reject_a_required_table_outside_frozen_scope(
+    tmp_path,
+) -> None:
+    runner = _lab_runner_module()
+    _store, _context, _document_id, canonical, _binding, table, _mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    table["content"]["title"] = "Reference material"
+
+    with pytest.raises(SystemExit) as exc:
+        runner._owner_classification_envelopes(
+            canonical=canonical,
+            target_table_node_ids=[table["node_id"]],
+            required_table_decisions=[
+                {
+                    "table_node_id": "foreign-table",
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                }
+            ],
+        )
+
+    assert str(exc.value) == "goal391_owner_classification_envelope_invalid"
+
+
 def test_lab_preflight_uses_the_frozen_manifest_case_count(tmp_path) -> None:
     """A supplied frozen two-case scope is valid without any provider call."""
 

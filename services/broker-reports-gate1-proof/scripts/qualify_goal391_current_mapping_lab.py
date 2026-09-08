@@ -396,7 +396,6 @@ def _fixture(*, canonical: dict[str, Any], expected: Mapping[str, Any]) -> dict[
         # receipts contain only deterministic hashes and counts.
         "owner_classification_envelopes": _owner_classification_envelopes(
             canonical=canonical,
-            confirmed_understandings=expected["confirmed_understandings"],
             target_table_node_ids=expected["target_table_node_ids"],
             required_table_decisions=expected_assessment[
                 "required_table_decisions"
@@ -408,7 +407,6 @@ def _fixture(*, canonical: dict[str, Any], expected: Mapping[str, Any]) -> dict[
 def _owner_classification_envelopes(
     *,
     canonical: Mapping[str, Any],
-    confirmed_understandings: list[dict[str, Any]],
     target_table_node_ids: list[str] | None,
     required_table_decisions: list[dict[str, Any]],
 ) -> dict[str, list[dict[str, str]]]:
@@ -429,28 +427,14 @@ def _owner_classification_envelopes(
     ]
     if not required_ids:
         return {}
-    package = OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
-        canonical=canonical,
-        confirmed_understandings=confirmed_understandings,
-        target_table_node_ids=target_table_node_ids,
-    )
-    tables = ((package.get("case") or {}).get("tables"))
-    if not isinstance(tables, list):
+    if target_table_node_ids is not None and not set(required_ids).issubset(
+        set(target_table_node_ids)
+    ):
         raise SystemExit("goal391_owner_classification_envelope_invalid")
-    by_node_id = {
-        table.get("table_node_id"): table
-        for table in tables
-        if isinstance(table, Mapping) and isinstance(table.get("table_node_id"), str)
-    }
-    envelopes: dict[str, list[dict[str, str]]] = {}
-    for table_node_id in required_ids:
-        table = by_node_id.get(table_node_id)
-        if table is None:
-            raise SystemExit("goal391_owner_classification_envelope_invalid")
-        envelopes[table_node_id] = _owner_classification_envelope(
-            table.get("source_context_evidence")
-        )
-    return envelopes
+    return OrdinaryTradeSemanticMappingFactory.create().build_classification_evidence_envelopes(
+        canonical=canonical,
+        target_table_node_ids=required_ids,
+    )
 
 
 async def _run_case(

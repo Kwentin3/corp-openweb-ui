@@ -335,6 +335,57 @@ def test_private_context_audit_proves_window_omission_without_model_leakage() ->
     assert "source_context_evidence" not in model_table
 
 
+def test_owner_classification_envelopes_bind_exact_scope_without_widening_model_package(
+    tmp_path,
+) -> None:
+    _context, canonical, _binding, table, _known = _canonical_case(tmp_path)
+    table["content"]["title"] = "Reference material private literal"
+    owner = OrdinaryTradeSemanticMappingFactory.create()
+
+    envelopes = owner.build_classification_evidence_envelopes(
+        canonical=canonical,
+        target_table_node_ids=[table["node_id"]],
+    )
+
+    assert list(envelopes) == [table["node_id"]]
+    assert envelopes[table["node_id"]]
+    assert all(
+        set(entry)
+        == {"context_ref", "relation", "canonical_node_id", "literal_sha256"}
+        for entry in envelopes[table["node_id"]]
+    )
+    assert "Reference material private literal" not in str(envelopes)
+    model_package = owner.build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+        target_table_node_ids=[table["node_id"]],
+    )
+    model_table = model_package["case"]["tables"][0]
+    assert "table_node_id" not in model_table
+    assert "source_context_evidence" not in model_table
+
+
+@pytest.mark.parametrize(
+    ("target_table_node_ids", "code"),
+    [
+        ([], "ordinary_trade_mapping_batch_plan_invalid"),
+        (["foreign-table"], "ordinary_trade_semantic_mapping_target_scope_stale"),
+    ],
+)
+def test_owner_classification_envelopes_reject_missing_or_foreign_scope(
+    tmp_path, target_table_node_ids, code
+) -> None:
+    _context, canonical, _binding, _table, _known = _canonical_case(tmp_path)
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        OrdinaryTradeSemanticMappingFactory.create().build_classification_evidence_envelopes(
+            canonical=canonical,
+            target_table_node_ids=target_table_node_ids,
+        )
+
+    assert exc.value.code == code
+
+
 def test_private_context_audit_proves_literal_truncation_without_full_literal() -> None:
     full_literal = "x" * 513
     canonical = {
