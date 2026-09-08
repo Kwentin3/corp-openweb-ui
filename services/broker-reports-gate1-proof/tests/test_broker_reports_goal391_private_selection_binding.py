@@ -34,6 +34,7 @@ from broker_reports_gate1.goal391_private_selection_binding import (
     Goal391PrivateSelectionBindingError,
     Goal391PrivateSelectionBindingIssuer,
     Goal391PrivateSelectionRequest,
+    Goal391PrivateSourceFileSelectionRequest,
 )
 
 
@@ -140,6 +141,78 @@ def test_real_owners_issue_two_distinct_active_canonicals() -> None:
             first.artifact_ref,
             second.artifact_ref,
         ]
+
+
+def test_real_owners_issue_exact_source_file_canonical_without_active_pointer() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        store = ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=root / "artifacts.sqlite3",
+                payload_root=root / "payloads",
+            )
+        ).create()
+        source_context = _real_context(user_id="user-1", run_id="original-run")
+        published = _publish_active(store, context=source_context, activate=False)
+        issuer = Goal391PrivateSelectionBindingIssuer(
+            store=store,
+            reader=CanonicalReaderFactory(store=store, read_enabled=True).create(),
+            resolver=ArtifactResolver(store),
+        )
+
+        selection = issuer.issue_from_source_files(
+            corpus_id="goal391-source-review",
+            requests=(
+                Goal391PrivateSourceFileSelectionRequest(
+                    slot_id="instructional-control",
+                    openwebui_file_id="file-document-1",
+                    context=_real_context(user_id="user-1", run_id="caller-placeholder"),
+                ),
+            ),
+        )
+
+        item = selection.selections[0]
+        assert item.manifest_ref == published.artifact_ref
+        assert item.normalization_run_id == "original-run"
+
+
+def test_source_file_selection_refuses_missing_exact_canonical() -> None:
+    store, reader, resolver = _SourceFileStore(), _Reader(), _SourceFileResolver()
+    with pytest.raises(Goal391PrivateSelectionBindingError) as rejected:
+        Goal391PrivateSelectionBindingIssuer(
+            store=store, reader=reader, resolver=resolver
+        ).issue_from_source_files(
+            corpus_id="goal391-source-review",
+            requests=(_source_file_request(),),
+        )
+    assert rejected.value.code == "goal391_selection_binding_exact_canonical_missing"
+    assert reader.calls == []
+
+
+def test_source_file_selection_refuses_canonical_source_substitution() -> None:
+    store = _SourceFileStore(
+        versions=(
+            SimpleNamespace(
+                normalization_run_id="run-1",
+                source_artifact_ref="source-1",
+                source_sha256="a" * 64,
+                manifest_ref="manifest-1",
+                canonical_version_id="version-1",
+                canonical_root_sha256="root-1",
+            ),
+        )
+    )
+    reader, resolver = _Reader(source_ref="source-other"), _SourceFileResolver()
+    with pytest.raises(Goal391PrivateSelectionBindingError) as rejected:
+        Goal391PrivateSelectionBindingIssuer(
+            store=store, reader=reader, resolver=resolver
+        ).issue_from_source_files(
+            corpus_id="goal391-source-review",
+            requests=(_source_file_request(),),
+        )
+    assert rejected.value.code == "goal391_selection_binding_canonical_invalid"
+    assert reader.calls == [("exact", "manifest-1", "run-1", True)]
 
 
 def test_real_source_lifecycle_refuses_deleted_source_before_selection() -> None:
@@ -331,9 +404,14 @@ class _Store:
             manifest_ref="manifest-1",
         )
 
+    def list_canonical_versions(self, *, context, document_id):
+        self.calls.append(("history", document_id, context.require_source_available))
+        return []
+
 
 class _Reader:
-    def __init__(self) -> None:
+    def __init__(self, *, source_ref="source-1") -> None:
+        self.source_ref = source_ref
         self.calls: list[tuple[str, ...]] = []
 
     def read_envelope(self, manifest_ref, context, *, expected_normalization_run_id):
@@ -351,7 +429,7 @@ class _Reader:
             canonical_root_sha256="root-1",
             artifact={
                 "source": {
-                    "source_artifact_ref": "source-1",
+                    "source_artifact_ref": self.source_ref,
                     "source_sha256": "a" * 64,
                 }
             },
@@ -377,6 +455,53 @@ class _Resolver:
             },
         )
 
+    def resolve_authenticated_source_file_binding(self, *, context, openwebui_file_id):
+        return SimpleNamespace(
+            document_id="document-1",
+            normalization_run_id="run-1",
+            source_artifact_id="source-1",
+            file_hash_sha256="a" * 64,
+        )
+
+
+class _SourceFileStore:
+    def __init__(self, *, versions=()):
+        self.versions = versions
+
+    def get_active_canonical_version(self, *, context, document_id):
+        raise AssertionError("source-file selection must not use active pointer")
+
+    def list_canonical_versions(self, *, context, document_id):
+        assert context.normalization_run_id == "run-1"
+        assert document_id == "document-1"
+        return list(self.versions)
+
+
+class _SourceFileResolver:
+    def __init__(self, *, source_ref="source-1"):
+        self.source_ref = source_ref
+
+    def resolve_record(self, artifact_id, context):
+        raise AssertionError("source-file selection resolves binding before Canonical history")
+
+    def resolve_authenticated_source_file_binding(self, *, context, openwebui_file_id):
+        assert context.require_source_available is True
+        assert openwebui_file_id == "file-1"
+        return SimpleNamespace(
+            document_id="document-1",
+            normalization_run_id="run-1",
+            source_artifact_id=self.source_ref,
+            file_hash_sha256="a" * 64,
+        )
+
+
+def _source_file_request() -> Goal391PrivateSourceFileSelectionRequest:
+    return Goal391PrivateSourceFileSelectionRequest(
+        slot_id="instructional-control",
+        openwebui_file_id="file-1",
+        context=_real_context(user_id="user-1", run_id="caller-placeholder"),
+    )
+
 
 def _real_context(*, user_id: str, run_id: str = "run-1") -> ArtifactAccessContext:
     return ArtifactAccessContext(
@@ -395,6 +520,7 @@ def _publish_active(
     context: ArtifactAccessContext,
     source_deleted: bool = False,
     document_id: str = "document-1",
+    activate: bool = True,
 ):
     source_bytes = f"goal391 source {document_id}".encode("utf-8")
     source_sha256 = hashlib.sha256(source_bytes).hexdigest()
@@ -462,11 +588,12 @@ def _publish_active(
         retention_policy=retention,
         compare_receipt=None,
     )
-    store.activate_canonical_version(
-        context=context,
-        canonical_version_id=candidate.canonical_version_id,
-        expected_previous_version_id=None,
-        actor="test",
-        reason="goal391 selection binding test",
-    )
+    if activate:
+        store.activate_canonical_version(
+            context=context,
+            canonical_version_id=candidate.canonical_version_id,
+            expected_previous_version_id=None,
+            actor="test",
+            reason="goal391 selection binding test",
+        )
     return candidate

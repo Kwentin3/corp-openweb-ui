@@ -28,6 +28,7 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_mapping_answer_response_v1"
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
+MAPPING_BATCH_PLAN_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_batch_plan_v1"
 MAPPING_PROMPT_VERSION = "ordinary_trade_semantic_mapping_prompt_v22"
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
@@ -383,6 +384,240 @@ class OrdinaryTradeSemanticMapping:
         if len(_canonical_json(package).encode("utf-8")) > _MAX_CONTEXT_BYTES:
             _fail("ordinary_trade_semantic_mapping_context_limit")
         return package
+
+    def build_mapping_batch_plan(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        confirmed_understandings: list[dict[str, Any]],
+        target_table_node_ids: Iterable[str],
+    ) -> dict[str, Any]:
+        """Split one explicit table scope into deterministic bounded packages.
+
+        This is a transport plan only.  It neither classifies tables nor changes
+        their meaning: every emitted batch is an unchanged call to this owner's
+        existing ``build_mapping_package``.  The canonical node order owns the
+        order, so caller ordering cannot alter a model-visible package.
+        """
+
+        target_ids = _ordered_target_table_node_ids(
+            canonical=canonical,
+            target_table_node_ids=target_table_node_ids,
+        )
+        batches: list[dict[str, Any]] = []
+        pending: list[str] = []
+        for table_node_id in target_ids:
+            candidate = [*pending, table_node_id]
+            try:
+                package = self.build_mapping_package(
+                    canonical=canonical,
+                    confirmed_understandings=confirmed_understandings,
+                    target_table_node_ids=candidate,
+                )
+            except OrdinaryTradeSemanticMappingError as exc:
+                if exc.code != "ordinary_trade_semantic_mapping_context_limit":
+                    raise
+                package = None
+            if package is not None:
+                pending = candidate
+                continue
+            if not pending:
+                # A singleton that cannot fit has no safe smaller transport.
+                _fail("ordinary_trade_semantic_mapping_context_limit")
+            finalized = self.build_mapping_package(
+                canonical=canonical,
+                confirmed_understandings=confirmed_understandings,
+                target_table_node_ids=pending,
+            )
+            batches.append(
+                {
+                    "batch_id": f"batch_{len(batches) + 1:04d}",
+                    "target_table_node_ids": list(pending),
+                    "mapping_package_sha256": _sha256_json(finalized),
+                }
+            )
+            self.build_mapping_package(
+                canonical=canonical,
+                confirmed_understandings=confirmed_understandings,
+                target_table_node_ids=[table_node_id],
+            )
+            pending = [table_node_id]
+        if not pending:
+            _fail("ordinary_trade_mapping_batch_plan_invalid")
+        finalized = self.build_mapping_package(
+            canonical=canonical,
+            confirmed_understandings=confirmed_understandings,
+            target_table_node_ids=pending,
+        )
+        batches.append(
+            {
+                "batch_id": f"batch_{len(batches) + 1:04d}",
+                "target_table_node_ids": list(pending),
+                "mapping_package_sha256": _sha256_json(finalized),
+            }
+        )
+        plan = {
+            "schema_version": MAPPING_BATCH_PLAN_SCHEMA_VERSION,
+            "target_table_node_ids": target_ids,
+            "batches": batches,
+        }
+        _validate_mapping_batch_plan(
+            plan=plan,
+            canonical=canonical,
+            confirmed_understandings=confirmed_understandings,
+        )
+        return plan
+
+    def aggregate_mapping_batch_outcomes(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        user_scope_sha256: str,
+        confirmed_understandings: list[dict[str, Any]],
+        batch_plan: Mapping[str, Any],
+        batch_outcomes: Iterable[Mapping[str, Any]],
+        frozen_mappings: Iterable[Mapping[str, Any]] = (),
+    ) -> dict[str, Any]:
+        """Validate a complete batch set, then replay the existing compiler once.
+
+        The method intentionally merges only already-qualified table material.
+        It does not choose a disposition, repair an outcome, deduplicate a
+        mapping, or make a second semantic decision.
+        """
+
+        plan = _validate_mapping_batch_plan(
+            plan=batch_plan,
+            canonical=canonical,
+            confirmed_understandings=confirmed_understandings,
+        )
+        submitted = list(batch_outcomes)
+        expected_batches = plan["batches"]
+        if len(submitted) != len(expected_batches):
+            _fail("ordinary_trade_mapping_batch_outcome_coverage_invalid")
+        outcomes_by_id: dict[str, Mapping[str, Any]] = {}
+        for item in submitted:
+            if (
+                not isinstance(item, Mapping)
+                or set(item) != {"batch_id", "outcome"}
+                or not isinstance(item.get("batch_id"), str)
+                or not isinstance(item.get("outcome"), Mapping)
+                or item["batch_id"] in outcomes_by_id
+            ):
+                _fail("ordinary_trade_mapping_batch_outcome_invalid")
+            outcomes_by_id[item["batch_id"]] = item["outcome"]
+        if set(outcomes_by_id) != {item["batch_id"] for item in expected_batches}:
+            _fail("ordinary_trade_mapping_batch_outcome_coverage_invalid")
+
+        all_mappings: list[dict[str, Any]] = []
+        all_receipts: list[dict[str, Any]] = []
+        all_resolutions: list[dict[str, Any]] = []
+        authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
+        for batch in expected_batches:
+            expected_ids = batch["target_table_node_ids"]
+            outcome = outcomes_by_id[batch["batch_id"]]
+            if outcome.get("status") != "COMPLETE":
+                _fail("ordinary_trade_mapping_batch_not_complete")
+            mappings = outcome.get("qualified_mappings")
+            receipts = outcome.get("qualification_receipts")
+            resolutions = outcome.get("table_resolutions")
+            if not all(isinstance(value, list) for value in (mappings, receipts, resolutions)):
+                _fail("ordinary_trade_mapping_batch_outcome_invalid")
+            resolution_ids = [
+                item.get("table_node_id") if isinstance(item, Mapping) else None
+                for item in resolutions
+            ]
+            if resolution_ids != expected_ids:
+                _fail("ordinary_trade_mapping_batch_outcome_coverage_invalid")
+            if len(mappings) != len(receipts):
+                _fail("ordinary_trade_mapping_batch_outcome_invalid")
+            receipts_by_id = {
+                item.get("qualification_id"): item
+                for item in receipts
+                if isinstance(item, Mapping) and item.get("qualification_id")
+            }
+            if len(receipts_by_id) != len(receipts):
+                _fail("ordinary_trade_mapping_batch_outcome_invalid")
+            for mapping in mappings:
+                if not isinstance(mapping, Mapping):
+                    _fail("ordinary_trade_mapping_batch_outcome_invalid")
+                receipt = receipts_by_id.get(
+                    (mapping.get("qualification_ref") or {}).get("qualification_id")
+                )
+                table_node_id = (
+                    (receipt.get("case_scope") or {}).get("table_node_id")
+                    if isinstance(receipt, Mapping)
+                    else None
+                )
+                if table_node_id not in expected_ids:
+                    _fail("ordinary_trade_mapping_batch_outcome_coverage_invalid")
+                expected_scope = {
+                    **{
+                        key: str(canonical_binding.get(key) or "")
+                        for key in (
+                            "document_id",
+                            "canonical_version_id",
+                            "canonical_root_sha256",
+                            "source_artifact_ref",
+                            "source_sha256",
+                        )
+                    },
+                    "user_scope_sha256": user_scope_sha256,
+                    "table_node_id": table_node_id,
+                }
+                if not all(expected_scope.values()):
+                    _fail("ordinary_trade_semantic_mapping_canonical_binding_invalid")
+                authority.validate_case_mapping(
+                    mapping=mapping,
+                    receipt=receipt,
+                    expected_case_scope=expected_scope,
+                )
+            all_mappings.extend(copy.deepcopy(mappings))
+            all_receipts.extend(copy.deepcopy(receipts))
+            all_resolutions.extend(copy.deepcopy(resolutions))
+
+        resolution_ids = [item["table_node_id"] for item in all_resolutions]
+        if resolution_ids != plan["target_table_node_ids"]:
+            _fail("ordinary_trade_mapping_batch_outcome_coverage_invalid")
+        compiler_resolutions = [
+            item
+            for item in all_resolutions
+            if item.get("disposition") != "SECURITY_TRADES_INCOMPLETE"
+        ]
+        projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            mappings=frozen_mappings,
+            scoped_mappings=[
+                {
+                    "table_node_id": receipt["case_scope"]["table_node_id"],
+                    "mapping": mapping,
+                }
+                for mapping, receipt in zip(all_mappings, all_receipts, strict=True)
+            ],
+            table_resolutions=compiler_resolutions,
+        )
+        incomplete_ids = {
+            item["table_node_id"]
+            for item in all_resolutions
+            if item.get("disposition") == "SECURITY_TRADES_INCOMPLETE"
+        }
+        target_ids = set(plan["target_table_node_ids"])
+        if any(
+            item.get("disposition") == "RELEVANT_UNMAPPED"
+            and item.get("table_node_id") in target_ids
+            and item.get("table_node_id") not in incomplete_ids
+            for item in projection["source_observations"]
+        ):
+            _fail("ordinary_trade_mapping_batch_compiler_coverage_invalid")
+        return {
+            "status": "COMPLETE",
+            "batch_plan_sha256": _sha256_json(plan),
+            "qualified_mappings": all_mappings,
+            "qualification_receipts": all_receipts,
+            "table_resolutions": all_resolutions,
+            "projection": projection,
+        }
 
     def build_answer_package(
         self,
@@ -808,6 +1043,95 @@ def _managed_prompt(
         tags=("broker-reports", "ordinary-trade", "source-semantic"),
         safe_metadata={"runtime_active": True, "broker_specific": False},
     )
+
+
+def _ordered_target_table_node_ids(
+    *, canonical: Mapping[str, Any], target_table_node_ids: Iterable[str]
+) -> list[str]:
+    requested = list(target_table_node_ids)
+    if (
+        not requested
+        or len(requested) != len(set(requested))
+        or any(not isinstance(item, str) or not item for item in requested)
+    ):
+        _fail("ordinary_trade_mapping_batch_plan_invalid")
+    requested_ids = set(requested)
+    ordered: list[str] = []
+    seen: set[str] = set()
+    nodes = canonical.get("nodes") if isinstance(canonical, Mapping) else None
+    if not isinstance(nodes, list):
+        _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+    for node in sorted(
+        (item for item in nodes if isinstance(item, Mapping)),
+        key=lambda item: (str(item.get("container_ref") or ""), int(item.get("order") or 0)),
+    ):
+        if node.get("node_type") != "TABLE":
+            continue
+        node_id = node.get("node_id")
+        if not isinstance(node_id, str) or not node_id:
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        if node_id in seen:
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
+        seen.add(node_id)
+        if node_id in requested_ids:
+            ordered.append(node_id)
+    if set(ordered) != requested_ids:
+        _fail("ordinary_trade_semantic_mapping_target_scope_stale")
+    return ordered
+
+
+def _validate_mapping_batch_plan(
+    *,
+    plan: Mapping[str, Any],
+    canonical: Mapping[str, Any],
+    confirmed_understandings: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if (
+        not isinstance(plan, Mapping)
+        or set(plan) != {"schema_version", "target_table_node_ids", "batches"}
+        or plan.get("schema_version") != MAPPING_BATCH_PLAN_SCHEMA_VERSION
+        or not isinstance(plan.get("target_table_node_ids"), list)
+        or not isinstance(plan.get("batches"), list)
+    ):
+        _fail("ordinary_trade_mapping_batch_plan_invalid")
+    target_ids = _ordered_target_table_node_ids(
+        canonical=canonical,
+        target_table_node_ids=plan["target_table_node_ids"],
+    )
+    if target_ids != plan["target_table_node_ids"] or not plan["batches"]:
+        _fail("ordinary_trade_mapping_batch_plan_coverage_invalid")
+    seen: list[str] = []
+    for index, batch in enumerate(plan["batches"], start=1):
+        expected_batch_id = f"batch_{index:04d}"
+        if (
+            not isinstance(batch, Mapping)
+            or set(batch)
+            != {"batch_id", "target_table_node_ids", "mapping_package_sha256"}
+            or batch.get("batch_id") != expected_batch_id
+            or not isinstance(batch.get("target_table_node_ids"), list)
+            or not isinstance(batch.get("mapping_package_sha256"), str)
+        ):
+            _fail("ordinary_trade_mapping_batch_plan_invalid")
+        ids = batch["target_table_node_ids"]
+        if not ids or any(item not in target_ids for item in ids):
+            _fail("ordinary_trade_mapping_batch_plan_coverage_invalid")
+        seen.extend(ids)
+    if seen != target_ids or len(seen) != len(set(seen)):
+        _fail("ordinary_trade_mapping_batch_plan_coverage_invalid")
+    semantic = OrdinaryTradeSemanticMappingFactory.create()
+    for batch in plan["batches"]:
+        package = semantic.build_mapping_package(
+            canonical=canonical,
+            confirmed_understandings=confirmed_understandings,
+            target_table_node_ids=batch["target_table_node_ids"],
+        )
+        if batch["mapping_package_sha256"] != _sha256_json(package):
+            _fail("ordinary_trade_mapping_batch_plan_integrity_invalid")
+    return {
+        "schema_version": MAPPING_BATCH_PLAN_SCHEMA_VERSION,
+        "target_table_node_ids": list(target_ids),
+        "batches": [copy.deepcopy(dict(item)) for item in plan["batches"]],
+    }
 
 
 def _table_surfaces(
@@ -2399,6 +2723,7 @@ __all__ = [
     "ANSWER_RESPONSE_SCHEMA_VERSION",
     "FACTORY_REQUIRED",
     "FORBIDDEN",
+    "MAPPING_BATCH_PLAN_SCHEMA_VERSION",
     "MAPPING_CASE_SCHEMA_VERSION",
     "MAPPING_RESPONSE_SCHEMA_VERSION",
     "OrdinaryTradeSemanticMapping",
