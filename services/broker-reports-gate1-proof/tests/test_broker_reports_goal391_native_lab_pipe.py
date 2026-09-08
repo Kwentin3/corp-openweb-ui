@@ -67,11 +67,9 @@ def _slot(index: int, *, source_case_id: str = "historical-source-case") -> dict
             "workspace_model_id": "historical-source-model",
         },
         "source_openwebui_file_id": f"source-file-{index}",
-        "canonical_binding": {
+        "canonical_identity": {
             "document_id": document_id,
-            "canonical_version_id": f"canonical-{index}",
             "canonical_root_sha256": f"root-{index}",
-            "source_artifact_ref": f"source-{index}",
             "source_sha256": f"source-sha-{index}",
         },
         "target_table_node_ids": [f"table-{index}"],
@@ -96,15 +94,15 @@ def _plan(module, *, slots=None) -> str:
 
 
 def _envelope(slot: dict):
-    binding = slot["canonical_binding"]
+    identity = slot["canonical_identity"]
     return SimpleNamespace(
-        document_id=binding["document_id"],
-        canonical_version_id=binding["canonical_version_id"],
-        canonical_root_sha256=binding["canonical_root_sha256"],
+        document_id=identity["document_id"],
+        canonical_version_id="canonical-" + identity["document_id"],
+        canonical_root_sha256=identity["canonical_root_sha256"],
         artifact={
             "source": {
-                "source_artifact_ref": binding["source_artifact_ref"],
-                "source_sha256": binding["source_sha256"],
+                "source_artifact_ref": "source-" + identity["document_id"],
+                "source_sha256": identity["source_sha256"],
             },
             "opaque": "not a test Canonical",
         },
@@ -114,7 +112,7 @@ def _envelope(slot: dict):
 def _install_read_owners(monkeypatch, module, slots):
     calls = {"factory": [], "reader": [], "selection": []}
     envelopes = {
-        slot["canonical_binding"]["document_id"]: _envelope(slot)
+        slot["canonical_identity"]["document_id"]: _envelope(slot)
         for slot in slots
     }
 
@@ -133,7 +131,7 @@ def _install_read_owners(monkeypatch, module, slots):
         def read_envelope(self, manifest_ref, context, *, expected_normalization_run_id):
             slot_id = str(manifest_ref).removeprefix("manifest-")
             document_id = next(
-                slot["canonical_binding"]["document_id"]
+                slot["canonical_identity"]["document_id"]
                 for slot in slots
                 if slot["slot_id"] == slot_id
             )

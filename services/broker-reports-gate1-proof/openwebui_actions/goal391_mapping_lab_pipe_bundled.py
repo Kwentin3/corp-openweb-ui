@@ -307,6 +307,11 @@ _CANONICAL_BINDING_FIELDS = (
     "source_artifact_ref",
     "source_sha256",
 )
+_CANONICAL_IDENTITY_FIELDS = (
+    "document_id",
+    "canonical_root_sha256",
+    "source_sha256",
+)
 _FORBIDDEN_CHAT_KEYS = frozenset({"chat_id", "parent_id", "message_id"})
 _FORBIDDEN_LAB_BODY_KEYS = frozenset(
     {
@@ -382,7 +387,7 @@ class Goal391ServerBoundCaseLoader:
                 expected_normalization_run_id=selected.normalization_run_id,
             )
             binding = self._binding_from_envelope(envelope)
-            if binding != slot["canonical_binding"]:
+            if self._canonical_identity(binding) != slot["canonical_identity"]:
                 raise Goal391MappingLabPipeError(
                     "goal391_lab_canonical_binding_mismatch"
                 )
@@ -449,7 +454,7 @@ class Goal391ServerBoundCaseLoader:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_user_mismatch")
         slots = [self._validated_slot(slot=slot, plan=plan) for slot in plan["slots"]]
         if len({slot["slot_id"] for slot in slots}) != _EXACT_CASES_REQUIRED_TOTAL or len(
-            {slot["canonical_binding"]["document_id"] for slot in slots}
+            {slot["canonical_identity"]["document_id"] for slot in slots}
         ) != _EXACT_CASES_REQUIRED_TOTAL:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_duplicate_scope")
         return {**plan, "slots": slots}
@@ -460,7 +465,7 @@ class Goal391ServerBoundCaseLoader:
             "slot_id",
             "historical_source_scope",
             "source_openwebui_file_id",
-            "canonical_binding",
+            "canonical_identity",
             "target_table_node_ids",
             "confirmed_understandings",
             "frozen_mappings",
@@ -475,11 +480,14 @@ class Goal391ServerBoundCaseLoader:
             "workspace_model_id",
         }:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
-        binding = slot["canonical_binding"]
+        identity = slot["canonical_identity"]
         if (
-            not isinstance(binding, Mapping)
-            or set(binding) != set(_CANONICAL_BINDING_FIELDS)
-            or any(not isinstance(binding.get(key), str) or not binding[key] for key in _CANONICAL_BINDING_FIELDS)
+            not isinstance(identity, Mapping)
+            or set(identity) != set(_CANONICAL_IDENTITY_FIELDS)
+            or any(
+                not isinstance(identity.get(key), str) or not identity[key]
+                for key in _CANONICAL_IDENTITY_FIELDS
+            )
             or (scope.get("case_id") is None) == (scope.get("chat_id") is None)
             or any(
                 not isinstance(scope.get(key), str) or not scope[key]
@@ -554,6 +562,13 @@ class Goal391ServerBoundCaseLoader:
         if not all(binding.values()):
             raise Goal391MappingLabPipeError("goal391_lab_canonical_binding_invalid")
         return binding
+
+    @staticmethod
+    def _canonical_identity(binding: Mapping[str, str]) -> dict[str, str]:
+        identity = {key: str(binding.get(key) or "") for key in _CANONICAL_IDENTITY_FIELDS}
+        if not all(identity.values()):
+            raise Goal391MappingLabPipeError("goal391_lab_canonical_binding_invalid")
+        return identity
 
     @staticmethod
     def _sha256(value: Any) -> str:
