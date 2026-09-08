@@ -1869,6 +1869,29 @@ def test_native_workspace_model_context_survives_missing_turn_metadata() -> None
     ) == NDFL_WORKSPACE_MODEL_STABLE_ID
 
 
+def test_resume_detects_new_file_from_native_chat_scope_growth() -> None:
+    pipe = Pipe()
+    historical = {"id": "already-bound-source", "filename": "first.pdf"}
+
+    assert pipe._has_additional_file_inputs(
+        body={"files": [historical]},
+        metadata={},
+        files_arg=None,
+        canonical_artifact_refs=["canonical-first"],
+    ) is False
+    assert pipe._has_additional_file_inputs(
+        body={
+            "files": [
+                historical,
+                {"id": "new-source", "filename": "second.pdf"},
+            ]
+        },
+        metadata={},
+        files_arg=None,
+        canonical_artifact_refs=["canonical-first"],
+    ) is True
+
+
 def test_chat_transport_runs_bind_to_one_current_source_execution(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

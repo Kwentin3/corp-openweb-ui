@@ -992,7 +992,6 @@ class Pipe:
                 metadata, kwargs.get("__model__")
             ) != NDFL_WORKSPACE_MODEL_STABLE_ID
             or not interaction_message
-            or self._current_turn_has_files(body)
         ):
             return None
         context = self._artifact_context(
@@ -1021,14 +1020,21 @@ class Pipe:
             context=context,
         )
         if not canonical_artifact_refs:
-            # A later text turn must not fall through to Gate 1 merely because
-            # this authenticated case has no active Canonical package.  The
-            # current-case owner is the only source of these refs; no browser
-            # file id, chat scan, or source reread is permitted here.
-            return (
-                "В этом чате нет актуального набора данных для подготовки "
-                "декларации. Повторная обработка файла не запускалась."
-            )
+            # A newly created chat has no current Canonical yet.  Let the
+            # existing intake owner bind the uploaded file; a continuation
+            # can only resume after that owner has created the active scope.
+            return None
+        if self._has_additional_file_inputs(
+            body=body,
+            metadata=metadata,
+            files_arg=kwargs.get("__files__"),
+            canonical_artifact_refs=canonical_artifact_refs,
+        ):
+            # OpenWebUI 0.9.6 keeps every chat attachment in top-level files
+            # and does not mark the current user message. A scope increase is
+            # the native signal for a new source, so do not ignore it during
+            # a declaration continuation.
+            return None
         result = await self._maybe_run_ndfl_gate3(
             store=store,
             context=context,
@@ -1156,6 +1162,23 @@ class Pipe:
             and isinstance(latest_user.get("files"), list)
             and latest_user["files"]
         )
+
+    def _has_additional_file_inputs(
+        self,
+        *,
+        body: dict[str, Any],
+        metadata: dict[str, Any],
+        files_arg: Any,
+        canonical_artifact_refs: list[str],
+    ) -> bool:
+        """Whether native chat scope has grown beyond its active Canonical set."""
+
+        attached = self._collect_file_refs(
+            body,
+            metadata,
+            files_arg,
+        )
+        return len(attached) > len(canonical_artifact_refs)
 
     async def _adapt_ndfl_public_answer(
         self,
