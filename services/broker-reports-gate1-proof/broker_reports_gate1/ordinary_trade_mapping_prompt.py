@@ -66,6 +66,11 @@ class OrdinaryTradeMappingPromptConfig:
     required_output_schema_version: str = OUTPUT_SCHEMA_VERSION
     required_tag: str = PROMPT_REQUIRED_TAG
     required_placeholder: str = PROMPT_PLACEHOLDER
+    # These two values are release configuration, not Workspace metadata.
+    # A syntactically valid Prompt revision is not implicitly approved for the
+    # product route merely because it retains the same command and contract.
+    release_prompt_version: str | None = None
+    release_prompt_hash: str | None = None
 
 
 @dataclass(frozen=True)
@@ -122,6 +127,10 @@ class OrdinaryTradeMappingPromptResolverFactory:
                     "ordinary_trade_mapping_prompt_unavailable",
                     "OpenWebUI prompt database path is not configured",
                 )
+            _validate_release_pin(
+                version=self.config.release_prompt_version,
+                prompt_hash=self.config.release_prompt_hash,
+            )
             return OpenWebUISqliteOrdinaryTradeMappingPromptResolver(self.config)
         if self.config.source == "disabled":
             return DisabledOrdinaryTradeMappingPromptResolver()
@@ -186,7 +195,9 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
                 )
             snapshot = self._version_snapshot(conn, row)
             self._require_current_row_matches_version(row, snapshot)
-            return self._row_to_prompt(row)
+            prompt = self._row_to_prompt(row)
+            self._require_release_pin(prompt)
+            return prompt
         finally:
             conn.close()
 
@@ -340,6 +351,16 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
             },
         )
 
+    def _require_release_pin(self, prompt: OrdinaryTradeMappingManagedPrompt) -> None:
+        if (
+            prompt.version != self.config.release_prompt_version
+            or prompt.hash != self.config.release_prompt_hash
+        ):
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_release_pin_mismatch",
+                "Ordinary-trade mapping Workspace Prompt differs from the release pin",
+            )
+
     def _has_read_access(
         self,
         row: sqlite3.Row,
@@ -450,6 +471,20 @@ def validate_ordinary_trade_mapping_prompt_snapshot(value: Any) -> dict[str, Any
             "Ordinary-trade mapping prompt snapshot contract is invalid",
         )
     return copy.deepcopy(value)
+
+
+def _validate_release_pin(*, version: str | None, prompt_hash: str | None) -> None:
+    normalized_version = str(version or "").strip()
+    normalized_hash = str(prompt_hash or "").strip()
+    if (
+        not normalized_version
+        or len(normalized_version) > 200
+        or _SHA256.fullmatch(normalized_hash) is None
+    ):
+        raise OrdinaryTradeMappingPromptError(
+            "ordinary_trade_mapping_prompt_release_pin_invalid",
+            "Ordinary-trade mapping release Prompt version and hash are required",
+        )
 
 
 def _json_dict(value: Any) -> dict[str, Any]:

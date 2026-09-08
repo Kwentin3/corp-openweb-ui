@@ -261,6 +261,19 @@ class Pipe:
         ordinary_trade_mapping_prompt_command: str = Field(
             default=ORDINARY_TRADE_MAPPING_PROMPT_COMMAND
         )
+        ordinary_trade_mapping_prompt_version: str = Field(
+            default="release-pin-required",
+            description=(
+                "Release-pinned OpenWebUI Prompt history version. The mapping "
+                "route is disabled until this and the exact content hash are set."
+            ),
+        )
+        ordinary_trade_mapping_prompt_hash: str = Field(
+            default="0000000000000000000000000000000000000000000000000000000000000000",
+            description=(
+                "Release-pinned SHA-256 identity of the managed mapping Prompt."
+            ),
+        )
         ndfl_gate3_provider_profile_id: str = Field(default=NDFL_PROVIDER_PROFILE_ID)
         ndfl_gate3_model_id: str = Field(default=NDFL_PROVIDER_MODEL_ID)
         ndfl_gate3_private_audit_enabled: bool = Field(default=False)
@@ -3260,7 +3273,16 @@ class Pipe:
         command = str(
             self.valves.ordinary_trade_mapping_prompt_command or ""
         ).strip()
-        if not db_path or (not prompt_id and not command):
+        release_version = str(
+            self.valves.ordinary_trade_mapping_prompt_version or ""
+        ).strip()
+        release_hash = str(
+            self.valves.ordinary_trade_mapping_prompt_hash or ""
+        ).strip()
+        if (
+            not db_path
+            or (not prompt_id and not command)
+        ):
             raise NdflWorkflowError(
                 "ordinary_trade_mapping_prompt_configuration_invalid"
             )
@@ -3272,6 +3294,8 @@ class Pipe:
                 db_path=Path(db_path),
                 prompt_id=prompt_id or None,
                 command=command or None,
+                release_prompt_version=release_version,
+                release_prompt_hash=release_hash,
             )
         ).create()
 

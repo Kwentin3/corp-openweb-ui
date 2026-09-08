@@ -96,6 +96,34 @@ def test_workspace_resolver_rejects_foreign_or_drifted_active_history(tmp_path):
     assert drift.value.code == "ordinary_trade_mapping_prompt_version_drift"
 
 
+def test_workspace_resolver_rejects_clean_active_version_not_pinned_for_release(tmp_path):
+    db_path = tmp_path / "webui.db"
+    _create_db(db_path)
+    approved_content = "Map {{ordinary_trade_mapping_case_json}}."
+    replacement_content = "Classify {{ordinary_trade_mapping_case_json}} strictly."
+    _insert_prompt(db_path, content=approved_content, grants=[])
+    resolver = _resolver(db_path)
+
+    # Simulate a legitimate Workspace edit: current row and active history are
+    # internally consistent, and all command/metadata contract fields remain
+    # valid. It still requires a new release approval.
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE prompt SET content = ?, version_id = ? WHERE id = ?",
+            (replacement_content, "history-2", "mapping-prompt"),
+        )
+        conn.execute("DELETE FROM prompt_history")
+        conn.execute(
+            "INSERT INTO prompt_history(id, prompt_id, snapshot) VALUES (?, ?, ?)",
+            ("history-2", "mapping-prompt", json.dumps(_snapshot(replacement_content))),
+        )
+        conn.commit()
+
+    with pytest.raises(OrdinaryTradeMappingPromptError) as changed:
+        resolver.resolve(_user("owner"))
+    assert changed.value.code == "ordinary_trade_mapping_prompt_release_pin_mismatch"
+
+
 def test_workspace_resolver_fails_closed_for_inactive_or_wrong_contract(tmp_path):
     db_path = tmp_path / "webui.db"
     _create_db(db_path)
@@ -163,8 +191,18 @@ def test_snapshot_validator_rejects_foreign_contract_and_body_leak():
 
 
 def _resolver(db_path):
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT content, version_id FROM prompt WHERE id = ?", ("mapping-prompt",)
+        ).fetchone()
+    assert row is not None
     return OrdinaryTradeMappingPromptResolverFactory(
-        OrdinaryTradeMappingPromptConfig(db_path=db_path, prompt_id="mapping-prompt")
+        OrdinaryTradeMappingPromptConfig(
+            db_path=db_path,
+            prompt_id="mapping-prompt",
+            release_prompt_version=row[1],
+            release_prompt_hash=ordinary_trade_mapping_prompt_hash(row[0]),
+        )
     ).create()
 
 

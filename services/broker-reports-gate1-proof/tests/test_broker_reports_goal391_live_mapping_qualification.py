@@ -4,6 +4,7 @@ import asyncio
 import copy
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -305,3 +306,88 @@ def test_lab_passes_the_resolved_managed_prompt_to_its_single_call() -> None:
         )
 
     assert captured["prompt"] is managed_prompt
+
+
+def test_lab_preflight_uses_the_frozen_manifest_case_count(tmp_path) -> None:
+    """A supplied frozen two-case scope is valid without any provider call."""
+
+    runner = _lab_runner_module()
+    corpus_root = tmp_path / "corpus"
+    corpus_root.mkdir()
+    corpus = build_frozen_role_mapping_corpus()[:2]
+    candidate = {"candidate": "frozen-candidate"}
+    expectations = {
+        "schema_version": "broker_reports_role_mapping_lab_disposition_expectations_v2",
+        "candidate": candidate,
+        "cases": [],
+    }
+    for index, source_case in enumerate(corpus, start=1):
+        snapshot_id = f"snapshot-{index}"
+        (corpus_root / f"{snapshot_id}.canonical.json").write_text(
+            json.dumps(source_case.canonical), encoding="utf-8"
+        )
+        expectations["cases"].append(
+            {
+                "case_id": f"frozen-case-{index}",
+                "confirmed_understandings": [],
+                "document_id": f"frozen-document-{index}",
+                "expected_assessment": {
+                    "expected_status": "SPECIALIST_REVIEW_REQUIRED",
+                    "required_table_decisions": [],
+                    "unresolved_table_node_ids": [],
+                    "forbidden_qualified_mapping_table_node_ids": [],
+                },
+                "fixture_identity": {"fixture_id": f"frozen-fixture-{index}"},
+                "frozen_mappings": [],
+                "snapshot_id": snapshot_id,
+                "target_table_node_ids": None,
+                "user_scope_sha256": hashlib.sha256(
+                    f"frozen-user-{index}".encode()
+                ).hexdigest(),
+            }
+        )
+    expectation_path = tmp_path / "expectations.json"
+    expectation_path.write_text(json.dumps(expectations), encoding="utf-8")
+
+    cases = runner._preflight(
+        corpus_root=corpus_root,
+        expectation_path=expectation_path,
+        candidate=candidate,
+    )
+
+    assert [case["case_id"] for case in cases] == [
+        "frozen-case-1",
+        "frozen-case-2",
+    ]
+    assert runner._preflight_receipt(candidate=candidate, cases=cases)["corpus"][
+        "cases_total"
+    ] == 2
+
+
+def test_lab_preflight_rejects_an_empty_frozen_manifest(tmp_path) -> None:
+    """Qualification cannot pass without at least one manifest-owned case."""
+
+    runner = _lab_runner_module()
+    corpus_root = tmp_path / "corpus"
+    corpus_root.mkdir()
+    expectation_path = tmp_path / "expectations.json"
+    candidate = {"candidate": "frozen-candidate"}
+    expectation_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "broker_reports_role_mapping_lab_disposition_expectations_v2",
+                "candidate": candidate,
+                "cases": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        runner._preflight(
+            corpus_root=corpus_root,
+            expectation_path=expectation_path,
+            candidate=candidate,
+        )
+
+    assert str(exc.value) == "goal391_expectations_invalid"
