@@ -11,6 +11,7 @@ from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResul
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
+    _table_surfaces,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
     OrdinaryTradeSemanticMappingQualificationError,
@@ -509,6 +510,18 @@ def test_mapping_package_projects_only_the_immediate_preceding_sibling_context(
         "PRECEDING_SAME_CONTAINER",
     ]
     assert "leak" not in str(source_context)
+    assert _table_surfaces(
+        canonical,
+        target_table_node_ids=[table["node_id"]],
+    )[0]["source_context_audit"] == {
+        "eligible_context_entries_total": 11,
+        "omitted_context_entries_total": 3,
+        "truncated_context_entries_total": 0,
+        "eligible_preceding_sibling_container_total": 6,
+        "eligible_preceding_same_container_total": 5,
+        "omitted_preceding_sibling_container_total": 3,
+        "omitted_preceding_same_container_total": 0,
+    }
 
 
 def test_mapping_package_fails_closed_for_ambiguous_sibling_container_order(tmp_path):

@@ -317,6 +317,10 @@ def test_private_context_audit_proves_window_omission_without_model_leakage() ->
         "eligible_context_entries_total": 9,
         "omitted_context_entries_total": 1,
         "truncated_context_entries_total": 0,
+        "eligible_preceding_sibling_container_total": 0,
+        "eligible_preceding_same_container_total": 9,
+        "omitted_preceding_sibling_container_total": 0,
+        "omitted_preceding_same_container_total": 1,
     }
     assert all("literal" not in item for item in private_table["source_context_evidence"])
     assert {
@@ -390,6 +394,10 @@ def test_private_context_audit_proves_table_title_truncation() -> None:
         "eligible_context_entries_total": 1,
         "omitted_context_entries_total": 0,
         "truncated_context_entries_total": 1,
+        "eligible_preceding_sibling_container_total": 0,
+        "eligible_preceding_same_container_total": 0,
+        "omitted_preceding_sibling_container_total": 0,
+        "omitted_preceding_same_container_total": 0,
     }
     assert evidence["canonical_literal_chars"] == 513
     assert evidence["projected_literal_chars"] == 512

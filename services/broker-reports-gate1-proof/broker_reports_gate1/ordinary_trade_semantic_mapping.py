@@ -1227,6 +1227,7 @@ def _source_context_for_table(
         for _order, node_id, literal in local
     ]
     selected = bounded[-_MAX_LOCAL_CONTEXT_ITEMS:]
+    omitted = bounded[: len(bounded) - len(selected)]
     title_source_literal = title_value if isinstance(title_value, str) else ""
     candidates = (
         [("TABLE_TITLE", table_node_id, title_source_literal)]
@@ -1271,6 +1272,22 @@ def _source_context_for_table(
             "truncated_context_entries_total": sum(
                 len(literal) != len(_source_context_literal(literal))
                 for _relation, _node_id, literal in candidates
+            ),
+            "eligible_preceding_sibling_container_total": sum(
+                relation == "PRECEDING_SIBLING_CONTAINER"
+                for relation, _node_id, _literal in bounded
+            ),
+            "eligible_preceding_same_container_total": sum(
+                relation == "PRECEDING_SAME_CONTAINER"
+                for relation, _node_id, _literal in bounded
+            ),
+            "omitted_preceding_sibling_container_total": sum(
+                relation == "PRECEDING_SIBLING_CONTAINER"
+                for relation, _node_id, _literal in omitted
+            ),
+            "omitted_preceding_same_container_total": sum(
+                relation == "PRECEDING_SAME_CONTAINER"
+                for relation, _node_id, _literal in omitted
             ),
         },
     }
