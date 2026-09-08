@@ -347,6 +347,129 @@ def test_lab_compares_ordered_classification_evidence_by_safe_signature_only() -
     assert "private-node-title" not in json.dumps(record)
 
 
+def test_lab_derives_full_owner_envelope_from_frozen_case_not_manifest() -> None:
+    runner = _lab_runner_module()
+    node_id = "node_reference"
+    owner_envelope = [
+        {
+            "context_ref": "context_1",
+            "relation": "TABLE_TITLE",
+            "canonical_node_id": "private-node-title",
+            "literal_sha256": "a" * 64,
+        },
+        {
+            "context_ref": "context_2",
+            "relation": "PRECEDING_SAME_CONTAINER",
+            "canonical_node_id": "private-node-context",
+            "literal_sha256": "b" * 64,
+        },
+    ]
+    case = {
+        "case_id": "reference-case",
+        "canonical_binding": {"canonical_root_sha256": "root"},
+        "target_table_node_ids": [node_id],
+        "owner_classification_envelopes": {node_id: owner_envelope},
+        "expected_assessment": {
+            "expected_status": "COMPLETE",
+            # A v8 frozen expectation asserts the semantic decision only. It
+            # cannot hand-pick model evidence from protected Canonical data.
+            "required_table_decisions": [
+                {
+                    "table_node_id": node_id,
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                }
+            ],
+            "unresolved_table_node_ids": [],
+            "forbidden_qualified_mapping_table_node_ids": [],
+        },
+    }
+    outcome = {
+        "outcome": {
+            "status": "COMPLETE",
+            "table_resolutions": [
+                {
+                    "table_node_id": node_id,
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                    "classification_evidence": owner_envelope,
+                }
+            ],
+            "qualification_receipts": [],
+        }
+    }
+
+    record = runner._safe_record(case=case, outcome=outcome)
+
+    assert record["outcome"] == "PASS"
+    assert record["owner_classification_envelope_required_total"] == 2
+    assert record["actual_owner_classification_envelope_total"] == 2
+    assert record["owner_classification_envelope_matches"] is True
+    # New v8 manifests contain no model-selected evidence expectations.
+    assert record["classification_evidence_required_total"] == 0
+    assert record["classification_evidence_matches"] is True
+    receipt_json = json.dumps(record)
+    for entry in owner_envelope:
+        for value in entry.values():
+            assert value not in receipt_json
+
+
+def test_lab_rejects_owner_envelope_that_does_not_match_frozen_canonical() -> None:
+    runner = _lab_runner_module()
+    node_id = "node_reference"
+    owner_envelope = [
+        {
+            "context_ref": "context_1",
+            "relation": "TABLE_TITLE",
+            "canonical_node_id": "private-node-title",
+            "literal_sha256": "a" * 64,
+        }
+    ]
+    actual_envelope = [
+        {
+            **owner_envelope[0],
+            "literal_sha256": "b" * 64,
+        }
+    ]
+    case = {
+        "case_id": "reference-case",
+        "canonical_binding": {"canonical_root_sha256": "root"},
+        "target_table_node_ids": [node_id],
+        "owner_classification_envelopes": {node_id: owner_envelope},
+        "expected_assessment": {
+            "expected_status": "COMPLETE",
+            "required_table_decisions": [
+                {
+                    "table_node_id": node_id,
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                }
+            ],
+            "unresolved_table_node_ids": [],
+            "forbidden_qualified_mapping_table_node_ids": [],
+        },
+    }
+    outcome = {
+        "outcome": {
+            "status": "COMPLETE",
+            "table_resolutions": [
+                {
+                    "table_node_id": node_id,
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                    "classification_evidence": actual_envelope,
+                }
+            ],
+            "qualification_receipts": [],
+        }
+    }
+
+    record = runner._safe_record(case=case, outcome=outcome)
+
+    assert record["outcome"] == "FAIL"
+    assert record["owner_classification_envelope_matches"] is False
+
+
 def test_lab_flags_complete_without_the_required_exclusion_path() -> None:
     runner = _lab_runner_module()
     node_id = "node_reference"
