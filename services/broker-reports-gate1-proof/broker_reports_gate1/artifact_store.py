@@ -411,6 +411,75 @@ class SqliteArtifactStoreAdapter:
             ).fetchall()
         return [_row_to_record(row) for row in rows]
 
+    def find_source_file_records_by_authenticated_scope(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        openwebui_file_id: str,
+    ) -> list[ArtifactRecord]:
+        """Return payload-free source-file records for one exact authenticated scope.
+
+        This is deliberately narrower than metadata cataloguing: the caller
+        names one OpenWebUI file id, while the storage owner supplies the
+        document/run association only after user/case-or-chat/workspace scope
+        checks.  It does not read a payload or search other scopes.
+        """
+
+        self._validate_authenticated_scope_context(context, require_private=True)
+        file_id = str(openwebui_file_id or "").strip()
+        if not file_id:
+            raise ArtifactStoreError(
+                "artifact_scope_unverified", "OpenWebUI source file identity is required"
+            )
+        if context.case_id:
+            predicate = "user_id = ? AND case_id = ? AND workspace_model_id IS ?"
+            parameters = (
+                context.user_id,
+                context.case_id,
+                context.workspace_model_id,
+            )
+        else:
+            predicate = (
+                "user_id = ? AND case_id IS NULL AND chat_id = ? "
+                "AND workspace_model_id IS ?"
+            )
+            parameters = (
+                context.user_id,
+                context.chat_id,
+                context.workspace_model_id,
+            )
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT artifact_id, artifact_type, schema_version, case_id, chat_id,
+                       user_id, workspace_model_id, message_id,
+                       normalization_run_id, document_id, source_file_ref_json,
+                       visibility, storage_backend, retention_policy_json,
+                       created_at, updated_at, expires_at, purge_status,
+                       lifecycle_status, access_policy_json, validation_status,
+                       payload_kind, NULL AS payload_ref,
+                       NULL AS payload_inline_json, checksum_sha256,
+                       payload_size_bytes, safe_metadata_json, warning_codes_json,
+                       deleted_at, purged_at, lifecycle_claim_id,
+                       lifecycle_claimed_at
+                FROM artifact_records
+                WHERE """
+                + predicate
+                + """
+                  AND artifact_type = 'source_file_ref_v0'
+                  AND json_extract(source_file_ref_json, '$.openwebui_file_id') = ?
+                ORDER BY created_at ASC, artifact_id ASC
+                """,
+                (*parameters, file_id),
+            ).fetchall()
+        result: list[ArtifactRecord] = []
+        for row in rows:
+            record = _row_to_record(row)
+            record.payload = None
+            record.payload_ref = None
+            result.append(record)
+        return result
+
     def list_by_type(self, normalization_run_id: str, artifact_type: str) -> list[ArtifactRecord]:
         return [
             record

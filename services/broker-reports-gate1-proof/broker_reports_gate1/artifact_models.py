@@ -304,6 +304,16 @@ class ArtifactAccessContext:
 
 
 @dataclass(frozen=True)
+class AuthenticatedSourceFileBinding:
+    """Payload-free binding for one file in an already authenticated scope."""
+
+    document_id: str
+    normalization_run_id: str
+    source_artifact_id: str
+    file_hash_sha256: str
+
+
+@dataclass(frozen=True)
 class ArtifactLifecycleResult:
     operation: str
     status: str
@@ -434,6 +444,13 @@ class ArtifactStorePort(Protocol):
 
     def list_by_authenticated_scope_context(
         self, context: ArtifactAccessContext
+    ) -> list[ArtifactRecord]: ...
+
+    def find_source_file_records_by_authenticated_scope(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        openwebui_file_id: str,
     ) -> list[ArtifactRecord]: ...
 
     def read_payload(self, record: ArtifactRecord) -> Any: ...
