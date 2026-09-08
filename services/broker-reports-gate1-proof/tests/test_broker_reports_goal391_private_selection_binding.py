@@ -97,6 +97,51 @@ def test_real_owners_issue_only_the_authenticated_active_canonical() -> None:
         assert foreign.value.code == "canonical_version_not_active"
 
 
+def test_real_owners_issue_two_distinct_active_canonicals() -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        store = ArtifactStoreFactory(
+            ArtifactStoreConfig(
+                mode="sqlite",
+                sqlite_path=root / "artifacts.sqlite3",
+                payload_root=root / "payloads",
+            )
+        ).create()
+        context = _real_context(user_id="user-1")
+        first = _publish_active(store, context=context, document_id="document-1")
+        second = _publish_active(store, context=context, document_id="document-2")
+        issuer = Goal391PrivateSelectionBindingIssuer(
+            store=store,
+            reader=CanonicalReaderFactory(store=store, read_enabled=True).create(),
+            resolver=ArtifactResolver(store),
+        )
+
+        selection = issuer.issue(
+            corpus_id="goal391-source-review",
+            requests=(
+                Goal391PrivateSelectionRequest(
+                    slot_id="ordinary-context-1",
+                    document_id="document-1",
+                    context=context,
+                ),
+                Goal391PrivateSelectionRequest(
+                    slot_id="ordinary-context-2",
+                    document_id="document-2",
+                    context=context,
+                ),
+            ),
+        )
+
+        assert [item.slot_id for item in selection.selections] == [
+            "ordinary-context-1",
+            "ordinary-context-2",
+        ]
+        assert [item.manifest_ref for item in selection.selections] == [
+            first.artifact_ref,
+            second.artifact_ref,
+        ]
+
+
 def test_real_source_lifecycle_refuses_deleted_source_before_selection() -> None:
     with tempfile.TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
@@ -345,11 +390,15 @@ def _real_context(*, user_id: str, run_id: str = "run-1") -> ArtifactAccessConte
 
 
 def _publish_active(
-    store, *, context: ArtifactAccessContext, source_deleted: bool = False
+    store,
+    *,
+    context: ArtifactAccessContext,
+    source_deleted: bool = False,
+    document_id: str = "document-1",
 ):
-    source_bytes = b"goal391 source"
+    source_bytes = f"goal391 source {document_id}".encode("utf-8")
     source_sha256 = hashlib.sha256(source_bytes).hexdigest()
-    source_ref = "source-1"
+    source_ref = f"source-{document_id}"
     retention = build_retention_policy(mode="api_smoke")
     store.put_record(
         ArtifactRecord(
@@ -360,9 +409,9 @@ def _publish_active(
             user_id=context.user_id,
             workspace_model_id=context.workspace_model_id,
             normalization_run_id=context.normalization_run_id,
-            document_id="document-1",
+            document_id=document_id,
             source_file_ref={
-                "openwebui_file_id": "file-1",
+                "openwebui_file_id": f"file-{document_id}",
                 "file_hash_sha256": source_sha256,
                 "source_deleted": source_deleted,
             },
