@@ -57,15 +57,15 @@ def _assessment(node_id: str) -> dict:
     }
 
 
-def _slot(index: int, *, chat_id: str = "outer-chat") -> dict:
+def _slot(index: int, *, source_chat_id: str = "historical-source-chat") -> dict:
     document_id = f"document-{index}"
     return {
         "slot_id": f"slot-{index}",
         "document_id": document_id,
-        "source_scope": {
+        "historical_source_scope": {
             "normalization_run_id": f"run-{index}",
             "case_id": "outer-case",
-            "chat_id": chat_id,
+            "source_chat_id": source_chat_id,
             "workspace_model_id": "goal391-lab-model",
         },
         "canonical_binding": {
@@ -88,7 +88,6 @@ def _plan(module, *, slots=None) -> str:
         "plan_ref": "opaque-plan-ref",
         "plan_digest": "",
         "ordinary_test_user_id": "ordinary-test-user",
-        "outer_browser_chat_id": "outer-chat",
         "slots": slots if slots is not None else [_slot(1), _slot(2)],
     }
     digest_input = dict(plan)
@@ -171,14 +170,20 @@ def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():
 
 def test_server_bound_loader_reads_exact_two_attested_slots_without_writes(monkeypatch):
     module = _load_source_module()
-    slots = [_slot(1), _slot(2)]
+    slots = [
+        _slot(1, source_chat_id="historical-source-chat-1"),
+        _slot(2, source_chat_id="historical-source-chat-2"),
+    ]
     calls = _install_read_owners(monkeypatch, module, slots)
     cases = _loader(module, _plan(module, slots=slots)).load(user=_ordinary_user())
     assert calls["factory"] == ["create_read_only"]
     assert calls["config"].mode == "sqlite"
     assert [item[0] for item in calls["reader"]] == ["document-1", "document-2"]
     assert all(item[1].user_id == "ordinary-test-user" for item in calls["reader"])
-    assert all(item[1].chat_id == "outer-chat" for item in calls["reader"])
+    assert [item[1].chat_id for item in calls["reader"]] == [
+        "historical-source-chat-1",
+        "historical-source-chat-2",
+    ]
     assert [case["case_id"] for case in cases] == ["slot-1", "slot-2"]
 
 
@@ -221,6 +226,23 @@ def test_server_bound_loader_rejects_bad_or_duplicate_control_scope_before_store
     with pytest.raises(module.Goal391MappingLabPipeError) as exc:
         _loader(module, json.dumps(plan)).load(user=_ordinary_user())
     assert exc.value.code == expected
+    assert calls["factory"] == []
+
+
+def test_server_bound_loader_rejects_browser_chat_binding_claim_before_store(monkeypatch):
+    module = _load_source_module()
+    slots = [_slot(1), _slot(2)]
+    calls = _install_read_owners(monkeypatch, module, slots)
+    plan = json.loads(_plan(module, slots=slots))
+    plan["outer_browser_chat_id"] = "browser-chat"
+    digest_material = dict(plan)
+    digest_material.pop("plan_digest")
+    plan["plan_digest"] = module.Goal391ServerBoundCaseLoader._sha256(
+        digest_material
+    )
+    with pytest.raises(module.Goal391MappingLabPipeError) as exc:
+        _loader(module, json.dumps(plan)).load(user=_ordinary_user())
+    assert exc.value.code == "goal391_lab_control_plan_invalid"
     assert calls["factory"] == []
 
 
@@ -274,7 +296,7 @@ def test_inner_completion_refuses_all_chat_identifiers(form_data):
     assert exc.value.code == "goal391_lab_chat_identifier_forbidden"
 
 
-def test_safe_receipt_allows_only_declared_outer_chat_and_no_inner_chat():
+def test_safe_receipt_has_no_browser_chat_binding_claim_and_no_inner_chat():
     module = _load_source_module()
     receipt = module.Pipe()._blocked_receipt("goal391_lab_access_denied")
     serialized = json.dumps(receipt, ensure_ascii=False, sort_keys=True)
@@ -285,11 +307,12 @@ def test_safe_receipt_allows_only_declared_outer_chat_and_no_inner_chat():
     assert "content" not in serialized
     assert receipt["constraints"] == {
         "retries": 0, "best_of_n": False, "manual_output_repair": False,
-        "outer_browser_chat": "declared_once", "inner_provider_chat_id": "forbidden",
+        "inner_provider_chat_id": "forbidden",
         "inner_provider_parent_id": "forbidden", "inner_chat_created": False,
         "artifact_store_mutation": False, "canonical_mutation": False,
         "right_bank_mutation": False, "xml_mutation": False,
     }
+    assert "outer_browser_chat" not in receipt["constraints"]
 
 
 def test_unexpected_owner_error_is_reduced_to_one_value_free_terminal_code():

@@ -8,10 +8,12 @@ requirements: pydantic
 Native, non-product qualification adapter for the Goal #391 mapping seam.
 
 This Pipe deliberately owns no corpus, mapping rule, prompt body, storage or
-provider credential.  A server-side lab harness injects a pre-authorized,
-already-bound case loader.  The Pipe only composes the established Prompt,
-mapping and native OpenWebUI completion owners into one stateless, bounded
-attempt and returns a value-free receipt.
+provider credential.  Its Function Valves contain a sealed, pre-authorized
+historical source plan.  The selected OpenWebUI Pipe supplies only the native
+invocation and ordinary-user identity; it is never bound to that historical
+source scope.  The Pipe only composes the established Prompt, mapping and
+native OpenWebUI completion owners into one stateless, bounded attempt and
+returns a value-free receipt.
 """
 
 from __future__ import annotations
@@ -128,7 +130,7 @@ class Goal391ServerBoundCaseLoader:
                         {
                             "user_id": context.user_id,
                             "case_id": context.case_id,
-                            "chat_id": context.chat_id,
+                            "source_chat_id": context.chat_id,
                             "workspace_model_id": context.workspace_model_id,
                         }
                     ),
@@ -152,7 +154,6 @@ class Goal391ServerBoundCaseLoader:
             "plan_ref",
             "plan_digest",
             "ordinary_test_user_id",
-            "outer_browser_chat_id",
             "slots",
         }:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_invalid")
@@ -164,8 +165,6 @@ class Goal391ServerBoundCaseLoader:
             or len(plan["plan_digest"]) != 64
             or not isinstance(plan["ordinary_test_user_id"], str)
             or not plan["ordinary_test_user_id"].strip()
-            or not isinstance(plan["outer_browser_chat_id"], str)
-            or not plan["outer_browser_chat_id"].strip()
             or not isinstance(plan["slots"], list)
             or len(plan["slots"]) != _EXACT_CASES_REQUIRED_TOTAL
         ):
@@ -190,7 +189,7 @@ class Goal391ServerBoundCaseLoader:
         required = {
             "slot_id",
             "document_id",
-            "source_scope",
+            "historical_source_scope",
             "canonical_binding",
             "target_table_node_ids",
             "confirmed_understandings",
@@ -199,11 +198,11 @@ class Goal391ServerBoundCaseLoader:
         }
         if not isinstance(slot, Mapping) or set(slot) != required:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
-        scope = slot["source_scope"]
+        scope = slot["historical_source_scope"]
         if not isinstance(scope, Mapping) or set(scope) != {
             "normalization_run_id",
             "case_id",
-            "chat_id",
+            "source_chat_id",
             "workspace_model_id",
         }:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
@@ -214,7 +213,6 @@ class Goal391ServerBoundCaseLoader:
             or any(not isinstance(binding.get(key), str) or not binding[key] for key in _CANONICAL_BINDING_FIELDS)
             or binding["document_id"] != slot["document_id"]
             or any(not isinstance(scope.get(key), str) or not scope[key] for key in scope)
-            or scope["chat_id"] != plan["outer_browser_chat_id"]
             or not isinstance(slot["slot_id"], str)
             or not slot["slot_id"].strip()
             or not isinstance(slot["document_id"], str)
@@ -244,12 +242,15 @@ class Goal391ServerBoundCaseLoader:
 
     @staticmethod
     def _source_context(*, slot: Mapping[str, Any], user_id: str) -> ArtifactAccessContext:
-        scope = slot["source_scope"]
+        # This translates the sealed historical scope to the existing storage
+        # owner contract.  It deliberately does not inspect or bind any
+        # browser/chat transport state from the current Pipe invocation.
+        scope = slot["historical_source_scope"]
         return ArtifactAccessContext(
             user_id=user_id,
             normalization_run_id=scope["normalization_run_id"],
             case_id=scope["case_id"],
-            chat_id=scope["chat_id"],
+            chat_id=scope["source_chat_id"],
             workspace_model_id=scope["workspace_model_id"],
             allow_private=True,
         )
@@ -562,7 +563,6 @@ class Pipe:
                 "retries": 0,
                 "best_of_n": False,
                 "manual_output_repair": False,
-                "outer_browser_chat": "declared_once",
                 "inner_provider_chat_id": "forbidden",
                 "inner_provider_parent_id": "forbidden",
                 "inner_chat_created": False,
@@ -661,7 +661,6 @@ class Pipe:
                 "retries": 0,
                 "best_of_n": False,
                 "manual_output_repair": False,
-                "outer_browser_chat": "declared_once",
                 "inner_provider_chat_id": "forbidden",
                 "inner_provider_parent_id": "forbidden",
                 "inner_chat_created": False,
