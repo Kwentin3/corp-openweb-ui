@@ -49,7 +49,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
 
 PROVIDER_PROFILE_ID = "google_gemini"
 MODEL_ID = "models/gemini-3.5-flash"
-SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v2"
+SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v3"
 
 
 class Goal391CurrentMappingLabError(RuntimeError):
@@ -520,14 +520,30 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         if actual_status == "SPECIALIST_REVIEW_REQUIRED"
         else []
     )
-    matches = (
-        actual_status == assessment.get("expected_status")
-        and all(actual_resolutions.get(node_id) == decision for node_id, decision in required.items())
-        and unresolved == sorted(assessment["unresolved_table_node_ids"])
-        and not set(qualified_table_node_ids).intersection(
-            assessment["forbidden_qualified_mapping_table_node_ids"]
-        )
+    required_decisions_match = all(
+        actual_resolutions.get(node_id) == decision
+        for node_id, decision in required.items()
     )
+    unresolved_table_set_match = (
+        unresolved == sorted(assessment["unresolved_table_node_ids"])
+    )
+    forbidden_qualified_mapping_clear = not set(qualified_table_node_ids).intersection(
+        assessment["forbidden_qualified_mapping_table_node_ids"]
+    )
+    status_matches = actual_status == assessment.get("expected_status")
+    matches = (
+        status_matches
+        and required_decisions_match
+        and unresolved_table_set_match
+        and forbidden_qualified_mapping_clear
+    )
+    actual_disposition_counts: dict[str, int] = {}
+    for resolution in actual_resolutions.values():
+        disposition = resolution.get("disposition")
+        if isinstance(disposition, str):
+            actual_disposition_counts[disposition] = (
+                actual_disposition_counts.get(disposition, 0) + 1
+            )
     return {
         "case_sha256": _sha256(case["case_id"]),
         "canonical_root_sha256": case["canonical_binding"]["canonical_root_sha256"],
@@ -535,7 +551,13 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         "actual_table_decisions_sha256": _sha256(actual_resolutions),
         "qualified_table_node_ids_sha256": _sha256(qualified_table_node_ids),
         "qualified_mapping_total": len(qualified_table_node_ids),
+        "actual_table_decision_count": len(actual_resolutions),
+        "actual_disposition_counts": dict(sorted(actual_disposition_counts.items())),
         "actual_status": actual_status,
+        "status_matches": status_matches,
+        "required_decisions_match": required_decisions_match,
+        "unresolved_table_set_match": unresolved_table_set_match,
+        "forbidden_qualified_mapping_clear": forbidden_qualified_mapping_clear,
         "outcome": "PASS" if matches else "FAIL",
         "provider_calls_started_total": 1,
         "provider_calls_returned_total": 1,

@@ -268,6 +268,12 @@ def test_lab_currency_assessment_uses_the_scoped_canonical_table_node() -> None:
     record = runner._safe_record(case=case, outcome=outcome)
 
     assert record["outcome"] == "PASS"
+    assert record["actual_table_decision_count"] == 1
+    assert record["actual_disposition_counts"] == {"SECURITY_TRADES": 1}
+    assert record["status_matches"] is True
+    assert record["required_decisions_match"] is True
+    assert record["unresolved_table_set_match"] is True
+    assert record["forbidden_qualified_mapping_clear"] is True
 
 
 def test_lab_passes_the_resolved_managed_prompt_to_its_single_call() -> None:
