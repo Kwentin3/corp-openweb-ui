@@ -13,6 +13,10 @@ from .gate2_source_fact_contracts import Gate2ManagedPrompt
 from .ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
+from .ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerError,
+    canonical_cell_literal,
+)
 from .ordinary_trade_semantic_compiler import structural_fingerprint
 from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFactory
 
@@ -851,15 +855,15 @@ def _table_surfaces(
                 _fail("ordinary_trade_semantic_mapping_canonical_invalid")
             row = cell.get("row")
             column = cell.get("column")
-            literal = cell.get("displayed_value")
-            if not isinstance(literal, str):
-                literal = cell.get("value")
+            try:
+                literal = canonical_cell_literal(cell)
+            except OrdinaryTradeSemanticCompilerError:
+                _fail("ordinary_trade_semantic_mapping_canonical_invalid")
             if (
                 not isinstance(row, int)
                 or row < 1
                 or not isinstance(column, int)
                 or column < 1
-                or not isinstance(literal, str)
             ):
                 _fail("ordinary_trade_semantic_mapping_canonical_invalid")
             by_row.setdefault(row, []).append({"column": column, "literal": literal})

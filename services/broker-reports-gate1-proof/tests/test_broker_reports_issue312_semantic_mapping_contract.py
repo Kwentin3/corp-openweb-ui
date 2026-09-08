@@ -23,6 +23,7 @@ from broker_reports_gate1.ordinary_trade_qualified_mappings import (
 from broker_reports_gate1.ordinary_trade_semantic_compiler import (
     OrdinaryTradeSemanticCompilerError,
     OrdinaryTradeSemanticCompilerFactory,
+    canonical_cell_literal,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
@@ -321,6 +322,93 @@ def test_mapping_preserves_a_bounded_local_context_window() -> None:
     assert [item["literal"] for item in tables[0]["source_context"]["entries"]] == [
         f"context {index}" for index in range(1, 9)
     ]
+
+
+def test_numeric_canonical_cells_have_one_read_only_literal_projection() -> None:
+    canonical = {
+        "nodes": [
+            {
+                "node_id": "table_1",
+                "container_ref": "page_1",
+                "order": 1,
+                "node_type": "TABLE",
+                "content": {
+                    "cells": [
+                        {"row": 1, "column": 1, "displayed_value": "Amount"},
+                        {
+                            "row": 2,
+                            "column": 1,
+                            "displayed_value": None,
+                            "value": 42.5,
+                            "raw_value": 42.5,
+                        },
+                    ]
+                },
+            }
+        ]
+    }
+    original = copy.deepcopy(canonical)
+
+    tables, _refs = _model_table_surfaces(canonical)
+
+    assert tables[0]["rows"][1]["cells"] == [{"column": 1, "literal": "42.5"}]
+    assert canonical_cell_literal(canonical["nodes"][0]["content"]["cells"][1]) == "42.5"
+    assert canonical == original
+
+
+def test_numeric_canonical_cell_reaches_compiler_with_its_provenance(tmp_path) -> None:
+    context, canonical, binding, table, known = _canonical_case(tmp_path)
+    gross_amount_column = next(
+        item["column"]
+        for item in known["columns"]
+        if item["semantic_role"] == "gross_amount"
+    )
+    source_cell = next(
+        item
+        for item in table["content"]["cells"]
+        if item["row"] == 2 and item["column"] == gross_amount_column
+    )
+    source_refs = copy.deepcopy(source_cell["source_refs"])
+    source_cell["displayed_value"] = None
+    source_cell["value"] = 42.5
+    source_cell["raw_value"] = 42.5
+
+    result = OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+        response=_complete_response(table, known),
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
+    )
+    projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+        canonical=canonical,
+        canonical_binding=binding,
+        mappings=result["qualified_mappings"],
+        table_resolutions=result["table_resolutions"],
+    )
+    observation = next(
+        item
+        for item in projection["source_observations"]
+        if item["row"] == 2 and item["disposition"] == "RUNTIME_READY"
+    )
+    gross_amount = next(
+        item for item in observation["fields"] if item["semantic_role"] == "gross_amount"
+    )
+
+    assert gross_amount["literal"] == "42.5"
+    assert gross_amount["canonical_cell"]["provenance_refs"] == source_refs
+    assert source_cell["displayed_value"] is None
+    assert source_cell["value"] == 42.5
+
+
+def test_unsupported_canonical_cell_literal_fails_closed() -> None:
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        canonical_cell_literal({"value": {"not": "a scalar"}})
+
+    assert exc.value.code == "ordinary_trade_canonical_cell_literal_invalid"
 
 
 @pytest.mark.parametrize(

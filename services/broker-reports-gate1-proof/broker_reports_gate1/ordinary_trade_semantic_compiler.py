@@ -12,6 +12,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 import hashlib
 import json
+import math
 import re
 from typing import Any, Iterable, Mapping
 
@@ -1473,11 +1474,32 @@ def _validate_projection_against_canonical(
                 _fail("ordinary_trade_canonical_provenance_unresolved")
 
 
+def canonical_cell_literal(cell: Mapping[str, Any]) -> str:
+    """Return the read-only scalar view used by the ordinary-trade domain.
+
+    Canonical preserves source scalar types. The mapping model and compiler
+    compare exact literals, so they share this representation projection. It
+    never writes a display value back into Canonical.
+    """
+
+    for field_name in ("displayed_value", "cached_value", "value", "raw_value"):
+        value = cell.get(field_name)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            return value
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, float) and math.isfinite(value):
+            return str(value)
+        _fail("ordinary_trade_canonical_cell_literal_invalid")
+    return ""
+
+
 def _literal(cell: Mapping[str, Any]) -> str:
-    value = cell.get("displayed_value")
-    if not isinstance(value, str):
-        value = cell.get("value")
-    return value if isinstance(value, str) else ""
+    return canonical_cell_literal(cell)
 
 
 def _by_role(fields: Iterable[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
