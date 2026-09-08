@@ -288,7 +288,7 @@ def _preflight(
     if (
         set(expectations) != {"schema_version", "candidate", "cases"}
         or expectations.get("schema_version")
-        != "broker_reports_role_mapping_lab_disposition_expectations_v2"
+        != "broker_reports_role_mapping_lab_disposition_expectations_v3"
         or expectations.get("candidate") != candidate
         or not isinstance(expectations.get("cases"), list)
         # The frozen manifest, not this runner, defines the closed qualification

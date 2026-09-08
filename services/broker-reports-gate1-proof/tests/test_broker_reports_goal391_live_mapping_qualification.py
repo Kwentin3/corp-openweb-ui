@@ -317,7 +317,7 @@ def test_lab_preflight_uses_the_frozen_manifest_case_count(tmp_path) -> None:
     corpus = build_frozen_role_mapping_corpus()[:2]
     candidate = {"candidate": "frozen-candidate"}
     expectations = {
-        "schema_version": "broker_reports_role_mapping_lab_disposition_expectations_v2",
+        "schema_version": "broker_reports_role_mapping_lab_disposition_expectations_v3",
         "candidate": candidate,
         "cases": [],
     }
@@ -375,7 +375,7 @@ def test_lab_preflight_rejects_an_empty_frozen_manifest(tmp_path) -> None:
     expectation_path.write_text(
         json.dumps(
             {
-                "schema_version": "broker_reports_role_mapping_lab_disposition_expectations_v2",
+                "schema_version": "broker_reports_role_mapping_lab_disposition_expectations_v3",
                 "candidate": candidate,
                 "cases": [],
             }
