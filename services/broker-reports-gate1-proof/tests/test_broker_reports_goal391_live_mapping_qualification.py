@@ -281,10 +281,16 @@ def test_lab_currency_assessment_uses_the_scoped_canonical_table_node() -> None:
     assert record["forbidden_qualified_mapping_clear"] is True
 
 
-def test_lab_compares_classification_evidence_by_safe_signature_only() -> None:
+def test_lab_compares_ordered_classification_evidence_by_safe_signature_only() -> None:
     runner = _lab_runner_module()
     node_id = "node_reference"
-    expected_evidence = {"context_ref": "context_expected", "relation": "TABLE_TITLE"}
+    expected_evidence = [
+        {"context_ref": "context_expected_title", "relation": "TABLE_TITLE"},
+        {
+            "context_ref": "context_expected_context",
+            "relation": "PRECEDING_SAME_CONTAINER",
+        },
+    ]
     case = {
         "case_id": "reference-case",
         "canonical_binding": {"canonical_root_sha256": "root"},
@@ -311,11 +317,16 @@ def test_lab_compares_classification_evidence_by_safe_signature_only() -> None:
                     "table_node_id": node_id,
                     "disposition": "NO_NAMED_CONSUMER",
                     "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
-                    "classification_evidence": {
-                        **expected_evidence,
-                        "canonical_node_id": "private-node",
-                        "literal_sha256": "a" * 64,
-                    },
+                    "classification_evidence": [
+                        {
+                            **expected_evidence[0],
+                            "canonical_node_id": "private-node-title",
+                        },
+                        {
+                            **expected_evidence[1],
+                            "literal_sha256": "a" * 64,
+                        },
+                    ],
                 }
             ],
             "qualification_receipts": [],
@@ -325,13 +336,15 @@ def test_lab_compares_classification_evidence_by_safe_signature_only() -> None:
     record = runner._safe_record(case=case, outcome=outcome)
 
     assert record["outcome"] == "PASS"
-    assert record["classification_evidence_required_total"] == 1
-    assert record["actual_classification_evidence_total"] == 1
+    assert record["classification_evidence_required_total"] == 2
+    assert record["actual_classification_evidence_total"] == 2
     assert record["classification_evidence_matches"] is True
     assert record["complete_without_required_exclusion_path"] is False
-    assert expected_evidence["context_ref"] not in json.dumps(record)
-    assert expected_evidence["relation"] not in json.dumps(record)
-    assert "private-node" not in json.dumps(record)
+    receipt_json = json.dumps(record)
+    for evidence in expected_evidence:
+        assert evidence["context_ref"] not in receipt_json
+        assert evidence["relation"] not in receipt_json
+    assert "private-node-title" not in json.dumps(record)
 
 
 def test_lab_flags_complete_without_the_required_exclusion_path() -> None:
@@ -348,10 +361,12 @@ def test_lab_flags_complete_without_the_required_exclusion_path() -> None:
                     "table_node_id": node_id,
                     "disposition": "NO_NAMED_CONSUMER",
                     "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
-                    "classification_evidence": {
-                        "context_ref": "context_expected",
-                        "relation": "TABLE_TITLE",
-                    },
+                    "classification_evidence": [
+                        {
+                            "context_ref": "context_expected",
+                            "relation": "TABLE_TITLE",
+                        }
+                    ],
                 }
             ],
             "unresolved_table_node_ids": [],
@@ -375,7 +390,7 @@ def test_lab_flags_complete_without_the_required_exclusion_path() -> None:
     assert record["classification_evidence_matches"] is False
 
 
-def test_lab_accepts_only_pointer_and_relation_in_frozen_evidence_expectation() -> None:
+def test_lab_requires_an_exact_nonempty_unique_evidence_list_in_frozen_expectation() -> None:
     runner = _lab_runner_module()
     valid = {
         "expected_status": "COMPLETE",
@@ -384,25 +399,110 @@ def test_lab_accepts_only_pointer_and_relation_in_frozen_evidence_expectation() 
                 "table_node_id": "node_reference",
                 "disposition": "NO_NAMED_CONSUMER",
                 "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
-                "classification_evidence": {
-                    "context_ref": "context_expected",
-                    "relation": "TABLE_TITLE",
-                },
+                "classification_evidence": [
+                    {"context_ref": "context_expected_a", "relation": "TABLE_TITLE"},
+                    {
+                        "context_ref": "context_expected_b",
+                        "relation": "PRECEDING_SAME_CONTAINER",
+                    },
+                ],
             }
         ],
         "unresolved_table_node_ids": [],
         "forbidden_qualified_mapping_table_node_ids": [],
     }
-    invalid = copy.deepcopy(valid)
-    invalid["required_table_decisions"][0]["classification_evidence"][
-        "literal_sha256"
-    ] = "a" * 64
-
     runner._validate_expected_assessment(valid)
-    with pytest.raises(SystemExit) as exc:
-        runner._validate_expected_assessment(invalid)
+    for invalid_evidence in (
+        {"context_ref": "legacy-singleton", "relation": "TABLE_TITLE"},
+        [],
+        [
+            valid["required_table_decisions"][0]["classification_evidence"][0],
+            valid["required_table_decisions"][0]["classification_evidence"][0],
+        ],
+        [
+            {
+                **valid["required_table_decisions"][0]["classification_evidence"][0],
+                "literal_sha256": "a" * 64,
+            }
+        ],
+    ):
+        invalid = copy.deepcopy(valid)
+        invalid["required_table_decisions"][0]["classification_evidence"] = (
+            invalid_evidence
+        )
+        with pytest.raises(SystemExit) as exc:
+            runner._validate_expected_assessment(invalid)
+        assert str(exc.value) == "goal391_expected_assessment_invalid"
 
-    assert str(exc.value) == "goal391_expected_assessment_invalid"
+
+@pytest.mark.parametrize(
+    "actual_evidence",
+    [
+        [
+            {"context_ref": "context_a", "relation": "TABLE_TITLE"},
+        ],
+        [
+            {"context_ref": "context_b", "relation": "PRECEDING_SAME_CONTAINER"},
+            {"context_ref": "context_a", "relation": "TABLE_TITLE"},
+        ],
+        [
+            {"context_ref": "context_a", "relation": "TABLE_TITLE"},
+            {"context_ref": "context_b", "relation": "PRECEDING_SAME_CONTAINER"},
+            {"context_ref": "context_c", "relation": "PRECEDING_SIBLING_CONTAINER"},
+        ],
+        [
+            {"context_ref": "context_a", "relation": "TABLE_TITLE"},
+            {"context_ref": "context_a", "relation": "TABLE_TITLE"},
+        ],
+    ],
+    ids=["missing", "reordered", "extra", "duplicate"],
+)
+def test_lab_rejects_non_exact_actual_classification_evidence_list(
+    actual_evidence: list[dict[str, str]],
+) -> None:
+    runner = _lab_runner_module()
+    node_id = "node_reference"
+    expected_evidence = [
+        {"context_ref": "context_a", "relation": "TABLE_TITLE"},
+        {"context_ref": "context_b", "relation": "PRECEDING_SAME_CONTAINER"},
+    ]
+    case = {
+        "case_id": "reference-case",
+        "canonical_binding": {"canonical_root_sha256": "root"},
+        "target_table_node_ids": [node_id],
+        "expected_assessment": {
+            "expected_status": "COMPLETE",
+            "required_table_decisions": [
+                {
+                    "table_node_id": node_id,
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                    "classification_evidence": expected_evidence,
+                }
+            ],
+            "unresolved_table_node_ids": [],
+            "forbidden_qualified_mapping_table_node_ids": [],
+        },
+    }
+    outcome = {
+        "outcome": {
+            "status": "COMPLETE",
+            "table_resolutions": [
+                {
+                    "table_node_id": node_id,
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                    "classification_evidence": actual_evidence,
+                }
+            ],
+            "qualification_receipts": [],
+        }
+    }
+
+    record = runner._safe_record(case=case, outcome=outcome)
+
+    assert record["outcome"] == "FAIL"
+    assert record["classification_evidence_matches"] is False
 
 
 def test_lab_passes_the_resolved_managed_prompt_to_its_single_call() -> None:

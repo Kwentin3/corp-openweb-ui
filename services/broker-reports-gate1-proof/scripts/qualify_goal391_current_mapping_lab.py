@@ -49,7 +49,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
 
 PROVIDER_PROFILE_ID = "google_gemini"
 MODEL_ID = "models/gemini-3.5-flash"
-SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v5"
+SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v6"
 
 
 class Goal391CurrentMappingLabError(RuntimeError):
@@ -515,18 +515,18 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         for item in assessment["required_table_decisions"]
     }
     expected_classification_evidence_signatures = {
-        node_id: _classification_evidence_signature(
+        node_id: _classification_evidence_list_signature(
             decision["classification_evidence"]
         )
         for node_id, decision in required.items()
         if "classification_evidence" in decision
     }
     actual_classification_evidence_signatures = {
-        node_id: signature
+        node_id: _classification_evidence_list_signature(
+            resolution["classification_evidence"]
+        )
         for node_id, resolution in raw_actual_resolutions.items()
-        if (signature := _classification_evidence_signature(
-            resolution.get("classification_evidence")
-        )) is not None
+        if "classification_evidence" in resolution
     }
     qualified_table_node_ids = sorted(
         str(item["case_scope"]["table_node_id"])
@@ -549,9 +549,9 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         }
         for node_id, decision in required.items()
     )
-    classification_evidence_matches = all(
-        actual_classification_evidence_signatures.get(node_id) == signature
-        for node_id, signature in expected_classification_evidence_signatures.items()
+    classification_evidence_matches = (
+        actual_classification_evidence_signatures
+        == expected_classification_evidence_signatures
     )
     expected_exclusion_path_required = any(
         decision["disposition"] == "NO_NAMED_CONSUMER"
@@ -612,11 +612,19 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         "actual_classification_evidence_sha256": _sha256(
             actual_classification_evidence_signatures
         ),
-        "classification_evidence_required_total": len(
-            expected_classification_evidence_signatures
+        "classification_evidence_required_total": sum(
+            _classification_evidence_list_count(
+                decision.get("classification_evidence")
+            )
+            for decision in required.values()
+            if "classification_evidence" in decision
         ),
-        "actual_classification_evidence_total": len(
-            actual_classification_evidence_signatures
+        "actual_classification_evidence_total": sum(
+            _classification_evidence_list_count(
+                resolution.get("classification_evidence")
+            )
+            for resolution in raw_actual_resolutions.values()
+            if "classification_evidence" in resolution
         ),
         "classification_evidence_matches": classification_evidence_matches,
         "complete_without_required_exclusion_path": (
@@ -793,7 +801,7 @@ def _validate_expected_assessment(value: Any) -> None:
                 "classification_evidence" in decision
                 and (
                     disposition != "NO_NAMED_CONSUMER"
-                    or _classification_evidence_signature(
+                    or _classification_evidence_list_signature(
                         decision["classification_evidence"], strict=True
                     )
                     is None
@@ -813,26 +821,38 @@ def _validate_expected_assessment(value: Any) -> None:
             raise SystemExit("goal391_expected_assessment_invalid")
 
 
-def _classification_evidence_signature(
+def _classification_evidence_list_signature(
     value: Any, *, strict: bool = False
 ) -> str | None:
-    """Return a value-free fingerprint of one evidence pointer and relation."""
+    """Return a value-free fingerprint of one ordered exact evidence list."""
 
-    if (
-        not isinstance(value, Mapping)
-        or (strict and set(value) != {"context_ref", "relation"})
-        or not isinstance(value.get("context_ref"), str)
-        or not value["context_ref"]
-        or not isinstance(value.get("relation"), str)
-        or not value["relation"]
+    if not isinstance(value, list) or not value:
+        return None
+    canonical: list[dict[str, str]] = []
+    for item in value:
+        if (
+            not isinstance(item, Mapping)
+            or (strict and set(item) != {"context_ref", "relation"})
+            or not isinstance(item.get("context_ref"), str)
+            or not item["context_ref"]
+            or not isinstance(item.get("relation"), str)
+            or not item["relation"]
+        ):
+            return None
+        canonical.append(
+            {"context_ref": item["context_ref"], "relation": item["relation"]}
+        )
+    if len(canonical) != len(
+        {(item["context_ref"], item["relation"]) for item in canonical}
     ):
         return None
-    return _sha256(
-        {
-            "context_ref": value["context_ref"],
-            "relation": value["relation"],
-        }
-    )
+    return _sha256(canonical)
+
+
+def _classification_evidence_list_count(value: Any) -> int:
+    """Return only a list length; receipt code never returns the list itself."""
+
+    return len(value) if isinstance(value, list) else 0
 
 
 def _read_json(path: Path) -> dict[str, Any]:
