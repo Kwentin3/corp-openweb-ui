@@ -7,8 +7,6 @@ itself canonical, financial, or tax authority.
 
 from __future__ import annotations
 
-from .ordinary_trade_semantic_mapping import MAPPING_RESPONSE_SCHEMA_VERSION
-
 # Semantic snapshot identity, not merely the Python/dictionary shape. Bump when
 # route ownership, active contracts, allowed behavior or forbidden behavior
 # changes; comments and behavior-preserving refactors do not require a bump.
@@ -212,7 +210,7 @@ PROVIDER_CALL_SITE_CLASSIFICATIONS = {
     "ordinary_trade_semantic_mapping": (
         "SOURCE_ADAPTER",
         "external_table_semantics_and_column_roles",
-        MAPPING_RESPONSE_SCHEMA_VERSION,
+        "broker_reports_ordinary_trade_semantic_mapping_response_v7",
     ),
     "ordinary_trade_mapping_answer": (
         "HUMAN_ADAPTER",
