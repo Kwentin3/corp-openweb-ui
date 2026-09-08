@@ -996,6 +996,7 @@ def test_lab_resolves_only_an_explicit_release_pinned_prompt(monkeypatch) -> Non
     resolved = runner._resolve_mapping_prompt(
         db_path=Path("/private/prompt.db"),
         prompt_id="managed-candidate-id",
+        prompt_command="broker_ordinary_trade_semantic_mapping_rnd_v23",
         prompt_version="managed-candidate-version",
         prompt_hash="a" * 64,
         ordinary_user_id="ordinary-user",
@@ -1004,6 +1005,7 @@ def test_lab_resolves_only_an_explicit_release_pinned_prompt(monkeypatch) -> Non
     assert resolved is managed
     assert captured["config"].prompt_id == "managed-candidate-id"
     assert captured["config"].command is None
+    assert captured["config"].required_command == "broker_ordinary_trade_semantic_mapping_rnd_v23"
     assert captured["config"].release_prompt_version == "managed-candidate-version"
     assert captured["config"].release_prompt_hash == "a" * 64
     assert captured["user_context"].user_id == "ordinary-user"

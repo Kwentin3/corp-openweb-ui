@@ -62,6 +62,10 @@ class OrdinaryTradeMappingPromptConfig:
     db_path: Path | None = None
     prompt_id: str | None = None
     command: str | None = PROMPT_COMMAND
+    # Production keeps the sole released command. An isolated qualification
+    # runner may opt into a separately named managed Prompt without changing
+    # the production Prompt row or its active history version.
+    required_command: str = PROMPT_COMMAND
     required_template_id: str = PROMPT_TEMPLATE_ID
     required_template_kind: str = PROMPT_TEMPLATE_KIND
     required_prompt_contract_id: str = PROMPT_CONTRACT_ID
@@ -287,7 +291,7 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
         tags = _json_list(row["tags"])
         content = str(row["content"] or "")
         return (
-            str(row["command"] or "") == PROMPT_COMMAND
+            str(row["command"] or "") == self.config.required_command
             and str(meta.get("template_id") or "") == self.config.required_template_id
             and str(meta.get("template_kind") or "")
             == self.config.required_template_kind

@@ -298,6 +298,38 @@ def _resolver(db_path):
     ).create()
 
 
+def test_sqlite_qualification_resolver_accepts_an_explicit_candidate_command(
+    tmp_path,
+):
+    db_path = tmp_path / "prompts.sqlite3"
+    candidate_command = "broker_ordinary_trade_semantic_mapping_rnd_v23"
+    _create_db(db_path)
+    _insert_prompt(
+        db_path,
+        content="Map {{ordinary_trade_mapping_case_json}}.",
+        grants=[("user", "ordinary-user", "read")],
+        command=candidate_command,
+    )
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT content, version_id FROM prompt WHERE id = ?", ("mapping-prompt",)
+        ).fetchone()
+    assert row is not None
+
+    prompt = OrdinaryTradeMappingPromptResolverFactory(
+        OrdinaryTradeMappingPromptConfig(
+            db_path=db_path,
+            prompt_id="mapping-prompt",
+            command=None,
+            required_command=candidate_command,
+            release_prompt_version=row[1],
+            release_prompt_hash=ordinary_trade_mapping_prompt_hash(row[0]),
+        )
+    ).create().resolve(_user("ordinary-user"))
+
+    assert prompt.command == candidate_command
+
+
 def _server_resolver(content):
     return OrdinaryTradeMappingPromptResolverFactory(
         OrdinaryTradeMappingPromptConfig(
@@ -411,8 +443,8 @@ def _create_db(path):
         )
 
 
-def _insert_prompt(path, *, content, grants, active=True):
-    snapshot = _snapshot(content)
+def _insert_prompt(path, *, content, grants, active=True, command=PROMPT_COMMAND):
+    snapshot = _snapshot(content, command=command)
     with sqlite3.connect(path) as conn:
         conn.execute("DELETE FROM prompt")
         conn.execute("DELETE FROM prompt_history")
@@ -424,7 +456,7 @@ def _insert_prompt(path, *, content, grants, active=True):
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                "mapping-prompt", PROMPT_COMMAND, "owner", "Mapping prompt", content,
+                "mapping-prompt", command, "owner", "Mapping prompt", content,
                 "{}", json.dumps(_meta()), json.dumps([PROMPT_REQUIRED_TAG]), "history-1", int(active),
             ),
         )
@@ -491,9 +523,9 @@ def _meta():
     }
 
 
-def _snapshot(content):
+def _snapshot(content, *, command=PROMPT_COMMAND):
     return {
-        "command": PROMPT_COMMAND,
+        "command": command,
         "content": content,
         "meta": _meta(),
         "tags": [PROMPT_REQUIRED_TAG],

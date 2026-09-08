@@ -68,6 +68,7 @@ def main() -> int:
     parser.add_argument("--ordinary-user-id", required=True)
     parser.add_argument("--prompt-db-path", type=Path, required=True)
     parser.add_argument("--prompt-id", required=True)
+    parser.add_argument("--prompt-command", required=True)
     parser.add_argument("--prompt-version", required=True)
     parser.add_argument("--prompt-hash", required=True)
     parser.add_argument("--server-runtime", action="store_true")
@@ -83,6 +84,7 @@ def main() -> int:
     prompt = _resolve_mapping_prompt(
         db_path=args.prompt_db_path,
         prompt_id=args.prompt_id,
+        prompt_command=args.prompt_command,
         prompt_version=args.prompt_version,
         prompt_hash=args.prompt_hash,
         ordinary_user_id=ordinary_user_id,
@@ -855,6 +857,7 @@ def _current_candidate(*, semantic: Any, prompt: Any, expected_git_head: str) ->
         "model_id": MODEL_ID,
         "provider_profile_id": PROVIDER_PROFILE_ID,
         "prompt_ref": prompt.prompt_ref,
+        "prompt_command": prompt.command or "",
         "prompt_version": prompt.version,
         "prompt_sha256": prompt.hash,
         "prompt_contract_id": prompt.prompt_contract_id,
@@ -870,6 +873,7 @@ def _resolve_mapping_prompt(
     *,
     db_path: Path,
     prompt_id: str,
+    prompt_command: str,
     prompt_version: str,
     prompt_hash: str,
     ordinary_user_id: str,
@@ -885,6 +889,7 @@ def _resolve_mapping_prompt(
             db_path=db_path,
             prompt_id=selector_id,
             command=None,
+            required_command=str(prompt_command or "").strip(),
             release_prompt_version=str(prompt_version or "").strip() or None,
             release_prompt_hash=str(prompt_hash or "").strip() or None,
         )
