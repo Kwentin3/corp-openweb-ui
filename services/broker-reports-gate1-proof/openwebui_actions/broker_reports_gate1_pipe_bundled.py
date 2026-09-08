@@ -1266,10 +1266,24 @@ class Pipe:
             store=store,
             context=context,
         )
+        canonical_artifact_refs = self._current_declaration_canonical_refs(
+            store=store,
+            context=context,
+        )
+        if not canonical_artifact_refs:
+            # A later text turn must not fall through to Gate 1 merely because
+            # this authenticated case has no active Canonical package.  The
+            # current-case owner is the only source of these refs; no browser
+            # file id, chat scan, or source reread is permitted here.
+            return (
+                "В этом чате нет актуального набора данных для подготовки "
+                "декларации. Повторная обработка файла не запускалась."
+            )
         result = await self._maybe_run_ndfl_gate3(
             store=store,
             context=context,
             artifact_manifest={},
+            canonical_artifact_refs=canonical_artifact_refs,
             user=user,
             request=request,
             event_emitter=event_emitter,
@@ -1278,11 +1292,11 @@ class Pipe:
             event_call=event_call,
         )
         product = result.get("product")
-        if (
-            not isinstance(product, dict)
-            or product.get("terminal") == "ordinary_trade_canonical_evidence_missing"
-        ):
-            return None
+        if not isinstance(product, dict):
+            return (
+                "Набор данных не удалось подготовить для продолжения. "
+                "Повторная обработка файла не запускалась."
+            )
         declaration = result.get("declaration")
         if (
             product.get("status") == "DECLARATION_XML_READY"
@@ -1338,6 +1352,30 @@ class Pipe:
             require_source_available=context.require_source_available,
             source_file_id=context.source_file_id,
         )
+
+    @staticmethod
+    def _current_declaration_canonical_refs(
+        *,
+        store: Any,
+        context: ArtifactAccessContext,
+    ) -> list[str]:
+        """Return only active Canonical refs owned by this exact case."""
+
+        coverage = OrdinaryTradeProjectionFactory(
+            store=store,
+            read_enabled=True,
+        ).create().current_case_coverage(context=context)
+        scope = coverage.get("document_scope")
+        if not isinstance(scope, list):
+            raise NdflWorkflowError("ordinary_trade_current_canonical_scope_invalid")
+        refs = [
+            str(item.get("manifest_ref") or "")
+            for item in scope
+            if isinstance(item, dict) and str(item.get("manifest_ref") or "")
+        ]
+        if len(refs) != len(scope) or len(refs) != len(set(refs)):
+            raise NdflWorkflowError("ordinary_trade_current_canonical_scope_invalid")
+        return sorted(refs)
 
     @staticmethod
     def _current_turn_has_files(body: dict[str, Any]) -> bool:
@@ -1882,6 +1920,7 @@ class Pipe:
         store: Any,
         context: ArtifactAccessContext,
         artifact_manifest: Any,
+        canonical_artifact_refs: list[str] | None = None,
         user: Any,
         request: Any,
         event_emitter: Any,
@@ -1905,12 +1944,18 @@ class Pipe:
             or not self.valves.canonical_gate2_read_enabled
         ):
             raise NdflWorkflowError("ndfl_gate2_canonical_lifecycle_disabled")
-        refs_by_type = getattr(artifact_manifest, "artifact_refs_by_type", None)
-        canonical_refs = (
-            list(refs_by_type.get("broker_reports_canonical_artifact_v1") or [])
-            if isinstance(refs_by_type, dict)
-            else []
-        )
+        if canonical_artifact_refs is not None:
+            # A continuation has no current upload.  Its refs are derived by
+            # the current-case projection owner above, never from browser or
+            # persisted chat state.
+            canonical_refs = list(canonical_artifact_refs)
+        else:
+            refs_by_type = getattr(artifact_manifest, "artifact_refs_by_type", None)
+            canonical_refs = (
+                list(refs_by_type.get("broker_reports_canonical_artifact_v1") or [])
+                if isinstance(refs_by_type, dict)
+                else []
+            )
         if len(canonical_refs) != len(set(canonical_refs)):
             raise NdflWorkflowError("ndfl_gate2_canonical_artifact_duplicate")
         if candidate_enabled:

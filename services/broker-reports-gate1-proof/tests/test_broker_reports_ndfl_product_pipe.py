@@ -1912,6 +1912,32 @@ def test_chat_transport_runs_bind_to_one_current_source_execution(
     ]["receipt_sha256"]
 
 
+def test_chat_continuation_uses_current_case_canonical_refs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _use_direct_workspace_fixture(monkeypatch)
+    _runtime, context, _providers, store = declaration_fixtures._case(
+        tmp_path,
+        proceeds="60.00",
+        include_store=True,
+    )
+
+    refs = Pipe._current_declaration_canonical_refs(
+        store=store,
+        context=context,
+    )
+
+    assert refs
+    assert refs == sorted(set(refs))
+    coverage = product_pipe.OrdinaryTradeProjectionFactory(
+        store=store, read_enabled=True
+    ).create().current_case_coverage(context=context)
+    assert refs == sorted(
+        row["manifest_ref"] for row in coverage["document_scope"]
+    )
+
+
 def test_maintained_stage_returns_owner_blocker_without_interactive_actions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
