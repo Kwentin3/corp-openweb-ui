@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import copy
+import re
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
 from .artifact_models import (
     PRIVATE_BINARY_ARTIFACT_SCHEMA_VERSION,
     ArtifactAccessContext,
+    AuthenticatedSourceFileBinding,
     ArtifactRecord,
     ArtifactStoreError,
     ArtifactStorePort,
@@ -44,6 +47,67 @@ class ArtifactResolver:
         result.payload = None
         result.payload_ref = None
         return result
+
+    def resolve_authenticated_source_file_binding(
+        self,
+        *,
+        context: ArtifactAccessContext,
+        openwebui_file_id: str,
+    ) -> AuthenticatedSourceFileBinding:
+        """Resolve one exact source-file binding without reading source bytes.
+
+        The file id is only meaningful inside the server-attested user scope.
+        The store owns that exact lookup; this resolver owns lifecycle and
+        source-reference validation.  A duplicate binding fails closed rather
+        than selecting one by incidental record order.
+        """
+
+        file_id = str(openwebui_file_id or "").strip()
+        if not file_id:
+            raise ArtifactStoreError(
+                "source_file_binding_invalid", "OpenWebUI source file identity is required"
+            )
+        records = self.store.find_source_file_records_by_authenticated_scope(
+            context=context,
+            openwebui_file_id=file_id,
+        )
+        if not records:
+            raise ArtifactStoreError(
+                "source_file_binding_not_found",
+                "No source-file binding exists in the authenticated scope",
+            )
+        if len(records) != 1:
+            raise ArtifactStoreError(
+                "source_file_binding_ambiguous",
+                "Multiple source-file bindings exist in the authenticated scope",
+            )
+        record = records[0]
+        source_context = replace(
+            context,
+            normalization_run_id=record.normalization_run_id,
+            require_source_available=True,
+        )
+        self._validate(record, source_context)
+        source_ref = record.source_file_ref or {}
+        if (
+            record.artifact_type != "source_file_ref_v0"
+            or not str(record.document_id or "").strip()
+            or source_ref.get("openwebui_file_id") != file_id
+        ):
+            raise ArtifactStoreError(
+                "source_file_binding_invalid", "Source-file binding is malformed"
+            )
+        file_hash_sha256 = str(source_ref.get("file_hash_sha256") or "")
+        if not re.fullmatch(r"[0-9a-f]{64}", file_hash_sha256):
+            raise ArtifactStoreError(
+                "source_file_binding_invalid", "Source-file binding has no valid checksum"
+            )
+        return AuthenticatedSourceFileBinding(
+            document_id=str(record.document_id),
+            normalization_run_id=record.normalization_run_id,
+            source_artifact_id=record.artifact_id,
+            file_hash_sha256=file_hash_sha256,
+        )
 
     def resolve_private_binary(
         self,

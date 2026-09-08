@@ -48,6 +48,7 @@ from .workload_authority import (
 from .artifact_models import (
     ARTIFACT_LIFECYCLE_RESULT_SCHEMA_VERSION,
     ArtifactAccessContext,
+    AuthenticatedSourceFileBinding,
     ArtifactLifecycleResult,
     CanonicalActivationReceipt,
     CanonicalVersionRecord,
@@ -1362,6 +1363,7 @@ __all__ = [
     "WorkloadTicket",
     "provider_budgets_from_json",
     "ArtifactAccessContext",
+    "AuthenticatedSourceFileBinding",
     "ArtifactLifecycleResult",
     "CanonicalActivationReceipt",
     "CanonicalVersionRecord",

@@ -128,6 +128,7 @@ jobs:
           tests/test_broker_reports_artifact_payload_read_integrity.py
           tests/test_broker_reports_artifact_lifecycle.py
           tests/test_broker_reports_gate1_artifact_store.py
+          tests/test_broker_reports_authenticated_source_file_binding.py
           tests/test_broker_reports_gate1_bounded_graph.py
           tests/test_broker_reports_kt16_canonical_context.py
           tests/test_broker_reports_kt2_same_source_type_first_proof.py
