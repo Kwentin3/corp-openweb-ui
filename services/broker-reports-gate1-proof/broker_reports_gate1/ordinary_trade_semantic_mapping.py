@@ -22,6 +22,9 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
+    "broker_reports_ordinary_trade_semantic_mapping_response_v7"
+)
+_LEGACY_MAPPING_RESPONSE_SCHEMA_VERSION = (
     "broker_reports_ordinary_trade_semantic_mapping_response_v6"
 )
 ANSWER_RESPONSE_SCHEMA_VERSION = (
@@ -143,7 +146,10 @@ class OrdinaryTradeSemanticMapping:
             "message",
         }:
             return "ordinary_trade_semantic_mapping_response_fields_invalid"
-        if value.get("schema_version") != MAPPING_RESPONSE_SCHEMA_VERSION:
+        if value.get("schema_version") not in {
+            _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSION,
+            MAPPING_RESPONSE_SCHEMA_VERSION,
+        }:
             return "ordinary_trade_semantic_mapping_response_version_invalid"
         if value.get("status") not in _MAPPING_STATUSES:
             return "ordinary_trade_semantic_mapping_response_status_invalid"
@@ -547,7 +553,11 @@ class OrdinaryTradeSemanticMapping:
                 "clarification",
                 "message",
             }
-            or value.get("schema_version") != MAPPING_RESPONSE_SCHEMA_VERSION
+            or value.get("schema_version")
+            not in {
+                _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSION,
+                MAPPING_RESPONSE_SCHEMA_VERSION,
+            }
             or value.get("status") not in _MAPPING_STATUSES
             or not isinstance(value.get("table_decisions"), list)
             or not isinstance(value.get("message"), str)
@@ -606,6 +616,10 @@ class OrdinaryTradeSemanticMapping:
                     decision=item,
                     table=tables[str(item["table_node_id"])],
                     allow_user_currency=True,
+                    allow_legacy_classification_evidence=(
+                        value["schema_version"]
+                        == _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSION
+                    ),
                 )
                 for item in decisions
             ]
@@ -705,7 +719,13 @@ class OrdinaryTradeSemanticMapping:
                 table_node_id=table["table_node_id"],
             )
             resolved = _validate_table_decision(
-                decision=decision, table=table, user_currency_assertion=assertion
+                decision=decision,
+                table=table,
+                user_currency_assertion=assertion,
+                allow_legacy_classification_evidence=(
+                    value["schema_version"]
+                    == _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSION
+                ),
             )
             resolved_decisions.append(resolved)
         _validate_confirmed_decisions(
@@ -1632,42 +1652,73 @@ def _decision_source_literals(
 
 
 def _validated_classification_evidence(
-    *, evidence: Any, table: dict[str, Any]
-) -> dict[str, str]:
-    """Bind an exclusion to one context entry without interpreting its words."""
+    *,
+    evidence: Any,
+    table: dict[str, Any],
+    allow_legacy_singleton: bool,
+) -> list[dict[str, str]]:
+    """Bind an exclusion to an ordered subset of its Canonical context.
 
+    V7 admits a nonempty list in the exact order that the bounded source-context
+    owner exposed. A V6 singleton is read only for immutable replay; it is
+    normalized to the same resolved list and cannot be emitted by the V7 schema.
+    """
+
+    if allow_legacy_singleton and isinstance(evidence, dict):
+        entries = [evidence]
+    elif isinstance(evidence, list):
+        entries = evidence
+    else:
+        _fail("ordinary_trade_semantic_mapping_classification_evidence_invalid")
+    source_entries = table.get("source_context_evidence")
     if (
-        not isinstance(evidence, dict)
-        or set(evidence) != {"context_ref", "relation"}
-        or not all(isinstance(evidence.get(key), str) and evidence[key] for key in evidence)
+        not isinstance(source_entries, list)
+        or not entries
+        or len(entries) > len(source_entries)
     ):
         _fail("ordinary_trade_semantic_mapping_classification_evidence_invalid")
-    matches = [
-        item
-        for item in table.get("source_context_evidence", [])
-        if isinstance(item, dict)
-        and item.get("context_ref") == evidence["context_ref"]
-        and item.get("relation") == evidence["relation"]
-    ]
-    if len(matches) != 1:
-        _fail("ordinary_trade_semantic_mapping_classification_evidence_invalid")
-    match = matches[0]
-    if (
-        not isinstance(match.get("canonical_node_id"), str)
-        or not match["canonical_node_id"]
-        or not isinstance(match.get("literal_sha256"), str)
-        or re.fullmatch(r"[0-9a-f]{64}", match["literal_sha256"]) is None
-    ):
-        _fail("ordinary_trade_semantic_mapping_classification_evidence_invalid")
-    return {
-        key: str(match[key])
-        for key in (
-            "context_ref",
-            "relation",
-            "canonical_node_id",
-            "literal_sha256",
+    resolved: list[dict[str, str]] = []
+    previous_index = -1
+    for evidence_entry in entries:
+        if (
+            not isinstance(evidence_entry, dict)
+            or set(evidence_entry) != {"context_ref", "relation"}
+            or not all(
+                isinstance(evidence_entry.get(key), str) and evidence_entry[key]
+                for key in evidence_entry
+            )
+        ):
+            _fail("ordinary_trade_semantic_mapping_classification_evidence_invalid")
+        matches = [
+            (index, item)
+            for index, item in enumerate(source_entries)
+            if isinstance(item, dict)
+            and item.get("context_ref") == evidence_entry["context_ref"]
+            and item.get("relation") == evidence_entry["relation"]
+        ]
+        if len(matches) != 1:
+            _fail("ordinary_trade_semantic_mapping_classification_evidence_invalid")
+        index, match = matches[0]
+        if index <= previous_index or (
+            not isinstance(match.get("canonical_node_id"), str)
+            or not match["canonical_node_id"]
+            or not isinstance(match.get("literal_sha256"), str)
+            or re.fullmatch(r"[0-9a-f]{64}", match["literal_sha256"]) is None
+        ):
+            _fail("ordinary_trade_semantic_mapping_classification_evidence_invalid")
+        previous_index = index
+        resolved.append(
+            {
+                key: str(match[key])
+                for key in (
+                    "context_ref",
+                    "relation",
+                    "canonical_node_id",
+                    "literal_sha256",
+                )
+            }
         )
-    }
+    return resolved
 
 
 def _validate_table_decision(
@@ -1677,6 +1728,7 @@ def _validate_table_decision(
     user_currency_assertion: dict[str, Any] | None = None,
     allow_user_currency: bool = False,
     allow_legacy_no_consumer: bool = False,
+    allow_legacy_classification_evidence: bool = False,
 ) -> dict[str, Any]:
     base_fields = {
         "table_node_id",
@@ -1728,7 +1780,9 @@ def _validate_table_decision(
     classification_evidence = None
     if no_consumer and "classification_evidence" in decision:
         classification_evidence = _validated_classification_evidence(
-            evidence=decision["classification_evidence"], table=table
+            evidence=decision["classification_evidence"],
+            table=table,
+            allow_legacy_singleton=allow_legacy_classification_evidence,
         )
     row = next(
         (item for item in table["rows"] if item["row"] == decision["header_row"]),
@@ -2451,18 +2505,24 @@ def _mapping_response_schema() -> dict[str, Any]:
                 "enum": sorted(_NO_CONSUMER_KINDS),
             },
             "classification_evidence": {
-                "type": "object",
-                "additionalProperties": False,
-                "required": ["context_ref", "relation"],
-                "properties": {
-                    "context_ref": {"type": "string", "minLength": 1},
-                    "relation": {
-                        "type": "string",
-                        "enum": [
-                            "TABLE_TITLE",
-                            "PRECEDING_SAME_CONTAINER",
-                            "PRECEDING_SIBLING_CONTAINER",
-                        ],
+                "type": "array",
+                "minItems": 1,
+                # One title plus the existing eight-item bounded local window.
+                "maxItems": _MAX_LOCAL_CONTEXT_ITEMS + 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["context_ref", "relation"],
+                    "properties": {
+                        "context_ref": {"type": "string", "minLength": 1},
+                        "relation": {
+                            "type": "string",
+                            "enum": [
+                                "TABLE_TITLE",
+                                "PRECEDING_SAME_CONTAINER",
+                                "PRECEDING_SIBLING_CONTAINER",
+                            ],
+                        },
                     },
                 },
             },

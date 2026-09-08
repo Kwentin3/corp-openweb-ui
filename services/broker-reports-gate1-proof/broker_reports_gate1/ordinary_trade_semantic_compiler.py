@@ -974,7 +974,7 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
     }
     # The base and kind-only forms are persisted pre-v6 resolutions.  The
     # compiler must continue to read them so historical immutable sidecars are
-    # replayable; new v6 model promotion is rejected upstream unless it carries
+    # replayable; new v7 model promotion is rejected upstream unless it carries
     # classification_evidence.  This module never creates a resolution.
     no_consumer_fields = base_fields | {"no_consumer_kind"}
     evidenced_no_consumer_fields = no_consumer_fields | {"classification_evidence"}
@@ -1023,20 +1023,50 @@ def _validated_table_resolution(value: Mapping[str, Any]) -> dict[str, Any]:
     ):
         _fail("ordinary_trade_table_resolution_invalid")
     classification_evidence = value.get("classification_evidence")
-    if classification_evidence is not None and (
-        value["disposition"] != "NO_NAMED_CONSUMER"
-        or not isinstance(classification_evidence, Mapping)
-        or set(classification_evidence)
-        != {"context_ref", "relation", "canonical_node_id", "literal_sha256"}
-        or any(
-            not isinstance(classification_evidence.get(key), str)
-            or not classification_evidence[key]
-            for key in ("context_ref", "relation", "canonical_node_id", "literal_sha256")
+    if classification_evidence is not None:
+        # V6 wrote one resolved object; V7 writes the ordered nonempty list.
+        # Both are immutable inputs here, and the compiler owns neither their
+        # classification nor their Canonical binding.
+        evidence_entries = (
+            [classification_evidence]
+            if isinstance(classification_evidence, Mapping)
+            else classification_evidence
         )
-        or re.fullmatch(r"[0-9a-f]{64}", classification_evidence["literal_sha256"])
-        is None
-    ):
-        _fail("ordinary_trade_table_resolution_invalid")
+        if (
+            value["disposition"] != "NO_NAMED_CONSUMER"
+            or not isinstance(evidence_entries, list)
+            or not evidence_entries
+            or len(evidence_entries) != len(
+                {
+                    (
+                        item.get("context_ref"),
+                        item.get("relation"),
+                        item.get("canonical_node_id"),
+                        item.get("literal_sha256"),
+                    )
+                    for item in evidence_entries
+                    if isinstance(item, Mapping)
+                }
+            )
+            or any(
+                not isinstance(item, Mapping)
+                or set(item)
+                != {"context_ref", "relation", "canonical_node_id", "literal_sha256"}
+                or any(
+                    not isinstance(item.get(key), str) or not item[key]
+                    for key in (
+                        "context_ref",
+                        "relation",
+                        "canonical_node_id",
+                        "literal_sha256",
+                    )
+                )
+                or re.fullmatch(r"[0-9a-f]{64}", item["literal_sha256"])
+                is None
+                for item in evidence_entries
+            )
+        ):
+            _fail("ordinary_trade_table_resolution_invalid")
     if incomplete and (
         not isinstance(value.get("columns"), list)
         or not isinstance(value.get("side_values"), list)
