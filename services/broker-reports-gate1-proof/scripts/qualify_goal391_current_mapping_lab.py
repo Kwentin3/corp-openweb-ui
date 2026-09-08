@@ -119,10 +119,36 @@ def main() -> int:
 
     if not args.server_runtime:
         raise SystemExit("goal391_server_runtime_required")
-    request, user, chat_count = _server_runtime_context(
+    receipt = asyncio.run(
+        _run_live_qualification(
+            semantic=semantic,
+            prompt=prompt,
+            candidate=candidate,
+            cases=cases,
+            ordinary_user_id=ordinary_user_id,
+            progress_path=progress_path,
+        )
+    )
+    _write_json(receipt_path, receipt)
+    print(json.dumps(_public_summary(receipt), ensure_ascii=False, sort_keys=True))
+    if receipt["status"] != "PASSED":
+        raise SystemExit("goal391_current_mapping_lab_failed")
+    return 0
+
+
+async def _run_live_qualification(
+    *,
+    semantic: Any,
+    prompt: Any,
+    candidate: Mapping[str, Any],
+    cases: list[Mapping[str, Any]],
+    ordinary_user_id: str,
+    progress_path: Path | None,
+) -> dict[str, Any]:
+    request, user, chat_count = await _server_runtime_context(
         ordinary_user_id=ordinary_user_id
     )
-    chats_before = chat_count()
+    chats_before = await chat_count()
     if chats_before < 0:
         raise SystemExit("goal391_chat_count_unavailable")
     submissions = {"count": 0}
@@ -162,20 +188,18 @@ def main() -> int:
         ),
     ).create()
 
-    records, terminal_error = asyncio.run(
-        _run_all_cases(
-            semantic=semantic,
-            prompt=prompt,
-            client=client,
-            cases=cases,
-            submissions=submissions,
-            progress=progress,
-        )
+    records, terminal_error = await _run_all_cases(
+        semantic=semantic,
+        prompt=prompt,
+        client=client,
+        cases=cases,
+        submissions=submissions,
+        progress=progress,
     )
 
     lifecycle = client.qualification_lifecycle_snapshot()
     expected_calls = len(cases)
-    chats_after = chat_count()
+    chats_after = await chat_count()
     passed = (
         submissions["count"] == expected_calls
         and lifecycle == {
@@ -188,7 +212,7 @@ def main() -> int:
         and chats_after >= 0
         and chats_after == chats_before
     )
-    receipt = {
+    return {
         "schema_version": SAFE_RECEIPT_SCHEMA_VERSION,
         "status": "PASSED" if passed else "FAILED",
         "candidate": candidate,
@@ -209,14 +233,9 @@ def main() -> int:
         },
         "terminal_error": terminal_error,
     }
-    _write_json(receipt_path, receipt)
-    print(json.dumps(_public_summary(receipt), ensure_ascii=False, sort_keys=True))
-    if not passed:
-        raise SystemExit("goal391_current_mapping_lab_failed")
-    return 0
 
 
-def _server_runtime_context(*, ordinary_user_id: str):
+async def _server_runtime_context(*, ordinary_user_id: str):
     """Use OpenWebUI's in-process completion owner; never read provider keys."""
 
     from starlette.requests import Request
@@ -227,20 +246,17 @@ def _server_runtime_context(*, ordinary_user_id: str):
     if not isinstance(ordinary_user_id, str) or not ordinary_user_id:
         raise SystemExit("goal391_ordinary_user_id_invalid")
 
-    async def select_user():
-        result = await Users.get_users()
-        users = result.get("users", []) if isinstance(result, dict) else []
-        return next(
-            (
-                item
-                for item in users
-                if getattr(item, "id", None) == ordinary_user_id
-                and getattr(item, "role", None) == "user"
-            ),
-            None,
-        )
-
-    user = asyncio.run(select_user())
+    result = await Users.get_users()
+    users = result.get("users", []) if isinstance(result, dict) else []
+    user = next(
+        (
+            item
+            for item in users
+            if getattr(item, "id", None) == ordinary_user_id
+            and getattr(item, "role", None) == "user"
+        ),
+        None,
+    )
     if user is None or not getattr(user, "id", None):
         raise SystemExit("goal391_ordinary_user_unavailable")
     request = Request(
@@ -258,27 +274,22 @@ def _server_runtime_context(*, ordinary_user_id: str):
             "app": app,
         }
     )
-    asyncio.run(
-        _ensure_server_model_available(
-            request=request,
-            user=user,
-            model_id=MODEL_ID,
-        )
+    await _ensure_server_model_available(
+        request=request,
+        user=user,
+        model_id=MODEL_ID,
     )
 
-    def chat_count() -> int:
-        async def count():
-            value = await Chats.get_chats_by_user_id(user.id)
-            items = getattr(value, "chats", None)
-            if items is None:
-                items = getattr(value, "items", None)
-            if items is None and isinstance(value, dict):
-                items = value.get("chats")
-            if items is None and isinstance(value, list):
-                items = value
-            return len(items) if isinstance(items, list) else -1
-
-        return asyncio.run(count())
+    async def chat_count() -> int:
+        value = await Chats.get_chats_by_user_id(user.id)
+        items = getattr(value, "chats", None)
+        if items is None:
+            items = getattr(value, "items", None)
+        if items is None and isinstance(value, dict):
+            items = value.get("chats")
+        if items is None and isinstance(value, list):
+            items = value
+        return len(items) if isinstance(items, list) else -1
 
     return request, user, chat_count
 
