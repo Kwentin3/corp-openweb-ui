@@ -271,10 +271,138 @@ def test_lab_currency_assessment_uses_the_scoped_canonical_table_node() -> None:
     assert record["actual_table_decision_count"] == 1
     assert record["actual_disposition_counts"] == {"SECURITY_TRADES": 1}
     assert record["actual_no_consumer_kind_counts"] == {}
+    assert record["classification_evidence_required_total"] == 0
+    assert record["actual_classification_evidence_total"] == 0
+    assert record["classification_evidence_matches"] is True
+    assert record["complete_without_required_exclusion_path"] is False
     assert record["status_matches"] is True
     assert record["required_decisions_match"] is True
     assert record["unresolved_table_set_match"] is True
     assert record["forbidden_qualified_mapping_clear"] is True
+
+
+def test_lab_compares_classification_evidence_by_safe_signature_only() -> None:
+    runner = _lab_runner_module()
+    node_id = "node_reference"
+    expected_evidence = {"context_ref": "context_expected", "relation": "TABLE_TITLE"}
+    case = {
+        "case_id": "reference-case",
+        "canonical_binding": {"canonical_root_sha256": "root"},
+        "target_table_node_ids": [node_id],
+        "expected_assessment": {
+            "expected_status": "COMPLETE",
+            "required_table_decisions": [
+                {
+                    "table_node_id": node_id,
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                    "classification_evidence": expected_evidence,
+                }
+            ],
+            "unresolved_table_node_ids": [],
+            "forbidden_qualified_mapping_table_node_ids": [],
+        },
+    }
+    outcome = {
+        "outcome": {
+            "status": "COMPLETE",
+            "table_resolutions": [
+                {
+                    "table_node_id": node_id,
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                    "classification_evidence": {
+                        **expected_evidence,
+                        "canonical_node_id": "private-node",
+                        "literal_sha256": "a" * 64,
+                    },
+                }
+            ],
+            "qualification_receipts": [],
+        }
+    }
+
+    record = runner._safe_record(case=case, outcome=outcome)
+
+    assert record["outcome"] == "PASS"
+    assert record["classification_evidence_required_total"] == 1
+    assert record["actual_classification_evidence_total"] == 1
+    assert record["classification_evidence_matches"] is True
+    assert record["complete_without_required_exclusion_path"] is False
+    assert expected_evidence["context_ref"] not in json.dumps(record)
+    assert expected_evidence["relation"] not in json.dumps(record)
+    assert "private-node" not in json.dumps(record)
+
+
+def test_lab_flags_complete_without_the_required_exclusion_path() -> None:
+    runner = _lab_runner_module()
+    node_id = "node_reference"
+    case = {
+        "case_id": "reference-case",
+        "canonical_binding": {"canonical_root_sha256": "root"},
+        "target_table_node_ids": [node_id],
+        "expected_assessment": {
+            "expected_status": "COMPLETE",
+            "required_table_decisions": [
+                {
+                    "table_node_id": node_id,
+                    "disposition": "NO_NAMED_CONSUMER",
+                    "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                    "classification_evidence": {
+                        "context_ref": "context_expected",
+                        "relation": "TABLE_TITLE",
+                    },
+                }
+            ],
+            "unresolved_table_node_ids": [],
+            "forbidden_qualified_mapping_table_node_ids": [],
+        },
+    }
+    outcome = {
+        "outcome": {
+            "status": "COMPLETE",
+            "table_resolutions": [
+                {"table_node_id": node_id, "disposition": "SECURITY_TRADES"}
+            ],
+            "qualification_receipts": [],
+        }
+    }
+
+    record = runner._safe_record(case=case, outcome=outcome)
+
+    assert record["outcome"] == "FAIL"
+    assert record["complete_without_required_exclusion_path"] is True
+    assert record["classification_evidence_matches"] is False
+
+
+def test_lab_accepts_only_pointer_and_relation_in_frozen_evidence_expectation() -> None:
+    runner = _lab_runner_module()
+    valid = {
+        "expected_status": "COMPLETE",
+        "required_table_decisions": [
+            {
+                "table_node_id": "node_reference",
+                "disposition": "NO_NAMED_CONSUMER",
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                "classification_evidence": {
+                    "context_ref": "context_expected",
+                    "relation": "TABLE_TITLE",
+                },
+            }
+        ],
+        "unresolved_table_node_ids": [],
+        "forbidden_qualified_mapping_table_node_ids": [],
+    }
+    invalid = copy.deepcopy(valid)
+    invalid["required_table_decisions"][0]["classification_evidence"][
+        "literal_sha256"
+    ] = "a" * 64
+
+    runner._validate_expected_assessment(valid)
+    with pytest.raises(SystemExit) as exc:
+        runner._validate_expected_assessment(invalid)
+
+    assert str(exc.value) == "goal391_expected_assessment_invalid"
 
 
 def test_lab_passes_the_resolved_managed_prompt_to_its_single_call() -> None:

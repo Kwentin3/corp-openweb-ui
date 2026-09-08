@@ -49,7 +49,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
 
 PROVIDER_PROFILE_ID = "google_gemini"
 MODEL_ID = "models/gemini-3.5-flash"
-SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v4"
+SAFE_RECEIPT_SCHEMA_VERSION = "goal391_current_mapping_lab_receipt_v5"
 
 
 class Goal391CurrentMappingLabError(RuntimeError):
@@ -480,6 +480,11 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
     assessment = case["expected_assessment"]
     result = outcome["outcome"]
     actual_status = result.get("status")
+    raw_actual_resolutions = {
+        item.get("table_node_id"): item
+        for item in result.get("table_resolutions") or []
+        if isinstance(item, Mapping) and isinstance(item.get("table_node_id"), str)
+    }
     actual_resolutions = {
         item.get("table_node_id"): {
             key: item.get(key)
@@ -504,9 +509,24 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
                         if key in decision
                     },
                 }
+                raw_actual_resolutions[targets[0]] = decision
     required = {
         item["table_node_id"]: item
         for item in assessment["required_table_decisions"]
+    }
+    expected_classification_evidence_signatures = {
+        node_id: _classification_evidence_signature(
+            decision["classification_evidence"]
+        )
+        for node_id, decision in required.items()
+        if "classification_evidence" in decision
+    }
+    actual_classification_evidence_signatures = {
+        node_id: signature
+        for node_id, resolution in raw_actual_resolutions.items()
+        if (signature := _classification_evidence_signature(
+            resolution.get("classification_evidence")
+        )) is not None
     }
     qualified_table_node_ids = sorted(
         str(item["case_scope"]["table_node_id"])
@@ -521,8 +541,30 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         else []
     )
     required_decisions_match = all(
-        actual_resolutions.get(node_id) == decision
+        actual_resolutions.get(node_id)
+        == {
+            key: value
+            for key, value in decision.items()
+            if key != "classification_evidence"
+        }
         for node_id, decision in required.items()
+    )
+    classification_evidence_matches = all(
+        actual_classification_evidence_signatures.get(node_id) == signature
+        for node_id, signature in expected_classification_evidence_signatures.items()
+    )
+    expected_exclusion_path_required = any(
+        decision["disposition"] == "NO_NAMED_CONSUMER"
+        for decision in required.values()
+    )
+    actual_exclusion_path_present = any(
+        resolution.get("disposition") == "NO_NAMED_CONSUMER"
+        for resolution in actual_resolutions.values()
+    )
+    complete_without_required_exclusion_path = (
+        actual_status == "COMPLETE"
+        and expected_exclusion_path_required
+        and not actual_exclusion_path_present
     )
     unresolved_table_set_match = (
         unresolved == sorted(assessment["unresolved_table_node_ids"])
@@ -534,8 +576,10 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
     matches = (
         status_matches
         and required_decisions_match
+        and classification_evidence_matches
         and unresolved_table_set_match
         and forbidden_qualified_mapping_clear
+        and not complete_without_required_exclusion_path
     )
     actual_disposition_counts: dict[str, int] = {}
     actual_no_consumer_kind_counts: dict[str, int] = {}
@@ -561,6 +605,22 @@ def _safe_record(*, case: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict
         "actual_disposition_counts": dict(sorted(actual_disposition_counts.items())),
         "actual_no_consumer_kind_counts": dict(
             sorted(actual_no_consumer_kind_counts.items())
+        ),
+        "expected_classification_evidence_sha256": _sha256(
+            expected_classification_evidence_signatures
+        ),
+        "actual_classification_evidence_sha256": _sha256(
+            actual_classification_evidence_signatures
+        ),
+        "classification_evidence_required_total": len(
+            expected_classification_evidence_signatures
+        ),
+        "actual_classification_evidence_total": len(
+            actual_classification_evidence_signatures
+        ),
+        "classification_evidence_matches": classification_evidence_matches,
+        "complete_without_required_exclusion_path": (
+            complete_without_required_exclusion_path
         ),
         "actual_status": actual_status,
         "status_matches": status_matches,
@@ -715,6 +775,8 @@ def _validate_expected_assessment(value: Any) -> None:
         expected_keys = {"table_node_id", "disposition"}
         if disposition == "NO_NAMED_CONSUMER":
             expected_keys.add("no_consumer_kind")
+        if "classification_evidence" in decision:
+            expected_keys.add("classification_evidence")
         if (
             set(decision) != expected_keys
             or not isinstance(decision.get("table_node_id"), str)
@@ -726,6 +788,16 @@ def _validate_expected_assessment(value: Any) -> None:
                 disposition == "NO_NAMED_CONSUMER"
                 and decision.get("no_consumer_kind")
                 not in {"INSTRUCTIONAL_REFERENCE", "OTHER_NO_NAMED_CONSUMER"}
+            )
+            or (
+                "classification_evidence" in decision
+                and (
+                    disposition != "NO_NAMED_CONSUMER"
+                    or _classification_evidence_signature(
+                        decision["classification_evidence"], strict=True
+                    )
+                    is None
+                )
             )
         ):
             raise SystemExit("goal391_expected_assessment_invalid")
@@ -739,6 +811,28 @@ def _validate_expected_assessment(value: Any) -> None:
             or len(value[key]) != len(set(value[key]))
         ):
             raise SystemExit("goal391_expected_assessment_invalid")
+
+
+def _classification_evidence_signature(
+    value: Any, *, strict: bool = False
+) -> str | None:
+    """Return a value-free fingerprint of one evidence pointer and relation."""
+
+    if (
+        not isinstance(value, Mapping)
+        or (strict and set(value) != {"context_ref", "relation"})
+        or not isinstance(value.get("context_ref"), str)
+        or not value["context_ref"]
+        or not isinstance(value.get("relation"), str)
+        or not value["relation"]
+    ):
+        return None
+    return _sha256(
+        {
+            "context_ref": value["context_ref"],
+            "relation": value["relation"],
+        }
+    )
 
 
 def _read_json(path: Path) -> dict[str, Any]:
