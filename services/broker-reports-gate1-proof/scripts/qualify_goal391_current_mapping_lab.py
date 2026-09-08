@@ -33,7 +33,6 @@ from broker_reports_gate1.gate2_model_requests import (  # noqa: E402
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
 )
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (  # noqa: E402
-    PROMPT_COMMAND,
     OrdinaryTradeMappingPromptConfig,
     OrdinaryTradeMappingPromptResolverFactory,
     OrdinaryTradeMappingPromptUserContext,
@@ -68,9 +67,9 @@ def main() -> int:
     parser.add_argument("--expected-git-head", required=True)
     parser.add_argument("--ordinary-user-id", required=True)
     parser.add_argument("--prompt-db-path", type=Path, required=True)
-    prompt_selector = parser.add_mutually_exclusive_group(required=True)
-    prompt_selector.add_argument("--prompt-id")
-    prompt_selector.add_argument("--prompt-command")
+    parser.add_argument("--prompt-id", required=True)
+    parser.add_argument("--prompt-version", required=True)
+    parser.add_argument("--prompt-hash", required=True)
     parser.add_argument("--server-runtime", action="store_true")
     parser.add_argument("--timeout-seconds", type=int, default=600)
     args = parser.parse_args()
@@ -84,7 +83,8 @@ def main() -> int:
     prompt = _resolve_mapping_prompt(
         db_path=args.prompt_db_path,
         prompt_id=args.prompt_id,
-        prompt_command=args.prompt_command,
+        prompt_version=args.prompt_version,
+        prompt_hash=args.prompt_hash,
         ordinary_user_id=ordinary_user_id,
     )
 
@@ -591,24 +591,24 @@ def _current_candidate(*, semantic: Any, prompt: Any, expected_git_head: str) ->
 def _resolve_mapping_prompt(
     *,
     db_path: Path,
-    prompt_id: str | None,
-    prompt_command: str | None,
+    prompt_id: str,
+    prompt_version: str,
+    prompt_hash: str,
     ordinary_user_id: str,
 ):
     """Resolve the version-pinned Workspace Prompt without exposing its body."""
 
     selector_id = str(prompt_id or "").strip()
-    selector_command = str(prompt_command or "").strip()
-    if bool(selector_id) == bool(selector_command):
+    if not selector_id:
         raise SystemExit("goal391_mapping_prompt_selector_invalid")
-    if selector_command and selector_command != PROMPT_COMMAND:
-        raise SystemExit("goal391_mapping_prompt_command_invalid")
     return OrdinaryTradeMappingPromptResolverFactory(
         OrdinaryTradeMappingPromptConfig(
             source="openwebui_sqlite",
             db_path=db_path,
-            prompt_id=selector_id or None,
-            command=selector_command or None,
+            prompt_id=selector_id,
+            command=None,
+            release_prompt_version=str(prompt_version or "").strip() or None,
+            release_prompt_hash=str(prompt_hash or "").strip() or None,
         )
     ).create().resolve(
         OrdinaryTradeMappingPromptUserContext(

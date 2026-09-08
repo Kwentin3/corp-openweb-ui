@@ -391,3 +391,38 @@ def test_lab_preflight_rejects_an_empty_frozen_manifest(tmp_path) -> None:
         )
 
     assert str(exc.value) == "goal391_expectations_invalid"
+
+
+def test_lab_resolves_only_an_explicit_release_pinned_prompt(monkeypatch) -> None:
+    runner = _lab_runner_module()
+    captured = {}
+    managed = _managed_qualification_prompt()
+
+    class Resolver:
+        def resolve(self, user_context):
+            captured["user_context"] = user_context
+            return managed
+
+    class Factory:
+        def __init__(self, config):
+            captured["config"] = config
+
+        def create(self):
+            return Resolver()
+
+    monkeypatch.setattr(runner, "OrdinaryTradeMappingPromptResolverFactory", Factory)
+
+    resolved = runner._resolve_mapping_prompt(
+        db_path=Path("/private/prompt.db"),
+        prompt_id="managed-candidate-id",
+        prompt_version="managed-candidate-version",
+        prompt_hash="a" * 64,
+        ordinary_user_id="ordinary-user",
+    )
+
+    assert resolved is managed
+    assert captured["config"].prompt_id == "managed-candidate-id"
+    assert captured["config"].command is None
+    assert captured["config"].release_prompt_version == "managed-candidate-version"
+    assert captured["config"].release_prompt_hash == "a" * 64
+    assert captured["user_context"].user_id == "ordinary-user"

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-from dataclasses import replace
 
 import pytest
 from jsonschema import Draft202012Validator, ValidationError
@@ -27,13 +26,25 @@ from broker_reports_gate1.ordinary_trade_semantic_compiler import (
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     ANSWER_RESPONSE_SCHEMA_VERSION,
-    MAPPING_PROMPT_VERSION,
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
     _confirmed_exclusion_resolutions,
     _model_table_surfaces,
     _table_surfaces,
+)
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_ID,
+    OUTPUT_SCHEMA_VERSION,
+    PROMPT_COMMAND,
+    PROMPT_CONTRACT_ID,
+    PROMPT_PLACEHOLDER,
+    PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND,
+    OrdinaryTradeMappingManagedPrompt,
+    ordinary_trade_mapping_prompt_hash,
 )
 
 import test_broker_reports_ordinary_trade_production_candidate as candidate
@@ -69,6 +80,26 @@ def _metadata() -> Gate2ProviderExecutionMetadata:
         response_format_type="json_schema",
         response_format_schema_mode="strict_json_schema",
         transport_type="openwebui_chat_completions",
+    )
+
+
+def _managed_mapping_prompt() -> OrdinaryTradeMappingManagedPrompt:
+    content = f"Map the supplied package. {PROMPT_PLACEHOLDER}"
+    return OrdinaryTradeMappingManagedPrompt(
+        prompt_ref="test-ordinary-trade-mapping-prompt",
+        command=PROMPT_COMMAND,
+        version="test-v1",
+        content=content,
+        hash=ordinary_trade_mapping_prompt_hash(content),
+        source="test",
+        template_id=PROMPT_TEMPLATE_ID,
+        template_kind=PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=PROMPT_CONTRACT_ID,
+        input_schema_version=INPUT_SCHEMA_VERSION,
+        output_schema_id=OUTPUT_SCHEMA_ID,
+        output_schema_version=OUTPUT_SCHEMA_VERSION,
+        tags=(PROMPT_REQUIRED_TAG,),
+        safe_metadata={},
     )
 
 
@@ -164,70 +195,8 @@ def _property_enum_sets(schema: object, property_name: str) -> list[set[str]]:
     return results
 
 
-def test_mapping_prompt_states_exact_currency_binding_contract() -> None:
-    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
-
-    assert "gross_amount, broker_commission or exchange_commission" in prompt
-    assert "Do not add bindings for unit_price" in prompt
-
-
-def test_mapping_prompt_requires_safe_transaction_and_currency_boundaries() -> None:
-    managed_prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt()
-
-    assert managed_prompt.version == MAPPING_PROMPT_VERSION
-    assert MAPPING_PROMPT_VERSION == "ordinary_trade_semantic_mapping_prompt_v22"
-    assert "A Settlement Date is never a Trade Date" in managed_prompt.content
-    assert "unambiguously not a transaction table" in managed_prompt.content
-    assert "distinct acquisition and disposal amount columns" in managed_prompt.content
-    assert "same table's exact side literals distinguish" in managed_prompt.content
-    assert "not literals occurring only in excluded rows" in managed_prompt.content
-    assert "source-column mappings in the same table" in managed_prompt.content
-    assert "preceding or adjacent row, narrative, or another table" in managed_prompt.content
-    assert "do not request currency" in managed_prompt.content
-    assert "INSTRUCTIONAL_REFERENCE" in managed_prompt.content
-    assert "OTHER_NO_NAMED_CONSUMER" in managed_prompt.content
-    assert "does not delete, alter, or hide Canonical" in managed_prompt.content
-    assert "COMPLETE has no residual or default disposition" in managed_prompt.content
-    assert "Opaque headers, an opaque CSV shape" in managed_prompt.content
-
-
-def test_mapping_prompt_direct_instructional_context_beats_transaction_like_columns() -> None:
-    """The model, not code, resolves this semantic contrast from literal evidence."""
-
-    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
-
-    assert "Resolve source status before mapping columns" in prompt
-    assert "transaction-like columns do not override that direct source context" in prompt
-    assert "NO_NAMED_CONSUMER with INSTRUCTIONAL_REFERENCE" in prompt
-    assert "its exact classification_evidence reference" in prompt
-
-
-def test_mapping_prompt_requires_abstention_without_direct_declarant_example_evidence() -> None:
-    """No word list in code may resolve a declarant-versus-example ambiguity."""
-
-    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
-
-    assert "If no direct source context resolves the distinction between a declarant " in prompt
-    assert "record and an example or reference, return SPECIALIST_REVIEW_REQUIRED" in prompt
-    assert "the table is the declarant's non-transaction record" not in prompt
-
-
-def test_mapping_prompt_recognizes_explicit_sale_table_contract() -> None:
-    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
-
-    assert "date acquired, date sold or disposed" in prompt
-    assert "explicitly says Sale" in prompt
-    assert "Do not mark that row NO_NAMED_CONSUMER" in prompt
-
-
-def test_mapping_prompt_forbids_declarant_table_classification() -> None:
-    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
-
-    assert "Classify every supplied table, including NO_NAMED_CONSUMER tables" in prompt
-    assert "never ask the declarant to classify" in prompt
-    assert "SPECIALIST_REVIEW_REQUIRED" in prompt
-    assert "balances, holdings, reference/master data" in prompt
-    assert "only for a transaction table" in prompt
+def test_semantic_owner_does_not_own_mapping_instruction() -> None:
+    assert not hasattr(OrdinaryTradeSemanticMappingFactory.create(), "mapping_prompt")
 
 
 def test_model_package_exposes_only_bounded_literal_local_table_context() -> None:
@@ -282,14 +251,6 @@ def test_model_package_exposes_only_bounded_literal_local_table_context() -> Non
     }
     assert "foreign_text" not in str(tables)
     assert "table_1" not in str(tables[0]["source_context"])
-
-
-def test_mapping_prompt_states_the_exact_top_level_response_contract() -> None:
-    prompt = OrdinaryTradeSemanticMappingFactory.create().mapping_prompt().content
-
-    assert repr(MAPPING_RESPONSE_SCHEMA_VERSION) in prompt
-    assert "status, table_decisions, clarification and a non-empty message" in prompt
-    assert "clarification must be null" in prompt
 
 
 def test_mapping_preserves_a_bounded_local_context_window() -> None:
@@ -477,10 +438,7 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
     form_data = Gate2OpenWebUIRequestBuilder(
         request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
     ).build(
-        prompt=replace(
-            owner.mapping_prompt(),
-            content=(owner.mapping_prompt().content + "\n{{ordinary_trade_mapping_case_json}}"),
-        ),
+        prompt=_managed_mapping_prompt(),
         package={"phase": "map", "case": {}},
         model_id="models/gemini-3.5-flash",
         response_format=response_format,
@@ -1341,10 +1299,7 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
     request = Gate2OpenWebUIRequestBuilder(
         request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE
     ).build(
-        prompt=replace(
-            owner.mapping_prompt(),
-            content=(owner.mapping_prompt().content + "\n{{ordinary_trade_mapping_case_json}}"),
-        ),
+        prompt=_managed_mapping_prompt(),
         package=mapping_package,
         model_id="models/gemini-3.5-flash",
         response_format=owner.mapping_response_format(),
@@ -1353,8 +1308,7 @@ def test_model_requests_use_canonical_builder_and_strict_schema(tmp_path) -> Non
     assert request["max_tokens"] == ORDINARY_TRADE_SEMANTIC_MAPPING_MAX_OUTPUT_TOKENS
     assert request["max_tokens"] == 65_536
     assert request["response_format"]["json_schema"]["strict"] is True
-    assert "never ask the declarant to classify" in request["messages"][0]["content"]
-    assert "Cash movements, dividends, interest" in request["messages"][0]["content"]
+    assert PROMPT_PLACEHOLDER not in request["messages"][0]["content"]
     question = {
         "question_id": "q_table_kind",
         "table_node_id": table["node_id"],
