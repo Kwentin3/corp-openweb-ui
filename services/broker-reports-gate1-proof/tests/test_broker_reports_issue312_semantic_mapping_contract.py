@@ -285,6 +285,120 @@ def test_mapping_preserves_a_bounded_local_context_window() -> None:
     ]
 
 
+def test_private_context_audit_proves_window_omission_without_model_leakage() -> None:
+    canonical = {
+        "nodes": [
+            *[
+                {
+                    "node_id": f"text_{index}",
+                    "container_ref": "page_1",
+                    "order": index,
+                    "node_type": "TEXT",
+                    "content": {"text": f"context {index}"},
+                }
+                for index in range(9)
+            ],
+            {
+                "node_id": "table_1",
+                "container_ref": "page_1",
+                "order": 9,
+                "node_type": "TABLE",
+                "content": {
+                    "cells": [{"row": 1, "column": 1, "displayed_value": "x"}],
+                },
+            },
+        ]
+    }
+
+    private_table = _table_surfaces(canonical)[0]
+    audit = private_table["source_context_audit"]
+
+    assert audit == {
+        "eligible_context_entries_total": 9,
+        "omitted_context_entries_total": 1,
+        "truncated_context_entries_total": 0,
+    }
+    assert all("literal" not in item for item in private_table["source_context_evidence"])
+    assert {
+        "canonical_literal_sha256",
+        "canonical_literal_chars",
+        "projected_literal_sha256",
+        "projected_literal_chars",
+        "literal_truncated",
+    }.issubset(private_table["source_context_evidence"][0])
+    model_table = _model_table_surfaces(canonical)[0][0]
+    assert "source_context_audit" not in model_table
+    assert "source_context_evidence" not in model_table
+
+
+def test_private_context_audit_proves_literal_truncation_without_full_literal() -> None:
+    full_literal = "x" * 513
+    canonical = {
+        "nodes": [
+            {
+                "node_id": "text_1",
+                "container_ref": "page_1",
+                "order": 0,
+                "node_type": "TEXT",
+                "content": {"text": full_literal},
+            },
+            {
+                "node_id": "table_1",
+                "container_ref": "page_1",
+                "order": 1,
+                "node_type": "TABLE",
+                "content": {
+                    "cells": [{"row": 1, "column": 1, "displayed_value": "x"}],
+                },
+            },
+        ]
+    }
+
+    private_table = _table_surfaces(canonical)[0]
+    evidence = private_table["source_context_evidence"][0]
+
+    assert private_table["source_context_audit"]["truncated_context_entries_total"] == 1
+    assert evidence["canonical_literal_chars"] == 513
+    assert evidence["projected_literal_chars"] == 512
+    assert evidence["literal_truncated"] is True
+    assert evidence["canonical_literal_sha256"] != evidence["projected_literal_sha256"]
+    model_table = _model_table_surfaces(canonical)[0][0]
+    assert full_literal not in str(model_table)
+
+
+def test_private_context_audit_proves_table_title_truncation() -> None:
+    full_title = "t" * 513
+    canonical = {
+        "nodes": [
+            {
+                "node_id": "table_1",
+                "container_ref": "page_1",
+                "order": 0,
+                "node_type": "TABLE",
+                "content": {
+                    "title": full_title,
+                    "cells": [{"row": 1, "column": 1, "displayed_value": "x"}],
+                },
+            },
+        ]
+    }
+
+    private_table = _table_surfaces(canonical)[0]
+    evidence = private_table["source_context_evidence"][0]
+
+    assert private_table["source_context_audit"] == {
+        "eligible_context_entries_total": 1,
+        "omitted_context_entries_total": 0,
+        "truncated_context_entries_total": 1,
+    }
+    assert evidence["canonical_literal_chars"] == 513
+    assert evidence["projected_literal_chars"] == 512
+    assert evidence["literal_truncated"] is True
+    assert evidence["canonical_literal_sha256"] != evidence["projected_literal_sha256"]
+    model_table = _model_table_surfaces(canonical)[0][0]
+    assert full_title not in str(model_table)
+
+
 def test_numeric_canonical_cells_have_one_read_only_literal_projection() -> None:
     canonical = {
         "nodes": [

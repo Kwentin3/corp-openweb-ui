@@ -1068,9 +1068,7 @@ def _table_surfaces(
                 "rows": rows,
                 **_source_context_for_table(
                     table_node_id=node_id,
-                    title_literal=_source_context_literal(
-                        (node.get("content") or {}).get("title")
-                    ),
+                    title_value=(node.get("content") or {}).get("title"),
                     table_order=node["order"],
                     container_ref=container_ref,
                     preceding_sibling_ref=preceding_sibling_by_container[container_ref],
@@ -1166,7 +1164,7 @@ def _preceding_sibling_containers(canonical: Mapping[str, Any]) -> dict[str, str
 def _literal_nodes_by_container(
     *, nodes: list[Any], container_refs: set[str]
 ) -> dict[str, list[tuple[int, str, str]]]:
-    """Keep only literal text nodes, ordered inside their authoritative container."""
+    """Keep literal text nodes, ordered inside their authoritative container."""
 
     by_container: dict[str, list[tuple[int, str, str]]] = {}
     for node in nodes:
@@ -1190,7 +1188,9 @@ def _literal_nodes_by_container(
         content = node.get("content")
         if not isinstance(content, Mapping):
             _fail("ordinary_trade_semantic_mapping_canonical_invalid")
-        literal = _source_context_literal(content.get("text"))
+        literal = content.get("text")
+        if not isinstance(literal, str):
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
         if literal:
             by_container.setdefault(container_ref, []).append((order, node_id, literal))
     for literals in by_container.values():
@@ -1201,7 +1201,7 @@ def _literal_nodes_by_container(
 def _source_context_for_table(
     *,
     table_node_id: str,
-    title_literal: str,
+    title_value: Any,
     table_order: int,
     container_ref: str,
     preceding_sibling_ref: str | None,
@@ -1227,27 +1227,52 @@ def _source_context_for_table(
         for _order, node_id, literal in local
     ]
     selected = bounded[-_MAX_LOCAL_CONTEXT_ITEMS:]
+    title_source_literal = title_value if isinstance(title_value, str) else ""
     candidates = (
-        [("TABLE_TITLE", table_node_id, title_literal)] if title_literal else []
+        [("TABLE_TITLE", table_node_id, title_source_literal)]
+        if title_source_literal
+        else []
     ) + selected
     entries = []
     private_entries = []
     for index, (relation, node_id, literal) in enumerate(candidates, start=1):
         context_ref = f"context_{index}"
+        projected_literal = _source_context_literal(literal)
         entries.append(
-            {"context_ref": context_ref, "relation": relation, "literal": literal}
+            {
+                "context_ref": context_ref,
+                "relation": relation,
+                "literal": projected_literal,
+            }
         )
         private_entries.append(
             {
                 "context_ref": context_ref,
                 "relation": relation,
                 "canonical_node_id": node_id,
-                "literal_sha256": _sha256_text(literal),
+                # Keep the established projected digest for response binding.
+                "literal_sha256": _sha256_text(projected_literal),
+                # These receipt-only fields make local-window loss auditable;
+                # neither raw Canonical text nor this private evidence reaches
+                # the model package.
+                "canonical_literal_sha256": _sha256_text(literal),
+                "canonical_literal_chars": len(literal),
+                "projected_literal_sha256": _sha256_text(projected_literal),
+                "projected_literal_chars": len(projected_literal),
+                "literal_truncated": len(literal) != len(projected_literal),
             }
         )
     return {
         "source_context": {"entries": entries},
         "source_context_evidence": private_entries,
+        "source_context_audit": {
+            "eligible_context_entries_total": len(candidates) + len(bounded) - len(selected),
+            "omitted_context_entries_total": len(bounded) - len(selected),
+            "truncated_context_entries_total": sum(
+                len(literal) != len(_source_context_literal(literal))
+                for _relation, _node_id, literal in candidates
+            ),
+        },
     }
 
 
