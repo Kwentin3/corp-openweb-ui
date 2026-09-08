@@ -1,6 +1,9 @@
+import asyncio
 import json
 import sqlite3
 import uuid
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
 
 import pytest
 
@@ -20,6 +23,7 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     OrdinaryTradeMappingPromptResolverFactory,
     OrdinaryTradeMappingPromptUserContext,
     StaticOrdinaryTradeMappingPromptResolver,
+    OpenWebUIServerOrdinaryTradeMappingPromptResolver,
     ordinary_trade_mapping_prompt_hash,
     validate_ordinary_trade_mapping_prompt_snapshot,
 )
@@ -189,6 +193,79 @@ def test_static_and_disabled_helpers_are_typed_and_require_authenticated_user():
     assert disabled.value.code == "ordinary_trade_mapping_prompt_disabled"
 
 
+def test_native_server_resolver_uses_openwebui_owners_for_direct_test_user_grant(
+    monkeypatch,
+):
+    content = "Map {{ordinary_trade_mapping_case_json}}."
+    calls = []
+    resolver = _server_resolver(content)
+    _install_native_owners(
+        monkeypatch,
+        resolver,
+        content=content,
+        access=lambda *args, **kwargs: calls.append((args, kwargs)) or True,
+    )
+
+    resolved = asyncio.run(resolver.resolve(_user("ordinary-user")))
+
+    assert resolved.prompt_ref == "mapping-prompt"
+    assert calls == [
+        (
+            ("ordinary-user", "prompt", "mapping-prompt"),
+            {"permission": "read", "db": "native-session"},
+        )
+    ]
+
+
+def test_native_server_resolver_rejects_wrong_user_before_history_read(monkeypatch):
+    content = "Map {{ordinary_trade_mapping_case_json}}."
+    resolver = _server_resolver(content)
+    calls = {"history": 0}
+    _install_native_owners(
+        monkeypatch,
+        resolver,
+        content=content,
+        access=lambda *_args, **_kwargs: False,
+        calls=calls,
+    )
+
+    with pytest.raises(OrdinaryTradeMappingPromptError) as denied:
+        asyncio.run(resolver.resolve(_user("wrong-user")))
+
+    assert denied.value.code == "ordinary_trade_mapping_prompt_access_denied"
+    assert calls["history"] == 0
+
+
+@pytest.mark.parametrize(
+    ("row_overrides", "history_prompt_id", "snapshot_content", "expected"),
+    [
+        ({"is_active": False}, "mapping-prompt", None, "ordinary_trade_mapping_prompt_not_found"),
+        ({}, "foreign-prompt", None, "ordinary_trade_mapping_prompt_version_invalid"),
+        ({}, "mapping-prompt", "Drift {{ordinary_trade_mapping_case_json}}.", "ordinary_trade_mapping_prompt_version_drift"),
+    ],
+    ids=["inactive", "history-misbinding", "stale-current-row"],
+)
+def test_native_server_resolver_fails_closed_for_inactive_or_stale_prompt(
+    monkeypatch, row_overrides, history_prompt_id, snapshot_content, expected
+):
+    content = "Map {{ordinary_trade_mapping_case_json}}."
+    resolver = _server_resolver(content)
+    _install_native_owners(
+        monkeypatch,
+        resolver,
+        content=content,
+        row_overrides=row_overrides,
+        history_prompt_id=history_prompt_id,
+        snapshot_content=snapshot_content,
+        access=lambda *_args, **_kwargs: True,
+    )
+
+    with pytest.raises(OrdinaryTradeMappingPromptError) as invalid:
+        asyncio.run(resolver.resolve(_user("ordinary-user")))
+
+    assert invalid.value.code == expected
+
+
 def test_snapshot_validator_rejects_foreign_contract_and_body_leak():
     prompt = OrdinaryTradeMappingManagedPrompt(
         prompt_ref="test-prompt", command=PROMPT_COMMAND, version="test-version",
@@ -219,6 +296,78 @@ def _resolver(db_path):
             release_prompt_hash=ordinary_trade_mapping_prompt_hash(row[0]),
         )
     ).create()
+
+
+def _server_resolver(content):
+    return OrdinaryTradeMappingPromptResolverFactory(
+        OrdinaryTradeMappingPromptConfig(
+            source="openwebui_server",
+            prompt_id="mapping-prompt",
+            release_prompt_version="history-1",
+            release_prompt_hash=ordinary_trade_mapping_prompt_hash(content),
+        )
+    ).create_async()
+
+
+def _install_native_owners(
+    monkeypatch,
+    resolver,
+    *,
+    content,
+    access,
+    row_overrides=None,
+    history_prompt_id="mapping-prompt",
+    snapshot_content=None,
+    calls=None,
+):
+    row = {
+        "id": "mapping-prompt",
+        "command": PROMPT_COMMAND,
+        "user_id": "owner",
+        "name": "Mapping prompt",
+        "content": content,
+        "data": {},
+        "meta": _meta(),
+        "tags": [PROMPT_REQUIRED_TAG],
+        "version_id": "history-1",
+        "is_active": True,
+    }
+    row.update(row_overrides or {})
+    snapshot = _snapshot(snapshot_content or content)
+
+    @asynccontextmanager
+    async def context():
+        yield "native-session"
+
+    class Prompts:
+        async def get_prompt_by_id(self, prompt_id, *, db):
+            assert prompt_id == "mapping-prompt" and db == "native-session"
+            return SimpleNamespace(model_dump=lambda: dict(row))
+
+        async def get_prompt_by_command(self, _command, *, db):
+            raise AssertionError("prompt id is required in this test")
+
+    class PromptHistories:
+        async def get_history_entry_by_id(self, history_id, *, db):
+            assert history_id == "history-1" and db == "native-session"
+            if calls is not None:
+                calls["history"] += 1
+            return SimpleNamespace(prompt_id=history_prompt_id, snapshot=snapshot)
+
+    class AccessGrants:
+        async def has_access(self, *args, **kwargs):
+            return access(*args, **kwargs)
+
+    monkeypatch.setattr(
+        resolver,
+        "_native_owners",
+        lambda: {
+            "get_async_db_context": context,
+            "prompts": Prompts(),
+            "prompt_histories": PromptHistories(),
+            "access_grants": AccessGrants(),
+        },
+    )
 
 
 def _user(user_id, *, role="user", groups=()):

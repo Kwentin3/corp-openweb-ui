@@ -166,6 +166,10 @@ def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():
     assert "RightBank" not in source
     assert "Declaration" not in source
     assert "generate_chat_completion" in source
+    assert 'source="openwebui_server"' in source
+    assert ".create_async().resolve(" in source
+    assert "prompt_db_path" not in source
+    assert 'source="openwebui_sqlite"' not in source
 
 
 def test_server_bound_loader_reads_exact_two_attested_slots_without_writes(monkeypatch):

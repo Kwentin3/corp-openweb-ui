@@ -309,7 +309,6 @@ class Pipe:
         )
         model_id: str = Field(default=MODEL_ID)
         provider_profile_id: str = Field(default=PROVIDER_PROFILE_ID)
-        prompt_db_path: str = Field(default="/app/backend/data/webui.db")
         prompt_id: str = Field(default="")
         prompt_version: str = Field(default="")
         prompt_hash: str = Field(default="")
@@ -341,7 +340,7 @@ class Pipe:
             loader = Goal391ServerBoundCaseLoader(valves=self.valves)
             cases = await self._load_cases(loader=loader, user=__user__)
             prepared = self._preflight(cases=cases)
-            prompt = self._resolve_prompt(__user__)
+            prompt = await self._resolve_prompt(__user__)
             receipt = await self._execute(
                 cases=prepared,
                 prompt=prompt,
@@ -379,25 +378,24 @@ class Pipe:
         if _FORBIDDEN_LAB_BODY_KEYS.intersection(body):
             raise Goal391MappingLabPipeError("goal391_lab_body_input_forbidden")
 
-    def _resolve_prompt(self, user: Any):
+    async def _resolve_prompt(self, user: Any):
         prompt_id = str(self.valves.prompt_id or "").strip()
         prompt_version = str(self.valves.prompt_version or "").strip()
         prompt_hash = str(self.valves.prompt_hash or "").strip()
         if not prompt_id or not prompt_version or not prompt_hash:
             raise Goal391MappingLabPipeError("goal391_lab_prompt_pin_required")
         user_id = self._ordinary_user_id(user)
-        # The Pipe never opens Prompt tables.  The existing resolver owns
-        # Prompt history, contract validation, grants and release pin checks.
-        return OrdinaryTradeMappingPromptResolverFactory(
+        # The Pipe never opens Prompt tables. The existing resolver delegates
+        # to in-process OpenWebUI Prompt, history and access-grant owners.
+        return await OrdinaryTradeMappingPromptResolverFactory(
             OrdinaryTradeMappingPromptConfig(
-                source="openwebui_sqlite",
-                db_path=Path(str(self.valves.prompt_db_path)),
+                source="openwebui_server",
                 prompt_id=prompt_id,
                 command=None,
                 release_prompt_version=prompt_version,
                 release_prompt_hash=prompt_hash,
             )
-        ).create().resolve(
+        ).create_async().resolve(
             OrdinaryTradeMappingPromptUserContext(user_id=user_id, user_role="user")
         )
 

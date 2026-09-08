@@ -120,6 +120,12 @@ class OrdinaryTradeMappingPromptResolver(Protocol):
     ) -> OrdinaryTradeMappingManagedPrompt: ...
 
 
+class AsyncOrdinaryTradeMappingPromptResolver(Protocol):
+    async def resolve(
+        self, user_context: OrdinaryTradeMappingPromptUserContext
+    ) -> OrdinaryTradeMappingManagedPrompt: ...
+
+
 class OrdinaryTradeMappingPromptResolverFactory:
     def __init__(self, config: OrdinaryTradeMappingPromptConfig) -> None:
         self.config = config
@@ -142,6 +148,25 @@ class OrdinaryTradeMappingPromptResolverFactory:
             "ordinary_trade_mapping_prompt_unavailable",
             "Unsupported ordinary-trade mapping prompt source",
         )
+
+    def create_async(self) -> AsyncOrdinaryTradeMappingPromptResolver:
+        """Return the native in-process resolver used by an OpenWebUI Function.
+
+        This is deliberately a separate mode, rather than an async wrapper around
+        the SQLite reader.  A running Function already has OpenWebUI's async
+        database context and resource owners; opening the database again would
+        create a parallel ownership path.
+        """
+        if self.config.source != "openwebui_server":
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_unavailable",
+                "Async ordinary-trade mapping prompt source is unavailable",
+            )
+        _validate_release_pin(
+            version=self.config.release_prompt_version,
+            prompt_hash=self.config.release_prompt_hash,
+        )
+        return OpenWebUIServerOrdinaryTradeMappingPromptResolver(self.config)
 
 
 class DisabledOrdinaryTradeMappingPromptResolver:
@@ -411,6 +436,155 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
         )
 
 
+class OpenWebUIServerOrdinaryTradeMappingPromptResolver(
+    OpenWebUISqliteOrdinaryTradeMappingPromptResolver
+):
+    """Resolve a release-pinned Prompt through native OpenWebUI owners only.
+
+    The runtime Function calls this inside the OpenWebUI server process.  The
+    dynamic import is intentional: source-only and hermetic tests do not ship
+    OpenWebUI, while a Function without those in-process owners must fail closed
+    instead of falling back to SQLite or HTTP.
+    """
+
+    async def resolve(
+        self, user_context: OrdinaryTradeMappingPromptUserContext
+    ) -> OrdinaryTradeMappingManagedPrompt:
+        if not str(user_context.user_id or "").strip():
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_access_denied",
+                "Authenticated user is required",
+            )
+        owners = self._native_owners()
+        try:
+            async with owners["get_async_db_context"]() as session:
+                prompt_model = await self._native_prompt(
+                    owners=owners, session=session
+                )
+                if prompt_model is None:
+                    raise OrdinaryTradeMappingPromptError(
+                        "ordinary_trade_mapping_prompt_not_found",
+                        "Ordinary-trade mapping Workspace Prompt was not found",
+                    )
+                row = self._native_prompt_row(prompt_model)
+                if not bool(row.get("is_active")) or not self._matches_contract(row):
+                    raise OrdinaryTradeMappingPromptError(
+                        "ordinary_trade_mapping_prompt_not_found",
+                        "Ordinary-trade mapping Workspace Prompt was not found",
+                    )
+                if not await self._native_has_read_access(
+                    owners=owners,
+                    row=row,
+                    user_context=user_context,
+                    session=session,
+                ):
+                    raise OrdinaryTradeMappingPromptError(
+                        "ordinary_trade_mapping_prompt_access_denied",
+                        "Ordinary-trade mapping Workspace Prompt is not readable",
+                    )
+                snapshot = await self._native_version_snapshot(
+                    owners=owners, row=row, session=session
+                )
+                self._require_current_row_matches_version(row, snapshot)
+                prompt = self._row_to_prompt(row)
+                self._require_release_pin(prompt)
+                return prompt
+        except OrdinaryTradeMappingPromptError:
+            raise
+        except Exception as exc:
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_unavailable",
+                "OpenWebUI native Prompt owners are unavailable",
+            ) from exc
+
+    @staticmethod
+    def _native_owners() -> dict[str, Any]:
+        try:
+            from open_webui.internal.db import get_async_db_context
+            from open_webui.models.access_grants import AccessGrants
+            from open_webui.models.prompt_history import PromptHistories
+            from open_webui.models.prompts import Prompts
+        except Exception as exc:
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_unavailable",
+                "OpenWebUI native Prompt owners are unavailable",
+            ) from exc
+        return {
+            "get_async_db_context": get_async_db_context,
+            "prompts": Prompts,
+            "prompt_histories": PromptHistories,
+            "access_grants": AccessGrants,
+        }
+
+    async def _native_prompt(self, *, owners: dict[str, Any], session: Any) -> Any:
+        if self.config.prompt_id:
+            return await owners["prompts"].get_prompt_by_id(
+                self.config.prompt_id, db=session
+            )
+        if self.config.command:
+            return await owners["prompts"].get_prompt_by_command(
+                self.config.command, db=session
+            )
+        raise OrdinaryTradeMappingPromptError(
+            "ordinary_trade_mapping_prompt_not_found",
+            "Prompt id or command is required",
+        )
+
+    @staticmethod
+    def _native_prompt_row(prompt_model: Any) -> dict[str, Any]:
+        if hasattr(prompt_model, "model_dump"):
+            value = prompt_model.model_dump()
+        elif isinstance(prompt_model, dict):
+            value = prompt_model
+        else:
+            return {}
+        return copy.deepcopy(value) if isinstance(value, dict) else {}
+
+    async def _native_has_read_access(
+        self,
+        *,
+        owners: dict[str, Any],
+        row: dict[str, Any],
+        user_context: OrdinaryTradeMappingPromptUserContext,
+        session: Any,
+    ) -> bool:
+        role = str(user_context.user_role or "").lower()
+        user_id = str(user_context.user_id or "")
+        if role == "admin" or user_id == str(row.get("user_id") or ""):
+            return True
+        return bool(
+            await owners["access_grants"].has_access(
+                user_id,
+                "prompt",
+                str(row.get("id") or ""),
+                permission="read",
+                db=session,
+            )
+        )
+
+    async def _native_version_snapshot(
+        self, *, owners: dict[str, Any], row: dict[str, Any], session: Any
+    ) -> dict[str, Any]:
+        version_id = str(row.get("version_id") or "").strip()
+        prompt_id = str(row.get("id") or "").strip()
+        if not version_id or not prompt_id:
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_version_invalid",
+                "Ordinary-trade mapping Workspace Prompt has no active version",
+            )
+        history = await owners["prompt_histories"].get_history_entry_by_id(
+            version_id, db=session
+        )
+        history_prompt_id = str(getattr(history, "prompt_id", "") or "")
+        snapshot = _json_dict(getattr(history, "snapshot", None))
+        if history_prompt_id != prompt_id or not snapshot:
+            raise OrdinaryTradeMappingPromptError(
+                "ordinary_trade_mapping_prompt_version_invalid",
+                "Ordinary-trade mapping Workspace Prompt active version is unavailable",
+            )
+        return snapshot
+
+
 def ordinary_trade_mapping_prompt_hash(prompt_content: str) -> str:
     material = (
         prompt_content.replace("\r\n", "\n").strip()
@@ -528,7 +702,9 @@ __all__ = [
     "PROMPT_SNAPSHOT_SCHEMA_VERSION",
     "PROMPT_TEMPLATE_ID",
     "PROMPT_TEMPLATE_KIND",
+    "AsyncOrdinaryTradeMappingPromptResolver",
     "DisabledOrdinaryTradeMappingPromptResolver",
+    "OpenWebUIServerOrdinaryTradeMappingPromptResolver",
     "OpenWebUISqliteOrdinaryTradeMappingPromptResolver",
     "OrdinaryTradeMappingManagedPrompt",
     "OrdinaryTradeMappingPromptConfig",
