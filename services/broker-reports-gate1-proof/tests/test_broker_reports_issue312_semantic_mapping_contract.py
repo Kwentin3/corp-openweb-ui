@@ -281,7 +281,7 @@ def test_mapping_preserves_a_bounded_local_context_window() -> None:
     tables, _refs = _model_table_surfaces(canonical)
 
     assert [item["literal"] for item in tables[0]["source_context"]["entries"]] == [
-        f"context {index}" for index in range(1, 9)
+        f"context {index}" for index in range(5, 9)
     ]
 
 
@@ -315,12 +315,12 @@ def test_private_context_audit_proves_window_omission_without_model_leakage() ->
 
     assert audit == {
         "eligible_context_entries_total": 9,
-        "omitted_context_entries_total": 1,
+        "omitted_context_entries_total": 5,
         "truncated_context_entries_total": 0,
         "eligible_preceding_sibling_container_total": 0,
         "eligible_preceding_same_container_total": 9,
         "omitted_preceding_sibling_container_total": 0,
-        "omitted_preceding_same_container_total": 1,
+        "omitted_preceding_same_container_total": 5,
     }
     assert all("literal" not in item for item in private_table["source_context_evidence"])
     assert {

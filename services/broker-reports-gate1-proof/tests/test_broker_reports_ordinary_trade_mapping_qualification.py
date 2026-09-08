@@ -490,10 +490,10 @@ def test_mapping_package_projects_only_the_immediate_preceding_sibling_context(
 
     source_context = package["case"]["tables"][0]["source_context"]
     assert [item["literal"] for item in source_context["entries"]] == [
+        "sibling-2",
         "sibling-3",
         "sibling-4",
         "sibling-5",
-        "local-0",
         "local-1",
         "local-2",
         "local-3",
@@ -503,7 +503,7 @@ def test_mapping_package_projects_only_the_immediate_preceding_sibling_context(
         "PRECEDING_SIBLING_CONTAINER",
         "PRECEDING_SIBLING_CONTAINER",
         "PRECEDING_SIBLING_CONTAINER",
-        "PRECEDING_SAME_CONTAINER",
+        "PRECEDING_SIBLING_CONTAINER",
         "PRECEDING_SAME_CONTAINER",
         "PRECEDING_SAME_CONTAINER",
         "PRECEDING_SAME_CONTAINER",
@@ -519,8 +519,8 @@ def test_mapping_package_projects_only_the_immediate_preceding_sibling_context(
         "truncated_context_entries_total": 0,
         "eligible_preceding_sibling_container_total": 6,
         "eligible_preceding_same_container_total": 5,
-        "omitted_preceding_sibling_container_total": 3,
-        "omitted_preceding_same_container_total": 0,
+        "omitted_preceding_sibling_container_total": 2,
+        "omitted_preceding_same_container_total": 1,
     }
 
 

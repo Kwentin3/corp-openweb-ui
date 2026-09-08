@@ -94,6 +94,7 @@ _MAX_MODEL_ROWS_PER_TABLE = 24
 # Keep enough local source structure to distinguish an instructional table from
 # a declarant record, while retaining the prior bounded context budget.
 _MAX_LOCAL_CONTEXT_ITEMS = 8
+_MAX_LOCAL_CONTEXT_ITEMS_PER_RELATION = 4
 _MAX_LOCAL_CONTEXT_LITERAL_CHARS = 512
 _MAX_DISTINCT_VALUES_PER_COLUMN = 64
 _MAX_EXCLUSION_CONFIRMATION_TABLES = 12
@@ -1219,15 +1220,26 @@ def _source_context_for_table(
         for item in literal_nodes_by_container.get(container_ref, [])
         if item[0] < table_order
     ]
-    bounded = [
+    sibling_context = [
         ("PRECEDING_SIBLING_CONTAINER", node_id, literal)
         for _order, node_id, literal in sibling
-    ] + [
+    ]
+    local_context = [
         ("PRECEDING_SAME_CONTAINER", node_id, literal)
         for _order, node_id, literal in local
     ]
-    selected = bounded[-_MAX_LOCAL_CONTEXT_ITEMS:]
-    omitted = bounded[: len(bounded) - len(selected)]
+    bounded = [*sibling_context, *local_context]
+    # The two immediately adjacent Canonical relations are distinct structural
+    # evidence.  Reserve a bounded tail for each; this selects no meaning and
+    # keeps the established eight-literal model budget.
+    selected = [
+        *sibling_context[-_MAX_LOCAL_CONTEXT_ITEMS_PER_RELATION:],
+        *local_context[-_MAX_LOCAL_CONTEXT_ITEMS_PER_RELATION:],
+    ]
+    omitted = [
+        *sibling_context[:-_MAX_LOCAL_CONTEXT_ITEMS_PER_RELATION],
+        *local_context[:-_MAX_LOCAL_CONTEXT_ITEMS_PER_RELATION],
+    ]
     title_source_literal = title_value if isinstance(title_value, str) else ""
     candidates = (
         [("TABLE_TITLE", table_node_id, title_source_literal)]
