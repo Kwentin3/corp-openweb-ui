@@ -1927,6 +1927,8 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     pipe.valves.ordinary_trade_mapping_prompt_db_path = "/private/prompt.db"
     pipe.valves.ordinary_trade_mapping_prompt_id = "pinned-mapping-prompt"
     pipe.valves.ordinary_trade_mapping_prompt_command = ""
+    pipe.valves.ordinary_trade_mapping_prompt_version = "history-1"
+    pipe.valves.ordinary_trade_mapping_prompt_hash = "a" * 64
     captured: dict[str, object] = {}
 
     class Resolver:
@@ -1989,6 +1991,8 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     assert config.db_path == Path("/private/prompt.db")
     assert config.prompt_id == "pinned-mapping-prompt"
     assert config.command is None
+    assert config.release_prompt_version == "history-1"
+    assert config.release_prompt_hash == "a" * 64
     runtime_kwargs = captured["runtime_kwargs"]
     assert isinstance(runtime_kwargs["mapping_prompt_resolver"], Resolver)
     user_context_factory = runtime_kwargs["mapping_prompt_user_context_factory"]

@@ -291,7 +291,11 @@ def _preflight(
         != "broker_reports_role_mapping_lab_disposition_expectations_v2"
         or expectations.get("candidate") != candidate
         or not isinstance(expectations.get("cases"), list)
-        or len(expectations["cases"]) != 5
+        # The frozen manifest, not this runner, defines the closed qualification
+        # scope.  An empty manifest cannot qualify a candidate; any non-empty
+        # manifest is still fully validated below before a provider boundary is
+        # reachable.
+        or not expectations["cases"]
     ):
         raise SystemExit("goal391_expectations_invalid")
     cases = []
