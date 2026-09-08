@@ -173,6 +173,25 @@ def test_native_workspace_model_is_recovered_from_the_exact_owned_turn(
     assert metadata["model_id"] == NDFL_WORKSPACE_MODEL_STABLE_ID
 
 
+def test_server_injected_workspace_model_is_primary_identity_source() -> None:
+    class UnexpectedRequest:
+        async def json(self):
+            raise AssertionError("native model metadata must avoid a body fallback")
+
+    metadata = asyncio.run(
+        Pipe()._server_attested_runtime_metadata(
+            request=UnexpectedRequest(),
+            metadata={
+                "chat_id": "owned-chat",
+                "model": {"id": NDFL_WORKSPACE_MODEL_STABLE_ID},
+            },
+            user={"id": "user-a"},
+        )
+    )
+
+    assert metadata["model_id"] == NDFL_WORKSPACE_MODEL_STABLE_ID
+
+
 def test_completed_host_owned_current_turn_is_replayed_without_reexecution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

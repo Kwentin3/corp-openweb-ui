@@ -4981,6 +4981,17 @@ class Pipe:
         """Recover a native chat scope only after an owner-bound DB lookup."""
 
         result = dict(metadata)
+        selected_model = result.get("model")
+        if (
+            isinstance(selected_model, dict)
+            and selected_model.get("id") == NDFL_WORKSPACE_MODEL_STABLE_ID
+        ):
+            # In OpenWebUI 0.9.6 this is server-injected metadata from the
+            # authenticated model-selection route.  Functions receive the
+            # base Pipe as ``body.model`` and no ``__model__`` argument, so
+            # this is the primary native identity source.  It is not client
+            # body metadata and does not grant any additional authority.
+            result["model_id"] = NDFL_WORKSPACE_MODEL_STABLE_ID
         if result.get("chat_id") and result.get("model_id"):
             return result
         if request is None or not callable(getattr(request, "json", None)):
