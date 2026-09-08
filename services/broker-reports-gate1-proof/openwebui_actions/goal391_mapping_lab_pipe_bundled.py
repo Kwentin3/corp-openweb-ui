@@ -604,6 +604,10 @@ class Pipe:
         prompt_id: str = Field(default="")
         prompt_version: str = Field(default="")
         prompt_hash: str = Field(default="")
+        # A one-shot source/CANONICAL admission check for the temporary lab.
+        # It is explicit so the normal qualification path cannot silently skip
+        # its provider attempt.
+        preflight_only: bool = Field(default=False)
 
     def __init__(self) -> None:
         self.valves = self.Valves()
@@ -632,13 +636,16 @@ class Pipe:
             loader = Goal391ServerBoundCaseLoader(valves=self.valves)
             cases = await self._load_cases(loader=loader, user=__user__)
             prepared = self._preflight(cases=cases)
-            prompt = await self._resolve_prompt(__user__)
-            receipt = await self._execute(
-                cases=prepared,
-                prompt=prompt,
-                request=__request__,
-                user=__user__,
-            )
+            if self.valves.preflight_only:
+                receipt = self._preflight_receipt(prepared)
+            else:
+                prompt = await self._resolve_prompt(__user__)
+                receipt = await self._execute(
+                    cases=prepared,
+                    prompt=prompt,
+                    request=__request__,
+                    user=__user__,
+                )
         except Goal391MappingLabPipeError as exc:
             receipt = self._blocked_receipt(exc.code)
         except Exception as exc:  # Never return provider/source/Python details.
@@ -751,6 +758,22 @@ class Pipe:
             raise Goal391MappingLabPipeError("goal391_lab_case_duplicate")
         return prepared
 
+    def _preflight_receipt(self, prepared: list[dict[str, Any]]) -> dict[str, Any]:
+        """Confirm both owner-bound inputs before a separately enabled run."""
+
+        return {
+            "schema_version": SAFE_RECEIPT_SCHEMA_VERSION,
+            "status": "PREFLIGHT_READY",
+            "corpus": {
+                "cases_total": len(prepared),
+                "provider_calls_started_total": 0,
+                "provider_calls_returned_total": 0,
+                "records": [],
+            },
+            "constraints": self._constraints(),
+            "terminal_error": None,
+        }
+
     @staticmethod
     def _valid_assessment(value: Any) -> bool:
         required = {
@@ -849,18 +872,7 @@ class Pipe:
                 "provider_calls_returned_total": lifecycle["provider_responses_total"],
                 "records": records,
             },
-            "constraints": {
-                "retries": 0,
-                "best_of_n": False,
-                "manual_output_repair": False,
-                "inner_provider_chat_id": "forbidden",
-                "inner_provider_parent_id": "forbidden",
-                "inner_chat_created": False,
-                "artifact_store_mutation": False,
-                "canonical_mutation": False,
-                "right_bank_mutation": False,
-                "xml_mutation": False,
-            },
+            "constraints": self._constraints(),
             "terminal_error": terminal_error,
         }
 
@@ -947,19 +959,23 @@ class Pipe:
                 "provider_calls_returned_total": 0,
                 "records": [],
             },
-            "constraints": {
-                "retries": 0,
-                "best_of_n": False,
-                "manual_output_repair": False,
-                "inner_provider_chat_id": "forbidden",
-                "inner_provider_parent_id": "forbidden",
-                "inner_chat_created": False,
-                "artifact_store_mutation": False,
-                "canonical_mutation": False,
-                "right_bank_mutation": False,
-                "xml_mutation": False,
-            },
+            "constraints": self._constraints(),
             "terminal_error": code,
+        }
+
+    @staticmethod
+    def _constraints() -> dict[str, Any]:
+        return {
+            "retries": 0,
+            "best_of_n": False,
+            "manual_output_repair": False,
+            "inner_provider_chat_id": "forbidden",
+            "inner_provider_parent_id": "forbidden",
+            "inner_chat_created": False,
+            "artifact_store_mutation": False,
+            "canonical_mutation": False,
+            "right_bank_mutation": False,
+            "xml_mutation": False,
         }
 
     @staticmethod

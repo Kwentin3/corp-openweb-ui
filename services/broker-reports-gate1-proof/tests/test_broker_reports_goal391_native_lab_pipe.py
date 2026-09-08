@@ -369,6 +369,21 @@ def test_safe_receipt_has_no_browser_chat_binding_claim_and_no_inner_chat():
     assert "outer_browser_chat" not in receipt["constraints"]
 
 
+def test_preflight_receipt_is_terminal_and_has_zero_provider_calls():
+    module = _load_source_module()
+    pipe = module.Pipe()
+    receipt = pipe._preflight_receipt([{"case": {}}, {"case": {}}])
+    assert receipt["status"] == "PREFLIGHT_READY"
+    assert receipt["terminal_error"] is None
+    assert receipt["corpus"] == {
+        "cases_total": 2,
+        "provider_calls_started_total": 0,
+        "provider_calls_returned_total": 0,
+        "records": [],
+    }
+    assert receipt["constraints"] == pipe._blocked_receipt("x")["constraints"]
+
+
 def test_unexpected_owner_error_is_reduced_to_one_value_free_terminal_code():
     module = _load_source_module()
     class PrivateProviderFailure(RuntimeError):
