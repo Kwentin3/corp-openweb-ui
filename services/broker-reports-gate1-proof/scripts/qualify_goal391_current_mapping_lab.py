@@ -258,6 +258,13 @@ def _server_runtime_context(*, ordinary_user_id: str):
             "app": app,
         }
     )
+    asyncio.run(
+        _ensure_server_model_available(
+            request=request,
+            user=user,
+            model_id=MODEL_ID,
+        )
+    )
 
     def chat_count() -> int:
         async def count():
@@ -274,6 +281,29 @@ def _server_runtime_context(*, ordinary_user_id: str):
         return asyncio.run(count())
 
     return request, user, chat_count
+
+
+async def _ensure_server_model_available(
+    *,
+    request: Any,
+    user: Any,
+    model_id: str,
+    model_loader=None,
+) -> None:
+    """Load the native catalog once, then require the released exact model ID."""
+
+    if model_loader is None:
+        from open_webui.utils.models import get_all_models
+
+        model_loader = get_all_models
+    models = await model_loader(request, user=user)
+    available_ids = {
+        item.get("id")
+        for item in models
+        if isinstance(item, Mapping) and isinstance(item.get("id"), str)
+    }
+    if model_id not in available_ids:
+        raise SystemExit("goal391_released_model_not_available")
 
 
 def _preflight(

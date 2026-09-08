@@ -393,6 +393,45 @@ def test_lab_preflight_rejects_an_empty_frozen_manifest(tmp_path) -> None:
     assert str(exc.value) == "goal391_expectations_invalid"
 
 
+def test_lab_requires_the_released_model_from_native_catalog() -> None:
+    runner = _lab_runner_module()
+    captured = {}
+
+    async def loader(request, *, user):
+        captured["request"] = request
+        captured["user"] = user
+        return [{"id": "models/gemini-3.5-flash"}]
+
+    asyncio.run(
+        runner._ensure_server_model_available(
+            request="request",
+            user="ordinary-user",
+            model_id="models/gemini-3.5-flash",
+            model_loader=loader,
+        )
+    )
+    assert captured == {"request": "request", "user": "ordinary-user"}
+
+
+def test_lab_refuses_a_missing_released_model_before_completion() -> None:
+    runner = _lab_runner_module()
+
+    async def loader(_request, *, user):
+        assert user == "ordinary-user"
+        return [{"id": "another-model"}]
+
+    with pytest.raises(SystemExit) as exc:
+        asyncio.run(
+            runner._ensure_server_model_available(
+                request="request",
+                user="ordinary-user",
+                model_id="models/gemini-3.5-flash",
+                model_loader=loader,
+            )
+        )
+    assert str(exc.value) == "goal391_released_model_not_available"
+
+
 def test_lab_resolves_only_an_explicit_release_pinned_prompt(monkeypatch) -> None:
     runner = _lab_runner_module()
     captured = {}
