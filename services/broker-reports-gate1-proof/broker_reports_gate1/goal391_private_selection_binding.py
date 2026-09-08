@@ -148,13 +148,16 @@ class Goal391PrivateSelectionBindingIssuer:
     def _validate_request_shape(
         *, corpus_id: str, requests: list[Goal391PrivateSelectionRequest]
     ) -> None:
+        # Canonical references do not exist until the owner resolves each
+        # request. Give the schema validator unique synthetic references so
+        # its real duplicate check remains meaningful for a request batch.
         raw = {
             "schema_version": PRIVATE_CORPUS_SELECTION_SCHEMA_VERSION,
             "corpus_id": corpus_id,
             "selections": [
                 {
                     "slot_id": request.slot_id,
-                    "manifest_ref": "pending",
+                    "manifest_ref": f"pending-{index}",
                     "user_id": request.context.user_id
                     if isinstance(request.context, ArtifactAccessContext)
                     else "",
@@ -174,7 +177,7 @@ class Goal391PrivateSelectionBindingIssuer:
                     if isinstance(request.context, ArtifactAccessContext)
                     else None,
                 }
-                for request in requests
+                for index, request in enumerate(requests, start=1)
             ],
         }
         try:
