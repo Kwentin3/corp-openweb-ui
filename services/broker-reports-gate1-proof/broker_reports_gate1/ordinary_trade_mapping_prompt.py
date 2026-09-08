@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from .ordinary_trade_semantic_mapping import MAPPING_RESPONSE_SCHEMA_VERSION
+
 
 FACTORY_REQUIRED = (
     "OrdinaryTradeMappingPromptResolverFactory.create is the only production "
@@ -31,7 +33,9 @@ PROMPT_TEMPLATE_KIND = "broker_reports_ordinary_trade_semantic_mapping"
 PROMPT_COMMAND = "broker_ordinary_trade_semantic_mapping_v1"
 PROMPT_REQUIRED_TAG = "broker-reports-ordinary-trade-mapping"
 INPUT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
-OUTPUT_SCHEMA_ID = "broker_reports_ordinary_trade_semantic_mapping_response_v6"
+# The mapping owner is the sole owner of this wire-schema identity.  The Prompt
+# resolver consumes it so a native Workspace candidate cannot silently drift.
+OUTPUT_SCHEMA_ID = MAPPING_RESPONSE_SCHEMA_VERSION
 OUTPUT_SCHEMA_VERSION = OUTPUT_SCHEMA_ID
 PROMPT_PLACEHOLDER = "{{ordinary_trade_mapping_case_json}}"
 PROMPT_SNAPSHOT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_prompt_snapshot_v1"

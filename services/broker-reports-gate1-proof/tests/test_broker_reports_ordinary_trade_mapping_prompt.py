@@ -146,6 +146,21 @@ def test_workspace_resolver_fails_closed_for_inactive_or_wrong_contract(tmp_path
         resolver.resolve(_user("owner"))
     assert wrong_contract.value.code == "ordinary_trade_mapping_prompt_not_found"
 
+    with sqlite3.connect(db_path) as conn:
+        legacy = _meta()
+        legacy["output_schema_id"] = (
+            "broker_reports_ordinary_trade_semantic_mapping_response_v6"
+        )
+        legacy["output_schema_version"] = legacy["output_schema_id"]
+        conn.execute(
+            "UPDATE prompt SET meta = ? WHERE id = ?",
+            (json.dumps(legacy), "mapping-prompt"),
+        )
+        conn.commit()
+    with pytest.raises(OrdinaryTradeMappingPromptError) as legacy_contract:
+        resolver.resolve(_user("owner"))
+    assert legacy_contract.value.code == "ordinary_trade_mapping_prompt_not_found"
+
 
 def test_static_and_disabled_helpers_are_typed_and_require_authenticated_user():
     prompt = OrdinaryTradeMappingManagedPrompt(
