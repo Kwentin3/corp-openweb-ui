@@ -251,6 +251,16 @@ GATE1_MODULE_ORDER = [
     *GATE1_ORDINARY_TRADE_MODULES,
     *GATE1_MODULE_ORDER[_GATE1_ORDINARY_TRADE_INSERT_AT:],
 ]
+GOAL391_LAB_MODULES = [
+    "goal391_private_corpus_export",
+    "goal391_private_selection_binding",
+]
+_GOAL391_LAB_INSERT_AT = GATE1_MODULE_ORDER.index("__init__")
+GOAL391_LAB_MODULE_ORDER = [
+    *GATE1_MODULE_ORDER[:_GOAL391_LAB_INSERT_AT],
+    *GOAL391_LAB_MODULES,
+    *GATE1_MODULE_ORDER[_GOAL391_LAB_INSERT_AT:],
+]
 GATE2_ONLY_MODULES = ["gate2_chat_dcp_resolution"]
 GATE2_MODULE_ORDER = [
     name for name in MODULE_ORDER if name != "gate2_handoff"
@@ -319,6 +329,7 @@ def main() -> None:
             | set(GATE1_NDFL_GATE3_MODULES)
             | set(GATE1_GATE5_MODULES)
             | set(GATE1_ORDINARY_TRADE_MODULES)
+            | set(GOAL391_LAB_MODULES)
             | set(GATE2_ONLY_MODULES)
             | set(GATE2_FINANCIAL_MODULES)
             | set(GATE2_SUCCESSOR_MODULES)
@@ -400,7 +411,9 @@ def main() -> None:
         # The laboratory adapter only composes the already-current mapping
         # owners.  Reuse the closed Gate 1 package projection rather than
         # producing a second domain package for a temporary Pipe.
-        goal391_lab_modules = {name: modules[name] for name in GATE1_MODULE_ORDER}
+        goal391_lab_modules = {
+            name: modules[name] for name in GOAL391_LAB_MODULE_ORDER
+        }
         goal391_lab_modules["__init__"] = _project_package_init(
             goal391_lab_modules["__init__"], included_modules=set(goal391_lab_modules)
         )

@@ -29,6 +29,7 @@ from typing import Any, Mapping
 from pydantic import BaseModel, Field
 
 from broker_reports_gate1.artifact_models import ArtifactAccessContext
+from broker_reports_gate1.artifact_resolver import ArtifactResolver
 from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactStoreFactory
 from broker_reports_gate1.canonical_artifact import validate_canonical_artifact
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
@@ -42,6 +43,10 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     OrdinaryTradeMappingPromptResolverFactory,
     OrdinaryTradeMappingPromptUserContext,
 )
+from broker_reports_gate1.goal391_private_selection_binding import (
+    Goal391PrivateSelectionBindingIssuer,
+    Goal391PrivateSourceFileSelectionRequest,
+)
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingFactory,
@@ -51,7 +56,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
 PROVIDER_PROFILE_ID = "google_gemini"
 MODEL_ID = "models/gemini-3.5-flash"
 SAFE_RECEIPT_SCHEMA_VERSION = "goal391_native_mapping_lab_pipe_receipt_v1"
-SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION = "goal391_server_bound_case_plan_v1"
+SERVER_BOUND_CASE_PLAN_SCHEMA_VERSION = "goal391_server_bound_case_plan_v2"
 _EXACT_CASES_REQUIRED_TOTAL = 2
 _CANONICAL_BINDING_FIELDS = (
     "document_id",
@@ -85,12 +90,14 @@ class Goal391MappingLabPipeError(RuntimeError):
 
 
 class Goal391ServerBoundCaseLoader:
-    """Read exactly two already-attested Canonical slots for this lab Pipe.
+    """Read exactly two sealed source-file selections for this lab Pipe.
 
-    This deliberately is not a corpus registry.  The native Function Valves
-    name the complete closed scope, while ArtifactStore and CanonicalReader
-    remain the only storage and Canonical owners.  The loader returns in-memory
-    packages only and never publishes, discovers, or repairs anything.
+    This deliberately is not a corpus registry.  Each Function Valve slot
+    contains the real storage scope and one OpenWebUI file identity.  The
+    existing ArtifactResolver derives the run/document binding from that exact
+    file, then ArtifactStore and CanonicalReader remain the only Canonical
+    owners.  The loader returns in-memory packages only and never publishes,
+    discovers, or repairs anything.
     """
 
     def __init__(self, *, valves: Any) -> None:
@@ -107,10 +114,31 @@ class Goal391ServerBoundCaseLoader:
             )
         ).create_read_only()
         reader = CanonicalReaderFactory(store=store, read_enabled=True).create()
+        selection = Goal391PrivateSelectionBindingIssuer(
+            store=store, reader=reader, resolver=ArtifactResolver(store)
+        ).issue_from_source_files(
+            corpus_id=plan["plan_ref"],
+            requests=tuple(
+                Goal391PrivateSourceFileSelectionRequest(
+                    slot_id=slot["slot_id"],
+                    openwebui_file_id=slot["source_openwebui_file_id"],
+                    context=self._source_scope_context(slot=slot, user_id=user_id),
+                )
+                for slot in plan["slots"]
+            ),
+        )
+        selections = {item.slot_id: item for item in selection.selections}
+        if set(selections) != {slot["slot_id"] for slot in plan["slots"]}:
+            raise Goal391MappingLabPipeError("goal391_lab_source_selection_invalid")
         loaded: list[dict[str, Any]] = []
         for slot in plan["slots"]:
-            context = self._source_context(slot=slot, user_id=user_id)
-            envelope = reader.read_active_envelope(slot["document_id"], context)
+            selected = selections[slot["slot_id"]]
+            context = selected.access_context(require_source_available=True)
+            envelope = reader.read_envelope(
+                selected.manifest_ref,
+                context,
+                expected_normalization_run_id=selected.normalization_run_id,
+            )
             binding = self._binding_from_envelope(envelope)
             if binding != slot["canonical_binding"]:
                 raise Goal391MappingLabPipeError(
@@ -179,7 +207,7 @@ class Goal391ServerBoundCaseLoader:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_user_mismatch")
         slots = [self._validated_slot(slot=slot, plan=plan) for slot in plan["slots"]]
         if len({slot["slot_id"] for slot in slots}) != _EXACT_CASES_REQUIRED_TOTAL or len(
-            {slot["document_id"] for slot in slots}
+            {slot["canonical_binding"]["document_id"] for slot in slots}
         ) != _EXACT_CASES_REQUIRED_TOTAL:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_duplicate_scope")
         return {**plan, "slots": slots}
@@ -188,8 +216,8 @@ class Goal391ServerBoundCaseLoader:
     def _validated_slot(*, slot: Any, plan: Mapping[str, Any]) -> dict[str, Any]:
         required = {
             "slot_id",
-            "document_id",
             "historical_source_scope",
+            "source_openwebui_file_id",
             "canonical_binding",
             "target_table_node_ids",
             "confirmed_understandings",
@@ -200,9 +228,8 @@ class Goal391ServerBoundCaseLoader:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
         scope = slot["historical_source_scope"]
         if not isinstance(scope, Mapping) or set(scope) != {
-            "normalization_run_id",
             "case_id",
-            "source_chat_id",
+            "chat_id",
             "workspace_model_id",
         }:
             raise Goal391MappingLabPipeError("goal391_lab_control_plan_slot_invalid")
@@ -211,12 +238,20 @@ class Goal391ServerBoundCaseLoader:
             not isinstance(binding, Mapping)
             or set(binding) != set(_CANONICAL_BINDING_FIELDS)
             or any(not isinstance(binding.get(key), str) or not binding[key] for key in _CANONICAL_BINDING_FIELDS)
-            or binding["document_id"] != slot["document_id"]
-            or any(not isinstance(scope.get(key), str) or not scope[key] for key in scope)
+            or (scope.get("case_id") is None) == (scope.get("chat_id") is None)
+            or any(
+                not isinstance(scope.get(key), str) or not scope[key]
+                for key in ("workspace_model_id",)
+            )
+            or any(
+                scope.get(key) is not None
+                and (not isinstance(scope.get(key), str) or not scope[key])
+                for key in ("case_id", "chat_id")
+            )
             or not isinstance(slot["slot_id"], str)
             or not slot["slot_id"].strip()
-            or not isinstance(slot["document_id"], str)
-            or not slot["document_id"].strip()
+            or not isinstance(slot["source_openwebui_file_id"], str)
+            or not slot["source_openwebui_file_id"].strip()
             or not isinstance(slot["target_table_node_ids"], list)
             or not slot["target_table_node_ids"]
             or any(not isinstance(value, str) or not value for value in slot["target_table_node_ids"])
@@ -241,16 +276,16 @@ class Goal391ServerBoundCaseLoader:
         return user_id
 
     @staticmethod
-    def _source_context(*, slot: Mapping[str, Any], user_id: str) -> ArtifactAccessContext:
-        # This translates the sealed historical scope to the existing storage
-        # owner contract.  It deliberately does not inspect or bind any
-        # browser/chat transport state from the current Pipe invocation.
+    def _source_scope_context(*, slot: Mapping[str, Any], user_id: str) -> ArtifactAccessContext:
+        # This translates the sealed historical source scope to the existing
+        # storage-owner contract.  The source scope is deliberately separate
+        # from the browser transport used to invoke this Pipe.
         scope = slot["historical_source_scope"]
         return ArtifactAccessContext(
             user_id=user_id,
-            normalization_run_id=scope["normalization_run_id"],
+            normalization_run_id="goal391-source-file-selection",
             case_id=scope["case_id"],
-            chat_id=scope["source_chat_id"],
+            chat_id=scope["chat_id"],
             workspace_model_id=scope["workspace_model_id"],
             allow_private=True,
         )

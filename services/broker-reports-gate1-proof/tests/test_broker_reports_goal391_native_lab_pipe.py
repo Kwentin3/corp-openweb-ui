@@ -57,17 +57,16 @@ def _assessment(node_id: str) -> dict:
     }
 
 
-def _slot(index: int, *, source_chat_id: str = "historical-source-chat") -> dict:
+def _slot(index: int, *, source_case_id: str = "historical-source-case") -> dict:
     document_id = f"document-{index}"
     return {
         "slot_id": f"slot-{index}",
-        "document_id": document_id,
         "historical_source_scope": {
-            "normalization_run_id": f"run-{index}",
-            "case_id": "outer-case",
-            "source_chat_id": source_chat_id,
-            "workspace_model_id": "goal391-lab-model",
+            "case_id": source_case_id,
+            "chat_id": None,
+            "workspace_model_id": "historical-source-model",
         },
+        "source_openwebui_file_id": f"source-file-{index}",
         "canonical_binding": {
             "document_id": document_id,
             "canonical_version_id": f"canonical-{index}",
@@ -113,8 +112,11 @@ def _envelope(slot: dict):
 
 
 def _install_read_owners(monkeypatch, module, slots):
-    calls = {"factory": [], "reader": []}
-    envelopes = {slot["document_id"]: _envelope(slot) for slot in slots}
+    calls = {"factory": [], "reader": [], "selection": []}
+    envelopes = {
+        slot["canonical_binding"]["document_id"]: _envelope(slot)
+        for slot in slots
+    }
 
     class FakeStoreFactory:
         def __init__(self, config):
@@ -128,8 +130,16 @@ def _install_read_owners(monkeypatch, module, slots):
             raise AssertionError("write-capable ArtifactStore is forbidden")
 
     class FakeReader:
-        def read_active_envelope(self, document_id, context):
-            calls["reader"].append((document_id, context))
+        def read_envelope(self, manifest_ref, context, *, expected_normalization_run_id):
+            slot_id = str(manifest_ref).removeprefix("manifest-")
+            document_id = next(
+                slot["canonical_binding"]["document_id"]
+                for slot in slots
+                if slot["slot_id"] == slot_id
+            )
+            calls["reader"].append(
+                (document_id, context, expected_normalization_run_id)
+            )
             return envelopes[document_id]
 
     class FakeReaderFactory:
@@ -142,6 +152,42 @@ def _install_read_owners(monkeypatch, module, slots):
 
     monkeypatch.setattr(module, "ArtifactStoreFactory", FakeStoreFactory)
     monkeypatch.setattr(module, "CanonicalReaderFactory", FakeReaderFactory)
+
+    class FakeSelectionIssuer:
+        def __init__(self, *, store, reader, resolver):
+            assert store is not None and reader is not None and resolver is not None
+
+        def issue_from_source_files(self, *, corpus_id, requests):
+            assert corpus_id == "opaque-plan-ref"
+            requests = tuple(requests)
+            calls["selection"].extend(requests)
+            selections = []
+            for request in requests:
+                source = next(slot for slot in slots if slot["slot_id"] == request.slot_id)
+                scope = source["historical_source_scope"]
+
+                def access_context(*, require_source_available, request=request, scope=scope):
+                    return module.ArtifactAccessContext(
+                        user_id=request.context.user_id,
+                        normalization_run_id=f"resolved-run-{request.slot_id}",
+                        case_id=scope["case_id"],
+                        chat_id=scope["chat_id"],
+                        workspace_model_id=scope["workspace_model_id"],
+                        allow_private=True,
+                        require_source_available=require_source_available,
+                    )
+
+                selections.append(
+                    SimpleNamespace(
+                        slot_id=request.slot_id,
+                        manifest_ref=f"manifest-{request.slot_id}",
+                        normalization_run_id=f"resolved-run-{request.slot_id}",
+                        access_context=access_context,
+                    )
+                )
+            return SimpleNamespace(selections=tuple(selections))
+
+    monkeypatch.setattr(module, "Goal391PrivateSelectionBindingIssuer", FakeSelectionIssuer)
     return calls
 
 
@@ -162,7 +208,8 @@ def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():
     assert "ArtifactStoreFactory" in source
     assert "create_read_only()" in source
     assert "CanonicalReaderFactory" in source
-    assert "read_active_envelope" in source
+    assert "read_envelope" in source
+    assert "issue_from_source_files" in source
     assert "RightBank" not in source
     assert "Declaration" not in source
     assert "generate_chat_completion" in source
@@ -175,8 +222,8 @@ def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():
 def test_server_bound_loader_reads_exact_two_attested_slots_without_writes(monkeypatch):
     module = _load_source_module()
     slots = [
-        _slot(1, source_chat_id="historical-source-chat-1"),
-        _slot(2, source_chat_id="historical-source-chat-2"),
+        _slot(1, source_case_id="historical-source-case-1"),
+        _slot(2, source_case_id="historical-source-case-2"),
     ]
     calls = _install_read_owners(monkeypatch, module, slots)
     cases = _loader(module, _plan(module, slots=slots)).load(user=_ordinary_user())
@@ -184,9 +231,13 @@ def test_server_bound_loader_reads_exact_two_attested_slots_without_writes(monke
     assert calls["config"].mode == "sqlite"
     assert [item[0] for item in calls["reader"]] == ["document-1", "document-2"]
     assert all(item[1].user_id == "ordinary-test-user" for item in calls["reader"])
-    assert [item[1].chat_id for item in calls["reader"]] == [
-        "historical-source-chat-1",
-        "historical-source-chat-2",
+    assert [item[1].case_id for item in calls["reader"]] == [
+        "historical-source-case-1",
+        "historical-source-case-2",
+    ]
+    assert [item.openwebui_file_id for item in calls["selection"]] == [
+        "source-file-1",
+        "source-file-2",
     ]
     assert [case["case_id"] for case in cases] == ["slot-1", "slot-2"]
 
@@ -258,8 +309,9 @@ def test_server_bound_loader_fails_closed_when_active_canonical_misbinding(monke
     bad.canonical_root_sha256 = "different-root"
 
     class MismatchReader:
-        def read_active_envelope(self, document_id, _context):
-            return bad if document_id == "document-1" else _envelope(slots[1])
+        def read_envelope(self, manifest_ref, _context, *, expected_normalization_run_id):
+            assert expected_normalization_run_id
+            return bad if manifest_ref == "manifest-slot-1" else _envelope(slots[1])
 
     class MismatchReaderFactory:
         def __init__(self, *, store, read_enabled):
