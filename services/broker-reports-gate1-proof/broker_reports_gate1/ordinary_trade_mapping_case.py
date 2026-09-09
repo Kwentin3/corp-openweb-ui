@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from dataclasses import replace
 from typing import Any
 
@@ -18,6 +19,9 @@ from .ordinary_trade_qualified_mappings import (
 from .ordinary_trade_mapping_prompt import (
     validate_ordinary_trade_mapping_prompt_snapshot,
 )
+from .instructional_table_classification_prompt import (
+    validate_instructional_classification_prompt_snapshot,
+)
 from .ordinary_trade_semantic_mapping import (
     MAPPING_CASE_SCHEMA_VERSION,
     mapping_question_option_communication_description,
@@ -28,10 +32,12 @@ from .ordinary_trade_semantic_compiler import USER_CURRENCY_ASSERTION_SCHEMA_VER
 
 # The model package remains v2.  This is the separately versioned, durable
 # private receipt that additionally binds a managed Workspace Prompt snapshot.
-MAPPING_CASE_RECEIPT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v4"
+MAPPING_CASE_RECEIPT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v5"
 MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_RECEIPT_SCHEMA_VERSION
 _LEGACY_MAPPING_CASE_ARTIFACT_TYPE = MAPPING_CASE_SCHEMA_VERSION
 _V3_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v3"
+_V4_MAPPING_CASE_ARTIFACT_TYPE = "broker_reports_ordinary_trade_mapping_case_v4"
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 FACTORY_REQUIRED = (
     "OrdinaryTradeMappingCaseFactory.create is the only mapping-case state "
     "persistence and continuation entrypoint"
@@ -60,6 +66,7 @@ def mapping_case_artifact_types() -> frozenset[str]:
     return frozenset(
         {
             MAPPING_CASE_ARTIFACT_TYPE,
+            _V4_MAPPING_CASE_ARTIFACT_TYPE,
             _V3_MAPPING_CASE_ARTIFACT_TYPE,
             _LEGACY_MAPPING_CASE_ARTIFACT_TYPE,
         }
@@ -276,6 +283,63 @@ class OrdinaryTradeMappingCaseRuntime:
             mapping_prompt_snapshot=mapping_prompt_snapshot,
             mapping_batch_state=mapping_batch_state,
             reason_code=reason_code,
+        )
+        return self._put(payload=payload, document_id=document_id, context=context)
+
+    def save_instructional_classification_state(
+        self,
+        *,
+        document_id: str,
+        context: ArtifactAccessContext,
+        status: str,
+        message: str,
+        instructional_classification_state: dict[str, Any],
+        provider_calls_total: int,
+        instructional_prompt_snapshot: dict[str, Any],
+        reason_code: str | None = None,
+    ) -> tuple[ArtifactRecord, dict[str, Any]]:
+        """Persist narrow classifier progress without publishing a partial result."""
+
+        if status not in {
+            "MAPPING_REQUIRED",
+            "PROVIDER_UNAVAILABLE",
+            "MAPPING_OUTPUT_INVALID",
+            "SPECIALIST_REVIEW_REQUIRED",
+        }:
+            _fail("ordinary_trade_mapping_case_outcome_invalid")
+        current = self.current(document_id=document_id, context=context)
+        if current is not None and current[1]["status"] not in {
+            "MAPPING_REQUIRED",
+            "PROVIDER_UNAVAILABLE",
+            "MAPPING_OUTPUT_INVALID",
+        }:
+            _fail("ordinary_trade_mapping_case_transition_invalid")
+        prior = current[1] if current is not None else None
+        if (prior or {}).get("mapping_batch_state") is not None:
+            _fail("ordinary_trade_mapping_case_instructional_phase_conflict")
+        payload = self._next_payload(
+            document_id=document_id,
+            context=context,
+            prior=prior,
+            status=status,
+            message=message,
+            question=None,
+            pending_candidate=None,
+            confirmed_understandings=copy.deepcopy(
+                (prior or {}).get("confirmed_understandings") or []
+            ),
+            qualified_mappings=[],
+            qualification_receipts=[],
+            table_resolutions=[],
+            provider_calls_total=(
+                int((prior or {}).get("provider_calls_total") or 0)
+                + provider_calls_total
+            ),
+            model_response_sha256=None,
+            execution_metadata_sha256=None,
+            reason_code=reason_code,
+            instructional_prompt_snapshot=instructional_prompt_snapshot,
+            instructional_classification_state=instructional_classification_state,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
 
@@ -786,10 +850,30 @@ class OrdinaryTradeMappingCaseRuntime:
             batch_state = prior.get("mapping_batch_state")
         if batch_state is not None and prompt_snapshot is None:
             _fail("ordinary_trade_mapping_case_prompt_snapshot_invalid")
+        instructional_prompt_snapshot = values.get("instructional_prompt_snapshot")
+        if instructional_prompt_snapshot is None and prior is not None:
+            instructional_prompt_snapshot = prior.get("instructional_prompt_snapshot")
+        if instructional_prompt_snapshot is not None:
+            try:
+                instructional_prompt_snapshot = (
+                    validate_instructional_classification_prompt_snapshot(
+                        instructional_prompt_snapshot
+                    )
+                )
+            except Exception as exc:
+                raise OrdinaryTradeMappingCaseError(
+                    "ordinary_trade_mapping_case_instructional_prompt_snapshot_invalid"
+                ) from exc
+        instructional_state = values.get("instructional_classification_state")
+        if "instructional_classification_state" not in values and prior is not None:
+            instructional_state = prior.get("instructional_classification_state")
+        if instructional_state is not None and instructional_prompt_snapshot is None:
+            _fail("ordinary_trade_mapping_case_instructional_prompt_snapshot_invalid")
+        _validate_instructional_classification_state(instructional_state)
         payload = {
             "schema_version": (
                 MAPPING_CASE_RECEIPT_SCHEMA_VERSION
-                if prompt_snapshot is not None
+                if prompt_snapshot is not None or instructional_prompt_snapshot is not None
                 else MAPPING_CASE_SCHEMA_VERSION
             ),
             "case_id": binding["case_id"],
@@ -809,9 +893,13 @@ class OrdinaryTradeMappingCaseRuntime:
             "execution_metadata_sha256": values["execution_metadata_sha256"],
             "reason_code": values["reason_code"],
         }
-        if prompt_snapshot is not None:
+        if payload["schema_version"] == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
             payload["mapping_prompt_snapshot"] = prompt_snapshot
             payload["mapping_batch_state"] = copy.deepcopy(batch_state)
+            payload["instructional_prompt_snapshot"] = instructional_prompt_snapshot
+            payload["instructional_classification_state"] = copy.deepcopy(
+                instructional_state
+            )
         payload["integrity_sha256"] = _sha256_json(payload)
         _validate_payload(payload, authority=self._authority)
         return payload
@@ -902,6 +990,14 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
     }
     schema_version = payload.get("schema_version") if isinstance(payload, dict) else None
     if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+        expected_keys = {
+            *expected_keys,
+            "mapping_prompt_snapshot",
+            "mapping_batch_state",
+            "instructional_prompt_snapshot",
+            "instructional_classification_state",
+        }
+    elif schema_version == _V4_MAPPING_CASE_ARTIFACT_TYPE:
         expected_keys = {*expected_keys, "mapping_prompt_snapshot", "mapping_batch_state"}
     elif schema_version == _V3_MAPPING_CASE_ARTIFACT_TYPE:
         expected_keys = {*expected_keys, "mapping_prompt_snapshot"}
@@ -912,6 +1008,7 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         not in {
             MAPPING_CASE_SCHEMA_VERSION,
             _V3_MAPPING_CASE_ARTIFACT_TYPE,
+            _V4_MAPPING_CASE_ARTIFACT_TYPE,
             MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
         }
         or not isinstance(payload.get("case_id"), str)
@@ -924,10 +1021,7 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
         or payload["provider_calls_total"] < 0
     ):
         _fail("ordinary_trade_mapping_case_invalid")
-    if schema_version in {
-        _V3_MAPPING_CASE_ARTIFACT_TYPE,
-        MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
-    }:
+    if schema_version in {_V3_MAPPING_CASE_ARTIFACT_TYPE, _V4_MAPPING_CASE_ARTIFACT_TYPE}:
         try:
             validate_ordinary_trade_mapping_prompt_snapshot(
                 payload["mapping_prompt_snapshot"]
@@ -936,8 +1030,40 @@ def _validate_payload(payload: Any, *, authority: Any) -> None:
             raise OrdinaryTradeMappingCaseError(
                 "ordinary_trade_mapping_case_prompt_snapshot_invalid"
             ) from exc
-    if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+    if schema_version in {
+        _V4_MAPPING_CASE_ARTIFACT_TYPE,
+        MAPPING_CASE_RECEIPT_SCHEMA_VERSION,
+    }:
         _validate_mapping_batch_state(payload.get("mapping_batch_state"))
+    if schema_version == MAPPING_CASE_RECEIPT_SCHEMA_VERSION:
+        mapping_snapshot = payload.get("mapping_prompt_snapshot")
+        if mapping_snapshot is not None:
+            try:
+                validate_ordinary_trade_mapping_prompt_snapshot(mapping_snapshot)
+            except Exception as exc:
+                raise OrdinaryTradeMappingCaseError(
+                    "ordinary_trade_mapping_case_prompt_snapshot_invalid"
+                ) from exc
+        if payload.get("mapping_batch_state") is not None and mapping_snapshot is None:
+            _fail("ordinary_trade_mapping_case_prompt_snapshot_invalid")
+        instructional_snapshot = payload.get("instructional_prompt_snapshot")
+        if instructional_snapshot is not None:
+            try:
+                validate_instructional_classification_prompt_snapshot(
+                    instructional_snapshot
+                )
+            except Exception as exc:
+                raise OrdinaryTradeMappingCaseError(
+                    "ordinary_trade_mapping_case_instructional_prompt_snapshot_invalid"
+                ) from exc
+        if (
+            payload.get("instructional_classification_state") is not None
+            and instructional_snapshot is None
+        ):
+            _fail("ordinary_trade_mapping_case_instructional_prompt_snapshot_invalid")
+        _validate_instructional_classification_state(
+            payload.get("instructional_classification_state")
+        )
     frozen = copy.deepcopy(payload)
     digest = frozen.pop("integrity_sha256", None)
     if digest != _sha256_json(frozen):
@@ -1134,6 +1260,69 @@ def _validate_mapping_batch_state(value: Any) -> None:
             or not isinstance(item.get("outcome"), dict)
         ):
             _fail("ordinary_trade_mapping_case_batch_state_invalid")
+
+
+def _validate_instructional_classification_state(value: Any) -> None:
+    """Validate only safe resume metadata; Canonical binding is rechecked by owner."""
+
+    if value is None:
+        return
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema_version",
+            "target_table_node_ids",
+            "completed_table_outcomes",
+            "pending_table_node_id",
+        }
+        or value.get("schema_version")
+        != "broker_reports_instructional_table_classification_state_v1"
+        or not isinstance(value.get("target_table_node_ids"), list)
+        or not value["target_table_node_ids"]
+        or len(value["target_table_node_ids"])
+        != len(set(value["target_table_node_ids"]))
+        or any(
+            not isinstance(item, str) or not item
+            for item in value["target_table_node_ids"]
+        )
+        or not isinstance(value.get("completed_table_outcomes"), list)
+    ):
+        _fail("ordinary_trade_mapping_case_instructional_state_invalid")
+    completed_ids: list[str] = []
+    for item in value["completed_table_outcomes"]:
+        if (
+            not isinstance(item, dict)
+            or set(item)
+            != {
+                "table_node_id",
+                "descriptor_sha256",
+                "response",
+                "response_sha256",
+                "execution_metadata_sha256",
+            }
+            or not isinstance(item.get("table_node_id"), str)
+            or not item["table_node_id"]
+            or not isinstance(item.get("descriptor_sha256"), str)
+            or _SHA256.fullmatch(item["descriptor_sha256"]) is None
+            or not isinstance(item.get("response"), dict)
+            or not isinstance(item.get("response_sha256"), str)
+            or _SHA256.fullmatch(item["response_sha256"]) is None
+            or _sha256_json(item["response"]) != item["response_sha256"]
+            or not isinstance(item.get("execution_metadata_sha256"), str)
+            or _SHA256.fullmatch(item["execution_metadata_sha256"]) is None
+        ):
+            _fail("ordinary_trade_mapping_case_instructional_state_invalid")
+        completed_ids.append(item["table_node_id"])
+    if completed_ids != value["target_table_node_ids"][: len(completed_ids)]:
+        _fail("ordinary_trade_mapping_case_instructional_state_invalid")
+    expected_pending = (
+        value["target_table_node_ids"][len(completed_ids)]
+        if len(completed_ids) < len(value["target_table_node_ids"])
+        else None
+    )
+    if value.get("pending_table_node_id") != expected_pending:
+        _fail("ordinary_trade_mapping_case_instructional_state_invalid")
 
 
 def _public_binding(binding: dict[str, Any]) -> dict[str, Any]:
