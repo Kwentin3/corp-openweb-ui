@@ -219,6 +219,8 @@ jobs:
           tests/test_broker_reports_goal391_live_mapping_qualification.py
           tests/test_broker_reports_goal391_private_corpus_export.py
           tests/test_broker_reports_goal391_private_selection_binding.py
+          tests/test_broker_reports_goal391_grouped_mapping_lab_v14.py
+          tests/test_broker_reports_goal391_native_lab_pipe.py
           tests/test_broker_reports_ordinary_trade_mapping_prompt.py
           tests/test_broker_reports_ordinary_trade_mapping_prompt_request.py
           --durations=20

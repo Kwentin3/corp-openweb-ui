@@ -887,6 +887,10 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "ordinary_trade_semantic_mapping_live_qualification.py"
         ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "goal391_grouped_mapping_lab_v14.py"
+        ),
     }
     allowed_private_corpus_export_modules = {
         (
@@ -1254,6 +1258,8 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
         "tests/test_broker_reports_goal391_live_mapping_qualification.py",
         "tests/test_broker_reports_goal391_private_corpus_export.py",
         "tests/test_broker_reports_goal391_private_selection_binding.py",
+        "tests/test_broker_reports_goal391_grouped_mapping_lab_v14.py",
+        "tests/test_broker_reports_goal391_native_lab_pipe.py",
     ):
         assert qualification_suite in workflow
     assert DOMAIN_MAP.is_file()
