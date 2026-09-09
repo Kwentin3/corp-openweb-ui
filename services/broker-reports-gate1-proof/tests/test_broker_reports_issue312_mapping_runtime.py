@@ -313,6 +313,85 @@ async def _one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
     assert "content" not in saved["mapping_prompt_snapshot"]
 
 
+async def _one_strict_mapping_call_accepts_complete_scope_above_old_cell_bound(
+    tmp_path,
+) -> None:
+    # The real semantic owner, not a forced exception, must admit a complete
+    # 14,080-cell Canonical scope to exactly one model boundary call.
+    columns = 55
+    headers = (
+        "asset",
+        "trade_date",
+        "side",
+        "quantity",
+        "unit_price",
+        "currency",
+        "gross_amount",
+        *(f"extra_{index}" for index in range(8, columns + 1)),
+    )
+    data_row = (
+        "ABC",
+        "2025-01-01",
+        "BUY",
+        "1",
+        "10",
+        "USD",
+        "10",
+        *("x" for _ in range(8, columns + 1)),
+    )
+    rows = (headers, *(data_row for _ in range(255)))
+    store, context, document_id, _tables, _canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(rows,),
+    )
+    response = {
+        "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
+        "status": "COMPLETE",
+        "table_decisions": [
+            {
+                "table_ref": "table_1",
+                "header_row": 1,
+                "disposition": "SECURITY_TRADES",
+                "columns": [
+                    {"column": 1, "semantic_role": "asset_name"},
+                    {"column": 2, "semantic_role": "trade_date"},
+                    {"column": 3, "semantic_role": "side"},
+                    {"column": 4, "semantic_role": "quantity"},
+                    {"column": 5, "semantic_role": "unit_price"},
+                    {"column": 6, "semantic_role": "currency"},
+                    {"column": 7, "semantic_role": "gross_amount"},
+                ],
+                "amount_currency_bindings": [
+                    {"amount_column": 5, "currency_column": 6},
+                    {"amount_column": 7, "currency_column": 6},
+                ],
+                "side_values": [
+                    {"source_literal": "BUY", "normalized_value": "PURCHASE"}
+                ],
+                "row_dispositions": [
+                    {"row": row, "disposition": "SECURITY_TRADES"}
+                    for row in range(2, 257)
+                ],
+            }
+        ],
+        "clarification": None,
+        "message": "Структура таблицы определена.",
+    }
+    client = BoundaryModelClient([response])
+
+    result = await _runtime(store, client).resolve(
+        document_id=document_id,
+        context=context,
+    )
+
+    assert result["status"] == "COMPLETE"
+    assert result["provider_calls_this_turn"] == 1
+    assert len(client.calls) == 1
+    model_table = client.calls[0]["package"]["case"]["tables"][0]
+    assert sum(len(item["cells"]) for item in model_table["rows"]) == 14_080
+    assert "column_distinct_values" not in model_table
+
+
 async def _native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)
@@ -906,15 +985,17 @@ async def _rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> N
     side_column = next(
         item["column"] for item in mapping["columns"] if item["semantic_role"] == "side"
     )
-    side_surface = next(
-        item
-        for item in package_table["column_distinct_values"]
-        if item["column"] == side_column
-    )
+    side_literals = {
+        cell["literal"]
+        for row in package_table["rows"]
+        for cell in row["cells"]
+        if cell["column"] == side_column
+    }
     assert {
         case_fixtures.candidate._ROWS[1][side_column - 1],
         case_fixtures.candidate._ROWS[2][side_column - 1],
-    } <= set(side_surface["values"])
+    } <= side_literals
+    assert "column_distinct_values" not in package_table
     current = (
         OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True)
         .create()

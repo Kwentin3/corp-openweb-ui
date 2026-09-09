@@ -139,7 +139,11 @@ _REQUIRED_ROLES = {
 }
 _MAX_TABLES = 64
 _MAX_ROWS_PER_TABLE = 256
-_MAX_CELLS_TOTAL = 12_000
+# This is a structural work bound, not the authoritative model-context bound.
+# The serialized package limit below remains the final admission check.  Keep
+# the structural bound high enough for one ordinary report with many narrow
+# tables, while rejecting pathological Canonical shapes before deep copying.
+_MAX_CELLS_TOTAL = 16_384
 _MAX_CONTEXT_BYTES = 524_288
 # Keep enough local source structure to distinguish an instructional table from
 # a declarant record, while retaining the prior bounded context budget.
@@ -553,6 +557,7 @@ class OrdinaryTradeSemanticMapping:
         tables, refs_by_node_id = _model_table_surfaces(
             canonical,
             target_table_node_ids=target_table_node_ids,
+            include_column_distinct_values=False,
         )
         confirmed_decisions = []
         user_currency_assertions = []
@@ -1748,6 +1753,7 @@ def _model_table_surfaces(
     canonical: Mapping[str, Any],
     *,
     target_table_node_ids: Iterable[str] | None = None,
+    include_column_distinct_values: bool = True,
 ) -> tuple[list[dict[str, Any]], dict[str, str]]:
     """Expose one complete, bounded Canonical table scope to the mapper.
 
@@ -1769,26 +1775,27 @@ def _model_table_surfaces(
     model_tables = []
     for table in tables:
         rows = table["rows"]
-        distinct_by_column: dict[int, list[str]] = {}
-        for row in rows:
-            for cell in row["cells"]:
-                values = distinct_by_column.setdefault(cell["column"], [])
-                if cell["literal"] and cell["literal"] not in values:
-                    values.append(cell["literal"])
-        model_tables.append(
-            {
-                "table_ref": refs_by_node_id[table["table_node_id"]],
-                "rows_total": len(rows),
-                # This is a structural selector, not a financial interpretation.
-                # It prevents the model from referring to a visual row number that
-                # does not exist in the Canonical table contract.
-                "header_row_choices": [
-                    item["row"] for item in rows if item["cells"]
-                ],
-                "rows": copy.deepcopy(rows),
-                "rows_truncated": False,
-                "source_context": copy.deepcopy(table["source_context"]),
-                "column_distinct_values": [
+        model_table = {
+            "table_ref": refs_by_node_id[table["table_node_id"]],
+            "rows_total": len(rows),
+            # This is a structural selector, not a financial interpretation.
+            # It prevents the model from referring to a visual row number that
+            # does not exist in the Canonical table contract.
+            "header_row_choices": [
+                item["row"] for item in rows if item["cells"]
+            ],
+            "rows": copy.deepcopy(rows),
+            "rows_truncated": False,
+            "source_context": copy.deepcopy(table["source_context"]),
+        }
+        if include_column_distinct_values:
+            distinct_by_column: dict[int, list[str]] = {}
+            for row in rows:
+                for cell in row["cells"]:
+                    values = distinct_by_column.setdefault(cell["column"], [])
+                    if cell["literal"] and cell["literal"] not in values:
+                        values.append(cell["literal"])
+            model_table["column_distinct_values"] = [
                     {
                         "column": column,
                         "values": copy.deepcopy(
@@ -1799,9 +1806,8 @@ def _model_table_surfaces(
                         ),
                     }
                     for column, values in sorted(distinct_by_column.items())
-                ],
-            }
-        )
+                ]
+        model_tables.append(model_table)
     return model_tables, refs_by_node_id
 
 

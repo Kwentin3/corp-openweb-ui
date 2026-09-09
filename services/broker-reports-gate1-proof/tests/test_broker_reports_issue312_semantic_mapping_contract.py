@@ -285,6 +285,60 @@ def test_mapping_preserves_a_bounded_local_context_window() -> None:
     ]
 
 
+def test_mapping_package_admits_one_complete_report_scope_above_old_cell_bound() -> None:
+    # 256 rows x 55 columns is larger than the retired 12,000-cell ceiling,
+    # while still below the current structural work bound.  Every cell remains
+    # visible in the actual mapping package; no semantic sampling is used.
+    columns = 55
+    rows = 256
+    canonical = {
+        "nodes": [
+            {
+                "node_id": "table_1",
+                "container_ref": "page_1",
+                "order": 1,
+                "node_type": "TABLE",
+                "content": {
+                    "cells": [
+                        {
+                            "row": row,
+                            "column": column,
+                            "displayed_value": "x",
+                        }
+                        for row in range(1, rows + 1)
+                        for column in range(1, columns + 1)
+                    ]
+                },
+            }
+        ]
+    }
+
+    package = OrdinaryTradeSemanticMappingFactory.create().build_mapping_package(
+        canonical=canonical,
+        confirmed_understandings=[],
+    )
+
+    table = package["case"]["tables"][0]
+    assert sum(len(item["cells"]) for item in table["rows"]) == rows * columns
+    assert "column_distinct_values" not in table
+
+
+def test_instructional_descriptor_keeps_its_separate_distinct_value_contract(
+    tmp_path,
+) -> None:
+    _context, canonical, _binding, table, _known = _canonical_case(tmp_path)
+
+    descriptor = (
+        OrdinaryTradeSemanticMappingFactory.create()
+        .build_instructional_classification_descriptor(
+            canonical=canonical,
+            table_node_id=table["node_id"],
+        )
+    )
+
+    assert "column_distinct_values" in descriptor["case"]["table"]
+
+
 def test_private_context_audit_proves_window_omission_without_model_leakage() -> None:
     canonical = {
         "nodes": [
