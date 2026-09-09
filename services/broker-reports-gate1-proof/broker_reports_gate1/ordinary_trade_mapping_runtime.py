@@ -1206,6 +1206,14 @@ class OrdinaryTradeAutomaticMappingRuntime:
             "status": payload["status"],
             "mapping_case_artifact_id": record.artifact_id,
             "provider_calls_this_turn": provider_calls_this_turn,
+            # This is control state only: it never exposes Canonical content.
+            # The production coordinator may continue a persisted, bounded
+            # classifier phase without pretending that the user must answer a
+            # technical intermediate step.
+            "automatic_continuation_required": bool(
+                payload["status"] == "MAPPING_REQUIRED"
+                and isinstance(payload.get("instructional_classification_state"), dict)
+            ),
             "public_state": self._cases.public_state(
                 document_id=str(record.document_id),
                 context=context,

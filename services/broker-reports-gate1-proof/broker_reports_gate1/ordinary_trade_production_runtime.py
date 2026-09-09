@@ -213,7 +213,20 @@ class OrdinaryTradeProductionRuntime:
             return result
         provider_calls = 0
         mapping_turn = None
-        maximum_steps = max(1, len(result.get("documents") or []))
+        documents = result.get("documents") or []
+        # A document normally needs one mapping call.  With the narrow
+        # instructional phase, each currently unmapped table may need one
+        # bounded classifier call before that mapping call.  This is a strict
+        # upper bound derived from the existing projection, not a retry loop.
+        maximum_steps = max(
+            1,
+            len(documents)
+            + sum(
+                int(item.get("relevant_unmapped_observations") or 0)
+                for item in documents
+                if isinstance(item, dict)
+            ),
+        )
         for _step in range(maximum_steps):
             unresolved = [
                 item
@@ -238,8 +251,12 @@ class OrdinaryTradeProductionRuntime:
             user_message = ""
             confirmation = None
             expected_confirmation_artifact_id = None
-            if mapping_turn["status"] != "COMPLETE":
+            if mapping_turn["status"] != "COMPLETE" and not bool(
+                mapping_turn.get("automatic_continuation_required")
+            ):
                 break
+            if mapping_turn["status"] != "COMPLETE":
+                continue
             if self._declaration is not None:
                 finalized = self._finalizer.finalize(
                     document_id=document_id,

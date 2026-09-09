@@ -1036,6 +1036,53 @@ async def _production_composition_maps_unknown_then_publishes_facts(tmp_path) ->
     assert answer_client.calls == []
 
 
+async def _production_composition_continues_instructional_steps_without_chat_input(
+    tmp_path,
+) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    mapping_client = BoundaryModelClient(
+        [
+            {
+                "schema_version": INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
+                "classification": "NOT_INSTRUCTIONAL",
+                "header_row": 1,
+                "classification_evidence": [],
+            },
+            case_fixtures._complete(table, mapping),
+        ]
+    )
+    dependencies = _mapping_prompt_dependencies()
+    dependencies["instructional_prompt_resolver"] = (
+        StaticInstructionalPromptResolver()
+    )
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=mapping_client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+        **dependencies,
+    ).create()
+    canonical_ref = store.get_active_canonical_version(
+        context=context, document_id=document_id
+    ).manifest_ref
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+
+    assert result["semantic_mapping"]["status"] == "COMPLETE"
+    assert result["provider_calls_total"] == 2
+    assert [item["prompt"].prompt_ref for item in mapping_client.calls] == [
+        "test-instructional-prompt",
+        "test-ordinary-trade-mapping-prompt",
+    ]
+    assert result["product"]["gate4"]["security_facts_total"] == 2
+
+
 async def _sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
     headers = list(case_fixtures.candidate._ROWS[0])
     headers[0] = headers[0] + " (sparse unknown version)"
@@ -1798,6 +1845,16 @@ def test_provider_failure_and_invalid_output_are_distinct_terminals(tmp_path) ->
 
 def test_production_composition_maps_unknown_then_publishes_facts(tmp_path) -> None:
     asyncio.run(_production_composition_maps_unknown_then_publishes_facts(tmp_path))
+
+
+def test_production_composition_continues_instructional_steps_without_chat_input(
+    tmp_path,
+) -> None:
+    asyncio.run(
+        _production_composition_continues_instructional_steps_without_chat_input(
+            tmp_path
+        )
+    )
 
 
 def test_sparse_exact_header_reaches_terminal_facts(tmp_path) -> None:
