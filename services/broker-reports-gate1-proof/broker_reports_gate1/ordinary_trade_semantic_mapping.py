@@ -331,6 +331,176 @@ class OrdinaryTradeSemanticMapping:
             "table_resolution": resolution,
         }
 
+    def finalize_instructional_preclassification(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        user_scope_sha256: str,
+        target_table_node_ids: Iterable[str],
+        classifier_outcomes: Iterable[Mapping[str, Any]],
+        mapping_outcome: Mapping[str, Any] | None,
+        frozen_mappings: Iterable[Mapping[str, Any]] = (),
+    ) -> dict[str, Any]:
+        """Publish one complete scope after re-binding its narrow classifications.
+
+        The coordinator supplies opaque model responses only.  This owner rebuilds
+        every descriptor from the current Canonical before a classifier result can
+        exclude a table from ordinary role mapping.
+        """
+
+        target_ids = _ordered_target_table_node_ids(
+            canonical=canonical, target_table_node_ids=target_table_node_ids
+        )
+        outcomes = list(classifier_outcomes)
+        if len(outcomes) != len(target_ids):
+            _fail("ordinary_trade_instructional_outcome_coverage_invalid")
+        instructional_resolutions: list[dict[str, Any]] = []
+        mapping_target_ids: list[str] = []
+        for expected_id, item in zip(target_ids, outcomes, strict=True):
+            if (
+                not isinstance(item, Mapping)
+                or set(item) != {"table_node_id", "response"}
+                or item.get("table_node_id") != expected_id
+            ):
+                _fail("ordinary_trade_instructional_outcome_coverage_invalid")
+            admitted = self.admit_instructional_classification(
+                canonical=canonical,
+                descriptor=self.build_instructional_classification_descriptor(
+                    canonical=canonical, table_node_id=expected_id
+                ),
+                response=item.get("response"),
+            )
+            if admitted["classification"] == "SPECIALIST_REVIEW_REQUIRED":
+                _fail("ordinary_trade_instructional_specialist_review_required")
+            resolution = admitted["table_resolution"]
+            if resolution is None:
+                mapping_target_ids.append(expected_id)
+            else:
+                instructional_resolutions.append(resolution)
+
+        mapping_resolutions: list[dict[str, Any]] = []
+        qualified_mappings: list[dict[str, Any]] = []
+        qualification_receipts: list[dict[str, Any]] = []
+        model_response_sha256 = None
+        execution_metadata_sha256 = None
+        if mapping_target_ids:
+            if not isinstance(mapping_outcome, Mapping) or mapping_outcome.get("status") != "COMPLETE":
+                _fail("ordinary_trade_instructional_mapping_outcome_required")
+            mapping_resolutions = copy.deepcopy(mapping_outcome.get("table_resolutions") or [])
+            qualified_mappings = copy.deepcopy(mapping_outcome.get("qualified_mappings") or [])
+            qualification_receipts = copy.deepcopy(
+                mapping_outcome.get("qualification_receipts") or []
+            )
+            if (
+                not all(
+                    isinstance(value, list)
+                    for value in (
+                        mapping_resolutions,
+                        qualified_mappings,
+                        qualification_receipts,
+                    )
+                )
+                or [item.get("table_node_id") for item in mapping_resolutions]
+                != mapping_target_ids
+                or len(qualified_mappings) != len(qualification_receipts)
+            ):
+                _fail("ordinary_trade_instructional_mapping_outcome_invalid")
+            model_response_sha256 = mapping_outcome.get("model_response_sha256")
+            execution_metadata_sha256 = mapping_outcome.get(
+                "execution_metadata_sha256"
+            )
+        elif mapping_outcome is not None:
+            _fail("ordinary_trade_instructional_mapping_outcome_unexpected")
+
+        resolutions_by_id = {
+            item["table_node_id"]: copy.deepcopy(item)
+            for item in [*instructional_resolutions, *mapping_resolutions]
+            if isinstance(item, Mapping) and isinstance(item.get("table_node_id"), str)
+        }
+        if len(resolutions_by_id) != len(target_ids) or set(resolutions_by_id) != set(target_ids):
+            _fail("ordinary_trade_instructional_outcome_coverage_invalid")
+        table_resolutions = [resolutions_by_id[item] for item in target_ids]
+
+        receipts_by_id = {
+            item.get("qualification_id"): item
+            for item in qualification_receipts
+            if isinstance(item, Mapping) and item.get("qualification_id")
+        }
+        if len(receipts_by_id) != len(qualification_receipts):
+            _fail("ordinary_trade_instructional_mapping_outcome_invalid")
+        authority = OrdinaryTradeQualifiedMappingAuthorityFactory.create()
+        scoped_mappings: list[dict[str, Any]] = []
+        for mapping in qualified_mappings:
+            if not isinstance(mapping, Mapping):
+                _fail("ordinary_trade_instructional_mapping_outcome_invalid")
+            receipt = receipts_by_id.get(
+                (mapping.get("qualification_ref") or {}).get("qualification_id")
+            )
+            table_node_id = (
+                (receipt.get("case_scope") or {}).get("table_node_id")
+                if isinstance(receipt, Mapping)
+                else None
+            )
+            if table_node_id not in mapping_target_ids:
+                _fail("ordinary_trade_instructional_mapping_outcome_invalid")
+            expected_scope = {
+                **{
+                    key: str(canonical_binding.get(key) or "")
+                    for key in (
+                        "document_id",
+                        "canonical_version_id",
+                        "canonical_root_sha256",
+                        "source_artifact_ref",
+                        "source_sha256",
+                    )
+                },
+                "user_scope_sha256": user_scope_sha256,
+                "table_node_id": table_node_id,
+            }
+            if not all(expected_scope.values()):
+                _fail("ordinary_trade_semantic_mapping_canonical_binding_invalid")
+            authority.validate_case_mapping(
+                mapping=mapping, receipt=receipt, expected_case_scope=expected_scope
+            )
+            scoped_mappings.append(
+                {"table_node_id": table_node_id, "mapping": copy.deepcopy(mapping)}
+            )
+        compiler_resolutions = [
+            item
+            for item in table_resolutions
+            if item.get("disposition") != "SECURITY_TRADES_INCOMPLETE"
+        ]
+        projection = OrdinaryTradeSemanticCompilerFactory.create().compile(
+            canonical=canonical,
+            canonical_binding=canonical_binding,
+            mappings=frozen_mappings,
+            scoped_mappings=scoped_mappings,
+            table_resolutions=compiler_resolutions,
+        )
+        incomplete_ids = {
+            item["table_node_id"]
+            for item in table_resolutions
+            if item.get("disposition") == "SECURITY_TRADES_INCOMPLETE"
+        }
+        if any(
+            item.get("disposition") == "RELEVANT_UNMAPPED"
+            and item.get("table_node_id") in set(target_ids)
+            and item.get("table_node_id") not in incomplete_ids
+            for item in projection["source_observations"]
+        ):
+            _fail("ordinary_trade_instructional_compiler_coverage_invalid")
+        return {
+            "status": "COMPLETE",
+            "message": "Instructional references are separated before role mapping.",
+            "question": None,
+            "qualified_mappings": qualified_mappings,
+            "qualification_receipts": qualification_receipts,
+            "table_resolutions": table_resolutions,
+            "model_response_sha256": model_response_sha256,
+            "execution_metadata_sha256": execution_metadata_sha256,
+        }
+
     def build_mapping_package(
         self,
         *,

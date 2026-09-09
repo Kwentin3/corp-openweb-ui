@@ -12,6 +12,8 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     OrdinaryTradeSemanticMappingFactory,
 )
 
+import test_broker_reports_issue312_mapping_case as mapping_case
+
 
 def _descriptor():
     canonical = {
@@ -103,3 +105,42 @@ def test_owner_rejects_stale_descriptor_and_does_not_create_non_instructional_re
         response=_response(descriptor, classification="NOT_INSTRUCTIONAL"),
     )
     assert admitted["table_resolution"] is None
+
+
+def test_all_instructional_scope_completes_without_a_role_mapping(tmp_path) -> None:
+    store, context, document_id, canonical, binding, table, _mapping = (
+        mapping_case._unknown_case(tmp_path)
+    )
+    table["content"]["title"] = "Reference example"
+    owner = OrdinaryTradeSemanticMappingFactory.create()
+    descriptor = owner.build_instructional_classification_descriptor(
+        canonical=canonical, table_node_id=table["node_id"]
+    )
+    outcome = owner.finalize_instructional_preclassification(
+        canonical=canonical,
+        canonical_binding=binding,
+        user_scope_sha256=(
+            mapping_case.OrdinaryTradeMappingCaseFactory(
+                store=store, read_enabled=True
+            )
+            .create()
+            .case_binding(document_id=document_id, context=context)["user_scope_sha256"]
+        ),
+        target_table_node_ids=[table["node_id"]],
+        classifier_outcomes=[
+            {
+                "table_node_id": table["node_id"],
+                "response": _response(
+                    descriptor, classification="INSTRUCTIONAL_REFERENCE"
+                ),
+            }
+        ],
+        mapping_outcome=None,
+    )
+
+    assert outcome["status"] == "COMPLETE"
+    assert outcome["qualified_mappings"] == []
+    assert outcome["qualification_receipts"] == []
+    assert outcome["table_resolutions"][0]["no_consumer_kind"] == (
+        "INSTRUCTIONAL_REFERENCE"
+    )
