@@ -72,6 +72,43 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
         release._mapping_prompt_valves({key: value for key, value in _PIN.items() if key != "prompt_hash"})
 
 
+def test_host_profile_selector_is_closed_and_reaches_only_native_runner(tmp_path: Path):
+    archive = tmp_path / "ordinary_trade_mapping_prompt_source.zip"
+    runner = tmp_path / "broker_reports_native_prompt_publish_container.py"
+    archive.write_bytes(b"release-source")
+    runner.write_text("# runner", encoding="utf-8")
+    calls: list[list[str]] = []
+
+    def run(args, *, check=True):
+        calls.append(args)
+        if "python" in args:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout=json.dumps(
+                    {
+                        "schema_version": host.SAFE_SCHEMA_VERSION,
+                        "status": "published",
+                        "action": "created",
+                        **_PIN,
+                    }
+                ),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+    with mock.patch.object(host, "_run", side_effect=run):
+        host.execute(
+            staging_dir=tmp_path,
+            verify_pin=None,
+            profile="goal391_grouped_mapping_lab_v14",
+        )
+    python_call = next(call for call in calls if "python" in call)
+    assert python_call[-2:] == ["--profile", "goal391_grouped_mapping_lab_v14"]
+    with pytest.raises(RuntimeError, match="profile_invalid"):
+        host.execute(staging_dir=tmp_path, verify_pin=None, profile="untrusted")
+
+
 def test_native_release_helpers_do_not_add_sqlite_or_http_prompt_mutation_path():
     for name in (
         "broker_reports_native_prompt_publish_container.py",

@@ -21,6 +21,9 @@ from typing import Any
 
 
 SAFE_SCHEMA_VERSION = "broker_reports_native_mapping_prompt_pin_v1"
+_PROFILE_IDS = frozenset(
+    {"ordinary_trade_mapping_v13", "goal391_grouped_mapping_lab_v14"}
+)
 
 
 def _safe_output(*, status: str, publication: Any) -> dict[str, str]:
@@ -50,14 +53,28 @@ async def _existing_actor_id() -> str:
     return actor_user_id
 
 
-async def _run(*, asset_root: Path, verify_pin: dict[str, str] | None) -> dict[str, str]:
+async def _run(
+    *,
+    asset_root: Path,
+    verify_pin: dict[str, str] | None,
+    profile_id: str,
+) -> dict[str, str]:
     from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
+        GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
+        ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
         OrdinaryTradeMappingPromptPublication,
         OrdinaryTradeMappingPromptPublisher,
         publication_input_from_asset,
     )
 
-    publisher = OrdinaryTradeMappingPromptPublisher()
+    profiles = {
+        ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
+        GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE.profile_id: GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
+    }
+    profile = profiles.get(profile_id)
+    if profile is None:
+        raise RuntimeError("ordinary_trade_mapping_prompt_release_profile_invalid")
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
     if verify_pin is not None:
         publication = OrdinaryTradeMappingPromptPublication(
             prompt_ref=verify_pin["prompt_ref"],
@@ -70,6 +87,7 @@ async def _run(*, asset_root: Path, verify_pin: dict[str, str] | None) -> dict[s
     request = publication_input_from_asset(
         actor_user_id=await _existing_actor_id(),
         asset_root=asset_root,
+        profile=profile,
     )
     return _safe_output(status="published", publication=await publisher.publish(request))
 
@@ -93,6 +111,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-archive", required=True)
     parser.add_argument("--verify-pin-json", default=None)
+    parser.add_argument(
+        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v13"
+    )
     args = parser.parse_args()
     archive = Path(args.source_archive)
     if not archive.is_file() or archive.is_symlink():
@@ -113,6 +134,7 @@ def main() -> int:
         print(json.dumps(asyncio.run(_run(
             asset_root=service_root / "managed_assets" / "prompts",
             verify_pin=_pin(args.verify_pin_json),
+            profile_id=args.profile,
         )), ensure_ascii=False, sort_keys=True))
         return 0
     finally:

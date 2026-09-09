@@ -19,6 +19,9 @@ CONTAINER = "openwebui"
 SAFE_SCHEMA_VERSION = "broker_reports_native_mapping_prompt_pin_v1"
 SAFE_NAME_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 SAFE_PIN_KEYS = {"prompt_ref", "prompt_command", "prompt_history_id", "prompt_hash"}
+_PROFILE_IDS = frozenset(
+    {"ordinary_trade_mapping_v13", "goal391_grouped_mapping_lab_v14"}
+)
 
 
 def _run(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -56,7 +59,14 @@ def _validate_output(value: str, *, status: str) -> dict[str, str]:
     return {key: parsed[key] for key in sorted(SAFE_PIN_KEYS)}
 
 
-def execute(*, staging_dir: Path, verify_pin: dict[str, str] | None) -> dict[str, str]:
+def execute(
+    *,
+    staging_dir: Path,
+    verify_pin: dict[str, str] | None,
+    profile: str = "ordinary_trade_mapping_v13",
+) -> dict[str, str]:
+    if profile not in _PROFILE_IDS:
+        raise RuntimeError("ordinary_trade_mapping_prompt_release_profile_invalid")
     archive = staging_dir / "ordinary_trade_mapping_prompt_source.zip"
     runner = staging_dir / "broker_reports_native_prompt_publish_container.py"
     if not archive.is_file() or archive.is_symlink() or not runner.is_file() or runner.is_symlink():
@@ -70,7 +80,7 @@ def execute(*, staging_dir: Path, verify_pin: dict[str, str] | None) -> dict[str
         _run(["docker", "cp", str(runner), f"{CONTAINER}:{runner_in_container}"])
         command = [
             "docker", "exec", "-w", "/app/backend", "-e", "PYTHONPATH=/app/backend", CONTAINER, "python",
-            runner_in_container, "--source-archive", archive_in_container,
+            runner_in_container, "--source-archive", archive_in_container, "--profile", profile,
         ]
         expected_status = "published"
         if verify_pin is not None:
@@ -88,6 +98,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--staging-dir", required=True)
     parser.add_argument("--verify-pin-json", default=None)
+    parser.add_argument(
+        "--profile", choices=sorted(_PROFILE_IDS), default="ordinary_trade_mapping_v13"
+    )
     args = parser.parse_args()
     verify_pin = None
     if args.verify_pin_json is not None:
@@ -95,7 +108,7 @@ def main() -> int:
         if not isinstance(value, dict) or set(value) != SAFE_PIN_KEYS:
             raise RuntimeError("ordinary_trade_mapping_prompt_release_pin_invalid")
         verify_pin = {key: str(value[key]) for key in sorted(SAFE_PIN_KEYS)}
-    print(json.dumps(execute(staging_dir=_staging_dir(args.staging_dir), verify_pin=verify_pin), sort_keys=True))
+    print(json.dumps(execute(staging_dir=_staging_dir(args.staging_dir), verify_pin=verify_pin, profile=args.profile), sort_keys=True))
     return 0
 
 
