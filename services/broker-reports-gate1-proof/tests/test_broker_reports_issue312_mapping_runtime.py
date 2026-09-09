@@ -9,6 +9,8 @@ import pytest
 
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.artifact_retention import build_retention_policy
+from broker_reports_gate1.artifact_models import ArtifactRecord
+from broker_reports_gate1.artifact_lifecycle import lifecycle_for_visibility
 from broker_reports_gate1.gate4_ordinary_trade_candidate import (
     Gate4OrdinaryTradeCandidateRuntimeFactory,
 )
@@ -1012,7 +1014,9 @@ async def _rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> N
     assert current["table_resolutions"] == []
 
 
-async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value) -> None:
+async def _complete_mapping_retains_incomplete_scoped_rows(
+    tmp_path, gross_value, legacy_projection=False
+) -> None:
     purchase = case_fixtures.candidate._ROWS[1]
     disposal = list(case_fixtures.candidate._ROWS[2])
     mapping_template = case_fixtures.candidate._QUALIFIED_MAPPING
@@ -1082,7 +1086,38 @@ async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value
     assert projection["runtime_records"]
 
     projections = OrdinaryTradeProjectionFactory(store=store, read_enabled=True).create()
-    saved = projections.compile_and_save(document_id=document_id, context=context)
+    if legacy_projection:
+        # Persist the historical payload shape directly; the continuation below
+        # must read it unchanged rather than compiling a replacement.
+        for observation in projection["source_observations"]:
+            if observation["reason_code"] == "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE":
+                observation["disposition"] = "SOURCE_RETAINED_NO_CONSUMER"
+        projection["semantic_mapping_case_ref"] = (
+            OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True)
+            .create().current(document_id=document_id, context=context)[0].artifact_id
+        )
+        projection.pop("projection_sha256")
+        projection["projection_sha256"] = hashlib.sha256(
+            json.dumps(projection, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        saved = store.put_record(ArtifactRecord(
+            artifact_id="art_otproj_" + projection["projection_sha256"][:40],
+            artifact_type=ORDINARY_TRADE_PROJECTION_ARTIFACT_TYPE,
+            case_id=context.case_id, chat_id=context.chat_id, user_id=context.user_id,
+            workspace_model_id=context.workspace_model_id,
+            normalization_run_id=context.normalization_run_id,
+            document_id=document_id, source_file_ref=None,
+            visibility="private_case", storage_backend="project_artifact_payload",
+            retention_policy=build_retention_policy(mode="api_smoke"),
+            access_policy={"requires_user_id": True, "requires_case_or_chat": True},
+            validation_status="validated",
+            lifecycle_status=lifecycle_for_visibility(
+                visibility="private_case", validation_status="validated"
+            ),
+            payload_kind="json_file", payload=projection,
+        ))
+    else:
+        saved = projections.compile_and_save(document_id=document_id, context=context)
     restored = projections.read(artifact_id=saved.artifact_id, context=context)
     assert restored["source_observations"] == projection["source_observations"]
     assert projections.current_case_coverage(context=context)["status"] == "complete"
@@ -1103,6 +1138,9 @@ async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value
     with pytest.raises(OrdinaryTradeDeclarationCaseBundleError) as exc:
         product_runtime.stabilize_declaration_case(context=context, tax_period="2025")
     assert exc.value.code == "ordinary_trade_declaration_bundle_facts_incomplete"
+    if legacy_projection:
+        assert len(projections.current_case(context=context)) == 1
+        assert projections.read(artifact_id=saved.artifact_id, context=context) == restored
 
 
 async def _provider_failure_and_invalid_output_are_distinct_terminals(
@@ -2013,8 +2051,9 @@ def test_complete_mapping_above_legacy_row_sample_is_possible(tmp_path) -> None:
 
 
 @pytest.mark.parametrize("gross_value", ["", "not-a-number"])
-def test_complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value) -> None:
-    asyncio.run(_complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value))
+@pytest.mark.parametrize("legacy_projection", [False, True])
+def test_complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value, legacy_projection) -> None:
+    asyncio.run(_complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value, legacy_projection))
 
 
 def test_provider_failure_and_invalid_output_are_distinct_terminals(tmp_path) -> None:

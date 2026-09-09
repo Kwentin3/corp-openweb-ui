@@ -166,7 +166,12 @@ class Gate4OrdinaryTradeCandidateRuntime:
         ]
         incomplete_trade_rows = any(
             observation.get("disposition")
-            == "SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE"
+            in {
+                "SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE",
+                # Historical projections retained the exact incomplete-row
+                # reason but used the no-consumer disposition.
+                "SOURCE_RETAINED_NO_CONSUMER",
+            }
             and observation.get("reason_code") == "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE"
             for _record, projection in projections
             for observation in projection["source_observations"]
