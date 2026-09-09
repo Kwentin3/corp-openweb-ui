@@ -345,7 +345,7 @@ class OrdinaryTradeSemanticMapping:
         )
         outcomes = list(classifier_outcomes)
         if len(outcomes) != len(target_ids):
-            _fail("ordinary_trade_instructional_outcome_coverage_invalid")
+            _fail("ordinary_trade_instructional_classifier_count_invalid")
         instructional_resolutions: list[dict[str, Any]] = []
         mapping_target_ids: list[str] = []
         for expected_id, item in zip(target_ids, outcomes, strict=True):
@@ -354,7 +354,7 @@ class OrdinaryTradeSemanticMapping:
                 or set(item) != {"table_node_id", "response"}
                 or item.get("table_node_id") != expected_id
             ):
-                _fail("ordinary_trade_instructional_outcome_coverage_invalid")
+                _fail("ordinary_trade_instructional_classifier_order_invalid")
             admitted = self.admit_instructional_classification(
                 canonical=canonical,
                 descriptor=self.build_instructional_classification_descriptor(
@@ -436,13 +436,25 @@ class OrdinaryTradeSemanticMapping:
         elif mapping_outcome is not None:
             _fail("ordinary_trade_instructional_mapping_outcome_unexpected")
 
+        merged_resolutions = [*instructional_resolutions, *mapping_resolutions]
+        merged_ids = [
+            item.get("table_node_id")
+            for item in merged_resolutions
+            if isinstance(item, Mapping)
+        ]
+        if (
+            len(merged_ids) != len(merged_resolutions)
+            or any(not isinstance(item, str) or not item for item in merged_ids)
+        ):
+            _fail("ordinary_trade_instructional_resolution_invalid")
+        if len(merged_ids) != len(set(merged_ids)):
+            _fail("ordinary_trade_instructional_resolution_overlap")
+        if set(merged_ids) != set(target_ids):
+            _fail("ordinary_trade_instructional_resolution_coverage_invalid")
         resolutions_by_id = {
             item["table_node_id"]: copy.deepcopy(item)
-            for item in [*instructional_resolutions, *mapping_resolutions]
-            if isinstance(item, Mapping) and isinstance(item.get("table_node_id"), str)
+            for item in merged_resolutions
         }
-        if len(resolutions_by_id) != len(target_ids) or set(resolutions_by_id) != set(target_ids):
-            _fail("ordinary_trade_instructional_outcome_coverage_invalid")
         table_resolutions = [resolutions_by_id[item] for item in target_ids]
 
         receipts_by_id = {
@@ -1327,15 +1339,14 @@ def _ordered_target_table_node_ids(
     ):
         _fail("ordinary_trade_mapping_batch_plan_invalid")
     requested_ids = set(requested)
-    ordered: list[str] = []
+    canonical_order: list[str] = []
     seen: set[str] = set()
     nodes = canonical.get("nodes") if isinstance(canonical, Mapping) else None
     if not isinstance(nodes, list):
         _fail("ordinary_trade_semantic_mapping_canonical_invalid")
-    for node in sorted(
-        (item for item in nodes if isinstance(item, Mapping)),
-        key=lambda item: (str(item.get("container_ref") or ""), int(item.get("order") or 0)),
-    ):
+    for node in nodes:
+        if not isinstance(node, Mapping):
+            _fail("ordinary_trade_semantic_mapping_canonical_invalid")
         if node.get("node_type") != "TABLE":
             continue
         node_id = node.get("node_id")
@@ -1345,10 +1356,12 @@ def _ordered_target_table_node_ids(
             _fail("ordinary_trade_semantic_mapping_canonical_invalid")
         seen.add(node_id)
         if node_id in requested_ids:
-            ordered.append(node_id)
-    if set(ordered) != requested_ids:
+            canonical_order.append(node_id)
+    if set(canonical_order) != requested_ids:
         _fail("ordinary_trade_semantic_mapping_target_scope_stale")
-    return ordered
+    if requested != canonical_order:
+        _fail("ordinary_trade_semantic_mapping_target_order_invalid")
+    return canonical_order
 
 
 def _validate_mapping_batch_plan(

@@ -189,7 +189,14 @@ class OrdinaryTradeMappingCaseRuntime:
             "MAPPING_REQUIRED",
             "PROVIDER_UNAVAILABLE",
         }:
-            _fail("ordinary_trade_mapping_case_transition_invalid")
+            prior_prompt = current[1].get("mapping_prompt_snapshot")
+            if (
+                current[1]["status"] != "MAPPING_OUTPUT_INVALID"
+                or not isinstance(mapping_prompt_snapshot, dict)
+                or not isinstance(prior_prompt, dict)
+                or mapping_prompt_snapshot == prior_prompt
+            ):
+                _fail("ordinary_trade_mapping_case_transition_invalid")
         status = outcome.get("status")
         if status not in {
             "COMPLETE",

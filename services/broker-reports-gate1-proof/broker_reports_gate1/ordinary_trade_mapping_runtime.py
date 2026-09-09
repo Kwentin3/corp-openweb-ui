@@ -160,11 +160,23 @@ class OrdinaryTradeAutomaticMappingRuntime:
             "UNSUPPORTED",
             "SPECIALIST_REVIEW_REQUIRED",
             "SOURCE_CONTEXT_LIMIT",
-            "MAPPING_OUTPUT_INVALID",
         }:
             return self._result(
                 current=current, context=context, provider_calls_this_turn=0
             )
+        if current is not None and current[1]["status"] == "MAPPING_OUTPUT_INVALID":
+            try:
+                prompt = await self._resolve_mapping_prompt(context=context)
+                revised = (
+                    validate_ordinary_trade_mapping_prompt_snapshot(prompt.snapshot())
+                    != current[1].get("mapping_prompt_snapshot")
+                )
+            except Exception:
+                revised = False
+            if not revised:
+                return self._result(
+                    current=current, context=context, provider_calls_this_turn=0
+                )
         if current is not None and current[1]["status"] == "CURRENCY_ASSERTION_REQUIRED":
             if current[1].get("mapping_batch_state") is not None:
                 return await self._resume_batch_currency(
@@ -590,11 +602,28 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=saved, context=context, provider_calls_this_turn=1
             )
         if outcome["status"] == "COMPLETE" and instructional_state is not None:
-            outcome = self._finalize_instructional_mapping_outcome(
-                binding=binding,
-                instructional_state=instructional_state,
-                mapping_outcome=outcome,
-            )
+            try:
+                outcome = self._finalize_instructional_mapping_outcome(
+                    binding=binding,
+                    instructional_state=instructional_state,
+                    mapping_outcome=outcome,
+                )
+            except OrdinaryTradeSemanticMappingError as exc:
+                saved = self._cases.save_provider_terminal(
+                    document_id=document_id,
+                    context=context,
+                    status="MAPPING_OUTPUT_INVALID",
+                    reason_code=exc.code,
+                    message=(
+                        "The completed mapping cannot be joined to the "
+                        "instructional classification scope. No facts were published."
+                    ),
+                    provider_calls_total=1,
+                    mapping_prompt_snapshot=prompt_snapshot,
+                )
+                return self._result(
+                    current=saved, context=context, provider_calls_this_turn=1
+                )
         saved = self._cases.save_mapping_outcome(
             document_id=document_id,
             context=context,
@@ -695,11 +724,30 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 "instructional_classification_state"
             )
             if instructional_state is not None:
-                aggregate = self._finalize_instructional_mapping_outcome(
-                    binding=binding,
-                    instructional_state=instructional_state,
-                    mapping_outcome=aggregate,
-                )
+                try:
+                    aggregate = self._finalize_instructional_mapping_outcome(
+                        binding=binding,
+                        instructional_state=instructional_state,
+                        mapping_outcome=aggregate,
+                    )
+                except OrdinaryTradeSemanticMappingError as exc:
+                    saved = self._cases.save_provider_terminal(
+                        document_id=document_id,
+                        context=context,
+                        status="MAPPING_OUTPUT_INVALID",
+                        reason_code=exc.code,
+                        message=(
+                            "The completed mapping cannot be joined to the "
+                            "instructional classification scope. No facts were published."
+                        ),
+                        provider_calls_total=0,
+                        mapping_prompt_snapshot=snapshot,
+                    )
+                    return self._result(
+                        current=saved,
+                        context=context,
+                        provider_calls_this_turn=provider_calls_this_turn,
+                    )
             saved = self._cases.save_mapping_outcome(
                 document_id=document_id,
                 context=context,
