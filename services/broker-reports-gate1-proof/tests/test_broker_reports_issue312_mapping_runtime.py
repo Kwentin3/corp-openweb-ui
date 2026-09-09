@@ -193,7 +193,7 @@ def _runtime_with_native_prompt_owner(store, client):
     ).create()
 
 
-def _multi_table_case(tmp_path, *, table_row_sets):
+def _multi_table_case(tmp_path, *, table_row_sets, table_context_by_page=None):
     store, context = gate4_fixtures._store_context(tmp_path)
     document_id = "issue312-multi-table-document"
     gate4_fixtures._activate_canonical(
@@ -203,6 +203,7 @@ def _multi_table_case(tmp_path, *, table_row_sets):
         artifact_version=1,
         expected_previous_version_id=None,
         table_row_sets=tuple(table_row_sets),
+        table_context_by_page=table_context_by_page,
     )
     envelope = (
         CanonicalReaderFactory(store=store, read_enabled=True)
@@ -328,42 +329,26 @@ async def _native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
     assert len(client.calls) == 1
 
 
-async def _instructional_preclassification_keeps_trade_mapping_in_one_pipeline(
+async def _single_mapping_call_replaces_instructional_preclassification(
     tmp_path,
 ) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)
     )
-    client = BoundaryModelClient(
-        [
-            {
-                "schema_version": INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
-                "classification": "NOT_INSTRUCTIONAL",
-                "header_row": 1,
-                "classification_evidence": [],
-            },
-            case_fixtures._complete(table, mapping),
-        ]
-    )
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping)])
     runtime = _runtime_with_instructional_classifier(store, client)
 
-    first = await runtime.resolve(document_id=document_id, context=context)
-    second = await runtime.resolve(document_id=document_id, context=context)
+    result = await runtime.resolve(document_id=document_id, context=context)
 
-    assert first["status"] == "MAPPING_REQUIRED"
-    assert first["provider_calls_this_turn"] == 1
-    assert second["status"] == "COMPLETE"
-    assert second["provider_calls_this_turn"] == 1
+    assert result["status"] == "COMPLETE"
+    assert result["provider_calls_this_turn"] == 1
     assert [item["prompt"].prompt_ref for item in client.calls] == [
-        "test-instructional-prompt",
-        "test-ordinary-trade-mapping-prompt",
+        "test-ordinary-trade-mapping-prompt"
     ]
     saved = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
         document_id=document_id, context=context
     )[1]
-    assert saved["instructional_prompt_snapshot"]["prompt_ref"] == (
-        "test-instructional-prompt"
-    )
+    assert saved["instructional_prompt_snapshot"] is None
     assert saved["table_resolutions"][0]["disposition"] == "SECURITY_TRADES"
 
 
@@ -1065,23 +1050,13 @@ async def _production_composition_maps_unknown_then_publishes_facts(tmp_path) ->
     assert answer_client.calls == []
 
 
-async def _production_composition_continues_instructional_steps_without_chat_input(
+async def _production_composition_uses_one_mapping_call_without_instructional_step(
     tmp_path,
 ) -> None:
     store, context, document_id, _canonical, _binding, table, mapping = (
         case_fixtures._unknown_case(tmp_path)
     )
-    mapping_client = BoundaryModelClient(
-        [
-            {
-                "schema_version": INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
-                "classification": "NOT_INSTRUCTIONAL",
-                "header_row": 1,
-                "classification_evidence": [],
-            },
-            case_fixtures._complete(table, mapping),
-        ]
-    )
+    mapping_client = BoundaryModelClient([case_fixtures._complete(table, mapping)])
     dependencies = _mapping_prompt_dependencies()
     dependencies["instructional_prompt_resolver"] = (
         StaticInstructionalPromptResolver()
@@ -1104,9 +1079,8 @@ async def _production_composition_continues_instructional_steps_without_chat_inp
     )
 
     assert result["semantic_mapping"]["status"] == "COMPLETE"
-    assert result["provider_calls_total"] == 2
+    assert result["provider_calls_total"] == 1
     assert [item["prompt"].prompt_ref for item in mapping_client.calls] == [
-        "test-instructional-prompt",
         "test-ordinary-trade-mapping-prompt",
     ]
     assert result["product"]["gate4"]["security_facts_total"] == 2
@@ -1264,16 +1238,75 @@ async def _identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> Non
     )
 
 
-async def _overflowed_scope_executes_one_pinned_call_per_batch(tmp_path) -> None:
+async def _instructional_table_and_trade_share_one_mapping_call(tmp_path) -> None:
+    """One strict response may exclude teaching material without publishing it."""
+    trade_rows = _unknown_rows(suffix="operational trades")
+    instructional_rows = _unknown_rows(suffix="worked example")
+    mapping = case_fixtures.candidate._mapping_from_headers(trade_rows[0])
+    store, context, document_id, _tables, canonical_ref = _multi_table_case(
+        tmp_path,
+        table_row_sets=(trade_rows, instructional_rows),
+        table_context_by_page=(
+            "Operational securities transactions.",
+            "This is an instructional worked example; it is not an account record.",
+        ),
+    )
+    response = _response_for_tables(table_count=2, mapping=mapping)
+    response["table_decisions"][1] = {
+        "table_ref": "table_2",
+        "header_row": 1,
+        "disposition": "NO_NAMED_CONSUMER",
+        "columns": [],
+        "amount_currency_bindings": [],
+        "side_values": [],
+        "row_dispositions": [],
+        "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+        "classification_evidence": [
+            {"context_ref": "context_2", "relation": "PRECEDING_SAME_CONTAINER"},
+        ],
+    }
+    client = BoundaryModelClient([response])
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        mapping_model_client=client,
+        mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash",
+        mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
+    ).create()
+
+    result = await runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context
+    )
+    current = OrdinaryTradeMappingCaseFactory(
+        store=store, read_enabled=True
+    ).create().current(document_id=document_id, context=context)[1]
+
+    assert result["semantic_mapping"]["status"] == "COMPLETE"
+    assert result["provider_calls_total"] == 1
+    assert len(client.calls) == 1
+    assert [
+        table["table_ref"] for table in client.calls[0]["package"]["case"]["tables"]
+    ] == ["table_1", "table_2"]
+    assert result["product"]["gate4"]["security_facts_total"] == 2
+    assert result["product"]["gate4"]["transaction_charge_facts_total"] == 2
+    assert [item["disposition"] for item in current["table_resolutions"]] == [
+        "SECURITY_TRADES",
+        "NO_NAMED_CONSUMER",
+    ]
+    assert current["table_resolutions"][1]["no_consumer_kind"] == (
+        "INSTRUCTIONAL_REFERENCE"
+    )
+
+
+async def _overflowed_scope_stops_before_provider_call(tmp_path) -> None:
     unknown_rows = _unknown_rows(suffix="bounded batch")
-    mapping = case_fixtures.candidate._mapping_from_headers(unknown_rows[0])
     store, context, document_id, tables, _canonical_ref = _multi_table_case(
         tmp_path,
         table_row_sets=(unknown_rows, unknown_rows),
     )
-    first = _response_for_tables(table_count=1, mapping=mapping)
-    second = _response_for_tables(table_count=1, mapping=mapping)
-    client = BoundaryModelClient([first, second])
+    client = BoundaryModelClient([])
     runtime = _runtime(store, client)
     canonical = CanonicalReaderFactory(store=store, read_enabled=True).create().read_active_envelope(
         document_id, context
@@ -1285,17 +1318,14 @@ async def _overflowed_scope_executes_one_pinned_call_per_batch(tmp_path) -> None
 
     result = await runtime.resolve(document_id=document_id, context=context)
 
-    assert result["status"] == "COMPLETE"
-    assert result["provider_calls_this_turn"] == 2
-    assert len(client.calls) == 2
-    assert all(
-        len(call["package"]["case"]["tables"]) == 1 for call in client.calls
-    )
+    assert result["status"] == "SOURCE_CONTEXT_LIMIT"
+    assert result["provider_calls_this_turn"] == 0
+    assert client.calls == []
     current = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
         document_id=document_id, context=context
     )[1]
-    assert current["mapping_batch_state"] is None
-    assert current["provider_calls_total"] == 2
+    assert current.get("mapping_batch_state") is None
+    assert current["provider_calls_total"] == 0
 
 
 async def _identical_known_table_nodes_use_zero_call_fast_path(tmp_path) -> None:
@@ -1797,10 +1827,10 @@ def test_native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
     asyncio.run(_native_prompt_owner_completes_unknown_schema(tmp_path))
 
 
-def test_instructional_preclassification_keeps_trade_mapping_in_one_pipeline(
+def test_single_mapping_call_replaces_instructional_preclassification(
     tmp_path,
 ) -> None:
-    asyncio.run(_instructional_preclassification_keeps_trade_mapping_in_one_pipeline(tmp_path))
+    asyncio.run(_single_mapping_call_replaces_instructional_preclassification(tmp_path))
 
 
 def test_interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:
@@ -1880,11 +1910,11 @@ def test_production_composition_maps_unknown_then_publishes_facts(tmp_path) -> N
     asyncio.run(_production_composition_maps_unknown_then_publishes_facts(tmp_path))
 
 
-def test_production_composition_continues_instructional_steps_without_chat_input(
+def test_production_composition_uses_one_mapping_call_without_instructional_step(
     tmp_path,
 ) -> None:
     asyncio.run(
-        _production_composition_continues_instructional_steps_without_chat_input(
+        _production_composition_uses_one_mapping_call_without_instructional_step(
             tmp_path
         )
     )
@@ -1906,8 +1936,12 @@ def test_identical_unknown_table_nodes_execute_in_exact_scope(tmp_path) -> None:
     asyncio.run(_identical_unknown_table_nodes_execute_in_exact_scope(tmp_path))
 
 
-def test_overflowed_scope_executes_one_pinned_call_per_batch(tmp_path) -> None:
-    asyncio.run(_overflowed_scope_executes_one_pinned_call_per_batch(tmp_path))
+def test_instructional_table_and_trade_share_one_mapping_call(tmp_path) -> None:
+    asyncio.run(_instructional_table_and_trade_share_one_mapping_call(tmp_path))
+
+
+def test_overflowed_scope_stops_before_provider_call(tmp_path) -> None:
+    asyncio.run(_overflowed_scope_stops_before_provider_call(tmp_path))
 
 
 def test_identical_known_table_nodes_use_zero_call_fast_path(tmp_path) -> None:

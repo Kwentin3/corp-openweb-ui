@@ -164,6 +164,37 @@ class OrdinaryTradeAutomaticMappingRuntime:
             return self._result(
                 current=current, context=context, provider_calls_this_turn=0
             )
+        if (
+            current is not None
+            and current[1].get("instructional_classification_state") is not None
+        ):
+            # A partial v1 classifier receipt was made under a different
+            # one-table contract.  It must never be silently reinterpreted as
+            # a current all-table mapping response.
+            retired = self._cases.save_deterministic_terminal(
+                document_id=document_id,
+                context=context,
+                status="SPECIALIST_REVIEW_REQUIRED",
+                reason_code="ordinary_trade_instructional_legacy_case_requires_review",
+                message="A prior instructional-classification case requires review before it can be resumed.",
+            )
+            return self._result(
+                current=retired, context=context, provider_calls_this_turn=0
+            )
+        if current is not None and current[1].get("mapping_batch_state") is not None:
+            # A partial batch receipt was made under the retired multi-request
+            # route. It cannot be resumed under the one-call contract.
+            retired = self._cases.save_provider_terminal(
+                document_id=document_id,
+                context=context,
+                status="SOURCE_CONTEXT_LIMIT",
+                reason_code="ordinary_trade_mapping_legacy_batch_requires_review",
+                message="The prior multi-request mapping case requires review before it can be resumed.",
+                provider_calls_total=0,
+            )
+            return self._result(
+                current=retired, context=context, provider_calls_this_turn=0
+            )
         if current is not None and current[1]["status"] == "MAPPING_OUTPUT_INVALID":
             try:
                 prompt = await self._resolve_mapping_prompt(context=context)
@@ -178,13 +209,6 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     current=current, context=context, provider_calls_this_turn=0
                 )
         if current is not None and current[1]["status"] == "CURRENCY_ASSERTION_REQUIRED":
-            if current[1].get("mapping_batch_state") is not None:
-                return await self._resume_batch_currency(
-                    document_id=document_id,
-                    context=context,
-                    current=current,
-                    user_message=user_message,
-                )
             currency_code = _user_currency_code(user_message)
             if currency_code is None:
                 return self._result(
@@ -326,13 +350,16 @@ class OrdinaryTradeAutomaticMappingRuntime:
             current[1]["confirmed_understandings"] if current is not None else []
         )
         if current is not None and current[1].get("mapping_batch_state") is not None:
-            return await self._run_batch_plan(
+            retired = self._cases.save_provider_terminal(
                 document_id=document_id,
                 context=context,
-                binding=binding,
-                current=current,
-                confirmed=confirmed,
-                provider_calls_this_turn=0,
+                status="SOURCE_CONTEXT_LIMIT",
+                reason_code="ordinary_trade_mapping_legacy_batch_requires_review",
+                message="The prior multi-request mapping case requires review before it can be resumed.",
+                provider_calls_total=0,
+            )
+            return self._result(
+                current=retired, context=context, provider_calls_this_turn=0
             )
         target_table_node_ids = self._compiler.unmapped_table_node_ids(
             canonical=binding["canonical"],
@@ -351,64 +378,6 @@ class OrdinaryTradeAutomaticMappingRuntime:
             for table_node_id in target_table_node_ids
             if table_node_id not in confirmed_exclusion_ids
         ]
-        instructional_state = (
-            current[1].get("instructional_classification_state")
-            if current is not None
-            else None
-        )
-        if self._instructional_prompt_resolver is not None:
-            preclassification = await self._advance_instructional_preclassification(
-                document_id=document_id,
-                context=context,
-                binding=binding,
-                current=current,
-                target_table_node_ids=target_table_node_ids,
-            )
-            if preclassification.get("turn_complete"):
-                return self._result(
-                    current=preclassification["current"],
-                    context=context,
-                    provider_calls_this_turn=preclassification["provider_calls_this_turn"],
-                )
-            current = preclassification["current"]
-            instructional_state = preclassification["state"]
-            rebound = self._semantic.rebind_instructional_classification_outcomes(
-                canonical=binding["canonical"],
-                target_table_node_ids=instructional_state["target_table_node_ids"],
-                classifier_outcomes=[
-                    {
-                        "table_node_id": item["table_node_id"],
-                        "response": item["response"],
-                    }
-                    for item in instructional_state["completed_table_outcomes"]
-                ],
-            )
-            target_table_node_ids = rebound["mapping_target_table_node_ids"]
-            if not target_table_node_ids:
-                outcome = self._semantic.finalize_instructional_preclassification(
-                    canonical=binding["canonical"],
-                    canonical_binding=binding["canonical_binding"],
-                    user_scope_sha256=binding["user_scope_sha256"],
-                    target_table_node_ids=instructional_state["target_table_node_ids"],
-                    classifier_outcomes=[
-                        {
-                            "table_node_id": item["table_node_id"],
-                            "response": item["response"],
-                        }
-                        for item in instructional_state["completed_table_outcomes"]
-                    ],
-                    mapping_outcome=None,
-                    frozen_mappings=self._frozen_mappings,
-                )
-                saved = self._cases.save_mapping_outcome(
-                    document_id=document_id,
-                    context=context,
-                    outcome=outcome,
-                    provider_calls_total=0,
-                )
-                return self._result(
-                    current=saved, context=context, provider_calls_this_turn=0
-                )
         if not target_table_node_ids:
             saved = self._cases.save_deterministic_terminal(
                 document_id=document_id,
@@ -435,26 +404,6 @@ class OrdinaryTradeAutomaticMappingRuntime:
         except OrdinaryTradeSemanticMappingError as exc:
             if exc.code != "ordinary_trade_semantic_mapping_context_limit":
                 raise
-            try:
-                batch_plan = self._semantic.build_mapping_batch_plan(
-                    canonical=binding["canonical"],
-                    confirmed_understandings=confirmed,
-                    target_table_node_ids=target_table_node_ids,
-                )
-            except OrdinaryTradeSemanticMappingError as plan_error:
-                if plan_error.code != "ordinary_trade_semantic_mapping_context_limit":
-                    raise
-                batch_plan = None
-            if batch_plan is not None and len(batch_plan["batches"]) > 1:
-                return await self._run_batch_plan(
-                    document_id=document_id,
-                    context=context,
-                    binding=binding,
-                    current=current,
-                    confirmed=confirmed,
-                    batch_plan=batch_plan,
-                    provider_calls_this_turn=0,
-                )
             saved = self._cases.save_provider_terminal(
                 document_id=document_id,
                 context=context,
@@ -601,29 +550,6 @@ class OrdinaryTradeAutomaticMappingRuntime:
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
             )
-        if outcome["status"] == "COMPLETE" and instructional_state is not None:
-            try:
-                outcome = self._finalize_instructional_mapping_outcome(
-                    binding=binding,
-                    instructional_state=instructional_state,
-                    mapping_outcome=outcome,
-                )
-            except OrdinaryTradeSemanticMappingError as exc:
-                saved = self._cases.save_provider_terminal(
-                    document_id=document_id,
-                    context=context,
-                    status="MAPPING_OUTPUT_INVALID",
-                    reason_code=exc.code,
-                    message=(
-                        "The completed mapping cannot be joined to the "
-                        "instructional classification scope. No facts were published."
-                    ),
-                    provider_calls_total=1,
-                    mapping_prompt_snapshot=prompt_snapshot,
-                )
-                return self._result(
-                    current=saved, context=context, provider_calls_this_turn=1
-                )
         saved = self._cases.save_mapping_outcome(
             document_id=document_id,
             context=context,

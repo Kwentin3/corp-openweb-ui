@@ -123,6 +123,18 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 "_assert_release_tree",
                 return_value={"worktree_clean": True},
             ),
+            mock.patch.object(driver, "_write_prompt_source_archive"),
+            mock.patch.object(driver, "_copy_prompt_publication_payload"),
+            mock.patch.object(
+                driver,
+                "_run_native_prompt_publication",
+                return_value={
+                    "prompt_ref": "prompt-1",
+                    "prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
+                    "prompt_history_id": "history-1",
+                    "prompt_hash": "a" * 64,
+                },
+            ),
             mock.patch.object(
                 driver,
                 "_prepare_remote_staging",
@@ -140,6 +152,12 @@ class AtomicStageReleaseContractTests(unittest.TestCase):
                 ssh_target="validated-target",
                 apply=False,
                 prove_rollback=False,
+                ordinary_trade_mapping_prompt_pin={
+                    "prompt_ref": "prompt-1",
+                    "prompt_command": "broker_ordinary_trade_semantic_mapping_v1",
+                    "prompt_history_id": "history-1",
+                    "prompt_hash": "a" * 64,
+                },
             )
 
         self.assertEqual(expected, captured["loader"])

@@ -84,9 +84,12 @@ def test_v12_omits_model_evidence_and_owner_binds_the_full_canonical_envelope(
     resolution = outcome["table_resolutions"][0]
     assert resolution["classification_evidence"] == expected_envelope
     schema = owner.mapping_response_format()["json_schema"]["schema"]
-    no_consumer_variant = schema["properties"]["table_decisions"]["items"][
-        "anyOf"
-    ][2]
+    no_consumer_variant = next(
+        variant
+        for variant in schema["properties"]["table_decisions"]["items"]["anyOf"]
+        if variant["properties"].get("no_consumer_kind", {}).get("const")
+        == "OTHER_NO_NAMED_CONSUMER"
+    )
     assert "classification_evidence" not in no_consumer_variant["required"]
     assert "classification_evidence" not in no_consumer_variant["properties"]
 

@@ -638,7 +638,7 @@ def test_gemini_projection_preserves_issue312_semantic_enums() -> None:
         {"COMPLETE", "CLARIFICATION_REQUIRED", "CURRENCY_ASSERTION_REQUIRED", "UNSUPPORTED", "SPECIALIST_REVIEW_REQUIRED"}
     ]
     disposition_enums = _property_enum_sets(provider_schema, "disposition")
-    assert len(disposition_enums) == 7
+    assert len(disposition_enums) == 8
     assert {"SECURITY_TRADES"} in disposition_enums
     assert {"SECURITY_TRADES_INCOMPLETE"} in disposition_enums
     assert {"SECURITY_TRADES", "NO_NAMED_CONSUMER"} in disposition_enums
@@ -695,6 +695,9 @@ def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
         validator.validate(response)
 
     response["table_decisions"][0]["columns"] = []
+    response["table_decisions"][0]["classification_evidence"] = [
+        {"context_ref": "context_1", "relation": "TABLE_TITLE"}
+    ]
     validator.validate(response)
 
 
@@ -722,17 +725,23 @@ def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
         "message": "The table is explanatory material.",
     }
 
+    with pytest.raises(ValidationError):
+        validator.validate(response)
     decision["classification_evidence"] = [
         {"context_ref": "context_1", "relation": "TABLE_TITLE"}
     ]
-    with pytest.raises(ValidationError):
-        validator.validate(response)
+    validator.validate(response)
+    decision["classification_evidence"] = [
+        {"context_ref": "context_2", "relation": "FOREIGN"}
+    ]
+    validator.validate(response)
+    decision["classification_evidence"] = [
+        {"context_ref": "context_1", "relation": "TABLE_TITLE"}
+    ]
     del decision["classification_evidence"]
-    del decision["no_consumer_kind"]
-    with pytest.raises(ValidationError):
-        validator.validate(response)
+    decision["no_consumer_kind"] = "OTHER_NO_NAMED_CONSUMER"
+    validator.validate(response)
     decision["no_consumer_kind"] = "INSTRUCTIONAL_REFERENCE"
-    decision["disposition"] = "SECURITY_TRADES"
     with pytest.raises(ValidationError):
         validator.validate(response)
 
@@ -1016,6 +1025,9 @@ def test_mixed_tables_publish_complete_internal_table_classification(
             "side_values": [],
             "row_dispositions": [],
             "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+            "classification_evidence": [
+                {"context_ref": "context_1", "relation": "TABLE_TITLE"}
+            ],
         }
     )
 
@@ -1217,6 +1229,7 @@ def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> Non
         item["classification_evidence"]
         for item in result["table_resolutions"]
         if item["disposition"] == "NO_NAMED_CONSUMER"
+        and item.get("no_consumer_kind") == "INSTRUCTIONAL_REFERENCE"
     )
 
 
@@ -1363,11 +1376,12 @@ def test_no_consumer_derives_complete_canonical_context(
         confirmed_understandings=[],
         user_scope_sha256="a" * 64,
     )
-    evidence = result["table_resolutions"][0]["classification_evidence"]
-    assert evidence == owner.build_classification_evidence_envelopes(
-        canonical=canonical,
-        target_table_node_ids=[table["node_id"]],
-    )[table["node_id"]]
+    assert result["table_resolutions"][0]["classification_evidence"] == (
+        owner.build_classification_evidence_envelopes(
+            canonical=canonical,
+            target_table_node_ids=[table["node_id"]],
+        )[table["node_id"]]
+    )
 
     response["table_decisions"][0]["classification_evidence"] = [
         {"context_ref": "context_1", "relation": "TABLE_TITLE"}
@@ -1491,6 +1505,73 @@ def test_no_consumer_v9_preserves_selected_context_and_legacy_replays(tmp_path) 
         item["context_ref"]
         for item in v8_result["table_resolutions"][0]["classification_evidence"]
     ] == ["context_1", "context_2"]
+
+
+def test_current_mapping_contract_binds_instructional_evidence_to_canonical(
+    tmp_path,
+) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    table["content"]["title"] = "Reference material"
+    table["order"] = 1
+    canonical["nodes"].append(
+        {
+            "node_id": "reference_context_v13",
+            "container_ref": table["container_ref"],
+            "order": 0,
+            "node_type": "TEXT",
+            "content": {"text": "This table explains a sample."},
+        }
+    )
+    response = _complete_response(table, known)
+    response["table_decisions"][0] = {
+        "table_ref": "table_1",
+        "header_row": 1,
+        "disposition": "NO_NAMED_CONSUMER",
+        "columns": [],
+        "amount_currency_bindings": [],
+        "side_values": [],
+        "row_dispositions": [],
+        "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+        "classification_evidence": [
+            {"context_ref": "context_1", "relation": "TABLE_TITLE"},
+        ],
+    }
+    owner = OrdinaryTradeSemanticMappingFactory.create()
+    result = owner.validate_mapping_response(
+        response=response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+    assert result["table_resolutions"][0]["no_consumer_kind"] == (
+        "INSTRUCTIONAL_REFERENCE"
+    )
+    assert result["table_resolutions"][0]["classification_evidence"] == [
+        owner.build_classification_evidence_envelopes(
+            canonical=canonical,
+            target_table_node_ids=[table["node_id"]],
+        )[table["node_id"]][0]
+    ]
+
+    response["table_decisions"][0]["classification_evidence"] = [
+        {"context_ref": "context_99", "relation": "FOREIGN"},
+    ]
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        owner.validate_mapping_response(
+            response=response,
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256="a" * 64,
+        )
+    assert exc.value.code == "ordinary_trade_semantic_mapping_classification_evidence_invalid"
 
     compiler = OrdinaryTradeSemanticCompilerFactory.create()
     v7_projection = compiler.compile(

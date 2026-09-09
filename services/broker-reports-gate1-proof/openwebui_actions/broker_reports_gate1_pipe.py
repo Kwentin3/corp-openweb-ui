@@ -89,11 +89,6 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     OrdinaryTradeMappingPromptUserContext,
     PROMPT_COMMAND as ORDINARY_TRADE_MAPPING_PROMPT_COMMAND,
 )
-from broker_reports_gate1.instructional_table_classification_prompt import (
-    InstructionalClassificationPromptConfig,
-    InstructionalClassificationPromptResolverFactory,
-    PROMPT_COMMAND as INSTRUCTIONAL_CLASSIFICATION_PROMPT_COMMAND,
-)
 from broker_reports_gate1.ordinary_trade_projection import (
     OrdinaryTradeProjectionFactory,
 )
@@ -263,13 +258,6 @@ class Pipe:
         ordinary_trade_mapping_prompt_command: str = Field(
             default=ORDINARY_TRADE_MAPPING_PROMPT_COMMAND
         )
-        ordinary_trade_instructional_classification_enabled: bool = Field(
-            default=False,
-            description=(
-                "Classify instructional/reference tables before ordinary-trade "
-                "mapping through a separately release-pinned managed Prompt."
-            ),
-        )
         ordinary_trade_mapping_prompt_version: str = Field(
             default="release-pin-required",
             description=(
@@ -281,23 +269,6 @@ class Pipe:
             default="0000000000000000000000000000000000000000000000000000000000000000",
             description=(
                 "Release-pinned SHA-256 identity of the managed mapping Prompt."
-            ),
-        )
-        ordinary_trade_instructional_prompt_id: str = Field(default="")
-        ordinary_trade_instructional_prompt_command: str = Field(
-            default=INSTRUCTIONAL_CLASSIFICATION_PROMPT_COMMAND
-        )
-        ordinary_trade_instructional_prompt_version: str = Field(
-            default="release-pin-required",
-            description=(
-                "Release-pinned history version for the instructional "
-                "classification Prompt."
-            ),
-        )
-        ordinary_trade_instructional_prompt_hash: str = Field(
-            default="0000000000000000000000000000000000000000000000000000000000000000",
-            description=(
-                "Release-pinned SHA-256 identity of the instructional Prompt."
             ),
         )
         ndfl_gate3_provider_profile_id: str = Field(default=NDFL_PROVIDER_PROFILE_ID)
@@ -1769,7 +1740,6 @@ class Pipe:
             mapping_client = None
             answer_client = None
             mapping_prompt_resolver = None
-            instructional_prompt_resolver = None
             mapping_prompt_user_context_factory = None
             if self.valves.ordinary_trade_semantic_mapping_enabled:
                 mapping_client = Gate2StructuredModelClientFactory(
@@ -1807,10 +1777,6 @@ class Pipe:
                     user=user,
                     metadata={},
                 )
-                if self.valves.ordinary_trade_instructional_classification_enabled:
-                    instructional_prompt_resolver = (
-                        self._ordinary_trade_instructional_prompt_resolver()
-                    )
             runtime = OrdinaryTradeProductionRuntimeFactory(
                 store=store,
                 read_enabled=True,
@@ -1818,7 +1784,6 @@ class Pipe:
                 mapping_model_client=mapping_client,
                 mapping_answer_model_client=answer_client,
                 mapping_prompt_resolver=mapping_prompt_resolver,
-                instructional_prompt_resolver=instructional_prompt_resolver,
                 mapping_prompt_user_context_factory=(
                     mapping_prompt_user_context_factory
                 ),
@@ -3419,33 +3384,6 @@ class Pipe:
             )
 
         return resolver, user_context_factory
-
-    def _ordinary_trade_instructional_prompt_resolver(self) -> Any:
-        """Compose the second managed Prompt through the same native owners."""
-
-        prompt_id = str(self.valves.ordinary_trade_instructional_prompt_id or "").strip()
-        command = str(
-            self.valves.ordinary_trade_instructional_prompt_command or ""
-        ).strip()
-        release_version = str(
-            self.valves.ordinary_trade_instructional_prompt_version or ""
-        ).strip()
-        release_hash = str(
-            self.valves.ordinary_trade_instructional_prompt_hash or ""
-        ).strip()
-        if not prompt_id and not command:
-            raise NdflWorkflowError(
-                "ordinary_trade_instructional_prompt_configuration_invalid"
-            )
-        return InstructionalClassificationPromptResolverFactory(
-            InstructionalClassificationPromptConfig(
-                source="openwebui_server",
-                prompt_id=prompt_id or None,
-                command=command or None,
-                release_prompt_version=release_version,
-                release_prompt_hash=release_hash,
-            )
-        ).create_async()
 
     async def _openwebui_passport_completion(
         self,

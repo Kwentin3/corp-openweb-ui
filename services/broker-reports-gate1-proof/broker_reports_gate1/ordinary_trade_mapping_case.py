@@ -562,6 +562,8 @@ class OrdinaryTradeMappingCaseRuntime:
             model_response_sha256=None,
             execution_metadata_sha256=None,
             mapping_prompt_snapshot=mapping_prompt_snapshot,
+            mapping_batch_state=None,
+            instructional_classification_state=None,
             reason_code=reason_code,
         )
         return self._put(payload=payload, document_id=document_id, context=context)

@@ -27,7 +27,7 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v12"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v13"
 )
 _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V11 = (
     "broker_reports_ordinary_trade_semantic_mapping_response_v11"
@@ -47,6 +47,7 @@ _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
         "broker_reports_ordinary_trade_semantic_mapping_response_v9",
         "broker_reports_ordinary_trade_semantic_mapping_response_v10",
         _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_RESPONSE_V11,
+        MAPPING_RESPONSE_SCHEMA_VERSION,
     }
 )
 _MODEL_SUPPLIED_MISSING_REQUIRED_ROLES_SCHEMA_VERSIONS = frozenset(
@@ -1129,6 +1130,11 @@ class OrdinaryTradeSemanticMapping:
                 preserve_model_classification_evidence=(
                     value["schema_version"]
                     in _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
+                    and (
+                        value["schema_version"] != MAPPING_RESPONSE_SCHEMA_VERSION
+                        or decision.get("no_consumer_kind")
+                        == "INSTRUCTIONAL_REFERENCE"
+                    )
                 ),
             )
             resolved_decisions.append(resolved)
@@ -2245,9 +2251,16 @@ def _validate_table_decision(
     ):
         _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
     no_consumer = disposition == "NO_NAMED_CONSUMER"
+    requires_model_classification_evidence = (
+        model_supplies_classification_evidence
+        and (
+            decision.get("no_consumer_kind") == "INSTRUCTIONAL_REFERENCE"
+            or preserve_model_classification_evidence
+        )
+    )
     expected_no_consumer_fields = (
         legacy_no_consumer_fields
-        if model_supplies_classification_evidence
+        if requires_model_classification_evidence
         else no_consumer_fields
     )
     if no_consumer and set(decision) != expected_no_consumer_fields and not (
@@ -2261,7 +2274,7 @@ def _validate_table_decision(
     ):
         _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
     classification_evidence = None
-    if no_consumer and model_supplies_classification_evidence:
+    if no_consumer and requires_model_classification_evidence:
         # V6/V7 are immutable model replays.  Keep their old wire contracts
         # readable, including their model-selected subset, but never promote
         # that selection as provenance for a new resolved outcome.
@@ -2991,7 +3004,45 @@ def _mapping_response_schema() -> dict[str, Any]:
             ],
         },
     }
-    no_named_consumer_table_decision = {
+    classification_evidence = {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["context_ref", "relation"],
+            "properties": {
+                "context_ref": {"type": "string", "minLength": 1},
+                "relation": {"type": "string", "minLength": 1},
+            },
+        },
+    }
+    instructional_reference_table_decision = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "table_ref",
+            "header_row",
+            "disposition",
+            "columns",
+            "amount_currency_bindings",
+            "side_values",
+            "row_dispositions",
+            "no_consumer_kind",
+            "classification_evidence",
+        ],
+        "properties": {
+            **table_decision_common,
+            "disposition": {"const": "NO_NAMED_CONSUMER"},
+            "columns": {"type": "array", "maxItems": 0},
+            "amount_currency_bindings": {"type": "array", "maxItems": 0},
+            "side_values": {"type": "array", "maxItems": 0},
+            "row_dispositions": {"type": "array", "maxItems": 0},
+            "no_consumer_kind": {"const": "INSTRUCTIONAL_REFERENCE"},
+            "classification_evidence": classification_evidence,
+        },
+    }
+    other_no_named_consumer_table_decision = {
         "type": "object",
         "additionalProperties": False,
         "required": [
@@ -3011,10 +3062,7 @@ def _mapping_response_schema() -> dict[str, Any]:
             "amount_currency_bindings": {"type": "array", "maxItems": 0},
             "side_values": {"type": "array", "maxItems": 0},
             "row_dispositions": {"type": "array", "maxItems": 0},
-            "no_consumer_kind": {
-                "type": "string",
-                "enum": sorted(_NO_CONSUMER_KINDS),
-            },
+            "no_consumer_kind": {"const": "OTHER_NO_NAMED_CONSUMER"},
         },
     }
     unsupported_financial_meaning_table_decision = {
@@ -3042,7 +3090,8 @@ def _mapping_response_schema() -> dict[str, Any]:
         "anyOf": [
             security_trade_table_decision,
             incomplete_security_trade_table_decision,
-            no_named_consumer_table_decision,
+            instructional_reference_table_decision,
+            other_no_named_consumer_table_decision,
             unsupported_financial_meaning_table_decision,
         ]
     }

@@ -23,7 +23,6 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     OrdinaryTradeMappingPromptResolverFactory,
     OrdinaryTradeMappingPromptUserContext,
     StaticOrdinaryTradeMappingPromptResolver,
-    OpenWebUIServerOrdinaryTradeMappingPromptResolver,
     ordinary_trade_mapping_prompt_hash,
     validate_ordinary_trade_mapping_prompt_snapshot,
 )
@@ -76,7 +75,7 @@ def test_workspace_resolver_enforces_public_group_and_denied_access(tmp_path):
     assert denied.value.code == "ordinary_trade_mapping_prompt_access_denied"
 
 
-def test_workspace_resolver_rejects_foreign_or_drifted_active_history(tmp_path):
+def test_workspace_resolver_rejects_foreign_pinned_history_but_uses_its_snapshot(tmp_path):
     db_path = tmp_path / "webui.db"
     _create_db(db_path)
     content = "Map {{ordinary_trade_mapping_case_json}}."
@@ -95,12 +94,12 @@ def test_workspace_resolver_rejects_foreign_or_drifted_active_history(tmp_path):
             ("Draft {{ordinary_trade_mapping_case_json}}.", "mapping-prompt"),
         )
         conn.commit()
-    with pytest.raises(OrdinaryTradeMappingPromptError) as drift:
-        resolver.resolve(_user("owner"))
-    assert drift.value.code == "ordinary_trade_mapping_prompt_version_drift"
+    resolved = resolver.resolve(_user("owner"))
+    assert resolved.content == content
+    assert resolved.version == "history-1"
 
 
-def test_workspace_resolver_rejects_clean_active_version_not_pinned_for_release(tmp_path):
+def test_workspace_resolver_keeps_the_approved_history_when_active_row_advances(tmp_path):
     db_path = tmp_path / "webui.db"
     _create_db(db_path)
     approved_content = "Map {{ordinary_trade_mapping_case_json}}."
@@ -116,19 +115,18 @@ def test_workspace_resolver_rejects_clean_active_version_not_pinned_for_release(
             "UPDATE prompt SET content = ?, version_id = ? WHERE id = ?",
             (replacement_content, "history-2", "mapping-prompt"),
         )
-        conn.execute("DELETE FROM prompt_history")
         conn.execute(
             "INSERT INTO prompt_history(id, prompt_id, snapshot) VALUES (?, ?, ?)",
             ("history-2", "mapping-prompt", json.dumps(_snapshot(replacement_content))),
         )
         conn.commit()
 
-    with pytest.raises(OrdinaryTradeMappingPromptError) as changed:
-        resolver.resolve(_user("owner"))
-    assert changed.value.code == "ordinary_trade_mapping_prompt_release_pin_mismatch"
+    resolved = resolver.resolve(_user("owner"))
+    assert resolved.content == approved_content
+    assert resolved.version == "history-1"
 
 
-def test_workspace_resolver_fails_closed_for_inactive_or_wrong_contract(tmp_path):
+def test_workspace_resolver_uses_active_row_for_access_and_pinned_history_for_contract(tmp_path):
     db_path = tmp_path / "webui.db"
     _create_db(db_path)
     _insert_prompt(db_path, content="Map {{ordinary_trade_mapping_case_json}}.", grants=[])
@@ -146,9 +144,7 @@ def test_workspace_resolver_fails_closed_for_inactive_or_wrong_contract(tmp_path
         meta["output_schema_version"] = "foreign"
         conn.execute("UPDATE prompt SET meta = ? WHERE id = ?", (json.dumps(meta), "mapping-prompt"))
         conn.commit()
-    with pytest.raises(OrdinaryTradeMappingPromptError) as wrong_contract:
-        resolver.resolve(_user("owner"))
-    assert wrong_contract.value.code == "ordinary_trade_mapping_prompt_not_found"
+    assert resolver.resolve(_user("owner")).prompt_ref == "mapping-prompt"
 
     with sqlite3.connect(db_path) as conn:
         legacy = _meta()
@@ -161,9 +157,17 @@ def test_workspace_resolver_fails_closed_for_inactive_or_wrong_contract(tmp_path
             (json.dumps(legacy), "mapping-prompt"),
         )
         conn.commit()
-    with pytest.raises(OrdinaryTradeMappingPromptError) as legacy_contract:
+    assert resolver.resolve(_user("owner")).prompt_ref == "mapping-prompt"
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE prompt SET command = ? WHERE id = ?",
+            ("foreign-command", "mapping-prompt"),
+        )
+        conn.commit()
+    with pytest.raises(OrdinaryTradeMappingPromptError) as wrong_identity:
         resolver.resolve(_user("owner"))
-    assert legacy_contract.value.code == "ordinary_trade_mapping_prompt_not_found"
+    assert wrong_identity.value.code == "ordinary_trade_mapping_prompt_not_found"
 
 
 def test_static_and_disabled_helpers_are_typed_and_require_authenticated_user():
@@ -241,7 +245,7 @@ def test_native_server_resolver_rejects_wrong_user_before_history_read(monkeypat
     [
         ({"is_active": False}, "mapping-prompt", None, "ordinary_trade_mapping_prompt_not_found"),
         ({}, "foreign-prompt", None, "ordinary_trade_mapping_prompt_version_invalid"),
-        ({}, "mapping-prompt", "Drift {{ordinary_trade_mapping_case_json}}.", "ordinary_trade_mapping_prompt_version_drift"),
+        ({}, "mapping-prompt", "Drift {{ordinary_trade_mapping_case_json}}.", "ordinary_trade_mapping_prompt_release_pin_mismatch"),
     ],
     ids=["inactive", "history-misbinding", "stale-current-row"],
 )
@@ -264,6 +268,30 @@ def test_native_server_resolver_fails_closed_for_inactive_or_stale_prompt(
         asyncio.run(resolver.resolve(_user("ordinary-user")))
 
     assert invalid.value.code == expected
+
+
+def test_native_server_resolver_keeps_pinned_history_when_active_prompt_advances(
+    monkeypatch,
+):
+    approved = "Map {{ordinary_trade_mapping_case_json}}."
+    replacement = "Classify {{ordinary_trade_mapping_case_json}} strictly."
+    resolver = _server_resolver(approved)
+    _install_native_owners(
+        monkeypatch,
+        resolver,
+        content=replacement,
+        row_overrides={"version_id": "history-2"},
+        history_entries={
+            "history-1": ("mapping-prompt", _snapshot(approved)),
+            "history-2": ("mapping-prompt", _snapshot(replacement)),
+        },
+        access=lambda *_args, **_kwargs: True,
+    )
+
+    resolved = asyncio.run(resolver.resolve(_user("ordinary-user")))
+
+    assert resolved.content == approved
+    assert resolved.version == "history-1"
 
 
 def test_snapshot_validator_rejects_foreign_contract_and_body_leak():
@@ -350,6 +378,7 @@ def _install_native_owners(
     row_overrides=None,
     history_prompt_id="mapping-prompt",
     snapshot_content=None,
+    history_entries=None,
     calls=None,
 ):
     row = {
@@ -365,7 +394,12 @@ def _install_native_owners(
         "is_active": True,
     }
     row.update(row_overrides or {})
-    snapshot = _snapshot(snapshot_content or content)
+    entries = history_entries or {
+        "history-1": (
+            history_prompt_id,
+            _snapshot(snapshot_content or content),
+        )
+    }
 
     @asynccontextmanager
     async def context():
@@ -381,10 +415,11 @@ def _install_native_owners(
 
     class PromptHistories:
         async def get_history_entry_by_id(self, history_id, *, db):
-            assert history_id == "history-1" and db == "native-session"
+            assert history_id in entries and db == "native-session"
             if calls is not None:
                 calls["history"] += 1
-            return SimpleNamespace(prompt_id=history_prompt_id, snapshot=snapshot)
+            prompt_id, snapshot = entries[history_id]
+            return SimpleNamespace(prompt_id=prompt_id, snapshot=snapshot)
 
     class AccessGrants:
         async def has_access(self, *args, **kwargs):

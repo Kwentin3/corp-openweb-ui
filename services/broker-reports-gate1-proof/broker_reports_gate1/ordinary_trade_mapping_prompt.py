@@ -226,9 +226,21 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
                     "ordinary_trade_mapping_prompt_access_denied",
                     "Ordinary-trade mapping Workspace Prompt is not readable",
                 )
-            snapshot = self._version_snapshot(conn, row)
-            self._require_current_row_matches_version(row, snapshot)
-            prompt = self._row_to_prompt(row)
+            snapshot = self._version_snapshot(
+                conn,
+                prompt_id=str(row["id"]),
+                version_id=str(self.config.release_prompt_version or ""),
+            )
+            if not self._matches_contract(snapshot):
+                raise OrdinaryTradeMappingPromptError(
+                    "ordinary_trade_mapping_prompt_version_invalid",
+                    "Ordinary-trade mapping Workspace Prompt version violates its contract",
+                )
+            prompt = self._snapshot_to_prompt(
+                row,
+                snapshot,
+                version=str(self.config.release_prompt_version),
+            )
             self._require_release_pin(prompt)
             return prompt
         finally:
@@ -284,9 +296,20 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
                 "ordinary_trade_mapping_prompt_unavailable",
                 "OpenWebUI prompt database schema is unavailable",
             ) from exc
-        return row if row is not None and self._matches_contract(row) else None
+        return row if row is not None and self._matches_stable_prompt_identity(row) else None
 
-    def _matches_contract(self, row: sqlite3.Row) -> bool:
+    def _matches_stable_prompt_identity(self, row: Any) -> bool:
+        """Check the live prompt only for revocation-safe stable identity.
+
+        The release pin names an immutable Prompt history revision.  The active
+        Prompt row remains the authority for activation, command identity and
+        grants, but it is not the authority for the released body or schema.
+        This lets an older, still-deployed Pipe remain coherent while a newer
+        revision is published for the next release.
+        """
+        return str(row["command"] or "") == self.config.required_command
+
+    def _matches_contract(self, row: Any) -> bool:
         meta = _json_dict(row["meta"])
         tags = _json_list(row["tags"])
         content = str(row["content"] or "")
@@ -310,10 +333,15 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
         )
 
     def _version_snapshot(
-        self, conn: sqlite3.Connection, row: sqlite3.Row
+        self,
+        conn: sqlite3.Connection,
+        *,
+        prompt_id: str,
+        version_id: str,
     ) -> dict[str, Any]:
-        version_id = str(row["version_id"] or "").strip()
-        if not version_id:
+        version_id = str(version_id or "").strip()
+        prompt_id = str(prompt_id or "").strip()
+        if not version_id or not prompt_id:
             raise OrdinaryTradeMappingPromptError(
                 "ordinary_trade_mapping_prompt_version_invalid",
                 "Ordinary-trade mapping Workspace Prompt has no active version",
@@ -324,7 +352,7 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
                 SELECT snapshot FROM prompt_history
                 WHERE id = ? AND prompt_id = ?
                 """,
-                (version_id, row["id"]),
+                (version_id, prompt_id),
             ).fetchone()
         except sqlite3.Error as exc:
             raise OrdinaryTradeMappingPromptError(
@@ -339,35 +367,16 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
             )
         return snapshot
 
-    def _require_current_row_matches_version(
-        self, row: sqlite3.Row, snapshot: dict[str, Any]
-    ) -> None:
-        current = {
-            "command": str(row["command"] or ""),
-            "content": str(row["content"] or ""),
-            "meta": _json_dict(row["meta"]),
-            "tags": _json_list(row["tags"]),
-        }
-        versioned = {
-            "command": str(snapshot.get("command") or ""),
-            "content": str(snapshot.get("content") or ""),
-            "meta": _json_dict(snapshot.get("meta")),
-            "tags": _json_list(snapshot.get("tags")),
-        }
-        if current != versioned:
-            raise OrdinaryTradeMappingPromptError(
-                "ordinary_trade_mapping_prompt_version_drift",
-                "Ordinary-trade mapping Workspace Prompt differs from its active version",
-            )
-
-    def _row_to_prompt(self, row: sqlite3.Row) -> OrdinaryTradeMappingManagedPrompt:
-        content = str(row["content"] or "")
-        meta = _json_dict(row["meta"])
-        tags = tuple(_json_list(row["tags"]))
+    def _snapshot_to_prompt(
+        self, row: Any, snapshot: dict[str, Any], *, version: str
+    ) -> OrdinaryTradeMappingManagedPrompt:
+        content = str(snapshot.get("content") or "")
+        meta = _json_dict(snapshot.get("meta"))
+        tags = tuple(_json_list(snapshot.get("tags")))
         return OrdinaryTradeMappingManagedPrompt(
-            prompt_ref=str(row["id"]),
-            command=str(row["command"] or "") or None,
-            version=str(row["version_id"]),
+            prompt_ref=str(row["id"] if isinstance(row, sqlite3.Row) else row.get("id") or ""),
+            command=str(snapshot.get("command") or "") or None,
+            version=version,
             content=content,
             hash=ordinary_trade_mapping_prompt_hash(content),
             source="openwebui_prompt_history",
@@ -379,7 +388,7 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
             output_schema_version=str(meta["output_schema_version"]),
             tags=tags,
             safe_metadata={
-                "name": str(row["name"] or row["command"] or ""),
+                "name": str(snapshot.get("name") or (row["name"] if isinstance(row, sqlite3.Row) else row.get("name")) or ""),
                 "mapping_domain": str(meta.get("mapping_domain") or "ordinary_trade"),
             },
         )
@@ -471,7 +480,7 @@ class OpenWebUIServerOrdinaryTradeMappingPromptResolver(
                         "Ordinary-trade mapping Workspace Prompt was not found",
                     )
                 row = self._native_prompt_row(prompt_model)
-                if not bool(row.get("is_active")) or not self._matches_contract(row):
+                if not bool(row.get("is_active")) or not self._matches_stable_prompt_identity(row):
                     raise OrdinaryTradeMappingPromptError(
                         "ordinary_trade_mapping_prompt_not_found",
                         "Ordinary-trade mapping Workspace Prompt was not found",
@@ -487,10 +496,21 @@ class OpenWebUIServerOrdinaryTradeMappingPromptResolver(
                         "Ordinary-trade mapping Workspace Prompt is not readable",
                     )
                 snapshot = await self._native_version_snapshot(
-                    owners=owners, row=row, session=session
+                    owners=owners,
+                    prompt_id=str(row.get("id") or ""),
+                    version_id=str(self.config.release_prompt_version or ""),
+                    session=session,
                 )
-                self._require_current_row_matches_version(row, snapshot)
-                prompt = self._row_to_prompt(row)
+                if not self._matches_contract(snapshot):
+                    raise OrdinaryTradeMappingPromptError(
+                        "ordinary_trade_mapping_prompt_version_invalid",
+                        "Ordinary-trade mapping Workspace Prompt version violates its contract",
+                    )
+                prompt = self._snapshot_to_prompt(
+                    row,
+                    snapshot,
+                    version=str(self.config.release_prompt_version),
+                )
                 self._require_release_pin(prompt)
                 return prompt
         except OrdinaryTradeMappingPromptError:
@@ -567,10 +587,15 @@ class OpenWebUIServerOrdinaryTradeMappingPromptResolver(
         )
 
     async def _native_version_snapshot(
-        self, *, owners: dict[str, Any], row: dict[str, Any], session: Any
+        self,
+        *,
+        owners: dict[str, Any],
+        prompt_id: str,
+        version_id: str,
+        session: Any,
     ) -> dict[str, Any]:
-        version_id = str(row.get("version_id") or "").strip()
-        prompt_id = str(row.get("id") or "").strip()
+        version_id = str(version_id or "").strip()
+        prompt_id = str(prompt_id or "").strip()
         if not version_id or not prompt_id:
             raise OrdinaryTradeMappingPromptError(
                 "ordinary_trade_mapping_prompt_version_invalid",
