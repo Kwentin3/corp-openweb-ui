@@ -22,7 +22,7 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v10"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v11"
 )
 _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS = frozenset(
     {
@@ -30,11 +30,13 @@ _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS = frozenset(
         "broker_reports_ordinary_trade_semantic_mapping_response_v7",
         "broker_reports_ordinary_trade_semantic_mapping_response_v8",
         "broker_reports_ordinary_trade_semantic_mapping_response_v9",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v10",
     }
 )
 _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
     {
         "broker_reports_ordinary_trade_semantic_mapping_response_v9",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v10",
         MAPPING_RESPONSE_SCHEMA_VERSION,
     }
 )
@@ -44,7 +46,11 @@ _MODEL_SUPPLIED_MISSING_REQUIRED_ROLES_SCHEMA_VERSIONS = frozenset(
         "broker_reports_ordinary_trade_semantic_mapping_response_v7",
         "broker_reports_ordinary_trade_semantic_mapping_response_v8",
         "broker_reports_ordinary_trade_semantic_mapping_response_v9",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v10",
     }
+)
+_MODEL_SPARSE_COLUMNS_SCHEMA_VERSIONS = frozenset(
+    {MAPPING_RESPONSE_SCHEMA_VERSION}
 )
 _MODEL_SUPPLIED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
     {
@@ -677,6 +683,10 @@ class OrdinaryTradeSemanticMapping:
                         value["schema_version"]
                         in _MODEL_SUPPLIED_MISSING_REQUIRED_ROLES_SCHEMA_VERSIONS
                     ),
+                    model_supplies_sparse_columns=(
+                        value["schema_version"]
+                        in _MODEL_SPARSE_COLUMNS_SCHEMA_VERSIONS
+                    ),
                     preserve_model_classification_evidence=(
                         value["schema_version"]
                         in _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
@@ -790,6 +800,10 @@ class OrdinaryTradeSemanticMapping:
                 model_supplies_missing_required_roles=(
                     value["schema_version"]
                     in _MODEL_SUPPLIED_MISSING_REQUIRED_ROLES_SCHEMA_VERSIONS
+                ),
+                model_supplies_sparse_columns=(
+                    value["schema_version"]
+                    in _MODEL_SPARSE_COLUMNS_SCHEMA_VERSIONS
                 ),
                 preserve_model_classification_evidence=(
                     value["schema_version"]
@@ -1845,6 +1859,7 @@ def _validate_table_decision(
     allow_legacy_no_consumer: bool = False,
     model_supplies_classification_evidence: bool = False,
     model_supplies_missing_required_roles: bool = False,
+    model_supplies_sparse_columns: bool = False,
     preserve_model_classification_evidence: bool = False,
 ) -> dict[str, Any]:
     base_fields = {
@@ -1978,7 +1993,32 @@ def _validate_table_decision(
         if classification_evidence is not None:
             resolved["classification_evidence"] = classification_evidence
         return resolved
-    columns = decision["columns"]
+    model_columns = decision["columns"]
+    if model_supplies_sparse_columns:
+        header_columns = [item["column"] for item in headers]
+        if (
+            any(
+                not isinstance(item, dict)
+                or set(item) != {"column", "semantic_role"}
+                or item.get("column") not in header_columns
+                or item.get("semantic_role") not in _SEMANTIC_ROLES
+                for item in model_columns
+            )
+            or len({item["column"] for item in model_columns}) != len(model_columns)
+        ):
+            _fail("ordinary_trade_semantic_mapping_columns_invalid")
+        roles_by_column = {
+            item["column"]: item["semantic_role"] for item in model_columns
+        }
+        columns = [
+            {
+                "column": item["column"],
+                "semantic_role": roles_by_column.get(item["column"], "unmapped"),
+            }
+            for item in headers
+        ]
+    else:
+        columns = model_columns
     if (
         len(columns) != len(headers)
         or [item.get("column") for item in columns]
