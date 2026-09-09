@@ -247,7 +247,7 @@ class OrdinaryTradeSemanticCompiler:
             # record or a guessed retry.  Legacy mappings keep their original
             # fail-closed treatment.
             incomplete_row_disposition = (
-                "SOURCE_RETAINED_NO_CONSUMER"
+                "SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE"
                 if resolution is not None
                 and resolution["security_trade_rows"] is not None
                 else "RELEVANT_UNMAPPED"

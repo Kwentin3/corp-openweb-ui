@@ -8,6 +8,13 @@ import json
 import pytest
 
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
+from broker_reports_gate1.artifact_retention import build_retention_policy
+from broker_reports_gate1.gate4_ordinary_trade_candidate import (
+    Gate4OrdinaryTradeCandidateRuntimeFactory,
+)
+from broker_reports_gate1.ordinary_trade_declaration_case_bundle import (
+    OrdinaryTradeDeclarationCaseBundleError,
+)
 from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelResult
 from broker_reports_gate1.ordinary_trade_mapping_case import (
     OrdinaryTradeMappingCaseFactory,
@@ -1005,7 +1012,7 @@ async def _rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> N
     assert current["table_resolutions"] == []
 
 
-async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:
+async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value) -> None:
     purchase = case_fixtures.candidate._ROWS[1]
     disposal = list(case_fixtures.candidate._ROWS[2])
     mapping_template = case_fixtures.candidate._QUALIFIED_MAPPING
@@ -1014,7 +1021,7 @@ async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:
         for item in mapping_template["columns"]
         if item["semantic_role"] == "gross_amount"
     )
-    disposal[gross_column - 1] = ""
+    disposal[gross_column - 1] = gross_value
     headers = list(case_fixtures.candidate._ROWS[0])
     headers[0] = headers[0] + " (dry-run incomplete)"
     rows = (tuple(headers), purchase, tuple(disposal))
@@ -1069,7 +1076,33 @@ async def _complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:
         if item["reason_code"] == "ORDINARY_TRADE_ROW_CONTRACT_INCOMPLETE"
     ]
     assert len(retained) == 1
-    assert retained[0]["disposition"] == "SOURCE_RETAINED_NO_CONSUMER"
+    assert retained[0]["disposition"] == "SOURCE_RETAINED_FINANCIAL_ROLE_INCOMPLETE"
+    assert any(field["semantic_role"] == "side" for field in retained[0]["fields"])
+    assert all(field["canonical_cell"]["provenance_refs"] for field in retained[0]["fields"])
+    assert projection["runtime_records"]
+
+    projections = OrdinaryTradeProjectionFactory(store=store, read_enabled=True).create()
+    saved = projections.compile_and_save(document_id=document_id, context=context)
+    restored = projections.read(artifact_id=saved.artifact_id, context=context)
+    assert restored["source_observations"] == projection["source_observations"]
+    assert projections.current_case_coverage(context=context)["status"] == "complete"
+    fact_set = Gate4OrdinaryTradeCandidateRuntimeFactory(
+        store=store, read_enabled=True
+    ).create().current_fact_set(context=context)
+    assert fact_set["status"] == "SOURCE_ROLE_INCOMPLETE"
+    assert fact_set["facts"]
+    assert fact_set["blockers"][0]["blocking_scope"] == "recognized_security_trade_source_row"
+
+    product_runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store, read_enabled=True,
+        retention_policy=build_retention_policy(mode="api_smoke"),
+    ).create()
+    product = product_runtime.run(canonical_artifact_refs=[], context=context)["product"]
+    assert product["terminal"] == "gate4_ordinary_trade_source_role_incomplete"
+    assert product["xml_created"] is False
+    with pytest.raises(OrdinaryTradeDeclarationCaseBundleError) as exc:
+        product_runtime.stabilize_declaration_case(context=context, tax_period="2025")
+    assert exc.value.code == "ordinary_trade_declaration_bundle_facts_incomplete"
 
 
 async def _provider_failure_and_invalid_output_are_distinct_terminals(
@@ -1979,8 +2012,9 @@ def test_complete_mapping_above_legacy_row_sample_is_possible(tmp_path) -> None:
     asyncio.run(_complete_mapping_above_legacy_row_sample_is_possible(tmp_path))
 
 
-def test_complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:
-    asyncio.run(_complete_mapping_retains_incomplete_scoped_rows(tmp_path))
+@pytest.mark.parametrize("gross_value", ["", "not-a-number"])
+def test_complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value) -> None:
+    asyncio.run(_complete_mapping_retains_incomplete_scoped_rows(tmp_path, gross_value))
 
 
 def test_provider_failure_and_invalid_output_are_distinct_terminals(tmp_path) -> None:
