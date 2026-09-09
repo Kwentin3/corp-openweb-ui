@@ -7,6 +7,8 @@ import asyncio
 import json
 import subprocess
 import sys
+import queue
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -32,7 +34,14 @@ class Bridge:
         assert self.process.stdin and self.process.stdout
         self.process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
         self.process.stdin.flush()
-        line = self.process.stdout.readline()
+        lines: queue.Queue[str] = queue.Queue(maxsize=1)
+        threading.Thread(target=lambda: lines.put(self.process.stdout.readline()), daemon=True).start()
+        try:
+            line = lines.get(timeout=125)
+        except queue.Empty:
+            self.last_error = "goal391_browser_bridge_timeout"
+            self.process.kill()
+            raise BrowserBridgeError(self.last_error)
         if not line:
             raise RuntimeError("goal391_browser_bridge_unavailable")
         result = json.loads(line)
