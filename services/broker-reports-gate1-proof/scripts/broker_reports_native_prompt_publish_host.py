@@ -69,7 +69,7 @@ def execute(*, staging_dir: Path, verify_pin: dict[str, str] | None) -> dict[str
         _run(["docker", "cp", str(archive), f"{CONTAINER}:{archive_in_container}"])
         _run(["docker", "cp", str(runner), f"{CONTAINER}:{runner_in_container}"])
         command = [
-            "docker", "exec", "-w", "/app/backend", CONTAINER, "python",
+            "docker", "exec", "-w", "/app/backend", "-e", "PYTHONPATH=/app/backend", CONTAINER, "python",
             runner_in_container, "--source-archive", archive_in_container,
         ]
         expected_status = "published"
