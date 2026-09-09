@@ -40,6 +40,7 @@ from broker_reports_gate1.ordinary_trade_candidate_runtime import (
 )
 from broker_reports_gate1.ordinary_trade_tax_model_bridge import (
     ACTIVE_FACT_V2_TO_CATEGORY_TAX_MODEL_PROVEN,
+    ACTIVE_FACT_V2_OPERATION_SET_TO_CATEGORY_TAX_MODEL_PROVEN,
     BOUNDED_TAX_MODEL_BRIDGE_BLOCKERS_PROVEN,
     FACTORY_REQUIRED,
     FORBIDDEN,
@@ -666,6 +667,215 @@ def test_acquisition_commission_demand_is_bound_to_selected_disposal(
     )
 
 
+def test_current_case_operation_set_aggregates_every_disposal_exactly_once(
+    tmp_path: Path,
+) -> None:
+    store, context, facts = _case(tmp_path / "operation-set", rows=_two_disposal_rows())
+    runtime = _runtime(store)
+
+    preflight = _run_operation_set(
+        runtime,
+        context=context,
+        completeness_evidence=None,
+    )
+    scope_hash = preflight["operation_set"]["scope_binding"][
+        "scope_binding_sha256"
+    ]
+    completed = _run_operation_set(
+        runtime,
+        context=context,
+        completeness_evidence=_completeness(scope_hash),
+    )
+
+    expected_ids = sorted(
+        item["fact_id"]
+        for item in facts
+        if item["financial_type"] == "SECURITY_DISPOSAL"
+    )
+    assert preflight["status"] == "blocked"
+    assert preflight["operation_results"] == []
+    assert preflight["category_result"] is None
+    assert completed["status"] == "proven"
+    assert completed["terminal"] == (
+        ACTIVE_FACT_V2_OPERATION_SET_TO_CATEGORY_TAX_MODEL_PROVEN
+    )
+    assert completed["operation_set"]["disposal_fact_ids"] == expected_ids
+    assert [item["disposal_fact_id"] for item in completed["operation_results"]] == (
+        expected_ids
+    )
+    category = completed["category_result"]["category_tax_model"]
+    assert [item["operation_ref"] for item in category["member_operations"]] == [
+        "operation-" + item for item in expected_ids
+    ]
+    assert len(completed["demands"]) == len(expected_ids)
+    assert completed["execution_constraints"]["declaration_projection"] is False
+
+
+def test_operation_set_incomplete_member_never_returns_partial_models(
+    tmp_path: Path,
+) -> None:
+    rows = list(_two_disposal_rows())
+    rows[-1] = _with_roles(rows[-1], broker_commission="", exchange_commission="")
+    store, context, _facts = _case(tmp_path / "operation-set-incomplete", rows=tuple(rows))
+
+    result = _run_operation_set(
+        _runtime(store),
+        context=context,
+        completeness_evidence=None,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"][0]["reason_code"] == (
+        "gate5_source_fact_direct_expense_missing"
+    )
+    assert result["operation_results"] == []
+    assert result["category_result"] is None
+
+
+def test_operation_set_detects_current_fact_set_change_before_category_release(
+    tmp_path: Path,
+) -> None:
+    store, context, _facts = _case(tmp_path / "operation-set-changed", rows=_two_disposal_rows())
+    runtime = _runtime(store)
+    original = runtime._current_facts
+
+    class ChangedAfterFirstRead:
+        reads = 0
+
+        def run(self, **kwargs):
+            self.reads += 1
+            result = original.run(**kwargs)
+            if self.reads == 1:
+                return result
+            result = copy.deepcopy(result)
+            result["securities"].append(
+                {"disposal_fact_id": "g4fact_current_set_changed"}
+            )
+            return result
+
+    runtime._current_facts = ChangedAfterFirstRead()
+    result = _run_operation_set(
+        runtime,
+        context=context,
+        completeness_evidence=None,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"][0]["reason_code"] == (
+        "ordinary_trade_tax_model_bridge_operation_set_changed"
+    )
+    assert result["operation_results"] == []
+    assert result["category_result"] is None
+
+
+def test_operation_set_detects_same_ids_with_changed_consumed_amount(
+    tmp_path: Path,
+) -> None:
+    store, context, _facts = _case(
+        tmp_path / "operation-set-material-changed",
+        rows=_two_disposal_rows(),
+    )
+    runtime = _runtime(store)
+    original = runtime._current_facts
+
+    class ChangedAmountAfterFirstRead:
+        reads = 0
+
+        def run(self, **kwargs):
+            self.reads += 1
+            result = original.run(**kwargs)
+            if self.reads == 1:
+                return result
+            result = copy.deepcopy(result)
+            result["securities"][0]["gross_income"]["value"]["amount"] = "999.99"
+            return result
+
+    runtime._current_facts = ChangedAmountAfterFirstRead()
+    result = _run_operation_set(
+        runtime,
+        context=context,
+        completeness_evidence=None,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"][0]["reason_code"] == (
+        "ordinary_trade_tax_model_bridge_operation_set_changed"
+    )
+    assert result["operation_results"] == []
+    assert result["category_result"] is None
+
+
+def test_operation_set_rejects_operation_consumption_not_matching_pinned_snapshot(
+    tmp_path: Path,
+) -> None:
+    store, context, _facts = _case(
+        tmp_path / "operation-set-operation-material-changed",
+        rows=_two_disposal_rows(),
+    )
+    runtime = _runtime(store)
+    original = runtime._operation_tax_model
+
+    class ChangedOperationConsumption:
+        def run_operation_from_current_source_facts(self, **kwargs):
+            result = original.run_operation_from_current_source_facts(**kwargs)
+            result = copy.deepcopy(result)
+            result["source_fact_consumption"]["securities"][0]["gross_income"][
+                "value"
+            ]["amount"] = "999.99"
+            return result
+
+    class CategoryMustNotRun:
+        def describe_scope(self, **kwargs):
+            raise AssertionError("category aggregation must not run")
+
+    runtime._operation_tax_model = ChangedOperationConsumption()
+    runtime._category_aggregation = CategoryMustNotRun()
+    result = _run_operation_set(
+        runtime,
+        context=context,
+        completeness_evidence=None,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"][0]["reason_code"] == (
+        "ordinary_trade_tax_model_bridge_operation_set_changed"
+    )
+    assert result["operation_results"] == []
+    assert result["category_result"] is None
+
+
+def test_operation_set_rejects_foreign_case_operation_before_category_aggregation(
+    tmp_path: Path,
+) -> None:
+    store, context, _facts = _case(tmp_path / "operation-set-foreign", rows=_two_disposal_rows())
+    runtime = _runtime(store)
+    original = runtime._operation_tax_model
+
+    class ForeignCaseOperationModel:
+        def run_operation_from_current_source_facts(self, **kwargs):
+            result = original.run_operation_from_current_source_facts(**kwargs)
+            result = copy.deepcopy(result)
+            result["source_fact_consumption"]["case_binding"] = {
+                "scope_kind": "case",
+                "scope_id": "foreign-case",
+            }
+            return result
+
+    runtime._operation_tax_model = ForeignCaseOperationModel()
+    result = _run_operation_set(
+        runtime,
+        context=context,
+        completeness_evidence=None,
+    )
+
+    assert result["status"] == "blocked"
+    assert result["blockers"][0]["reason_code"] == (
+        "gate5_tax_model_bridge_source_scope_case_binding_mismatch"
+    )
+    assert result["operation_results"] == []
+    assert result["category_result"] is None
+
+
 def test_current_methodology_does_not_require_income_source_or_source_party() -> None:
     resolved = Gate5TrustedMethodologyAuthorityFactory.create().resolve(
         _operation_methodology_ref()
@@ -753,6 +963,40 @@ def _row(*, side: str, charges: bool = True) -> tuple[str, ...]:
     return tuple(values[role] for role in ordinary_fixtures._ROLES)
 
 
+def _two_disposal_rows() -> tuple[tuple[str, ...], ...]:
+    return (
+        _HEADERS,
+        _with_roles(
+            _row(side=_PURCHASE_SIDE),
+            asset_name="ACME-A",
+            security_code="RU000000000A",
+            trade_id="trade-purchase-a",
+        ),
+        _with_roles(
+            _row(side=_DISPOSAL_SIDE),
+            asset_name="ACME-A",
+            security_code="RU000000000A",
+            trade_id="trade-disposal-a",
+        ),
+        _with_roles(
+            _row(side=_PURCHASE_SIDE),
+            trade_date="12.01.2025 10:00:00",
+            settlement_date="15.01.2025",
+            asset_name="ACME-B",
+            security_code="RU000000000B",
+            trade_id="trade-purchase-b",
+        ),
+        _with_roles(
+            _row(side=_DISPOSAL_SIDE),
+            trade_date="12.02.2025 10:00:00",
+            settlement_date="14.02.2025",
+            asset_name="ACME-B",
+            security_code="RU000000000B",
+            trade_id="trade-disposal-b",
+        ),
+    )
+
+
 def _with_roles(row: tuple[str, ...], **updates: str) -> tuple[str, ...]:
     values = list(row)
     for role, value in updates.items():
@@ -810,6 +1054,31 @@ def _run(
         source_scope_ref=(
             context.case_id if source_scope_ref is None else source_scope_ref
         ),
+        category_scope=(
+            _category_scope() if category_scope is None else category_scope
+        ),
+        taxpayer_binding=(
+            _taxpayer_binding()
+            if taxpayer_binding is _DEFAULT_TAXPAYER_BINDING
+            else taxpayer_binding
+        ),
+        completeness_evidence=completeness_evidence,
+        context=context,
+    )
+
+
+def _run_operation_set(
+    runtime,
+    *,
+    context,
+    completeness_evidence: dict | None,
+    category_scope: dict | None = None,
+    taxpayer_binding: dict | None | object = _DEFAULT_TAXPAYER_BINDING,
+):
+    return runtime.run_current_case_operation_set(
+        operation_methodology_ref=_operation_methodology_ref(),
+        source_fact_methodology_ref=_source_methodology_ref(),
+        resolved_inputs=_resolved_inputs(),
         category_scope=(
             _category_scope() if category_scope is None else category_scope
         ),
