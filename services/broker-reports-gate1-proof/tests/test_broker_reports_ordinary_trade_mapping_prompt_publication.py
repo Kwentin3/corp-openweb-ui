@@ -7,8 +7,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from broker_reports_gate1.ordinary_trade_mapping_prompt import PROMPT_PLACEHOLDER
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    PROMPT_PLACEHOLDER,
+    ordinary_trade_mapping_prompt_hash,
+)
 from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
+    GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
+    ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
     OrdinaryTradeMappingPromptPublication,
     OrdinaryTradeMappingPromptPublicationError,
     OrdinaryTradeMappingPromptPublicationInput,
@@ -37,6 +42,57 @@ def test_asset_input_uses_the_single_v13_prompt_and_requires_its_marker(tmp_path
     with pytest.raises(OrdinaryTradeMappingPromptPublicationError) as invalid:
         publication_input_from_asset(actor_user_id="admin", asset_root=tmp_path)
     assert invalid.value.code == "ordinary_trade_mapping_prompt_asset_contract_invalid"
+
+
+def test_closed_v14_lab_profile_publishes_a_distinct_non_product_prompt(
+    monkeypatch, tmp_path: Path
+):
+    profile = GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE
+    (tmp_path / profile.asset_filename).write_text(_CONTENT, encoding="utf-8")
+    request = publication_input_from_asset(
+        actor_user_id="admin", asset_root=tmp_path, profile=profile
+    )
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(publisher.publish(request))
+
+    assert owner["prompts"].inserted.command == profile.command
+    assert owner["prompts"].inserted.name == profile.name
+    assert owner["prompts"].inserted.meta["output_schema_id"] == profile.output_schema_id
+    assert owner["prompts"].inserted.is_production is False
+    assert owner["prompts"].inserted.access_grants == [
+        {"principal_type": "user", "principal_id": "*", "permission": "read"}
+    ]
+    assert result.safe_pin()["prompt_command"] == profile.command
+    assert result.prompt_hash != ordinary_trade_mapping_prompt_hash(_CONTENT)
+
+
+def test_closed_v14_lab_profile_never_updates_a_v13_prompt(monkeypatch):
+    publisher = OrdinaryTradeMappingPromptPublisher(
+        profile=GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE
+    )
+    owner = _native_owner(
+        existing=_row(
+            version_id="history-v13",
+            profile=ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
+        ),
+        profile=GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
+    )
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    with pytest.raises(OrdinaryTradeMappingPromptPublicationError) as rejected:
+        asyncio.run(
+            publisher.publish(
+                OrdinaryTradeMappingPromptPublicationInput(
+                    actor_user_id="admin", content=_CONTENT
+                )
+            )
+        )
+
+    assert rejected.value.code == "ordinary_trade_mapping_prompt_existing_metadata_incompatible"
+    assert owner["prompts"].updated is None
 
 
 def test_create_uses_native_prompt_lifecycle_and_returns_only_valve_safe_pin(monkeypatch):
@@ -222,7 +278,12 @@ def test_reverification_rejects_a_pin_when_native_history_belongs_to_another_pro
     assert rejected.value.code == "ordinary_trade_mapping_prompt_publication_history_missing"
 
 
-def _native_owner(*, existing, history_prompt_id=None):
+def _native_owner(
+    *,
+    existing,
+    history_prompt_id=None,
+    profile=ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
+):
     @asynccontextmanager
     async def context():
         yield "session"
@@ -232,19 +293,27 @@ def _native_owner(*, existing, history_prompt_id=None):
         updated = None
 
         async def get_prompt_by_command(self, command, *, db):
-            assert command == "broker_ordinary_trade_semantic_mapping_v1"
+            assert command == profile.command
             assert db == "session"
             return _model(existing) if existing is not None else None
 
         async def insert_new_prompt(self, user_id, form, *, db):
             assert user_id == "admin" and db == "session"
             self.inserted = form
-            return _model(_row(version_id="history-created", content=form.content))
+            return _model(
+                _row(
+                    version_id="history-created", content=form.content, profile=profile
+                )
+            )
 
         async def update_prompt_by_id(self, prompt_id, form, user_id, *, db):
             assert prompt_id == "prompt-1" and user_id == "admin" and db == "session"
             self.updated = form
-            return _model(_row(version_id="history-updated", content=form.content))
+            return _model(
+                _row(
+                    version_id="history-updated", content=form.content, profile=profile
+                )
+            )
 
     prompts = Prompts()
 
@@ -253,7 +322,7 @@ def _native_owner(*, existing, history_prompt_id=None):
             assert db == "session"
             return SimpleNamespace(
                 prompt_id=history_prompt_id or "prompt-1",
-                snapshot=_snapshot(_CONTENT),
+                snapshot=_snapshot(_CONTENT, profile=profile),
             )
 
     return {
@@ -268,17 +337,22 @@ def _model(row):
     return SimpleNamespace(model_dump=lambda: dict(row))
 
 
-def _row(*, version_id, content=_CONTENT):
+def _row(
+    *,
+    version_id,
+    content=_CONTENT,
+    profile=ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
+):
     from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import _metadata
 
     return {
         "id": "prompt-1",
-        "command": "broker_ordinary_trade_semantic_mapping_v1",
-        "name": "Broker Reports ordinary-trade semantic mapping",
+        "command": profile.command,
+        "name": profile.name,
         "content": content,
-        "data": {"managed_asset_version": "v13"},
-        "meta": _metadata(),
-        "tags": ["broker-reports-ordinary-trade-mapping"],
+        "data": {"managed_asset_version": profile.asset_version},
+        "meta": _metadata(profile=profile),
+        "tags": [profile.required_tag],
         "version_id": version_id,
         "access_grants": [
             {
@@ -290,16 +364,16 @@ def _row(*, version_id, content=_CONTENT):
     }
 
 
-def _snapshot(content):
+def _snapshot(content, *, profile=ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE):
     from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import _metadata
 
     return {
-        "name": "Broker Reports ordinary-trade semantic mapping",
+        "name": profile.name,
         "content": content,
-        "command": "broker_ordinary_trade_semantic_mapping_v1",
-        "data": {"managed_asset_version": "v13"},
-        "meta": _metadata(),
-        "tags": ["broker-reports-ordinary-trade-mapping"],
+        "command": profile.command,
+        "data": {"managed_asset_version": profile.asset_version},
+        "meta": _metadata(profile=profile),
+        "tags": [profile.required_tag],
     }
 
 

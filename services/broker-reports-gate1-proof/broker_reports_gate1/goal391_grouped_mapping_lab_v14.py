@@ -24,6 +24,12 @@ from .ordinary_trade_semantic_mapping import (
 GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION = (
     "goal391_grouped_ordinary_trade_mapping_response_v14"
 )
+# These are stable native-Prompt identities for the isolated R&D Function.
+# They are deliberately not production aliases and never select a provider.
+GROUPED_MAPPING_LAB_PROMPT_COMMAND = "goal391_grouped_mapping_lab_v14"
+GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID = "goal391_grouped_mapping_lab_v14"
+GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND = "goal391_grouped_ordinary_trade_mapping"
+GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG = "goal391-grouped-mapping-lab"
 
 
 class Goal391GroupedMappingLabError(RuntimeError):
@@ -258,6 +264,10 @@ def _fail(code: str) -> None:
 
 __all__ = [
     "GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION",
+    "GROUPED_MAPPING_LAB_PROMPT_COMMAND",
+    "GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG",
+    "GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID",
+    "GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND",
     "Goal391GroupedMappingLabError",
     "expand_grouped_response",
     "grouped_mapping_response_format",

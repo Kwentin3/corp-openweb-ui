@@ -47,6 +47,10 @@ from broker_reports_gate1.goal391_private_selection_binding import (
     Goal391PrivateSourceFileSelectionRequest,
 )
 from broker_reports_gate1.goal391_grouped_mapping_lab_v14 import (
+    GROUPED_MAPPING_LAB_PROMPT_COMMAND,
+    GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG,
+    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
+    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND,
     GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
     expand_grouped_response,
     grouped_mapping_response_format,
@@ -457,6 +461,26 @@ class Pipe:
                 source="openwebui_server",
                 prompt_id=prompt_id,
                 command=None,
+                required_command=(
+                    GROUPED_MAPPING_LAB_PROMPT_COMMAND
+                    if self.valves.grouped_response_v14
+                    else "broker_ordinary_trade_semantic_mapping_v1"
+                ),
+                required_template_id=(
+                    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID
+                    if self.valves.grouped_response_v14
+                    else "broker_reports.ordinary_trade_semantic_mapping.v1"
+                ),
+                required_template_kind=(
+                    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND
+                    if self.valves.grouped_response_v14
+                    else "broker_reports_ordinary_trade_semantic_mapping"
+                ),
+                required_tag=(
+                    GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG
+                    if self.valves.grouped_response_v14
+                    else "broker-reports-ordinary-trade-mapping"
+                ),
                 release_prompt_version=prompt_version,
                 release_prompt_hash=prompt_hash,
                 required_output_schema_id=(

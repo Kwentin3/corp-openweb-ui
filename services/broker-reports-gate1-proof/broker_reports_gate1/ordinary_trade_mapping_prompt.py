@@ -378,7 +378,13 @@ class OpenWebUISqliteOrdinaryTradeMappingPromptResolver:
             command=str(snapshot.get("command") or "") or None,
             version=version,
             content=content,
-            hash=ordinary_trade_mapping_prompt_hash(content),
+            hash=ordinary_trade_mapping_prompt_hash(
+                content,
+                prompt_contract_id=self.config.required_prompt_contract_id,
+                input_schema_version=self.config.required_input_schema_version,
+                output_schema_id=self.config.required_output_schema_id,
+                output_schema_version=self.config.required_output_schema_version,
+            ),
             source="openwebui_prompt_history",
             template_id=str(meta["template_id"]),
             template_kind=str(meta["template_kind"]),
@@ -614,17 +620,31 @@ class OpenWebUIServerOrdinaryTradeMappingPromptResolver(
         return snapshot
 
 
-def ordinary_trade_mapping_prompt_hash(prompt_content: str) -> str:
+def ordinary_trade_mapping_prompt_hash(
+    prompt_content: str,
+    *,
+    prompt_contract_id: str = PROMPT_CONTRACT_ID,
+    input_schema_version: str = INPUT_SCHEMA_VERSION,
+    output_schema_id: str = OUTPUT_SCHEMA_ID,
+    output_schema_version: str = OUTPUT_SCHEMA_VERSION,
+) -> str:
+    """Hash the Prompt body together with its declared typed contract.
+
+    Defaults preserve the released v13 identity exactly.  A bounded isolated
+    laboratory Prompt can use its own declared output schema without making a
+    production v13 pin appear interchangeable.
+    """
+
     material = (
         prompt_content.replace("\r\n", "\n").strip()
         + "\nprompt_contract:"
-        + PROMPT_CONTRACT_ID
+        + prompt_contract_id
         + "\ninput_schema:"
-        + INPUT_SCHEMA_VERSION
+        + input_schema_version
         + "\noutput_schema_id:"
-        + OUTPUT_SCHEMA_ID
+        + output_schema_id
         + "\noutput_schema_version:"
-        + OUTPUT_SCHEMA_VERSION
+        + output_schema_version
     )
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 

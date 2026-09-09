@@ -24,6 +24,13 @@ from .ordinary_trade_mapping_prompt import (
     PROMPT_TEMPLATE_KIND,
     ordinary_trade_mapping_prompt_hash,
 )
+from .goal391_grouped_mapping_lab_v14 import (
+    GROUPED_MAPPING_LAB_PROMPT_COMMAND,
+    GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG,
+    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
+    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND,
+    GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+)
 
 
 PROMPT_ASSET_VERSION = "v13"
@@ -49,6 +56,90 @@ _LEGACY_V12_METADATA = {
 }
 
 
+@dataclass(frozen=True)
+class OrdinaryTradeMappingPromptPublicationProfile:
+    """One closed native-Prompt identity that this publisher may mutate.
+
+    The publisher is intentionally not a generic Prompt writer: a caller can
+    select only one of the two repository-owned immutable profiles below.
+    This keeps the Goal #391 lab separate from the released v13 product Prompt
+    while retaining the same OpenWebUI Prompt/history/grant owner.
+    """
+
+    profile_id: str
+    command: str
+    name: str
+    asset_filename: str
+    asset_version: str
+    template_id: str
+    template_kind: str
+    prompt_contract_id: str
+    input_schema_version: str
+    output_schema_id: str
+    output_schema_version: str
+    required_tag: str
+    placeholder: str
+    is_production: bool
+    initial_access_grants: tuple[tuple[str, str, str], ...]
+    legacy_metadata: Mapping[str, Any] | None = None
+    legacy_name: str | None = None
+    legacy_data: Mapping[str, Any] | None = None
+
+
+ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE = (
+    OrdinaryTradeMappingPromptPublicationProfile(
+        profile_id="ordinary_trade_mapping_v13",
+        command=PROMPT_COMMAND,
+        name="Broker Reports ordinary-trade semantic mapping",
+        asset_filename=PROMPT_ASSET_FILENAME,
+        asset_version=PROMPT_ASSET_VERSION,
+        template_id=PROMPT_TEMPLATE_ID,
+        template_kind=PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=PROMPT_CONTRACT_ID,
+        input_schema_version=INPUT_SCHEMA_VERSION,
+        output_schema_id=OUTPUT_SCHEMA_ID,
+        output_schema_version=OUTPUT_SCHEMA_VERSION,
+        required_tag=PROMPT_REQUIRED_TAG,
+        placeholder=PROMPT_PLACEHOLDER,
+        is_production=True,
+        initial_access_grants=(("user", "*", "read"),),
+        legacy_metadata=_LEGACY_V12_METADATA,
+        legacy_name=_LEGACY_V12_NAME,
+        legacy_data={},
+    )
+)
+
+GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE = (
+    OrdinaryTradeMappingPromptPublicationProfile(
+        profile_id="goal391_grouped_mapping_lab_v14",
+        command=GROUPED_MAPPING_LAB_PROMPT_COMMAND,
+        name="Goal 391 grouped mapping lab v14",
+        asset_filename="goal391_grouped_mapping_lab_prompt.v14.md",
+        asset_version="v14-lab",
+        template_id=GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
+        template_kind=GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND,
+        # The native request builder admits the established ordinary-trade
+        # mapping operation; only the sealed response schema differs in lab.
+        prompt_contract_id=PROMPT_CONTRACT_ID,
+        input_schema_version=INPUT_SCHEMA_VERSION,
+        output_schema_id=GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+        required_tag=GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG,
+        placeholder=PROMPT_PLACEHOLDER,
+        is_production=False,
+        initial_access_grants=(("user", "*", "read"),),
+    )
+)
+
+_PUBLISHABLE_PROFILES = {
+    profile.profile_id: profile
+    for profile in (
+        ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
+        GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
+    )
+}
+
+
 class OrdinaryTradeMappingPromptPublicationError(RuntimeError):
     def __init__(self, code: str) -> None:
         super().__init__(code)
@@ -66,13 +157,24 @@ class OrdinaryTradeMappingPromptPublication:
     action: str
     schema_version: str = PROMPT_PUBLICATION_SCHEMA_VERSION
 
-    def pipe_valves(self) -> dict[str, str]:
-        """The only values that may cross into Pipe configuration."""
+    def safe_pin(self) -> dict[str, str]:
+        """Return the provider-free immutable native Prompt identity."""
+
         return {
-            "ordinary_trade_mapping_prompt_id": self.prompt_ref,
-            "ordinary_trade_mapping_prompt_command": self.prompt_command,
-            "ordinary_trade_mapping_prompt_version": self.prompt_history_id,
-            "ordinary_trade_mapping_prompt_hash": self.prompt_hash,
+            "prompt_id": self.prompt_ref,
+            "prompt_command": self.prompt_command,
+            "prompt_version": self.prompt_history_id,
+            "prompt_hash": self.prompt_hash,
+        }
+
+    def pipe_valves(self) -> dict[str, str]:
+        """The legacy v13 product valve projection."""
+        pin = self.safe_pin()
+        return {
+            "ordinary_trade_mapping_prompt_id": pin["prompt_id"],
+            "ordinary_trade_mapping_prompt_command": pin["prompt_command"],
+            "ordinary_trade_mapping_prompt_version": pin["prompt_version"],
+            "ordinary_trade_mapping_prompt_hash": pin["prompt_hash"],
         }
 
 
@@ -84,20 +186,29 @@ class OrdinaryTradeMappingPromptPublicationInput:
 
 
 def publication_input_from_asset(
-    *, actor_user_id: str, asset_root: Path
+    *,
+    actor_user_id: str,
+    asset_root: Path,
+    profile: OrdinaryTradeMappingPromptPublicationProfile = ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
 ) -> OrdinaryTradeMappingPromptPublicationInput:
-    """Load the sole repository Prompt asset and reject an invalid release body."""
-    asset_path = asset_root / PROMPT_ASSET_FILENAME
+    """Load one closed repository Prompt asset and validate its marker."""
+    profile = _require_known_profile(profile)
+    asset_path = asset_root / profile.asset_filename
     try:
         content = asset_path.read_text(encoding="utf-8")
     except OSError as exc:
         raise OrdinaryTradeMappingPromptPublicationError(
             "ordinary_trade_mapping_prompt_asset_unavailable"
         ) from exc
-    _require_contract_content(content)
+    _require_contract_content(content, profile=profile)
     return OrdinaryTradeMappingPromptPublicationInput(
         actor_user_id=actor_user_id,
         content=content,
+        commit_message=(
+            "Publish Broker Reports ordinary-trade mapping Prompt v13"
+            if profile is ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE
+            else "Publish Goal 391 grouped mapping lab Prompt v14"
+        ),
     )
 
 
@@ -110,6 +221,13 @@ class OrdinaryTradeMappingPromptPublisher:
     lifecycle as the Workspace API.
     """
 
+    def __init__(
+        self,
+        *,
+        profile: OrdinaryTradeMappingPromptPublicationProfile = ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
+    ) -> None:
+        self._profile = _require_known_profile(profile)
+
     async def publish(
         self, request: OrdinaryTradeMappingPromptPublicationInput
     ) -> OrdinaryTradeMappingPromptPublication:
@@ -118,12 +236,12 @@ class OrdinaryTradeMappingPromptPublisher:
             raise OrdinaryTradeMappingPromptPublicationError(
                 "ordinary_trade_mapping_prompt_publication_actor_required"
             )
-        _require_contract_content(request.content)
+        _require_contract_content(request.content, profile=self._profile)
         owners = self._native_owners()
         try:
             async with owners["get_async_db_context"]() as session:
                 existing = await owners["prompts"].get_prompt_by_command(
-                    PROMPT_COMMAND, db=session
+                    self._profile.command, db=session
                 )
                 if existing is None:
                     published = await owners["prompts"].insert_new_prompt(
@@ -132,7 +250,7 @@ class OrdinaryTradeMappingPromptPublisher:
                             owners=owners,
                             content=request.content,
                             commit_message=request.commit_message,
-                            access_grants=[copy.deepcopy(_PUBLIC_READ_GRANT)],
+                            access_grants=_initial_access_grants(self._profile),
                         ),
                         db=session,
                     )
@@ -162,9 +280,7 @@ class OrdinaryTradeMappingPromptPublisher:
                             actor_user_id,
                             db=session,
                         )
-                        action = (
-                            "migrated" if existing_mode == "legacy_v12" else "updated"
-                        )
+                        action = "migrated" if existing_mode == "legacy" else "updated"
                 if published is None:
                     raise OrdinaryTradeMappingPromptPublicationError(
                         "ordinary_trade_mapping_prompt_publication_failed"
@@ -238,67 +354,67 @@ class OrdinaryTradeMappingPromptPublisher:
                 "ordinary_trade_mapping_prompt_publication_unavailable"
             ) from exc
 
-    @staticmethod
     def _form(
+        self,
         *,
         owners: Mapping[str, Any],
         content: str,
         commit_message: str,
         access_grants: list[dict[str, str]] | None,
     ) -> Any:
+        profile = self._profile
         values = {
-            "command": PROMPT_COMMAND,
-            "name": "Broker Reports ordinary-trade semantic mapping",
+            "command": profile.command,
+            "name": profile.name,
             "content": content,
-            "data": {"managed_asset_version": PROMPT_ASSET_VERSION},
-            "meta": _metadata(),
-            "tags": [PROMPT_REQUIRED_TAG],
+            "data": {"managed_asset_version": profile.asset_version},
+            "meta": _metadata(profile=profile),
+            "tags": [profile.required_tag],
             "commit_message": str(commit_message or "").strip() or None,
-            "is_production": True,
+            "is_production": profile.is_production,
         }
         if access_grants is not None:
             values["access_grants"] = access_grants
         return owners["prompt_form"](**values)
 
-    @staticmethod
-    def _require_existing_public_grant(row: Mapping[str, Any]) -> None:
+    def _require_existing_public_grant(self, row: Mapping[str, Any]) -> None:
         grants = row.get("access_grants")
         if not isinstance(grants, list) or not any(
-            _grant_matches_public_read(grant) for grant in grants
+            _grant_matches(grant, expected)
+            for grant in grants
+            for expected in _initial_access_grants(self._profile)
         ):
             raise OrdinaryTradeMappingPromptPublicationError(
                 "ordinary_trade_mapping_prompt_public_grant_required"
             )
 
-    @staticmethod
-    def _existing_metadata_mode(row: Mapping[str, Any]) -> str:
+    def _existing_metadata_mode(self, row: Mapping[str, Any]) -> str:
         # OpenWebUI only creates history for selected field changes.  Permit
         # the single v12 form only because its name and new v13 body change
         # together, forcing one complete native history snapshot.  Everything
         # else fails closed instead of attempting a metadata-only repair.
-        if (
-            row.get("command") != PROMPT_COMMAND
-            or row.get("tags") != [PROMPT_REQUIRED_TAG]
-        ):
+        profile = self._profile
+        if row.get("command") != profile.command or row.get("tags") != [
+            profile.required_tag
+        ]:
             raise OrdinaryTradeMappingPromptPublicationError(
                 "ordinary_trade_mapping_prompt_existing_metadata_incompatible"
             )
         if (
-            row.get("name") == "Broker Reports ordinary-trade semantic mapping"
-            and row.get("data") == {"managed_asset_version": PROMPT_ASSET_VERSION}
-            and row.get("meta") == _metadata()
+            row.get("name") == profile.name
+            and row.get("data") == {"managed_asset_version": profile.asset_version}
+            and row.get("meta") == _metadata(profile=profile)
         ):
             return "current"
-        # This is a deliberately closed migration, not a permissive upgrade:
-        # it accepts only the single released v12 representation observed on
-        # the product route.  The native update changes the name as well as
-        # the body, so OpenWebUI writes one complete v13 history snapshot.
+        # A legacy migration is deliberately opt-in per profile.  The v14 lab
+        # profile has none, so it can never reinterpret an old product Prompt.
         if (
-            row.get("name") == _LEGACY_V12_NAME
-            and row.get("data") == {}
-            and row.get("meta") == _LEGACY_V12_METADATA
+            profile.legacy_metadata is not None
+            and row.get("name") == profile.legacy_name
+            and row.get("data") == profile.legacy_data
+            and row.get("meta") == profile.legacy_metadata
         ):
-            return "legacy_v12"
+            return "legacy"
         raise OrdinaryTradeMappingPromptPublicationError(
             "ordinary_trade_mapping_prompt_existing_metadata_incompatible"
         )
@@ -314,7 +430,8 @@ class OrdinaryTradeMappingPromptPublisher:
     ) -> OrdinaryTradeMappingPromptPublication:
         prompt_ref = str(row.get("id") or "").strip()
         version = str(row.get("version_id") or "").strip()
-        if not prompt_ref or not version or row.get("command") != PROMPT_COMMAND:
+        profile = self._profile
+        if not prompt_ref or not version or row.get("command") != profile.command:
             raise OrdinaryTradeMappingPromptPublicationError(
                 "ordinary_trade_mapping_prompt_publication_history_missing"
             )
@@ -329,12 +446,12 @@ class OrdinaryTradeMappingPromptPublisher:
                 "ordinary_trade_mapping_prompt_publication_history_missing"
             )
         expected = {
-            "name": "Broker Reports ordinary-trade semantic mapping",
+            "name": profile.name,
             "content": content,
-            "command": PROMPT_COMMAND,
-            "data": {"managed_asset_version": PROMPT_ASSET_VERSION},
-            "meta": _metadata(),
-            "tags": [PROMPT_REQUIRED_TAG],
+            "command": profile.command,
+            "data": {"managed_asset_version": profile.asset_version},
+            "meta": _metadata(profile=profile),
+            "tags": [profile.required_tag],
         }
         if any(snapshot.get(key) != value for key, value in expected.items()):
             raise OrdinaryTradeMappingPromptPublicationError(
@@ -342,9 +459,9 @@ class OrdinaryTradeMappingPromptPublisher:
             )
         return OrdinaryTradeMappingPromptPublication(
             prompt_ref=prompt_ref,
-            prompt_command=PROMPT_COMMAND,
+            prompt_command=profile.command,
             prompt_history_id=version,
-            prompt_hash=ordinary_trade_mapping_prompt_hash(content),
+            prompt_hash=_profile_prompt_hash(content, profile=profile),
             action=action,
         )
 
@@ -366,22 +483,29 @@ class OrdinaryTradeMappingPromptPublisher:
         }
 
 
-def _metadata() -> dict[str, Any]:
+def _metadata(
+    *,
+    profile: OrdinaryTradeMappingPromptPublicationProfile = ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
+) -> dict[str, Any]:
+    profile = _require_known_profile(profile)
     return {
-        "template_id": PROMPT_TEMPLATE_ID,
-        "template_kind": PROMPT_TEMPLATE_KIND,
-        "prompt_contract_id": PROMPT_CONTRACT_ID,
-        "input_contract": INPUT_SCHEMA_VERSION,
-        "output_schema_id": OUTPUT_SCHEMA_ID,
-        "output_schema_version": OUTPUT_SCHEMA_VERSION,
+        "template_id": profile.template_id,
+        "template_kind": profile.template_kind,
+        "prompt_contract_id": profile.prompt_contract_id,
+        "input_contract": profile.input_schema_version,
+        "output_schema_id": profile.output_schema_id,
+        "output_schema_version": profile.output_schema_version,
         "structured_output_required": True,
         "mapping_domain": "ordinary_trade",
     }
 
 
-def _require_contract_content(content: str) -> None:
+def _require_contract_content(
+    content: str, *, profile: OrdinaryTradeMappingPromptPublicationProfile
+) -> None:
+    profile = _require_known_profile(profile)
     if not isinstance(content, str) or not content.strip() or content.count(
-        PROMPT_PLACEHOLDER
+        profile.placeholder
     ) != 1:
         raise OrdinaryTradeMappingPromptPublicationError(
             "ordinary_trade_mapping_prompt_asset_contract_invalid"
@@ -398,19 +522,61 @@ def _model_dict(value: Any) -> dict[str, Any]:
     return copy.deepcopy(value)
 
 
-def _grant_matches_public_read(value: Any) -> bool:
+def _initial_access_grants(
+    profile: OrdinaryTradeMappingPromptPublicationProfile,
+) -> list[dict[str, str]]:
+    return [
+        {
+            "principal_type": principal_type,
+            "principal_id": principal_id,
+            "permission": permission,
+        }
+        for principal_type, principal_id, permission in profile.initial_access_grants
+    ]
+
+
+def _grant_matches(value: Any, expected: Mapping[str, str]) -> bool:
     if hasattr(value, "model_dump"):
         value = value.model_dump()
     return isinstance(value, dict) and all(
-        value.get(key) == expected for key, expected in _PUBLIC_READ_GRANT.items()
+        value.get(key) == expected_value
+        for key, expected_value in expected.items()
     )
+
+
+def _profile_prompt_hash(
+    content: str, *, profile: OrdinaryTradeMappingPromptPublicationProfile
+) -> str:
+    return ordinary_trade_mapping_prompt_hash(
+        content,
+        prompt_contract_id=profile.prompt_contract_id,
+        input_schema_version=profile.input_schema_version,
+        output_schema_id=profile.output_schema_id,
+        output_schema_version=profile.output_schema_version,
+    )
+
+
+def _require_known_profile(
+    profile: OrdinaryTradeMappingPromptPublicationProfile,
+) -> OrdinaryTradeMappingPromptPublicationProfile:
+    if (
+        not isinstance(profile, OrdinaryTradeMappingPromptPublicationProfile)
+        or _PUBLISHABLE_PROFILES.get(profile.profile_id) is not profile
+    ):
+        raise OrdinaryTradeMappingPromptPublicationError(
+            "ordinary_trade_mapping_prompt_profile_invalid"
+        )
+    return profile
 
 
 __all__ = [
     "OrdinaryTradeMappingPromptPublication",
     "OrdinaryTradeMappingPromptPublicationError",
     "OrdinaryTradeMappingPromptPublicationInput",
+    "OrdinaryTradeMappingPromptPublicationProfile",
     "OrdinaryTradeMappingPromptPublisher",
+    "ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE",
+    "GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE",
     "PROMPT_ASSET_FILENAME",
     "PROMPT_ASSET_VERSION",
     "publication_input_from_asset",

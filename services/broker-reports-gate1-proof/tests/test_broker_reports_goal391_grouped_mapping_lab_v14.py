@@ -13,6 +13,9 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingFactory,
 )
+from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    ordinary_trade_mapping_prompt_hash,
+)
 
 
 def _package(*, rows_total: int = 5) -> dict:
@@ -130,3 +133,13 @@ def test_grouped_response_is_sublinear_for_large_uniform_table() -> None:
 
     assert len(compact["table_decisions"][0]["row_policy"]["exception_rows"]) == 0
     assert len(expanded["table_decisions"][0]["row_dispositions"]) == 41_999
+
+
+def test_grouped_prompt_hash_cannot_match_a_v13_pin() -> None:
+    content = "Map exactly. {{ordinary_trade_mapping_case_json}}"
+
+    assert ordinary_trade_mapping_prompt_hash(content) != ordinary_trade_mapping_prompt_hash(
+        content,
+        output_schema_id=GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+    )
