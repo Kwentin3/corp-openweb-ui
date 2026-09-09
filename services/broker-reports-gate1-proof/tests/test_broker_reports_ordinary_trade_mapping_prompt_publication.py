@@ -23,6 +23,12 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
 
 
 _CONTENT = "Map exactly one " + PROMPT_PLACEHOLDER + "."
+_V14_PROMPT_ASSET = (
+    Path(__file__).resolve().parents[1]
+    / "managed_assets"
+    / "prompts"
+    / "goal391_grouped_mapping_lab_prompt.v14.md"
+)
 
 
 class _PromptForm:
@@ -67,6 +73,15 @@ def test_closed_v14_lab_profile_publishes_a_distinct_non_product_prompt(
     ]
     assert result.safe_pin()["prompt_command"] == profile.command
     assert result.prompt_hash != ordinary_trade_mapping_prompt_hash(_CONTENT)
+
+
+def test_v14_managed_prompt_requires_complete_document_currency_bindings():
+    content = _V14_PROMPT_ASSET.read_text(encoding="utf-8")
+
+    assert "every column classified as gross_amount" in content
+    assert "amount_currency_bindings" in content
+    assert "currency_column classified as currency" in content
+    assert "ascending amount_column" in content
 
 
 def test_closed_v14_lab_profile_never_updates_a_v13_prompt(monkeypatch):

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import copy
+import hashlib
+
 import pytest
 from jsonschema import Draft202012Validator
 
@@ -13,9 +16,14 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
     OrdinaryTradeSemanticMappingFactory,
 )
+from broker_reports_gate1.ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerError,
+)
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     ordinary_trade_mapping_prompt_hash,
 )
+
+import test_broker_reports_issue312_semantic_mapping_contract as v13_contract
 
 
 def _package(*, rows_total: int = 5) -> dict:
@@ -143,3 +151,79 @@ def test_grouped_prompt_hash_cannot_match_a_v13_pin() -> None:
         output_schema_id=GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
         output_schema_version=GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
     )
+
+
+def _complete_grouped_trade_response(table: dict, known: dict) -> dict:
+    response = v13_contract._complete_response(table, known)
+    response["schema_version"] = GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION
+    decision = response["table_decisions"][0]
+    del decision["row_dispositions"]
+    decision["row_policy"] = {
+        "default_disposition": "SECURITY_TRADES",
+        "exception_rows": [],
+    }
+    return response
+
+
+def _validate_complete_grouped_trade_response(
+    *, context, canonical, binding, response: dict
+) -> dict:
+    semantic = OrdinaryTradeSemanticMappingFactory.create()
+    package = semantic.build_mapping_package(
+        canonical=canonical, confirmed_understandings=[]
+    )
+    expanded = expand_grouped_response(response=response, package=package)
+    return semantic.validate_mapping_response(
+        response=expanded,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=v13_contract._metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256=hashlib.sha256(context.user_id.encode()).hexdigest(),
+    )
+
+
+def test_grouped_trade_response_preserves_complete_explicit_currency_bindings(tmp_path) -> None:
+    context, canonical, binding, table, known = v13_contract._canonical_case(tmp_path)
+
+    result = _validate_complete_grouped_trade_response(
+        context=context,
+        canonical=canonical,
+        binding=binding,
+        response=_complete_grouped_trade_response(table, known),
+    )
+
+    assert result["status"] == "COMPLETE"
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda decision: decision.update(amount_currency_bindings=[]),
+        lambda decision: decision.update(
+            amount_currency_bindings=decision["amount_currency_bindings"][:-1]
+        ),
+        lambda decision: decision["amount_currency_bindings"].append(
+            copy.deepcopy(decision["amount_currency_bindings"][0])
+        ),
+        lambda decision: decision["amount_currency_bindings"][0].update(
+            currency_column=decision["amount_currency_bindings"][0]["amount_column"]
+        ),
+    ],
+)
+def test_grouped_trade_response_rejects_invalid_currency_bindings(tmp_path, mutate) -> None:
+    context, canonical, binding, table, known = v13_contract._canonical_case(tmp_path)
+    response = _complete_grouped_trade_response(table, known)
+    mutate(response["table_decisions"][0])
+
+    with pytest.raises(OrdinaryTradeSemanticCompilerError) as exc:
+        _validate_complete_grouped_trade_response(
+            context=context,
+            canonical=canonical,
+            binding=binding,
+            response=response,
+        )
+
+    assert exc.value.code == "ordinary_trade_mapping_currency_binding_invalid"
