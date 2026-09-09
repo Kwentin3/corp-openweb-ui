@@ -52,11 +52,13 @@ from broker_reports_gate1.goal391_grouped_mapping_lab_v14 import (
     GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
     GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND,
     GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+    Goal391GroupedMappingLabError,
     expand_grouped_response,
     grouped_mapping_response_format,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
+    OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
 
@@ -805,6 +807,14 @@ class Pipe:
     def _safe_error_code(exc: Exception) -> str:
         if isinstance(exc, Goal391MappingLabPipeError):
             return exc.code
+        if isinstance(
+            exc,
+            (Goal391GroupedMappingLabError, OrdinaryTradeSemanticMappingError),
+        ):
+            # These existing owners expose fixed contract identifiers only.
+            # They contain neither source text nor provider output, so they are
+            # safe for the isolated laboratory receipt.
+            return f"goal391_lab_{exc.code}"
         # Existing owners may carry source, provider or Prompt context in their
         # exception classes.  The chat-visible laboratory receipt deliberately
         # does not distinguish those failures.

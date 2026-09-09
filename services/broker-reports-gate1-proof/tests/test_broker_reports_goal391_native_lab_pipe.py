@@ -477,9 +477,26 @@ def test_safe_record_rejects_missing_instructional_evidence():
 
 def test_unexpected_owner_error_is_reduced_to_one_value_free_terminal_code():
     module = _load_source_module()
+
     class PrivateProviderFailure(RuntimeError):
         pass
+
     assert module.Pipe._safe_error_code(PrivateProviderFailure("private source/key/prompt")) == "goal391_lab_internal_failure"
+
+
+def test_safe_error_code_keeps_only_fixed_contract_identifiers():
+    module = _load_source_module()
+
+    assert module.Pipe._safe_error_code(
+        module.Goal391GroupedMappingLabError(
+            "goal391_grouped_mapping_lab_row_policy_invalid"
+        )
+    ) == "goal391_lab_goal391_grouped_mapping_lab_row_policy_invalid"
+    assert module.Pipe._safe_error_code(
+        module.OrdinaryTradeSemanticMappingError(
+            "ordinary_trade_semantic_mapping_columns_invalid"
+        )
+    ) == "goal391_lab_ordinary_trade_semantic_mapping_columns_invalid"
 
 
 def test_generated_bundle_is_closed_world_and_contains_only_lab_adapter_not_product_flow():
