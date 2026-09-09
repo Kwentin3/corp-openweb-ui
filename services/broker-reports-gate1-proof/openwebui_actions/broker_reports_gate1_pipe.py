@@ -19,7 +19,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from contextlib import nullcontext
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, is_dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -179,18 +179,29 @@ FULL_SOURCE_PROJECTION_SCHEMA_VERSION = "broker_reports_full_source_projection_v
 FULL_SOURCE_ZIP_FILENAME = "full-source.zip"
 
 
-@dataclass(frozen=True)
 class _OrdinaryTradeMappingRouteProfile:
     """Closed production route configuration; never a user-provided Prompt map."""
 
-    profile_id: str
-    prompt_command: str
-    template_id: str
-    template_kind: str
-    output_schema_id: str
-    output_schema_version: str
-    required_tag: str
-    grouped_v14_response: bool = False
+    def __init__(
+        self,
+        *,
+        profile_id: str,
+        prompt_command: str,
+        template_id: str,
+        template_kind: str,
+        output_schema_id: str,
+        output_schema_version: str,
+        required_tag: str,
+        grouped_v14_response: bool = False,
+    ) -> None:
+        self.profile_id = profile_id
+        self.prompt_command = prompt_command
+        self.template_id = template_id
+        self.template_kind = template_kind
+        self.output_schema_id = output_schema_id
+        self.output_schema_version = output_schema_version
+        self.required_tag = required_tag
+        self.grouped_v14_response = grouped_v14_response
 
     def mapping_response_adapter(self) -> Any | None:
         if self.grouped_v14_response:
