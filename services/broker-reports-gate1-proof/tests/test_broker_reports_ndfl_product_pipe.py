@@ -1113,7 +1113,7 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     maintained = pipe.last_artifact_manifest["ndfl_gate3"]
 
     assert maintained["product"]["status"] == "NON_FILING_SURROGATE_READY"
-    assert pipe.last_artifact_manifest.get("resumed_case") is None
+    assert pipe.last_artifact_manifest.get("resumed_case") is True
     assert "ru_3ndfl_2025_full_target_supplied_case" not in chat
     assert "\u043d\u0435 \u043f\u043e\u0434\u043b\u0435\u0436\u0438\u0442 \u043f\u043e\u0434\u0430\u0447\u0435" in chat
     assert "owner" not in chat.lower()
@@ -1122,7 +1122,13 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     assert maintained["product"]["xml_created"] is False
     assert maintained["declaration"] is None
     assert maintained["provider_calls_total"] == 0
-    assert presentation_calls == ["2022", "Неподаваемый черновик"]
+    # A same-scope repeat is a resumed normal chat turn. It must not re-run
+    # the financial-role provider or create an XML declaration.
+    assert presentation_calls == [
+        "2022",
+        "Неподаваемый черновик",
+        "Repeat file processing",
+    ]
 
     public_turn("Изменить налоговый период: 2025")
     supported = pipe.last_artifact_manifest["ndfl_gate3"]
@@ -1152,6 +1158,7 @@ def test_public_pipe_file_turn_renders_current_non_filing_surrogate(
     assert presentation_calls == [
         "2022",
         "Неподаваемый черновик",
+        "Repeat file processing",
         "Изменить налоговый период: 2025",
         "Изменить налоговый период: 2022",
     ]
