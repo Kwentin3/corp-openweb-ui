@@ -94,6 +94,56 @@ def test_update_preserves_existing_public_grant_and_checks_native_history(monkey
     assert result.prompt_history_id == "history-updated"
 
 
+def test_exact_v12_prompt_is_migrated_through_one_native_history_update(monkeypatch):
+    existing = _row(
+        version_id="history-v12",
+        content="Old map " + PROMPT_PLACEHOLDER + ".",
+    )
+    existing.update(
+        {
+            "name": "Broker Reports Ordinary Trade Mapping",
+            "data": {},
+            "meta": _legacy_v12_metadata(),
+        }
+    )
+    publisher = OrdinaryTradeMappingPromptPublisher()
+    owner = _native_owner(existing=existing)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            OrdinaryTradeMappingPromptPublicationInput(
+                actor_user_id="admin", content=_CONTENT
+            )
+        )
+    )
+
+    assert result.action == "migrated"
+    assert owner["prompts"].updated is not None
+    assert owner["prompts"].updated.access_grants is None
+    assert owner["prompts"].updated.data == {"managed_asset_version": "v13"}
+
+
+def test_unknown_existing_metadata_is_not_migrated(monkeypatch):
+    existing = _row(version_id="history-before")
+    existing["meta"] = {"unknown": "metadata"}
+    publisher = OrdinaryTradeMappingPromptPublisher()
+    owner = _native_owner(existing=existing)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    with pytest.raises(OrdinaryTradeMappingPromptPublicationError) as rejected:
+        asyncio.run(
+            publisher.publish(
+                OrdinaryTradeMappingPromptPublicationInput(
+                    actor_user_id="admin", content=_CONTENT
+                )
+            )
+        )
+
+    assert rejected.value.code == "ordinary_trade_mapping_prompt_existing_metadata_incompatible"
+    assert owner["prompts"].updated is None
+
+
 def test_existing_non_public_prompt_is_not_silently_regranted(monkeypatch):
     existing = _row(version_id="history-before")
     existing["access_grants"] = []
@@ -250,4 +300,24 @@ def _snapshot(content):
         "data": {"managed_asset_version": "v13"},
         "meta": _metadata(),
         "tags": ["broker-reports-ordinary-trade-mapping"],
+    }
+
+
+def _legacy_v12_metadata():
+    from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+        INPUT_SCHEMA_VERSION,
+        PROMPT_CONTRACT_ID,
+        PROMPT_TEMPLATE_ID,
+        PROMPT_TEMPLATE_KIND,
+    )
+
+    return {
+        "template_id": PROMPT_TEMPLATE_ID,
+        "template_kind": PROMPT_TEMPLATE_KIND,
+        "prompt_contract_id": PROMPT_CONTRACT_ID,
+        "input_contract": INPUT_SCHEMA_VERSION,
+        "output_schema_id": "broker_reports_ordinary_trade_semantic_mapping_response_v12",
+        "output_schema_version": "broker_reports_ordinary_trade_semantic_mapping_response_v12",
+        "structured_output_required": True,
+        "mapping_domain": "ordinary_trade",
     }

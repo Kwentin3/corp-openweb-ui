@@ -36,6 +36,17 @@ _PUBLIC_READ_GRANT = {
     "principal_id": "*",
     "permission": "read",
 }
+_LEGACY_V12_NAME = "Broker Reports Ordinary Trade Mapping"
+_LEGACY_V12_METADATA = {
+    "template_id": PROMPT_TEMPLATE_ID,
+    "template_kind": PROMPT_TEMPLATE_KIND,
+    "prompt_contract_id": PROMPT_CONTRACT_ID,
+    "input_contract": INPUT_SCHEMA_VERSION,
+    "output_schema_id": "broker_reports_ordinary_trade_semantic_mapping_response_v12",
+    "output_schema_version": "broker_reports_ordinary_trade_semantic_mapping_response_v12",
+    "structured_output_required": True,
+    "mapping_domain": "ordinary_trade",
+}
 
 
 class OrdinaryTradeMappingPromptPublicationError(RuntimeError):
@@ -129,8 +140,11 @@ class OrdinaryTradeMappingPromptPublisher:
                 else:
                     existing_row = _model_dict(existing)
                     self._require_existing_public_grant(existing_row)
-                    self._require_existing_metadata_compatible(existing_row)
-                    if existing_row.get("content") == request.content:
+                    existing_mode = self._existing_metadata_mode(existing_row)
+                    if (
+                        existing_mode == "current"
+                        and existing_row.get("content") == request.content
+                    ):
                         published = existing
                         action = "pinned"
                     else:
@@ -148,7 +162,9 @@ class OrdinaryTradeMappingPromptPublisher:
                             actor_user_id,
                             db=session,
                         )
-                        action = "updated"
+                        action = (
+                            "migrated" if existing_mode == "legacy_v12" else "updated"
+                        )
                 if published is None:
                     raise OrdinaryTradeMappingPromptPublicationError(
                         "ordinary_trade_mapping_prompt_publication_failed"
@@ -253,20 +269,37 @@ class OrdinaryTradeMappingPromptPublisher:
             )
 
     @staticmethod
-    def _require_existing_metadata_compatible(row: Mapping[str, Any]) -> None:
-        # OpenWebUI only creates history for selected field changes.  A metadata
-        # migration by this publisher could therefore make row and history
-        # disagree.  Do not repair it here; the release must fail closed.
+    def _existing_metadata_mode(row: Mapping[str, Any]) -> str:
+        # OpenWebUI only creates history for selected field changes.  Permit
+        # the single v12 form only because its name and new v13 body change
+        # together, forcing one complete native history snapshot.  Everything
+        # else fails closed instead of attempting a metadata-only repair.
         if (
             row.get("command") != PROMPT_COMMAND
-            or row.get("name") != "Broker Reports ordinary-trade semantic mapping"
-            or row.get("data") != {"managed_asset_version": PROMPT_ASSET_VERSION}
-            or row.get("meta") != _metadata()
             or row.get("tags") != [PROMPT_REQUIRED_TAG]
         ):
             raise OrdinaryTradeMappingPromptPublicationError(
                 "ordinary_trade_mapping_prompt_existing_metadata_incompatible"
             )
+        if (
+            row.get("name") == "Broker Reports ordinary-trade semantic mapping"
+            and row.get("data") == {"managed_asset_version": PROMPT_ASSET_VERSION}
+            and row.get("meta") == _metadata()
+        ):
+            return "current"
+        # This is a deliberately closed migration, not a permissive upgrade:
+        # it accepts only the single released v12 representation observed on
+        # the product route.  The native update changes the name as well as
+        # the body, so OpenWebUI writes one complete v13 history snapshot.
+        if (
+            row.get("name") == _LEGACY_V12_NAME
+            and row.get("data") == {}
+            and row.get("meta") == _LEGACY_V12_METADATA
+        ):
+            return "legacy_v12"
+        raise OrdinaryTradeMappingPromptPublicationError(
+            "ordinary_trade_mapping_prompt_existing_metadata_incompatible"
+        )
 
     async def _verified_publication(
         self,
