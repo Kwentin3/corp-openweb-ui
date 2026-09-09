@@ -190,6 +190,65 @@ class _BrokerReportFixtureExtractor(_OfflineFixtureExtractor):
         )
 
 
+class _RussianBrokerReportFixtureExtractor(_BrokerReportFixtureExtractor):
+    def extract(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+    ) -> PdfDocumentExtraction:
+        base = super().extract(pdf_bytes, source_context)
+        page_markdown = (
+            b"# \xd0\x9e\xd1\x82\xd1\x87\xd0\xb5\xd1\x82 \xd0\xb1\xd1\x80\xd0\xbe\xd0\xba\xd0\xb5\xd1\x80\xd0\xb0\n\n"
+            b"## \xd0\xa1\xd0\xb4\xd0\xb5\xd0\xbb\xd0\xba\xd0\xb8\n\n"
+            b"| \xd0\x94\xd0\xb0\xd1\x82\xd0\xb0 | \xd0\xa1\xd1\x83\xd0\xbc\xd0\xbc\xd0\xb0 | \xd0\x92\xd0\xb0\xd0\xbb\xd1\x8e\xd1\x82\xd0\xb0 |\n"
+            b"|---|---:|---|\n| 2026-01-01 | 10 | USD |\n"
+        )
+        pages = tuple(page_markdown for _ in base.page_numbers)
+        markdown = b"\n\n".join(pages)
+        return replace(
+            base,
+            markdown_bytes=markdown,
+            markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+            page_markdown_bytes=pages,
+            page_markdown_sha256=tuple(
+                hashlib.sha256(page).hexdigest() for page in pages
+            ),
+            safe_technical_summary=(
+                ("markdown_bytes", len(markdown)),
+                ("pages_count", len(pages)),
+            ),
+        )
+
+
+class _GenericRussianFinancialFixtureExtractor(_BrokerReportFixtureExtractor):
+    def extract(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+    ) -> PdfDocumentExtraction:
+        base = super().extract(pdf_bytes, source_context)
+        page_markdown = (
+            b"# \xd0\xa3\xd1\x87\xd0\xb5\xd0\xb1\xd0\xbd\xd0\xb0\xd1\x8f \xd1\x82\xd0\xb0\xd0\xb1\xd0\xbb\xd0\xb8\xd1\x86\xd0\xb0\n\n"
+            b"| \xd0\x94\xd0\xb0\xd1\x82\xd0\xb0 \xd1\x81\xd0\xb4\xd0\xb5\xd0\xbb\xd0\xba\xd0\xb8 | \xd0\xa1\xd1\x83\xd0\xbc\xd0\xbc\xd0\xb0 | \xd0\x92\xd0\xb0\xd0\xbb\xd1\x8e\xd1\x82\xd0\xb0 |\n"
+            b"|---|---:|---|\n| 2026-01-01 | 10 | USD |\n"
+        )
+        pages = tuple(page_markdown for _ in base.page_numbers)
+        markdown = b"\n\n".join(pages)
+        return replace(
+            base,
+            markdown_bytes=markdown,
+            markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+            page_markdown_bytes=pages,
+            page_markdown_sha256=tuple(
+                hashlib.sha256(page).hexdigest() for page in pages
+            ),
+            safe_technical_summary=(
+                ("markdown_bytes", len(markdown)),
+                ("pages_count", len(pages)),
+            ),
+        )
+
+
 class _OfflineImageFixtureExtractor(_OfflineFixtureExtractor):
     def extract(
         self,
@@ -736,6 +795,48 @@ def test_document_ai_pdf_representation_reaches_existing_taxonomy_owner() -> Non
     assert "unknown_role" not in {
         item["code"] for item in result.package["normalization_blockers"]
     }
+
+
+def test_russian_broker_report_heading_is_admitted_without_a_second_llm_stage() -> None:
+    result = Gate1Normalizer(
+        _pdf_document_extractor=_RussianBrokerReportFixtureExtractor()
+    ).normalize(
+        [_input(PUBLIC_PDF.read_bytes())],
+        input_context={
+            "source_policy": {
+                "mode": "native_ndfl_workspace_model",
+                "explicit": True,
+                "accept_pdf_html_source_roles": True,
+            }
+        },
+    )
+
+    candidate = result.package["taxonomy_candidates"][0]
+    eligibility = result.package["document_source_eligibility"]["entries"][0]
+    assert candidate["document_class_candidate"] == "source_broker_report"
+    assert eligibility["source_eligibility"] == "accepted_for_gate2"
+    assert result.package["gate2_handoff"]["handoff_mode"] != "gate2_blocked_no_eligible_sources"
+
+
+def test_generic_russian_financial_words_do_not_admit_an_instructional_table() -> None:
+    result = Gate1Normalizer(
+        _pdf_document_extractor=_GenericRussianFinancialFixtureExtractor()
+    ).normalize(
+        [_input(PUBLIC_PDF.read_bytes())],
+        input_context={
+            "source_policy": {
+                "mode": "native_ndfl_workspace_model",
+                "explicit": True,
+                "accept_pdf_html_source_roles": True,
+            }
+        },
+    )
+
+    candidate = result.package["taxonomy_candidates"][0]
+    eligibility = result.package["document_source_eligibility"]["entries"][0]
+    assert candidate["document_class_candidate"] == "unknown_or_needs_review"
+    assert eligibility["source_eligibility"] == "metadata_review_required"
+    assert result.package["gate2_handoff"]["handoff_mode"] == "gate2_blocked_requires_metadata_review"
 
 
 def _bounded_pdf_normalization(tmp_path: Path):

@@ -197,6 +197,10 @@ def _has_broker_report_signal(text: str) -> bool:
         "brokerage statement",
         "portfolio analyst",
         "trade confirmation",
+        "брокерский отчёт",
+        "брокерский отчет",
+        "отчёт брокера",
+        "отчет брокера",
     }
     if any(signal in compact for signal in strong_signals):
         return True
