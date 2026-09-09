@@ -246,17 +246,19 @@ class OrdinaryTradeMappingPromptPublisher:
         commit_message: str,
         access_grants: list[dict[str, str]] | None,
     ) -> Any:
-        return owners["prompt_form"](
-            command=PROMPT_COMMAND,
-            name="Broker Reports ordinary-trade semantic mapping",
-            content=content,
-            data={"managed_asset_version": PROMPT_ASSET_VERSION},
-            meta=_metadata(),
-            tags=[PROMPT_REQUIRED_TAG],
-            access_grants=access_grants,
-            commit_message=str(commit_message or "").strip() or None,
-            is_production=True,
-        )
+        values = {
+            "command": PROMPT_COMMAND,
+            "name": "Broker Reports ordinary-trade semantic mapping",
+            "content": content,
+            "data": {"managed_asset_version": PROMPT_ASSET_VERSION},
+            "meta": _metadata(),
+            "tags": [PROMPT_REQUIRED_TAG],
+            "commit_message": str(commit_message or "").strip() or None,
+            "is_production": True,
+        }
+        if access_grants is not None:
+            values["access_grants"] = access_grants
+        return owners["prompt_form"](**values)
 
     @staticmethod
     def _require_existing_public_grant(row: Mapping[str, Any]) -> None:

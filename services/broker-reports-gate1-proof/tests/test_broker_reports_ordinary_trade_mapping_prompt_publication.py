@@ -90,7 +90,7 @@ def test_update_preserves_existing_public_grant_and_checks_native_history(monkey
 
     assert result.action == "updated"
     assert owner["prompts"].inserted is None
-    assert owner["prompts"].updated.access_grants is None
+    assert not hasattr(owner["prompts"].updated, "access_grants")
     assert result.prompt_history_id == "history-updated"
 
 
@@ -120,7 +120,7 @@ def test_exact_v12_prompt_is_migrated_through_one_native_history_update(monkeypa
 
     assert result.action == "migrated"
     assert owner["prompts"].updated is not None
-    assert owner["prompts"].updated.access_grants is None
+    assert not hasattr(owner["prompts"].updated, "access_grants")
     assert owner["prompts"].updated.data == {"managed_asset_version": "v13"}
 
 
