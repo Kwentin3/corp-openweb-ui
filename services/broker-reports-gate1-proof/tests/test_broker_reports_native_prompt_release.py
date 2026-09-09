@@ -56,7 +56,7 @@ def test_host_uses_container_native_runner_and_returns_only_safe_pin(tmp_path: P
     assert result == _PIN
     assert any(call[:2] == ["docker", "cp"] for call in calls)
     assert any(
-        call[:5] == ["docker", "exec", "openwebui", "python", "/tmp/broker-reports-prompt-release/publish.py"]
+        call[:7] == ["docker", "exec", "-w", "/app/backend", "openwebui", "python", "/tmp/broker-reports-prompt-release/publish.py"]
         for call in calls
     )
 

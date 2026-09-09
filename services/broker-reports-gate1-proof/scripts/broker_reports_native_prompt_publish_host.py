@@ -68,7 +68,10 @@ def execute(*, staging_dir: Path, verify_pin: dict[str, str] | None) -> dict[str
     try:
         _run(["docker", "cp", str(archive), f"{CONTAINER}:{archive_in_container}"])
         _run(["docker", "cp", str(runner), f"{CONTAINER}:{runner_in_container}"])
-        command = ["docker", "exec", CONTAINER, "python", runner_in_container, "--source-archive", archive_in_container]
+        command = [
+            "docker", "exec", "-w", "/app/backend", CONTAINER, "python",
+            runner_in_container, "--source-archive", archive_in_container,
+        ]
         expected_status = "published"
         if verify_pin is not None:
             command.extend(["--verify-pin-json", json.dumps(verify_pin, sort_keys=True)])
