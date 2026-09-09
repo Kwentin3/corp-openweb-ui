@@ -33,7 +33,10 @@ from broker_reports_gate1.artifact_store import ArtifactStoreConfig, ArtifactSto
 from broker_reports_gate1.canonical_artifact import validate_canonical_artifact
 from broker_reports_gate1.canonical_store import CanonicalReaderFactory
 from broker_reports_gate1.gate2_model_clients import Gate2StructuredModelClientFactory
-from broker_reports_gate1.gate2_model_contracts import Gate2StructuredModelClientConfig
+from broker_reports_gate1.gate2_model_contracts import (
+    Gate2SourceFactRuntimeError,
+    Gate2StructuredModelClientConfig,
+)
 from broker_reports_gate1.gate2_model_requests import (
     ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
 )
@@ -809,7 +812,11 @@ class Pipe:
             return exc.code
         if isinstance(
             exc,
-            (Goal391GroupedMappingLabError, OrdinaryTradeSemanticMappingError),
+            (
+                Gate2SourceFactRuntimeError,
+                Goal391GroupedMappingLabError,
+                OrdinaryTradeSemanticMappingError,
+            ),
         ):
             # These existing owners expose fixed contract identifiers only.
             # They contain neither source text nor provider output, so they are
