@@ -18,6 +18,10 @@ from .ordinary_trade_mapping_prompt import (
     OrdinaryTradeMappingPromptUserContext,
     validate_ordinary_trade_mapping_prompt_snapshot,
 )
+from .instructional_table_classification import response_format as instructional_response_format
+from .instructional_table_classification_prompt import (
+    validate_instructional_classification_prompt_snapshot,
+)
 from .ordinary_trade_semantic_mapping import (
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
@@ -60,6 +64,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         model_client: Any,
         answer_model_client: Any | None = None,
         mapping_prompt_resolver: Any | None = None,
+        instructional_prompt_resolver: Any | None = None,
         mapping_prompt_user_context_factory: Any | None = None,
         model_id: str,
         provider_profile_id: str,
@@ -69,6 +74,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         self._model_client = model_client
         self._answer_model_client = answer_model_client or model_client
         self._mapping_prompt_resolver = mapping_prompt_resolver
+        self._instructional_prompt_resolver = instructional_prompt_resolver
         self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
         self._model_id = model_id
         self._provider_profile_id = provider_profile_id
@@ -101,6 +107,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
             ),
             compiler=OrdinaryTradeSemanticCompilerFactory.create(),
             mapping_prompt_resolver=self._mapping_prompt_resolver,
+            instructional_prompt_resolver=self._instructional_prompt_resolver,
             mapping_prompt_user_context_factory=(
                 self._mapping_prompt_user_context_factory
             ),
@@ -120,6 +127,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         frozen_mappings: list[dict[str, Any]],
         compiler: Any,
         mapping_prompt_resolver: Any,
+        instructional_prompt_resolver: Any | None,
         mapping_prompt_user_context_factory: Any,
     ) -> None:
         self._cases = cases
@@ -131,6 +139,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         self._frozen_mappings = frozen_mappings
         self._compiler = compiler
         self._mapping_prompt_resolver = mapping_prompt_resolver
+        self._instructional_prompt_resolver = instructional_prompt_resolver
         self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
 
     async def resolve(
@@ -216,6 +225,13 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 target_table_node_ids=_currency_plan_target_table_node_ids(plan),
                 frozen_mappings=self._frozen_mappings,
             )
+            instructional_state = current[1].get("instructional_classification_state")
+            if instructional_state is not None and outcome["status"] == "COMPLETE":
+                outcome = self._finalize_instructional_mapping_outcome(
+                    binding=binding,
+                    instructional_state=instructional_state,
+                    mapping_outcome=outcome,
+                )
             saved = self._cases.save_mapping_outcome(
                 document_id=document_id,
                 context=context,
@@ -323,6 +339,64 @@ class OrdinaryTradeAutomaticMappingRuntime:
             for table_node_id in target_table_node_ids
             if table_node_id not in confirmed_exclusion_ids
         ]
+        instructional_state = (
+            current[1].get("instructional_classification_state")
+            if current is not None
+            else None
+        )
+        if self._instructional_prompt_resolver is not None:
+            preclassification = await self._advance_instructional_preclassification(
+                document_id=document_id,
+                context=context,
+                binding=binding,
+                current=current,
+                target_table_node_ids=target_table_node_ids,
+            )
+            if preclassification.get("turn_complete"):
+                return self._result(
+                    current=preclassification["current"],
+                    context=context,
+                    provider_calls_this_turn=preclassification["provider_calls_this_turn"],
+                )
+            current = preclassification["current"]
+            instructional_state = preclassification["state"]
+            rebound = self._semantic.rebind_instructional_classification_outcomes(
+                canonical=binding["canonical"],
+                target_table_node_ids=instructional_state["target_table_node_ids"],
+                classifier_outcomes=[
+                    {
+                        "table_node_id": item["table_node_id"],
+                        "response": item["response"],
+                    }
+                    for item in instructional_state["completed_table_outcomes"]
+                ],
+            )
+            target_table_node_ids = rebound["mapping_target_table_node_ids"]
+            if not target_table_node_ids:
+                outcome = self._semantic.finalize_instructional_preclassification(
+                    canonical=binding["canonical"],
+                    canonical_binding=binding["canonical_binding"],
+                    user_scope_sha256=binding["user_scope_sha256"],
+                    target_table_node_ids=instructional_state["target_table_node_ids"],
+                    classifier_outcomes=[
+                        {
+                            "table_node_id": item["table_node_id"],
+                            "response": item["response"],
+                        }
+                        for item in instructional_state["completed_table_outcomes"]
+                    ],
+                    mapping_outcome=None,
+                    frozen_mappings=self._frozen_mappings,
+                )
+                saved = self._cases.save_mapping_outcome(
+                    document_id=document_id,
+                    context=context,
+                    outcome=outcome,
+                    provider_calls_total=0,
+                )
+                return self._result(
+                    current=saved, context=context, provider_calls_this_turn=0
+                )
         if not target_table_node_ids:
             saved = self._cases.save_deterministic_terminal(
                 document_id=document_id,
@@ -515,6 +589,12 @@ class OrdinaryTradeAutomaticMappingRuntime:
             return self._result(
                 current=saved, context=context, provider_calls_this_turn=1
             )
+        if outcome["status"] == "COMPLETE" and instructional_state is not None:
+            outcome = self._finalize_instructional_mapping_outcome(
+                binding=binding,
+                instructional_state=instructional_state,
+                mapping_outcome=outcome,
+            )
         saved = self._cases.save_mapping_outcome(
             document_id=document_id,
             context=context,
@@ -611,6 +691,15 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 batch_outcomes=completed,
                 frozen_mappings=self._frozen_mappings,
             )
+            instructional_state = current[1].get(
+                "instructional_classification_state"
+            )
+            if instructional_state is not None:
+                aggregate = self._finalize_instructional_mapping_outcome(
+                    binding=binding,
+                    instructional_state=instructional_state,
+                    mapping_outcome=aggregate,
+                )
             saved = self._cases.save_mapping_outcome(
                 document_id=document_id,
                 context=context,
@@ -861,6 +950,249 @@ class OrdinaryTradeAutomaticMappingRuntime:
             prompt = await prompt
         return prompt
 
+    async def _resolve_instructional_prompt(
+        self, *, context: ArtifactAccessContext
+    ) -> Any:
+        prompt = self._instructional_prompt_resolver.resolve(
+            self._mapping_prompt_user_context(context)
+        )
+        if inspect.isawaitable(prompt):
+            prompt = await prompt
+        return prompt
+
+    async def _advance_instructional_preclassification(
+        self,
+        *,
+        document_id: str,
+        context: ArtifactAccessContext,
+        binding: dict[str, Any],
+        current: tuple[Any, dict[str, Any]] | None,
+        target_table_node_ids: list[str],
+    ) -> dict[str, Any]:
+        """Run at most one narrow classification call and persist its receipt."""
+
+        state = (
+            copy.deepcopy(current[1].get("instructional_classification_state"))
+            if current is not None
+            else None
+        )
+        if state is None:
+            if not target_table_node_ids:
+                return {
+                    "current": current,
+                    "state": None,
+                    "provider_calls_this_turn": 0,
+                    "turn_complete": False,
+                }
+            try:
+                prompt = await self._resolve_instructional_prompt(context=context)
+                snapshot = validate_instructional_classification_prompt_snapshot(
+                    prompt.snapshot()
+                )
+            except Exception as exc:
+                saved = self._cases.save_provider_terminal(
+                    document_id=document_id,
+                    context=context,
+                    status="PROVIDER_UNAVAILABLE",
+                    reason_code=str(
+                        getattr(
+                            exc,
+                            "code",
+                            "instructional_classification_prompt_unavailable",
+                        )
+                    ),
+                    message="The instructional-classification instruction is unavailable.",
+                    provider_calls_total=0,
+                )
+                return {
+                    "current": saved,
+                    "state": None,
+                    "provider_calls_this_turn": 0,
+                    "turn_complete": True,
+                }
+            state = {
+                "schema_version": "broker_reports_instructional_table_classification_state_v1",
+                "target_table_node_ids": list(target_table_node_ids),
+                "completed_table_outcomes": [],
+                "pending_table_node_id": target_table_node_ids[0],
+            }
+            current = self._cases.save_instructional_classification_state(
+                document_id=document_id,
+                context=context,
+                status="MAPPING_REQUIRED",
+                message="Instructional table classification is in progress.",
+                instructional_classification_state=state,
+                instructional_prompt_snapshot=snapshot,
+                provider_calls_total=0,
+            )
+        else:
+            if state["target_table_node_ids"] != target_table_node_ids:
+                saved = self._cases.save_instructional_classification_state(
+                    document_id=document_id,
+                    context=context,
+                    status="SPECIALIST_REVIEW_REQUIRED",
+                    message="The instructional classification scope no longer matches Canonical.",
+                    instructional_classification_state=state,
+                    instructional_prompt_snapshot=current[1]["instructional_prompt_snapshot"],
+                    provider_calls_total=0,
+                    reason_code="ordinary_trade_instructional_scope_stale",
+                )
+                return {
+                    "current": saved,
+                    "state": state,
+                    "provider_calls_this_turn": 0,
+                    "turn_complete": True,
+                }
+            try:
+                prompt = await self._resolve_instructional_prompt(context=context)
+                snapshot = validate_instructional_classification_prompt_snapshot(
+                    prompt.snapshot()
+                )
+                if snapshot != current[1].get("instructional_prompt_snapshot"):
+                    raise OrdinaryTradeAutomaticMappingError(
+                        "ordinary_trade_instructional_prompt_snapshot_mismatch"
+                    )
+            except Exception as exc:
+                saved = self._cases.save_instructional_classification_state(
+                    document_id=document_id,
+                    context=context,
+                    status="PROVIDER_UNAVAILABLE",
+                    message="The pinned instructional classification instruction is unavailable.",
+                    instructional_classification_state=state,
+                    instructional_prompt_snapshot=current[1]["instructional_prompt_snapshot"],
+                    provider_calls_total=0,
+                    reason_code=str(
+                        getattr(
+                            exc,
+                            "code",
+                            "instructional_classification_prompt_unavailable",
+                        )
+                    ),
+                )
+                return {
+                    "current": saved,
+                    "state": state,
+                    "provider_calls_this_turn": 0,
+                    "turn_complete": True,
+                }
+        pending = state["pending_table_node_id"]
+        if pending is None:
+            return {
+                "current": current,
+                "state": state,
+                "provider_calls_this_turn": 0,
+                "turn_complete": False,
+            }
+        descriptor = self._semantic.build_instructional_classification_descriptor(
+            canonical=binding["canonical"], table_node_id=pending
+        )
+        try:
+            response = await self._model_client.extract(
+                prompt=prompt,
+                package=descriptor["case"],
+                model_id=self._model_id,
+                response_format=instructional_response_format(),
+            )
+            _strict_result(response)
+            response_value = _model_content_dict(response)
+            admitted = self._semantic.admit_instructional_classification(
+                canonical=binding["canonical"],
+                descriptor=descriptor,
+                response=response_value,
+            )
+        except Exception as exc:
+            saved = self._cases.save_instructional_classification_state(
+                document_id=document_id,
+                context=context,
+                status="MAPPING_OUTPUT_INVALID",
+                message="The instructional classification response is invalid.",
+                instructional_classification_state=state,
+                instructional_prompt_snapshot=snapshot,
+                provider_calls_total=1,
+                reason_code=str(
+                    getattr(
+                        exc,
+                        "code",
+                        "ordinary_trade_instructional_response_invalid",
+                    )
+                ),
+            )
+            return {
+                "current": saved,
+                "state": state,
+                "provider_calls_this_turn": 1,
+                "turn_complete": True,
+            }
+        state["completed_table_outcomes"].append(
+            {
+                "table_node_id": pending,
+                "descriptor_sha256": _sha256_json(descriptor),
+                "response": response_value,
+                "response_sha256": _sha256_json(response_value),
+                "execution_metadata_sha256": _metadata_sha256(
+                    response.execution_metadata
+                ),
+            }
+        )
+        completed = len(state["completed_table_outcomes"])
+        state["pending_table_node_id"] = (
+            state["target_table_node_ids"][completed]
+            if completed < len(state["target_table_node_ids"])
+            else None
+        )
+        status = (
+            "SPECIALIST_REVIEW_REQUIRED"
+            if admitted["classification"] == "SPECIALIST_REVIEW_REQUIRED"
+            else "MAPPING_REQUIRED"
+        )
+        saved = self._cases.save_instructional_classification_state(
+            document_id=document_id,
+            context=context,
+            status=status,
+            message=(
+                "Instructional classification requires specialist review."
+                if status == "SPECIALIST_REVIEW_REQUIRED"
+                else "One instructional table classification is bound to Canonical."
+            ),
+            instructional_classification_state=state,
+            instructional_prompt_snapshot=snapshot,
+            provider_calls_total=1,
+            reason_code=(
+                "ordinary_trade_instructional_specialist_review_required"
+                if status == "SPECIALIST_REVIEW_REQUIRED"
+                else None
+            ),
+        )
+        return {
+            "current": saved,
+            "state": state,
+            "provider_calls_this_turn": 1,
+            "turn_complete": True,
+        }
+
+    def _finalize_instructional_mapping_outcome(
+        self,
+        *,
+        binding: dict[str, Any],
+        instructional_state: dict[str, Any],
+        mapping_outcome: dict[str, Any],
+    ) -> dict[str, Any]:
+        return self._semantic.finalize_instructional_preclassification(
+            canonical=binding["canonical"],
+            canonical_binding=binding["canonical_binding"],
+            user_scope_sha256=binding["user_scope_sha256"],
+            target_table_node_ids=instructional_state["target_table_node_ids"],
+            classifier_outcomes=[
+                {
+                    "table_node_id": item["table_node_id"],
+                    "response": item["response"],
+                }
+                for item in instructional_state["completed_table_outcomes"]
+            ],
+            mapping_outcome=mapping_outcome,
+            frozen_mappings=self._frozen_mappings,
+        )
+
     def _result(
         self,
         *,
@@ -897,6 +1229,26 @@ def _strict_result(response: Any) -> None:
             "ordinary_trade_mapping_strict_output_required",
             "Semantic mapping requires one strict output without repair",
         )
+
+
+def _model_content_dict(response: Any) -> dict[str, Any]:
+    value = getattr(response, "content", response)
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise OrdinaryTradeAutomaticMappingError(
+                "ordinary_trade_instructional_response_json_invalid"
+            ) from exc
+    if not isinstance(value, dict):
+        raise OrdinaryTradeAutomaticMappingError(
+            "ordinary_trade_instructional_response_shape_invalid"
+        )
+    return copy.deepcopy(value)
+
+
+def _metadata_sha256(value: Any) -> str:
+    return hashlib.sha256(repr(value).encode("utf-8")).hexdigest()
 
 
 def _sha256_json(value: Any) -> str:

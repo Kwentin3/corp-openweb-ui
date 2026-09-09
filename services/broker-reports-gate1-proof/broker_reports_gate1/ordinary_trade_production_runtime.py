@@ -63,6 +63,7 @@ class OrdinaryTradeProductionRuntimeFactory:
         mapping_model_client: Any | None = None,
         mapping_answer_model_client: Any | None = None,
         mapping_prompt_resolver: Any | None = None,
+        instructional_prompt_resolver: Any | None = None,
         mapping_prompt_user_context_factory: Any | None = None,
         mapping_model_id: str | None = None,
         mapping_provider_profile_id: str | None = None,
@@ -73,6 +74,7 @@ class OrdinaryTradeProductionRuntimeFactory:
         self._mapping_model_client = mapping_model_client
         self._mapping_answer_model_client = mapping_answer_model_client
         self._mapping_prompt_resolver = mapping_prompt_resolver
+        self._instructional_prompt_resolver = instructional_prompt_resolver
         self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
         self._mapping_model_id = mapping_model_id
         self._mapping_provider_profile_id = mapping_provider_profile_id
@@ -105,6 +107,7 @@ class OrdinaryTradeProductionRuntimeFactory:
                 model_client=self._mapping_model_client,
                 answer_model_client=self._mapping_answer_model_client,
                 mapping_prompt_resolver=self._mapping_prompt_resolver,
+                instructional_prompt_resolver=self._instructional_prompt_resolver,
                 mapping_prompt_user_context_factory=(
                     self._mapping_prompt_user_context_factory
                 ),

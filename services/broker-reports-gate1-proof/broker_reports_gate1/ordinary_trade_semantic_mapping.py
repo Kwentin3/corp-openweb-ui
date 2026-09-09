@@ -331,23 +331,14 @@ class OrdinaryTradeSemanticMapping:
             "table_resolution": resolution,
         }
 
-    def finalize_instructional_preclassification(
+    def rebind_instructional_classification_outcomes(
         self,
         *,
         canonical: Mapping[str, Any],
-        canonical_binding: Mapping[str, str],
-        user_scope_sha256: str,
         target_table_node_ids: Iterable[str],
         classifier_outcomes: Iterable[Mapping[str, Any]],
-        mapping_outcome: Mapping[str, Any] | None,
-        frozen_mappings: Iterable[Mapping[str, Any]] = (),
     ) -> dict[str, Any]:
-        """Publish one complete scope after re-binding its narrow classifications.
-
-        The coordinator supplies opaque model responses only.  This owner rebuilds
-        every descriptor from the current Canonical before a classifier result can
-        exclude a table from ordinary role mapping.
-        """
+        """Rebind stored narrow answers to the exact current Canonical scope."""
 
         target_ids = _ordered_target_table_node_ids(
             canonical=canonical, target_table_node_ids=target_table_node_ids
@@ -378,6 +369,38 @@ class OrdinaryTradeSemanticMapping:
                 mapping_target_ids.append(expected_id)
             else:
                 instructional_resolutions.append(resolution)
+        return {
+            "target_table_node_ids": target_ids,
+            "instructional_resolutions": instructional_resolutions,
+            "mapping_target_table_node_ids": mapping_target_ids,
+        }
+
+    def finalize_instructional_preclassification(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        canonical_binding: Mapping[str, str],
+        user_scope_sha256: str,
+        target_table_node_ids: Iterable[str],
+        classifier_outcomes: Iterable[Mapping[str, Any]],
+        mapping_outcome: Mapping[str, Any] | None,
+        frozen_mappings: Iterable[Mapping[str, Any]] = (),
+    ) -> dict[str, Any]:
+        """Publish one complete scope after re-binding its narrow classifications.
+
+        The coordinator supplies opaque model responses only.  This owner rebuilds
+        every descriptor from the current Canonical before a classifier result can
+        exclude a table from ordinary role mapping.
+        """
+
+        rebound = self.rebind_instructional_classification_outcomes(
+            canonical=canonical,
+            target_table_node_ids=target_table_node_ids,
+            classifier_outcomes=classifier_outcomes,
+        )
+        target_ids = rebound["target_table_node_ids"]
+        instructional_resolutions = rebound["instructional_resolutions"]
+        mapping_target_ids = rebound["mapping_target_table_node_ids"]
 
         mapping_resolutions: list[dict[str, Any]] = []
         qualified_mappings: list[dict[str, Any]] = []

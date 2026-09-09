@@ -28,6 +28,20 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
 from broker_reports_gate1.ordinary_trade_mapping_runtime import (
     OrdinaryTradeAutomaticMappingRuntimeFactory,
 )
+from broker_reports_gate1.instructional_table_classification import (
+    INPUT_SCHEMA_VERSION as INSTRUCTIONAL_INPUT_SCHEMA_VERSION,
+    OUTPUT_SCHEMA_VERSION as INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
+    PROMPT_CONTRACT_ID as INSTRUCTIONAL_PROMPT_CONTRACT_ID,
+    PROMPT_PLACEHOLDER as INSTRUCTIONAL_PROMPT_PLACEHOLDER,
+    prompt_hash as instructional_prompt_hash,
+)
+from broker_reports_gate1.instructional_table_classification_prompt import (
+    PROMPT_COMMAND as INSTRUCTIONAL_PROMPT_COMMAND,
+    PROMPT_REQUIRED_TAG as INSTRUCTIONAL_PROMPT_REQUIRED_TAG,
+    PROMPT_TEMPLATE_ID as INSTRUCTIONAL_PROMPT_TEMPLATE_ID,
+    PROMPT_TEMPLATE_KIND as INSTRUCTIONAL_PROMPT_TEMPLATE_KIND,
+    InstructionalClassificationManagedPrompt,
+)
 from broker_reports_gate1.ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
@@ -110,12 +124,52 @@ def _mapping_prompt_dependencies() -> dict[str, object]:
     }
 
 
+def _test_instructional_prompt() -> InstructionalClassificationManagedPrompt:
+    content = "Classify " + INSTRUCTIONAL_PROMPT_PLACEHOLDER + " as strict JSON."
+    return InstructionalClassificationManagedPrompt(
+        prompt_ref="test-instructional-prompt",
+        command=INSTRUCTIONAL_PROMPT_COMMAND,
+        version="test-v1",
+        content=content,
+        hash=instructional_prompt_hash(content),
+        source="test",
+        template_id=INSTRUCTIONAL_PROMPT_TEMPLATE_ID,
+        template_kind=INSTRUCTIONAL_PROMPT_TEMPLATE_KIND,
+        prompt_contract_id=INSTRUCTIONAL_PROMPT_CONTRACT_ID,
+        input_schema_version=INSTRUCTIONAL_INPUT_SCHEMA_VERSION,
+        output_schema_id=INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
+        output_schema_version=INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
+        tags=(INSTRUCTIONAL_PROMPT_REQUIRED_TAG,),
+        safe_metadata={"name": "test", "mapping_domain": "ordinary_trade"},
+    )
+
+
+class StaticInstructionalPromptResolver:
+    def resolve(self, _user_context):
+        return _test_instructional_prompt()
+
+
 def _runtime(store, client):
     return OrdinaryTradeAutomaticMappingRuntimeFactory(
         store=store,
         read_enabled=True,
         model_client=client,
         **_mapping_prompt_dependencies(),
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+    ).create()
+
+
+def _runtime_with_instructional_classifier(store, client):
+    dependencies = _mapping_prompt_dependencies()
+    dependencies["instructional_prompt_resolver"] = (
+        StaticInstructionalPromptResolver()
+    )
+    return OrdinaryTradeAutomaticMappingRuntimeFactory(
+        store=store,
+        read_enabled=True,
+        model_client=client,
+        **dependencies,
         model_id="models/gemini-3.5-flash",
         provider_profile_id="google_gemini",
     ).create()
@@ -272,6 +326,45 @@ async def _native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
     assert result["status"] == "COMPLETE"
     assert result["provider_calls_this_turn"] == 1
     assert len(client.calls) == 1
+
+
+async def _instructional_preclassification_keeps_trade_mapping_in_one_pipeline(
+    tmp_path,
+) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+    client = BoundaryModelClient(
+        [
+            {
+                "schema_version": INSTRUCTIONAL_OUTPUT_SCHEMA_VERSION,
+                "classification": "NOT_INSTRUCTIONAL",
+                "header_row": 1,
+                "classification_evidence": [],
+            },
+            case_fixtures._complete(table, mapping),
+        ]
+    )
+    runtime = _runtime_with_instructional_classifier(store, client)
+
+    first = await runtime.resolve(document_id=document_id, context=context)
+    second = await runtime.resolve(document_id=document_id, context=context)
+
+    assert first["status"] == "MAPPING_REQUIRED"
+    assert first["provider_calls_this_turn"] == 1
+    assert second["status"] == "COMPLETE"
+    assert second["provider_calls_this_turn"] == 1
+    assert [item["prompt"].prompt_ref for item in client.calls] == [
+        "test-instructional-prompt",
+        "test-ordinary-trade-mapping-prompt",
+    ]
+    saved = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
+        document_id=document_id, context=context
+    )[1]
+    assert saved["instructional_prompt_snapshot"]["prompt_ref"] == (
+        "test-instructional-prompt"
+    )
+    assert saved["table_resolutions"][0]["disposition"] == "SECURITY_TRADES"
 
 
 async def _interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:
@@ -1626,6 +1719,12 @@ def test_one_strict_mapping_call_completes_unknown_schema(tmp_path) -> None:
 
 def test_native_prompt_owner_completes_unknown_schema(tmp_path) -> None:
     asyncio.run(_native_prompt_owner_completes_unknown_schema(tmp_path))
+
+
+def test_instructional_preclassification_keeps_trade_mapping_in_one_pipeline(
+    tmp_path,
+) -> None:
+    asyncio.run(_instructional_preclassification_keeps_trade_mapping_in_one_pipeline(tmp_path))
 
 
 def test_interactive_mapping_response_is_terminal_without_second_call(tmp_path) -> None:
