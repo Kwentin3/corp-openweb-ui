@@ -857,6 +857,34 @@ async def _invalid_automatic_mapping_fails_closed_without_a_user_loop(tmp_path) 
     assert current["qualified_mappings"] == []
 
 
+async def _complete_mapping_above_legacy_row_sample_is_possible(tmp_path) -> None:
+    purchase = case_fixtures.candidate._ROWS[1]
+    disposal = case_fixtures.candidate._ROWS[2]
+    headers = list(case_fixtures.candidate._ROWS[0])
+    headers[0] = headers[0] + " (complete scope above legacy sample)"
+    rows = (tuple(headers), *([purchase] * 24), disposal)
+    store, context, document_id, mapping = case_fixtures.candidate._case(
+        tmp_path, rows=rows
+    )
+    envelope = (
+        CanonicalReaderFactory(store=store, read_enabled=True)
+        .create()
+        .read_active_envelope(document_id, context)
+    )
+    table = next(
+        item for item in envelope.artifact["nodes"] if item["node_type"] == "TABLE"
+    )
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping)])
+    runtime = _runtime(store, client)
+
+    result = await runtime.resolve(document_id=document_id, context=context)
+
+    assert result["status"] == "COMPLETE"
+    package_table = client.calls[0]["package"]["case"]["tables"][0]
+    assert package_table["rows_truncated"] is False
+    assert len(package_table["rows"]) == len(rows)
+
+
 async def _rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> None:
     purchase = case_fixtures.candidate._ROWS[1]
     disposal = case_fixtures.candidate._ROWS[2]
@@ -888,7 +916,8 @@ async def _rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> N
     assert result["status"] == "MAPPING_OUTPUT_INVALID"
     assert "не покрывает все значения" in result["public_state"]["message"]
     package_table = client.calls[0]["package"]["case"]["tables"][0]
-    assert package_table["rows_truncated"] is True
+    assert package_table["rows_truncated"] is False
+    assert len(package_table["rows"]) == len(rows)
     side_column = next(
         item["column"] for item in mapping["columns"] if item["semantic_role"] == "side"
     )
@@ -1833,6 +1862,10 @@ def test_invalid_automatic_mapping_fails_closed_without_a_user_loop(tmp_path) ->
 
 def test_rare_side_literal_below_sample_cannot_complete_mapping(tmp_path) -> None:
     asyncio.run(_rare_side_literal_below_sample_cannot_complete_mapping(tmp_path))
+
+
+def test_complete_mapping_above_legacy_row_sample_is_possible(tmp_path) -> None:
+    asyncio.run(_complete_mapping_above_legacy_row_sample_is_possible(tmp_path))
 
 
 def test_complete_mapping_retains_incomplete_scoped_rows(tmp_path) -> None:

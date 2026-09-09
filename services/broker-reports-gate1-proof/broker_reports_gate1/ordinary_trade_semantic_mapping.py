@@ -133,7 +133,6 @@ _MAX_TABLES = 64
 _MAX_ROWS_PER_TABLE = 256
 _MAX_CELLS_TOTAL = 12_000
 _MAX_CONTEXT_BYTES = 524_288
-_MAX_MODEL_ROWS_PER_TABLE = 24
 # Keep enough local source structure to distinguish an instructional table from
 # a declarant record, while retaining the prior bounded context budget.
 _MAX_LOCAL_CONTEXT_ITEMS = 8
@@ -1737,7 +1736,14 @@ def _model_table_surfaces(
     *,
     target_table_node_ids: Iterable[str] | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, str]]:
-    """Expose only opaque table refs and a bounded value sample to the model."""
+    """Expose one complete, bounded Canonical table scope to the mapper.
+
+    The mapper's response contract binds a disposition to every non-empty
+    Canonical row.  Giving it a sample here would make that contract impossible
+    for a longer table.  The existing per-table and package context limits own
+    the transport bound; classification has its own, deliberately smaller
+    descriptor and is not affected by this mapping representation.
+    """
 
     tables = _selected_table_surfaces(
         canonical=canonical,
@@ -1766,8 +1772,8 @@ def _model_table_surfaces(
                 "header_row_choices": [
                     item["row"] for item in rows if item["cells"]
                 ],
-                "rows": copy.deepcopy(rows[:_MAX_MODEL_ROWS_PER_TABLE]),
-                "rows_truncated": len(rows) > _MAX_MODEL_ROWS_PER_TABLE,
+                "rows": copy.deepcopy(rows),
+                "rows_truncated": False,
                 "source_context": copy.deepcopy(table["source_context"]),
                 "column_distinct_values": [
                     {
