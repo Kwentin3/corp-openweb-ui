@@ -214,7 +214,6 @@ def test_recognized_incomplete_trade_is_retained_as_source_gap_not_pipeline_defe
     decision = response["table_decisions"][0]
     decision["disposition"] = "SECURITY_TRADES_INCOMPLETE"
     decision["amount_currency_bindings"] = []
-    decision["missing_required_roles"] = ["asset_name"]
     decision["columns"] = [
         {
             **item,
@@ -378,8 +377,9 @@ def test_exclusion_without_direct_canonical_context_is_rejected(tmp_path) -> Non
                         "columns": [],
                         "amount_currency_bindings": [],
                         "side_values": [],
-                        "row_dispositions": [],
-                        "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+                            "row_dispositions": [],
+                            "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+                            "classification_evidence": [],
                     }
                     for index in (1, 2)
                 ],

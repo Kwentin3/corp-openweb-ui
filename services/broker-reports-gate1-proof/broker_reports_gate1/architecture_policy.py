@@ -210,7 +210,7 @@ PROVIDER_CALL_SITE_CLASSIFICATIONS = {
     "ordinary_trade_semantic_mapping": (
         "SOURCE_ADAPTER",
         "external_table_semantics_and_column_roles",
-        "broker_reports_ordinary_trade_semantic_mapping_response_v9",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v10",
     ),
     "ordinary_trade_mapping_answer": (
         "HUMAN_ADAPTER",

@@ -1093,7 +1093,6 @@ def test_recognized_incomplete_security_trade_retains_role_without_fact_mapping(
     decision = response["table_decisions"][0]
     decision["disposition"] = "SECURITY_TRADES_INCOMPLETE"
     decision["amount_currency_bindings"] = []
-    decision["missing_required_roles"] = ["currency"]
     decision["columns"] = [
         {
             **item,
@@ -1132,6 +1131,38 @@ def test_recognized_incomplete_security_trade_retains_role_without_fact_mapping(
         "unmapped",
     }
     assert resolution[0]["security_trade_rows"] == [2, 3]
+
+
+def test_current_incomplete_trade_rejects_model_authored_gap_list(tmp_path) -> None:
+    _context, canonical, binding, table, known = _canonical_case(tmp_path)
+    response = _complete_response(table, known)
+    decision = response["table_decisions"][0]
+    decision["disposition"] = "SECURITY_TRADES_INCOMPLETE"
+    decision["amount_currency_bindings"] = []
+    decision["missing_required_roles"] = ["currency"]
+    decision["columns"] = [
+        {
+            **item,
+            "semantic_role": "unmapped"
+            if item["semantic_role"] == "currency"
+            else item["semantic_role"],
+        }
+        for item in decision["columns"]
+    ]
+
+    with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
+        OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
+            response=response,
+            canonical=canonical,
+            canonical_binding=binding,
+            model_id="models/gemini-3.5-flash",
+            provider_profile_id="google_gemini",
+            execution_metadata=_metadata(),
+            confirmed_understandings=[],
+            user_scope_sha256="a" * 64,
+        )
+
+    assert exc.value.code == "ordinary_trade_semantic_mapping_table_decision_invalid"
 
 
 def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> None:

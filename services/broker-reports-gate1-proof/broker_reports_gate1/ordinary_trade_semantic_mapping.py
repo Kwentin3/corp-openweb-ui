@@ -22,17 +22,29 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v9"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v10"
 )
 _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS = frozenset(
     {
         "broker_reports_ordinary_trade_semantic_mapping_response_v6",
         "broker_reports_ordinary_trade_semantic_mapping_response_v7",
         "broker_reports_ordinary_trade_semantic_mapping_response_v8",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v9",
     }
 )
 _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
-    {MAPPING_RESPONSE_SCHEMA_VERSION}
+    {
+        "broker_reports_ordinary_trade_semantic_mapping_response_v9",
+        MAPPING_RESPONSE_SCHEMA_VERSION,
+    }
+)
+_MODEL_SUPPLIED_MISSING_REQUIRED_ROLES_SCHEMA_VERSIONS = frozenset(
+    {
+        "broker_reports_ordinary_trade_semantic_mapping_response_v6",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v7",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v8",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v9",
+    }
 )
 _MODEL_SUPPLIED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
     {
@@ -661,6 +673,10 @@ class OrdinaryTradeSemanticMapping:
                         value["schema_version"]
                         in _MODEL_SUPPLIED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
                     ),
+                    model_supplies_missing_required_roles=(
+                        value["schema_version"]
+                        in _MODEL_SUPPLIED_MISSING_REQUIRED_ROLES_SCHEMA_VERSIONS
+                    ),
                     preserve_model_classification_evidence=(
                         value["schema_version"]
                         in _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
@@ -770,6 +786,10 @@ class OrdinaryTradeSemanticMapping:
                 model_supplies_classification_evidence=(
                     value["schema_version"]
                     in _MODEL_SUPPLIED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
+                ),
+                model_supplies_missing_required_roles=(
+                    value["schema_version"]
+                    in _MODEL_SUPPLIED_MISSING_REQUIRED_ROLES_SCHEMA_VERSIONS
                 ),
                 preserve_model_classification_evidence=(
                     value["schema_version"]
@@ -1824,6 +1844,7 @@ def _validate_table_decision(
     allow_user_currency: bool = False,
     allow_legacy_no_consumer: bool = False,
     model_supplies_classification_evidence: bool = False,
+    model_supplies_missing_required_roles: bool = False,
     preserve_model_classification_evidence: bool = False,
 ) -> dict[str, Any]:
     base_fields = {
@@ -1835,7 +1856,11 @@ def _validate_table_decision(
         "side_values",
         "row_dispositions",
     }
-    incomplete_fields = base_fields | {"missing_required_roles"}
+    incomplete_fields = (
+        base_fields | {"missing_required_roles"}
+        if model_supplies_missing_required_roles
+        else base_fields
+    )
     no_consumer_fields = base_fields | {
         "no_consumer_kind",
     }
@@ -1867,7 +1892,13 @@ def _validate_table_decision(
         _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
     disposition = decision["disposition"]
     incomplete = disposition == "SECURITY_TRADES_INCOMPLETE"
-    if incomplete != (set(decision) == incomplete_fields):
+    if (
+        model_supplies_missing_required_roles
+        and (
+            (incomplete and set(decision) != incomplete_fields)
+            or (not incomplete and set(decision) == incomplete_fields)
+        )
+    ):
         _fail("ordinary_trade_semantic_mapping_table_decision_invalid")
     no_consumer = disposition == "NO_NAMED_CONSUMER"
     expected_no_consumer_fields = (
@@ -1977,13 +2008,13 @@ def _validate_table_decision(
         item["semantic_role"] for item in columns if item["semantic_role"] in _REQUIRED_ROLES
     }
     if incomplete:
-        missing_required_roles = decision.get("missing_required_roles")
+        missing_required_roles = sorted(_REQUIRED_ROLES - present_required_roles)
         if (
-            not isinstance(missing_required_roles, list)
-            or missing_required_roles != sorted(set(missing_required_roles))
-            or not missing_required_roles
-            or any(item not in _REQUIRED_ROLES for item in missing_required_roles)
-            or set(missing_required_roles) != _REQUIRED_ROLES - present_required_roles
+            not missing_required_roles
+            or (
+                model_supplies_missing_required_roles
+                and decision.get("missing_required_roles") != missing_required_roles
+            )
             or decision["amount_currency_bindings"]
             or user_currency_assertion is not None
             or allow_user_currency
@@ -2068,7 +2099,7 @@ def _validate_table_decision(
         "side_values": copy.deepcopy(side_values),
         "security_trade_rows": security_trade_rows,
         **(
-            {"missing_required_roles": copy.deepcopy(decision["missing_required_roles"])}
+            {"missing_required_roles": copy.deepcopy(missing_required_roles)}
             if incomplete
             else {}
         ),
@@ -2565,7 +2596,6 @@ def _mapping_response_schema() -> dict[str, Any]:
             "amount_currency_bindings",
             "side_values",
             "row_dispositions",
-            "missing_required_roles",
         ],
         "properties": {
             **table_decision_common,
@@ -2590,12 +2620,6 @@ def _mapping_response_schema() -> dict[str, Any]:
             "row_dispositions": security_trade_table_decision["properties"][
                 "row_dispositions"
             ],
-            "missing_required_roles": {
-                "type": "array",
-                "minItems": 1,
-                "uniqueItems": True,
-                "items": {"type": "string", "enum": sorted(_REQUIRED_ROLES)},
-            },
         },
     }
     classification_evidence_pointer = {
