@@ -7,8 +7,6 @@ import asyncio
 import json
 import subprocess
 import sys
-import queue
-import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -27,33 +25,37 @@ import qualify_goal391_current_mapping_lab as lab
 
 class Bridge:
     def __init__(self, path: Path) -> None:
-        self.process = subprocess.Popen(["node", str(path)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.path = path
         self.last_error: str | None = None
 
     def call(self, payload: dict) -> dict:
-        assert self.process.stdin and self.process.stdout
-        self.process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
-        self.process.stdin.flush()
-        lines: queue.Queue[str] = queue.Queue(maxsize=1)
-        threading.Thread(target=lambda: lines.put(self.process.stdout.readline()), daemon=True).start()
         try:
-            line = lines.get(timeout=125)
-        except queue.Empty:
+            result = subprocess.run(
+                ["node", str(self.path)],
+                input=json.dumps(payload, ensure_ascii=False),
+                capture_output=True,
+                text=True,
+                timeout=125,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
             self.last_error = "goal391_browser_bridge_timeout"
-            self.process.kill()
             raise BrowserBridgeError(self.last_error)
-        if not line:
+        if result.returncode != 0 or not result.stdout.strip():
+            self.last_error = "goal391_browser_bridge_unavailable"
             raise RuntimeError("goal391_browser_bridge_unavailable")
-        result = json.loads(line)
-        if result.get("ok") is not True:
-            self.last_error = result.get("code") or "goal391_browser_bridge_failed"
+        try:
+            response = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            self.last_error = "goal391_browser_bridge_invalid_response"
+            raise BrowserBridgeError(self.last_error) from exc
+        if response.get("ok") is not True:
+            self.last_error = response.get("code") or "goal391_browser_bridge_failed"
             raise BrowserBridgeError(self.last_error)
-        return result["value"]
+        return response["value"]
 
     def close(self) -> None:
-        if self.process.stdin:
-            self.process.stdin.close()
-        self.process.wait(timeout=10)
+        return None
 
 
 class BrowserBridgeError(RuntimeError):

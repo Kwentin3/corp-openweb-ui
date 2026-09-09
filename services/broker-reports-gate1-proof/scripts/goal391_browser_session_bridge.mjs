@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /*
  * Private Goal #391 lab transport. It deliberately keeps browser credentials
- * inside the existing ordinary-user Chrome session. JSON Lines is used only
- * between the local lab coordinator and this process; it must never be logged.
+ * inside the existing ordinary-user Chrome session. One JSON request is read
+ * from stdin and one result is written to stdout. A fresh process for each
+ * request gives the coordinator an OS-enforced timeout boundary; neither
+ * credentials nor private values are logged.
  */
-import readline from 'node:readline';
 import { createRequire } from 'node:module';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
@@ -12,12 +13,14 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const forbidden = new Set(['chat_id', 'parent_id', 'id', 'user_message', 'files']);
 const endpoint = process.env.GOAL391_BROWSER_CDP_ENDPOINT || 'http://127.0.0.1:9222';
 const completionTimeoutMs = 120000;
-const browser = await chromium.connectOverCDP(endpoint);
-const page = browser.contexts().flatMap((context) => context.pages())
-  .find((candidate) => candidate.url().startsWith('https://gpt.alpha-soft.ru'));
-if (!page) throw new Error('goal391_browser_page_unavailable');
+function pageFor(browser) {
+  const page = browser.contexts().flatMap((context) => context.pages())
+    .find((candidate) => candidate.url().startsWith('https://gpt.alpha-soft.ru'));
+  if (!page) throw new Error('goal391_browser_page_unavailable');
+  return page;
+}
 
-async function get(path) {
+async function get(page, path) {
   return page.evaluate(async (value) => {
     const response = await fetch(value, { credentials: 'same-origin' });
     const text = await response.text();
@@ -26,20 +29,20 @@ async function get(path) {
   }, path);
 }
 
-async function dispatch(message) {
+async function dispatch(page, message) {
   if (message.op === 'preflight') {
     const [auth, models, prompt, chats] = await Promise.all([
-      get('/api/v1/auths/'), get('/api/models'), get(`/api/v1/prompts/id/${message.prompt_id}`), get('/api/v1/chats/?page=1'),
+      get(page, '/api/v1/auths/'), get(page, '/api/models'), get(page, `/api/v1/prompts/id/${message.prompt_id}`), get(page, '/api/v1/chats/?page=1'),
     ]);
     if (auth.status !== 200 || auth.body?.role !== 'user' || models.status !== 200 || prompt.status !== 200 || !Array.isArray(chats.body)) {
       throw new Error('goal391_browser_preflight_rejected');
     }
-    const history = await get(`/api/v1/prompts/id/${message.prompt_id}/history/${prompt.body.version_id}`);
+    const history = await get(page, `/api/v1/prompts/id/${message.prompt_id}/history/${prompt.body.version_id}`);
     if (history.status !== 200) throw new Error('goal391_browser_prompt_history_unavailable');
     return { auth: auth.body, models: models.body, prompt: prompt.body, history: history.body, chat_count: chats.body.length };
   }
   if (message.op === 'chat_count') {
-    const chats = await get('/api/v1/chats/?page=1');
+    const chats = await get(page, '/api/v1/chats/?page=1');
     if (chats.status !== 200 || !Array.isArray(chats.body)) throw new Error('goal391_browser_chat_count_unavailable');
     return { chat_count: chats.body.length };
   }
@@ -67,9 +70,16 @@ async function dispatch(message) {
   throw new Error('goal391_browser_operation_invalid');
 }
 
-const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
-for await (const line of input) {
-  try { process.stdout.write(`${JSON.stringify({ ok: true, value: await dispatch(JSON.parse(line)) })}\n`); }
-  catch (error) { process.stdout.write(`${JSON.stringify({ ok: false, code: error?.message || 'goal391_browser_bridge_error' })}\n`); }
+const chunks = [];
+for await (const chunk of process.stdin) chunks.push(chunk);
+let browser;
+try {
+  const message = JSON.parse(chunks.join(''));
+  browser = await chromium.connectOverCDP(endpoint);
+  const value = await dispatch(pageFor(browser), message);
+  process.stdout.write(`${JSON.stringify({ ok: true, value })}\n`);
+} catch (error) {
+  process.stdout.write(`${JSON.stringify({ ok: false, code: error?.message || 'goal391_browser_bridge_error' })}\n`);
+} finally {
+  if (browser) await browser.close();
 }
-await browser.close();
