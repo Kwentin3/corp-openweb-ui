@@ -878,8 +878,14 @@ class Pipe:
                     if self.valves.grouped_response_v14
                     else response
                 )
-                if semantic.mapping_response_contract_failure_code(response_value) is not None:
-                    raise Goal391MappingLabPipeError("goal391_lab_response_contract_invalid")
+                failure_code = semantic.mapping_response_contract_failure_code(
+                    response_value
+                )
+                if failure_code is not None:
+                    # The owner returns a value-free contract code.  Keeping it
+                    # in the laboratory receipt makes a post-response failure
+                    # actionable without exposing model or source content.
+                    raise Goal391MappingLabPipeError(f"goal391_lab_{failure_code}")
                 outcome = semantic.validate_mapping_response(
                     response=response_value,
                     canonical=item["case"]["canonical"],
@@ -972,10 +978,27 @@ class Pipe:
             )
             if node_id in expected_envelopes
         }
+        instructional_ids = {
+            str(decision["table_node_id"])
+            for decision in assessment["required_table_decisions"]
+            if decision.get("disposition") == "NO_NAMED_CONSUMER"
+            and decision.get("no_consumer_kind") == "INSTRUCTIONAL_REFERENCE"
+        }
+        # The semantic owner has already validated that each model-selected
+        # entry belongs to this table's Canonical source-context envelope.  The
+        # model is intentionally allowed to select a sufficient nonempty subset
+        # rather than repeat the complete owner envelope into its response.
+        # Requiring equality here would introduce a second, contradictory
+        # provenance contract in the laboratory adapter.
+        instructional_evidence_present = all(
+            isinstance(actual_envelopes.get(node_id), list)
+            and bool(actual_envelopes[node_id])
+            for node_id in instructional_ids
+        )
         matches = (
             result.get("status") == assessment["expected_status"]
             and all(resolutions.get(node_id) == decision for node_id, decision in expected.items())
-            and all(actual_envelopes.get(node_id) == envelope for node_id, envelope in expected_envelopes.items())
+            and instructional_evidence_present
             and not set(qualified).intersection(assessment["forbidden_qualified_mapping_table_node_ids"])
         )
         return {

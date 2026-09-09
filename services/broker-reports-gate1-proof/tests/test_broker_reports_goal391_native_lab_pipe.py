@@ -390,6 +390,91 @@ def test_preflight_receipt_is_terminal_and_has_zero_provider_calls():
     assert receipt["constraints"] == pipe._blocked_receipt("x")["constraints"]
 
 
+def test_safe_record_accepts_valid_selected_instructional_evidence_subset():
+    module = _load_source_module()
+    expected = {
+        "expected_status": "COMPLETE",
+        "required_table_decisions": [
+            {
+                "table_node_id": "instruction-1",
+                "disposition": "NO_NAMED_CONSUMER",
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+            },
+            {
+                "table_node_id": "instruction-2",
+                "disposition": "NO_NAMED_CONSUMER",
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+            },
+        ],
+        "unresolved_table_node_ids": [],
+        "forbidden_qualified_mapping_table_node_ids": [
+            "instruction-1", "instruction-2"
+        ],
+    }
+    owner_entry = {"context_ref": "context", "relation": "supports"}
+    item = {
+        "case": {
+            "case_id": "opaque-case",
+            "canonical_binding": {"canonical_root_sha256": "opaque-root"},
+            "expected_assessment": expected,
+        },
+        "owner_envelopes": {
+            "instruction-1": [owner_entry] * 5,
+            "instruction-2": [owner_entry] * 5,
+        },
+    }
+    outcome = {
+        "status": "COMPLETE",
+        "qualification_receipts": [],
+        "table_resolutions": [
+            {
+                "table_node_id": "instruction-1",
+                "disposition": "NO_NAMED_CONSUMER",
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                "classification_evidence": [owner_entry],
+            },
+            {
+                "table_node_id": "instruction-2",
+                "disposition": "NO_NAMED_CONSUMER",
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                "classification_evidence": [owner_entry],
+            },
+        ],
+    }
+
+    record = module.Pipe()._safe_record(item=item, outcome=outcome)
+
+    assert record["outcome"] == "PASS"
+    assert record["owner_classification_envelope_total"] == 10
+    assert record["actual_classification_envelope_total"] == 2
+
+
+def test_safe_record_rejects_missing_instructional_evidence():
+    module = _load_source_module()
+    item = {
+        "case": {
+            "case_id": "opaque-case",
+            "canonical_binding": {"canonical_root_sha256": "opaque-root"},
+            "expected_assessment": _assessment("instruction-1"),
+        },
+        "owner_envelopes": {"instruction-1": [{"context_ref": "context"}]},
+    }
+    outcome = {
+        "status": "COMPLETE",
+        "qualification_receipts": [],
+        "table_resolutions": [
+            {
+                "table_node_id": "instruction-1",
+                "disposition": "NO_NAMED_CONSUMER",
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                "classification_evidence": [],
+            }
+        ],
+    }
+
+    assert module.Pipe()._safe_record(item=item, outcome=outcome)["outcome"] == "FAIL"
+
+
 def test_unexpected_owner_error_is_reduced_to_one_value_free_terminal_code():
     module = _load_source_module()
     class PrivateProviderFailure(RuntimeError):
