@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -212,8 +213,22 @@ def validate_instructional_classification_prompt_snapshot(value: Any) -> dict[st
 def _json_dict(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return copy.deepcopy(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        return copy.deepcopy(parsed) if isinstance(parsed, dict) else {}
     return {}
 
 
 def _json_list(value: Any) -> list[str]:
-    return list(value) if isinstance(value, list) and all(isinstance(item, str) for item in value) else []
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, str)]
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+        return [item for item in parsed if isinstance(item, str)] if isinstance(parsed, list) else []
+    return []
