@@ -14,6 +14,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+from broker_reports_gate1 import gate2_model_clients  # noqa: E402
+
 MODEL_MODULE_PATHS = (
     ROOT / "broker_reports_gate1" / "gate2_model_contracts.py",
     ROOT / "broker_reports_gate1" / "gate2_model_requests.py",
@@ -1238,6 +1240,41 @@ class BrokerReportsGate2ModelClientsTest(unittest.TestCase):
         self.assertEqual(result.content, {"async": True})
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0]["user"].id, "model-client-user")
+
+    def test_async_completion_timeout_is_a_terminal_provider_failure(self):
+        async def never_returns(
+            *, request, form_data, user, bypass_filter, bypass_system_prompt
+        ):
+            await asyncio.Event().wait()
+
+        client = self._factory(
+            request_profile=DOMAIN_REQUEST_PROFILE,
+            completion_resolver=lambda user_id: (
+                never_returns,
+                SimpleNamespace(id=user_id),
+            ),
+        ).create()
+        previous_timeout = gate2_model_clients.OPENWEBUI_COMPLETION_TIMEOUT_SECONDS
+        gate2_model_clients.OPENWEBUI_COMPLETION_TIMEOUT_SECONDS = 0.01
+        try:
+            with self.assertRaises(Gate2SourceFactRuntimeError) as timed_out:
+                self._extract(
+                    client,
+                    prompt=self._prompt(DOMAIN_REQUEST_PROFILE),
+                    package=self._package(DOMAIN_REQUEST_PROFILE),
+                )
+        finally:
+            gate2_model_clients.OPENWEBUI_COMPLETION_TIMEOUT_SECONDS = previous_timeout
+        self.assertEqual(timed_out.exception.code, "gate2_model_call_failed")
+        self.assertEqual(timed_out.exception.failure_class, "TimeoutError")
+        self.assertEqual(
+            client.qualification_lifecycle_snapshot(),
+            {
+                "local_invocations_total": 1,
+                "provider_submissions_total": 1,
+                "provider_responses_total": 0,
+            },
+        )
 
     def test_completion_response_shapes_have_terminal_observable_results(self):
         body_response = SimpleNamespace(
