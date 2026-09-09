@@ -39,6 +39,18 @@ OUTPUT_SCHEMA_ID = MAPPING_RESPONSE_SCHEMA_VERSION
 OUTPUT_SCHEMA_VERSION = OUTPUT_SCHEMA_ID
 PROMPT_PLACEHOLDER = "{{ordinary_trade_mapping_case_json}}"
 PROMPT_SNAPSHOT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_prompt_snapshot_v1"
+# These identifiers describe an isolated Prompt publication profile.  They
+# live beside the shared native Prompt owner so product bundles never import a
+# laboratory module merely to resolve a released Prompt dependency.
+GOAL391_GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION = (
+    "goal391_grouped_ordinary_trade_mapping_response_v14"
+)
+GOAL391_GROUPED_MAPPING_LAB_PROMPT_COMMAND = "goal391_grouped_mapping_lab_v14"
+GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID = "goal391_grouped_mapping_lab_v14"
+GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND = (
+    "goal391_grouped_ordinary_trade_mapping"
+)
+GOAL391_GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG = "goal391-grouped-mapping-lab"
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 

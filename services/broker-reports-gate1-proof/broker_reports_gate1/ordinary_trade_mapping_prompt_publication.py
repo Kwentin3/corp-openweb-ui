@@ -14,6 +14,11 @@ from typing import Any, Mapping
 
 from .ordinary_trade_mapping_prompt import (
     INPUT_SCHEMA_VERSION,
+    GOAL391_GROUPED_MAPPING_LAB_PROMPT_COMMAND,
+    GOAL391_GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG,
+    GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
+    GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND,
+    GOAL391_GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
     OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND,
@@ -23,13 +28,6 @@ from .ordinary_trade_mapping_prompt import (
     PROMPT_TEMPLATE_ID,
     PROMPT_TEMPLATE_KIND,
     ordinary_trade_mapping_prompt_hash,
-)
-from .goal391_grouped_mapping_lab_v14 import (
-    GROUPED_MAPPING_LAB_PROMPT_COMMAND,
-    GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG,
-    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
-    GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND,
-    GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
 )
 
 
@@ -112,19 +110,19 @@ ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE = (
 GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE = (
     OrdinaryTradeMappingPromptPublicationProfile(
         profile_id="goal391_grouped_mapping_lab_v14",
-        command=GROUPED_MAPPING_LAB_PROMPT_COMMAND,
+        command=GOAL391_GROUPED_MAPPING_LAB_PROMPT_COMMAND,
         name="Goal 391 grouped mapping lab v14",
         asset_filename="goal391_grouped_mapping_lab_prompt.v14.md",
         asset_version="v14-lab",
-        template_id=GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
-        template_kind=GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND,
+        template_id=GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
+        template_kind=GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND,
         # The native request builder admits the established ordinary-trade
         # mapping operation; only the sealed response schema differs in lab.
         prompt_contract_id=PROMPT_CONTRACT_ID,
         input_schema_version=INPUT_SCHEMA_VERSION,
-        output_schema_id=GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
-        output_schema_version=GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
-        required_tag=GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG,
+        output_schema_id=GOAL391_GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+        output_schema_version=GOAL391_GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+        required_tag=GOAL391_GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG,
         placeholder=PROMPT_PLACEHOLDER,
         is_production=False,
         initial_access_grants=(("user", "*", "read"),),

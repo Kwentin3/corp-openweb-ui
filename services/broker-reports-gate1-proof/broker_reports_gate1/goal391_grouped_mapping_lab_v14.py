@@ -16,20 +16,30 @@ import copy
 import json
 from typing import Any, Mapping
 
+from .ordinary_trade_mapping_prompt import (
+    GOAL391_GROUPED_MAPPING_LAB_PROMPT_COMMAND as _PROMPT_COMMAND,
+    GOAL391_GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG as _PROMPT_REQUIRED_TAG,
+    GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID as _PROMPT_TEMPLATE_ID,
+    GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND as _PROMPT_TEMPLATE_KIND,
+    GOAL391_GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION as _RESPONSE_SCHEMA_VERSION,
+)
 from .ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
 )
 
 
 GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "goal391_grouped_ordinary_trade_mapping_response_v14"
+    _RESPONSE_SCHEMA_VERSION
 )
-# These are stable native-Prompt identities for the isolated R&D Function.
-# They are deliberately not production aliases and never select a provider.
-GROUPED_MAPPING_LAB_PROMPT_COMMAND = "goal391_grouped_mapping_lab_v14"
-GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID = "goal391_grouped_mapping_lab_v14"
-GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND = "goal391_grouped_ordinary_trade_mapping"
-GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG = "goal391-grouped-mapping-lab"
+# Re-export the shared native Prompt identities for the isolated lab composer.
+GROUPED_MAPPING_LAB_PROMPT_COMMAND = _PROMPT_COMMAND
+GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID = _PROMPT_TEMPLATE_ID
+GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND = (
+    _PROMPT_TEMPLATE_KIND
+)
+GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG = (
+    _PROMPT_REQUIRED_TAG
+)
 
 
 class Goal391GroupedMappingLabError(RuntimeError):
