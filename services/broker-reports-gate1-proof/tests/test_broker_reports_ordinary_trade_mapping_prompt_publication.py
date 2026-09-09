@@ -253,6 +253,25 @@ def test_matching_current_prompt_is_pinned_without_a_spurious_update(monkeypatch
     assert owner["prompts"].updated is None
 
 
+def test_pinned_prompt_uses_native_latest_history_when_row_version_is_stale(monkeypatch):
+    publisher = OrdinaryTradeMappingPromptPublisher()
+    owner = _native_owner(
+        existing=_row(version_id="history-stale"), latest_history_id="history-latest"
+    )
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(
+        publisher.publish(
+            OrdinaryTradeMappingPromptPublicationInput(
+                actor_user_id="admin", content=_CONTENT
+            )
+        )
+    )
+
+    assert result.action == "pinned"
+    assert result.prompt_history_id == "history-latest"
+
+
 def test_foreign_or_drifted_history_is_not_returned_as_a_pin(monkeypatch):
     publisher = OrdinaryTradeMappingPromptPublisher()
     owner = _native_owner(existing=None, history_prompt_id="foreign")
@@ -297,8 +316,13 @@ def _native_owner(
     *,
     existing,
     history_prompt_id=None,
+    latest_history_id=None,
     profile=ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
 ):
+    initial_history_id = latest_history_id or (
+        str(existing["version_id"]) if existing is not None else "history-created"
+    )
+
     @asynccontextmanager
     async def context():
         yield "session"
@@ -306,6 +330,7 @@ def _native_owner(
     class Prompts:
         inserted = None
         updated = None
+        latest_history_id = initial_history_id
 
         async def get_prompt_by_command(self, command, *, db):
             assert command == profile.command
@@ -315,6 +340,7 @@ def _native_owner(
         async def insert_new_prompt(self, user_id, form, *, db):
             assert user_id == "admin" and db == "session"
             self.inserted = form
+            self.latest_history_id = "history-created"
             return _model(
                 _row(
                     version_id="history-created", content=form.content, profile=profile
@@ -324,6 +350,7 @@ def _native_owner(
         async def update_prompt_by_id(self, prompt_id, form, user_id, *, db):
             assert prompt_id == "prompt-1" and user_id == "admin" and db == "session"
             self.updated = form
+            self.latest_history_id = "history-updated"
             return _model(
                 _row(
                     version_id="history-updated", content=form.content, profile=profile
@@ -333,9 +360,11 @@ def _native_owner(
     prompts = Prompts()
 
     class Histories:
-        async def get_history_entry_by_id(self, history_id, *, db):
+        async def get_latest_history_entry(self, prompt_id, *, db):
             assert db == "session"
+            assert prompt_id == "prompt-1"
             return SimpleNamespace(
+                id=prompts.latest_history_id,
                 prompt_id=history_prompt_id or "prompt-1",
                 snapshot=_snapshot(_CONTENT, profile=profile),
             )

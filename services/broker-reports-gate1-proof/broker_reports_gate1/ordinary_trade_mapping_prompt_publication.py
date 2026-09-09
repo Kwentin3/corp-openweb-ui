@@ -325,11 +325,7 @@ class OrdinaryTradeMappingPromptPublisher:
                         "ordinary_trade_mapping_prompt_publication_pin_missing"
                     )
                 model = _model_dict(row)
-                if (
-                    str(model.get("id") or "") != publication.prompt_ref
-                    or str(model.get("version_id") or "")
-                    != publication.prompt_history_id
-                ):
+                if str(model.get("id") or "") != publication.prompt_ref:
                     raise OrdinaryTradeMappingPromptPublicationError(
                         "ordinary_trade_mapping_prompt_publication_pin_drift"
                     )
@@ -427,19 +423,27 @@ class OrdinaryTradeMappingPromptPublisher:
         action: str,
     ) -> OrdinaryTradeMappingPromptPublication:
         prompt_ref = str(row.get("id") or "").strip()
-        version = str(row.get("version_id") or "").strip()
         profile = self._profile
-        if not prompt_ref or not version or row.get("command") != profile.command:
+        if not prompt_ref or row.get("command") != profile.command:
             raise OrdinaryTradeMappingPromptPublicationError(
                 "ordinary_trade_mapping_prompt_publication_history_missing"
             )
         self._require_existing_public_grant(row)
-        history = await owners["prompt_histories"].get_history_entry_by_id(
-            version, db=session
+        # Some supported OpenWebUI releases retain ``version_id`` from a prior
+        # revision after an update.  The native history owner is authoritative:
+        # pin its latest immutable snapshot for this Prompt, not the stale row
+        # pointer.
+        history = await owners["prompt_histories"].get_latest_history_entry(
+            prompt_ref, db=session
         )
+        history_id = str(getattr(history, "id", "") or "").strip()
         history_prompt_id = str(getattr(history, "prompt_id", "") or "")
         snapshot = getattr(history, "snapshot", None)
-        if history_prompt_id != prompt_ref or not isinstance(snapshot, dict):
+        if (
+            not history_id
+            or history_prompt_id != prompt_ref
+            or not isinstance(snapshot, dict)
+        ):
             raise OrdinaryTradeMappingPromptPublicationError(
                 "ordinary_trade_mapping_prompt_publication_history_missing"
             )
@@ -458,7 +462,7 @@ class OrdinaryTradeMappingPromptPublisher:
         return OrdinaryTradeMappingPromptPublication(
             prompt_ref=prompt_ref,
             prompt_command=profile.command,
-            prompt_history_id=version,
+            prompt_history_id=history_id,
             prompt_hash=_profile_prompt_hash(content, profile=profile),
             action=action,
         )
