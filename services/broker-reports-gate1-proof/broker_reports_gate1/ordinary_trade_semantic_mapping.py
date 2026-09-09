@@ -10,6 +10,11 @@ from dataclasses import asdict, is_dataclass
 from typing import Any, Iterable, Mapping
 
 from .gate2_source_fact_contracts import Gate2ManagedPrompt
+from .instructional_table_classification import (
+    InstructionalClassificationContractError,
+    build_case as build_instructional_classification_case,
+    validate_response as validate_instructional_classification_response,
+)
 from .ordinary_trade_qualified_mappings import (
     OrdinaryTradeQualifiedMappingAuthorityFactory,
 )
@@ -64,6 +69,9 @@ ANSWER_RESPONSE_SCHEMA_VERSION = (
 )
 MAPPING_CASE_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_case_v2"
 MAPPING_BATCH_PLAN_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_batch_plan_v1"
+INSTRUCTIONAL_CLASSIFICATION_DESCRIPTOR_SCHEMA_VERSION = (
+    "broker_reports_instructional_table_descriptor_v1"
+)
 ANSWER_PROMPT_VERSION = "ordinary_trade_mapping_answer_prompt_v2"
 FACTORY_REQUIRED = (
     "OrdinaryTradeSemanticMappingFactory.create is the only unknown-schema "
@@ -220,6 +228,108 @@ class OrdinaryTradeSemanticMapping:
             name="ordinary_trade_mapping_answer_v1",
             schema=_answer_response_schema(),
         )
+
+    def build_instructional_classification_descriptor(
+        self, *, canonical: Mapping[str, Any], table_node_id: str
+    ) -> dict[str, Any]:
+        """Build the sole model-visible case for one Canonical table.
+
+        The descriptor remains transient until a MappingCase owner persists a
+        safe execution receipt.  It contains no caller-authored table meaning.
+        """
+        tables = _selected_table_surfaces(
+            canonical=canonical, target_table_node_ids=[table_node_id]
+        )
+        model_tables, refs_by_node_id = _model_table_surfaces(
+            canonical, target_table_node_ids=[table_node_id]
+        )
+        if (
+            len(tables) != 1
+            or len(model_tables) != 1
+            or refs_by_node_id.get(table_node_id) != model_tables[0].get("table_ref")
+        ):
+            _fail("ordinary_trade_instructional_descriptor_invalid")
+        case = build_instructional_classification_case(table=model_tables[0])
+        return {
+            "schema_version": INSTRUCTIONAL_CLASSIFICATION_DESCRIPTOR_SCHEMA_VERSION,
+            "table_node_id": table_node_id,
+            "table_ref": model_tables[0]["table_ref"],
+            "case_sha256": _sha256_json(case),
+            "case": case,
+        }
+
+    def admit_instructional_classification(
+        self,
+        *,
+        canonical: Mapping[str, Any],
+        descriptor: Mapping[str, Any],
+        response: Any,
+    ) -> dict[str, Any]:
+        """Admit a narrow model answer as an owner-bound table resolution.
+
+        A coordinator can request this operation, but it cannot manufacture a
+        resolution: this owner rebuilds the descriptor from Canonical and uses
+        the existing table-decision validator for evidence and structural scope.
+        """
+        table_node_id = descriptor.get("table_node_id") if isinstance(descriptor, Mapping) else None
+        if not isinstance(table_node_id, str) or not table_node_id:
+            _fail("ordinary_trade_instructional_descriptor_invalid")
+        expected = self.build_instructional_classification_descriptor(
+            canonical=canonical, table_node_id=table_node_id
+        )
+        if dict(descriptor) != expected:
+            _fail("ordinary_trade_instructional_descriptor_stale")
+        try:
+            accepted = validate_instructional_classification_response(
+                response=_strict_model_value(response), case=expected["case"]
+            )
+        except InstructionalClassificationContractError as exc:
+            _fail(f"ordinary_trade_instructional_{exc}")
+        classification = accepted["classification"]
+        if classification != "INSTRUCTIONAL_REFERENCE":
+            return {
+                "classification": classification,
+                "table_node_id": table_node_id,
+                "table_resolution": None,
+            }
+        table = _selected_table_surfaces(
+            canonical=canonical, target_table_node_ids=[table_node_id]
+        )[0]
+        resolved = _validate_table_decision(
+            decision={
+                "table_node_id": table_node_id,
+                "header_row": accepted["header_row"],
+                "disposition": "NO_NAMED_CONSUMER",
+                "columns": [],
+                "amount_currency_bindings": [],
+                "side_values": [],
+                "row_dispositions": [],
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                "classification_evidence": accepted["classification_evidence"],
+            },
+            table=table,
+            model_supplies_classification_evidence=True,
+            preserve_model_classification_evidence=True,
+        )
+        resolution = {
+            key: copy.deepcopy(resolved[key])
+            for key in (
+                "table_node_id",
+                "header_row",
+                "structural_fingerprint",
+                "evidence_surface",
+                "disposition",
+                "security_trade_rows",
+                "no_consumer_kind",
+                "classification_evidence",
+            )
+            if key in resolved
+        }
+        return {
+            "classification": classification,
+            "table_node_id": table_node_id,
+            "table_resolution": resolution,
+        }
 
     def build_mapping_package(
         self,
