@@ -99,6 +99,40 @@ class InstructionalClassificationPromptConfig:
 
 
 class _InstructionalPromptMixin:
+    def _snapshot_to_prompt(self, row: Any, snapshot: dict[str, Any], *, version: str):
+        """Keep the retired instructional adapter pinned to its own contract.
+
+        It reuses the native Prompt/history and grant reader, but its release
+        receipt predates ordinary-trade mapping and deliberately hashes the
+        instructional contract.  The active product route no longer invokes
+        this adapter.
+        """
+        content = str(snapshot.get("content") or "")
+        meta = _json_dict(snapshot.get("meta"))
+        tags = tuple(_json_list(snapshot.get("tags")))
+        row_value = row["id"] if hasattr(row, "keys") else row.get("id")
+        row_name = row["name"] if hasattr(row, "keys") else row.get("name")
+        row_command = row["command"] if hasattr(row, "keys") else row.get("command")
+        return InstructionalClassificationManagedPrompt(
+            prompt_ref=str(row_value or ""),
+            command=str(snapshot.get("command") or "") or None,
+            version=version,
+            content=content,
+            hash=prompt_hash(content),
+            source="openwebui_prompt_history",
+            template_id=str(meta["template_id"]),
+            template_kind=str(meta["template_kind"]),
+            prompt_contract_id=str(meta["prompt_contract_id"]),
+            input_schema_version=str(meta["input_contract"]),
+            output_schema_id=str(meta["output_schema_id"]),
+            output_schema_version=str(meta["output_schema_version"]),
+            tags=tags,
+            safe_metadata={
+                "name": str(snapshot.get("name") or row_name or row_command or ""),
+                "mapping_domain": str(meta.get("mapping_domain") or "ordinary_trade"),
+            },
+        )
+
     @staticmethod
     def _row_to_prompt(row: Any) -> InstructionalClassificationManagedPrompt:
         content = str(row["content"] or "")

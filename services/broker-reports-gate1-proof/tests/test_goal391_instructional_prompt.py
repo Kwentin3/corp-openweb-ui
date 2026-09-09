@@ -124,3 +124,4 @@ def test_native_instructional_prompt_resolver_uses_openwebui_history_and_grant(
     assert prompt.command == PROMPT_COMMAND
     assert prompt.version == "history-1"
     assert prompt.snapshot()["prompt_ref"] == "instructional-prompt"
+    assert validate_instructional_classification_prompt_snapshot(prompt.snapshot()) == prompt.snapshot()
