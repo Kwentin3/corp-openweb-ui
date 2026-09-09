@@ -18,7 +18,6 @@ returns a value-free receipt.
 
 from __future__ import annotations
 
-import asyncio
 import copy
 import hashlib
 import inspect
@@ -46,6 +45,11 @@ from broker_reports_gate1.ordinary_trade_mapping_prompt import (
 from broker_reports_gate1.goal391_private_selection_binding import (
     Goal391PrivateSelectionBindingIssuer,
     Goal391PrivateSourceFileSelectionRequest,
+)
+from broker_reports_gate1.goal391_grouped_mapping_lab_v14 import (
+    GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+    expand_grouped_response,
+    grouped_mapping_response_format,
 )
 from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     MAPPING_RESPONSE_SCHEMA_VERSION,
@@ -362,6 +366,10 @@ class Pipe:
         prompt_id: str = Field(default="")
         prompt_version: str = Field(default="")
         prompt_hash: str = Field(default="")
+        # v14 is deliberately lab-only.  It changes only model response
+        # compression; the existing semantic owner still validates the fully
+        # expanded v13 decision before this Pipe emits its receipt.
+        grouped_response_v14: bool = Field(default=False)
         # A one-shot source/CANONICAL admission check for the temporary lab.
         # It is explicit so the normal qualification path cannot silently skip
         # its provider attempt.
@@ -385,7 +393,7 @@ class Pipe:
         try:
             if str(__task__ or "").strip():
                 raise Goal391MappingLabPipeError("goal391_lab_auxiliary_task_forbidden")
-            user_id = self._ordinary_user_id(__user__)
+            self._ordinary_user_id(__user__)
             self._require_request(__request__)
             # A normal OpenWebUI chat body is accepted and deliberately ignored.
             # It never selects scope or enters the provider prompt.  Only a
@@ -451,6 +459,16 @@ class Pipe:
                 command=None,
                 release_prompt_version=prompt_version,
                 release_prompt_hash=prompt_hash,
+                required_output_schema_id=(
+                    GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION
+                    if self.valves.grouped_response_v14
+                    else MAPPING_RESPONSE_SCHEMA_VERSION
+                ),
+                required_output_schema_version=(
+                    GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION
+                    if self.valves.grouped_response_v14
+                    else MAPPING_RESPONSE_SCHEMA_VERSION
+                ),
             )
         ).create_async().resolve(
             OrdinaryTradeMappingPromptUserContext(user_id=user_id, user_role="user")
@@ -585,16 +603,28 @@ class Pipe:
         terminal_error = None
         for item in cases:
             try:
+                response_format = (
+                    grouped_mapping_response_format(
+                        v13_response_format=semantic.mapping_response_format()
+                    )
+                    if self.valves.grouped_response_v14
+                    else semantic.mapping_response_format()
+                )
                 response = await client.extract(
                     prompt=prompt,
                     package=item["package"],
                     model_id=str(self.valves.model_id),
-                    response_format=semantic.mapping_response_format(),
+                    response_format=response_format,
                 )
-                if semantic.mapping_response_contract_failure_code(response) is not None:
+                response_value = (
+                    expand_grouped_response(response=response, package=item["package"])
+                    if self.valves.grouped_response_v14
+                    else response
+                )
+                if semantic.mapping_response_contract_failure_code(response_value) is not None:
                     raise Goal391MappingLabPipeError("goal391_lab_response_contract_invalid")
                 outcome = semantic.validate_mapping_response(
-                    response=response,
+                    response=response_value,
                     canonical=item["case"]["canonical"],
                     canonical_binding=item["case"]["canonical_binding"],
                     model_id=str(self.valves.model_id),

@@ -215,6 +215,9 @@ def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():
     assert ".create_async().resolve(" in source
     assert "prompt_db_path" not in source
     assert 'source="openwebui_sqlite"' not in source
+    assert "grouped_response_v14" in source
+    assert "expand_grouped_response" in source
+    assert "grouped_mapping_response_format" in source
 
 
 def test_server_bound_loader_reads_exact_two_attested_slots_without_writes(monkeypatch):

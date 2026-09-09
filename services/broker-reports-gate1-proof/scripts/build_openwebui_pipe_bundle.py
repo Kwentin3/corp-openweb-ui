@@ -256,6 +256,7 @@ GATE1_MODULE_ORDER = [
 GOAL391_LAB_MODULES = [
     "goal391_private_corpus_export",
     "goal391_private_selection_binding",
+    "goal391_grouped_mapping_lab_v14",
 ]
 _GOAL391_LAB_INSERT_AT = GATE1_MODULE_ORDER.index("__init__")
 GOAL391_LAB_MODULE_ORDER = [
