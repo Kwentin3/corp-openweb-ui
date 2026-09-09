@@ -74,6 +74,28 @@ ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION = (
 )
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
+# A snapshot is an execution receipt, not a bag of independently optional
+# fields.  Keep the released identities closed so a v14 command cannot be
+# paired with the v13 schema (or with the laboratory identity) by accident.
+_ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES = (
+    {
+        "commands": frozenset({PROMPT_COMMAND, None}),
+        "template_id": PROMPT_TEMPLATE_ID,
+        "template_kind": PROMPT_TEMPLATE_KIND,
+        "output_schema_id": OUTPUT_SCHEMA_ID,
+        "output_schema_version": OUTPUT_SCHEMA_VERSION,
+        "required_tag": PROMPT_REQUIRED_TAG,
+    },
+    {
+        "commands": frozenset({ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND}),
+        "template_id": ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
+        "template_kind": ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND,
+        "output_schema_id": ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "output_schema_version": ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+        "required_tag": ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
+    },
+)
+
 
 class OrdinaryTradeMappingPromptError(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
@@ -704,25 +726,30 @@ def validate_ordinary_trade_mapping_prompt_snapshot(value: Any) -> dict[str, Any
             "ordinary_trade_mapping_prompt_snapshot_invalid",
             "Ordinary-trade mapping prompt snapshot shape is invalid",
         )
+    identity_matches = any(
+        value.get("prompt_command") in identity["commands"]
+        and value.get("template_id") == identity["template_id"]
+        and value.get("template_kind") == identity["template_kind"]
+        and value.get("output_schema_id") == identity["output_schema_id"]
+        and value.get("output_schema_version") == identity["output_schema_version"]
+        and isinstance(value.get("tags"), list)
+        and identity["required_tag"] in value["tags"]
+        for identity in _ACCEPTED_PROMPT_SNAPSHOT_IDENTITIES
+    )
     if (
         value.get("schema_version") != PROMPT_SNAPSHOT_SCHEMA_VERSION
         or not isinstance(value.get("prompt_ref"), str)
         or not value["prompt_ref"].strip()
-        or value.get("prompt_command") not in {PROMPT_COMMAND, None}
         or not isinstance(value.get("prompt_version"), str)
         or not value["prompt_version"].strip()
         or not isinstance(value.get("prompt_hash"), str)
         or _SHA256.fullmatch(value["prompt_hash"]) is None
         or value.get("prompt_source") not in {"openwebui_prompt_history", "test"}
         or value.get("prompt_contract_id") != PROMPT_CONTRACT_ID
-        or value.get("template_id") != PROMPT_TEMPLATE_ID
-        or value.get("template_kind") != PROMPT_TEMPLATE_KIND
         or value.get("input_schema_version") != INPUT_SCHEMA_VERSION
-        or value.get("output_schema_id") != OUTPUT_SCHEMA_ID
-        or value.get("output_schema_version") != OUTPUT_SCHEMA_VERSION
         or not isinstance(value.get("tags"), list)
         or any(not isinstance(tag, str) for tag in value["tags"])
-        or PROMPT_REQUIRED_TAG not in value["tags"]
+        or not identity_matches
         or not isinstance(value.get("safe_metadata"), dict)
         or set(value["safe_metadata"]) - {"name", "mapping_domain"}
     ):
