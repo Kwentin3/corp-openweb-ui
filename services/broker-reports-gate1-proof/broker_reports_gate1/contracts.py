@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
 
 SAFE_REPORT_SCHEMA = "broker_reports_chat_visible_normalization_report_v0"
@@ -111,6 +111,47 @@ GATE2_HANDOFF_MODES = {
     # decisions should use a specific blocker mode above.
     "gate2_blocked_requires_review",
 }
+
+_GATE2_READY_HANDOFF_PAIRS = frozenset(
+    {
+        ("ready_with_safe_refs", "full_package_ready_for_gate2"),
+        ("ready_with_reduced_subset", "reduced_subset_ready_for_gate2"),
+    }
+)
+
+
+def ready_gate2_handoff_document_ids(
+    *, normalization_run: Mapping[str, Any], handoff: Mapping[str, Any]
+) -> frozenset[str]:
+    """Read, but never recalculate, Gate 1's explicit ready handoff scope.
+
+    Domain consumers may use this narrow contract to avoid contradicting a
+    completed Full/Reduced Source handoff with an older readability inventory.
+    Any disagreement between the run receipt and the handoff decision fails
+    closed to an empty scope; this helper never selects replacement documents.
+    """
+
+    run_status = normalization_run.get("gate2_handoff_status")
+    run_mode = normalization_run.get("gate2_handoff_mode")
+    handoff_status = handoff.get("gate2_handoff_status")
+    handoff_mode = handoff.get("handoff_mode")
+    if (
+        (run_status, run_mode) not in _GATE2_READY_HANDOFF_PAIRS
+        or (handoff_status, handoff_mode) != (run_status, run_mode)
+    ):
+        return frozenset()
+    document_ids = handoff.get("included_document_ids")
+    if not isinstance(document_ids, list):
+        return frozenset()
+    normalized = [item.strip() for item in document_ids if isinstance(item, str)]
+    if (
+        not normalized
+        or len(normalized) != len(document_ids)
+        or any(not item for item in normalized)
+        or len(normalized) != len(set(normalized))
+    ):
+        return frozenset()
+    return frozenset(normalized)
 
 OCR_POLICY_STATUSES = {
     "disabled",
