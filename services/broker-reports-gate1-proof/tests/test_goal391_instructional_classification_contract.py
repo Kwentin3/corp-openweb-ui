@@ -14,11 +14,39 @@ def _case():
 
 
 def test_instructional_response_requires_selected_owner_context() -> None:
-    value = {"schema_version": contract.OUTPUT_SCHEMA_VERSION, "classification": "INSTRUCTIONAL_REFERENCE", "classification_evidence": [{"context_ref": "context_1", "relation": "PRECEDING_SAME_CONTAINER"}]}
+    value = {
+        "schema_version": contract.OUTPUT_SCHEMA_VERSION,
+        "classification": "INSTRUCTIONAL_REFERENCE",
+        "header_row": 1,
+        "classification_evidence": [
+            {"context_ref": "context_1", "relation": "PRECEDING_SAME_CONTAINER"}
+        ],
+    }
     assert contract.validate_response(response=value, case=_case()) == value
 
 
 @pytest.mark.parametrize("classification,evidence", [("INSTRUCTIONAL_REFERENCE", []), ("NOT_INSTRUCTIONAL", [{"context_ref": "context_1", "relation": "PRECEDING_SAME_CONTAINER"}])])
 def test_instructional_evidence_cannot_be_missing_or_leak_to_other_status(classification, evidence) -> None:
     with pytest.raises(contract.InstructionalClassificationContractError):
-        contract.validate_response(response={"schema_version": contract.OUTPUT_SCHEMA_VERSION, "classification": classification, "classification_evidence": evidence}, case=_case())
+        contract.validate_response(
+            response={
+                "schema_version": contract.OUTPUT_SCHEMA_VERSION,
+                "classification": classification,
+                "header_row": 1,
+                "classification_evidence": evidence,
+            },
+            case=_case(),
+        )
+
+
+def test_header_must_be_one_of_owner_supplied_choices() -> None:
+    with pytest.raises(contract.InstructionalClassificationContractError):
+        contract.validate_response(
+            response={
+                "schema_version": contract.OUTPUT_SCHEMA_VERSION,
+                "classification": "NOT_INSTRUCTIONAL",
+                "header_row": 2,
+                "classification_evidence": [],
+            },
+            case=_case(),
+        )

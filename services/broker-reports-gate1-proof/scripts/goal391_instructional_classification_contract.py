@@ -12,9 +12,9 @@ import json
 from typing import Any, Mapping
 
 
-PROMPT_CONTRACT_ID = "broker_reports_instructional_table_classification_prompt_v1"
+PROMPT_CONTRACT_ID = "broker_reports_instructional_table_classification_prompt_v2"
 INPUT_SCHEMA_VERSION = "broker_reports_instructional_table_classification_case_v1"
-OUTPUT_SCHEMA_VERSION = "broker_reports_instructional_table_classification_response_v1"
+OUTPUT_SCHEMA_VERSION = "broker_reports_instructional_table_classification_response_v2"
 PROMPT_PLACEHOLDER = "{{instructional_table_classification_case_json}}"
 _STATUSES = frozenset({"INSTRUCTIONAL_REFERENCE", "NOT_INSTRUCTIONAL", "SPECIALIST_REVIEW_REQUIRED"})
 
@@ -49,10 +49,16 @@ def response_format() -> dict[str, Any]:
             "schema": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["schema_version", "classification", "classification_evidence"],
+                "required": [
+                    "schema_version",
+                    "classification",
+                    "header_row",
+                    "classification_evidence",
+                ],
                 "properties": {
                     "schema_version": {"const": OUTPUT_SCHEMA_VERSION},
                     "classification": {"enum": sorted(_STATUSES)},
+                    "header_row": {"type": "integer", "minimum": 1},
                     "classification_evidence": evidence,
                 },
             },
@@ -69,11 +75,23 @@ def build_case(*, table: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def validate_response(*, response: Any, case: Mapping[str, Any]) -> dict[str, Any]:
-    if not isinstance(response, dict) or set(response) != {"schema_version", "classification", "classification_evidence"} or response.get("schema_version") != OUTPUT_SCHEMA_VERSION or response.get("classification") not in _STATUSES or not isinstance(response.get("classification_evidence"), list):
+    if (
+        not isinstance(response, dict)
+        or set(response)
+        != {"schema_version", "classification", "header_row", "classification_evidence"}
+        or response.get("schema_version") != OUTPUT_SCHEMA_VERSION
+        or response.get("classification") not in _STATUSES
+        or not isinstance(response.get("header_row"), int)
+        or isinstance(response.get("header_row"), bool)
+        or not isinstance(response.get("classification_evidence"), list)
+    ):
         raise InstructionalClassificationContractError("instructional_classification_response_invalid")
     table = case.get("table") if isinstance(case, Mapping) else None
+    header_rows = table.get("header_row_choices") if isinstance(table, Mapping) else None
     source_context = table.get("source_context") if isinstance(table, Mapping) else None
     contexts = source_context.get("entries") if isinstance(source_context, Mapping) else None
+    if not isinstance(header_rows, list) or response["header_row"] not in header_rows:
+        raise InstructionalClassificationContractError("instructional_classification_header_invalid")
     allowed = {(item.get("context_ref"), item.get("relation")) for item in contexts or [] if isinstance(item, dict)}
     evidence = response["classification_evidence"]
     pairs = []
