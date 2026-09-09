@@ -64,6 +64,9 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping import (
     OrdinaryTradeSemanticMappingError,
     OrdinaryTradeSemanticMappingFactory,
 )
+from broker_reports_gate1.ordinary_trade_semantic_compiler import (
+    OrdinaryTradeSemanticCompilerError,
+)
 
 
 PROVIDER_PROFILE_ID = "google_gemini"
@@ -815,6 +818,7 @@ class Pipe:
             (
                 Gate2SourceFactRuntimeError,
                 Goal391GroupedMappingLabError,
+                OrdinaryTradeSemanticCompilerError,
                 OrdinaryTradeSemanticMappingError,
             ),
         ):

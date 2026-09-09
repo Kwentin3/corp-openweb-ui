@@ -502,6 +502,11 @@ def test_safe_error_code_keeps_only_fixed_contract_identifiers():
             "gate2_model_content_invalid", "private provider/source detail"
         )
     ) == "goal391_lab_gate2_model_content_invalid"
+    assert module.Pipe._safe_error_code(
+        module.OrdinaryTradeSemanticCompilerError(
+            "ordinary_trade_semantic_compiler_mapping_invalid"
+        )
+    ) == "goal391_lab_ordinary_trade_semantic_compiler_mapping_invalid"
 
 
 def test_generated_bundle_is_closed_world_and_contains_only_lab_adapter_not_product_flow():
