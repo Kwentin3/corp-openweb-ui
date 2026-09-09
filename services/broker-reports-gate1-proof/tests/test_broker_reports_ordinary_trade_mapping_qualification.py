@@ -19,6 +19,7 @@ from broker_reports_gate1.ordinary_trade_semantic_mapping_qualification import (
     OrdinaryTradeSemanticMappingQualificationRunner,
     load_frozen_fixture,
     safe_role_map_sha256,
+    _require_one_strict_result,
 )
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
     INPUT_SCHEMA_VERSION,
@@ -48,6 +49,15 @@ class InjectedClient:
             content=self._response,
             execution_metadata=case_fixtures._metadata(),
         )
+
+
+def test_shared_strict_check_preserves_qualification_error_code() -> None:
+    with pytest.raises(OrdinaryTradeSemanticMappingQualificationError) as exc:
+        _require_one_strict_result(Gate2StructuredModelResult(
+            content={}, response_format_schema_mode=None,
+            execution_metadata=case_fixtures._metadata(),
+        ))
+    assert exc.value.code == "ordinary_trade_mapping_qualification_strict_output_required"
 
 
 class NoFallbackSemantic:

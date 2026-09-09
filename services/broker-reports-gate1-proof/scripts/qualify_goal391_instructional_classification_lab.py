@@ -104,6 +104,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     bridge = Bridge(SCRIPT_DIR / "goal391_browser_session_bridge.mjs")
     receipt: dict[str, Any] = {"schema_version": "goal391_instructional_classification_lab_receipt_v1", "candidate": {"prompt_id": args.prompt_id, "prompt_command": args.prompt_command, "prompt_version": args.prompt_version}, "constraints": {"retries": 0, "best_of_n": False, "canonical_mutation": False, "artifact_store_mutation": False, "chat_persistence": "forbidden"}, "provider_calls": 0, "records": []}
     try:
+        receipt["non_qualifying_transport_contract"] = True
         prompt = _prompt_from_preflight(bridge.call({"op": "preflight", "prompt_id": args.prompt_id}), prompt_id=args.prompt_id, prompt_command=args.prompt_command, prompt_version=args.prompt_version)
         receipt["candidate"]["prompt_hash"] = prompt_hash(prompt["content"])
         before = bridge.call({"op": "chat_count"})["chat_count"]

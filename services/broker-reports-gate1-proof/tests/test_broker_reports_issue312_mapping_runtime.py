@@ -4,6 +4,7 @@ import asyncio
 import copy
 import hashlib
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -1200,6 +1201,42 @@ async def _production_composition_maps_unknown_then_publishes_facts(tmp_path) ->
     )
     assert len(mapping_client.calls) == 1
     assert answer_client.calls == []
+
+
+def test_product_rejects_non_strict_response_before_semantic_validation(tmp_path, monkeypatch) -> None:
+    store, context, document_id, _canonical, _binding, table, mapping = (
+        case_fixtures._unknown_case(tmp_path)
+    )
+
+    class NonStrictClient(BoundaryModelClient):
+        async def extract(self, **kwargs):
+            return replace(await super().extract(**kwargs), response_format_schema_mode=None)
+
+    validations = []
+    semantic = type(OrdinaryTradeSemanticMappingFactory.create())
+    original = semantic.validate_mapping_response
+
+    def observe_validation(self, **kwargs):
+        validations.append(True)
+        return original(self, **kwargs)
+
+    monkeypatch.setattr(semantic, "validate_mapping_response", observe_validation)
+    client = NonStrictClient([case_fixtures._complete(table, mapping)])
+    runtime = OrdinaryTradeProductionRuntimeFactory(
+        store=store, read_enabled=True,
+        mapping_model_client=client, mapping_answer_model_client=BoundaryModelClient([]),
+        mapping_model_id="models/gemini-3.5-flash", mapping_provider_profile_id="google_gemini",
+        **_mapping_prompt_dependencies(),
+    ).create()
+    canonical_ref = store.get_active_canonical_version(context=context, document_id=document_id).manifest_ref
+    result = asyncio.run(runtime.run_with_automatic_mapping(
+        canonical_artifact_refs=[canonical_ref], context=context,
+    ))
+    assert result["semantic_mapping"]["status"] == "MAPPING_OUTPUT_INVALID"
+    assert result["product"]["terminal"] == "ordinary_trade_mapping_output_invalid"
+    assert result["product"]["xml_created"] is False
+    assert validations == []
+    assert len(client.calls) == 1
 
 
 async def _production_composition_uses_one_mapping_call_without_instructional_step(

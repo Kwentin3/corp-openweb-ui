@@ -15,7 +15,12 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from .canonical_artifact import validate_canonical_artifact
-from .gate2_model_contracts import Gate2StructuredModelClient, Gate2StructuredModelResult
+from .gate2_model_contracts import (
+    Gate2SourceFactRuntimeError,
+    Gate2StructuredModelClient,
+    Gate2StructuredModelResult,
+    require_strict_json_schema_response,
+)
 from .ordinary_trade_mapping_prompt import (
     PROMPT_COMMAND,
     PROMPT_PLACEHOLDER,
@@ -228,18 +233,16 @@ def _require_managed_mapping_prompt(
 
 
 def _require_one_strict_result(response: Any) -> None:
-    if (
-        not isinstance(response, Gate2StructuredModelResult)
-        or response.structured_output_mode != "openwebui_response_format_json_schema"
-        or response.response_format_type != "json_schema"
-        or response.response_format_schema_mode != "strict_json_schema"
-        or response.fallback_used is not False
-        or response.repair_attempt_count != 0
-        or response.execution_metadata is None
-    ):
-        raise OrdinaryTradeSemanticMappingQualificationError(
-            "ordinary_trade_mapping_qualification_strict_output_required"
+    try:
+        require_strict_json_schema_response(
+            response,
+            error_code="ordinary_trade_mapping_qualification_strict_output_required",
+            error_message="Qualification requires one strict output without repair",
         )
+    except Gate2SourceFactRuntimeError as exc:
+        raise OrdinaryTradeSemanticMappingQualificationError(
+            exc.code
+        ) from exc
 
 
 def _safe_verdict(

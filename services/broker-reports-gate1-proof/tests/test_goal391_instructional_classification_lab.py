@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from argparse import Namespace
 from pathlib import Path
 
 import pytest
@@ -29,3 +30,21 @@ def test_unknown_or_ambiguous_expectations_fail_closed() -> None:
 def test_response_content_accepts_exactly_one_choice_message() -> None:
     assert lab._response_content({"choices": [{"message": {"content": "{}"}}]}) == "{}"
     assert lab._response_content({"choices": []}) is None
+
+
+def test_receipt_marks_browser_transport_non_qualifying(monkeypatch) -> None:
+    class OfflineBridge:
+        def __init__(self, _path):
+            self.closed = False
+
+        def call(self, _request):
+            raise RuntimeError("offline preflight")
+
+        def close(self):
+            self.closed = True
+
+    monkeypatch.setattr(lab, "Bridge", OfflineBridge)
+    receipt = lab.run(Namespace(prompt_id="test", prompt_command="test", prompt_version="test"))
+    assert receipt["non_qualifying_transport_contract"] is True
+    assert receipt["status"] == "FAILED"
+    assert receipt["provider_calls"] == 0
