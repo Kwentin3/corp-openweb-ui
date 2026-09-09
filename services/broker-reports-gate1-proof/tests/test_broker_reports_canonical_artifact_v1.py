@@ -24,6 +24,7 @@ from broker_reports_gate1 import (
     build_retention_policy,
     persist_gate1_result,
 )
+from broker_reports_gate1.canonical_artifact import CanonicalArtifactError
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -465,6 +466,38 @@ class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
             ["repeated_header"],
         )
 
+    def test_document_ai_explicit_provider_empty_page_is_evidence_only(self):
+        artifact = self._document_ai_pdf_artifact(
+            "# Transactions\n",
+            "",
+            page_content_dispositions=(
+                "markdown_materialized",
+                "provider_empty_page",
+            ),
+        )
+
+        receipt = next(
+            item
+            for item in artifact["containers"]
+            if item["container_type"] == "DOCUMENT"
+        )["metadata"]["pdf_completeness"]
+        self.assertEqual(receipt["source_atom_accounting_percent"], 100.0)
+        self.assertEqual(receipt["unresolved_source_atoms_total"], 0)
+        self.assertEqual(receipt["categories"]["EVIDENCE_ONLY"], 1)
+        self.assertTrue(
+            any(
+                issue["summary"] == "pdf_provider_empty_page_evidence_only"
+                for issue in artifact["issues"]
+            )
+        )
+
+    def test_document_ai_unmarked_empty_page_still_fails_closed(self):
+        with self.assertRaisesRegex(
+            CanonicalArtifactError,
+            "canonical_pdf_source_atom_accounting_incomplete",
+        ):
+            self._document_ai_pdf_artifact("# Transactions\n", "")
+
     def test_document_ai_continuation_refuses_nonexact_boundaries(self):
         cases = (
             (
@@ -618,11 +651,15 @@ class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
 
     @staticmethod
     def _document_ai_pdf_artifact(
-        *pages: str, page_numbers: tuple[int, ...] | None = None
+        *pages: str,
+        page_numbers: tuple[int, ...] | None = None,
+        page_content_dispositions: tuple[str, ...] | None = None,
     ) -> dict:
         page_numbers = page_numbers or tuple(range(1, len(pages) + 1))
         if len(page_numbers) != len(pages):
             raise AssertionError("fixture page count mismatch")
+        if page_content_dispositions is not None and len(page_content_dispositions) != len(pages):
+            raise AssertionError("fixture disposition count mismatch")
         units = [
             {
                 "unit_ref": f"document-ai-page-{page}",
@@ -632,10 +669,20 @@ class BrokerReportsCanonicalArtifactV1Test(unittest.TestCase):
                     "page": page,
                     "line_start": 1,
                     "line_end": len(markdown.splitlines()),
+                    **(
+                        {"page_content_disposition": disposition}
+                        if disposition is not None
+                        else {}
+                    ),
                 },
                 "text": markdown,
             }
-            for page, markdown in zip(page_numbers, pages, strict=True)
+            for page, markdown, disposition in zip(
+                page_numbers,
+                pages,
+                page_content_dispositions or (None,) * len(pages),
+                strict=True,
+            )
         ]
         return CanonicalNormalizerFactory(
             CanonicalNormalizerConfig(normalizer_version="canonical-test-v1")

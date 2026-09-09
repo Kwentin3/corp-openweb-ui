@@ -116,6 +116,49 @@ class _SecondOfflineFixtureExtractor(_OfflineFixtureExtractor):
     pass
 
 
+class _ProviderEmptyPageFixtureExtractor(_OfflineFixtureExtractor):
+    """A successful provider envelope with one explicitly empty PDF page."""
+
+    def extract(
+        self,
+        pdf_bytes: bytes,
+        source_context: PdfSourceContext,
+    ) -> PdfDocumentExtraction:
+        pages = tuple(
+            b"# Exact offline fixture\n"
+            if page != 2
+            else b""
+            for page in range(1, source_context.preflight_page_count + 1)
+        )
+        markdown = b"\n\n".join(pages)
+        return PdfDocumentExtraction(
+            source_pdf_sha256=hashlib.sha256(pdf_bytes).hexdigest(),
+            page_numbers=tuple(range(1, source_context.preflight_page_count + 1)),
+            markdown_bytes=markdown,
+            markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+            image_refs=(),
+            provider_id="offline_fixture_provider",
+            requested_model_id="offline_fixture_model",
+            model_id="offline_fixture_model",
+            adapter_id="offline_fixture_adapter_v1",
+            request_contract_version="offline_fixture_request_v1",
+            request_parameters=(("include_image_base64", True),),
+            request_parameters_sha256=hashlib.sha256(
+                b'{"include_image_base64":true}'
+            ).hexdigest(),
+            page_markdown_sha256=tuple(
+                hashlib.sha256(page).hexdigest() for page in pages
+            ),
+            qualification_status="offline_fixture",
+            usage_page_count=source_context.preflight_page_count,
+            page_markdown_bytes=pages,
+            page_content_dispositions=tuple(
+                "provider_empty_page" if not page else "markdown_materialized"
+                for page in pages
+            ),
+        )
+
+
 class _BrokerReportFixtureExtractor(_OfflineFixtureExtractor):
     """A source-bound Document AI representation with no local PDF parser."""
 
@@ -874,6 +917,84 @@ def test_persisted_pdf_canonical_exact_ref_reaches_existing_right_bank(
     assert right_bank["provider_calls_total"] == 0
     assert right_bank["semantic_fallback_used"] is False
     assert "user_case_fact" not in json.dumps(artifact, sort_keys=True)
+
+
+def test_persisted_provider_empty_pdf_page_is_evidence_only_not_a_fact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import broker_reports_gate1.canonical_store as canonical_store
+
+    monkeypatch.setattr(
+        canonical_store.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(
+            total=20 * 1024 * 1024 * 1024,
+            free=10 * 1024 * 1024 * 1024,
+        ),
+    )
+    normalizer, pdf_input, store, graph, context, retention = (
+        _bounded_pdf_normalization(tmp_path)
+    )
+    normalizer = Gate1Normalizer(
+        _pdf_document_extractor=_ProviderEmptyPageFixtureExtractor()
+    )
+    result = normalizer.normalize(
+        [pdf_input],
+        bounded_graph=graph,
+        input_context={
+            "canonical_gate2_write_enabled": True,
+            "canonical_gate2_read_enabled": True,
+            "normalizer_version": "provider-empty-page-boundary-v1",
+        },
+    )
+
+    manifest = persist_gate1_result(
+        store=store,
+        result=result,
+        context=context,
+        retention_policy=retention,
+        source_file_refs=[
+            {
+                "provider": "openwebui",
+                "openwebui_file_id": "pdf-normalizer-upload",
+                "content_type": "application/pdf",
+                "source_deleted": False,
+            }
+        ],
+    )
+    canonical_refs = manifest.artifact_refs_by_type.get(
+        "broker_reports_canonical_artifact_v1", []
+    )
+    assert len(canonical_refs) == 1
+    assert not manifest.artifact_refs_by_type.get(
+        "broker_reports_canonical_build_failure_v1", []
+    )
+    artifact = CanonicalReaderFactory(store=store, read_enabled=True).create().read_envelope(
+        canonical_refs[0], context
+    ).artifact
+    receipt = next(
+        item
+        for item in artifact["containers"]
+        if item["container_type"] == "DOCUMENT"
+    )["metadata"]["pdf_completeness"]
+    assert receipt["source_atom_accounting_percent"] == 100.0
+    assert receipt["unresolved_source_atoms_total"] == 0
+    assert receipt["categories"]["EVIDENCE_ONLY"] == 1
+    provenance = {
+        item["provenance_id"]: item["source_locator"]
+        for item in artifact["provenance"]
+    }
+    assert all(
+        not (
+            node["node_type"] in {"TEXT", "TABLE"}
+            and any(
+                provenance[ref].get("page") == 2
+                for ref in node.get("source_refs") or []
+            )
+        )
+        for node in artifact["nodes"]
+    )
 
 
 def test_normalizer_turns_atomic_pdf_publication_failure_into_blocker(

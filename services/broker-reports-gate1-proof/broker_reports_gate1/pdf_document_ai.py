@@ -9,8 +9,8 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Protocol, runtime_checkable
 
 
-PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v3"
-PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v3"
+PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v4"
+PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v4"
 PDF_DOCUMENT_AI_NOT_CONFIGURED = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
 PDF_DOCUMENT_AI_PAYMENT_REQUIRED = "PDF_DOCUMENT_AI_PAYMENT_REQUIRED"
 _SAFE_TECHNICAL_SUMMARY_KEYS = {
@@ -99,6 +99,7 @@ class PdfDocumentExtraction:
     qualification_status: str
     usage_page_count: int
     page_markdown_bytes: tuple[bytes, ...] = field(repr=False, default=())
+    page_content_dispositions: tuple[str, ...] = ()
     safe_technical_summary: tuple[tuple[str, int], ...] = ()
     schema_version: str = PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION
 
@@ -163,6 +164,23 @@ class PdfDocumentExtraction:
                 raise ValueError("pdf_document_page_markdown_bytes_hash_mismatch")
             if b"\n\n".join(self.page_markdown_bytes) != self.markdown_bytes:
                 raise ValueError("pdf_document_page_markdown_aggregate_mismatch")
+        if self.page_content_dispositions:
+            if len(self.page_content_dispositions) != len(self.page_numbers):
+                raise ValueError("pdf_document_page_content_disposition_count_invalid")
+            if any(
+                disposition not in {"markdown_materialized", "provider_empty_page"}
+                for disposition in self.page_content_dispositions
+            ):
+                raise ValueError("pdf_document_page_content_disposition_invalid")
+            if not self.page_markdown_bytes:
+                raise ValueError("pdf_document_page_content_disposition_without_pages")
+            for page, disposition in zip(
+                self.page_markdown_bytes,
+                self.page_content_dispositions,
+                strict=True,
+            ):
+                if bool(page) != (disposition == "markdown_materialized"):
+                    raise ValueError("pdf_document_page_content_disposition_mismatch")
         if self.qualification_status not in {
             "offline_fixture",
             "qualified",

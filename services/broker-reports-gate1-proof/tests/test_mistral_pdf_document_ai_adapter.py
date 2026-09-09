@@ -243,6 +243,10 @@ def test_success_maps_ordered_multi_page_empty_page_and_image_once(tmp_path: Pat
         hashlib.sha256(first_page_markdown.encode("utf-8")).hexdigest(),
         hashlib.sha256(b"").hexdigest(),
     )
+    assert result.page_content_dispositions == (
+        "markdown_materialized",
+        "provider_empty_page",
+    )
     assert result.qualification_status == "offline_fixture"
     assert result.source_pdf_sha256 == hashlib.sha256(PDF_BYTES).hexdigest()
     assert result.markdown_sha256 == hashlib.sha256(result.markdown_bytes).hexdigest()
@@ -261,6 +265,90 @@ def test_success_maps_ordered_multi_page_empty_page_and_image_once(tmp_path: Pat
     assert RAW_PROVIDER_SECRET not in result_text
 
 
+def test_full_source_carries_only_declared_provider_empty_page_as_evidence() -> None:
+    pages = (b"# Materialized\n", b"")
+    markdown = b"\n\n".join(pages)
+    extraction = PdfDocumentExtraction(
+        source_pdf_sha256=hashlib.sha256(PDF_BYTES).hexdigest(),
+        page_numbers=(1, 2),
+        markdown_bytes=markdown,
+        markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+        image_refs=(),
+        provider_id="offline_fixture_provider",
+        requested_model_id=MISTRAL_OCR_MODEL,
+        model_id="offline_fixture_model",
+        adapter_id="offline_fixture_adapter_v1",
+        request_contract_version=MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
+        request_parameters=MISTRAL_OCR_REQUEST_PARAMETERS,
+        request_parameters_sha256=hashlib.sha256(
+            json.dumps(
+                dict(MISTRAL_OCR_REQUEST_PARAMETERS),
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+        ).hexdigest(),
+        page_markdown_sha256=tuple(hashlib.sha256(page).hexdigest() for page in pages),
+        qualification_status="offline_fixture",
+        usage_page_count=2,
+        page_markdown_bytes=pages,
+        page_content_dispositions=(
+            "markdown_materialized",
+            "provider_empty_page",
+        ),
+    )
+
+    built = FullSourceArtifactFactory().create().build_document_extraction(
+        normalization_run_id="run-provider-empty-page",
+        document_id="document-provider-empty-page",
+        profile_id="technical_pdf_profile_v0",
+        extraction=extraction,
+    )
+
+    assert [
+        unit["source_location"].get("page_content_disposition")
+        for unit in built.units
+    ] == ["markdown_materialized", "provider_empty_page"]
+    assert built.units[1].get("text") == ""
+
+
+@pytest.mark.parametrize(
+    ("dispositions", "error"),
+    (
+        (("markdown_materialized",), "pdf_document_page_content_disposition_count_invalid"),
+        (("provider_empty_page", "markdown_materialized"), "pdf_document_page_content_disposition_mismatch"),
+    ),
+)
+def test_page_content_disposition_is_sealed_to_its_page_markdown(
+    dispositions: tuple[str, ...], error: str
+) -> None:
+    pages = (b"text", b"")
+    markdown = b"\n\n".join(pages)
+    with pytest.raises(ValueError, match=error):
+        PdfDocumentExtraction(
+            source_pdf_sha256=hashlib.sha256(PDF_BYTES).hexdigest(),
+            page_numbers=(1, 2),
+            markdown_bytes=markdown,
+            markdown_sha256=hashlib.sha256(markdown).hexdigest(),
+            image_refs=(),
+            provider_id="offline_fixture_provider",
+            requested_model_id=MISTRAL_OCR_MODEL,
+            model_id="offline_fixture_model",
+            adapter_id="offline_fixture_adapter_v1",
+            request_contract_version=MISTRAL_OCR_REQUEST_CONTRACT_VERSION,
+            request_parameters=MISTRAL_OCR_REQUEST_PARAMETERS,
+            request_parameters_sha256=hashlib.sha256(
+                json.dumps(
+                    dict(MISTRAL_OCR_REQUEST_PARAMETERS),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode()
+            ).hexdigest(),
+            page_markdown_sha256=tuple(hashlib.sha256(page).hexdigest() for page in pages),
+            qualification_status="offline_fixture",
+            usage_page_count=2,
+            page_markdown_bytes=pages,
+            page_content_dispositions=dispositions,
+        )
 def test_success_preserves_multiple_same_page_and_page_scoped_targets(
     tmp_path: Path,
 ) -> None:

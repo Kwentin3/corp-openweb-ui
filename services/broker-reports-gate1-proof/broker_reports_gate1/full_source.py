@@ -325,6 +325,15 @@ class FullSourceArtifactBuilder:
             start=1,
         ):
             text = page_bytes.decode("utf-8", errors="strict")
+            page_content_disposition = (
+                extraction.page_content_dispositions[ordinal - 1]
+                if extraction.page_content_dispositions
+                else (
+                    "markdown_materialized"
+                    if text
+                    else "unclassified_empty_page"
+                )
+            )
             descriptor = {
                 "logical_identity": f"document_ai_markdown_page_{page:03d}",
                 "slice_type": "text_excerpt",
@@ -344,6 +353,7 @@ class FullSourceArtifactBuilder:
                     "page": page,
                     "line_start": 1,
                     "line_end": len(text.splitlines()),
+                    "page_content_disposition": page_content_disposition,
                 },
                 "text": text,
                 "document_ai_provenance": provenance,

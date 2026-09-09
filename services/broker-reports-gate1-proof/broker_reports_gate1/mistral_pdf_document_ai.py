@@ -149,6 +149,7 @@ class MistralPdfDocumentExtractor:
             raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_PAGE_COUNT_MISMATCH")
 
         markdown_parts: list[bytes] = []
+        page_content_dispositions: list[str] = []
         encoded_images: list[tuple[int, str, str]] = []
         for expected_index, page in enumerate(pages):
             if not isinstance(page, Mapping):
@@ -164,6 +165,9 @@ class MistralPdfDocumentExtractor:
             ):
                 raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
             markdown_parts.append(markdown.encode("utf-8", errors="strict"))
+            page_content_dispositions.append(
+                "markdown_materialized" if markdown else "provider_empty_page"
+            )
             images = page.get("images", [])
             if not isinstance(images, list):
                 raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_RESPONSE_INVALID")
@@ -228,6 +232,7 @@ class MistralPdfDocumentExtractor:
             qualification_status=self._qualification_status,
             usage_page_count=usage_page_count,
             page_markdown_bytes=tuple(markdown_parts),
+            page_content_dispositions=tuple(page_content_dispositions),
             safe_technical_summary=(
                 ("document_bytes", len(pdf_bytes)),
                 ("images_count", len(image_refs)),

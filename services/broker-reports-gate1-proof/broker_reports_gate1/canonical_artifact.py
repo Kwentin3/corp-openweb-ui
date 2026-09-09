@@ -527,6 +527,14 @@ class CanonicalNormalizer:
                     location,
                 )
                 continue
+            if _is_explicit_provider_empty_pdf_page(unit):
+                builder.add_issue(
+                    "UNSUPPORTED",
+                    "info",
+                    "pdf_provider_empty_page_evidence_only",
+                    location,
+                )
+                continue
             builder.add_issue(
                 "PARTIAL",
                 "blocking",
@@ -1411,7 +1419,10 @@ def pdf_source_atom_accounting(
             else:
                 category = "UNRESOLVED"
                 reason_codes.add("pdf_terminal_table_projection_without_fallback")
-        elif unit.get("pdf_unit_type") == "pdf_visual_page_unit":
+        elif (
+            unit.get("pdf_unit_type") == "pdf_visual_page_unit"
+            or _is_explicit_provider_empty_pdf_page(unit)
+        ):
             category = "EVIDENCE_ONLY"
         elif declared in {"HEADING", "NOTE", "LIST"} and text:
             category = "HEADING_OR_NOTE_NODE"
@@ -2190,6 +2201,18 @@ def _projection_location(projection: dict[str, Any]) -> dict[str, Any]:
 def _location(value: dict[str, Any]) -> dict[str, Any]:
     location = value.get("source_location") or value.get("location") or {}
     return dict(location) if isinstance(location, dict) else {}
+
+
+def _is_explicit_provider_empty_pdf_page(unit: dict[str, Any]) -> bool:
+    """Admit only an adapter-declared empty PDF page as evidence, never fact."""
+
+    location = _location(unit)
+    return (
+        location.get("kind") == "document_ai_page_markdown"
+        and location.get("page_content_disposition") == "provider_empty_page"
+        and str(unit.get("text") or "") == ""
+        and not (unit.get("rows") or unit.get("cells"))
+    )
 
 
 def _walk_keys(value: Any):
