@@ -8,12 +8,14 @@ from types import SimpleNamespace
 import pytest
 
 from broker_reports_gate1.ordinary_trade_mapping_prompt import (
+    ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
     PROMPT_PLACEHOLDER,
     ordinary_trade_mapping_prompt_hash,
 )
 from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
     GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
     ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
+    ORDINARY_TRADE_MAPPING_V14_PROFILE,
     OrdinaryTradeMappingPromptPublication,
     OrdinaryTradeMappingPromptPublicationError,
     OrdinaryTradeMappingPromptPublicationInput,
@@ -73,6 +75,43 @@ def test_closed_v14_lab_profile_publishes_a_distinct_non_product_prompt(
     ]
     assert result.safe_pin()["prompt_command"] == profile.command
     assert result.prompt_hash != ordinary_trade_mapping_prompt_hash(_CONTENT)
+
+
+def test_closed_v14_production_profile_publishes_a_distinct_compact_prompt(
+    monkeypatch, tmp_path: Path
+):
+    profile = ORDINARY_TRADE_MAPPING_V14_PROFILE
+    (tmp_path / profile.asset_filename).write_text(_CONTENT, encoding="utf-8")
+    request = publication_input_from_asset(
+        actor_user_id="admin", asset_root=tmp_path, profile=profile
+    )
+    publisher = OrdinaryTradeMappingPromptPublisher(profile=profile)
+    owner = _native_owner(existing=None, profile=profile)
+    monkeypatch.setattr(publisher, "_native_owners", lambda: owner)
+
+    result = asyncio.run(publisher.publish(request))
+
+    assert profile.profile_id == "ordinary_trade_mapping_v14"
+    assert profile.command == "broker_ordinary_trade_semantic_mapping_v14"
+    assert profile.command != GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE.command
+    assert profile.is_production is True
+    assert profile.output_schema_id == ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION
+    assert owner["prompts"].inserted.command == profile.command
+    assert owner["prompts"].inserted.is_production is True
+    assert result.safe_pin()["prompt_command"] == profile.command
+
+
+def test_v14_production_asset_is_distinct_from_lab_and_carries_currency_guard():
+    root = _V14_PROMPT_ASSET.parent
+    content = (root / ORDINARY_TRADE_MAPPING_V14_PROFILE.asset_filename).read_text(
+        encoding="utf-8"
+    )
+
+    assert "strict compact ordinary-trade" in content
+    assert "amount_currency_bindings" in content
+    assert "currency_column classified as currency" in content
+    assert "SECURITY_TRADES_INCOMPLETE rather than COMPLETE" in content
+    assert "grouped lab" not in content
 
 
 def test_v14_managed_prompt_requires_complete_document_currency_bindings():

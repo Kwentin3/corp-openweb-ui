@@ -66,6 +66,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         mapping_prompt_resolver: Any | None = None,
         instructional_prompt_resolver: Any | None = None,
         mapping_prompt_user_context_factory: Any | None = None,
+        mapping_response_adapter: Any | None = None,
         model_id: str,
         provider_profile_id: str,
     ) -> None:
@@ -76,6 +77,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
         self._mapping_prompt_resolver = mapping_prompt_resolver
         self._instructional_prompt_resolver = instructional_prompt_resolver
         self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
+        self._mapping_response_adapter = mapping_response_adapter
         self._model_id = model_id
         self._provider_profile_id = provider_profile_id
 
@@ -88,6 +90,25 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
             or not self._provider_profile_id
             or self._mapping_prompt_resolver is None
             or not callable(self._mapping_prompt_user_context_factory)
+            or (
+                self._mapping_response_adapter is not None
+                and (
+                    not callable(
+                        getattr(
+                            self._mapping_response_adapter,
+                            "mapping_response_format",
+                            None,
+                        )
+                    )
+                    or not callable(
+                        getattr(
+                            self._mapping_response_adapter,
+                            "expand_to_v13",
+                            None,
+                        )
+                    )
+                )
+            )
         ):
             raise OrdinaryTradeAutomaticMappingError(
                 "ordinary_trade_automatic_mapping_configuration_invalid"
@@ -111,6 +132,7 @@ class OrdinaryTradeAutomaticMappingRuntimeFactory:
             mapping_prompt_user_context_factory=(
                 self._mapping_prompt_user_context_factory
             ),
+            mapping_response_adapter=self._mapping_response_adapter,
         )
 
 
@@ -129,6 +151,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         mapping_prompt_resolver: Any,
         instructional_prompt_resolver: Any | None,
         mapping_prompt_user_context_factory: Any,
+        mapping_response_adapter: Any | None,
     ) -> None:
         self._cases = cases
         self._semantic = semantic
@@ -141,6 +164,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         self._mapping_prompt_resolver = mapping_prompt_resolver
         self._instructional_prompt_resolver = instructional_prompt_resolver
         self._mapping_prompt_user_context_factory = mapping_prompt_user_context_factory
+        self._mapping_response_adapter = mapping_response_adapter
 
     async def resolve(
         self,
@@ -445,7 +469,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 prompt=prompt,
                 package=package,
                 model_id=self._model_id,
-                response_format=self._semantic.mapping_response_format(),
+                response_format=self._mapping_response_format(),
             )
         except Exception as exc:
             code = getattr(exc, "code", "ordinary_trade_mapping_provider_failed")
@@ -466,13 +490,17 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
         try:
             _strict_result(response)
+            response_for_validation = self._expand_mapping_response_to_v13(
+                response=response,
+                package=package,
+            )
             contract_failure = self._semantic.mapping_response_contract_failure_code(
-                response
+                response_for_validation
             )
             if contract_failure is not None:
                 raise OrdinaryTradeSemanticMappingError(contract_failure)
             outcome = self._semantic.validate_mapping_response(
-                response=response,
+                response=response_for_validation,
                 canonical=binding["canonical"],
                 canonical_binding=binding["canonical_binding"],
                 model_id=self._model_id,
@@ -559,6 +587,24 @@ class OrdinaryTradeAutomaticMappingRuntime:
         )
         return self._result(
             current=saved, context=context, provider_calls_this_turn=1
+        )
+
+    def _mapping_response_format(self) -> dict[str, Any]:
+        v13_response_format = self._semantic.mapping_response_format()
+        if self._mapping_response_adapter is None:
+            return v13_response_format
+        return self._mapping_response_adapter.mapping_response_format(
+            v13_response_format=v13_response_format
+        )
+
+    def _expand_mapping_response_to_v13(
+        self, *, response: Any, package: dict[str, Any]
+    ) -> Any:
+        if self._mapping_response_adapter is None:
+            return response
+        return self._mapping_response_adapter.expand_to_v13(
+            response=response,
+            package=package,
         )
 
     async def _run_batch_plan(

@@ -72,7 +72,13 @@ def test_release_pin_is_complete_before_it_is_projected_into_pipe_valves():
         release._mapping_prompt_valves({key: value for key, value in _PIN.items() if key != "prompt_hash"})
 
 
-def test_host_profile_selector_is_closed_and_reaches_only_native_runner(tmp_path: Path):
+@pytest.mark.parametrize(
+    "profile",
+    ["goal391_grouped_mapping_lab_v14", "ordinary_trade_mapping_v14"],
+)
+def test_host_profile_selector_is_closed_and_reaches_only_native_runner(
+    tmp_path: Path, profile: str
+):
     archive = tmp_path / "ordinary_trade_mapping_prompt_source.zip"
     runner = tmp_path / "broker_reports_native_prompt_publish_container.py"
     archive.write_bytes(b"release-source")
@@ -101,10 +107,10 @@ def test_host_profile_selector_is_closed_and_reaches_only_native_runner(tmp_path
         host.execute(
             staging_dir=tmp_path,
             verify_pin=None,
-            profile="goal391_grouped_mapping_lab_v14",
+            profile=profile,
         )
     python_call = next(call for call in calls if "python" in call)
-    assert python_call[-2:] == ["--profile", "goal391_grouped_mapping_lab_v14"]
+    assert python_call[-2:] == ["--profile", profile]
     with pytest.raises(RuntimeError, match="profile_invalid"):
         host.execute(staging_dir=tmp_path, verify_pin=None, profile="untrusted")
 
@@ -122,3 +128,4 @@ def test_native_release_helpers_do_not_add_sqlite_or_http_prompt_mutation_path()
     ).read_text(encoding="utf-8")
     assert "OrdinaryTradeMappingPromptPublisher" in container_source
     assert "from open_webui.models.prompt_history" not in container_source
+    assert '"ordinary_trade_mapping_v14"' in container_source

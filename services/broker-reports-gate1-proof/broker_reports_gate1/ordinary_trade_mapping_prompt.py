@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
+from .ordinary_trade_grouped_mapping_v14 import (
+    ORDINARY_TRADE_GROUPED_MAPPING_V14_RESPONSE_SCHEMA_VERSION,
+)
 from .ordinary_trade_semantic_mapping import MAPPING_RESPONSE_SCHEMA_VERSION
 
 
@@ -43,7 +46,7 @@ PROMPT_SNAPSHOT_SCHEMA_VERSION = "broker_reports_ordinary_trade_mapping_prompt_s
 # live beside the shared native Prompt owner so product bundles never import a
 # laboratory module merely to resolve a released Prompt dependency.
 GOAL391_GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "goal391_grouped_ordinary_trade_mapping_response_v14"
+    ORDINARY_TRADE_GROUPED_MAPPING_V14_RESPONSE_SCHEMA_VERSION
 )
 GOAL391_GROUPED_MAPPING_LAB_PROMPT_COMMAND = "goal391_grouped_mapping_lab_v14"
 GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID = "goal391_grouped_mapping_lab_v14"
@@ -51,6 +54,24 @@ GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND = (
     "goal391_grouped_ordinary_trade_mapping"
 )
 GOAL391_GROUPED_MAPPING_LAB_PROMPT_REQUIRED_TAG = "goal391-grouped-mapping-lab"
+# Production v14 reuses the shared compact representation contract.  Its
+# native Prompt identity is separate from the lab so a release cannot silently
+# repoint either route to the other Prompt/history row.
+ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND = (
+    "broker_ordinary_trade_semantic_mapping_v14"
+)
+ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID = (
+    "broker_reports.ordinary_trade_semantic_mapping.v14"
+)
+ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND = (
+    "broker_reports_ordinary_trade_semantic_mapping"
+)
+ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG = (
+    "broker-reports-ordinary-trade-mapping-v14"
+)
+ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION = (
+    ORDINARY_TRADE_GROUPED_MAPPING_V14_RESPONSE_SCHEMA_VERSION
+)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -74,9 +95,9 @@ class OrdinaryTradeMappingPromptConfig:
     db_path: Path | None = None
     prompt_id: str | None = None
     command: str | None = PROMPT_COMMAND
-    # Production keeps the sole released command. An isolated qualification
+    # Each released route pins its own command. An isolated qualification
     # runner may opt into a separately named managed Prompt without changing
-    # the production Prompt row or its active history version.
+    # a production Prompt row or its active history version.
     required_command: str = PROMPT_COMMAND
     required_template_id: str = PROMPT_TEMPLATE_ID
     required_template_kind: str = PROMPT_TEMPLATE_KIND
@@ -754,6 +775,11 @@ __all__ = [
     "FACTORY_REQUIRED",
     "FORBIDDEN",
     "INPUT_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION",
+    "ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND",
+    "ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG",
+    "ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID",
+    "ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND",
     "OUTPUT_SCHEMA_ID",
     "OUTPUT_SCHEMA_VERSION",
     "PROMPT_COMMAND",

@@ -19,6 +19,11 @@ from .ordinary_trade_mapping_prompt import (
     GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_ID,
     GOAL391_GROUPED_MAPPING_LAB_PROMPT_TEMPLATE_KIND,
     GOAL391_GROUPED_MAPPING_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
+    ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND,
     OUTPUT_SCHEMA_ID,
     OUTPUT_SCHEMA_VERSION,
     PROMPT_COMMAND,
@@ -59,7 +64,7 @@ class OrdinaryTradeMappingPromptPublicationProfile:
     """One closed native-Prompt identity that this publisher may mutate.
 
     The publisher is intentionally not a generic Prompt writer: a caller can
-    select only one of the two repository-owned immutable profiles below.
+    select only one of the repository-owned immutable profiles below.
     This keeps the Goal #391 lab separate from the released v13 product Prompt
     while retaining the same OpenWebUI Prompt/history/grant owner.
     """
@@ -129,11 +134,30 @@ GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE = (
     )
 )
 
+ORDINARY_TRADE_MAPPING_V14_PROFILE = OrdinaryTradeMappingPromptPublicationProfile(
+    profile_id="ordinary_trade_mapping_v14",
+    command=ORDINARY_TRADE_MAPPING_V14_PROMPT_COMMAND,
+    name="Broker Reports ordinary-trade semantic mapping v14",
+    asset_filename="broker_reports_ordinary_trade_mapping_prompt.v14.md",
+    asset_version="v14",
+    template_id=ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_ID,
+    template_kind=ORDINARY_TRADE_MAPPING_V14_PROMPT_TEMPLATE_KIND,
+    prompt_contract_id=PROMPT_CONTRACT_ID,
+    input_schema_version=INPUT_SCHEMA_VERSION,
+    output_schema_id=ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+    output_schema_version=ORDINARY_TRADE_MAPPING_V14_COMPACT_RESPONSE_SCHEMA_VERSION,
+    required_tag=ORDINARY_TRADE_MAPPING_V14_PROMPT_REQUIRED_TAG,
+    placeholder=PROMPT_PLACEHOLDER,
+    is_production=True,
+    initial_access_grants=(("user", "*", "read"),),
+)
+
 _PUBLISHABLE_PROFILES = {
     profile.profile_id: profile
     for profile in (
         ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
+        ORDINARY_TRADE_MAPPING_V14_PROFILE,
     )
 }
 
@@ -205,7 +229,11 @@ def publication_input_from_asset(
         commit_message=(
             "Publish Broker Reports ordinary-trade mapping Prompt v13"
             if profile is ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE
-            else "Publish Goal 391 grouped mapping lab Prompt v14"
+            else (
+                "Publish Goal 391 grouped mapping lab Prompt v14"
+                if profile is GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE
+                else "Publish Broker Reports ordinary-trade mapping Prompt v14"
+            )
         ),
     )
 
@@ -579,6 +607,7 @@ __all__ = [
     "OrdinaryTradeMappingPromptPublisher",
     "ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE",
     "GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE",
+    "ORDINARY_TRADE_MAPPING_V14_PROFILE",
     "PROMPT_ASSET_FILENAME",
     "PROMPT_ASSET_VERSION",
     "publication_input_from_asset",

@@ -22,7 +22,11 @@ from typing import Any
 
 SAFE_SCHEMA_VERSION = "broker_reports_native_mapping_prompt_pin_v1"
 _PROFILE_IDS = frozenset(
-    {"ordinary_trade_mapping_v13", "goal391_grouped_mapping_lab_v14"}
+    {
+        "ordinary_trade_mapping_v13",
+        "goal391_grouped_mapping_lab_v14",
+        "ordinary_trade_mapping_v14",
+    }
 )
 
 
@@ -61,6 +65,7 @@ async def _run(
 ) -> dict[str, str]:
     from broker_reports_gate1.ordinary_trade_mapping_prompt_publication import (
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
+        ORDINARY_TRADE_MAPPING_V14_PROFILE,
         ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
         OrdinaryTradeMappingPromptPublication,
         OrdinaryTradeMappingPromptPublisher,
@@ -70,6 +75,7 @@ async def _run(
     profiles = {
         ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_PROMPT_V13_PROFILE,
         GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE.profile_id: GOAL391_GROUPED_MAPPING_LAB_V14_PROFILE,
+        ORDINARY_TRADE_MAPPING_V14_PROFILE.profile_id: ORDINARY_TRADE_MAPPING_V14_PROFILE,
     }
     profile = profiles.get(profile_id)
     if profile is None:

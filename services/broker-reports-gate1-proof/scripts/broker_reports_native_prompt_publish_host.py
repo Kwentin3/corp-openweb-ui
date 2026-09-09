@@ -20,7 +20,11 @@ SAFE_SCHEMA_VERSION = "broker_reports_native_mapping_prompt_pin_v1"
 SAFE_NAME_RE = re.compile(r"^broker-reports-[0-9a-f]{12}$")
 SAFE_PIN_KEYS = {"prompt_ref", "prompt_command", "prompt_history_id", "prompt_hash"}
 _PROFILE_IDS = frozenset(
-    {"ordinary_trade_mapping_v13", "goal391_grouped_mapping_lab_v14"}
+    {
+        "ordinary_trade_mapping_v13",
+        "goal391_grouped_mapping_lab_v14",
+        "ordinary_trade_mapping_v14",
+    }
 )
 
 
