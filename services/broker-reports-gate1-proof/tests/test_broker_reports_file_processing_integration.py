@@ -212,6 +212,16 @@ class BrokerReportsFileProcessingIntegrationTest(unittest.TestCase):
         )
         self.assertEqual(result.package["normalization_run"]["run_status"], "failed_safe")
 
+    def test_pdf_document_ai_payment_next_step_does_not_suggest_gate2(self) -> None:
+        content = render_chat_content(
+            {"recommended_next_step": "contact_pdf_document_ai_operator"}
+        )
+
+        self.assertIn("пока не будет восстановлена оплата", content)
+        self.assertIn("Обратитесь к оператору", content)
+        self.assertNotIn("Gate 2", content)
+        self.assertNotIn("извлечению фактов", content)
+
 
 if __name__ == "__main__":
     unittest.main()

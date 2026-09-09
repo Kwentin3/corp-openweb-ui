@@ -334,6 +334,8 @@ def _next_step(report: dict) -> str:
     next_step = report.get("recommended_next_step") or report.get("next_step")
     if next_step == "configure_pdf_document_ai":
         return "Contact the administrator to configure and qualify PDF Document AI."
+    if next_step == "contact_pdf_document_ai_operator":
+        return "Обработка не может продолжиться, пока не будет восстановлена оплата сервиса распознавания PDF. Обратитесь к оператору."
     if next_step == "attach_synthetic_files_and_retry":
         return "Прикрепите файлы брокерского отчета и отправьте сообщение еще раз."
     if next_step == "verify_pipe_byte_access_boundary":
