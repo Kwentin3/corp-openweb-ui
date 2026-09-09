@@ -379,7 +379,6 @@ def test_exclusion_without_direct_canonical_context_is_rejected(tmp_path) -> Non
                         "side_values": [],
                             "row_dispositions": [],
                             "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
-                            "classification_evidence": [],
                     }
                     for index in (1, 2)
                 ],
