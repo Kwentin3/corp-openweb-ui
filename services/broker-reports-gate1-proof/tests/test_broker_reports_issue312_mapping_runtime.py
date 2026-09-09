@@ -1489,13 +1489,14 @@ async def _instructional_table_and_trade_share_one_mapping_call(tmp_path) -> Non
     )
 
 
-async def _overflowed_scope_stops_before_provider_call(tmp_path) -> None:
+async def _overflowed_scope_uses_bounded_batches(tmp_path) -> None:
     unknown_rows = _unknown_rows(suffix="bounded batch")
     store, context, document_id, tables, _canonical_ref = _multi_table_case(
         tmp_path,
         table_row_sets=(unknown_rows, unknown_rows),
     )
-    client = BoundaryModelClient([])
+    mapping = case_fixtures.candidate._mapping_from_headers(unknown_rows[0])
+    client = BoundaryModelClient([case_fixtures._complete(table, mapping) for table in tables])
     runtime = _runtime(store, client)
     canonical = CanonicalReaderFactory(store=store, read_enabled=True).create().read_active_envelope(
         document_id, context
@@ -1507,14 +1508,14 @@ async def _overflowed_scope_stops_before_provider_call(tmp_path) -> None:
 
     result = await runtime.resolve(document_id=document_id, context=context)
 
-    assert result["status"] == "SOURCE_CONTEXT_LIMIT"
-    assert result["provider_calls_this_turn"] == 0
-    assert client.calls == []
+    assert result["status"] == "COMPLETE"
+    assert result["provider_calls_this_turn"] == 2
+    assert len(client.calls) == 2
     current = OrdinaryTradeMappingCaseFactory(store=store, read_enabled=True).create().current(
         document_id=document_id, context=context
     )[1]
     assert current.get("mapping_batch_state") is None
-    assert current["provider_calls_total"] == 0
+    assert current["provider_calls_total"] == 2
 
 
 async def _identical_known_table_nodes_use_zero_call_fast_path(tmp_path) -> None:
@@ -2131,8 +2132,8 @@ def test_instructional_table_and_trade_share_one_mapping_call(tmp_path) -> None:
     asyncio.run(_instructional_table_and_trade_share_one_mapping_call(tmp_path))
 
 
-def test_overflowed_scope_stops_before_provider_call(tmp_path) -> None:
-    asyncio.run(_overflowed_scope_stops_before_provider_call(tmp_path))
+def test_overflowed_scope_uses_bounded_batches(tmp_path) -> None:
+    asyncio.run(_overflowed_scope_uses_bounded_batches(tmp_path))
 
 
 def test_identical_known_table_nodes_use_zero_call_fast_path(tmp_path) -> None:

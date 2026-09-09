@@ -267,6 +267,49 @@ class OrdinaryTradeMappingCaseRuntime:
         }:
             _fail("ordinary_trade_mapping_case_transition_invalid")
         prior = current[1] if current is not None else None
+        if mapping_batch_state.get("schema_version") in {"broker_reports_ordinary_trade_mapping_batch_state_v2", "broker_reports_ordinary_trade_mapping_batch_state_v3"}:
+            _validate_mapping_batch_state(mapping_batch_state)
+            old = (prior or {}).get("mapping_batch_state")
+            if mapping_batch_state["schema_version"] == "broker_reports_ordinary_trade_mapping_batch_state_v3":
+                confirmations = (prior or {}).get("confirmed_understandings") or []
+                base = confirmations if old is None else confirmations[:len(mapping_batch_state["base_decision_sha256"])]
+                if (
+                    mapping_batch_state["base_decision_sha256"] != [item["decision_sha256"] for item in base]
+                    or mapping_batch_state["base_confirmed_sha256"] != _sha256_json(base)
+                ):
+                    _fail("ordinary_trade_mapping_case_batch_binding_changed")
+                if mapping_batch_state["pending_batch_id"] is not None and status != "MAPPING_OUTPUT_INVALID":
+                    self.validate_batch_currency_candidate(mapping_batch_state, pending_candidate)
+            if old is not None:
+                for key in ("plan", "plan_sha256", "execution_binding_sha256", "base_decision_sha256", "base_confirmed_sha256"):
+                    if old.get(key) != mapping_batch_state.get(key):
+                        _fail("ordinary_trade_mapping_case_batch_binding_changed")
+                if (prior or {}).get("mapping_prompt_snapshot") != mapping_prompt_snapshot:
+                    _fail("ordinary_trade_mapping_case_batch_binding_changed")
+                active_batch = old.get("started_batch_id") or old.get("pending_batch_id")
+                if active_batch is None and (
+                    mapping_batch_state["completed_batch_outcomes"] != old["completed_batch_outcomes"]
+                ):
+                    _fail("ordinary_trade_mapping_case_batch_progress_stale")
+                if active_batch is not None:
+                    unchanged_attempt = mapping_batch_state == old
+                    completed_attempt = (
+                        mapping_batch_state["started_batch_id"] is None
+                        and mapping_batch_state["pending_batch_id"] is None
+                        and mapping_batch_state["completed_batch_outcomes"][:-1] == old["completed_batch_outcomes"]
+                        and mapping_batch_state["completed_batch_outcomes"][-1:]
+                        and mapping_batch_state["completed_batch_outcomes"][-1]["batch_id"] == active_batch
+                    )
+                    awaiting_currency = (
+                        old.get("started_batch_id") is not None
+                        and mapping_batch_state["started_batch_id"] is None
+                        and mapping_batch_state["pending_batch_id"] == active_batch
+                        and mapping_batch_state["completed_batch_outcomes"] == old["completed_batch_outcomes"]
+                        and status == "CURRENCY_ASSERTION_REQUIRED"
+                        and isinstance(pending_candidate, dict)
+                    )
+                    if not (unchanged_attempt or completed_attempt or awaiting_currency):
+                        _fail("ordinary_trade_mapping_case_batch_attempt_already_started")
         payload = self._next_payload(
             document_id=document_id,
             context=context,
@@ -292,6 +335,20 @@ class OrdinaryTradeMappingCaseRuntime:
             reason_code=reason_code,
         )
         return self._put(payload=payload, document_id=document_id, context=context)
+
+    @staticmethod
+    def validate_batch_currency_candidate(state, candidate) -> None:
+        batch = next((item for item in state["plan"]["batches"] if item["batch_id"] == state["pending_batch_id"]), None)
+        tables = candidate.get("table_node_ids") if isinstance(candidate, dict) else None
+        if (
+            batch is None or not isinstance(candidate, dict)
+            or candidate.get("target_table_node_ids") != batch["target_table_node_ids"]
+            or not isinstance(tables, list) or not tables
+            or any(not isinstance(item, str) for item in tables)
+            or tables != sorted(set(tables))
+            or not set(tables).issubset(batch["target_table_node_ids"])
+        ):
+            _fail("ordinary_trade_mapping_batch_currency_scope_invalid")
 
     def save_instructional_classification_state(
         self,
@@ -1238,6 +1295,11 @@ def _private_case(context: ArtifactAccessContext) -> None:
 def _validate_mapping_batch_state(value: Any) -> None:
     if value is None:
         return
+    v3 = isinstance(value, dict) and value.get("schema_version") == "broker_reports_ordinary_trade_mapping_batch_state_v3"
+    v2 = v3 or isinstance(value, dict) and value.get("schema_version") == "broker_reports_ordinary_trade_mapping_batch_state_v2"
+    extra = {"started_batch_id", "attempt_token", "plan_sha256", "execution_binding_sha256"} if v2 else set()
+    if v3:
+        extra |= {"base_decision_sha256", "base_confirmed_sha256"}
     if (
         not isinstance(value, dict)
         or set(value)
@@ -1246,9 +1308,9 @@ def _validate_mapping_batch_state(value: Any) -> None:
             "plan",
             "completed_batch_outcomes",
             "pending_batch_id",
-        }
+        } | extra
         or value.get("schema_version")
-        != "broker_reports_ordinary_trade_mapping_batch_state_v1"
+        not in {"broker_reports_ordinary_trade_mapping_batch_state_v1", "broker_reports_ordinary_trade_mapping_batch_state_v2", "broker_reports_ordinary_trade_mapping_batch_state_v3"}
         or not isinstance(value.get("plan"), dict)
         or not isinstance(value.get("completed_batch_outcomes"), list)
         or (
@@ -1269,6 +1331,30 @@ def _validate_mapping_batch_state(value: Any) -> None:
             or not isinstance(item.get("outcome"), dict)
         ):
             _fail("ordinary_trade_mapping_case_batch_state_invalid")
+    if v2:
+        plan = value["plan"]
+        batches = plan.get("batches", [])
+        ids = [item.get("batch_id") for item in batches]
+        completed = [item["batch_id"] for item in value["completed_batch_outcomes"]]
+        started = value["started_batch_id"]
+        pending = value["pending_batch_id"]
+        if (
+            not ids or len(ids) != len(set(ids))
+            or completed != ids[:len(completed)] or len(completed) > len(ids)
+            or (pending is not None and (not v3 or started is not None or len(completed) == len(ids) or pending != ids[len(completed)]))
+            or (started is not None and (len(completed) == len(ids) or started != ids[len(completed)]))
+            or ((started is None) != (value["attempt_token"] is None))
+            or (started is not None and not isinstance(value["attempt_token"], str))
+            or any(not isinstance(value[key], str) or len(value[key]) != 64 for key in ("plan_sha256", "execution_binding_sha256"))
+        ):
+            _fail("ordinary_trade_mapping_case_batch_state_invalid")
+    if v3 and (
+        not isinstance(value["base_decision_sha256"], list)
+        or any(not isinstance(item, str) or _SHA256.fullmatch(item) is None for item in value["base_decision_sha256"])
+        or not isinstance(value["base_confirmed_sha256"], str)
+        or _SHA256.fullmatch(value["base_confirmed_sha256"]) is None
+    ):
+        _fail("ordinary_trade_mapping_case_batch_state_invalid")
 
 
 def _validate_instructional_classification_state(value: Any) -> None:

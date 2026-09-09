@@ -736,6 +736,7 @@ class OrdinaryTradeSemanticMapping:
         batch_plan: Mapping[str, Any],
         batch_outcomes: Iterable[Mapping[str, Any]],
         frozen_mappings: Iterable[Mapping[str, Any]] = (),
+        transport_confirmed_understandings: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Validate a complete batch set, then replay the existing compiler once.
 
@@ -747,7 +748,10 @@ class OrdinaryTradeSemanticMapping:
         plan = _validate_mapping_batch_plan(
             plan=batch_plan,
             canonical=canonical,
-            confirmed_understandings=confirmed_understandings,
+            confirmed_understandings=(
+                confirmed_understandings if transport_confirmed_understandings is None
+                else transport_confirmed_understandings
+            ),
         )
         submitted = list(batch_outcomes)
         expected_batches = plan["batches"]

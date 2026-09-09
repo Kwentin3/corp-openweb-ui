@@ -7,6 +7,7 @@ import hashlib
 import inspect
 import json
 import re
+import secrets
 from typing import Any
 
 from .artifact_models import ArtifactAccessContext
@@ -206,6 +207,16 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 current=retired, context=context, provider_calls_this_turn=0
             )
         if current is not None and current[1].get("mapping_batch_state") is not None:
+            if current[1]["mapping_batch_state"]["schema_version"] == "broker_reports_ordinary_trade_mapping_batch_state_v3":
+                if current[1]["status"] == "MAPPING_OUTPUT_INVALID":
+                    return self._result(current=current, context=context, provider_calls_this_turn=0)
+                binding = self._cases.case_binding(document_id=document_id, context=context)
+                return await self._run_batch_plan(
+                    document_id=document_id, context=context, binding=binding,
+                    current=current, confirmed=current[1]["confirmed_understandings"],
+                    provider_calls_this_turn=0,
+                    user_message=user_message,
+                )
             # A partial batch receipt was made under the retired multi-request
             # route. It cannot be resumed under the one-call contract.
             retired = self._cases.save_provider_terminal(
@@ -428,6 +439,20 @@ class OrdinaryTradeAutomaticMappingRuntime:
         except OrdinaryTradeSemanticMappingError as exc:
             if exc.code != "ordinary_trade_semantic_mapping_context_limit":
                 raise
+            try:
+                batch_plan = self._semantic.build_mapping_batch_plan(
+                    canonical=binding["canonical"], confirmed_understandings=confirmed,
+                    target_table_node_ids=target_table_node_ids,
+                )
+            except OrdinaryTradeSemanticMappingError as plan_error:
+                if plan_error.code != "ordinary_trade_semantic_mapping_context_limit":
+                    raise
+            else:
+                return await self._run_batch_plan(
+                    document_id=document_id, context=context, binding=binding,
+                    current=current, confirmed=confirmed, batch_plan=batch_plan,
+                    provider_calls_this_turn=0,
+                )
             saved = self._cases.save_provider_terminal(
                 document_id=document_id,
                 context=context,
@@ -621,6 +646,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
         confirmed: list[dict[str, Any]],
         batch_plan: dict[str, Any] | None = None,
         provider_calls_this_turn: int,
+        user_message: str = "",
     ) -> dict[str, Any]:
         """Execute only the next immutable package; never combine model calls."""
 
@@ -640,10 +666,16 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 code = getattr(exc, "code", "ordinary_trade_mapping_prompt_unavailable")
                 raise OrdinaryTradeAutomaticMappingError(str(code)) from exc
             state = {
-                "schema_version": "broker_reports_ordinary_trade_mapping_batch_state_v1",
+                "schema_version": "broker_reports_ordinary_trade_mapping_batch_state_v3",
                 "plan": copy.deepcopy(batch_plan),
                 "completed_batch_outcomes": [],
                 "pending_batch_id": None,
+                "started_batch_id": None,
+                "attempt_token": None,
+                "plan_sha256": _sha256_json(batch_plan),
+                "execution_binding_sha256": self._batch_execution_binding(binding, confirmed),
+                "base_decision_sha256": [item["decision_sha256"] for item in confirmed],
+                "base_confirmed_sha256": _sha256_json(confirmed),
             }
             current = self._cases.save_batch_state(
                 document_id=document_id,
@@ -656,12 +688,46 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
         else:
             snapshot = current[1].get("mapping_prompt_snapshot")
+            base_count = len(state["base_decision_sha256"])
+            transport_confirmed = confirmed[:base_count]
+            answered_batches = {item["batch_id"] for item in state["completed_batch_outcomes"]}
+            answered_batches.add(state["pending_batch_id"])
+            answered_tables = {
+                table_id for batch in state["plan"]["batches"]
+                if batch["batch_id"] in answered_batches
+                for table_id in batch["target_table_node_ids"]
+            }
+            appended_assertions_valid = all(
+                item["decision"].get("decision_kind") == "USER_PROVIDED_CURRENCY"
+                and item["decision"].get("table_node_ids")
+                and set(item["decision"]["table_node_ids"]).issubset(answered_tables)
+                for item in confirmed[base_count:]
+            )
+            if (
+                state["started_batch_id"] is not None
+                or state["plan_sha256"] != _sha256_json(state["plan"])
+                or [item["decision_sha256"] for item in transport_confirmed] != state["base_decision_sha256"]
+                or _sha256_json(transport_confirmed) != state["base_confirmed_sha256"]
+                or state["execution_binding_sha256"] != self._batch_execution_binding(binding, transport_confirmed)
+                or not appended_assertions_valid
+            ):
+                saved = self._cases.save_batch_state(
+                    document_id=document_id, context=context, status="MAPPING_OUTPUT_INVALID",
+                    message="The batch attempt is indeterminate or its pinned scope changed.",
+                    mapping_batch_state=state, provider_calls_total=0,
+                    pending_candidate=current[1].get("pending_candidate"),
+                    mapping_prompt_snapshot=snapshot,
+                    reason_code="ordinary_trade_mapping_batch_resume_unsafe",
+                )
+                return self._result(current=saved, context=context, provider_calls_this_turn=provider_calls_this_turn)
+            if state["pending_batch_id"] is not None:
+                return await self._resume_batch_currency(
+                    document_id=document_id, context=context, current=current,
+                    user_message=user_message,
+                )
             try:
                 prompt = await self._resolve_mapping_prompt(context=context)
-                if validate_ordinary_trade_mapping_prompt_snapshot(prompt.snapshot()) != snapshot:
-                    raise OrdinaryTradeAutomaticMappingError(
-                        "ordinary_trade_mapping_batch_prompt_snapshot_mismatch"
-                    )
+                resolved_snapshot = validate_ordinary_trade_mapping_prompt_snapshot(prompt.snapshot())
             except Exception as exc:
                 code = getattr(exc, "code", "ordinary_trade_mapping_prompt_unavailable")
                 saved = self._cases.save_batch_state(
@@ -679,6 +745,22 @@ class OrdinaryTradeAutomaticMappingRuntime:
                     context=context,
                     provider_calls_this_turn=provider_calls_this_turn,
                 )
+            if resolved_snapshot != snapshot:
+                saved = self._cases.save_batch_state(
+                    document_id=document_id,
+                    context=context,
+                    status="MAPPING_OUTPUT_INVALID",
+                    message="The resolved instruction differs from the pinned batch instruction.",
+                    mapping_batch_state=state,
+                    provider_calls_total=0,
+                    mapping_prompt_snapshot=snapshot,
+                    reason_code="ordinary_trade_mapping_batch_prompt_snapshot_mismatch",
+                )
+                return self._result(
+                    current=saved, context=context,
+                    provider_calls_this_turn=provider_calls_this_turn,
+                )
+        transport_confirmed = confirmed[:len(state["base_decision_sha256"])]
         plan = state["plan"]
         completed = state["completed_batch_outcomes"]
         completed_ids = {item["batch_id"] for item in completed}
@@ -692,6 +774,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 canonical_binding=binding["canonical_binding"],
                 user_scope_sha256=binding["user_scope_sha256"],
                 confirmed_understandings=confirmed,
+                transport_confirmed_understandings=transport_confirmed,
                 batch_plan=plan,
                 batch_outcomes=completed,
                 frozen_mappings=self._frozen_mappings,
@@ -738,7 +821,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
             )
         package = self._semantic.build_mapping_package(
             canonical=binding["canonical"],
-            confirmed_understandings=confirmed,
+            confirmed_understandings=transport_confirmed,
             target_table_node_ids=next_batch["target_table_node_ids"],
         )
         if _sha256_json(package) != next_batch["mapping_package_sha256"]:
@@ -753,24 +836,35 @@ class OrdinaryTradeAutomaticMappingRuntime:
                 reason_code="ordinary_trade_mapping_batch_plan_integrity_invalid",
             )
             return self._result(current=saved, context=context, provider_calls_this_turn=provider_calls_this_turn)
+        # The existing immutable case revision is the durable attempt claim.
+        # A unique token makes concurrent claims conflict instead of replay.
+        state = copy.deepcopy(state)
+        state["started_batch_id"] = next_batch["batch_id"]
+        state["attempt_token"] = secrets.token_hex(16)
+        current = self._cases.save_batch_state(
+            document_id=document_id, context=context, status="MAPPING_REQUIRED",
+            message="One mapping batch attempt is started.", mapping_batch_state=state,
+            provider_calls_total=0, mapping_prompt_snapshot=snapshot,
+        )
         try:
             response = await self._model_client.extract(
                 prompt=prompt,
                 package=package,
                 model_id=self._model_id,
-                response_format=self._semantic.mapping_response_format(),
+                response_format=self._mapping_response_format(),
             )
             require_strict_json_schema_response(
                 response,
                 error_code="ordinary_trade_mapping_strict_output_required",
                 error_message="Semantic mapping requires one strict output without repair",
             )
-            if self._semantic.mapping_response_contract_failure_code(response) is not None:
+            validated_response = self._expand_mapping_response_to_v13(response=response, package=package)
+            if self._semantic.mapping_response_contract_failure_code(validated_response) is not None:
                 raise OrdinaryTradeSemanticMappingError(
                     "ordinary_trade_semantic_mapping_response_invalid"
                 )
             outcome = self._semantic.validate_mapping_response(
-                response=response,
+                response=validated_response,
                 canonical=binding["canonical"],
                 canonical_binding=binding["canonical_binding"],
                 model_id=self._model_id,
@@ -796,6 +890,8 @@ class OrdinaryTradeAutomaticMappingRuntime:
             return self._result(current=saved, context=context, provider_calls_this_turn=provider_calls_this_turn + 1)
         if outcome["status"] == "CURRENCY_ASSERTION_REQUIRED":
             state["pending_batch_id"] = next_batch["batch_id"]
+            state["started_batch_id"] = None
+            state["attempt_token"] = None
             saved = self._cases.save_batch_state(
                 document_id=document_id,
                 context=context,
@@ -811,7 +907,7 @@ class OrdinaryTradeAutomaticMappingRuntime:
             saved = self._cases.save_batch_state(
                 document_id=document_id,
                 context=context,
-                status=("SPECIALIST_REVIEW_REQUIRED" if outcome["status"] == "CLARIFICATION_REQUIRED" else outcome["status"]),
+                status=("SPECIALIST_REVIEW_REQUIRED" if outcome["status"] in {"CLARIFICATION_REQUIRED", "CURRENCY_ASSERTION_REQUIRED"} else outcome["status"]),
                 message=outcome["message"],
                 mapping_batch_state=state,
                 provider_calls_total=1,
@@ -823,6 +919,8 @@ class OrdinaryTradeAutomaticMappingRuntime:
             {"batch_id": next_batch["batch_id"], "outcome": copy.deepcopy(outcome)}
         )
         state["pending_batch_id"] = None
+        state["started_batch_id"] = None
+        state["attempt_token"] = None
         current = self._cases.save_batch_state(
             document_id=document_id,
             context=context,
@@ -841,30 +939,78 @@ class OrdinaryTradeAutomaticMappingRuntime:
             provider_calls_this_turn=provider_calls_this_turn + 1,
         )
 
+    def _batch_execution_binding(self, binding, confirmed):
+        return _sha256_json({
+            "canonical_binding": binding["canonical_binding"],
+            "user_scope_sha256": binding["user_scope_sha256"],
+            "confirmed_understandings": confirmed,
+            "model_id": self._model_id,
+            "provider_profile_id": self._provider_profile_id,
+            "response_format": self._mapping_response_format(),
+        })
+
     async def _resume_batch_currency(self, *, document_id, context, current, user_message):
-        currency_code = _user_currency_code(user_message)
-        if currency_code is None:
-            return self._result(current=current, context=context, provider_calls_this_turn=0)
         plan = current[1]["pending_candidate"]
-        table_node_ids = _currency_plan_table_node_ids(plan)
-        saved_assertion = self._cases.record_user_currency_assertion(
-            document_id=document_id, context=context, currency_code=currency_code,
+        batch_state = current[1]["mapping_batch_state"]
+        try:
+            self._cases.validate_batch_currency_candidate(batch_state, plan)
+            table_node_ids = _currency_plan_table_node_ids(plan)
+        except Exception as exc:
+            saved = self._cases.save_batch_state(
+                document_id=document_id, context=context, status="MAPPING_OUTPUT_INVALID",
+                reason_code=getattr(exc, "code", "ordinary_trade_mapping_batch_currency_scope_invalid"),
+                message="The saved currency request does not match its batch.",
+                mapping_batch_state=batch_state, pending_candidate=plan,
+                provider_calls_total=0, mapping_prompt_snapshot=current[1]["mapping_prompt_snapshot"],
+            )
+            return self._result(current=saved, context=context, provider_calls_this_turn=0)
+        prior_currency = _confirmed_currency_code(
+            confirmed_understandings=current[1]["confirmed_understandings"],
             table_node_ids=table_node_ids,
         )
+        currency_code = _user_currency_code(user_message)
+        if prior_currency is not None and currency_code is not None and prior_currency != currency_code:
+            return self._result(current=current, context=context, provider_calls_this_turn=0)
+        if current[1]["status"] == "MAPPING_REQUIRED" and prior_currency is not None:
+            saved_assertion = current
+        elif currency_code is None:
+            return self._result(current=current, context=context, provider_calls_this_turn=0)
+        elif prior_currency is not None:
+            saved_assertion = self._cases.resume_existing_currency_assertion(
+                document_id=document_id, context=context, currency_code=currency_code,
+                table_node_ids=table_node_ids,
+            )
+        else:
+            saved_assertion = self._cases.record_user_currency_assertion(
+                document_id=document_id, context=context, currency_code=currency_code,
+                table_node_ids=table_node_ids,
+            )
         state = copy.deepcopy(saved_assertion[1]["mapping_batch_state"])
         batch_id = state["pending_batch_id"]
         batch = next(item for item in state["plan"]["batches"] if item["batch_id"] == batch_id)
         binding = self._cases.case_binding(document_id=document_id, context=context)
-        response = dict(plan["response"])
-        response["status"] = "COMPLETE"
-        outcome = self._semantic.validate_mapping_response(
-            response=response, canonical=binding["canonical"], canonical_binding=binding["canonical_binding"],
-            model_id=self._model_id, provider_profile_id=self._provider_profile_id,
-            execution_metadata=plan["execution_metadata"],
-            confirmed_understandings=saved_assertion[1]["confirmed_understandings"],
-            user_scope_sha256=binding["user_scope_sha256"],
-            target_table_node_ids=batch["target_table_node_ids"], frozen_mappings=self._frozen_mappings,
-        )
+        try:
+            response = dict(plan["response"])
+            response["status"] = "COMPLETE"
+            outcome = self._semantic.validate_mapping_response(
+                response=response, canonical=binding["canonical"], canonical_binding=binding["canonical_binding"],
+                model_id=self._model_id, provider_profile_id=self._provider_profile_id,
+                execution_metadata=plan["execution_metadata"],
+                confirmed_understandings=saved_assertion[1]["confirmed_understandings"],
+                user_scope_sha256=binding["user_scope_sha256"],
+                target_table_node_ids=batch["target_table_node_ids"], frozen_mappings=self._frozen_mappings,
+            )
+            if outcome["status"] != "COMPLETE":
+                raise OrdinaryTradeAutomaticMappingError("ordinary_trade_mapping_batch_currency_replay_incomplete")
+        except Exception as exc:
+            saved = self._cases.save_batch_state(
+                document_id=document_id, context=context, status="MAPPING_OUTPUT_INVALID",
+                reason_code=getattr(exc, "code", "ordinary_trade_mapping_batch_currency_replay_invalid"),
+                message="The saved currency response did not complete the batch.",
+                mapping_batch_state=state, pending_candidate=plan,
+                provider_calls_total=0, mapping_prompt_snapshot=saved_assertion[1]["mapping_prompt_snapshot"],
+            )
+            return self._result(current=saved, context=context, provider_calls_this_turn=0)
         state["completed_batch_outcomes"].append({"batch_id": batch_id, "outcome": outcome})
         state["pending_batch_id"] = None
         resumed = self._cases.save_batch_state(
