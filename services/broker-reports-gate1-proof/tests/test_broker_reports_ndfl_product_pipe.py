@@ -2050,6 +2050,11 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     pipe.valves.ordinary_trade_mapping_prompt_command = ""
     pipe.valves.ordinary_trade_mapping_prompt_version = "history-1"
     pipe.valves.ordinary_trade_mapping_prompt_hash = "a" * 64
+    pipe.valves.ordinary_trade_instructional_classification_enabled = True
+    pipe.valves.ordinary_trade_instructional_prompt_id = "pinned-instructional-prompt"
+    pipe.valves.ordinary_trade_instructional_prompt_command = ""
+    pipe.valves.ordinary_trade_instructional_prompt_version = "history-2"
+    pipe.valves.ordinary_trade_instructional_prompt_hash = "b" * 64
     captured: dict[str, object] = {}
 
     class Resolver:
@@ -2063,6 +2068,18 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
         @staticmethod
         def create_async():
             return Resolver()
+
+    class InstructionalResolver:
+        def resolve(self, _user):
+            raise AssertionError("Pipe must not resolve or read the Prompt")
+
+    class InstructionalPromptResolverFactory:
+        def __init__(self, config):
+            captured["instructional_config"] = config
+
+        @staticmethod
+        def create_async():
+            return InstructionalResolver()
 
     class ModelClientFactory:
         def __init__(self, **_kwargs):
@@ -2092,6 +2109,11 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     monkeypatch.setattr(
         product_pipe, "OrdinaryTradeMappingPromptResolverFactory", PromptResolverFactory
     )
+    monkeypatch.setattr(
+        product_pipe,
+        "InstructionalClassificationPromptResolverFactory",
+        InstructionalPromptResolverFactory,
+    )
     monkeypatch.setattr(product_pipe, "Gate2StructuredModelClientFactory", ModelClientFactory)
     monkeypatch.setattr(product_pipe, "OrdinaryTradeProductionRuntimeFactory", ProductionFactory)
 
@@ -2116,6 +2138,14 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     assert config.release_prompt_hash == "a" * 64
     runtime_kwargs = captured["runtime_kwargs"]
     assert isinstance(runtime_kwargs["mapping_prompt_resolver"], Resolver)
+    assert isinstance(
+        runtime_kwargs["instructional_prompt_resolver"], InstructionalResolver
+    )
+    instructional_config = captured["instructional_config"]
+    assert instructional_config.prompt_id == "pinned-instructional-prompt"
+    assert instructional_config.command is None
+    assert instructional_config.release_prompt_version == "history-2"
+    assert instructional_config.release_prompt_hash == "b" * 64
     user_context_factory = runtime_kwargs["mapping_prompt_user_context_factory"]
     user_context = user_context_factory(context)
     assert user_context.user_id == context.user_id
@@ -2124,6 +2154,44 @@ def test_mapping_prompt_dependencies_are_valve_bound_and_not_resolved_by_pipe(
     with pytest.raises(NdflWorkflowError) as foreign_scope:
         user_context_factory(replace(context, user_id="foreign-user"))
     assert foreign_scope.value.code == "ordinary_trade_mapping_prompt_user_scope_invalid"
+
+
+def test_instructional_prompt_resolver_is_independently_release_pinned(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipe = Pipe()
+    pipe.valves.ordinary_trade_instructional_prompt_id = "pinned-instructional"
+    pipe.valves.ordinary_trade_instructional_prompt_command = ""
+    pipe.valves.ordinary_trade_instructional_prompt_version = "history-2"
+    pipe.valves.ordinary_trade_instructional_prompt_hash = "b" * 64
+    captured: dict[str, object] = {}
+
+    class Resolver:
+        pass
+
+    class PromptResolverFactory:
+        def __init__(self, config):
+            captured["config"] = config
+
+        @staticmethod
+        def create_async():
+            return Resolver()
+
+    monkeypatch.setattr(
+        product_pipe,
+        "InstructionalClassificationPromptResolverFactory",
+        PromptResolverFactory,
+    )
+
+    resolver = pipe._ordinary_trade_instructional_prompt_resolver()
+
+    config = captured["config"]
+    assert isinstance(resolver, Resolver)
+    assert config.source == "openwebui_server"
+    assert config.prompt_id == "pinned-instructional"
+    assert config.command is None
+    assert config.release_prompt_version == "history-2"
+    assert config.release_prompt_hash == "b" * 64
 
 
 def test_mapping_prompt_dependencies_fail_closed_without_a_valve_binding() -> None:
