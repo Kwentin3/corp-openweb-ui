@@ -835,6 +835,14 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     allowed_support_modules = {
         (
             "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "instructional_table_classification.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
+            "instructional_table_classification_prompt.py"
+        ),
+        (
+            "services/broker-reports-gate1-proof/broker_reports_gate1/"
             "ordinary_trade_declaration_chat_adapter.py"
         ),
         (
@@ -1234,6 +1242,9 @@ def test_17_new_package_module_is_declared_and_ci_runs_this_suite() -> None:
     ):
         assert gate3_suite in workflow
     for qualification_suite in (
+        "tests/test_goal391_instructional_case_state.py",
+        "tests/test_goal391_instructional_prompt.py",
+        "tests/test_goal391_instructional_admission.py",
         "tests/test_broker_reports_goal391_role_mapping_sandbox_corpus.py",
         "tests/test_broker_reports_ordinary_trade_mapping_qualification.py",
         "tests/test_broker_reports_goal391_live_mapping_qualification.py",

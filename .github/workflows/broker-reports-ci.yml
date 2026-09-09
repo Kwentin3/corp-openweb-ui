@@ -211,6 +211,9 @@ jobs:
           tests/test_broker_reports_issue312_semantic_mapping_contract.py
           tests/test_broker_reports_issue312_mapping_case.py
           tests/test_broker_reports_issue312_mapping_runtime.py
+          tests/test_goal391_instructional_case_state.py
+          tests/test_goal391_instructional_prompt.py
+          tests/test_goal391_instructional_admission.py
           tests/test_broker_reports_goal391_role_mapping_sandbox_corpus.py
           tests/test_broker_reports_ordinary_trade_mapping_qualification.py
           tests/test_broker_reports_goal391_live_mapping_qualification.py
