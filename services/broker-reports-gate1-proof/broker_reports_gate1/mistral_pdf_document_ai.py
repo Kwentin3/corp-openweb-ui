@@ -270,6 +270,8 @@ class MistralPdfDocumentExtractor:
         except HTTPError as exc:
             if exc.code in {401, 403}:
                 code = "PDF_DOCUMENT_AI_AUTH_FAILED"
+            elif exc.code == 402:
+                code = "PDF_DOCUMENT_AI_PAYMENT_REQUIRED"
             elif exc.code == 429:
                 code = "PDF_DOCUMENT_AI_RATE_LIMITED"
             elif 500 <= exc.code <= 599:

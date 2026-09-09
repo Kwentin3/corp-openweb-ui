@@ -675,6 +675,7 @@ def test_missing_or_broken_image_fails_and_leaves_no_batch(
     (
         (401, "PDF_DOCUMENT_AI_AUTH_FAILED"),
         (403, "PDF_DOCUMENT_AI_AUTH_FAILED"),
+        (402, "PDF_DOCUMENT_AI_PAYMENT_REQUIRED"),
         (429, "PDF_DOCUMENT_AI_RATE_LIMITED"),
         (500, "PDF_DOCUMENT_AI_PROVIDER_UNAVAILABLE"),
         (503, "PDF_DOCUMENT_AI_PROVIDER_UNAVAILABLE"),

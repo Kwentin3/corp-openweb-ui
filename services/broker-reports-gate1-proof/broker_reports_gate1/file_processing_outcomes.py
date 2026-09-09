@@ -153,6 +153,12 @@ _REASON_POLICIES: dict[tuple[str, str], _ReasonPolicy] = {
         "PDF Document AI is not configured. Contact the administrator.",
         frozenset({"document_profiling"}),
     ),
+    ("failed", "PDF_DOCUMENT_AI_PAYMENT_REQUIRED"): _ReasonPolicy(
+        False,
+        "contact_operator",
+        "PDF загружен, но сервис распознавания сейчас не может обработать его из-за оплаты на стороне сервиса. Файл не повреждён. Обратитесь к оператору.",
+        frozenset({"provider_call"}),
+    ),
     ("partial", "atom_budget_exceeded"): _ReasonPolicy(
         True,
         "use_partial_result",

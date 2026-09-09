@@ -200,7 +200,11 @@ def validate_artifacts(package: dict) -> dict:
     taxonomy_terminal_document_ids = {
         item.get("document_id")
         for item in blockers
-        if item.get("code") == "PDF_DOCUMENT_AI_NOT_CONFIGURED"
+        if item.get("code")
+        in {
+            "PDF_DOCUMENT_AI_NOT_CONFIGURED",
+            "PDF_DOCUMENT_AI_PAYMENT_REQUIRED",
+        }
     }
     profile_by_doc = {item.get("document_id"): item for item in profiles}
     document_by_id = {item.get("document_id"): item for item in documents}

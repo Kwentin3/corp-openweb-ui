@@ -114,6 +114,20 @@ class BrokerReportsFileProcessingOutcomesTest(unittest.TestCase):
         self.assertNotIn("PDF_DOCUMENT_AI", outcome["user_message"])
         self.assertTrue(validate_file_processing_outcome(outcome)["passed"])
 
+    def test_pdf_document_ai_payment_required_is_safe_and_does_not_blame_the_pdf(self) -> None:
+        outcome = self.service.failed(
+            file_ref="upload_pdf_005",
+            stage="provider_call",
+            reason_code="PDF_DOCUMENT_AI_PAYMENT_REQUIRED",
+        ).safe_snapshot()
+
+        self.assertEqual(outcome["status"], "failed")
+        self.assertFalse(outcome["retryable"])
+        self.assertEqual(outcome["next_action"], "contact_operator")
+        self.assertIn("Файл не повреждён", outcome["user_message"])
+        self.assertNotIn("PDF_DOCUMENT_AI", outcome["user_message"])
+        self.assertTrue(validate_file_processing_outcome(outcome)["passed"])
+
     def test_private_diagnostic_is_separate_and_never_model_facing(self) -> None:
         private_marker = "PRIVATE-ACCOUNT-778899"
         secret_marker = "sk-secret-do-not-publish"

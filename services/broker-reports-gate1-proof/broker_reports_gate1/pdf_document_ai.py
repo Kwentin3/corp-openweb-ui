@@ -12,6 +12,7 @@ from typing import Any, Protocol, runtime_checkable
 PDF_DOCUMENT_EXTRACTION_SCHEMA_VERSION = "broker_reports_pdf_document_extraction_v3"
 PDF_DOCUMENT_AI_POLICY_VERSION = "broker_reports_pdf_document_ai_v3"
 PDF_DOCUMENT_AI_NOT_CONFIGURED = "PDF_DOCUMENT_AI_NOT_CONFIGURED"
+PDF_DOCUMENT_AI_PAYMENT_REQUIRED = "PDF_DOCUMENT_AI_PAYMENT_REQUIRED"
 _SAFE_TECHNICAL_SUMMARY_KEYS = {
     "document_bytes",
     "images_count",
@@ -361,7 +362,11 @@ def is_terminal_pdf_document_ai_request(
         str(blocker.get("document_id") or "")
         for blocker in blockers
         if (
-            blocker.get("code") == PDF_DOCUMENT_AI_NOT_CONFIGURED
+            blocker.get("code")
+            in {
+                PDF_DOCUMENT_AI_NOT_CONFIGURED,
+                PDF_DOCUMENT_AI_PAYMENT_REQUIRED,
+            }
             or (
                 blocker.get("code") == "parser_failed"
                 and str(

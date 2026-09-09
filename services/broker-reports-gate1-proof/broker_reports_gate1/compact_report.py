@@ -27,6 +27,7 @@ DOCUMENT_CLASS_LABELS = {
 
 BLOCKER_LABELS = {
     "PDF_DOCUMENT_AI_NOT_CONFIGURED": "PDF_DOCUMENT_AI_NOT_CONFIGURED: PDF Document AI is not configured.",
+    "PDF_DOCUMENT_AI_PAYMENT_REQUIRED": "PDF получен, но обработка остановлена из-за оплаты сервиса распознавания. Файл не повреждён; обратитесь к оператору.",
     "no_files": "Файлы не найдены. Прикрепите документы к сообщению.",
     "bytes_unavailable": "Не удалось прочитать содержимое загруженного файла.",
     "unsupported_format": "Формат файла пока не поддерживается для следующего шага.",

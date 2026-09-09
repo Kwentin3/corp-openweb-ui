@@ -109,6 +109,19 @@ def pdf_document_ai_not_configured(run_id: str, document_id: str) -> dict:
     )
 
 
+def pdf_document_ai_payment_required(run_id: str, document_id: str) -> dict:
+    return make_blocker(
+        run_id=run_id,
+        document_id=document_id,
+        code="PDF_DOCUMENT_AI_PAYMENT_REQUIRED",
+        severity="error",
+        blocks_next_gate=True,
+        created_by_step="pdf_document_extraction",
+        safe_message="PDF Document AI payment is required before processing can continue.",
+        review_action="contact_pdf_document_ai_operator",
+    )
+
+
 def zip_requires_review(run_id: str, document_id: str) -> dict:
     return make_blocker(
         run_id=run_id,

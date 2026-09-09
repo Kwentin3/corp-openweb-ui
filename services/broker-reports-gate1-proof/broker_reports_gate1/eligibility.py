@@ -287,6 +287,11 @@ def _entry_for_document(
         reason_codes.add("PDF_DOCUMENT_AI_NOT_CONFIGURED")
         review_action = "configure_and_qualify_pdf_document_ai_adapter"
         terminal = True
+    elif "PDF_DOCUMENT_AI_PAYMENT_REQUIRED" in blocker_codes:
+        source_eligibility = "excluded_from_gate2"
+        reason_codes.add("PDF_DOCUMENT_AI_PAYMENT_REQUIRED")
+        review_action = "contact_pdf_document_ai_operator"
+        terminal = True
     elif (
         "duplicate_review" in blocker_codes or document.get("duplicate_of_document_id")
     ) and not duplicate_resolved_as_canonical and duplicate_auto_resolution.get("is_canonical") is not True:

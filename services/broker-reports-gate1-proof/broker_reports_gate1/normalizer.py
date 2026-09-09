@@ -30,6 +30,7 @@ from .full_source import FullSourceArtifactConfig, FullSourceArtifactFactory
 from .inputs import FileInput
 from .pdf_document_ai import (
     PDF_DOCUMENT_AI_NOT_CONFIGURED,
+    PDF_DOCUMENT_AI_PAYMENT_REQUIRED,
     PdfDocumentExtractionError,
     PdfDocumentExtractor,
     PdfDocumentExtractorFactory,
@@ -57,7 +58,10 @@ from .validators import (
 )
 
 
-_TERMINAL_PDF_DOCUMENT_AI_CODES = {PDF_DOCUMENT_AI_NOT_CONFIGURED}
+_TERMINAL_PDF_DOCUMENT_AI_CODES = {
+    PDF_DOCUMENT_AI_NOT_CONFIGURED,
+    PDF_DOCUMENT_AI_PAYMENT_REQUIRED,
+}
 
 
 @dataclass
@@ -335,6 +339,12 @@ class Gate1Normalizer:
                     if exc.code == PDF_DOCUMENT_AI_NOT_CONFIGURED:
                         doc_blockers.append(
                             blocker_factory.pdf_document_ai_not_configured(run_id, doc_id)
+                        )
+                    elif exc.code == PDF_DOCUMENT_AI_PAYMENT_REQUIRED:
+                        doc_blockers.append(
+                            blocker_factory.pdf_document_ai_payment_required(
+                                run_id, doc_id
+                            )
                         )
                     else:
                         doc_blockers.append(
@@ -946,6 +956,7 @@ class Gate1Normalizer:
             ("parser_failed", "parsing"),
             ("unsupported_format", "container_detection"),
             (PDF_DOCUMENT_AI_NOT_CONFIGURED, "document_profiling"),
+            (PDF_DOCUMENT_AI_PAYMENT_REQUIRED, "provider_call"),
         )
         partial_codes = {
             "raster_requires_ocr_or_review",
@@ -1009,6 +1020,8 @@ class Gate1Normalizer:
             return "verify_pipe_byte_access_boundary"
         if PDF_DOCUMENT_AI_NOT_CONFIGURED in codes:
             return "configure_pdf_document_ai"
+        if PDF_DOCUMENT_AI_PAYMENT_REQUIRED in codes:
+            return "contact_pdf_document_ai_operator"
         mode = gate2_handoff.get("handoff_mode")
         if mode == "reduced_subset_ready_for_gate2":
             return "continue_with_reduced_gate2_subset_after_specialist_confirmation"

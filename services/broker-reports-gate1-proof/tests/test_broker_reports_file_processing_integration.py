@@ -33,6 +33,11 @@ class _ImageLimitPdfExtractor:
         raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_IMAGE_LIMIT_EXCEEDED")
 
 
+class _PaymentRequiredPdfExtractor:
+    def extract(self, _pdf_bytes: bytes, _source_context: object) -> object:
+        raise PdfDocumentExtractionError("PDF_DOCUMENT_AI_PAYMENT_REQUIRED")
+
+
 def _synthetic_pdf_bytes() -> bytes:
     output = BytesIO()
     writer = PdfWriter()
@@ -179,6 +184,33 @@ class BrokerReportsFileProcessingIntegrationTest(unittest.TestCase):
         self.assertEqual(outcome["next_action"], "reduce_document_scope")
         self.assertIn("безопасный лимит", outcome["user_message"])
         self.assertNotIn("PDF_DOCUMENT_AI", outcome["user_message"])
+
+    def test_pdf_document_ai_payment_required_is_terminal_without_claiming_corrupt_pdf(self) -> None:
+        result = Gate1Normalizer(
+            _pdf_document_extractor=_PaymentRequiredPdfExtractor()
+        ).normalize(
+            [
+                FileInput.from_bytes(
+                    private_ref="private-payment-pdf",
+                    filename="customer-report.pdf",
+                    content=_synthetic_pdf_bytes(),
+                    mime_type="application/pdf",
+                )
+            ]
+        )
+
+        outcome = result.safe_report["file_processing_outcomes"]["outcomes"][0]
+        self.assertEqual(outcome["reason_code"], "PDF_DOCUMENT_AI_PAYMENT_REQUIRED")
+        self.assertEqual(outcome["stage"], "provider_call")
+        self.assertFalse(outcome["retryable"])
+        self.assertEqual(outcome["next_action"], "contact_operator")
+        self.assertIn("Файл не повреждён", outcome["user_message"])
+        self.assertNotIn("или имеет неверную структуру", outcome["user_message"])
+        self.assertIn(
+            "PDF_DOCUMENT_AI_PAYMENT_REQUIRED",
+            {item["code"] for item in result.package["normalization_blockers"]},
+        )
+        self.assertEqual(result.package["normalization_run"]["run_status"], "failed_safe")
 
 
 if __name__ == "__main__":
