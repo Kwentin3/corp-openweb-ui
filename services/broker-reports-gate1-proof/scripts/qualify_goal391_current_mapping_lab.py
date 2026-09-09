@@ -395,6 +395,10 @@ def _preflight(
     ):
         raise SystemExit("goal391_expectations_invalid")
     cases = []
+    requires_model_selected_evidence = (
+        candidate.get("prompt_output_schema_version")
+        == MAPPING_RESPONSE_SCHEMA_VERSION
+    )
     for expected in expectations["cases"]:
         snapshot_id = expected.get("snapshot_id")
         if not isinstance(snapshot_id, str) or not snapshot_id:
@@ -403,13 +407,24 @@ def _preflight(
         if not snapshot_path.is_file():
             snapshot_path = corpus_root / "canonical" / f"{snapshot_id}.json"
         canonical = _read_json(snapshot_path)
-        cases.append(_fixture(canonical=canonical, expected=expected))
+        cases.append(
+            _fixture(
+                canonical=canonical,
+                expected=expected,
+                requires_model_selected_evidence=requires_model_selected_evidence,
+            )
+        )
     if len({case["case_id"] for case in cases}) != len(cases):
         raise SystemExit("goal391_case_id_duplicate")
     return cases
 
 
-def _fixture(*, canonical: dict[str, Any], expected: Mapping[str, Any]) -> dict[str, Any]:
+def _fixture(
+    *,
+    canonical: dict[str, Any],
+    expected: Mapping[str, Any],
+    requires_model_selected_evidence: bool = False,
+) -> dict[str, Any]:
     required = {
         "case_id",
         "confirmed_understandings",
@@ -423,7 +438,10 @@ def _fixture(*, canonical: dict[str, Any], expected: Mapping[str, Any]) -> dict[
     }
     if set(expected) != required:
         raise SystemExit("goal391_expectation_case_invalid")
-    _validate_expected_assessment(expected["expected_assessment"])
+    _validate_expected_assessment(
+        expected["expected_assessment"],
+        requires_model_selected_evidence=requires_model_selected_evidence,
+    )
     source = canonical.get("source") or {}
     if validate_canonical_artifact(canonical).get("passed") is not True:
         raise SystemExit("goal391_canonical_invalid")
@@ -901,7 +919,9 @@ def _resolve_mapping_prompt(
     )
 
 
-def _validate_expected_assessment(value: Any) -> None:
+def _validate_expected_assessment(
+    value: Any, *, requires_model_selected_evidence: bool = False
+) -> None:
     required = {
         "expected_status",
         "required_table_decisions",
@@ -949,6 +969,11 @@ def _validate_expected_assessment(value: Any) -> None:
                     )
                     is None
                 )
+            )
+            or (
+                requires_model_selected_evidence
+                and disposition == "NO_NAMED_CONSUMER"
+                and "classification_evidence" not in decision
             )
         ):
             raise SystemExit("goal391_expected_assessment_invalid")

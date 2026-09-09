@@ -558,6 +558,29 @@ def test_lab_requires_an_exact_nonempty_unique_evidence_list_in_frozen_expectati
         assert str(exc.value) == "goal391_expected_assessment_invalid"
 
 
+def test_lab_v9_requires_frozen_model_selected_evidence_for_an_exclusion() -> None:
+    runner = _lab_runner_module()
+    assessment = {
+        "expected_status": "COMPLETE",
+        "required_table_decisions": [
+            {
+                "table_node_id": "node_reference",
+                "disposition": "NO_NAMED_CONSUMER",
+                "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+            }
+        ],
+        "unresolved_table_node_ids": [],
+        "forbidden_qualified_mapping_table_node_ids": [],
+    }
+
+    with pytest.raises(SystemExit) as exc:
+        runner._validate_expected_assessment(
+            assessment, requires_model_selected_evidence=True
+        )
+
+    assert str(exc.value) == "goal391_expected_assessment_invalid"
+
+
 @pytest.mark.parametrize(
     "actual_evidence",
     [

@@ -310,6 +310,16 @@ def test_private_context_audit_proves_window_omission_without_model_leakage() ->
         ]
     }
 
+
+def _selected_classification_evidence(canonical, table_node_id):
+    surface = next(
+        item
+        for item in _table_surfaces(canonical)
+        if item["table_node_id"] == table_node_id
+    )
+    source = surface["source_context_evidence"][0]
+    return [{"context_ref": source["context_ref"], "relation": source["relation"]}]
+
     private_table = _table_surfaces(canonical)[0]
     audit = private_table["source_context_audit"]
 
@@ -675,6 +685,9 @@ def test_mapping_response_schema_rejects_material_for_non_trade_table() -> None:
                 "side_values": [],
                 "row_dispositions": [],
                 "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+                "classification_evidence": [
+                    {"context_ref": "context_1", "relation": "TABLE_TITLE"}
+                ],
             }
         ],
         "clarification": None,
@@ -703,6 +716,9 @@ def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
         "side_values": [],
         "row_dispositions": [],
         "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+        "classification_evidence": [
+            {"context_ref": "context_1", "relation": "TABLE_TITLE"}
+        ],
     }
     response = {
         "schema_version": MAPPING_RESPONSE_SCHEMA_VERSION,
@@ -712,11 +728,12 @@ def test_mapping_response_schema_requires_auditable_no_consumer_kind() -> None:
         "message": "The table is explanatory material.",
     }
 
-    validator.validate(response)
     decision["classification_evidence"] = []
     with pytest.raises(ValidationError):
         validator.validate(response)
-    del decision["classification_evidence"]
+    decision["classification_evidence"] = [
+        {"context_ref": "context_1", "relation": "TABLE_TITLE"}
+    ]
     del decision["no_consumer_kind"]
     with pytest.raises(ValidationError):
         validator.validate(response)
@@ -1005,6 +1022,9 @@ def test_mixed_tables_publish_complete_internal_table_classification(
             "side_values": [],
             "row_dispositions": [],
             "no_consumer_kind": "INSTRUCTIONAL_REFERENCE",
+            "classification_evidence": _selected_classification_evidence(
+                canonical, second["node_id"]
+            ),
         }
     )
 
@@ -1139,6 +1159,9 @@ def test_no_named_consumer_decisions_are_complete_and_auditable(tmp_path) -> Non
                 "side_values": [],
                 "row_dispositions": [],
                 "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+                "classification_evidence": _selected_classification_evidence(
+                    canonical, excluded["node_id"]
+                ),
             }
         )
 
@@ -1266,6 +1289,9 @@ def test_non_trade_disposition_rejects_mapping_material(tmp_path) -> None:
     response["table_decisions"][0]["no_consumer_kind"] = (
         "OTHER_NO_NAMED_CONSUMER"
     )
+    response["table_decisions"][0]["classification_evidence"] = (
+        _selected_classification_evidence(canonical, table["node_id"])
+    )
 
     with pytest.raises(OrdinaryTradeSemanticMappingError) as exc:
         OrdinaryTradeSemanticMappingFactory.create().validate_mapping_response(
@@ -1282,7 +1308,7 @@ def test_non_trade_disposition_rejects_mapping_material(tmp_path) -> None:
     assert exc.value.code == "ordinary_trade_semantic_mapping_non_trade_material_invalid"
 
 
-def test_no_consumer_binds_complete_owner_context_envelope(
+def test_no_consumer_binds_model_selected_canonical_context(
     tmp_path,
 ) -> None:
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
@@ -1297,6 +1323,9 @@ def test_no_consumer_binds_complete_owner_context_envelope(
         "side_values": [],
         "row_dispositions": [],
         "no_consumer_kind": "OTHER_NO_NAMED_CONSUMER",
+        "classification_evidence": _selected_classification_evidence(
+            canonical, table["node_id"]
+        ),
     }
     owner = OrdinaryTradeSemanticMappingFactory.create()
     result = owner.validate_mapping_response(
@@ -1329,10 +1358,10 @@ def test_no_consumer_binds_complete_owner_context_envelope(
             confirmed_understandings=[],
             user_scope_sha256="a" * 64,
         )
-    assert exc.value.code == "ordinary_trade_semantic_mapping_table_decision_invalid"
+    assert exc.value.code == "ordinary_trade_semantic_mapping_classification_evidence_invalid"
 
 
-def test_no_consumer_envelope_is_owner_complete_and_v6_v7_replayable(tmp_path) -> None:
+def test_no_consumer_v9_preserves_selected_context_and_legacy_replays(tmp_path) -> None:
     _context, canonical, binding, table, known = _canonical_case(tmp_path)
     table["content"]["title"] = "Reference material"
     table["order"] = 1
@@ -1363,6 +1392,23 @@ def test_no_consumer_envelope_is_owner_complete_and_v6_v7_replayable(tmp_path) -
         ],
     }
     owner = OrdinaryTradeSemanticMappingFactory.create()
+    v9_response = copy.deepcopy(response)
+    v9_response["schema_version"] = MAPPING_RESPONSE_SCHEMA_VERSION
+    v9_result = owner.validate_mapping_response(
+        response=v9_response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+    assert [
+        item["context_ref"]
+        for item in v9_result["table_resolutions"][0]["classification_evidence"]
+    ] == ["context_1"]
+
     result = owner.validate_mapping_response(
         response=response,
         canonical=canonical,
@@ -1397,6 +1443,26 @@ def test_no_consumer_envelope_is_owner_complete_and_v6_v7_replayable(tmp_path) -
     assert [
         item["context_ref"]
         for item in v6_result["table_resolutions"][0]["classification_evidence"]
+    ] == ["context_1", "context_2"]
+
+    v8_response = copy.deepcopy(v9_response)
+    v8_response["schema_version"] = (
+        "broker_reports_ordinary_trade_semantic_mapping_response_v8"
+    )
+    del v8_response["table_decisions"][0]["classification_evidence"]
+    v8_result = owner.validate_mapping_response(
+        response=v8_response,
+        canonical=canonical,
+        canonical_binding=binding,
+        model_id="models/gemini-3.5-flash",
+        provider_profile_id="google_gemini",
+        execution_metadata=_metadata(),
+        confirmed_understandings=[],
+        user_scope_sha256="a" * 64,
+    )
+    assert [
+        item["context_ref"]
+        for item in v8_result["table_resolutions"][0]["classification_evidence"]
     ] == ["context_1", "context_2"]
 
     compiler = OrdinaryTradeSemanticCompilerFactory.create()

@@ -22,12 +22,23 @@ from .ordinary_trade_semantic_compiler import OrdinaryTradeSemanticCompilerFacto
 
 
 MAPPING_RESPONSE_SCHEMA_VERSION = (
-    "broker_reports_ordinary_trade_semantic_mapping_response_v8"
+    "broker_reports_ordinary_trade_semantic_mapping_response_v9"
 )
 _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS = frozenset(
     {
         "broker_reports_ordinary_trade_semantic_mapping_response_v6",
         "broker_reports_ordinary_trade_semantic_mapping_response_v7",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v8",
+    }
+)
+_MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
+    {MAPPING_RESPONSE_SCHEMA_VERSION}
+)
+_MODEL_SUPPLIED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS = frozenset(
+    {
+        "broker_reports_ordinary_trade_semantic_mapping_response_v6",
+        "broker_reports_ordinary_trade_semantic_mapping_response_v7",
+        *_MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS,
     }
 )
 ANSWER_RESPONSE_SCHEMA_VERSION = (
@@ -648,7 +659,11 @@ class OrdinaryTradeSemanticMapping:
                     allow_user_currency=True,
                     model_supplies_classification_evidence=(
                         value["schema_version"]
-                        in _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS
+                        in _MODEL_SUPPLIED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
+                    ),
+                    preserve_model_classification_evidence=(
+                        value["schema_version"]
+                        in _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
                     ),
                 )
                 for item in decisions
@@ -754,7 +769,11 @@ class OrdinaryTradeSemanticMapping:
                 user_currency_assertion=assertion,
                 model_supplies_classification_evidence=(
                     value["schema_version"]
-                    in _LEGACY_MAPPING_RESPONSE_SCHEMA_VERSIONS
+                    in _MODEL_SUPPLIED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
+                ),
+                preserve_model_classification_evidence=(
+                    value["schema_version"]
+                    in _MODEL_SELECTED_CLASSIFICATION_EVIDENCE_SCHEMA_VERSIONS
                 ),
             )
             resolved_decisions.append(resolved)
@@ -1805,6 +1824,7 @@ def _validate_table_decision(
     allow_user_currency: bool = False,
     allow_legacy_no_consumer: bool = False,
     model_supplies_classification_evidence: bool = False,
+    preserve_model_classification_evidence: bool = False,
 ) -> dict[str, Any]:
     base_fields = {
         "table_node_id",
@@ -1870,12 +1890,18 @@ def _validate_table_decision(
         # V6/V7 are immutable model replays.  Keep their old wire contracts
         # readable, including their model-selected subset, but never promote
         # that selection as provenance for a new resolved outcome.
-        _validated_classification_evidence(
+        model_evidence = _validated_classification_evidence(
             evidence=decision["classification_evidence"],
             table=table,
             allow_legacy_singleton=True,
         )
-    if no_consumer and not allow_legacy_no_consumer:
+        if preserve_model_classification_evidence:
+            classification_evidence = model_evidence
+    if (
+        no_consumer
+        and not allow_legacy_no_consumer
+        and not preserve_model_classification_evidence
+    ):
         classification_evidence = _classification_evidence_envelope(table=table)
     row = next(
         (item for item in table["rows"] if item["row"] == decision["header_row"]),
@@ -2572,6 +2598,15 @@ def _mapping_response_schema() -> dict[str, Any]:
             },
         },
     }
+    classification_evidence_pointer = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["context_ref", "relation"],
+        "properties": {
+            "context_ref": {"type": "string", "minLength": 1},
+            "relation": {"type": "string", "minLength": 1},
+        },
+    }
     no_named_consumer_table_decision = {
         "type": "object",
         "additionalProperties": False,
@@ -2584,6 +2619,7 @@ def _mapping_response_schema() -> dict[str, Any]:
             "side_values",
             "row_dispositions",
             "no_consumer_kind",
+            "classification_evidence",
         ],
         "properties": {
             **table_decision_common,
@@ -2595,6 +2631,11 @@ def _mapping_response_schema() -> dict[str, Any]:
             "no_consumer_kind": {
                 "type": "string",
                 "enum": sorted(_NO_CONSUMER_KINDS),
+            },
+            "classification_evidence": {
+                "type": "array",
+                "minItems": 1,
+                "items": classification_evidence_pointer,
             },
         },
     }
