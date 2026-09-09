@@ -10,7 +10,7 @@ import goal391_instructional_classification_contract as contract  # noqa: E402
 
 
 def _case():
-    return contract.build_case(table={"table_ref": "table_1", "header_row_choices": [1], "rows": [], "rows_total": 0, "rows_truncated": False, "source_context": [{"context_ref": "context_1", "relation": "PRECEDING_SAME_CONTAINER", "literal": "Example"}]})
+    return contract.build_case(table={"table_ref": "table_1", "header_row_choices": [1], "rows": [], "rows_total": 0, "rows_truncated": False, "column_distinct_values": [], "source_context": {"entries": [{"context_ref": "context_1", "relation": "PRECEDING_SAME_CONTAINER", "literal": "Example"}]}})
 
 
 def test_instructional_response_requires_selected_owner_context() -> None:

@@ -61,8 +61,9 @@ def response_format() -> dict[str, Any]:
 
 
 def build_case(*, table: Mapping[str, Any]) -> dict[str, Any]:
-    required = {"table_ref", "header_row_choices", "rows", "rows_total", "rows_truncated", "source_context"}
-    if set(table) != required or not isinstance(table.get("table_ref"), str) or not table["table_ref"] or not isinstance(table.get("source_context"), list):
+    required = {"table_ref", "header_row_choices", "rows", "rows_total", "rows_truncated", "source_context", "column_distinct_values"}
+    context = table.get("source_context")
+    if set(table) != required or not isinstance(table.get("table_ref"), str) or not table["table_ref"] or not isinstance(context, Mapping) or not isinstance(context.get("entries"), list):
         raise InstructionalClassificationContractError("instructional_classification_table_invalid")
     return {"schema_version": INPUT_SCHEMA_VERSION, "table": copy.deepcopy(dict(table))}
 
@@ -71,7 +72,8 @@ def validate_response(*, response: Any, case: Mapping[str, Any]) -> dict[str, An
     if not isinstance(response, dict) or set(response) != {"schema_version", "classification", "classification_evidence"} or response.get("schema_version") != OUTPUT_SCHEMA_VERSION or response.get("classification") not in _STATUSES or not isinstance(response.get("classification_evidence"), list):
         raise InstructionalClassificationContractError("instructional_classification_response_invalid")
     table = case.get("table") if isinstance(case, Mapping) else None
-    contexts = table.get("source_context") if isinstance(table, Mapping) else None
+    source_context = table.get("source_context") if isinstance(table, Mapping) else None
+    contexts = source_context.get("entries") if isinstance(source_context, Mapping) else None
     allowed = {(item.get("context_ref"), item.get("relation")) for item in contexts or [] if isinstance(item, dict)}
     evidence = response["classification_evidence"]
     pairs = []
