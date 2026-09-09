@@ -210,10 +210,10 @@ def test_native_lab_pipe_uses_only_factory_readers_for_server_bound_cases():
     assert "issue_from_source_files" in source
     assert "RightBank" not in source
     assert "Declaration" not in source
-    assert "generate_chat_completion" in source
-    assert "from open_webui.models.users import Users" in source
-    assert "Users.get_user_by_id(user_id)" in source
-    assert "completion_resolver=lambda _user_id: (completion, user_model)" in source
+    # The shared structured client owns the native OpenWebUI completion
+    # dependency.  The lab must not recreate an identity/provider bridge.
+    assert "completion_resolver=" not in source
+    assert "generate_chat_completion" not in source
     assert 'source="openwebui_server"' in source
     assert ".create_async().resolve(" in source
     assert "prompt_db_path" not in source

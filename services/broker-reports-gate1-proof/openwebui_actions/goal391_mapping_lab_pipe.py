@@ -600,19 +600,6 @@ class Pipe:
         return all(isinstance(value[key], list) for key in required - {"expected_status", "required_table_decisions"})
 
     async def _execute(self, *, cases, prompt, request: Any, user: Any) -> dict[str, Any]:
-        submissions = {"count": 0}
-        user_id = str(
-            user.get("id") if isinstance(user, Mapping) else getattr(user, "id", "")
-        ).strip()
-        completion_fn, user_model = self._openwebui_completion_dependencies(user_id=user_id)
-
-        async def completion(*, form_data: Mapping[str, Any], **_kwargs: Any):
-            self._require_stateless_form(form_data)
-            submissions["count"] += 1
-            # This is the native OpenWebUI provider route.  There is no SDK,
-            # key read, alternative client or persisted chat identity.
-            return await completion_fn(request, dict(form_data), user_model)
-
         client = Gate2StructuredModelClientFactory(
             config=Gate2StructuredModelClientConfig(
                 request_profile=ORDINARY_TRADE_SEMANTIC_MAPPING_REQUEST_PROFILE,
@@ -622,7 +609,6 @@ class Pipe:
             ),
             user=user,
             request=request,
-            completion_resolver=lambda _user_id: (completion, user_model),
         ).create()
         semantic = OrdinaryTradeSemanticMappingFactory.create()
         records: list[dict[str, Any]] = []
@@ -669,7 +655,7 @@ class Pipe:
         expected = len(cases)
         passed = (
             terminal_error is None
-            and submissions["count"] == expected
+            and lifecycle["provider_submissions_total"] == expected
             and lifecycle == {
                 "local_invocations_total": expected,
                 "provider_submissions_total": expected,
@@ -682,36 +668,13 @@ class Pipe:
             "status": "PASSED" if passed else "FAILED",
             "corpus": {
                 "cases_total": expected,
-                "provider_calls_started_total": submissions["count"],
+                "provider_calls_started_total": lifecycle["provider_submissions_total"],
                 "provider_calls_returned_total": lifecycle["provider_responses_total"],
                 "records": records,
             },
             "constraints": self._constraints(),
             "terminal_error": terminal_error,
         }
-
-    @staticmethod
-    def _openwebui_completion_dependencies(*, user_id: str) -> tuple[Any, Any]:
-        """Resolve the native completion owner and its persisted user model.
-
-        OpenWebUI passes Pipe hooks a plain user dictionary.  The shared
-        completion owner requires its native user model instead; crossing that
-        boundary through ``Users`` keeps this laboratory Pipe from emulating
-        identity or inventing a second provider client.
-        """
-
-        if not user_id:
-            raise Goal391MappingLabPipeError("goal391_lab_access_denied")
-        try:
-            from open_webui.utils.chat import generate_chat_completion as completion_fn
-        except Exception:
-            from open_webui.main import generate_chat_completions as completion_fn
-        from open_webui.models.users import Users
-
-        user_model = Users.get_user_by_id(user_id)
-        if user_model is None:
-            raise Goal391MappingLabPipeError("goal391_lab_access_denied")
-        return completion_fn, user_model
 
     @staticmethod
     def _require_stateless_form(form_data: Mapping[str, Any]) -> None:
